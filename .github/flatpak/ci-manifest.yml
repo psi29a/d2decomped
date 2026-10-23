@@ -14,6 +14,10 @@ finish-args:
   - --socket=pulseaudio
   - --filesystem=~/.local/share/Steam/userdata  # the launcher's Add to Steam: shortcuts.vdf + grid art
   - --filesystem=~/.steam/steam/userdata        # the same, where Steam keeps its own tree there
+  # Steam Input's pads: SDL reads which real pad is behind each virtual one
+  # (the Deck's own controls, 28de:1205) from the file SteamVirtualGamepadInfo
+  # names. Unread, every pad is a 28de:11ff virtual one and the Deck's play.
+  - --filesystem=~/.local/share/Steam/config/virtualgamepadinfo.txt:ro
 # Each dependency is its own module: flatpak-builder caches a module until
 # its recipe or sources change, so a commit rebuilds only d2decomped (whose
 # compiles ccache then mostly serves). Their headers and static archives are

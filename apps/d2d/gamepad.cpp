@@ -19,29 +19,59 @@ namespace {
 float axis(SDL_Gamepad* pad, SDL_GamepadAxis which) {
     return std::clamp(float(SDL_GetGamepadAxis(pad, which)) / 32767.f, -1.f, 1.f);
 }
+
+// Who's behind `pad.handle` as of now: SDL looks a Steam Input virtual pad's
+// real ids and name up in Steam's file each call, and Steam can put another
+// pad behind the same virtual one when pads come and go (it moves the
+// Deck's own controls to the last slot docked).
+void identify(Gamepads::Pad& pad) {
+    const Uint16 vendor = SDL_GetGamepadVendor(pad.handle), product = SDL_GetGamepadProduct(pad.handle);
+    const char* serial = SDL_GetGamepadSerial(pad.handle);
+    const char* name = SDL_GetGamepadName(pad.handle);
+    pad.name = name ? name : "unnamed pad";
+    pad.built_in = (vendor == 0x28de && product == 0x1205) || pad.name.contains("Steam Deck");
+    pad.key = std::format("{:04x}:{:04x}:{}", vendor, product, serial ? serial : "");
+    switch (SDL_GetGamepadType(pad.handle)) {
+        case SDL_GAMEPAD_TYPE_PS3: case SDL_GAMEPAD_TYPE_PS4: case SDL_GAMEPAD_TYPE_PS5: pad.family = pad::Family::PlayStation; break;
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO: case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT: case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: pad.family = pad::Family::Nintendo; break;
+        default: pad.family = pad.built_in ? pad::Family::Deck : pad::Family::Xbox; break;
+    }
+}
+
+void log_pad(const Gamepads::Pad& pad, std::string_view what) {
+    // What the Deck check rests on: the real device's ids and type, behind Steam Input's virtual pad.
+    d2d::log::info("gamepad: {} {} (id {}, key {}, type {}, real type {}{})", pad.name, what, pad.id, pad.key, int(SDL_GetGamepadType(pad.handle)),
+                   int(SDL_GetRealGamepadType(pad.handle)), pad.built_in ? ", the Deck's own" : "");
+}
 }
 
 void Gamepads::open(SDL_JoystickID id) {
     if (std::ranges::any_of(pads_, [&](const Pad& pad) { return pad.id == id; })) return;
     SDL_Gamepad* handle = SDL_OpenGamepad(id);
     if (!handle) { d2d::log::warn("gamepad: {}", SDL_GetError()); return; }
-    const Uint16 vendor = SDL_GetGamepadVendor(handle), product = SDL_GetGamepadProduct(handle);
-    const char* serial = SDL_GetGamepadSerial(handle);
-    const char* name = SDL_GetGamepadName(handle);
-    const std::string_view named = name ? name : "";
-    const bool deck = (vendor == 0x28de && product == 0x1205) || named.contains("Steam Deck");
-    Pad pad{ handle, id, deck, std::format("{:04x}:{:04x}:{}", vendor, product, serial ? serial : ""), name ? name : "unnamed pad" };
-    switch (SDL_GetGamepadType(handle)) {
-        case SDL_GAMEPAD_TYPE_PS3: case SDL_GAMEPAD_TYPE_PS4: case SDL_GAMEPAD_TYPE_PS5: pad.family = pad::Family::PlayStation; break;
-        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO: case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
-        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT: case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: pad.family = pad::Family::Nintendo; break;
-        default: pad.family = pad.built_in ? pad::Family::Deck : pad::Family::Xbox; break;
-    }
-    // What the Deck check rests on: the real device's ids and type, behind Steam Input's virtual pad.
-    d2d::log::info("gamepad: {} connected (id {}, vendor {:04x}, product {:04x}, type {}, real type {}, serial '{}'{})", name ? name : "unnamed pad", id,
-                   vendor, product, int(SDL_GetGamepadType(handle)), int(SDL_GetRealGamepadType(handle)), serial ? serial : "", pad.built_in ? ", the Deck's own" : "");
+    Pad pad{ handle, id };
+    identify(pad);
+    log_pad(pad, "connected");
     changes_.came.push_back(pad);
     pads_.push_back(std::move(pad));
+}
+
+// A pad that's someone else now (held kSettleMs, past Steam's reshuffle):
+// the one before went, this one came.
+void Gamepads::refresh(std::uint64_t now_ms) {
+    for (auto& pad : pads_) {
+        Pad now = pad;
+        identify(now);
+        if (now.key == pad.key && now.built_in == pad.built_in) { pad.name = now.name; pad.settling.clear(); continue; }
+        if (now.key != pad.settling) { pad.settling = now.key; pad.settle_from = now_ms; continue; }
+        if (now_ms - pad.settle_from < kSettleMs) continue;
+        log_pad(now, std::format("now behind id {} (was {})", pad.id, pad.name));
+        now.settling.clear();
+        changes_.went.push_back(pad);
+        changes_.came.push_back(now);
+        pad = std::move(now);
+    }
 }
 
 void Gamepads::close() {
@@ -67,7 +97,7 @@ void Gamepads::handle_event(const SDL_Event& event) {
     } else if (event.type == SDL_EVENT_GAMEPAD_REMOVED) {
         const auto gone = std::ranges::find(pads_, event.gdevice.which, &Pad::id);
         if (gone == pads_.end()) return;
-        d2d::log::info("gamepad: {} disconnected (id {})", SDL_GetGamepadName(gone->handle) ? SDL_GetGamepadName(gone->handle) : "unnamed pad", gone->id);
+        d2d::log::info("gamepad: {} disconnected (id {})", gone->name, gone->id);
         SDL_CloseGamepad(gone->handle);
         changes_.went.push_back(*gone);
         pads_.erase(gone);
@@ -81,7 +111,10 @@ pad::Family Gamepads::family(SDL_JoystickID id) const {
 
 bool Gamepads::external() const { return std::ranges::any_of(pads_, [](const Pad& pad) { return !pad.built_in; }); }
 
-auto Gamepads::changes() -> Changes { return std::exchange(changes_, {}); }
+auto Gamepads::changes() -> Changes {
+    refresh(SDL_GetTicks());
+    return std::exchange(changes_, {});
+}
 
 auto Gamepads::primary() const -> const Pad* {
     if (pads_.empty()) return nullptr;

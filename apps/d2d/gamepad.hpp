@@ -6,6 +6,7 @@
 #include "gamepad_map.hpp"
 #include "platform.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -23,7 +24,9 @@ public:
     // named "Steam Deck"),
     // which never take a co-op seat. `key`: its model and serial (pad::Seats).
     // `name`, `family`: what to call it and its buttons.
-    struct Pad { SDL_Gamepad* handle = nullptr; SDL_JoystickID id = 0; bool built_in = false; std::string key, name; pad::Family family = pad::Family::Xbox; };
+    // `settling`: the key it shows now, not yet held long enough to count.
+    struct Pad { SDL_Gamepad* handle = nullptr; SDL_JoystickID id = 0; bool built_in = false; std::string key, name; pad::Family family = pad::Family::Xbox;
+                 std::string settling; std::uint64_t settle_from = 0; };
 
     // Open the pads already plugged in (SDL_INIT_GAMEPAD is up).
     void open_connected();
@@ -43,14 +46,18 @@ public:
     [[nodiscard]] bool external() const;
     // The family of pad `id`'s buttons (Xbox when it's gone).
     [[nodiscard]] pad::Family family(SDL_JoystickID id) const;
-    // The pads that came and went since the last call.
-    struct Changes { std::vector<Pad> came, went; };   // a gone Pad's handle is closed
+    // The pads that came and went since the last call. Steam putting another
+    // pad behind an open one shows as that id going and coming again, once
+    // the change has held kSettleMs.
+    struct Changes { std::vector<Pad> came, went; };   // a gone Pad's handle may be closed
     Changes changes();
+    static constexpr std::uint64_t kSettleMs = 500;
 
     void close();
 
 private:
     void open(SDL_JoystickID id);
+    void refresh(std::uint64_t now_ms);
     std::vector<Pad> pads_;
     Changes changes_;
 };
