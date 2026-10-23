@@ -985,6 +985,36 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (type_info.ai_name == "Succubus") input.target_player = !target->pet && !target->of;
         input.command_until = input.frame + 1;
         input.reach = input.in_melee;
+        // The Overseer's search (FUN_005e26d0) and the spawner's (FUN_005e2b70): live
+        // minions (base 0x1c5; the spawner's suicide minions 0x1cd too), the first under
+        // half life within 24 (squared 0x240), the first within 20 (0x190); the count.
+        // ponytail: the pack stands for the near rooms' units; FUN_005a0180's test
+        // (the free one) and state 0x8d aren't kept; the one that last hit it is
+        // taken as the target, when it got hit.
+        const auto& name = type_info.ai_name;
+        if (name == "Overseer" || name == "MinionSpawner") {
+            const int minion = int(game_data.mon_bin[0x1c5]), suicide = int(game_data.mon_bin[0x1cd]);
+            for (std::size_t i = 0; i < pack.size(); ++i) {
+                const auto& other = pack[i];
+                if (&other == &monster || !other.alive()) continue;
+                const int base = game_data.monsters.types[std::size_t(other.type)].base;
+                if (base != minion && !(name == "MinionSpawner" && base == suicide)) continue;
+                ++input.young;
+                const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
+                const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
+                if (kin < 0 && squared <= 0x240 && life < 50) kin = int(i);
+                if (aid < 0 && squared <= 0x190) aid = int(i);
+            }
+            input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
+            input.attacker = input.got_hit;
+        }
+        // The Imp reads imp1..imp4's aips (MonStats 0x1ec..0x1ef).
+        // ponytail: no siege beast is ridden (its ride word stays -1).
+        if (name == "Imp") {
+            if (monster.ai_state == 0) monster.ai_state = -1;
+            for (std::size_t k = 0; k < 4; ++k)
+                input.imp_aip[k] = game_data.monsters.types[std::size_t(game_data.mon_bin[0x1ec + k])].diff[std::size_t(std::clamp(monster.difficulty, 0, 2))].aip;
+        }
     }
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
         monster.chase = int(target - foes.data());
@@ -1135,6 +1165,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (act.act != MonAct::walk || !(act.n & 2)) { idle(0); return true; }
             act = d2d::rules::walk_failed(monster.seed);
             break;
+        case MonAct::direct: walk_to(target_x - x, target_y - y, false); return true;   // FUN_005deca0: straight at it
         case MonAct::wander: walk_to(act.x, act.y, false); return true;
         case MonAct::around: walk_to(target_x - x + act.x, target_y - y + act.y, false); return true;
         case MonAct::home: walk_to(subtile(monster.home_x) - x, subtile(monster.home_y) - y, false); return true;

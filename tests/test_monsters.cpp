@@ -707,6 +707,8 @@ int main() {
                         input.imp_near = read() != 0; input.target_state20 = read() != 0; input.target_mana = read(); input.target_max_mana = read();
                         input.self_life_pct = input.life_pct; input.target_life_pct = read(); input.command_until = read(); input.target_player = read() != 0;
                         input.reach = read() != 0; input.command_busy = read() != 0;
+                        input.attacker = read() != 0; input.hurt_minion = read() != 0; input.free_minion = read() != 0;
+                        for (auto& row : input.imp_aip) for (auto& value : row) value = read();
                     }
                     d2d::rules::Rng seed;
                     seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));

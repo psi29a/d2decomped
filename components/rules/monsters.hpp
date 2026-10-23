@@ -3074,7 +3074,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         }
         if (input.in_melee && roll() < aip[5]) return roll() >= aip[6] ? Think{ MonAct::a1 } : Think{ MonAct::a2 };
         if (input.skill[1] && input.hurt_minion && roll() < aip[1]) return cast(1, ThinkUnit::kin);
-        if (input.skill[2] && input.free_minion && roll() < aip[2]) return cast(2, ThinkUnit::aid);
+        if (input.free_minion && roll() < aip[2]) return cast(2, ThinkUnit::aid);   // Skill3 "!= 0": an unset one (-1) passes too
         if (input.young == 0) return roll() > 59 ? Think{ MonAct::idle, 10 } : walk_in;
         if (input.dist < aip[3] - aip[4]) { (void)away((aip[3] - input.dist) & 0xff, false); return { MonAct::none }; }
         if (input.dist <= aip[4] + aip[3]) {
@@ -3115,7 +3115,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (*input.state != -1 && !input.state69) {
             if (!input.command_unit || input.command_busy || input.rider) *input.state = -1;
             else {
-                if (input.imp_aip[1][0] * input.imp_aip[1][0] < input.kin_dist) { Think out = walk_in; out.unit = ThinkUnit::kin; return out; }
+                if (input.imp_aip[1][0] * input.imp_aip[1][0] < squared(input.self_x, input.self_y, input.kin_x, input.kin_y)) { Think out = walk_in; out.unit = ThinkUnit::kin; return out; }
                 if (input.skill[0]) return cast(0, ThinkUnit::kin);
             }
         }
@@ -3125,7 +3125,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         }
         if (input.skill[0] && roll() < first[2]) return teleport();
         if (input.dist < third[0] && roll() < third[1]) { (void)away(5, false); return { MonAct::none }; }
-        if (input.skill45[1] && input.second) {
+        if (input.skill45[0] && input.second) {
             if (input.second_dist < third[2]) { if (rng(100) < third[3]) return cast(3, ThinkUnit::second); }
             else if (input.second_dist < fourth[2] && rng(100) < fourth[3]) return cast(3, ThinkUnit::second);
         }
