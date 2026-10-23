@@ -61,6 +61,24 @@ int main(int argc, char** argv) try {
         std::printf("OK: skill tooltip lines: bottom first, colour codes\n");
     }
     {
+        // A missile's frame (tools/emu/missile_dirs.py): game.exe's table at 0x6e45a0
+        // for 16 and 8 directions, every 64-step facing, and Fire Bolts it fired
+        // ("dx dy: d8 d16 d32", subtiles from the shooter to the target).
+        constexpr std::array<int, 64> kGame16{ 4, 4, 8, 8, 8, 8, 0, 0, 0, 0, 9, 9, 9, 9, 5, 5, 5, 5, 10, 10, 10, 10, 1, 1, 1, 1, 11, 11, 11, 11, 6, 6,
+                                               6, 6, 12, 12, 12, 12, 2, 2, 2, 2, 13, 13, 13, 13, 7, 7, 7, 7, 14, 14, 14, 14, 3, 3, 3, 3, 15, 15, 15, 15, 4, 4 };
+        constexpr std::array<int, 64> kGame8{ 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1, 1, 1, 6, 6, 6, 6,
+                                              6, 6, 6, 6, 2, 2, 2, 2, 2, 2, 2, 2, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4 };
+        for (int dir64 = 0; dir64 < 64; ++dir64)
+            assert(missile_direction(dir64, 16) == kGame16[std::size_t(dir64)] && missile_direction(dir64, 8) == kGame8[std::size_t(dir64)]);
+        struct Fired { int dx, dy, d8, d16, d32; };
+        for (const auto& [dx, dy, d8, d16, d32] : { Fired{ -4, 2, 5, 10, 10 }, Fired{ 0, 8, 0, 0, 0 }, Fired{ -12, -2, 1, 1, 22 }, Fired{ 2, -2, 7, 7, 7 },
+                                                    Fired{ 19, 26, 4, 4, 16 }, Fired{ -10, 4, 1, 10, 10 }, Fired{ 1, -3, 2, 13, 13 }, Fired{ 2, 7, 0, 8, 17 } }) {
+            const int facing = missile_facing(float(dx) / 5, float(dy) / 5);
+            assert(missile_direction(facing, 8) == d8 && missile_direction(facing, 16) == d16 && missile_direction(facing, 32) == d32);
+        }
+        std::printf("OK: a missile's frame direction, as game.exe's table and its Fire Bolts\n");
+    }
+    {
         GameData empty_data;
         View sent;
         sent.level = &empty_data.town;

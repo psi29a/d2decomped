@@ -364,7 +364,7 @@ constexpr float kMeleeReach = 1.1f;           // cells between centres
 struct Missile {
     const GameData::MissileInfo* info = nullptr;
     float x = 0, y = 0, velocity_x = 0, velocity_y = 0;       // cells, cells/s
-    int dir = 0;                              // 0..31, DCC order
+    int dir = 0;                              // 0..63 (missile_facing), game.exe's path +0x64
     std::uint32_t born = 0, dies = 0;
     d2d::rules::MonStats src;                 // a monster's: its stats, A2 damage = the missile's
     int owner = -1;                           // a monster's: its Monster::id (unit +0x98, FUN_00552fd0)
@@ -477,14 +477,12 @@ inline bool missile_struck(const Level& level, const Missile& missile, float x, 
     return std::ranges::any_of(missile.flight.crossed, [&](const auto& spot) { return d2d::rules::missile_touches(spot.first, spot.second, foe_x, foe_y, size, missile_size); });
 }
 
-// Direction 0..31 in D2's DCC order for a world step, like direction16:
-// screen sector clockwise from straight down through D2's ordering.
-inline int direction32(float dx, float dy) {
-    constexpr int kFromSector[32] = { 4, 16, 8, 17, 0, 18, 9, 19, 5, 20, 10, 21, 1, 22, 11, 23,
-                                      6, 24, 12, 25, 2, 26, 13, 27, 7, 28, 14, 29, 3, 30, 15, 31 };
-    const float screen_x = (dx - dy) * (kIsoW / 2), screen_y = (dx + dy) * (kIsoH / 2);
-    const int sector = int(std::lround(std::atan2(-screen_x, screen_y) / (2 * 3.14159265f / 32)));
-    return kFromSector[std::size_t((sector % 32 + 32) % 32)];
+// A missile's facing for a step (dx, dy) in cells: game.exe's 64-step
+// direction of it (rules::direction64 on the subtiles, as FUN_0059fa30
+// aims at the target; 0 straight down, clockwise on screen). The draw takes
+// its frame from it (missile_direction).
+inline int missile_facing(float dx, float dy) {
+    return d2d::rules::direction64(0, 0, int(std::lround(dx * 5)), int(std::lround(dy * 5)));
 }
 
 // Missiles fly (missile_fly; FUN_005ae1f0): a frame's move, then its
@@ -524,7 +522,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             const int across = std::max(int(std::abs(dx) * 5) - foe.size / 2, 0), down = std::max(int(std::abs(dy) * 5) - foe.size / 2, 0);
             if (const int apart = (std::min(across, down) + 2 * std::max(across, down)) / 2; foe.alive && apart >= 4 && apart <= 24) {
                 const float speed = std::hypot(missile.velocity_x, missile.velocity_y), length = std::max(std::hypot(dx, dy), 0.01f);
-                missile.velocity_x = dx / length * speed; missile.velocity_y = dy / length * speed; missile.dir = direction32(dx, dy);
+                missile.velocity_x = dx / length * speed; missile.velocity_y = dy / length * speed; missile.dir = missile_facing(dx, dy);
             }
         }
         // A monster's fire wall: the maker (do 6) lays SubMissile1 where it

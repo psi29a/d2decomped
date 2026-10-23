@@ -747,8 +747,11 @@ constexpr float cells_per_sec(float velocity) { return velocity / 16.f * 25.f / 
 // clockwise from straight down, and map the 16 sectors through D2's
 // ordering — the 8 main directions first (0 SW, 1 NW, 2 NE, 3 SE, 4 S,
 // 5 W, 6 N, 7 E), then the half-steps (8 between S and SW, ...).
+inline constexpr int kDir16FromSector[16] = { 4, 8, 0, 9, 5, 10, 1, 11, 6, 12, 2, 13, 7, 14, 3, 15 };
+inline constexpr int kDir32FromSector[32] = { 4, 16, 8, 17, 0, 18, 9, 19, 5, 20, 10, 21, 1, 22, 11, 23,
+                                              6, 24, 12, 25, 2, 26, 13, 27, 7, 28, 14, 29, 3, 30, 15, 31 };
 inline int direction16(float dx, float dy) {
-    constexpr int kFromSector[16] = { 4, 8, 0, 9, 5, 10, 1, 11, 6, 12, 2, 13, 7, 14, 3, 15 };
+    const auto& kFromSector = kDir16FromSector;
     const float screen_x = (dx - dy) * (kIsoW / 2), screen_y = (dx + dy) * (kIsoH / 2);
     const float angle = std::atan2(-screen_x, screen_y);                    // 0 = down, + = clockwise
     const int sector = int(std::lround(angle / (2 * 3.14159265f / 16)));
@@ -763,6 +766,22 @@ inline std::uint8_t cof_direction(int dir16, int dirs) {
     constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 4, 0, 5, 1, 6, 2, 7, 3 };
     const int dir = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
     return std::uint8_t(std::clamp(dir, 0, std::max(dirs - 1, 0)));
+}
+// A missile's frame in a sprite of `dirs` directions for its 64-step
+// facing `dir64` (FUN_00600c90: the table at 0x6e45a0, [log2(dirs) + 1]
+// [dir64]; fireball.dcc and firebolt.dcc have 16). The table rounds the
+// 64 steps to the nearest of the sprite's own, clockwise from straight
+// down, in D2's DCC order for that count (8: S SW W NW N NE E SE; 4 by
+// angle; 2's row is all 0). Checked against it for every step and for 1,
+// 2, 4, 8, 16 and 32 directions (tools/emu/missile_dirs.py table).
+inline std::uint8_t missile_direction(int dir64, int dirs) {
+    if (dirs <= 2) return 0;
+    const int step = 64 / std::min(dirs, 64);
+    const int sector = ((dir64 & 0x3f) + step / 2) / step % dirs;
+    if (dirs == 32) return std::uint8_t(kDir32FromSector[std::size_t(sector)]);
+    if (dirs == 16) return std::uint8_t(kDir16FromSector[std::size_t(sector)]);
+    if (dirs == 8) return std::uint8_t(kDir16FromSector[std::size_t(sector * 2)]);
+    return std::uint8_t(sector);
 }
 constexpr const char* kModeCode[18] = { "DT", "NU", "WL", "RN", "GH", "TN", "TW", "A1", "A2", "BL", "SC",
                                         "TH", "KK", "S1", "S2", "S3", "S4", "DD" };

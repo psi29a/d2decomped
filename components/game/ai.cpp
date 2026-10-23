@@ -343,7 +343,7 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
     if (poison.etype >= 0)
         stats.elements[0] = { poison.etype, 100, int(std::int64_t(poison.elo) * frames >> 8), int(std::int64_t(poison.ehi) * frames >> 8), poison.elen, "A2" };
     const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
-    missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, direction32(dx, dy), now_ms,
+    missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_facing(dx, dy), now_ms,
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
     missiles.back().level = lvl; missiles.back().to = { monster.unit.x + dx, monster.unit.y + dy }; missiles.back().owner = monster.id;
     if (carried) missiles.back().skill = carried->id;
@@ -1248,7 +1248,7 @@ void countess_firewall(const GameData& game_data, const Monster& monster, std::u
         Missile made = burner;
         made.info = &maker->second; made.sub = &fire_info;
         made.velocity_x = across_x / length * speed * side; made.velocity_y = across_y / length * speed * side;
-        made.dir = direction32(made.velocity_x, made.velocity_y);
+        made.dir = missile_facing(made.velocity_x, made.velocity_y);
         made.dies = now_ms + std::uint32_t(std::max(maker->second.range, 1)) * 40;
         missiles.push_back(std::move(made));
     }
@@ -1425,7 +1425,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // At its point instead when its mode was set there (the wisps' dance).
                 const float aim_x = monster.at_point ? (float(monster.skill_x) + 0.5f) / 5 - unit.x : dx, aim_y = monster.at_point ? (float(monster.skill_y) + 0.5f) / 5 - unit.y : dy;
                 const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(aim_x, aim_y), 0.01f);
-                Missile x{ &missile_info, unit.x, unit.y, aim_x / distance * speed, aim_y / distance * speed, direction32(aim_x, aim_y), now_ms,
+                Missile x{ &missile_info, unit.x, unit.y, aim_x / distance * speed, aim_y / distance * speed, missile_facing(aim_x, aim_y), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
                 x.level = lvl; x.to = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id;
                 const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's S1's; SC's only its elements (El SC)
@@ -1445,7 +1445,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const float side_x = dx - dy / std::max(dist, 0.01f) * side, side_y = dy + dx / std::max(dist, 0.01f) * side;
                         const float side_distance = std::max(std::hypot(side_x, side_y), 0.01f);
                         Missile y = x;
-                        y.velocity_x = side_x / side_distance * speed; y.velocity_y = side_y / side_distance * speed; y.dir = direction32(side_x, side_y);
+                        y.velocity_x = side_x / side_distance * speed; y.velocity_y = side_y / side_distance * speed; y.dir = missile_facing(side_x, side_y);
                         y.to = { unit.x + side_x, unit.y + side_y };
                         missiles.push_back(std::move(y));
                     }

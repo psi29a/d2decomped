@@ -22,6 +22,7 @@ the command to run first.
 | [tools/ghidra](ghidra/README.md) | Decompiles game.exe | `tools/ghidra/import.sh` |
 | [tools/drlg-dump](drlg-dump/README.md) | Prints d2d's level layout as text, to diff against game.exe's | `build/tools/drlg-dump/drlg-dump ~/Workspace/private/diablo2 3` |
 | [tools/drop-dump](drop-dump/README.md) | Prints d2d's item drops as text, to diff against game.exe's | `cd tools/emu && uv run python drops.py 1-1000` |
+| tools/missile-dir-dump | Prints d2d's missile frame directions, to diff against game.exe's (`tools/emu/missile_dirs.py`) | `build/tools/missile-dir-dump/missile-dir-dump table` |
 | [tools/mpq-cat](mpq-cat/README.md) | Prints a file from the game's archives | `build/tools/mpq-cat/mpq-cat ~/Workspace/private/diablo2 'data\global\excel\Levels.txt'` |
 | [tools/net-join](net-join/README.md) | Joins a game.exe host, logs the packets, leaves | `build/tools/net-join/net-join save.d2s 192.168.50.68` |
 | [tools/iso-dump](iso-dump/README.md) | Lists or extracts a Diablo II disc image | `build/tools/iso-dump/iso-dump list disc.iso` |

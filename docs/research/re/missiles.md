@@ -120,6 +120,24 @@ leaves the missile flying.
 `fireexplode` (a fire bolt's, the firebolt trap's): 12 frames (Range,
 AnimLen), RandStart 5, Light 13, additive, one direction.
 
+## Its frame direction — FUN_00620100 → FUN_006487f0, FUN_00600c90
+
+A missile faces the 64-step direction its path holds at +0x64 (FUN_0059fa30
+aims it at the target; 0 straight down, counting clockwise on screen). For a
+missile (unit type 3; objects and items read path +0x1c instead),
+FUN_00620100 (stdcall, the unit) returns it through FUN_006487f0 (the byte
+in AL, the rest of EAX left as it was). The draw takes the frame of an
+n-direction sprite from FUN_00600c90 (stdcall: dir64, n), the dword table
+at **0x6e45a0**, `[log2(n) + 1][dir64]` (FUN_00517abb: the lowest set
+bit's index + 1, 0 for 0).
+
+The table rounds the 64 steps to the nearest of the sprite's own, clockwise
+from straight down: 8 directions take 8 steps each (0..3 and 60..63 south),
+16 four, 32 two. Each row is in D2's DCC order for its count (8: 4 0 5 1 6 2
+7 3 round the compass, S SW W NW N NE E SE, the 16 and 32 rows with the
+half steps after), 4 is plain angle order, and 2's row is all 0.
+fireball.dcc and firebolt.dcc have 16 directions.
+
 ## d2d
 
 - `rules::MissileFlight` (launch, step, walk, retarget), `missile_aim`,
@@ -135,6 +153,14 @@ AnimLen), RandStart 5, Light 13, additive, one direction.
 - `missiles_update` (ai.hpp): a missile gone into a unit or a wall, or run
   out with AlwaysExplode, leaves its ExplosionMissile as a visual-only
   missile there (`MissileInfo::explosion`).
+- `Missile::dir` is the 64-step facing (`missile_facing`: `rules::direction64`
+  of the step in subtiles); `missile_direction(dir64, n)` is the table's
+  row, drawn by world_view.cpp. tools/emu/missile_dirs.py fires Fire Bolts
+  and prints game.exe's frame for 8, 16 and 32 directions;
+  tools/missile-dir-dump prints d2d's: 0 of 4000 differ (seeds 1, 7), and
+  the table matches row for row (`table`). Before, the 32-direction index
+  modulo the sprite's count drew 684 of 2000 16-direction frames wrong.
+  tests/test_game.cpp checks the 8 and 16 rows and eight fired bolts.
 - tests/test_monsters.cpp `missile_flights`: 18 of game.exe's flights
   replayed (frame, end, position, a hash of every frame).
 - Not yet: stat 87's velocity %, Size 2/3 missiles, flag 0x400's distance
