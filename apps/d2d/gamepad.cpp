@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <format>
 #include <string_view>
+#include <system_error>
 #include <utility>
 
 namespace d2d::client {
@@ -82,8 +83,11 @@ void Gamepads::close() {
 void Gamepads::open_connected() {
     // SDL tells Steam Input's virtual pads apart (the Deck's own from an
     // external one) by the file Steam names here; unread, every pad is 28de:11ff.
-    if (const char* info = std::getenv("SteamVirtualGamepadInfo"))
-        d2d::log::info("gamepad: Steam's pad info '{}' ({})", info, std::filesystem::exists(info) ? "readable" : "not here: the Deck's own controls can't be told apart");
+    if (const char* info = std::getenv("SteamVirtualGamepadInfo")) {
+        std::error_code error;                        // the sandbox may refuse to look: not here, and no throw at startup
+        const bool here = std::filesystem::exists(info, error) && !error;
+        d2d::log::info("gamepad: Steam's pad info '{}' ({})", info, here ? "readable" : "not here: the Deck's own controls can't be told apart");
+    }
     int count = 0;
     if (SDL_JoystickID* ids = SDL_GetGamepads(&count)) {
         for (int i = 0; i < count; ++i) open(ids[i]);

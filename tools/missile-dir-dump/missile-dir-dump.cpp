@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     }
     int dx = 0, dy = 0;
     while (std::scanf("%d %d", &dx, &dy) == 2) {
-        const int facing = d2d::game::missile_facing(float(dx) / 5, float(dy) / 5);
+        const int facing = d2d::game::missile_facing(0.1f, 0.1f, float(dx) / 5, float(dy) / 5);   // from subtile (0, 0)'s centre
         std::printf("%d %d: %d %d %d\n", dx, dy, missile_direction(facing, 8), missile_direction(facing, 16), missile_direction(facing, 32));
     }
     return 0;

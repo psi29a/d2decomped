@@ -477,12 +477,24 @@ inline bool missile_struck(const Level& level, const Missile& missile, float x, 
     return std::ranges::any_of(missile.flight.crossed, [&](const auto& spot) { return d2d::rules::missile_touches(spot.first, spot.second, foe_x, foe_y, size, missile_size); });
 }
 
-// A missile's facing for a step (dx, dy) in cells: game.exe's 64-step
-// direction of it (rules::direction64 on the subtiles, as FUN_0059fa30
-// aims at the target; 0 straight down, clockwise on screen). The draw takes
-// its frame from it (missile_direction).
-inline int missile_facing(float dx, float dy) {
-    return d2d::rules::direction64(0, 0, int(std::lround(dx * 5)), int(std::lround(dy * 5)));
+// A missile's facing for a heading with no point to aim at (a velocity, a
+// ring's or a burst's spoke): the 64-step direction of its angle, scaled
+// to 255 subtiles along (direction64's 32-bit sums wrap past 258).
+inline int missile_heading(float dx, float dy) {
+    const float longer = std::max(std::abs(dx), std::abs(dy));
+    if (longer <= 0) return 0;
+    return d2d::rules::direction64(0, 0, int(std::lround(dx * 255 / longer)), int(std::lround(dy * 255 / longer)));
+}
+// A missile's facing from (x, y) at the point (dx, dy) cells on: game.exe's
+// 64-step direction between their subtiles (rules::direction64, as
+// FUN_0059fa30 aims at the target; 0 straight down, clockwise on screen),
+// floored as missile_fly flies it. The draw takes its frame from it
+// (missile_direction). A step of a cell or less is a unit heading (a
+// spoke's cos / sin), not a point: its angle.
+inline int missile_facing(float x, float y, float dx, float dy) {
+    if (std::hypot(dx, dy) <= 1.01f) return missile_heading(dx, dy);
+    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+    return d2d::rules::direction64(subtile(x), subtile(y), subtile(x + dx), subtile(y + dy));
 }
 
 // Missiles fly (missile_fly; FUN_005ae1f0): a frame's move, then its
@@ -522,7 +534,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             const int across = std::max(int(std::abs(dx) * 5) - foe.size / 2, 0), down = std::max(int(std::abs(dy) * 5) - foe.size / 2, 0);
             if (const int apart = (std::min(across, down) + 2 * std::max(across, down)) / 2; foe.alive && apart >= 4 && apart <= 24) {
                 const float speed = std::hypot(missile.velocity_x, missile.velocity_y), length = std::max(std::hypot(dx, dy), 0.01f);
-                missile.velocity_x = dx / length * speed; missile.velocity_y = dy / length * speed; missile.dir = missile_facing(dx, dy);
+                missile.velocity_x = dx / length * speed; missile.velocity_y = dy / length * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
             }
         }
         // A monster's fire wall: the maker (do 6) lays SubMissile1 where it

@@ -955,7 +955,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
         if (damage.etype >= 0) stats.elements[0] = { damage.etype, 100, pts(damage.elo), pts(damage.ehi), damage.elen, "A2" };
         auto shoot = [&](float dx, float dy, float vel, const std::shared_ptr<std::vector<int>>& struck) {
             const float speed = missile_speed(int(vel * 256) * 75 / 100), distance = std::max(std::hypot(dx, dy), 0.01f);   // FUN_0059fa30's x 75 / 100
-            Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_facing(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
+            Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_heading(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
             missile.struck = struck;
             fight.missiles.push_back(std::move(missile));
         };

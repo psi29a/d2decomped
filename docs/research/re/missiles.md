@@ -153,8 +153,10 @@ fireball.dcc and firebolt.dcc have 16 directions.
 - `missiles_update` (ai.hpp): a missile gone into a unit or a wall, or run
   out with AlwaysExplode, leaves its ExplosionMissile as a visual-only
   missile there (`MissileInfo::explosion`).
-- `Missile::dir` is the 64-step facing (`missile_facing`: `rules::direction64`
-  of the step in subtiles); `missile_direction(dir64, n)` is the table's
+- `Missile::dir` is the 64-step facing: `missile_facing` (`rules::direction64`
+  between the start's and the target's floored subtiles, as `missile_fly`
+  flies it) where the site aims at a point, `missile_heading` (the angle) for
+  a velocity or a ring's or burst's spoke; `missile_direction(dir64, n)` is the table's
   row, drawn by world_view.cpp. tools/emu/missile_dirs.py fires Fire Bolts
   and prints game.exe's frame for 8, 16 and 32 directions;
   tools/missile-dir-dump prints d2d's: 0 of 4000 differ (seeds 1, 7), and

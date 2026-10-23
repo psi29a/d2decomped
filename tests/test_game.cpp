@@ -73,7 +73,7 @@ int main(int argc, char** argv) try {
         struct Fired { int dx, dy, d8, d16, d32; };
         for (const auto& [dx, dy, d8, d16, d32] : { Fired{ -4, 2, 5, 10, 10 }, Fired{ 0, 8, 0, 0, 0 }, Fired{ -12, -2, 1, 1, 22 }, Fired{ 2, -2, 7, 7, 7 },
                                                     Fired{ 19, 26, 4, 4, 16 }, Fired{ -10, 4, 1, 10, 10 }, Fired{ 1, -3, 2, 13, 13 }, Fired{ 2, 7, 0, 8, 17 } }) {
-            const int facing = missile_facing(float(dx) / 5, float(dy) / 5);
+            const int facing = missile_facing(0.1f, 0.1f, float(dx) / 5, float(dy) / 5);   // from subtile (0, 0)'s centre
             assert(missile_direction(facing, 8) == d8 && missile_direction(facing, 16) == d16 && missile_direction(facing, 32) == d32);
         }
         std::printf("OK: a missile's frame direction, as game.exe's table and its Fire Bolts\n");

@@ -42,8 +42,9 @@ const d2d::dcc::Sprite* Scene::overlay_sprite(const OverlayInfo& overlay) const 
     if (fresh)
         if (auto bytes = mpqs.try_read(R"(data\global\overlays\)" + overlay.file + ".dcc"))
             try { found->second = d2d::dcc::Sprite(*bytes); } catch (const std::exception& error) { d2d::log::warn("overlay {}: {}", overlay.file, error.what()); }
-    if (fresh) note_drawn("overlays", overlay.file);
-    return found->second.directions() && found->second.frames_per_direction() ? &found->second : nullptr;
+    const bool usable = found->second.directions() && found->second.frames_per_direction();
+    if (fresh && usable) note_drawn("overlays", overlay.file);   // a missing or broken one was never drawn
+    return usable ? &found->second : nullptr;
 }
 
 void Scene::note_drawn(std::string_view kind, std::string_view name) const {
@@ -89,7 +90,7 @@ const d2d::dc6::Sprite* Scene::flippy(const std::string& code) const {
     if (fresh)
         if (auto bytes = mpqs.try_read(R"(data\global\items\)" + info->second.flippy + ".dc6"))
             found->second = d2d::dc6::Sprite(*bytes);
-    if (fresh) note_drawn("items", info->second.flippy);
+    if (fresh && found->second) note_drawn("items", info->second.flippy);   // a missing one was never drawn
     return found->second ? &*found->second : nullptr;
 }
 

@@ -45,8 +45,13 @@ def auth_headers() -> dict[str, str]:
             user, key = account.group(1), password.group(1)
     key_file = pathlib.Path(os.environ.get("COVERITY_KEY_FILE", pathlib.Path.home() / ".coverity.key"))
     if not (user and key) and key_file.is_file():
-        stored = json.loads(key_file.read_text())
-        user, key = stored.get("username"), stored.get("key")
+        try:                                                  # unreadable or not the key's JSON: on to the session
+            stored = json.loads(key_file.read_text())
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            print(f"coverity: {key_file} unusable ({error}); trying COVERITY_SESSION", file=sys.stderr)
+            stored = {}
+        if isinstance(stored, dict) and stored.get("username") and stored.get("key"):
+            user, key = stored["username"], stored["key"]
     if user and key:
         return {"Authorization": "Basic " + base64.b64encode(f"{user}:{key}".encode()).decode()}
     session, xsrf = os.environ.get("COVERITY_SESSION"), os.environ.get("COVERITY_XSRF")
