@@ -377,11 +377,21 @@ struct Audio {
         music_job_loop = loop;
         if (music_job.valid()) music_dropped.push_back(std::move(music_job));
         music_job = std::async(std::launch::async, [dir = game_data.data_dir, path = std::move(path)]() -> std::optional<Decoded> {
-            d2d::mpq::Stack music_mpqs;
-            for (const char* name : { "d2xmusic.mpq", "d2music.mpq" })
-                if (const auto mpq = d2d::install::find_file(dir, name)) music_mpqs.push(*mpq);
-            const auto wav = music_mpqs.try_read(path);
-            return wav ? decode(*wav) : std::nullopt;
+            // An MPQ that won't open is left out, one that won't read is no
+            // song (update's get() would rethrow it on the main thread).
+            try {
+                d2d::mpq::Stack music_mpqs;
+                for (const char* name : { "d2xmusic.mpq", "d2music.mpq" })
+                    if (const auto mpq = d2d::install::find_file(dir, name)) {
+                        try { music_mpqs.push(*mpq); }
+                        catch (const std::exception& error) { d2d::log::warn("music: {}", error.what()); }
+                    }
+                const auto wav = music_mpqs.try_read(path);
+                return wav ? decode(*wav) : std::nullopt;
+            } catch (const std::exception& error) {
+                d2d::log::warn("music {}: {}", path, error.what());
+                return std::nullopt;
+            }
         });
     }
     void set_gain(Channel& channel, float gain) {

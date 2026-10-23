@@ -1499,7 +1499,7 @@ std::optional<GameData> open_game_data(const fs::path& data_dir, const fs::path&
     auto find = [&](std::string_view name) { return d2d::install::find_file(data_dir, name); };
     const auto d2data = find("d2data.mpq");
     if (!d2data) {
-        d2d::log::error("no d2data.mpq in {} — running without game data (test pattern)", data_dir.string());
+        d2d::log::error("open_game_data: no d2data.mpq in {}", data_dir.string());
         return std::nullopt;
     }
     const auto start_ms = d2d::log::ms();
@@ -1542,16 +1542,27 @@ std::optional<GameData> open_game_data(const fs::path& data_dir, const fs::path&
         if (!patched)
             d2d::log::warn("no 1.14d patch data (patch_d2.mpq or LODPatch_114d.exe): "
                            "using CD-era tables and strings");
-        if (const auto d2exp = find("d2exp.mpq")) push(*d2exp);
+        // Required: the expansion, the game data, and the character
+        // animations (d2char.mpq) — Stack lookup is priority-ordered so
+        // later pushes rank lower. Missing or unreadable, there's no game.
+        const auto required = [&](std::string_view name) {
+            const auto path = find(name);
+            if (!path) throw std::runtime_error(std::format("no {} in {}", name, data_dir.string()));
+            push(*path);
+        };
+        required("d2exp.mpq");
         push(*d2data);
-        // Character animations live in d2char.mpq — Stack lookup is
-        // priority-ordered so later pushes rank lower; DCC-not-found is
-        // silent in load_scene and per-class loaders skip on miss.
-        if (const auto d2char = find("d2char.mpq")) push(*d2char);
-        // Sounds: expansion speech, speech, effects, music (Sounds.txt paths).
-        // (Music is read off the main thread from its own handles: Audio.)
+        required("d2char.mpq");
+        // Sounds: expansion speech, speech, effects (Sounds.txt paths). Not
+        // needed to play: one that's missing or won't open goes unheard.
+        // (Music and videos are opened where they're played: Audio, main.)
         for (const char* name : { "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq" })
-            if (const auto path = find(name)) push(*path);
+            if (const auto path = find(name)) {
+                try { push(*path); }
+                catch (const std::exception& error) { d2d::log::warn("{}; its sounds are skipped", error.what()); }
+            }
+        for (const char* name : { "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq", "d2xmusic.mpq", "d2music.mpq", "d2xvideo.mpq", "d2video.mpq" })
+            if (!find(name)) d2d::log::warn("no {} in {}; its sounds or videos are skipped", name, data_dir.string());
         if (patched) check_patch_layer(mpqs);
 
         GameData game_data;

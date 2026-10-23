@@ -518,8 +518,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     d2d::mpq::Stack video_mpqs;
     std::vector<std::string> video_queue;
     if (scene) {
+        // One that won't open (cut short, unreadable) goes without its videos.
         for (const char* name : { "d2xvideo.mpq", "d2video.mpq" })
-            if (const auto path = d2d::install::find_file(scene->data_dir, name)) video_mpqs.push(*path);
+            if (const auto path = d2d::install::find_file(scene->data_dir, name)) {
+                try { video_mpqs.push(*path); }
+                catch (const std::exception& error) { d2d::log::warn("{}; its videos are skipped", error.what()); }
+            }
     }
     if (scene && !video_mpqs.empty() && g_video && (g_start_screen.empty() || g_start_screen == "video")) {
         video_queue = { R"(Data\Local\Video\New_BLIZ640x480.bik)", R"(Data\Local\Video\BlizNorth640x480.bik)" };
@@ -1658,6 +1662,16 @@ int main(int argc, char** argv) {
     std::vector<std::uint8_t> framebuffer(std::size_t(kScreenWidth) * kScreenHeight * 4, 0);
     for (std::size_t i = 3; i < framebuffer.size(); i += 4) framebuffer[i] = 0xFF;
     auto scene = load_scene(data_dir, patch_layer);   // the menus' part; nullopt if the MPQs won't load
+    // Nothing to run without them: say so (the log has which MPQ and why)
+    // rather than go on to a game with no data.
+    if (!scene) {
+        const auto message = std::format("Couldn't load the Diablo II game data from\n{}\n\n"
+                                         "Check that its MPQ files are complete, readable copies from Diablo II. "
+                                         "The log has the details:\n{}",
+                                         data_dir.string(), (user_dir / "d2d.log").string());
+        if (!headless) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "d2d", message.c_str(), nullptr);
+        return 1;
+    }
     // The rest loads while the title shows (run_windowed waits before the menus).
     std::future<void> loading;
     if (scene) loading = std::async(std::launch::async, [&scene, save_dir, map_seed] { finish_scene(*scene, save_dir, map_seed, game_seed); });
