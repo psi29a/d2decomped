@@ -134,10 +134,10 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
     }
     // Town portals: opening (OP, FrameCnt1 15 at FrameDelta 200/256 a tick:
     // 768 ms), then ON; named by where they lead (-2000 - which). Tristram
-    // Cain's (which 8, object 189: its token tP is TP's files, MPQ names
+    // Cain's (which kGamePortals, object 189: its token tP is TP's files, MPQ names
     // being case-blind) has no name: Selectable0..2 all 0.
     for (const auto& portal : view.portals) {
-        const Level* destination = portal.which < 8 ? scene.level(portal.destination) : nullptr;
+        const Level* destination = portal.which < int(d2d::game::World::kGamePortals) ? scene.level(portal.destination) : nullptr;
         const bool opening = now_ms - portal.born < kPortalOpenMs;
         out.push_back({ portal.x, portal.y, &scene.npc_anim(scene.town_portal, opening ? "OP" : "ON"), 0, destination ? &destination->name : nullptr,
                         opening ? portal.born : portal.born + kPortalOpenMs, -2000 - portal.which });
@@ -1901,7 +1901,7 @@ auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool use
                 things.push_back({ int(i), state ? state->x : npc.x, state ? state->y : npc.y });
             }
         for (const auto& portal : view.portals)  // Interact's ids, as the mouse's hover names them (Cain's, 8, has no name)
-            if (portal.which < 8) things.push_back({ -2000 - portal.which, portal.x, portal.y });
+            if (portal.which < int(d2d::game::World::kGamePortals)) things.push_back({ -2000 - portal.which, portal.x, portal.y });
         for (const auto& corpse : view.corpses) things.push_back({ -3000 - corpse.which, corpse.x, corpse.y });
         if (const int pick = pad::pick_target(hero_x, hero_y, face_x, face_y, things, -1, pad::Aim{ 4.5f, 4.5f, -0.2f }); pick >= 0)
             return { PadPick::kThing, things[std::size_t(pick)].id, things[std::size_t(pick)].x, things[std::size_t(pick)].y };

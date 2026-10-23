@@ -301,7 +301,7 @@ auto World::view() const -> View {
                                          k == 6 ? d2d::rules::SevenTombsQuest::kLair
                                                 : portal[std::size_t(k ^ 1)].level ? portal[std::size_t(k ^ 1)].level->id : d2d::rules::CainQuest::kTristram,
                                          portal[std::size_t(k)].born, k });
-        if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, 8 });
+        if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, int(kGamePortals) });
         view.npc_states = npc_states;
         grow_states(view.npc_states, *level);
         view.npc_states.resize(level->npcs.size());
@@ -327,6 +327,7 @@ auto World::view() const -> View {
             act2_log(view.quest_log, quest_bits);
             act3_log(view.quest_log, quest_bits);
             act4_log(view.quest_log, quest_bits);
+            act5_log(view.quest_log, quest_bits);
             for (int quest = 1; quest < int(view.quest_log.size()); ++quest) {
                 const bool bit0 = d2d::rules::quest::bit(quest_bits, quest, 0) || d2d::rules::quest::bit(quest_bits, quest, 15);
                 if (bit0 && !d2d::rules::quest::bit(quest_bits, quest, 13) && !d2d::rules::quest::bit(quest_bits, quest, 14)) view.quest_log[std::size_t(quest)] = 0;
@@ -1101,6 +1102,7 @@ auto World::new_game() -> void {
         act2_join();
         act3_join();
         act4_join();
+        act5_join();
         den_left = -1;
         den_log_at = 0;
         operated.clear();
@@ -1149,7 +1151,7 @@ auto World::spawn_merc() -> void {
 
 auto World::swap_npcs(const Level* from) -> void {
         actor->arrived_at = now;
-        if (from && from != level) { act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); }
+        if (from && from != level) { act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); act5_enter(*from); }
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
@@ -1257,6 +1259,7 @@ auto World::quest_talk(int hc_idx, bool fresh) -> std::vector<d2d::rules::QuestM
         act2_talk(out, hc_idx, fresh);
         act3_talk(out, hc_idx);
         act4_talk(out, hc_idx);
+        act5_talk(out, hc_idx);
         return out;
     }
 
@@ -1920,7 +1923,7 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
             arrive(lair, to_x, to_y, "the way down to Duriel");
             return;
         }
-        if (actor->take_portal >= 3 && std::size_t(actor->take_portal) < kGamePortals) {   // back to the Cairn Stones; the Canyon's pair
+        if (actor->take_portal >= 3 && std::size_t(actor->take_portal) < kGamePortals) {   // back to the Cairn Stones; the Canyon's, Act 5's pairs
             const auto& twin = portal[std::size_t(actor->take_portal ^ 1)];
             actor->take_portal = -1;
             if (!twin.level) { d2d::log::info("not implemented: the portal's far level isn't built"); return; }
@@ -2120,6 +2123,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                 act2_talk_closed(hc_idx);
                 act3_talk_closed(hc_idx);
                 act4_talk_closed(hc_idx);
+                act5_talk_closed(hc_idx);
             }
             actor->talking = { chat->npc, -1, -1 };
             return true;
@@ -2163,6 +2167,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             act2_said(hc_idx, message->string);
             act3_said(hc_idx, message->string);
             act4_said(hc_idx, message->string);
+            act5_said(hc_idx, message->string);
             return true;
         }
         return false;
@@ -2773,7 +2778,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             npc_patrol(*game_data, *neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            npc_states[i].alert = act1_alert(level->npcs[i].hc_idx) || act2_alert(level->npcs[i].hc_idx) || act3_alert(level->npcs[i].hc_idx) || act4_alert(level->npcs[i].hc_idx);
+            npc_states[i].alert = act1_alert(level->npcs[i].hc_idx) || act2_alert(level->npcs[i].hc_idx) || act3_alert(level->npcs[i].hc_idx) || act4_alert(level->npcs[i].hc_idx) || act5_alert(level->npcs[i].hc_idx);
         // The player's mode as the merc's think reads it: 2 walk, 3 run, 6 walk in town.
         for (auto& player : players)
             player->owner_mode = !player->player.walking ? 1 : player->running && player->character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
@@ -2800,6 +2805,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 act2_kill(kill, now_ms);
                 act3_kill(kill, now_ms);
                 act4_kill(kill, now_ms);
+                act5_kill(kill, now_ms);
             });
         }
         act_as(lead());
@@ -2808,6 +2814,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             act2_update();
             act3_update(now_ms);
             act4_update(now_ms);
+            act5_update(now_ms);
         });
         each_player([&](Player&) { cross_level(); });
         for (const auto& player : players) fight.rooms_up(*level, player->player.x, player->player.y, false);

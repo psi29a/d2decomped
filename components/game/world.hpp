@@ -27,6 +27,7 @@
 #include <quests.hpp>
 #include <quests_act3.hpp>
 #include <quests_act4.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
 
@@ -296,10 +297,13 @@ struct World {
     // its twin in Tristram back to them; [4] the Arcane Sanctuary's way to
     // the Canyon of the Magi (object 60, FUN_0056d130), [5] its twin; [6]
     // the true tomb's way down to Duriel (object 100, OperateFn 43: one
-    // way). From [8] on, the other players' town portals, a pair each
+    // way). Act 5's: [8] Anya's red portal to Nihlathak's Temple (object 60,
+    // FUN_0058af90), [9] its twin; [10] / [12] / [14] a cage's portal to
+    // Harrogath (FUN_005888d0 -> FUN_00555230), each with its twin. From
+    // [16] on, the other players' town portals, a pair each
     // (Player::portal_pair). A portal's other end is k ^ 1.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    static constexpr std::size_t kGamePortals = 8;
+    static constexpr std::size_t kGamePortals = 16, kTemplePortal = 8, kCagePortals = 10;
     std::vector<Portal> portal = std::vector<Portal>(kGamePortals);
     std::uint32_t now = 0;                 // the tick's time
     const CharacterStore* characters = nullptr;   // where the character is saved
@@ -335,6 +339,11 @@ struct World {
     d2d::rules::IzualQuest izual;          // Act 4's (quests_act4.hpp)
     d2d::rules::HellforgeQuest hellforge;
     d2d::rules::TerrorQuest terror;
+    d2d::rules::SiegeQuest siege;          // Act 5's (quests_act5.hpp)
+    d2d::rules::RescueQuest rescue;
+    d2d::rules::PrisonQuest prison;
+    d2d::rules::BetrayalQuest betrayal;
+    std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
     std::uint32_t izual_ghost_at = 0;      // a4q1's 3-tick timer (FUN_005b3e60): his ghost
     std::uint32_t diablo_at = 0;           // a4q2's release (FUN_005b4be0): Diablo 10 ticks on
     std::uint32_t diablo_dead_at = 0;      // a4q2's +0x18, classic: the 90 / 95 s end (FUN_005b4be0)
@@ -375,11 +384,14 @@ struct World {
     void act2_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
     void act3_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
     void act4_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
+    void act5_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;
     // A new game's join (FUN_00546270): each record's join, the chains.
     void act1_join();
     void act2_join();
     void act3_join();
     void act4_join();
+    void act5_join();
+    void act5_chain();                     // the records' +0xf0 down a5q1 -> a5q2 -> a5q3 -> a5q4
     void act4_chain();                     // the records' +0xf0 down a4q1 -> a4q3 -> a4q2
     bool act4_operate(int npc_index, std::uint32_t now_ms);   // the forge, the seals, Tyrael's portal
     void diablo_release(std::uint32_t now_ms);   // FUN_005b5230: the sanctuary cleared, Diablo due
@@ -389,21 +401,25 @@ struct World {
     void act2_enter(const Level& from);
     void act3_enter(const Level& from);
     void act4_enter(const Level& from);
+    void act5_enter(const Level& from);
     // The NPC's quest messages, in talk order.
     void act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh);
     void act2_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh);
     void act3_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx);
     void act4_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx);
+    void act5_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx);
     // The NPC's talk window closed.
     void act1_talk_closed(int hc_idx);
     void act2_talk_closed(int hc_idx);
     void act3_talk_closed(int hc_idx);
     void act4_talk_closed(int hc_idx);
+    void act5_talk_closed(int hc_idx);
     // A message heard from the NPC: its rewards.
     void act1_said(int hc_idx, int message_string);
     void act2_said(int hc_idx, int message_string);
     void act3_said(int hc_idx, int message_string);
     void act4_said(int hc_idx, int message_string);
+    void act5_said(int hc_idx, int message_string);
     // A frame of the day clock (40 ms).
     void act1_tick();
     void act2_tick();
@@ -412,15 +428,18 @@ struct World {
     bool act2_alert(int hc_idx);
     bool act3_alert(int hc_idx);
     bool act4_alert(int hc_idx);
+    bool act5_alert(int hc_idx);
     // A monster's death (its quest death hooks).
     void act1_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act2_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act3_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
+    void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.
     void act2_update();
     void act3_update(std::uint32_t now_ms);
     void act4_update(std::uint32_t now_ms);
+    void act5_update(std::uint32_t now_ms);
     // Every item of the character has a unit id (new ones get theirs).
     void item_ids();
 
