@@ -152,6 +152,7 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
             }
         }
         monster.leader = spawn.leader;
+        if (spawn.dead) { monster.hit_points = 0; monster.mode = "DD"; }    // act 5's dead MonPlace codes: a corpse from the start
         monster.seed = unit_seed;
         monster.path = spawn.path;
         out.push_back(std::move(monster));

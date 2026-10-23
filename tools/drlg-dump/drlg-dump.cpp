@@ -148,7 +148,8 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
         return out.str();
     }
     const auto act3 = act3_layout(level_defs(assets.levels), act_seed(seed));
-    const auto layout = id >= level_ids::kPandemoniumFortress ? act4_layout(level_defs(assets.levels), act_seed(seed))
+    const auto layout = id >= level_ids::kHarrogath ? act5_layout(level_defs(assets.levels), act_seed(seed))
+                      : id >= level_ids::kPandemoniumFortress ? act4_layout(level_defs(assets.levels), act_seed(seed))
                       : id >= level_ids::kKurastDocks ? act3.levels
                       : id >= level_ids::kLutGholein ? act2_layout(level_defs(assets.levels), act_seed(seed)) : act1_from_map_seed(level_defs(assets.levels), seed);
     if (std::getenv("DRLG_LAYOUT"))

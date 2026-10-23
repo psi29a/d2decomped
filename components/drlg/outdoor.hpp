@@ -37,7 +37,7 @@ struct Preset {
 };
 // LvlSub.txt, one row: the stamp sheet and its odds per theme.
 struct Sub {
-    int type = 0, check_all = 0, bord_type = 0;
+    int type = 0, check_all = 0, bord_type = 0, grid_size = 1;   // grid_size: cells per DS1 tile (act 5's barricade rules: 2)
     std::uint32_t dt1_mask = 0;
     std::array<int, 5> prob{}, trials{}, max{};
     const d2d::ds1::Map* map = nullptr;
@@ -236,6 +236,7 @@ struct Gen {
         return rotation_found->second = (rotation_found->second + 1) % found->files;
     }
     void place(int x, int y, int def, int file, bool border) {
+        if (def == 0) { g04.op(x, y, 0, 3); return; }   // LvlPrest's None is 0x0: only the def is written (act 5's empty rule cells)
         const auto [cells_x, cells_y] = cells_of(def);
         if (file == -1) file = rotate(def);
         for (int cell_y = y; cell_y < y + cells_y; ++cell_y)
@@ -494,12 +495,35 @@ struct Gen {
         if (layers.empty() || x < 0 || y < 0 || x >= map.width() || y >= map.height()) return 0;
         return d2d::ds1::Map::word(layers[0].cells[std::size_t(y) * std::size_t(map.width()) + std::size_t(x)]);
     }
-    bool sub_match(const d2d::ds1::Map& map, const d2d::ds1::Group& group, int x, int y) {   // FUN_0066f3b0
+    // Act 5's rule cells (FUN_0067e000, 0x6f2038): a wall's style 48 / 49
+    // and seq give the def it stands for — {style, first seq, last seq, def,
+    // the Frozen Tundra's def}; 0 an empty cell, -5 any.
+    [[nodiscard]] int rule_def(std::uint32_t wall_word) const {
+        struct Rule { int style, first, last, def, tundra_def; };
+        static constexpr std::array<Rule, 10> kRules = { { { 49, 1, 16, 915, 987 }, { 49, 31, 46, 915, 987 }, { 48, 1, 1, 883, 959 }, { 48, 2, 3, 881, 957 },
+                                                          { 48, 4, 4, 884, 960 }, { 48, 5, 5, 895, 971 }, { 48, 6, 7, 893, 969 }, { 48, 8, 8, 896, 972 },
+                                                          { 48, 30, 30, 0, 0 }, { 48, 31, 31, -5, -5 } } };
+        const int style = int((wall_word >> 20) & 0x3f), seq = int((wall_word >> 8) & 0xff);
+        for (const auto& rule : kRules)
+            if (rule.style == style && seq >= rule.first && seq <= rule.last)
+                return (level.rect.level == level_ids::kFrozenTundra ? rule.tundra_def : rule.def) - rule.first + seq;
+        return -6;                                                             // game.exe asserts (OutSiege.cpp 0x184 / 0x1a5)
+    }
+    // FUN_0066f3b0: the group fits at (x, y), snapped to the row's grid; a
+    // cell per DS1 tile, `grid` cells apart. Act 5's rules (`rules`) match
+    // every tile by its def (FUN_0067e080).
+    bool sub_match(const d2d::ds1::Map& map, const d2d::ds1::Group& group, int x, int y, int grid = 1, bool rules = false) {
+        x -= x % grid;
+        y -= y % grid;
         for (int group_y = 0; group_y < group.height; ++group_y)
             for (int group_x = 0; group_x < group.width; ++group_x) {
                 const auto wall_word = word(map, map.walls(), group.x + group_x, group.y + group_y), floor_word = word(map, map.floors(), group.x + group_x, group.y + group_y);
-                const int cell_x = x + group_x, cell_y = y + group_y;
-                if (wall_word & 1) {
+                const int cell_x = x + grid * group_x, cell_y = y + grid * group_y;
+                if (rules) {
+                    const int def = rule_def(wall_word);
+                    if (def == -5) continue;
+                    if (def != int(g04.get(cell_x, cell_y)) || (g2c.get(cell_x, cell_y) & 0x400)) return false;
+                } else if (wall_word & 1) {
                     const int style = int((wall_word >> 8) & 0xff) - 1;
                     if (style != 62 && std::uint32_t(border_base() + style) != g04.get(cell_x, cell_y)) return false;
                     if (g2c.get(cell_x, cell_y) & 0x400) return false;
@@ -509,15 +533,18 @@ struct Gen {
             }
         return true;
     }
-    void sub_apply(const d2d::ds1::Map& map, const d2d::ds1::Group& group, int x, int y, int xoff) {   // FUN_0066f520
+    void sub_apply(const d2d::ds1::Map& map, const d2d::ds1::Group& group, int x, int y, int xoff, int grid = 1, bool rules = false) {   // FUN_0066f520
+        x -= x % grid;
+        y -= y % grid;
         for (int group_y = 0; group_y < group.height; ++group_y)
             for (int group_x = 0; group_x < group.width; ++group_x) {
                 const auto wall_word = word(map, map.walls(), group.x + xoff + group_x, group.y + group_y);
                 const auto floor_word = word(map, map.floors(), group.x + xoff + group_x, group.y + group_y);
-                const int cell_x = x + group_x, cell_y = y + group_y;
+                const int cell_x = x + grid * group_x, cell_y = y + grid * group_y;
                 if (wall_word & 1) {
                     const int style = int((wall_word >> 8) & 0xff) - 1;
-                    if (border_base() + style != -5 && style != 62) place(cell_x, cell_y, border_base() + style, 0, true);
+                    const int def = rules ? rule_def(wall_word) : border_base() + style;
+                    if (def != -5 && style != 62) place(cell_x, cell_y, def, 0, true);
                 } else if (floor_word & 2) {
                     g04.op(cell_x, cell_y, 0, 3);
                     g2c.op(cell_x, cell_y, 0, 3);
@@ -529,16 +556,17 @@ struct Gen {
     }
     bool sub_group(const Sub& sub, const d2d::ds1::Group& group, int type) {       // FUN_0066f690
         const bool act1 = level.rect.level >= level_ids::kBloodMoor && level.rect.level <= level_ids::kTamoeHighland;
+        const bool rules = type == 12;                                            // act 5's barricade rules (FUN_0067e0e0)
         const int margin = type == 1 && (flags & 0xc) ? -1 : 1;
-        const int spots_x = cells_wide - group.width + margin, spots_y = cells_high - group.height + 1;
+        const int spots_x = cells_wide - group.width * sub.grid_size + margin, spots_y = cells_high - group.height * sub.grid_size + 1;
         const int spots = spots_x * spots_y;
         if (spots <= 0) return false;
         const bool skip22 = type == 1 && act1 && spots_x <= 5 && spots_y <= 5;
         for (auto [spot_x, spot_y] : shuffled(spots_x, spots_y)) {
             if (skip22 && spot_x == 2 && spot_y == 2) continue;
-            if (!sub_match(*sub.map, group, spot_x, spot_y)) continue;
+            if (!sub_match(*sub.map, group, spot_x, spot_y, sub.grid_size, rules)) continue;
             const int variant = seed(group.variants);
-            sub_apply(*sub.map, group, spot_x, spot_y, (group.width + 1) * (variant + 1));
+            sub_apply(*sub.map, group, spot_x, spot_y, (group.width + 1) * (variant + 1), sub.grid_size, rules);
             if (sub.bord_type == 0 || sub.bord_type == 1) return true;
         }
         return false;
@@ -994,7 +1022,9 @@ struct Gen {
     }
 
     // ---- act 2's desert (FUN_0067f980): LevelType 16, levels 41-46.
-    [[nodiscard]] bool is_desert() const { return level.rect.level >= level_ids::kRockyWaste && level.rect.level <= level_ids::kCanyonOfTheMagi; }
+    [[nodiscard]] bool is_desert() const {                      // FUN_00675360: the Forgotten Sands too
+        return (level.rect.level >= level_ids::kRockyWaste && level.rect.level <= level_ids::kCanyonOfTheMagi) || level.rect.level == level_ids::kForgottenSands;
+    }
     [[nodiscard]] bool is_mesa() const { return level.rect.level >= level_ids::kOuterSteppes && level.rect.level <= level_ids::kCityOfTheDamned; }
     [[nodiscard]] bool is_chaos() const { return level.rect.level == level_ids::kChaosSanctuary; }
     [[nodiscard]] int border_base() const { return is_desert() ? 0x16c : is_mesa() ? 799 : 4; }   // the border defs FUN_006752a0 is handed
@@ -1049,6 +1079,13 @@ struct Gen {
             desert_list({ 0x19b }, true); desert_list({ 0x19b }, true);
             break;
         case 45: one(); break;
+        case level_ids::kForgottenSands:                                                  // the canyon's gate, then its lists before the shrines
+            place(4, 4, 0x18a, -1, false);
+            subs();
+            desert_list({ 0x191, 0x192, 0x196, 0x197, 0x193 }, false);
+            desert_list({ 0x188, 0x189 }, true);
+            shrines(5);
+            break;
         case 46:                                                                          // FUN_0067f8d0: the canyon's rows (0x6f2610), the tombs' gate
             for (const auto& [def, file, x, y] : kCanyonRows) place(x, y, def, file, false);
             place(4, 4, 0x18a, -1, false);
@@ -1092,6 +1129,149 @@ struct Gen {
         for (int i = 0; i < 4; ++i) anywhere(p_base + 3, -1, 0, 0xf);
     }
     // ---- act 4's Chaos Sanctuary (FUN_0067e840): LevelType 27, level 108.
+    // ---- act 5's barricades (FUN_0067e600, LevelType 31: 111, 112, 117).
+    // Every piece is 16x16 (2x2 cells); the Frozen Tundra has its own set
+    // (957.. for 881..).
+    [[nodiscard]] bool is_barricade() const {
+        const int id = level.rect.level;
+        return id == level_ids::kFrigidHighlands || id == level_ids::kArreatPlateau || id == level_ids::kFrozenTundra;
+    }
+    [[nodiscard]] bool tundra() const { return level.rect.level == level_ids::kFrozenTundra; }
+    // FUN_0067dcf0: the outline's edges every 2 cells (881 + kind), its
+    // corners (880 + row, FUN_00675600), a contact span's two openings
+    // flagged 0x400 halfway along.
+    void barricade_borders() {
+        const int base = tundra() ? 957 : 881;
+        int vert_index = head;
+        do {
+            const auto& vert = verts[std::size_t(vert_index)];
+            const auto& next = verts[std::size_t(vert.next)];
+            const auto& after = verts[std::size_t(next.next)];
+            const int dx = sgn(next.x - vert.x), dy = sgn(next.y - vert.y), dx2 = sgn(after.x - next.x), dy2 = sgn(after.y - next.y);
+            const int kind = dx == -1 ? 0 : dy == -1 ? 1 : dx == 1 ? 2 : 3;
+            int x = vert.x & ~1, y = vert.y & ~1;
+            const int next_x = next.x & ~1, next_y = next.y & ~1;
+            if (!(vert.flags & 2))
+                for (int steps = 0; (x != next_x || y != next_y) && steps < cells_wide + cells_high; ++steps) {
+                    x += 2 * dx;
+                    y += 2 * dy;
+                    place(x, y, base + kind, -1, false);
+                    g2c.op(x, y, 1, 0);
+                }
+            if (vert.flags & 1) {
+                const int open_x = (std::max(vert.x, next.x) - 4 * std::abs(dx)) & ~1, open_y = (std::max(vert.y, next.y) - 4 * std::abs(dy)) & ~1;
+                g2c.op(open_x, open_y, 0x400, 0);
+                g2c.op(open_x + 2 * std::abs(dx), open_y + 2 * std::abs(dy), 0x400, 0);
+            }
+            if (const int row = corner_row(sx2(2 * dx) + 9 * (sx2(2 * dx2) + 2 * dy2) + 2 * dy)) {
+                place(next_x, next_y, base + row - 1, -1, false);
+                g2c.op(next_x, next_y, 1, 0);
+            }
+            vert_index = vert.next;
+        } while (vert_index != head);
+        if (level.rect.level == level_ids::kFrigidHighlands) {
+            g2c.op(cells_wide - 2, cells_high - 4, 0x400, 0);
+            g2c.op(cells_wide - 2, cells_high - 3, 0x400, 0);
+        }
+    }
+    // FUN_0067def0: from the top right round to the bottom left, each piece
+    // its inner twin (+12), the way on by its kind (0x6f1fd8); the two ends.
+    void barricade_inside() {
+        static constexpr std::array<std::pair<int, int>, 12> kWalk = { { { -1, 0 }, { 0, -1 }, { 1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 0 },
+                                                                        { 0, 1 }, { -1, 0 }, { -1, 0 }, { 0, -1 }, { 1, 0 }, { 0, 1 } } };
+        const int base = tundra() ? 957 : 881;
+        int x = cells_wide - 2, y = 0;
+        for (int steps = 0; (x != 0 || y != cells_high - 2) && steps < 2 * (cells_wide + cells_high); ++steps) {
+            const int kind = int(g04.get(x, y)) - base;
+            if (kind < 0 || kind >= 12) { note("drlg: barricade walk off its border"); break; }   // game.exe reads past its table
+            place(x, y, kind + base + 12, -1, false);
+            x += 2 * kWalk[std::size_t(kind)].first;
+            y += 2 * kWalk[std::size_t(kind)].second;
+        }
+        place(cells_wide - 2, 0, base + 25, -1, false);
+        place(0, cells_high - 2, base + 24, -1, false);
+    }
+    // FUN_0067db50: the first opening on each edge (top, bottom, left,
+    // right) takes its way through (909, 908, 910, 907).
+    void barricade_exits() {
+        const int file = -1;
+        for (int x = 0; x < cells_wide; ++x) if (g2c.get(x, 0) & 0x400) { place(x, 0, 0x38d, file, false); break; }
+        for (int x = 0; x < cells_wide; ++x) if (g2c.get(x, cells_high - 2) & 0x400) { place(x, cells_high - 2, 0x38c, file, false); break; }
+        for (int y = 0; y < cells_high; ++y) if (g2c.get(0, y) & 0x400) { place(0, y, 0x38e, file, false); break; }
+        for (int y = 0; y < cells_high; ++y) if (g2c.get(cells_wide - 2, y) & 0x400) { place(cells_wide - 2, y, 0x38b, file, false); break; }
+    }
+    // FUN_0067da70 (0x6f1f9c): the Arreat Plateau's and the Frozen Tundra's
+    // way on, by the level's shape {level, file, far side, tall def, wide def}.
+    void barricade_ways() {
+        struct Way { int level, file, far_side, tall, wide; };
+        static constexpr std::array<Way, 3> kWays = { { { 112, 0, 0, 913, 914 }, { 117, 0, 1, 983, 984 }, { 117, 0, 0, 985, 986 } } };
+        for (const auto& way : kWays) {
+            if (way.level != level.rect.level) continue;
+            if (level.rect.width > level.rect.height) place(way.far_side ? cells_wide - 2 : 0, 2, way.wide, way.file, false);
+            else place(2, way.far_side ? cells_high - 2 : 0, way.tall, way.file, false);
+        }
+    }
+    // FUN_0067e4b0: the Frigid Highlands' corner piece (880) and 896 above it.
+    void highlands_corner() {
+        const auto [corner_w, corner_h] = cells_of(0x370);
+        const int x = cells_wide - corner_w, y = cells_high - corner_h;
+        place(x, y, 0x370, -1, false);
+        place(x, y - 2, 0x380, -1, false);
+    }
+    // FUN_0067e240: three of the Frigid Highlands' barricade pieces
+    // (915..922) become their doors (+16): 90 random tries, then a sweep.
+    void highlands_doors() {
+        int count = 0;
+        auto try_at = [&](int x, int y) {
+            const int def = (g2c.get(x, y) & 0x200) ? int(g04.get(x, y)) : 0;   // FUN_00674120
+            if (def < 915 || def > 922) return;
+            place(x, y, def + 16, -1, false);
+            ++count;
+        };
+        for (int tries = 0; tries < 90 && count < 3; ++tries) {
+            const int x = seed(cells_wide / 2) * 2;
+            const int y = seed(cells_high / 2) * 2;
+            try_at(x, y);
+        }
+        const int start_x = seed(cells_wide / 2), start_y = seed(cells_high / 2);
+        for (int y = 0; y < cells_high && count < 3; ++y)
+            for (int x = 0; x < cells_wide && count < 3; ++x) try_at((x + start_x * 2) % cells_wide, (y + start_y * 2) % cells_high);
+        if (count < 3) note("drlg: the Frigid Highlands' doors don't fit");   // game.exe asserts (OutSiege.cpp 0x259)
+    }
+    // FUN_0067e160 (0x6f2100): each row's def (by the level's shape) anywhere,
+    // `count` times; {level, tall def, wide def, file, count}.
+    void barricade_lists() {
+        struct Item { int level, tall, wide, file, count; };
+        static constexpr std::array<Item, 15> kItems = { { { 111, 955, 956, 0, 1 }, { 112, 955, 956, 0, 1 }, { 117, 955, 956, 1, 1 }, { 112, 953, 953, -1, 1 },
+                                                          { 117, 954, 954, -1, 1 }, { 111, 944, 947, -1, 1 }, { 111, 942, 945, -1, 4 }, { 111, 943, 946, -1, 4 },
+                                                          { 112, 941, 941, -1, 1 }, { 112, 939, 939, -1, 1 }, { 112, 940, 940, -1, 5 }, { 117, 948, 948, -1, 4 },
+                                                          { 117, 949, 949, -1, 4 }, { 117, 950, 950, -1, 4 }, { 117, 951, 951, -1, 3 } } };
+        const bool tall = level.rect.width < level.rect.height;
+        for (const auto& item : kItems)
+            if (item.level == level.rect.level)
+                for (int k = 0; k < item.count; ++k) anywhere(tall ? item.tall : item.wide, item.file, 0, 0xf);
+    }
+    void lay_barricade() {
+        barricade_borders();
+        barricade_inside();
+        barricade_exits();
+        barricade_ways();
+        if (level.rect.level == level_ids::kFrigidHighlands) highlands_corner();
+        border_subs(12);
+        if (level.rect.level == level_ids::kFrigidHighlands) highlands_doors();
+        barricade_lists();
+    }
+
+    // ---- act 5's Bloody Foothills (FUN_0067e560, level 110): the siege's
+    // 15 strips (LvlPrest 865..879), right to left from the east edge.
+    void lay_siege() {
+        const auto [strip_w, strip_h] = cells_of(0x361);
+        if (strip_w <= 0) { note("drlg: siege strip 865 missing"); return; }
+        for (int i = 0, x = cells_wide - strip_w; i < 15; ++i, x -= strip_w) {
+            if (x < 0) { note("drlg: the siege strips don't fit"); return; }   // game.exe asserts (OutSiege.cpp 0x294)
+            place(x, 0, 0x361 + i, 0, false);
+        }
+    }
     void lay_chaos() {
         for (int i = 0; i < 25; ++i)
             place((i % 5) * 3, (i / 5) * 3, kChaosPresets[std::size_t(i)], -1, false);
@@ -1294,10 +1474,15 @@ inline Outdoor generate_outdoor(const OutdoorData& data, const OutdoorLevel& lev
     const bool wild = id >= level_ids::kBloodMoor && id <= level_ids::kTamoeHighland;
     const bool desert = gen.is_desert(), act3 = id >= level_ids::kSpiderForest && id <= level_ids::kTravincal;
     const bool act4 = gen.is_mesa() || gen.is_chaos();
-    if (!wild && !desert && !act3 && !act4 && id != level_ids::kBurialGrounds && id != level_ids::kMooMooFarm) gen.note("drlg: outdoor level " + std::to_string(id) + " not implemented");
+    const bool siege = id == level_ids::kBloodyFoothills, barricade = gen.is_barricade();
+    if (!wild && !desert && !act3 && !act4 && !siege && !barricade && id != level_ids::kBurialGrounds && id != level_ids::kMooMooFarm) gen.note("drlg: outdoor level " + std::to_string(id) + " not implemented");
     gen.neighbours();
     gen.outline();
-    if (act3) {                                                                           // FUN_0067f450: no borders
+    if (siege) gen.lay_siege();                                                           // FUN_0067e600: nothing else
+    else if (barricade) {
+        gen.contacts();
+        gen.lay_barricade();
+    } else if (act3) {                                                                           // FUN_0067f450: no borders
         gen.contacts();
         if (gen.is_jungle()) gen.lay_jungle();
         gen.lay_kurast();

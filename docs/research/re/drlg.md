@@ -269,6 +269,85 @@ FUN_00642590, FUN_00673320 (skipped when act +0x480 is 4):
 Then theme rooms / presets as every maze. Emulated (seeds 7, 8): 306 / 288
 rooms, 23 / 21 LavaX fill rooms; 107 at 1524,1120 (144x192, 96x216).
 
+## Act 5's layout (FUN_00678a70)
+
+Three chains (FUN_006772c0, no chain check but the third's FUN_00677030,
+the plain overlap one), each from the act seed:
+
+| table | records |
+|---|---|
+| 0x6f0de0 | 109 Harrogath (anchor), 110 Bloody Foothills (anchor ← 0: both at their Levels.txt offsets), 111 Frigid Highlands ← 1 (FUN_0067d830), 112 Arreat Plateau ← 2 (FUN_0067d980) |
+| 0x6f0ed0 | 117 Frozen Tundra (FUN_0067d8e0) |
+| 0x6f0b10 | 134 Forgotten Sands, 136 Uber Tristram (anchors) |
+
+Records are 16 bytes {placer, level, link, link 2}. One roll (`& 1`) gives
+the side and the shape: 0 is 64x160, 1 is 160x64.
+
+- **111** (FUN_0067d830, never retried): x = L.x − w, y = L.y + L.h − h − 16.
+- **112** (FUN_0067d980, the two-sided retry): its own roll, then
+  (L.x, L.y) + 0x6f1f7c[dir + 2·L.dir]: (0, −160), (−96, −64), (−64, −96),
+  (−160, 0).
+- **117** (FUN_0067d8e0): the roll, at its Levels.txt offset.
+
+FUN_006772c0 adds no Vis links in act 5 (act index 4 skips them). The links
+come from FUN_006775c0's edge shares, in this order: (111, 112), then
+FUN_00677680 makes 111's and 112's neighbour nodes, then (110, 111),
+(109, 110). So 111's Vis is [112, 110], but 110 is never one of its nodes.
+`drlg-dump <data> 1-2000 109 layout`: 2000/2000.
+
+## Act 5's levels
+
+- **Presets** 109, 120, 121, 124, 131, 132, 136 (LvlPrest's "Act 5 - "
+  rows load only with d2exp.mpq: FUN_0061ebb0 skips expansion rows unless
+  FUN_00408f20 finds it). Harrogath's main gate (object 449) is a door row
+  (FUN_0066d960: 0x6eefc8 level 109 → rows 23..24); the barricades' doors and
+  towers are rows 24..33 (levels 111, 112, 117; type 1 rows are MonStats
+  rows: 432..435, 524, 525).
+- **Mazes** (FUN_00673b30): the temple (32: 122, 123) rings, no grow, its
+  defs by link mask from 0x6ef6d8 (8-byte rows), specials FUN_00673000
+  (turn rand(3); 0x6f02f8, 123 also 0x6f0328). The ice caves (33: 113, 115,
+  118) ring, grow, defs 0x3ea + mask, specials FUN_00673530 (turn & 3:
+  0x6f0498, 0x6f04d8, 0x6f0518; 115 0x6f0558; 113 / 115 / 118 0x6f0598); 114,
+  116, 119 are one room (114's def 0x40f − (rand(2) ≠ 0) on the level seed,
+  116 0x410, 119 0x411). The Worldstone Keep (34: 128..130) as the tombs
+  (FUN_006718c0: three arms, the entrance from 0x6ef88c), defs 0x422 + mask,
+  specials FUN_006730b0 (0x6f0368; 129 also 0x6f03a8). The hell levels (35:
+  125..127, 135) FUN_00671430: two rooms off the first by a roll of its seed
+  (0x6ef828, {def, side, file} twice), then FUN_00671320's 836 fill as the
+  River of Flame's; their defs by mask from 0x6ef6dc. No theme rooms; the
+  rotation (FUN_006738c0) covers types 33 (0x3ea), 34 (0x422), 35 (0x41c).
+- **Warps**: act 5's LvlWarp rows come in pairs, Direction `l` and `r`;
+  FUN_0066e1c0 asks FUN_0066af50 for `r` on an orientation-11 wall, else
+  `l` (the unit's offset differs).
+- **134** is a desert level (FUN_00675360 counts it as act 2): the canyon's
+  gate (0x18a) at (4, 4), the subs, FUN_0067f920's lists, the shrines.
+- **110** (FUN_0067e560): the 15 siege strips 865..879 right to left from
+  the east edge, file 0; nothing else.
+- **111, 112, 117** (FUN_0067e600): contacts, then
+  1. FUN_0067dcf0: every outline edge in 2-cell steps (881 + kind; the
+     Tundra's 957 + kind, 0x6f06f0's two columns), corners 880 + row
+     (FUN_00675600, the same rows as act 1's); a contact span flags 0x400 on
+     two cells 4 cells from its far end; 111 also (w − 2, h − 4 / h − 3).
+  2. FUN_0067def0: from (w − 2, 0) to (0, h − 2), each piece its +12 twin,
+     the next by its kind (0x6f1fd8); 906 / 905 at the two ends (982 / 981).
+  3. FUN_0067db50: the first 0x400 cell on the top, bottom (h − 2), left and
+     right (w − 2) edges takes 909, 908, 910, 907.
+  4. FUN_0067da70 (0x6f1f9c): 112's 913 / 914 and 117's 983..986 by the
+     level's shape.
+  5. 111: FUN_0067e4b0, 880 in the bottom right corner, 896 above it.
+  6. FUN_0067e0e0: LvlSub type 12 (4x3barricade_rules.ds1, GridSize 2)
+     through FUN_00670750 with its own callbacks: every rule tile's wall is
+     style 48 / 49, its seq a def by 0x6f2038 (FUN_0067e000: seq 30 none,
+     31 any); FUN_0066f3b0 / f520 step `GridSize` cells a tile and snap the
+     spot to it. A def 0 placed writes only the def (LvlPrest's None is 0x0).
+  7. 111: FUN_0067e240, three of 915..922 become their doors (+16): 90
+     random even cells, then a sweep from a random one.
+  8. FUN_0067e160 (0x6f2100): each row's def (tall / wide) anywhere `count`
+     times.
+
+d2d: `act5_layout` (drlg.hpp), `Gen::lay_siege` / `lay_barricade`
+(outdoor.hpp), maze.hpp's act 5 cases. `ACT=5 tools/emu/sweep.sh`.
+
 ## Outdoor levels (DrlgType 3) — FUN_00675360
 
 The level's outdoor record (0x268 bytes, FUN_00675320) holds four cell
