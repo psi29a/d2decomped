@@ -32,6 +32,7 @@ struct MonType {
     std::array<int, 3> level{};                 // Level, Level(N), Level(H)
     int velocity = 0, run = 0;
     bool spawnable = false, killable = false, melee = false, open_doors = false;   // isSpawn (MonStats flag bit 0), killable, isMelee, opendoors
+    int align = 0;                                // Align (MonStats +0x4c): 1 good, 2 neutral
     bool ranged = false;                        // rangedtype
     bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
     bool low_undead = false;                    // lUndead (MonStats flag byte +0xd & 8: what a Greater Mummy raises)

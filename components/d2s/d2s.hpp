@@ -36,6 +36,10 @@
 //   +0x279 "WS" + 6 bytes, then per difficulty 24 bytes: 02 01 and a
 //              bitfield of activated waypoints (Levels.txt Waypoint
 //              index, LSB first; 39 used)
+//   +0x2C9 01 'w' 34 00 (FUN_00569490: u16 0x7701, u16 size 0x34), then
+//              per difficulty 8 bytes of NPC introductions heard (+0x2CD,
+//              FUN_00572520; bit = the 0x732738 table's, 31 Malah) and 8 of
+//              congratulations (+0x2E5, FUN_00572530)
 // Stats/skills/items, the bit-packed sections after 0x2FD: d2s_items.hpp.
 #pragma once
 
@@ -99,6 +103,7 @@ struct Header {
         if (diff < 0 || diff > 2 || waypoint_index < 0 || waypoint_index >= 40) return false;
         return waypoints[std::size_t(diff)][std::size_t(waypoint_index >> 3)] >> (waypoint_index & 7) & 1;
     }
+    std::array<std::uint64_t, 3> intros{};                     // zero when the save has none
     // 0 normal, 1 nightmare, 2 hell — the last one played.
     [[nodiscard]] int active_difficulty() const noexcept {
         for (int i = 0; i < 3; ++i) if (difficulty[std::size_t(i)] & 0x80) return i;
@@ -156,6 +161,8 @@ inline Header parse_header(std::span<const std::byte> bytes) {
         for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(header.quests[difficulty].data(), bytes.data() + 0x159 + difficulty * 96, 96);
     if (bytes.size() >= 0x281 + 3 * 24 && std::memcmp(bytes.data() + 0x279, "WS", 2) == 0)
         for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(header.waypoints[difficulty].data(), bytes.data() + 0x283 + difficulty * 24, 5);
+    if (bytes.size() >= 0x2E5 && bytes[0x2CA] == std::byte{ 'w' })
+        for (std::size_t difficulty = 0; difficulty < 3; ++difficulty) std::memcpy(&header.intros[difficulty], bytes.data() + 0x2CD + difficulty * 8, 8);
     if (header.cls > 6) throw std::runtime_error("d2s: bad class " + std::to_string(header.cls));
     return header;
 }
