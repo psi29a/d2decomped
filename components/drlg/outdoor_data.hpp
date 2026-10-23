@@ -99,6 +99,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
         sub_row.type = to_int(sub.get(row, "Type"), -1);
         sub_row.check_all = to_int(sub.get(row, "CheckAll"));
         sub_row.bord_type = to_int(sub.get(row, "BordType"));
+        sub_row.grid_size = std::max(1, to_int(sub.get(row, "GridSize"), 1));
         sub_row.dt1_mask = std::uint32_t(std::stoul("0" + std::string(sub.get(row, "Dt1Mask"))));
         for (int type = 0; type < 5; ++type) {
             sub_row.prob[std::size_t(type)] = to_int(sub.get(row, "Prob" + std::to_string(type)));
@@ -208,7 +209,7 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
         return nullptr;
     };
     if (const auto* placement = placed(id)) level.rect = *placement;
-    if (const auto* town = placed(id >= level_ids::kPandemoniumFortress ? level_ids::kPandemoniumFortress : id >= level_ids::kKurastDocks ? level_ids::kKurastDocks : id >= level_ids::kLutGholein ? level_ids::kLutGholein : 1)) level.town = *town;
+    if (const auto* town = placed(level_ids::kActTowns[std::size_t(level_ids::act_of(id))])) level.town = *town;
     const auto row = level_row(levels, id);
     if (!row) return level;
     level.sub_type = to_int(levels.get(*row, "SubType"), -1);
@@ -226,7 +227,7 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
         for (int i = 0; i < 8; ++i)
             if (vis[std::size_t(i)] == 0 && warp[std::size_t(i)] == -1) { vis[std::size_t(i)] = other; return; }
     };
-    for (const auto* chain : { &kAct1Outdoors, &kAct1Highlands, &kAct2Outdoors, &kAct2Canyon, &kAct4Outdoors, &kAct4Chaos })
+    for (const auto* chain : { &kAct1Outdoors, &kAct1Highlands, &kAct2Outdoors, &kAct2Canyon, &kAct4Outdoors, &kAct4Chaos })   // act 5's add none
         for (const auto& record : *chain) {
             if (record.link < 0) continue;
             const int other = (*chain)[std::size_t(record.link)].level;
@@ -235,9 +236,19 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
         }
     // Act 3's (FUN_006775c0): each of 75..83 whose rect shares an edge with
     // this one's (FUN_0066b880, overlap -1), in id order.
-    if (const auto* self = placed(id); self && id >= level_ids::kKurastDocks && id <= level_ids::kTravincal)
-        for (int other = level_ids::kKurastDocks; other <= level_ids::kTravincal; ++other)
-            if (const auto* rect = placed(other); rect && other != id && edge_shared(*self, *rect)) add(other);
+    // Act 5's (FUN_00678a70): the same over 111..112, 110..111, 109..110 in turn.
+    auto share_edges = [&](int first, int last) {
+        if (const auto* self = placed(id); self && id >= first && id <= last)
+            for (int other = first; other <= last; ++other)
+                if (const auto* rect = placed(other); rect && other != id && edge_shared(*self, *rect)) add(other);
+    };
+    share_edges(level_ids::kKurastDocks, level_ids::kTravincal);
+    // FUN_00677680 makes 111's and 112's neighbours right after the first
+    // pass, so the Bloody Foothills is never the Frigid Highlands' (its way
+    // through is FUN_0067dcf0's own opening).
+    share_edges(level_ids::kFrigidHighlands, level_ids::kArreatPlateau);
+    if (id != level_ids::kFrigidHighlands) share_edges(level_ids::kBloodyFoothills, level_ids::kFrigidHighlands);
+    share_edges(level_ids::kHarrogath, level_ids::kBloodyFoothills);
     for (int i = 0; i < 8; ++i)
         if (vis[std::size_t(i)] && warp[std::size_t(i)] == -1)
             if (const auto* placement = placed(vis[std::size_t(i)])) {

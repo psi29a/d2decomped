@@ -85,7 +85,10 @@ def dump(e, seed, lid, difficulty=0):
         ret = e.r32(mu.reg_read(UC_X86_REG_ESP))
         if addr == 0x5b2f20 and not 0x5506d0 <= ret < 0x550a30: return   # FUN_005b2f20: only InitFn 46's souls, each alone
         if addr != 0x5a43e0 or 0x54ec90 <= ret < 0x54ef42: lead[0] = len(made)
+    def on_dead(mu, addr, size, _):       # FUN_0054e600's dead MonPlace codes: unit +0xc4 |= 0x2000000, shown as mode 12
+        if made: made[-1] = made[-1][:3] + (12,) + made[-1][4:]
     hooks = [e.mu.hook_add(UC_HOOK_CODE, on_make, begin=0x555230, end=0x555230)]
+    hooks.append(e.mu.hook_add(UC_HOOK_CODE, on_dead, begin=0x54ea93, end=0x54ea93))
     hooks += [e.mu.hook_add(UC_HOOK_CODE, on_group, begin=a, end=a) for a in (0x555910, 0x54df80, 0x5a43e0, 0x5b2f20)]
     hooks += [e.mu.hook_add(UC_HOOK_CODE, on_boss, begin=a, end=a) for a in (0x5b2edf, 0x5b2ee4)]
     hooks.append(e.mu.hook_add(UC_HOOK_CODE, on_stat, begin=0x639db0, end=0x639db0))

@@ -118,6 +118,7 @@ void place_act1(GameData& game_data, d2d::mpq::Stack& mpqs, const d2d::drlg::Out
     game_data.act2_layout = d2d::drlg::act2_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
     game_data.act3_layout = d2d::drlg::act3_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
     game_data.act4_layout = d2d::drlg::act4_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
+    game_data.act5_layout = d2d::drlg::act5_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
 }
 
 // Monster tables (MonStats, MonStats2, MonLvl), unique names and mods, and
