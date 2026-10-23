@@ -833,6 +833,15 @@ struct ObjectRooms {
                 // leaves him due in every game.
                 // His walk: ai.cpp's DarkWanderer.
                 if (init == 43) { auto east = unit; east.x += 7; monster_or_npc(0x170, east, 0, false); }
+                // Harrogath's markers (a new game's quest records): InitFn 71 (FUN_00587840,
+                // object 543, record 0x1f) Larzuk (0x1ff) within 5 of it; InitFn 68
+                // (FUN_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202)
+                // at its spot, else within 5, till he's gone (record +0x88).
+                // ponytail: FUN_005459a0's FUN_00545340 free-spot pass and the records' "made"
+                // bytes aren't kept; InitFns 66 / 67 / 69 / 70 (Drehya, Nihlathak outside,
+                // Larzuk's greeting) wait for Act 5's quests.
+                if (init == 71) monster_or_npc(0x1ff, unit, 5, false);
+                if (init == 68) monster_or_npc(0x202, unit, 5, false);
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made
         }
@@ -858,6 +867,8 @@ struct ObjectRooms {
             if (level.unit_rooms[i] != int(room_at) || unit.type != d2d::rules::unit_type::kMonster || (unit.flags & 1) || unit.id < 0) continue;
             leader = int(spawns->size());                                                              // FUN_00555910: a placement of its own
             if (unit.id < nmon) {
+                // FUN_0054e490: a critter (MonStats2 flag 0xd: Harrogath's chickens) is never made.
+                if (const auto* info = type_at(int(game_data.mon_bin[std::size_t(unit.id)])); info && info->critter) continue;
                 const bool stay = unit.id == 0xe5 || (unit.id >= 0x11c && unit.id <= 0x120) || unit.id == 0x188 || unit.id == 0x189;   // FUN_0054e3a0
                 monster_or_npc(unit.id, unit, stay ? 0 : 4);
             } else if (const int code = unit.id - nmon - nsu; code == 0x11 || code == 0x12 || code == 0x16 || code == 0x17 || code == 0x05) {
