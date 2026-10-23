@@ -949,9 +949,9 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
             return text ? u16_to_latin1(*text) : found->second;
         };
         if (coop_hud_hidden()) {                      // local co-op: everyone else on the screen, all in its one party
-            for (const auto& player : world.players)
-                if (player->id != focus_id())
-                    rows.push_back({ std::uint32_t(player->id), player->character.name, int(player->character.header.cls), int(player->character.stats.get(d2d::d2s::kLevel)),
+            for (const auto& member : world.players)
+                if (member->id != focus_id())
+                    rows.push_back({ std::uint32_t(member->id), member->character.name, int(member->character.header.cls), int(member->character.stats.get(d2d::d2s::kLevel)),
                                      1, 1, 0, area_name(level ? level->id : 0), false });
             return rows;
         }
@@ -3265,10 +3265,10 @@ auto Town::draw_coop_portraits(std::vector<std::uint8_t>& framebuffer, bool left
     constexpr int kBarWidth = 0x2e;
     const int x = kCoopPortraitX, bar_x = x + (kCoopPortraitWidth - kBarWidth) / 2;
     int top = 8;
-    for (const auto& player : world.players) {
-        const int cls = int(player->character.header.cls);
+    for (const auto& member : world.players) {
+        const int cls = int(member->character.header.cls);
         if (cls < 0 || cls > 6) continue;
-        const auto& stats = player->character.stats;
+        const auto& stats = member->character.stats;
         const int life = percent(stats, kLife, kMaxLife);
         fill_bar(framebuffer, bar_x, top, kBarWidth, 5, life, life_colour(life));
         fill_bar(framebuffer, bar_x, top + 6, kBarWidth, 3, percent(stats, kMana, kMaxMana), { 0x20, 0x40, 0xe0 });
@@ -3278,9 +3278,9 @@ auto Town::draw_coop_portraits(std::vector<std::uint8_t>& framebuffer, bool left
             blit_sprite(framebuffer, frame, pal, x + (kCoopPortraitWidth - int(frame.width)) / 2, below);
             below += int(frame.height);
         }
-        const auto seat = std::ranges::find(coop, player->id, &CoopPlayer::id);
+        const auto seat = std::ranges::find(coop, member->id, &CoopPlayer::id);
         const auto& colour = kSeatColours[std::size_t(std::clamp(seat == coop.end() ? lead_colour : seat->colour, 0, 3))];
-        std::string name = player->character.name;
+        std::string name = member->character.name;
         while (!name.empty() && font.measure(name) > kCoopPortraitWidth) name.pop_back();
         font.draw_tinted(framebuffer, std::uint32_t(frame_w), kScreenHeight, pal, x + (kCoopPortraitWidth - font.measure(name)) / 2, below + 2, name, colour[0], colour[1], colour[2]);
         top = below + 2 + font.line_height() + 10;
