@@ -2286,7 +2286,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
-            if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) (void)d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats));
+            if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) (void)d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), required_level(*game_data, *actor->held));
             return;
         }
         if (const auto* to_book = std::get_if<cmd::ScrollToBook>(&command)) {   // FUN_0055ef20
