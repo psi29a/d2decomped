@@ -1008,6 +1008,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
             input.attacker = input.got_hit;
         }
+        // Baal's tentacles live on their master (FUN_00552fd0).
+        // ponytail: the master's taken as there; the putrid defiler's find
+        // (FUN_005efa50) is never made.
+        if (name == "BaalTentacle") input.rider = true;
         // The Imp reads imp1..imp4's aips (MonStats 0x1ec..0x1ef).
         // ponytail: no siege beast is ridden (its ride word stays -1).
         if (name == "Imp") {

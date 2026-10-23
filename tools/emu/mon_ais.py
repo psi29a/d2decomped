@@ -61,7 +61,7 @@ AIS = {
     "ReanimatedHorde": 0x5e1540, "SiegeBeast": 0x5e1900, "Minion": 0x5e1b60, "SuicideMinion": 0x5e1d30, "Succubus": 0x5e1e00,
     "SuccubusWitch": 0x5e2120, "Overseer": 0x5e27a0, "MinionSpawner": 0x5e2bd0, "Imp": 0x5e2ff0, "Catapult": 0x5e34c0,
     "FrozenHorror": 0x5e3530, "BloodLord": 0x5e36f0, "CatapultSpotter": 0x5ee040, "NpcBarb": 0x5edc50, "GenericSpawner": 0x5e61b0,
-    "DeathMauler": 0x5ee260,
+    "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910,
 }
 CURSE_AIS = ("DimVision", "Terror", "BatDemonOther", "SandMaggotOther")
 ACT3_AIS = tuple(list(AIS)[list(AIS).index("Mosquito"):])   # Act 4's too: their scene is Act 3's and more
@@ -228,6 +228,7 @@ def setup(rng, ai):
         s["catapult_gone"], s["strike_spot"] = rng.random() < 0.3, rng.random() < 0.7
         if ai == "CatapultSpotter": s["ctrl"][0] = rng.randint(0, 4)        # its strike pick: only rand(5) is kept
         s["spawn_unset"], s["spawn_found"], s["spawn_room"] = rng.random() < 0.3, rng.random() < 0.5, rng.random() < 0.7
+        s["defile"] = rng.random() < 0.5
         s["imp_aip"] = [[rng.choice((0, 1, 2, rng.randint(0, 100), rng.randint(0, 20), 100)) for _ in range(8)] for _ in range(4)]
     if ai == "Vulture":
         for k in range(2):                                                 # its spot words: a point, or unset
@@ -355,6 +356,8 @@ def install(e):
             if s["hurt"]: e.w32(ctx + 12, cur["units"]["kin"])
             if s["free_minion"]: e.w32(ctx + 16, cur["units"]["aid"])
             e.w32(ctx + 20, s["young"])
+        elif cb == 0x5efa50:                                               # the putrid defiler's find (returned)
+            return cur["units"]["kin"] if s["defile"] else 0
         elif cb == 0x5e2b70:                                               # the spawner's live minions
             e.w32(ctx, s["young"])
         elif cb == 0x5f2a00:                                               # a corpse, a hurt one, their counts
@@ -691,7 +694,7 @@ def dump_case(s, act, pace, effects, asks, ctrl, seed):
         nums += [int(s["lines"]), s["sk_range"], int(s["rider"]), int(s["self_dead"]), int(s["state69"]), int(s["imp"]), int(s["state20"]),
                  *s["mana"], s["foe_life"], s["cmd_until"], int(s["foe_kind"] == "player"), int(s["reach"]), int(s["busy"]),
                  int(s["attacker"]), int(s["hurt"]), int(s["free_minion"])] + [v for row in s["imp_aip"] for v in row]
-        nums += [int(s["catapult_gone"]), int(s["strike_spot"]), int(s["spawn_unset"]), int(s["spawn_found"]), int(s["spawn_room"])]
+        nums += [int(s["catapult_gone"]), int(s["strike_spot"]), int(s["spawn_unset"]), int(s["spawn_found"]), int(s["spawn_room"]), int(s["defile"])]
     nums += list(s["seed"])
     kinds = {"state": 0, "overlay": 1, "stat": 2, "rally": 3, "command_done": 4, "summoner_open": 5, "aura": 6, "land": 7, "takeoff": 8,
              "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14, "mount": 15, "retarget": 16}
