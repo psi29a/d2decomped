@@ -69,3 +69,4 @@
 { "BaalTentacle", false, true, true, true },
 { "BaalMinion", false, true, true, true },
 { "Ancient", false, true, true, true },
+{ "Nihlathak", false, true, true, true },

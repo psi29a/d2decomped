@@ -992,7 +992,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // (the free one) and state 0x8d aren't kept; the one that last hit it is
         // taken as the target, when it got hit.
         const auto& name = type_info.ai_name;
-        if (name == "Overseer" || name == "MinionSpawner") {
+        if (name == "Overseer" || name == "MinionSpawner" || name == "Nihlathak") {
             const int minion = int(game_data.mon_bin[0x1c5]), suicide = int(game_data.mon_bin[0x1cd]);
             for (std::size_t i = 0; i < pack.size(); ++i) {
                 const auto& other = pack[i];
@@ -1003,10 +1003,18 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
                 const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
                 if (kin < 0 && squared <= 0x240 && life < 50) kin = int(i);
-                if (aid < 0 && squared <= 0x190) aid = int(i);
+                if (aid < 0 && squared <= (name == "Nihlathak" ? 0x271 : 0x190)) aid = int(i);
             }
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
             input.attacker = input.got_hit;
+        }
+        // Nihlathak's Corpse Explosion (FUN_0056e390): a corpse (DD, not used) about.
+        // ponytail: the nearest in the pack, not FUN_0056e390's own search by its radius.
+        if (name == "Nihlathak") {
+            for (std::size_t i = 0; i < pack.size() && corpse < 0; ++i)
+                if (!pack[i].alive() && pack[i].mode == "DD" && !pack[i].corpse_used) corpse = int(i);
+            input.corpse = corpse >= 0;
+            input.self_x = x; input.self_y = y;
         }
         // The Ancients: which by class, a foe picked (the target), awake.
         // ponytail: their sleep (a5q5's record) and Talic's state 0x36 aren't kept.

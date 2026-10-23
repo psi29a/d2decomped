@@ -61,7 +61,7 @@ AIS = {
     "ReanimatedHorde": 0x5e1540, "SiegeBeast": 0x5e1900, "Minion": 0x5e1b60, "SuicideMinion": 0x5e1d30, "Succubus": 0x5e1e00,
     "SuccubusWitch": 0x5e2120, "Overseer": 0x5e27a0, "MinionSpawner": 0x5e2bd0, "Imp": 0x5e2ff0, "Catapult": 0x5e34c0,
     "FrozenHorror": 0x5e3530, "BloodLord": 0x5e36f0, "CatapultSpotter": 0x5ee040, "NpcBarb": 0x5edc50, "GenericSpawner": 0x5e61b0,
-    "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910, "Ancient": 0x5ef1a0,
+    "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910, "Ancient": 0x5ef1a0, "Nihlathak": 0x5ee5d0,
 }
 CURSE_AIS = ("DimVision", "Terror", "BatDemonOther", "SandMaggotOther")
 ACT3_AIS = tuple(list(AIS)[list(AIS).index("Mosquito"):])   # Act 4's too: their scene is Act 3's and more
@@ -513,7 +513,11 @@ def install(e):
     e.hook(0x5353f0, lambda e: 7, 0)                                   # the player's id his think looks up (FUN_00552f60 answers)
     e.hook(0x622c40, lambda e: int(cur["s"].get("reach", False)), 3)
     e.hook(0x620190, lambda e: cur["lrec"] if diablo() and cur["s"]["lskill"] is not None else 0, 1)
-    e.hook(0x643ce0, lambda e: cur["s"]["lskill"] if e.arg(0) == cur["lrec"] else cur["s"]["rskill"], 3)
+    e.hook(0x643ce0, lambda e: (cur["s"]["lskill"] if e.arg(0) == cur["lrec"] else cur["s"]["rskill"]) if diablo() else cur["s"]["skills"][0] & MASK, 3)
+    e.hook(0x644360, lambda e: cur["s"]["modes"][0], 1)                 # a skill record's mode (Nihlathak's teleport)
+    e.hook(0x63ec70, lambda e: 0x1c5, 2)
+    e.hook(0x58bc40, lambda e: 0, 0)
+    e.hook(0x56e390, lambda e: cur["units"]["kin"] if cur["s"].get("corpse") else 0, 2)   # a corpse to explode
     def players(e):                                                    # FUN_00573930(ECX game, EDX &out; him, room): +8 the players about
         from unicorn.x86_const import UC_X86_REG_EDX
         e.w32(e.mu.reg_read(UC_X86_REG_EDX) + 8, cur["s"].get("players", 0))
@@ -628,6 +632,7 @@ def outcome(s, out):
     for item in out:
         k = item[0]
         if k == "mode": to(MODE_ACT[item[1]], unit=item[2])
+        elif k == "stand" and act[0] == "direct": act[5] = item[1]          # Nihlathak's walk, then a stand: kept as its wait
         elif k == "stand": to("idle", item[1])
         elif k == "wait": act[5] = item[1]
         elif k == "event": act[6] = item[1]
