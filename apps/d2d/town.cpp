@@ -1952,12 +1952,13 @@ auto Town::pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, boo
         player_pad.walking = walk;
     }
 
-auto Town::coop_seat(int seat, int colour) -> void {
+auto Town::coop_seat(int seat, int colour, const pad::Sample& held) -> void {
         if (!scene || std::ranges::contains(coop, seat, &CoopPlayer::seat)) return;
         std::vector<std::string> playing;
         for (const auto& in_game : world.players) playing.push_back(in_game->character.name);
         auto& waiting = coop.emplace_back();
         waiting.mapper = pad::Mapper{ pad_config };
+        (void)waiting.mapper.step(held, pad::Context::Menu, 0);
         waiting.seat = seat;
         waiting.colour = colour;
         waiting.roster = open_roster(*scene, playing, world.lead().character.header);

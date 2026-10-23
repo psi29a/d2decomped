@@ -668,7 +668,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     town.set_pad_config(g_pad_config);
     // A pad's seat; a new seat's player picks their character (Town::coop_seat's roster).
     const auto take_seat = [&](const Gamepads::Pad& pad) {
-        if (const int seat = seats.connect(pad.key, int(pad.id)); seat > 0) town.coop_seat(seat, seats.colour(seat));
+        if (const int seat = seats.connect(pad.key, int(pad.id)); seat > 0) town.coop_seat(seat, seats.colour(seat), gamepads.sample(pad.id));
     };
     // The characters' saves (character_store.hpp): the World writes through
     // it when the player leaves the game or quits; the roster is read again.
