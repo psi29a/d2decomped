@@ -260,6 +260,8 @@ auto World::view() const -> View {
             view.merc_sheet = sheet;
         }
         for (const auto& pet : actor->pets) if (pet.where == level) view.pets.push_back({ pet.monster.npc, pet.monster.unit, pet.monster.mode });
+        // Run on draws RN only while they walk and have stamina (FUN_0057f090), as our own player.
+        const auto running = [](const Player& player) { return player.running && player.player.walking && player.character.stats.values[d2d::d2s::kStamina] > 0; };
         for (const auto& player : players)                    // the others in the game, as their client draws them
             if (player.get() != actor) {
                 const int cls = std::max(player->character.character_class, 0);
@@ -268,7 +270,7 @@ auto World::view() const -> View {
                     if (const auto* skill = now < state.until ? game_data->skills.get(state.skill) : nullptr) states.push_back(skill->aurastate);
                 view.others.push_back({ player->player, cls, player->character.name, std::uint32_t(player->id),
                                         player->character.appearance ? *player->character.appearance : game_data->starting_gear[std::size_t(cls)],
-                                        player->ghost ? -1 : player->pmode, player->running, std::move(states), player->ghost });
+                                        player->ghost ? -1 : player->pmode, running(*player), std::move(states), player->ghost });
             }
         for (const auto& player : players)
             if (player->body && player->body->level == level)
