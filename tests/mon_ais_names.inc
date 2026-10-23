@@ -70,3 +70,4 @@
 { "BaalMinion", false, true, true, true },
 { "Ancient", false, true, true, true },
 { "Nihlathak", false, true, true, true },
+{ "ClawViperEx", false, true, true, true },

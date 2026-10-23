@@ -1236,7 +1236,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 88> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 89> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1247,7 +1247,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
-                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak" };
+                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3355,6 +3355,27 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             return out;
         }
         return cast(3);
+    }
+    // ClawViperEx (142, FUN_005f1de0; Act 5's claw vipers): its charge's
+    // state (aip6: 2 state 0x5b, else 0x5a) off after (state). In melee aip3 %
+    // A2, else stands aip5. Within aip7 aip4 %: A1 past its timer (state2,
+    // then aip8 frames on), else stands aip5. Skill1 within aip2 aip1 % when
+    // usable (FUN_005fd470), its state on, state 1; 50 % walks in; else
+    // stands aip5.
+    if (ai_name == "ClawViperEx") {
+        const int charge_state = aip[5] == 2 ? 0x5b : 0x5a;
+        if (*input.state != 0 && aip[5] != 0) effect(ThinkEffect::state, charge_state, 0);
+        if (input.in_melee) return roll() < aip[2] ? Think{ MonAct::a2 } : Think{ MonAct::idle, aip[4] };
+        if (input.dist < aip[6] && roll() < aip[3]) {
+            if (*input.state2 < input.frame) { *input.state2 = aip[7] + input.frame; return { MonAct::a1 }; }
+            return { MonAct::idle, aip[4] };
+        }
+        if (input.skill[0] && input.dist < aip[1] && roll() < aip[0] && input.usable) {
+            if (aip[5] != 0) effect(ThinkEffect::state, charge_state, 1);
+            *input.state = 1;
+            return cast(0);
+        }
+        return roll() < 0x32 ? walk : Think{ MonAct::idle, aip[4] };
     }
     return { MonAct::untraced };
 }
