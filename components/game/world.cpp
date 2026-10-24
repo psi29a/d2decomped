@@ -302,6 +302,8 @@ auto World::view() const -> View {
                                                 : portal[std::size_t(k ^ 1)].level ? portal[std::size_t(k ^ 1)].level->id : d2d::rules::CainQuest::kTristram,
                                          portal[std::size_t(k)].born, k });
         if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, int(kGamePortals) });
+        for (const auto& gate : cage_portal)
+            if (gate.level == level) view.portals.push_back({ gate.x, gate.y, 1, gate.born, int(kGamePortals) });
         view.npc_states = npc_states;
         grow_states(view.npc_states, *level);
         view.npc_states.resize(level->npcs.size());

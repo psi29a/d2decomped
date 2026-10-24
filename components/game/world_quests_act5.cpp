@@ -36,6 +36,7 @@ auto World::act5_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBit
         log[d2d::rules::PrisonQuest::kQuest] = std::uint8_t(prison.log_state(bits, carries(d2d::rules::PrisonQuest::kPotionCode)));
         log[d2d::rules::BetrayalQuest::kQuest] = std::uint8_t(betrayal.log_state(bits));
         log[d2d::rules::RiteQuest::kQuest] = std::uint8_t(rite.log_state(bits));
+        log[d2d::rules::EveQuest::kQuest] = std::uint8_t(eve.log_state(bits));
     }
 
 auto World::act5_join() -> void {
@@ -53,7 +54,11 @@ auto World::act5_join() -> void {
         rite.join(quests());
         statues_at = 0;
         rite_died = false;
+        eve = {};
+        if (eve.join(quests())) open_act(5);                // FUN_00538680: the next difficulty
+        tyrael_at = 0;
         cages_up.clear();
+        cage_portal = {};
         fana_at = thaw_at = 0;
         fana = { nullptr, -1 };
         nihlathak_made = false;
@@ -72,6 +77,8 @@ auto World::act5_chain() -> void {
         betrayal.opened();
         if (betrayal.open && betrayal.state < 4) return;
         rite.opened();
+        if (rite.open && rite.state != 5) return;
+        eve.opened(quests(), d2d::rules::level_ids::act_of(level->id) == 4);
     }
 
 auto World::act5_enter(const Level& from) -> void {
@@ -80,6 +87,7 @@ auto World::act5_enter(const Level& from) -> void {
         prison.enter(quests(), from.id, level->id);
         act5_hide();
         betrayal.enter(quests(), from.id, level->id);
+        eve.enter(quests(), from.id, level->id);
         rite.enter(quests(), from.id, level->id, int(actor->character.stats.get(d2d::d2s::kLevel)), actor->character.header.active_difficulty());
     }
 
@@ -88,6 +96,14 @@ auto World::act5_talk_closed(int hc_idx) -> void {
         rescue.talk_closed(hc_idx);
         prison.talk_closed(hc_idx);
         rite.talk_closed(hc_idx);
+        // Tyrael's talk closed, once (LAB_0058d870 -> FUN_0058d7d0): the last
+        // portal (object 565) 5 subtiles east of each player in the Chamber.
+        if (eve.talk_closed(hc_idx) && level->id == d2d::rules::EveQuest::kChamber && game_data->builder) {
+            auto rgn = d2d::rules::Rng{ fight.rng.next() };
+            const auto [spot_x, spot_y] = level->nearest_free(actor->player.x + 1.f, actor->player.y);
+            add_object(*game_data, game_data->builder->objects, game_data->builder->obj_row, const_cast<Level&>(*level), d2d::rules::EveQuest::kLastPortal, subtile(spot_x), subtile(spot_y), rgn);
+            d2d::log::info("Eve of Destruction: Tyrael opens the way home");
+        }
         // Anya's red portal to Nihlathak's Temple (FUN_0058af90: FUN_0056d130,
         // object 60 at her spot +10, +5 subtiles), its twin at the temple's
         // portal spot.
@@ -114,6 +130,7 @@ auto World::act5_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> voi
         std::ranges::copy(prison.talk(quests(), hc_idx, potion), std::back_inserter(out));
         std::ranges::copy(betrayal.talk(quests(), hc_idx), std::back_inserter(out));
         std::ranges::copy(rite.talk(quests(), hc_idx), std::back_inserter(out));
+        std::ranges::copy(eve.talk(quests(), hc_idx), std::back_inserter(out));
     }
 
 auto World::act5_said(int hc_idx, int message_string) -> void {
@@ -143,12 +160,13 @@ auto World::act5_said(int hc_idx, int message_string) -> void {
         if (betrayal.said(quests(), hc_idx, message_string)) act5_chain();
         if (rite.said(quests(), hc_idx, message_string, int(actor->character.stats.get(d2d::d2s::kLevel)), actor->character.header.active_difficulty()))
             statues_at = now + d2d::rules::RiteQuest::kWakeFrames * kTickMs;
+        d2d::rules::EveQuest::said(quests(), hc_idx, message_string);
     }
 
 auto World::act5_alert(int hc_idx) -> bool {
         const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         return d2d::rules::Act5Opening::alert(actor->character.header.intros[std::size_t(diff)], hc_idx) || siege.alert(quests(), hc_idx) || rescue.alert(quests(), hc_idx)
-            || prison.alert(quests(), hc_idx, carries(d2d::rules::PrisonQuest::kPotionCode)) || betrayal.alert(quests(), hc_idx) || rite.alert(quests(), hc_idx);
+            || prison.alert(quests(), hc_idx, carries(d2d::rules::PrisonQuest::kPotionCode)) || betrayal.alert(quests(), hc_idx) || rite.alert(quests(), hc_idx) || d2d::rules::EveQuest::alert(quests(), hc_idx);
     }
 
 auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
@@ -196,8 +214,24 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                     actor->character.panel = panel_stats(*game_data, actor->character.header, actor->character.items, stats);
                 d2d::log::info("Rite of Passage: +{} exp", exp);
             });
+            // Object 561 where the last fell (FUN_00555230): OperateFn 69, their farewell.
+            if (game_data->builder) {
+                auto rgn = d2d::rules::Rng{ fight.rng.next() };
+                add_object(*game_data, game_data->builder->objects, game_data->builder->obj_row, const_cast<Level&>(*level), d2d::rules::RiteQuest::kFarewell, subtile(kill.x), subtile(kill.y), rgn);
+            }
             act5_chain();
             d2d::log::info("Rite of Passage: the Ancients are dead");
+        }
+        // Baal (baalcrab, bound to 0x24: FUN_0058df20): those in the Chamber
+        // done (FUN_0058dd30: bits 13 and 0, the next difficulty), the rest
+        // bit 14; his light fades 650 frames (missile 625), then Tyrael.
+        // ponytail: the gold piles for the first killer (FUN_0055b030) aren't dropped.
+        if (kill.type == int(game_data->mon_bin[std::size_t(d2d::rules::EveQuest::kBaal)]) && eve.state != 5) {
+            eve.killed();
+            each_player([&](Player&) { if (d2d::rules::EveQuest::reward(quests(), level->id == d2d::rules::EveQuest::kChamber)) open_act(5); });
+            baal_fell = { kill.x, kill.y };
+            tyrael_at = now_ms + d2d::rules::EveQuest::kTyraelFrames * kTickMs;
+            d2d::log::info("Eve of Destruction: Baal is dead");
         }
         // Nihlathak (MonStats base 0x20e, bound to 0x22: FUN_0058b7a0).
         if (std::size_t(kill.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(kill.type)].base == d2d::rules::BetrayalQuest::kNihlathak) {
@@ -210,8 +244,8 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
 // room comes up: its slot, its five prisoners (FUN_00588600, bound to
 // 0x20). Each prisoner's view for its think (ai.cpp's Wussie), then what
 // it asked: the log 5, its cage's portal (FUN_005888d0: at the broken
-// door's spot +2 subtiles east, FUN_00555230 a town portal; its twin at
-// Harrogath's portal spot), gone through it (FUN_00588880).
+// door's spot +2 subtiles east, FUN_00555230 object 189: theirs alone),
+// gone through it (FUN_00588880).
 // ponytail: the prisoners at free spots about the cage, not FUN_005b2f20's
 // draws on the room's seed; the portal's fallback spots (x - 2, then
 // FUN_00545340) are the nearest free one.
@@ -246,7 +280,7 @@ auto World::rescue_update(std::uint32_t now_ms) -> void {
             auto& view = prisoner.wussie;
             if (std::exchange(view.left, false)) { rescue.went(slot); d2d::log::info("Rescue on Mount Arreat: a prisoner through the portal"); }
             if (!prisoner.alive()) continue;
-            const auto& gate = portal[kCagePortals + std::size_t(slot) * 2];
+            const auto& gate = cage_portal[std::size_t(slot)];
             view.portal = gate.level == level;
             if (view.portal) { view.portal_x = subtile(gate.x); view.portal_y = subtile(gate.y); }
             view.cage_left = rescue.cages[std::size_t(slot)].gone > 0;
@@ -271,12 +305,9 @@ auto World::rescue_update(std::uint32_t now_ms) -> void {
                             && std::ranges::contains(rooms, std::pair{ level, room_of(*level, other.unit.x, other.unit.y) })
                             && d2d::rules::ai_distance(subtile(other.unit.x) - subtile(prisoner.unit.x), subtile(other.unit.y) - subtile(prisoner.unit.y)) < 15) { door = &other; break; }
                 }
-                const Level* town = game_data->level(d2d::rules::level_ids::kHarrogath);
-                if (!door || !town || town->portal_spot.first < 0) { d2d::log::warn("Rescue on Mount Arreat: no portal (door {}, town spot {})", door != nullptr, town ? town->portal_spot.first : -2); continue; }
+                if (!door) continue;
                 const auto [spot_x, spot_y] = level->nearest_free(door->unit.x + 2.f / 5, door->unit.y);
-                const auto [town_x, town_y] = town->nearest_free(town->portal_spot.first, town->portal_spot.second);
-                portal[kCagePortals + std::size_t(slot) * 2] = { level, spot_x, spot_y, now_ms };
-                portal[kCagePortals + std::size_t(slot) * 2 + 1] = { town, town_x, town_y, now_ms };
+                cage_portal[std::size_t(slot)] = { level, spot_x, spot_y, now_ms };
                 cues.cue("object_townportal", now_ms, spot_x, spot_y);
                 const auto opener = std::ranges::find(players, view.player_id, [](const auto& player) { return player->id; });
                 act_as(opener == players.end() ? lead() : **opener);
@@ -390,6 +421,41 @@ auto World::rite_update(std::uint32_t now_ms) -> void {
         d2d::log::info("Rite of Passage: the Ancients go back to sleep");
     }
 
+// a5q6: the throne's waves (each its Subject's group 13 subtiles south of
+// Baal), Baal off the throne (baalcrabstairs at his spot), his walk to the
+// Chamber's portal, Tyrael (0x209, within 4 of 5 subtiles NW of where Baal
+// fell: FUN_0058e920 -> FUN_005b2f20).
+auto World::eve_update(std::uint32_t now_ms) -> void {
+        const auto portal_at = std::ranges::find(level->npcs, d2d::rules::EveQuest::kChamberPortal, &Npc::object_id);
+        std::vector<Monster> born;
+        for (auto& monster : fight.monsters) {
+            if (const int wave = std::exchange(monster.baal_wave, -1); wave >= 0) {
+                seal_boss(*level, wave, subtile(monster.unit.x), subtile(monster.unit.y) + 13);
+                d2d::log::info("Eve of Destruction: wave {}", wave - d2d::rules::EveQuest::kFirstSubject + 1);
+            }
+            if (std::exchange(monster.baal_leaves, false)) {
+                born.push_back(make_monster(*game_data, int(game_data->mon_bin[std::size_t(d2d::rules::EveQuest::kBaalStairs)]), monster.unit.x, monster.unit.y, fight.rng,
+                                            actor->character.header.active_difficulty(), true, int(players.size())));
+                monster.gone = true;
+                d2d::log::info("Eve of Destruction: Baal leaves his throne");
+            }
+            if (portal_at != level->npcs.end()) monster.chamber_portal = std::pair{ subtile(portal_at->x), subtile(portal_at->y) };
+            if (std::exchange(monster.baal_in, false)) { eve.baal_gone_in(); d2d::log::info("Eve of Destruction: Baal goes into the Worldstone Chamber"); }
+        }
+        for (auto& monster : born) fight.add_monster(std::move(monster), level);
+        if (tyrael_at && now_ms >= tyrael_at) {
+            tyrael_at = 0;
+            const Level* chamber = game_data->level(d2d::rules::EveQuest::kChamber);
+            const auto& tyrael = game_data->mon_npc[std::size_t(game_data->mon_bin[std::size_t(d2d::rules::EveQuest::kTyrael)])];
+            if (chamber && !tyrael.code.empty()) {
+                auto npc = tyrael;
+                std::tie(npc.x, npc.y) = chamber->nearest_free(baal_fell.first - 1.f, baal_fell.second - 1.f);
+                const_cast<Level&>(*chamber).npcs.push_back(std::move(npc));   // GameData owns its levels mutable (gamedata.cpp)
+                d2d::log::info("Eve of Destruction: Tyrael comes");
+            }
+        }
+    }
+
 // Frozen Anya (OperateFn 67, FUN_0058abc0): the potion taken, her thaw.
 // The Summit's altar (65, FUN_0058d310): the Ancients speak, mode 1. Its
 // stairs (66, FUN_0058d400): shut till the Rite's won here (or done); then
@@ -405,6 +471,36 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
                 statues_at = now_ms + d2d::rules::RiteQuest::kWakeFrames * kTickMs;
                 d2d::log::info("Rite of Passage: the Ancients speak");
             }
+            return true;
+        }
+        // The Throne's portal (563, OperateFn 70, FUN_0058e6a0): with Baal gone
+        // in, to the Chamber (FUN_0053aec0(0x84, 11): its town-portal tile);
+        // elsewhere back to the Throne.
+        if (object.object_id == d2d::rules::EveQuest::kChamberPortal) {
+            const bool on = level->id == d2d::rules::EveQuest::kThrone;
+            if (on && !eve.baal_in) return true;
+            const Level* to = game_data->level(on ? d2d::rules::EveQuest::kChamber : d2d::rules::EveQuest::kThrone);
+            if (!to || to->ds1.width() == 0) { d2d::log::warn("Eve of Destruction: level not built"); return true; }
+            const auto spot = on && to->portal_spot.first >= 0 ? to->portal_spot : to->start.first >= 0 ? to->start : std::pair{ float(to->ds1.width()) / 2, float(to->ds1.height()) / 2 };
+            const auto [to_x, to_y] = to->nearest_free(spot.first, spot.second);
+            arrive(to, to_x, to_y, "the Worldstone Chamber's portal");
+            return true;
+        }
+        // The last portal (565, OperateFn 72, FUN_0058e740): with bit 13,
+        // bit 10 and home to Harrogath.
+        // ponytail: its cinematic (0x39b) and the save it asks for aren't run.
+        if (object.object_id == d2d::rules::EveQuest::kLastPortal) {
+            if (!d2d::rules::quest::bit(quests(), d2d::rules::EveQuest::kQuest, 13)) return true;
+            d2d::rules::quest::set(quests(), d2d::rules::EveQuest::kQuest, 10);
+            const Level* town = game_data->level(d2d::rules::level_ids::kHarrogath);
+            if (town && town->start.first >= 0) arrive(town, town->start.first, town->start.second, "the last portal");
+            return true;
+        }
+        // The Ancients' farewell (561, OperateFn 69, FUN_0058d5e0): the Rite
+        // done, bit 4 not yet: their 20169 (heard: bit 4).
+        if (object.object_id == d2d::rules::RiteQuest::kFarewell) {
+            if (d2d::rules::quest::bit(quests(), d2d::rules::RiteQuest::kQuest, 0) && !d2d::rules::quest::bit(quests(), d2d::rules::RiteQuest::kQuest, 4))
+                rite.said(quests(), -1, d2d::rules::RiteQuest::kAside, 0, 0);
             return true;
         }
         if (object.object_id == d2d::rules::RiteQuest::kStairs) {
@@ -433,12 +529,14 @@ auto World::act5_update(std::uint32_t now_ms) -> void {
         rescue_update(now_ms);
         prison_update(now_ms);
         rite_update(now_ms);
+        eve_update(now_ms);
         if (betrayal_log_at && now_ms >= betrayal_log_at) { betrayal_log_at = 0; betrayal.log_timer(); }
         // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
         // player it's for (act5_detail::told).
         for (auto [news, quest] : { std::pair{ &siege.news, d2d::rules::SiegeQuest::kQuest }, { &rescue.news, d2d::rules::RescueQuest::kQuest },
                                     { &prison.news, d2d::rules::PrisonQuest::kQuest }, { &betrayal.news, d2d::rules::BetrayalQuest::kQuest } })
             if (std::exchange(*news, false) && d2d::rules::act5_detail::told(quests(), quest)) actor->events.push_back(ev::QuestNews{ quest });
+        if (std::exchange(eve.news, false) && d2d::rules::act5_detail::told(quests(), d2d::rules::EveQuest::kQuest)) actor->events.push_back(ev::QuestNews{ d2d::rules::EveQuest::kQuest });
         if (std::exchange(rite.news, false) && d2d::rules::act5_detail::told(quests(), d2d::rules::RiteQuest::kQuest)) actor->events.push_back(ev::QuestNews{ d2d::rules::RiteQuest::kQuest });
     }
 

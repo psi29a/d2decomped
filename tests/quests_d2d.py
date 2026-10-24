@@ -879,6 +879,37 @@ def act5():
     cmd(f"debug operate {stairs[0][0]}"); time.sleep(0.5); cmd(f"debug operate {stairs[0][0]}")
     until("in the Worldstone Keep", lambda: level() == 128, 30)
     print("OK: Rite of Passage (a5q5)")
+    # a5q6: open from the Rite (state 2); the Throne of Destruction cleared,
+    # Baal sends his five waves, then walks into the Chamber's portal (log
+    # 3); through it, Baal dies (bits 13 and 0, the next difficulty); Tyrael
+    # comes; his talk opens the last portal home (bit 10).
+    assert a5("s")[4] == 5 and bits(0x28) & 4, f"a5q6 open: {a5('s')} {bits(0x28):#x}"
+    cmd("debug goto 131")
+    until("on the Throne of Destruction", lambda: level() == 131, 60)
+    cmd("debug warp 18 12"); time.sleep(1)
+    deadline = time.time() + 240
+    while time.time() < deadline and "Baal goes into the Worldstone Chamber" not in log_text():
+        cmd("debug kill spare baalthrone within 60"); time.sleep(1)
+    assert log_text().count("Eve of Destruction: wave") == 5, "five waves"
+    portal = objects(70)
+    assert portal, "no Chamber portal"
+    cmd(f"debug warp {portal[0][1]} {float(portal[0][2]) + 1}"); time.sleep(0.5)
+    cmd(f"debug operate {portal[0][0]}")
+    until("in the Worldstone Chamber", lambda: level() == 132, 30)
+    cmd("debug warp 27 34"); time.sleep(1)
+    deadline = time.time() + 30
+    while time.time() < deadline and "Baal is dead" not in log_text():
+        cmd("debug kill within 40"); time.sleep(0.5)
+    assert bits(0x28) & 0x2001 == 0x2001, f"word 0x28: {bits(0x28):#x}"
+    until("Tyrael comes", lambda: "Tyrael comes" in log_text(), 40)
+    talk_until("Tyrael", lambda: "Tyrael opens the way home" in log_text(), "no last portal")
+    last = objects(72)
+    assert last, "no last portal"
+    cmd(f"debug warp {last[0][1]} {float(last[0][2]) + 1}"); time.sleep(0.5)
+    cmd(f"debug operate {last[0][0]}")
+    until("home", lambda: level() == 109, 30)
+    assert bits(0x28) & 0x400, f"word 0x28: {bits(0x28):#x}"
+    print("OK: Eve of Destruction (a5q6)")
 
 
 try:

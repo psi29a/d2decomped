@@ -191,8 +191,8 @@ struct SiegeQuest {
 // (20110). Three cages (object 473, InitFn 62: FUN_005886a0) hold five
 // prisoners each (act5pow 0x216, the Wussie think FUN_005ee3c0). A cage's
 // door (prisondoor 0x1b2) broken frees the living prisoners within 15 of
-// it (FUN_00588040); a player by them then has the cage's portal to
-// Harrogath open (FUN_005888d0), and they walk into it. Five prisoners dead
+// it (FUN_00588040); a player by them then has the cage's portal
+// (object 189) open (FUN_005888d0), and they walk into it. Five prisoners dead
 // fail it (log 12). The portal's opener, with every cage up and every
 // prisoner dead or freed: 12 or more freed of the 15, bits 13 and 1, and 5
 // / 6 / 7 for 15 / 14 / 12..13; Qual-Kehk pays three runes (two with bit 6,
@@ -676,7 +676,7 @@ struct BetrayalQuest {
 struct RiteQuest {
     static constexpr int kQuest = 0x27, kQualKehk = act5_detail::kQualKehk, kSummit = 120;
     static constexpr int kTold = 20153, kSpeech = 20002, kAside = 20169, kWakeFrames = 20;
-    static constexpr int kAltar = 546, kStairs = 547;
+    static constexpr int kAltar = 546, kStairs = 547, kFarewell = 561;
     // The statues (objects) and their Ancients (FUN_0058c0e0: [0x744304] +0xb3a / +0xb36 / +0xb38).
     static constexpr std::array<int, 3> kStatues{ 475, 474, 476 }, kSuperuniques{ 0x2b, 0x2d, 0x2c };
     static constexpr std::array<int, 3> kAncients{ 0x21c, 0x21d, 0x21e };   // ancientbarb1..3
@@ -831,6 +831,129 @@ struct RiteQuest {
     }
     // The "!" (FUN_0058ccf0).
     [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const { return npc == kQualKehk && state == 1 && !quest::bit(quest_bits, kQuest, 0); }
+    // The log: the records' default (+0xe8 none; done at +0xd 4).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
+};
+
+// Eve of Destruction (a5q6.cpp, word 0x28, record 0x24, FUN_0058e500).
+// State: 0 shut, 2 open (a5q5's chain, LAB_0058e390), 3 out of Harrogath
+// after, 5 Baal dead. Baal on his throne (baalthrone, the BaalThrone think
+// FUN_005ef320) sends his five Subjects (superuniques 61..65), each when the
+// room's clear; then he's baalcrabstairs (0x22f), walking into the
+// Worldstone Chamber's portal (object 563, the BaalToStairs think
+// FUN_005ef620: record +0x86, the log 3), which then lets players through
+// (OperateFn 70). Baal (baalcrab, bound to 0x24) dead (FUN_0058df20): those
+// in the Chamber get bits 13 and 0 and the next difficulty (FUN_0058dd30),
+// the rest bit 14; the log 4. Tyrael (0x209) comes as Baal's light fades
+// (missile 625's end, 650 frames: FUN_0058e920); his talk closed, the last
+// portal (object 565, OperateFn 72) home: bit 10. Log: 1 told, 2 the Throne,
+// 3 Baal gone in, 4 dead.
+struct EveQuest {
+    static constexpr int kQuest = 0x28, kTyrael = 0x209, kCain = act5_detail::kCain, kThrone = 131, kChamber = 132;
+    static constexpr int kChamberPortal = 563, kLastPortal = 565, kWaves = 5, kFirstSubject = 61;
+    static constexpr int kBaalThrone = 543, kBaal = 544, kBaalStairs = 0x22f;
+    static constexpr int kTyraelFrames = 650, kCryFrames = 250, kWaveFrames = 100;
+    struct Congrats { int npc, string, bit; };
+    static constexpr std::array<Congrats, 6> kCongrats{ { { 511, 20178, 4 }, { 520, 20177, 5 }, { 513, 20179, 6 }, { 521, 20175, 7 }, { 515, 20180, 8 }, { 512, 20176, 9 } } };
+    bool open = true;
+    int state = 0, log = 0;
+    bool told = false;             // data +0x90
+    bool baal_in = false;          // data +0x86
+    bool tyrael_heard = false;     // data +0x98
+    bool news = false;
+
+    // The player joins (FUN_0058e430): done, bit 10 and the next difficulty.
+    bool join(QuestBits& quest_bits) {
+        open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
+        if (!open) { quest::set(quest_bits, kQuest, 10); return true; }
+        if (quest::bit(quest_bits, kQuest, 1)) return false;
+        if (quest::bit(quest_bits, kQuest, 3) || quest::bit(quest_bits, kQuest, 2)) {
+            if (!quest::bit(quest_bits, kQuest, 3)) told = true;
+            log = 1; state = 3;
+        }
+        return false;
+    }
+    // a5q5's chain (LAB_0058e390).
+    void opened(QuestBits& quest_bits, bool in_act5) {
+        if (!open || state != 0) return;
+        told = true; state = 2; log = 1; news = true;
+        mark(quest_bits, in_act5);
+    }
+    // FUN_0058d8b0: the steps marked, for a player in act 5.
+    void mark(QuestBits& quest_bits, bool in_act5) const {
+        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1) || !in_act5) return;
+        if (state == 2) quest::set(quest_bits, kQuest, 2);
+        if (state == 3) quest::set(quest_bits, kQuest, 3);
+    }
+    // A level change (FUN_0058e190).
+    void enter(QuestBits& quest_bits, int from, int into) {
+        if (from == act5_detail::kHarrogath && state == 2 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) {
+            state = 3;
+            if (log != 1) { log = 1; news = true; }
+            mark(quest_bits, true);
+        }
+        if (into > 0x82) {
+            if (open && log < 2) { log = 2; news = true; }
+            mark(quest_bits, true);
+        }
+    }
+    // Baal into the Chamber (FUN_0058e600).
+    void baal_gone_in() { baal_in = true; if (open && log < 3) { log = 3; news = true; } }
+    // Baal dead (FUN_0058df20). A player's share (FUN_0058dea0 / FUN_0058dde0):
+    // in the Chamber, not done: bits 13 and 0, and true (the next
+    // difficulty); else bit 14.
+    void killed() { if (!open) return; log = 4; news = true; state = 5; }
+    static bool reward(QuestBits& quest_bits, bool in_chamber) {
+        if (quest::bit(quest_bits, kQuest, 0)) return false;
+        if (in_chamber && !quest::bit(quest_bits, kQuest, 1)) { quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 0); return true; }
+        quest::set(quest_bits, kQuest, 14);
+        return false;
+    }
+    // Tyrael's talk closes (LAB_0058d870): his portals, once.
+    bool talk_closed(int npc) { return npc == kTyrael && !std::exchange(tyrael_heard, true); }
+    // Heard (LAB_0058d940): the town's congratulations.
+    static void said(QuestBits& quest_bits, int npc, int string) {
+        for (const auto& congrats : kCongrats) if (npc == congrats.npc && string == congrats.string) quest::set(quest_bits, kQuest, congrats.bit);
+    }
+    // Blocks (0x735800 by 0x735ee4; FUN_0058d9f0).
+    static inline const std::vector<act5_detail::Entry> kBlocks[6] = {
+        { { 511, 20171, false }, { 520, 20170, false }, { 513, 20172, false }, { 515, 20174, false }, { 512, 20173, false } },
+        { { 511, 20178, true }, { 520, 20177, true }, { 513, 20179, true }, { 521, 20175, true }, { 515, 20180, true }, { 512, 20176, true } },
+        { { 511, 20178, true }, { 513, 20179, true }, { 521, 20175, true }, { 515, 20180, true }, { 512, 20176, true } },
+        { { 511, 20178, false }, { 513, 20179, false }, { 521, 20175, false }, { 515, 20180, false }, { 512, 20176, false } },
+        { { 520, 20177, true } },
+        { { 520, 20177, false } },
+    };
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+        if (!quest::bit(quest_bits, kQuest, 0)) return state == 3 ? act5_detail::block_for(kBlocks[0], npc) : std::vector<QuestMsg>{};
+        const bool here = quest::bit(quest_bits, kQuest, 13);
+        const auto by_bit = [&](int bit) { return !quest::bit(quest_bits, kQuest, bit) ? act5_detail::block_for(kBlocks[2], npc) : here ? act5_detail::block_for(kBlocks[3], npc) : std::vector<QuestMsg>{}; };
+        switch (npc) {
+        case 511: return by_bit(4);
+        case 512: return quest::bit(quest_bits, kQuest, 9) ? (here ? act5_detail::block_for(kBlocks[3], npc) : std::vector<QuestMsg>{}) : act5_detail::block_for(kBlocks[2], npc);
+        case 513: return by_bit(6);
+        case 515: return by_bit(8);
+        case 520:
+            if (quest::bit(quest_bits, kQuest, 10)) return {};
+            if (!quest::bit(quest_bits, kQuest, 5)) return act5_detail::block_for(kBlocks[4], npc);
+            return here ? act5_detail::block_for(kBlocks[5], npc) : std::vector<QuestMsg>{};
+        case kTyrael: return here ? act5_detail::block_for(kBlocks[2], npc) : std::vector<QuestMsg>{};
+        default: return {};
+        }
+    }
+    // The "!" (FUN_0058e2b0): once done, each who's yet to say theirs.
+    [[nodiscard]] static bool alert(const QuestBits& quest_bits, int npc) {
+        if (!quest::bit(quest_bits, kQuest, 0)) return false;
+        switch (npc) {
+        case 511: return !quest::bit(quest_bits, kQuest, 4);
+        case 512: return !quest::bit(quest_bits, kQuest, 9);
+        case 513: return !quest::bit(quest_bits, kQuest, 6);
+        case 515: return !quest::bit(quest_bits, kQuest, 8);
+        case 520: return !quest::bit(quest_bits, kQuest, 10) && !quest::bit(quest_bits, kQuest, 5);
+        case kTyrael: return !quest::bit(quest_bits, kQuest, 7);
+        default: return false;
+        }
+    }
     // The log: the records' default (+0xe8 none; done at +0xd 4).
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
 };
