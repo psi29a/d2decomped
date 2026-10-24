@@ -926,8 +926,23 @@ Branch `act5`:
   the three fall. The Cube's Cow Portal opens; the Pandemonium portals
   return 0 in 1.14d (realm-only), so the keys and organs stay.
 
-Still open: Act 5's other monster skills and umod 33's blast; the
-cinematics.
+Stubs and dead code found so far: docs/research/re/stubs.md.
+
+Still open for Act 5:
+
+- Monster skills that stand today (no do-func in d2d): the imps' Teleport
+  (do 129), Inferno (126), Fire Missile (132); the overseers' Cry Help
+  (128) and Whip (131); the death mauler's DeathMaul (136); the putrid
+  defiler's Impregnate (133); the siege beast's Stomp (134); the Ancients'
+  Whirlwind, Shout (War Cry) and Leap Attack as monsters cast them.
+- Umod 33's blast.
+- Quest leftovers (quests-act5.md "Not yet in d2d"): the Ancients' death
+  missile (`FUN_0058c8d0`), the statues' return (`FUN_0058bd50`), Baal's
+  Corpse Explode, the gold for Baal's killer, Baal Taunt's sound, the
+  InitFns 66 / 67 / 69 / 70 (Drehya, Nihlathak outside, Larzuk's greeting).
+- The cinematics (Baal's 0x39b and the save it asks for).
+- Live checks: the Cow Portal (devctl can't fill the Cube or set Act 5
+  quests yet) and Act 5 against the game.exe host.
 
 ## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
 
