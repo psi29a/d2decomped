@@ -759,7 +759,7 @@ def act5():
     # Harrogath, as Tyrael's portal leaves it (word 0x1c bits 0 and 13).
     cmd("debug quest 28")
     go(109)
-    # a5q0: Malah's introduction (20037 to an Amazon) sets her intro bit and
+    # a5q0: Malah's introduction (20039 to the barbarian) sets her intro bit and
     # opens Siege on Harrogath (a5q1 state 1).
     until("Siege shut", lambda: a5("s")[0] == 0, 2)
     talk("Malah")
@@ -806,6 +806,52 @@ def act5():
     assert cmd("items").count("[r0") >= runes + 3 or "Qual-Kehk's 3 runes" in log_text(), "no runes"
     assert a5("s")[1:3] == [5, 1], f"a5q2 rewarded, a5q3 open: {a5('s')}"
     print("OK: Rescue on Mount Arreat (a5q2)")
+    # a5q3: Malah (20116, bit 2); the Frozen River's marker makes frozen Anya
+    # (fana) 25 frames on; without the potion she says 20131 (state 4);
+    # Malah's potion (20127); poured on her, she thaws (bits 13, 1) and
+    # Betrayal of Harrogath opens; Malah's scroll (20132, bit 8) sends Anya
+    # home; Anya's item (20136, bit 9) closes it (bit 0).
+    def fana():
+        found = [l.split("\t") for l in cmd("debug objects").splitlines() if l.split("\t")[3:4] == ["op67"]]
+        assert found, f"no frozen Anya: {cmd('debug objects')!r}"
+        cmd(f"debug warp {found[0][1]} {float(found[0][2]) + 1}"); time.sleep(0.5)
+        cmd(f"debug operate {found[0][0]}"); time.sleep(0.5)
+    talk_until("Malah", lambda: bits(0x25) & 4, "the prison not given")
+    cmd("debug goto 114")
+    until("on the Frozen River", lambda: level() == 114, 60)
+    cmd("debug warp 36 13"); time.sleep(0.5); cmd("debug kill within 15")
+    until("frozen Anya", lambda: "Prison of Ice: frozen Anya" in log_text(), 10)
+    fana()
+    assert a5("s")[2] == 4, f"a5q3 no potion: {a5('s')}"
+    go(109)
+    talk_until("Malah", lambda: "[ice " in cmd("items"), "no thawing potion")
+    cmd("debug goto 114")
+    until("on the Frozen River", lambda: level() == 114, 60)
+    fana()
+    until("Anya thaws", lambda: "Prison of Ice: Anya thaws" in log_text(), 10)
+    assert bits(0x25) & 0x2002 == 0x2002, f"word 0x25: {bits(0x25):#x}"
+    assert a5("s")[2:] == [5, 1], f"a5q3 thawed, a5q4 open: {a5('s')}"
+    go(109)
+    talk_until("Malah", lambda: bits(0x25) & 0x100, "no scroll")
+    until("Anya home", lambda: "Anya goes home" in log_text(), 5)
+    talk_until("Anya", lambda: bits(0x25) & 1, "Anya's item not given")
+    print("OK: Prison of Ice (a5q3)")
+    # a5q4: Anya (20137, bit 2) opens a red portal to Nihlathak's Temple as
+    # her talk closes; Nihlathak in the Halls of Vaught (superunique 60 at
+    # the marker) dies (bits 13, 1); Anya's 20148: bit 4.
+    talk_until("Anya", lambda: bits(0x26) & 4, "the betrayal not given")
+    until("Anya's portal", lambda: "Anya opens the way" in log_text(), 5)
+    cmd("debug goto 124")
+    until("in the Halls of Vaught", lambda: level() == 124, 60)
+    cmd("debug warp 4 43"); time.sleep(1)
+    until("Nihlathak comes", lambda: "(superunique 60)" in log_text(), 10)
+    deadline = time.time() + 30
+    while time.time() < deadline and "Nihlathak is dead" not in log_text():
+        cmd("debug kill within 20"); time.sleep(0.5)
+    assert bits(0x26) & 0x2002 == 0x2002, f"word 0x26: {bits(0x26):#x}"
+    go(109)
+    talk_until("Anya", lambda: bits(0x26) & 0x10, "the betrayal not rewarded")
+    print("OK: Betrayal of Harrogath (a5q4)")
 
 
 try:

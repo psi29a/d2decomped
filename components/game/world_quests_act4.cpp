@@ -57,7 +57,7 @@ auto World::seal_boss(const Level& where, int superunique, int x, int y) -> void
             follower.aware = true;
             fight.add_monster(std::move(follower), &where);
         }
-        d2d::log::info("Terror's End: {} comes", row.name);
+        d2d::log::info("{} comes (superunique {})", row.name, superunique);
     }
 
 auto World::act4_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const -> void {

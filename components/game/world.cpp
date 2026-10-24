@@ -661,6 +661,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // Then the fortress's waypoint and its start (FUN_0053aec0(0x67)).
         // ponytail: its sounds (0xca7, 0xb56) and FUN_0053d670(6)'s packet aren't sent.
         if (act4_operate(npc_index, now_ms)) return;
+        if (act5_operate(npc_index, now_ms)) return;
         if (object.operate_fn == d2d::rules::operate_fn::kHellgate) {
             auto& bits = quests();
             if (!d2d::rules::quest::bit(bits, 0x16, 13) && !d2d::rules::quest::bit(bits, 0x16, 0)) return;
@@ -1161,6 +1162,7 @@ auto World::swap_npcs(const Level* from) -> void {
         }
         grow_states(npc_states, *level);
         show_palace();
+        act5_hide();
         if (level->id == d2d::rules::SevenTombsQuest::kLair && tombs.tyrael_gone)   // Tyrael has left (FUN_0059df50: record +0x3d)
             for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
                 if (level->npcs[i].hc_idx == d2d::rules::SevenTombsQuest::kTyrael) npc_states[i].hidden = true;

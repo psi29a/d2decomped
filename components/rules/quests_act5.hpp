@@ -372,82 +372,124 @@ private:
 };
 
 // Prison of Ice (a5q3.cpp, word 0x25, record 0x21, FUN_0058a410). State: 0
-// shut, 1 open (a5q2's chain, or the Arreat Plateau entered), 2 Malah told
-// (20116), 3 the Crystalline Passage / Frozen River or Harrogath after, 4 at
-// frozen Anya without the potion (20131), 5 thawed (the potion used on her,
-// OperateFn 67), 6 Nihlathak's Temple entered. Malah gives the Thawing Potion
-// ("ice ", 20127) and, after, the Scroll of Resistance ("tr2 ", 20132, bit
-// 8); Anya in town her reward (20136, bit 9). Both done: bit 0.
+// shut, 1 open (a5q2's chain, or the Arreat Plateau), 2 Malah told (20116),
+// 3 the Crystalline Passage / Frozen River, or out of Harrogath at 2; 4
+// frozen Anya's 20131 (no potion), 5 thawed (OperateFn 67), 6 Nihlathak's
+// Temple first. The Frozen River's marker (object 460) makes frozen Anya
+// (fana, object 558) 25 frames on (FUN_0058a500); Malah gives the Thawing
+// Potion ("ice", 20127); used on her, she thaws (FUN_0058aab0: mode 2, then
+// drehyaiced at her spot, the chain). Malah's 20132 then gives the Scroll of
+// Resistance ("tr2", bit 8) and sends Anya home (record +0x84: 0 frozen, 1
+// thawed, 2 in town); Anya's 20136 a rare class item (bit 9). Both: bit 0.
+// Record +0x88: Nihlathak's left town (FUN_005893e0), and the Halls of
+// Vaught's marker (462, InitFn 69) has him there. Log: 1 told, 2 she's
+// found, 3 no potion, 4 the potion carried, 5 thawed, 6 the scroll, 13
+// both rewards.
 struct PrisonQuest {
     static constexpr int kQuest = 0x25, kMalah = act5_detail::kMalah, kAnya = act5_detail::kAnya, kFrozen = act5_detail::kFrozenAnya;
     static constexpr int kTold = 20116, kPotion = 20127, kNoPotion = 20131, kScroll = 20132, kAnyaReward = 20136;
+    static constexpr int kFana = 558, kRiverMarker = 460, kAnyaMarker = 459, kNihlathakMarker = 462, kNihlathakBoss = 60;   // objects.txt; SuperUniques
+    static constexpr int kFanaFrames = 0x19;
     static constexpr const char* kPotionCode = "ice";
     static constexpr const char* kScrollCode = "tr2";
+    // Anya's item (0x735f6c normal, 0x735efc nightmare, 0x735f34 hell; by
+    // class, the seventh the assassin's): rare, at the player's level.
+    static inline const std::array<std::array<std::vector<const char*>, 7>, 3> kAnyaItems{ {
+        { { { "am1", "am2", "am3", "am4", "am5" }, { "ob1", "ob2", "ob3", "ob4", "ob5" }, { "ne1", "ne2", "ne3", "ne4", "ne5" }, { "pa1", "pa2", "pa3", "pa4", "pa5" },
+            { "ba1", "ba2", "ba3", "ba4", "ba5" }, { "dr1", "dr2", "dr3", "dr4", "dr5" }, { "ktr", "wrb", "axf", "ces", "clw", "btl", "skr" } } },
+        { { { "am6", "am7", "am8", "am9", "ama" }, { "ob6", "ob7", "ob8", "ob9", "oba" }, { "ne6", "ne7", "ne8", "ne9", "nea" }, { "pa6", "pa7", "pa8", "pa9", "paa" },
+            { "ba6", "ba7", "ba8", "ba9", "baa" }, { "dr6", "dr7", "dr8", "dr9", "dra" }, { "9ar", "9wb", "9xf", "9cs", "9lw", "9tw", "9qr" } } },
+        { { { "amb", "amc", "amd", "ame", "amf" }, { "obb", "obc", "obd", "obe", "obf" }, { "neb", "nec", "ned", "nee", "nef" }, { "pab", "pac", "pad", "pae", "paf" },
+            { "bab", "bac", "bad", "bae", "baf" }, { "drb", "drc", "drd", "dre", "drf" }, { "7ar", "7wb", "7xf", "7cs", "7lw", "7tw", "7qr" } } },
+    } };
     bool open = true;
     int state = 0, log = 0;
     bool told_heard = false;       // data +0xac
     bool potion_heard = false;     // data +0x101
     bool scroll_again = false;     // data +0x102
     int potions = 0;               // data +0xd8: potions out
-    int anya = 0;                  // data +0x84: 1 thawing, 2 back in town
+    int anya = 0;                  // data +0x84
+    bool town_left = false;        // data +0x88
+    bool fana_made = false;        // data +0xa4
+    bool thawing = false;          // data +0x100: the thaw's timer
+    int thaw_step = 0;             // data +0x8c
     bool news = false;
 
     // The player joins (FUN_0058a110).
     void join(const QuestBits& quest_bits, bool carries_potion) {
         if (carries_potion) potions = 1;
         open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
-        if (!open) { anya = 2; return; }
+        if (!open) { anya = 2; town_left = true; return; }
         if (quest::bit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
         else if (quest::bit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
         if (potions) { state = 3; log = 4; }
     }
     // a5q2's chain (FUN_00589160).
     void opened() { if (open && state == 0) state = 1; }
-    // A level entered (FUN_00589d80).
-    void enter(QuestBits& quest_bits, int into) {
-        if (into == act5_detail::kArreatPlateau) { if (open && state == 0) state = 1; }
-        else if ((into == act5_detail::kCrystallinePassage || into == act5_detail::kFrozenRiver) && open) {
+    // FUN_005893e0's record part: Nihlathak leaves town.
+    void leave_town() { town_left = true; }
+    // A level change (FUN_00589d80).
+    void enter(QuestBits& quest_bits, int from, int into) {
+        if (into == act5_detail::kArreatPlateau) {
+            if (open && state == 0) { state = 1; leave_town(); }
+        } else if ((into == act5_detail::kCrystallinePassage || into == act5_detail::kFrozenRiver) && open) {
             const bool moved = state <= 2;
             if (moved) state = 3;
-            if (log == 0) { log = 1; news = true; }
-            if (moved || log == 1) act5_detail::mark(quest_bits, kQuest, state);
+            if (log == 0) { log = 1; news = true; act5_detail::mark(quest_bits, kQuest, state); }
+            else if (moved) act5_detail::mark(quest_bits, kQuest, state);
+            leave_town();
         }
-        if (into == act5_detail::kHarrogath && state == 2 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) {
+        if (from == act5_detail::kHarrogath && state == 2 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) {
             state = 3;
             if (log == 0) { log = 1; news = true; }
             act5_detail::mark(quest_bits, kQuest, state);
         }
         if (into >= act5_detail::kNihlathaksTemple && into <= act5_detail::kHallsOfVaught && open && state < 5) {
             if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 13)) quest::set(quest_bits, kQuest, 14);
-            state = 6; anya = 2;
+            state = 6; anya = 2; town_left = true;
         }
     }
-    // Frozen Anya used (OperateFn 67, FUN_0058abc0): without the potion she
-    // says 20131 (the log 3 from 1); with it, it's taken: state 5, bits 13 and
-    // 1, log 5, Anya thawing. Returns whether the potion was used.
+    // Fana's InitFn (74, FUN_0058aa50): the log 2.
+    void fana_seen() { if (open && log < 2) { log = 2; news = true; } }
+    // Fana used (OperateFn 67, FUN_0058abc0). Without the potion she says
+    // 20131 (FUN_005456a0: heard, below; the log 3 from 1); with it, it's
+    // taken: state 5, bits 13 and 1, log 5, her thaw (once). Returns whether
+    // the potion was used.
     bool thaw(QuestBits& quest_bits, bool carries_potion) {
-        if (!carries_potion) { if (open && state < 4) state = 4; if (log == 1) { log = 3; news = true; } return false; }
+        if (!carries_potion) { heard_no_potion(); if (log == 1) { log = 3; news = true; } return false; }
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return false;
         --potions;
         state = 5; anya = 1;
         quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1);
         log = 5; news = true;
+        if (!thawing) { thawing = true; thaw_step = 0; }
         return true;
+    }
+    // The thaw's timer (FUN_0058aab0), a tick each: 1 fana's mode 2; 2 she's
+    // drehyaiced, the chain on. Returns the step done (0 none).
+    int thaw_tick() {
+        if (!thawing) return 0;
+        if (++thaw_step >= 2) thawing = false;
+        return thaw_step;
     }
     // Malah's talk closes (FUN_00588f80).
     void talk_closed(int npc) {
         if (npc != kMalah) return;
         if (std::exchange(told_heard, false)) { log = 1; news = true; }
-        if (open && std::exchange(potion_heard, false) && log < 4) { log = 4; news = true; }
+        if (open && potion_heard && log < 4) { log = 4; news = true; potion_heard = false; }
     }
-    // Heard (FUN_00589580): the item to give (a code, or null) and whether
-    // the chain opens / Anya goes home.
-    struct Heard { const char* give = nullptr; bool anya_home = false, anya_reward = false; };
-    Heard said(QuestBits& quest_bits, int npc, int string, bool carries_potion, bool carries_scroll) {
+    // Heard (FUN_00589580): the item to give and its quality / level (the
+    // player's), and Anya sent home.
+    struct Heard { const char* give = nullptr; bool rare = false, anya_home = false; };
+    Heard said(QuestBits& quest_bits, int npc, int string, bool carries_potion, bool carries_scroll, int difficulty, int player_class, std::uint32_t roll) {
         Heard out;
         if (npc == kMalah) {
-            if (string == kTold) { told_heard = true; state = 2; act5_detail::mark(quest_bits, kQuest, state); }
-            if (string == kPotion && !carries_potion && potions == 0) { ++potions; potion_heard = true; out.give = kPotionCode; }
+            if (string == kTold) { told_heard = true; state = 2; act5_detail::mark(quest_bits, kQuest, state); return out; }
+            if (string == kPotion) {
+                if (carries_potion || potions != 0) return out;
+                ++potions; potion_heard = true; out.give = kPotionCode;
+                return out;
+            }
             if (string == kScroll) {
                 if (quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 0)) {
                     out.give = kScrollCode;
@@ -455,22 +497,22 @@ struct PrisonQuest {
                     if (!quest::bit(quest_bits, kQuest, 9)) { if (open && log < 6) { log = 6; news = true; } }
                     else { quest::set(quest_bits, kQuest, 1, false); quest::set(quest_bits, kQuest, 0); }
                     if (anya == 1) { anya = 2; out.anya_home = true; }
-                } else if ((quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) && !scroll_again && quest::bit(quest_bits, kQuest, 8)
-                           && !quest::bit(quest_bits, kQuest, 7) && !carries_scroll) {
-                    scroll_again = true; out.give = kScrollCode;
+                    return out;
                 }
+                if ((quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) && !scroll_again && quest::bit(quest_bits, kQuest, 8)
+                    && !quest::bit(quest_bits, kQuest, 7) && !carries_scroll) { scroll_again = true; out.give = kScrollCode; }
+                return out;
             }
-        }
-        if (npc == kAnya && string == kAnyaReward && quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 10)) {
-            out.anya_reward = true;
+        } else if (npc == kAnya && string == kAnyaReward) {
+            if (!quest::bit(quest_bits, kQuest, 1) || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 10)) return out;
+            const auto& items = kAnyaItems[std::size_t(std::clamp(difficulty, 0, 2))][std::size_t(std::clamp(player_class, 0, 6))];
+            out.give = items[roll % items.size()]; out.rare = true;
             quest::set(quest_bits, kQuest, 9);
             if (quest::bit(quest_bits, kQuest, 8)) { quest::set(quest_bits, kQuest, 1, false); quest::set(quest_bits, kQuest, 0); }
             quest::set(quest_bits, kQuest, 10);
+            return out;
         }
-        if (string == kNoPotion && open) {
-            if (state < 4) state = 4;
-            if (log < 3) { log = 3; news = true; }
-        }
+        if (string == kNoPotion && open) { heard_no_potion(); if (log < 3) { log = 3; news = true; } }
         return out;
     }
     // Blocks (0x734320 by 0x734304; FUN_00589b00).
@@ -484,13 +526,13 @@ struct PrisonQuest {
         { { 511, 20134, false }, { 520, 20133, false }, { 512, 20136, false }, { 513, 20132, false }, { 515, 20135, false } },
     };
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool carries_potion) const {
-        if (npc == kFrozen) return {};                                     // she stands frozen (mode 12) at state 6
+        if (npc == kFrozen) return {};
         if (npc == kMalah && state == 4) return !carries_potion && potions == 0 ? act5_detail::block_for(kBlocks[3], npc) : std::vector<QuestMsg>{};
         if (quest::bit(quest_bits, kQuest, 1)) {
             if ((npc == kAnya && quest::bit(quest_bits, kQuest, 9)) || (npc == kMalah && quest::bit(quest_bits, kQuest, 8))) return {};
             return act5_detail::block_for(kBlocks[5], npc);
         }
-        if (quest::bit(quest_bits, kQuest, 0) || (state > 4 && !quest::bit(quest_bits, kQuest, 13)) || !open || state < 1 || state > 7) return {};
+        if (quest::bit(quest_bits, kQuest, 0) || (state > 4 && !quest::bit(quest_bits, kQuest, 13)) || !open || state < 1 || state > 6) return {};
         return act5_detail::block_for(kBlocks[state - 1], npc);
     }
     // The "!" (FUN_00589f10).
@@ -515,6 +557,10 @@ struct PrisonQuest {
         if (quest::bit(quest_bits, kQuest, 14)) return 0xc;
         return state < 5 ? log : 0;
     }
+
+private:
+    // 20131 heard (FUN_00589580's tail): state 4 from under, Nihlathak gone.
+    void heard_no_potion() { if (open && state < 4) { state = 4; leave_town(); } }
 };
 
 // Betrayal of Harrogath (a5q4.cpp, word 0x26, record 0x22, FUN_0058bb20).
