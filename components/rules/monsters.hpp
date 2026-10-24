@@ -1238,7 +1238,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 95> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 99> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1249,7 +1249,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul", "BaalCrab", "BaalCrabClone",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
-                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt" };
+                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt", "UberIzual", "UberMephisto", "UberDiablo", "UberBaal" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3063,6 +3063,31 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (*input.state3 < 1 && roll() >= aip[1]) return input.dist < 11 ? Think{ MonAct::idle, input.aidel } : Think{ MonAct::keep, 6, 9, 2 };
         return walk;
     }
+    // UberIzual (144, FUN_005f8c80): Izual's without the greeting, after two
+    // of its own: Skill2 (Chilling Armor) on itself while its state (skill
+    // +0x80) is off; Skill3 (Teleport) to the target's spot when the line to
+    // it is blocked (FUN_00622aa0 mask 6, `line_clear`).
+    if (ai_name == "UberIzual") {
+        if (input.skill[1] && !input.skill_state) return cast(1, ThinkUnit::none);
+        if (!input.line_clear) { auto out = cast(2, ThinkUnit::none); out.spot = true; return out; }
+        if (*input.state2 != 0) { const Think out{ MonAct::idle, *input.state2 }; *input.state2 = 0; return out; }
+        auto nova = [&] { auto out = cast(0); out.spot = true; *input.state2 = aip[4]; *input.state3 = aip[5]; return out; };
+        if (input.in_melee) {
+            if (*input.state3 > 0 || roll() < aip[0]) { if (*input.state3 > 0) --*input.state3; return { MonAct::a1 }; }
+            *input.state3 = 0;
+            if (!input.skill[0] || roll() >= aip[3]) return { MonAct::idle, input.aidel };
+            return nova();
+        }
+        if (input.skill[0] && input.dist < 10) {
+            if (*input.state3 > 0) return walk;
+            if (roll() < aip[2]) return nova();
+        }
+        if (*input.state3 < 1 && roll() >= aip[1]) return input.dist < 11 ? Think{ MonAct::idle, input.aidel } : Think{ MonAct::keep, 6, 9, 2 };
+        return walk;
+    }
+    // UberMephisto / UberDiablo / UberBaal (146 / 147 / 145): a bare `ret 4`
+    // in 1.14d (bugs.md #26), so they don't act after the search.
+    if (ai_name == "UberMephisto" || ai_name == "UberDiablo" || ai_name == "UberBaal") return { MonAct::none };
     // ---- Act 5's (monster-ai.md "Act 5's MonAIs"; tools/emu/mon_ais.py).
     auto keep_off = [&](int most, int want) { return Think{ MonAct::keep, most, want, 2 }; };   // FUN_005de6d0 -> FUN_005de4e0(.., 2, ..)
     const Think walk_in{ MonAct::walk, 0 };                                                       // FUN_005dec80(target, 0)

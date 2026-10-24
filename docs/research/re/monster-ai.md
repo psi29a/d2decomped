@@ -401,6 +401,43 @@ d2d: ai.cpp's Diablo blocks take Baal; the clone, the tentacles, the cold
 maker (ai.hpp do 31). ponytail: the tentacle class is rand(5) on his seed;
 FUN_0054dc40's spot test is the nearest free spot.
 
+## AncientStatue and the ubers' MonAIs
+
+MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
+
+| ai | name | think | other |
+|---|---|---|---|
+| 132 | AncientStatue | `FUN_005eeaa0` | — |
+| 144 | UberIzual | `FUN_005f8c80` | — |
+| 145 | UberBaal | `0x5fd200` (`ret 4`) | `FUN_005fcf30` (BaalCrab's) |
+| 146 | UberMephisto | `0x5f81c0` (`ret 4`) | — |
+| 147 | UberDiablo | `0x5e9df0` (`ret 4`) | `FUN_005e8480` (Diablo's) |
+
+- AncientStatue (ancientstatue1..3, hcIdx 537..539): with the Rite's record
+  (0x23, `FUN_00543640`) +0x11 awake, +0xc (deaths on the Summit) 0 and the
+  unit without state 0x92 (invis): skill 302 (MinionSpawner) in mode 4 at
+  its own spot (`FUN_005dead0`); else stand 25. Unreachable: MonPreset lists
+  them for Act 5, but no Act 5 level places them (tools/emu monsters.py,
+  levels 109..132) and nothing else makes them; the Rite's statues are
+  objects 474..476.
+- The uber Mephisto, Diablo and Baal thinks are bare `ret 4`, the only
+  such rows but row 0. Nothing patches the table (no code addresses it but
+  `FUN_005b15d0`) and the special table (0x73d358, 18 rows) has no uber
+  row. Their only other path is the other think, a curse toggle's swap
+  (Baal's / Diablo's), which toggles straight back. Orphans with no caller
+  or pointer: `FUN_005e9dd0` (makes 0x2c7 demonhole at a unit, mode 1,
+  flags 0x40) and `FUN_005f7f10` (a make next to Mephisto's think), and
+  `FUN_005dd140` (counts uber Mephisto / Diablo / Baal, 0x2c7, 0x2c8 and
+  731..733 in a radius): the 1.13 uber thinks' helpers, their callers gone.
+  bugs.md #26.
+- UberIzual (`FUN_005f8c80`): Izual's shape (aip by difficulty at MonStats
+  +0x56.., +0x18 / +0x1c counters) with three skill slots; not traced
+  further yet.
+- The Tristram ubers' death (mod 22, `FUN_005e0070`, via FUN_005a30e0):
+  sets game +0x1df0 / +0x1dec / +0x1de8 for 0x2c0 / 0x2c1 / 0x2c5; all three
+  set: drops `cm2 ` (the Hellfire Torch) through `FUN_00559a30(7)`, then a
+  `std ` (Standard of Heroes) per +0x8c.
+
 ## Doors — FUN_005b0f50
 
 Driver step 1. With MonStats flags byte +0xc & 8 (opendoors, DAT_006ce274):

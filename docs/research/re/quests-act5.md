@@ -205,7 +205,7 @@ item panel) while the reward is due:
 
 ## Not yet in d2d
 
-- AncientStatue, the ubers (Baal's fight: monster-ai.md "Baal").
+- The ubers (monster-ai.md "AncientStatue and the ubers' MonAIs"; AncientStatue is traced there and never spawns).
 - Baal Taunt's sound (prgsound monster_baal_taunt_1); its missiles' draws on
   the update's rng, not the missile's seed.
 - The Ancients' death missile (`FUN_0058c8d0`), the statues' return
