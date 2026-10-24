@@ -77,6 +77,8 @@ struct Audio {
     Channel music_old;                           // the previous song, fading out under `music`
     Channel ambience_old;                        // the day's (night's) ambience, fading out under `ambience`
     std::uint64_t music_fade_in_ms = 0;          // for the song being decoded
+    d2d::mpq::Stack music_mpqs;                  // music archives aren't part of GameData::mpqs
+    std::filesystem::path music_mpqs_dir;
     int voice_sound() const { return voice.sound; }
     // The game menu's sliders, 0..100 ("Master Volume" 0x8817b0, "Music
     // Volume" 0x8817b4): 0x4dfc84 scales a sound's volume by music / 100
@@ -277,11 +279,23 @@ struct Audio {
             if (!paused && state == AL_PAUSED) alSourcePlayv(channel.right_src ? 2 : 1, both.data());
         }
     }
-    static std::optional<std::vector<std::byte>> read_wav(const GameData& game_data, const GameData::Sound& snd, int index) {
+    std::optional<std::vector<std::byte>> read_wav(const GameData& game_data, const GameData::Sound& snd, int index) {
         std::optional<std::vector<std::byte>> wav;
         // One there that won't read (a cut-short MPQ) goes unheard.
         try {
             if (snd.music) wav = game_data.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
+            if (snd.music && !wav) {
+                if (music_mpqs_dir != game_data.data_dir) {
+                    music_mpqs = {};
+                    music_mpqs_dir = game_data.data_dir;
+                    for (const char* name : { "d2xmusic.mpq", "d2music.mpq" })
+                        if (const auto mpq = d2d::install::find_file(music_mpqs_dir, name)) {
+                            try { music_mpqs.push(*mpq); }
+                            catch (const std::exception& error) { d2d::log::warn("music {}: {}", name, error.what()); }
+                        }
+                }
+                wav = music_mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
+            }
             for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
                 if (!wav) wav = game_data.mpqs.try_read(std::string(root) + snd.file);
         } catch (const std::exception& error) {

@@ -1309,7 +1309,7 @@ auto Fight::absorb(const Foe& foe, std::uint32_t now_ms) -> int {
             if (can > 0 && actor->character.character_class == 1) {
                 static constexpr std::array<std::string_view, 5> kEnergyShieldHits = { "sorceress_energyshield_hit_1", "sorceress_energyshield_hit_2",
                     "sorceress_energyshield_hit_3", "sorceress_energyshield_hit_4", "sorceress_energyshield_hit_5" };
-                cues.cue(kEnergyShieldHits[std::size_t(sound_rng(kEnergyShieldHits.size()))], now_ms, actor->player.x, actor->player.y);
+                cues.cue(kEnergyShieldHits[std::size_t(sound_rng(int(kEnergyShieldHits.size())))], now_ms, actor->player.x, actor->player.y);
             }
         }
         return damage;

@@ -2685,6 +2685,8 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         for (auto& other : world.players) {
             if (other->id == focus_id()) continue;
             const auto said = std::exchange(other->events, {});
+            for (const auto& event : said)
+                if (std::holds_alternative<ev::MusicCue>(event)) handle(event, audio, frame_ms);
             const auto opens = std::ranges::find_if(said, [](const Event& event) { return std::holds_alternative<ev::OpenUI>(event); });
             if (opens == said.end() || !focus_free()) continue;
             take_focus(other->id);
