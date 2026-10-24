@@ -24,6 +24,7 @@
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <sound_ids.hpp>
@@ -1940,11 +1941,11 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
     }
 
 auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
-        const auto& tables = game_data->rules;
+        const auto& item_rules = game_data->rules;
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
         if (const auto* trade = std::get_if<cmd::OpenTrade>(&command)) {
             if (std::size_t(trade->npc) >= level->npcs.size()) return true;
-            if (trade->gamble) actor->store = d2d::rules::open_gamble(tables, level->npcs[std::size_t(trade->npc)].id, clvl);
+            if (trade->gamble) actor->store = d2d::rules::open_gamble(item_rules, level->npcs[std::size_t(trade->npc)].id, clvl);
             else if (const auto kept = stocks.find(trade->npc); kept != stocks.end()) { actor->store = kept->second; actor->store.mode = 0; actor->store.first_tab(); actor->store.pressed = {}; }
             else actor->store = open_store(*game_data, *level, trade->npc, act(), actor->character.header.active_difficulty(), clvl, actor->character.expansion,
                                     fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
@@ -1963,27 +1964,27 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             actor->store.reduced = reduced_prices();
             if (buy->tab >= 0 && buy->tab < 4) actor->store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
             if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
-            if (actor->store.gamble) d2d::rules::store_gamble(tables, actor->store, buy->stock, actor->character.items, actor->character.stats, rng);
-            else d2d::rules::store_buy(tables, actor->store, buy->stock, actor->character.items, actor->character.stats);
+            if (actor->store.gamble) d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, rng);
+            else d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats);
             return true;
         }
         if (const auto* sell = std::get_if<cmd::Sell>(&command)) {
             if (actor->store.npc < 0) return true;
             if (actor->held && actor->held->id == sell->item) { actor->character.items.push_back(std::move(*actor->held)); actor->held.reset(); }
             const auto found = std::ranges::find(actor->character.items, sell->item, &d2d::d2s::Item::id);
-            if (found != actor->character.items.end()) d2d::rules::store_sell(tables, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats);
+            if (found != actor->character.items.end()) d2d::rules::store_sell(item_rules, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats);
             return true;
         }
         if (const auto* repair = std::get_if<cmd::Repair>(&command)) {
             if (actor->store.npc < 0) return true;
             actor->store.reduced = reduced_prices();
             if (repair->item < 0) {
-                if (d2d::rules::store_repair_all(tables, actor->store, actor->character.items, actor->character.stats) > 0)
+                if (d2d::rules::store_repair_all(item_rules, actor->store, actor->character.items, actor->character.stats) > 0)
                     cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
                 return true;
             }
             const auto found = std::ranges::find(actor->character.items, repair->item, &d2d::d2s::Item::id);
-            if (found != actor->character.items.end() && d2d::rules::store_repair(tables, actor->store, *found, actor->character.stats))
+            if (found != actor->character.items.end() && d2d::rules::store_repair(item_rules, actor->store, *found, actor->character.stats))
                 cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
             return true;
         }
@@ -2114,26 +2115,25 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // 0x26 bit 1) puts the player's name on it (flag 0x1000000, FUN_0058bc00).
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
             if (std::size_t(imbue->npc) >= level->npcs.size() || !actor->held) return true;
-            const int hc_idx = level->npcs[std::size_t(imbue->npc)].hc_idx;
-            const auto& tables = game_data->rules;
-            if (hc_idx == d2d::rules::SiegeQuest::kLarzuk) {
-                if (!d2d::rules::quest::bit(quests(), d2d::rules::SiegeQuest::kQuest, 1) || !d2d::rules::socketable(tables, *actor->held)) return true;
-                actor->held = d2d::rules::socket_item(tables, *actor->held);
+            const int service_npc = level->npcs[std::size_t(imbue->npc)].hc_idx;
+            if (service_npc == d2d::rules::SiegeQuest::kLarzuk) {
+                if (!d2d::rules::quest::bit(quests(), d2d::rules::SiegeQuest::kQuest, 1) || !d2d::rules::socketable(item_rules, *actor->held)) return true;
+                actor->held = d2d::rules::socket_item(item_rules, *actor->held);
                 siege.socketed(quests());
                 d2d::log::info("Siege on Harrogath: Larzuk put {} sockets in the {}", actor->held->sockets, actor->held->code);
                 return true;
             }
-            if (hc_idx == d2d::rules::BetrayalQuest::kAnya) {
-                if (!d2d::rules::quest::bit(quests(), d2d::rules::BetrayalQuest::kQuest, 1) || !d2d::rules::nameable(tables, *actor->held)) return true;
+            if (service_npc == d2d::rules::BetrayalQuest::kAnya) {
+                if (!d2d::rules::quest::bit(quests(), d2d::rules::BetrayalQuest::kQuest, 1) || !d2d::rules::nameable(item_rules, *actor->held)) return true;
                 actor->held->personalized = true;
                 actor->held->owner = actor->character.header.name;
                 betrayal.personalized(quests());
                 d2d::log::info("Betrayal of Harrogath: Anya personalized the {}", actor->held->code);
                 return true;
             }
-            if (hc_idx != d2d::rules::monster_ids::kCharsi
-                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(tables, *actor->held)) return true;
-            auto made = d2d::rules::imbue_item(tables, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
+            if (service_npc != d2d::rules::monster_ids::kCharsi
+                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(item_rules, *actor->held)) return true;
+            auto made = d2d::rules::imbue_item(item_rules, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
             made.location = actor->held->location; made.panel = actor->held->panel; made.column = actor->held->column; made.row = actor->held->row;
             actor->held = std::move(made);
             tools.imbued(quests());
