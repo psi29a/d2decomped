@@ -242,7 +242,7 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         // Torch (cm2, unique: FUN_00559a30 quality 7) and a Standard of Heroes
         // (std, normal) per player where the last fell.
         // ponytail: the item level is the uber's; FUN_00559a30's own isn't traced.
-        for (const auto [bit, uber] : { std::pair{ 1, 0x2c0 }, std::pair{ 2, 0x2c1 }, std::pair{ 4, 0x2c5 } })
+        for (const auto& [bit, uber] : { std::pair{ 1, 0x2c0 }, std::pair{ 2, 0x2c1 }, std::pair{ 4, 0x2c5 } })
             if (kill.type == int(game_data->mon_bin[std::size_t(uber)]) && !(ubers_dead & bit) && (ubers_dead |= bit) == 7) {
                 loot.put({ .code = "cm2", .quality = 7 }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
                 each_player([&](Player&) { loot.put({ .code = "std" }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms); });
