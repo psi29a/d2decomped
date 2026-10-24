@@ -518,6 +518,29 @@ inline int missile_facing(float x, float y, float dx, float dy) {
     return d2d::rules::direction64(subtile(x), subtile(y), subtile(x + dx), subtile(y + dy));
 }
 
+// A monster missile's blow (andariel_missile): its row's physical in
+// 256ths, `element` (its row's or a carried skill's at the level), poison
+// per frame over ELen as the total; it always hits.
+inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::rules::MissileDamage& element, int monster_level) {
+    d2d::rules::MonStats stats;
+    stats.level = monster_level;
+    stats.to_hit = 1 << 20;
+    stats.a2_min = info.min >> 8; stats.a2_max = std::max(info.max >> 8, stats.a2_min);
+    const int frames = element.etype == 3 ? element.elen : 1;
+    if (element.etype >= 0)
+        stats.elements[0] = { element.etype, 100, int(std::int64_t(element.elo) * frames >> 8), int(std::int64_t(element.ehi) * frames >> 8), element.elen, "A2" };
+    return stats;
+}
+// `info` from (x, y) cells along (dx, dy), as `from`'s (its owner, level,
+// monster level), with its own row's blow.
+inline Missile missile_from(const Missile& from, const GameData::MissileInfo& info, float x, float y, float dx, float dy, std::uint32_t now_ms) {
+    const auto element = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, from.level);
+    Missile out{ &info, x, y, dx, dy, missile_facing(x, y, dx, dy), now_ms,
+                 now_ms + std::uint32_t(std::max(info.range + info.lev_range * from.level, 1)) * 40, missile_blow(info, element, from.src.level) };
+    out.level = from.level; out.owner = from.owner;
+    return out;
+}
+
 // Missiles fly (missile_fly; FUN_005ae1f0): a frame's move, then its
 // range, then, from its Activate'th frame, a foe whose footprint holds a
 // subtile it entered (rolling its to-hit) spends it either way
@@ -576,6 +599,22 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             }
             return false;
         }
+        // A control (do 34, FUN_005b04a0: Baal Taunt's): from its Param1'th
+        // frame, each frame one of SubMissile1 / 2 by rand (those with a
+        // delay, Param2 / Param3), laid where it is when its age divides by
+        // that delay.
+        // ponytail: the update's rng, not the missile's seed.
+        if (missile.info && missile.info->srv_do == 34) {
+            const int age = int(now_ms - missile.born) / 40;
+            if (missile.frame == frame || age < missile.info->param1) return false;
+            missile.frame = frame;
+            const std::array delays{ missile.info->param2, missile.info->param3 };
+            const int ways = !missile.info->subs[0] || delays[0] < 1 ? 0 : !missile.info->subs[1] || delays[1] < 1 ? 1 : 2;
+            if (ways == 0) return true;
+            if (const int pick = int(rng(std::uint32_t(ways))); age % delays[std::size_t(pick)] == 0)
+                laid.push_back(missile_from(missile, *missile.info->subs[std::size_t(pick)], missile.x, missile.y, 0, 0, now_ms));
+            return false;
+        }
         if (missile.info && (missile.info->srv_do == 5 || missile.info->srv_do == 6) && missile.row) {
             if (missile.frame == frame) return false;
             missile.frame = frame;
@@ -616,8 +655,39 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
     // ponytail: one that flies on through units (CollideKill 0) doesn't
     // burst at each; RandStart isn't applied; a guided one losing its
     // owner bursts as a hit.
+    // At its end Baal Taunt's lightning control (hit 58, FUN_005acdf0) sends
+    // HitSubMissile1 at a random subtile within sHitPar1 (at least 1) of it;
+    // the poison one (hit 59, FUN_005acf20 -> FUN_005a9370) sends it the 8
+    // ways of 0x6e2510 / 0x6e24d0's even entries at Param1 << 7, and every
+    // sHitPar1'th odd one at Param2 << 7 (FUN_0059fa30 flags 0x14: x 75 / 100).
+    // ponytail: the update's rng, not the missile's seed.
+    const auto hit_spawn = [&](const Missile& missile) {
+        const auto* sub = missile.info ? missile.info->hit_sub_info : nullptr;
+        if (!sub || (missile.info->hit_func != 58 && missile.info->hit_func != 59)) return;
+        const int spread = std::max(missile.info->hit_par1, 1);
+        if (missile.info->hit_func == 58) {
+            const float to_x = float(int(std::floor(missile.x * 5)) - spread + int(rng(std::uint32_t(2 * spread + 1)))) + 0.5f;
+            const float to_y = float(int(std::floor(missile.y * 5)) - spread + int(rng(std::uint32_t(2 * spread + 1)))) + 0.5f;
+            const float dx = to_x / 5 - missile.x, dy = to_y / 5 - missile.y, span = std::max(std::hypot(dx, dy), 0.01f), speed = missile_speed(*sub, missile.level);
+            laid.push_back(missile_from(missile, *sub, missile.x, missile.y, dx / span * speed, dy / span * speed, now_ms));
+            laid.back().to = { missile.x + dx, missile.y + dy };
+            return;
+        }
+        static constexpr std::array<int, 16> kWayX{ 0, 1, 2, 2, 2, 2, 2, 1, 0, -1, -2, -2, -2, -2, -2, -1 };
+        static constexpr std::array<int, 16> kWayY{ 2, 2, 2, 1, 0, -1, -2, -2, -2, -2, -2, -1, 0, 1, 2, 2 };
+        const auto ring = [&](int first, int step, int velocity) {
+            for (int way = first; way < 16; way += step) {
+                const float dx = float(kWayX[std::size_t(way)]), dy = float(kWayY[std::size_t(way)]), span = std::hypot(dx, dy);
+                const float speed = missile_speed((velocity << 7) * 75 / 100);   // flags 0x14: the velocity as is
+                laid.push_back(missile_from(missile, *sub, missile.x, missile.y, dx / span * speed, dy / span * speed, now_ms));
+            }
+        };
+        ring(0, 2, sub->param1);
+        ring(1, spread, sub->param2);
+    };
     std::erase_if(ms_, [&](Missile& missile) {
         if (!spent(missile)) return false;
+        if (now_ms >= missile.dies) hit_spawn(missile);
         if (const auto* explosion = missile.info ? missile.info->explosion : nullptr; explosion && !missile.visual_only && (now_ms < missile.dies || missile.info->always_explode)) {
             Missile burst{ explosion, missile.x, missile.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(explosion->range, 1)) * 40, {} };
             burst.visual_only = true;

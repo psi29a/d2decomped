@@ -919,10 +919,10 @@ Branch `act5`:
   game.exe (`tests/mon_ais_baal_cases.inc`), the Vile Effigy, Festering
   Appendages, the cold missiles' maker.
 
-Still open: BaalTaunt, AncientStatue, the ubers; Act 5's other monster
+Still open: AncientStatue, the ubers; Act 5's other monster
 skills and umod 33's blast; the cinematics.
 
-Next: BaalTaunt and the Ancients' statues, or the ubers.
+Next: the Ancients' statues, or the ubers.
 
 ## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
 

@@ -159,6 +159,22 @@ open, +0x4c altar mode.
   (0x22f, `FUN_00574370`); flag 1 unset → skill 285 in S3, 250 frames.
 - BaalToStairs (MonAI 138, `FUN_005ef620`): object 563 within 25, walked
   at; within aip1 gone in (`FUN_0058e600`: +0x86, log 3).
+- BaalTaunt (MonAI 136, `FUN_005ef710`; monster 545, a MonPreset of act 5):
+  a target in mode 1 (a player or monster standing) counts up +0x14; past
+  aip2 (10) it's 0 again and Skill1 Baal Taunt (284) goes at it in A1
+  (`FUN_005dead0(4, 0x11c)`). Not standing: +0x14 back to 0. Then past aip3
+  (20) it warps to the target (`FUN_00554ea0`, then stands 25), past aip1 (3)
+  walks straight at it (`FUN_005deca0`), else stands 25. Proven:
+  `tools/emu/baal_taunt.py` (600 runs, `tests/baal_taunt_cases.inc`).
+- Baal Taunt (srvdo 28) stands baal taunt control (546) at the target. Its
+  do 34 (`FUN_005b04a0`): from frame Param1 (25), each frame rand(2) picks
+  SubMissile1 (lightning control, delay Param2 3) or SubMissile2 (poison
+  control, Param3 45), laid when its age divides by that delay; Range 75.
+  The controls live a frame (srvdo 3, AlwaysExplode); at their end hit 58
+  (`FUN_005acdf0`): baal taunt lightning at a random subtile within sHitPar1
+  (10), or hit 59 (`FUN_005acf20` → `FUN_005a9370`): baal taunt poison the
+  8 even ways of 0x6e2510 / 0x6e24d0 at Param1 << 7 and the odd ones at
+  Param2 << 7 (`FUN_0059fa30` flags 0x17: that velocity as is, × 75 / 100).
 - Object 563 (OperateFn 70): on 131 with +0x86 to 132; else to 131.
 - Baal's death (`FUN_0058df20`): log 4; the Chamber's players without bits
   0 / 1 bits 13 and 0 and the next difficulty (`FUN_0058dd30`), the rest
@@ -189,7 +205,9 @@ item panel) while the reward is due:
 
 ## Not yet in d2d
 
-- BaalTaunt, AncientStatue, the ubers (Baal's fight: monster-ai.md "Baal").
+- AncientStatue, the ubers (Baal's fight: monster-ai.md "Baal").
+- Baal Taunt's sound (prgsound monster_baal_taunt_1); its missiles' draws on
+  the update's rng, not the missile's seed.
 - The Ancients' death missile (`FUN_0058c8d0`), the statues' return
   (`FUN_0058bd50`), Baal's Corpse Explode, the gold for Baal's killer, the
   cinematics.

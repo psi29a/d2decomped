@@ -303,7 +303,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         more = false;
         for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index)
             if (skill_missiles.contains(std::string(missiles_table.get(row_index, "Missile"))))
-                for (const char* column : { "SubMissile1", "HitSubMissile1" })
+                for (const char* column : { "SubMissile1", "SubMissile2", "HitSubMissile1" })
                     if (const std::string name(missiles_table.get(row_index, column)); !name.empty()) more |= skill_missiles.emplace(name).second;
     }
     // A second pass loads the ExplosionMissile rows the first pass's name
@@ -328,9 +328,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.anim_speed = std::max(number("AnimSpeed"), 1); missile_info.anim_len = std::max(number("AnimLen"), 1); missile_info.trans = number("Trans"); missile_info.light = number("Light");
         missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
         missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1; missile_info.return_fire = number("ReturnFire") == 1;
-        missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.hit_par2 = number("sHitPar2");
+        missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.hit_par2 = number("sHitPar2");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay");
-        missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
+        missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.explosion_name = missiles_table.get(row_index, "ExplosionMissile"); missile_info.always_explode = number("AlwaysExplode") == 1;
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto element = std::ranges::find(kEl, missiles_table.get(row_index, "EType")); element != kEl.end()) missile_info.etype = *element == "frze" ? 2 : int(element - kEl.begin());
@@ -348,7 +348,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         game_data.missiles.emplace(name, std::move(missile_info));
     }
     for (auto& [name, missile_info] : game_data.missiles)
-        if (const auto found = game_data.missiles.find(missile_info.explosion_name); found != game_data.missiles.end()) missile_info.explosion = &found->second;
+        for (auto [wanted, into] : { std::pair{ &missile_info.explosion_name, &missile_info.explosion }, std::pair{ &missile_info.sub, &missile_info.subs[0] },
+                                  std::pair{ &missile_info.sub2, &missile_info.subs[1] }, std::pair{ &missile_info.hit_sub, &missile_info.hit_sub_info } })
+            if (const auto found = game_data.missiles.find(*wanted); found != game_data.missiles.end()) *into = &found->second;
     // SuperUniques.txt: name (string key), Class, minions. Replaceable and
     // EClass are never read by game.exe (docs/research/re/superuniques.md).
     std::vector<std::size_t> ms_bin;                    // game.exe's MonStats rows: without the Expansion row

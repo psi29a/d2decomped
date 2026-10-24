@@ -336,13 +336,7 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
         ? d2d::rules::row_damage(carried->etype, carried->emin, carried->emax, carried->emin_lev, carried->emax_lev, carried->hitshift, carried->elen, carried->elen_lev, lvl)
         : d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev,
                                  missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
-    d2d::rules::MonStats stats;
-    stats.level = monster.stats.level;
-    stats.to_hit = 1 << 20;
-    stats.a2_min = missile_info.min >> 8; stats.a2_max = std::max(missile_info.max >> 8, stats.a2_min);
-    const int frames = poison.etype == 3 ? poison.elen : 1;
-    if (poison.etype >= 0)
-        stats.elements[0] = { poison.etype, 100, int(std::int64_t(poison.elo) * frames >> 8), int(std::int64_t(poison.ehi) * frames >> 8), poison.elen, "A2" };
+    const auto stats = missile_blow(missile_info, poison, monster.stats.level);
     const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
     missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
@@ -1107,6 +1101,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.self_size = type_info.size; input.target_size = target->size;
             input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
         }
+        // ponytail: a player swinging or casting counts as still (a Foe keeps
+        // no mode, only its walk or run).
+        if (name == "BaalTaunt") {
+            input.target_still = target->of ? target->of->mode == "NU" : target->motion() == d2d::rules::Motion::standing;
+            input.target_x = target_x; input.target_y = target_y;
+        }
         // Baal's tentacles live on their master (FUN_00552fd0).
         // ponytail: the master's taken as there; the putrid defiler's find
         // (FUN_005efa50) is never made.
@@ -1246,6 +1246,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             unit.dir = direction16(float(act.x - x), float(act.y - y));
             return true;
         case MonAct::move_to: walk_to(act.x - x, act.y - y, false); return true;   // FUN_005de490: to the point
+        case MonAct::warp:                                         // FUN_00554ea0: at once to the free spot nearest the point
+            std::tie(unit.x, unit.y) = level.nearest_free((float(act.x) + 0.5f) / 5, (float(act.y) + 0.5f) / 5);
+            idle(25);
+            return true;
         case MonAct::gone: monster.gone = true; return true;       // FUN_005ddfc0: Mephisto's hydras at their end
         case MonAct::spawn:                                        // Coldworm's (FUN_005f9cf0); 2: the vile mother's lay
             if (act.n == 2) {                                      // FUN_005f9e30: Skill1 (Nest) at the spot: its young there
@@ -1858,7 +1862,12 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 } else if (cast->srvdofunc == ServerDoFunction::kMissileAtTarget) {
                     // FUN_005ca3e0: its srvmissilea at the target (MonBlizzard's centre).
                     // ponytail: a blizzard's centre flies there.
+                    // One that doesn't move (Baal Taunt's control) stands at the target.
+                    const std::size_t before = missiles.size();
                     andariel_missile(game_data, monster, cast->srvmissilea, dx, dy, now_ms, missiles, lvl, cast);
+                    if (missiles.size() > before && missiles.back().velocity_x == 0 && missiles.back().velocity_y == 0) {
+                        missiles.back().x += dx; missiles.back().y += dy;
+                    }
                 } else if (cast->srvdofunc == ServerDoFunction::kMonPoisonNova) {
                     // FUN_005ccd10: srvmissilea out 8 ways (0x6e31e8 / 0x6e31a8), and the 8 between with calc2 2.
                     const int between = d2d::rules::eval_calc(game_data.skills, cast->calc[1], {}, monster.skill, lvl) > 1 ? 2 : 1;
