@@ -16,13 +16,14 @@ data we own, and lets us adventure together.
 ## What to expect
 
 D2Decomp is an unfinished project—not the original game or a complete
-replacement. Acts I to IV play through: character setup, the Rogue Encampment,
-Lut Gholein, the Kurast Docks and the Pandemonium Fortress, every area from the
-Blood Moor to the Chaos Sanctuary, and all twenty-one quests up to Diablo's
-death. A classic game ends there; in Lord of Destruction, Tyrael's portal leads
-to Act V, which isn't built yet. Nightmare and Hell populate their levels as
-the original does. d2d can also join a game hosted by the original game over
-TCP/IP, and plays with a gamepad as well as mouse and keyboard.
+replacement. All five acts play through: character setup, the Rogue
+Encampment, Lut Gholein, the Kurast Docks, the Pandemonium Fortress and
+Harrogath, every area from the Blood Moor to the Worldstone Chamber, and all
+twenty-seven quests up to Baal's death. A classic game ends at Diablo; in Lord
+of Destruction, Tyrael's portal leads on to Act V. Nightmare and Hell populate
+their levels as the original does. d2d can also join a game hosted by the
+original game over TCP/IP, and plays with a gamepad as well as mouse and
+keyboard.
 
 | Area | Progress |
 |---|---:|
@@ -40,13 +41,15 @@ TCP/IP, and plays with a gamepad as well as mouse and keyboard.
 | Act IV levels | ✅ 100% (6 of 6; maps match the original's) |
 | Act IV quests | ✅ 100% (3 of 3) |
 | Act IV matching the original exactly | Maps, monster and object placement, monster AI and Diablo checked against the original ✅; a few details left |
-| Nightmare and Hell | ✅ Monster and object placement match the original on every level of Acts I–IV |
-| Act V | Not started |
+| Act V levels | ✅ 100% (28 of 28; maps match the original's) |
+| Act V quests | ✅ 100% (6 of 6) |
+| Act V matching the original exactly | Maps, monster and object placement, monster AI, Baal and the ubers checked against the original ✅; a few details left |
+| Nightmare and Hell | ✅ Monster and object placement match the original on every level of Acts I–V |
 | Single player, softcore and hardcore | ✅ Runs as a one-player client/server, like the original |
 | Multiplayer over TCP/IP (a d2d host) | Not started |
-| Joining a game hosted by the original | 🚧 Acts I–IV played through together: party, trade, portals, waypoints, chat, quests, travel; a few live checks pending |
-| Gamepad | ✅ Xbox, PlayStation, Switch and Steam Deck pads, one default layout ([apps/d2d](apps/d2d/README.md)) |
-| Sound | 🚧 3,123 of the base game's 3,520 sounds as the original plays them: combat, spells, missiles, footsteps, monsters, objects, NPC greetings; the hero's quest lines next ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
+| Joining a game hosted by the original | 🚧 Acts I–IV played through together: party, trade, portals, waypoints, chat, quests, travel; Act V not yet checked live |
+| Gamepad | ✅ Xbox, PlayStation, Switch and Steam Deck pads; keys and pad buttons remappable in Configure Controls ([apps/d2d](apps/d2d/README.md)) |
+| Sound | 🚧 3,356 of the base game's 3,520 sounds as the original plays them: combat, spells, missiles, footsteps, monsters, objects, NPC greetings; the hero's quest lines next ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
 | Dedicated server | Not started |
 
 ## Bring your own game
@@ -75,8 +78,8 @@ Small comforts, each switchable off with `--toggle`: gold is picked up by
 walking over it, roofs turn see-through around your character, and the
 world's sounds pause with the game menu.
 
-**Planned:** continue through the rest of the campaign; let d2d host multiplayer
-games and run a dedicated server; and support high-DPI displays and remappable controls. These features are not implemented yet.
+**Planned:** let d2d host multiplayer games and run a dedicated server, and
+support high-DPI displays. These features are not implemented yet.
 
 ## Steam Deck
 

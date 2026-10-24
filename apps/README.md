@@ -5,6 +5,12 @@ End-user binaries.
 - `launcher/` — one Qt6 app. It finds or installs D2 (from the 4 CD ISOs),
   writes `d2d.cfg` and launches d2d. Target: `d2d-launcher`.
 - `d2d/` — the game itself. Target: `d2d`.
+- `d2proxy/` — a dev tool: sits between a client and a game.exe host and
+  logs every packet both ways, decoded. Target: `d2proxy` (not in the
+  Flatpak).
+- `whisper/` — a dev tool: a remote control loaded into the original
+  game.exe (an `ijl11.dll` stand-in), to read its state and drive its
+  player for live checks. Built on its own (`build.sh`), not by CMake.
 
 The launcher has an opt-in setting for automatically sending crash reports
 through Sentry. It is off by default. When enabled, Sentry Native and its

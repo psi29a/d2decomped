@@ -26,7 +26,7 @@ reading ("Reference projects" below).
 
 ## Phases
 
-Status as of 2026-10-17 (v0.4.0).
+Status as of 2026-10-25.
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
@@ -52,21 +52,22 @@ Status as of 2026-10-17 (v0.4.0).
    done, the `bin/` import will be dropped from the launcher — redistributing
    Blizzard's binaries is not permitted, so no release will include them.
 5. **Core loop**: main menu, character select, load act 1 rogue camp,
-   render tiles. *Done for Acts 1–4:* frontend, the four towns, NPCs,
-   panels, trade, hiring, waypoints across acts, all 39 + 35 + 28 + 6
+   render tiles. *Done for Acts 1–5:* frontend, the five towns, NPCs,
+   panels, trade, hiring, waypoints across acts, all 39 + 35 + 28 + 6 + 28
    levels (maps, monsters, objects and drops match game.exe; monsters and
-   objects on all three difficulties), the twenty-one quests, the classic
-   ending, saving. Left: Act 5.
+   objects on all three difficulties), the twenty-seven quests, both
+   endings, saving. Left: the uber levels' monsters and object groups.
 6. **Combat + AI**: actor state machine, packet-equivalent events,
    monster AI from game.exe. *Implemented:* monsters and their fights,
    gear in combat, drops, experience, the merc, and the skills (phases 0–6
    in `docs/research/re/skills.md`); Acts 1–4's MonAI thinks, Diablo's
    included, run against game.exe's own (`tools/emu/mon_ais.py`, `npcs.py`,
-   `jarjar.py`, `diablo_score.py`). Left: Act 5's thinks, the unique mods
-   still untraced (thief, the act bosses' deaths), the gaps each skill
-   section lists.
-7. **Cross-platform polish** — Linux/macOS/Windows CI, controller,
-   high-DPI, rebindable input.
+   `jarjar.py`, `diablo_score.py`), and Act 5's, Baal and the ubers
+   included. Left: the unique mods still untraced (thief, the act
+   bosses' deaths), the gaps each skill section lists.
+7. **Cross-platform polish** — Linux/macOS/Windows CI, controller and
+   rebindable keys and pad (game.exe's Configure Controls) done; left:
+   high-DPI.
 
 ## Directory layout
 
@@ -954,8 +955,10 @@ Still open for Act 5:
 
 - Live checks: the Cow Portal (devctl can't fill the Cube or set Act 5
   quests yet) and Act 5 against the game.exe host.
-- `debug difficulty 1` in a probe: Act 5's levels keep Normal's MonStats rows
-  (110) or make none (125), so imp6..8 never appear; not looked into.
+- ~~`debug difficulty 1` spawns Normal's rows~~: not a bug (2026-10-25). The
+  verb and real Nightmare / Hell saves spawn each difficulty's rows and
+  levels; seed 3's region just never picks imp6..8 (seed 8 does), and the
+  probe's level-1 character died at once, so nothing found a target.
 
 ## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
 

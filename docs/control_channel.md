@@ -61,7 +61,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug walls <x> <y>`      | `ok w<type>...`        | The current level's wall tiles at cell (x, y): each wall layer's orientation (h: hidden), or layer:orientation of the tiles game.exe picked. |
 | `debug alt on\|off`         | `ok`                   | Hold "Show Items" (Alt): every ground item's label. |
 | `debug day [deg]`          | `ok phase= time= intensity=` | The time of day, set to `deg` degrees (0 sunrise, 90 noon, 180 dusk, 270 midnight). |
-| `debug difficulty <d>`      | `ok`                   | Play on difficulty d (0 normal, 1 nightmare, 2 hell): a new game's monsters. Levels already built keep their mazes; a game started on d (its save) builds d's. |
+| `debug difficulty <d>`      | `ok`                   | Play on difficulty d (0 normal, 1 nightmare, 2 hell): a new game on d, as a real one starts: the levels built again for d (LvlMaze Rooms(N) / (H)), its monsters, entered in that difficulty's act town. A level-1 character dies at once past Normal; probe with a sturdy save. |
 | `debug skill left\|right <id>` | `ok` / `err not usable` | Put Skills.txt skill id on that button (the picker's rules). |
 | `debug points <id> <n>`    | `ok` / `err not a class skill` | Give the character's class skill `id` n points (for testing a skill a save lacks). |
 | `debug passives`          | `ok <stat>=<value>[/<itype>] ...` | The passive skills' stats on the character (FUN_00646d60), with the weapon type a mastery needs. |
