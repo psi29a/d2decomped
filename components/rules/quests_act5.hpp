@@ -155,7 +155,7 @@ struct SiegeQuest {
         if (quest::bit(quest_bits, kQuest, 13) && state != 5) { state = 5; log = 13; news = true; return true; }
         return false;
     }
-    // Larzuk's socketing used (his menu's entry): done.
+    // Larzuk's socketing used (FUN_005877c0): done.
     void socketed(QuestBits& quest_bits) { quest::set(quest_bits, kQuest, 0); quest::set(quest_bits, kQuest, 1, false); }
     // Blocks (0x733308 by 0x733928; FUN_00586ff0).
     static inline const std::vector<act5_detail::Entry> kBlocks[5] = {
@@ -628,8 +628,8 @@ struct BetrayalQuest {
         if (quest::bit(quest_bits, kQuest, 13)) { state = 5; return true; }
         return false;
     }
-    // Anya's personalizing used: done.
-    void personalized(QuestBits& quest_bits) { quest::set(quest_bits, kQuest, 0); quest::set(quest_bits, kQuest, 1, false); act5_detail::clear_steps(quest_bits, kQuest); }
+    // Anya's personalizing used (FUN_0058bc00): done.
+    void personalized(QuestBits& quest_bits) { quest::set(quest_bits, kQuest, 0); quest::set(quest_bits, kQuest, 1, false); }
     // Blocks (0x734ac8 by 0x7350e8; FUN_0058b2c0): Prison of Ice done or due.
     static inline const std::vector<act5_detail::Entry> kBlocks[5] = {
         { { 512, 20137, true } },

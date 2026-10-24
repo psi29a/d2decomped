@@ -911,14 +911,15 @@ Branch `act5`:
 - Quests (docs/research/re/quests-act5.md): the introductions (the save's
   NPC section kept), Siege on Harrogath, Rescue on Mount Arreat, Prison of
   Ice, Betrayal of Harrogath, Rite of Passage, Eve of Destruction —
-  `tests/quests_d2d.py ... 5` plays all six from a new character.
+  `tests/quests_d2d.py ... 5` plays all six from a new character, with
+  Larzuk's sockets and Anya's personalizing (Charsi's imbue at their NPCs).
+- Lower walls (Act 5's cliffs) draw under the floors, as game.exe.
 
 Still open: Baal in the Chamber and his clone (BaalCrab / BaalCrabClone,
-the Diablo-like chooser), BaalTaunt, AncientStatue, the ubers; Larzuk's
-socketing and Anya's personalizing (a5q1 / a5q4's bit 0); Act 5's monster
-skills and umod 33's blast; the cinematics.
+the Diablo-like chooser), BaalTaunt, AncientStatue, the ubers; Act 5's
+monster skills and umod 33's blast; the cinematics.
 
-Next: Larzuk's and Anya's services, then Baal's fight.
+Next: Baal's fight.
 
 ## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
 

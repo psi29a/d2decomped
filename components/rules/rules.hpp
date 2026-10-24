@@ -95,6 +95,7 @@ struct ItemBase {
     int max_1h = 0, max_2h = 0;                           // weapons.txt maxdam (+0xff) / 2handmaxdam (+0x103)
     std::string nightmare_upgrade, hell_upgrade;       // NightmareUpgrade / HellUpgrade ("xxx" none): a store's base in those difficulties
     bool spawnable = false;                            // spawnable (+0x133)
+    bool nameable = false;                             // nameable (+0x145): Anya may personalize it
     int version = 0;                                   // version (+0xf6): 100 an expansion item
     std::string type2;                                 // type2 (+0x120)
     int hit_class = 0;                                 // weapons.txt "hit class" (sound_ids::hit_class): its swing and impact sounds
@@ -1390,6 +1391,52 @@ inline std::pair<int, int> gamble_upgrade(const Tables& tables, const std::strin
         return std::max(0, (clvl - upgrade_base->second.level) * 100 / div + 1);
     };
     return { weight(found->second.ubercode, 2), weight(found->second.ultracode, 4) };
+}
+
+// The most sockets `item` may have (FUN_0062bc20): its gemsockets, capped
+// by its type's MaxSock1 / 25 / 40 for item level <= 25, <= 40, above.
+inline int most_sockets(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    if (base == tables.item_base.end() || info == tables.item_info.end()) return 0;
+    const auto type = tables.types.find(info->second.type);
+    if (type == tables.types.end()) return 0;
+    return std::min(base->second.gem_sockets, type->second.max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)]);
+}
+// Whether Larzuk's socketing takes `item` (FUN_0062c770): not gold, not a
+// quest item but Wirt's leg, no sockets yet and room for one.
+// ponytail: the unit flags 0x1000 / 0x100 and FUN_0062a270's stat-list
+// check aren't, as imbuable.
+inline bool socketable(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto found = tables.item_base.find(item.code);
+    if (item.code == "gld" || found == tables.item_base.end() || (found->second.quest && item.code != "leg")) return false;
+    return !item.socketed && item.sockets == 0 && most_sockets(tables, item) > 0;
+}
+// Larzuk's sockets (FUN_00579d60 at hcIdx 0x1ff): magic 1 + rand(the most,
+// at most 2) on the item's seed; set, rare, unique, crafted (5..9) 1;
+// the rest the most. FUN_0062bcb0 caps them at the grid and 6.
+// ponytail: the item's seed is taken fresh from its fingerprint, not where
+// its making left it.
+inline d2d::d2s::Item socket_item(const Tables& tables, const d2d::d2s::Item& item) {
+    auto made = item;
+    int sockets = most_sockets(tables, item);
+    if (item.quality == 4) { Rng seed{ item.uid }; sockets = seed(std::min(sockets, 2)) + 1; }
+    else if (item.quality >= 5 && item.quality <= 9 && sockets > 0) sockets = 1;
+    const auto [width, height] = item_size(tables, item.code);
+    made.socketed = true;
+    made.sockets = std::min({ sockets, width * height, 6 });
+    return made;
+}
+// Whether Anya's personalizing takes `item` (FUN_0062c6a0): not gold, a
+// quiver or an ear (types 5..7), not broken or personalized already, not a
+// compact-save item (Items +0x143) and nameable (+0x145).
+// ponytail: the unit flag 0x1000 and broken (0x100) aren't checked.
+inline bool nameable(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto found = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    if (item.code == "gld" || item.code == "ear" || found == tables.item_base.end() || info == tables.item_info.end()) return false;
+    if (info->second.type == "bowq" || info->second.type == "xboq") return false;
+    return found->second.nameable && !item.personalized && !item.simple;
 }
 
 // Gheed's price for gambling on `code` (FUN_00629370): rings and amulets

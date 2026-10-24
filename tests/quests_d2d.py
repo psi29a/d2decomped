@@ -170,6 +170,28 @@ def menu_pick(text):
     cmd(f"click {line[0][1]} {line[0][2]}")
 
 
+def service(name, slot, done, what):
+    """The NPC menu's entry before Cancel (imbue, sockets, personalize), then a
+    click on the item worn in body slot `slot`, as a player would; worn again after."""
+    item = re.search(rf"^\[(\w+) loc=1 slot={slot} .* id=(\d+) ", cmd("items"), re.MULTILINE)
+    assert item, f"nothing worn in slot {slot}"
+    open_menu(name)
+    line = [l.split("\t") for l in cmd("menu").splitlines() if "\t" in l][-2]
+    cmd(f"click {line[1]} {line[2]}")
+    x, y = cmd(f"debug itemat {item.group(2)}").split()[1:3]
+    cmd(f"click {x} {y}")
+    until(what, done)
+    cmd(f"click {x} {y}")                             # worn again
+    time.sleep(0.3)
+    for spot in range(40):                            # else into the pack
+        if state()["held"] == "-":
+            break
+        cmd(f"cmd grid {spot % 10} {spot // 10}")
+        time.sleep(0.3)
+    assert state()["held"] == "-", f"the {item.group(1)} found no room"
+    return item.group(1)
+
+
 def open_menu(name):
     npc = find_npc(name)
     cmd(f"debug warp {float(npc[0][5]) + 0.9} {float(npc[0][6]) + 0.7}")
@@ -784,6 +806,9 @@ def act5():
     go(109)
     talk_until("Larzuk", lambda: bits(0x23) & 0x20, "the siege not rewarded")
     assert a5("s")[:2] == [5, 1], f"a5q1 rewarded, a5q2 open: {a5('s')}"
+    # Larzuk's reward: his menu's socket entry (0x58dc) sockets the shield (bit 0).
+    shield = service("Larzuk", 5, lambda: bits(0x23) & 1, "Larzuk socketed")
+    assert f"Larzuk put 1 sockets in the {shield}" in log_text(), "not the shield, or not its one socket"
     print("OK: the introductions, Siege on Harrogath (a5q0, a5q1)")
     # a5q2: Qual-Kehk (20096, bit 2); the Frigid Highlands' three cages come
     # up with five prisoners each; a door broken frees its five, the player
@@ -851,6 +876,9 @@ def act5():
     assert bits(0x26) & 0x2002 == 0x2002, f"word 0x26: {bits(0x26):#x}"
     go(109)
     talk_until("Anya", lambda: bits(0x26) & 0x10, "the betrayal not rewarded")
+    # Her personalizing (0x58dd, bit 0): the weapon takes the player's name.
+    service("Anya", 4, lambda: bits(0x26) & 1, "Anya personalized")
+    assert "Anya personalized the " in log_text() and "Quester's " in cmd("items"), "no personalizing"
     print("OK: Betrayal of Harrogath (a5q4)")
     # a5q5 (of level 20 on Normal): Qual-Kehk (20153, bit 2); the Summit's
     # altar has the Ancients speak; 20 frames on the statues are the three
