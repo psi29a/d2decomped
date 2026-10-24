@@ -181,7 +181,8 @@ open, +0x4c altar mode.
   14; gold for the killer; state 5; missile 625 (baalfx control, 650
   frames; its end `FUN_005ad970` → `FUN_0058e920`: Tyrael 0x209 at −5, −5).
 - Tyrael's talk closed (once): object 565 by each Chamber player
-  (OperateFn 72: with bit 13, the cinematic 0x39b, Harrogath, bit 10).
+  (OperateFn 72: with bit 13, Harrogath, the save, cinematic 7, bit 10:
+  "The last portal" below).
 - Join with it done: bit 10 and the next difficulty.
 
 ## Larzuk's sockets and Anya's name
@@ -203,10 +204,102 @@ item panel) while the reward is due:
   (+0x145)) — flag 0x1000000 and the player's name. `FUN_0058bc00`: bit 0,
   bit 1 off.
 
-## Not yet in d2d
+## The Ancients' deaths and the statues' return
 
-- Baal Taunt's sound (prgsound monster_baal_taunt_1); its missiles' draws on
-  the update's rng, not the missile's seed.
-- The Ancients' death missile (`FUN_0058c8d0`), the statues' return
-  (`FUN_0058bd50`), Baal's Corpse Explode, the gold for Baal's killer, the
-  cinematics.
+`FUN_0058c9a0` (a dead unit bound to 0x23), while the Ancients are heard
+(+0x10), awake (+0x11) and no player has died on the Summit (+0xc 0):
+
+- The first time, the return timer (+4; `FUN_00543f10(record,
+  FUN_0058bd50, 2)`: every 2 frames till it returns true).
+- By class: 0x21d marks +0x3c (statue id +0x14), 0x21e +0x3d (+0x18),
+  0x21c +0x3e (+0x1c), each its own statue (474 / 475 / 476 hold 0x2d /
+  0x2b / 0x2c, SuperUniques' ancientbarb3 / 1 / 2).
+- Its death missile (`FUN_0058c8d0`, `FUN_0059fa30` flags 0x420):
+  missile 541 "ancient death center" from the dead Ancient at its
+  statue's spot, level 1, the statue as its target unit (`FUN_0064a710`).
+  Flag 0x400 makes its range the frames to get there. It has no cel; its
+  light is red (2), and the client's do 55 (`FUN_004d8260`, the table
+  0x72a398 + 4 x n) makes an "ancient death cloud" (542, its TravelSound
+  `quest_ancients_cloud`) every third frame: from a subtile -1..0 off it
+  each way (two `& 1` draws), sent at that start's -10..9 off (two `% 20`
+  draws, taken first), flags 0x21.
+- Then the count (+0x44) and the win as above.
+
+The timer (`FUN_0058bd50`): with +0xc 0 and +0x11, each marked statue goes
+to mode 1 (`FUN_00624690`) with its event 1 at FrameCnt1 frames (mode 2),
+its mark cleared and +0x30 2. A statue not found keeps the timer going.
+Otherwise +4 is cleared and the timer ends.
+
+A player's death on the Summit (`FUN_0058cf00`, the record not won): +0xc
+goes up by one, +0x10 / +0x11 are cleared, and `FUN_0058c000` runs: the
+Ancients still made are removed, the marks cleared, the statues and the
+altar back to mode 0.
+
+## Baal's death: the gold and the save
+
+`FUN_0058df20`, with a killer (`param[3]`): `bVar2` is the killer's
+quest 0x28 bit 0 *before* the shares. The shares are `FUN_0058dea0` (in
+the Chamber 0x84 without bits 0 / 1: `FUN_0058dd30`, bits 13 and 0, the
+next difficulty, +0x88 += 1), `LAB_0058dd90` (bit 13 and a party:
+`FUN_0058dc60` gives the party's act-5 players bits 0 and 13),
+`LAB_0058dde0` (not done: bit 14, `FUN_00545920`) and `FUN_0058de30` (bit
+13: S->C 0x5d {0x24, 2}, interact cleared). For a first killer, +0x88 gold
+piles at Baal (`FUN_0055b030`), each `FUN_004bc500(quest seed, 1500 + 6000
+x difficulty, min(3000 + 6000 x difficulty, 0xffff))`. Then the game is
+saved (`FUN_0052e2a0`, every player) and the state is 5. Missile 625 comes
+after all that.
+
+## Baal Corpse Explode (skill 285)
+
+Srvdo 141 (`FUN_005d2e80`): an area search (`FUN_0056dcc0`, flags 0x3002,
+radius Param5 + (level - 1) x Param6 = 40) calls `FUN_005d2e50` on each
+corpse: `FUN_005c50b0(285, level)`, which is Corpse Explosion's
+`FUN_005c4df0`. That takes its damage from calc1..calc2, and row 285 has
+neither, so the blast does nothing (bugs.md #27). The corpses are spent.
+
+## Baal Taunt's sound
+
+Cltstfunc 46 (`FUN_004f0160`, the table 0x727a90): at the cast's start it
+plays the skill's prgsound (+0x10e, `monster_baal_taunt_1`) on the caster
+(`FUN_004b9a00`), then the client missile.
+
+## The last portal (OperateFn 72, `FUN_0058e740`)
+
+It needs the record's +0x9c 2 and the player's bit 13 (else the
+interact is cleared, `FUN_00553380`). Then the player goes to Harrogath
+(`FUN_0053aec0(0x6d, 0)`), the game is saved (`FUN_0052e2a0`), and if
+the client isn't busy (`FUN_00535060`): the interact is cleared
+(`FUN_00554190`), client +0x4c = 1 (busy), and S->C 0x61 {7}
+(`FUN_0053d940`): the client plays cinematic 7, D2X_OUT. Then bit 10. The
+0x39b here is an assert line (`FUN_005531c0(unit, file, line)` gets the
+client), not a cinematic. The client's 0x61 handler is `FUN_0045e660`
+(table 0x7114d0). What it sends back to clear +0x4c isn't traced.
+
+## InitFns 66..70
+
+- 66 (`FUN_0058eac0`, 459 "Drehya Start In Town"): it keeps the marker's
+  id and spot (+0xe4..+0xec). With +0x84 2: the chain check
+  (`FUN_00589160`), then Anya (0x200) within 1 of it once (+0x91, +0x94).
+  With +0x87 (told) it sets its event 7 twelve frames on (her portal again).
+- 67 (`FUN_0058a5b0`, 460 "Drehya Start Outside Town"): keeps its id
+  (+0xf8); fana not made: event 7 at 25 frames.
+- 69 (`FUN_0058a6c0`, 462 "Nihlathak Start Outside Town"): with +0x88 1
+  and not made (+0x92), superunique 60 at its spot (`FUN_0054e600`).
+- 70 (`FUN_00587830`, 542 "Larzuk Greeting"): an empty function
+  (stubs.md).
+
+## In d2d
+
+- `World::act5_kill` (world_quests_act5.cpp): the death missile (visual
+  only, `Missile::sub` the cloud), `RiteQuest::ancient_fell` /
+  `statues_back`, `World::rite_update`'s timer; Baal's gold and
+  `World::save_due`.
+- The clouds: `missiles_update`'s client do 55 (ai.hpp).
+- Corpse Explode: the BaalThrone think (ai.cpp) spends the corpses.
+- Baal Taunt's sound: `Fight::monster_sounds` (cltstfunc 46).
+- The last portal: `World::movie` -> main.cpp plays D2X_OUT and returns
+  to the game (and marks `d2xout` seen). A host's 0x61 goes the same way
+  (netgame.cpp).
+- Not yet: Baal Taunt's missiles draw on the update's rng, not the
+  missile's seed; the death missile's distance is the straight line
+  (`FUN_006417f0` not traced); the record's +0xc isn't kept.

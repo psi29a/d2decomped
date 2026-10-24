@@ -319,6 +319,10 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
                 cues.cue(impact.element, now_ms, monster.unit.x, monster.unit.y);
                 monster.hit_class = 0;
             }
+            // Its skill's start (FUN_004c6140): cltstfunc 46 (FUN_004f0160, Baal
+            // Taunt's) plays the prgsound on it.
+            if (const auto* skill = monster.skill >= 0 ? game_data->skills.get(monster.skill) : nullptr; skill && skill->clt_st_func == 46 && skill->prg_sound > 0)
+                play(skill->prg_sound, now_ms);
             if (sounds) {
                 if (monster.mode == "A1" || monster.mode == "A2") {
                     const std::size_t attack_index = monster.mode == "A2";

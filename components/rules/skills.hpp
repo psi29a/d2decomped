@@ -418,6 +418,7 @@ struct Skill {
     // stsoundclass (+0xfe, the class's own), ItemCastSound (+0x122, cast from an item), dosound
     // (+0x100), tgtsound (+0x10a); flags stsounddelay (13: the swing's frames less 3) and weaponsnd (14).
     int st_sound = 0, st_sound_class = 0, item_cast_sound = 0, do_sound = 0, tgt_sound = 0;
+    int prg_sound = 0, clt_st_func = 0;   // prgsound (+0x10e), cltstfunc (+0xf2: the client's start, table 0x727a90)
     bool st_sound_delay = false, weapon_sound = false;
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires

@@ -9,9 +9,11 @@
 #include <d2s_items.hpp>
 #include <combat.hpp>
 #include <level_ids.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
+#include <rules.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -56,7 +58,7 @@ auto World::act5_join() -> void {
         betrayal_log_at = 0;
         rite = {};
         rite.join(quests());
-        statues_at = 0;
+        statues_at = statues_back_at = 0;
         rite_died = false;
         eve = {};
         if (eve.join(quests())) open_act(5);                // FUN_00538680: the next difficulty
@@ -203,7 +205,26 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         // The Ancients (FUN_0058c9a0): the last dead wins the Rite for the
         // players on the Summit of the level (FUN_0058c7e0: bits 13 and 0, the
         // experience FUN_0058c5c0), the rest bit 14 (FUN_0058c780); the chain.
-        if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return kill.type == int(game_data->mon_bin[std::size_t(ancient)]); }) && rite.ancient_died()) {
+        // Each while they're up: its statue due back, and its death missile
+        // (FUN_0058c8d0: "ancient death center", flags 0x420) from where it
+        // fell to its statue, its range the frames to get there (FUN_0056ee90).
+        // ponytail: the distance is the straight line; FUN_006417f0's isn't traced.
+        const auto ancient = std::ranges::find_if(d2d::rules::RiteQuest::kAncients, [&](int row) { return kill.type == int(game_data->mon_bin[std::size_t(row)]); });
+        const int statue = ancient == d2d::rules::RiteQuest::kAncients.end() ? -1 : d2d::rules::RiteQuest::kStatueOf[std::size_t(ancient - d2d::rules::RiteQuest::kAncients.begin())];
+        if (statue >= 0 && rite.ancient_fell(statue)) {
+            const auto statue_at = std::ranges::find(level->npcs, d2d::rules::RiteQuest::kStatues[std::size_t(statue)], &Npc::object_id);
+            const auto center = game_data->missiles.find("ancient death center"), cloud = game_data->missiles.find("ancient death cloud");
+            if (statue_at != level->npcs.end() && center != game_data->missiles.end() && cloud != game_data->missiles.end()) {
+                const int velocity = d2d::rules::missile_velocity(center->second.vel, center->second.vel_lev, 1);
+                const float dx = statue_at->x - kill.x, dy = statue_at->y - kill.y, length = std::max(std::hypot(dx, dy), 0.01f), speed = missile_speed(velocity);
+                const auto frames = std::uint32_t((std::int64_t(length * 5) << 16) / (std::int64_t(velocity) << 4));
+                Missile missile{ &center->second, kill.x, kill.y, dx / length * speed, dy / length * speed, missile_facing(kill.x, kill.y, dx, dy), now_ms, now_ms + std::max(frames, 1u) * kTickMs, {} };
+                missile.visual_only = true; missile.owner = kill.id; missile.sub = &cloud->second;
+                missile.to = std::pair{ statue_at->x, statue_at->y };
+                fight.missiles.push_back(std::move(missile));
+            }
+        }
+        if (statue >= 0 && rite.ancient_died()) {
             each_player([&](Player&) {
                 const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
                 auto& stats = actor->character.stats;
@@ -229,10 +250,25 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         // Baal (baalcrab, bound to 0x24: FUN_0058df20): those in the Chamber
         // done (FUN_0058dd30: bits 13 and 0, the next difficulty), the rest
         // bit 14; his light fades 650 frames (missile 625), then Tyrael.
-        // ponytail: the gold piles for the first killer (FUN_0055b030) aren't dropped.
+        // A killer without bit 0 till now: a gold pile at Baal per player
+        // done here (record +0x88), each 1500..2999 + 6000 x difficulty on
+        // the quest seed (FUN_005438b0 -> FUN_004bc500, FUN_0055b030); then
+        // the game saved (FUN_0052e2a0).
         if (kill.type == int(game_data->mon_bin[std::size_t(d2d::rules::EveQuest::kBaal)]) && eve.state != 5) {
             eve.killed();
-            each_player([&](Player&) { if (d2d::rules::EveQuest::reward(quests(), level->id == d2d::rules::EveQuest::kChamber)) open_act(5); });
+            const auto killer = std::ranges::find(players, kill.killer, [](const auto& player) { return player->id; });
+            const bool first = killer != players.end() && !d2d::rules::quest::bit((*killer)->character.header.quests[std::size_t(std::clamp((*killer)->character.header.active_difficulty(), 0, 2))], d2d::rules::EveQuest::kQuest, 0);
+            int done_here = 0;
+            each_player([&](Player&) { if (d2d::rules::EveQuest::reward(quests(), level->id == d2d::rules::EveQuest::kChamber)) { open_act(5); ++done_here; } });
+            if (first) {
+                const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
+                for (int pile = 0; pile < done_here; ++pile) {
+                    const int gold = d2d::rules::store_range(fight.spawning.quests, diff * 6000 + 1500, std::min(diff * 6000 + 3000, 0xffff));
+                    loot.put({ .code = "gld", .gold = gold }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
+                }
+                d2d::log::info("Eve of Destruction: gold for Baal's killer, {} pile(s)", done_here);
+            }
+            if (killer != players.end()) save_due = true;
             baal_fell = { kill.x, kill.y };
             tyrael_at = now_ms + d2d::rules::EveQuest::kTyraelFrames * kTickMs;
             d2d::log::info("Eve of Destruction: Baal is dead");
@@ -409,11 +445,27 @@ auto World::prison_update(std::uint32_t now_ms) -> void {
 // (FUN_0058c0e0: each to mode 4, its Ancient at its spot, FUN_00545c30);
 // the Ancients asleep till then; a death there puts it back (FUN_0058c000:
 // the Ancients gone, statues and altar to mode 0).
-// ponytail: an Ancient's death missile (FUN_0058c8d0) and the statues'
-// return (FUN_0058bd50) aren't made; one try per statue.
+// An Ancient fallen: the return timer every 2 frames (FUN_0058bd50), its
+// statue to mode 1, then mode 2 after FrameCnt1 (its event 1).
+// ponytail: one try per statue.
 auto World::rite_update(std::uint32_t now_ms) -> void {
         if (level->id != d2d::rules::RiteQuest::kSummit) return;
         const auto object_index = [&](int object_id) { return int(std::ranges::find(level->npcs, object_id, &Npc::object_id) - level->npcs.begin()); };
+        if (rite.returning && !statues_back_at) statues_back_at = now_ms + 2 * kTickMs;
+        if (statues_back_at && now_ms >= statues_back_at) {
+            statues_back_at = 0;
+            const auto back = rite.statues_back();
+            for (std::size_t which = 0; which < back.size(); ++which)
+                if (const int statue = object_index(d2d::rules::RiteQuest::kStatues[which]); back[which] && statue < int(level->npcs.size())) {
+                    doors[{ level, statue }] = Door{ 1, now_ms };
+                    d2d::log::info("Rite of Passage: statue {} returns", which);
+                }
+        }
+        for (const int object_id : d2d::rules::RiteQuest::kStatues)
+            if (const int statue = object_index(object_id); statue < int(level->npcs.size()))
+                if (const auto state = doors.find({ level, statue }); state != doors.end() && state->second.mode == 1
+                    && now_ms - state->second.when >= std::uint32_t(level->npcs[std::size_t(statue)].op_frames) * kTickMs)
+                    state->second = Door{ 2, now_ms };
         if (statues_at && now_ms >= statues_at) {
             statues_at = 0;
             for (int which = 0; which < 3; ++which) {
@@ -434,7 +486,7 @@ auto World::rite_update(std::uint32_t now_ms) -> void {
             if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return monster.type == int(game_data->mon_bin[std::size_t(ancient)]); })) monster.gone = true;
         for (const int object_id : { 474, 475, 476, d2d::rules::RiteQuest::kAltar })
             if (const int found = object_index(object_id); found < int(level->npcs.size())) doors[{ level, found }] = Door{ 0, now_ms };
-        statues_at = 0;
+        statues_at = statues_back_at = 0;
         d2d::log::info("Rite of Passage: the Ancients go back to sleep");
     }
 
@@ -504,13 +556,17 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
             return true;
         }
         // The last portal (565, OperateFn 72, FUN_0058e740): with bit 13,
-        // bit 10 and home to Harrogath.
-        // ponytail: its cinematic (0x39b) and the save it asks for aren't run.
+        // home to Harrogath (FUN_0053aec0(0x6d)), the game saved
+        // (FUN_0052e2a0), then the client not busy (FUN_00535060): its
+        // interact cleared, busy (+0x4c), cinematic 7 (D2X_OUT: S->C 0x61,
+        // FUN_0053d940); bit 10.
         if (object.object_id == d2d::rules::EveQuest::kLastPortal) {
             if (!d2d::rules::quest::bit(quests(), d2d::rules::EveQuest::kQuest, 13)) return true;
-            d2d::rules::quest::set(quests(), d2d::rules::EveQuest::kQuest, 10);
             const Level* town = game_data->level(d2d::rules::level_ids::kHarrogath);
             if (town && town->start.first >= 0) arrive(town, town->start.first, town->start.second, "the last portal");
+            save_due = true;
+            movie = d2d::rules::EveQuest::kEndMovie;
+            d2d::rules::quest::set(quests(), d2d::rules::EveQuest::kQuest, 10);
             return true;
         }
         // The Ancients' farewell (561, OperateFn 69, FUN_0058d5e0): the Rite

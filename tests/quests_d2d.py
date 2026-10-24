@@ -901,6 +901,7 @@ def act5():
         cmd("debug kill within 30"); time.sleep(0.5)
     assert bits(0x27) & 0x2001 == 0x2001, f"word 0x27: {bits(0x27):#x} {a5('s')}"
     assert "Rite of Passage: +" in log_text(), "no experience"
+    until("the statues back", lambda: log_text().count("Rite of Passage: statue ") == 3, 5)
     stairs = objects(66)
     assert stairs, "no stairs"
     cmd(f"debug warp {stairs[0][1]} {float(stairs[0][2]) + 1}"); time.sleep(0.5)
@@ -929,6 +930,7 @@ def act5():
     while time.time() < deadline and "Baal is dead" not in log_text():
         cmd("debug kill within 40"); time.sleep(0.5)
     assert bits(0x28) & 0x2001 == 0x2001, f"word 0x28: {bits(0x28):#x}"
+    assert "gold for Baal's killer, 1 pile" in log_text(), "no gold for Baal's killer"
     until("Tyrael comes", lambda: "Tyrael comes" in log_text(), 40)
     talk_until("Tyrael", lambda: "Tyrael opens the way home" in log_text(), "no last portal")
     last = objects(72)

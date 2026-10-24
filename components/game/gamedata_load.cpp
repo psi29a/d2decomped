@@ -314,6 +314,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         auto number = [&](const std::string& column) { return num(missiles_table.get(row_index, column)); };
         const std::string name(missiles_table.get(row_index, "Missile"));
         bool used = name == "arrow" || name == "denofevillight" || skill_missiles.contains(name)    // the rogue merc's, the Den's light beams, skills',
+                 || name == "ancient death center" || name == "ancient death cloud"           // an Ancient's death (FUN_0058c8d0) and its trail
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name));   // a unique's mods
         for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name;
@@ -328,7 +329,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.anim_speed = std::max(number("AnimSpeed"), 1); missile_info.anim_len = std::max(number("AnimLen"), 1); missile_info.trans = number("Trans"); missile_info.light = number("Light");
         missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
         missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1; missile_info.return_fire = number("ReturnFire") == 1;
-        missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.hit_par2 = number("sHitPar2");
+        missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.hit_par2 = number("sHitPar2");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay");
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.explosion_name = missiles_table.get(row_index, "ExplosionMissile"); missile_info.always_explode = number("AlwaysExplode") == 1;
@@ -485,7 +486,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (int i = 0; i < 8; ++i) skill_row.par[std::size_t(i)] = number("Param" + std::to_string(i + 1));
         const auto sound = [&](const std::string& column) { const auto found = game_data.sound_index.find(std::string(text(column))); return found == game_data.sound_index.end() ? 0 : found->second; };
         skill_row.st_sound = sound("stsound"); skill_row.st_sound_class = sound("stsoundclass"); skill_row.item_cast_sound = sound("ItemCastSound");
-        skill_row.do_sound = sound("dosound"); skill_row.tgt_sound = sound("tgtsound");
+        skill_row.do_sound = sound("dosound"); skill_row.tgt_sound = sound("tgtsound"); skill_row.prg_sound = sound("prgsound"); skill_row.clt_st_func = number("cltstfunc");
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1";
         skill_row.hit_class = number("HitClass"); skill_row.hitshift = number("HitShift"); skill_row.srcdam = text("SrcDam").empty() ? 128 : number("SrcDam"); skill_row.srcdam_raw = number("SrcDam");
         skill_row.decquant = number("decquant") != 0; skill_row.srvmissile = text("srvmissile"); skill_row.srvmissilea = text("srvmissilea"); skill_row.perdelay = number("perdelay"); skill_row.perdelay_calc = calc("perdelay");

@@ -680,6 +680,7 @@ struct RiteQuest {
     // The statues (objects) and their Ancients (FUN_0058c0e0: [0x744304] +0xb3a / +0xb36 / +0xb38).
     static constexpr std::array<int, 3> kStatues{ 475, 474, 476 }, kSuperuniques{ 0x2b, 0x2d, 0x2c };
     static constexpr std::array<int, 3> kAncients{ 0x21c, 0x21d, 0x21e };   // ancientbarb1..3
+    static constexpr std::array<int, 3> kStatueOf{ 0, 2, 1 };                // each Ancient's statue (kStatues index: its superunique's class)
     // The town's congratulations (FUN_0058c290): their bits 5..9.
     struct Congrats { int npc, string, bit; };
     static constexpr std::array<Congrats, 5> kCongrats{ { { 511, 20167, 5 }, { 520, 20165, 6 }, { 512, 20166, 7 }, { 513, 20168, 8 }, { 515, 20164, 9 } } };
@@ -688,7 +689,9 @@ struct RiteQuest {
     bool done = false;             // data +0: the three dead
     bool told_heard = false;       // data +1
     bool heard = false, awake = false;   // data +0x10 / +0x11
-    std::array<int, 3> statue_mode{};    // data +0x30: 0, 3 waking, 4 an Ancient
+    std::array<int, 3> statue_mode{};    // data +0x30: 0, 3 waking, 4 an Ancient, 2 back
+    std::array<bool, 3> statue_dead{};   // data +0x3c: its Ancient fell, its statue not back yet
+    bool returning = false;              // data +4: the statues' return timer (FUN_0058bd50) runs
     int made = 0, alive = 0;       // data +0x40 / +0x44
     bool fighting = false;         // data +0x48
     bool stairs_open = false;      // data +0x4a
@@ -770,6 +773,26 @@ struct RiteQuest {
         ++made; ++alive; fighting = true;
         return kSuperuniques[std::size_t(which)];
     }
+    // An Ancient fell while they're up (FUN_0058c9a0, before the count):
+    // its statue's due back, the return timer on (FUN_00543f10, every 2
+    // frames). True: its death missile goes to that statue.
+    // ponytail: the record's +0xc (deaths on the Summit) isn't kept; reset() covers it.
+    bool ancient_fell(int statue) {
+        if (!heard || !awake) return false;
+        returning = true;
+        statue_dead[std::size_t(statue)] = true;
+        return true;
+    }
+    // The return timer's tick (FUN_0058bd50): the statues whose Ancient fell
+    // go to mode 1 (their event 1 to mode 2 after FrameCnt1), +0x30 2; the
+    // timer stops. Returns them.
+    std::array<bool, 3> statues_back() {
+        returning = false;
+        if (!awake) return {};
+        const auto back = std::exchange(statue_dead, {});
+        for (std::size_t which = 0; which < back.size(); ++which) if (back[which]) statue_mode[which] = 2;
+        return back;
+    }
     // An Ancient died (FUN_0058c9a0): true when it was the last, the Rite
     // won (state 5, the log 13, the chain); then each player's reward().
     bool ancient_died() {
@@ -799,8 +822,9 @@ struct RiteQuest {
     // Ancients go, the statues and the altar back to mode 0 (FUN_0058c000).
     bool reset() {
         if (done) return false;
-        heard = awake = fighting = false;
+        heard = awake = fighting = returning = false;
         statue_mode = {};
+        statue_dead = {};
         made = alive = 0;
         altar_mode = 0;
         return true;
@@ -853,6 +877,7 @@ struct EveQuest {
     static constexpr int kChamberPortal = 563, kLastPortal = 565, kWaves = 5, kFirstSubject = 61;
     static constexpr int kBaalThrone = 543, kBaal = 544, kBaalStairs = 0x22f;
     static constexpr int kTyraelFrames = 650, kCryFrames = 250, kWaveFrames = 100;
+    static constexpr int kEndMovie = 7;   // the last portal's cinematic (S->C 0x61 {7}: D2X_OUT)
     struct Congrats { int npc, string, bit; };
     static constexpr std::array<Congrats, 6> kCongrats{ { { 511, 20178, 4 }, { 520, 20177, 5 }, { 513, 20179, 6 }, { 521, 20175, 7 }, { 515, 20180, 8 }, { 512, 20176, 9 } } };
     bool open = true;

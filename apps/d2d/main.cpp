@@ -1320,6 +1320,20 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     load_act_palettes(*scene, scene->mpqs, act);
                 town.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
                 write_save_back();
+                // S->C 0x61 (FUN_00482ef0): a cinematic now (its table 0x721d9c: 1..7 the
+                // Cinematics menu's videos), seen from then on; back into the game after.
+                if (const int movie = std::exchange(town.world.movie, -1); movie >= 1 && movie <= int(kCinematicVideo.size()) && g_video
+                    && video_mpqs.contains(kCinematicVideo[std::size_t(movie - 1)])) {
+                    static constexpr std::array<const char*, 7> kSeen{ "d2intro", "act2start", "act3start", "act4start", "act4end", "d2xintro", "d2xout" };
+                    if (read_seen().find(kSeen[std::size_t(movie - 1)]) == std::string::npos) {
+                        std::error_code error;
+                        fs::create_directories(g_user_dir, error);
+                        std::ofstream(g_user_dir / "cinematics_seen", std::ios::app) << kSeen[std::size_t(movie - 1)] << '\n';
+                    }
+                    video_queue = { kCinematicVideo[std::size_t(movie - 1)] };
+                    video_return = Screen::InGame;
+                    screen = Screen::Video;
+                }
                 if (town.net_game && town.net_game->closed()) {        // the host's gone: back to the characters, as game.exe's drop
                     d2d::log::warn("net: lost the host; leaving the game");
                     screen = Screen::CharSelect;

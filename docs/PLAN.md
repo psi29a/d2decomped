@@ -931,6 +931,13 @@ Branch `act5`:
   think (special 16) proven in tools/emu, its Fireball and Inferno (srvst
   59 / do 126), Fire Missile (do 132). Left: imp6..8's sequence Inferno.
 
+- The quest leftovers (quests-act5.md, from "The Ancients' deaths" on): an
+  Ancient's death missile and its clouds (the client's do 55), the statues'
+  return, Baal's gold for a first killer and the save, Baal Corpse Explode
+  (it spends the corpses; it does no damage in 1.14d, bugs.md #27), Baal
+  Taunt's prgsound, the last portal's save and D2X_OUT (S->C 0x61 {7}, also
+  from a host). InitFns 66 / 67 / 69 were already in; 70 is empty.
+
 Stubs and dead code found so far: docs/research/re/stubs.md.
 
 Still open for Act 5:
@@ -940,11 +947,6 @@ Still open for Act 5:
   defiler's Impregnate (133); the siege beast's Stomp (134); the Ancients'
   Whirlwind, Shout (War Cry) and Leap Attack as monsters cast them.
 - Umod 33's blast.
-- Quest leftovers (quests-act5.md "Not yet in d2d"): the Ancients' death
-  missile (`FUN_0058c8d0`), the statues' return (`FUN_0058bd50`), Baal's
-  Corpse Explode, the gold for Baal's killer, Baal Taunt's sound, the
-  InitFns 66 / 67 / 69 / 70 (Drehya, Nihlathak outside, Larzuk's greeting).
-- The cinematics (Baal's 0x39b and the save it asks for).
 - Live checks: the Cow Portal (devctl can't fill the Cube or set Act 5
   quests yet) and Act 5 against the game.exe host.
 

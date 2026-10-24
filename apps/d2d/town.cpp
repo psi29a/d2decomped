@@ -1253,6 +1253,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (std::ranges::contains(fired, int(keys::kPreviousSkill))) skillbar.cycle(-1);
             if (std::ranges::contains(fired, int(keys::kNextSkill))) skillbar.cycle(1);
         }
+        // The game's save (FUN_0052e2a0: every player): Baal dead, the last portal.
+        if (std::exchange(world.save_due, false)) save();
         // Classic Terror's End: the game closed under the player (FUN_00530590).
         if (world.game_closed) { world.game_closed = false; save(); screen = Screen::CharSelect; return; }
         // The game menu takes every click while it's up; Exit saves and goes
@@ -2416,6 +2418,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             }
             for (const int quest : net_game->quest_news) quest_log_notify(quest_log, quest);
             net_game->quest_news.clear();
+            if (net_game->movie >= 0) world.movie = std::exchange(net_game->movie, -1);
             // Our stats as the host sets them: attributes, points, life / mana /
             // stamina and their maxima (8.8 fixed point, as in a save), level,
             // experience, gold. The host's word wins over d2d's own regen.

@@ -37,7 +37,9 @@ Cinematics menu (`CinematicsSelection[EXP]` panels).
   title.
 - The cursor is hidden while a video plays.
 - `--no-video` or `video = 0` in d2d.cfg turns the videos off.
-- Not yet: act transition videos in game.
+- In game: S->C 0x61 (or d2d's own last portal, quests-act5.md) plays its
+  cinematic and goes back into the game. Not yet: the act transitions' (Act 1's
+  {0x61, 2} and the rest) from d2d's own quests.
 
 ## Cinematics menu (LoD: `FUN_00431600` → `FUN_004313d0`)
 

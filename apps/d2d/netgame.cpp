@@ -408,6 +408,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         send({ d2d::net::d2gs::c2s::update_quests() });   // the words behind it (0x28)
         break;
     }
+    case 0x61:   // a cinematic (FUN_0053d940 -> the client's FUN_00482ef0): +1 its index
+        if (size >= 2) movie = packet[1];
+        break;
     case 0x53:   // the act's day (FUN_0061c240): +1 u32 phase, +5 u32 time, +9 u8 eclipse
         if (size >= 10) sky = Sky{ int(read_u32(packet, 1)), int(read_u32(packet, 5)), packet[9] != 0 };
         break;

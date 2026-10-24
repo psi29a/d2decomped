@@ -567,6 +567,22 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
         if (moving && !missile_fly(level, missile, reach)) return true;
         if (now_ms >= missile.dies || (!moving && level.blocked(missile.x, missile.y, 0x04))) return true;
+        // The client's do 55 (FUN_004d8260, "ancient death center"): every
+        // third frame of its age an "ancient death cloud" (`sub`, flags 0x21)
+        // from a subtile -1..0 off it each way, sent at that start's -10..9
+        // off (x the first draw, y the second).
+        // ponytail: the update's rng, not the missile's seed.
+        if (missile.info && missile.info->clt_do == 55 && missile.sub && missile.frame != frame && (int(now_ms - missile.born) / 40) % 3 == 0) {
+            missile.frame = frame;
+            const int off_x = int(rng.next() % 20) - 10, off_y = int(rng.next() % 20) - 10;
+            const float from_x = std::floor(missile.x * 5) + float(rng.next() & 1) - 1, from_y = std::floor(missile.y * 5) + float(rng.next() & 1) - 1;
+            Missile cloud = missile_from(missile, *missile.sub, (from_x + 0.5f) / 5, (from_y + 0.5f) / 5, 0, 0, now_ms);
+            cloud.visual_only = true;
+            cloud.to = std::pair{ (from_x + float(off_x) + 0.5f) / 5, (from_y + float(off_y) + 0.5f) / 5 };
+            const float speed = missile_speed(*missile.sub, 0), dx = float(off_x), dy = float(off_y), length = std::max(std::hypot(dx, dy), 0.01f);
+            cloud.velocity_x = dx / length * speed; cloud.velocity_y = dy / length * speed;
+            laid.push_back(std::move(cloud));
+        }
         if (missile.visual_only || (missile.info && int(now_ms - missile.born) < missile.info->activate * 40)) return false;
         if (missile.friendly) return hits_monster(missile);
         // A monster's guided one (missile do 7, FUN_005ae780: Bone Spirit)

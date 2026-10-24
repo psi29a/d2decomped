@@ -674,9 +674,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // frames on, flag 2, flag 1 off), or after the fifth he turns into
     // baalcrabstairs (FUN_00574370(0x22f), think BaalToStairs) and stands 5;
     // flag 1 unset, skill 285 (Baal Corpse Explode) in S3, flag 1, 250
-    // frames on. Else stands 10.
-    // ponytail: the Corpse Explode's blast (srvdo 141) and the skill1 at a
-    // foe while a wave fights aren't made; a wave is its superunique's group.
+    // frames on. Else stands 10. Its srvdo 141 (FUN_005d2e80): each corpse
+    // within Param5 (40) + (lvl - 1) x Param6 (0) subtiles (FUN_0056dcc0,
+    // flags 0x3002) goes up as Corpse Explosion (FUN_005c50b0 ->
+    // FUN_005c4df0), whose damage is calc1..calc2 % of its life: the row
+    // has neither, so it hurts no one (bugs.md); the corpses are spent.
+    // ponytail: spent as the cast starts, not at its action frame, by
+    // ai_distance, not FUN_0056dcc0's own area; the
+    // skill1 at a foe while a wave fights isn't made; a wave is its
+    // superunique's group.
     if (type_info.ai_name == "BaalThrone") {
         const int frame = int(now_ms / 40);
         if (frame < monster.ai_state3) { idle(monster.ai_state3 - frame); return true; }
@@ -697,6 +703,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.next_act = monster.mode_until;
         monster.ai_state2 |= 1;
         monster.ai_state3 = frame + 250;
+        for (auto& corpse : pack)
+            if (!corpse.alive() && !corpse.corpse_used && d2d::rules::ai_distance(subtile(corpse.unit.x) - x, subtile(corpse.unit.y) - y) <= 40) corpse.corpse_used = true;
         return true;
     }
     // BaalToStairs (138, FUN_005ef620): the Chamber's portal (object 563)

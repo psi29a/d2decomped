@@ -852,8 +852,8 @@ struct ObjectRooms {
                 // (FUN_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202)
                 // at its spot, else within 5, till he's gone (record +0x88).
                 // ponytail: FUN_005459a0's FUN_00545340 free-spot pass and the records' "made"
-                // bytes aren't kept; InitFns 66 / 67 / 69 / 70 (Drehya, Nihlathak outside,
-                // Larzuk's greeting) wait for Act 5's quests.
+                // bytes aren't kept. InitFns 66 / 67 / 69 are Act 5's quests'
+                // (world_quests_act5.cpp); 70 (FUN_00587830, Larzuk Greeting) is empty.
                 if (init == 71) monster_or_npc(0x1ff, unit, 5, false);
                 if (init == 68) monster_or_npc(0x202, unit, 5, false);
             }

@@ -354,6 +354,7 @@ struct World {
     int ubers_dead = 0;                    // the Tristram ubers dead (FUN_005e0070: game +0x1df0 / +0x1dec / +0x1de8), a bit each
     void eve_update(std::uint32_t now_ms);   // Baal's waves, his flight, Tyrael (a5q6)
     std::uint32_t statues_at = 0;          // a5q5: the statues' event 7 (FUN_0058c0e0), 20 frames on
+    std::uint32_t statues_back_at = 0;     // a5q5: the statues' return timer's next tick (FUN_0058bd50, every 2 frames)
     bool rite_died = false;                // the player's death on the Summit, taken (FUN_005be290)
     void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)
     std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
@@ -370,6 +371,11 @@ struct World {
     std::uint32_t diablo_at = 0;           // a4q2's release (FUN_005b4be0): Diablo 10 ticks on
     std::uint32_t diablo_dead_at = 0;      // a4q2's +0x18, classic: the 90 / 95 s end (FUN_005b4be0)
     bool fortress_warp_done = false;       // a4q2's +5: the 90 s step
+    // S->C 0x61 (FUN_0053d940): the cinematic the client plays now (its
+    // table 0x721d9c: 7 D2X_OUT), -1 none; after the game's save
+    // (FUN_0052e2a0: every player).
+    int movie = -1;
+    bool save_due = false;
     bool end_movie = false;                // the client's DAT_007a0604: ACT04END and the endgame screen on leaving
     bool game_closed = false;              // classic, 95 s on (FUN_00530590), or 90 s without bit 13 (C->S 0x69)
     std::uint32_t gems_at = 0;             // the forge's event 7 (FUN_005b6710): the next round of gems
