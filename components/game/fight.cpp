@@ -807,8 +807,13 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (!blow.hit) return;
         target.hit_class = blow.hit_class;
         if (by_player) {
-            actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + (std::int64_t(blow.life) << 8));
-            actor->character.stats.values[kMana] = std::min(actor->character.stats.values[kMaxMana], actor->character.stats.values[kMana] + (std::int64_t(blow.mana) << 8));
+            auto& life = actor->character.stats.values[kLife];
+            auto& mana = actor->character.stats.values[kMana];
+            const auto life_before = life, mana_before = mana;
+            life = std::min(actor->character.stats.values[kMaxLife], life + (std::int64_t(blow.life) << 8));
+            mana = std::min(actor->character.stats.values[kMaxMana], mana + (std::int64_t(blow.mana) << 8));
+            if (life > life_before) cues.cue("impact_steal_life", now_ms, actor->player.x, actor->player.y);
+            if (mana > mana_before) cues.cue("impact_steal_mana", now_ms, actor->player.x, actor->player.y);
         }
         // One poison at a time, the stronger wins (FUN_0057ac50); at 0 life
         // the monster dies to it, the kill the poisoner's (FUN_005a6920).
@@ -4399,6 +4404,12 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             std::vector<Flying> flying;
             for (auto& missile : missiles) {
                 if (!missile.info) continue;
+                const int phase = int((std::uint64_t(now_ms - missile.born) * std::uint32_t(missile.info->anim_speed)) / (40u * 16u));
+                const int length = std::max(missile.info->anim_len, 1);
+                if (missile.info->prog_sound > 0 && phase % length == length - 2 && phase != missile.prog_sound_phase) {
+                    cues.cue(missile.info->prog_sound, now_ms, missile.x, missile.y);
+                    missile.prog_sound_phase = phase;
+                }
                 if (missile.sound == 0) {
                     missile.sound = ++missile_sounds;
                     cues.cue(missile.info->travel_sound, now_ms, missile.x, missile.y, missile.sound);

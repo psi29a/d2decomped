@@ -268,19 +268,21 @@ keeps playing sounds: `FUN_0044efa0` still runs the sound tick
 ## In d2d
 
 `tools/sound_coverage.py` lists the base install's sounds d2d can't play yet
-(3,340 / 3,520 currently covered). Energy Shield's Sorceress hit variant
-plays when it absorbs mana, and Barbarian Leap's landing cue plays when its
-flight ends. Several traced quest completion and object interactions also
-now dispatch their class or object cue at the server-side event.
-The remaining 180 rows split into 125 class-quest phrases, ten quest music
-stingers, and 45 other event sounds. The class phrases have no matching
+(3,346 / 3,520 currently covered). Energy Shield, Barbarian Leap, restricted
+town skill attempts, and successful life / mana leech now cue their sounds.
+Missiles.txt ProgSound follows the original animation-frame trigger
+(FUN_004d39c0: AnimLen - 2). Several traced quest completion and object
+interactions also dispatch their class or object cue at the server-side event.
+The remaining 174 rows split into 125 class-quest phrases, five desert night
+ambience variants, and 44 other rows. The class phrases have no matching
 server-event dispatch in stock 1.14d; the server xref audit identifies the
 missing event IDs. `event_desert_night_1..5` are not selected by any
 SoundEnviron row (the desert night rows point at the daytime event group).
-The remaining NPC, hireling, monster, overlay, and ProgSound rows have no
-connected cue path in d2d yet; the coverage report names each family. Their
-audio files exist, but inventing triggers without matching game.exe's event
-sites risks playing the wrong line or effect.
+The remaining quest music, hireling, NPC, monster, and scene rows still need
+their original triggers traced before wiring; the coverage report names each
+family. The two shrine sounds are covered by their shrine activation cues;
+the audit now counts code cues even when a same-named overlay/state field also
+appears in the tables.
 `rules::sound_ids` (kSwing, impact, hit_class), `Fighter::hit_class` →
 `Blow::hit_class` (+ `Swing::hit_class`, a missile's row) → `Monster::hit_class`
 in `Fight::land`; `Fight::monster_sounds` plays the impact on GH / KB / DT,

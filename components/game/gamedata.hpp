@@ -654,7 +654,7 @@ struct GameData {
                          int vel_lev = 0, max_vel = 0, accel = 0, activate = 0;   // its flight (rules::MissileFlight)
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
                          int hit_class = 0;                                     // HitClass (sound_ids::hit_class): its impact sound
-                         int travel_sound = 0, hit_sound = 0;                   // TravelSound (+0x12, on it while it flies), HitSound (+0x14)
+                         int travel_sound = 0, hit_sound = 0, prog_sound = 0;   // TravelSound (+0x12), HitSound (+0x14), ProgSound (+0x34)
                          bool to_hit = false, collide_kill = true, pierce = false;
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /

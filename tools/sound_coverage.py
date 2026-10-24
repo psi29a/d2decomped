@@ -26,7 +26,7 @@ kRead = {"MonSounds.Attack1", "MonSounds.Attack2", "MonSounds.Weapon1", "MonSoun
          "MonSounds.Skill1", "MonSounds.Skill2", "MonSounds.Skill3", "MonSounds.Skill4", "MonSounds.Neutral", "MonSounds.Init", "MonSounds.Taunt", "MonSounds.Flee",
          "MonSounds.Footstep", "MonSounds.FootstepLayer",
          "skills.stsound", "skills.stsoundclass", "skills.ItemCastSound", "skills.dosound", "skills.tgtsound",
-         "Missiles.TravelSound", "Missiles.HitSound", "states.onsound", "states.offsound"}
+         "Missiles.TravelSound", "Missiles.HitSound", "Missiles.ProgSound", "states.onsound", "states.offsound"}
 kTables = ["MonSounds", "skills", "Missiles", "states", "misc", "armor", "weapons", "Overlay", "SuperUniques",
            "objects", "Levels", "LvlTypes", "npc", "MonStats", "MonStats2", "shrines"]
 kSoundEnviron = ("Song", "Day Ambience", "Night Ambience", "Day Event", "Night Event")
@@ -146,7 +146,11 @@ todo = collections.defaultdict(list)
 covered = 0
 for index in sorted(base):
     named = columns.get(index)
-    ok = bool(named & kRead) if named else in_code(index)
+    # A sound may share its name with a non-sound table field (e.g. the
+    # shrine overlay/state `shrine_skill` and the sound of that name). A
+    # readable sound column covers it, but an unrelated field must not hide
+    # a real code cue for the same Sounds.txt row.
+    ok = bool(named and named & kRead) or in_code(index)
     if ok: covered += 1; continue
     bucket = ", ".join(sorted(named)) if named else "code: " + by_index[index][0].split("_")[0]
     todo[bucket].append(by_index[index][0])

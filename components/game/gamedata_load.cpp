@@ -333,7 +333,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto element = std::ranges::find(kEl, missiles_table.get(row_index, "EType")); element != kEl.end()) missile_info.etype = *element == "frze" ? 2 : int(element - kEl.begin());
         missile_info.emin = number("EMin"); missile_info.emax = number("Emax"); missile_info.hitshift = number("HitShift"); missile_info.hit_class = d2d::rules::sound_ids::hit_class(missiles_table.get(row_index, "HitClass"));
-        for (auto [column, into] : { std::pair{ "TravelSound", &missile_info.travel_sound }, std::pair{ "HitSound", &missile_info.hit_sound } })
+        for (auto [column, into] : { std::pair{ "TravelSound", &missile_info.travel_sound }, std::pair{ "HitSound", &missile_info.hit_sound },
+                                    std::pair{ "ProgSound", &missile_info.prog_sound } })
             if (const auto found = game_data.sound_index.find(std::string(missiles_table.get(row_index, column))); found != game_data.sound_index.end()) *into = found->second;
  missile_info.elen = number("ELen"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc");
         for (int i = 0; i < 5; ++i) {

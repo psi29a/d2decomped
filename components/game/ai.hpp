@@ -405,6 +405,7 @@ struct Missile {
     bool wall_maker = false;                    // FUN_005cd110: a draw first, under 20 its path stays straight
     d2d::rules::MissileFlight flight;
     int sound = 0;                            // its id for its sounds (0: not seen yet): its TravelSound stops when it's gone
+    int prog_sound_phase = -1;                // last animation phase that played Missiles.txt ProgSound
     bool launched = false, follow = true;
     float flown_x = 0, flown_y = 0, aimed_x = 0, aimed_y = 0;
     std::vector<std::array<int, 4>> rooms;
