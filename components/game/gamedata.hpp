@@ -629,7 +629,7 @@ struct GameData {
         // FUN_004cb460), Init (+0x70: as it first shows, FUN_004cc380), Footstep, FootstepLayer and
         // FsCnt / FsOff / FsPrb (+0x54..+0x64: FUN_004caf60).
         std::array<int, 4> skill{};
-        int neutral = 0, neutral_time = 0, init = 0;
+        int neutral = 0, neutral_time = 0, init = 0, taunt = 0, flee = 0;
         int footstep = 0, footstep_layer = 0, fs_count = 0, fs_offset = 0, fs_chance = 100;
     };
     std::unordered_map<std::string, MonSound> mon_sounds;

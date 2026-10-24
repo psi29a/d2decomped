@@ -713,6 +713,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                             : other.leader == int(self) && off_x * off_x + off_y * off_y <= input.aip[3] * input.aip[3])
             corpse = int(i);
     }
+    if (type_info.ai_name == "Fallen") {
+        if (!input.dying) monster.fleeing = false;
+        else if (!monster.fleeing) { monster.fleeing = true; monster.flee_sound = true; }
+    }
     input.corpse = corpse >= 0;
     // A nest's: the frame (its init's taken at its first think), the spot
     // spawnx / spawny off (FUN_005fd350 tests crownest's only).

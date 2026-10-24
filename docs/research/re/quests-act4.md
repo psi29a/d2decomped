@@ -69,6 +69,7 @@ ghost spoke, +0x14 the killer.
   `LAB_005b3cd0`: not done → bit 14, message 0). Once: the 3-tick timer
   `FUN_005b3e60`: log 4 to everyone; the ghost (0x196) at his spot, mode 8,
   within −1, then 3, then 5 (`FUN_005b2f20`).
+  d2d plays the participant's `act4_free_izual` class voice at the kill.
 - **Izual's first think** (`FUN_005b4390`, from his AI `FUN_005f89b0`'s
   first call): with +9 and the log (+0xb) under 2, data +0x14 cleared and
   every player not done (bit 0 or 15 without 13 / 14, `FUN_005b3940`) sent

@@ -81,6 +81,7 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         d2d::rules::HratliGreeting::said(quests(), game_bits, hc_idx, message_string);
         // Lam Esen's Tome handed to Alkor (FUN_005b7740): the tome goes (FUN_00544160), 5 stat points.
         if (const auto heard = lam_esen.said(quests(), game_bits, hc_idx, message_string, carries(d2d::rules::LamEsenQuest::kTome), d2d::rules::level_act(level->id) == 2); heard.takes_tome || heard.stat_points) {
+            if (heard.stat_points) class_cue("act3_complete_lamesen", now);
             if (heard.takes_tome) take_carried(d2d::rules::LamEsenQuest::kTome);
             actor->character.stats.values[d2d::d2s::kStatPts] += heard.stat_points;
             d2d::log::info("Lam Esen's Tome: handed to Alkor, +{} stat points", heard.stat_points);
@@ -104,7 +105,11 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         // The Blade of the Old Religion (FUN_005b9240): Ormus takes the Gidbinn, his rare ring; Asheara's free mercenary (FUN_00579180).
         using Blade = d2d::rules::BladeQuest;
         const auto blade_heard = blade.said(quests(), game_bits, hc_idx, message_string, carries(Blade::kGidbinn));
-        if (blade_heard.takes_gidbinn) { take_carried(Blade::kGidbinn); d2d::log::info("The Blade of the Old Religion: the Gidbinn to Ormus"); }
+        if (blade_heard.takes_gidbinn) {
+            class_cue("act3_complete_blade", now);   // FUN_005b9520: unit event 0x41
+            take_carried(Blade::kGidbinn);
+            d2d::log::info("The Blade of the Old Religion: the Gidbinn to Ormus");
+        }
         if (blade_heard.ring) {
             give_item(Blade::kRing, now, Blade::kRingLevel[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))], 6);
             d2d::log::info("The Blade of the Old Religion: Ormus's ring");
@@ -142,7 +147,10 @@ auto World::act3_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                                                    carries(K::kFlailCode) || carries(K::kWillCode), carries(d2d::rules::BlackenedTempleQuest::kCube));
             if (drops.flail) loot.put({ .code = K::kFlailCode }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
             if (drops.cube) loot.put({ .code = d2d::rules::BlackenedTempleQuest::kCube }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
-            if (drops.last) d2d::log::info("The Blackened Temple: the Council is dead");
+            if (drops.last) {
+                class_cue("act3_complete_blackened", now_ms);   // unit event 0x40
+                d2d::log::info("The Blackened Temple: the Council is dead");
+            }
         }
         if (!hosted_quests && blade.killed(kill.id)) {   // FUN_005b9980: the guardian drops the Gidbinn
             loot.put({ .code = d2d::rules::BladeQuest::kGidbinn }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);

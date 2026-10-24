@@ -97,7 +97,7 @@ inline bool throwable(const GameData& game_data, const std::string& code) {
     const auto found = game_data.rules.item_base.find(code);
     return game_data.thrown.contains(code) && found != game_data.rules.item_base.end() && found->second.stackable;
 }
-inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK || mode == kModeS1; }
+inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK || mode == kModeS1 || mode == kModeS3 || mode == kModeS4; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
 // srvdofunc and the finishers'): Attack, Dragon Talon, Dragon Tail, each
 // Dragon Claw hit (FUN_005d6340 releases after FUN_005d6200's). Dragon
@@ -604,7 +604,7 @@ struct Fight {
     // where the player walks; Thunder Storm strikes the monsters within
     // Param7 subtiles in turn, every perdelay frames.
     // Traced in skills.md "Aura event functions" and "Thunder Storm".
-    int absorb(const Foe& foe);
+    int absorb(const Foe& foe, std::uint32_t now_ms);
     void buff_events(Foe& foe, std::uint32_t now_ms);
     // Chilling Armor's answer, after the frame's missiles have struck.
     void return_fire(const Foe& foe, std::uint32_t now_ms);
@@ -737,7 +737,7 @@ struct Fight {
     // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
     // its quantity (stat 70, FUN_0056c3f0) instead. At 0 durability the
     // weapon breaks (FUN_0055f850).
-    void impale_wear(const d2d::rules::Skill& skill);
+    void impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     // Ammo (FUN_0056c4e0 has it, FUN_0056c3f0 spends one of its quantity,
     // stat 70): with a bow or crossbow (ItemTypes bow / xbow) the quiver or
     // throwable in either hand (right first), else the weapon itself when
@@ -765,13 +765,13 @@ struct Fight {
     // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
     // / gloves 2) among the slots holding armour.
     // ponytail: the rolls take d2d's rng, not the unit's seed.
-    void wear_weapon();
-    void wear_armor();
+    void wear_weapon(std::uint32_t now_ms);
+    void wear_armor(std::uint32_t now_ms);
     // One item's wear (FUN_00559e30): armour 10 %, a throwable 10 %, any
     // other weapon 4 % to lose 1 durability. At 0 armour breaks; a stack
     // loses one of its quantity and comes back whole (its last: out of ammo);
     // any other weapon stays at 0.
-    void wear(std::size_t index);
+    void wear(std::size_t index, std::uint32_t now_ms);
     // The missile a skill fires, when d2d builds it: its srvmissile after
     // its do (FUN_0056f7f0 with no srvdofunc: FUN_0056ecb0 / FUN_0056ee90
     // -> FUN_0059fa30, from the caster toward the target; srvstfunc 4,

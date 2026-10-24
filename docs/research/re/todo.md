@@ -40,20 +40,17 @@ Ranked by Seen, then by how much play it touches.
 
 ## Sounds
 
-`tools/sound_coverage.py <mpq dir>`: 3,123 of the base install's 3,520
-sounds play, 397 don't (2026-10-23).
+`tools/sound_coverage.py <mpq dir>`: 3,340 of the base install's 3,520
+sounds play, 180 don't (2026-10-24).
 
 | # | What | Count | Kind | Seen | Notes |
 |---|---|---|---|---|---|
-| 16 | The hero's quest lines: each quest's "find" and "complete" voice, five classes | ~296 | build | yes | Each quest's server code sends its id to FUN_00553380. Next on the plan, act by act |
-| 17 | Monsters' Taunt (the act bosses, Blood Raven, the Countess …) and Flee (the Fallen): server events | ~21 | build | yes | MonSounds Taunt / Flee |
-| 18 | Cursor sounds: class select / deselect on char-create, the cube's convert | 17 | build | yes | frontend, cube.md |
-| 19 | The quest music jingles (Andariel, Blood Raven, Den, Forge, Horadric …) | 10 | build | yes | music.md |
-| 20 | Code-played one-offs: Diablo's death hit / schwing, Andariel's quake loop and fire end, the Hellforge smash, the shrine experience / skill overlays, potion drink (misc usesound), key used, corpse loot, trap trigger, sewer water, the Wanderer's fissure, monster casts (skeleton mages' elements, lightning, meteor impact), steal life / mana impacts | ~35 | build | yes | sound_coverage.py's "code:" buckets |
-| 21 | NPC lines left: Alkor / Asheara / Hratli / Ormus act 3 q4, Cain's act 1 help and act 4 greeting, Tyrael after a4q2, Warriv's act 2 gossip, the guard's "hey hero", the rogue / Iron Wolf hireling confirms | ~20 | build | yes | npc-talk.md |
-| 22 | The chat phrases | — | build | maybe | Multiplayer |
-| 23 | Skills' dosound a / b, prgsound; block and kick sounds; monsters' own skill stsound | — | build | yes | unit-sounds.md |
-| 24 | Camp floors: DS1 tiles aren't in `room_floors`, so footsteps there are always dirt | — | exact | yes | unit-sounds.md |
+| 16 | The hero's quest lines: each quest's "find" and "complete" voice, five classes | 125 | build | yes | Triggers include Cain rescue, Seven Tombs, Act 3 completions and prior Act 1 / 2 cues. 25 remaining lines per classic class (125 sounds) have no server dispatch in stock 1.14d; includes find hints and unsupported quest event lines. |
+| 17 | The quest music jingles (Andariel, Blood Raven, Den, Forge, Horadric …) | 10 | build | yes | music.md |
+| 18 | Code-played one-offs: Diablo's death hit / schwing, Andariel's quake loop and fire end, the Hellforge smash, shrine overlays, corpse loot, trap trigger, sewer water, Wanderer's fissure, monster casts, steal impacts | ~30 | build | yes | sound_coverage.py's "code:" buckets; Energy Shield, Barbarian Leap and town-restricted skill reactions are hooked too. |
+| 19 | NPC lines left: Alkor / Asheara / Hratli / Ormus act 3 q4, Cain's act 1 help and act 4 greeting, Tyrael after a4q2, Warriv's act 2 gossip, guard greeting, rogue / Iron Wolf hireling confirms | ~20 | build | yes | npc-talk.md |
+| 20 | Skills' dosound a / b, prgsound; block and kick sounds; monsters' own skill stsound | — | build | yes | unit-sounds.md |
+| 21 | Camp floors: DS1 tiles aren't in `room_floors`, so footsteps there are always dirt | — | exact | yes | unit-sounds.md |
 
 ## Animation and drawing
 

@@ -262,6 +262,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                            number("HitDelay"), number("DeaDelay") };
         sounds.skill = { id("Skill1"), id("Skill2"), id("Skill3"), id("Skill4") };
         sounds.neutral = id("Neutral"); sounds.neutral_time = number("NeuTime"); sounds.init = id("Init");
+        sounds.taunt = id("Taunt"); sounds.flee = id("Flee");
         sounds.footstep = id("Footstep"); sounds.footstep_layer = id("FootstepLayer");
         sounds.fs_count = number("FsCnt"); sounds.fs_offset = number("FsOff"); sounds.fs_chance = number("FsPrb");
         game_data.mon_sounds.emplace(std::string(snd.get(row_index, "Id")), sounds);

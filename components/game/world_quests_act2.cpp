@@ -119,6 +119,7 @@ auto World::act2_tick() -> void {
                     && std::hypot(level->npcs[i].x - actor->player.x, level->npcs[i].y - actor->player.y) * 5 >= 12) {
                     npc_states[i].hidden = true;
                     tombs.tyrael_gone = true;
+                    class_cue("act2_complete_tombs", day_at);   // LAB_0059c710: unit event 0x36
                     d2d::log::info("The Seven Tombs: Tyrael leaves");
                 }
         if (summoner.tick() && d2d::rules::quest::bit(quests(), d2d::rules::SummonerQuest::kQuest, 13) && level->id == d2d::rules::SummonerQuest::kSanctuary)

@@ -694,7 +694,7 @@ struct World {
 
     // NPC deals (protocol.hpp): the windows, buying, selling, repairing,
     // identifying, hiring. True when `c` was one.
-    bool deal(const Command& command);
+    bool deal(const Command& command, std::uint32_t now_ms);
 
     // A command from the player, checked and applied. A busy player's
     // are dropped (game.exe's dispatcher, FUN_0054d750 / FUN_0057eec0).

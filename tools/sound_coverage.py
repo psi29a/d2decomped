@@ -20,10 +20,10 @@ import collections, glob, os, re, subprocess, sys, tempfile
 
 # The data columns d2d reads a sound from (components/game/gamedata_load.cpp).
 kRead = {"MonSounds.Attack1", "MonSounds.Attack2", "MonSounds.Weapon1", "MonSounds.Weapon2", "MonSounds.HitSound",
-         "MonSounds.DeathSound", "misc.dropsound", "armor.dropsound", "weapons.dropsound",
+         "MonSounds.DeathSound", "misc.dropsound", "misc.usesound", "armor.dropsound", "armor.usesound", "weapons.dropsound", "weapons.usesound",
          "SoundEnviron.Song", "SoundEnviron.Day Ambience", "SoundEnviron.Night Ambience",
          "SoundEnviron.Day Event", "SoundEnviron.Night Event",
-         "MonSounds.Skill1", "MonSounds.Skill2", "MonSounds.Skill3", "MonSounds.Skill4", "MonSounds.Neutral", "MonSounds.Init",
+         "MonSounds.Skill1", "MonSounds.Skill2", "MonSounds.Skill3", "MonSounds.Skill4", "MonSounds.Neutral", "MonSounds.Init", "MonSounds.Taunt", "MonSounds.Flee",
          "MonSounds.Footstep", "MonSounds.FootstepLayer",
          "skills.stsound", "skills.stsoundclass", "skills.ItemCastSound", "skills.dosound", "skills.tgtsound",
          "Missiles.TravelSound", "Missiles.HitSound", "states.onsound", "states.offsound"}
@@ -89,8 +89,27 @@ for path in glob.glob("components/**/*.[ch]pp", recursive=True) + glob.glob("app
         if "{" in text: patterns.append(re.compile("^" + re.sub(r"\\\{[^}]*\\\}", "[a-z0-9]+", re.escape(text)) + "$"))
 numbers |= {int(sound) for _, sound in re.findall(r"\{ (\d+), (\d+) \}", open("apps/d2d/speech_sound.hpp").read())}
 ids = open("components/rules/sound_ids.hpp").read()
-numbers |= {int(n) for n in re.findall(r"=\s*(\d+);", ids)} | {int(n) for n in re.findall(r"\{ (\d+), \d+ \}", ids)}
-numbers |= {int(n) for n in re.findall(r"= (\d+);", ids)}
+refs = "\n".join(open(path, encoding="utf-8", errors="ignore").read()
+                   for root in ("components", "apps")
+                   for path in glob.glob(root + "/**/*.[ch]pp", recursive=True))
+numbers |= {int(sound) for name, sound in re.findall(r"inline constexpr int (\w+)\s*=\s*(\d+);", ids)
+            if name in refs}
+numbers |= {int(n) for n in re.findall(r"\{ (\d+), \d+ \}", ids)}
+for name in ("kClassSelect", "kClassDeselect"):
+    row = re.search(name + r"\s*=\s*\{([^}]+)\}", ids)
+    if row and name in refs: numbers |= {int(n) for n in re.findall(r"\d+", row.group(1))}
+# Town::class_cue builds `<class>_<line>` from the active character's class.
+# Expand those literal line suffixes across the seven classic class prefixes.
+class_prefixes = ("amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin")
+for path in glob.glob("components/**/*.cpp", recursive=True):
+    source = open(path, encoding="utf-8", errors="ignore").read()
+    for line in re.findall(r'class_cue\("([^"]+)"', source):
+        numbers |= {by_name[f"{prefix}_{line}"] for prefix in class_prefixes if f"{prefix}_{line}" in by_name}
+# Say sounds are selected by arithmetic from each class's first phrase row.
+town = open("apps/d2d/town.cpp", encoding="utf-8").read()
+chat = re.search(r"kChatSound\s*=\s*\{([^}]+)\}", town)
+if chat:
+    numbers |= {int(value, 0) + offset for value in re.findall(r"0x[0-9a-fA-F]+|\d+", chat.group(1)) for offset in range(16)}
 for line in ids.splitlines():                  # the impact's element rows (hex); the other hex there are hit classes and MonStats ids
     if "out.element =" in line: numbers |= {int(n, 16) for n in re.findall(r"0x([0-9a-f]+)", line.split("out.element =", 1)[1])}
 numbers |= {int(n) for n in re.findall(r"out\.impact = (\d+)", ids)}

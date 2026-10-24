@@ -1391,7 +1391,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
             if (imbue_with >= 0) imbue_with = -1;                             // a right-click drops the imbue pick too
             else if (identify_with >= 0) identify_with = -1;                  // a right-click drops the pick
-            else if (used != character.items.end() && (used->code == "isc" || used->code == "ibk")) identify_with = used->id;
+            else if (used != character.items.end() && (used->code == "isc" || used->code == "ibk")) {
+                identify_with = used->id;
+                audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorIdentifyReady, 1.f, 0);
+            }
             else if (to_cursor) net.send(cmd::UseItem{ to_cursor->item });
         }
         // Quest log (FUN_004a3e40 press, FUN_004a42a0 release): a tab switches

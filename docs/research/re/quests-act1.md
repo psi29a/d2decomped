@@ -289,13 +289,13 @@ Game flags (FUN_00544720 sets, FUN_00544760 tests): (4, 13) = Cain rescued game-
 1. If +9 == 0: obj mode 1, return.
 2. Requires state < 6, obj mode 0, and player bits 0 and 1 clear.
 3. If the player has neither bkd nor bks:
-   - voice (FUN_00553380, EDX 0);
+   - voice event 0x2d (`act1_find_tree`, FUN_00553380);
    - obj+0xb8 = 'bks ' (forced drop);
    - state 4;
    - `FUN_00559a30(game, obj, 2, &out, 0, -1, 0)` drops the scroll.
    - On success: rec+0xc4 = FUN_00592c80; log 2 (bool 1); +0x4b = 1; +0x38 = guid; +0x7c++; +0x58 = 1; +0x78 = 1; obj mode 1.
    - Then +0x47 = 1 and +0x30 = tree guid.
-4. Otherwise: voice (EDX 0x2d + n, "already have it").
+4. Otherwise: voice event 0x13 (`impossible`), not a quest `find` line.
 
 Tree InitFn 9 (0x593fc0) sets +0x47 = 1. If +9 == 0 or +0x50, it sets +0x58 = 1. Tree mode = +0x58. With no record, mode 2.
 
@@ -328,7 +328,7 @@ while n < 5:
 
 1. Generate the order if needed.
 2. If player bit 0 or bit 1 is set: voice, return.
-3. If the player has no bkd: when `(+0x2c & 0x3f) == 0` and bits 3 and 4 are clear, voice (EDX 0x27 + n). Then +0x2c++ and return.
+3. If the player has no bkd: when `(+0x2c & 0x3f) == 0` and bits 3 and 4 are clear, voice event 0x27 (`act1_find_cairn`). Then +0x2c++ and return.
 4. Return if +9 == 0 or state > 5.
 5. The sigil comes from +0x28 if +0x49. If !+0x4e, the sigil is obj 0x3d and state == 0: state 1.
 6. Return if +0x4f.

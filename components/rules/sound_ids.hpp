@@ -14,9 +14,18 @@ namespace d2d::rules::sound_ids {
 inline constexpr int kCursorPass = 1;          // a menu choice or slider moves
 inline constexpr int kCursorSelect = 2;        // a menu row taken
 inline constexpr int kCursorButtonClick = 4;   // a HUD / mini-panel button pressed
+inline constexpr int kCursorPointDrop = 5;
+inline constexpr int kCursorDurabilityBreak = 9;
+inline constexpr int kCursorConvertReady = 10;
+inline constexpr int kCursorConvertItem = 11;
+inline constexpr int kCursorIdentifyReady = 12;
+inline constexpr int kCursorIdentifyItem = 13;
 inline constexpr int kCursorLevelUp = 7;       // S→C 0x2C event 2
 inline constexpr int kCursorQuestDone = 14;
+inline constexpr int kCursorRepairItem = 15;
 inline constexpr int kSceneRain = 64;
+inline constexpr std::array<int, 7> kClassSelect = { 17, 25, 21, 23, 19, 0, 0 };   // d2s class order; expansions have no classic intro cue
+inline constexpr std::array<int, 7> kClassDeselect = { 18, 26, 22, 24, 20, 0, 0 };
 
 // A hit class (hitclass.txt's rows, as Weapons.txt "hit class" and
 // Missiles.txt HitClass name them) in its low nibble; a skill's HitClass

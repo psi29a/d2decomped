@@ -132,6 +132,7 @@ yet), so: crafted (`crf`) is made rare and then called crafted; forced
 `pre=` / `suf=` aren't applied; `mod`'s new base doesn't recompute its
 stats; `rch` doesn't refill charges; useitem / mod outputs roll their mods
 off a fresh seed, not the item's own; the portals aren't made; op 28's
-difficulty stat isn't checked; the auto placement is d2d's first fit; no
-sound. Checked live (devctl, 2026-10-11): the Horadric Staff (bit 11) and
+difficulty stat isn't checked; the auto placement is d2d's first fit. A
+valid recipes play `cursor_convert_ready`, then a successful transmute plays
+`cursor_convert_item`. Checked live (devctl, 2026-10-11): the Horadric Staff (bit 11) and
 three chipped rubies → a flawed ruby.
