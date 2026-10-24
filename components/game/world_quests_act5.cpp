@@ -61,6 +61,7 @@ auto World::act5_join() -> void {
         eve = {};
         if (eve.join(quests())) open_act(5);                // FUN_00538680: the next difficulty
         tyrael_at = 0;
+        ubers_dead = 0;
         cages_up.clear();
         cage_portal = {};
         fana_at = thaw_at = 0;
@@ -236,6 +237,17 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             tyrael_at = now_ms + d2d::rules::EveQuest::kTyraelFrames * kTickMs;
             d2d::log::info("Eve of Destruction: Baal is dead");
         }
+        // The Tristram ubers (mod 22, FUN_005e0070): uber Mephisto, Diablo and
+        // Baal (0x2c0 / 0x2c1 / 0x2c5) each marked; the three dead: the Hellfire
+        // Torch (cm2, unique: FUN_00559a30 quality 7) and a Standard of Heroes
+        // (std, normal) per player where the last fell.
+        // ponytail: the item level is the uber's; FUN_00559a30's own isn't traced.
+        for (const auto [bit, uber] : { std::pair{ 1, 0x2c0 }, std::pair{ 2, 0x2c1 }, std::pair{ 4, 0x2c5 } })
+            if (kill.type == int(game_data->mon_bin[std::size_t(uber)]) && !(ubers_dead & bit) && (ubers_dead |= bit) == 7) {
+                loot.put({ .code = "cm2", .quality = 7 }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
+                each_player([&](Player&) { loot.put({ .code = "std" }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms); });
+                d2d::log::info("Uber Tristram: the three are dead, the Hellfire Torch drops");
+            }
         // Nihlathak (MonStats base 0x20e, bound to 0x22: FUN_0058b7a0).
         if (std::size_t(kill.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(kill.type)].base == d2d::rules::BetrayalQuest::kNihlathak) {
             if (betrayal.killed(quests(), about)) betrayal_log_at = now_ms + d2d::rules::BetrayalQuest::kLogTicks * kTickMs;
