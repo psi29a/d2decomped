@@ -268,21 +268,27 @@ keeps playing sounds: `FUN_0044efa0` still runs the sound tick
 ## In d2d
 
 `tools/sound_coverage.py` lists the base install's sounds d2d can't play yet
-(3,346 / 3,520 currently covered). Energy Shield, Barbarian Leap, restricted
-town skill attempts, and successful life / mana leech now cue their sounds.
-Missiles.txt ProgSound follows the original animation-frame trigger
-(FUN_004d39c0: AnimLen - 2). Several traced quest completion and object
-interactions also dispatch their class or object cue at the server-side event.
-The remaining 174 rows split into 125 class-quest phrases, five desert night
-ambience variants, and 44 other rows. The class phrases have no matching
-server-event dispatch in stock 1.14d; the server xref audit identifies the
-missing event IDs. `event_desert_night_1..5` are not selected by any
-SoundEnviron row (the desert night rows point at the daytime event group).
-The remaining quest music, hireling, NPC, monster, and scene rows still need
-their original triggers traced before wiring; the coverage report names each
-family. The two shrine sounds are covered by their shrine activation cues;
-the audit now counts code cues even when a same-named overlay/state field also
-appears in the tables.
+(3,356 / 3,520 covered). Energy Shield, Barbarian Leap, restricted town skill
+attempts, successful life / mana leech, missile ProgSound, and ten classic
+quest music cues now have event paths. The music cues fire on the quest
+completion event and play as one-shots.
+
+The remaining 164 rows have these causes:
+
+| Rows | Why they are still silent |
+|---|---|
+| 125 class quest phrases | 25 per classic class have no matching server-event dispatch in stock 1.14d. The server xref audit identifies the missing event IDs; assigning them to nearby quest milestones would invent behavior. |
+| 5 `event_desert_night_1..5` | No SoundEnviron row selects these names. The desert environments use their daytime event group at night too. |
+| 8 `rogue_confirm_*` | Hireling command confirmation voices; d2d has no hireling command action to trigger them. |
+| 14 NPC speech rows | The voice lookup is driven by specific localized string IDs. d2d's NPC quest-dialogue path does not yet produce the corresponding Alkor, Asheara, Cain, Guard, Hratli, Iron Wolf, Ormus, Tyrael, or Warriv dialogue strings. |
+| 8 monster / skeleton rows | MonSounds skill slots or animation-specific effects; d2d does not yet dispatch those cast/taunt events for the affected units. |
+| 2 Diablo death rows | These are timed parts of Diablo's client death sequence; d2d currently has no matching sequence callbacks. |
+| 1 `andariel_quake_loop` | The client starts this during Andariel's scripted death/level transition; d2d has no earthquake sequence. |
+| 1 `scene_tavern_interior` | Front-end tavern scene only; d2d does not implement that scene. |
+
+These are trigger or feature gaps, not missing audio files. The two shrine
+sounds are covered by shrine activation cues; the audit counts code cues even
+when a same-named overlay/state field also appears in the tables.
 `rules::sound_ids` (kSwing, impact, hit_class), `Fighter::hit_class` →
 `Blow::hit_class` (+ `Swing::hit_class`, a missile's row) → `Monster::hit_class`
 in `Fight::land`; `Fight::monster_sounds` plays the impact on GH / KB / DT,

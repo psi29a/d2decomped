@@ -62,8 +62,10 @@ struct OpenUI { enum Kind { stash, waypoint, talk, trade, hire } kind = stash; i
 struct Speech { int npc = -1; int string = 0; };
 // A quest's log state sent again (S->C 0x5d, no flags): the Quest Log button.
 struct QuestNews { int quest = 0; };
+// A short quest music sting, over the level's looping song.
+struct MusicCue { int sound = 0; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::OpenUI, ev::Speech, ev::QuestNews>;
+using Event = std::variant<ev::LevelChanged, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP
@@ -654,6 +656,7 @@ struct World {
     void take_carried(std::string_view code);
     void open_act(int act);                                    // FUN_00538680: the save's progression
     void class_cue(std::string_view line, std::uint32_t at_ms);   // the class's voice: <class>_<line>
+    void music_cue(std::string_view sound);                       // one-shot quest music
     void give_item(std::string_view code, std::uint32_t now_ms, int ilvl = 1, int quality = 2);
     void set_waypoint(int index) { if (index >= 0 && index < 40) actor->character.header.waypoints[std::size_t(actor->character.header.active_difficulty())][std::size_t(index >> 3)] |= std::uint8_t(1 << (index & 7)); }
 

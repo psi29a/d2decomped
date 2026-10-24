@@ -475,10 +475,10 @@ struct Town {
 
     // The game this frame: what the player asks for (input), the World's
     // step, then what it told the client (events).
-    void walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::uint32_t last_ms);
+    void walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms);
 
     // What the World told the client.
-    void handle(const Event& event, std::uint32_t frame_ms);
+    void handle(const Event& event, Audio& audio, std::uint32_t frame_ms);
     int menu_after_speech = -1;                    // the NPC whose menu opens once its quest speech ends
     bool questdone_sound = false;                  // the quest log's done animation began (draw → update)
     bool quest_log_was_open = false;               // UI 0xf last frame: shutting it marks the animations seen (FUN_004a28d0)

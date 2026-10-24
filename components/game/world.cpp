@@ -559,6 +559,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const auto use = tainted.use_altar(quests(), game_bits, carries("vip"), carries("hst"));
             if (use.refused) { d2d::log::info("I can't use this yet."); return; }   // voice 0x13
             if (!use.used) return;
+            if (use.took_part) music_cue("music_quest_tainted");
             operated.try_emplace({ level, npc_index }, now_ms);
             to_mode(1);
             if (use.took_part) class_cue("act2_complete_tainted", now_ms);
@@ -631,6 +632,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             });
             if (!wields_will) { d2d::log::info("I can't use this yet."); return; }
             if (!temple.hit_orb(quests())) { d2d::log::info("The Blackened Temple: the orb's hit"); return; }
+            music_cue("music_quest_compelling");
             take_carried(d2d::rules::KhalimQuest::kWillCode);
             for (auto& monster : fight.monsters) if (std::size_t(monster.type) < game_data->mon_bin.size() && monster.type == int(game_data->mon_bin[0x16e])) monster.gone = true;
             to_mode(1);
@@ -1287,6 +1289,7 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (!andy.killed(quests(), level->id == d2d::rules::level_ids::kCatacombsLevel4)) return;
         class_cue("act1_complete_andariel", now_ms);   // unit event 0x21: participant's class voice
+        music_cue("music_quest_andariel");
         open_act(1);
         for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
             loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
@@ -1305,6 +1308,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 auto World::mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         guardian.killed();
         class_cue("act3_complete_guardian", now_ms);   // FUN_005bc8b0: unit event 0x42
+        music_cue("music_quest_mephisto");
         bridge_check = now_ms + 24 * kTickMs;
         auto& bits = quests();
         if (!d2d::rules::quest::bit(bits, 0x16, 0)) {
@@ -1354,6 +1358,7 @@ auto World::mephisto_bridge(std::uint32_t now_ms) -> void {
 // room or its neighbours (FUN_00590c40); quests: agent A's.
 auto World::blood_raven_died(std::uint32_t now_ms) -> void {
         if (!burial.killed(quests(), level->id == d2d::rules::BurialQuest::kBurial)) return;
+        music_cue("music_quest_bloodraven");
         class_cue("act1_complete_burial", now_ms);
         d2d::log::info("Sisters' Burial Grounds: Blood Raven is dead, return to Kashya");
     }
@@ -1384,6 +1389,7 @@ auto World::transmute(std::uint32_t now_ms) -> void {
         const auto& layout = game_data->cube_layout;
         for (auto& item : made.items) {
             if (item.code == "hst") {             // FUN_0059e5c0 -> FUN_0059b660
+                music_cue("music_quest_horadric");
                 d2d::rules::quest::set(quests(), d2d::rules::HoradricStaffQuest::kQuest, 11);
                 staff.staff_made = true;
                 arcane.staff_made(quests());
@@ -1436,6 +1442,7 @@ auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         const auto [books, took_part] = radament.killed(quests(), game_bits, level->id == d2d::rules::RadamentQuest::kLair, carries("ass"));
         for (int i = 0; i < books; ++i) loot.put({ .code = "ass" }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
         if (took_part) class_cue("act2_complete_radament", now_ms);
+        if (took_part) music_cue("music_quest_radament");
         if (radament.state == 4) d2d::log::info("Radament's Lair: Radament is dead, return to Atma");
     }
 
@@ -1624,6 +1631,11 @@ auto World::class_cue(std::string_view line, std::uint32_t at_ms) -> void {
         if (actor->character.header.cls < kClass.size()) cues.cue(std::format("{}_{}", kClass[actor->character.header.cls], line), at_ms, actor->player.x, actor->player.y);
     }
 
+auto World::music_cue(std::string_view sound) -> void {
+        if (const auto found = game_data->sound_index.find(std::string(sound)); found != game_data->sound_index.end())
+            actor->events.push_back(ev::MusicCue{ found->second });
+    }
+
 auto World::take_carried(std::string_view code) -> void {
         if (actor->held && actor->held->code == code) { actor->held.reset(); return; }
         if (const auto found = std::ranges::find(actor->character.items, code, &d2d::d2s::Item::code); found != actor->character.items.end()) actor->character.items.erase(found);
@@ -1690,6 +1702,7 @@ auto World::den_count(std::uint32_t now_ms) -> void {
             if (kill == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", left == 1 ? "one monster left" : std::format("monsters remaining: {}", left));
             if (kill == d2d::rules::DenQuest::Kill::cleared) {
                 d2d::log::info("Den of Evil: cleared");
+                music_cue("music_quest_den");
                 den_log_at = now_ms + 8 * kTickMs;     // the log's "Return to Akara" 8 ticks on (LAB_00590230)
                 if (d2d::rules::quest::bit(quests(), 1, 13))
                     class_cue("act1_complete_den", now_ms);

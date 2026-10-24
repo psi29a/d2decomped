@@ -1757,7 +1757,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // starts under a menu that just closed.
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
-        if (have_world) walk(mouse, over_ui || press_on_ui, frame_ms, last_ms);
+        if (have_world) walk(mouse, over_ui || press_on_ui, audio, frame_ms, last_ms);
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         object_sounds(audio, frame_ms, view.player.x, view.player.y);
         audio.stop_owners([&](int owner) { return owner > 0 ? std::ranges::contains(view.missiles, owner, &d2d::game::View::Shot::sound) : std::ranges::contains(object_loops, owner); });
@@ -2346,7 +2346,7 @@ auto Town::pad_tab(int step) -> void {
             if (const int tab = ((store.tab + step * i) % 4 + 4) % 4; !store.tabs[std::size_t(tab)].empty()) { store.tab = tab; return; }
     }
 
-auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
+auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         frame_now = frame_ms;
         if (net_game) {
             net_game->pump(frame_ms, frame_ms - last_ms);
@@ -2679,7 +2679,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
         publish();
         // What the World said, handled once the View it came in is here
         // (the hire list's offers come with it).
-        for (const auto& event : view.events) handle(event, frame_ms);
+        for (const auto& event : view.events) handle(event, audio, frame_ms);
         // A partner's: a window to open (an NPC talked to, the stash) takes
         // the screen when it's free; the rest is the screen's business only.
         for (auto& other : world.players) {
@@ -2688,14 +2688,14 @@ auto Town::walk(const Mouse& mouse, bool over_ui, std::uint32_t frame_ms, std::u
             const auto opens = std::ranges::find_if(said, [](const Event& event) { return std::holds_alternative<ev::OpenUI>(event); });
             if (opens == said.end() || !focus_free()) continue;
             take_focus(other->id);
-            handle(*opens, frame_ms);
+            handle(*opens, audio, frame_ms);
             break;
         }
         if (net_game) net_quests(frame_ms);
         if (frame_ms - world_ms >= kTickMs) world_ms = frame_ms - (frame_ms - world_ms) % kTickMs;
     }
 
-auto Town::handle(const Event& event, std::uint32_t frame_ms) -> void {
+auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> void {
         if (const auto* level_changed = std::get_if<ev::LevelChanged>(&event)) {
             net_interact_pending = -1;                    // its index was the old level's
             if (level_changed->from->layer != level->layer) {
@@ -2718,6 +2718,7 @@ auto Town::handle(const Event& event, std::uint32_t frame_ms) -> void {
             return;
         }
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
+        if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.play_sfx(*scene, music->sound, float(audio.music_volume) / 100.f, 0); return; }
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once
             speech = start_speech(*scene, object_speech->npc, std::uint16_t(object_speech->string), frame_ms);
             send(cmd::QuestMessage{ object_speech->npc, object_speech->string });

@@ -145,6 +145,7 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
         if (kill.type == d2d::rules::IzualQuest::kIzual) {                // FUN_005b4020, his ghost 3 ticks on
             izual.killed(quests(), kill.x, kill.y);
+            music_cue("music_quest_izual");
             if (d2d::rules::quest::bit(quests(), d2d::rules::IzualQuest::kQuest, 13))
                 class_cue("act4_free_izual", now_ms);                    // LAB_005b3de0 -> sound event 0x4a
             izual_ghost_at = now_ms + 3 * kTickMs;
@@ -320,6 +321,7 @@ auto World::act4_operate(int npc_index, std::uint32_t now_ms) -> bool {
                 gem_rounds = d2d::rules::HellforgeQuest::kRounds;
                 gems_at = now_ms + d2d::rules::HellforgeQuest::kStrikeFrames * kTickMs;
                 cues.cue("quest_hellforge_smash", now_ms, object.x, object.y);
+                music_cue("music_quest_forge");
                 d2d::log::info("The Hellforge: the soulstone is shattered");
             }
             return true;

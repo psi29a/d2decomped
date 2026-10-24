@@ -320,6 +320,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         if (const auto* level_changed = std::get_if<ev::LevelChanged>(&event)) out.u8(0).i32(level_changed->from ? level_changed->from->id : -1).u8(level_changed->keep_map);
         else if (const auto* speech = std::get_if<ev::Speech>(&event)) out.u8(2).i32(speech->npc).i32(speech->string);
         else if (const auto* news = std::get_if<ev::QuestNews>(&event)) out.u8(3).i32(news->quest);
+        else if (const auto* music = std::get_if<ev::MusicCue>(&event)) out.u8(4).i32(music->sound);
         else {
             const auto& open_ui = std::get<ev::OpenUI>(event);
             out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
@@ -532,6 +533,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             view.events.push_back(ev::Speech{ npc, i32() });
         } else if (kind_byte == 3) {
             view.events.push_back(ev::QuestNews{ i32() });
+        } else if (kind_byte == 4) {
+            view.events.push_back(ev::MusicCue{ i32() });
         } else {
             const auto kind = ev::OpenUI::Kind(byte());
             ev::OpenUI open_ui{ kind, i32() };
