@@ -187,7 +187,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         const auto [iso_x, iso_y] = iso(cell_x, cell_y);
         const int tile_height = std::abs(tile.height);
         const int screen_x = iso_x - kIsoW / 2;         // block x counts from the cell's left corner, whatever the tile's width
-        const int screen_y = iso_y - (tile_height - kIsoH);
+        // A wall's block y counts from the cell's bottom corner (iso_y + 80):
+        // upper walls rise above it, lower walls (16..19: Act 5's cliffs) hang below.
+        const int screen_y = layer == 0 && tile.type >= 16 ? iso_y + kIsoH - tile.y_shift : iso_y - (tile_height - kIsoH);
         if (layer == 2) blit_dt1_shadow(framebuffer, tile, pal, screen_x, screen_y);
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, iso_x, iso_y, layer == 1, alpha);
         else blit_dt1_tile(framebuffer, tile, pal, screen_x, screen_y, alpha);
@@ -252,6 +254,24 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     };
 
     const auto& upal_splash = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+    // Lower walls (16..19: cliff faces hanging below their cell) go first,
+    // under every floor (FUN_004df480 before the floors' FUN_004ded10).
+    for (int dy = -kReach; dy <= kReach; ++dy)
+        for (int dx = -kReach; dx <= kReach; ++dx) {
+            const int cell_x = base_x + dx, cell_y = base_y + dy;
+            const auto [cell_level, off] = cell_at(cell_x, cell_y);
+            if (!cell_level) continue;
+            if (!cell_level->picks.empty()) {
+                for (const auto& pick : cell_level->picks[off])
+                    if (pick.layer == 0 && pick.orient >= 16 && !pick.hidden) blit_cell(cell_x, cell_y, *pick.tile, 0);
+                continue;
+            }
+            for (const auto& wall_layer : cell_level->ds1.walls()) {
+                const auto& cell = wall_layer.cells[off];
+                if (cell.hidden || cell.wall_type < 16) continue;
+                if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, cell.wall_type)) blit_cell(cell_x, cell_y, *tile, 0);
+            }
+        }
     // Row-major sweep so back rows render first. dy increases downward
     // in screen space, so we iterate low→high dy for back-to-front.
     for (int dy = -kReach; dy <= kReach; ++dy) {
@@ -451,7 +471,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (!cell_level->picks.empty()) {
                 int wall_index = 0;
                 for (const auto& pick : cell_level->picks[off])
-                    if (pick.layer == 0 && pick.orient != 13 && !pick.hidden) draw_wall(pick.orient, *pick.tile, wall_index++);
+                    if (pick.layer == 0 && pick.orient != 13 && pick.orient < 16 && !pick.hidden) draw_wall(pick.orient, *pick.tile, wall_index++);
                 continue;
             }
             int wall_index = 0;
@@ -461,7 +481,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 if (cell.hidden) continue;
                 const int type = cell.wall_type;
                 if (type == 0) continue;         // floor marker in wall stream
-                if (type == 13) continue;        // shadow (drawn above)
+                if (type == 13 || type >= 16) continue;        // shadow, lower wall (drawn above)
                 if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, type)) draw_wall(type, *tile, wall_index);
                 // A corner (3) is two tiles: the second picked with orientation 4 (FUN_0066e9b0).
                 if (type == 3) if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, 4)) draw_wall(4, *tile, wall_index);
