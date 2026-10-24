@@ -348,6 +348,7 @@ struct World {
     d2d::rules::EveQuest eve;
     std::uint32_t tyrael_at = 0;           // a5q6: Baal's light fading (missile 625's end, FUN_0058e920): Tyrael
     std::pair<float, float> baal_fell{};   // where Baal died (cells)
+    int ubers_dead = 0;                    // the Tristram ubers dead (FUN_005e0070: game +0x1df0 / +0x1dec / +0x1de8), a bit each
     void eve_update(std::uint32_t now_ms);   // Baal's waves, his flight, Tyrael (a5q6)
     std::uint32_t statues_at = 0;          // a5q5: the statues' event 7 (FUN_0058c0e0), 20 frames on
     bool rite_died = false;                // the player's death on the Summit, taken (FUN_005be290)
