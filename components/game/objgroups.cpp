@@ -66,6 +66,7 @@ struct ObjectRooms {
     bool orb_smashed = false;                            // Spawning's
     std::bitset<128> superuniques;                      // made (game +0x1d30)
     int tomb_symbols = 0;                               // Spawning's
+    int sands_objects = 0;                              // the Forgotten Sands' preset objects counted (game +0x1de4)
     d2d::rules::Region region;                          // the level's monster region: their looks
     Level::GroupRoom* out = nullptr;
     // FUN_0054db50: where players come in (as populate()'s near_way), within Levels WarpDist.
@@ -807,11 +808,24 @@ struct ObjectRooms {
         level.npcs.push_back(std::move(npc));
     }
     // FUN_005559a0: the room's preset units, the monsters last (`monsters`: normal's, here).
+    // The uber levels leave some out: Matron's Den / the Furnace of Pain the
+    // sparkly chest (397); the Forgotten Sands its waypoint (402) and the
+    // (map seed % 3 + 3)th other object; Uber Tristram Cain's gibbet (26),
+    // Wirt's body (268), the gold placeholder (269) and every monster.
+    [[nodiscard]] bool uber_skips(const d2d::drlg::Unit& unit) {
+        if (unit.type != d2d::rules::unit_type::kObject) return false;
+        switch (level.id) {
+        case d2d::rules::level_ids::kUberTristram: return unit.id == 26 || unit.id == 268 || unit.id == 269;
+        case d2d::rules::level_ids::kMatronsDen: case d2d::rules::level_ids::kFurnaceOfPain: return unit.id == 397;
+        case d2d::rules::level_ids::kForgottenSands: return unit.id == 402 || ++sands_objects == int(game_data.map_seed % 3 + 3);
+        default: return false;
+        }
+    }
     void presets(std::size_t room_at) {
         const int nmon = int(game_data.mon_bin.size()), nsu = int(game_data.superuniques.size());
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
-            if (level.unit_rooms[i] != int(room_at) || unit.type == d2d::rules::unit_type::kMonster || (unit.flags & 1)) continue;
+            if (level.unit_rooms[i] != int(room_at) || unit.type == d2d::rules::unit_type::kMonster || (unit.flags & 1) || uber_skips(unit)) continue;
             if (unit.type == d2d::rules::unit_type::kObject && unit.id != 0x23d) {
                 const auto before = level.npcs.size();
                 make(unit.id > 0x23d ? special(unit.id) : unit.id, unit.x, unit.y, false);
@@ -864,7 +878,7 @@ struct ObjectRooms {
         };
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
-            if (level.unit_rooms[i] != int(room_at) || unit.type != d2d::rules::unit_type::kMonster || (unit.flags & 1) || unit.id < 0) continue;
+            if (level.unit_rooms[i] != int(room_at) || unit.type != d2d::rules::unit_type::kMonster || (unit.flags & 1) || unit.id < 0 || level.id == d2d::rules::level_ids::kUberTristram) continue;
             leader = int(spawns->size());                                                              // FUN_00555910: a placement of its own
             if (unit.id < nmon) {
                 // FUN_0054e490: a critter (MonStats2 flag 0xd: Harrogath's chickens) is never made.

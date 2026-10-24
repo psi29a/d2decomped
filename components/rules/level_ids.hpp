@@ -121,6 +121,7 @@ inline constexpr int kThroneOfDestruction = 131;
 inline constexpr int kWorldstoneChamber = 132;
 inline constexpr int kMatronsDen = 133;
 inline constexpr int kForgottenSands = 134;
+inline constexpr int kFurnaceOfPain = 135;
 inline constexpr int kUberTristram = 136;
 
 }  // namespace d2d::rules::level_ids
