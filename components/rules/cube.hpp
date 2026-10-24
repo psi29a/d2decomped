@@ -294,7 +294,8 @@ inline std::string cube_type_item(const Tables& tables, const std::string& type,
 // chance off the item's own seed (FUN_00660240); rep / rch; sock= opens
 // sockets (magic up to 3; set, rare, unique, crafted 1); qty= a stack.
 // `uns` / `rem` items come back out of their sockets (rem only: as items).
-// ponytail (cube.md "Gaps"): the portals (kinds 1..3), forced pre= /
+// The portals (kinds 1..3) are World::transmute's (rules::CainQuest::cow_portal_opens).
+// ponytail (cube.md "Gaps"): forced pre= /
 // suf=, crafted (made rare, then called crafted), mod's new base stats,
 // rch's charges and the transmute's sound aren't game.exe's yet.
 struct CubeMade { std::vector<d2d::d2s::Item> items; bool made = false; };
@@ -308,7 +309,7 @@ inline CubeMade cube_make(const Tables& tables, const CubeRecipe& recipe, const 
         int level = output.lvl;
         if (!level) level = (output.plvl ? clvl * output.plvl / 100 : 0) + (output.ilvl ? match.ilvl[slot] * output.ilvl / 100 : 0);
         level = std::clamp(level, 1, 99);
-        if (output.kind >= kCowPortal && output.kind <= kFinale) continue;    // ponytail: the portals
+        if (output.kind >= kCowPortal && output.kind <= kFinale) continue;    // World::transmute's
         std::optional<d2d::d2s::Item> made;
         Rng own{ 0 };
         auto code_of = [&]() -> std::string {

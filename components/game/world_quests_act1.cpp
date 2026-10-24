@@ -27,6 +27,7 @@ auto World::act1_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBit
     }
 
 auto World::act1_join() -> void {
+        cow_portal_opened = false;
         den = {};
         den.join(quests());
         andy = {};

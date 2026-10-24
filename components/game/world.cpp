@@ -1376,6 +1376,27 @@ auto World::transmute(std::uint32_t now_ms) -> void {
         const int row = d2d::rules::cube_recipe(game_data->rules, game_data->cube_recipes, cube, diff, actor->character.expansion, actor->character.header.cls, match);
         if (row < 0) { d2d::log::info("transmute: nothing ({} items)", cube.size()); return; }
         const auto& recipe = game_data->cube_recipes[std::size_t(row)];
+        // A portal (output kind 1..3, FUN_00565ab0's table 0x6e11c8): made, the
+        // inputs go; refused, they stay (rules::CainQuest::cow_portal_opens).
+        if (const int kind = recipe.outputs[0].kind; kind >= d2d::rules::cube_out::kCowPortal && kind <= d2d::rules::cube_out::kFinale) {
+            const Level* farm = game_data->level(d2d::rules::level_ids::kMooMooFarm);
+            if (kind != d2d::rules::cube_out::kCowPortal || !farm || farm->ds1.width() == 0
+                || !d2d::rules::CainQuest::cow_portal_opens(quests(), cow_portal_opened, actor->character.expansion, level->id)) {
+                d2d::log::info("transmute: {} refused", recipe.description);
+                return;
+            }
+            cow_portal_opened = true;
+            // ponytail: FUN_00545340's spot search (3, mask 0x400, 4, 100) is the nearest free spot; its twin the farm's portal spot.
+            const auto [spot_x, spot_y] = level->nearest_free(actor->player.x, actor->player.y + 0.8f);
+            portal[kCowPortal] = { level, spot_x, spot_y, now_ms };
+            const auto [to_x, to_y] = farm->portal_spot.first >= 0 ? farm->nearest_free(farm->portal_spot.first, farm->portal_spot.second)
+                                                                  : farm->nearest_free(float(farm->ds1.width()) / 2, float(farm->ds1.height()) / 2);
+            portal[kCowPortal + 1] = { farm, to_x, to_y, now_ms };
+            std::erase_if(actor->character.items, [](const Item& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kCube; });
+            cues.cue("object_townportal", now_ms, spot_x, spot_y);
+            d2d::log::info("transmute: the Cow Portal opens");
+            return;
+        }
         auto made = d2d::rules::cube_make(game_data->rules, recipe, match, cube, int(actor->character.stats.get(d2d::d2s::kLevel)), actor->character.expansion, diff,
                                           fight.spawning.game, &loot.found_uniques);
         if (!made.made) { d2d::log::info("transmute: {} made nothing", recipe.description); return; }
