@@ -289,7 +289,7 @@ leader in the Chaos Sanctuary within 85 (FUN_006417d0) → 15 = 10. Line
 but not melee: {0,0,0,0,0,25,25,0,15,20,10,0,20,…}; the target's distance
 (FUN_005dc380) past 25: 8 −5, 10 = 20, 5 = 0; res nudges 6 and 8; under 2
 players around (`param_5`) 6 −10, past 3 +5; past 60 frames (`param_4`) 9
-+10; few players (FUN_00573930) zero 9; casting state (Decrepify 0x3b /
++10; few players looked at and the MonsterSkillBonus (FUN_00573930 +8) under 2 zero 9; casting state (Decrepify 0x3b /
 0x38, Amplify 0x33 level > 3, 0x1b level > 7 on the target's left or right
 skill: `local_c`) and the target 85+ off (`local_8`): 1 = 0, 12 = 10, 10 =
 0, 13 = 15, 9 ≥ 10; 105+ off: 9 = 20, 14 = 60; leader 15 = 15. Neither:
@@ -321,7 +321,9 @@ on the dumped runs. Its distances: the target to his point
 far" past 0x69), him to the target (FUN_005dc380, less his size: past 25),
 the target's leader to his point (FUN_006417f0: under 0x55 with the leader
 in the Chaos Sanctuary), each (max · 2 + min) / 2. FUN_00573930 (two stack
-words) answers the players about him at +8.
+words) fills {?, ?, DifficultyLevels MonsterSkillBonus (0 / 3 / 7), the
+difficulty, ?}; Diablo reads +8 (d2d once read it as the players about him,
+set to 1), Baal +0xc.
 
 His target (FUN_005e8f20, 2026-10-16; lists 2026-10-17): over the unit
 lists at game +0x10f8, the best scored (FUN_005e8530, above 0, the first
@@ -353,6 +355,51 @@ The levels are each hand's own (FUN_006442a0(unit, skill, 1)), as the
 chooser's casting test (Fire Wall over 3, 0x1b over 7) reads them.
 `rules::diablo_score`, proven on 400 cases (tools/emu/diablo_score.py,
 tests/diablo_score_cases.inc).
+
+## Baal — FUN_005fcfe0, his clone FUN_005fd210
+
+MonAI 135 `{FUN_005fcfe0, FUN_005fcf30, 1}`, 140 (baalclone) `{FUN_005fd210,
+FUN_005fcf30, 1}`. Proven on game.exe: `tools/emu/mon_ais.py
+BaalCrab,BaalCrabClone --dump tests/mon_ais_baal_cases.inc` (2026-10-24).
+
+- Pick: FUN_005fbdd0 is Diablo's FUN_005e8f20 (filter FUN_005fc000 = same
+  act, under 0x3fc), the score FUN_005fbb00 Diablo's with the point bonus at
+  0x4b instead of 0x55.
+- Kept point: his own spot when he has none (FUN_0058ef40 kind 10).
+- Chooser FUN_005fc630(ECX him, EAX target; game, AI control, score, looked,
+  point): AI control +0x14 non-zero is the act. No target: stuck
+  (FUN_0064d910 mask 0x40) 4, else low % 100 < 8 → 9, else 1. Far / very
+  far: the target past 0x4b / 100 off the point (FUN_005dc480, less its
+  size / 2 + 1). The rest by weights rolled on his seed (first index past
+  the roll; none → 1), `rules::mon_think` "BaalCrab" holds them:
+  in reach FUN_005fc1c0, a clear line FUN_005fc450 (index 15, the clone:
+  (2 − AI control +0x18) × 10), neither FUN_005fc300. Index 1's weight is
+  (normal 75 / 125, else 50 / 100) + 100 − his life %.
+  FUN_005fc0c0 is Diablo's casting test (right hand, then left).
+- Acts FUN_005fcb60, then wait 25: 1 stand 35 / 15 / 5; 2, 6 keep 12 off
+  (mode 2); 3 circle 6; 4 wander 16; 5 walk to the point; 8 Defense Curse
+  (Skill6) when the target's max mana (stat 9, FUN_00625d60) is under its
+  max life (stat 7, FUN_00625d10) or it's no player, else Blood Mana
+  (Skill7) at a player; 9 Tentacles (0x13b, S2); 10 A2; 11 Nova (0x13c,
+  S3); 12 Inferno (0x13d, S1); 13 Cold Missiles (0x13e, A1); 14 Teleport
+  (Skill5) to him + (him − target) × 25 / FUN_006416d0 (uber Baal 0x2c5:
+  the target's spot); 15 a clone (FUN_005fc860), then stand 5; else stand 5.
+- Clone (FUN_005fc860): none while one of his lives (FUN_0058f380 /
+  FUN_005fc830); baalclone (0x23a) at his spot + low % 24 − 12 per axis
+  (his seed), a third of his max life and life, regen 0, flags 0x4020000,
+  +0x18 counted.
+- The clone's think: its master gone or busy (FUN_00552fd0, FUN_005541b0)
+  → FUN_0057ccb0 (dies); else Baal's chooser, acts 7 / 9 / 14 / 15 → 2,
+  no target stands 15.
+- Skills: 139 (FUN_005d2940) srvmissilea `baal cold maker` at the target's
+  spot, a maker (missile do 31) of `baal cold trail`; 140 (FUN_005d2c20)
+  low % 3 + 2 + difficulty tentacles, each at the target + low % 18 − 9 per
+  axis, a step down the baaltentacle class chain (FUN_0063efa0 case 0x220),
+  made in A1.
+
+d2d: ai.cpp's Diablo blocks take Baal; the clone, the tentacles, the cold
+maker (ai.hpp do 31). ponytail: the tentacle class is rand(5) on his seed;
+FUN_0054dc40's spot test is the nearest free spot.
 
 ## Doors — FUN_005b0f50
 

@@ -71,3 +71,5 @@
 { "Ancient", false, true, true, true },
 { "Nihlathak", false, true, true, true },
 { "ClawViperEx", false, true, true, true },
+{ "BaalCrab", false, true, true, true },
+{ "BaalCrabClone", false, true, true, true },
