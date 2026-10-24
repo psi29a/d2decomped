@@ -1055,7 +1055,7 @@ inline std::pair<int, int> andariel_spray_aim(int dir64, int frame) {
 // drawn here in game.exe's order; a skill test with no skill (-1) draws
 // nothing.
 // direct: FUN_005deca0, a walk at the unit with no path (the frozen horror's, the blood lord's).
-enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, around, home, point, untraced, s3, s4, seq, fly, gone, s1, sc, mode_at, move_to, spawn, direct };
+enum class MonAct : std::uint8_t { idle, a1, a2, s2, skill, walk, run, approach, keep, circle, wander, none, die, around, home, point, untraced, s3, s4, seq, fly, gone, s1, sc, mode_at, move_to, spawn, direct, warp };
 // Whom an act is at: the think's target, no unit, the second target
 // (FUN_005ddc30), the search's find (FUN_005dd0b0: kin, a corpse), the hurt
 // one it heals, itself.
@@ -1165,6 +1165,7 @@ struct ThinkIn {
     // The line to the target clear of mask 4 (FUN_005dd290).
     // MonStats MissS1's Missiles.txt Range (FUN_0046ace0 +0x96; -1: none).
     bool command_unit = false, state_c = false, spot_clear = true, target = true, spared = false, line_clear = true;
+    bool target_still = false;                  // the target a player or monster in mode 1 (NU: BaalTaunt's)
     int s1_range = -1;
     // Mephisto's: Skill6..8 set; his chooser's finds within 32 (FUN_005f7700:
     // the weakest unit, a player nearest).
@@ -1237,7 +1238,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 94> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 95> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1248,7 +1249,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul", "BaalCrab", "BaalCrabClone",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
-                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs" };
+                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3358,6 +3359,18 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (*input.state3 < input.frame) return { MonAct::die };
         if (input.in_melee && rng(100) < aip[0]) return { MonAct::a1 };
         return idle2;
+    }
+    // BaalTaunt (136, FUN_005ef710): a target standing still (mode 1) counts
+    // up the scratch word; past aip2 it's 0 again and Skill1 (Baal Taunt, A1)
+    // goes at it. Otherwise (not still: 0 again) past aip3 it warps to the
+    // target (FUN_00554ea0), past aip1 walks straight at it; else stands 25.
+    if (ai_name == "BaalTaunt") {
+        if (!input.target) return { MonAct::idle, 25 };
+        if (input.target_still && ++*input.state > aip[1]) { *input.state = 0; return cast(0); }
+        if (!input.target_still) *input.state = 0;
+        if (input.dist > aip[2]) return { MonAct::warp, 0, input.target_x, input.target_y, ThinkUnit::none };
+        if (input.dist > aip[0]) return { MonAct::direct };
+        return { MonAct::idle, 25 };
     }
     // BaalMinion (141, FUN_005ef910; the waves' minions): out of melee (or no
     // target) aip2 % straight at it; in it aip1 %: Skill1 aip3 % (rand), else

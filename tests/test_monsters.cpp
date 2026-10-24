@@ -1159,7 +1159,25 @@ int main() {
         assert(mon_think("Brute", think_in, roll, no_away).act == MonAct::idle && steps(6, roll) == 2);
         think_in.aip[2] = 100; roll = Rng{ 6 };
         assert(mon_think("Brute", think_in, roll, no_away).act != MonAct::circle && steps(6, roll) == 2);
-        assert(!traced_ai("BaalTaunt") && mon_think("BaalTaunt", think_in, roll, no_away).act == MonAct::untraced);
+        // BaalTaunt (FUN_005ef710; tools/emu/baal_taunt.py --dump): game.exe's runs.
+        {
+            static constexpr std::string_view kTaunt[] = {
+#include "baal_taunt_cases.inc"
+            };
+            for (const std::string_view taunt_case : kTaunt) {
+                std::istringstream fields{ std::string(taunt_case) };
+                int kind = 0, mode = 0, count = 0, dist = 0, aip1 = 0, aip2 = 0, aip3 = 0, want_n = 0, want_count = 0;
+                std::string bar, want;
+                fields >> kind >> mode >> count >> dist >> aip1 >> aip2 >> aip3 >> bar >> want >> want_n >> want_count;
+                ThinkIn taunt_in{ .aip = { aip1, aip2, aip3 }, .dist = dist, .state = &count };
+                taunt_in.target_still = kind < 2 && mode == 1;
+                const auto got = mon_think("BaalTaunt", taunt_in, roll, no_away);
+                const bool same = want == "skill" ? got.act == MonAct::skill && got.n == 0 && want_n == 284   // Skill1, Baal Taunt
+                                : want == "warp" ? got.act == MonAct::warp : want == "direct" ? got.act == MonAct::direct
+                                : got.act == MonAct::idle && got.n == want_n;
+                assert(same && count == want_count);
+            }
+        }
         // Griswold: in melee 80 % A1, else 50 % walks in, else stands 10;
         // the Smith walks in at half the life % he's lost.
         int state2 = 0, state3 = 0, pace = 0;
