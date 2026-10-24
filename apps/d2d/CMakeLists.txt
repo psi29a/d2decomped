@@ -230,12 +230,12 @@ target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY "D2D_APP_VERSION=\"${D2D_VERSION}\"")
 target_link_libraries(d2d PRIVATE
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
-    game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot
+    game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY} sentry)
 target_include_directories(d2d SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})
 d2d_check_headers(d2d_headers LINK
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
-    game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot
+    game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})
 if(TARGET d2d_headers)
     target_include_directories(d2d_headers SYSTEM PRIVATE ${OPENAL_INCLUDE_DIR})

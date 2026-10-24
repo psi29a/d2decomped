@@ -44,6 +44,7 @@
 #include <mpq.hpp>
 #include <screenshot.hpp>
 #include <sentry.h>
+#include <switches.hpp>
 #include <tcp.hpp>
 #include <userdir.hpp>
 
@@ -1620,8 +1621,14 @@ int main(int argc, char** argv) {
                    "InGame camera x (grid cell)");
     app.add_option("--start-cam-y", start_cam_y,
                    "InGame camera y (grid cell)");
+    // game.exe's one-dash switches, before CLI11. Two-dash options pass through.
+    const std::vector<std::string_view> arguments(argv, argv + argc);
+    d2d::switches::Translated switched = d2d::switches::translate(arguments);
+    std::vector<char*> switched_argv;
+    switched_argv.reserve(switched.argv.size());
+    for (std::string& argument : switched.argv) switched_argv.push_back(argument.data());
     try {
-        app.parse(argc, argv);
+        app.parse(static_cast<int>(switched_argv.size()), switched_argv.data());
     } catch (const CLI::ParseError& error) {
         return app.exit(error);
     }
@@ -1631,6 +1638,7 @@ int main(int argc, char** argv) {
     }
     if (const auto level = d2d::log::parse_level(log_level)) d2d::log::set_level(*level);
     else { d2d::log::error("--log-level {}: one of error, warning, info, debug, trace", log_level); return 2; }
+    for (const std::string& line : switched.ignored) d2d::log::warn("{}", line);
     const auto crash_notes = crash_notes_from_environment();
     SentrySession sentry(send_crash_reports, user_dir, D2D_APP_VERSION, crash_notes);
     if (enable_crash_test && !sentry.enabled()) {

@@ -54,6 +54,7 @@ d2d_add_test(test_outdoor drlg mpq)
 d2d_add_test(test_exe_tables game dc6 dcc font palette)   # game brings install_detect, rules, drlg, compcode
 target_include_directories(test_exe_tables PRIVATE ${PROJECT_SOURCE_DIR}/apps/d2d)
 d2d_add_test(test_gamepad)   # the pad's action mapping: header-only, no SDL
+d2d_add_test(test_switches switches)   # game.exe's one-dash switches, before CLI11
 target_include_directories(test_gamepad PRIVATE ${PROJECT_SOURCE_DIR}/apps/d2d)
 d2d_add_test(test_keyconfig)   # game.exe's key bindings: header-only, no SDL
 target_include_directories(test_keyconfig PRIVATE ${PROJECT_SOURCE_DIR}/apps/d2d)
