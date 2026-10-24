@@ -945,7 +945,8 @@ Branch `act5`:
   and Impregnate (a painworm at the death), the Ancients' Shout, Whirlwind
   and Leap Attack, imp6..8's sequence Inferno. Siege Beast Stomp does
   nothing in 1.14d (bugs.md #28). Each seen live in headless probes but
-  imp6..8's (Nightmare: see below).
+  imp6..8's, which is probably unreachable: only a riding imp casts it,
+  and their levels have no mounts (stubs.md).
 - The act-change cinematics (video.md): Warriv {2}, Meshif {3}, the hellgate
   {4}, Tyrael's portal {5} (LoD: ACT04END then D2X_INTRO), the last portal {7}.
 

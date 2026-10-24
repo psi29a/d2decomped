@@ -23,6 +23,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_00594700`, `FUN_005947e0`, `FUN_00595160` | a1q4 list append / contains, and another | orphan | — | not ported | quests-act1.md |
 | `FUN_00570530` | a monster AI restore (calls the AI toggle) | orphan | — | not ported | monster-ai.md "Curse thinks and other thinks" |
 | `FUN_005e2d80` +0x1c | a riding imp's two extra draws when its AI control +0x1c is set | unreachable | the init (FUN_005e2cd0) copies 0x6e34e0's flags, both 0 | not ported | monster-ai.md "The imps' ride and skills" |
+| seq_impinferno (Sk5mode of imp6..8) | imp6..8's sequence Inferno (do 126 from an event-4 row) | unreachable (probably) | only a riding imp casts Skill5 (ImpRide's pick); the free Imp think casts Skill4 at most, and no level with imp6..8 (125..127, 135) has a siege beast or tower to ride. Probed live 2026-10-25: 50 s on Nightmare 126/127, attacks and missiles, no Inferno. Unchecked: a mount from a preset or DS1 | ported anyway (ai.cpp) | monster-ai.md "The imps' ride and skills" |
 | `FUN_005a30e0` mod 24 | thief (MonUMod 24) on a hit | unreachable | MonUMod disables it; `FUN_005a49b0` skips it for Lord De Seis | not ported | monsters.md |
 | `FUN_00587830` | InitFn 70 (table 0x731bc0) | stub (`return`) | nothing happens when the object's room comes up | nothing | quests-act5.md "InitFns 66..70" |
 

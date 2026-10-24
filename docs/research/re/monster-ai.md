@@ -413,7 +413,9 @@ tests/mon_ais_imp_ride_cases.inc`, all paths match `rules::mon_think`
 out of the crowd, sits on its mount), the claim in `think`, mount and
 dismount in do 129, `rules::imp_ride_pick`. Nihlathak's Skill1 is Imp
 Teleport too (MonTeleport for him). imp6..8's Inferno is seq_impinferno
-(SC rows, an event-4 row 12 running do 126). Not in d2d: the claim's
+(SC rows, an event-4 row 12 running do 126), and probably never plays:
+only a riding imp casts Skill5, and imp6..8's levels have nothing to ride
+(stubs.md). Not in d2d: the claim's
 sight and pet tests.
 
 ## Act 5's monster skills (traced 2026-10-24)
