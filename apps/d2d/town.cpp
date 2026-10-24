@@ -596,7 +596,7 @@ auto Town::send(const Command& command) -> void {
                     if (const float apart = std::hypot(unit->second.x - subtile_x(corpse.x), unit->second.y - subtile_y(corpse.y)); apart < best) {
                         best = apart; net_operate_type = 0; net_operate = id; net_operate_ms = frame_now; net_operate_moves = false; net_operate_waypoint = -1;
                     }
-        } else if (interact && interact->npc <= -2000 && interact->npc > -2008) {
+        } else if (interact && interact->npc <= -2000 && interact->npc > -2000 - int(d2d::game::World::kGamePortals)) {
             // A town portal: ours by the host's id for this end (0x82), else its
             // TownPortal (object 59) nearest d2d's (they open apart:
             // deviations.md); operated once the host has us there, as it
@@ -1842,7 +1842,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         if (mouse.press_this_frame) {
             if (live) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, view.monsters[std::size_t(hovered_monster_index)].id, true });
             else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
-            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2008) || (hovered_npc <= -3000 && hovered_npc > -3016)
+            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2000 - int(d2d::game::World::kGamePortals)) || (hovered_npc <= -3000 && hovered_npc > -3016)
                      || (hovered_npc <= -4000 && hovered_npc > -4000 - int(view.others.size())))
                 out.push_back(cmd::Interact{ hovered_npc });
             else if (function_held(keys::kStandStill)) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true });   // 0x7a0664: no step, the skill there

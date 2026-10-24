@@ -481,7 +481,7 @@ struct PrisonQuest {
     // Heard (FUN_00589580): the item to give and its quality / level (the
     // player's), and Anya sent home.
     struct Heard { const char* give = nullptr; bool rare = false, anya_home = false; };
-    Heard said(QuestBits& quest_bits, int npc, int string, bool carries_potion, bool carries_scroll, int difficulty, int player_class, std::uint32_t roll) {
+    Heard said(QuestBits& quest_bits, int npc, int string, bool carries_potion, bool carries_scroll, int difficulty, int player_class, const auto& roll) {   // roll: drawn only for Anya's item
         Heard out;
         if (npc == kMalah) {
             if (string == kTold) { told_heard = true; state = 2; act5_detail::mark(quest_bits, kQuest, state); return out; }
@@ -506,7 +506,7 @@ struct PrisonQuest {
         } else if (npc == kAnya && string == kAnyaReward) {
             if (!quest::bit(quest_bits, kQuest, 1) || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 10)) return out;
             const auto& items = kAnyaItems[std::size_t(std::clamp(difficulty, 0, 2))][std::size_t(std::clamp(player_class, 0, 6))];
-            out.give = items[roll % items.size()]; out.rare = true;
+            out.give = items[roll() % items.size()]; out.rare = true;
             quest::set(quest_bits, kQuest, 9);
             if (quest::bit(quest_bits, kQuest, 8)) { quest::set(quest_bits, kQuest, 1, false); quest::set(quest_bits, kQuest, 0); }
             quest::set(quest_bits, kQuest, 10);

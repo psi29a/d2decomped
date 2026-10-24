@@ -692,12 +692,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (monster.ai_state >= 5) { monster.baal_leaves = true; idle(5); return true; }
             monster.baal_wave = 61 + monster.ai_state;
             set_mode(game_data, monster, "S3", now_ms);
+            monster.next_act = monster.mode_until;                 // the cast plays out before the next think
             ++monster.ai_state;
             monster.ai_state3 = frame + 100;
             monster.ai_state2 = (monster.ai_state2 | 2) & ~1;
             return true;
         }
         set_mode(game_data, monster, "S3", now_ms);
+        monster.next_act = monster.mode_until;
         monster.ai_state2 |= 1;
         monster.ai_state3 = frame + 250;
         return true;
@@ -1061,7 +1063,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         input.self_dead = monster.mode == "DT" || monster.mode == "DD";
         input.self_life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));
         input.target_life_pct = target->life_pct;
-        if (type_info.ai_name == "Succubus") input.target_player = !target->pet && !target->of;
+        if (type_info.ai_name == "Succubus" || type_info.ai_name == "SuccubusWitch") input.target_player = !target->pet && !target->of;
         input.command_until = input.frame + 1;
         input.reach = input.in_melee;
         // The Overseer's search (FUN_005e26d0) and the spawner's (FUN_005e2b70): live
