@@ -564,6 +564,18 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // element in 256ths less resistance and magic damage reduction.
         // ponytail: the 256ths a burn leaves over round up by chance, not
         // kept on the foe's life; DamageRate unread.
+        // A monster's maker (do 31: Baal's cold missiles) lays SubMissile1
+        // where it is each frame, going its way; the maker strikes nothing.
+        if (missile.info && missile.info->srv_do == 31) {
+            if (missile.sub && missile.frame != frame) {
+                missile.frame = frame;
+                Missile trail = missile;
+                trail.info = missile.sub; trail.sub = nullptr; trail.born = now_ms;
+                trail.dies = now_ms + std::uint32_t(std::max(missile.sub->range, 1)) * 40;
+                laid.push_back(std::move(trail));
+            }
+            return false;
+        }
         if (missile.info && (missile.info->srv_do == 5 || missile.info->srv_do == 6) && missile.row) {
             if (missile.frame == frame) return false;
             missile.frame = frame;

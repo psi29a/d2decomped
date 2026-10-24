@@ -189,8 +189,7 @@ item panel) while the reward is due:
 
 ## Not yet in d2d
 
-- Baal in the Chamber (BaalCrab / BaalCrabClone, the Diablo-like chooser
-  `FUN_005fbdd0..`), BaalTaunt, AncientStatue, the ubers.
+- BaalTaunt, AncientStatue, the ubers (Baal's fight: monster-ai.md "Baal").
 - The Ancients' death missile (`FUN_0058c8d0`), the statues' return
   (`FUN_0058bd50`), Baal's Corpse Explode, the gold for Baal's killer, the
   cinematics.

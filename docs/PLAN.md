@@ -915,11 +915,14 @@ Branch `act5`:
   Larzuk's sockets and Anya's personalizing (Charsi's imbue at their NPCs).
 - Lower walls (Act 5's cliffs) draw under the floors, as game.exe.
 
-Still open: Baal in the Chamber and his clone (BaalCrab / BaalCrabClone,
-the Diablo-like chooser), BaalTaunt, AncientStatue, the ubers; Act 5's
-monster skills and umod 33's blast; the cinematics.
+- Baal's fight (monster-ai.md "Baal"): his think and his clone's proven on
+  game.exe (`tests/mon_ais_baal_cases.inc`), the Vile Effigy, Festering
+  Appendages, the cold missiles' maker.
 
-Next: Baal's fight.
+Still open: BaalTaunt, AncientStatue, the ubers; Act 5's other monster
+skills and umod 33's blast; the cinematics.
+
+Next: BaalTaunt and the Ancients' statues, or the ubers.
 
 ## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
 

@@ -1084,7 +1084,8 @@ struct ThinkEffect {
     // Diablo's kept point set (mark: id x, value y; FUN_0058ef40 kind 10).
     // Act 5's: the siege beast takes a rider (FUN_005e17e0: the imp's AI word
     // +0x14 its id), a minion takes its command's unit as target (FUN_006416d0).
-    enum Kind : std::uint8_t { state, overlay, stat, rally, command_done, summoner_open, aura, land, take_off, toggle, unset, set_word, bless, greet, mark, mount, retarget } kind;
+    // Baal's: a Vile Effigy made (clone, FUN_005fc860).
+    enum Kind : std::uint8_t { state, overlay, stat, rally, command_done, summoner_open, aura, land, take_off, toggle, unset, set_word, bless, greet, mark, mount, retarget, clone } kind;
     int id = 0, value = 0;
 };
 struct ThinkIn {
@@ -1187,10 +1188,10 @@ struct ThinkIn {
     // set to his own spot the first time), stuck where he stands
     // (FUN_0064d910 mask 0x40), the target in reach (FUN_00622c40), its left
     // and right skills (-1 none; FUN_00620190 / FUN_006201d0, at
-    // left_level / right_level) and its state 0xb, a player; the players about him
+    // left_level / right_level) and its state 0xb, a player; the difficulty's MonsterSkillBonus
     // (FUN_00573930); in the Chaos Sanctuary (FUN_0061a1b0: 108; the kin is
     // the target's leader found by FUN_005353f0); its lightning resist (0x29).
-    int score = 0, players_looked = 0, word_x = 0, word_y = 0, left_skill = -1, right_skill = -1, players_about = 0, target_light_res = 0;
+    int score = 0, players_looked = 0, word_x = 0, word_y = 0, left_skill = -1, right_skill = -1, skill_bonus = 0, target_light_res = 0;
     int left_level = 0, right_level = 0;            // the hands' levels (FUN_006442a0, each its own)
     bool has_word = false, stuck = false, reach = false, target_state_b = false, target_player = false, in_chaos = false;
     int self_size = 2, target_size = 2;             // FUN_00620510: the units' sizes (the distances take them off)
@@ -1203,7 +1204,7 @@ struct ThinkIn {
     // on itself); its command's last frame (+0x14) and its unit busy
     // (FUN_005541b0).
     bool lines_clear = true, rider = false, self_dead = false, state69 = false, imp_near = false, target_state20 = false, command_busy = false;
-    int skill1_range = 0, target_mana = 0, target_max_mana = 0, self_life_pct = 100, command_until = 0;
+    int skill1_range = 0, target_max_life = 0, target_max_mana = 0, self_life_pct = 100, command_until = 0;
     // The Overseer's: the one that last hit it (FUN_005de830: a player not
     // dead, a monster a pet); its search (FUN_005e26d0): a minion within 24
     // under 50 % life, one within 20 not under FUN_005a0180, how many
@@ -1236,7 +1237,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 92> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 94> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1244,7 +1245,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "MaggotEgg", "MaggotLarva", "DarkWanderer", "SandMaggotQueen",
                                                                "Mosquito", "ThornHulk", "ZakarumZealot", "ZakarumPriest", "FrogDemon", "Tentacle", "TentacleHead",
                                                                "FetishShaman", "HighPriest", "Hydra", "FetishBlowgun", "Mephisto", "WillOWisp",
-                                                               "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul",
+                                                               "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul", "BaalCrab", "BaalCrabClone",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
                                                                "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs" };
@@ -2865,7 +2866,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
                 if (input.players_looked < 2) weight[6] -= 10;
                 if (input.players_looked > 3) weight[6] += 5;
                 if (input.score > 60) weight[9] += 10;
-                if (input.players_looked < 2 && input.players_about < 2) weight[9] = 0;
+                if (input.players_looked < 2 && input.skill_bonus < 2) weight[9] = 0;
                 if (casting && !point_far) { weight[6] += 10; weight[10] = 30; weight[13] = 15; }
                 else if (point_far) { weight[1] = 0; weight[12] = 10; weight[10] = 0; weight[13] = 15; if (weight[9] == 0) weight[9] = 10; }
                 if (point_very_far) { weight[9] = 20; weight[14] = 60; }
@@ -2930,6 +2931,97 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         default: return { MonAct::idle, input.difficulty == 1 ? 8 : input.difficulty == 2 ? 4 : 12 };
         }
         return { MonAct::idle, 2 };
+    }
+    // Baal (135, FUN_005fcfe0) and his Vile Effigy (140, FUN_005fd210;
+    // monster-ai.md "Baal"): Diablo's kept point and pick (FUN_005fbdd0); the
+    // chooser (FUN_005fc630): a pending act (AI control +0x14) first, no
+    // target: stuck 4, else 8 % Tentacles (9), else stands (1); in reach,
+    // a clear line or neither, weights by FUN_005fc1c0 / FUN_005fc450 /
+    // FUN_005fc300 rolled on the unit seed. The acts (FUN_005fcb60), then a
+    // wait of 25. The clone dies with no master (FUN_00552fd0) or a busy one;
+    // its acts 7, 9, 14, 15 swing (2) and with no target it stands 15.
+    if (ai_name == "BaalCrab" || ai_name == "BaalCrabClone") {
+        const bool clone = ai_name == "BaalCrabClone";
+        if (clone && ((input.grouped && input.command_busy) || !input.rider || input.command_busy)) return { MonAct::die };
+        int word_x = input.word_x, word_y = input.word_y;
+        if (!input.has_word) { word_x = input.self_x; word_y = input.self_y; effect(ThinkEffect::mark, word_x, word_y); }
+        const auto apart = point_apart;
+        const bool casting = [&] {                                                  // FUN_005fc0c0: the target's right hand, then its left
+            for (const auto& [id, level] : { std::pair{ input.right_skill, input.right_level }, std::pair{ input.left_skill, input.left_level } })
+                if (id == 0x3b || id == 0x38 || (id == 0x33 && level > 3) || (id == 0x1b && level > 7)) return true;
+            return false;
+        }();
+        int act = *input.state;
+        if (act == 0 && !input.target) act = input.stuck ? 4 : rng.next() % 100 < 8 ? 9 : 1;
+        else if (act == 0) {
+            const int off = apart(input.target_x - word_x, input.target_y - word_y, (input.target_size >> 1) + 1);
+            const bool point_far = off > 0x4b, point_very_far = off > 100;
+            const bool normal = input.difficulty == 0;
+            std::array<int, 16> weight{};
+            if (input.reach) {                                                      // FUN_005fc1c0
+                weight = { 0, (normal ? 75 : 50) + 100 - input.life_pct, 0, 0, 0, 0, 0, 0, 20, 30, 150, 10, 10, normal ? 45 : 70, 40, 0 };
+                if (input.target_life_pct < 33) weight[10] = 200;
+                if (input.target_state_b) weight[8] = weight[13] = weight[11] = 0;
+                if (!input.line_clear) weight[11] = weight[13] = weight[12] = 0;
+            } else if (input.line_clear) {                                          // FUN_005fc450
+                weight = { 0, (normal ? 125 : 100) + 100 - input.life_pct, 5, 5, 5, 0, 5, 0, 40, 40, 0, 70, 80, normal ? 40 : 60, 20, std::max((2 - *input.state2) * 10, 0) };
+                const int apart_target = apart(input.self_x - input.target_x, input.self_y - input.target_y, input.self_size);   // FUN_005dc380
+                if (apart_target > 0x23) { weight[6] = 15; weight[13] = 0; }
+                if (apart_target > 0x19) { weight[14] = 30; weight[11] = 0; }
+                if (input.players_looked < 2) weight[11] -= 10;
+                if (input.players_looked > 3) weight[13] += 25;
+                if (input.score > 0x3c) weight[8] = 70;
+                if (input.players_looked < 2 && input.difficulty < 2) weight[8] = 0;   // FUN_00573930 +0xc
+                if (casting && !point_far) { weight[6] += 30; weight[11] += 10; weight[14] += 15; }
+                else if (point_far) { weight[6] += 25; weight[14] += 35; weight[2] = 0; weight[3] = 25; }
+                if (point_very_far) weight[5] = 60;
+            } else {                                                                // FUN_005fc300
+                weight = { 0, (normal ? 125 : 100) + 100 - input.life_pct, 20, 20, 20, 0, 20, 0, 80, 70, 0, 0, 0, 0, 0, 0 };
+                if (input.players_looked < 2) { weight[2] = 45; weight[10] = 25; }
+                if (casting && !point_far) { weight[13] = 50; weight[14] = 50; }
+                else if (point_far) { weight[13] = 25; weight[2] = 0; weight[6] = 0; weight[3] = 35; weight[11] = 25; }
+                if (point_very_far) weight[5] = 60;
+            }
+            int total = 0;
+            for (const int value : weight) total += value;
+            const int rolled = total > 0 ? rng(total) : 0;
+            act = 1;
+            for (int index = 0, sum = 0; index < 16; ++index)
+                if ((sum += weight[std::size_t(index)]) > rolled) { act = index; break; }
+        }
+        if (clone && (act == 7 || act == 9 || act == 14 || act == 15)) act = 2;
+        if (clone && !input.target) return { MonAct::idle, 15 };
+        auto skill = [&](int slot) { return slot < 5 ? skill_set(slot) : input.skill678[std::size_t(slot - 5)]; };
+        auto waited = [](Think out) { out.wait = 25; return out; };
+        const ThinkUnit baal_aim = input.target ? ThinkUnit::target : ThinkUnit::none;
+        switch (act) {
+        case 1: return waited({ MonAct::idle, input.difficulty == 1 ? 15 : input.difficulty == 2 ? 5 : 35 });
+        case 2: case 6: { Think out{ MonAct::keep, 12, 0, 2 }; out.unit = baal_aim; return waited(out); }   // FUN_005de6d0 -> FUN_005de4e0(.., 2, ..)
+        case 3: { bool set_off = false; auto out = circle(6, 1, set_off); out.unit = baal_aim; return waited(out); }
+        case 4: return waited(think_wander(rng, 16));
+        case 5: return waited({ MonAct::move_to, 0, word_x, word_y, ThinkUnit::none });
+        case 8:                                                                     // Defense Curse, else Blood Mana baal_aim a player
+            if (!input.target) break;
+            if (skill(5) && (input.target_max_mana < input.target_max_life || !input.target_player)) return waited(cast(5));
+            if (skill(6) && input.target_player) return waited(cast(6));
+            return waited({ MonAct::none });
+        case 9: return waited(cast(2, baal_aim));                                         // Tentacles (0x13b, S2)
+        case 10: { Think out{ MonAct::a2 }; out.unit = baal_aim; return waited(out); }
+        case 11: return waited(cast(0, baal_aim));                                        // Nova (0x13c, S3)
+        case 12: return waited(cast(1, baal_aim));                                        // Inferno (0x13d, S1)
+        case 13: return waited(cast(3, baal_aim));                                        // Cold Missiles (0x13e, A1)
+        case 14: {                                                                  // Teleport 25 off, away from the target
+            if (!input.target) break;
+            const int span = std::max(input.dist, 1);
+            auto out = cast(4, ThinkUnit::none);
+            out.x = (input.self_x - input.target_x) * 25 / span + input.self_x;
+            out.y = (input.self_y - input.target_y) * 25 / span + input.self_y;
+            return waited(out);
+        }
+        case 15: effect(ThinkEffect::clone); break;                                 // FUN_005fc860: a Vile Effigy
+        default: break;
+        }
+        return waited({ MonAct::idle, 5 });
     }
     // TrappedSoul (99, FUN_005e9f10; the souls InitFn 46 makes): flag
     // 0x20000; no target or past 4: burning (S1) once risen, else stands 15.
@@ -3041,7 +3133,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (!input.target_state20 && input.dist < aip[3] && roll() < aip[2]) {
             if (input.skill[0] && input.target_life_pct >= aip[6]) return cast(0);
             if (input.skill[1] && input.self_life_pct <= aip[7]) return cast(1);
-            if (input.skill[2] && (input.target_max_mana < input.target_mana || !input.target || !input.target_player)) return cast(2);
+            if (input.skill[2] && (input.target_max_mana < input.target_max_life || !input.target || !input.target_player)) return cast(2);
             if (input.skill45[0] && input.target && input.target_player) return cast(3);
         }
         if (input.in_melee) return roll() >= aip[0] ? Think{ MonAct::idle, aip[4] } : Think{ MonAct::a1 };
@@ -3058,7 +3150,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (input.target && !input.target_state20 && input.dist < aip[3] && roll() < aip[2]) {
             if (input.skill[0] && input.target_life_pct >= aip[6]) return cast(0);
             if (input.skill[1] && input.self_life_pct <= aip[7]) return cast(1);
-            if (input.skill[2] && (input.target_max_mana < input.target_mana || !input.target_player)) return cast(2);
+            if (input.skill[2] && (input.target_max_mana < input.target_max_life || !input.target_player)) return cast(2);
             if (input.skill45[0] && input.target_player) return cast(3);
         }
         if (input.in_melee) {

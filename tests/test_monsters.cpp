@@ -645,6 +645,7 @@ int main() {
 #include "mon_ais_coldworm_cases.inc"
 #include "mon_ais4_cases.inc"
 #include "mon_ais5_cases.inc"
+#include "mon_ais_baal_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
                 // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's fields.
@@ -695,16 +696,17 @@ int main() {
                                          input.wisps = read(); input.bless_ok = read() != 0; }
                     if (kAis[std::size_t(which)].act4_scene) { input.skill_state = read() != 0; input.young = read(); input.lay_ok = read() != 0; input.kin_x = read(); input.kin_y = read();
                                                                input.kin_id = 4;     // the harness's kin (units +0xc)
-                                                               if (ai_of(which) == "Diablo") {
+                                                               if (ai_of(which) == "Diablo" || ai_of(which) == "BaalCrab" || ai_of(which) == "BaalCrabClone") {
                                                                    input.target = read() != 0; input.score = read(); input.players_looked = read(); input.has_word = read() != 0;
                                                                    input.word_x = read(); input.word_y = read(); input.stuck = read() != 0; input.reach = read() != 0;
-                                                                   input.left_skill = read(); input.right_skill = read(); input.target_state_b = read() != 0; input.players_about = read();
+                                                                   input.left_skill = read(); input.right_skill = read(); input.target_state_b = read() != 0; input.skill_bonus = read();
                                                                    input.in_chaos = read() != 0; input.target_light_res = read(); input.target_player = read() != 0;
                                                                    input.target_life_pct = input.life_pct;   // FUN_00621f20 answers one life for any unit
+                                                                   input.left_level = input.right_level = input.skill_level;   // FUN_006442a0 answers one level for any skill
                                                                } }
                     if (kAis[std::size_t(which)].act5_scene) {
                         input.lines_clear = read() != 0; input.skill1_range = read(); input.rider = read() != 0; input.self_dead = read() != 0; input.state69 = read() != 0;
-                        input.imp_near = read() != 0; input.target_state20 = read() != 0; input.target_mana = read(); input.target_max_mana = read();
+                        input.imp_near = read() != 0; input.target_state20 = read() != 0; input.target_max_life = read(); input.target_max_mana = read();
                         input.self_life_pct = input.life_pct; input.target_life_pct = read(); input.command_until = read(); input.target_player = read() != 0;
                         input.reach = read() != 0; input.command_busy = read() != 0;
                         input.attacker = read() != 0; input.hurt_minion = read() != 0; input.free_minion = read() != 0;
