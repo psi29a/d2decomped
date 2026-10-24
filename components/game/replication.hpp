@@ -127,7 +127,7 @@ inline void monster_state(Out& out, const Monster& monster) {
     out.i32(monster.hit_points).u8(monster.corpse_used).str(monster.mode);
     unit(out, monster.unit);
     // What its states draw from (town.hpp monster_states): the timers change only as a state starts.
-    out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until).i32(monster.cry.skill).u32(monster.cry.until).i32(monster.aura).u8(monster.in_aura).u8(monster.buried).u8(monster.aloft).str(monster.seq_mode).i32(monster.seq_frame);
+    out.u32(monster.poison_until).u32(monster.chill_until).u32(monster.stun_until).i32(monster.curse.skill).u32(monster.curse.until).i32(monster.cry.skill).u32(monster.cry.until).i32(monster.aura).u8(monster.in_aura).u8(monster.buried).u8(monster.aloft).u8(monster.riding).str(monster.seq_mode).i32(monster.seq_frame);
 }
 inline void monster_state(In& input, Monster& monster) {
     monster.hit_points = input.get<std::int32_t>(); monster.corpse_used = input.get<std::uint8_t>(); monster.mode = intern(input.str());
@@ -138,6 +138,7 @@ inline void monster_state(In& input, Monster& monster) {
     monster.in_aura = input.get<std::uint8_t>() != 0;
     monster.buried = input.get<std::uint8_t>() != 0;
     monster.aloft = input.get<std::uint8_t>() != 0;
+    monster.riding = input.get<std::uint8_t>() != 0;
     monster.seq_mode = intern(input.str()); monster.seq_frame = input.get<std::int32_t>();
 }
 }  // namespace wire

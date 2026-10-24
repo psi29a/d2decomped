@@ -77,3 +77,5 @@
 { "UberMephisto", false, true, true, true },
 { "UberDiablo", false, true, true, true },
 { "UberBaal", false, true, true, true },
+{ "ImpRide", false, true, true, true },
+{ "SiegeTower", false, true, true, true },

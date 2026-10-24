@@ -66,6 +66,8 @@ AIS = {
     "BaalCrab": 0x5fcfe0, "BaalCrabClone": 0x5fd210,
     # The ubers' (monster-ai.md "AncientStatue and the ubers' MonAIs"): three are a bare ret 4.
     "UberIzual": 0x5f8c80, "UberMephisto": 0x5f81c0, "UberDiablo": 0x5e9df0, "UberBaal": 0x5fd200,
+    # A riding imp's (special AI 16, 0x73d358 row + 8) and the barricade tower's (MonAI 113).
+    "ImpRide": 0x5e2d80, "SiegeTower": 0x5e1860,
 }
 DIABLO_LIKE = ("Diablo", "DiabloOther", "BaalCrab", "BaalCrabClone")   # his pick, kept point, hands
 BAAL_SKILLS = {0x13b: 2, 0x13c: 0, 0x13d: 1, 0x13e: 3}                 # FUN_005fcb60's raw ids: Skill3, 1, 2, 4
@@ -242,6 +244,10 @@ def setup(rng, ai):
             s["target"] = rng.random() < 0.7
             s["d_target"], s["score"], s["count"] = rng.random() < 0.8, rng.randint(0, 60), rng.randint(0, 4)
         s["imp_aip"] = [[rng.choice((0, 1, 2, rng.randint(0, 100), rng.randint(0, 20), 100)) for _ in range(8)] for _ in range(4)]
+    if ai == "ImpRide":                                                    # its pick (+0x18: 0 none, 2 / 4) and +0x1c (never set), state 0x8f
+        s["ctrl"][1], s["ctrl"][2] = rng.choice((0, 2, 2, 4, 4)), 0
+        s["riding"], s["rider"] = rng.random() < 0.9, rng.random() < 0.9
+        s["dist"] = rng.choice((s["dist"], rng.randint(20, 30)))
     if ai == "BaalCrabClone":                                              # mostly with a live master: its think
         s["rider"], s["busy"], s["group"] = rng.random() < 0.9, rng.random() < 0.1, rng.choice((None, None, "mon", "kin"))
     if ai == "Vulture":
@@ -426,6 +432,7 @@ def install(e):
     e.hook(0x639df0, lambda e: int(cur["s"].get("afraid", False) and e.arg(1) == 0x38 or cur["s"].get("state_c", False) and e.arg(1) == 0xc
                                     or cur["s"].get("state_b", False) and e.arg(1) == 0xb
                                     or cur["s"].get("state36", False) and e.arg(1) == 0x36
+                                    or cur["s"].get("riding", False) and e.arg(1) == 0x8f
                                     or cur["s"].get("skill_state", False) and e.arg(1) in (SKILL_STATE, 0x54)), 2)   # 0x54: the finger mage's target's
     def toggle(e):                                                     # FUN_005b0e00 back to the MonAI row's think: the reset branch
         out("toggle", e.arg(1))
@@ -631,9 +638,11 @@ def run_game(e, s, addr, rng_moves):
         e.w32(e.r32(0x744304) + 0xc4, 0x400)                             # the states' count: skill +0x80 / +0x82's tested
         block = alloc(0x40); e.w32(mon + 0x14, block); e.w32(block + 0x28, ctrl)   # unit +0x14 -> +0x28: its AI control
         data = e.r32(0x744304)
-        if s["ai"] == "Imp":                                             # MonStats imp1..imp4 (0x1ec..0x1ef): their aips
+        if s["ai"] in ("Imp", "ImpRide"):                                # MonStats imp1..imp4 (0x1ec..0x1ef): their aips; imp1's skills (the ride's)
             rows = alloc(0x1a8 * 0x1f0)
             e.w32(data + 0xa80, 0x1f0); e.w32(data + 0xa78, rows)
+            e.mu.mem_write(rows + 0x1a8 * 0x1ec + 0x170, struct.pack("<5h", *s["skills"]))
+            e.mu.mem_write(rows + 0x1a8 * 0x1ec + 0x180, bytes(s["modes"]))
             for k, row_aip in enumerate(s["imp_aip"]):
                 for j, v in enumerate(row_aip): e.mu.mem_write(rows + 0x1a8 * (0x1ec + k) + 0x56 + 6 * j + 2 * s["diff"], struct.pack("<h", v))
     if s["ai"].startswith("Baal"):                                       # MonStats by class (FUN_005fcb60): its row
@@ -740,6 +749,7 @@ def dump_case(s, act, pace, effects, asks, ctrl, seed):
                  int(s["attacker"]), int(s["hurt"]), int(s["free_minion"])] + [v for row in s["imp_aip"] for v in row]
         nums += [int(s["catapult_gone"]), int(s["strike_spot"]), int(s["spawn_unset"]), int(s["spawn_found"]), int(s["spawn_room"]), int(s["defile"]),
                  s["ancient"], int(s["asleep"]), int(s["state36"]), int(s.get("d_target", False))]
+        if s["ai"] == "ImpRide": nums += [int(s["riding"])]
     nums += list(s["seed"])
     kinds = {"state": 0, "overlay": 1, "stat": 2, "rally": 3, "command_done": 4, "summoner_open": 5, "aura": 6, "land": 7, "takeoff": 8,
              "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14, "mount": 15, "retarget": 16, "clone": 17}

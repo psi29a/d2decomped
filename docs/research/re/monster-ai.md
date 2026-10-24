@@ -356,6 +356,65 @@ chooser's casting test (Fire Wall over 3, 0x1b over 7) reads them.
 `rules::diablo_score`, proven on 400 cases (tools/emu/diablo_score.py,
 tests/diablo_score_cases.inc).
 
+## The imps' ride and skills (traced 2026-10-24)
+
+imp1..imp8 (BaseId imp1, class 0x1ec) carry Imp Teleport (Skill1, do
+129), ImpBolt, Imp Fireball (Skill3, srvmissile impfireball), Imp Fire
+Missile (Skill4, do 132) and Imp Inferno (Skill5, srvst 59 / do 126). The
+Imp think (MonAI 122, FUN_005e2ff0) casts only Skill1 and Skill4; Skill3
+and Skill5 come from the ride.
+
+- **The claim.** A siege beast (MonAI 115, FUN_005e1900; within its aip1)
+  or a barricade tower (MonAI 113, FUN_005e1860: unridden or its rider
+  dead, with a target, within 20, then stands aip1) searches
+  (FUN_005dd0b0 with FUN_005e1720) for an imp: a monster, alive
+  (FUN_0063ea40), BaseId imp1, seen (FUN_00650d70), not a pet
+  (FUN_006259b0), unbound (FUN_00552fd0), its ride word (AI control
+  +0x14) -1, within the radius (squared, `<=`). FUN_005e17e0 writes the
+  mount's id into that word.
+- **Getting on.** The Imp think walks to it past b1, else casts Skill1
+  at it. Do 129 (FUN_005d1ab0) at a unit that's unbound and alive moves
+  the imp onto its spot (FUN_00554ea0 flag 1) and mounts (FUN_005d18e0:
+  imp BaseId 0x1ec, mount BaseId 0x1b3 barricadetower or 0x1b9
+  siegebeast1; state 0x8f on, both bound (FUN_00621ce0, unit +0x98),
+  events 5, the imp's flags 0xe off, special AI 16).
+- **The ride think** (special 16, table 0x73d358: init FUN_005e2cd0,
+  think FUN_005e2d80). The init draws once on the imp's seed and picks
+  slot 4 (Inferno) on an even draw, else slot 2 (Fireball) (table
+  0x6e34e0 {2, 4}, flags 0), the other when it lacks one (FUN_006439b0).
+  The think: state 0x8f off or no mount → toggle back, stand 1. AI
+  distance past 24, the mount dead (FUN_005541b0: mode DT / DD), the
+  mount under FUN_006259b0, or no pick → teleport off (FUN_005df850 with
+  imp1's Skill1 and Sk1mode, radius imp1's aip2), the ride word -1.
+  Within imp2's aip2, imp2's aip3 %: the pick (imp1's Skill / Sk mode at
+  that slot) at the target, a stand 20 when that slot is empty; else
+  50 % S1 at it, else stand 20.
+- **Getting off.** Do 129 while bound: the free spot nearest the point
+  (FUN_00554ea0), then FUN_005d19d0: state 0x8f off, unbound; under 10 %
+  life (FUN_00621f20) it dies (FUN_0057ccb0, no killer), else flags 0xe
+  back, event 5, its own think. With neither a mount nor a unit, do 129
+  is MonTeleport (FUN_005ccc80).
+- **Imp Fire Missile** (do 132, FUN_005d2090): caster flag 0x40 (once),
+  then FUN_0056ecb0 with Missiles row srvmissilea + MonStats +0x4b
+  (TransLvl: imp1..5 → impmiss21..25) at the target. impmiss2x carry no
+  damage of their own, SrcDamage 128: the imp's A1 damage.
+- **Imp Inferno** (srvst 59, FUN_005d1280: the skill record's end frame
+  = now + calc1 (rand(par3, par4), 100..120), at least 1; state 0xc on;
+  do 126, FUN_005d1350): a flame (srvmissilea impinfernoflame1, velocity
+  Vel + VelLev x lvl / 8) at the target's spot (path set to it, facing
+  it); its range calc2 + the row's Param2 (16) (FUN_00648e70 path +0x90,
+  FUN_0064a2b0 / FUN_0064a330 missile +0xe / +0x10). While the end is
+  ahead and state 0xc on: the next think event 3 frames on, else event 2
+  13 frames on (the end).
+
+Checked: `mon_ais.py ImpRide,SiegeTower 3000 7 --dump
+tests/mon_ais_imp_ride_cases.inc`, all paths match `rules::mon_think`
+("ImpRide", "SiegeTower"). d2d: `Monster::bound` / `riding` (untargetable,
+out of the crowd, sits on its mount), the claim in `think`, mount and
+dismount in do 129, `rules::imp_ride_pick`. Nihlathak's Skill1 is Imp
+Teleport too (MonTeleport for him). Not in d2d: imp6..8's Inferno through
+seq_impinferno (a sequence's do-func), the claim's sight and pet tests.
+
 ## Baal — FUN_005fcfe0, his clone FUN_005fd210
 
 MonAI 135 `{FUN_005fcfe0, FUN_005fcf30, 1}`, 140 (baalclone) `{FUN_005fd210,

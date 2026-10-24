@@ -1212,7 +1212,9 @@ struct ThinkIn {
     // minions (the MinionSpawner's FUN_005e2b70 count too: `young`).
     bool attacker = false, hurt_minion = false, free_minion = false;
     // The Imp's: MonStats imp1..imp4's aip1..8 (its think reads theirs).
+    // A riding imp's state 0x8f (FUN_00639df0; `rider` is its mount).
     std::array<std::array<int, 8>, 4> imp_aip{};
+    bool riding = false;
     // The catapult spotter's: its catapult gone (FUN_005edf70 finds none
     // behind it); a free spot at its strike's point (FUN_0064e7e0, mask
     // 0x805). The generic spawner's: its spawn type unset (AI control +0x3c
@@ -1238,7 +1240,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 99> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 100> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1249,7 +1251,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul", "BaalCrab", "BaalCrabClone",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
-                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt", "UberIzual", "UberMephisto", "UberDiablo", "UberBaal" };
+                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt", "UberIzual", "UberMephisto", "UberDiablo", "UberBaal", "SiegeTower" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3237,17 +3239,41 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // a2 of itself), else c2 % backs off 5 (running). Then a3 % teleports;
     // within c1 c2 % backs off 5; Skill4 at the second target within c3 (c4
     // %) or d3 (d4 %); 33 % approaches 4; else 80 % stands 10, 20 % wanders 8.
+    auto imp_teleport = [&] {                                       // FUN_005df850: Skill1 at a point within a2 of itself
+        const int radius = input.imp_aip[0][1];
+        Think out = cast(0, ThinkUnit::none);
+        out.x = rng(2 * radius) - radius + input.self_x;
+        out.y = rng(2 * radius) - radius + input.self_y;
+        return out;
+    };
+    // A riding imp's think (special 16, FUN_005e2d80; its init imp_ride_pick):
+    // off its mount or out of state 0x8f, back to its own think, stands 1.
+    // Past 24, its mount busy or under 0x69's test, or no pick (+0x18 0): it
+    // teleports off (as below), its ride word -1. Within b2, b3 %: its pick
+    // (Skill3 Fireball / Skill5 Inferno) at the target, a stand 20 when unset;
+    // else 50 % S1 at it, else stands 20.
+    // ponytail: its +0x1c (two more draws) is never set: the pick table's 0s.
+    if (ai_name == "ImpRide") {
+        if (!input.riding || !input.rider) { effect(ThinkEffect::toggle); return { MonAct::idle, 1 }; }
+        if (input.dist > 24 || input.command_busy || input.state69 || *input.state2 == 0) { *input.state = -1; return imp_teleport(); }
+        if (input.dist < input.imp_aip[1][1] && roll() < input.imp_aip[1][2]) {
+            const int slot = *input.state2;
+            return slot >= 0 && slot < 5 && (slot < 3 ? input.skill[std::size_t(slot)] : input.skill45[std::size_t(slot - 3)]) ? cast(slot) : Think{ MonAct::idle, 20 };
+        }
+        if (roll() < 50) return { MonAct::s1 };
+        return { MonAct::idle, 20 };
+    }
+    // SiegeTower (113, FUN_005e1860): unridden (no mount, or it's busy) with
+    // a target, an imp within 20 takes it (FUN_005e17e0); stands aip1.
+    if (ai_name == "SiegeTower") {
+        if ((!input.rider || input.command_busy) && input.target && input.imp_near) effect(ThinkEffect::mount);
+        return { MonAct::idle, aip[0] };
+    }
     if (ai_name == "Imp") {
         const auto& first = input.imp_aip[0];
         const auto& third = input.imp_aip[2];
         const auto& fourth = input.imp_aip[3];
-        auto teleport = [&] {                                       // FUN_005df850: Skill1 at a point within a2 of itself
-            const int radius = input.imp_aip[0][1];
-            Think out = cast(0, ThinkUnit::none);
-            out.x = rng(2 * radius) - radius + input.self_x;
-            out.y = rng(2 * radius) - radius + input.self_y;
-            return out;
-        };
+        auto teleport = imp_teleport;
         if (*input.state != -1 && !input.state69) {
             if (!input.command_unit || input.command_busy || input.rider) *input.state = -1;
             else {
@@ -3563,6 +3589,16 @@ inline void ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, in
     if (next == 0 && special == 0 && !other && has_other) { other = true; return; }
     special = next; other = false;
     for (int* word : scratch) *word = 0;
+}
+
+// The riding imp's init (special 16's, FUN_005e2cd0): one draw on its seed;
+// slot 4 (Skill5, Inferno) on an even draw, else slot 2 (Skill3, Fireball)
+// (0x6e34e0 {2, 4}), the other when it lacks that one, 0 when it has neither.
+inline int imp_ride_pick(Rng& rng, bool has_fireball, bool has_inferno) {
+    const bool inferno_first = (rng.next() & 1) == 0;
+    if (inferno_first ? has_inferno : has_fireball) return inferno_first ? 4 : 2;
+    if (inferno_first ? has_fireball : has_inferno) return inferno_first ? 2 : 4;
+    return 0;
 }
 
 // MonAI rows with an other think (the fourth word) d2d has: 15 SandMaggot,

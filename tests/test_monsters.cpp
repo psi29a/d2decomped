@@ -647,6 +647,7 @@ int main() {
 #include "mon_ais5_cases.inc"
 #include "mon_ais_baal_cases.inc"
 #include "mon_ais_uber_cases.inc"
+#include "mon_ais_imp_ride_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
                 // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's fields.
@@ -715,6 +716,7 @@ int main() {
                         input.catapult_gone = read() != 0; input.strike_spot = read() != 0; input.spawn_unset = read() != 0;
                         input.spawn_found = read() != 0; input.spawn_room = read() != 0; input.defile = read() != 0;
                         input.ancient = read(); input.asleep = read() != 0; input.state36 = read() != 0; input.picked = read() != 0;
+                        if (ai_of(which) == "ImpRide") input.riding = read() != 0;
                     }
                     d2d::rules::Rng seed;
                     seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));

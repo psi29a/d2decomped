@@ -926,12 +926,16 @@ Branch `act5`:
   the three fall. The Cube's Cow Portal opens; the Pandemonium portals
   return 0 in 1.14d (realm-only), so the keys and organs stay.
 
+- The imps' skills and ride (monster-ai.md "The imps' ride and skills"):
+  Teleport (do 129) on and off a siege beast or barricade tower, the ride
+  think (special 16) proven in tools/emu, its Fireball and Inferno (srvst
+  59 / do 126), Fire Missile (do 132). Left: imp6..8's sequence Inferno.
+
 Stubs and dead code found so far: docs/research/re/stubs.md.
 
 Still open for Act 5:
 
-- Monster skills that stand today (no do-func in d2d): the imps' Teleport
-  (do 129), Inferno (126), Fire Missile (132); the overseers' Cry Help
+- Monster skills that stand today (no do-func in d2d): the overseers' Cry Help
   (128) and Whip (131); the death mauler's DeathMaul (136); the putrid
   defiler's Impregnate (133); the siege beast's Stomp (134); the Ancients'
   Whirlwind, Shout (War Cry) and Leap Attack as monsters cast them.

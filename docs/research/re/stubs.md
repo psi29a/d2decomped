@@ -22,6 +22,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_005eeaa0` | AncientStatue think (MonAI 132): Rite awake → skill 302 | unreachable | ancientstatue1..3 are never placed or made | not ported | monster-ai.md, as above |
 | `FUN_00594700`, `FUN_005947e0`, `FUN_00595160` | a1q4 list append / contains, and another | orphan | — | not ported | quests-act1.md |
 | `FUN_00570530` | a monster AI restore (calls the AI toggle) | orphan | — | not ported | monster-ai.md "Curse thinks and other thinks" |
+| `FUN_005e2d80` +0x1c | a riding imp's two extra draws when its AI control +0x1c is set | unreachable | the init (FUN_005e2cd0) copies 0x6e34e0's flags, both 0 | not ported | monster-ai.md "The imps' ride and skills" |
 | `FUN_005a30e0` mod 24 | thief (MonUMod 24) on a hit | unreachable | MonUMod disables it; `FUN_005a49b0` skips it for Lord De Seis | not ported | monsters.md |
 
 Still reachable, though the content looks dead: the uber levels 133..136

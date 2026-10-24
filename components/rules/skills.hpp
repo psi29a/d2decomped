@@ -257,6 +257,7 @@ enum class ServerStartFunction : int {
     kStackingStrike = 56,          // Feral Rage, Maul
     kRabies = 57,
     kFireClaws = 58,               // FUN_005c7e00
+    kImpInferno = 59,              // FUN_005d1280: the flames' end calc1 frames on (at least 1), state 0xc on
 };
 
 // Skills.txt srvdofunc (and srvprgfunc1..3, which index the same table):
@@ -374,6 +375,9 @@ enum class ServerDoFunction : int {
     kVolcano = 123,                // FUN_005c8080
     kStormAroundCaster = 124,      // FUN_005c8190: Armageddon, Hurricane
     kWakeOfDestruction = 125,
+    kImpInferno = 126,             // FUN_005d1350: a flame at the target every 3 frames till the start's end
+    kImpTeleport = 129,            // FUN_005d1ab0: onto its mount, off it, else as MonTeleport
+    kImpFireMissile = 132,         // FUN_005d2090: srvmissilea + TransLvl at the target, once
     kBaalColdMissiles = 139,       // FUN_005d2940: srvmissilea (a maker) at the target's spot
     kBaalTentacle = 140,           // FUN_005d2c20: 2 + rand(3) + difficulty tentacles about the target
     kReleaseMissileAtUnitsSecondScan = 143,   // FUN_005d4f40 -> FUN_005d4870: 37 through the other scan

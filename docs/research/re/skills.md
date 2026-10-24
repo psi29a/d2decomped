@@ -1380,3 +1380,11 @@ the Run sequence's numbers):
 Already in d2d's table: 22 Nova (Frost Nova, DiabFire), 24 wall
 (PrimeFirewall), 18 self state (MonBoneArmor), 10 guided (MonBoneSpirit),
 30 curse (Decrepify), 96 Bestow, 95 breath (MegademonInferno's do).
+
+### Act 5's imp skills (2026-10-24, monster-ai.md "The imps' ride and skills")
+
+| skill (Id) | srvst | srvdo | does |
+|---|---|---|---|
+| Imp Inferno (282) | 59 FUN_005d1280 | 126 FUN_005d1350 | start: end frame + calc1 (rand(par3, par4)), state 0xc; do: a flame (srvmissilea) at the target every 3 frames till the end, its range calc2 + Missiles Param2 |
+| Imp Teleport (330) | — | 129 FUN_005d1ab0 | riding: off at the free spot nearest the point (FUN_005d19d0); at an unbound live unit: onto it and mount (FUN_005d18e0, special 16); else MonTeleport (FUN_005ccc80) |
+| Imp Fire Missile (299) | — | 132 FUN_005d2090 | caster flag 0x40; srvmissilea + TransLvl (MonStats +0x4b) at the target (FUN_0056ecb0), the imp's A1 damage by SrcDamage |

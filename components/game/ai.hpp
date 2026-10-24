@@ -268,6 +268,12 @@ struct Monster {
     // lifted, pattern 5, path mask 0): untargetable, it flies over
     // anything till it lands (FUN_005f2fc0).
     bool aloft = false;
+    // A siege beast's or barricade tower's imp and its mount, bound to each
+    // other (unit +0x98, FUN_00621ce0): the pack index of the other, -1 none.
+    // The imp rides (state 0x8f, FUN_005d18e0): flags 0xe off, it sits on
+    // its mount and thinks the ride's think (special 16).
+    int bound = -1;
+    bool riding = false;
     // Gone from the game without dying (FUN_005ddfc0: the Dark Wanderer at
     // his walk's end): no corpse, no kill, not drawn.
     bool gone = false;
@@ -322,7 +328,7 @@ struct Monster {
     bool half_freeze = false;
     int variant = -1;                         // the knights' rand(4) as made (d2d::rules::monster_variant), -1 none
     [[nodiscard]] bool alive() const { return hit_points > 0 && !gone; }
-    [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft; }   // unit flags 0xe: not a buried maggot, a vulture aloft, an unkillable one
+    [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const GameData& game_data) const {
         const auto& type_info = game_data.monsters.types[std::size_t(type)];
