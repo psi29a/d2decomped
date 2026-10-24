@@ -597,15 +597,17 @@ auto Town::send(const Command& command) -> void {
                         best = apart; net_operate_type = 0; net_operate = id; net_operate_ms = frame_now; net_operate_moves = false; net_operate_waypoint = -1;
                     }
         } else if (interact && interact->npc <= -2000 && interact->npc > -2000 - int(d2d::game::World::kGamePortals)) {
-            // A town portal: ours by the host's id for this end (0x82), else its
-            // TownPortal (object 59) nearest d2d's (they open apart:
-            // deviations.md); operated once the host has us there, as it
-            // warps us (0x15); d2d takes its own here.
+            // A town portal: ours by the host's id for this end (0x82), else the
+            // host's object nearest d2d's (they open apart: deviations.md) of
+            // the slot's class (World::portal: 59 a town portal, 60 the quest
+            // portals, 100 the true tomb's way down); operated once the host
+            // has us there, as it warps us (0x15); d2d takes its own here.
             const int which = -2000 - interact->npc;
+            static constexpr std::array<int, d2d::game::World::kGamePortals> kHostClass{ 59, 59, 60, 60, 60, 60, 100, 59, 60, 60 };
             if (which < 2 && net_game->portal_here != 0) {
                 net_operate_type = 2; net_operate = net_game->portal_here; net_operate_ms = frame_now; net_operate_moves = true; net_operate_waypoint = -1;
             } else if (const auto& entry = world.portal[std::size_t(which)]; entry.level) {
-                if (const auto* host_portal = net_game->nearest(2, 59, (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f, 10.f)) {
+                if (const auto* host_portal = net_game->nearest(2, kHostClass[std::size_t(which)], (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f, 10.f)) {
                     net_operate_type = 2; net_operate = host_portal->id; net_operate_ms = frame_now; net_operate_moves = true; net_operate_waypoint = -1;
                 } else {
                     net_game->log.note(std::format("no host portal near ({:.0f}, {:.0f})", (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f));
