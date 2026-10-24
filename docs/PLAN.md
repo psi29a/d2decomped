@@ -894,6 +894,32 @@ classic ending (90 s, the credits), the seal flash's event (the boss comes
 at once), the gems at once on loot's rng, the burning souls' chest drop,
 Act 5 past the portal.
 
+## Checkpoint 2026-10-24: Act 5 (Lord of Destruction)
+
+Branch `act5`:
+
+- Levels: Act 5's layout and all 28 levels (Harrogath to the Worldstone
+  Chamber) match game.exe room for room, tile for tile, in units, object
+  groups and monsters (docs/research/re/drlg.md "Act 5's layout"); the
+  uber levels 133..136 build but their monsters / object groups differ.
+- Harrogath's NPCs as game.exe places them; its town portals open at its
+  start tile (no index-11 tile: `FUN_0066ac40` takes the first).
+- Thinks: 22 Act 5 MonAIs verified against game.exe in tools/emu
+  (`tests/mon_ais5_cases.inc`), plus the quest-driven Wussie, BaalThrone
+  and BaalToStairs (ai.cpp). MonStats Align at spawn (`FUN_005b2a00`): the
+  defenders and prisoners are on the player's side.
+- Quests (docs/research/re/quests-act5.md): the introductions (the save's
+  NPC section kept), Siege on Harrogath, Rescue on Mount Arreat, Prison of
+  Ice, Betrayal of Harrogath, Rite of Passage, Eve of Destruction —
+  `tests/quests_d2d.py ... 5` plays all six from a new character.
+
+Still open: Baal in the Chamber and his clone (BaalCrab / BaalCrabClone,
+the Diablo-like chooser), BaalTaunt, AncientStatue, the ubers; Larzuk's
+socketing and Anya's personalizing (a5q1 / a5q4's bit 0); Act 5's monster
+skills and umod 33's blast; the cinematics.
+
+Next: Larzuk's and Anya's services, then Baal's fight.
+
 ## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
 
 PR #66 (`sentry-fixes`):
