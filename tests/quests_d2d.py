@@ -750,7 +750,7 @@ def act4():
 
 
 def a5(key):
-    """Act 5's record states (s) or logs (l) from `debug quest ... show`: [a5q1, a5q2, a5q3, a5q4]."""
+    """Act 5's record states (s) or logs (l) from `debug quest ... show`: [a5q1 .. a5q5]."""
     shown = cmd("debug quest 35 show")
     return [int(v) for v in re.search(rf"{'a5' if key == 's' else 'logs'}=(\S+)", shown)[1].split(",")]
 
@@ -830,7 +830,7 @@ def act5():
     fana()
     until("Anya thaws", lambda: "Prison of Ice: Anya thaws" in log_text(), 10)
     assert bits(0x25) & 0x2002 == 0x2002, f"word 0x25: {bits(0x25):#x}"
-    assert a5("s")[2:] == [5, 1], f"a5q3 thawed, a5q4 open: {a5('s')}"
+    assert a5("s")[2:4] == [5, 1], f"a5q3 thawed, a5q4 open: {a5('s')}"
     go(109)
     talk_until("Malah", lambda: bits(0x25) & 0x100, "no scroll")
     until("Anya home", lambda: "Anya goes home" in log_text(), 5)
@@ -852,6 +852,33 @@ def act5():
     go(109)
     talk_until("Anya", lambda: bits(0x26) & 0x10, "the betrayal not rewarded")
     print("OK: Betrayal of Harrogath (a5q4)")
+    # a5q5 (of level 20 on Normal): Qual-Kehk (20153, bit 2); the Summit's
+    # altar has the Ancients speak; 20 frames on the statues are the three
+    # Ancients; all dead: bits 0 and 13, the experience; the stairs lead to
+    # the Worldstone Keep.
+    def objects(op):
+        return [l.split("\t") for l in cmd("debug objects").splitlines() if l.split("\t")[3:4] == [f"op{op}"]]
+    cmd("debug stat 12 25")
+    talk_until("Qual-Kehk", lambda: bits(0x27) & 4, "the rite not given")
+    cmd("debug goto 120")
+    until("on the Arreat Summit", lambda: level() == 120, 60)
+    cmd("debug warp 10 17"); time.sleep(1); cmd("debug kill within 30")
+    altar = objects(65)
+    assert altar, f"no altar: {cmd('debug objects')!r}"
+    cmd(f"debug warp {altar[0][1]} {float(altar[0][2]) + 1}"); time.sleep(0.5)
+    cmd(f"debug operate {altar[0][0]}")
+    until("the Ancients", lambda: all(f"(superunique {n})" in log_text() for n in (43, 44, 45)), 10)
+    deadline = time.time() + 30
+    while time.time() < deadline and "the Ancients are dead" not in log_text():
+        cmd("debug kill within 30"); time.sleep(0.5)
+    assert bits(0x27) & 0x2001 == 0x2001, f"word 0x27: {bits(0x27):#x} {a5('s')}"
+    assert "Rite of Passage: +" in log_text(), "no experience"
+    stairs = objects(66)
+    assert stairs, "no stairs"
+    cmd(f"debug warp {stairs[0][1]} {float(stairs[0][2]) + 1}"); time.sleep(0.5)
+    cmd(f"debug operate {stairs[0][0]}"); time.sleep(0.5); cmd(f"debug operate {stairs[0][0]}")
+    until("in the Worldstone Keep", lambda: level() == 128, 30)
+    print("OK: Rite of Passage (a5q5)")
 
 
 try:

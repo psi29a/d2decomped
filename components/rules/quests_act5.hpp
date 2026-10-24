@@ -661,4 +661,178 @@ struct BetrayalQuest {
     }
 };
 
+// Rite of Passage (a5q5.cpp, word 0x27, record 0x23, FUN_0058ce30). State:
+// 0 shut, 1 open (a5q4's chain), 2 Qual-Kehk told (20153) or the altar
+// used, 3 the Arreat Summit, or out of Harrogath at 2; 5 the Ancients dead.
+// The altar (object 546, OperateFn 65) has the Ancients speak (20002); that
+// heard, the three statues (474..476) go to mode 3 and each, 20 frames on
+// (event 7, FUN_0058c0e0), turns into its Ancient (superuniques 0x2d, 0x2b,
+// 0x2c). They sleep (their AI, FUN_0058cf90) till then. All three dead: the
+// players on the Summit of level 20 / 40 / 60 or more get bits 0 and 13 and
+// experience (FUN_0058c5c0), the rest bit 14; the stairs (547, OperateFn 66)
+// lead on to the Worldstone Keep. A player dying on the Summit puts them
+// back (FUN_005be290 -> FUN_0058c000). Log: 1 told, 2 on the Summit, 3 the
+// altar, 13 done.
+struct RiteQuest {
+    static constexpr int kQuest = 0x27, kQualKehk = act5_detail::kQualKehk, kSummit = 120;
+    static constexpr int kTold = 20153, kSpeech = 20002, kAside = 20169, kWakeFrames = 20;
+    static constexpr int kAltar = 546, kStairs = 547;
+    // The statues (objects) and their Ancients (FUN_0058c0e0: [0x744304] +0xb3a / +0xb36 / +0xb38).
+    static constexpr std::array<int, 3> kStatues{ 475, 474, 476 }, kSuperuniques{ 0x2b, 0x2d, 0x2c };
+    static constexpr std::array<int, 3> kAncients{ 0x21c, 0x21d, 0x21e };   // ancientbarb1..3
+    // The town's congratulations (FUN_0058c290): their bits 5..9.
+    struct Congrats { int npc, string, bit; };
+    static constexpr std::array<Congrats, 5> kCongrats{ { { 511, 20167, 5 }, { 520, 20165, 6 }, { 512, 20166, 7 }, { 513, 20168, 8 }, { 515, 20164, 9 } } };
+    bool open = true;
+    int state = 0, log = 0;
+    bool done = false;             // data +0: the three dead
+    bool told_heard = false;       // data +1
+    bool heard = false, awake = false;   // data +0x10 / +0x11
+    std::array<int, 3> statue_mode{};    // data +0x30: 0, 3 waking, 4 an Ancient
+    int made = 0, alive = 0;       // data +0x40 / +0x44
+    bool fighting = false;         // data +0x48
+    bool stairs_open = false;      // data +0x4a
+    int altar_mode = 0;            // data +0x4c
+    bool news = false;
+
+    static bool level_enough(int clvl, int difficulty) { return clvl >= (difficulty + 1) * 20; }   // (+0x6d + 1) x 20
+    // FUN_0058c210: the steps marked, for a player of the level.
+    void mark(QuestBits& quest_bits, int clvl, int difficulty) const {
+        if (quest::bit(quest_bits, kQuest, 0) || !level_enough(clvl, difficulty)) return;
+        if (state == 2) quest::set(quest_bits, kQuest, 2);
+        if (state == 3) quest::set(quest_bits, kQuest, 3);
+    }
+    // The player joins (LAB_0058cda0).
+    void join(const QuestBits& quest_bits) {
+        open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
+        if (!open) { stairs_open = true; return; }
+        if (quest::bit(quest_bits, kQuest, 3)) { log = 1; state = 3; }
+        else if (quest::bit(quest_bits, kQuest, 2)) { log = 1; state = 2; }
+    }
+    // a5q4's chain (FUN_0058cd30).
+    void opened() { if (open && state == 0) state = 1; }
+    // A level change (FUN_0058cba0).
+    void enter(QuestBits& quest_bits, int from, int into, int clvl, int difficulty) {
+        if (from == act5_detail::kHarrogath && open && state == 2 && !quest::bit(quest_bits, kQuest, 0)) {
+            state = 3;
+            if (log != 1) { log = 1; news = true; }
+            mark(quest_bits, clvl, difficulty);
+        }
+        if (into != kSummit) return;
+        bool moved = false;
+        if (log < 2 && state > 2) { log = 2; news = true; moved = true; }
+        if (state < 3) { state = 3; moved = true; }
+        if (moved) mark(quest_bits, clvl, difficulty);
+    }
+    // Qual-Kehk's talk closes (LAB_0058be80).
+    void talk_closed(int npc) { if (npc == kQualKehk && std::exchange(told_heard, false)) { log = 1; news = true; } }
+    // The altar used (OperateFn 65, FUN_0058d310) at mode 0: the Ancients
+    // speak (FUN_005456a0(20002): heard); state 2 from under, log 3. True
+    // when they spoke.
+    bool altar(QuestBits& quest_bits) {
+        if (altar_mode != 0) return false;
+        if (open) {
+            if (state >= 4) return false;
+            if (state < 2) state = 2;
+            if (log != 3) { log = 3; news = true; }
+        }
+        altar_mode = 2;
+        said(quest_bits, -1, kSpeech, 0, 0);
+        return true;
+    }
+    // Heard (FUN_0058c290): true when the statues wake (their event 7 due).
+    bool said(QuestBits& quest_bits, int npc, int string, int clvl, int difficulty) {
+        if (string == kTold) {
+            if (npc != kQualKehk || !open || state != 1) return false;
+            state = 2;
+            if (log != 1) { log = 1; news = true; }
+            mark(quest_bits, clvl, difficulty);
+            told_heard = true;
+            return false;
+        }
+        if (string == kSpeech) {
+            if (open && state < 4 && log != 3) { log = 3; news = true; }
+            if (std::ranges::any_of(statue_mode, [](int mode) { return mode != 0; })) return false;
+            statue_mode = { 3, 3, 3 };
+            made = alive = 0;
+            heard = awake = true;
+            return true;
+        }
+        if (string == kAside) { quest::set(quest_bits, kQuest, 4); return false; }
+        for (const auto& congrats : kCongrats) if (npc == congrats.npc && string == congrats.string) quest::set(quest_bits, kQuest, congrats.bit);
+        return false;
+    }
+    // A statue's event 7 (FUN_0058c0e0): its Ancient's superunique to make
+    // (-1 none).
+    int statue_wakes(int which) {
+        if (made >= 3 || statue_mode[std::size_t(which)] == 4) return -1;
+        statue_mode[std::size_t(which)] = 4;
+        ++made; ++alive; fighting = true;
+        return kSuperuniques[std::size_t(which)];
+    }
+    // An Ancient died (FUN_0058c9a0): true when it was the last, the Rite
+    // won (state 5, the log 13, the chain); then each player's reward().
+    bool ancient_died() {
+        if (!heard || !awake || alive <= 0) return false;
+        if (--alive != 0) return false;
+        done = true;
+        if (!open) return false;
+        state = 5;
+        if (log != 0xd) { log = 0xd; news = true; }
+        stairs_open = true;
+        return true;
+    }
+    // A player's share (FUN_0058c7e0 / FUN_0058c780): on the Summit, of the
+    // level, not done: bits 13 and 0 and the experience; else bit 14.
+    // Returns whether the experience is theirs.
+    bool reward(QuestBits& quest_bits, bool on_summit, int clvl, int difficulty) const {
+        if (on_summit && level_enough(clvl, difficulty) && !quest::bit(quest_bits, kQuest, 0)) {
+            quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 0);
+            return true;
+        }
+        if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 13)) quest::set(quest_bits, kQuest, 14);
+        return false;
+    }
+    // FUN_0058c5c0: 1.4M / 20M / 40M, at most what the next level takes.
+    static constexpr std::array<std::int64_t, 3> kExperience{ 1400000, 20000000, 40000000 };
+    // A player died on the Summit, the Rite not won (FUN_005be290): the
+    // Ancients go, the statues and the altar back to mode 0 (FUN_0058c000).
+    bool reset() {
+        if (done) return false;
+        heard = awake = fighting = false;
+        statue_mode = {};
+        made = alive = 0;
+        altar_mode = 0;
+        return true;
+    }
+    // The stairs (OperateFn 66, FUN_0058d400): whether they let the player on.
+    [[nodiscard]] bool stairs_pass(const QuestBits& quest_bits) const {
+        if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) return false;
+        return !((open && !done) || (fighting && !done));
+    }
+    // Blocks (0x735100 by 0x7357e4; FUN_0058c440).
+    static inline const std::vector<act5_detail::Entry> kBlocks[6] = {
+        { { 515, 20153, true } },
+        { { 511, 20157, false }, { 520, 20155, false }, { 513, 20158, false }, { 515, 20154, false }, { 512, 20156, false } },
+        { { 511, 20162, false }, { 520, 20160, false }, { 512, 20161, false }, { 513, 20163, false }, { 515, 20159, false } },
+        { { 511, 20167, false }, { 520, 20165, false }, { 512, 20166, false }, { 513, 20168, false }, { 515, 20164, false } },
+        { { 537, 20002, true }, { 538, 20002, true }, { 539, 20002, true } },
+        { { 511, 20167, true }, { 520, 20165, true }, { 512, 20166, true }, { 513, 20168, true }, { 515, 20164, true } },
+    };
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+        if (!open) return {};
+        if (!quest::bit(quest_bits, kQuest, 0)) return state >= 1 && state <= 5 ? act5_detail::block_for(kBlocks[state - 1], npc) : std::vector<QuestMsg>{};
+        for (const auto& congrats : kCongrats)
+            if (npc == congrats.npc) {
+                if (!quest::bit(quest_bits, kQuest, congrats.bit)) return act5_detail::block_for(kBlocks[5], npc);
+                if (quest::bit(quest_bits, kQuest, 13)) return act5_detail::block_for(kBlocks[3], npc);
+            }
+        return {};
+    }
+    // The "!" (FUN_0058ccf0).
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const { return npc == kQualKehk && state == 1 && !quest::bit(quest_bits, kQuest, 0); }
+    // The log: the records' default (+0xe8 none; done at +0xd 4).
+    [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
+};
+
 }  // namespace d2d::rules
