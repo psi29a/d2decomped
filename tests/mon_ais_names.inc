@@ -73,3 +73,7 @@
 { "ClawViperEx", false, true, true, true },
 { "BaalCrab", false, true, true, true },
 { "BaalCrabClone", false, true, true, true },
+{ "UberIzual", false, true, true, true },
+{ "UberMephisto", false, true, true, true },
+{ "UberDiablo", false, true, true, true },
+{ "UberBaal", false, true, true, true },

@@ -599,7 +599,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     const bool baal = type_info.ai_name == "BaalCrab" || type_info.ai_name == "BaalCrabClone";
     const int point_far = baal ? 0x4b : 0x55;
     if (target && (type_info.ai_name == "Diablo" || baal)) {
-        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+        const std::uint16_t line_mask = type_info.ai_name == "UberIzual" ? 0x06 : 0x04;   // UberIzual's teleport test: FUN_00622aa0 mask 6
+        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, line_mask); };
         const int point_x = monster.has_point ? monster.point_x : x, point_y = monster.has_point ? monster.point_y : y;
         const auto value = [&](const Foe& foe) {
             const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
@@ -1009,6 +1010,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             take(found, found_squared);
         }
         if (name == "AbyssKnight") input.skill_state = monster.armored;
+        if (name == "UberIzual") input.skill_state = now_ms < monster.self_state_until;
         // The knight's curse (Skill4) and the finger mage's spider (Skill1):
         // their auratargetstate (skill +0x82) on the target (FUN_006256b0).
         if (const std::size_t slot = name == "OblivionKnight" ? 3 : 0; name == "OblivionKnight" || name == "FingerMage")
@@ -1841,6 +1843,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             monster.armor_pool = d2d::rules::eval_calc(game_data.skills, cast->aura_calc[k], {}, monster.skill, lvl) >> 8;
                             monster.armored = monster.armor_pool > 0;
                         }
+                    // Another's (UberIzual's Chilling Armor): its state for auralen frames.
+                    // ponytail: the state's stats (armor %) and its ReturnFire aren't put on the monster.
+                    if (!cast->aurastate.empty() && !std::ranges::contains(cast->aurastat, d2d::d2s::kBoneArmor))
+                        monster.self_state_until = now_ms + std::uint32_t(std::max(0, d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl))) * 40;
                 } else if (cast->srvdofunc == ServerDoFunction::kRegurgitatorEat) {
                     // FUN_005cdc10: a corpse (DD) it's at eaten (gone), its life back by the corpse's.
                     // ponytail: calc1 % of the corpse's life (FUN_00483360's args are register-passed, not read).

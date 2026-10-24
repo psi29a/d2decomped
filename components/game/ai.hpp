@@ -287,6 +287,7 @@ struct Monster {
     // think, and its absorb pool (stat 132, the cast's aurastat calc / 256).
     bool has_point = false, armored = false;
     int armor_pool = 0;
+    std::uint32_t self_state_until = 0;       // a self state's end (do 18 with an aurastate, not Bone Armor: UberIzual's Chilling Armor)
     bool greeted = false;                     // Izual's first think (ThinkEffect::greet): a4q1's FUN_005b4390, the World's to take
     // A prisoner's (Wussie, a5q2) view, set by World::act5_update: its cage's
     // portal (FUN_00588d60, subtiles), one of its cage gone through it

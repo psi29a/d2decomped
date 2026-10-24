@@ -64,6 +64,8 @@ AIS = {
     "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910, "Ancient": 0x5ef1a0, "Nihlathak": 0x5ee5d0, "ClawViperEx": 0x5f1de0,
     # Baal's (monster-ai.md "Baal"), last: the cases before keep their numbers.
     "BaalCrab": 0x5fcfe0, "BaalCrabClone": 0x5fd210,
+    # The ubers' (monster-ai.md "AncientStatue and the ubers' MonAIs"): three are a bare ret 4.
+    "UberIzual": 0x5f8c80, "UberMephisto": 0x5f81c0, "UberDiablo": 0x5e9df0, "UberBaal": 0x5fd200,
 }
 DIABLO_LIKE = ("Diablo", "DiabloOther", "BaalCrab", "BaalCrabClone")   # his pick, kept point, hands
 BAAL_SKILLS = {0x13b: 2, 0x13c: 0, 0x13d: 1, 0x13e: 3}                 # FUN_005fcb60's raw ids: Skill3, 1, 2, 4
