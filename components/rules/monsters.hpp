@@ -3007,21 +3007,20 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // uncommanded, stands aip2 unless aip1 %; then aip2 % A2, else A1.
     if (ai_name == "Minion") {
         bool commanded = false, melee = input.in_melee;
-        ThinkUnit at = ThinkUnit::target;
+        ThinkUnit aim = ThinkUnit::target;
         if (*input.command != 0) {
             if (*input.command == 1 && input.frame < input.command_until && input.command_unit && !input.command_busy) {
                 commanded = true;
-                at = ThinkUnit::kin;
+                aim = ThinkUnit::kin;
                 melee = input.reach;
             } else effect(ThinkEffect::command_done);
         }
-        auto to = [&](Think out) { out.unit = at; return out; };
         if (!melee) {
             if (!commanded && roll() >= aip[2]) return { MonAct::idle, aip[3] };
-            return to(walk_in);
+            return aimed(walk_in, aim);
         }
         if (!commanded && roll() >= aip[0]) return { MonAct::idle, aip[1] };
-        return to(roll() < aip[1] ? Think{ MonAct::a2 } : Think{ MonAct::a1 });
+        return aimed(roll() < aip[1] ? Think{ MonAct::a2 } : Think{ MonAct::a1 }, aim);
     }
     // SuicideMinion (117, FUN_005e1d30): its fuse (state) lit in melee at
     // aip5 frames on; past it, it blows (mode 0 at the target). Out of melee
@@ -3209,13 +3208,13 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             if (input.in_melee) { Think out{ MonAct::a1 }; out.wait = aip[0]; return out; }
             if (input.dist < aip[2] && roll() < aip[1]) { set_pace(100, 0); return { MonAct::run }; }
         }
-        auto go = [&](int to_x, int to_y) { return away(-1, false) ? std::optional<Think>{ Think{ MonAct::move_to, 0, to_x, to_y, ThinkUnit::none } } : std::nullopt; };
+        auto head_to = [&](int to_x, int to_y) { return away(-1, false) ? std::optional<Think>{ Think{ MonAct::move_to, 0, to_x, to_y, ThinkUnit::none } } : std::nullopt; };
         const std::uint32_t first = rng.next(), first_y = rng.next();
-        if (auto out = go(int(first % 20) - 40 + input.self_x, int(first_y % 20) - 10 + input.self_y)) return *out;
+        if (auto out = head_to(int(first % 20) - 40 + input.self_x, int(first_y % 20) - 10 + input.self_y)) return *out;
         const std::uint32_t side = rng.next(), second_x = rng.next(), second_y = rng.next();
-        if (auto out = go(int(second_x % 20) - 10 + input.self_x, ((side & 1) ? -30 : 30) + int(second_y % 20) - 10 + input.self_y)) return *out;
+        if (auto out = head_to(int(second_x % 20) - 10 + input.self_x, ((side & 1) ? -30 : 30) + int(second_y % 20) - 10 + input.self_y)) return *out;
         const std::uint32_t third_x = rng.next(), third_y = rng.next();
-        if (auto out = go(int(third_x % 20) - 10 + input.self_x, ((side & 1) ? 30 : -30) + int(third_y % 20) - 10 + input.self_y)) return *out;
+        if (auto out = head_to(int(third_x % 20) - 10 + input.self_x, ((side & 1) ? 30 : -30) + int(third_y % 20) - 10 + input.self_y)) return *out;
         return { MonAct::idle, 15 };
     }
     // GenericSpawner (129, FUN_005e61b0; the evil huts' doors): with a target,
