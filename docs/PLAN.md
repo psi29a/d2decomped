@@ -938,17 +938,24 @@ Branch `act5`:
   Taunt's prgsound, the last portal's save and D2X_OUT (S->C 0x61 {7}, also
   from a host). InitFns 66 / 67 / 69 were already in; 70 is empty.
 
+- Act 5's monster skills (monster-ai.md "Act 5's monster skills"): the
+  overseers' Cry Help (its minions sent at the unit) and Whip (Bloodlust, or
+  the suicide turn), umod 33's blast, DeathMaul, the putrid defilers' find
+  and Impregnate (a painworm at the death), the Ancients' Shout, Whirlwind
+  and Leap Attack, imp6..8's sequence Inferno. Siege Beast Stomp does
+  nothing in 1.14d (bugs.md #28). Each seen live in headless probes but
+  imp6..8's (Nightmare: see below).
+- The act-change cinematics (video.md): Warriv {2}, Meshif {3}, the hellgate
+  {4}, Tyrael's portal {5} (LoD: ACT04END then D2X_INTRO), the last portal {7}.
+
 Stubs and dead code found so far: docs/research/re/stubs.md.
 
 Still open for Act 5:
 
-- Monster skills that stand today (no do-func in d2d): the overseers' Cry Help
-  (128) and Whip (131); the death mauler's DeathMaul (136); the putrid
-  defiler's Impregnate (133); the siege beast's Stomp (134); the Ancients'
-  Whirlwind, Shout (War Cry) and Leap Attack as monsters cast them.
-- Umod 33's blast.
 - Live checks: the Cow Portal (devctl can't fill the Cube or set Act 5
   quests yet) and Act 5 against the game.exe host.
+- `debug difficulty 1` in a probe: Act 5's levels keep Normal's MonStats rows
+  (110) or make none (125), so imp6..8 never appear; not looked into.
 
 ## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
 

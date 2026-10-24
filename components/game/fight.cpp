@@ -49,6 +49,34 @@ namespace {
 // Up, right, down, left: where a boss's ring of bolts leaves.
 constexpr std::pair<float, float> kCompass[] = { { 0.f, -1.f }, { 1.f, 0.f }, { 0.f, 1.f }, { -1.f, 0.f } };
 
+// Cloak of Shadows on a monster (FUN_005d6520): its state, with the AI
+// toggle at its end whatever the monster, then special AI 10 on one
+// swaps_ai lets.
+void cloak(const GameData& game_data, Monster& monster, int skill, int lvl, std::uint32_t until, std::uint32_t now_ms) {
+    if (put_state(game_data, monster, monster.cry, { skill, lvl, until, true }, now_ms) && swaps_ai(game_data, monster)) ai_toggle(game_data, monster, 10);
+}
+
+constexpr int kTerror = 77;                     // Skills.txt Terror: Howl's state (FUN_005ddd00, 0x4d)
+
+// Diablo's score of a pet or monster (FUN_005e8530 reads any unit's stats
+// so): its resists as stats 0x24 / 0x25 / 0x27 / 0x29 / 0x2b, raw, and its
+// aura as its right skill (FUN_005701b0 sets it: a merc's FUN_005e4d30, a
+// summon's FUN_005c4470, Aura Enchanted's FUN_005a1650) at its level.
+// A monster's or summon's max damage is its last swing's (rules::swing_max_damage).
+// None has a left skill: every FUN_005701b0 call with EDX 1 is a player's
+// (FUN_0055c5c0, FUN_0056af80 test unit type 0; FUN_0055da70 / FUN_00580280
+// put a player's saved hands back).
+// ponytail: the merc's max damage left 0.
+d2d::rules::DiabloPick unit_pick(const GameData& game_data, std::array<int, 5> res, int aura, int aura_level, int max_damage = 0) {
+    d2d::rules::DiabloPick pick;
+    pick.max_damage = max_damage;
+    std::tie(pick.damage_resist, pick.magic_resist, pick.fire_resist, pick.light_resist, pick.cold_resist) = std::tuple{ res[0], res[1], res[2], res[3], res[4] };
+    if (const auto* skill = aura > 0 ? game_data.skills.get(aura) : nullptr) { pick.right_skill = skill->id; pick.right_level = aura_level; pick.right_rank = skill->attack_rank; }
+    return pick;
+}
+
+}  // namespace
+
 // A state's end on a monster (its stat list off, FUN_006269f0: the
 // callback; FUN_005c3370 toggles an AI-swapping one's AI back).
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot) {
@@ -77,34 +105,6 @@ bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState&
     slot = next;
     return true;
 }
-
-// Cloak of Shadows on a monster (FUN_005d6520): its state, with the AI
-// toggle at its end whatever the monster, then special AI 10 on one
-// swaps_ai lets.
-void cloak(const GameData& game_data, Monster& monster, int skill, int lvl, std::uint32_t until, std::uint32_t now_ms) {
-    if (put_state(game_data, monster, monster.cry, { skill, lvl, until, true }, now_ms) && swaps_ai(game_data, monster)) ai_toggle(game_data, monster, 10);
-}
-
-constexpr int kTerror = 77;                     // Skills.txt Terror: Howl's state (FUN_005ddd00, 0x4d)
-
-// Diablo's score of a pet or monster (FUN_005e8530 reads any unit's stats
-// so): its resists as stats 0x24 / 0x25 / 0x27 / 0x29 / 0x2b, raw, and its
-// aura as its right skill (FUN_005701b0 sets it: a merc's FUN_005e4d30, a
-// summon's FUN_005c4470, Aura Enchanted's FUN_005a1650) at its level.
-// A monster's or summon's max damage is its last swing's (rules::swing_max_damage).
-// None has a left skill: every FUN_005701b0 call with EDX 1 is a player's
-// (FUN_0055c5c0, FUN_0056af80 test unit type 0; FUN_0055da70 / FUN_00580280
-// put a player's saved hands back).
-// ponytail: the merc's max damage left 0.
-d2d::rules::DiabloPick unit_pick(const GameData& game_data, std::array<int, 5> res, int aura, int aura_level, int max_damage = 0) {
-    d2d::rules::DiabloPick pick;
-    pick.max_damage = max_damage;
-    std::tie(pick.damage_resist, pick.magic_resist, pick.fire_resist, pick.light_resist, pick.cold_resist) = std::tuple{ res[0], res[1], res[2], res[3], res[4] };
-    if (const auto* skill = aura > 0 ? game_data.skills.get(aura) : nullptr) { pick.right_skill = skill->id; pick.right_level = aura_level; pick.right_rank = skill->attack_rank; }
-    return pick;
-}
-
-}  // namespace
 
 auto Fight::monster_index(int id) const -> int {
         if (id < 0) return -1;
@@ -1598,6 +1598,12 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             const auto has = [&](int id) { return boss && std::ranges::contains(monster.mods, id); };
             const auto family = d2d::rules::family_mods(monster.type >= 0 ? game_data->monsters.types[std::size_t(monster.type)].base : -1);
             const bool scarab = std::ranges::contains(family, d2d::rules::umod::scarab), mummy = std::ranges::contains(family, d2d::rules::umod::poisondead);
+            // Suicideminion (umod 33, every BaseId 0x1cd by FUN_005b21b0, a whipped
+            // minion by its sumumod): hook 1 (FUN_005a3e70) puts it from GH
+            // straight into death (FUN_005a7e60 mode 0: no credit); dead, its
+            // event 7 four frames on is the blast (FUN_005a3ef0).
+            const bool suicide = std::ranges::contains(family, d2d::rules::umod::suicideminion) || std::ranges::contains(monster.mods, d2d::rules::umod::suicideminion);
+            if (suicide && monster.alive() && monster.mode == "GH") { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); }
             const int mlvl = std::max(monster.stats.level, 1);
             // Scarab (FUN_005a2eb0 / FUN_005a2ee0): into GH or DT, 2 frames on,
             // 8 buglightning (4 ways x 2) at its level, steered as lightning enchanted's.
@@ -1624,7 +1630,7 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                             boss_missile(monster, "lightunique", dir_x * cosine - dir_y * sine, dir_x * sine + dir_y * cosine, ring, now_ms);
                         }
                 }
-            } else if ((boss || mummy) && !monster.fx_done) {
+            } else if ((boss || mummy || suicide) && !monster.fx_done) {
                 if (!monster.fx_at) monster.fx_at = now_ms + 4 * 40;
                 else if (now_ms >= monster.fx_at) {
                     monster.fx_done = true;
@@ -1635,6 +1641,7 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                         boss_missile(monster, "corpsepoisoncloud", 0, 0, std::make_shared<std::vector<int>>(), now_ms, mlvl);
                     }
                     if (has(d2d::rules::umod::fire)) fire_blast(monster, foes, now_ms);
+                    if (suicide) suicide_blast(monster, foes, now_ms);
                     if (has(d2d::rules::umod::cold)) {
                         const auto ring = std::make_shared<std::vector<int>>();
                         for (int k = 0; k < 64; ++k) {
@@ -1665,6 +1672,39 @@ auto Fight::boss_missile(const Monster& monster, const char* name, float dx, flo
         Missile x{ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_heading(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
         x.struck = ring; x.level = lvl; x.owner = monster.id;
         pending.push_back(std::move(x));
+    }
+
+// Umod 33's blast (FUN_005a3ef0): its A1 damage (FUN_006538a0 kind 8:
+// MonLvl's A1MinD / A1MaxD), min + rand(max - min) on its seed, as physical
+// and, by its aip1 (MonStats +0x56), fire (1) or cold for aip1 frames (2
+// up); suicidecorpseexplode (426) on its spot (FUN_0056ecb0); everyone
+// within its aip4 (+0x68) subtiles (FUN_0057e090, flags 0x581).
+// ponytail: FUN_0057e090's own shape is the fire blast's circle.
+auto Fight::suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
+        const auto& aip = game_data->monsters.types[std::size_t(monster.type)].diff[std::size_t(std::clamp(monster.difficulty, 0, 2))].aip;
+        const int low = monster.stats.a1_min, high = monster.stats.a1_max;
+        const int pts = high > low ? low + monster.seed(high - low) : low;
+        const int element = aip[0];
+        const float radius = float(aip[3]) / 5;
+        for (auto& foe : foes) {
+            if (!foe.alive || std::hypot(foe.x - monster.unit.x, foe.y - monster.unit.y) > radius) continue;
+            d2d::rules::Taken taken;
+            taken.hit = true;
+            taken.damage = std::max(pts * (100 - foe.fighter.dr_pct) / 100 - foe.fighter.dr_flat, 0);
+            if (element == 1) taken.damage += d2d::rules::resisted(pts, foe.fighter.res[0]);
+            else if (element >= 2) {
+                const int cold = d2d::rules::resisted(pts, foe.fighter.res[2]);
+                taken.damage += cold;
+                if (cold > 0) taken.chill_ticks = d2d::rules::resisted(element, foe.fighter.res[2]);
+            }
+            foe.take(taken);
+        }
+        if (const auto found = game_data->missiles.find("suicidecorpseexplode"); found != game_data->missiles.end()) {
+            Missile x{ &found->second, monster.unit.x, monster.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };
+            x.visual_only = true;
+            pending.push_back(std::move(x));
+        }
+        d2d::log::info("{} blows up ({} physical{})", monster.npc.name, pts, element == 1 ? " + fire" : element >= 2 ? " + cold" : "");
     }
 
 auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
@@ -4382,6 +4422,20 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     killed(monster_index, now_ms, cursed(monsters[monster_index]) || std::ranges::any_of(foes[i].melee_by, [&](int striker) { const int at_index = this->monster_index(striker); return at_index >= 0 && cursed(monsters[std::size_t(at_index)]); }));
             for (const auto& side : sides)
                 if (foes[side.at].blessed) side.hero->wisp_blessing = { foes[side.at].blessed, now_ms + 0x1a5e00u * 40 };   // FUN_006251f0: 0x1a5e00 frames
+            // Impregnate's state off at a death (FUN_005d21b0): the skill's summon
+            // (painworm1, else 0x227) in its summode at the dead one (FUN_005b2490).
+            // ponytail: at its spot, not FUN_005b2490's free-spot search.
+            for (auto& monster : monsters)
+                if (!monster.alive() && std::exchange(monster.impregnated, false))
+                    if (const auto* impregnate = game_data->skills.get(game_data->skills.by_name.contains("Impregnate") ? game_data->skills.by_name.at("Impregnate") : -1)) {
+                        const auto worm = game_data->monsters.by_id.find(impregnate->summon);
+                        auto young = make_monster(*game_data, worm != game_data->monsters.by_id.end() ? int(worm->second) : int(game_data->mon_bin[0x227]), monster.unit.x, monster.unit.y, rng, monster.difficulty, true, players_in(foes));
+                        young.aware = true;
+                        young.seed = d2d::rules::Rng{ rng.next() };
+                        set_mode(*game_data, young, impregnate->summode.empty() ? "NU" : impregnate->summode, now_ms);
+                        d2d::log::info("a painworm comes out of {}", monster.npc.name);
+                        born.push_back(std::move(young));
+                    }
             foes.resize(allies);
             for (auto& young : born) add_monster(std::move(young));
             boss_events(foes, now_ms);

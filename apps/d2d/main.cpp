@@ -1331,6 +1331,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         std::ofstream(g_user_dir / "cinematics_seen", std::ios::app) << kSeen[std::size_t(movie - 1)] << '\n';
                     }
                     video_queue = { kCinematicVideo[std::size_t(movie - 1)] };
+                    // LoD's 5 (DAT_007bc9d8): ACT04END, then D2X_INTRO.
+                    if (movie == 5 && town.hero.character.header.expansion() && video_mpqs.contains(kCinematicVideo[5])) {
+                        video_queue.emplace_back(kCinematicVideo[5]);
+                        if (read_seen().find(kSeen[5]) == std::string::npos) std::ofstream(g_user_dir / "cinematics_seen", std::ios::app) << kSeen[5] << '\n';
+                    }
                     video_return = Screen::InGame;
                     screen = Screen::Video;
                 }

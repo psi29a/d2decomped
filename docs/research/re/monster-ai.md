@@ -412,8 +412,95 @@ tests/mon_ais_imp_ride_cases.inc`, all paths match `rules::mon_think`
 ("ImpRide", "SiegeTower"). d2d: `Monster::bound` / `riding` (untargetable,
 out of the crowd, sits on its mount), the claim in `think`, mount and
 dismount in do 129, `rules::imp_ride_pick`. Nihlathak's Skill1 is Imp
-Teleport too (MonTeleport for him). Not in d2d: imp6..8's Inferno through
-seq_impinferno (a sequence's do-func), the claim's sight and pet tests.
+Teleport too (MonTeleport for him). imp6..8's Inferno is seq_impinferno
+(SC rows, an event-4 row 12 running do 126). Not in d2d: the claim's
+sight and pet tests.
+
+## Act 5's monster skills (traced 2026-10-24)
+
+The skill record (0x23c bytes) as these read it: +0x48 srvmissilea, +0x4e
+srvoverlay, +0x60 auralencalc, +0x80 aurastate, +0x82 auratargetstate,
++0xbc summon, +0xbf summode, +0xe4 sumumod, +0x138 / +0x13c calc1 /
+calc2 (-1: none). `FUN_0056e970` puts a state on a unit from a block
+{caster, target, skill, level, frames, stat (-1 none), _, state, end
+callback}; the callback runs as the state comes off (its end, or the
+unit's death).
+
+- **Cry Help** (do 128, `FUN_005d1800`; the overseer's Skill1 when hit,
+  S1): with a target, AI command kind 1 at it till frame + calc1 (ln12:
+  100 + 20 a level, at least 1) for its group (`FUN_0058f730`: the
+  leader's member list, `FUN_0058ec90` a command each); srvoverlay
+  curseattract on the target. A commanded Minion (its think, command kind
+  1) goes at that unit.
+- **Overseer Whip** (do 131, `FUN_005d1f70`; Skill3 at a free minion, A2):
+  at a live monster. A minion (BaseId 0x1c5, `FUN_00463900`) not under
+  bloodlust, with `FUN_0045c390`'s roll at least calc1 (65), turns
+  (`FUN_005d1e10`): its summon (suicideminion1) in summode (S1) through
+  `FUN_00574370`, special AI 15 (`FUN_005e1d30`, the SuicideMinion
+  think), state 0x8e with stat 0x163, sumumod 33. Else Bloodlust
+  (`FUN_005d1d70`): state 141 for auralen (250) frames and its aurastats
+  (velocity +80, attack rate +80, armor +50, damage +100 %).
+- **Impregnate** (do 133, `FUN_005d2250`; PutridDefiler, S1 at its find):
+  `FUN_005d2140`: a monster, alive, not 0x222 / 0x227 (the defilers and
+  painworms), not in state 0x6e, not a player's pet (`FUN_006259b0` 2).
+  State 0x6e, no end, callback `FUN_005d21b0`: dead, one summon (painworm1,
+  else 0x227) in summode (NU) at it (`FUN_005b2490`). The think's find
+  (`FUN_005efa90`): `FUN_005dd0b0` mode 1 within 25 with that test
+  (`FUN_005efa50`); in reach (`FUN_00622c40`) skill 300 at it, else
+  straight at it (`FUN_005deca0`).
+- **Siege Beast Stomp** (do 134, `FUN_005d2320`, A2): it returns 0 unless
+  the record's +0x48 (srvmissilea) is at least 1. Row 301 has none
+  (checked in tools/emu: -1), so the stomp is its A2 and the client's
+  shake (cltdofunc 75) alone (bugs.md #28). With one it would be a radius
+  blast (`FUN_0056bad0`) of the skill's damage.
+- **DeathMaul** (do 136, `FUN_005d25b0`; seq_deathmaulerdig's one event):
+  srvmissilea (death mauler, 502) made at the target's spot
+  (`FUN_0056ede0`: flag 1, start given, at most 100 subtiles off), calc1
+  (96) its anim rate (`FUN_00621780`), range by the distance d
+  (`FUN_006417f0`, at least 1): d x Range / 12 past 9, else d x Range /
+  24 + Range / 2 (`FUN_0064a2b0` / `FUN_0064a330`). The missile stands
+  (Vel 0), Activate 30, NextHit 10.
+- **Shout** (Madawc, do 68 `FUN_005d83e0`, SC): the nova of srvmissilea
+  (`FUN_0056d400`), its hit 18 putting the state on allies, and the
+  aurastate on itself for auralen frames (`FUN_005d8290`).
+- **Whirlwind** (Talic: srvstfunc 38 `FUN_005d8f50`, do 76 `FUN_005d9580`):
+  the target in reach, a plain attack (`FUN_0056e230`); else a path to the
+  point (`FUN_00649970`, `FUN_0064ea90`) at the walk velocity
+  (`FUN_0056e5b0`), state 0x12. Each event row: for a monster
+  `FUN_005d9320` steps its seed and gives one hit when the low bit is
+  clear; the hit goes at `FUN_0056bd10(.., 5, 3, last id)`, the next unit
+  within 5 after the last one hit, rolled to hit (`FUN_0057ec10`), calc1 %
+  more damage, the element (`FUN_0056e0c0`). The path done, it ends
+  (`FUN_005d9460`).
+- **Leap Attack** (Korlic: srvstfunc 41 `FUN_005da540`, do 78
+  `FUN_005da7e0`): a landing spot by the target (`FUN_00645ca0`); none, in
+  reach a plain attack. Flags 0x1080, state 0x12, the target's state 0x36
+  cleared (`FUN_00570420`). Events by flags: 0x100 take off
+  (`FUN_005da120` / `FUN_005da490`), 0x80 fly (`FUN_005d9f70`), 0x200
+  strike (`FUN_005da660`: to-hit, knockback, calc1 % more damage, the
+  element).
+- **Umod 33** (suicideminion: every BaseId 0x1cd by `FUN_005b21b0`, a
+  whipped minion by its sumumod): hook 1 `FUN_005a3e70` (a mode change):
+  into GH it's put straight into death (`FUN_005a7e60` mode 0), and into
+  death (0 / 12) its event 7 is queued 4 frames on; hook 2 `FUN_005a3ef0`:
+  its A1 damage (`FUN_006538a0` kind 8: MonLvl-scaled A1MinD / A1MaxD at
+  out[5] / [6]) rolled on its seed, x 256 as physical (+8), and by its
+  aip1 (MonStats +0x56): 1 fire (+0x10), 2 up cold (+0x24) for aip1 frames
+  (+0x30); missile 426 suicidecorpseexplode on it (`FUN_0056ecb0`); the
+  blast within aip4 (+0x68) through `FUN_0057e090` (flags 0x581).
+
+d2d: `ai.cpp` (`castable`, the action-frame dispatcher, the whirl block,
+`skill_strike`, `impregnable`, the defiler's find, Cry Help's command in
+`think`), `Fight::boss_events` / `suicide_blast`, the painworm in
+`Fight::update`. A think's raw skill id (the defiler's 300) finds its slot;
+`MonAct::direct` at its kin walks to it. Seen live (2026-10-24, headless
+probes): Cry Help, Bloodlust and the suicide turn, a suicide minion's blast,
+DeathMaul, Impregnate and its painworm, Madawc's Shout, Talic's whirl,
+Korlic's Leap Attack.
+Not in d2d: the overlays and anim rates, Bloodlust's and the turn's
+states beyond the cry slot, `FUN_0056bd10`'s and `FUN_00645ca0`'s own
+searches (the nearest foe by id, the nearest free spot), Leap Attack's
+takeoff and landing flags (it flies by row 11, strikes on the next event).
 
 ## Baal — FUN_005fcfe0, his clone FUN_005fd210
 

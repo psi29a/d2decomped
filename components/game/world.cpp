@@ -676,6 +676,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                     for (const char* code : { "qey", "qhr", "qbr", "qf1", "qf2" }) take_carried(code);
                 }
                 d2d::rules::quest::set(bits, 0x17, 0); d2d::rules::quest::set(bits, 0x17, 13);
+                movie = 4;                                                         // S->C 0x61 {4}: Act04start
             }
             set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kPandemoniumFortress));
             arrive(fortress, fortress->start.first, fortress->start.second, "the hellgate");
@@ -2107,6 +2108,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                         for (const char* code : { "msf", "vip" }) take_carried(code);
                     }
                     d2d::rules::quest::set(quests(), 15, 0); d2d::rules::quest::set(quests(), 15, 13);
+                    movie = 3;                                                     // S->C 0x61 {3}: Act03start
                 }
                 set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kKurastDocks));
                 arrive(docks, docks->start.first, docks->start.second, "Meshif's boat");
@@ -2121,7 +2123,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (hc_idx != d2d::rules::monster_ids::kWarriv || !quest::bit(quests(), d2d::rules::AndyQuest::kQuest, 0)) return true;
             const Level* lut_gholein = game_data->level(d2d::rules::level_ids::kLutGholein);
             if (!lut_gholein || lut_gholein->start.first < 0) { d2d::log::warn("Lut Gholein didn't build; the caravan stays"); return true; }
-            if (!quest::bit(quests(), 7, 0)) { d2d::rules::quest::set(quests(), 7, 0); d2d::rules::quest::set(quests(), 7, 13); }
+            if (!quest::bit(quests(), 7, 0)) { d2d::rules::quest::set(quests(), 7, 0); d2d::rules::quest::set(quests(), 7, 13); movie = 2; }   // S->C 0x61 {2}: Act02start
             set_waypoint(waypoint_index(*game_data, d2d::rules::level_ids::kLutGholein));
             // The arrival's level change runs the quests' enter hooks: Andariel's
             // (the Rogues get Cain if he's still caged, FUN_00596de0 / FUN_00597310).

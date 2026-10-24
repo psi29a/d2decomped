@@ -671,6 +671,9 @@ struct Fight {
     // fire, each a 64th of the roll in 256ths, on everyone within
     // difficulty + 4 subtiles; the corpse's guts (monstercorpseexplode).
     void fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
+    // Umod 33's (a suicide minion's) death blast: its A1 roll as physical
+    // and its aip1's element, within its aip4 (fight.cpp).
+    void suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
 
     // Monster i died (the player's or the merc's doing): the player gets the
     // experience, its pack may scatter, it drops its loot.

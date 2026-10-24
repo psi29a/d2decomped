@@ -3437,7 +3437,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // Ancient (133, FUN_005ef1a0): asleep, they stand 25. Their foe: Talic's
     // target or, as the others always, a pick (FUN_005e8f20); none, stands 25.
     // `apart`: FUN_006416d0, the units' distance less half each one's size.
-    // Talic (FUN_005eeb70; not under state 0x36): Skill1 (Leap) within aip1
+    // Talic (FUN_005eeb70; not under state 0x36): Skill1 (Whirlwind) within aip1
     // aip2 % to aip4 past the foe along their line (mode set directly,
     // FUN_005a7c20); out of reach straight at it, a wait of 10; aip3 %: A1 or
     // A2 (rand(2)); else stands 25.

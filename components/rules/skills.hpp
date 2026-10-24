@@ -376,8 +376,13 @@ enum class ServerDoFunction : int {
     kStormAroundCaster = 124,      // FUN_005c8190: Armageddon, Hurricane
     kWakeOfDestruction = 125,
     kImpInferno = 126,             // FUN_005d1350: a flame at the target every 3 frames till the start's end
+    kCryHelp = 128,                // FUN_005d1800: the caster's group at the target for calc1 frames
     kImpTeleport = 129,            // FUN_005d1ab0: onto its mount, off it, else as MonTeleport
+    kOverseerWhip = 131,           // FUN_005d1f70: bloodlust on the minion, or it turns suicide minion
     kImpFireMissile = 132,         // FUN_005d2090: srvmissilea + TransLvl at the target, once
+    kImpregnate = 133,             // FUN_005d2250: state 0x6e on a monster; dead, its summon comes out
+    kSiegeBeastStomp = 134,        // FUN_005d2320: needs a srvmissilea, row 301 has none: nothing
+    kDeathMaul = 136,              // FUN_005d25b0: srvmissilea at the target's spot, its range by the distance
     kBaalColdMissiles = 139,       // FUN_005d2940: srvmissilea (a maker) at the target's spot
     kBaalTentacle = 140,           // FUN_005d2c20: 2 + rand(3) + difficulty tentacles about the target
     kReleaseMissileAtUnitsSecondScan = 143,   // FUN_005d4f40 -> FUN_005d4870: 37 through the other scan
@@ -426,6 +431,7 @@ struct Skill {
     int perdelay = 0;                      // an aura's pulse, ticks
     Calc perdelay_calc;                    // perdelay as a calc (Blade Shield's par3: a periodic skill's pace)
     std::string summon, pettype;           // +0xbc the MonStats row it raises, +0xbe its pet group
+    std::string summode;                   // +0xbf the mode its summon comes in
     Calc petmax;                           // +0xc0: how many of the group at once
     bool target_corpse = false;            // TargetCorpse: raised from a corpse
     std::array<std::string, 5> sumskill;   // +0xc4: the pet's skills

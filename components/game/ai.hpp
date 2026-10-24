@@ -245,6 +245,10 @@ struct Monster {
     // (rules::ThinkIn::pace), until when it's in Spider Lay's state (0x16).
     std::string_view left_mode = "NU";
     int ai_state = 0, ai_state2 = 0, ai_state3 = 0, ai_command = 0, skill_unit = -1;
+    // AI command kind 1 (FUN_0058f730: the overseer's Cry Help, do 128): the
+    // unit its group goes at (a Foe::id) till that frame.
+    int command_foe = -1, command_until = 0;
+    bool impregnated = false;                 // state 0x6e (Impregnate, do 133): dead, a painworm comes out (FUN_005d21b0)
     // A skill's sequence (MonSeq.txt): its next row, and the shot done
     // (unit flag 0x40: no more of its events 1 / 2, FUN_005a8670).
     int seq_done = 0;
@@ -281,6 +285,12 @@ struct Monster {
     // the Dark Wanderer, the compelling orb. No one targets or hits it.
     bool killable = true;
     float leap_from_x = 0, leap_from_y = 0, leap_to_x = 0, leap_to_y = 0;
+    std::uint32_t leap_until = 0;             // Leap Attack's landing (its sequence's row 11), else the mode's end
+    // Whirlwind as a monster casts it (srvstfunc 38 / do 76): its A1 sequence
+    // looping along its path since whirl_ms, the rows passed, the last unit hit.
+    bool whirl = false;
+    std::uint32_t whirl_ms = 0;
+    int whirl_row = 0, whirl_last = -1;
     int move_pct = 0;
     // A breath (srvdofunc 95, FUN_005cc4e0; the fetish shaman's Inferno):
     // its srvmissilea every calc3 frames till calc2 frames on (FUN_005cc240's
@@ -743,6 +753,9 @@ void poison_hit(const GameData& game_data, Monster& monster, int difficulty, boo
 bool swaps_ai(const GameData& game_data, const Monster& monster);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
+// A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight.cpp).
+bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms);
+void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
 
 // A plain monster of MonStats row `type` at (x, y) cells: its components
 // and stats rolled (a boss's by make_boss instead: `stats` false), for

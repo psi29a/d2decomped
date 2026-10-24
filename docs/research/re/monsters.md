@@ -302,7 +302,8 @@ handlers do nothing without it, so a unique's minions don't explode.
 | 10 poisondead | 1 `FUN_005a3800`, 2 `FUN_005a2c20` | on death, 4 frames on: missile 155 (corpsepoisoncloud) at its own spot, level = its level (at least 1), through `FUN_0056ecb0` |
 | 24 thief | 3 `FUN_005a30e0` | on a hit; never reached: MonUMod disables it and `FUN_005a49b0` skips it in a superunique's list (Lord De Seis has it) |
 | 13 rage, 11 durieldead | none | no init (0x73c008) and no hooks (0x73c0b8) |
-| 14 / 15 / 21 / 31 .. 35 / 40 .. 42 | 0x73c0b8 | not traced (traps, bone prisons, suicides, Act 5's deaths) |
+| 33 suicideminion | 1 `FUN_005a3e70`, 2 `FUN_005a3ef0` | GH puts it straight into death; dead, 4 frames on, its A1 roll as physical plus aip1's element, within aip4 (monster-ai.md "Act 5's monster skills") |
+| 14 / 15 / 21 / 31 / 32 / 34 / 35 / 40 .. 42 | 0x73c0b8 | not traced (traps, bone prisons, Act 5's deaths) |
 | 25 mana burn | (spawn) `FUN_005a1f90` | manadrain min / max (stats 62 / 63) = MonLvl damage × `FUN_005a00f0`'s % |
 | 26 teleport | spawn `FUN_005a1600`: skill 184 MonTeleport level 1, AI-control flag 0x20 (`FUN_005dd250`); AI `FUN_005b11f0` | at a think: rand(100) < 40 (its seed), then — life under 30 % (`FUN_00621f20`), or not flagged by `FUN_00457490(class, 1)` (monsters 10 / 0x159 / 0x22d count as flagged) and AI param +0x14 < 10 — rand(100) < 15: a free spot in its room (`FUN_0054dc40`), not in town; under 30 %, rand(100) < 25 and no state 0x34: life + mlvl (stat 6 + mlvl × 256); then cast 184 there |
 | 30 aura | spawn `FUN_005a1650` | the table at 0x73bf68 {min mlvl, add, mul, div, skill}: Might 98 /6, Holy Fire 102 /6, Blessed Aim 108 /5, Holy Freeze 114 /7, Conviction 123 /8, Fanaticism 122 /8, Holy Shock 118 /8 from mlvl 20; pick = rand(rows reached) on {name seed (monster data +0x14), 666}; superunique 37 → Fanaticism; class 0x2c0 → Conviction 20; level = (add + mlvl) × mul / div, 1..99 |

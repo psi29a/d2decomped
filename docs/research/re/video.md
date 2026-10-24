@@ -37,9 +37,16 @@ Cinematics menu (`CinematicsSelection[EXP]` panels).
   title.
 - The cursor is hidden while a video plays.
 - `--no-video` or `video = 0` in d2d.cfg turns the videos off.
-- In game: S->C 0x61 (or d2d's own last portal, quests-act5.md) plays its
-  cinematic and goes back into the game. Not yet: the act transitions' (Act 1's
-  {0x61, 2} and the rest) from d2d's own quests.
+- In game: S->C 0x61 {n} (`FUN_0053d940`) plays the client's cinematic n
+  (table 0x721d9c) and goes back into the game, marking it seen. The
+  server sends it the first time each act opens, while the client isn't
+  busy (pcdata +0x4c, set to 1 with it): Warriv's caravan {2} and Meshif's
+  boat {3} (`FUN_005467e0`), the hellgate from the Durance {4}
+  (`FUN_00546ac0`), Tyrael's portal {5} (`FUN_005b5880`, LoD: ACT04END,
+  then D2X_INTRO), the last portal {7} (`FUN_0058e740`). `FUN_005467e0`
+  also has a {5} for Tyrael (0x16f) as a caravan, but the client's menu
+  table (0x7253e0) gives him no travel entry. d2d's own quests and a host's
+  0x61 both go through `World::movie`.
 
 ## Cinematics menu (LoD: `FUN_00431600` → `FUN_004313d0`)
 
