@@ -2,10 +2,14 @@
 // Act 5's quests at the World's quest hooks (world.hpp: World::actN_*;
 // rules/quests_act5.hpp, docs/research/re/quests-act5.md).
 #include "world.hpp"
+#include "ai.hpp"
+#include "character.hpp"
 #include "gamedata.hpp"
 #include "log.hpp"
 #include <d2s_items.hpp>
+#include <combat.hpp>
 #include <level_ids.hpp>
+#include <monsters.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
 #include <algorithm>
@@ -109,13 +113,13 @@ auto World::act5_talk_closed(int hc_idx) -> void {
         // portal spot.
         if (betrayal.talk_closed(hc_idx)) {
             const auto anya = std::ranges::find(level->npcs, d2d::rules::BetrayalQuest::kAnya, &Npc::hc_idx);
-            const Level* temple = game_data->level(d2d::rules::level_ids::kNihlathaksTemple);
-            if (anya == level->npcs.end() || !temple || temple->ds1.width() == 0) { d2d::log::warn("Betrayal of Harrogath: no Anya or no temple; her portal stays shut"); return; }
+            const Level* nihlathaks = game_data->level(d2d::rules::level_ids::kNihlathaksTemple);
+            if (anya == level->npcs.end() || !nihlathaks || nihlathaks->ds1.width() == 0) { d2d::log::warn("Betrayal of Harrogath: no Anya or no temple; her portal stays shut"); return; }
             const auto [spot_x, spot_y] = level->nearest_free(anya->x + 10.f / 5, anya->y + 5.f / 5);
             portal[kTemplePortal] = { level, spot_x, spot_y, now };
-            const auto [to_x, to_y] = temple->portal_spot.first >= 0 ? temple->nearest_free(temple->portal_spot.first, temple->portal_spot.second)
-                                                                    : temple->nearest_free(float(temple->ds1.width()) / 2, float(temple->ds1.height()) / 2);
-            portal[kTemplePortal + 1] = { temple, to_x, to_y, now };
+            const auto [to_x, to_y] = nihlathaks->portal_spot.first >= 0 ? nihlathaks->nearest_free(nihlathaks->portal_spot.first, nihlathaks->portal_spot.second)
+                                                                    : nihlathaks->nearest_free(float(nihlathaks->ds1.width()) / 2, float(nihlathaks->ds1.height()) / 2);
+            portal[kTemplePortal + 1] = { nihlathaks, to_x, to_y, now };
             cues.cue("object_townportal", now, spot_x, spot_y);
             d2d::log::info("Betrayal of Harrogath: Anya opens the way to Nihlathak's Temple");
         }
@@ -285,21 +289,21 @@ auto World::rescue_update(std::uint32_t now_ms) -> void {
             if (view.portal) { view.portal_x = subtile(gate.x); view.portal_y = subtile(gate.y); }
             view.cage_left = rescue.cages[std::size_t(slot)].gone > 0;
             // FUN_005ddf20: the nearest player within 16 (FUN_005dc380).
-            const Player* by = nullptr;
+            const Player* nearest = nullptr;
             int best = 16;
             for (const auto& other : players) {
                 const int dist = d2d::rules::ai_distance(subtile(other->player.x) - subtile(prisoner.unit.x), subtile(other->player.y) - subtile(prisoner.unit.y));
-                if (dist < best) { best = dist; by = other.get(); }
+                if (dist < best) { best = dist; nearest = other.get(); }
             }
-            view.player = by != nullptr;
-            view.door_broken = by && door_down(by->player.x, by->player.y);
-            if (by) view.player_id = by->id;
+            view.player = nearest != nullptr;
+            view.door_broken = nearest && door_down(nearest->player.x, nearest->player.y);
+            if (nearest) view.player_id = nearest->id;
             if (std::exchange(view.cried, false)) rescue.cried();
             if (std::exchange(view.open_portal, false) && rescue.portal_due(slot)) {
                 // FUN_005888d0: the broken door within 15 of it, in the player's rooms.
                 const Monster* door = nullptr;
-                if (by) {
-                    const auto rooms = near_rooms(*game_data, *level, by->player.x, by->player.y);
+                if (nearest) {
+                    const auto rooms = near_rooms(*game_data, *level, nearest->player.x, nearest->player.y);
                     for (const auto& other : fight.monsters)
                         if (!other.alive() && game_data->monsters.types[std::size_t(other.type)].base == d2d::rules::RescueQuest::kDoor
                             && std::ranges::contains(rooms, std::pair{ level, room_of(*level, other.unit.x, other.unit.y) })
@@ -350,12 +354,12 @@ auto World::act5_hide() -> void {
 // ponytail: the marker's event reruns (fana not made) are one try.
 auto World::prison_update(std::uint32_t now_ms) -> void {
         const auto made_rooms = fight.spawning.levels.find(level);
-        const auto up = [&](const Npc& npc) {
+        const auto room_up = [&](const Npc& npc) {
             const int room = room_of(*level, npc.x, npc.y);
             return made_rooms != fight.spawning.levels.end() && room >= 0 && std::ranges::contains(made_rooms->second.order, std::size_t(room));
         };
         const auto marker = [&](int object_id) { return std::ranges::find(level->npcs, object_id, &Npc::object_id); };
-        if (const auto river = marker(d2d::rules::PrisonQuest::kRiverMarker); river != level->npcs.end() && prison.open && !prison.fana_made && up(*river)) {
+        if (const auto river = marker(d2d::rules::PrisonQuest::kRiverMarker); river != level->npcs.end() && prison.open && !prison.fana_made && room_up(*river)) {
             if (!fana_at) fana_at = now_ms + d2d::rules::PrisonQuest::kFanaFrames * kTickMs;
             else if (now_ms >= fana_at && game_data->builder) {
                 auto rgn = d2d::rules::Rng{ fight.rng.next() };
@@ -382,7 +386,7 @@ auto World::prison_update(std::uint32_t now_ms) -> void {
                 d2d::log::info("Prison of Ice: Anya thaws");
             }
         }
-        if (const auto throne = marker(d2d::rules::PrisonQuest::kNihlathakMarker); throne != level->npcs.end() && prison.town_left && !nihlathak_made && up(*throne)) {
+        if (const auto throne = marker(d2d::rules::PrisonQuest::kNihlathakMarker); throne != level->npcs.end() && prison.town_left && !nihlathak_made && room_up(*throne)) {
             nihlathak_made = true;
             seal_boss(*level, d2d::rules::PrisonQuest::kNihlathakBoss, subtile(throne->x), subtile(throne->y));
         }
@@ -416,7 +420,7 @@ auto World::rite_update(std::uint32_t now_ms) -> void {
         for (auto& monster : fight.monsters)
             if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return monster.type == int(game_data->mon_bin[std::size_t(ancient)]); })) monster.gone = true;
         for (const int object_id : { 474, 475, 476, d2d::rules::RiteQuest::kAltar })
-            if (const int at = object_index(object_id); at < int(level->npcs.size())) doors[{ level, at }] = Door{ 0, now_ms };
+            if (const int found = object_index(object_id); found < int(level->npcs.size())) doors[{ level, found }] = Door{ 0, now_ms };
         statues_at = 0;
         d2d::log::info("Rite of Passage: the Ancients go back to sleep");
     }
@@ -477,13 +481,13 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
         // in, to the Chamber (FUN_0053aec0(0x84, 11): its town-portal tile);
         // elsewhere back to the Throne.
         if (object.object_id == d2d::rules::EveQuest::kChamberPortal) {
-            const bool on = level->id == d2d::rules::EveQuest::kThrone;
-            if (on && !eve.baal_in) return true;
-            const Level* to = game_data->level(on ? d2d::rules::EveQuest::kChamber : d2d::rules::EveQuest::kThrone);
-            if (!to || to->ds1.width() == 0) { d2d::log::warn("Eve of Destruction: level not built"); return true; }
-            const auto spot = on && to->portal_spot.first >= 0 ? to->portal_spot : to->start.first >= 0 ? to->start : std::pair{ float(to->ds1.width()) / 2, float(to->ds1.height()) / 2 };
-            const auto [to_x, to_y] = to->nearest_free(spot.first, spot.second);
-            arrive(to, to_x, to_y, "the Worldstone Chamber's portal");
+            const bool on_throne = level->id == d2d::rules::EveQuest::kThrone;
+            if (on_throne && !eve.baal_in) return true;
+            const Level* dest = game_data->level(on_throne ? d2d::rules::EveQuest::kChamber : d2d::rules::EveQuest::kThrone);
+            if (!dest || dest->ds1.width() == 0) { d2d::log::warn("Eve of Destruction: level not built"); return true; }
+            const auto spot = on_throne && dest->portal_spot.first >= 0 ? dest->portal_spot : dest->start.first >= 0 ? dest->start : std::pair{ float(dest->ds1.width()) / 2, float(dest->ds1.height()) / 2 };
+            const auto [to_x, to_y] = dest->nearest_free(spot.first, spot.second);
+            arrive(dest, to_x, to_y, "the Worldstone Chamber's portal");
             return true;
         }
         // The last portal (565, OperateFn 72, FUN_0058e740): with bit 13,
