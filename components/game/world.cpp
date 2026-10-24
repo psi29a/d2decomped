@@ -462,6 +462,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             if (!opened.opened) return;
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
+            if (operate_id == d2d::rules::operate_fn::kCorpse) cues.cue("object_corpse_loot", now_ms, object.x, object.y);
             if (opened.undead) spring_trap(8, object.x, object.y, here, now_ms, 1);
             if (const int trap = force >= 0 ? force : object.trap; trap && operate_id != d2d::rules::operate_fn::kBarrel) arm_trap(trap, object.x, object.y, here, now_ms);
             d2d::log::info("opened object {} (op {})", npc_index, operate_id);
@@ -489,6 +490,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             if (key == actor->character.items.end()) { d2d::log::info("I need a key."); return; }
             if (key->quantity > 1) --key->quantity;
             else actor->character.items.erase(key);
+            cues.cue("item_key_used", now_ms, actor->player.x, actor->player.y);
         }
         // The Moldy Tome (OperateFn 6, FUN_00594e70): opens once (mode 0 → 1),
         // read every time while the quest's on: message 127 to the player
@@ -608,6 +610,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if (object.operate_fn == d2d::rules::operate_fn::kSewerLever) {
             if (hosted_quests || !khalim.pull_lever()) return;
             to_mode(1);
+            cues.cue("object_sewer_water", now_ms, object.x, object.y);
             doors[{ level, npc_index }] = Door{ 1, now_ms };
             for (std::size_t i = 0; i < level->npcs.size(); ++i)
                 if (level->npcs[i].operate_fn == d2d::rules::operate_fn::kSewerStairs) doors[{ level, int(i) }] = Door{ 2, now_ms };
@@ -767,6 +770,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 auto& monster = fight.monsters[std::size_t(best)];
                 const auto boss = d2d::rules::roll_boss(game_data->umods, game_data->monsters.types[std::size_t(monster.type)], diff, true, rng);
                 make_boss(*game_data, monster, boss.kind, boss.mods, -1, boss.name_seed, diff, rng, int(players.size()));
+                cues.cue("object_shrine_jail", now_ms, monster.unit.x, monster.unit.y);
                 d2d::log::info("warping shrine: {} is now a {}", monster.npc.name, boss.kind == d2d::rules::Boss::champion ? "champion" : "unique");
             }
         }
@@ -905,6 +909,7 @@ auto World::spring_traps(std::uint32_t now_ms) -> void {
     }
 
 auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead) -> void {
+        cues.cue("object_trap_trigger", now_ms, x, y);
         const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         if (trap == 5 || trap == 7) {                  // FUN_00582380: large at the chest, small a subtile east
             fires.push_back({ level, &game_data->trap_fires[0], x, y });
@@ -1281,6 +1286,7 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 // agent A's.
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (!andy.killed(quests(), level->id == d2d::rules::level_ids::kCatacombsLevel4)) return;
+        class_cue("act1_complete_andariel", now_ms);   // unit event 0x21: participant's class voice
         open_act(1);
         for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
             loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
@@ -1298,6 +1304,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 // dying unit's), not by FUN_00559a30's own search.
 auto World::mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         guardian.killed();
+        class_cue("act3_complete_guardian", now_ms);   // FUN_005bc8b0: unit event 0x42
         bridge_check = now_ms + 24 * kTickMs;
         auto& bits = quests();
         if (!d2d::rules::quest::bit(bits, 0x16, 0)) {
@@ -1367,10 +1374,12 @@ auto World::transmute(std::uint32_t now_ms) -> void {
         const int diff = actor->character.header.active_difficulty();
         const int row = d2d::rules::cube_recipe(game_data->rules, game_data->cube_recipes, cube, diff, actor->character.expansion, actor->character.header.cls, match);
         if (row < 0) { d2d::log::info("transmute: nothing ({} items)", cube.size()); return; }
+        cues.cue(d2d::rules::sound_ids::kCursorConvertReady, now_ms, actor->player.x, actor->player.y);
         const auto& recipe = game_data->cube_recipes[std::size_t(row)];
         auto made = d2d::rules::cube_make(game_data->rules, recipe, match, cube, int(actor->character.stats.get(d2d::d2s::kLevel)), actor->character.expansion, diff,
                                           fight.spawning.game, &loot.found_uniques);
         if (!made.made) { d2d::log::info("transmute: {} made nothing", recipe.description); return; }
+        cues.cue(d2d::rules::sound_ids::kCursorConvertItem, now_ms, actor->player.x, actor->player.y);
         std::erase_if(actor->character.items, [](const Item& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kCube; });
         const auto& layout = game_data->cube_layout;
         for (auto& item : made.items) {
@@ -1635,6 +1644,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         auto& quest_bits = quests();
         if (object.operate_fn == d2d::rules::operate_fn::kInifussTree) {
             if (!cain.tree(quest_bits, carries("bks") || carries("bkd"))) return;
+            class_cue("act1_find_tree", now_ms);   // FUN_00593af0: event 0x2d as the first scroll drops
             operated[{ level, npc_index }] = now_ms;
             loot.put({ .code = "bks" }, object.x, object.y, 1, fight.spawning.game, now_ms);
             d2d::log::info("Search for Cain: the Scroll of Inifuss");
@@ -1642,6 +1652,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         }
         if (object.operate_fn == d2d::rules::operate_fn::kGibbet) {
             if (!cain.gibbet(quest_bits, fresh)) return;
+            class_cue("act1_rescue_cain", now_ms);   // FUN_00593290: unit event 0x30
             operated[{ level, npc_index }] = now_ms;
             const auto found = std::ranges::find(level->npcs, d2d::rules::monster_ids::kCain, &Npc::hc_idx);
             const bool spawned = found != level->npcs.end();
@@ -1655,7 +1666,11 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
             cain.stone_order(rng.low, rng.high);
             d2d::log::info("Search for Cain: the stones' order {} {} {} {} {}", cain.order[0], cain.order[1], cain.order[2], cain.order[3], cain.order[4]);
         }
+        const int voice_throttle = cain.throttle;
         const auto lit = cain.stone(quest_bits, object.object_id, carries("bkd"), fresh);
+        if (cain.throttle != voice_throttle && (voice_throttle & 0x3f) == 0
+            && !d2d::rules::quest::bit(quest_bits, Cain::kQuest, 3) && !d2d::rules::quest::bit(quest_bits, Cain::kQuest, 4))
+            class_cue("act1_find_cairn", now_ms);   // FUN_00593710: event 0x27, every 64th missing-scroll hint
         if (lit == Cain::Stone::none) return;
         operated[{ level, npc_index }] = now_ms;
         if (lit == Cain::Stone::lit) return;
@@ -1904,7 +1919,7 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
         arrive(other_end.level, other_end.x, other_end.y + 0.6f, "a town portal");
     }
 
-auto World::deal(const Command& command) -> bool {
+auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         const auto& tables = game_data->rules;
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
         if (const auto* trade = std::get_if<cmd::OpenTrade>(&command)) {
@@ -1942,18 +1957,25 @@ auto World::deal(const Command& command) -> bool {
         if (const auto* repair = std::get_if<cmd::Repair>(&command)) {
             if (actor->store.npc < 0) return true;
             actor->store.reduced = reduced_prices();
-            if (repair->item < 0) { d2d::rules::store_repair_all(tables, actor->store, actor->character.items, actor->character.stats); return true; }
+            if (repair->item < 0) {
+                if (d2d::rules::store_repair_all(tables, actor->store, actor->character.items, actor->character.stats) > 0)
+                    cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
+                return true;
+            }
             const auto found = std::ranges::find(actor->character.items, repair->item, &d2d::d2s::Item::id);
-            if (found != actor->character.items.end()) d2d::rules::store_repair(tables, actor->store, *found, actor->character.stats);
+            if (found != actor->character.items.end() && d2d::rules::store_repair(tables, actor->store, *found, actor->character.stats))
+                cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
             return true;
         }
         // Cain's identify (FUN_00578460): 100 gold an item, all at once, unless
         // quest 4's done or its reward's due; paid purse first, then the stash
         // (FUN_00576d90).
         if (std::holds_alternative<cmd::Identify>(command)) {
+            const bool any = d2d::rules::unidentified(actor->character.items) > 0;
             const int fee = d2d::rules::quest::bit(quests(), 4, 0) || d2d::rules::quest::bit(quests(), 4, 1) ? 0 : d2d::rules::unidentified(actor->character.items) * 100;
             if (!d2d::rules::pay(actor->character.stats, fee)) return true;
             d2d::rules::identify_all(actor->character.items);
+            if (any) cues.cue(d2d::rules::sound_ids::kCursorIdentifyItem, now_ms, actor->player.x, actor->player.y);
             return true;
         }
         // A Scroll of Identify (isc, used up) or a Tome (ibk, a charge, stat
@@ -1967,6 +1989,7 @@ auto World::deal(const Command& command) -> bool {
             if (scroll->code == "ibk" && scroll->quantity > 0) --scroll->quantity;
             else if (scroll->code != "isc") return true;
             item->identified = true;
+            cues.cue(d2d::rules::sound_ids::kCursorIdentifyItem, now_ms, actor->player.x, actor->player.y);
             if (scroll->code == "isc") items.erase(scroll);
             return true;
         }
@@ -2288,6 +2311,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 loot.enter(level);
                 loot.place(std::move(*actor->held), actor->player.x, actor->player.y, now_ms);
                 actor->held.reset();
+                cues.cue(d2d::rules::sound_ids::kCursorPointDrop, now_ms, actor->player.x, actor->player.y);
             }
             return;
         }
@@ -2345,7 +2369,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             }
             return;
         }
-        if (deal(command)) {
+        if (deal(command, now_ms)) {
             if (actor->store.npc >= 0 && !actor->store.gamble) stocks[actor->store.npc] = actor->store;   // what the trade left in the vendor's stock
             return;
         }
@@ -2407,7 +2431,10 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         const auto* skill = game_data->skills.get(use_skill.skill);
         const int monster_index = fight.monster_index(use_skill.unit);
         const bool live = monster_index >= 0 && fight.monsters[std::size_t(monster_index)].targetable();
-        if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
+        if (skill && !skill->in_town && !in_moor) {
+            if (fight.sound_rng(2)) class_cue("not_in_town_1", now_ms);
+            else class_cue("not_in_town_2", now_ms);
+        } else if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
             if (fight.cast(use_skill.skill, now_ms)) actor->player.walking = false;
         } else if (skill && skill->srvdofunc == ServerDoFunction::kWhirlwind && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
             actor->move_x = use_skill.x; actor->move_y = use_skill.y;
@@ -2522,6 +2549,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
             !afterglow_made && wanderer != fight.monsters.end() && !game_data->afterglow.code.empty()) {
             afterglow_made = true;
+            cues.cue("object_wanderer_fissure", now_ms, wanderer->unit.x, wanderer->unit.y);
             static constexpr std::array<std::pair<int, int>, 8> kAround{ { { -3, -3 }, { -3, 0 }, { -3, 3 }, { 0, -3 }, { 0, 3 }, { 3, -3 }, { 3, 0 }, { -3, 3 } } };
             for (auto at = std::size_t(fight.spawning.quests.next() & 1); at < kAround.size(); ++at) {
                 const auto [x, y] = level->nearest_free(wanderer->unit.x + float(kAround[at].first) / 5, wanderer->unit.y + float(kAround[at].second) / 5);

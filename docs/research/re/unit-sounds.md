@@ -108,10 +108,35 @@ Unit sound events (server FUN_00553380(unit, id) → client FUN_004cb9c0):
 0x18 not_in_town; 0x19..0x20 the chat lines (+0x20 − 0x32 + 2 id); 0x21.. a
 quest line (+0x24 − 0x21 + id), some delayed (FUN_004dcd40). Quest
 completions seen: 0x21 Andariel, 0x23 Den, 0x24 Tools, 0x25 Tower, 0x30 Cain,
-0x32 Radament, 0x34 Tainted Sun, 0x36 Tombs, 0x40..0x43 Act 3, 0x48 Jade
-Figurine found, 0x4a Izual, 0x4b Diablo. **Not traced yet:** the "find" lines'
-triggers (quest level-enter handlers passing the id), so most quest lines
-don't play in d2d.
+0x30 Cain, 0x32 Radament, 0x33 Summoner, 0x34 Tainted Sun, 0x36 Tombs,
+0x40..0x43 Act 3, 0x48 Jade Figurine found, 0x4a Izual, 0x4b Diablo. d2d now
+plays the matching class cues for Cain's rescue (0x30), the Seven Tombs
+aftermath (0x36), and Act 3 completions (0x40..0x43). Act 1's
+`act1_find_tree` is event 0x2d when the Inifuss Tree gives the scroll;
+`act1_find_cairn` is event 0x27, throttled to every 64th Cairn Stone use
+without the scroll.
+
+The other 23 classic `find` cues have sound-table entries and client event
+handling, but no trigger in the 1.14d server executable. The server voice
+dispatcher FUN_00553380 has 97 direct call sites; checking their immediate or
+computed event arguments finds no calls for these IDs. The two generic quest
+voice helpers also have no hidden callers: FUN_005455f0 is only used by the
+Den quest callback, and FUN_00595420 only by the Countess callback. Thus the
+assets cannot play through normal quest progression in this build. Adding
+them would require inventing new trigger conditions rather than porting an
+existing game.exe event.
+
+| Act | Event IDs | Sound-table cues without a server trigger |
+|---|---|---|
+| 1 | 0x26, 0x28–0x2c, 0x2e–0x2f | burial, catacombs, den, jail, monastery, tower, Tristram, wilderness |
+| 2 | 0x37–0x3c | Arcane, Claw Viper, Radament, Summoner, decoy tomb, true tomb |
+| 3 | 0x44–0x47, 0x49 | beneath, blackened, drain, Guardian, Lam Esen |
+| 5 | 0x4c–0x4f | wilderness, Nihlathak, mountaintop, Worldstone |
+
+The Act 3 Jade event 0x48 is already emitted as the Jade Figurine find cue;
+it is not part of the unsupported set. The names above are the class-specific
+`find` rows resolved from the client mapping
+`class voice table + 0x24 − 0x21 + id`.
 
 ## Footsteps (FUN_004caf60 → FUN_004caeb0)
 
@@ -144,7 +169,8 @@ Init, +0x74 Taunt, +0x78 Flee, +0x7c.. CvtMo / CvtSk / CvtTgt.
 - Dying stops its own playing sounds (FUN_004cb2c0); attacking fades its
   neutral (FUN_004cb220). Not ported.
 - Taunt and Flee arrive as S→C unit sound events (FUN_004cbde0 0x10 / 0x11)
-  the AI sends. Not ported.
+  the AI sends. d2d plays each MonSounds Taunt on S2 and the Fallen's Flee
+  when it retreats after a nearby unit dies.
 
 ## Objects (0x7295f8)
 
@@ -241,7 +267,20 @@ keeps playing sounds: `FUN_0044efa0` still runs the sound tick
 
 ## In d2d
 
-`tools/sound_coverage.py` lists the base install's sounds d2d can't play yet.
+`tools/sound_coverage.py` lists the base install's sounds d2d can't play yet
+(3,340 / 3,520 currently covered). Energy Shield's Sorceress hit variant
+plays when it absorbs mana, and Barbarian Leap's landing cue plays when its
+flight ends. Several traced quest completion and object interactions also
+now dispatch their class or object cue at the server-side event.
+The remaining 180 rows split into 125 class-quest phrases, ten quest music
+stingers, and 45 other event sounds. The class phrases have no matching
+server-event dispatch in stock 1.14d; the server xref audit identifies the
+missing event IDs. `event_desert_night_1..5` are not selected by any
+SoundEnviron row (the desert night rows point at the daytime event group).
+The remaining NPC, hireling, monster, overlay, and ProgSound rows have no
+connected cue path in d2d yet; the coverage report names each family. Their
+audio files exist, but inventing triggers without matching game.exe's event
+sites risks playing the wrong line or effect.
 `rules::sound_ids` (kSwing, impact, hit_class), `Fighter::hit_class` →
 `Blow::hit_class` (+ `Swing::hit_class`, a missile's row) → `Monster::hit_class`
 in `Fight::land`; `Fight::monster_sounds` plays the impact on GH / KB / DT,
@@ -253,7 +292,13 @@ the View (`Audio::stop_owners`). States: `StateClock` in `dress()`. Footsteps:
 `World::footstep_frame`, `Fight::monster_sounds`. Objects: the client's
 `Town::object_sounds`. Greetings: `World::greet_sound`. Sound rolls use
 `Fight::sound_rng`, apart from the game's.
-Left: the player's quest lines and chat phrases, monsters' Taunt / Flee and
-own skill stsound, dosound a / b, prgsound, ProgSound, block (FUN_004cb860)
-and kick sounds, state 0x92, a missile's hit class on a player, the town's
-floor material (its DS1 tiles aren't in `room_floors`: dirt).
+Left: the player's quest lines, monsters' own skill stsound, dosound a / b,
+prgsound, ProgSound, block (FUN_004cb860) and kick sounds, state 0x92, a
+missile's hit class on a player, the town's floor material (its DS1 tiles
+aren't in `room_floors`: dirt). Cursor item sounds (identify, repair, break,
+point-drop and convert) are cued at their successful actions; only the
+convert-ready cue remains.
+
+Player attack modes follow the Skills.txt `anim` token: S3 (the Barbarian's
+Left Hand Swing and the Druid's Rabies / Hunger) and S4 are attack modes too,
+so their attack timing and sound dispatcher run as for A1 / KK / S1.

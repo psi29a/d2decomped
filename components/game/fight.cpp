@@ -294,6 +294,10 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
         const GameData::MonSound* sounds = found == game_data->mon_sounds.end() ? nullptr : &found->second;
         const auto play = [&](int sound, std::uint32_t when) { cues.cue(sound, when, monster.unit.x, monster.unit.y); };
         const bool town = d2d::rules::level_ids::is_town(level->id);
+        if (monster.flee_sound) {
+            if (sounds) play(sounds->flee, now_ms);
+            monster.flee_sound = false;
+        }
         // As it first shows (FUN_004cc380): its Init, outside town, a Neutral's start.
         if (!monster.sounded) {
             monster.sounded = true;
@@ -327,6 +331,10 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
                 } else if (monster.mode.size() == 2 && monster.mode[0] == 'S' && monster.mode[1] >= '1' && monster.mode[1] <= '4') {
                     play(sounds->skill[std::size_t(monster.mode[1] - '1')], now_ms);   // FUN_004cb890
                 }
+                // FUN_004cbde0's Taunt event (0x10) accompanies Fallen S2.
+                // Other S2 modes have no Taunt row, so their skill sound stays
+                // on the Skill2 path above.
+                if (monster.mode == "S2") play(sounds->taunt, now_ms);
             }
         }
         const bool about = monster.mode == "NU" || monster.mode == "WL" || monster.mode == "RN";
@@ -711,7 +719,9 @@ auto Fight::seq_view(std::uint32_t now_ms) const -> std::pair<int, std::uint32_t
 auto Fight::swing_mode() const -> int {
         const auto* skill = game_data->skills.get(actor->swing_skill);
         if (!skill || actor->swing_skill == 0) return kModeA1;
-        return skill->anim == "KK" ? kModeKK : skill->anim == "S1" ? kModeS1 : kModeA1;
+        // FUN_004cc5b0 dispatches S3 / S4 player attacks too (Barbarian / Assassin);
+        // Skills.txt also uses S3 for the Druid's Rabies and Hunger attacks.
+        return skill->anim == "KK" ? kModeKK : skill->anim == "S1" ? kModeS1 : skill->anim == "S3" ? kModeS3 : skill->anim == "S4" ? kModeS4 : kModeA1;
     }
 
 auto Fight::swing() -> d2d::rules::Swing {
@@ -931,8 +941,8 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         if (blow.hit && finishing) release(target, now_ms);
         if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kDragonTail) dragon_tail(*skill, target, blow.phys, now_ms);
         if (blow.hit && skill && (skill->srvdofunc == ServerDoFunction::kFrenzy || skill->srvdofunc == ServerDoFunction::kStackingStrike)) frenzy(*skill, now_ms);   // Feral Rage / Maul stack as Frenzy
-        if (blow.hit && skill && skill->srvstfunc == ServerStartFunction::kImpale) impale_wear(*skill);
-        if (blow.hit) wear_weapon();
+        if (blow.hit && skill && skill->srvstfunc == ServerStartFunction::kImpale) impale_wear(*skill, now_ms);
+        if (blow.hit) wear_weapon(now_ms);
         if (blow.hit && skill && (skill->srvdofunc == ServerDoFunction::kChargedStrike || skill->srvdofunc == ServerDoFunction::kLightningStrike)) strike_bolts(*skill, target, now_ms);
         // Conversion (do 79, FUN_005d0350): on a hit, an evil monster no one
         // owns that swaps_ai lets (FUN_005d02b0: FUN_006259b0, FUN_0056e2f0)
@@ -1270,7 +1280,7 @@ auto Fight::state_of(std::string_view name) const -> const SelfState* {
         return nullptr;
     }
 
-auto Fight::absorb(const Foe& foe) -> int {
+auto Fight::absorb(const Foe& foe, std::uint32_t now_ms) -> int {
         using namespace d2d::d2s;
         int damage = foe.damage;
         if (damage <= 0) return 0;
@@ -1291,6 +1301,11 @@ auto Fight::absorb(const Foe& foe) -> int {
             const int can = int(std::min<std::int64_t>(part, (actor->character.stats.values[kMana] >> 8) * 16 / per16));
             actor->character.stats.values[kMana] -= (std::int64_t(can) * per16 / 16) << 8;
             damage -= can;
+            if (can > 0 && actor->character.character_class == 1) {
+                static constexpr std::array<std::string_view, 5> kEnergyShieldHits = { "sorceress_energyshield_hit_1", "sorceress_energyshield_hit_2",
+                    "sorceress_energyshield_hit_3", "sorceress_energyshield_hit_4", "sorceress_energyshield_hit_5" };
+                cues.cue(kEnergyShieldHits[std::size_t(sound_rng(kEnergyShieldHits.size()))], now_ms, actor->player.x, actor->player.y);
+            }
         }
         return damage;
     }
@@ -2326,7 +2341,7 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
         if (next != actor->character.items.end()) { next->location = item_location::kEquipped; next->slot = slot; next->panel = 0; }
     }
 
-auto Fight::wear(std::size_t index) -> void {
+auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         auto& item = actor->character.items[index];
         const auto& tables = game_data->rules;
@@ -2337,22 +2352,26 @@ auto Fight::wear(std::size_t index) -> void {
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
         if (int(rng(100)) >= chance) return;
         if (item.durability - 1 >= 1) { item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item)); return; }
-        if (armor) { item.flags |= 0x100u; item.durability = 0; return; }
+        if (armor) { item.flags |= 0x100u; item.durability = 0; cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y); return; }
         const auto base = tables.item_base.find(item.code);
-        if (base == tables.item_base.end() || !base->second.stackable) { item.durability = 0; return; }
+        if (base == tables.item_base.end() || !base->second.stackable) {
+            item.durability = 0;
+            cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
+            return;
+        }
         if (item.quantity < 2) { out_of_ammo(index); return; }
         --item.quantity;
         item.durability = d2d::rules::max_durability(item);
     }
 
-auto Fight::wear_weapon() -> void {
+auto Fight::wear_weapon(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         for (std::size_t i = 0; i < actor->character.items.size(); ++i)
             if (actor->character.items[i].location == item_location::kEquipped && (actor->character.items[i].slot == body_location::kRightArm || actor->character.items[i].slot == body_location::kLeftArm)
-                && game_data->rules.item_info.contains(actor->character.items[i].code) && game_data->rules.item_info.at(actor->character.items[i].code).kind == 2) { wear(i); return; }
+                && game_data->rules.item_info.contains(actor->character.items[i].code) && game_data->rules.item_info.at(actor->character.items[i].code).kind == 2) { wear(i, now_ms); return; }
     }
 
-auto Fight::wear_armor() -> void {
+auto Fight::wear_armor(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         static constexpr std::array<std::pair<int, int>, 7> kSlots{ { { body_location::kHead, 3 }, { body_location::kTorso, 5 }, { body_location::kRightArm, 4 },
             { body_location::kLeftArm, 4 }, { body_location::kBelt, 2 }, { body_location::kFeet, 2 }, { body_location::kGloves, 2 } } };
@@ -2369,12 +2388,12 @@ auto Fight::wear_armor() -> void {
         int pick = rng(total);
         for (;; slot_index = (slot_index + 1) % kSlots.size()) {
             if (worn[slot_index] < 0) continue;
-            if (pick < kSlots[slot_index].second) { wear(std::size_t(worn[slot_index])); return; }
+            if (pick < kSlots[slot_index].second) { wear(std::size_t(worn[slot_index]), now_ms); return; }
             pick -= kSlots[slot_index].second;
         }
     }
 
-auto Fight::impale_wear(const d2d::rules::Skill& skill) -> void {
+auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
         if (int(rng(100)) >= d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl)) return;
@@ -2385,7 +2404,10 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill) -> void {
                 if (found != game_data->rules.item_base.end() && found->second.stackable) { if (--item.quantity <= 0) out_of_ammo(i); }
                 else if (item.max_durability > 0 && !d2d::rules::indestructible(item)) {
                     item.durability -= d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl);
-                    if (item.durability <= 0) { item.durability = 0; item.flags |= 0x100u; }   // FUN_0055f850: it breaks
+                    if (item.durability <= 0) {
+                        item.durability = 0; item.flags |= 0x100u;             // FUN_0055f850: it breaks
+                        cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
+                    }
                 }
                 return;
             }
@@ -4485,6 +4507,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                             land(j, blow, true, now_ms);
                         }
                 }
+                if (actor->character.character_class == 4) cues.cue("barbarian_leap_land", now_ms, actor->player.x, actor->player.y);
                 actor->leap.reset();
             }
         }
@@ -4521,12 +4544,12 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             d2d::log::info("mana burn: -{} mana", foe.mana_burn);
         }
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
-        for (int landed = 0; landed < foe.hits; ++landed) wear_armor();
+        for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);
         if (foe.hits > 0) {                                         // a monster's MonStats2 HitClass; a missile's none here
             const int striker = foe.melee_by.empty() ? -1 : monster_index(foe.melee_by.back());
             actor->struck_class = striker < 0 || monsters[std::size_t(striker)].type < 0 ? 0 : game_data->monsters.types[std::size_t(monsters[std::size_t(striker)].type)].hit_class;
         }
-        foe.damage = absorb(foe);
+        foe.damage = absorb(foe, now_ms);
         foe.damage += int(actor->self_hurt >> 8);
         actor->self_hurt &= 255;
         using namespace d2d::d2s;

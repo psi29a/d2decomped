@@ -939,14 +939,13 @@ A did nothing on a waypoint or a town portal):
   object's mode and looping sounds (the whole 0x7295f8 table,
   `rules/object_sounds.hpp`); town NPCs' greetings with their time of day.
 - `tools/sound_coverage.py` lists the base install's sounds d2d can't play:
-  3,123 of 3,520 play now (2,181 before).
+  3,288 of 3,520 play now (2,181 before).
 
-Still open (the tool's list): the hero's quest lines (the "find" and
-"complete" voices: each quest's server code sends its id to
-FUN_00553380; ~45 a class) and chat phrases; monsters' Taunt and Flee
-(server events), their own skill stsound; dosound a / b, prgsound, block
-and kick sounds; the quest music jingles; camp floors (DS1 tiles aren't in
-`room_floors`: always dirt).
+Still open (the tool's list): the remaining hero quest voices (most "find"
+lines and some completions; each quest's server code sends its id to
+FUN_00553380; about 40 per class); their own skill stsound; dosound a / b,
+prgsound, block and kick sounds; the quest music jingles; camp floors (DS1
+tiles aren't in `room_floors`: always dirt).
 
 Next: the hero's quest lines, act by act; then a real-Deck check.
 

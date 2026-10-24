@@ -115,7 +115,8 @@ the object's flag byte:
 
 - Locked: the player needs a key (`FUN_0055f140`: an inventory item of type
   key; one off its quantity, 0x46, or the key goes). Without one nothing
-  opens. A locked chest drops **two** rounds.
+  opens. A locked chest drops **two** rounds. d2d plays `item_key_used` when
+  it consumes the key for the successful open.
 - `rand(100) > 24`, or locked, or the flag behind `FUN_005540d0`: it drops.
   So an unlocked chest is empty one time in four. With that flag and
   nothing dropped, up to 10 more tries.

@@ -37,6 +37,7 @@
 
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <sound_ids.hpp>
 #include <devctl.hpp>
 #include <install.hpp>
 #include <join.hpp>
@@ -1371,8 +1372,20 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 character.ok_btn.do_switch = character.selected >= 0 && d2d::net::valid_join_name(character.name);
                 update_button(character.cancel_btn, mouse, screen, quit);
                 update_button(character.ok_btn,     mouse, screen, quit);
-                if (!character.cancel_btn.hovered && !character.ok_btn.hovered && scene)
+                if (!character.cancel_btn.hovered && !character.ok_btn.hovered && scene) {
+                    const int previous = character.selected;
                     handle_charcreate_click(character, *scene, mouse, now_ms);
+                    if (character.selected != previous) {
+                        if (previous >= 0) {
+                            const int cls = kUiToSaveClass[std::size_t(previous)];
+                            audio.play_sfx(*scene, d2d::rules::sound_ids::kClassDeselect[std::size_t(cls)], 1.f, 0);
+                        }
+                        if (character.selected >= 0) {
+                            const int cls = kUiToSaveClass[std::size_t(character.selected)];
+                            audio.play_sfx(*scene, d2d::rules::sound_ids::kClassSelect[std::size_t(cls)], 1.f, 0);
+                        }
+                    }
+                }
                 // OK: a new character (CharStats.txt's start), saved at once so
                 // it's on the roster. A name that has a save already is refused.
                 if (screen == Screen::InGame && scene) {
