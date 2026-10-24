@@ -603,7 +603,7 @@ auto Town::send(const Command& command) -> void {
             // portals, 100 the true tomb's way down); operated once the host
             // has us there, as it warps us (0x15); d2d takes its own here.
             const int which = -2000 - interact->npc;
-            static constexpr std::array<int, d2d::game::World::kGamePortals> kHostClass{ 59, 59, 60, 60, 60, 60, 100, 59, 60, 60 };
+            static constexpr std::array<int, d2d::game::World::kGamePortals> kHostClass{ 59, 59, 60, 60, 60, 60, 100, 59, 60, 60, 60, 60 };
             if (which < 2 && net_game->portal_here != 0) {
                 net_operate_type = 2; net_operate = net_game->portal_here; net_operate_ms = frame_now; net_operate_moves = true; net_operate_waypoint = -1;
             } else if (const auto& entry = world.portal[std::size_t(which)]; entry.level) {

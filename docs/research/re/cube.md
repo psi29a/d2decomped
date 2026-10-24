@@ -97,7 +97,11 @@ Each output:
 1. **Level**: lvl; else plvl% of the player's level + ilvl% of the first
    input's ilvl (each `x * pct / 100` with overflow care), 1 .. MaxLvl
    (experience.txt's, 99).
-2. **Kind**: a portal (1..3) through the table at 0x6e11c8. Without `mod`:
+2. **Kind**: a portal (1..3) through the table at 0x6e11c8: 1 the Cow
+   Portal (`FUN_00594140`: d2d's rules::CainQuest::cow_portal_opens), 2 and
+   3 the Pandemonium portals, a bare `return 0` in 1.14d (`FUN_00594270`,
+   `FUN_00594280`; the event was realm-only). A portal that returns 0 makes
+   nothing and the inputs stay; one made takes them. Without `mod`:
    useitem copies the input (`FUN_0055a2a0`, its socket contents kept
    unless `uns` / `rem`; `tmp` quality gets new names, `FUN_005c1bc0`);
    else a new item (`FUN_00558d90`): usetype's base (with `reg`: the input's
@@ -131,7 +135,7 @@ d2d makes the items through `generate_item` (its rare roll isn't game.exe's
 yet), so: crafted (`crf`) is made rare and then called crafted; forced
 `pre=` / `suf=` aren't applied; `mod`'s new base doesn't recompute its
 stats; `rch` doesn't refill charges; useitem / mod outputs roll their mods
-off a fresh seed, not the item's own; the portals aren't made; op 28's
+off a fresh seed, not the item's own; op 28's
 difficulty stat isn't checked; the auto placement is d2d's first fit. A
 valid recipes play `cursor_convert_ready`, then a successful transmute plays
 `cursor_convert_item`. Checked live (devctl, 2026-10-11): the Horadric Staff (bit 11) and

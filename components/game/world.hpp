@@ -298,10 +298,13 @@ struct World {
     // the Canyon of the Magi (object 60, FUN_0056d130), [5] its twin; [6]
     // the true tomb's way down to Duriel (object 100, OperateFn 43: one
     // way). Act 5's: [8] Anya's red portal to Nihlathak's Temple (object 60,
-    // FUN_0058af90), [9] its twin. From [10] on, the other players' town
-    // portals, a pair each (Player::portal_pair). A portal's other end is k ^ 1.
+    // FUN_0058af90), [9] its twin. [10] the Cube's Cow Portal (object 60,
+    // FUN_00594140) in the camp, [11] its twin in the Moo Moo Farm. From [12]
+    // on, the other players' town portals, a pair each (Player::portal_pair).
+    // A portal's other end is k ^ 1.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    static constexpr std::size_t kGamePortals = 10, kTemplePortal = 8;
+    static constexpr std::size_t kGamePortals = 12, kTemplePortal = 8, kCowPortal = 10;
+    bool cow_portal_opened = false;        // this game's (quest record 0xb's flag, FUN_00544720)
     // a5q2's cages' portals (FUN_005888d0: object 189, as Cain's): the freed
     // prisoners' way out, no twin, not selectable.
     std::array<Portal, 3> cage_portal{};

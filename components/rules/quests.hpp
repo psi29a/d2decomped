@@ -1512,6 +1512,17 @@ struct CainQuest {
     // Tristram Cain went through his portal (FUN_005944f0: +0x91, +0x52):
     // camp Cain's due (FUN_005940e0 → FUN_00592960).
     void portal_entered() { camp_due = true; }
+    // The Cube's Cow Portal (output kind 1, FUN_00594140): none opened this
+    // game yet (record 0xb's flag, FUN_00544760), the Cow King alive (bit
+    // 10), the last act's boss down in this difficulty (expansion: quest
+    // 0x28 bit 0, else 0x1a bit 0), in the Rogue Encampment. Then object 60
+    // to the Moo Moo Farm by the player (FUN_00545340, FUN_0056d130) and the
+    // flag set (FUN_00544720); else the inputs stay. The Pandemonium and
+    // Finale portals (kinds 2 / 3: FUN_00594270 / FUN_00594280) are a bare
+    // `return 0` in 1.14d, so their keys and organs stay too.
+    [[nodiscard]] static bool cow_portal_opens(const QuestBits& quest_bits, bool opened, bool expansion, int level_id) {
+        return !opened && !quest::bit(quest_bits, kQuest, 10) && quest::bit(quest_bits, expansion ? 0x28 : 0x1a, 0) && level_id == level_ids::kRogueEncampment;
+    }
 };
 
 // The Forgotten Tower, one game's (a1q5.cpp, the record at FUN_00595920).
