@@ -482,8 +482,8 @@ MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
 - The uber Mephisto, Diablo and Baal thinks are bare `ret 4`, the only
   such rows but row 0. Nothing patches the table (no code addresses it but
   `FUN_005b15d0`) and the special table (0x73d358, 18 rows) has no uber
-  row. Their only other path is the other think, a curse toggle's swap
-  (Baal's / Diablo's), which toggles straight back. Orphans with no caller
+  row. Their only other path is the other think, the swap a curse
+  toggle makes as it does for Baal and Diablo, which toggles straight back. Orphans with no caller
   or pointer: `FUN_005e9dd0` (makes 0x2c7 demonhole at a unit, mode 1,
   flags 0x40) and `FUN_005f7f10` (a make next to Mephisto's think), and
   `FUN_005dd140` (counts uber Mephisto / Diablo / Baal, 0x2c7, 0x2c8 and
@@ -508,8 +508,8 @@ MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
   further yet.
 - The Tristram ubers' death (mod 22, `FUN_005e0070`, via FUN_005a30e0):
   sets game +0x1df0 / +0x1dec / +0x1de8 for 0x2c0 / 0x2c1 / 0x2c5; all three
-  set: drops `cm2 ` (the Hellfire Torch) through `FUN_00559a30(7)`, then a
-  `std ` (Standard of Heroes) per +0x8c.
+  set: drops `cm2` (the Hellfire Torch) through `FUN_00559a30(7)`, then a
+  `std` (Standard of Heroes) per +0x8c; each four-byte code ends in a space.
 
 ## Doors — FUN_005b0f50
 

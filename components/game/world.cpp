@@ -1082,6 +1082,8 @@ auto World::enter(const Character& entering) -> void {
         actor->target_x = actor->player.x; actor->target_y = actor->player.y;
         spawn_merc();
         new_game();
+        act5_hide();                                  // a5q3's join: Anya home, Nihlathak gone (Anya's state grown in)
+        grow_states(npc_states, *level);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
             if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest) npc_states[i].hidden = !cain.camp_cain;
         show_palace();                                // a save left in act 2 starts in Lut Gholein

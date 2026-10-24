@@ -600,8 +600,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     const bool baal = type_info.ai_name == "BaalCrab" || type_info.ai_name == "BaalCrabClone";
     const int point_far = baal ? 0x4b : 0x55;
     if (target && (type_info.ai_name == "Diablo" || baal)) {
-        const std::uint16_t line_mask = type_info.ai_name == "UberIzual" ? 0x06 : 0x04;   // UberIzual's teleport test: FUN_00622aa0 mask 6
-        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, line_mask); };
+        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
         const int point_x = monster.has_point ? monster.point_x : x, point_y = monster.has_point ? monster.point_y : y;
         const auto value = [&](const Foe& foe) {
             const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
@@ -902,7 +901,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.spot_clear = !level.blocked(unit.x, unit.y, 0x40);
             input.spared = target->a3q5_done && d2d::rules::level_act(level.id) == 2;
         }
-        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+        const std::uint16_t line_mask = type_info.ai_name == "UberIzual" ? 0x06 : 0x04;   // UberIzual's teleport test: FUN_00622aa0 mask 6
+        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, line_mask); };
         input.line_clear = !d2d::rules::sight_blocked(x, y, type_info.size, target_x, target_y, target->size, wall);
         if (const auto missile = game_data.missiles.find(type_info.miss_s1); !type_info.miss_s1.empty() && missile != game_data.missiles.end()) input.s1_range = missile->second.range;
         for (std::size_t slot = 0; slot < 3; ++slot) input.skill678[slot] = !type_info.skill[slot + 5].empty();
@@ -1442,6 +1442,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // The priests' teleport point, the Council's corner, Baal's
             // teleport (25 off, away from the target) and the imps' and
             // Nihlathak's (FUN_005df850, off themselves) are the map's.
+            if (act.spot) { monster.skill_x = target_x; monster.skill_y = target_y; }   // at the target's spot (UberIzual's teleport)
             if ((type_info.ai_name == "ZakarumPriest" || type_info.ai_name == "HighPriest" || type_info.ai_name == "Imp" || type_info.ai_name == "Nihlathak" || baal) && (act.x || act.y)) { monster.skill_x = act.x; monster.skill_y = act.y; }
             if (monster.skill_unit >= 0) unit.dir = direction16(pack[std::size_t(monster.skill_unit)].unit.x - unit.x, pack[std::size_t(monster.skill_unit)].unit.y - unit.y);
             if (type_info.ai_name == "GargoyleTrap") {                 // square on (FUN_005f9490): along the axis it's nearer the target's
