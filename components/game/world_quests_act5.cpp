@@ -35,6 +35,7 @@ auto World::act5_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBit
         log[d2d::rules::RescueQuest::kQuest] = std::uint8_t(rescue.log_state(bits));
         log[d2d::rules::PrisonQuest::kQuest] = std::uint8_t(prison.log_state(bits, carries(d2d::rules::PrisonQuest::kPotionCode)));
         log[d2d::rules::BetrayalQuest::kQuest] = std::uint8_t(betrayal.log_state(bits));
+        log[d2d::rules::RiteQuest::kQuest] = std::uint8_t(rite.log_state(bits));
     }
 
 auto World::act5_join() -> void {
@@ -48,6 +49,10 @@ auto World::act5_join() -> void {
         betrayal = {};
         betrayal.join(quests());
         betrayal_log_at = 0;
+        rite = {};
+        rite.join(quests());
+        statues_at = 0;
+        rite_died = false;
         cages_up.clear();
         fana_at = thaw_at = 0;
         fana = { nullptr, -1 };
@@ -65,6 +70,8 @@ auto World::act5_chain() -> void {
         prison.opened();
         if (prison.open && prison.state < 5) return;
         betrayal.opened();
+        if (betrayal.open && betrayal.state < 4) return;
+        rite.opened();
     }
 
 auto World::act5_enter(const Level& from) -> void {
@@ -73,12 +80,14 @@ auto World::act5_enter(const Level& from) -> void {
         prison.enter(quests(), from.id, level->id);
         act5_hide();
         betrayal.enter(quests(), from.id, level->id);
+        rite.enter(quests(), from.id, level->id, int(actor->character.stats.get(d2d::d2s::kLevel)), actor->character.header.active_difficulty());
     }
 
 auto World::act5_talk_closed(int hc_idx) -> void {
         siege.talk_closed(hc_idx);
         rescue.talk_closed(hc_idx);
         prison.talk_closed(hc_idx);
+        rite.talk_closed(hc_idx);
         // Anya's red portal to Nihlathak's Temple (FUN_0058af90: FUN_0056d130,
         // object 60 at her spot +10, +5 subtiles), its twin at the temple's
         // portal spot.
@@ -104,6 +113,7 @@ auto World::act5_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> voi
         std::ranges::copy(rescue.talk(quests(), hc_idx), std::back_inserter(out));
         std::ranges::copy(prison.talk(quests(), hc_idx, potion), std::back_inserter(out));
         std::ranges::copy(betrayal.talk(quests(), hc_idx), std::back_inserter(out));
+        std::ranges::copy(rite.talk(quests(), hc_idx), std::back_inserter(out));
     }
 
 auto World::act5_said(int hc_idx, int message_string) -> void {
@@ -131,12 +141,14 @@ auto World::act5_said(int hc_idx, int message_string) -> void {
             d2d::log::info("Prison of Ice: Anya goes home");
         }
         if (betrayal.said(quests(), hc_idx, message_string)) act5_chain();
+        if (rite.said(quests(), hc_idx, message_string, int(actor->character.stats.get(d2d::d2s::kLevel)), actor->character.header.active_difficulty()))
+            statues_at = now + d2d::rules::RiteQuest::kWakeFrames * kTickMs;
     }
 
 auto World::act5_alert(int hc_idx) -> bool {
         const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         return d2d::rules::Act5Opening::alert(actor->character.header.intros[std::size_t(diff)], hc_idx) || siege.alert(quests(), hc_idx) || rescue.alert(quests(), hc_idx)
-            || prison.alert(quests(), hc_idx, carries(d2d::rules::PrisonQuest::kPotionCode)) || betrayal.alert(quests(), hc_idx);
+            || prison.alert(quests(), hc_idx, carries(d2d::rules::PrisonQuest::kPotionCode)) || betrayal.alert(quests(), hc_idx) || rite.alert(quests(), hc_idx);
     }
 
 auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
@@ -165,6 +177,27 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                 rescue.prisoner_died(quests(), kill.id);
                 d2d::log::info("Rescue on Mount Arreat: a prisoner dead ({} caged dead)", rescue.dead);
             }
+        }
+        // The Ancients (FUN_0058c9a0): the last dead wins the Rite for the
+        // players on the Summit of the level (FUN_0058c7e0: bits 13 and 0, the
+        // experience FUN_0058c5c0), the rest bit 14 (FUN_0058c780); the chain.
+        if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return kill.type == int(game_data->mon_bin[std::size_t(ancient)]); }) && rite.ancient_died()) {
+            each_player([&](Player&) {
+                const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
+                auto& stats = actor->character.stats;
+                if (!rite.reward(quests(), level->id == d2d::rules::RiteQuest::kSummit, int(stats.get(d2d::d2s::kLevel)), diff)) return;
+                const auto clvl = std::size_t(std::max<std::int64_t>(stats.get(d2d::d2s::kLevel), 1));
+                const auto& next = game_data->exp_next;
+                std::int64_t exp = d2d::rules::RiteQuest::kExperience[std::size_t(diff)];
+                if (clvl < next.size()) exp = std::min(exp, next[clvl - 1] - (clvl >= 2 ? next[clvl - 2] : 0));
+                else exp = 0;
+                const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
+                if (exp > 0 && d2d::rules::gain_exp(stats, exp, next, game_data->class_gains[save_class]))
+                    actor->character.panel = panel_stats(*game_data, actor->character.header, actor->character.items, stats);
+                d2d::log::info("Rite of Passage: +{} exp", exp);
+            });
+            act5_chain();
+            d2d::log::info("Rite of Passage: the Ancients are dead");
         }
         // Nihlathak (MonStats base 0x20e, bound to 0x22: FUN_0058b7a0).
         if (std::size_t(kill.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(kill.type)].base == d2d::rules::BetrayalQuest::kNihlathak) {
@@ -324,9 +357,67 @@ auto World::prison_update(std::uint32_t now_ms) -> void {
         }
     }
 
+// a5q5 on the Summit: the statues' event 7, 20 frames after the speech
+// (FUN_0058c0e0: each to mode 4, its Ancient at its spot, FUN_00545c30);
+// the Ancients asleep till then; a death there puts it back (FUN_0058c000:
+// the Ancients gone, statues and altar to mode 0).
+// ponytail: an Ancient's death missile (FUN_0058c8d0) and the statues'
+// return (FUN_0058bd50) aren't made; one try per statue.
+auto World::rite_update(std::uint32_t now_ms) -> void {
+        if (level->id != d2d::rules::RiteQuest::kSummit) return;
+        const auto object_index = [&](int object_id) { return int(std::ranges::find(level->npcs, object_id, &Npc::object_id) - level->npcs.begin()); };
+        if (statues_at && now_ms >= statues_at) {
+            statues_at = 0;
+            for (int which = 0; which < 3; ++which) {
+                const int statue = object_index(d2d::rules::RiteQuest::kStatues[std::size_t(which)]);
+                if (statue >= int(level->npcs.size())) continue;
+                if (const int super = rite.statue_wakes(which); super >= 0) {
+                    doors[{ level, statue }] = Door{ 4, now_ms };
+                    seal_boss(*level, super, subtile(level->npcs[std::size_t(statue)].x), subtile(level->npcs[std::size_t(statue)].y));
+                }
+            }
+        }
+        for (auto& monster : fight.monsters)
+            if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return monster.type == int(game_data->mon_bin[std::size_t(ancient)]); }))
+                monster.asleep = !rite.awake;
+        if (!fight.dead()) { rite_died = false; return; }
+        if (std::exchange(rite_died, true) || !rite.reset()) return;
+        for (auto& monster : fight.monsters)
+            if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return monster.type == int(game_data->mon_bin[std::size_t(ancient)]); })) monster.gone = true;
+        for (const int object_id : { 474, 475, 476, d2d::rules::RiteQuest::kAltar })
+            if (const int at = object_index(object_id); at < int(level->npcs.size())) doors[{ level, at }] = Door{ 0, now_ms };
+        statues_at = 0;
+        d2d::log::info("Rite of Passage: the Ancients go back to sleep");
+    }
+
 // Frozen Anya (OperateFn 67, FUN_0058abc0): the potion taken, her thaw.
+// The Summit's altar (65, FUN_0058d310): the Ancients speak, mode 1. Its
+// stairs (66, FUN_0058d400): shut till the Rite's won here (or done); then
+// mode 0 opens them, mode 2 leads to the Worldstone Keep (level 128, by its
+// way back up).
+// ponytail: the stairs open at once (mode 2), not after their event 1.
 auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
         const auto& object = level->npcs[std::size_t(npc_index)];
+        if (object.object_id == d2d::rules::RiteQuest::kAltar) {
+            if (hosted_quests) return true;
+            if (rite.altar(quests())) {
+                doors[{ level, npc_index }] = Door{ 1, now_ms };
+                statues_at = now_ms + d2d::rules::RiteQuest::kWakeFrames * kTickMs;
+                d2d::log::info("Rite of Passage: the Ancients speak");
+            }
+            return true;
+        }
+        if (object.object_id == d2d::rules::RiteQuest::kStairs) {
+            if (!rite.stairs_pass(quests())) { d2d::log::info("Rite of Passage: the stairs stay shut"); return true; }
+            auto& door = doors[{ level, npc_index }];
+            if (door.mode != 2) { door = Door{ 2, now_ms }; return true; }
+            const Level* keep = game_data->level(128);
+            if (!keep || keep->ds1.width() == 0) { d2d::log::warn("The Worldstone Keep didn't build"); return true; }
+            const auto back = std::ranges::find(keep->warps, d2d::rules::RiteQuest::kSummit, &Level::Warp::destination);
+            const auto [to_x, to_y] = back != keep->warps.end() ? keep->nearest_free(back->exit_x, back->exit_y) : keep->nearest_free(float(keep->ds1.width()) / 2, float(keep->ds1.height()) / 2);
+            arrive(keep, to_x, to_y, "the Summit's stairs");
+            return true;
+        }
         if (object.object_id != d2d::rules::PrisonQuest::kFana) return false;
         if (hosted_quests) return true;
         if (prison.thaw(quests(), carries(d2d::rules::PrisonQuest::kPotionCode))) {
@@ -341,12 +432,14 @@ auto World::act5_update(std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
         rescue_update(now_ms);
         prison_update(now_ms);
+        rite_update(now_ms);
         if (betrayal_log_at && now_ms >= betrayal_log_at) { betrayal_log_at = 0; betrayal.log_timer(); }
         // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
         // player it's for (act5_detail::told).
         for (auto [news, quest] : { std::pair{ &siege.news, d2d::rules::SiegeQuest::kQuest }, { &rescue.news, d2d::rules::RescueQuest::kQuest },
                                     { &prison.news, d2d::rules::PrisonQuest::kQuest }, { &betrayal.news, d2d::rules::BetrayalQuest::kQuest } })
             if (std::exchange(*news, false) && d2d::rules::act5_detail::told(quests(), quest)) actor->events.push_back(ev::QuestNews{ quest });
+        if (std::exchange(rite.news, false) && d2d::rules::act5_detail::told(quests(), d2d::rules::RiteQuest::kQuest)) actor->events.push_back(ev::QuestNews{ d2d::rules::RiteQuest::kQuest });
     }
 
 }  // namespace d2d::game

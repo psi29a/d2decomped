@@ -343,6 +343,10 @@ struct World {
     d2d::rules::RescueQuest rescue;
     d2d::rules::PrisonQuest prison;
     d2d::rules::BetrayalQuest betrayal;
+    d2d::rules::RiteQuest rite;
+    std::uint32_t statues_at = 0;          // a5q5: the statues' event 7 (FUN_0058c0e0), 20 frames on
+    bool rite_died = false;                // the player's death on the Summit, taken (FUN_005be290)
+    void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)
     std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
     std::map<std::pair<const Level*, int>, int> cages_up;   // a5q2's cages (object 473) whose InitFn ran: their slot (-1 none)
     void rescue_update(std::uint32_t now_ms);             // the cages, the prisoners' asks (a5q2)

@@ -299,6 +299,7 @@ struct Monster {
         int portal_x = 0, portal_y = 0, player_id = 0;
         bool cried = false, open_portal = false, left = false;
     } wussie;
+    bool asleep = false;                      // an Ancient while a5q5's record +0x11 is unset (FUN_0058cf90; World::act5_update)
     int point_x = 0, point_y = 0;
     std::uint32_t laid_until = 0;
     // Its unit seed (+0x20) as its look left it: what its thinks draw. A

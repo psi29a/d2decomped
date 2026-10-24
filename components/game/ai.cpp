@@ -1045,9 +1045,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.corpse = corpse >= 0;
             input.self_x = x; input.self_y = y;
         }
-        // The Ancients: which by class, a foe picked (the target), awake.
-        // ponytail: their sleep (a5q5's record) and Talic's state 0x36 aren't kept.
+        // The Ancients: which by class, a foe picked (the target), awake
+        // (a5q5's record, set by World::act5_update).
+        // ponytail: Talic's state 0x36 isn't kept.
         if (name == "Ancient") {
+            input.asleep = monster.asleep;
             input.ancient = type_info.id == "ancientbarb2" ? 1 : type_info.id == "ancientbarb3" ? 2 : 0;
             input.picked = true;
             input.self_size = type_info.size; input.target_size = target->size;
