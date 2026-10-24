@@ -665,6 +665,50 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         idle(25);
         return true;
     }
+    // BaalThrone (134, FUN_005ef320; AI control +0x14 the waves sent, +0x18
+    // flags, +0x1c the frame of the next think): till then it stands. With
+    // no other living monster within 64 subtiles (FUN_005dd0b0 kind 3):
+    // flag 1 set, the next of five waves (FUN_005ef210: skill 286 in S3 at
+    // 13 subtiles south, its Subject the wave's superunique 61..65; 100
+    // frames on, flag 2, flag 1 off), or after the fifth he turns into
+    // baalcrabstairs (FUN_00574370(0x22f), think BaalToStairs) and stands 5;
+    // flag 1 unset, skill 285 (Baal Corpse Explode) in S3, flag 1, 250
+    // frames on. Else stands 10.
+    // ponytail: the Corpse Explode's blast (srvdo 141) and the skill1 at a
+    // foe while a wave fights aren't made; a wave is its superunique's group.
+    if (type_info.ai_name == "BaalThrone") {
+        const int frame = int(now_ms / 40);
+        if (frame < monster.ai_state3) { idle(monster.ai_state3 - frame); return true; }
+        const bool others = std::ranges::any_of(pack, [&](const Monster& other) {
+            return &other != &monster && other.alive() && other.align == 0 && d2d::rules::ai_distance(subtile(other.unit.x) - x, subtile(other.unit.y) - y) < 0x40; });
+        if (others) { idle(10); return true; }
+        if (monster.ai_state2 & 1) {
+            if (monster.ai_state >= 5) { monster.baal_leaves = true; idle(5); return true; }
+            monster.baal_wave = 61 + monster.ai_state;
+            set_mode(game_data, monster, "S3", now_ms);
+            ++monster.ai_state;
+            monster.ai_state3 = frame + 100;
+            monster.ai_state2 = (monster.ai_state2 | 2) & ~1;
+            return true;
+        }
+        set_mode(game_data, monster, "S3", now_ms);
+        monster.ai_state2 |= 1;
+        monster.ai_state3 = frame + 250;
+        return true;
+    }
+    // BaalToStairs (138, FUN_005ef620): the Chamber's portal (object 563)
+    // within 25 (FUN_005ef5e0), a straight walk to it (FUN_005deca0); within
+    // aip1 (FUN_006416d0) he's gone in (FUN_0058e600, state 0x92). None:
+    // stands 25.
+    if (type_info.ai_name == "BaalToStairs") {
+        if (!monster.chamber_portal) { idle(25); return true; }
+        const auto [portal_x, portal_y] = *monster.chamber_portal;
+        const int dist = d2d::rules::ai_distance(portal_x - x, portal_y - y);
+        if (dist >= 25) { idle(25); return true; }
+        if (dist < per_difficulty.aip[0]) { monster.baal_in = true; monster.gone = true; return true; }
+        walk_to(portal_x - x, portal_y - y, false);
+        return true;
+    }
     if (!target) {
         monster.chase = -1;
         // FUN_005de890 with none found: with a WL mode (MonStats2 mode bits,

@@ -298,12 +298,13 @@ struct World {
     // the Canyon of the Magi (object 60, FUN_0056d130), [5] its twin; [6]
     // the true tomb's way down to Duriel (object 100, OperateFn 43: one
     // way). Act 5's: [8] Anya's red portal to Nihlathak's Temple (object 60,
-    // FUN_0058af90), [9] its twin; [10] / [12] / [14] a cage's portal to
-    // Harrogath (FUN_005888d0 -> FUN_00555230), each with its twin. From
-    // [16] on, the other players' town portals, a pair each
-    // (Player::portal_pair). A portal's other end is k ^ 1.
+    // FUN_0058af90), [9] its twin. From [10] on, the other players' town
+    // portals, a pair each (Player::portal_pair). A portal's other end is k ^ 1.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    static constexpr std::size_t kGamePortals = 16, kTemplePortal = 8, kCagePortals = 10;
+    static constexpr std::size_t kGamePortals = 10, kTemplePortal = 8;
+    // a5q2's cages' portals (FUN_005888d0: object 189, as Cain's): the freed
+    // prisoners' way out, no twin, not selectable.
+    std::array<Portal, 3> cage_portal{};
     std::vector<Portal> portal = std::vector<Portal>(kGamePortals);
     std::uint32_t now = 0;                 // the tick's time
     const CharacterStore* characters = nullptr;   // where the character is saved
@@ -344,6 +345,10 @@ struct World {
     d2d::rules::PrisonQuest prison;
     d2d::rules::BetrayalQuest betrayal;
     d2d::rules::RiteQuest rite;
+    d2d::rules::EveQuest eve;
+    std::uint32_t tyrael_at = 0;           // a5q6: Baal's light fading (missile 625's end, FUN_0058e920): Tyrael
+    std::pair<float, float> baal_fell{};   // where Baal died (cells)
+    void eve_update(std::uint32_t now_ms);   // Baal's waves, his flight, Tyrael (a5q6)
     std::uint32_t statues_at = 0;          // a5q5: the statues' event 7 (FUN_0058c0e0), 20 frames on
     bool rite_died = false;                // the player's death on the Summit, taken (FUN_005be290)
     void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)

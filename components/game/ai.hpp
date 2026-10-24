@@ -300,6 +300,13 @@ struct Monster {
         bool cried = false, open_portal = false, left = false;
     } wussie;
     bool asleep = false;                      // an Ancient while a5q5's record +0x11 is unset (FUN_0058cf90; World::act5_update)
+    // Baal's (a5q6; World::act5_update takes them): a wave's superunique to
+    // make at (x, y + 13) (skill 286), he's done on the throne (to
+    // baalcrabstairs), the Chamber's portal's spot (object 563, subtiles)
+    // and he's gone in.
+    int baal_wave = -1;
+    bool baal_leaves = false, baal_in = false;
+    std::optional<std::pair<int, int>> chamber_portal;
     int point_x = 0, point_y = 0;
     std::uint32_t laid_until = 0;
     // Its unit seed (+0x20) as its look left it: what its thinks draw. A
