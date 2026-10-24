@@ -4,6 +4,7 @@
 #include "world.hpp"
 #include "gamedata.hpp"
 #include "log.hpp"
+#include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
@@ -12,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -47,6 +49,9 @@ auto World::act5_join() -> void {
         betrayal.join(quests());
         betrayal_log_at = 0;
         cages_up.clear();
+        fana_at = thaw_at = 0;
+        fana = { nullptr, -1 };
+        nihlathak_made = false;
         act5_chain();
     }
 
@@ -58,14 +63,15 @@ auto World::act5_chain() -> void {
         rescue.opened();
         if (rescue.open && rescue.state != 5) return;
         prison.opened();
-        if (prison.open && prison.state != 5) return;
+        if (prison.open && prison.state < 5) return;
         betrayal.opened();
     }
 
 auto World::act5_enter(const Level& from) -> void {
         siege.enter(quests(), from.id, level->id);
         rescue.enter(quests(), from.id, level->id);
-        prison.enter(quests(), level->id);
+        prison.enter(quests(), from.id, level->id);
+        act5_hide();
         betrayal.enter(quests(), from.id, level->id);
     }
 
@@ -110,8 +116,20 @@ auto World::act5_said(int hc_idx, int message_string) -> void {
             if (heard.runes) d2d::log::info("Rescue on Mount Arreat: Qual-Kehk's {} runes", heard.runes);
             if (heard.chain) act5_chain();
         }
-        const auto heard = prison.said(quests(), hc_idx, message_string, carries(d2d::rules::PrisonQuest::kPotionCode), carries(d2d::rules::PrisonQuest::kScrollCode));
-        if (heard.give) { give_item(heard.give, now); d2d::log::info("Prison of Ice: Malah gives {}", heard.give); }
+        // Prison of Ice (FUN_00589580): Malah's potion and scroll (FUN_005466b0,
+        // normal); Anya's item, rare at the player's level, rand(count) on the
+        // quest seed (FUN_005438b0); Anya home (FUN_005890b0, FUN_005891d0).
+        const auto roll = fight.spawning.quests.next();
+        const auto heard = prison.said(quests(), hc_idx, message_string, carries(d2d::rules::PrisonQuest::kPotionCode), carries(d2d::rules::PrisonQuest::kScrollCode),
+                                       actor->character.header.active_difficulty(), actor->character.header.cls, roll);
+        if (heard.give) {
+            give_item(heard.give, now, heard.rare ? int(actor->character.stats.get(d2d::d2s::kLevel)) : 1, heard.rare ? 6 : 2);
+            d2d::log::info("Prison of Ice: {} gives {}", hc_idx == d2d::rules::PrisonQuest::kAnya ? "Anya" : "Malah", heard.give);
+        }
+        if (heard.anya_home) {
+            act5_hide();
+            d2d::log::info("Prison of Ice: Anya goes home");
+        }
         if (betrayal.said(quests(), hc_idx, message_string)) act5_chain();
     }
 
@@ -235,9 +253,94 @@ auto World::rescue_update(std::uint32_t now_ms) -> void {
         }
     }
 
+// Who's gone, as each level comes up: Harrogath's Nihlathak once the record's
+// +0x88 is set (FUN_005893e0 -> FUN_00589340: unit flag 1); fana once she's
+// thawed (removed, FUN_0064c370); drehyaiced once Anya's home (FUN_005890b0);
+// Anya's frozen till then (not in town: InitFn 66 makes her at +0x84 2).
+auto World::act5_hide() -> void {
+        // Anya in town (InitFn 66, FUN_0058eac0 / FUN_005891d0): within 1 of her
+        // marker (459) once +0x84 is 2.
+        if (const Level* town = game_data->level(d2d::rules::level_ids::kHarrogath); town && prison.anya == 2
+            && std::ranges::none_of(town->npcs, [](const Npc& npc) { return npc.hc_idx == d2d::rules::PrisonQuest::kAnya; })) {
+            const auto marker = std::ranges::find(town->npcs, d2d::rules::PrisonQuest::kAnyaMarker, &Npc::object_id);
+            const auto& anya = game_data->mon_npc[std::size_t(game_data->mon_bin[std::size_t(d2d::rules::PrisonQuest::kAnya)])];
+            if (marker != town->npcs.end() && !anya.code.empty()) {
+                auto npc = anya;
+                std::tie(npc.x, npc.y) = town->nearest_free(marker->x, marker->y);
+                const_cast<Level&>(*town).npcs.push_back(std::move(npc));   // GameData owns its levels mutable (gamedata.cpp)
+            }
+        }
+        for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i) {
+            const auto& npc = level->npcs[i];
+            if (level->id == d2d::rules::level_ids::kHarrogath && npc.hc_idx == d2d::rules::act5_detail::kNihlathak) npc_states[i].hidden = prison.town_left;
+            if (npc.object_id == d2d::rules::PrisonQuest::kFana) npc_states[i].hidden = prison.anya != 0 && !prison.thawing;
+            if (npc.hc_idx == d2d::rules::PrisonQuest::kFrozen) npc_states[i].hidden = prison.anya == 2;
+        }
+    }
+
+// a5q3's objects: the Frozen River's marker (460) as its room comes up, fana
+// 25 frames on at its spot (event 7, FUN_0058a500; again till made) and her
+// InitFn (74: the log 2); the thaw, a tick a step; the Halls of Vaught's
+// marker (462, InitFn 69, FUN_0058a6c0) with +0x88 set: superunique 60,
+// Nihlathak, at its spot (FUN_0054e600), once.
+// ponytail: the marker's event reruns (fana not made) are one try.
+auto World::prison_update(std::uint32_t now_ms) -> void {
+        const auto made_rooms = fight.spawning.levels.find(level);
+        const auto up = [&](const Npc& npc) {
+            const int room = room_of(*level, npc.x, npc.y);
+            return made_rooms != fight.spawning.levels.end() && room >= 0 && std::ranges::contains(made_rooms->second.order, std::size_t(room));
+        };
+        const auto marker = [&](int object_id) { return std::ranges::find(level->npcs, object_id, &Npc::object_id); };
+        if (const auto river = marker(d2d::rules::PrisonQuest::kRiverMarker); river != level->npcs.end() && prison.open && !prison.fana_made && up(*river)) {
+            if (!fana_at) fana_at = now_ms + d2d::rules::PrisonQuest::kFanaFrames * kTickMs;
+            else if (now_ms >= fana_at && game_data->builder) {
+                auto rgn = d2d::rules::Rng{ fight.rng.next() };
+                add_object(*game_data, game_data->builder->objects, game_data->builder->obj_row, const_cast<Level&>(*level), d2d::rules::PrisonQuest::kFana,
+                           subtile(river->x), subtile(river->y), rgn);
+                fana = { level, int(level->npcs.size()) - 1 };
+                prison.fana_made = true; fana_at = 0;
+                prison.fana_seen();
+                d2d::log::info("Prison of Ice: frozen Anya");
+            }
+        }
+        if (prison.thawing && fana.first && now_ms >= thaw_at) {
+            thaw_at = now_ms + kTickMs;
+            if (const int step = prison.thaw_tick(); step == 1) doors[fana] = Door{ 2, now_ms };
+            else if (step == 2) {
+                const auto& ice = fana.first->npcs[std::size_t(fana.second)];
+                const auto& anya = game_data->mon_npc[std::size_t(game_data->mon_bin[std::size_t(d2d::rules::PrisonQuest::kFrozen)])];
+                if (!anya.code.empty()) {
+                    auto npc = anya;
+                    std::tie(npc.x, npc.y) = fana.first->nearest_free(ice.x, ice.y);
+                    const_cast<Level&>(*fana.first).npcs.push_back(std::move(npc));   // GameData owns its levels mutable (gamedata.cpp)
+                }
+                act5_chain();
+                d2d::log::info("Prison of Ice: Anya thaws");
+            }
+        }
+        if (const auto throne = marker(d2d::rules::PrisonQuest::kNihlathakMarker); throne != level->npcs.end() && prison.town_left && !nihlathak_made && up(*throne)) {
+            nihlathak_made = true;
+            seal_boss(*level, d2d::rules::PrisonQuest::kNihlathakBoss, subtile(throne->x), subtile(throne->y));
+        }
+    }
+
+// Frozen Anya (OperateFn 67, FUN_0058abc0): the potion taken, her thaw.
+auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
+        const auto& object = level->npcs[std::size_t(npc_index)];
+        if (object.object_id != d2d::rules::PrisonQuest::kFana) return false;
+        if (hosted_quests) return true;
+        if (prison.thaw(quests(), carries(d2d::rules::PrisonQuest::kPotionCode))) {
+            take_carried(d2d::rules::PrisonQuest::kPotionCode);
+            thaw_at = now_ms + kTickMs;
+            d2d::log::info("Prison of Ice: the potion poured");
+        } else d2d::log::info("Prison of Ice: no potion (20131)");
+        return true;
+    }
+
 auto World::act5_update(std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
         rescue_update(now_ms);
+        prison_update(now_ms);
         if (betrayal_log_at && now_ms >= betrayal_log_at) { betrayal_log_at = 0; betrayal.log_timer(); }
         // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
         // player it's for (act5_detail::told).
