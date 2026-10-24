@@ -24,6 +24,7 @@
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <sound_ids.hpp>
@@ -60,7 +61,7 @@ static void grow_states(std::vector<UnitState>& states, const Level& level) {
     states.insert(states.end(), fresh.begin() + std::ptrdiff_t(states.size()), fresh.end());
 }
 
-static int waypoint_index(const GameData& game_data, int level_id) {
+int waypoint_index(const GameData& game_data, int level_id) {
     for (const auto& act_levels : game_data.waypoint_levels)
         if (const auto found = std::ranges::find(act_levels, level_id, &GameData::WaypointLevel::level); found != act_levels.end()) return found->waypoint;
     return -1;
@@ -301,7 +302,9 @@ auto World::view() const -> View {
                                          k == 6 ? d2d::rules::SevenTombsQuest::kLair
                                                 : portal[std::size_t(k ^ 1)].level ? portal[std::size_t(k ^ 1)].level->id : d2d::rules::CainQuest::kTristram,
                                          portal[std::size_t(k)].born, k });
-        if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, 8 });
+        if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, int(kGamePortals) });
+        for (const auto& gate : cage_portal)
+            if (gate.level == level) view.portals.push_back({ gate.x, gate.y, 1, gate.born, int(kGamePortals) });
         view.npc_states = npc_states;
         grow_states(view.npc_states, *level);
         view.npc_states.resize(level->npcs.size());
@@ -327,6 +330,7 @@ auto World::view() const -> View {
             act2_log(view.quest_log, quest_bits);
             act3_log(view.quest_log, quest_bits);
             act4_log(view.quest_log, quest_bits);
+            act5_log(view.quest_log, quest_bits);
             for (int quest = 1; quest < int(view.quest_log.size()); ++quest) {
                 const bool bit0 = d2d::rules::quest::bit(quest_bits, quest, 0) || d2d::rules::quest::bit(quest_bits, quest, 15);
                 if (bit0 && !d2d::rules::quest::bit(quest_bits, quest, 13) && !d2d::rules::quest::bit(quest_bits, quest, 14)) view.quest_log[std::size_t(quest)] = 0;
@@ -655,6 +659,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // Then the fortress's waypoint and its start (FUN_0053aec0(0x67)).
         // ponytail: its sounds (0xca7, 0xb56) and FUN_0053d670(6)'s packet aren't sent.
         if (act4_operate(npc_index, now_ms)) return;
+        if (act5_operate(npc_index, now_ms)) return;
         if (object.operate_fn == d2d::rules::operate_fn::kHellgate) {
             auto& bits = quests();
             if (!d2d::rules::quest::bit(bits, 0x16, 13) && !d2d::rules::quest::bit(bits, 0x16, 0)) return;
@@ -1094,6 +1099,7 @@ auto World::new_game() -> void {
         act2_join();
         act3_join();
         act4_join();
+        act5_join();
         den_left = -1;
         den_log_at = 0;
         operated.clear();
@@ -1142,7 +1148,7 @@ auto World::spawn_merc() -> void {
 
 auto World::swap_npcs(const Level* from) -> void {
         actor->arrived_at = now;
-        if (from && from != level) { act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); }
+        if (from && from != level) { act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); act5_enter(*from); }
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
@@ -1152,6 +1158,7 @@ auto World::swap_npcs(const Level* from) -> void {
         }
         grow_states(npc_states, *level);
         show_palace();
+        act5_hide();
         if (level->id == d2d::rules::SevenTombsQuest::kLair && tombs.tyrael_gone)   // Tyrael has left (FUN_0059df50: record +0x3d)
             for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
                 if (level->npcs[i].hc_idx == d2d::rules::SevenTombsQuest::kTyrael) npc_states[i].hidden = true;
@@ -1250,6 +1257,7 @@ auto World::quest_talk(int hc_idx, bool fresh) -> std::vector<d2d::rules::QuestM
         act2_talk(out, hc_idx, fresh);
         act3_talk(out, hc_idx);
         act4_talk(out, hc_idx);
+        act5_talk(out, hc_idx);
         return out;
     }
 
@@ -1368,6 +1376,27 @@ auto World::transmute(std::uint32_t now_ms) -> void {
         const int row = d2d::rules::cube_recipe(game_data->rules, game_data->cube_recipes, cube, diff, actor->character.expansion, actor->character.header.cls, match);
         if (row < 0) { d2d::log::info("transmute: nothing ({} items)", cube.size()); return; }
         const auto& recipe = game_data->cube_recipes[std::size_t(row)];
+        // A portal (output kind 1..3, FUN_00565ab0's table 0x6e11c8): made, the
+        // inputs go; refused, they stay (rules::CainQuest::cow_portal_opens).
+        if (const int kind = recipe.outputs[0].kind; kind >= d2d::rules::cube_out::kCowPortal && kind <= d2d::rules::cube_out::kFinale) {
+            const Level* farm = game_data->level(d2d::rules::level_ids::kMooMooFarm);
+            if (kind != d2d::rules::cube_out::kCowPortal || !farm || farm->ds1.width() == 0
+                || !d2d::rules::CainQuest::cow_portal_opens(quests(), cow_portal_opened, actor->character.expansion, level->id)) {
+                d2d::log::info("transmute: {} refused", recipe.description);
+                return;
+            }
+            cow_portal_opened = true;
+            // ponytail: FUN_00545340's spot search (3, mask 0x400, 4, 100) is the nearest free spot; its twin the farm's portal spot.
+            const auto [spot_x, spot_y] = level->nearest_free(actor->player.x, actor->player.y + 0.8f);
+            portal[kCowPortal] = { level, spot_x, spot_y, now_ms };
+            const auto [to_x, to_y] = farm->portal_spot.first >= 0 ? farm->nearest_free(farm->portal_spot.first, farm->portal_spot.second)
+                                                                  : farm->nearest_free(float(farm->ds1.width()) / 2, float(farm->ds1.height()) / 2);
+            portal[kCowPortal + 1] = { farm, to_x, to_y, now_ms };
+            std::erase_if(actor->character.items, [](const Item& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kCube; });
+            cues.cue("object_townportal", now_ms, spot_x, spot_y);
+            d2d::log::info("transmute: the Cow Portal opens");
+            return;
+        }
         auto made = d2d::rules::cube_make(game_data->rules, recipe, match, cube, int(actor->character.stats.get(d2d::d2s::kLevel)), actor->character.expansion, diff,
                                           fight.spawning.game, &loot.found_uniques);
         if (!made.made) { d2d::log::info("transmute: {} made nothing", recipe.description); return; }
@@ -1892,7 +1921,7 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
             arrive(lair, to_x, to_y, "the way down to Duriel");
             return;
         }
-        if (actor->take_portal >= 3 && std::size_t(actor->take_portal) < kGamePortals) {   // back to the Cairn Stones; the Canyon's pair
+        if (actor->take_portal >= 3 && std::size_t(actor->take_portal) < kGamePortals) {   // back to the Cairn Stones; the Canyon's, Act 5's pairs
             const auto& twin = portal[std::size_t(actor->take_portal ^ 1)];
             actor->take_portal = -1;
             if (!twin.level) { d2d::log::info("not implemented: the portal's far level isn't built"); return; }
@@ -1905,11 +1934,11 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
     }
 
 auto World::deal(const Command& command) -> bool {
-        const auto& tables = game_data->rules;
+        const auto& item_rules = game_data->rules;
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
         if (const auto* trade = std::get_if<cmd::OpenTrade>(&command)) {
             if (std::size_t(trade->npc) >= level->npcs.size()) return true;
-            if (trade->gamble) actor->store = d2d::rules::open_gamble(tables, level->npcs[std::size_t(trade->npc)].id, clvl);
+            if (trade->gamble) actor->store = d2d::rules::open_gamble(item_rules, level->npcs[std::size_t(trade->npc)].id, clvl);
             else if (const auto kept = stocks.find(trade->npc); kept != stocks.end()) { actor->store = kept->second; actor->store.mode = 0; actor->store.first_tab(); actor->store.pressed = {}; }
             else actor->store = open_store(*game_data, *level, trade->npc, act(), actor->character.header.active_difficulty(), clvl, actor->character.expansion,
                                     fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
@@ -1928,23 +1957,23 @@ auto World::deal(const Command& command) -> bool {
             actor->store.reduced = reduced_prices();
             if (buy->tab >= 0 && buy->tab < 4) actor->store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
             if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
-            if (actor->store.gamble) d2d::rules::store_gamble(tables, actor->store, buy->stock, actor->character.items, actor->character.stats, rng);
-            else d2d::rules::store_buy(tables, actor->store, buy->stock, actor->character.items, actor->character.stats);
+            if (actor->store.gamble) d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, rng);
+            else d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats);
             return true;
         }
         if (const auto* sell = std::get_if<cmd::Sell>(&command)) {
             if (actor->store.npc < 0) return true;
             if (actor->held && actor->held->id == sell->item) { actor->character.items.push_back(std::move(*actor->held)); actor->held.reset(); }
             const auto found = std::ranges::find(actor->character.items, sell->item, &d2d::d2s::Item::id);
-            if (found != actor->character.items.end()) d2d::rules::store_sell(tables, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats);
+            if (found != actor->character.items.end()) d2d::rules::store_sell(item_rules, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats);
             return true;
         }
         if (const auto* repair = std::get_if<cmd::Repair>(&command)) {
             if (actor->store.npc < 0) return true;
             actor->store.reduced = reduced_prices();
-            if (repair->item < 0) { d2d::rules::store_repair_all(tables, actor->store, actor->character.items, actor->character.stats); return true; }
+            if (repair->item < 0) { d2d::rules::store_repair_all(item_rules, actor->store, actor->character.items, actor->character.stats); return true; }
             const auto found = std::ranges::find(actor->character.items, repair->item, &d2d::d2s::Item::id);
-            if (found != actor->character.items.end()) d2d::rules::store_repair(tables, actor->store, *found, actor->character.stats);
+            if (found != actor->character.items.end()) d2d::rules::store_repair(item_rules, actor->store, *found, actor->character.stats);
             return true;
         }
         // Cain's identify (FUN_00578460): 100 gold an item, all at once, unless
@@ -2066,10 +2095,30 @@ auto World::deal(const Command& command) -> bool {
         // due (quest 3 bit 1), the item in hand made anew, rare; the
         // reward's used (FUN_00591790).
         // ponytail: no S->C 0x58 result (waits for networking); the new item stays in hand.
+        // The same C->S 0x38 kind 0 at Larzuk (0x1ff: quest 0x23 bit 1) sockets
+        // the item in hand (socket_item, FUN_005877c0), at Anya (0x200: quest
+        // 0x26 bit 1) puts the player's name on it (flag 0x1000000, FUN_0058bc00).
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
-            if (std::size_t(imbue->npc) >= level->npcs.size() || level->npcs[std::size_t(imbue->npc)].hc_idx != d2d::rules::monster_ids::kCharsi
-                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !actor->held || !d2d::rules::imbuable(game_data->rules, *actor->held)) return true;
-            auto made = d2d::rules::imbue_item(game_data->rules, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
+            if (std::size_t(imbue->npc) >= level->npcs.size() || !actor->held) return true;
+            const int service_npc = level->npcs[std::size_t(imbue->npc)].hc_idx;
+            if (service_npc == d2d::rules::SiegeQuest::kLarzuk) {
+                if (!d2d::rules::quest::bit(quests(), d2d::rules::SiegeQuest::kQuest, 1) || !d2d::rules::socketable(item_rules, *actor->held)) return true;
+                actor->held = d2d::rules::socket_item(item_rules, *actor->held);
+                siege.socketed(quests());
+                d2d::log::info("Siege on Harrogath: Larzuk put {} sockets in the {}", actor->held->sockets, actor->held->code);
+                return true;
+            }
+            if (service_npc == d2d::rules::BetrayalQuest::kAnya) {
+                if (!d2d::rules::quest::bit(quests(), d2d::rules::BetrayalQuest::kQuest, 1) || !d2d::rules::nameable(item_rules, *actor->held)) return true;
+                actor->held->personalized = true;
+                actor->held->owner = actor->character.header.name;
+                betrayal.personalized(quests());
+                d2d::log::info("Betrayal of Harrogath: Anya personalized the {}", actor->held->code);
+                return true;
+            }
+            if (service_npc != d2d::rules::monster_ids::kCharsi
+                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(item_rules, *actor->held)) return true;
+            auto made = d2d::rules::imbue_item(item_rules, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
             made.location = actor->held->location; made.panel = actor->held->panel; made.column = actor->held->column; made.row = actor->held->row;
             actor->held = std::move(made);
             tools.imbued(quests());
@@ -2084,6 +2133,7 @@ auto World::deal(const Command& command) -> bool {
                 act2_talk_closed(hc_idx);
                 act3_talk_closed(hc_idx);
                 act4_talk_closed(hc_idx);
+                act5_talk_closed(hc_idx);
             }
             actor->talking = { chat->npc, -1, -1 };
             return true;
@@ -2127,6 +2177,7 @@ auto World::deal(const Command& command) -> bool {
             act2_said(hc_idx, message->string);
             act3_said(hc_idx, message->string);
             act4_said(hc_idx, message->string);
+            act5_said(hc_idx, message->string);
             return true;
         }
         return false;
@@ -2732,7 +2783,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             npc_patrol(*game_data, *neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            npc_states[i].alert = act1_alert(level->npcs[i].hc_idx) || act2_alert(level->npcs[i].hc_idx) || act3_alert(level->npcs[i].hc_idx) || act4_alert(level->npcs[i].hc_idx);
+            npc_states[i].alert = act1_alert(level->npcs[i].hc_idx) || act2_alert(level->npcs[i].hc_idx) || act3_alert(level->npcs[i].hc_idx) || act4_alert(level->npcs[i].hc_idx) || act5_alert(level->npcs[i].hc_idx);
         // The player's mode as the merc's think reads it: 2 walk, 3 run, 6 walk in town.
         for (auto& player : players)
             player->owner_mode = !player->player.walking ? 1 : player->running && player->character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
@@ -2759,6 +2810,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 act2_kill(kill, now_ms);
                 act3_kill(kill, now_ms);
                 act4_kill(kill, now_ms);
+                act5_kill(kill, now_ms);
             });
         }
         act_as(lead());
@@ -2767,6 +2819,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             act2_update();
             act3_update(now_ms);
             act4_update(now_ms);
+            act5_update(now_ms);
         });
         each_player([&](Player&) { cross_level(); });
         for (const auto& player : players) fight.rooms_up(*level, player->player.x, player->player.y, false);

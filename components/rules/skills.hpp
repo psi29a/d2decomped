@@ -374,6 +374,8 @@ enum class ServerDoFunction : int {
     kVolcano = 123,                // FUN_005c8080
     kStormAroundCaster = 124,      // FUN_005c8190: Armageddon, Hurricane
     kWakeOfDestruction = 125,
+    kBaalColdMissiles = 139,       // FUN_005d2940: srvmissilea (a maker) at the target's spot
+    kBaalTentacle = 140,           // FUN_005d2c20: 2 + rand(3) + difficulty tentacles about the target
     kReleaseMissileAtUnitsSecondScan = 143,   // FUN_005d4f40 -> FUN_005d4870: 37 through the other scan
     kHydra = 144,                  // FUN_005ca910
     kDoomKnightMissile = 148,      // FUN_005cdfb0: srvmissilea (+ the knight's variant) at the target

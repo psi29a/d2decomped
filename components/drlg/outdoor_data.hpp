@@ -82,7 +82,7 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
     for (std::size_t row = 0; row < prest.size(); ++row) {
         const int def = to_int(prest.get(row, "Def"));
         const auto name = prest.get(row, std::optional<std::size_t>{ 0 });
-        if (def < 1 || !(name.starts_with("Act 1 - ") || name.starts_with("Act 2 - ") || name.starts_with("Act 3 - ") || name.starts_with("Act 4 - "))) continue;   // acts 1 to 4's presets
+        if (def < 1 || !name.starts_with("Act ")) continue;   // the acts' presets (not the Expansion header row)
         Preset preset{ to_int(prest.get(row, "SizeX")), to_int(prest.get(row, "SizeY")), to_int(prest.get(row, "Files")),
                   to_int(prest.get(row, "Scan")), to_int(prest.get(row, "Pops")),
                   to_int(prest.get(row, "LevelId")), to_int(prest.get(row, "KillEdge")), std::uint32_t(std::stoul("0" + std::string(prest.get(row, "Dt1Mask")))), {} };
@@ -99,13 +99,14 @@ template <class Read> void load_outdoor_assets(OutdoorAssets& assets, Read&& rea
         sub_row.type = to_int(sub.get(row, "Type"), -1);
         sub_row.check_all = to_int(sub.get(row, "CheckAll"));
         sub_row.bord_type = to_int(sub.get(row, "BordType"));
+        sub_row.grid_size = std::max(1, to_int(sub.get(row, "GridSize"), 1));
         sub_row.dt1_mask = std::uint32_t(std::stoul("0" + std::string(sub.get(row, "Dt1Mask"))));
         for (int type = 0; type < 5; ++type) {
             sub_row.prob[std::size_t(type)] = to_int(sub.get(row, "Prob" + std::to_string(type)));
             sub_row.trials[std::size_t(type)] = to_int(sub.get(row, "Trials" + std::to_string(type)));
             sub_row.max[std::size_t(type)] = to_int(sub.get(row, "Max" + std::to_string(type)));
         }
-        if (sub_row.type >= 0 && sub_row.type <= 9) sub_row.map = ds1(sub.get(row, "File"));  // acts 1 and 2's rows
+        if (sub_row.type >= 0) sub_row.map = ds1(sub.get(row, "File"));
         assets.data.subs.push_back(sub_row);
     }
 }
@@ -140,10 +141,13 @@ inline std::array<WarpSlot, 8> warp_slots(const OutdoorAssets& assets, int id) {
     if (!row) return slots;
     for (int i = 0; i < 8; ++i) {
         const int warp = to_int(assets.levels.get(*row, "Warp" + std::to_string(i)), -1);
-        for (std::size_t warp_row = 0; warp >= 0 && warp_row < assets.lvl_warp.size(); ++warp_row)
-            if (to_int(assets.lvl_warp.get(warp_row, "Id"), -1) == warp)
-                slots[std::size_t(i)] = { warp, to_int(assets.lvl_warp.get(warp_row, "LitVersion")) != 0, to_int(assets.lvl_warp.get(warp_row, "OffsetX")),
-                                          to_int(assets.lvl_warp.get(warp_row, "OffsetY")), to_int(assets.lvl_warp.get(warp_row, "Tiles")) };
+        auto& slot = slots[std::size_t(i)];
+        for (std::size_t warp_row = 0; warp >= 0 && warp_row < assets.lvl_warp.size(); ++warp_row) {
+            if (to_int(assets.lvl_warp.get(warp_row, "Id"), -1) != warp) continue;
+            const int off_x = to_int(assets.lvl_warp.get(warp_row, "OffsetX")), off_y = to_int(assets.lvl_warp.get(warp_row, "OffsetY"));
+            if (slot.id < 0) slot = { warp, to_int(assets.lvl_warp.get(warp_row, "LitVersion")) != 0, off_x, off_y, to_int(assets.lvl_warp.get(warp_row, "Tiles")), off_x, off_y };
+            if (assets.lvl_warp.get(warp_row, "Direction") == "r") { slot.right_x = off_x; slot.right_y = off_y; }
+        }
     }
     return slots;
 }
@@ -205,7 +209,7 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
         return nullptr;
     };
     if (const auto* placement = placed(id)) level.rect = *placement;
-    if (const auto* town = placed(id >= level_ids::kPandemoniumFortress ? level_ids::kPandemoniumFortress : id >= level_ids::kKurastDocks ? level_ids::kKurastDocks : id >= level_ids::kLutGholein ? level_ids::kLutGholein : 1)) level.town = *town;
+    if (const auto* town = placed(level_ids::kActTowns[std::size_t(level_ids::act_of(id))])) level.town = *town;
     const auto row = level_row(levels, id);
     if (!row) return level;
     level.sub_type = to_int(levels.get(*row, "SubType"), -1);
@@ -223,7 +227,7 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
         for (int i = 0; i < 8; ++i)
             if (vis[std::size_t(i)] == 0 && warp[std::size_t(i)] == -1) { vis[std::size_t(i)] = other; return; }
     };
-    for (const auto* chain : { &kAct1Outdoors, &kAct1Highlands, &kAct2Outdoors, &kAct2Canyon, &kAct4Outdoors, &kAct4Chaos })
+    for (const auto* chain : { &kAct1Outdoors, &kAct1Highlands, &kAct2Outdoors, &kAct2Canyon, &kAct4Outdoors, &kAct4Chaos })   // act 5's add none
         for (const auto& record : *chain) {
             if (record.link < 0) continue;
             const int other = (*chain)[std::size_t(record.link)].level;
@@ -232,9 +236,19 @@ inline OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vect
         }
     // Act 3's (FUN_006775c0): each of 75..83 whose rect shares an edge with
     // this one's (FUN_0066b880, overlap -1), in id order.
-    if (const auto* self = placed(id); self && id >= level_ids::kKurastDocks && id <= level_ids::kTravincal)
-        for (int other = level_ids::kKurastDocks; other <= level_ids::kTravincal; ++other)
-            if (const auto* rect = placed(other); rect && other != id && edge_shared(*self, *rect)) add(other);
+    // Act 5's (FUN_00678a70): the same over 111..112, 110..111, 109..110 in turn.
+    auto share_edges = [&](int first, int last) {
+        if (const auto* self = placed(id); self && id >= first && id <= last)
+            for (int other = first; other <= last; ++other)
+                if (const auto* rect = placed(other); rect && other != id && edge_shared(*self, *rect)) add(other);
+    };
+    share_edges(level_ids::kKurastDocks, level_ids::kTravincal);
+    // FUN_00677680 makes 111's and 112's neighbours right after the first
+    // pass, so the Bloody Foothills is never the Frigid Highlands' (its way
+    // through is FUN_0067dcf0's own opening).
+    share_edges(level_ids::kFrigidHighlands, level_ids::kArreatPlateau);
+    if (id != level_ids::kFrigidHighlands) share_edges(level_ids::kBloodyFoothills, level_ids::kFrigidHighlands);
+    share_edges(level_ids::kHarrogath, level_ids::kBloodyFoothills);
     for (int i = 0; i < 8; ++i)
         if (vis[std::size_t(i)] && warp[std::size_t(i)] == -1)
             if (const auto* placement = placed(vis[std::size_t(i)])) {

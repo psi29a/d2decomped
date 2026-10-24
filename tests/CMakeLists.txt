@@ -75,7 +75,7 @@ if (Python3_Interpreter_FOUND)
     # One per act, each from a new character: `ctest -R quests_act -j3` checks
     # every act's quests in about the time of one. A new act: its number here.
     set(d2d_quest_tests "")
-    foreach (act 1 2 3 4)
+    foreach (act 1 2 3 4 5)
         add_test(NAME quests_act${act}
                  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/quests_d2d.py $<TARGET_FILE:d2d> ${act})
         list(APPEND d2d_quest_tests quests_act${act})

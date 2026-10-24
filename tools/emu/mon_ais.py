@@ -57,10 +57,22 @@ AIS = {
     "VileMother": 0x5fa010, "VileDog": 0x5fa280, "FingerMage": 0x5fa380, "Regurgitator": 0x5fa710, "DoomKnight": 0x5faa90,
     "AbyssKnight": 0x5fab80, "OblivionKnight": 0x5faf00, "Megademon": 0x5e0c80, "Izual": 0x5f89b0,
     "TrappedSoul": 0x5e9f10, "Diablo": 0x5e9170, "DiabloOther": 0x5e8480,
+    # Act 5's (monster-ai.md "Act 5's MonAIs").
+    "ReanimatedHorde": 0x5e1540, "SiegeBeast": 0x5e1900, "Minion": 0x5e1b60, "SuicideMinion": 0x5e1d30, "Succubus": 0x5e1e00,
+    "SuccubusWitch": 0x5e2120, "Overseer": 0x5e27a0, "MinionSpawner": 0x5e2bd0, "Imp": 0x5e2ff0, "Catapult": 0x5e34c0,
+    "FrozenHorror": 0x5e3530, "BloodLord": 0x5e36f0, "CatapultSpotter": 0x5ee040, "NpcBarb": 0x5edc50, "GenericSpawner": 0x5e61b0,
+    "DeathMauler": 0x5ee260, "PutridDefiler": 0x5efa90, "BaalTentacle": 0x5ef820, "BaalMinion": 0x5ef910, "Ancient": 0x5ef1a0, "Nihlathak": 0x5ee5d0, "ClawViperEx": 0x5f1de0,
+    # Baal's (monster-ai.md "Baal"), last: the cases before keep their numbers.
+    "BaalCrab": 0x5fcfe0, "BaalCrabClone": 0x5fd210,
+    # The ubers' (monster-ai.md "AncientStatue and the ubers' MonAIs"): three are a bare ret 4.
+    "UberIzual": 0x5f8c80, "UberMephisto": 0x5f81c0, "UberDiablo": 0x5e9df0, "UberBaal": 0x5fd200,
 }
+DIABLO_LIKE = ("Diablo", "DiabloOther", "BaalCrab", "BaalCrabClone")   # his pick, kept point, hands
+BAAL_SKILLS = {0x13b: 2, 0x13c: 0, 0x13d: 1, 0x13e: 3}                 # FUN_005fcb60's raw ids: Skill3, 1, 2, 4
 CURSE_AIS = ("DimVision", "Terror", "BatDemonOther", "SandMaggotOther")
 ACT3_AIS = tuple(list(AIS)[list(AIS).index("Mosquito"):])   # Act 4's too: their scene is Act 3's and more
 ACT4_AIS = tuple(list(AIS)[list(AIS).index("VileMother"):])
+ACT5_AIS = tuple(list(AIS)[list(AIS).index("ReanimatedHorde"):])
 ORDER = list(AIS)
 
 
@@ -71,12 +83,12 @@ def write_names(path):
         f.write("// tools/emu/mon_ais.py --dump (write_names): the AIs the cases number, ORDER.\n")
         for ai in ORDER:
             other = ai.endswith("Other")
-            f.write(f'{{ "{ai.removesuffix("Other")}", {str(other).lower()}, {str(ai in ACT3_AIS).lower()}, {str(ai in ACT4_AIS).lower()} }},\n')
+            f.write(f'{{ "{ai.removesuffix("Other")}", {str(other).lower()}, {str(ai in ACT3_AIS).lower()}, {str(ai in ACT4_AIS).lower()}, {str(ai in ACT5_AIS).lower()} }},\n')
 # Think acts (rules::MonAct) by name; units (rules::ThinkUnit).
 ACTS = ["idle", "a1", "a2", "s2", "skill", "walk", "run", "approach", "keep", "circle", "wander", "none", "die", "around",
-        "home", "point", "untraced", "s3", "s4", "seq", "fly", "gone", "s1", "sc", "mode_at", "move_to", "spawn"]
+        "home", "point", "untraced", "s3", "s4", "seq", "fly", "gone", "s1", "sc", "mode_at", "move_to", "spawn", "direct"]
 UNIT = {"foe": 0, None: 1, "foe2": 2, "kin": 3, "aid": 4, "mon": 5}
-MODE_ACT = {4: "a1", 5: "a2", 7: "sc", 8: "s1", 9: "s2", 10: "s3", 11: "s4"}
+MODE_ACT = {0: "die", 4: "a1", 5: "a2", 7: "sc", 8: "s1", 9: "s2", 10: "s3", 11: "s4"}
 
 
 def setup(rng, ai):
@@ -188,7 +200,7 @@ def setup(rng, ai):
     # right skills (FUN_00620190 / FUN_006201d0 -> FUN_00643ce0) at sk_level,
     # its state 0xb, the players about him (FUN_00573930), in the Chaos
     # Sanctuary (the level FUN_0061a1b0 names: 108).
-    if ai in ("Diablo", "DiabloOther"):
+    if ai in DIABLO_LIKE:
         cx, cy = s["spots"]["mon"]
         s["d_target"] = rng.random() < 0.85
         s["score"], s["count"] = rng.choice((rng.randint(0, 60), rng.randint(0, 200))), rng.randint(0, 6)
@@ -200,8 +212,38 @@ def setup(rng, ai):
         s["players"] = rng.randint(0, 4)
         s["chaos"] = rng.random() < 0.7
         s["ctrl"][0] = rng.choice((0, 0, 0, 5))
-        s["foe_player"] = rng.random() < 0.7                             # a player (unit type 0): his think looks for its leader                           # its pending action: only 5 (Lightning) is ever kept
+        s["foe_player"] = rng.random() < 0.7                             # a player (unit type 0): his think looks for its leader
+        if ai.startswith("Baal"):                                           # Baal's pending act (+0x14) and clones made (+0x18)
+            s["ctrl"][0], s["ctrl"][1] = rng.choice((0, 0, 0, 0, rng.randint(1, 16))), rng.choice((0, 1, 2, 3))                           # its pending action: only 5 (Lightning) is ever kept
         s["stat"][("foe", 0x29)] = rng.choice((0, rng.randint(0, 100), rng.randint(-50, 300)))
+    # Act 5's: three clear lines to the target (FUN_005dc640), Skill1's reach
+    # (FUN_004e6c70), the siege beast's rider (FUN_00552fd0), it lies dead
+    # (FUN_0063ea40), its state 0x69 test (FUN_006259b0), an imp to take on
+    # (FUN_005dd0b0 with FUN_005e1720); the target in state 0x20 (FUN_00625760),
+    # its FUN_00625d10 / FUN_00625d60, the units' own lives (FUN_00621f20);
+    # its command's last frame (+0x14).
+    if ai in ACT5_AIS:
+        s["lines"] = rng.random() < 0.6
+        s["sk_range"] = rng.choice((0, rng.randint(0, 30)))
+        s["rider"], s["self_dead"], s["state69"], s["imp"] = rng.random() < 0.4, rng.random() < 0.1, rng.random() < 0.2, rng.random() < 0.5
+        s["state20"] = rng.random() < 0.3
+        s["mana"] = (rng.randint(0, 200), rng.randint(0, 200))
+        s["foe_life"] = rng.choice((rng.randint(0, 100), 100))
+        s["cmd_until"] = s["frame"] + rng.randint(-30, 30)
+        s["foe_kind"] = rng.choice(("player", "monster"))
+        s["reach"] = rng.random() < 0.5
+        s["attacker"], s["hurt"], s["free_minion"] = rng.random() < 0.6, rng.random() < 0.5, rng.random() < 0.5   # the Overseer's
+        s["catapult_gone"], s["strike_spot"] = rng.random() < 0.3, rng.random() < 0.7
+        if ai == "CatapultSpotter": s["ctrl"][0] = rng.randint(0, 4)        # its strike pick: only rand(5) is kept
+        s["spawn_unset"], s["spawn_found"], s["spawn_room"] = rng.random() < 0.3, rng.random() < 0.5, rng.random() < 0.7
+        s["defile"] = rng.random() < 0.5
+        s["ancient"], s["asleep"], s["state36"] = rng.randint(0, 2), rng.random() < 0.15, rng.random() < 0.15
+        if ai == "Ancient":                                                # no target: a pick (FUN_005e8f20) as Diablo's
+            s["target"] = rng.random() < 0.7
+            s["d_target"], s["score"], s["count"] = rng.random() < 0.8, rng.randint(0, 60), rng.randint(0, 4)
+        s["imp_aip"] = [[rng.choice((0, 1, 2, rng.randint(0, 100), rng.randint(0, 20), 100)) for _ in range(8)] for _ in range(4)]
+    if ai == "BaalCrabClone":                                              # mostly with a live master: its think
+        s["rider"], s["busy"], s["group"] = rng.random() < 0.9, rng.random() < 0.1, rng.choice((None, None, "mon", "kin"))
     if ai == "Vulture":
         for k in range(2):                                                 # its spot words: a point, or unset
             if rng.random() < 0.5: s["ctrl"][1 + k] = s["spots"]["foe"][k] + rng.randint(-12, 12)
@@ -224,7 +266,7 @@ def install(e):
     def moved():
         return int(cur["moves"].random() >= cur["s"]["fails"])
     # The acts.
-    e.hook(0x5ddf90, lambda e: out("mode", e.arg(0), name(e.arg(1))), 2)
+    e.hook(0x5ddf90, lambda e: out("mode", e.arg(0), name(e.arg(1))) or int(cur["s"]["ai"] in ACT5_AIS), 2)   # Act 5's read it (set)
     e.hook(0x5de080, lambda e: out("stand", S32(e.arg(0))), 1)
     e.hook(0x5de0f0, lambda e: out("wait", S32(e.arg(0))), 1)
     e.hook(0x5de130, lambda e: out("event", S32(e.arg(0))), 1)
@@ -290,7 +332,7 @@ def install(e):
     e.hook(0x620c10, lambda e: 0, 2)                                   # face the unit
     # The answers.
     e.hook(0x5dd2b0, lambda e: int(cur["s"]["got_hit"]), 0)
-    e.hook(0x621f20, lambda e: cur["s"]["life"], 1)
+    e.hook(0x621f20, lambda e: cur["s"]["life"] if cur["s"]["ai"] not in ACT5_AIS or name(e.arg(0)) == "mon" else cur["s"]["foe_life"], 1)
     e.hook(0x5dd280, lambda e: cur["s"]["life"], 0)
     e.hook(0x625480, lambda e: cur["s"]["stat"].get((name(e.arg(0)), e.arg(1)), 0) & MASK, 3)
     def second(e):
@@ -322,6 +364,16 @@ def install(e):
             if s["corpse"] and S32(s["kin_d"]) <= S32(e.r32(ctx + 4)): e.w32(ctx, cur["units"]["kin"]); e.w32(ctx + 4, s["kin_d"])
         elif cb == 0x5fae40:                                               # the Oblivion Knight's knight (class 0x136) within 2500 (squared, +8)
             if s["kin"] and S32(s["kin_d"]) <= S32(e.r32(ctx + 8)): e.w32(ctx, cur["units"]["kin"]); e.w32(ctx + 12, s["kin_d"])
+        elif cb == 0x5e1720:                                               # the siege beast's imp to take on (returned)
+            return cur["units"]["kin"] if s["imp"] else 0
+        elif cb == 0x5e26d0:                                               # the Overseer's: a hurt minion, a free one, the count
+            if s["hurt"]: e.w32(ctx + 12, cur["units"]["kin"])
+            if s["free_minion"]: e.w32(ctx + 16, cur["units"]["aid"])
+            e.w32(ctx + 20, s["young"])
+        elif cb == 0x5efa50:                                               # the putrid defiler's find (returned)
+            return cur["units"]["kin"] if s["defile"] else 0
+        elif cb == 0x5e2b70:                                               # the spawner's live minions
+            e.w32(ctx, s["young"])
         elif cb == 0x5f2a00:                                               # a corpse, a hurt one, their counts
             if s["corpse"]: e.w32(ctx, cur["units"]["kin"])
             if s["aid"]: e.w32(ctx + 4, cur["units"]["aid"])
@@ -335,10 +387,11 @@ def install(e):
         c = cur["s"]["command"]
         if c is None: return 0
         e.w32(cur["cmd"] + 8, c)
+        if "cmd_until" in cur["s"]: e.w32(cur["cmd"] + 0x14, cur["s"]["cmd_until"] & MASK)
         return cur["cmd"]
     e.hook(0x58ee80, command, 0)
     e.hook(0x58f0d0, lambda e: cur["units"][cur["s"]["group"]] if cur["s"]["group"] else 0, 0)
-    e.hook(0x6201d0, lambda e: (cur["rrec"] if cur["s"]["rskill"] is not None else 0) if cur["s"]["ai"] in ("Diablo", "DiabloOther") else int(cur["s"]["aura"]), 1)
+    e.hook(0x6201d0, lambda e: (cur["rrec"] if cur["s"]["rskill"] is not None else 0) if cur["s"]["ai"] in DIABLO_LIKE else int(cur["s"]["aura"]), 1)
     e.hook(0x6488c0, lambda e: cur["s"]["spots"][cur["paths"][e.arg(0)]][0], 1)   # a unit's path spot
     e.hook(0x648900, lambda e: cur["s"]["spots"][cur["paths"][e.arg(0)]][1], 1)
     def squared(e):                                                    # FUN_005b0bd0 (ECX, EDX: the two units)
@@ -372,6 +425,7 @@ def install(e):
     e.hook(0x457490, lambda e: int(cur["s"]["interact"] and e.mu.reg_read(EDX) == 9), 0)
     e.hook(0x639df0, lambda e: int(cur["s"].get("afraid", False) and e.arg(1) == 0x38 or cur["s"].get("state_c", False) and e.arg(1) == 0xc
                                     or cur["s"].get("state_b", False) and e.arg(1) == 0xb
+                                    or cur["s"].get("state36", False) and e.arg(1) == 0x36
                                     or cur["s"].get("skill_state", False) and e.arg(1) in (SKILL_STATE, 0x54)), 2)   # 0x54: the finger mage's target's
     def toggle(e):                                                     # FUN_005b0e00 back to the MonAI row's think: the reset branch
         out("toggle", e.arg(1))
@@ -447,12 +501,21 @@ def install(e):
     # (FUN_005b4390: a4q1's log to every player).
     e.hook(0x5f9e30, lambda e: out("lay") or int(cur["s"]["lay"]), 2)
     # Diablo's.
-    diablo = lambda: cur["s"]["ai"] in ("Diablo", "DiabloOther")
+    diablo = lambda: cur["s"]["ai"] in DIABLO_LIKE
     def pick(e):                                                       # FUN_005e8f20(ECX game, EDX him; &score, &count, word, fn)
         s = cur["s"]
         e.w32(e.arg(0), s["score"]); e.w32(e.arg(1), s["count"])
         return cur["units"]["foe"] if s["d_target"] else 0
     e.hook(0x5e8f20, pick, 4)
+    def baal_pick(e):                                                  # FUN_005fbdd0(game, &score, &count, 0, fn; EBX him)
+        s = cur["s"]
+        e.w32(e.arg(1), s["score"]); e.w32(e.arg(2), s["count"])
+        return cur["units"]["foe"] if s["d_target"] else 0
+    e.hook(0x5fbdd0, baal_pick, 5)
+    e.hook(0x5fc860, lambda e: out("clone") or 1, 2)                   # FUN_005fc860: a Vile Effigy (World's)
+    e.hook(0x6416d0, lambda e: cur["s"]["dist"], 2)                    # FUN_006416d0: him to the target
+    e.hook(0x54dc40, lambda e: 1, 4)                                   # a free spot there (ponytail: d2d's nearest_free)
+    e.hook(0x647280, lambda e: 0, 6)
     def word(e):                                                       # FUN_0058eef0(ECX unit, EDX kind; 0): his kept point
         spot = cur.get("word") if diablo() else None
         if not spot: return 0
@@ -469,10 +532,15 @@ def install(e):
     e.hook(0x5353f0, lambda e: 7, 0)                                   # the player's id his think looks up (FUN_00552f60 answers)
     e.hook(0x622c40, lambda e: int(cur["s"].get("reach", False)), 3)
     e.hook(0x620190, lambda e: cur["lrec"] if diablo() and cur["s"]["lskill"] is not None else 0, 1)
-    e.hook(0x643ce0, lambda e: cur["s"]["lskill"] if e.arg(0) == cur["lrec"] else cur["s"]["rskill"], 3)
-    def players(e):                                                    # FUN_00573930(ECX game, EDX &out; him, room): +8 the players about
+    e.hook(0x643ce0, lambda e: (cur["s"]["lskill"] if e.arg(0) == cur["lrec"] else cur["s"]["rskill"]) if diablo() else cur["s"]["skills"][0] & MASK, 3)
+    e.hook(0x644360, lambda e: cur["s"]["modes"][0], 1)                 # a skill record's mode (Nihlathak's teleport)
+    e.hook(0x63ec70, lambda e: 0x1c5, 2)
+    e.hook(0x58bc40, lambda e: 0, 0)
+    e.hook(0x56e390, lambda e: cur["units"]["kin"] if cur["s"].get("corpse") else 0, 2)   # a corpse to explode
+    def players(e):                                                    # FUN_00573930(ECX game, EDX &out; him, room): +8 MonsterSkillBonus, +0xc the difficulty
         from unicorn.x86_const import UC_X86_REG_EDX
         e.w32(e.mu.reg_read(UC_X86_REG_EDX) + 8, cur["s"].get("players", 0))
+        e.w32(e.mu.reg_read(UC_X86_REG_EDX) + 0xc, cur["s"]["diff"])
         return 0
     e.hook(0x573930, players, 2)
     def go(e):                                                         # FUN_005dee50(ECX game, EDX him; x, y): a walk to the point, set off?
@@ -481,7 +549,40 @@ def install(e):
         return ok
     e.hook(0x5dee50, go, 2)
     e.hook(0x5ded90, lambda e: out("walkto", S32(e.arg(0)), S32(e.arg(1))), 2)
-    e.hook(0x5b4390, lambda e: out("greet"), 0)                          # it dies (the egg hatched)                                   # Radament's: FUN_00599420 (the quest's)
+    e.hook(0x5b4390, lambda e: out("greet"), 0)
+    # Act 5's.
+    act5 = lambda: cur["s"]["ai"] in ACT5_AIS
+    e.hook(0x5dc640, lambda e: int(cur["s"].get("lines", True)), 0)
+    e.hook(0x4e6c70, lambda e: cur["s"].get("sk_range", 0), 0)
+    e.hook(0x552fd0, lambda e: cur["units"]["foe2"] if cur["s"].get("rider") else 0, 0)
+    e.hook(0x63ea40, lambda e: int(cur["s"].get("self_dead", False)), 1)
+    e.hook(0x6259b0, lambda e: int(cur["s"].get("state69", False)), 1)
+    e.hook(0x5e17e0, lambda e: out("mount"), 0)
+    e.hook(0x625760, lambda e: int(cur["s"].get("state20", False) and e.arg(1) == 0x20), 2)
+    e.hook(0x625d10, lambda e: cur["s"]["mana"][0], 1)
+    e.hook(0x625d60, lambda e: cur["s"]["mana"][1], 1)
+    e.hook(0x5deca0, lambda e: out("direct", name(e.arg(0))), 1)
+    e.hook(0x5de830, lambda e: cur["units"]["foe2"] if cur["s"].get("attacker") else 0, 0)
+    e.hook(0x5dd2d0, lambda e: 1, 0)                                   # it has the skill (its own row's)
+    e.hook(0x6439f0, lambda e: 1, 0)                                   # its Skill1 record
+    e.hook(0x554010, lambda e: 0, 0)
+    e.hook(0x587900, lambda e: 0, 0)                                   # Shenk's quest step
+    e.hook(0x5edf70, lambda e: int(cur["s"].get("catapult_gone", False)), 0)
+    e.hook(0x58cf90, lambda e: int(cur["s"].get("asleep", False)), 0)
+    def mode_set(e):                                                   # FUN_005a7e60(unit, mode, &ctx): the mode it's given
+        e.w32(e.arg(2), e.arg(1)); return 0
+    e.hook(0x5a7e60, mode_set, 3)
+    e.hook(0x620210, lambda e: 0, 2)
+    e.hook(0x649070, lambda e: 0, 2)
+    e.hook(0x5a7c20, lambda e: out("leap", e.r32(e.arg(1)), S32(e.r32(e.arg(1) + 0xc)), S32(e.r32(e.arg(1) + 0x10))), 3)
+    def strike_spot(e):                                                # FUN_0064e7e0(room, &spot, 2, 0x805, 3): the spot kept
+        return int(cur["s"].get("strike_spot", True))
+    e.hook(0x64e7e0, strike_spot, 5)
+    from unicorn.x86_const import UC_X86_REG_ECX as RECX
+    e.hook(0x45adf0, lambda e: cur["s"]["spots"][name(e.mu.reg_read(RECX)) or "mon"][0], 0)
+    e.hook(0x45ae20, lambda e: cur["s"]["spots"][name(e.mu.reg_read(RECX)) or "mon"][1], 0)
+    e.hook(0x5e6020, lambda e: int(cur["s"].get("spawn_found", True)), 1)
+    e.hook(0x5fd350, lambda e: int(cur["s"].get("spawn_room", True)), 3)                          # it dies (the egg hatched)                                   # Radament's: FUN_00599420 (the quest's)
 
 
 def run_game(e, s, addr, rng_moves):
@@ -508,8 +609,8 @@ def run_game(e, s, addr, rng_moves):
     e.w32(params, ctrl); e.w32(params + 7 * 4, row)
     if s["target"]: e.w32(params + 8, units["foe"])
     e.w32(params + 20, s["dist"]); e.w32(params + 24, int(s["melee"]))
-    if s["ai"] in ("Diablo", "DiabloOther"): e.w32(units["foe"], 0 if s["foe_player"] else 1)
-    if s["ai"] in ("ZakarumZealot", "WillOWisp"):
+    if s["ai"] in DIABLO_LIKE: e.w32(units["foe"], 0 if s["foe_player"] else 1)
+    if s["ai"] in ("ZakarumZealot", "WillOWisp") or s["ai"] in ACT5_AIS:
         e.w32(units["foe"], 0 if s["foe_kind"] == "player" else 1)
         e.w32(units["foe2"], 0)                                          # the owner, a player
     if s["ai"] in ACT3_AIS:
@@ -524,6 +625,20 @@ def run_game(e, s, addr, rng_moves):
         e.w32(0x744304, data); e.w32(data + 0xba0, 0x200); e.w32(data + 0xb98, rows)
         for k in s["skills"] + s.get("skills68", []):
             if 0 <= k < 0x200: e.mu.mem_write(rows + 0x23c * k + 0x80, struct.pack("<hh", SKILL_STATE, SKILL_STATE))
+    if s["ai"] in ACT5_AIS:
+        if s["ai"] == "GenericSpawner": e.w32(ctrl + 0x3c, MASK if s["spawn_unset"] else 0)
+        if s["ai"] == "Ancient": e.w32(mon + 4, 0x21c + s["ancient"])     # its class picks the think
+        e.w32(e.r32(0x744304) + 0xc4, 0x400)                             # the states' count: skill +0x80 / +0x82's tested
+        block = alloc(0x40); e.w32(mon + 0x14, block); e.w32(block + 0x28, ctrl)   # unit +0x14 -> +0x28: its AI control
+        data = e.r32(0x744304)
+        if s["ai"] == "Imp":                                             # MonStats imp1..imp4 (0x1ec..0x1ef): their aips
+            rows = alloc(0x1a8 * 0x1f0)
+            e.w32(data + 0xa80, 0x1f0); e.w32(data + 0xa78, rows)
+            for k, row_aip in enumerate(s["imp_aip"]):
+                for j, v in enumerate(row_aip): e.mu.mem_write(rows + 0x1a8 * (0x1ec + k) + 0x56 + 6 * j + 2 * s["diff"], struct.pack("<h", v))
+    if s["ai"].startswith("Baal"):                                       # MonStats by class (FUN_005fcb60): its row
+        data = e.r32(0x744304)
+        e.w32(data + 0xa80, 0x200); e.w32(data + 0xa78, (row - 0x1a8 * 0x100) & MASK)
     CUR.update(word=s.get("word"), word_rec=alloc(0x20), lrec=alloc(0x40), rrec=alloc(0x40))
     CUR.update(s=s, out=[], units=units, names=names, paths=paths, moves=rng_moves, cmd=cmd, frees=0, pcdata=alloc(0x40), missile=alloc(0x1a4), word_index={})
     e.call(addr, params, ecx=game, edx=mon)
@@ -540,14 +655,19 @@ def outcome(s, out):
     for item in out:
         k = item[0]
         if k == "mode": to(MODE_ACT[item[1]], unit=item[2])
+        elif k == "stand" and act[0] == "direct": act[5] = item[1]          # Nihlathak's walk, then a stand: kept as its wait
         elif k == "stand": to("idle", item[1])
         elif k == "wait": act[5] = item[1]
         elif k == "event": act[6] = item[1]
+        elif k == "skill" and s["ai"].startswith("Baal") and item[2] in BAAL_SKILLS:
+            to("skill", BAAL_SKILLS[item[2]], item[4], item[5], item[3])
+        elif k == "skill" and item[2] not in s["skills"] + s.get("skills68", []):   # a raw skill id (the catapult spotter's strike)
+            to("skill", item[2], item[4], item[5], item[3])
         elif k == "skill":
             slot = (s["skills"] + s.get("skills68", [])).index(item[2])
             spot = (item[4], item[5]) == s["spot"]                         # at the target's spot (the Summoner's)
             to("skill", slot, 0 if spot else item[4], 1 if spot else item[5], item[3])
-        elif k == "seq": to("seq", s["skills"].index(item[1]), unit=item[2])
+        elif k == "seq": to("seq", s["skills"].index(item[1]) if item[1] in s["skills"] else item[1], unit=item[2])
         elif k in ("walk", "run", "approach"): to(k, item[2], unit=item[1])
         elif k == "away":
             asks.append((item[2], item[4]))
@@ -569,6 +689,8 @@ def outcome(s, out):
         elif k == "fly" and s["ai"] == "SandMaggotQueen": to("spawn", 0)   # mode 8 where she stands
         elif k == "fly": to("fly", item[3], item[1], item[2], None)
         elif k == "spawn": to("spawn", 1)
+        elif k == "direct": to("direct", unit=item[1])
+        elif k == "leap": to("skill", 0, item[2], item[3], None)
         elif k == "goto":                                                  # FUN_005dee50: a walk to a point, asked whether it set off
             asks.append((-1, item[3]))
             if item[3]: to("move_to", 0, item[1], item[2], None)
@@ -607,14 +729,20 @@ def dump_case(s, act, pace, effects, asks, ctrl, seed):
         nums += [s["next_event"], s["leader_mode"], int(s["cmd_unit"]), s["sk_level"], int(s["state_c"]), int(s["spot_coll"] == 0), int(spared(s)), int(s["los"]), s["miss_range"]] + [int(k >= 0) for k in s["skills68"]] + [int(s["weak"]), int(s["near5"]), s["wisps"], int(s["foe_kind"] == "player" and not s["busy"])]
     if s["ai"] in ACT4_AIS:
         nums += [int(s["skill_state"]), s["young"], int(s["lay"]), *s["spots"]["kin"]]
-        if s["ai"] in ("Diablo", "DiabloOther"):
+        if s["ai"] in DIABLO_LIKE:
             w = s["word"] or (0, 0)
             nums += [int(s["d_target"]), s["score"], s["count"], int(s["word"] is not None), *w, int(s["stuck"]), int(s["reach"]),
                      -1 if s["lskill"] is None else s["lskill"], -1 if s["rskill"] is None else s["rskill"], int(s["state_b"]), s["players"],
                      int(s["chaos"]), s["stat"][("foe", 0x29)], int(s["foe_player"])]
+    if s["ai"] in ACT5_AIS:
+        nums += [int(s["lines"]), s["sk_range"], int(s["rider"]), int(s["self_dead"]), int(s["state69"]), int(s["imp"]), int(s["state20"]),
+                 *s["mana"], s["foe_life"], s["cmd_until"], int(s["foe_kind"] == "player"), int(s["reach"]), int(s["busy"]),
+                 int(s["attacker"]), int(s["hurt"]), int(s["free_minion"])] + [v for row in s["imp_aip"] for v in row]
+        nums += [int(s["catapult_gone"]), int(s["strike_spot"]), int(s["spawn_unset"]), int(s["spawn_found"]), int(s["spawn_room"]), int(s["defile"]),
+                 s["ancient"], int(s["asleep"]), int(s["state36"]), int(s.get("d_target", False))]
     nums += list(s["seed"])
     kinds = {"state": 0, "overlay": 1, "stat": 2, "rally": 3, "command_done": 4, "summoner_open": 5, "aura": 6, "land": 7, "takeoff": 8,
-             "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14}
+             "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14, "mount": 15, "retarget": 16, "clone": 17}
     keep = lambda x: int(x[0] == "toggle" and s["ai"] == "SandMaggotOther")          # it puts the third word back after
     eff = [f"{kinds[x[0]]} {x[1] if len(x) > 1 else 0} {x[2] if len(x) > 2 else keep(x)}" for x in effects]
     tail = [ACTS.index(act[0])] + act[1:] + pace + ctrl[:3] + list(seed) + ctrl[3:4]   # the SandMaggot's command word after, last
@@ -630,7 +758,7 @@ def check(e, ai, cases, rng, dumped):
         act, pace, effects, asks = outcome(s, out)
         kinds[act[0]] = kinds.get(act[0], 0) + 1
         if dumped is not None:
-            key = (act[0], tuple(x[0] for x in out), len(asks))
+            key = (act[0], act[1] if act[0] == "skill" else 0, tuple(x[0] for x in out), len(asks))   # each skill slot its own
             rows = dumped.setdefault(ai, {})
             if len(rows) < 40 or key not in rows: rows.setdefault(key, []).append(dump_case(s, act, pace, effects, asks, ctrl, seed))
     print(f"{ai} ok: {cases} cases, {kinds}")

@@ -118,6 +118,7 @@ void place_act1(GameData& game_data, d2d::mpq::Stack& mpqs, const d2d::drlg::Out
     game_data.act2_layout = d2d::drlg::act2_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
     game_data.act3_layout = d2d::drlg::act3_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
     game_data.act4_layout = d2d::drlg::act4_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
+    game_data.act5_layout = d2d::drlg::act5_layout(d2d::drlg::level_defs(act1.levels), d2d::drlg::act_seed(map_seed));
 }
 
 // Monster tables (MonStats, MonStats2, MonLvl), unique names and mods, and
@@ -180,6 +181,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         type_info.place_spawn = text("placespawn") == "1" ? row(text("spawn")) : -1;
         type_info.velocity = num(text("Velocity")); type_info.run = num(text("Run"));
         type_info.spawnable = text("isSpawn") == "1"; type_info.ranged = text("rangedtype") == "1"; type_info.killable = text("killable") == "1"; type_info.melee = text("isMelee") == "1"; type_info.open_doors = text("opendoors") == "1";
+        type_info.align = num(text("Align"));
         type_info.miss_a1 = text("MissA1"); type_info.miss_a2 = text("MissA2"); type_info.miss_s1 = text("MissS1"); type_info.miss_c = text("MissC");
         for (std::size_t skill = 0; skill < type_info.skill.size(); ++skill) { type_info.skill[skill] = text("Skill" + std::to_string(skill + 1)); type_info.sk_mode[skill] = text("Sk" + std::to_string(skill + 1) + "mode");
                                                    type_info.sk_lvl[skill] = num(text("Sk" + std::to_string(skill + 1) + "lvl")); }
@@ -300,7 +302,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         more = false;
         for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index)
             if (skill_missiles.contains(std::string(missiles_table.get(row_index, "Missile"))))
-                for (const char* column : { "SubMissile1", "HitSubMissile1" })
+                for (const char* column : { "SubMissile1", "SubMissile2", "HitSubMissile1" })
                     if (const std::string name(missiles_table.get(row_index, column)); !name.empty()) more |= skill_missiles.emplace(name).second;
     }
     // A second pass loads the ExplosionMissile rows the first pass's name
@@ -325,9 +327,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.anim_speed = std::max(number("AnimSpeed"), 1); missile_info.anim_len = std::max(number("AnimLen"), 1); missile_info.trans = number("Trans"); missile_info.light = number("Light");
         missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
         missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1; missile_info.return_fire = number("ReturnFire") == 1;
-        missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.hit_par2 = number("sHitPar2");
+        missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.hit_par2 = number("sHitPar2");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay");
-        missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
+        missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.explosion_name = missiles_table.get(row_index, "ExplosionMissile"); missile_info.always_explode = number("AlwaysExplode") == 1;
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto element = std::ranges::find(kEl, missiles_table.get(row_index, "EType")); element != kEl.end()) missile_info.etype = *element == "frze" ? 2 : int(element - kEl.begin());
@@ -344,7 +346,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         game_data.missiles.emplace(name, std::move(missile_info));
     }
     for (auto& [name, missile_info] : game_data.missiles)
-        if (const auto found = game_data.missiles.find(missile_info.explosion_name); found != game_data.missiles.end()) missile_info.explosion = &found->second;
+        for (auto [wanted, into] : { std::pair{ &missile_info.explosion_name, &missile_info.explosion }, std::pair{ &missile_info.sub, &missile_info.subs[0] },
+                                  std::pair{ &missile_info.sub2, &missile_info.subs[1] }, std::pair{ &missile_info.hit_sub, &missile_info.hit_sub_info } })
+            if (const auto found = game_data.missiles.find(*wanted); found != game_data.missiles.end()) *into = &found->second;
     // SuperUniques.txt: name (string key), Class, minions. Replaceable and
     // EClass are never read by game.exe (docs/research/re/superuniques.md).
     std::vector<std::size_t> ms_bin;                    // game.exe's MonStats rows: without the Expansion row
@@ -870,6 +874,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 base.max_1h = table == &weapons ? number("maxdam") : 0;
                 base.max_2h = table == &weapons ? number("2handmaxdam") : 0;
                 base.spawnable = table->get(row, "spawnable") == "1";
+                base.nameable = table->get(row, "Nameable") == "1";
                 base.version = number("version");
                 base.type2 = std::string(table->get(row, "type2"));
                 game_data.rules.item_order.push_back(code);

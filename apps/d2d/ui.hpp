@@ -181,7 +181,7 @@ void layout_npc_menu(const Scene& scene, NpcMenuState& menu, int screen_x, int s
 // (FUN_004b6440).
 NpcMenuState open_npc_menu(const Scene& scene, const Level& level, int npc, int screen_x, int screen_y, int clvl = 1, int unidentified = 0,
                            bool respec = false, bool east = false,   // east: Warriv's Go East (quest 6 done), Meshif's Sail East (quest 14), table 0x7253e0
-                           bool imbue = false,                       // imbue: Charsi's Imbue (quest 3 bit 1, 0x4b3700)
+                           bool service = false,                     // Charsi's Imbue (quest 3 bit 1, 0x4b3700), Larzuk's sockets (0x23, 0x4b3730), Anya's personalize (0x26, 0x4b3760)
                            const std::string& resurrect = {});
 
 // The resurrect entry's text (FUN_004b4830): "Resurrect %s: %d" (0x58a8)

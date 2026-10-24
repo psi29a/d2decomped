@@ -644,10 +644,13 @@ int main() {
 #include "mon_ais3_cases.inc"
 #include "mon_ais_coldworm_cases.inc"
 #include "mon_ais4_cases.inc"
+#include "mon_ais5_cases.inc"
+#include "mon_ais_baal_cases.inc"
+#include "mon_ais_uber_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
-                // whether it's an other think, whether its scene has Act 3's / Act 4's fields.
-                struct AiCase { std::string_view name; bool other, act3_scene, act4_scene; };
+                // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's fields.
+                struct AiCase { std::string_view name; bool other, act3_scene, act4_scene, act5_scene; };
                 static constexpr AiCase kAis[] = {
 #include "mon_ais_names.inc"
                 };
@@ -694,13 +697,25 @@ int main() {
                                          input.wisps = read(); input.bless_ok = read() != 0; }
                     if (kAis[std::size_t(which)].act4_scene) { input.skill_state = read() != 0; input.young = read(); input.lay_ok = read() != 0; input.kin_x = read(); input.kin_y = read();
                                                                input.kin_id = 4;     // the harness's kin (units +0xc)
-                                                               if (ai_of(which) == "Diablo") {
+                                                               if (ai_of(which) == "Diablo" || ai_of(which) == "BaalCrab" || ai_of(which) == "BaalCrabClone") {
                                                                    input.target = read() != 0; input.score = read(); input.players_looked = read(); input.has_word = read() != 0;
                                                                    input.word_x = read(); input.word_y = read(); input.stuck = read() != 0; input.reach = read() != 0;
-                                                                   input.left_skill = read(); input.right_skill = read(); input.target_state_b = read() != 0; input.players_about = read();
+                                                                   input.left_skill = read(); input.right_skill = read(); input.target_state_b = read() != 0; input.skill_bonus = read();
                                                                    input.in_chaos = read() != 0; input.target_light_res = read(); input.target_player = read() != 0;
                                                                    input.target_life_pct = input.life_pct;   // FUN_00621f20 answers one life for any unit
+                                                                   input.left_level = input.right_level = input.skill_level;   // FUN_006442a0 answers one level for any skill
                                                                } }
+                    if (kAis[std::size_t(which)].act5_scene) {
+                        input.lines_clear = read() != 0; input.skill1_range = read(); input.rider = read() != 0; input.self_dead = read() != 0; input.state69 = read() != 0;
+                        input.imp_near = read() != 0; input.target_state20 = read() != 0; input.target_max_life = read(); input.target_max_mana = read();
+                        input.self_life_pct = input.life_pct; input.target_life_pct = read(); input.command_until = read(); input.target_player = read() != 0;
+                        input.reach = read() != 0; input.command_busy = read() != 0;
+                        input.attacker = read() != 0; input.hurt_minion = read() != 0; input.free_minion = read() != 0;
+                        for (auto& row : input.imp_aip) for (auto& value : row) value = read();
+                        input.catapult_gone = read() != 0; input.strike_spot = read() != 0; input.spawn_unset = read() != 0;
+                        input.spawn_found = read() != 0; input.spawn_room = read() != 0; input.defile = read() != 0;
+                        input.ancient = read(); input.asleep = read() != 0; input.state36 = read() != 0; input.picked = read() != 0;
+                    }
                     d2d::rules::Rng seed;
                     seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));
                     seed.high = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));
@@ -1145,7 +1160,25 @@ int main() {
         assert(mon_think("Brute", think_in, roll, no_away).act == MonAct::idle && steps(6, roll) == 2);
         think_in.aip[2] = 100; roll = Rng{ 6 };
         assert(mon_think("Brute", think_in, roll, no_away).act != MonAct::circle && steps(6, roll) == 2);
-        assert(!traced_ai("Imp") && mon_think("Imp", think_in, roll, no_away).act == MonAct::untraced);
+        // BaalTaunt (FUN_005ef710; tools/emu/baal_taunt.py --dump): game.exe's runs.
+        {
+            static constexpr std::string_view kTaunt[] = {
+#include "baal_taunt_cases.inc"
+            };
+            for (const std::string_view taunt_case : kTaunt) {
+                std::istringstream fields{ std::string(taunt_case) };
+                int kind = 0, mode = 0, count = 0, dist = 0, aip1 = 0, aip2 = 0, aip3 = 0, want_n = 0, want_count = 0;
+                std::string bar, want;
+                fields >> kind >> mode >> count >> dist >> aip1 >> aip2 >> aip3 >> bar >> want >> want_n >> want_count;
+                ThinkIn taunt_in{ .aip = { aip1, aip2, aip3 }, .dist = dist, .state = &count };
+                taunt_in.target_still = kind < 2 && mode == 1;
+                const auto got = mon_think("BaalTaunt", taunt_in, roll, no_away);
+                const bool same = want == "skill" ? got.act == MonAct::skill && got.n == 0 && want_n == 284   // Skill1, Baal Taunt
+                                : want == "warp" ? got.act == MonAct::warp : want == "direct" ? got.act == MonAct::direct
+                                : got.act == MonAct::idle && got.n == want_n;
+                assert(same && count == want_count);
+            }
+        }
         // Griswold: in melee 80 % A1, else 50 % walks in, else stands 10;
         // the Smith walks in at half the life % he's lost.
         int state2 = 0, state3 = 0, pace = 0;

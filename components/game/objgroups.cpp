@@ -66,6 +66,7 @@ struct ObjectRooms {
     bool orb_smashed = false;                            // Spawning's
     std::bitset<128> superuniques;                      // made (game +0x1d30)
     int tomb_symbols = 0;                               // Spawning's
+    int sands_objects = 0;                              // the Forgotten Sands' preset objects counted (game +0x1de4)
     d2d::rules::Region region;                          // the level's monster region: their looks
     Level::GroupRoom* out = nullptr;
     // FUN_0054db50: where players come in (as populate()'s near_way), within Levels WarpDist.
@@ -109,14 +110,17 @@ struct ObjectRooms {
     [[nodiscard]] bool hit_shape(int x, int y, int size, int mask) const {
         return size == 2 ? hit(x, y, 3, 1, mask) || hit(x, y - 1, 1, 1, mask) || hit(x, y + 1, 1, 1, mask) : hit(x, y, size, size, mask);
     }
-    void stamp_shape(int x, int y, int size, std::uint16_t bits) {
-        if (size == 2) { stamp(x, y, 3, 1, bits); stamp(x, y, 1, 3, bits); }
-        else if (size > 0) stamp(x, y, size, size, bits);
+    void stamp_shape(int x, int y, int size, std::uint16_t bits, bool clear = false) {
+        if (size == 2) { stamp(x, y, 3, 1, bits, clear); stamp(x, y, 1, 3, bits, clear); }
+        else if (size > 0) stamp(x, y, size, size, bits, clear);
     }
-    void stamp(int x, int y, int size_x, int size_y, std::uint16_t bits) {
+    void stamp(int x, int y, int size_x, int size_y, std::uint16_t bits, bool clear = false) {
         for (int ty = y - (size_y >> 1); ty < y - (size_y >> 1) + size_y; ++ty)
             for (int tx = x - (size_x >> 1); tx < x - (size_x >> 1) + size_x; ++tx)
-                if (tx >= 0 && ty >= 0 && tx < width && ty < height) stamps[std::size_t(ty) * std::size_t(width) + std::size_t(tx)] |= bits;
+                if (tx >= 0 && ty >= 0 && tx < width && ty < height) {
+                    auto& cell = stamps[std::size_t(ty) * std::size_t(width) + std::size_t(tx)];
+                    cell = clear ? std::uint16_t(cell & ~bits) : std::uint16_t(cell | bits);
+                }
     }
     // FUN_00555230 for an object: add_object's rolls, its footprint
     // (FUN_006209d0: 0x400, | 4 if BlockMissile; 0x8000, no mask's, for a
@@ -804,11 +808,24 @@ struct ObjectRooms {
         level.npcs.push_back(std::move(npc));
     }
     // FUN_005559a0: the room's preset units, the monsters last (`monsters`: normal's, here).
+    // The uber levels leave some out: Matron's Den / the Furnace of Pain the
+    // sparkly chest (397); the Forgotten Sands its waypoint (402) and the
+    // (map seed % 3 + 3)th other object; Uber Tristram Cain's gibbet (26),
+    // Wirt's body (268), the gold placeholder (269) and every monster.
+    [[nodiscard]] bool uber_skips(const d2d::drlg::Unit& unit) {
+        if (unit.type != d2d::rules::unit_type::kObject) return false;
+        switch (level.id) {
+        case d2d::rules::level_ids::kUberTristram: return unit.id == 26 || unit.id == 268 || unit.id == 269;
+        case d2d::rules::level_ids::kMatronsDen: case d2d::rules::level_ids::kFurnaceOfPain: return unit.id == 397;
+        case d2d::rules::level_ids::kForgottenSands: return unit.id == 402 || ++sands_objects == int(game_data.map_seed % 3 + 3);
+        default: return false;
+        }
+    }
     void presets(std::size_t room_at) {
         const int nmon = int(game_data.mon_bin.size()), nsu = int(game_data.superuniques.size());
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
-            if (level.unit_rooms[i] != int(room_at) || unit.type == d2d::rules::unit_type::kMonster || (unit.flags & 1)) continue;
+            if (level.unit_rooms[i] != int(room_at) || unit.type == d2d::rules::unit_type::kMonster || (unit.flags & 1) || uber_skips(unit)) continue;
             if (unit.type == d2d::rules::unit_type::kObject && unit.id != 0x23d) {
                 const auto before = level.npcs.size();
                 make(unit.id > 0x23d ? special(unit.id) : unit.id, unit.x, unit.y, false);
@@ -830,6 +847,15 @@ struct ObjectRooms {
                 // leaves him due in every game.
                 // His walk: ai.cpp's DarkWanderer.
                 if (init == 43) { auto east = unit; east.x += 7; monster_or_npc(0x170, east, 0, false); }
+                // Harrogath's markers (a new game's quest records): InitFn 71 (FUN_00587840,
+                // object 543, record 0x1f) Larzuk (0x1ff) within 5 of it; InitFn 68
+                // (FUN_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202)
+                // at its spot, else within 5, till he's gone (record +0x88).
+                // ponytail: FUN_005459a0's FUN_00545340 free-spot pass and the records' "made"
+                // bytes aren't kept; InitFns 66 / 67 / 69 / 70 (Drehya, Nihlathak outside,
+                // Larzuk's greeting) wait for Act 5's quests.
+                if (init == 71) monster_or_npc(0x1ff, unit, 5, false);
+                if (init == 68) monster_or_npc(0x202, unit, 5, false);
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made
         }
@@ -852,9 +878,11 @@ struct ObjectRooms {
         };
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
-            if (level.unit_rooms[i] != int(room_at) || unit.type != d2d::rules::unit_type::kMonster || (unit.flags & 1) || unit.id < 0) continue;
+            if (level.unit_rooms[i] != int(room_at) || unit.type != d2d::rules::unit_type::kMonster || (unit.flags & 1) || unit.id < 0 || level.id == d2d::rules::level_ids::kUberTristram) continue;
             leader = int(spawns->size());                                                              // FUN_00555910: a placement of its own
             if (unit.id < nmon) {
+                // FUN_0054e490: a critter (MonStats2 flag 0xd: Harrogath's chickens) is never made.
+                if (const auto* info = type_at(int(game_data.mon_bin[std::size_t(unit.id)])); info && info->critter) continue;
                 const bool stay = unit.id == 0xe5 || (unit.id >= 0x11c && unit.id <= 0x120) || unit.id == 0x188 || unit.id == 0x189;   // FUN_0054e3a0
                 monster_or_npc(unit.id, unit, stay ? 0 : 4);
             } else if (const int code = unit.id - nmon - nsu; code == 0x11 || code == 0x12 || code == 0x16 || code == 0x17 || code == 0x05) {
@@ -869,6 +897,36 @@ struct ObjectRooms {
                 tentacle_ns = code == 10;
                 monster(row, unit.x, unit.y, 0);                                                         // its spot only; NS (10) in mode 4
                 tentacle_ns = false;
+            }
+            else if (code >= 0x1d && code <= 0x20) {
+                // Act 5's dead (FUN_0054e600 0x1d..0x20): the level's minion (0x1c5), imp (0x211 in
+                // the Bloody Foothills, else 0x1ec), barbarian (0x20a), reanimated horde (0x1b6),
+                // its spot then radius 4, made in mode 12 (unit +0xc4 |= 0x2000000).
+                // ponytail: a reanimated horde's rise (rand(50) on its seed, FUN_005417d0 event 7 at
+                // frame + 250 + that) isn't kept: it lies there.
+                const int base = code == 0x1d ? 0x1c5 : code == 0x1e ? (level.id == d2d::rules::level_ids::kBloodyFoothills ? 0x211 : 0x1ec) : code == 0x1f ? 0x20a : 0x1b6;
+                const auto before = spawns ? spawns->size() : 0;
+                monster(own(base), unit.x, unit.y, 4);
+                if (spawns && spawns->size() > before) {                  // a corpse: its collision goes with mode 12
+                    auto& body = spawns->back();
+                    body.dead = true;
+                    const auto* info = type_at(body.type);
+                    const int shape = info && !info->footprint ? 0 : size_of(body.type) == 3 ? 3 : 2;
+                    stamp_shape(body.x, body.y, shape, 0x100, true);
+                    stamp_shape(body.x, body.y, shape - 1, 0x1000, true);
+                }
+            }
+            else if (code == 0x18 || code == 0x1a) {
+                // FUN_0054e090 (normal only): the level's imp (0x18) / minion (0x1a) at the
+                // marker's spot, then rand(MaxGrp - MinGrp + 1) + MinGrp - 1 more on its seed at radius 3.
+                const int row = own(code == 0x1a ? 0x1c5 : level.id == d2d::rules::level_ids::kBloodyFoothills ? 0x211 : 0x1ec);
+                const auto* type = type_at(row);
+                int at_x, at_y;
+                if (pop.difficulty == 0 && type && type->min_grp && type->max_grp && type->min_grp <= type->max_grp && put(row, unit.x, unit.y, -1, false, at_x, at_y)) {
+                    auto leader_seed = made(row, at_x, at_y);
+                    for (int count = leader_seed(type->max_grp - type->min_grp + 1) + type->min_grp - 1; count > 0; --count)
+                        if (int to_x, to_y; put(row, at_x, at_y, 3, false, to_x, to_y)) made(row, to_x, to_y);
+                }
             }
             else if ((code == 0x02 || code == 0x03) && pop.difficulty > 0) {                             // FUN_005bde80 (1, 0): NM / hell's off the region
                 if (!region.types.empty()) monster(pick(0), unit.x, unit.y, 0, -1, code);

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Acts 1-4's quests end to end: drive a headless d2d over devctl.
+"""Acts 1-5's quests end to end: drive a headless d2d over devctl.
 
 Usage: quests_d2d.py <path-to-d2d> [acts]
 
@@ -26,9 +26,9 @@ import tempfile
 import time
 
 d2d = sys.argv[1]
-acts = sys.argv[2] if len(sys.argv) > 2 else "1234"
-if not acts or set(acts) - set("1234"):
-    sys.exit(f"acts must be digits from 1-4, got {acts!r}")
+acts = sys.argv[2] if len(sys.argv) > 2 else "12345"
+if not acts or set(acts) - set("12345"):
+    sys.exit(f"acts must be digits from 1-5, got {acts!r}")
 data = os.environ.get("D2_MPQ_DIR") or os.path.expanduser("~/Workspace/private/diablo2")
 patch = os.environ.get("D2_PATCH_INSTALLER")
 if not os.path.exists(os.path.join(data, "d2data.mpq")) or not patch or not os.path.exists(patch):
@@ -168,6 +168,28 @@ def menu_pick(text):
     line = [l.split("\t") for l in cmd("menu").splitlines() if l.startswith(text + "\t")]
     assert line, f"no {text!r} in the menu: {cmd('menu')!r}"
     cmd(f"click {line[0][1]} {line[0][2]}")
+
+
+def service(name, slot, done, what):
+    """The NPC menu's entry before Cancel (imbue, sockets, personalize), then a
+    click on the item worn in body slot `slot`, as a player would; worn again after."""
+    item = re.search(rf"^\[(\w+) loc=1 slot={slot} .* id=(\d+) ", cmd("items"), re.MULTILINE)
+    assert item, f"nothing worn in slot {slot}"
+    open_menu(name)
+    line = [l.split("\t") for l in cmd("menu").splitlines() if "\t" in l][-2]
+    cmd(f"click {line[1]} {line[2]}")
+    x, y = cmd(f"debug itemat {item.group(2)}").split()[1:3]
+    cmd(f"click {x} {y}")
+    until(what, done)
+    cmd(f"click {x} {y}")                             # worn again
+    time.sleep(0.3)
+    for spot in range(40):                            # else into the pack
+        if state()["held"] == "-":
+            break
+        cmd(f"cmd grid {spot % 10} {spot // 10}")
+        time.sleep(0.3)
+    assert state()["held"] == "-", f"the {item.group(1)} found no room"
+    return item.group(1)
 
 
 def open_menu(name):
@@ -740,7 +762,182 @@ def act4():
     go(103)
     talk_until("Tyrael", lambda: bits(0x1a) & 0x200, "Tyrael's portal not given")
     until("the portal", lambda: "Tyrael opens the way" in log_text(), 5)
+    portal = objects(73)                                    # Tyrael's last portal (OperateFn 73) to Harrogath
+    assert portal, "no portal to Harrogath"
+    cmd(f"debug warp {portal[0][1]} {portal[0][2]}"); time.sleep(0.5)
+    cmd(f"debug operate {portal[0][0]}")
+    until("in Harrogath", lambda: level() == 109, 30)
+    assert bits(0x1c) & 0x2001 == 0x2001, f"word 0x1c: {bits(0x1c):#x}"
     print("OK: Terror's End (a4q2)")
+
+
+def a5(key):
+    """Act 5's record states (s) or logs (l) from `debug quest ... show`: [a5q1 .. a5q5]."""
+    shown = cmd("debug quest 35 show")
+    return [int(v) for v in re.search(rf"{'a5' if key == 's' else 'logs'}=(\S+)", shown)[1].split(",")]
+
+
+def act5():
+    # Harrogath, as Tyrael's portal leaves it (word 0x1c bits 0 and 13).
+    cmd("debug quest 28")
+    go(109)
+    # a5q0: Malah's introduction (20039 to the barbarian) sets her intro bit and
+    # opens Siege on Harrogath (a5q1 state 1).
+    until("Siege shut", lambda: a5("s")[0] == 0, 2)
+    talk("Malah")
+    until("Siege opens", lambda: a5("s")[0] == 1, 5)
+    # a5q1: Larzuk tells it (20077: state 2, bit 2); out of town state 3;
+    # Shenk dies on the Bloody Foothills (bits 13 and 1); Larzuk's reward
+    # (20090: bit 5) opens Rescue on Mount Arreat (a5q2 state 1).
+    talk_until("Larzuk", lambda: bits(0x23) & 4, "the siege not given")
+    go(110)
+    assert a5("s")[0] == 3, f"a5q1 out of town: {a5('s')}"
+    width = int(float(cmd("debug level").split()[4]))
+    for x in range(4, width, 8):
+        cmd(f"debug warp {x} 24"); time.sleep(0.2)
+        shenk = [l.split("\t") for l in cmd("monsters").splitlines() if l.split("\t")[7:8] == ["superunique"]]
+        if shenk: break
+    assert shenk, "no Shenk on the Bloody Foothills"
+    cmd(f"debug warp {int(float(shenk[0][1]))} {int(float(shenk[0][2])) + 2}"); time.sleep(0.5)
+    deadline = time.time() + 30
+    while time.time() < deadline and "Shenk is dead" not in log_text():
+        cmd("debug kill"); time.sleep(0.5)
+    assert bits(0x23) & 0x2002 == 0x2002, f"word 0x23: {bits(0x23):#x}"
+    go(109)
+    talk_until("Larzuk", lambda: bits(0x23) & 0x20, "the siege not rewarded")
+    assert a5("s")[:2] == [5, 1], f"a5q1 rewarded, a5q2 open: {a5('s')}"
+    # Larzuk's reward: his menu's socket entry (0x58dc) sockets the shield (bit 0).
+    shield = service("Larzuk", 5, lambda: bits(0x23) & 1, "Larzuk socketed")
+    assert f"Larzuk put 1 sockets in the {shield}" in log_text(), "not the shield, or not its one socket"
+    print("OK: the introductions, Siege on Harrogath (a5q0, a5q1)")
+    # a5q2: Qual-Kehk (20096, bit 2); the Frigid Highlands' three cages come
+    # up with five prisoners each; a door broken frees its five, the player
+    # by them opens its portal; the third, with all fifteen freed, sets bits
+    # 13, 1 and 5. Qual-Kehk's reward (20110): three runes, bit 0.
+    talk_until("Qual-Kehk", lambda: bits(0x24) & 4, "the rescue not given")
+    cmd("debug goto 111")
+    until("in the Frigid Highlands", lambda: level() == 111, 60)
+    cages = [(39, 38), (23, 86), (39, 118)]             # object 473 (map seed 3: drlg-dump 3 111 units), its door 2 east
+    for n, cage in enumerate(cages):
+        cmd(f"debug warp {cage[0]} {cage[1] + 2}"); time.sleep(1)
+        until(f"cage {n} up", lambda: log_text().count("Rescue on Mount Arreat: cage") >= n + 1, 10)
+        cmd("debug kill spare act5pow within 12")
+        until(f"cage {n}'s portal", lambda: log_text().count("'s portal (") >= n + 1, 10)
+    assert bits(0x24) & 0x2022 == 0x2022, f"word 0x24: {bits(0x24):#x} {a5('s')} {a5('l')}"
+    until("the last cage's prisoners through", lambda: log_text().count("a prisoner through the portal") >= 5, 30)
+    go(109)
+    runes = cmd("items").count("[r0")
+    talk_until("Qual-Kehk", lambda: bits(0x24) & 1, "the rescue not rewarded")
+    assert cmd("items").count("[r0") >= runes + 3 or "Qual-Kehk's 3 runes" in log_text(), "no runes"
+    assert a5("s")[1:3] == [5, 1], f"a5q2 rewarded, a5q3 open: {a5('s')}"
+    print("OK: Rescue on Mount Arreat (a5q2)")
+    # a5q3: Malah (20116, bit 2); the Frozen River's marker makes frozen Anya
+    # (fana) 25 frames on; without the potion she says 20131 (state 4);
+    # Malah's potion (20127); poured on her, she thaws (bits 13, 1) and
+    # Betrayal of Harrogath opens; Malah's scroll (20132, bit 8) sends Anya
+    # home; Anya's item (20136, bit 9) closes it (bit 0).
+    def fana():
+        found = [l.split("\t") for l in cmd("debug objects").splitlines() if l.split("\t")[3:4] == ["op67"]]
+        assert found, f"no frozen Anya: {cmd('debug objects')!r}"
+        cmd(f"debug warp {found[0][1]} {float(found[0][2]) + 1}"); time.sleep(0.5)
+        cmd(f"debug operate {found[0][0]}"); time.sleep(0.5)
+    talk_until("Malah", lambda: bits(0x25) & 4, "the prison not given")
+    cmd("debug goto 114")
+    until("on the Frozen River", lambda: level() == 114, 60)
+    cmd("debug warp 36 13"); time.sleep(0.5); cmd("debug kill within 15")
+    until("frozen Anya", lambda: "Prison of Ice: frozen Anya" in log_text(), 10)
+    fana()
+    assert a5("s")[2] == 4, f"a5q3 no potion: {a5('s')}"
+    go(109)
+    talk_until("Malah", lambda: "[ice " in cmd("items"), "no thawing potion")
+    cmd("debug goto 114")
+    until("on the Frozen River", lambda: level() == 114, 60)
+    fana()
+    until("Anya thaws", lambda: "Prison of Ice: Anya thaws" in log_text(), 10)
+    assert bits(0x25) & 0x2002 == 0x2002, f"word 0x25: {bits(0x25):#x}"
+    assert a5("s")[2:4] == [5, 1], f"a5q3 thawed, a5q4 open: {a5('s')}"
+    go(109)
+    talk_until("Malah", lambda: bits(0x25) & 0x100, "no scroll")
+    until("Anya home", lambda: "Anya goes home" in log_text(), 5)
+    talk_until("Anya", lambda: bits(0x25) & 1, "Anya's item not given")
+    print("OK: Prison of Ice (a5q3)")
+    # a5q4: Anya (20137, bit 2) opens a red portal to Nihlathak's Temple as
+    # her talk closes; Nihlathak in the Halls of Vaught (superunique 60 at
+    # the marker) dies (bits 13, 1); Anya's 20148: bit 4.
+    talk_until("Anya", lambda: bits(0x26) & 4, "the betrayal not given")
+    until("Anya's portal", lambda: "Anya opens the way" in log_text(), 5)
+    cmd("debug goto 124")
+    until("in the Halls of Vaught", lambda: level() == 124, 60)
+    cmd("debug warp 4 43"); time.sleep(1)
+    until("Nihlathak comes", lambda: "(superunique 60)" in log_text(), 10)
+    deadline = time.time() + 30
+    while time.time() < deadline and "Nihlathak is dead" not in log_text():
+        cmd("debug kill within 20"); time.sleep(0.5)
+    assert bits(0x26) & 0x2002 == 0x2002, f"word 0x26: {bits(0x26):#x}"
+    go(109)
+    talk_until("Anya", lambda: bits(0x26) & 0x10, "the betrayal not rewarded")
+    # Her personalizing (0x58dd, bit 0): the weapon takes the player's name.
+    service("Anya", 4, lambda: bits(0x26) & 1, "Anya personalized")
+    assert "Anya personalized the " in log_text() and "Quester's " in cmd("items"), "no personalizing"
+    print("OK: Betrayal of Harrogath (a5q4)")
+    # a5q5 (of level 20 on Normal): Qual-Kehk (20153, bit 2); the Summit's
+    # altar has the Ancients speak; 20 frames on the statues are the three
+    # Ancients; all dead: bits 0 and 13, the experience; the stairs lead to
+    # the Worldstone Keep.
+    def objects(op):
+        return [l.split("\t") for l in cmd("debug objects").splitlines() if l.split("\t")[3:4] == [f"op{op}"]]
+    cmd("debug stat 12 25")
+    talk_until("Qual-Kehk", lambda: bits(0x27) & 4, "the rite not given")
+    cmd("debug goto 120")
+    until("on the Arreat Summit", lambda: level() == 120, 60)
+    cmd("debug warp 10 17"); time.sleep(1); cmd("debug kill within 30")
+    altar = objects(65)
+    assert altar, f"no altar: {cmd('debug objects')!r}"
+    cmd(f"debug warp {altar[0][1]} {float(altar[0][2]) + 1}"); time.sleep(0.5)
+    cmd(f"debug operate {altar[0][0]}")
+    until("the Ancients", lambda: all(f"(superunique {n})" in log_text() for n in (43, 44, 45)), 10)
+    deadline = time.time() + 30
+    while time.time() < deadline and "the Ancients are dead" not in log_text():
+        cmd("debug kill within 30"); time.sleep(0.5)
+    assert bits(0x27) & 0x2001 == 0x2001, f"word 0x27: {bits(0x27):#x} {a5('s')}"
+    assert "Rite of Passage: +" in log_text(), "no experience"
+    stairs = objects(66)
+    assert stairs, "no stairs"
+    cmd(f"debug warp {stairs[0][1]} {float(stairs[0][2]) + 1}"); time.sleep(0.5)
+    cmd(f"debug operate {stairs[0][0]}"); time.sleep(0.5); cmd(f"debug operate {stairs[0][0]}")
+    until("in the Worldstone Keep", lambda: level() == 128, 30)
+    print("OK: Rite of Passage (a5q5)")
+    # a5q6: open from the Rite (state 2); the Throne of Destruction cleared,
+    # Baal sends his five waves, then walks into the Chamber's portal (log
+    # 3); through it, Baal dies (bits 13 and 0, the next difficulty); Tyrael
+    # comes; his talk opens the last portal home (bit 10).
+    assert a5("s")[4] == 5 and bits(0x28) & 4, f"a5q6 open: {a5('s')} {bits(0x28):#x}"
+    cmd("debug goto 131")
+    until("on the Throne of Destruction", lambda: level() == 131, 60)
+    cmd("debug warp 18 12"); time.sleep(1)
+    deadline = time.time() + 240
+    while time.time() < deadline and "Baal goes into the Worldstone Chamber" not in log_text():
+        cmd("debug kill spare baalthrone within 60"); time.sleep(1)
+    assert log_text().count("Eve of Destruction: wave") == 5, "five waves"
+    portal = objects(70)
+    assert portal, "no Chamber portal"
+    cmd(f"debug warp {portal[0][1]} {float(portal[0][2]) + 1}"); time.sleep(0.5)
+    cmd(f"debug operate {portal[0][0]}")
+    until("in the Worldstone Chamber", lambda: level() == 132, 30)
+    cmd("debug warp 27 34"); time.sleep(1)
+    deadline = time.time() + 30
+    while time.time() < deadline and "Baal is dead" not in log_text():
+        cmd("debug kill within 40"); time.sleep(0.5)
+    assert bits(0x28) & 0x2001 == 0x2001, f"word 0x28: {bits(0x28):#x}"
+    until("Tyrael comes", lambda: "Tyrael comes" in log_text(), 40)
+    talk_until("Tyrael", lambda: "Tyrael opens the way home" in log_text(), "no last portal")
+    last = objects(72)
+    assert last, "no last portal"
+    cmd(f"debug warp {last[0][1]} {float(last[0][2]) + 1}"); time.sleep(0.5)
+    cmd(f"debug operate {last[0][0]}")
+    until("home", lambda: level() == 109, 30)
+    assert bits(0x28) & 0x400, f"word 0x28: {bits(0x28):#x}"
+    print("OK: Eve of Destruction (a5q6)")
 
 
 try:

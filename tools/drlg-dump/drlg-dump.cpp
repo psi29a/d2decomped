@@ -148,7 +148,8 @@ static std::string dump(const OutdoorAssets& assets, std::uint32_t seed, int id,
         return out.str();
     }
     const auto act3 = act3_layout(level_defs(assets.levels), act_seed(seed));
-    const auto layout = id >= level_ids::kPandemoniumFortress ? act4_layout(level_defs(assets.levels), act_seed(seed))
+    const auto layout = id >= level_ids::kHarrogath ? act5_layout(level_defs(assets.levels), act_seed(seed))
+                      : id >= level_ids::kPandemoniumFortress ? act4_layout(level_defs(assets.levels), act_seed(seed))
                       : id >= level_ids::kKurastDocks ? act3.levels
                       : id >= level_ids::kLutGholein ? act2_layout(level_defs(assets.levels), act_seed(seed)) : act1_from_map_seed(level_defs(assets.levels), seed);
     if (std::getenv("DRLG_LAYOUT"))
@@ -449,8 +450,8 @@ int main(int argc, char** argv) try {
         const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
         for (auto seed = first;; ++seed) {
             std::ostringstream out;
-            if (id >= level_ids::kPandemoniumFortress) {     // act 4, as drlg.act4_layout_dump
-                auto layout = act4_layout(defs, act_seed(seed));
+            if (id >= level_ids::kPandemoniumFortress) {     // acts 4 and 5, as drlg.act4_layout_dump
+                auto layout = id >= level_ids::kHarrogath ? act5_layout(defs, act_seed(seed)) : act4_layout(defs, act_seed(seed));
                 std::ranges::sort(layout, {}, &Placed::level);
                 for (const auto& placement : layout)
                     out << "level " << placement.level << " at " << placement.x << ',' << placement.y << " size " << placement.width << 'x' << placement.height << '\n';

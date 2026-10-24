@@ -199,6 +199,14 @@ int main() {
     // Akara deciphers it; the stones in order (a wrong one ignored); the
     // Gibbet; camp Cain; Akara's ring, once.
     QuestBits cain_bits{};
+    // The Cow Portal: Baal down (expansion) or Diablo (classic), the Cow King alive, the camp, once a game.
+    assert(!CainQuest::cow_portal_opens(cain_bits, false, true, 1));
+    quest::set(cain_bits, 0x28, 0);
+    assert(CainQuest::cow_portal_opens(cain_bits, false, true, 1) && !CainQuest::cow_portal_opens(cain_bits, false, false, 1));
+    assert(!CainQuest::cow_portal_opens(cain_bits, true, true, 1) && !CainQuest::cow_portal_opens(cain_bits, false, true, 40));
+    quest::set(cain_bits, CainQuest::kQuest, 10);
+    assert(!CainQuest::cow_portal_opens(cain_bits, false, true, 1));
+    cain_bits = {};
     CainQuest cain;
     cain.join(cain_bits, false, false);
     cain.open();

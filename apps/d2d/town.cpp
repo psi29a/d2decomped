@@ -31,6 +31,7 @@
 #include <log.hpp>
 #include <monster_ids.hpp>
 #include <quests.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <screenshot.hpp>
 #include <skills.hpp>
@@ -134,10 +135,10 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
     }
     // Town portals: opening (OP, FrameCnt1 15 at FrameDelta 200/256 a tick:
     // 768 ms), then ON; named by where they lead (-2000 - which). Tristram
-    // Cain's (which 8, object 189: its token tP is TP's files, MPQ names
+    // Cain's (which kGamePortals, object 189: its token tP is TP's files, MPQ names
     // being case-blind) has no name: Selectable0..2 all 0.
     for (const auto& portal : view.portals) {
-        const Level* destination = portal.which < 8 ? scene.level(portal.destination) : nullptr;
+        const Level* destination = portal.which < int(d2d::game::World::kGamePortals) ? scene.level(portal.destination) : nullptr;
         const bool opening = now_ms - portal.born < kPortalOpenMs;
         out.push_back({ portal.x, portal.y, &scene.npc_anim(scene.town_portal, opening ? "OP" : "ON"), 0, destination ? &destination->name : nullptr,
                         opening ? portal.born : portal.born + kPortalOpenMs, -2000 - portal.which });
@@ -595,16 +596,18 @@ auto Town::send(const Command& command) -> void {
                     if (const float apart = std::hypot(unit->second.x - subtile_x(corpse.x), unit->second.y - subtile_y(corpse.y)); apart < best) {
                         best = apart; net_operate_type = 0; net_operate = id; net_operate_ms = frame_now; net_operate_moves = false; net_operate_waypoint = -1;
                     }
-        } else if (interact && interact->npc <= -2000 && interact->npc > -2008) {
-            // A town portal: ours by the host's id for this end (0x82), else its
-            // TownPortal (object 59) nearest d2d's (they open apart:
-            // deviations.md); operated once the host has us there, as it
-            // warps us (0x15); d2d takes its own here.
+        } else if (interact && interact->npc <= -2000 && interact->npc > -2000 - int(d2d::game::World::kGamePortals)) {
+            // A town portal: ours by the host's id for this end (0x82), else the
+            // host's object nearest d2d's (they open apart: deviations.md) of
+            // the slot's class (World::portal: 59 a town portal, 60 the quest
+            // portals, 100 the true tomb's way down); operated once the host
+            // has us there, as it warps us (0x15); d2d takes its own here.
             const int which = -2000 - interact->npc;
+            static constexpr std::array<int, d2d::game::World::kGamePortals> kHostClass{ 59, 59, 60, 60, 60, 60, 100, 59, 60, 60, 60, 60 };
             if (which < 2 && net_game->portal_here != 0) {
                 net_operate_type = 2; net_operate = net_game->portal_here; net_operate_ms = frame_now; net_operate_moves = true; net_operate_waypoint = -1;
             } else if (const auto& entry = world.portal[std::size_t(which)]; entry.level) {
-                if (const auto* host_portal = net_game->nearest(2, 59, (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f, 10.f)) {
+                if (const auto* host_portal = net_game->nearest(2, kHostClass[std::size_t(which)], (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f, 10.f)) {
                     net_operate_type = 2; net_operate = host_portal->id; net_operate_ms = frame_now; net_operate_moves = true; net_operate_waypoint = -1;
                 } else {
                     net_game->log.note(std::format("no host portal near ({:.0f}, {:.0f})", (entry.x + float(entry.level->world_x)) * 5.f, (entry.y + float(entry.level->world_y)) * 5.f));
@@ -1838,7 +1841,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         if (mouse.press_this_frame) {
             if (live) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, view.monsters[std::size_t(hovered_monster_index)].id, true });
             else if (hovered_ground() >= 0) out.push_back(cmd::Pickup{ view.ground[std::size_t(hovered_ground())].id });
-            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2008) || (hovered_npc <= -3000 && hovered_npc > -3016)
+            else if (hovered_npc >= 0 || (hovered_npc <= -2000 && hovered_npc > -2000 - int(d2d::game::World::kGamePortals)) || (hovered_npc <= -3000 && hovered_npc > -3016)
                      || (hovered_npc <= -4000 && hovered_npc > -4000 - int(view.others.size())))
                 out.push_back(cmd::Interact{ hovered_npc });
             else if (function_held(keys::kStandStill)) out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true });   // 0x7a0664: no step, the skill there
@@ -1898,7 +1901,7 @@ auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool use
                 things.push_back({ int(i), state ? state->x : npc.x, state ? state->y : npc.y });
             }
         for (const auto& portal : view.portals)  // Interact's ids, as the mouse's hover names them (Cain's, 8, has no name)
-            if (portal.which < 8) things.push_back({ -2000 - portal.which, portal.x, portal.y });
+            if (portal.which < int(d2d::game::World::kGamePortals)) things.push_back({ -2000 - portal.which, portal.x, portal.y });
         for (const auto& corpse : view.corpses) things.push_back({ -3000 - corpse.which, corpse.x, corpse.y });
         if (const int pick = pad::pick_target(hero_x, hero_y, face_x, face_y, things, -1, pad::Aim{ 4.5f, 4.5f, -0.2f }); pick >= 0)
             return { PadPick::kThing, things[std::size_t(pick)].id, things[std::size_t(pick)].x, things[std::size_t(pick)].y };
@@ -2831,7 +2834,8 @@ auto Town::open_menu(int npc) -> void {
                 return !d2d::rules::quest::bit(quest_bits, d2d::rules::kRespecQuest, 0) && (d2d::rules::quest::bit(quest_bits, d2d::rules::kRespecQuest, 1) || difficulty == 2);
             }(), character.header.quest_flag(character.header.active_difficulty(),   // table 0x7253e0: Warriv by quest 6, Meshif by quest 14 (bit 0)
                                              npc_info.hc_idx == d2d::rules::monster_ids::kMeshif ? d2d::rules::SevenTombsQuest::kQuest : d2d::rules::AndyQuest::kQuest, 0),
-            character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1),
+            character.header.quest_flag(character.header.active_difficulty(), npc_info.hc_idx == d2d::rules::SiegeQuest::kLarzuk ? d2d::rules::SiegeQuest::kQuest
+                                        : npc_info.hc_idx == d2d::rules::BetrayalQuest::kAnya ? d2d::rules::BetrayalQuest::kQuest : d2d::rules::ToolsQuest::kQuest, 1),
             character.header.merc_seed != 0 && character.header.merc_dead
                 ? resurrect_line(*scene, character.header.merc_type, character.header.merc_name,
                                  d2d::rules::merc_resurrect_cost(d2d::rules::merc_stats(scene->rules, character.header.merc_type, character.header.merc_exp).level))
