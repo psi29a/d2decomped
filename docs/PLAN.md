@@ -919,10 +919,15 @@ Branch `act5`:
   game.exe (`tests/mon_ais_baal_cases.inc`), the Vile Effigy, Festering
   Appendages, the cold missiles' maker.
 
-Still open: AncientStatue, the ubers; Act 5's other monster
-skills and umod 33's blast; the cinematics.
+- AncientStatue traced: it never spawns in 1.14d. The ubers as game.exe has
+  them (monster-ai.md "AncientStatue and the ubers' MonAIs"): UberIzual's
+  think proven in tools/emu; uber Mephisto / Diablo / Baal a bare `ret 4`;
+  the uber levels' presets matching (201 seeds); the Hellfire Torch when
+  the three fall. The Cube's Cow Portal opens; the Pandemonium portals
+  return 0 in 1.14d (realm-only), so the keys and organs stay.
 
-Next: the Ancients' statues, or the ubers.
+Still open: Act 5's other monster skills and umod 33's blast; the
+cinematics.
 
 ## Checkpoint 2026-10-22 (2): Sentry and tester fixes; skill tooltips exact
 

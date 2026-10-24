@@ -429,7 +429,21 @@ MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
   flags 0x40) and `FUN_005f7f10` (a make next to Mephisto's think), and
   `FUN_005dd140` (counts uber Mephisto / Diablo / Baal, 0x2c7, 0x2c8 and
   731..733 in a radius): the 1.13 uber thinks' helpers, their callers gone.
-  bugs.md #26.
+  The Cube's Pandemonium portals return 0 too (cube.md), so 1.14d never
+  takes a player to the uber levels; the event was realm-only. bugs.md #26.
+- The uber levels' presets (`FUN_005559a0`): Uber Tristram (136) makes no
+  preset monster and skips objects 26 (Cain's gibbet), 268 (Wirt's body),
+  269 (the gold placeholder); Matron's Den and the Furnace of Pain (133,
+  135) skip object 397 (the sparkly chest); the Forgotten Sands (134) its
+  waypoint (402) and the object whose count (game +0x1de4, every other
+  object of the level) reaches map seed % 3 + 3. d2d: objgroups.cpp
+  `uber_skips`; `diff_drlg.py 100-300 133..136 monsters objgroups` match.
+- d2d: `rules::mon_think` UberIzual and the three stubs, checked by
+  `mon_ais.py UberIzual,UberMephisto,UberDiablo,UberBaal 3000 7`
+  (`tests/mon_ais_uber_cases.inc`); ai.cpp's line for UberIzual takes mask
+  6 and its Chilling Armor state lasts the skill's auralen
+  (`Monster::self_state_until`). ponytail: the state's armor % and its
+  ReturnFire aren't put on the monster.
 - UberIzual (`FUN_005f8c80`): Izual's shape (aip by difficulty at MonStats
   +0x56.., +0x18 / +0x1c counters) with three skill slots; not traced
   further yet.
