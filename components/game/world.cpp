@@ -335,9 +335,8 @@ auto World::view() const -> View {
                 const bool bit0 = d2d::rules::quest::bit(quest_bits, quest, 0) || d2d::rules::quest::bit(quest_bits, quest, 15);
                 if (bit0 && !d2d::rules::quest::bit(quest_bits, quest, 13) && !d2d::rules::quest::bit(quest_bits, quest, 14)) view.quest_log[std::size_t(quest)] = 0;
             }
-            const bool done[7] = { false, den.state >= 4, burial.state >= 4, tools.game_returned, cain.rescued_flag, tower.dead, andy.log == 0xd };
             for (std::size_t quest = 1; quest < view.game_quests.size(); ++quest)
-                view.game_quests[quest] = std::uint16_t(((quest < 7 ? done[quest] : d2d::rules::quest::bit(game_bits, int(quest), 13)) ? 1 << 13 : 0)
+                view.game_quests[quest] = std::uint16_t((game_quest_done(quest) ? 1 << 13 : 0)
                                                         | (closed_at_join[quest] ? 1 << 15 : 0));
         }
         view.den_left = std::max(den_left, 0);
@@ -1112,6 +1111,8 @@ auto World::new_game() -> void {
         act5_join();
         den_left = -1;
         den_log_at = 0;
+        actor->voice_found.reset();               // FUN_004ca280: a new game's find lines
+        actor->voice_checked = 0;
         operated.clear();
         // The levels as built: no room populated (the units come again as
         // they do), doors back as they were made.
@@ -1658,8 +1659,39 @@ auto World::open_act(int act) -> void {
 
 // The player's class says `line` ("act1_complete_den": the sound
 // <class>_act1_complete_den).
+auto World::game_quest_done(std::size_t quest) const -> bool {
+        const bool done[7] = { false, den.state >= 4, burial.state >= 4, tools.game_returned, cain.rescued_flag, tower.dead, andy.log == 0xd };
+        return quest < 7 ? done[quest] : d2d::rules::quest::bit(game_bits, int(quest), 13);
+    }
+
+// The sound tick (FUN_004dcaa0): 62 ticks after the player's level changed,
+// FUN_004cc270 looks it up once; a row's first level this game marks all of
+// its levels, then speaks if its quest's to do (FUN_004a4180: open in this
+// game, the game's flag 13 and the player's 0, 1 and 14 clear; the Den's
+// log short of 5) and the class hasn't spoken for 62 ticks.
+// ponytail: "hasn't spoken" is the class's lines (voice_at); game.exe's is
+// any sound on the player (+0x7c) and no class line playing (FUN_004b9c20).
+auto World::find_voice(std::uint32_t tick_ms) -> void {
+        constexpr std::uint32_t kWait = 62 * kTickMs;
+        if (level->id != actor->voice_level) { actor->voice_level = level->id; actor->voice_level_at = tick_ms; }
+        if (actor->voice_level == actor->voice_checked || tick_ms - actor->voice_level_at < kWait) return;
+        actor->voice_checked = actor->voice_level;
+        const auto* row = d2d::rules::find_line(actor->voice_level);
+        if (!row || std::size_t(actor->voice_level) >= actor->voice_found.size() || actor->voice_found[std::size_t(actor->voice_level)]) return;
+        for (const int marked : row->levels)
+            if (marked) actor->voice_found.set(std::size_t(marked));
+        const auto& bits = actor->character.header.quests[std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))];
+        const auto quest = std::size_t(row->quest);
+        namespace q = d2d::rules::quest;
+        if (closed_at_join[quest] || game_quest_done(quest) || q::bit(bits, row->quest, 0) || q::bit(bits, row->quest, 1) || q::bit(bits, row->quest, 14)) return;
+        if (row->quest == d2d::rules::DenQuest::kQuest && den.log_state(bits) >= 5) return;
+        if (actor->voice_at && tick_ms - actor->voice_at < kWait) return;
+        class_cue(row->line, tick_ms);
+    }
+
 auto World::class_cue(std::string_view line, std::uint32_t at_ms) -> void {
         static constexpr std::array<const char*, 7> kClass{ "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
+        actor->voice_at = std::max(actor->voice_at, at_ms);
         if (actor->character.header.cls < kClass.size()) cues.cue(std::format("{}_{}", kClass[actor->character.header.cls], line), at_ms, actor->player.x, actor->player.y);
     }
 
@@ -2633,7 +2665,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
             day.step(act());
             credit_party([&] { act1_tick(); act2_tick(); });
-            each_player([&](Player&) { stamina_frame(); footstep_frame(day_at); });
+            each_player([&](Player&) { stamina_frame(); footstep_frame(day_at); find_voice(day_at); });
         }
         each_player([&](Player& player) {
             if (player.boost.until && now_ms >= player.boost.until) {     // the state runs out

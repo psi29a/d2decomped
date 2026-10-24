@@ -49,7 +49,7 @@ keyboard.
 | Multiplayer over TCP/IP (a d2d host) | Not started |
 | Joining a game hosted by the original | 🚧 Acts I–IV played through together: party, trade, portals, waypoints, chat, quests, travel; Act V not yet checked live |
 | Gamepad | ✅ Xbox, PlayStation, Switch and Steam Deck pads; keys and pad buttons remappable in Configure Controls ([apps/d2d](apps/d2d/README.md)) |
-| Sound | 🚧 3,356 of the base game's 3,520 sounds as the original plays them: combat, spells, missiles, footsteps, monsters, objects, NPC greetings; the hero's quest lines next ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
+| Sound | 🚧 3,406 of the base game's 3,520 sounds as the original plays them: combat, spells, missiles, footsteps, monsters, objects, NPC greetings, the hero's find lines ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
 | Dedicated server | Not started |
 
 ## Bring your own game

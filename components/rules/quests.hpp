@@ -1934,4 +1934,37 @@ struct QuestLogPick { int slot = -1, shown = 2; bool fresh = false; };
     return 0;
 }
 
+// The class's "find" lines (the client's FUN_004cc270, rows at 0x72a2c4):
+// the first time in a game the player is in one of a row's levels, the
+// line, while the row's quest is still to do (FUN_004a4180). `quest` is
+// the flag word, the row's quest id through 0x723f38.
+struct FindLine {
+    std::array<int, 6> levels;   // 0-terminated
+    int quest;
+    const char* line;            // <class>_<line>
+    int event;                   // its unit sound event
+};
+inline constexpr std::array<FindLine, 14> kFindLines{ {
+    { { 17 }, 2, "act1_find_burial", 0x26 },
+    { { 34, 35, 36, 37 }, 6, "act1_find_catacombs", 0x28 },
+    { { 8 }, 1, "act1_find_den", 0x29 },
+    { { 29, 30, 31 }, 6, "act1_find_jail", 0x2a },
+    { { 26, 27 }, 3, "act1_find_monastery", 0x2b },
+    { { 20, 21, 22, 23, 24, 25 }, 5, "act1_find_tower", 0x2c },
+    { { 38 }, 6, "act1_find_tristram", 0x2e },
+    { { 2, 3, 4, 5, 6, 7 }, 1, "act1_find_wilderness", 0x2f },
+    { { 74 }, 13, "act2_find_arcane", 0x37 },
+    { { 58 }, 14, "act2_find_clawviper", 0x38 },
+    { { 110 }, 35, "act5_find_wilderness", 0x4c },
+    { { 120 }, 39, "act5_find_mountaintop", 0x4e },
+    { { 121 }, 38, "act5_find_nihlathak", 0x4d },
+    { { 132 }, 40, "act5_find_worldstone", 0x4f },
+} };
+// The row whose levels hold `level`, or none.
+[[nodiscard]] inline const FindLine* find_line(int level) {
+    for (const auto& row : kFindLines)
+        if (std::ranges::find(row.levels, level) != row.levels.end() && level != 0) return &row;
+    return nullptr;
+}
+
 }  // namespace d2d::rules

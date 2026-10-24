@@ -105,6 +105,9 @@ for path in glob.glob("components/**/*.cpp", recursive=True):
     source = open(path, encoding="utf-8", errors="ignore").read()
     for line in re.findall(r'class_cue\("([^"]+)"', source):
         numbers |= {by_name[f"{prefix}_{line}"] for prefix in class_prefixes if f"{prefix}_{line}" in by_name}
+# The find lines (rules::kFindLines) go to class_cue from a table.
+find_lines = re.findall(r'\{ \{[^}]*\}, \d+, "(act\d_find_\w+)"', open("components/rules/quests.hpp", encoding="utf-8").read())
+numbers |= {by_name[f"{prefix}_{line}"] for line in find_lines for prefix in class_prefixes if f"{prefix}_{line}" in by_name}
 # Say sounds are selected by arithmetic from each class's first phrase row.
 town = open("apps/d2d/town.cpp", encoding="utf-8").read()
 chat = re.search(r"kChatSound\s*=\s*\{([^}]+)\}", town)

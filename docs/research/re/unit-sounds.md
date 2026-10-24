@@ -116,27 +116,52 @@ aftermath (0x36), and Act 3 completions (0x40..0x43). Act 1's
 `act1_find_cairn` is event 0x27, throttled to every 64th Cairn Stone use
 without the scroll.
 
-The other 23 classic `find` cues have sound-table entries and client event
-handling, but no trigger in the 1.14d server executable. The server voice
-dispatcher FUN_00553380 has 97 direct call sites; checking their immediate or
-computed event arguments finds no calls for these IDs. The two generic quest
-voice helpers also have no hidden callers: FUN_005455f0 is only used by the
-Den quest callback, and FUN_00595420 only by the Countess callback. Thus the
-assets cannot play through normal quest progression in this build. Adding
-them would require inventing new trigger conditions rather than porting an
-existing game.exe event.
+**Find lines (client, FUN_004cc270).** The other `find` lines never go
+through the server: the client's sound tick (FUN_004dcaa0) notes when the
+player's level (FUN_00481780) changes, and once it has stayed 62 ticks
+(`> 0x3d`) calls FUN_004cc270 for it once (0x7c8a04). That one skips the
+level last looked up (0x7c88cc) or already marked (0x7c78b8, a dword per
+level, cleared for a new game by FUN_004ca280), and finds the row holding
+it in the table at 0x72a2c4: 14 pointers, 0-terminated, to 0x30-byte rows
+{10 level ids, 0-terminated; +0x28 a quest id; +0x2c the u16 event}. Every
+level in the row is marked, whether it then speaks or not. It speaks
+(FUN_004cb9c0) when:
 
-| Act | Event IDs | Sound-table cues without a server trigger |
-|---|---|---|
-| 1 | 0x26, 0x28–0x2c, 0x2e–0x2f | burial, catacombs, den, jail, monastery, tower, Tristram, wilderness |
-| 2 | 0x37–0x3c | Arcane, Claw Viper, Radament, Summoner, decoy tomb, true tomb |
-| 3 | 0x44–0x47, 0x49 | beneath, blackened, drain, Guardian, Lam Esen |
-| 5 | 0x4c–0x4f | wilderness, Nihlathak, mountaintop, Worldstone |
+- FUN_004a4180(quest): the quest is open in this game (S→C 0x5e,
+  FUN_004b92e0), its flag word (the quest id's row of the 16-byte table
+  0x723f38) has the game's bit 13 clear and the player's bits 1, 0 and 14
+  clear; the Den also needs its log state (FUN_004a1950, +0x265) under 5;
+- the player's last sound (unit +0x7c, set by FUN_004cb6a0) is over 62
+  frames old and no class voice (Sounds 0xb76..0x1230) is playing
+  (FUN_004b9c20).
 
-The Act 3 Jade event 0x48 is already emitted as the Jade Figurine find cue;
-it is not part of the unsupported set. The names above are the class-specific
-`find` rows resolved from the client mapping
-`class voice table + 0x24 − 0x21 + id`.
+| Levels | Quest word | Event | Line |
+|---|---|---|---|
+| 17 | 2 | 0x26 | act1_find_burial |
+| 34–37 | 6 | 0x28 | act1_find_catacombs |
+| 8 | 1 | 0x29 | act1_find_den |
+| 29–31 | 6 | 0x2a | act1_find_jail |
+| 26, 27 | 3 | 0x2b | act1_find_monastery |
+| 20–25 | 5 | 0x2c | act1_find_tower |
+| 38 | 6 | 0x2e | act1_find_tristram |
+| 2–7 | 1 | 0x2f | act1_find_wilderness |
+| 74 | 13 | 0x37 | act2_find_arcane |
+| 58 | 14 | 0x38 | act2_find_clawviper |
+| 110 | 35 | 0x4c | act5_find_wilderness |
+| 121 | 38 | 0x4d | act5_find_nihlathak |
+| 120 | 39 | 0x4e | act5_find_mountaintop |
+| 132 | 40 | 0x4f | act5_find_worldstone |
+
+d2d: `rules::kFindLines` (checked against game.exe in test_exe_tables),
+`World::find_voice`. It reads "the last sound" as the class's last line.
+
+Nine `find` lines still have no trigger: Act 2's radament, summoner,
+tomb_decoy, tomb_true (0x39–0x3c) and Act 3's beneath, blackened, drain,
+guardian, lamesen (0x44–0x47, 0x49). No server call to FUN_00553380 makes
+those ids (all 97 sites read, computed ones included; it's the only writer
+of the unit's event, +0x6e with flag 0x400), and the client's own calls to
+FUN_004cb9c0 are the refusals, the mana check and this table. See
+stubs.md.
 
 ## Footsteps (FUN_004caf60 → FUN_004caeb0)
 

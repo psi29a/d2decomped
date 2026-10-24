@@ -1008,9 +1008,10 @@ A did nothing on a waypoint or a town portal):
 - `tools/sound_coverage.py` lists the base install's sounds d2d can't play:
   3,288 of 3,520 play now (2,181 before).
 
-Still open (the tool's list): the remaining hero quest voices (most "find"
-lines and some completions; each quest's server code sends its id to
-FUN_00553380; about 40 per class); their own skill stsound; dosound a / b,
+Still open (the tool's list): some hero quest completions (each quest's
+server code sends its id to FUN_00553380); the "find" lines are done
+(2026-10-25: the client's level table, FUN_004cc270; nine have no trigger,
+stubs.md); their own skill stsound; dosound a / b,
 prgsound, block and kick sounds; the quest music jingles; camp floors (DS1
 tiles aren't in `room_floors`: always dirt).
 

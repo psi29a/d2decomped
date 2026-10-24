@@ -26,6 +26,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | seq_impinferno (Sk5mode of imp6..8) | imp6..8's sequence Inferno (do 126 from an event-4 row) | unreachable (probably) | only a riding imp casts Skill5 (ImpRide's pick); the free Imp think casts Skill4 at most, and no level with imp6..8 (125..127, 135) has a siege beast or tower to ride. Probed live 2026-10-25: 50 s on Nightmare 126/127, attacks and missiles, no Inferno. Unchecked: a mount from a preset or DS1 | ported anyway (ai.cpp) | monster-ai.md "The imps' ride and skills" |
 | `FUN_005a30e0` mod 24 | thief (MonUMod 24) on a hit | unreachable | MonUMod disables it; `FUN_005a49b0` skips it for Lord De Seis | not ported | monsters.md |
 | `FUN_00587830` | InitFn 70 (table 0x731bc0) | stub (`return`) | nothing happens when the object's room comes up | nothing | quests-act5.md "InitFns 66..70" |
+| unit events 0x39..0x3c, 0x44..0x47, 0x49 | nine class `find` lines (Act 2 radament, summoner, tomb_decoy / true; Act 3 beneath, blackened, drain, guardian, lamesen) | unreachable | the client maps them to Sounds rows, but no server call or client table makes those ids (the other find lines come from the client's level table 0x72a2c4) | not played | unit-sounds.md "Find lines" |
 
 Still reachable, though the content looks dead: the uber levels 133..136
 build and populate (`FUN_005559a0`'s uber cases, the Hellfire Torch hook

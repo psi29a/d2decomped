@@ -33,6 +33,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bitset>
 #include <cstdint>
 #include <ctime>
 #include <map>
@@ -192,6 +193,12 @@ struct World {
         int last_pmode = -1;                   // the player's mode at the last tick (death's stages)
         std::int64_t exp_lost = 0;             // what the last death took
         std::uint32_t arrived_at = 0;          // when the player last changed level (pcdata+0x160)
+        // The client's find lines (FUN_004dcaa0 → FUN_004cc270).
+        int voice_level = 0;                   // the level it's in (0x7c89dc), since voice_level_at
+        std::uint32_t voice_level_at = 0;
+        int voice_checked = 0;                 // the last level looked up (0x7c8a04 / 0x7c88cc)
+        std::bitset<1024> voice_found;         // levels whose row has come up this game (0x7c78b8)
+        std::uint32_t voice_at = 0;            // when the class last spoke
         std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
         std::vector<Event> events;             // for the client, since it last looked
         std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
@@ -680,6 +687,8 @@ struct World {
     void tower_treasure(std::uint32_t now_ms);
     void stamina_frame();                  // a 40 ms frame's stamina drain / regen
     void footstep_frame(std::uint32_t tick_ms);   // the player's footsteps on this tick (FUN_004caf60)
+    void find_voice(std::uint32_t tick_ms);       // the class's find line 62 ticks into a level (FUN_004cc270)
+    [[nodiscard]] bool game_quest_done(std::size_t quest) const;   // the game's flag 13 on a quest
     // A town NPC's greeting row (FUN_004e0590, `kind` as rules::greeting_row), never the
     // one it said last (twenty draws), 0 none.
     int greet_sound(const Npc& npc, int kind);

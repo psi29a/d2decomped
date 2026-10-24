@@ -263,6 +263,18 @@ const ExeTable kTables[] = {
     { "rules::AndyQuest::kStandard", 0x736444, [](const Exe& exe, std::uint32_t address) {
         for (std::uint32_t i = 0; i < 7; ++i) eq_code(i, rules::AndyQuest::kStandard[i], exe, address + 4 * i);
     } },
+    { "rules::kFindLines", 0x72a2c4, [](const Exe& exe, std::uint32_t address) {   // pointers to {10 levels, quest id, u16 event}, 0-terminated
+        for (std::uint32_t i = 0; i < rules::kFindLines.size(); ++i) {
+            const std::uint32_t row = exe.u32(address + 4 * i);
+            const auto& line = rules::kFindLines[i];
+            for (std::uint32_t k = 0; k < 10; ++k) eq(100 * i + k, k < line.levels.size() ? line.levels[k] : 0, exe.i32(row + 4 * k));
+            std::uint32_t quest = 0;   // the quest id's flag word (FUN_004a4180: 16-byte rows at 0x723f38)
+            while (quest < 0x29 && exe.i32(0x723f38 + 16 * quest) != exe.i32(row + 0x28)) ++quest;
+            eq(100 * i + 10, line.quest, exe.i32(0x723f38 + 16 * quest + 4));
+            eq(100 * i + 11, line.event, exe.u16(row + 0x2c));
+        }
+        eq(100 * rules::kFindLines.size(), 0, exe.u32(address + 4 * std::uint32_t(rules::kFindLines.size())));
+    } },
     { "rules::kUModLabel", 0x725188, [](const Exe& exe, std::uint32_t address) {
         for (std::uint32_t i = 0; i < rules::kUModLabel.size(); ++i) eq(i, rules::kUModLabel[i], exe.u16(address + 2 * i));
     } },
