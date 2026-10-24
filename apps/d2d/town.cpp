@@ -31,6 +31,7 @@
 #include <log.hpp>
 #include <monster_ids.hpp>
 #include <quests.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <screenshot.hpp>
 #include <skills.hpp>
@@ -2837,7 +2838,8 @@ auto Town::open_menu(int npc) -> void {
                 return !d2d::rules::quest::bit(quest_bits, d2d::rules::kRespecQuest, 0) && (d2d::rules::quest::bit(quest_bits, d2d::rules::kRespecQuest, 1) || difficulty == 2);
             }(), character.header.quest_flag(character.header.active_difficulty(),   // table 0x7253e0: Warriv by quest 6, Meshif by quest 14 (bit 0)
                                              npc_info.hc_idx == d2d::rules::monster_ids::kMeshif ? d2d::rules::SevenTombsQuest::kQuest : d2d::rules::AndyQuest::kQuest, 0),
-            character.header.quest_flag(character.header.active_difficulty(), d2d::rules::ToolsQuest::kQuest, 1),
+            character.header.quest_flag(character.header.active_difficulty(), npc_info.hc_idx == d2d::rules::SiegeQuest::kLarzuk ? d2d::rules::SiegeQuest::kQuest
+                                        : npc_info.hc_idx == d2d::rules::BetrayalQuest::kAnya ? d2d::rules::BetrayalQuest::kQuest : d2d::rules::ToolsQuest::kQuest, 1),
             character.header.merc_seed != 0 && character.header.merc_dead
                 ? resurrect_line(*scene, character.header.merc_type, character.header.merc_name,
                                  d2d::rules::merc_resurrect_cost(d2d::rules::merc_stats(scene->rules, character.header.merc_type, character.header.merc_exp).level))

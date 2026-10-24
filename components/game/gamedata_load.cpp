@@ -874,6 +874,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 base.max_1h = table == &weapons ? number("maxdam") : 0;
                 base.max_2h = table == &weapons ? number("2handmaxdam") : 0;
                 base.spawnable = table->get(row, "spawnable") == "1";
+                base.nameable = table->get(row, "Nameable") == "1";
                 base.version = number("version");
                 base.type2 = std::string(table->get(row, "type2"));
                 game_data.rules.item_order.push_back(code);

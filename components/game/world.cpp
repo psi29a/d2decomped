@@ -2109,10 +2109,31 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // due (quest 3 bit 1), the item in hand made anew, rare; the
         // reward's used (FUN_00591790).
         // ponytail: no S->C 0x58 result (waits for networking); the new item stays in hand.
+        // The same C->S 0x38 kind 0 at Larzuk (0x1ff: quest 0x23 bit 1) sockets
+        // the item in hand (socket_item, FUN_005877c0), at Anya (0x200: quest
+        // 0x26 bit 1) puts the player's name on it (flag 0x1000000, FUN_0058bc00).
         if (const auto* imbue = std::get_if<cmd::Imbue>(&command)) {
-            if (std::size_t(imbue->npc) >= level->npcs.size() || level->npcs[std::size_t(imbue->npc)].hc_idx != d2d::rules::monster_ids::kCharsi
-                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !actor->held || !d2d::rules::imbuable(game_data->rules, *actor->held)) return true;
-            auto made = d2d::rules::imbue_item(game_data->rules, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
+            if (std::size_t(imbue->npc) >= level->npcs.size() || !actor->held) return true;
+            const int hc_idx = level->npcs[std::size_t(imbue->npc)].hc_idx;
+            const auto& tables = game_data->rules;
+            if (hc_idx == d2d::rules::SiegeQuest::kLarzuk) {
+                if (!d2d::rules::quest::bit(quests(), d2d::rules::SiegeQuest::kQuest, 1) || !d2d::rules::socketable(tables, *actor->held)) return true;
+                actor->held = d2d::rules::socket_item(tables, *actor->held);
+                siege.socketed(quests());
+                d2d::log::info("Siege on Harrogath: Larzuk put {} sockets in the {}", actor->held->sockets, actor->held->code);
+                return true;
+            }
+            if (hc_idx == d2d::rules::BetrayalQuest::kAnya) {
+                if (!d2d::rules::quest::bit(quests(), d2d::rules::BetrayalQuest::kQuest, 1) || !d2d::rules::nameable(tables, *actor->held)) return true;
+                actor->held->personalized = true;
+                actor->held->owner = actor->character.header.name;
+                betrayal.personalized(quests());
+                d2d::log::info("Betrayal of Harrogath: Anya personalized the {}", actor->held->code);
+                return true;
+            }
+            if (hc_idx != d2d::rules::monster_ids::kCharsi
+                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(tables, *actor->held)) return true;
+            auto made = d2d::rules::imbue_item(tables, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
             made.location = actor->held->location; made.panel = actor->held->panel; made.column = actor->held->column; made.row = actor->held->row;
             actor->held = std::move(made);
             tools.imbued(quests());
