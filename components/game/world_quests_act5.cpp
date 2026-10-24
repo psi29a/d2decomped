@@ -150,9 +150,8 @@ auto World::act5_said(int hc_idx, int message_string) -> void {
         // Prison of Ice (FUN_00589580): Malah's potion and scroll (FUN_005466b0,
         // normal); Anya's item, rare at the player's level, rand(count) on the
         // quest seed (FUN_005438b0); Anya home (FUN_005890b0, FUN_005891d0).
-        const auto roll = fight.spawning.quests.next();
         const auto heard = prison.said(quests(), hc_idx, message_string, carries(d2d::rules::PrisonQuest::kPotionCode), carries(d2d::rules::PrisonQuest::kScrollCode),
-                                       actor->character.header.active_difficulty(), actor->character.header.cls, roll);
+                                       actor->character.header.active_difficulty(), actor->character.header.cls, [&] { return fight.spawning.quests.next(); });
         if (heard.give) {
             give_item(heard.give, now, heard.rare ? int(actor->character.stats.get(d2d::d2s::kLevel)) : 1, heard.rare ? 6 : 2);
             d2d::log::info("Prison of Ice: {} gives {}", hc_idx == d2d::rules::PrisonQuest::kAnya ? "Anya" : "Malah", heard.give);
@@ -211,7 +210,7 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                 const auto clvl = std::size_t(std::max<std::int64_t>(stats.get(d2d::d2s::kLevel), 1));
                 const auto& next = game_data->exp_next;
                 std::int64_t exp = d2d::rules::RiteQuest::kExperience[std::size_t(diff)];
-                if (clvl < next.size()) exp = std::min(exp, next[clvl - 1] - (clvl >= 2 ? next[clvl - 2] : 0));
+                if (clvl + 1 < next.size()) exp = std::min(exp, next[clvl + 1] - next[clvl]);   // FUN_00611800 rows clvl+1 and clvl
                 else exp = 0;
                 const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
                 if (exp > 0 && d2d::rules::gain_exp(stats, exp, next, game_data->class_gains[save_class]))
@@ -314,8 +313,10 @@ auto World::rescue_update(std::uint32_t now_ms) -> void {
                 cage_portal[std::size_t(slot)] = { level, spot_x, spot_y, now_ms };
                 cues.cue("object_townportal", now_ms, spot_x, spot_y);
                 const auto opener = std::ranges::find(players, view.player_id, [](const auto& player) { return player->id; });
+                Player& was = *actor;
                 act_as(opener == players.end() ? lead() : **opener);
                 rescue.portal_opened(quests(), slot);
+                act_as(was);
                 d2d::log::info("Rescue on Mount Arreat: cage {}'s portal ({} freed, {} dead of {})", slot, rescue.freed, rescue.dead, rescue.made);
             }
         }
@@ -514,8 +515,12 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
             const Level* keep = game_data->level(128);
             if (!keep || keep->ds1.width() == 0) { d2d::log::warn("The Worldstone Keep didn't build"); return true; }
             const auto back = std::ranges::find(keep->warps, d2d::rules::RiteQuest::kSummit, &Level::Warp::destination);
-            const auto [to_x, to_y] = back != keep->warps.end() ? keep->nearest_free(back->exit_x, back->exit_y) : keep->nearest_free(float(keep->ds1.width()) / 2, float(keep->ds1.height()) / 2);
-            arrive(keep, to_x, to_y, "the Summit's stairs");
+            // As use_warp: at the way back up, then its ExitWalk on.
+            arrive(keep, back != keep->warps.end() ? back->unit_x : float(keep->ds1.width()) / 2, back != keep->warps.end() ? back->unit_y : float(keep->ds1.height()) / 2, "the Summit's stairs");
+            if (back != keep->warps.end()) {
+                actor->target_x = actor->player.x + back->exit_x; actor->target_y = actor->player.y + back->exit_y;
+                actor->player.walking = true;
+            }
             return true;
         }
         if (object.object_id != d2d::rules::PrisonQuest::kFana) return false;

@@ -514,7 +514,6 @@ def install(e):
     e.hook(0x6416d0, lambda e: cur["s"]["dist"], 2)                    # FUN_006416d0: him to the target
     e.hook(0x54dc40, lambda e: 1, 4)                                   # a free spot there (ponytail: d2d's nearest_free)
     e.hook(0x647280, lambda e: 0, 6)
-    e.hook(0x57ccb0, lambda e: out("die"), 1)                          # the clone without its master
     def word(e):                                                       # FUN_0058eef0(ECX unit, EDX kind; 0): his kept point
         spot = cur.get("word") if diablo() else None
         if not spot: return 0
