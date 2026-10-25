@@ -223,9 +223,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 for (int x = 0; x < int(map.width()); x += 12) automap_reveal(*scene, *town.level, town.automap, float(x), float(y));
             return "ok " + std::to_string(town.automap.cells.size()) + "\n";
         }
-        if (args.size() >= 2 && args[1] == "critters") {   // the client's critters: MonStats row, cell, walking
+        if (args.size() >= 2 && args[1] == "critters") {   // the client's critters: MonStats row, cell, walking, marked
             std::string out;
-            for (const auto& critter : town.critters) out += std::format("{}\t{:.2f}\t{:.2f}\t{}\n", critter.row, critter.x, critter.y, critter.walking ? 1 : 0);
+            for (const auto& critter : town.critters) out += std::format("{}\t{:.2f}\t{:.2f}\t{}\t{}\n", critter.row, critter.x, critter.y, critter.walking ? 1 : 0, critter.marked ? 1 : 0);
             return out + "ok\n";
         }
         if (args.size() >= 2 && args[1] == "level" && town.level) {   // where the player is

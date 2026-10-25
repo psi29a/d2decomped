@@ -158,7 +158,7 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     if (const auto velocity = monstats.get(row, "Velocity"); !velocity.empty()) npc.velocity = float(std::atoi(std::string(velocity).c_str()));
     const auto ai_name = monstats.get(row, "AI");
     npc.town_ai = ai_name == "Npc" ? TownAi::npc : ai_name == "Towner" ? TownAi::towner : ai_name == "Vendor" ? TownAi::vendor : ai_name == "JarJar" ? TownAi::jarjar : TownAi::none;
-    npc.modes = (ms2.get(row2, "mS1") == "1" ? 1u << 8 : 0u) | (ms2.get(row2, "mS2") == "1" ? 1u << 9 : 0u);
+    npc.modes = (ms2.get(row2, "mWL") == "1" ? 1u << 2 : 0u) | (ms2.get(row2, "mS1") == "1" ? 1u << 8 : 0u) | (ms2.get(row2, "mS2") == "1" ? 1u << 9 : 0u);
     // Hover name: MonStats' string key, only for units MonStats2 marks
     // selectable (isSel) — not the chicken or the camp's guard rogues,
     // whose name key "Dummy" reads "an evil force".

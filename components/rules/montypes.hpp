@@ -36,6 +36,7 @@ struct MonType {
     bool ranged = false;                        // rangedtype
     bool undead = false, demon = false;         // hUndead / lUndead, demon (Holy Bolt, FoH, Blessed Hammer)
     bool low_undead = false;                    // lUndead (MonStats flag byte +0xd & 8: what a Greater Mummy raises)
+    bool zoo = false;                           // zoo (MonStats flag bit 0x16): a critter's own think (FUN_0046d660; no shipped critter has it)
     std::string miss_a1, miss_a2, miss_s1, miss_c;               // MissA1 / MissA2: what an A1 / A2 attack fires (sk_archer1: skbowarrow1, quillrat1: spike1)
     std::array<std::string, 8> skill;           // Skill1..8 (Skills.txt names; "" none): the MonAI thinks' skills
     std::array<std::string, 8> sk_mode;         // Sk1mode..8: a mode token, or a MonSeq sequence (seq_nestlay)

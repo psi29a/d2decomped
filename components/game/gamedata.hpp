@@ -99,7 +99,7 @@ struct Npc {
     std::vector<int> actions;            // each path point's DS1 action (town_npcs.hpp)
     float velocity = 3;                  // MonStats Velocity
     TownAi town_ai = TownAi::none;       // MonStats AI Npc / Towner / Vendor: thinks with rules::npc_think / vendor_think
-    std::uint32_t modes = 0;             // MonStats2 mS1 / mS2 as bits 8 / 9 (FUN_0046c140)
+    std::uint32_t modes = 0;             // MonStats2 mWL / mS1 / mS2 as bits 2 / 8 / 9 (FUN_0046c140)
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
     std::optional<int> name_offset;      // objects.txt NameOffset: its hover name's height over its feet (FUN_00454f30)
     UnitShape shape;                     // an NPC's collision (MonStats / MonStats2)

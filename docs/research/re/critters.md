@@ -34,19 +34,34 @@ Act 5 outdoors bunny 2..3; Duriel's lair larva 100.
   0x7a7470, not dead modes 0 / 0xc; distance `FUN_006416d0`).
   None: wait 25 frames, stand (`FUN_0046cb40`). Farther than 30: wait
   `min(d - 15, 200)` frames (`FUN_0046cbd0`), stand.
-- MonStats flag 0x16 (`FUN_00457490(class, 0x16)`): `FUN_0046d660`.
+- MonStats flag 0x16, `zoo` (`FUN_00457490(class, 0x16)`): `FUN_0046d660`
+  (unreachable: no cmon is a zoo row). Needs a walk mode (MonStats2 mWL,
+  `FUN_0046c140(class, 2)`), else stand 20; rand(100) < 40 stand 20, < 60
+  walk to the player then wait 6 (`FUN_0046c770`), < 80 flee 8 wait 4, else
+  wander 8 wait 4.
 - Else by class (jump table 0x46d8d0 / 0x46d8f4, rows 0x95..0x153):
 
 | Rows | Function | Does |
 |---|---|---|
 | 149 chicken, 268 bug | `FUN_0046ccd0` | in NU: another critter near (`FUN_0046c570`/`FUN_0046c600`)? under 4 away: flee (`FUN_0046c7d0`, 4, 0xc, 0x78), else wander 4; else 30 %: wander 2; else wait 5 |
-| 151 rat, 269 scorpion, 283 larva, 339 minispider | `FUN_0046d110` | player under 4: flee 6; else a buddy past 7, a rest flag; wander 5 one time in ~4, else wait 30 / 32 |
-| 157 / 158 bird, 319 parrot | `FUN_0046ce40` | fly off (`FUN_00465f00` removes) once the player is past 25; else a random heading, `FUN_0046ca60` |
+| 151 rat, 269 scorpion, 283 larva, 339 minispider | `FUN_0046d110` | on the player's subtile: stand; player under 4: flee 6; past 7, a corpse (below); with one and not resting: walk to it, wait 6, rest (+0x34); not resting: rand(100) > 74 wander 5, else wait 30; resting: rand(100) < 20 stops it, wait 32 |
+| 157 / 158 bird, 319 parrot | `FUN_0046ce40` | flown (+0x34) and the player past 25: gone (`FUN_00465f00`); else flies (below) |
 | 159 bat | `FUN_0046cdc0` | player under 5: 66 % flee 8, else wander 12; else wander 9 |
 | 227 maggot | `FUN_0046d070` | 40 %: wait 20; else wander 4 |
 | 318 snake | `FUN_0046d280` | player under 2: flee 4; 75 %: wait 32; else wander 4 |
 | 556 bunny | `FUN_0046d310` | as the chicken, flee 6 |
 | 320 fish | — | stand |
+| 574 Worldstone Effect | `FUN_0046d450` | 5 %: a unit (`FUN_004cdb40`) at a random spot up to 30 subtiles round, its fades set (unreachable) |
+
+The rat's corpse (`FUN_0046c570` over the units of its room's near list,
+`FUN_0046c660`): a dead player (mode 0 / 0x11) or monster (0 / 0xc) 3..25
+subtiles from the rat and over 7 from the local player; each one a
+rand(2) on the rat's seed, the last that hits wins.
+
+A bird's flight: four steps of its seed. The first odd: x 40, y rand(40);
+even: x rand(40), y 40; the next two negate x, then y on odd. It flies to
+3 x (player + that) - 2 x itself, subtiles, its path's distance capped at
+77 (`FUN_00648e70(path, 0x5a)`, kept under 0x4d), no wait after.
 
 `FUN_0046c960(radius, mode, wait)` walks to a random corner `radius`
 subtiles off (a sign per axis from the unit's seed); `FUN_0046c7d0(unit,
@@ -55,16 +70,15 @@ next subtile's free; the wait runs once the walk is done. Distances are
 `FUN_006416d0`: subtiles less half of each one's size, (smaller + 2 x
 larger) / 2.
 
-d2d (2026-10-25): `Town::critter_tick` makes them as a level's entered (every
-room, each on its own seed, so the order doesn't matter; the Act 1 camp's
-rooms from `camp_room_seeds`) and thinks a 40 ms client frame at a time;
-`debug critters` lists them. Checked: 14 chickens in the camp (Arne's 1.14d
-client had 15 in its own game), 34 rats / 9 bats in a Den (rats are MinGrp =
-MaxGrp = 4). ponytail: a critter's unit seed is the room's stepped on (game.exe's
-comes with the unit, not traced); the rats' corpse-seeking buddy
-(`FUN_0046c660`), MonStats flag 0x16's think (`FUN_0046d660`) and birds' exact
-flight (`FUN_0046ca60`) are simplified; they come with the level, not as each
-room comes up.
+d2d (2026-10-25): `Town::critter_tick` makes a room's as it comes up
+(Spawning's `up`, the rooms the host would add; the camp keeps no rooms,
+so its come at once from `camp_room_seeds`) and thinks a 40 ms client
+frame at a time; `debug critters` lists them. Seed 3: 23 chickens in the
+camp, 35 rats / 7 bats in the Den once its rooms are up, and after `debug
+kill` rats rest at the corpses (Arne's 1.14d client: 15 chickens in its own camp). ponytail: a critter's unit seed is the
+room's stepped on (game.exe's comes with the unit, not traced); the rat
+looks at d2d's monsters then players' bodies, not its rooms' unit lists in
+their order; a bird's capped path is cut short along its line.
 
 ## The Den's light (`FUN_0046af70`)
 
