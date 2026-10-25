@@ -190,7 +190,7 @@ struct GoldenBirdQuest {
         return true;
     }
     // A quest item picked up (FUN_005ba6a0): the bird, state 3; the figurine,
-    // state 1 and bit 6 (the flourish, unit event 0x23, the first time).
+    // state 1 and bit 6 (act3_find_jade, unit event 0x48, the first time).
     // Returns whether to play the flourish.
     bool picked_up(QuestBits& quest_bits, bool bird) {
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return false;

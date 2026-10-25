@@ -111,7 +111,8 @@ completions seen: 0x21 Andariel, 0x23 Den, 0x24 Tools, 0x25 Tower, 0x30 Cain,
 0x30 Cain, 0x32 Radament, 0x33 Summoner, 0x34 Tainted Sun, 0x36 Tombs,
 0x40..0x43 Act 3, 0x48 Jade Figurine found, 0x4a Izual, 0x4b Diablo. d2d now
 plays the matching class cues for Cain's rescue (0x30), the Seven Tombs
-aftermath (0x36), and Act 3 completions (0x40..0x43). Act 1's
+aftermath (0x36), Act 3 completions (0x40..0x43) and the first pick-up of
+the jade figurine (0x48, FUN_005ba6a0, quest 20 bit 6). Act 1's
 `act1_find_tree` is event 0x2d when the Inifuss Tree gives the scroll;
 `act1_find_cairn` is event 0x27, throttled to every 64th Cairn Stone use
 without the scroll.

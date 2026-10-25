@@ -174,7 +174,7 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
                 if ((monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique) && monster.type != 0x197
                     && !game_data->mon_is_npc[std::size_t(monster.type)]) { golden_bird.made(monster.id); break; }
         if (const bool figurine = carries(d2d::rules::GoldenBirdQuest::kFigurine), bird = carries(d2d::rules::GoldenBirdQuest::kBird); !hosted_quests) {
-            if (figurine && !actor->had_figurine && golden_bird.picked_up(quests(), false)) d2d::log::info("The Golden Bird: the jade figurine (FUN_00553380)");
+            if (figurine && !actor->had_figurine && golden_bird.picked_up(quests(), false)) class_cue("act3_find_jade", now_ms);   // unit event 0x48
             if (bird && !actor->had_bird) golden_bird.picked_up(quests(), true);
             actor->had_figurine = figurine; actor->had_bird = bird;
         }
