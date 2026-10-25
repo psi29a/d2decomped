@@ -502,6 +502,22 @@ struct Town {
     std::vector<View::Shot> den_beams;
     [[nodiscard]] int den_ambient() const;
     void den_tick(std::uint32_t frame_ms);
+    // The client's critters (docs/research/re/critters.md): the level's
+    // Levels.txt cmon / cpct / camt, made per room on its seed as the level's
+    // entered (FUN_0046c460 / FUN_0046c1a0), thinking a client frame at a
+    // time (FUN_0046d780). The host never hears of them.
+    struct Critter {
+        int row = -1;                              // MonStats row
+        float x = 0, y = 0, goal_x = 0, goal_y = 0;   // cells
+        int dir = 0;
+        bool walking = false, flown = false;       // flown: a bird that's taken off
+        int wait = 0, after = 0;                   // frames to its next think; to wait once its walk is done
+        std::uint32_t mode_ms = 0;
+        d2d::rules::Rng seed;                      // its unit seed (+0x20)
+    };
+    std::vector<Critter> critters;
+    int critters_level = -1;
+    void critter_tick(std::uint32_t frame_ms);
     // NPC `npc`'s menu, placed by its feet on screen as render_world
     // projects them.
     void open_menu(int npc);

@@ -172,6 +172,9 @@ struct Level {
     int night_ambience = 0, day_event = 0, night_event = 0, event_delay = 0;   // its Night Ambience, Day / Night Event, Event Delay (sound ticks)
     int light = -1;                                    // Levels.txt Intensity when it has its own light (caves: 0), -1 the day's
     bool rain = false;                                 // Levels.txt Rain: the weather reaches it
+    // Levels.txt cmon1..4 / cpct1..4 / camt1..4: the client's critters (MonStats row, % a room, x count; critters.md).
+    struct Critter { int row = -1, percent = 0, amount = 0; };
+    std::array<Critter, 4> critters{};
     int teleport = 1;                                  // Levels.txt Teleport: 0 no, 1 yes, 2 only in a clear line (FUN_0061db70 +4)
     d2d::ds1::Map ds1;
     std::vector<d2d::dt1::Archive> dt1s;
@@ -693,6 +696,17 @@ struct GameData {
     std::shared_ptr<LevelBuilder> builder;
 };
 
+// Levels.txt cmon1..4 / cpct1..4 / camt1..4 of one row (FUN_0046c460 reads them at record +0xcc).
+template <class Text> std::array<Level::Critter, 4> level_critters(const d2d::rules::Monsters& monsters, Text&& text) {
+    std::array<Level::Critter, 4> out{};
+    for (std::size_t slot = 0; slot < out.size(); ++slot) {
+        const std::string id(text("cmon" + std::to_string(slot + 1)));
+        out[slot] = { id.empty() ? -1 : monsters.row(id), std::atoi(std::string(text("cpct" + std::to_string(slot + 1))).c_str()),
+                      std::atoi(std::string(text("camt" + std::to_string(slot + 1))).c_str()) };
+    }
+    return out;
+}
+
 // D2 TBL values are UTF-16; our font is Latin-1. Downcast char by char.
 inline std::string u16_to_latin1(std::u16string_view text) {
     std::string out;
@@ -1008,6 +1022,9 @@ std::uint32_t area_id_at(const GameData& game_data, const Level& level, float fr
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level);
 bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level, std::size_t row);
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id);
+// The Act 1 camp's rooms with their seeds, as drlg-dump has them (GameData::town keeps none):
+// empty while the builder's busy (try again), or with no Act 1 tables.
+std::optional<std::vector<d2d::drlg::Outdoor::RoomSeed>> camp_room_seeds(const GameData& game_data);
 void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, Level& level);
 // Room `index` of `level` coming into play (FUN_0052d0f0, objgroups.cpp):
 // its seed step (FUN_0054f060), its preset objects (FUN_005559a0) on the

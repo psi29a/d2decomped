@@ -36,6 +36,7 @@
 #include <screenshot.hpp>
 #include <skills.hpp>
 #include <object_sounds.hpp>
+#include <outdoor.hpp>
 #include <sound_ids.hpp>
 #include <uniques.hpp>
 #include <userdir.hpp>
@@ -1566,6 +1567,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (frame_ms - rain_ms > 1000) rain_ms = frame_ms;
         for (; frame_ms - rain_ms >= 40; rain_ms += 40) {
             den_tick(frame_ms);
+            critter_tick(frame_ms);
             const float dx = cam_x - rain_cam_x, dy = cam_y - rain_cam_y;
             rain_cam_x = cam_x; rain_cam_y = cam_y;
             if (!level->rain) { rain.drops.clear(); rain.splashes.clear(); }
@@ -2847,6 +2849,133 @@ auto Town::den_tick(std::uint32_t frame_ms) -> void {
         d2d::log::info("Den of Evil: {} light beams in {} rooms", den_beams.size(), level->rooms.size());
     }
 
+auto Town::critter_tick(std::uint32_t frame_ms) -> void {
+        namespace ids = d2d::rules::monster_ids;
+        const auto& game_data = *world.game_data;
+        if (!level) return;
+        if (level->id != critters_level) {                 // FUN_0046c460, every room of the level
+            std::vector<d2d::drlg::Outdoor::RoomSeed> camp;
+            if (level == &game_data.town) {                // the camp keeps no rooms: made from the map seed
+                auto made = d2d::game::camp_room_seeds(game_data);
+                if (!made) return;                         // the builder's busy: next frame
+                camp = std::move(*made);
+            }
+            critters.clear();
+            critters_level = level->id;
+            const auto& types = game_data.monsters.types;
+            for (const auto& room : level == &game_data.town ? camp : level->rooms) {
+                d2d::rules::Rng room_seed{ room.seed };
+                for (const auto& critter : level->critters) {
+                    if (critter.row < 0 || std::size_t(critter.row) >= types.size()) break;
+                    if (int(room_seed.next() % 100) >= critter.percent) continue;
+                    const auto& type = types[std::size_t(critter.row)];
+                    int count = room_seed(type.max_grp - type.min_grp) + type.min_grp;
+                    if (critter.amount != 0) count *= critter.amount;
+                    for (; count > 0; --count)                 // FUN_0046c1a0: 10 tries at a free spot
+                        for (int tries = 0; tries < 10; ++tries) {
+                            const int subtile_x = room.x * 5 + room_seed(room.width * 5 - 1), subtile_y = room.y * 5 + room_seed(room.height * 5 - 1);
+                            const float x = (float(subtile_x) + 0.5f) / 5, y = (float(subtile_y) + 0.5f) / 5;
+                            if (level->blocked_here(x, y, 0x3f11)) continue;
+                            // ponytail: its unit seed is the room's on from here; game.exe's comes with the unit (FUN_00465fd0), not traced.
+                            critters.push_back({ critter.row, x, y, x, y, 4, false, false, 0, 0, frame_ms, d2d::rules::Rng{ room_seed.next() } });
+                            break;
+                        }
+                }
+            }
+            if (!critters.empty()) d2d::log::info("{}: {} critters", level->name, critters.size());
+        }
+        const float player_x = view.player.x, player_y = view.player.y;
+        // FUN_006416d0: subtiles apart less half of each one's size (a critter's 0, a unit's 2), (smaller + 2 x larger) / 2.
+        auto apart = [](float from_x, float from_y, float to_x, float to_y) {
+            const int across = std::max(std::abs(int(std::lround((to_x - from_x) * 5))) - 1, 0), down = std::max(std::abs(int(std::lround((to_y - from_y) * 5))) - 1, 0);
+            return (std::min(across, down) + 2 * std::max(across, down)) / 2;
+        };
+        auto walk_to = [&](Critter& critter, float x, float y, int after) {   // FUN_004aff60: walk there, then wait
+            critter.goal_x = x; critter.goal_y = y; critter.after = after;
+            if (!critter.walking) critter.mode_ms = frame_ms;
+            critter.walking = true;
+        };
+        auto wander = [&](Critter& critter, int radius, int after) {         // FUN_0046c960: a random corner `radius` subtiles off
+            const float step = float(radius) / 5;
+            const float dx = critter.seed.next() & 1 ? -step : step, dy = critter.seed.next() & 1 ? -step : step;
+            walk_to(critter, critter.x + dx, critter.y + dy, after);
+        };
+        auto flee = [&](Critter& critter, int radius, int after) {           // FUN_0046c7d0: straight away, when the next subtile's free
+            const float away_x = critter.x < player_x ? -1.f : critter.x > player_x ? 1.f : 0.f, away_y = critter.y < player_y ? -1.f : critter.y > player_y ? 1.f : 0.f;
+            if (level->blocked_here(critter.x + away_x / 5, critter.y + away_y / 5, 0x3c01)) return false;
+            walk_to(critter, critter.x + away_x * float(radius) / 5, critter.y + away_y * float(radius) / 5, after);
+            return true;
+        };
+        auto stand = [&](Critter& critter, int frames) {
+            critter.wait = frames;
+            if (critter.walking) critter.mode_ms = frame_ms;
+            critter.walking = false;
+        };
+        // FUN_0046c600: the nearest player, or monster other than a chicken or bunny (the town's NPCs too).
+        auto nearest_other = [&](const Critter& critter) {
+            int best = apart(critter.x, critter.y, player_x, player_y);
+            for (const auto& other : view.others) best = std::min(best, apart(critter.x, critter.y, other.unit.x, other.unit.y));
+            for (const auto& monster : view.monsters)
+                if (monster.alive()) best = std::min(best, apart(critter.x, critter.y, monster.unit.x, monster.unit.y));
+            for (std::size_t i = 0; i < view.npc_states.size() && i < level->npcs.size(); ++i)
+                if (level->npcs[i].root != "objects" && !view.npc_states[i].hidden) best = std::min(best, apart(critter.x, critter.y, view.npc_states[i].x, view.npc_states[i].y));
+            return best;
+        };
+        for (auto& critter : critters) {
+            if (critter.walking) {                          // at its Velocity (MonStats), stopped by what's in the way
+                const float speed = std::size_t(critter.row) < game_data.mon_npc.size() ? d2d::game::cells_per_sec(game_data.mon_npc[std::size_t(critter.row)].velocity) * 0.04f : 0.1f;
+                const float dx = critter.goal_x - critter.x, dy = critter.goal_y - critter.y, left = std::hypot(dx, dy);
+                if (left > 0.01f) critter.dir = d2d::game::direction16(dx, dy);
+                const float step = std::min(speed, left);
+                const float next_x = critter.x + (left > 0 ? dx / left * step : 0), next_y = critter.y + (left > 0 ? dy / left * step : 0);
+                if (left <= speed || (!critter.flown && level->blocked_here(next_x, next_y, 0x3c01))) { stand(critter, critter.after); if (left <= speed) { critter.x = next_x; critter.y = next_y; } }
+                else { critter.x = next_x; critter.y = next_y; }
+                continue;
+            }
+            if (critter.wait > 0) { --critter.wait; continue; }
+            const int player_gap = apart(critter.x, critter.y, player_x, player_y);
+            if (player_gap > 30) { stand(critter, std::min(player_gap - 15, 200)); continue; }   // FUN_0046cbd0
+            const int chance = int(critter.seed.next() % 100);
+            switch (critter.row) {
+            case ids::kChicken: case ids::kBug: case ids::kBunny: {   // FUN_0046ccd0 / FUN_0046d310
+                const int flee_by = critter.row == ids::kBunny ? 6 : 4;
+                if (nearest_other(critter) < flee_by) { if (!flee(critter, flee_by, 0x78)) wander(critter, flee_by, 0x78); }
+                else if (chance < 30) wander(critter, 2, 0);
+                else stand(critter, 5);
+                break;
+            }
+            case ids::kRat: case ids::kScorpion: case ids::kLarva: case ids::kMiniSpider:   // FUN_0046d110
+                // ponytail: no creeping to a corpse (FUN_0046c660's buddy).
+                if (player_gap < 4) flee(critter, 6, 0);
+                else if (chance > 74) wander(critter, 5, 0);
+                else stand(critter, 30);
+                break;
+            case ids::kBird1: case ids::kBird2: case ids::kParrot:     // FUN_0046ce40: off once player_gap, gone past 25
+                if (critter.flown && player_gap > 25) { critter.row = -1; break; }
+                if (!critter.flown) {
+                    critter.flown = true;
+                    const float angle = float(critter.seed.next() % 360) * 3.14159265f / 180;
+                    walk_to(critter, critter.x + std::cos(angle) * 12, critter.y + std::sin(angle) * 12, 0);
+                }
+                break;
+            case ids::kBat:                                             // FUN_0046cdc0
+                if (player_gap < 5) { if (chance < 66) flee(critter, 8, 0x1e); else wander(critter, 12, 0x1e); }
+                else wander(critter, 9, 0);
+                break;
+            case ids::kMaggot:                                          // FUN_0046d070
+                if (chance < 40) stand(critter, 20); else wander(critter, 4, 0);
+                break;
+            case ids::kSnake:                                           // FUN_0046d280
+                if (player_gap < 2) flee(critter, 4, 0);
+                else if (chance < 75) stand(critter, 32);
+                else wander(critter, 4, 0);
+                break;
+            default: stand(critter, 25); break;                         // the fish: it stays
+            }
+        }
+        std::erase_if(critters, [](const Critter& critter) { return critter.row < 0; });
+    }
+
 auto Town::open_menu(int npc) -> void {
         const auto& npc_info = level->npcs[std::size_t(npc)];
         const auto& state = view.npc_states[std::size_t(npc)];
@@ -2922,6 +3051,11 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const std::pair<float, float> hero_at{ hero_x, hero_y };
         state_clock.now = frame_ms;
         view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, frame_ms, &character.name, std::max(character.character_class, 0), &state_clock);
+        for (const auto& critter : critters)                      // the client's critters: walking or standing, never hovered
+            if (std::size_t(critter.row) < world.game_data->mon_npc.size() && std::abs(critter.x - cam_x) < 14 && std::abs(critter.y - cam_y) < 14) {
+                const auto& anim = scene->npc_anim(world.game_data->mon_npc[std::size_t(critter.row)], critter.walking ? std::string_view("WL") : std::string_view("NU"));
+                if (anim.length_ms() > 0) extra.push_back({ critter.x, critter.y, &anim, critter.dir, nullptr, critter.mode_ms, -3 });
+            }
         // The host's overhead messages (0x26 type 5): a shrine's comes as
         // its string id in decimal ("3684", ShrMsg1). Each stays (length x 8
         // + 125) frames (FUN_00661110). An object's goes on d2d's object

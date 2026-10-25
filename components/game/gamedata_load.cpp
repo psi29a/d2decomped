@@ -1620,6 +1620,10 @@ void load_game_world(GameData& game_data, d2d::mpq::Stack& mpqs, std::uint32_t m
     game_data.builder->act1 = std::move(act1);
     load_npcs(game_data, mpqs);
     load_monsters(game_data, mpqs);
+    // The camp's critters: Levels.txt names them by MonStats Id, known only now.
+    for (std::size_t row = 0; row < game_data.builder->levels.size(); ++row)
+        if (game_data.builder->levels.get(row, "Id") == "1")
+            game_data.town.critters = level_critters(game_data.monsters, [&](const std::string& column) { return game_data.builder->levels.get(row, column); });
     load_skills(game_data, mpqs);
     d2d::log::info("Loading game data... done ({} ms)", d2d::log::ms() - start_ms);
     d2d::log::info("  Items: {}; sounds: {}; town NPCs/objects: {}",
@@ -1651,7 +1655,7 @@ void set_map_seed(GameData& game_data, std::uint32_t seed, int difficulty) {
     const Level& old = game_data.town;
     Level town{ .id = old.id, .name = old.name, .type = old.type, .layer = old.layer, .song = old.song, .ambience = old.ambience,
                 .material = old.material, .night_ambience = old.night_ambience, .day_event = old.day_event, .night_event = old.night_event,
-                .event_delay = old.event_delay, .light = old.light, .rain = old.rain };
+                .event_delay = old.event_delay, .light = old.light, .rain = old.rain, .critters = old.critters };
     game_data.town = std::move(town);
     place_act1(game_data, game_data.mpqs, *game_data.builder->act1, seed);
     game_data.shrines.clear();                          // load_npcs reads Shrines.txt again

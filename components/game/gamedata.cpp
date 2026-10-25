@@ -1079,6 +1079,18 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
 // Level `id` built from the map seed: its tiles and walk grid, warps, the
 // objects and NPCs its DS1s place, its sound, automap layer and monster
 // columns. On the builder thread; reads GameData's tables only.
+std::optional<std::vector<d2d::drlg::Outdoor::RoomSeed>> camp_room_seeds(const GameData& game_data) {
+    if (!game_data.builder || !game_data.builder->act1) return std::vector<d2d::drlg::Outdoor::RoomSeed>{};
+    std::unique_lock lock(game_data.builder->mutex, std::try_to_lock);
+    if (!lock.owns_lock()) return std::nullopt;
+    const auto& assets = *game_data.builder->act1;
+    const auto row = d2d::drlg::level_row(assets.levels, d2d::rules::level_ids::kRogueEncampment);
+    if (!row) return std::vector<d2d::drlg::Outdoor::RoomSeed>{};
+    std::vector<std::string> notes;
+    return d2d::drlg::generate_preset(assets.data, d2d::rules::level_ids::kRogueEncampment, d2d::drlg::to_int(assets.levels.get(*row, "SizeX")),
+                                      d2d::drlg::to_int(assets.levels.get(*row, "SizeY")), d2d::drlg::level_seed(game_data.map_seed, d2d::rules::level_ids::kRogueEncampment), notes);
+}
+
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id) {
     const auto start_ms = d2d::log::ms();
     std::lock_guard lock(builder.mutex);
@@ -1102,6 +1114,7 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
         level->light = level_light(text("Intensity"), text("Red"), text("Green"), text("Blue"));
         level->rain = text("Rain") == "1";
         level->teleport = d2d::drlg::to_int(text("Teleport"), 1);
+        level->critters = level_critters(game_data.monsters, text);
         for (std::size_t env_row = 0; env_row < builder.sound_env.size(); ++env_row)
             if (builder.sound_env.get(env_row, "Index") == text("SoundEnv")) {
                 level->song = num(builder.sound_env.get(env_row, "Song"));

@@ -43,4 +43,8 @@ inline constexpr int kJamella = 405;
 inline constexpr int kLarzuk = 511;
 inline constexpr int kMalah = 513;
 
+// The client's critters (critters.md: FUN_0046d780's jump table by row).
+inline constexpr int kChicken = 149, kRat = 151, kBird1 = 157, kBird2 = 158, kBat = 159, kMaggot = 227, kBug = 268, kScorpion = 269;
+inline constexpr int kLarva = 283, kSnake = 318, kParrot = 319, kFish = 320, kMiniSpider = 339, kBunny = 556;
+
 }  // namespace d2d::rules::monster_ids

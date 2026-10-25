@@ -71,6 +71,7 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug quest <q> show\|reset` | `ok bits=0x.. den=N skillpts=N states=<den>,<burial>,<tools>,<cain>,<tower>,<andy>` | Quest q's 16 flag bits and every Act 1 quest record's state; `reset` clears the bits and restarts the game's Den of Evil. |
 | `debug boss <mod>...`       | `ok #<id> <name> aura=<skill> lvl=<n>` | The nearest plain monster becomes a unique with those MonUMod ids (7 cursed, 26 teleport, 30 aura ...). |
 | `debug kill [n] [spare <id>]` | `ok` / `err spare <MonStats id>` | Kill the level's monsters but n and those of MonStats id `<id>` (`spare diablo`), as kills (experience, drops, quest deaths; for quest tests). |
+| `debug critters`            | `<row>\t<x>\t<y>\t<walking>` per critter, `ok` | The client's critters (critters.md): MonStats row, cell, walking 0/1. |
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |
 | `debug grid [n]`           | a `.` / `#` row per row, `ok` | The level at n spots a cell (1..5, default 1; 5 is subtiles): `#` where a unit can't stand at the spot's middle (`debug blocked` for the whole level at once; route planning in probes). |

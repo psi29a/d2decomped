@@ -48,9 +48,23 @@ Act 5 outdoors bunny 2..3; Duriel's lair larva 100.
 | 556 bunny | `FUN_0046d310` | as the chicken, flee 6 |
 | 320 fish | — | stand |
 
-`FUN_0046c960(radius, mode, wait)` walks to a random spot within radius;
-`FUN_0046c7d0(unit, radius, mode, wait)` walks away from the player.
-d2d: not yet ported (2026-10-25).
+`FUN_0046c960(radius, mode, wait)` walks to a random corner `radius`
+subtiles off (a sign per axis from the unit's seed); `FUN_0046c7d0(unit,
+radius, mode, wait)` walks `radius` straight away from the player when the
+next subtile's free; the wait runs once the walk is done. Distances are
+`FUN_006416d0`: subtiles less half of each one's size, (smaller + 2 x
+larger) / 2.
+
+d2d (2026-10-25): `Town::critter_tick` makes them as a level's entered (every
+room, each on its own seed, so the order doesn't matter; the Act 1 camp's
+rooms from `camp_room_seeds`) and thinks a 40 ms client frame at a time;
+`debug critters` lists them. Checked: 14 chickens in the camp (Arne's 1.14d
+client had 15 in its own game), 34 rats / 9 bats in a Den (rats are MinGrp =
+MaxGrp = 4). ponytail: a critter's unit seed is the room's stepped on (game.exe's
+comes with the unit, not traced); the rats' corpse-seeking buddy
+(`FUN_0046c660`), MonStats flag 0x16's think (`FUN_0046d660`) and birds' exact
+flight (`FUN_0046ca60`) are simplified; they come with the level, not as each
+room comes up.
 
 ## The Den's light (`FUN_0046af70`)
 
