@@ -26,31 +26,24 @@ original game over TCP/IP, and plays with a gamepad as well as mouse and
 keyboard.
 
 | Area | Progress |
-|---|---:|
-| [Full roadmap](docs/PLAN.md) | Phases, known gaps, and next steps |
-| Launcher and asset formats | ✅ 100% |
-| Act I levels | ✅ 100% (39 of 39; maps match the original's) |
-| Act I quests | ✅ 100% (6 of 6) |
-| Act I matching the original exactly | Maps, item drops, monster and object placement ✅; a few details left |
-| Act II levels | ✅ 100% (35 of 35; maps match the original's) |
-| Act II quests | ✅ 100% (6 of 6) |
-| Act II matching the original exactly | Maps, town, vendors, hirelings, monster AI checked against the original ✅; a few details left |
-| Act III levels | ✅ 100% (28 of 28; maps match the original's) |
-| Act III quests | ✅ 100% (6 of 6) |
-| Act III matching the original exactly | Maps, monster and object placement, monster AI checked against the original ✅; a few details left |
-| Act IV levels | ✅ 100% (6 of 6; maps match the original's) |
-| Act IV quests | ✅ 100% (3 of 3) |
-| Act IV matching the original exactly | Maps, monster and object placement, monster AI and Diablo checked against the original ✅; a few details left |
-| Act V levels | ✅ 100% (28 of 28; maps match the original's) |
-| Act V quests | ✅ 100% (6 of 6) |
-| Act V matching the original exactly | Maps, monster and object placement, monster AI, Baal and the ubers checked against the original ✅; a few details left |
-| Nightmare and Hell | ✅ Monster and object placement match the original on every level of Acts I–V |
-| Single player, softcore and hardcore | ✅ Runs as a one-player client/server, like the original |
-| Multiplayer over TCP/IP (a d2d host) | Not started |
-| Joining a game hosted by the original | 🚧 Acts I–IV played through together: party, trade, portals, waypoints, chat, quests, travel; Act V not yet checked live |
-| Gamepad | ✅ Xbox, PlayStation, Switch and Steam Deck pads; keys and pad buttons remappable in Configure Controls ([apps/d2d](apps/d2d/README.md)) |
-| Sound | 🚧 3,411 of the base game's 3,520 sounds as the original plays them: combat, spells, missiles, footsteps, monsters, objects, NPC greetings, the hero's find lines ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
+|---|---|
+| Launcher and asset formats | ✅ |
+| Act I | ✅ 39 levels, 6 quests |
+| Act II | ✅ 35 levels, 6 quests |
+| Act III | ✅ 28 levels, 6 quests |
+| Act IV | ✅ 6 levels, 3 quests |
+| Act V | ✅ 28 levels, 6 quests; uber levels' monster groups not yet exact |
+| Nightmare and Hell | ✅ |
+| Single player, softcore and hardcore | ✅ |
+| Gamepad (Xbox, PlayStation, Switch, Steam Deck) | ✅ remappable ([apps/d2d](apps/d2d/README.md)) |
+| Joining a game hosted by the original | 🚧 Acts I–IV checked live, Act V not yet |
+| Sound | 🚧 3,411 of 3,520 ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
+| Multiplayer with a d2d host | Not started |
 | Dedicated server | Not started |
+
+Every ✅ act's maps, monster and object placement, drops and monster AI are
+checked against the original; the few details left are in the
+[roadmap](docs/PLAN.md).
 
 ## Bring your own game
 
