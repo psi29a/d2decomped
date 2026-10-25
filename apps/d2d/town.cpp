@@ -1836,6 +1836,19 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (mouse.press_this_frame) press_on_ui = over_ui;
         else if (!mouse.down) press_on_ui = false;
         if (have_world) walk(mouse, over_ui || press_on_ui, audio, frame_ms, last_ms);
+        // Walked away from the NPC whose windows are open: they shut, as Esc.
+        // game.exe's panels leave no world to walk in; widescreen does
+        // (deviations.md). 2 cells is ours: game.exe talks within 6 subtiles.
+        if (const int npc_open = store.npc >= 0 ? store.npc : npc_menu.npc >= 0 ? npc_menu.npc : speech.npc;
+            have_world && level && npc_open >= 0 && std::size_t(npc_open) < level->npcs.size() && std::size_t(npc_open) < view.npc_states.size()) {
+            const auto& npc = level->npcs[std::size_t(npc_open)];
+            const auto& state = view.npc_states[std::size_t(npc_open)];
+            const float dx = (npc.path.empty() ? npc.x : state.x) - view.player.x, dy = (npc.path.empty() ? npc.y : state.y) - view.player.y;
+            if (dx * dx + dy * dy > 2.f * 2.f) {
+                if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; }
+                npc_menu = {}; speech = {}; menu_after_speech = -1;
+            }
+        }
         play_cues(cues, audio, view.player.x, view.player.y, rng, frame_ms);
         object_sounds(audio, frame_ms, view.player.x, view.player.y);
         audio.stop_owners([&](int owner) { return owner > 0 ? std::ranges::contains(view.missiles, owner, &d2d::game::View::Shot::sound) : std::ranges::contains(object_loops, owner); });
