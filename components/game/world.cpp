@@ -2888,8 +2888,13 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             grow_states(states, *neighbour.level);
             npc_patrol(*game_data, *neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
+        // The "!" (FUN_00544590, from the NPC's think): only the NPC's own act's
+        // quests are asked, and objects have no think.
+        using ActAlert = bool (World::*)(int);
+        static constexpr std::array<ActAlert, 5> kActAlerts{ &World::act1_alert, &World::act2_alert, &World::act3_alert, &World::act4_alert, &World::act5_alert };
+        const ActAlert act_alert = kActAlerts[std::size_t(act())];
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            npc_states[i].alert = act1_alert(level->npcs[i].hc_idx) || act2_alert(level->npcs[i].hc_idx) || act3_alert(level->npcs[i].hc_idx) || act4_alert(level->npcs[i].hc_idx) || act5_alert(level->npcs[i].hc_idx);
+            npc_states[i].alert = level->npcs[i].root != "objects" && (this->*act_alert)(level->npcs[i].hc_idx);
         // The player's mode as the merc's think reads it: 2 walk, 3 run, 6 walk in town.
         for (auto& player : players)
             player->owner_mode = !player->player.walking ? 1 : player->running && player->character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
