@@ -9,11 +9,15 @@
 // Everything that touches the game runs on the game's thread: the socket
 // thread SendMessage()s a WM_APP to the subclassed game window.
 // Verbs (one line each, reply ends "ok ..." or "err ..."):
-//   ping | state | units | click X Y | rclick X Y | move X Y | realclick X Y | realrclick X Y | key VK | text WORDS
+//   ping (reply "ok <version>") | state | units | click X Y | rclick X Y | move X Y | realclick X Y | realrclick X Y | key VK | text WORDS
 //   send HEX... (a raw C->S packet) | peek ADDR [N] | screenshot (reply "ok <n>\n" + n BMP bytes)
 
 #include <winsock2.h>
 #include <windows.h>
+
+#ifndef WHISPER_VERSION
+#define WHISPER_VERSION "unknown"   // build.sh stamps the git commit
+#endif
 
 #include <algorithm>
 #include <cstdint>
@@ -230,7 +234,7 @@ auto handle(const std::string& text) -> std::string {
     Job job{ .args = std::istringstream(text) };
     job.args >> job.verb;
     int x_pos = 0, y_pos = 0;
-    if (job.verb == "ping") return "ok\n";
+    if (job.verb == "ping") return "ok " WHISPER_VERSION "\n";
     if (job.verb == "click" || job.verb == "rclick" || job.verb == "move") {
         if (!(job.args >> x_pos >> y_pos)) return "err " + job.verb + " <x> <y>\n";
         if (job.verb == "click") mouse(WM_LBUTTONDOWN, WM_LBUTTONUP, x_pos, y_pos);
@@ -327,7 +331,7 @@ DWORD WINAPI serve(void*) {
         note("can't listen on port " + std::to_string(port) + ": error " + std::to_string(WSAGetLastError()));
         return 0;
     }
-    note("listening on port " + std::to_string(port));
+    note("whisper " WHISPER_VERSION " listening on port " + std::to_string(port));
     for (;;) {   // a thread a client; the game thread still runs one command at a time
         SOCKET client = accept(listener, nullptr, nullptr);
         if (client != INVALID_SOCKET)

@@ -49,7 +49,7 @@ Undo: delete `ijl11.dll`, rename `ijl11_real.dll` back.
 | Party up | `party accept 6` / `party invite 6` (the other player's id) |
 | Follow another player like a mercenary | `follow` (Ctrl-C stops) |
 | Read memory | `peek 463dd0 2` |
-| Is it alive | `ping` |
+| Is it alive, which build | `ping` (`ok` + `git describe` + build date; a bare `ok` is a build from before versions) |
 
 ### The follower
 
