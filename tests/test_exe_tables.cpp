@@ -263,7 +263,7 @@ const ExeTable kTables[] = {
     { "rules::AndyQuest::kStandard", 0x736444, [](const Exe& exe, std::uint32_t address) {
         for (std::uint32_t i = 0; i < 7; ++i) eq_code(i, rules::AndyQuest::kStandard[i], exe, address + 4 * i);
     } },
-    { "rules::kFindLines", 0x72a2c4, [](const Exe& exe, std::uint32_t address) {   // pointers to {10 levels, quest id, u16 event}, 0-terminated
+    { "rules::kFindLines", 0x72a2c4, [](const Exe& exe, std::uint32_t address) {   // pointers to {10 levels, quest flag-word address, u16 event}, 0-terminated
         for (std::uint32_t i = 0; i < rules::kFindLines.size(); ++i) {
             const std::uint32_t row = exe.u32(address + 4 * i);
             const auto& line = rules::kFindLines[i];

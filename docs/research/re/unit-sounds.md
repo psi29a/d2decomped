@@ -124,7 +124,7 @@ player's level (FUN_00481780) changes, and once it has stayed 62 ticks
 level last looked up (0x7c88cc) or already marked (0x7c78b8, a dword per
 level, cleared for a new game by FUN_004ca280), and finds the row holding
 it in the table at 0x72a2c4: 14 pointers, 0-terminated, to 0x30-byte rows
-{10 level ids, 0-terminated; +0x28 a quest id; +0x2c the u16 event}. Every
+{10 level ids, 0-terminated; +0x28 a quest flag-word address (0x723f38's rows +0; its +4 the quest id); +0x2c the u16 event}. Every
 level in the row is marked, whether it then speaks or not. It speaks
 (FUN_004cb9c0) when:
 

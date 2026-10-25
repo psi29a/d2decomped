@@ -2874,12 +2874,12 @@ auto Town::critter_tick(std::uint32_t frame_ms) -> void {
             }
         };
         if (level->id != critters_level) {
+            critters.clear();                              // the last level's go at once, even while the camp waits
             std::optional<std::vector<d2d::drlg::Outdoor::RoomSeed>> camp;
             if (level == &game_data.town) {                // the camp keeps no rooms: made from the map seed
                 camp = d2d::game::camp_room_seeds(game_data);
                 if (!camp) return;                         // the builder's busy: next frame
             }
-            critters.clear();
             critters_level = level->id;
             critter_rooms.assign(level->rooms.size(), false);
             // ponytail: the camp's come all at once (it keeps no rooms to come up); it's small.

@@ -66,16 +66,23 @@ QUESTS = {
 
 
 def peek(whisper: Whisper, address: int, count: int) -> list[int]:
-    return [int(line.split()[1], 16) for line in whisper.ask(f"peek {address:x} {count}")[:-1]]
+    """`count` u32s; ValueError when the reply is err or a word is unreadable ("?")."""
+    lines = whisper.ask(f"peek {address:x} {count}")
+    if not lines or lines[-1] != "ok":
+        raise ValueError(lines[-1] if lines else "no reply")
+    return [int(line.split()[1], 16) for line in lines[:-1]]
 
 
 def quests(whisper: Whisper) -> list[str]:
     """The host player's 48 quest words: the client's quest state (S->C 0x28 type 6) is a pointer at
     0x7c0d43 to a record whose +0 points at the 96 bytes (net-packets.md 0x28)."""
-    head = peek(whisper, 0x7c0d40, 2)
-    record = (head[0] >> 24) | (head[1] & 0xffffff) << 8
-    words_at = peek(whisper, record, 1)[0]
-    raw = b"".join(word.to_bytes(4, "little") for word in peek(whisper, words_at, 24))
+    try:
+        head = peek(whisper, 0x7c0d40, 2)
+        record = (head[0] >> 24) | (head[1] & 0xffffff) << 8
+        words_at = peek(whisper, record, 1)[0]
+        raw = b"".join(word.to_bytes(4, "little") for word in peek(whisper, words_at, 24))
+    except ValueError as error:
+        return [f"quest state unreadable (not in a game yet?): {error}"]
     words = [int.from_bytes(raw[2 * k:2 * k + 2], "little") for k in range(48)]
     return [f"{'done' if words[k] & 1 else 'OPEN'}  {words[k]:04x}  {name}" for k, name in QUESTS.items()]
 
