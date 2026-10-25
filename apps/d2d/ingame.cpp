@@ -269,24 +269,32 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (frame < 5 ? hud.left_open : hud.right_open)
                     blit_at_anchor(framebuffer, scene.border_frame.frame(0, std::uint32_t(frame)), scene.act_pal.entries().empty() ? scene.pal : scene.act_pal, kSpots[frame][0], kSpots[frame][1]);
         }
-        if (inventory && class_idx >= 0 && class_idx < 7)
-        {
-            // With a store open, your items show what the vendor pays ("Sell value: ", 0xd03).
-            std::function<std::string(const d2d::d2s::Item&)> sell_price;
+        auto draw_inventory_panel = [&] {
+            if (inventory && class_idx >= 0 && class_idx < 7)
+            {
+                // With a store open, your items show what the vendor pays ("Sell value: ", 0xd03).
+                std::function<std::string(const d2d::d2s::Item&)> sell_price;
+                if (store && store->npc >= 0)
+                    sell_price = [&](const d2d::d2s::Item& item) {
+                        return string_id(scene, 0xd03) + std::to_string(d2d::rules::item_price(scene.rules, item, store->npc_id, true, store->header));
+                    };
+                draw_inventory(framebuffer, scene, scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
+                               mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two);
+                if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
+            }
+        };
+        auto draw_store_panel = [&] {
             if (store && store->npc >= 0)
-                sell_price = [&](const d2d::d2s::Item& item) {
-                    return string_id(scene, 0xd03) + std::to_string(d2d::rules::item_price(scene.rules, item, store->npc_id, true, store->header));
-                };
-            draw_inventory(framebuffer, scene, scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
-                           mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two);
-            if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
-        }
+            {
+                draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer, inventory);
+                if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
+            }
+        };
+        // Each panel draws its own hover text: the one under the mouse goes last so
+        // the other doesn't cover it (the store on the left, the inventory right).
+        if (mouse_x < int(kScreenWidth) / 2) { draw_inventory_panel(); draw_store_panel(); }
+        else                                 { draw_store_panel(); draw_inventory_panel(); }
         if (char_stats) draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
-        if (store && store->npc >= 0)
-        {
-            draw_store(framebuffer, scene, *store, mouse_x, mouse_y, hover_wearer, inventory);
-            if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
-        }
         if (stash) {
             const int expansion_index = stash_expansion ? 1 : 0;
             if (cube_open)
