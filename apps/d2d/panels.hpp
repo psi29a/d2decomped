@@ -40,6 +40,10 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
                     const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, const d2d::rules::Wearer* wearer = nullptr,
                     const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr, bool weapon_set_two = false);
 
+// A grid item's cells under their colour: red when `wearer` can't use it,
+// dull red unidentified, else blue (FUN_00483ff0; inventory and store).
+void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect);
+
 // Character panel (left of the inventory: 800x600 puts the left panels
 // at 80..400). Art: invchar6.dc6 frames 0..3. Label and value boxes are
 // game.exe's own tables — labels {x0, y, x1, string id} at 0x724818

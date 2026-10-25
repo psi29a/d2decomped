@@ -72,6 +72,26 @@ void draw_sockets(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 }
 }  // namespace
 
+// The grid's items sit on a colour (FUN_00483ff0 -> FUN_004839d0): each cell
+// filled at 25 % over what's there (draw mode 0; game.exe's RGB blend, as
+// measured live 2026-10-25): red (0x80, 0, 0) when the wearer can't use it
+// (FUN_0062eaf0's requirements, or flags 0x100 / 0x4000: FUN_0062a4e0),
+// dull red (0x80, 0x40, 0x40) unidentified, else blue (0, 0, 0x80)
+// (FUN_00483960; their nearest palette colours, 0x08 / 0x4d / 0xea).
+// ponytail: the picked-up item's green, flag 4, FUN_004c2240's states and
+// the used quest consumables' red (FUN_00483f80) aren't told apart.
+void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect) {
+    static constexpr std::array<std::array<int, 3>, 3> kTints{ { { 144, 0, 0 }, { 140, 64, 64 }, { 24, 0, 104 } } };   // act 1's 0x08 / 0x4d / 0xea
+    const bool usable = d2d::rules::meets_requirements(scene.rules, item, wearer, d2d::game::required_level(scene, item)) && !(item.flags & 0x4100u);
+    const auto& tint = kTints[!usable ? 0 : !item.identified ? 1 : 2];
+    const int screen_w = fb_width(framebuffer);
+    for (int y_pos = std::max(rect[1], 0); y_pos < std::min(rect[1] + rect[3], int(kScreenHeight)); ++y_pos)
+        for (int x_pos = std::max(rect[0], 0); x_pos < std::min(rect[0] + rect[2], screen_w); ++x_pos) {
+            auto* pixel = &framebuffer[(std::size_t(y_pos) * std::size_t(screen_w) + std::size_t(x_pos)) * 4];
+            for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = std::uint8_t((tint[channel] + 3 * pixel[channel]) / 4);
+        }
+}
+
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , const d2d::rules::Wearer* wearer ,
                     const std::function<std::string(const d2d::d2s::Item&)>* price, bool weapon_set_two) {
@@ -123,25 +143,6 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
             blit_sprite(framebuffer, art, pal, box[0] + outline.dx + set_two, box[1] + box[3] + outline.dy - set_two - int(art.height));
         }
     }
-    // The grid's items sit on a colour (FUN_00483ff0 -> FUN_004839d0): each cell
-    // filled at 25 % over what's there (draw mode 0; game.exe's RGB blend, as
-    // measured live 2026-10-25): red (0x80, 0, 0) when the wearer can't use it
-    // (FUN_0062eaf0's requirements, or flags 0x100 / 0x4000: FUN_0062a4e0),
-    // dull red (0x80, 0x40, 0x40) unidentified, else blue (0, 0, 0x80)
-    // (FUN_00483960; their nearest palette colours, 0x08 / 0x4d / 0xea).
-    // ponytail: the picked-up item's green, flag 4, FUN_004c2240's states and
-    // the used quest consumables' red (FUN_00483f80) aren't told apart.
-    auto tint_cells = [&](const d2d::d2s::Item& item, const std::array<int, 4>& rect) {
-        static constexpr std::array<std::array<int, 3>, 3> kTints{ { { 144, 0, 0 }, { 140, 64, 64 }, { 24, 0, 104 } } };   // act 1's 0x08 / 0x4d / 0xea
-        const bool usable = d2d::rules::meets_requirements(scene.rules, item, *wearer, d2d::game::required_level(scene, item)) && !(item.flags & 0x4100u);
-        const auto& tint = kTints[!usable ? 0 : !item.identified ? 1 : 2];
-        const int screen_w = fb_width(framebuffer);
-        for (int y_pos = std::max(rect[1], 0); y_pos < std::min(rect[1] + rect[3], int(kScreenHeight)); ++y_pos)
-            for (int x_pos = std::max(rect[0], 0); x_pos < std::min(rect[0] + rect[2], screen_w); ++x_pos) {
-                auto* pixel = &framebuffer[(std::size_t(y_pos) * std::size_t(screen_w) + std::size_t(x_pos)) * 4];
-                for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = std::uint8_t((tint[channel] + 3 * pixel[channel]) / 4);
-            }
-    };
     auto draw_in = [&](const d2d::d2s::Item& item, int x, int y, int width, int height) {
         const auto* spr = scene.item_sprite(item);
         if (!spr || spr->frames_per_direction() == 0) return;
@@ -162,7 +163,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
             if (weapon_set_two && (item.slot == body::kRightArm || item.slot == body::kLeftArm)) { rect[0] += 4; rect[1] -= 4; }
         }
         if (rect[2] <= 0) continue;
-        if (item.location == d2d::d2s::item_location::kStored && wearer) tint_cells(item, rect);
+        if (item.location == d2d::d2s::item_location::kStored && wearer) tint_cells(framebuffer, scene, item, *wearer, rect);
         draw_in(item, rect[0], rect[1], rect[2], rect[3]);
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }
     }

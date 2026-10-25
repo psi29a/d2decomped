@@ -120,6 +120,7 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
     std::array<int, 4> hover_box{};
     for (const auto& item : store.tabs[std::size_t(store.tab)]) {
         const auto [box_x, box_y, width, height] = grid_rect(scene, layout, item);
+        if (wearer) tint_cells(framebuffer, scene, item, *wearer, { box_x, box_y, width, height });
         if (const auto* spr = scene.item_sprite(item); spr && spr->frames_per_direction() > 0) {
             const auto& frame = spr->frame(0, 0);
             blit_sprite(framebuffer, frame, scene.item_pal(item, pal), box_x + (width - int(frame.width)) / 2, box_y + (height - int(frame.height)) / 2);
