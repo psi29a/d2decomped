@@ -23,6 +23,31 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+# The one version stamp: the launcher, d2d, Sentry and the package all read
+# D2D_VERSION. git describe, else a VERSION file (CI's flatpak builds a git
+# archive, no .git), else unknown.
+find_package(Git QUIET)
+set(D2D_VERSION "0.0.0-unknown")
+if(EXISTS "${PROJECT_SOURCE_DIR}/VERSION")
+    file(STRINGS "${PROJECT_SOURCE_DIR}/VERSION" D2D_VERSION LIMIT_COUNT 1)
+endif()
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        OUTPUT_VARIABLE git_describe
+        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(git_describe)
+        set(D2D_VERSION "${git_describe}")
+    endif()
+    # Re-stamp on each commit/checkout, not only on a fresh configure.
+    if(EXISTS "${PROJECT_SOURCE_DIR}/.git/logs/HEAD")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/.git/logs/HEAD")
+    endif()
+endif()
+string(REGEX REPLACE "-[0-9]+-g" "-g" D2D_VERSION "${D2D_VERSION}")   # drop commits-since-tag
+message(STATUS "D2D version: ${D2D_VERSION}")
+
 # windows.h (via StormLib, SDL) otherwise #defines min/max and, through
 # the RPC headers, small; near/far it defines regardless, so the code
 # avoids those names.

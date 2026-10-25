@@ -52,6 +52,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+          fetch-depth: 0   # every tag, for git describe's version stamp
 
       # The .debs come from the Actions cache, not the Azure mirror: it once
       # took 35 min for these 82 MB (2026-10-22). Refreshed weekly; apt
@@ -384,11 +385,13 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+          fetch-depth: 0   # every tag, for git describe's version stamp
 
       - name: Prepare clean Flatpak source tree
         run: |
           mkdir -p build/flatpak-source
           git -c safe.directory="$GITHUB_WORKSPACE" archive HEAD | tar -x -C build/flatpak-source
+          git describe --tags --always > build/flatpak-source/VERSION   # the archive has no .git
 
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
