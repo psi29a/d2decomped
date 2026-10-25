@@ -450,6 +450,8 @@ auto Town::send(const Command& command) -> void {
         auto subtile_y = [&](float cell_y) { return (cell_y + float(level->world_y)) * 5.f; };
         if (const auto* move = std::get_if<cmd::Move>(&command)) {
             net_game->move_to(subtile_x(move->x), subtile_y(move->y), view.running);
+            net_clicked_walk = true;
+            net_clicked_ms = net_game->steady_now();
         } else if (const auto* run = std::get_if<cmd::Run>(&command)) {
             net_game->set_running(run->running);
         } else if (std::holds_alternative<cmd::SwapWeapons>(command)) {
@@ -2495,9 +2497,12 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             // target): the host's player follows where ours is, every 300 ms
             // (a target the host can't stand on, an NPC's spot, it'd refuse).
             // Not while a warp or portal is being taken: ours may already
-            // be in the next area, the host's isn't yet.
+            // be in the next area, the host's isn't yet. Nor on a click's walk: the
+            // host has its target, and our spot sent then (live 2026-10-25: 40 ms
+            // after the click, before ours moved) stopped the host's where it stood.
             const bool area_change = (net_operate != 0 && net_operate_moves) || frame_ms < net_moving_until || net_game->holding();
-            if (hero.player.walking && frame_ms - net_follow_ms >= 300 && !area_change) {
+            if (!hero.player.walking && net_game->steady_now() - net_clicked_ms > 500) net_clicked_walk = false;
+            if (hero.player.walking && !net_clicked_walk && frame_ms - net_follow_ms >= 300 && !area_change) {
                 net_follow_ms = frame_ms;
                 net_game->move_to((hero.player.x + float(level->world_x)) * 5.f, (hero.player.y + float(level->world_y)) * 5.f, view.running);
             }
