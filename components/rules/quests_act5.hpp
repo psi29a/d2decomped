@@ -952,7 +952,7 @@ struct EveQuest {
     [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
         if (!quest::bit(quest_bits, kQuest, 0)) return state == 3 ? act5_detail::block_for(kBlocks[0], npc) : std::vector<QuestMsg>{};
         const bool here = quest::bit(quest_bits, kQuest, 13);
-        const auto by_bit = [&](int bit) { return !quest::bit(quest_bits, kQuest, bit) ? act5_detail::block_for(kBlocks[2], npc) : here ? act5_detail::block_for(kBlocks[3], npc) : std::vector<QuestMsg>{}; };
+        const auto by_bit = [&](int bit) -> std::vector<QuestMsg> { return !quest::bit(quest_bits, kQuest, bit) ? act5_detail::block_for(kBlocks[2], npc) : here ? act5_detail::block_for(kBlocks[3], npc) : std::vector<QuestMsg>{}; };
         switch (npc) {
         case 511: return by_bit(4);
         case 512: return quest::bit(quest_bits, kQuest, 9) ? (here ? act5_detail::block_for(kBlocks[3], npc) : std::vector<QuestMsg>{}) : act5_detail::block_for(kBlocks[2], npc);

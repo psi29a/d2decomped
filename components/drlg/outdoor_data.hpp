@@ -13,6 +13,7 @@
 #include <rules.hpp>
 #include <txt.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <charconv>
@@ -172,11 +173,14 @@ inline std::pair<int, int> level_origin(const d2d::txt::Table& levels, std::size
 }
 
 // Sizes and anchors for the act layout (normal difficulty).
+// Sizes and offsets kept to what a level can be (1.14d's largest is 400
+// tiles), so the layout's sums stay far from overflowing.
 inline LevelDefs level_defs(const d2d::txt::Table& levels) {
     LevelDefs defs;
+    const auto size = [&](std::size_t row, const char* column) { return std::clamp(to_int(levels.get(row, column)), 0, 0x1000); };
+    const auto offset = [&](std::size_t row, const char* column) { return std::clamp(to_int(levels.get(row, column)), -0x10000, 0x10000); };
     for (std::size_t row = 0; row < levels.size(); ++row)
-        defs[to_int(levels.get(row, "Id"), -1)] = { to_int(levels.get(row, "SizeX")), to_int(levels.get(row, "SizeY")),
-                                                    to_int(levels.get(row, "OffsetX")), to_int(levels.get(row, "OffsetY")),
+        defs[to_int(levels.get(row, "Id"), -1)] = { size(row, "SizeX"), size(row, "SizeY"), offset(row, "OffsetX"), offset(row, "OffsetY"),
                                                     to_int(levels.get(row, "DrlgType")) == 3 };
     return defs;
 }

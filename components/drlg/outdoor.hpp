@@ -461,7 +461,7 @@ struct Gen {
                 const int edge_x = std::min(first.x, second.x) + len * std::abs(dx1) / 2;
                 const int edge_y = std::min(first.y, second.y) + len * std::abs(dy1) / 2;
                 if (is_desert()) {                                                      // act 2: a pair of presets (0x6f112c by dx + 2 + 2 dy)
-                    const auto& pair = kDesertExits[std::size_t(dx1 + 2 + dy1 * 2)];
+                    const auto& pair = kDesertExits[std::size_t(std::clamp(dx1 + 2 + dy1 * 2, 0, 4))];   // an edge runs along one axis: 0..4
                     place(edge_x, edge_y, pair.first, -1, false);
                     place(edge_x + std::abs(dx1), edge_y + std::abs(dy1), pair.second, -1, false);
                 } else {

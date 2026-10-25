@@ -268,11 +268,11 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
             const std::string id(levels.get(row, "Id"));
             if (id.empty()) continue;
             const int level = std::atoi(id.c_str());
-            if (auto path = entry(level, std::string(levels.get(row, "EntryFile"))); !path.empty()) scene.level_entry[level] = path;
+            if (auto path = entry(level, std::string(levels.get(row, "EntryFile"))); !path.empty()) scene.level_entry[level] = std::move(path);
         }
         // 0x70f860: {level, quest, file}: the art while that quest's open in this game (FUN_004b92e0).
         for (const auto& [level, file] : { std::pair{ 8, "A1Q1" }, std::pair{ 20, "A1Q5" } })
-            if (auto path = entry(level, file); !path.empty()) scene.level_entry_quest[level] = path;
+            if (auto path = entry(level, file); !path.empty()) scene.level_entry_quest[level] = std::move(path);
     }
     sprite(R"(data\global\ui\PANEL\inv_belt.dc6)", scene.inv_belt);
     sprite(R"(data\global\ui\PANEL\inv_boots.dc6)", scene.inv_boots);

@@ -313,7 +313,8 @@ auto World::rescue_update(std::uint32_t now_ms) -> void {
             if (slot < 0) continue;
             const int row = int(game_data->mon_bin[std::size_t(d2d::rules::RescueQuest::kPrisoner)]);
             for (int which = 0; which < d2d::rules::RescueQuest::kPerCage; ++which) {
-                const auto [at_x, at_y] = level->nearest_free(cage.x + float(which % 3 - 1) * 0.6f, cage.y + float(which / 3) * 0.6f);
+                const int column = which % 3 - 1, row_down = which / 3;   // three to a row
+                const auto [at_x, at_y] = level->nearest_free(cage.x + float(column) * 0.6f, cage.y + float(row_down) * 0.6f);
                 fight.add_monster(make_monster(*game_data, row, at_x, at_y, fight.rng, actor->character.header.active_difficulty(), true, int(players.size())), level);
                 rescue.prisoner_made(slot, which, fight.monsters.back().id);
             }

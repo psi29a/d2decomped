@@ -879,7 +879,7 @@ struct ObjectRooms {
         for (std::size_t i = 0; i < level.units.size(); ++i) {
             const auto& unit = level.units[i];
             if (level.unit_rooms[i] != int(room_at) || unit.type != d2d::rules::unit_type::kMonster || (unit.flags & 1) || unit.id < 0 || level.id == d2d::rules::level_ids::kUberTristram) continue;
-            leader = int(spawns->size());                                                              // FUN_00555910: a placement of its own
+            if (spawns) leader = int(spawns->size());                                                  // FUN_00555910: a placement of its own
             if (unit.id < nmon) {
                 // FUN_0054e490: a critter (MonStats2 flag 0xd: Harrogath's chickens) is never made.
                 if (const auto* info = type_at(int(game_data.mon_bin[std::size_t(unit.id)])); info && info->critter) continue;
