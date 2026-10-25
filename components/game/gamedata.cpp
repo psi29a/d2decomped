@@ -549,6 +549,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     if (objects.get(row, "InitFn") == "58") rgn.next();
     if (objects.get(row, "InitFn") == "22" && objects.get(row, "Mode2") == "1" && objects.get(row, "Mode0") != "1") init_mode = "ON";
     npc.preoperated = objects.get(row, "PreOperate") == "1" && rgn(14) == 0;
+    npc.env_effect = objects.get(row, "EnvEffect") == "1";
     npc.base_w = "hth";
     for (std::size_t mode = 0; mode < 8; ++mode) npc.lit[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Lit" + std::to_string(mode))).c_str()));
     const bool lit_mode = npc.preoperated || (objects.get(row, "Mode2") == "1" && !objects.get(row, "Lit2").empty()

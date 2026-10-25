@@ -2695,6 +2695,13 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         for (const auto& [key, door] : doors)                  // doors in the mode they were left in
             if (key.first == level && std::size_t(key.second) < npc_states.size())
                 std::tie(npc_states[std::size_t(key.second)].mode, npc_states[std::size_t(key.second)].mode_ms) = std::pair{ kObjectModes[std::size_t(door.mode)], door.when };
+        // The Rogue camp's bonfire (and three sound emitters): the client sets
+        // EnvEffect objects NU by day, OP otherwise, at birth and each time the
+        // day's type changes (FUN_004bc5e0 via FUN_004bc720 / FUN_004646c0).
+        const bool daylight = (day.eclipse ? d2d::rules::kEclipse : d2d::rules::kDay)[std::size_t(day.phase)].type == 0;
+        grow_states(npc_states, *level);
+        for (std::size_t index = 0; index < level->npcs.size() && index < npc_states.size(); ++index)
+            if (level->npcs[index].env_effect) npc_states[index].mode = daylight ? "NU" : "OP";
         Crowd crowd;                           // who's in whose way this frame
         for (const auto& player : players) {
             crowd.units.push_back(&player->player);

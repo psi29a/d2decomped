@@ -126,6 +126,7 @@ struct Npc {
     int trap = 0;                        // a chest's trap type (roll_chest), 0 none
     bool locked = false;                 // a locked chest: takes a key
     bool sparkle = false;                // a sparkling chest (InitFn 57: unit +0x78 & 1)
+    bool env_effect = false;             // objects.txt EnvEffect (+0x139): NU by day, OP at dusk, night and dawn (the client's FUN_004bc5e0)
     // An object's unit seed (+0x20, FUN_00555230; a chest's InitFn re-seeds
     // it, roll_chest): what its rounds (FUN_00585b90) roll on. Its room
     // (Level::rooms index, -1 none): a stand rolls on the room's seed.

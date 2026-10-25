@@ -33,3 +33,4 @@ Still reachable, though the content looks dead: the uber levels 133..136
 build and populate (`FUN_005559a0`'s uber cases, the Hellfire Torch hook
 `FUN_005e0070`, UberIzual's real think `FUN_005f8c80`). d2d ports them
 all, so they work once something takes a player there.
+| `FUN_0054f860` | InitFn 10: queues object event 8 (`FUN_00581250`, mode 0 by day, 1 at night) in level 1 (the Rogue Encampment), else mode 2 + event 0 | unreachable | no objects.txt row has InitFn 10; event 8 runs only for the fissures (399), which take its other branch | not ported | objects.md "Time of day (EnvEffect)" |

@@ -492,3 +492,31 @@ Findings along the way:
   sequence 0 or 4 or hidden. A walk-through exit (Jail 3 to the Inner
   Cloister) has no warp tile but still counts.
 
+
+## Time of day (EnvEffect)
+
+Live, 2026-10-25: by day the Rogue camp's bonfire on a game.exe host
+smoulders; d2d drew it blazing.
+
+- objects.txt EnvEffect is objects.bin +0x139 (field table in
+  `FUN_0063f690`). Four rows set it: 39 RogueBonfire, 45 the ambient sound
+  generator, 71 / 72 the forest night sounds. Only the bonfire draws.
+- The client's `FUN_004bc5e0` (ECX the object): with EnvEffect set it reads
+  the day's phase type (`FUN_0061c100` → env +4: 0 day, 1 dusk, 2 night,
+  3 dawn). Day: mode 0. Otherwise: mode 1. Either way it sets the unit's
+  selectable bit from Selectable[mode] (+0xc4 + mode) and the light from
+  objects.bin +0x164..0x166 (Red, Green, Blue) at Lit[mode].
+- Called at the object's birth (`FUN_004bc720`), on every day-type change
+  for every object (`FUN_004646c0`, the two object hash lists 0x7a6270 and
+  0x7a5670), and every 500 ms from ClientFn 14 (the bonfire's).
+- The bonfire: mode 0 is 10 frames at FrameDelta 128 and light 0 (embers);
+  mode 1 is 20 frames at 256 and light 19. The server never changes it: this
+  is all client side.
+- ClientFn: objects.bin +0x1b4, dispatched by `FUN_004bdee0` through the
+  table at 0x7277f0 (19 entries, 0 none).
+- The server's object event 8 (`FUN_00581250`) has a day/night branch too
+  (mode 0 by day, 1 at night), but only InitFn 10 queues it for anything
+  but the fissures (399, InitFn 58), and no object has InitFn 10 (stubs.md).
+- d2d: `Npc::env_effect`; `World` sets NU / OP each tick by the day's type.
+  ponytail: objects' FrameDelta isn't honoured (the bonfire's embers run at
+  full speed; 91 objects have FrameDelta0 128).
