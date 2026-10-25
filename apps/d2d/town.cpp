@@ -2394,10 +2394,12 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             // The host's player is the truth: d2d's walked on where the host's
             // couldn't (a door only d2d opened, a wall the host's path won't
             // take); 2 s that far apart and d2d goes back to where the host has us.
+            // Counted from when d2d stops: mid-walk the host's place (0x95 / 0x96,
+            // about every 2 s) lags 30+ subtiles behind (live 2026-10-25).
             if (level && net_game->host_x > 0) {
                 const float drift = std::hypot((hero.player.x + float(level->world_x)) * 5.f - net_game->host_x, (hero.player.y + float(level->world_y)) * 5.f - net_game->host_y);
                 const float back_x = net_game->host_x / 5.f - float(level->world_x), back_y = net_game->host_y / 5.f - float(level->world_y);
-                if (drift < 15.f || back_x < 0 || back_y < 0 || back_x >= float(level->ds1.width()) || back_y >= float(level->ds1.height())) net_drift_ms = 0;
+                if (hero.player.walking || drift < 15.f || back_x < 0 || back_y < 0 || back_x >= float(level->ds1.width()) || back_y >= float(level->ds1.height())) net_drift_ms = 0;
                 else if (net_drift_ms == 0) net_drift_ms = frame_ms;
                 else if (frame_ms - net_drift_ms > 2000) {
                     d2d::log::info("net: {:.0f} subtiles from the host's player; back to it", drift);

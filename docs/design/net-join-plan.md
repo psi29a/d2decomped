@@ -265,7 +265,9 @@ whisper now says its build (`ping` → `ok v0.5.6-52-g6c930bc 2026-10-25`); the 
 | Max life / mana with gear | ✓ live: Miriam 714/831, mana max 1296, as the host |
 | Items | ✓ 46 of 46 match |
 | The Rogue camp's bonfire by day | ✗ → ✓ d2d drew it blazing, the host embers; game.exe's client sets EnvEffect objects by the day's type (objects.md "Time of day") |
-| Long walks in legs | Not seen: the camp's walls cut every walk short. Needs open ground (the Blood Moor). devctl `cmd move` only goes to the host when joined (d2d's World doesn't walk; it snaps after 2 s) |
+| Long walks in legs | ✓ camp → Blood Moor, 210 subtiles in clicks: the host followed leg by leg, no 0x15 but the join's two; ended 0.7 apart |
+| Rubber-banding mid-walk | ✗ → ✓ the host's place (0x95 / 0x96) comes about every 2 s and lags 30-70 subtiles behind a walk, so the 2 s drift rule snapped d2d back to it mid-walk; now it counts only once d2d stops |
+| devctl `cmd move` joined | goes only to the host (d2d's World doesn't walk; it snaps after 2 s); use `click` |
 | The host's corpse | `debug net` lists it as a second "arne" player (the corpse is a player unit, mode 17) |
 
 ## Open risks
