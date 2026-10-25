@@ -72,6 +72,11 @@ inline constexpr int kDiabloStart = 255;      // InitFn 55: where Diablo comes (
 inline constexpr int kLastPortal = 566;       // OperateFn 73: Tyrael's portal to Harrogath (a4q2, LoD)
 inline constexpr int kLargeChestR = 371;      // the Countess' treasure chests
 inline constexpr int kSparklyChest = 397;     // rolls its own table (open_container)
+inline constexpr int kTownPortal = 59;        // a cyan automap mark (FUN_00459bc0)
+inline constexpr int kPermanentPortal = 60;   // cyan too, but on levels 111, 112, 117, 125..127
+inline constexpr int kBank = 267;             // the stash: an automap icon only in Acts 3 and 4 (FUN_00458dc0)
+inline constexpr int kSewerStairs = 366;      // its automap icon only open (mode 2)
+inline constexpr int kSanctuaryWaypoint = 402;   // its automap icon only in the Arcane Sanctuary
 inline constexpr int kSubclassWaypoint = 0x40;   // objects.txt SubClass bit: a waypoint
 }  // namespace object_ids
 

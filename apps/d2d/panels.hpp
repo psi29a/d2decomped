@@ -211,12 +211,14 @@ struct Automap {
     int mini = 0, fade = 0;
     bool center = true, party = true, names = true, left = false;
     // Set each frame by the game: the side a panel is open on (0x7a5210:
-    // 1 right, 2 left, 0 none or both), in town, portraits shown, and the
-    // other players' marks (green: party; blue: not).
+    // 1 right, 2 left, 0 none or both), in town, portraits shown, the
+    // units' marks (FUN_00459bc0's colour as (R, G, B), a name over it in
+    // name_rgb) and the top right's lines (FUN_0045ad60).
     int panel_side = 0;
     bool in_town = false, portraits = false;
-    struct Mark { float x = 0, y = 0; bool party = false; std::string name; };
+    struct Mark { float x = 0, y = 0; std::array<int, 3> rgb{}; std::string name; std::array<std::uint8_t, 3> name_rgb{}; };
     std::vector<Mark> marks;
+    std::vector<std::string> lines;
 };
 
 // Interchangeable cels (0x711258, cel then group).
@@ -231,6 +233,10 @@ inline constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash);
 
 void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y);
+
+// The level's objects with an Objects.txt AutoMap cel near the player into
+// list 2 (FUN_00458dc0 -> FUN_00457e80).
+void automap_icons(const Level& level, Automap& automap, float player_x, float player_y, const std::vector<UnitState>& states);
 
 void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Automap& automap, float player_x, float player_y);
 

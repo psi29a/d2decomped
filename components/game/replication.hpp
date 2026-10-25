@@ -43,13 +43,14 @@ inline std::string_view intern(std::string text) {
     return *pool.insert(std::move(text)).first;
 }
 inline void npc(Out& out, const Npc& npc_data) {
-    out.str(npc_data.root).str(npc_data.code).str(npc_data.base_w).str(npc_data.name).i32(npc_data.light).i32(npc_data.overlay_class).i32(npc_data.colour);
+    out.str(npc_data.root).str(npc_data.code).str(npc_data.base_w).str(npc_data.name).i32(npc_data.light).i32(npc_data.overlay_class).i32(npc_data.colour).u8(npc_data.interact);
     for (const auto& component : npc_data.comp) out.str(component);
 }
 inline Npc npc(In& input) {
     Npc npc;
     npc.root = input.str(); npc.code = input.str(); npc.base_w = input.str(); npc.name = input.str();
     npc.light = input.get<std::int32_t>(); npc.overlay_class = input.get<std::int32_t>(); npc.colour = input.get<std::int32_t>();
+    npc.interact = input.get<std::uint8_t>() != 0;
     for (auto& component : npc.comp) component = input.str();
     return npc;
 }

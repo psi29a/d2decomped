@@ -30,6 +30,7 @@
 #include <light.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
@@ -1008,13 +1009,67 @@ auto Town::automap_frame() -> void {
         if (net_game)
             if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end()) own_party = self->second.party;
         const float world_x = level ? float(level->world_x) : 0.f, world_y = level ? float(level->world_y) : 0.f;
+        // The units of the player's room and its near list (FUN_0045ac90),
+        // coloured as FUN_00459bc0 picks: a dead player with their things
+        // magenta, our merc and pets olive, interacting NPCs white (but the
+        // Ancient statues) with their names in gold (Names on), town and
+        // red portals cyan; then the party anywhere (FUN_0045ab60).
+        // ponytail: other players' pets aren't marked (game.exe: green, Party on).
+        const auto rooms = level && view.level == level ? missile_rooms(*world.game_data, *level, view.player.x, view.player.y) : std::vector<std::array<int, 4>>{};
+        const auto close_by = [&](float x, float y) {
+            const int sub_x = int(std::floor((x + world_x) * 5)), sub_y = int(std::floor((y + world_y) * 5));
+            return std::ranges::any_of(rooms, [&](const auto& rect) { return sub_x >= rect[0] && sub_y >= rect[1] && sub_x < rect[0] + rect[2] && sub_y < rect[1] + rect[3]; });
+        };
+        const auto add = [&](float x, float y, std::array<int, 3> rgb, std::string name = {}, std::array<std::uint8_t, 3> name_rgb = {}) {
+            automap.marks.push_back({ x + world_x, y + world_y, rgb, std::move(name), name_rgb });
+        };
+        constexpr std::array<int, 3> kMagenta{ 0xff, 0, 0xff }, kOlive{ 0x74, 0x70, 0x44 }, kWhite{ 0xf4, 0xf4, 0xf4 }, kCyan{ 0, 0xf4, 0xf4 };
+        constexpr std::array<std::uint8_t, 3> kGold{ 199, 179, 119 }, kGreen{ 0, 255, 0 };
+        for (const auto& corpse : view.corpses) if (close_by(corpse.x, corpse.y)) add(corpse.x, corpse.y, kMagenta);
+        if (view.merc && view.merc->mode != "DT" && view.merc->mode != "DD" && close_by(view.merc->unit.x, view.merc->unit.y)) add(view.merc->unit.x, view.merc->unit.y, kOlive);
+        for (const auto& pet : view.pets) {
+            const auto* type = world.game_data->pet_type(pet.pettype);
+            if (type && type->automap && pet.mode != "DT" && pet.mode != "DD" && close_by(pet.unit.x, pet.unit.y)) add(pet.unit.x, pet.unit.y, kOlive);
+        }
+        const auto npc_mark = [&](const Npc& npc, float x, float y) {
+            if (!npc.interact || npc.id.starts_with("ancientstatue") || !close_by(x, y)) return;
+            add(x, y, kWhite, automap.names ? npc.name : std::string{}, kGold);
+        };
+        if (view.level == level && level)
+            for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+                const auto& npc = level->npcs[i];
+                const auto* state = i < view.npc_states.size() ? &view.npc_states[i] : nullptr;
+                if (state && state->hidden) continue;
+                const float x = state ? state->x : npc.x, y = state ? state->y : npc.y;
+                if (npc.root == "monsters") npc_mark(npc, x, y);
+                else if (npc.object_id == d2d::rules::object_ids::kPermanentPortal && close_by(x, y)
+                         && !std::ranges::contains(std::array{ 0x6f, 0x70, 0x75, 0x7d, 0x7e, 0x7f }, level->id)) add(x, y, kCyan);
+            }
+        for (const auto& monster : view.monsters) if (monster.alive()) npc_mark(monster.npc, monster.unit.x, monster.unit.y);
+        for (const auto& portal : view.portals)
+            if (close_by(portal.x, portal.y) && (portal.which < int(d2d::game::World::kGamePortals) || !std::ranges::contains(std::array{ 0x6f, 0x70, 0x75, 0x7d, 0x7e, 0x7f }, level->id)))
+                add(portal.x, portal.y, kCyan);
         for (const auto& other : view.others) {
             bool same_party = !net_game;                                 // local co-op: one party
             if (net_game)
                 if (const auto unit = net_game->units.find(std::uint64_t(other.id)); unit != net_game->units.end())
                     same_party = own_party != 0xffff && unit->second.party == own_party;
-            automap.marks.push_back({ other.unit.x + world_x, other.unit.y + world_y, same_party, other.name });
+            if (same_party ? automap.party : close_by(other.unit.x, other.unit.y))
+                add(other.unit.x, other.unit.y, same_party ? std::array<int, 3>{ 0, 0xff, 0 } : std::array<int, 3>{ 0, 0, 0xff },
+                    same_party && automap.names ? other.name : std::string{}, kGreen);
         }
+        // The top right (FUN_0045ad60): the level's name, the version, the
+        // difficulty past Normal (0x1057 of 0x1423 / 0x1422), EXPANSION (0x58ca).
+        // ponytail: a joined game's name and password lines aren't shown.
+        automap.lines.clear();
+        if (level) automap.lines.push_back(level->name);
+        automap.lines.emplace_back("v 1.14d");
+        if (const int difficulty = net_game ? net_game->difficulty : character.header.active_difficulty(); difficulty == 1 || difficulty == 2) {
+            auto line = string_id(*scene, 0x1057);
+            if (const auto spot = line.find("%s"); spot != std::string::npos) line.replace(spot, 2, string_id(*scene, difficulty == 1 ? 0x1423 : 0x1422));
+            automap.lines.push_back(std::move(line));
+        }
+        if (character.expansion) automap.lines.push_back(string_id(*scene, 0x58ca));
         const std::array<std::pair<std::string, std::string>, 6> now = { {
             { "automap_mode", std::to_string(values[1]) }, { "automap_fade", std::to_string(values[2]) }, { "automap_center", std::to_string(values[3]) },
             { "automap_party", std::to_string(values[4]) }, { "automap_names", std::to_string(values[5]) }, { "automap_left", automap.left ? "1" : "0" } } };
@@ -1531,9 +1586,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         bool menu_click = false;
         const auto& unit = view.player;
         automap_reveal(*scene, *level, automap, unit.x, unit.y);
+        automap_icons(*level, automap, unit.x, unit.y, view.level == level ? view.npc_states : std::vector<UnitState>{});
         for (const auto& neighbour : level->nearby)                   // what's in view across the edge
-            if (neighbour.level->layer == level->layer)
+            if (neighbour.level->layer == level->layer) {
                 automap_reveal(*scene, *neighbour.level, automap, unit.x - float(neighbour.dx), unit.y - float(neighbour.dy));
+                automap_icons(*neighbour.level, automap, unit.x - float(neighbour.dx), unit.y - float(neighbour.dy), {});
+            }
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
         // the speech string) follows the speech box.
         if (speech.npc < 0 && audio.voice.src) audio.stop_voice();

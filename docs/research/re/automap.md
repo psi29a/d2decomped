@@ -82,6 +82,46 @@ against BGR palette bytes, so the arguments are (B, G, R):
 Your own mark sits next to the campfire and stash miniatures in the
 town map, which confirms the (40, 15) scroll offsets.
 
+### Which units get a mark (`FUN_0045ac90` → `FUN_0045a860` → `FUN_00459bc0`)
+
+`FUN_0045ac90` walks the units of the player's room and its near list
+(`FUN_00619790`), then (Party on) the party's members wherever they are
+(`FUN_0045ab60`). `FUN_00459bc0` decides whether a unit shows and in
+which colour; the colours are made once (`0x7a51b0..b9`, by
+`FUN_004fb180(B, G, R)`):
+
+| unit | when | colour (R, G, B) |
+|---|---|---|
+| player, you | | red (ff, 0, 0) `0x7a51b0` |
+| player, your party | Party on | green (0, ff, 0) `0x7a51b3` |
+| player, anyone else | | blue (0, 0, ff) `0x7a51b1` |
+| player in mode 0x11 (a corpse) | its inventory's owner (`FUN_0063d450(+0x60)`) is itself | magenta (ff, 0, ff) `0x7a51b2` |
+| monster, a pet (`FUN_00478d90`: the client's pet list `0x7bb5bc`, PetType automap) | ours | olive (74, 70, 44) `0x7a51b4` |
+| monster, a party member's pet | Party on | green (34, a0, 48) `0x7a51b5` |
+| monster with MonStats flag 9 (interact) | not 0x219..0x21b (the Ancient statues) | white (f4, f4, f4) `0x7a51b6` |
+| object 0x3b (town portal) | | cyan (0, f4, f4) `0x7a51b8` |
+| object 0x3c (red portal) | not on levels 0x6f, 0x70, 0x75, 0x7d..0x7f | cyan |
+| object 0x10b (the bank) | Names on | its name, no mark |
+
+A dead monster (mode 0xc) or one with flag 0x200000 (+0xc4) gets none.
+An interacting NPC's name (Names on) goes in Font6, colour 4 (gold),
+centred, 10 above the mark (`FUN_00464a60`). A monster morphed to a
+player's look (`FUN_00645270`, States.txt gfxtype) is judged as one.
+
+### The top right (`FUN_0045ad60`)
+
+With the map open, Font16 (`FUN_00502ef0(1)`), colour 4, right-aligned
+16 px in from the screen's right edge, baselines from 0x18 down every 0x10:
+
+1. the game's name and password (`FUN_00459e90`, a joined game);
+2. the level's name (`FUN_0045a050`: `FUN_00453e70` of the level id);
+3. "v 1.14d" (`FUN_0045a0a0`: "v %d.%d%c", 1, 0xe, 'd');
+4. on Nightmare / Hell, string 0x1057 ("Difficulty: %s") of 0x1423
+   ("Nightmare") / 0x1422 ("Hell") (`FUN_0045a190`);
+5. a line for game types 6 and 8 (`FUN_0045a120`, `FUN_0040df60`;
+   untraced);
+6. on an expansion game, 0x58ca ("EXPANSION") (`FUN_00459ff0`).
+
 ## Saved maps (`Name.map`, `Name.ma0`..`ma3`)
 
 The automap is kept beside the save, per map seed, not per difficulty.
@@ -198,10 +238,20 @@ dropped, otherwise the cel decides.
     within an octagon of 150 round the centre draw mode 2 / 1 / 0 (from
     100 / 50 in). Everything is mode 1. Auto is 2 in town (mini: 1).
     Mini takes Centre as Everything.
-  - Marks (`FUN_00459bc0`): you red, party green (Party on), other
-    players blue. Party names (Names and Party on) are in font6, centred,
-    10 above the mark (`FUN_0045a760`).
-- Not yet: NPC / monster marks, the miniatures. The fade applies to every
+  - Marks (`Town::automap_frame`) as the table above: the player's
+    corpses, our merc and pets (PetType automap), interacting NPCs with
+    their names in gold (Names on), town portals and red ones, the other
+    players. Party names (Names and Party on) are in font6, centred, 10
+    above the mark (`FUN_0045a760`).
+  - Object icons (`automap_icons`): objects with an Objects.txt AutoMap
+    cel (shrines, wells, the Cairn Stones, the Tree of Inifuss, ...) go
+    in list 2 at their px / 10 + (1, -3), with `FUN_00458dc0`'s
+    conditions. game.exe adds them as a unit's flag 0x10000000 comes up;
+    d2d within its 12-tile reveal reach.
+  - The top right's lines (above), but the game name / password and the
+    game type 6 / 8 line.
+- Not yet: other players' pets' marks, the bank's name, the miniatures.
+  Cel lists draw a pass each (lists 0, 1, 2). The fade applies to every
   cel list; game.exe's to one (`DAT_007a5168`, untraced which). The
   fade's inner distances read the octagon's half (`ECX` there, unverified).
   Center Automap does nothing: d2d's mini map box never moves.
@@ -210,6 +260,6 @@ dropped, otherwise the cel decides.
   `load_automap` / `save_automap` (panels.cpp) run on entering the game,
   on a layer change and on saving. Cells are deduped like
   `FUN_00457b00`, against every cell at (x, y) rather than the tree's
-  search path. d2d makes no unit icons or miniatures; a game.exe file's
-  are kept and written back, the miniatures not drawn. No subdirectory
+  search path. d2d makes no miniatures; a game.exe file's are kept and
+  written back, not drawn. No subdirectory
   try, no cut at a bad cel. test_automap checks the format.

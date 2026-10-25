@@ -12,6 +12,8 @@
 #include <d2s_items.hpp>
 #include <font.hpp>
 #include <item_text.hpp>
+#include <level_ids.hpp>
+#include <object_ids.hpp>
 #include <palette.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -761,6 +763,34 @@ void automap_reveal(const Scene& scene, const Level& level, Automap& automap, fl
         }
 }
 
+// FUN_00458dc0 as a room's units come in: an object with an Objects.txt
+// AutoMap cel adds it once, at its world px / 10 + (1, -3) (FUN_00457e80):
+// the bank (267) only in Acts 3 and 4, the sewer stairs (366) when ON, the
+// waypoint 402 only in the Arcane Sanctuary.
+// ponytail: "comes in" is d2d's reveal reach (12 tiles round the player),
+// game.exe's the unit's flag 0x10000000; monsters' MonStats2 cels aren't
+// added (no 1.14d row has one).
+void automap_icons(const Level& level, Automap& automap, float player_x, float player_y, const std::vector<UnitState>& states) {
+    constexpr float kReach = 12;
+    for (std::size_t i = 0; i < level.npcs.size(); ++i) {
+        const auto& npc = level.npcs[i];
+        if (npc.root != "objects" || npc.automap <= 0) continue;
+        const auto* state = i < states.size() ? &states[i] : nullptr;
+        if (state && state->hidden) continue;
+        const float x = state ? state->x : npc.x, y = state ? state->y : npc.y;
+        const std::string_view mode = state && !state->mode.empty() ? state->mode : std::string_view(npc.mode);
+        if (std::abs(x - player_x) >= kReach || std::abs(y - player_y) >= kReach) continue;
+        namespace ids = d2d::rules::object_ids;
+        const int act = d2d::rules::level_ids::act_of(level.id);
+        if (npc.object_id == ids::kBank && act != 2 && act != 3) continue;
+        if (npc.object_id == ids::kSewerStairs && mode != "ON") continue;
+        if (npc.object_id == ids::kSanctuaryWaypoint && level.id != d2d::rules::level_ids::kArcaneSanctuary) continue;
+        const float act_x = x + float(level.world_x), act_y = y + float(level.world_y);
+        const int pixel_x = int(std::lround((act_x - act_y) * 80)), pixel_y = int(std::lround((act_x + act_y) * 40));
+        automap.add({ npc.automap, pixel_x / 10 + 1, pixel_y / 10 - 3, 2 });
+    }
+}
+
 // The automap (FUN_00459700 / FUN_00459440 / FUN_0045a860): its cels
 // scrolled round the player, full screen or (mini) at half size in a
 // third of the screen's corner, faded by the option, then the marks.
@@ -799,8 +829,9 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         const int distance = (down < across ? down + across * 2 : across + down * 2) / 2;
         return distance >= 0x96 ? 5 : distance < 50 ? 0 : distance < 100 ? 1 : 2;
     };
+    for (int list = 0; list < 3; ++list)                            // a pass a list, as FUN_00459700
     for (const auto& cell : automap.cells) {
-        if (cell.list == 3 || cell.cel < 0 || std::uint32_t(cell.cel) >= cels.frames_per_direction()) continue;   // miniatures: another cel file
+        if (cell.list != list || cell.cel < 0 || std::uint32_t(cell.cel) >= cels.frames_per_direction()) continue;   // list 3, the miniatures: another cel file
         const auto& frame = cels.frame(0, std::uint32_t(cell.cel));
         const int x = cell.x * 10 / divisor - scroll_x, bottom = cell.y * 10 / divisor - scroll_y;
         const int top = bottom - int(frame.height) + 1;
@@ -821,10 +852,9 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     }
     // The marks (FUN_0045a860 -> FUN_0045a7f0): the 13-point shape at
     // 0x6d6638 doubled, at (unit px / div - scroll + 8, py / div - scroll
-    // - 8), in the palette colour nearest FUN_004fb180(b, g, r): you red,
-    // the party green (with Party on), other players blue (FUN_00459bc0).
-    // Party names (with Names and Party on) in font6, centred, 10 above
-    // the mark (FUN_0045a760).
+    // - 8), in the palette colour nearest FUN_004fb180(b, g, r) of each
+    // mark's (Town::automap_frame picks them as FUN_00459bc0 does). Names
+    // in font6, centred, 10 above the mark (FUN_0045a760).
     const auto nearest = [&](int want_r, int want_g, int want_b) {
         std::array<std::uint8_t, 3> found{};
         int best = 1 << 30;
@@ -858,16 +888,22 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         }
         return std::pair{ marker_x, marker_y };
     };
-    const auto green = nearest(0, 0xff, 0), blue = nearest(0, 0, 0xff);
     const auto& name_font = scene.font_tiny.line_height() > 0 ? scene.font_tiny : scene.font;
     for (const auto& other : automap.marks) {
-        if (other.party && !automap.party) continue;
-        const auto [x, y] = mark(other.x, other.y, other.party ? green : blue);
-        if (x < 0 || !other.party || !automap.names || other.name.empty()) continue;
+        const auto [x, y] = mark(other.x, other.y, nearest(other.rgb[0], other.rgb[1], other.rgb[2]));
+        if (x < 0 || other.name.empty()) continue;
         name_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x - name_font.measure(other.name) / 2, y - 10 - name_font.line_height() + 1,
-                              other.name, 0, 255, 0);
+                              other.name, other.name_rgb[0], other.name_rgb[1], other.name_rgb[2]);
     }
     mark(player_x, player_y, nearest(0xff, 0, 0));
+    // The top right's lines (FUN_0045ad60): font16 in gold, right-aligned
+    // 16 in from the edge, baselines from 0x18 every 0x10.
+    int baseline = 0x18;
+    for (const auto& line : automap.lines) {
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, kWidth - scene.font.measure(line) - 0x10, baseline - scene.font.line_height() + 1,
+                               line, 199, 179, 119);
+        baseline += 0x10;
+    }
 }
 
 bool waypoint_act_open(const d2d::d2s::Header& header, int act) {

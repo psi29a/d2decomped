@@ -144,6 +144,7 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     npc.code   = std::string(monstats.get(row, "Code"));
     npc.hc_idx = std::atoi(std::string(monstats.get(row, "hcIdx")).c_str());
     npc.id     = std::string(monstats.get(row, "Id"));
+    npc.interact = monstats.get(row, "interact") == "1";
     npc.base_w = std::string(ms2.get(row2, "BaseW"));
     npc.size_x = std::atoi(std::string(ms2.get(row2, "SizeX")).c_str());
     npc.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
@@ -574,6 +575,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     // Where it blocks walking, by mode (stamp_footprints takes its start mode's).
     npc.object_id = oid;
     npc.name_offset = std::atoi(std::string(objects.get(row, "NameOffset")).c_str());
+    npc.automap = std::atoi(std::string(objects.get(row, "AutoMap")).c_str());
     npc.door = objects.get(row, "IsDoor") == "1"; npc.monster_ok = objects.get(row, "MonsterOK") == "1";
     {                                                     // FUN_006209d0
         const bool blocks_vis = objects.get(row, "BlocksVis") == "1", block_missile = objects.get(row, "BlockMissile") == "1";

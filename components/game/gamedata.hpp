@@ -102,6 +102,8 @@ struct Npc {
     std::uint32_t modes = 0;             // MonStats2 mWL / mS1 / mS2 as bits 2 / 8 / 9 (FUN_0046c140)
     int operate_fn = 0;                  // objects.txt OperateFn (32: the town stash)
     std::optional<int> name_offset;      // objects.txt NameOffset: its hover name's height over its feet (FUN_00454f30)
+    int automap = 0;                     // objects.txt AutoMap (+0x1bc): its automap icon's cel, 0 none (FUN_00458dc0)
+    bool interact = false;               // MonStats interact (flags bit 9): a white automap mark (FUN_00459bc0)
     UnitShape shape;                     // an NPC's collision (MonStats / MonStats2)
     int object_id = 0;                   // an object's objects.txt Id
     bool door = false, monster_ok = false;   // objects.txt IsDoor (+0x13a), MonsterOK (+0x16d): monsters open it (FUN_005b0f50)
