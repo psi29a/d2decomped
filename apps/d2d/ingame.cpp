@@ -290,11 +290,11 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, true);
             }
         };
+        if (char_stats) draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
         // Each panel draws its own hover text: the one under the mouse goes last so
         // the other doesn't cover it (the store on the left, the inventory right).
         if (mouse_x < int(kScreenWidth) / 2) { draw_inventory_panel(); draw_store_panel(); }
         else                                 { draw_store_panel(); draw_inventory_panel(); }
-        if (char_stats) draw_char_panel(framebuffer, scene, *char_stats, panel ? *panel : PanelStats{}, name, class_idx, stat_pressed);
         if (stash) {
             const int expansion_index = stash_expansion ? 1 : 0;
             if (cube_open)

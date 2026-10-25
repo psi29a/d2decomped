@@ -1291,7 +1291,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 else if (gold_box) gold_box.reset();                          // then the gold box
                 else if (net_game && net_game->trade.state != 0) { if (net_game->trade.state == 2) net_game->trade_answer(false); else net_game->trade_cancel(); }
                 else if (waypoint.open) waypoint = {};
-                else if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; } // the store first
+                else if (store.npc >= 0) { send(cmd::CloseTrade{}); inv_open = false; } // the store first
                 else if (speech.npc >= 0) { speech = {}; menu_after_speech = -1; }   // then speech
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (game_menu.open) close_game_menu();
@@ -1756,7 +1756,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 if (hovered && mouse.release_this_frame && i == 2 && repairer) store.mode = store.mode == 3 ? 0 : 3;
                 if (hovered && mouse.release_this_frame && i == 3 && repairer) net.send(cmd::Repair{ -1 });
                 if (hovered && mouse.release_this_frame && i == 3 && store_button_frames(store)[3] == 10) {
-                    net.send(cmd::CloseTrade{});
+                    send(cmd::CloseTrade{});
                     inv_open = false;
                     break;
                 }
@@ -1845,7 +1845,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const auto& state = view.npc_states[std::size_t(npc_open)];
             const float dx = (npc.path.empty() ? npc.x : state.x) - view.player.x, dy = (npc.path.empty() ? npc.y : state.y) - view.player.y;
             if (dx * dx + dy * dy > 2.f * 2.f) {
-                if (store.npc >= 0) { net.send(cmd::CloseTrade{}); inv_open = false; }
+                if (store.npc >= 0) { send(cmd::CloseTrade{}); inv_open = false; }
                 npc_menu = {}; speech = {}; menu_after_speech = -1;
             }
         }
