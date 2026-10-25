@@ -303,3 +303,30 @@ d2d: `panel_stats` (character.hpp) sums the items' 76 / 77 into
 `PanelStats::max_percent` and their flat +life / +mana into `max_flat`;
 `Fight::update_fighters` takes one % of own + flat, split into the
 items' part (`item_max`) and Battle Orders' (`bo_life` / `bo_mana`).
+
+## Inventory and panel chrome (checked live vs a 1.14d host, 2026-10-25)
+
+- **Empty body slots** (`FUN_0048edf0`, art loaded by `FUN_004868b0`, `.\UI\inv.cpp`):
+  `PANEL\inv_armor` (torso), `inv_belt`, `inv_boots`, `inv_helm_glove` (1 head, 0 gloves),
+  `inv_ring_amulet` (0 neck, 1 rings), `inv_weapons` (hands; none beside a weapon held
+  two-handed, `FUN_0063d340` == 2). Each at the slot box's left + dx, bottom + dy from
+  0x7220b0 (torso 2,-2; belt 0,-1; feet -1,-4; head 0,-1; gloves -1,-2; neck / rings 0,-1;
+  hands 0,-2), +4 / -4 for weapon set II.
+- **Grid colours** (`FUN_00483ff0` -> `FUN_004839d0`): every cell of an item filled with
+  draw mode 0 (25 % over what's there): `DAT_007bcad8[kind]` = nearest palette colour of
+  (0x80,0,0) red, (0,0x80,0) green, (0,0,0x80) blue, (0x80,0x80,0), (0x80,0x40,0x40)
+  (`FUN_00483960`: 0x08, 0x76, 0xea, 0x7e, 0x4d). Kind 0 when `FUN_0062eaf0` (requirements)
+  fails, item flag 4, `FUN_004c2240`, or flags 0x100 / 0x4000 (`FUN_0062a4e0`); 4 when
+  unidentified (flag 0x10 clear); 2 otherwise, but 0 for a used quest consumable
+  (items +0x12a, `FUN_00483f80`: ass / xyz / tr2 by their quest's bit); 1 the picked item.
+  Measured: red (42,6,6) / blue (12,6,32) over (8,8,8), i.e. RGB 25 %.
+- **800x600 border** (`FUN_00499450`, mode 2): `PANEL\800BorderFrame` frames 0..4 round a
+  left panel (`FUN_00498630`), 5..9 a right one (`FUN_00498700`), before the panels.
+- **Close buttons**: `PANEL\buysellbtn` 10 (11 held): the inventory's at W - 80 - 0x12e,
+  H - 0x7c; the character panel's at 80 + 0x80, H - 0x78 (bottom-left anchored).
+- **"Entering ..." art** (`FUN_00455510`): on a level change (not the game's first), 2000 ms
+  of `DATA\LOCAL\UI\<lang>\ACT<n>\<Levels.txt EntryFile>` (EXPANSION past level 108), its
+  frames side by side centred at W/2 - 1, bottom H/2 - 0x8c; table 0x70f860 swaps in
+  A1Q1 (Den, quest 1) / A1Q5 (Tower, quest 5) while that quest's open in this game
+  (`FUN_004b92e0`: S->C 0x5e's bytes). `DAT_007befec` (set to 0x3c on a level change in
+  `FUN_00499450`) is never read.
