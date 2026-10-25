@@ -117,10 +117,12 @@ struct Scene : GameData {
     std::vector<std::vector<d2d::d2s::Item>> save_mercs;     // each save's merc's gear (after "jf")
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> item_sprites;
     mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> flippy_sprites;
+    mutable std::unordered_map<std::string, std::optional<d2d::dc6::Sprite>> hireable_icons;
     const d2d::dc6::Sprite* flippy(const std::string& code) const;   // an item code's ground animation
     // An item's inventory graphic: the unique's/set item's own invfile,
     // else the picture variant (ItemTypes InvGfx<n>), else the base's.
     const d2d::dc6::Sprite* item_sprite(const d2d::d2s::Item& item) const;
+    const d2d::dc6::Sprite* hireable_icon(const std::string& name) const;   // ui\Hireables\<name>.dc6: a merc's / pet's portrait
     // The item's colormap (256 entries), or null (FUN_0062c100): inv, the
     // inventory's (InvTrans, invtransform); else the character's and the
     // ground's (Transform, chrtransform).

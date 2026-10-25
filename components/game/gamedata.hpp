@@ -460,6 +460,22 @@ struct GameData {
     // server keeps only the tiles' headers and walk flags.
     bool tile_pixels = false;
     std::vector<std::int64_t> exp_next;          // experience.txt: exp for level+1, by level
+    // PetType.txt rows (Skills.txt pettype names one; "hireable" the merc's):
+    // the automap marks it (FUN_00478d90), its portrait (FUN_00494020: icon
+    // type 1 one, 2 a count, 3 one of several; the icon by MonStats class,
+    // else baseicon, under Hireables\), its name key and life bar.
+    struct PetType {
+        std::string type;                                // its "pet type"
+        bool automap = false, draw_life = false;
+        int icon_type = 0;
+        std::string name, base_icon;
+        std::array<std::pair<int, std::string>, 4> class_icons{};   // mclass1..4 -> micon1..4
+    };
+    std::vector<PetType> pet_types;                     // in the file's order (the portraits')
+    [[nodiscard]] const PetType* pet_type(std::string_view type) const {
+        const auto found = std::ranges::find(pet_types, type, &PetType::type);
+        return found == pet_types.end() ? nullptr : &*found;
+    }
     std::array<std::int64_t, 3> resist_penalty{ 0, -40, -100 };   // DifficultyLevels.txt
     std::array<int, 3> curse_divisor{};          // DifficultyLevels AiCurseDivisor (+0x1c): Confuse / Attract / Dim Vision / Terror's length / it (FUN_005c37a0)
     std::array<int, 3> cold_divisor{};           // DifficultyLevels MonsterColdDivisor (+0x18): a monster's chill length / it

@@ -261,7 +261,12 @@ auto World::view() const -> View {
             }
             view.merc_sheet = sheet;
         }
-        for (const auto& pet : actor->pets) if (pet.where == level) view.pets.push_back({ pet.monster.npc, pet.monster.unit, pet.monster.mode });
+        for (const auto& pet : actor->pets)
+            if (pet.where == level) {
+                const auto* skill = game_data->skills.get(pet.skill);
+                view.pets.push_back({ pet.monster.npc, pet.monster.unit, pet.monster.mode, skill ? std::string_view(skill->pettype) : std::string_view{},
+                                      std::clamp(pet.monster.hit_points * 100 / std::max(pet.monster.stats.hit_points, 1), 0, 100) });
+            }
         // Run on draws RN only while they walk and have stamina (FUN_0057f090), as our own player.
         const auto running = [](const Player& player) { return player.running && player.player.walking && player.character.stats.values[d2d::d2s::kStamina] > 0; };
         for (const auto& player : players)                    // the others in the game, as their client draws them

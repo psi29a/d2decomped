@@ -621,8 +621,11 @@ ids).
 - **0x8c player relation** (11): +1 u32 id, +5 u32 id, +9 u16 flags.
 - **0x8d assign party** (7): +1 u32 id, +5 u16 party (roster +0x22).
 - **Party portraits** (`FUN_00494020`): the other players in our party
-  (`FUN_00493b50`), then the merc (`FUN_00493ce0`) and pets, left to
-  right from x 15, 0x38 apart: the class's `Hireables\<Class>Icon`
+  (`FUN_00493b50`), then the merc (`FUN_00493ce0`) and pets by PetType.txt
+  row (icontype 1 `FUN_00493e10`, 2 `FUN_00493eb0` with the count in Font6
+  at (x + 8, baseline 0x37), 3 `FUN_00493f80`; the icon `hireables\<micon>`
+  of the unit's MonStats class, else baseicon, `FUN_00493240`; the name the
+  PetType name or the merc's), left to right from x 15, 0x38 apart: the class's `Hireables\<Class>Icon`
   (by d2s class; `FUN_00492c20` loads them) with its bottom at y 0x3c, a
   life bar over it (`FUN_00493a00`: x .. x + 0x2e, y 0xe .. 0x13, life %
   of it in (0, 0x80, 0), (0xc0, 0xc0, 0) under 50 %, red under 25 %, the

@@ -104,7 +104,8 @@ struct View {
         std::array<int, 4> res{};
     };
     std::optional<MercSheet> merc_sheet;
-    struct Pet { Npc npc; UnitState unit; std::string_view mode; };
+    // pettype: its skill's Skills.txt pettype (PetType.txt row); life: percent.
+    struct Pet { Npc npc; UnitState unit; std::string_view mode; std::string_view pettype; int life = 100; };
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Monster> monsters;         // the level's
     struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; };

@@ -3443,41 +3443,72 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 }
 }  // namespace
 
-// The party's portraits (FUN_00494020 -> FUN_00493b50): each other player
-// in our party, left to right from x 15, 0x38 apart: the class's
-// Hireables icon with its bottom at y 0x3c, a life bar above it
-// (FUN_00493a00: x .. x + 0x2e, y 0xe .. 0x13, filled life % of the
-// way, green (0, 0x80, 0) / from under 50 % (0xc0, 0xc0, 0) / under 25 %
-// red, the rest black) and the name in Font6, cut to 0x42 px, centred on
-// x + 0x16, its baseline at y 0x48 and 0x52 by turns (FUN_00492fa0).
-// None while a left panel is open (FUN_0045ae90 2 / 3 (?)).
-// ponytail: no merc or pet portraits (FUN_00493ce0, FUN_00493e10..),
-// no hover text, no Show Portraits toggle (DAT_007beecc); the bar's
-// mode 5 blend is drawn solid.
+// The portraits (FUN_00494020): each other player in our party
+// (FUN_00493b50), the merc (FUN_00493ce0), then the pets by PetType.txt row
+// (icon type 1 FUN_00493e10, 2 FUN_00493eb0, 3 FUN_00493f80), left to right
+// from x 15, 0x38 apart: the icon with its bottom at y 0x3c (a player's
+// Hireables\<Class>Icon; a merc's / pet's the PetType micon of its MonStats
+// class, else baseicon, FUN_00493240), a life bar above it (FUN_00493a00:
+// x .. x + 0x2e, y 0xe .. 0x13, filled life % of the way, green (0, 0x80,
+// 0) / from under 50 % (0xc0, 0xc0, 0) / under 25 % red, the rest black;
+// icon type 2 only for one with drawhp), icon type 2's count in Font6 at
+// (x + 8, baseline 0x37), and the name (the player's, the merc's, the
+// PetType name) in Font6, cut to 0x42 px, centred on x + 0x16, its baseline
+// at y 0x48 and 0x52 by turns (FUN_00492fa0). None while a left panel is
+// open (FUN_0045ae90 2 / 3 (?)).
+// ponytail: no hover text or the merc's PopupHireling flash, no Show
+// Portraits toggle (DAT_007beecc); the bar's mode 5 blend is drawn solid;
+// a joined game's merc and pets are only ours as the view has them.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
-    if (left_open || portraits_hidden) return;
-    if (!net_game) return;                            // local co-op's: draw_coop_portraits
-    const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
-    if (self == net_game->units.end() || self->second.party == 0xffff) return;
+    if (left_open || portraits_hidden || coop_hud_hidden()) return;   // local co-op's: draw_coop_portraits
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
     const auto& font = scene->font_tiny.line_height() > 0 ? scene->font_tiny : scene->font;
     int x = 15, name_y = 0x48;
-    for (const auto& [unit_key, unit] : net_game->units) {
-        if (unit.type != 0 || unit.id == net_game->self_id || unit.party != self->second.party || unit.cls < 0 || unit.cls > 6) continue;
-        const auto& icon = scene->class_icons[std::size_t(unit.cls)];
-        if (icon.total_frames() > 0) {
-            const auto& frame = icon.frame(0, 0);
+    const auto portrait = [&](const d2d::dc6::Sprite* icon, int life, std::string name, int count) {
+        if (icon && icon->total_frames() > 0) {
+            const auto& frame = icon->frame(0, 0);
             blit_sprite(framebuffer, frame, pal, x, 0x3c - int(frame.height) + 1);
         }
-        const int life = std::clamp(unit.party_life, 0, 100);
-        fill_bar(framebuffer, x, 0xe, 0x2e, 5, life, life_colour(life));
-        std::string name = unit.name;
+        if (life >= 0) fill_bar(framebuffer, x, 0xe, 0x2e, 5, std::clamp(life, 0, 100), life_colour(std::clamp(life, 0, 100)));
+        if (count > 0) {
+            auto text = std::to_string(count);
+            while (!text.empty() && font.measure(text) > 0x2e) text.pop_back();
+            font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x + 8, 0x37 - font.line_height() + 1, text);
+        }
         while (!name.empty() && font.measure(name) > 0x42) name.pop_back();
         font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, std::max(x + 0x16 - font.measure(name) / 2, 0), name_y - font.line_height() + 1, name);
         name_y = name_y == 0x48 ? 0x52 : 0x48;
         x += 0x38;
         portraits_shown = true;
+    };
+    if (net_game)
+        if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end() && self->second.party != 0xffff)
+            for (const auto& [unit_key, unit] : net_game->units) {
+                if (unit.type != 0 || unit.id == net_game->self_id || unit.party != self->second.party || unit.cls < 0 || unit.cls > 6) continue;
+                portrait(&scene->class_icons[std::size_t(unit.cls)], unit.party_life, unit.name, 0);
+            }
+    const auto& game_data = *world.game_data;
+    const auto icon_of = [&](const GameData::PetType& type, int monster_class) {
+        for (std::size_t i = 0; i < type.class_icons.size(); ++i)
+            if (type.class_icons[i].first == monster_class && !type.class_icons[i].second.empty()) return scene->hireable_icon(type.class_icons[i].second);
+        return scene->hireable_icon(type.base_icon);
+    };
+    const auto gone = [](std::string_view mode) { return mode == "DT" || mode == "DD"; };
+    if (view.merc && !gone(view.merc->mode))
+        if (const auto* type = game_data.pet_type("hireable"))
+            portrait(icon_of(*type, view.merc_sheet ? view.merc_sheet->cls : -1),
+                     view.merc_sheet ? int(std::int64_t(view.merc_sheet->life) * 100 / std::max(view.merc_sheet->max_life, 1)) : -1, merc_label, 0);
+    for (const auto& type : game_data.pet_types) {
+        if (type.icon_type < 1 || type.icon_type > 3) continue;
+        const View::Pet* first = nullptr;
+        int count = 0;
+        for (const auto& pet : view.pets)
+            if (pet.pettype == type.type && !gone(pet.mode)) { if (!first) first = &pet; ++count; }
+        if (!first) continue;
+        auto name = lookup_string(*scene, std::string_view(type.name));
+        portrait(icon_of(type, first->npc.hc_idx), type.icon_type != 2 || (count == 1 && type.draw_life) ? first->life : -1,
+                 name ? u16_to_latin1(*name) : std::string{}, type.icon_type == 2 ? count : 0);
     }
 }
 

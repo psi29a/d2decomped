@@ -778,6 +778,21 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 if (level >= game_data.exp_next.size()) game_data.exp_next.resize(level + 1, -1);
                 game_data.exp_next[level] = std::stoll(std::string(experience_table.get(row, "Amazon")));
             }
+    if (const auto pet_table = txt("PetType"); pet_table.size() > 0)
+        for (std::size_t row = 0; row < pet_table.size(); ++row) {
+            GameData::PetType pet;
+            pet.type = std::string(pet_table.get(row, "pet type"));
+            const auto get = [&](const std::string& column) { return std::string(pet_table.get(row, column)); };
+            pet.automap = get("automap") == "1";
+            pet.draw_life = get("drawhp") == "1";
+            pet.icon_type = std::atoi(get("icontype").c_str());
+            pet.name = get("name");
+            pet.base_icon = get("baseicon");
+            for (std::size_t i = 0; i < pet.class_icons.size(); ++i)
+                pet.class_icons[i] = { get("mclass" + std::to_string(i + 1)).empty() ? -1 : std::atoi(get("mclass" + std::to_string(i + 1)).c_str()),
+                                       get("micon" + std::to_string(i + 1)) };
+            game_data.pet_types.push_back(std::move(pet));
+        }
     if (const auto difficulty_table = txt("DifficultyLevels"); difficulty_table.size() >= 3)
         for (std::size_t row = 0; row < 3; ++row) {
             game_data.resist_penalty[row] = std::stoll(std::string(difficulty_table.get(row, "ResistPenalty")));

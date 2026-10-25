@@ -114,4 +114,14 @@ const d2d::dc6::Sprite* Scene::item_sprite(const d2d::d2s::Item& item) const {
     return found->second ? &*found->second : nullptr;
 }
 
+// FUN_00493240: loaded when first drawn, kept.
+const d2d::dc6::Sprite* Scene::hireable_icon(const std::string& name) const {
+    if (name.empty()) return nullptr;
+    auto [found, fresh] = hireable_icons.try_emplace(name);
+    if (fresh)
+        if (auto bytes = mpqs.try_read(R"(data\global\ui\Hireables\)" + name + ".dc6"))
+            found->second = d2d::dc6::Sprite(*bytes);
+    return found->second ? &*found->second : nullptr;
+}
+
 }  // namespace d2d::client
