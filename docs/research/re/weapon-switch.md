@@ -52,5 +52,11 @@ and frame 1 over the right arm's, each at the box's left − 5 and bottom + 4
 (`0x722100..0x72210c`: −5, 4, −5, 4). The two hands' items draw 4 right
 and 4 up. Set I draws nothing extra (the panel's own art has the I tabs).
 
-ponytail: a click on the I / II tabs isn't traced (W and the pad switch);
-another player's switch (0x9d action 0x17) isn't followed.
+A click on the I / II tabs (`FUN_00486860`, from the inventory's click
+handler, the cursor empty, an expansion game): within the 0x18 px above
+either hand's box (x from its left to its right edge, y from its top
+− 0x18 to its top), `FUN_0048a730` switches as W does. Hovering there
+shows "Swap Weapons" and its key (untraced; d2d shows nothing).
+d2d: `item_cursor_command` (cursor.cpp).
+
+ponytail: another player's switch (0x9d action 0x17) isn't followed.

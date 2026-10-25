@@ -64,6 +64,13 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
                 if (item.location == d2d::d2s::item_location::kEquipped && item.slot == slot) return { true, cmd::ToCursor{ item.id } };
             return { true, {} };
         }
+    // The I / II tabs: 0x18 px over either hand's box, the cursor empty, an
+    // expansion game: the swap (FUN_00486860 -> FUN_0048a730, as W).
+    if (open.inv && open.expansion && !held)
+        for (const int slot : { d2d::d2s::body_location::kRightArm, d2d::d2s::body_location::kLeftArm }) {
+            const auto& rect = inv.slots[std::size_t(slot)];
+            if (rect[2] > 0 && mouse_x >= rect[0] && mouse_x <= rect[0] + rect[2] && mouse_y >= rect[1] - 0x18 && mouse_y < rect[1]) return { true, cmd::SwapWeapons{} };
+        }
     // Belt boxes: row 1 on the HUD strip, the rest with the popup open.
     const auto& belt = scene.belts[std::size_t(belt_index(scene, items))];
     for (int box = 0; box < belt.boxes && box < int(belt.box.size()); ++box) {
