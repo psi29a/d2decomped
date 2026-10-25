@@ -37,4 +37,4 @@ launcher with d2d beside it and every library both need (macOS: one
 The dev tools (`d2proxy`, `mpq-cat`, `drlg-dump`) sit beside d2d
 (macOS: in `D2D.app/Contents/MacOS`).
 
-Each app is its own CMake target under `apps/<name>/CMakeLists.txt`.
+Each app but `whisper` is its own CMake target under `apps/<name>/CMakeLists.txt`.

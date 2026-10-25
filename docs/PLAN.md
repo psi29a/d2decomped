@@ -54,8 +54,8 @@ Status as of 2026-10-25.
 5. **Core loop**: main menu, character select, load act 1 rogue camp,
    render tiles. *Done for Acts 1–5:* frontend, the five towns, NPCs,
    panels, trade, hiring, waypoints across acts, all 39 + 35 + 28 + 6 + 28
-   levels (maps, monsters, objects and drops match game.exe; monsters and
-   objects on all three difficulties), the twenty-seven quests, both
+   levels (maps, monsters, objects and drops match game.exe, but for the uber
+   levels 133–136; monsters and objects on all three difficulties), the twenty-seven quests, both
    endings, saving. Left: the uber levels' monsters and object groups.
 6. **Combat + AI**: actor state machine, packet-equivalent events,
    monster AI from game.exe. *Implemented:* monsters and their fights,

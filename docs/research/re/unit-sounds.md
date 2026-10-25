@@ -161,7 +161,12 @@ guardian, lamesen (0x44–0x47, 0x49). No server call to FUN_00553380 makes
 those ids (all 97 sites read, computed ones included; it's the only writer
 of the unit's event, +0x6e with flag 0x400), and the client's own calls to
 FUN_004cb9c0 are the refusals, the mana check and this table. See
-stubs.md.
+stubs.md. The same holds for two completions, act2_complete_tightspot
+(0x35) and act3_complete_beneath (0x3f), and for act2_begin_tainted
+(0x31), act2_near_tightspot (0x3d) and act2_trigger_field (0x3e):
+no site passes them, constant or computed (checked again 2026-10-25;
+the pass-through helpers FUN_00595420 / FUN_005455f0 / FUN_0055c9a0
+only get 0x25, 0 and 0x13 / 0x17).
 
 ## Footsteps (FUN_004caf60 → FUN_004caeb0)
 

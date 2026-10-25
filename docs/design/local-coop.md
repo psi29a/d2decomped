@@ -1,6 +1,6 @@
 # Local co-op — up to 4 pads, one screen
 
-Status: planned 2026-10-19. Phases 1 to 6 done (PR #57, merged 2026-10-20). Builds on
+Status: done. Phases 1 to 6 done (PR #57, merged 2026-10-20). Builds on
 [net-host.md](net-host.md) stages 1-2 (the N-player World and its rules) and
 [controller-plan.md](controller-plan.md) (one pad today).
 
