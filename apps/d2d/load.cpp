@@ -248,6 +248,31 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
         scene.inv_panel = d2d::dc6::Sprite(*bytes);
     sprite(R"(data\global\ui\PANEL\invchar6Tab.dc6)", scene.inv_tab);
     sprite(R"(data\global\ui\PANEL\800BorderFrame.dc6)", scene.border_frame);
+    {
+        const auto levels = txt("Levels");
+        std::unordered_map<int, int> act_of;                  // Id -> Act (rows aren't Ids: LoD's "Expansion" row)
+        for (std::size_t row = 0; row < levels.size(); ++row)
+            act_of[std::atoi(std::string(levels.get(row, "Id")).c_str())] = std::atoi(std::string(levels.get(row, "Act")).c_str());
+        auto entry = [&](int level, const std::string& file) {
+            if (file.empty() || file == "0") return std::string();
+            const std::string act = level >= 0x6d ? "EXPANSION" : "ACT" + std::to_string(act_of[level] + 1);
+            std::string path = R"(data\local\UI\ENG\)" + act + "\\" + file + ".dc6";
+            if (scene.entry_art.contains(path)) return path;
+            auto bytes = mpqs.try_read(path);
+            if (!bytes) return std::string();
+            scene.entry_art.emplace(path, d2d::dc6::Sprite(*bytes));
+            return path;
+        };
+        for (std::size_t row = 0; row < levels.size(); ++row) {
+            const std::string id(levels.get(row, "Id"));
+            if (id.empty()) continue;
+            const int level = std::atoi(id.c_str());
+            if (auto path = entry(level, std::string(levels.get(row, "EntryFile"))); !path.empty()) scene.level_entry[level] = path;
+        }
+        // 0x70f860: {level, quest, file}: the art while that quest's open in this game (FUN_004b92e0).
+        for (const auto& [level, file] : { std::pair{ 8, "A1Q1" }, std::pair{ 20, "A1Q5" } })
+            if (auto path = entry(level, file); !path.empty()) scene.level_entry_quest[level] = path;
+    }
     sprite(R"(data\global\ui\PANEL\inv_belt.dc6)", scene.inv_belt);
     sprite(R"(data\global\ui\PANEL\inv_boots.dc6)", scene.inv_boots);
     sprite(R"(data\global\ui\PANEL\inv_ring_amulet.dc6)", scene.inv_ring_amulet);

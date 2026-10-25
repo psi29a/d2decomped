@@ -2999,6 +2999,27 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
                 draw_raise_aura(framebuffer, int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))), kViewY + int(std::lround((dx + dy) * (kIsoH / 2))), body.raised, frame_ms);
             }
+        // A level's "entering" art for 2 s after a change, none for the game's
+        // first (FUN_00455510): its frames side by side, centred at W/2 - 1,
+        // bottom at H/2 - 140; the Den's / the Tower's quest art while that
+        // quest's open in this game (FUN_004b92e0: neither done nor closed).
+        if (level->id != entry_level) { entry_until = entry_level != 0 ? frame_ms + 2000 : 0; entry_level = level->id; }
+        if (frame_ms < entry_until) {
+            static constexpr std::array<std::pair<int, int>, 2> kQuestArt{ { { 8, 1 }, { 20, 5 } } };   // level, quest
+            std::string path = scene->level_entry.contains(level->id) ? scene->level_entry.at(level->id) : std::string();
+            for (const auto& [quest_level, quest] : kQuestArt)
+                if (level->id == quest_level && scene->level_entry_quest.contains(quest_level)
+                    && !(view.game_quests[std::size_t(quest)] >> 13 & 1) && !(view.game_quests[std::size_t(quest)] >> 15 & 1))
+                    path = scene->level_entry_quest.at(quest_level);
+            if (const auto art = scene->entry_art.find(path); art != scene->entry_art.end()) {
+                const auto frames = art->second.frames_per_direction();
+                int width = 0;
+                for (std::uint32_t frame = 0; frame < frames; ++frame) width += int(art->second.frame(0, frame).width);
+                const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                    blit_at_anchor(framebuffer, art->second.frame(0, frame), pal, fb_width(framebuffer) / 2 - 1 - width / 2 + int(frame) * 0x100, int(kScreenHeight) / 2 - 0x8c);
+            }
+        }
         view_overlays(framebuffer, *scene, view, hovered_monster());
         if (!coop_hud_hidden() || skillbar.picking) skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
