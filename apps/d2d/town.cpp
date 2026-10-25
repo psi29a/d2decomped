@@ -1335,6 +1335,16 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         if (inv_open) tree_open = false;       // the stash / a store opened the inventory
         const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+        // The inventory's and the character panel's close buttons (buysellbtn
+        // 10, 11 held): pressed, then let go over it, shuts the panel
+        // (FUN_0048edf0 at W - 80 - 0x12e, H - 0x7c; FUN_004a7d00 at 80 + 0x80, H - 0x78).
+        auto close_button = [&](bool& down, bool& open, int left, int bottom) {
+            const bool over = mouse.x >= left && mouse.x < left + 0x20 && mouse.y > bottom - 0x20 && mouse.y <= bottom;
+            if (mouse.press_this_frame && over) { down = true; mouse.press_this_frame = false; }
+            if (mouse.release_this_frame && down) { down = false; if (over) open = false; mouse.release_this_frame = false; }
+        };
+        if (inv_open && !held) close_button(inv_close_down, inv_open, lay.panel_x + 0x12, lay.panel_y + 416);
+        if (char_open && !held) close_button(char_close_down, char_open, kCharPanelX + 0x80, kCharPanelY + 420);
         const bool over_panel =
             (tree_open && mouse.x >= 400 && mouse.x < 720 && mouse.y >= 60 && mouse.y < 540) ||
             (inv_open && mouse.x >= lay.panel_x && mouse.x < lay.panel_x + 320
@@ -2999,6 +3009,12 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
                 draw_raise_aura(framebuffer, int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2))), kViewY + int(std::lround((dx + dy) * (kIsoH / 2))), body.raised, frame_ms);
             }
+        if (scene->store_buttons.frames_per_direction() > 11) {     // the close buttons, over their panels
+            const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+            const auto& lay = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+            if (inv_open) blit_at_anchor(framebuffer, scene->store_buttons.frame(0, inv_close_down ? 11 : 10), pal, lay.panel_x + 0x12, lay.panel_y + 416);
+            if (char_open) blit_at_anchor(framebuffer, scene->store_buttons.frame(0, char_close_down ? 11 : 10), pal, kCharPanelX + 0x80, kCharPanelY + 420);
+        }
         // A level's "entering" art for 2 s after a change, none for the game's
         // first (FUN_00455510): its frames side by side, centred at W/2 - 1,
         // bottom at H/2 - 140; the Den's / the Tower's quest art while that
