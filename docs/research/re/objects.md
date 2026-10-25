@@ -326,7 +326,10 @@ burst, and "everyone" means everyone within 30 cells.
   transparent with draw effect 3 (additive), TR opaque. OperateRange 2.
 - **Going through** (OperateFn 15, `FUN_00584870`): out by the linked portal.
   Refused within 5 s of the player's hostility time (player data +0x160; not
-  in single player) and to other parties' portals.
+  in single player) and to other parties' portals. Arriving at the portal
+  in its owner's player data +0x48 (`FUN_005353f0`: where they cast it),
+  the owner's trip back closes the pair (both units removed); anyone
+  else's keeps it, as does a red portal (0x3c).
 
 d2d: `World::read_portal` / `open_portal_at` / `use_portal` (server.hpp),
 the View's `portals`, drawn and lit as object 59 (town.hpp `view_units`,

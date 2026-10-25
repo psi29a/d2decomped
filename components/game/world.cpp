@@ -1997,8 +1997,13 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
             arrive(twin.level, twin.x, twin.y + 0.6f, "a quest portal");
             return;
         }
-        const auto& other_end = portal[std::size_t(actor->take_portal ^ 1)];
+        const std::size_t arrival = std::size_t(actor->take_portal ^ 1);
+        const auto other_end = portal[arrival];
         actor->take_portal = -1;
+        // Back at the end its owner cast it from (player data +0x48,
+        // FUN_005353f0): the pair closes (FUN_00584870). Anyone else's trip
+        // keeps it.
+        if (arrival == actor->portal_pair) portal[arrival] = portal[arrival + 1] = {};
         arrive(other_end.level, other_end.x, other_end.y + 0.6f, "a town portal");
     }
 
