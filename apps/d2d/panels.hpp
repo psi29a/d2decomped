@@ -111,7 +111,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // smoothing of the shown values (FUN_00496dd0), no stamina potion's blue
 // (state 0x18 / 0x88), no Show HP / MP Text toggles (a globe click,
 // DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
-struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false; };   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead)
+struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false; };   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame)
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
 // The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by

@@ -259,6 +259,16 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         std::optional<d2d::rules::Wearer> wearer_value;
         if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) wearer_value = d2d::game::wearer(scene, kUiToSaveClass[class_idx], *inventory, *hud_stats);
         const d2d::rules::Wearer* hover_wearer = wearer_value ? &*wearer_value : nullptr;
+        // The 800x600 border round an open side panel, under the panels
+        // (FUN_00499450: FUN_00498630 left, FUN_00498700 right; bottom-left
+        // anchored at these spots).
+        if (fb_width(framebuffer) == int(kScreenWidth) && scene.border_frame.frames_per_direction() >= 10) {
+            static constexpr std::array<std::array<int, 2>, 10> kSpots{ { { 0, 0xfd }, { 0x100, 0x3f }, { 0, 0x1e4 }, { 0, 0x229 }, { 0x100, 0x229 },
+                                                                          { 400, 0x3f }, { 0x220, 0xfd }, { 0x2c9, 0x1e4 }, { 0x220, 0x229 }, { 400, 0x229 } } };
+            for (std::size_t frame = 0; frame < kSpots.size(); ++frame)
+                if (frame < 5 ? hud.left_open : hud.right_open)
+                    blit_at_anchor(framebuffer, scene.border_frame.frame(0, std::uint32_t(frame)), scene.act_pal.entries().empty() ? scene.pal : scene.act_pal, kSpots[frame][0], kSpots[frame][1]);
+        }
         if (inventory && class_idx >= 0 && class_idx < 7)
         {
             // With a store open, your items show what the vendor pays ("Sell value: ", 0xd03).

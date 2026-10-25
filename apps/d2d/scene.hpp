@@ -153,6 +153,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite transmute_button;                 // PANEL\miniconvert.dc6: the Cube's Transmute, 0 up / 1 held
     d2d::dc6::Sprite inv_panel;                       // PANEL\invchar6.dc6
     d2d::dc6::Sprite inv_tab;                         // PANEL\invchar6Tab.dc6: weapon switch set II's tabs
+    d2d::dc6::Sprite border_frame;                    // PANEL\800BorderFrame.dc6: frames 0..4 round a left panel, 5..9 a right one
     // The rest of the empty body slots' outlines (FUN_004868b0; armour, helm / gloves, weapons with the Hireling's below).
     d2d::dc6::Sprite inv_belt, inv_boots, inv_ring_amulet;
     // Char panel stat buttons (docs/research/re/char-panel.md): PANEL\level

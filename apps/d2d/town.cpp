@@ -2992,7 +2992,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
-                      Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden() }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost);
+                      Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
+                          char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
