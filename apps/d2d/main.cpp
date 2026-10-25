@@ -618,6 +618,13 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     // LoD init (FUN_0043ae30) starts the selection at 0: first character
     // preselected, OK live straight away.
     if (scene && !scene->saves.empty()) csu.selected = 0;
+    // --start-name picks that save (scripts join as the right character; the list is last-played first).
+    if (scene && !g_start_name.empty())
+        for (std::size_t index = 0; index < scene->saves.size(); ++index)
+            if (scene->saves[index].name == g_start_name) {
+                csu.selected = int(index);
+                csu.scroll = std::max(0, int(index) / 2 * 2 - (kSlots - 2));
+            }
     if (scene) {
         auto tbl_label = [&](std::uint16_t id, const char* fallback) {
             if (auto found = lookup_string(*scene, id)) return u16_to_latin1(*found);
@@ -1630,7 +1637,7 @@ int main(int argc, char** argv) {
                    "Preselect a class index (0..6)")
         ->check(CLI::Range(0, 6));
     app.add_option("--start-name", start_name,
-                   "Preload character name");
+                   "Preload character name; on charselect, pick that save");
     app.add_flag  ("--start-hardcore", start_hardcore,
                    "Preload the Hardcore checkbox");
     app.add_flag  ("--start-classic", start_classic,

@@ -3,7 +3,9 @@
 
 `screenshot PATH` saves the game's window as a BMP; `follow` runs the merc
 brain (below) until Ctrl-C; `party invite|cancel|accept|leave ID` sends
-C->S 0x5e; anything else prints the reply.
+C->S 0x5e; `quests` lists the host player's quests (this difficulty), done
+or open: check it before taking anyone on a quest; anything else prints
+the reply.
 """
 import math
 import socket
@@ -49,6 +51,33 @@ class Whisper:
             if text.startswith(("ok", "err")):
                 break
         return lines
+
+
+# Quest words (d2s order; bit 0: done) by name, rules/quests*.hpp's kQuest.
+QUESTS = {
+    1: "Den of Evil", 2: "Sisters' Burial Grounds", 3: "Tools of the Trade", 4: "The Search for Cain",
+    5: "The Forgotten Tower", 6: "Sisters to the Slaughter", 9: "Radament's Lair", 10: "The Horadric Staff",
+    11: "Tainted Sun", 12: "Arcane Sanctuary", 13: "The Summoner", 14: "The Seven Tombs",
+    0x11: "Lam Esen's Tome", 0x12: "Khalim's Will", 0x13: "Blade of the Old Religion", 0x14: "The Golden Bird",
+    0x15: "The Blackened Temple", 0x16: "The Guardian", 0x19: "The Fallen Angel", 0x1a: "Terror's End",
+    0x1b: "Hell's Forge", 0x23: "Siege on Harrogath", 0x24: "Rescue on Mount Arreat", 0x25: "Prison of Ice",
+    0x26: "Betrayal of Harrogath", 0x27: "Rite of Passage", 0x28: "Eve of Destruction",
+}
+
+
+def peek(whisper: Whisper, address: int, count: int) -> list[int]:
+    return [int(line.split()[1], 16) for line in whisper.ask(f"peek {address:x} {count}")[:-1]]
+
+
+def quests(whisper: Whisper) -> list[str]:
+    """The host player's 48 quest words: the client's quest state (S->C 0x28 type 6) is a pointer at
+    0x7c0d43 to a record whose +0 points at the 96 bytes (net-packets.md 0x28)."""
+    head = peek(whisper, 0x7c0d40, 2)
+    record = (head[0] >> 24) | (head[1] & 0xffffff) << 8
+    words_at = peek(whisper, record, 1)[0]
+    raw = b"".join(word.to_bytes(4, "little") for word in peek(whisper, words_at, 24))
+    words = [int.from_bytes(raw[2 * k:2 * k + 2], "little") for k in range(48)]
+    return [f"{'done' if words[k] & 1 else 'OPEN'}  {words[k]:04x}  {name}" for k, name in QUESTS.items()]
 
 
 PARTY = {"invite": 6, "cancel": 7, "accept": 8, "leave": 9}   # C->S 0x5e (FUN_00478780)
@@ -150,6 +179,9 @@ def main() -> None:
             follow(whisper)
         except KeyboardInterrupt:
             return
+    if verb == "quests":
+        print("\n".join(quests(whisper)))
+        return
     if verb == "party":   # party invite|cancel|accept|leave PLAYER_ID
         print("\n".join(party(whisper, args[0], int(args[1]))))
         return
