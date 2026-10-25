@@ -1185,17 +1185,27 @@ auto World::swap_npcs(const Level* from) -> void {
                 npc_states[i].hidden = level->npcs[i].hc_idx == d2d::rules::monster_ids::kCain && level->id == d2d::rules::CainQuest::kTristram
                                            ? !(cain_walk.npc == int(i) && cain_walk.stage >= 0)   // Tristram's Cain: only while he walks out
                                            : !cain.camp_cain;                                     // the camp's: once he's come (FUN_00592960)
-        // The stones come up (FUN_005935e0): the portal again, the stones lit.
-        if (level->id == d2d::rules::CainQuest::kStony && cain.stones_init())
-            for (std::size_t i = 0; i < level->npcs.size(); ++i) {
-                const auto& stone = level->npcs[i];
-                if (stone.operate_fn != d2d::rules::operate_fn::kCairnStone) continue;
-                operated.try_emplace({ level, int(i) }, 0u);
-                if (stone.object_id == d2d::rules::object_ids::kStoneAlpha && !portal[2].level) {
-                    const auto [spot_x, spot_y] = level->nearest_free(stone.x + 4, stone.y + 4);
-                    portal[2] = { level, spot_x, spot_y, now };
-                }
+        stones_pending = level->id == d2d::rules::CainQuest::kStony;
+        stones_up();
+    }
+
+// The stones as their room comes up (InitFn 6, FUN_005935e0, as each is
+// made): the portal again, the stones lit. A level's objects come with
+// their rooms, so it waits for StoneAlpha.
+auto World::stones_up() -> void {
+        if (!stones_pending || level->id != d2d::rules::CainQuest::kStony) return;
+        if (std::ranges::find(level->npcs, d2d::rules::object_ids::kStoneAlpha, &Npc::object_id) == level->npcs.end()) return;
+        stones_pending = false;
+        if (!cain.stones_init()) return;
+        for (std::size_t i = 0; i < level->npcs.size(); ++i) {
+            const auto& stone = level->npcs[i];
+            if (stone.operate_fn != d2d::rules::operate_fn::kCairnStone) continue;
+            operated.try_emplace({ level, int(i) }, 0u);
+            if (stone.object_id == d2d::rules::object_ids::kStoneAlpha && !portal[2].level) {
+                const auto [spot_x, spot_y] = level->nearest_free(stone.x + 4, stone.y + 4);
+                portal[2] = { level, spot_x, spot_y, now };
             }
+        }
     }
 
 // Lut Gholein's palace NPCs as the quests stand (rules::palace_spots).
@@ -2921,6 +2931,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         for (const auto& player : players) fight.rooms_up(*level, player->player.x, player->player.y, false);
         reopen_doors();
         grow_states(npc_states, *level);
+        stones_up();
         each_player([&](Player&) { if (!fight.dead()) fight.apply_regen(now_ms, last_ms); });
         raise_step(elapsed, now_ms);
         if (in_town(level))                                      // the party in a town: its ghosts are up again

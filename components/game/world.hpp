@@ -642,6 +642,8 @@ struct World {
     // The player came to `level` from `from`: `from`'s NPC states are kept,
     // `level`'s taken back (made at their start the first time).
     void swap_npcs(const Level* from);
+    void stones_up();                      // the Cairn Stones as their room comes up (InitFn 6)
+    bool stones_pending = false;           // on Stony Field, the stones not up yet
 
     // Leaving the level: past its edge, collision and drawing already
     // use the level next to it in the act (Level::nearby), so the player

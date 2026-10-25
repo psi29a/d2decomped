@@ -369,6 +369,12 @@ no record: mode 2
 
 FUN_00592d50: `FUN_0056d130(room, x+4, y+4, 0x26, 0, 0x3c, 1)`, then +0x45 = 1 and +0x44 = 0.
 
+d2d: `World::stones_up` (`CainQuest::stones_init`). InitFn 6 runs as each
+stone is made, so with its room: d2d waits for StoneAlpha among the
+level's objects, which come with their rooms. Running it on arrival used
+up the rejoin before the stones existed, and a save with the stones lit
+(bit 4) had no portal back to Tristram.
+
 ### Gibbet: OperateFn 10, FUN_00593480
 
 1. Proceeds when there is no record, or when +9 is set, !+0x50 and state < 6.
