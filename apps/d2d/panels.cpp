@@ -407,8 +407,9 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         if (const auto placeholder = special.find("%s"); placeholder != std::string::npos) special.replace(placeholder, 2, "R");
         hovers.push_back({ { width / 2 - 0x91, height - 0x17 }, { str(0x1053) + special, kWhite } });
     }
-    // Stamina: 102 px when full, in the palette entry nearest its colour
-    // (FUN_004fb180), at three quarters (draw mode 2).
+    // Stamina (FUN_004975b0): 102 px when full, in the palette entry nearest
+    // its colour (FUN_004fb180), at three quarters (draw mode 2); over its
+    // most or with a stambarblue state (flag 0x18) all of it, blue.
     auto nearest = [&](int red, int green, int blue) {
         int best = 1 << 30;
         std::array<std::uint8_t, 3> out{};
@@ -421,7 +422,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     };
     std::int64_t stamina = stats.values[kStamina], stamina_max = stats.values[kMaxStamina];
     auto rgb = nearest(0xf4, 0xc0, 0x4c);
-    if (stamina_max + 5 < stamina) { stamina_max = stamina; rgb = nearest(0, 0, 0xff); }
+    if (stamina_max + 5 < stamina || hud.stamina_blue) { stamina_max = stamina; rgb = nearest(0, 0, 0xff); }
     const int bar = stamina_max < 1 ? 0 : int(stamina * 0x66 / stamina_max);
     if (stamina_max < 1 || bar < 0x19) rgb = nearest(0xff, 0, 0);
     for (int y = height - 0x1b; y < height - 0x1b + 0x12; ++y)
@@ -435,6 +436,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         const auto top = stats.values[kMaxStamina] >> 8;
         const bool more = shown > top;
         if (more) shown = top;
+        // ponytail: game.exe's text is blue with shrine_stamina (state 0x88) on too.
         hovers.push_back({ { width / 2 - 0x4c, height - 0x34 }, { game::d2_format(str(0x1044), { shown, top }), more ? kBlue : kWhite } });
     }
     for (const auto& [anchor, line] : hovers) draw_hover_text(framebuffer, scene, { line }, anchor[0], anchor[0], anchor[1], anchor[1]);

@@ -237,6 +237,7 @@ auto World::view() const -> View {
         view.dead = fight.dead();
         view.poisoned = std::ranges::any_of(actor->regen, [](const Fight::Regen& regen_entry) { return regen_entry.poison; });
         view.chilled = fight.chill_rate(now) != 0;
+        view.stamina_blue = now < actor->stamina_pot.until || (now < actor->boost.until && shrine_code(actor->boost.shrine) == 14);   // 14: the stamina shrine
         view.curse = now < actor->curses[0].until ? actor->curses[0].skill : -1;
         view.stunned = now < actor->stunned;
         view.pmode = actor->pmode;

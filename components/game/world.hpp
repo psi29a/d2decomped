@@ -85,6 +85,7 @@ struct View {
     bool running = false, dead = false;
     bool poisoned = false;                 // a monster's poison on the player (the life globe's green, state 2)
     bool chilled = false;                  // a monster's cold on the player (state 11, its blue)
+    bool stamina_blue = false;             // a stambarblue state on the player (staminapot, shrine_stamina): the stamina bar full and blue (FUN_004975b0)
     int curse = -1;                        // a monster's curse on the player (Fight::curses): its skill, -1 none
     bool stunned = false;                  // a monster's Smite on the player (state 21)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
