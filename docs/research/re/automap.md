@@ -69,14 +69,17 @@ The mark is a 13-point polyline at `0x6d6638`:
 It is drawn doubled, as lines at `(px/div - scroll_x + 8, py/div -
 scroll_y - 8)`.
 
-Colours come from `FUN_004fb180(a, b, c)`, a nearest-palette search
-against BGR palette bytes, so the arguments are (B, G, R):
+Colours come from `FUN_004fb180(r, g, b)`, a nearest-palette search
+(the same call makes the stamina bar's (f4, c0, 4c) gold and the
+portraits' (0, 80, 0) green). A playtest's 1.14d screenshots show your
+own mark blue and the merc's teal, so the arguments are (R, G, B); an
+earlier reading as (B, G, R) drew you red.
 
 | who | global | colour |
 |---|---|---|
-| you | `0x7a51b0` | red |
+| you | `0x7a51b0` | blue |
 | party | `0x7a51b3` | green |
-| other players | `0x7a51b1` | blue |
+| other players | `0x7a51b1` | red |
 
 `FUN_00459bc0` picks the colour and decides whether the unit shows.
 Your own mark sits next to the campfire and stash miniatures in the
@@ -88,19 +91,19 @@ town map, which confirms the (40, 15) scroll offsets.
 (`FUN_00619790`), then (Party on) the party's members wherever they are
 (`FUN_0045ab60`). `FUN_00459bc0` decides whether a unit shows and in
 which colour; the colours are made once (`0x7a51b0..b9`, by
-`FUN_004fb180(B, G, R)`):
+`FUN_004fb180(R, G, B)`):
 
 | unit | when | colour (R, G, B) |
 |---|---|---|
-| player, you | | red (ff, 0, 0) `0x7a51b0` |
+| player, you | | blue (0, 0, ff) `0x7a51b0` |
 | player, your party | Party on | green (0, ff, 0) `0x7a51b3` |
-| player, anyone else | | blue (0, 0, ff) `0x7a51b1` |
+| player, anyone else | | red (ff, 0, 0) `0x7a51b1` |
 | player in mode 0x11 (a corpse) | its inventory's owner (`FUN_0063d450(+0x60)`) is itself | magenta (ff, 0, ff) `0x7a51b2` |
-| monster, a pet (`FUN_00478d90`: the client's pet list `0x7bb5bc`, PetType automap) | ours | olive (74, 70, 44) `0x7a51b4` |
-| monster, a party member's pet | Party on | green (34, a0, 48) `0x7a51b5` |
+| monster, a pet (`FUN_00478d90`: the client's pet list `0x7bb5bc`, PetType automap) | ours | teal (44, 70, 74) `0x7a51b4` |
+| monster, a party member's pet | Party on | green (48, a0, 34) `0x7a51b5` |
 | monster with MonStats flag 9 (interact) | not 0x219..0x21b (the Ancient statues) | white (f4, f4, f4) `0x7a51b6` |
-| object 0x3b (town portal) | | cyan (0, f4, f4) `0x7a51b8` |
-| object 0x3c (red portal) | not on levels 0x6f, 0x70, 0x75, 0x7d..0x7f | cyan |
+| object 0x3b (town portal) | | yellow (f4, f4, 0) `0x7a51b8` |
+| object 0x3c (red portal) | not on levels 0x6f, 0x70, 0x75, 0x7d..0x7f | yellow |
 | object 0x10b (the bank) | Names on | its name, no mark |
 
 A dead monster (mode 0xc) or one with flag 0x200000 (+0xc4) gets none.

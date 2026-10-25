@@ -1011,9 +1011,10 @@ auto Town::automap_frame() -> void {
         const float world_x = level ? float(level->world_x) : 0.f, world_y = level ? float(level->world_y) : 0.f;
         // The units of the player's room and its near list (FUN_0045ac90),
         // coloured as FUN_00459bc0 picks: a dead player with their things
-        // magenta, our merc and pets olive, interacting NPCs white (but the
+        // magenta, our merc and pets teal, interacting NPCs white (but the
         // Ancient statues) with their names in gold (Names on), town and
-        // red portals cyan; then the party anywhere (FUN_0045ab60).
+        // red portals yellow; then the party anywhere (FUN_0045ab60), green,
+        // the others red.
         // ponytail: other players' pets aren't marked (game.exe: green, Party on).
         const auto rooms = level && view.level == level ? missile_rooms(*world.game_data, *level, view.player.x, view.player.y) : std::vector<std::array<int, 4>>{};
         const auto close_by = [&](float x, float y) {
@@ -1023,13 +1024,13 @@ auto Town::automap_frame() -> void {
         const auto add = [&](float x, float y, std::array<int, 3> rgb, std::string name = {}, std::array<std::uint8_t, 3> name_rgb = {}) {
             automap.marks.push_back({ x + world_x, y + world_y, rgb, std::move(name), name_rgb });
         };
-        constexpr std::array<int, 3> kMagenta{ 0xff, 0, 0xff }, kOlive{ 0x74, 0x70, 0x44 }, kWhite{ 0xf4, 0xf4, 0xf4 }, kCyan{ 0, 0xf4, 0xf4 };
+        constexpr std::array<int, 3> kMagenta{ 0xff, 0, 0xff }, kTeal{ 0x44, 0x70, 0x74 }, kWhite{ 0xf4, 0xf4, 0xf4 }, kYellow{ 0xf4, 0xf4, 0 };
         constexpr std::array<std::uint8_t, 3> kGold{ 199, 179, 119 }, kGreen{ 0, 255, 0 };
         for (const auto& corpse : view.corpses) if (close_by(corpse.x, corpse.y)) add(corpse.x, corpse.y, kMagenta);
-        if (view.merc && view.merc->mode != "DT" && view.merc->mode != "DD" && close_by(view.merc->unit.x, view.merc->unit.y)) add(view.merc->unit.x, view.merc->unit.y, kOlive);
+        if (view.merc && view.merc->mode != "DT" && view.merc->mode != "DD" && close_by(view.merc->unit.x, view.merc->unit.y)) add(view.merc->unit.x, view.merc->unit.y, kTeal);
         for (const auto& pet : view.pets) {
             const auto* type = world.game_data->pet_type(pet.pettype);
-            if (type && type->automap && pet.mode != "DT" && pet.mode != "DD" && close_by(pet.unit.x, pet.unit.y)) add(pet.unit.x, pet.unit.y, kOlive);
+            if (type && type->automap && pet.mode != "DT" && pet.mode != "DD" && close_by(pet.unit.x, pet.unit.y)) add(pet.unit.x, pet.unit.y, kTeal);
         }
         const auto npc_mark = [&](const Npc& npc, float x, float y) {
             if (!npc.interact || npc.id.starts_with("ancientstatue") || !close_by(x, y)) return;
@@ -1043,19 +1044,19 @@ auto Town::automap_frame() -> void {
                 const float x = state ? state->x : npc.x, y = state ? state->y : npc.y;
                 if (npc.root == "monsters") npc_mark(npc, x, y);
                 else if (npc.object_id == d2d::rules::object_ids::kPermanentPortal && close_by(x, y)
-                         && !std::ranges::contains(std::array{ 0x6f, 0x70, 0x75, 0x7d, 0x7e, 0x7f }, level->id)) add(x, y, kCyan);
+                         && !std::ranges::contains(std::array{ 0x6f, 0x70, 0x75, 0x7d, 0x7e, 0x7f }, level->id)) add(x, y, kYellow);
             }
         for (const auto& monster : view.monsters) if (monster.alive()) npc_mark(monster.npc, monster.unit.x, monster.unit.y);
         for (const auto& portal : view.portals)
             if (close_by(portal.x, portal.y) && (portal.which < int(d2d::game::World::kGamePortals) || !std::ranges::contains(std::array{ 0x6f, 0x70, 0x75, 0x7d, 0x7e, 0x7f }, level->id)))
-                add(portal.x, portal.y, kCyan);
+                add(portal.x, portal.y, kYellow);
         for (const auto& other : view.others) {
             bool same_party = !net_game;                                 // local co-op: one party
             if (net_game)
                 if (const auto unit = net_game->units.find(std::uint64_t(other.id)); unit != net_game->units.end())
                     same_party = own_party != 0xffff && unit->second.party == own_party;
             if (same_party ? automap.party : close_by(other.unit.x, other.unit.y))
-                add(other.unit.x, other.unit.y, same_party ? std::array<int, 3>{ 0, 0xff, 0 } : std::array<int, 3>{ 0, 0, 0xff },
+                add(other.unit.x, other.unit.y, same_party ? std::array<int, 3>{ 0, 0xff, 0 } : std::array<int, 3>{ 0xff, 0, 0 },
                     same_party && automap.names ? other.name : std::string{}, kGreen);
         }
         // The top right (FUN_0045ad60): the level's name, the version, the
@@ -3255,7 +3256,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         }
         // A level's "entering" art for 2 s after a change, none for the game's
         // first (FUN_00455510): its frames side by side, centred at W/2 - 1,
-        // bottom at H/2 - 140; the Den's / the Tower's quest art while that
+        // bottom at H/2 - 140, in text colour 1, red (FUN_00502680's shift); the Den's / the Tower's quest art while that
         // quest's open in this game (FUN_004b92e0: neither done nor closed).
         if (level->id != entry_level) { entry_until = entry_level != 0 ? frame_ms + 2000 : 0; entry_level = level->id; }
         if (frame_ms < entry_until) {
@@ -3269,7 +3270,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 const auto frames = art->second.frames_per_direction();
                 int width = 0;
                 for (std::uint32_t frame = 0; frame < frames; ++frame) width += int(art->second.frame(0, frame).width);
-                const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+                const auto& pal = !scene->act_text_red.entries().empty() ? scene->act_text_red : scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
                 for (std::uint32_t frame = 0; frame < frames; ++frame)
                     blit_at_anchor(framebuffer, art->second.frame(0, frame), pal, fb_width(framebuffer) / 2 - 1 - width / 2 + int(frame) * 0x100, int(kScreenHeight) / 2 - 0x8c);
             }

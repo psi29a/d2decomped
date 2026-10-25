@@ -854,7 +854,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     }
     // The marks (FUN_0045a860 -> FUN_0045a7f0): the 13-point shape at
     // 0x6d6638 doubled, at (unit px / div - scroll + 8, py / div - scroll
-    // - 8), in the palette colour nearest FUN_004fb180(b, g, r) of each
+    // - 8), in the palette colour nearest FUN_004fb180(r, g, b) of each
     // mark's (Town::automap_frame picks them as FUN_00459bc0 does). Names
     // in font6, centred, 10 above the mark (FUN_0045a760).
     const auto nearest = [&](int want_r, int want_g, int want_b) {
@@ -897,7 +897,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         name_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x - name_font.measure(other.name) / 2, y - 10 - name_font.line_height() + 1,
                               other.name, other.name_rgb[0], other.name_rgb[1], other.name_rgb[2]);
     }
-    mark(player_x, player_y, nearest(0xff, 0, 0));
+    mark(player_x, player_y, nearest(0, 0, 0xff));                  // you: blue
     // The top right's lines (FUN_0045ad60): font16 in gold, right-aligned
     // 16 in from the edge, baselines from 0x18 every 0x10.
     int baseline = 0x18;

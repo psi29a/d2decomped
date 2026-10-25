@@ -185,6 +185,7 @@ struct Scene : GameData {
     // it as the player changes act.
     d2d::palette::Palette                    act_pal;
     std::array<d2d::palette::Palette, 32>    act_lit;   // act_pal at each light level (PL2 +0x400)
+    d2d::palette::Palette act_text_red;              // act_pal through PL2's text colour 1 shift (the last 13 x 256: FUN_004f64b0's colour)
     int                                      palette_act = -1;   // the act act_pal is (0-based)
     d2d::dc6::Sprite focus16;                          // UI\CURSOR\focus16: menu hover marks
     d2d::font::Font  font_formal11;                    // FontFormal11: NPC speech (font id 8)

@@ -326,7 +326,9 @@ items' part (`item_max`) and Battle Orders' (`bo_life` / `bo_mana`).
   H - 0x7c; the character panel's at 80 + 0x80, H - 0x78 (bottom-left anchored).
 - **"Entering ..." art** (`FUN_00455510`): on a level change (not the game's first), 2000 ms
   of `DATA\LOCAL\UI\<lang>\ACT<n>\<Levels.txt EntryFile>` (EXPANSION past level 108), its
-  frames side by side centred at W/2 - 1, bottom H/2 - 0x8c; table 0x70f860 swaps in
+  frames side by side centred at W/2 - 1, bottom H/2 - 0x8c, drawn by `FUN_00502680(y, 1,
+  5, 1)` → `FUN_004f64b0` in text colour 1 (red: the PL2's last 13 x 256 bytes are the text
+  colours' index shifts, 1 the second; a 1.14d screenshot's red matches it); table 0x70f860 swaps in
   A1Q1 (Den, quest 1) / A1Q5 (Tower, quest 5) while that quest's open in this game
   (`FUN_004b92e0`: S->C 0x5e's bytes). `DAT_007befec` (set to 0x3c on a level change in
   `FUN_00499450`) is never read.
