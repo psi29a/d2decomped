@@ -391,7 +391,7 @@ jobs:
         run: |
           mkdir -p build/flatpak-source
           git -c safe.directory="$GITHUB_WORKSPACE" archive HEAD | tar -x -C build/flatpak-source
-          git describe --tags --always > build/flatpak-source/VERSION   # the archive has no .git
+          git -c safe.directory="$GITHUB_WORKSPACE" describe --tags --always > build/flatpak-source/VERSION   # the archive has no .git
 
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
