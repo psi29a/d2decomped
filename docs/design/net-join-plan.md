@@ -256,6 +256,18 @@ driven by whisper and Miriam by d2d; Act 3 reached the Blackened Temple.
 | Long walks | The host snaps a walk back (0x15) from about 45 subtiles out, most past 50 (five net logs, 2026-10-18); d2d now walks in 40-subtile legs. Not yet seen live |
 | `cmd interact` across the camp | Stops short by design: path type 7 is a click walk, and NPCs off screen aren't clickable |
 
+## Live checks, 2026-10-25
+
+whisper now says its build (`ping` → `ok v0.5.6-52-g6c930bc 2026-10-25`); the host ran that build.
+
+| Check | Result |
+|---|---|
+| Max life / mana with gear | ✓ live: Miriam 714/831, mana max 1296, as the host |
+| Items | ✓ 46 of 46 match |
+| The Rogue camp's bonfire by day | ✗ → ✓ d2d drew it blazing, the host embers; game.exe's client sets EnvEffect objects by the day's type (objects.md "Time of day") |
+| Long walks in legs | Not seen: the camp's walls cut every walk short. Needs open ground (the Blood Moor). devctl `cmd move` only goes to the host when joined (d2d's World doesn't walk; it snaps after 2 s) |
+| The host's corpse | `debug net` lists it as a second "arne" player (the corpse is a player unit, mode 17) |
+
 ## Open risks
 
 1. **Network item bitstream.** A wrong width misparses the item silently
