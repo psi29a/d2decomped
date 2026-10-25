@@ -89,6 +89,56 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
             const auto& art = scene.inv_tab.frame(0, tab_frame);
             blit_sprite(framebuffer, art, pal, box[0] - 5, box[1] + box[3] + 4 - int(art.height));
         }
+    // Empty body slots show their outline (FUN_0048edf0): each slot's art and
+    // frame, at its box's left + dx, bottom + dy (table 0x7220b0). A hand
+    // stays bare beside a two-handed weapon (FUN_0063d340 == 2: items +0x11c).
+    {
+        struct Outline { int slot; const d2d::dc6::Sprite* art; std::uint32_t frame; int dx, dy; };
+        const std::array<Outline, 10> outlines{ {
+            { body::kTorso, &scene.inv_armor, 0, 2, -2 }, { body::kBelt, &scene.inv_belt, 0, 0, -1 },
+            { body::kFeet, &scene.inv_boots, 0, -1, -4 }, { body::kHead, &scene.inv_helm_glove, 1, 0, -1 },
+            { body::kGloves, &scene.inv_helm_glove, 0, -1, -2 }, { body::kNeck, &scene.inv_ring_amulet, 0, 0, -1 },
+            { body::kRightRing, &scene.inv_ring_amulet, 1, 0, -1 }, { body::kLeftRing, &scene.inv_ring_amulet, 1, 0, -1 },
+            { body::kRightArm, &scene.inv_weapons, 0, 0, -2 }, { body::kLeftArm, &scene.inv_weapons, 0, 0, -2 },
+        } };
+        auto worn = [&](int slot) -> const d2d::d2s::Item* {
+            for (const auto& item : items)
+                if (item.location == d2d::d2s::item_location::kEquipped && item.slot == slot) return &item;
+            return nullptr;
+        };
+        auto two_handed = [&](const d2d::d2s::Item* item) {
+            const auto info = item ? scene.rules.item_info.find(item->code) : scene.rules.item_info.end();
+            return info != scene.rules.item_info.end() && info->second.two_handed;
+        };
+        for (const auto& outline : outlines) {
+            if (worn(outline.slot) || outline.art->frames_per_direction() <= outline.frame) continue;
+            if (outline.slot == body::kRightArm && two_handed(worn(body::kLeftArm))) continue;
+            if (outline.slot == body::kLeftArm && two_handed(worn(body::kRightArm))) continue;
+            const auto& box = layout.slots[std::size_t(outline.slot)];
+            const auto& art = outline.art->frame(0, outline.frame);
+            const int set_two = weapon_set_two && (outline.slot == body::kRightArm || outline.slot == body::kLeftArm) ? 4 : 0;   // as the items
+            blit_sprite(framebuffer, art, pal, box[0] + outline.dx + set_two, box[1] + box[3] + outline.dy - set_two - int(art.height));
+        }
+    }
+    // The grid's items sit on a colour (FUN_00483ff0 -> FUN_004839d0): each cell
+    // filled at 25 % over what's there (draw mode 0; game.exe's RGB blend, as
+    // measured live 2026-10-25): red (0x80, 0, 0) when the wearer can't use it
+    // (FUN_0062eaf0's requirements, or flags 0x100 / 0x4000: FUN_0062a4e0),
+    // dull red (0x80, 0x40, 0x40) unidentified, else blue (0, 0, 0x80)
+    // (FUN_00483960; their nearest palette colours, 0x08 / 0x4d / 0xea).
+    // ponytail: the picked-up item's green, flag 4, FUN_004c2240's states and
+    // the used quest consumables' red (FUN_00483f80) aren't told apart.
+    auto tint_cells = [&](const d2d::d2s::Item& item, const std::array<int, 4>& rect) {
+        static constexpr std::array<std::array<int, 3>, 3> kTints{ { { 144, 0, 0 }, { 140, 64, 64 }, { 24, 0, 104 } } };   // act 1's 0x08 / 0x4d / 0xea
+        const bool usable = d2d::rules::meets_requirements(scene.rules, item, *wearer) && !(item.flags & 0x4100u);
+        const auto& tint = kTints[!usable ? 0 : !item.identified ? 1 : 2];
+        const int screen_w = fb_width(framebuffer);
+        for (int y_pos = std::max(rect[1], 0); y_pos < std::min(rect[1] + rect[3], int(kScreenHeight)); ++y_pos)
+            for (int x_pos = std::max(rect[0], 0); x_pos < std::min(rect[0] + rect[2], screen_w); ++x_pos) {
+                auto* pixel = &framebuffer[(std::size_t(y_pos) * std::size_t(screen_w) + std::size_t(x_pos)) * 4];
+                for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = std::uint8_t((tint[channel] + 3 * pixel[channel]) / 4);
+            }
+    };
     auto draw_in = [&](const d2d::d2s::Item& item, int x, int y, int width, int height) {
         const auto* spr = scene.item_sprite(item);
         if (!spr || spr->frames_per_direction() == 0) return;
@@ -109,6 +159,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
             if (weapon_set_two && (item.slot == body::kRightArm || item.slot == body::kLeftArm)) { rect[0] += 4; rect[1] -= 4; }
         }
         if (rect[2] <= 0) continue;
+        if (item.location == d2d::d2s::item_location::kStored && wearer) tint_cells(item, rect);
         draw_in(item, rect[0], rect[1], rect[2], rect[3]);
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }
     }

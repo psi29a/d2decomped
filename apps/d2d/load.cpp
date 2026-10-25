@@ -247,6 +247,9 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     if (auto bytes = mpqs.try_read(R"(data\global\ui\PANEL\invchar6.dc6)"))
         scene.inv_panel = d2d::dc6::Sprite(*bytes);
     sprite(R"(data\global\ui\PANEL\invchar6Tab.dc6)", scene.inv_tab);
+    sprite(R"(data\global\ui\PANEL\inv_belt.dc6)", scene.inv_belt);
+    sprite(R"(data\global\ui\PANEL\inv_boots.dc6)", scene.inv_boots);
+    sprite(R"(data\global\ui\PANEL\inv_ring_amulet.dc6)", scene.inv_ring_amulet);
     sprite(R"(data\global\ui\PANEL\level.dc6)", scene.level_button);
     sprite(R"(data\global\ui\PANEL\levelsocket.dc6)", scene.level_socket);
     sprite(R"(data\global\ui\PANEL\skillpoints.dc6)", scene.points_box);

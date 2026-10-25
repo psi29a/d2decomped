@@ -611,14 +611,21 @@ inline const ItemInfo* info_of(const Tables& tables, const d2d::d2s::Item& item)
 // base's), or -1 for the base's levelreq.
 // ponytail: base str/dex only; FUN_0062eaf0 also takes stat 91
 // ("requirements -x%"), ethereal -10 and refuses an unidentified item.
+// The class, stat and level requirements alone (FUN_0062eaf0's, any slot).
+inline bool meets_requirements(const Tables& tables, const d2d::d2s::Item& item, const Wearer& wearer, int required_level = -1) {
+    const auto* info = info_of(tables, item);
+    if (!info) return false;
+    if (const auto class_code = type_class(tables, info->type); !class_code.empty() && (wearer.cls < 0 || wearer.cls > 6 || class_code != kClassCode[std::size_t(wearer.cls)]))
+        return false;
+    return wearer.str >= info->req_str && wearer.dex >= info->req_dex && wearer.lvl >= (required_level >= 0 ? required_level : info->req_lvl);
+}
+
 inline bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot, const Wearer& wearer, int required_level = -1) {
     const auto* info = info_of(tables, item);
     if (!info) return false;
     const auto found = tables.types.find(info->type);
     if (found == tables.types.end() || slot < d2d::d2s::body_location::kFirst || (found->second.body[0] != slot && found->second.body[1] != slot)) return false;
-    if (const auto class_code = type_class(tables, info->type); !class_code.empty() && (wearer.cls < 0 || wearer.cls > 6 || class_code != kClassCode[std::size_t(wearer.cls)]))
-        return false;
-    return wearer.str >= info->req_str && wearer.dex >= info->req_dex && wearer.lvl >= (required_level >= 0 ? required_level : info->req_lvl);
+    return meets_requirements(tables, item, wearer, required_level);
 }
 
 // A two-handed weapon fills both hands (a Barbarian swings 1or2handed
