@@ -18,6 +18,7 @@
 #include <drlg.hpp>
 #include <drops.hpp>
 #include <level_ids.hpp>
+#include <light.hpp>
 #include <merc.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
