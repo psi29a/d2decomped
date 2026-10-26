@@ -7,6 +7,7 @@
 // many files' headers in one run (tools/anim_coverage.py --audit).
 #include <mpq.hpp>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -30,13 +31,18 @@ int main(int argc, char** argv) try {
     for (const char* name : { "d2exp.mpq", "d2data.mpq", "d2char.mpq", "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq", "d2xmusic.mpq", "d2music.mpq" })
         if (std::filesystem::exists(dir / name)) mpqs.push(dir / name);
     for (int i = 2; i < argc; ++i) {
+        std::string name = argv[i];
+        for (auto& letter : name) if (letter == '\\') letter = '/';
+        const std::filesystem::path relative = name;   // under <out dir> only: no root, no ".."
+        if (!out_dir.empty() && (relative.has_root_path() || std::find(relative.begin(), relative.end(), std::filesystem::path("..")) != relative.end())) {
+            std::fprintf(stderr, "mpq-cat: %s would land outside %s\n", argv[i], out_dir.string().c_str());
+            return 1;
+        }
         const auto bytes = mpqs.try_read(argv[i]);
         if (!bytes && !out_dir.empty()) continue;
         if (!bytes) { std::fprintf(stderr, "mpq-cat: %s not found\n", argv[i]); return 1; }
         if (out_dir.empty()) { std::fwrite(bytes->data(), 1, bytes->size(), stdout); continue; }
-        std::string name = argv[i];
-        for (auto& letter : name) if (letter == '\\') letter = '/';
-        const auto path = out_dir / name;
+        const auto path = out_dir / relative;
         std::filesystem::create_directories(path.parent_path());
         std::ofstream(path, std::ios::binary).write(reinterpret_cast<const char*>(bytes->data()), std::streamsize(head && head < bytes->size() ? head : bytes->size()));
     }
