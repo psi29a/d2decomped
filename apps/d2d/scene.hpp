@@ -23,7 +23,6 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace d2d::client {
@@ -83,6 +82,8 @@ struct Scene : GameData {
         mutable std::array<std::vector<std::byte>, 16> dcc;
         mutable std::array<d2d::dcc::Sprite, 16>       decoded;
         std::array<const std::uint8_t*, 16>            tint{};   // each layer's colormap (256), null: none
+        std::string                                    kind;     // D2D_ANIM_LOG's kind (chars, monsters, objects, ...)
+        mutable bool                                   noted = false;   // logged: a frame of it reached the screen
         [[nodiscard]] const d2d::dcc::Sprite& layer(std::size_t layer_index) const {
             if (!dcc[layer_index].empty()) {
                 try { decoded[layer_index] = d2d::dcc::Sprite(dcc[layer_index]); if (tint[layer_index]) decoded[layer_index].remap(tint[layer_index]); }
@@ -234,8 +235,7 @@ struct Scene : GameData {
     // D2D_ANIM_LOG=<file>: each animation's first draw ("chars AMA1HTH",
     // "monsters FANUHTH", "missiles firebolt", ...) is appended to it, for
     // tools/anim_coverage.py. Nothing is written when it isn't set.
-    mutable std::unordered_set<std::string> drawn;
-    void note_drawn(std::string_view kind, std::string_view name) const;
+    static void note_drawn(std::string_view kind, std::string_view name);
     std::vector<AutomapRule> automap_rules;
 
 };

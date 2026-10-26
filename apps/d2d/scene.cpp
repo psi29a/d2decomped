@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <unordered_set>
 #include <vector>
 
 namespace d2d::client {
@@ -47,7 +48,8 @@ const d2d::dcc::Sprite* Scene::overlay_sprite(const OverlayInfo& overlay) const 
     return usable ? &found->second : nullptr;
 }
 
-void Scene::note_drawn(std::string_view kind, std::string_view name) const {
+void Scene::note_drawn(std::string_view kind, std::string_view name) {
+    static std::unordered_set<std::string> drawn;
     static std::ofstream out = [] {
         const char* path = std::getenv("D2D_ANIM_LOG");
         return path && *path ? std::ofstream(path, std::ios::app) : std::ofstream{};
@@ -64,7 +66,7 @@ const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appeara
         found = composites.emplace(key, load_composite(mpqs, comp, colormaps, d2s_class, mode, gfx)).first;
         if (const auto anim_info = anim_data.find(found->second.name); anim_info != anim_data.end())
             std::tie(found->second.speed, found->second.frames, found->second.action) = std::tuple{ anim_info->second.speed, anim_info->second.frames, anim_info->second.action };
-        note_drawn("chars", found->second.name);
+        found->second.kind = "chars";               // logged when draw_composite blits it
     }
     return found->second;
 }
@@ -78,7 +80,7 @@ const Scene::PlayerAnim& Scene::npc_anim(const Npc& npc, std::string_view mode) 
         found = npc_anims.emplace(key, load_npc_composite(mpqs, npc, mode_text)).first;
         if (const auto anim_info = anim_data.find(found->second.name); anim_info != anim_data.end())
             std::tie(found->second.speed, found->second.frames, found->second.action) = std::tuple{ anim_info->second.speed, anim_info->second.frames, anim_info->second.action };
-        note_drawn(npc.root, found->second.name);
+        found->second.kind = npc.root;
     }
     return found->second;
 }
