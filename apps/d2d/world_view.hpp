@@ -224,8 +224,10 @@ template <class Fn> void composite_frames(const Scene::PlayerAnim& anim, int dir
     for (const auto type : anim.cof.priority(d2d::cof::Cof::priority_row(dir, dirs), frame)) {
         if (type >= anim.dcc.size()) continue;
         const auto& spr = anim.layer(type);
-        if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
-        visit(spr.frame(dir, frame), cof_layer(anim, type));
+        if (dir >= spr.directions() || spr.frames_per_direction() == 0) continue;
+        // A DCC shorter than its COF (the Tree of Inifuss: COF 2 frames, DCC 1) stays on its last.
+        // unverified (source: Objects.txt FrameCnt0 = 1 for it): game.exe's object frame count not traced.
+        visit(spr.frame(dir, std::min<std::uint32_t>(frame, std::uint32_t(spr.frames_per_direction()) - 1)), cof_layer(anim, type));
     }
 }
 
