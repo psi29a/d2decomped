@@ -394,7 +394,7 @@ inline std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSe
         // Reset by FUN_0066ee40; a plain room's init (grass, roads, stamps) rolls it on.
         auto& rng = rngs[room_index] = room.plain ? room.plain->seed : d2d::rules::Rng{ room.seed->seed };
         if (room.plain)
-            for (const auto& tile : room.plain->tiles) room.tiles.push_back({ tile.layer, room.x + tile.x, room.y + tile.y, tile.orient, tile.file, tile.index, 0 });
+            for (const auto& tile : room.plain->tiles) room.tiles.push_back({ tile.layer, room.x + tile.x, room.y + tile.y, tile.orient, tile.file, tile.index, tile.word });
         auto pick = [&](int orient, std::uint32_t word) { return pick_tile(list, rng, orient, word); };
         auto add = [&](int layer, int x, int y, int orient, std::uint32_t word) {
             const auto [tile_file, tile_index] = pick(orient, word);

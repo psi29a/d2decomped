@@ -42,7 +42,7 @@ struct RoomDt1s {
 // One placed tile: layer 0 wall, 1 floor, 2 shadow; room-relative x, y; the
 // orientation it was picked with; which DT1 of the room's list and which
 // tile of that file (-1 = nothing matched).
-struct RoomTile { int layer, x, y, orient; const Dt1File* file; int index; };
+struct RoomTile { int layer, x, y, orient; const Dt1File* file; int index; std::uint32_t word = 0; };   // word: what flags it (FUN_0066db20)
 
 // A room's DT1 list (FUN_0066f240): its mask's files in bit order, then the three.
 inline std::vector<const Dt1File*> room_dt1_list(std::uint32_t mask, const RoomDt1s& dt1s) {

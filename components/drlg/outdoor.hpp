@@ -1342,7 +1342,7 @@ inline void stamp_room(Room& room, const OutdoorData& data, const OutdoorLevel& 
                     if (!(shadow_word & 0x8000000)) continue;
                     if (data.dt1s) {                                                // FUN_0066e060: picked now, on the room seed
                         const auto [tile_file, tile_index] = pick_tile(room_dt1_list(room.dt1_mask, *data.dt1s), rng, 13, shadow_word);
-                        room.tiles.push_back({ 2, x + group_x, y + group_y, 13, tile_file, tile_index });
+                        room.tiles.push_back({ 2, x + group_x, y + group_y, 13, tile_file, tile_index, shadow_word });   // FUN_0066df40 flags it on its word
                     } else {
                         room.shadow[index] = shadow_word;
                     }
