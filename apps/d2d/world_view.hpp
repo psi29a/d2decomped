@@ -151,9 +151,6 @@ struct Unit {
     std::optional<int> name_offset;      // an object's hover name sits this far over its feet, not over its frame (Npc::name_offset)
 };
 
-// `trans`: a missile's Missiles.txt Trans, its draw mode (0 opaque). True when a pixel landed on screen.
-bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer, const d2d::dcc::Frame& frame,
-                    const d2d::palette::Palette& pal, int anchor_x, int anchor_y, int trans = 0);
 
 // The DC6 frame a ground item shows `elapsed` ms after it dropped.
 void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
@@ -189,10 +186,11 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
 // through the palette's PL2 tables (FUN_00511d70; D2WinPalette.cpp copies
 // them from PL2 +0x33500 additive and +0x43500 multiply).
 // ponytail: the same sums in RGB, not the tables' nearest palette colours.
+// `trans`: a missile's Missiles.txt Trans, its draw mode (0 opaque). True when a pixel landed on screen.
 bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
                     const d2d::dcc::Frame& frame,
                     const d2d::palette::Palette& pal,
-                    int anchor_x, int anchor_y, int trans);
+                    int anchor_x, int anchor_y, int trans = 0);
 
 // Draw a composite's current frame with its feet at (anchor_x, anchor_y):
 // every loaded layer, in the COF's per-(direction, frame) draw order.
