@@ -468,6 +468,27 @@ int main(int argc, char** argv) try {
         const int base_lo = plain.elo >> meteor_fire.hitshift, base_hi = plain.ehi >> meteor_fire.hitshift;
         assert(plain.elo > 0 && synergy.elo == (base_lo + base_lo * 60 / 100) << meteor_fire.hitshift && synergy.ehi == (base_hi + base_hi * 60 / 100) << meteor_fire.hitshift);
         std::printf("OK: Meteor's fire takes Inferno's synergy in the fight\n");
+
+        // Meteor's centre (14) and Immolation Arrow (9) leave fire burning its own row (no fixed
+        // damage) for Param3 + (lvl - 1) x Param4 / SHitCalc1 frames (FUN_0059fa30's flag 0x8000).
+        const auto burst_fires = [&](const char* row, const char* skill_name, int lvl) {
+            const auto& skill_row = *data->skills.get(data->skills.by_name.at(skill_name));
+            world.fight.pending.clear();
+            auto shot = world.fight.launch(data->missiles.at(row), skill_row, lvl, world.actor->player.x + 3, world.actor->player.y, 0, 0, 1, 5000 * kTickMs);
+            world.fight.pending.clear();
+            world.fight.burst(shot, 5000 * kTickMs);
+            std::vector<std::uint32_t> lives;
+            for (const auto& flame : world.fight.pending)
+                if (flame.info->name == data->missiles.at(row).hit_sub) { assert(flame.fixed == -1); lives.push_back((flame.dies - flame.born) / kTickMs); }
+            world.fight.pending.clear();
+            return lives;
+        };
+        const auto& meteor_row = *data->skills.get(meteor);
+        const auto meteor_fires = burst_fires("meteorcenter", "Meteor", 3);
+        assert(!meteor_fires.empty() && std::ranges::all_of(meteor_fires, [&](auto life) { return life == std::uint32_t(meteor_row.par[2] + 2 * meteor_row.par[3]); }));
+        const auto immolation_fires = burst_fires("immolationarrow", "Immolation Arrow", 1);
+        assert(!immolation_fires.empty() && std::ranges::all_of(immolation_fires, [](auto life) { return life == 100u; }));
+        std::printf("OK: Meteor's and Immolation Arrow's fire last their own frames, burning their row\n");
     }
 
     // A chest's trap fires at its event 4, 35 frames after it opened

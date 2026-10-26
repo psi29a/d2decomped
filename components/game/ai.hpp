@@ -421,8 +421,8 @@ struct Missile {
     // The player's skill missiles' extras: the monster a guided one seeks
     // (-1 none), a chain's hops left, the damage % its skill adds (stat 25,
     // the do's callback 0x5db6a0), its element per frame in 256ths when the
-    // row's own is replaced (Meteor's fire: FUN_005aaa90's 0x8001), the
-    // last frame a spawner or burner ran.
+    // row's own is replaced (-1: its row's or skill's), the last frame a
+    // spawner or burner ran.
     int target = -1, hops = 0, ed_pct = 0, fixed = -1, frame = -1;
     int target_id = -1;                       // its target's Foe::id: the foes are rebuilt each frame, pets come and go
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre

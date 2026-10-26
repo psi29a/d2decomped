@@ -2713,8 +2713,10 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 }
             }
             if (missile_info.srv_do == 5) {
+                // A row with no Skill (Meteor's, Immolation Arrow's fire) burns its own element with its synergy.
                 const auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = 0, .elo = missile.fixed, .ehi = missile.fixed }
-                                             : d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), missile.level);
+                                  : missile_info.skill.empty() ? row_damage(missile_info, missile.level, calc_env(), missile.skill)
+                                                               : d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), missile.level);
                 for (std::size_t i = 0; i < monsters.size(); ++i)
                     if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - missile.x, monsters[i].unit.y - missile.y) <= 0.5f
                         && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
@@ -2926,8 +2928,9 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
         const auto& missile_info = *missile.info;
         const auto hit_sub = missile_info.hit_sub.empty() ? game_data->missiles.end() : game_data->missiles.find(missile_info.hit_sub);
         const bool sub = hit_sub != game_data->missiles.end();
-        auto sub_at = [&](float x, float y, float dx, float dy) -> Missile& {
-            return launch(hit_sub->second, *skill, missile.level, x, y, dx, dy, hit_sub->second.range + hit_sub->second.lev_range * missile.level, now_ms);
+        // `frames` > 0: the sub-missile's Range set outright (create flag 0x8000, FUN_0059fa30).
+        auto sub_at = [&](float x, float y, float dx, float dy, int frames = 0) -> Missile& {
+            return launch(hit_sub->second, *skill, missile.level, x, y, dx, dy, frames > 0 ? frames : hit_sub->second.range + hit_sub->second.lev_range * missile.level, now_ms);
         };
         auto radius = [&](int par, const d2d::rules::Calc& radius_calc) { return par > 0 ? par : std::max(calc(*skill, radius_calc, missile.level), 1); };
         static constexpr int kSpreadX[18] = { 2, -2, 0, 0, -3, 0, 3, -1, 1, -1, 2, -4, -3, -1, 0, 1, 3, 4 };
@@ -2938,21 +2941,26 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
             case 13: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms, radius(missile_info.hit_par2, skill->auralen)); break;
             case 2: case 4: case 26: case 36: case 51: if (sub) sub_at(missile.x, missile.y, 0, 0); break;
             case 9: {
+                // Immolation Arrow (FUN_005aa250 -> FUN_005a9530): its fire lasts SHitCalc1 frames.
                 const int burst_radius = radius(missile_info.hit_par1, skill->calc[0]);
+                const int frames = missile_info.hit_calc.empty() ? 0 : calc(*skill, missile_info.hit_calc, missile.level);
                 area(missile, missile.x, missile.y, burst_radius, now_ms);
                 if (sub)
                     for (int offset_x = -burst_radius; offset_x <= burst_radius; ++offset_x)
                         for (int offset_y = -burst_radius; offset_y <= burst_radius; ++offset_y)
-                            if (offset_x * offset_x + offset_y * offset_y <= burst_radius * burst_radius) sub_at(missile.x + float(offset_x) / 5, missile.y + float(offset_y) / 5, 0, 0).fixed = hit_sub->second.emin;
+                            if (offset_x * offset_x + offset_y * offset_y <= burst_radius * burst_radius) sub_at(missile.x + float(offset_x) / 5, missile.y + float(offset_y) / 5, 0, 0, frames);
                 break;
             }
             case 14: case 47: case 56: {
                 area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms);
-                const int burn256 = skill->par[2] + (missile.level - 1) * skill->par[3];   // Meteor's (FUN_004cc7c0)
+                // Meteor's (FUN_005aabb0 -> FUN_005aaa90): its fire lasts FUN_004cc7c0's Param3 + (lvl - 1) x Param4 frames.
+                // ponytail: 47 / 56 (untraced) keep the sub-row's EMin a frame.
+                const int frames = missile_info.hit_func == 14 ? skill->par[2] + (missile.level - 1) * skill->par[3] : 0;
                 if (sub)
-                    for (std::size_t j = 0; j < 18; j += std::size_t(std::max(missile_info.hit_par2, 1)))
-                        sub_at(missile.x + float(kSpreadX[j]) / 5, missile.y + float(kSpreadY[j]) / 5, 0, 0).fixed
-                            = missile_info.hit_func == 14 && burn256 > 0 ? burn256 : hit_sub->second.emin > 0 ? hit_sub->second.emin : -1;
+                    for (std::size_t j = 0; j < 18; j += std::size_t(std::max(missile_info.hit_par2, 1))) {
+                        auto& fire = sub_at(missile.x + float(kSpreadX[j]) / 5, missile.y + float(kSpreadY[j]) / 5, 0, 0, frames);
+                        if (missile_info.hit_func != 14) fire.fixed = hit_sub->second.emin > 0 ? hit_sub->second.emin : -1;
+                    }
                 break;
             }
             case 20: {

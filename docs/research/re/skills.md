@@ -759,8 +759,10 @@ lines (missile names aren't passed in). What it does:
   its Range runs out (FUN_005adf10 with no unit): the skill's damage within
   sHitPar1 (else aurarange) subtiles (FUN_0056bad0), then FUN_005aaa90
   puts HitSubMissile1 at 18 offsets (x 0x6e2550, y 0x6e2598; every
-  sHitPar2th) with flags 0x8001 and a per-frame fire of FUN_004cc7c0 =
-  Param3 + (level - 1) x Param4.
+  sHitPar2th) with flags 0x8001: its Range set to FUN_004cc7c0 = Param3 +
+  (level - 1) x Param4 frames (FUN_0059fa30: 0x8000 takes the Range from
+  the create struct). The fire burns its own row (meteorfire: EMin <<
+  HitShift a frame, + Inferno x 3 %, FUN_0064b100).
 - **Do 24** (FUN_005c9ea0, Fire Wall): from the target point two
   srvmissilea makers out across the caster's line, srvmissileb on the
   point. The maker (missile do **6**, FUN_005ae680) leaves SubMissile1
@@ -829,7 +831,9 @@ lines (missile names aren't passed in). What it does:
   aurarange. **7** (FUN_005a9fb0, Holy Bolt): sHitPar2 1 strikes only the
   undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 it heals
   allies by calc1. **9** (FUN_005aa250, Immolation Arrow): the damage
-  within sHitPar1 (else calc1), fire over that ground (FUN_005a9530).
+  within sHitPar1 (else calc1), fire over that ground (FUN_005a9530) for
+  the arrow row's SHitCalc1 (+0x88) frames (0x8000), burning its own row
+  (immolationfire: + Fire Arrow x 5 %).
   **13** (FUN_005aa8b0, Glacial Spike): the damage within sHitPar1 (else
   aurarange), frozen sHitPar2 (else auralen) frames (FUN_005a8f20). **20**
   (FUN_005ab370, Lightning Fury): HitSubMissile1 at up to sHitPar2 (else
@@ -882,8 +886,7 @@ lines (missile names aren't passed in). What it does:
   strike_bolts / land_range`, `Missile::ox / oy / turn / hit_at`,
   MonType undead / demon. Not traced / not built: Blessed Hammer's path
   (a spiral out at a fifth of its speed), Holy Bolt's healing, Static
-  Field's floor, Mind Blast's conversion, Immolation's fire damage (the
-  row's EMin a frame), Plague's cloud count (one), Volcano's frame window,
+  Field's floor, Mind Blast's conversion, Plague's cloud count (one), Volcano's frame window,
   Double Throw (the throwing weapons' missiles), explosions on walls.
 
 ### Buffs, curses, war cries (phase 6, part 4)

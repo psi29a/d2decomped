@@ -692,6 +692,7 @@ struct GameData {
                          int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
                          std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{};
                          std::string edmg_sym_text; d2d::rules::Calc edmg_sym;   // EDmgSymPerCalc (+0x118), compiled with the skills
+                         std::string hit_calc_text; d2d::rules::Calc hit_calc;   // SHitCalc1 (+0x88): Immolation Arrow's fire length
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
