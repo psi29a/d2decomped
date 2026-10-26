@@ -28,10 +28,12 @@ excel tables, as mpq-cat reads them).
 
 --audit checks the files instead of d2d's runs, LoD's included: every
 animation above whose COF layer has no DCC at all, or a DCC with fewer
-directions than the COF or fewer frames than the mode runs (an object's
-Objects.txt FrameCnt, FUN_004bcbb0; else the COF's), and every missile,
-overlay or item sprite the data names that no MPQ holds. A short one
-draws nothing on the frames it lacks (the Tree of Inifuss, PR #80).
+frames than the mode runs (an object's Objects.txt FrameCnt,
+FUN_004bcbb0; else the COF's), and every missile, overlay or item sprite
+the data names that no MPQ holds. What's known and handled as game.exe
+handles it (bugs.md) is listed apart and doesn't fail the run; anything
+else exits 1. (Fewer directions than the COF is fine: a layer takes its
+own DCC's, FUN_005ff760.)
 """
 import collections, os, re, subprocess, sys, tempfile
 
@@ -130,7 +132,7 @@ if "--audit" in sys.argv:
             except FileNotFoundError: return b""
         cof_path = {key: f"data\\global\\{key[0]}\\{token_of[key]}\\cof\\{key[1]}.cof" for key in shows if key[0] in ("chars", "monsters", "objects")}
         fetch(sorted(cof_path.values()), 0)
-        wanted, problems = {}, collections.defaultdict(list)
+        wanted, problems, known = {}, collections.defaultdict(list), collections.defaultdict(list)
         for (root, stem), path in sorted(cof_path.items()):
             cof = read(path)
             if len(cof) < 28: problems[f"{root}: COF unreadable"].append(stem); continue
@@ -151,13 +153,17 @@ if "--audit" in sys.argv:
             head = read(dcc)
             if len(head) < 7: problems[f"{root}: DCC unreadable"].append(dcc); continue
             have_dirs, have_frames = head[2], int.from_bytes(head[3:7], "little")
-            if have_dirs < directions or have_frames < need:
-                problems[f"{root}: DCC short of its mode"].append(f"{dcc.split(chr(92))[-1]} ({have_dirs}x{have_frames}, needs {directions}x{need})")
+            if have_frames < need:
+                line = f"{dcc.split(chr(92))[-1]} ({have_frames} frames, the mode runs {need})"
+                if root == "objects": problems[f"{root}: DCC short of its mode"].append(line)
+                else: known[f"{root}: DCC short of its mode, blank past its last frame as in game.exe (FUN_005feb80; bugs.md #29)"].append(line)
     for name in missing: problems[name.split()[0] + ": named, in no MPQ"].append(name.split()[1])
-    print(f"audited {len(cof_path)} COFs, {len(wanted)} DCCs")
-    for bucket, names in sorted(problems.items(), key=lambda kv: -len(kv[1])):
-        shown = names if "--all" in sys.argv else names[:8]
-        print(f"{len(names):5d}  {bucket}: {' '.join(shown)}{' ...' if len(shown) < len(names) else ''}")
+    print(f"audited {len(cof_path)} COFs, {len(wanted)} DCCs: {sum(map(len, problems.values()))} to look at, {sum(map(len, known.values()))} known")
+    for title, buckets in (("to look at", problems), ("known, handled as game.exe", known)):
+        if buckets: print(title + ":")
+        for bucket, names in sorted(buckets.items(), key=lambda kv: -len(kv[1])):
+            shown = names if "--all" in sys.argv else names[:8]
+            print(f"{len(names):5d}  {bucket}: {' '.join(shown)}{' ...' if len(shown) < len(names) else ''}")
     sys.exit(1 if problems else 0)
 
 # The player modes d2d can draw (gamedata.hpp kModeCode).

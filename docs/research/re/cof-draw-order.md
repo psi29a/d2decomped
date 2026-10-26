@@ -32,3 +32,19 @@ facing the viewer.
 
 Seen before tracing: facing north the weapon drew over the torso, facing
 the viewer behind it (the row was taken as the DCC direction).
+
+## A layer shorter than its COF
+
+- Direction: `FUN_005ff760` (SpriteCache.cpp) decodes a DCC direction
+  picked by `FUN_00600c90(dir64, the DCC's own directions)`, so an
+  8-direction piece in a 16-direction COF draws at its nearest of 8.
+- Frame: `FUN_005feb80` returns no cell when the frame is at or past the
+  DCC's frames per direction (the cache record +0x24): that layer draws
+  nothing on those frames, the others do.
+- In the data: 29 paladin pieces (tower shield `pashtorwlhth` 8 frames
+  in a 10-frame walk; claymore, flail, polearm walks; throws) and the
+  Frozen Horror's death (`f0`, 13 of 14): bugs.md #29.
+  `tools/anim_coverage.py --audit` lists them.
+
+d2d: `composite_frames` (apps/d2d/world_view.hpp) does both.
+

@@ -226,7 +226,9 @@ template <class Fn> void composite_frames(const Scene::PlayerAnim& anim, int dir
         if (type >= anim.dcc.size()) continue;
         const auto& spr = anim.layer(type);
         // Each layer by its own DCC's directions (FUN_005ff760 -> FUN_00600c90 on the DCC's
-        // count): a paladin's 8-direction axe in a 16-direction attack.
+        // count): a paladin's 8-direction axe in a 16-direction attack. Past its last frame
+        // a layer draws nothing (FUN_005feb80 returns no cell): a paladin's tower shield,
+        // 8 frames in a 10-frame walk, blinks there in game.exe too (bugs.md #29).
         const auto layer_dir = spr.directions() == dirs ? dir : cof_direction(dir_want, spr.directions());
         if (layer_dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
         visit(spr.frame(layer_dir, frame), cof_layer(anim, type));
