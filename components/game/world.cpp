@@ -2707,7 +2707,10 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             const int reset = npc.operate_fn == d2d::rules::operate_fn::kShrine && std::size_t(npc.shrine) < game_data->shrines.size() ? game_data->shrines[std::size_t(npc.shrine)].reset : 0;
             const bool back = reset > 0 && now_ms - when_ms >= d2d::rules::shrine_reset_frames(reset) * kTickMs;
             if (key.first == level && npc_index < npc_states.size()) {
-                npc_states[npc_index].mode = back ? std::string_view{} : now_ms - when_ms < std::uint32_t(npc.op_frames) * 40u ? "OP" : "ON";
+                const std::uint32_t on_ms = when_ms + std::uint32_t(npc.op_frames) * 40u;
+                const bool opening = now_ms < on_ms;
+                npc_states[npc_index].mode = back ? std::string_view{} : opening ? "OP" : "ON";
+                npc_states[npc_index].mode_ms = back ? now_ms : opening ? when_ms : on_ms;   // its animation runs from the mode's start
                 // Its message overhead (ShrMsgN, 3683 + row: FUN_00661110 on
                 // "%d", 4 chars x 8 + 125 frames).
                 npc_states[npc_index].says = std::uint16_t(npc.operate_fn == d2d::rules::operate_fn::kShrine && !back && now_ms - when_ms < 157u * kTickMs ? 3683 + npc.shrine : 0);
