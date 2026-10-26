@@ -155,7 +155,7 @@ if "--audit" in sys.argv:
             have_dirs, have_frames = head[2], int.from_bytes(head[3:7], "little")
             if have_frames < need:
                 line = f"{dcc.split(chr(92))[-1]} ({have_frames} frames, the mode runs {need})"
-                if root == "objects": problems[f"{root}: DCC short of its mode"].append(line)
+                if root == "objects": known[f"{root}: DCC short of FrameCnt, blank past its last frame as in game.exe (FUN_005feb80; bugs.md #30)"].append(line)
                 else: known[f"{root}: DCC short of its mode, blank past its last frame as in game.exe (FUN_005feb80; bugs.md #29)"].append(line)
     for name in missing: problems[name.split()[0] + ": named, in no MPQ"].append(name.split()[1])
     print(f"audited {len(cof_path)} COFs, {len(wanted)} DCCs: {sum(map(len, problems.values()))} to look at, {sum(map(len, known.values()))} known")

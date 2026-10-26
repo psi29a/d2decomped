@@ -541,3 +541,13 @@ count; the server's unit uses that, FUN_005533d0 -> FUN_0066a9b0):
 23 object layers have a DCC shorter than their COF (the Tree of Inifuss:
 COF and AnimData 2 frames, DCC 1, FrameCnt0 1); no FrameCnt passes its
 DCC. d2d: `Npc::frames` / `loop_from`, `object_elapsed` (world_view.cpp).
+
+Past a DCC's last frame no layer draws (`FUN_005feb80`, cof-draw-order.md
+"A layer shorter than its COF"), and an object's frame runs on to
+FrameCnt whatever its COF says. Six objects' FrameCnt passes their DCCs
+(bugs.md #30), so they blink out for the rest of each loop: the Act 3
+magic shrine `qo` (1 frame of 13), the jungle shrines' glows `jy` / `js`
+(8 of 13) and `jr` opening (1 of 13), the Baal temple magic shrine `5h`
+(13 of 20). d2d draws nothing there too, also where the frame is past
+the COF's own frames (`render_world`).
+
