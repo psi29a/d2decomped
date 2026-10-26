@@ -77,7 +77,6 @@ Known differences in the ones it draws, and what's left to check:
 | 31 | Static lights' shadows (type 2) not built | build | maybe | lighting.md, deviations.md approximation 5 |
 | 32 | Light Quality always high; unit shadows darken once; lit tiles per pixel, not per 32-pixel block | exact | hardly | deviations.md approximations 2–4 |
 | 33 | Act 4's clock: its 15 more a frame and eclipse phases (0x744438) | build | maybe | light.hpp:28 |
-| 34 | Objects.txt CycleAnim: 0 read as "play once, hold the last frame" | trace | no | unverified.md |
 | 35 | DC6 / DCC frame anchor; DT1 block y-shift | trace | no | unverified.md (they draw right) |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
 

@@ -120,8 +120,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             if (player_look) { units.back().shift = player_look->shift; units.back().overs = player_look->overs; }
             if (player_spirit) { units.back().spirit = true; units.back().shadow = false; }
         }
-        // An object in a mode its CycleAnim doesn't loop (a chest's OP) stops on the last frame.
-        // unverified (source: objects.txt's CycleAnim0..7 columns): not yet traced to the object anim code.
+        // An object in a mode its CycleAnim doesn't loop (a chest's OP) stops on the last frame (FUN_004bcbb0).
         auto holds = [](const Npc& npc, const UnitState* state) {
             const auto mode = state && !state->mode.empty() ? std::string_view(state->mode) : std::string_view(npc.mode);
             const int index = game::mode_index(mode);
