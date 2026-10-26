@@ -20,10 +20,12 @@
 #include <fstream>
 #include <ios>
 #include <ostream>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace d2d::client {
@@ -38,11 +40,26 @@ const std::uint8_t* Scene::monster_map(const Npc& npc) const {
     return found->second.size() >= std::size_t(npc.colour + 1) * 256 ? found->second.data() + npc.colour * 256 : nullptr;
 }
 
+d2d::dcc::Sprite dc6_as_dcc(std::span<const std::byte> bytes) {
+    const d2d::dc6::Sprite cels(bytes);
+    std::vector<d2d::dcc::Frame> frames;
+    for (const auto& cel : cels.frames()) {
+        const int width = int(cel.width), height = int(cel.height), top = cel.offset_y - height + 1;
+        frames.push_back({ width, height, cel.offset_x, cel.offset_y, cel.offset_x, top, cel.offset_x + width, cel.offset_y + 1, cel.pixels });
+    }
+    return d2d::dcc::Sprite::from_frames(std::uint8_t(cels.directions()), std::int32_t(cels.frames_per_direction()), std::move(frames));
+}
+
 const d2d::dcc::Sprite* Scene::overlay_sprite(const OverlayInfo& overlay) const {
     auto [found, fresh] = overlay_sprites.try_emplace(&overlay);
-    if (fresh)
-        if (auto bytes = mpqs.try_read(R"(data\global\overlays\)" + overlay.file + ".dcc"))
-            try { found->second = d2d::dcc::Sprite(*bytes); } catch (const std::exception& error) { d2d::log::warn("overlay {}: {}", overlay.file, error.what()); }
+    if (fresh) {
+        // Overlay row 0x7a (mephisto) is a DC6 (FUN_005fe610); the rest DCCs.
+        const std::string path = R"(data\global\overlays\)" + overlay.file;
+        try {
+            if (auto bytes = mpqs.try_read(path + ".dcc")) found->second = d2d::dcc::Sprite(*bytes);
+            else if (auto cels = mpqs.try_read(path + ".dc6")) found->second = dc6_as_dcc(*cels);
+        } catch (const std::exception& error) { d2d::log::warn("overlay {}: {}", overlay.file, error.what()); }
+    }
     const bool usable = found->second.directions() && found->second.frames_per_direction();
     if (fresh && usable) note_drawn("overlays", overlay.file);   // a missing or broken one was never drawn
     return usable ? &found->second : nullptr;

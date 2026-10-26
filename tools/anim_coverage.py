@@ -30,9 +30,8 @@ excel tables, as mpq-cat reads them).
 animation above whose COF layer has no DCC at all, or a DCC with fewer
 frames than the mode runs (an object's Objects.txt FrameCnt,
 FUN_004bcbb0; else the COF's), and every missile, overlay or item sprite
-the data names that no MPQ holds. What's known and handled as game.exe
-handles it (bugs.md) is listed apart and doesn't fail the run; anything
-else exits 1. (Fewer directions than the COF is fine: a layer takes its
+the data names that no MPQ holds. What's known (bugs.md) is listed
+apart and doesn't fail the run; anything else exits 1. (Fewer directions than the COF is fine: a layer takes its
 own DCC's, FUN_005ff760.)
 """
 import collections, os, re, subprocess, sys, tempfile
@@ -103,7 +102,7 @@ missing = []                                                  # --audit: sprites
 def sprites(kind, rows, column, folder, ext):
     for row in rows:
         name = row.get(column, "").lower()
-        if name and f"data\\global\\{folder}\\{name}.{ext}" in files: shows[(kind, name)] = ""
+        if name and any(f"data\\global\\{folder}\\{name}.{e}" in files for e in (ext, "dc6")): shows[(kind, name)] = ""   # mephisto's overlay is a DC6
         elif name: missing.append(f"{kind} {name}")
 sprites("missiles", table("Missiles"), "CelFile", "missiles", "dcc")
 sprites("overlays", table("Overlay"), "Filename", "overlays", "dcc")
@@ -158,7 +157,10 @@ if "--audit" in sys.argv:
                 line = f"{dcc.split(chr(92))[-1]} ({have_frames} frames, the mode runs {need})"
                 if root == "objects": known[f"{root}: DCC short of FrameCnt, blank past its last frame as in game.exe (FUN_005feb80; bugs.md #30)"].append(line)
                 else: known[f"{root}: DCC short of its mode, blank past its last frame as in game.exe (FUN_005feb80; bugs.md #29)"].append(line)
-    for name in missing: problems[name.split()[0] + ": named, in no MPQ"].append(name.split()[1])
+    unused = {"items flptail": "item tal \"Not used\", never spawns"}           # bugs.md #32
+    for name in missing:
+        if name in unused: known[name.split()[0] + f": named, in no MPQ, {unused[name]} (bugs.md #32)"].append(name.split()[1])
+        else: problems[name.split()[0] + ": named, in no MPQ"].append(name.split()[1])
     print(f"audited {len(cof_path)} COFs, {len(wanted)} DCCs: {sum(map(len, problems.values()))} to look at, {sum(map(len, known.values()))} known")
     for title, buckets in (("to look at", problems), ("known (bugs.md)", known)):
         if buckets: print(title + ":")

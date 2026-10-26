@@ -20,12 +20,17 @@
 #include <exception>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace d2d::client {
+
+// A DC6 as a DCC sprite, its frames anchored at their offsets: the few
+// composite parts and overlays game.exe loads as DC6 (FUN_005fe610).
+d2d::dcc::Sprite dc6_as_dcc(std::span<const std::byte> bytes);
 // All the client draws and plays: GameData, plus the pixels, fonts and
 // palettes. The frontend's come from FUN_0042e6d0 (main-menu loader) —
 // see docs/research/re/frontend-menu-table.md.

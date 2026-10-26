@@ -108,15 +108,7 @@ Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& npc
             if (auto bytes = mpqs.try_read(path)) { out.dcc[layer.type] = std::move(*bytes); continue; }
             // Some objects' parts are DC6 (the hellgate's): its frames as the DCC's, anchored at their offsets.
             std::strcpy(path + std::strlen(path) - 3, "dc6");
-            if (auto bytes = mpqs.try_read(path)) {
-                const d2d::dc6::Sprite cels(*bytes);
-                std::vector<d2d::dcc::Frame> frames;
-                for (const auto& cel : cels.frames()) {
-                    const int width = int(cel.width), height = int(cel.height), top = cel.offset_y - height + 1;
-                    frames.push_back({ width, height, cel.offset_x, cel.offset_y, cel.offset_x, top, cel.offset_x + width, cel.offset_y + 1, cel.pixels });
-                }
-                out.decoded[layer.type] = d2d::dcc::Sprite::from_frames(std::uint8_t(cels.directions()), std::int32_t(cels.frames_per_direction()), std::move(frames));
-            }
+            if (auto bytes = mpqs.try_read(path)) out.decoded[layer.type] = dc6_as_dcc(*bytes);
         }
     } catch (const std::exception& error) {
         d2d::log::warn("{}: {}", path, error.what());
