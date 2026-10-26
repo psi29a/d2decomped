@@ -148,8 +148,9 @@ std::array<int, 4> composite_bounds(const Scene::PlayerAnim& anim, int dir_want,
     const auto frame = std::uint8_t((elapsed_ms / ms_per_frame) % fpd);
     for (std::size_t layer_index = 0; layer_index < anim.dcc.size(); ++layer_index) {
         const auto& spr = anim.layer(layer_index);
-        if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
-        const auto& frame_ref = spr.frame(dir, frame);
+        const auto layer_dir = spr.directions() == dirs ? dir : cof_direction(dir_want, spr.directions());   // as composite_frames
+        if (layer_dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
+        const auto& frame_ref = spr.frame(layer_dir, frame);
         bounds = { std::min(bounds[0], anchor_x + frame_ref.box_left), std::min(bounds[1], anchor_y + frame_ref.box_top),
               std::max(bounds[2], anchor_x + frame_ref.box_right), std::max(bounds[3], anchor_y + frame_ref.box_bottom) };
     }

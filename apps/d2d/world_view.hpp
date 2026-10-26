@@ -225,8 +225,11 @@ template <class Fn> void composite_frames(const Scene::PlayerAnim& anim, int dir
     for (const auto type : anim.cof.priority(d2d::cof::Cof::priority_row(dir, dirs), frame)) {
         if (type >= anim.dcc.size()) continue;
         const auto& spr = anim.layer(type);
-        if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
-        visit(spr.frame(dir, frame), cof_layer(anim, type));
+        // Each layer by its own DCC's directions (FUN_005ff760 -> FUN_00600c90 on the DCC's
+        // count): a paladin's 8-direction axe in a 16-direction attack.
+        const auto layer_dir = spr.directions() == dirs ? dir : cof_direction(dir_want, spr.directions());
+        if (layer_dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
+        visit(spr.frame(layer_dir, frame), cof_layer(anim, type));
     }
 }
 
