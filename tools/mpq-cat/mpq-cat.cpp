@@ -44,7 +44,10 @@ int main(int argc, char** argv) try {
         if (out_dir.empty()) { std::fwrite(bytes->data(), 1, bytes->size(), stdout); continue; }
         const auto path = out_dir / relative;
         std::filesystem::create_directories(path.parent_path());
-        std::ofstream(path, std::ios::binary).write(reinterpret_cast<const char*>(bytes->data()), std::streamsize(head && head < bytes->size() ? head : bytes->size()));
+        std::ofstream out(path, std::ios::binary);
+        out.write(reinterpret_cast<const char*>(bytes->data()), std::streamsize(head && head < bytes->size() ? head : bytes->size()));
+        out.close();
+        if (!out) { std::fprintf(stderr, "mpq-cat: can't write %s\n", path.string().c_str()); return 1; }   // not a missing file: the audit would read it as one
     }
     return 0;
 } catch (const std::exception& error) {
