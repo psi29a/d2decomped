@@ -134,7 +134,7 @@ if "--audit" in sys.argv:
         wanted, problems, known = {}, collections.defaultdict(list), collections.defaultdict(list)
         for (root, stem), path in sorted(cof_path.items()):
             cof = read(path)
-            if len(cof) < 28: problems[f"{root}: COF unreadable"].append(stem); continue
+            if len(cof) < 28 or len(cof) < 28 + 9 * cof[0]: problems[f"{root}: COF unreadable"].append(stem); continue   # its layer records too
             layer_count, frames, directions = cof[0], cof[1], cof[2]
             token = path.split("\\")[3]
             mode_weapon = stem[len(token):]
