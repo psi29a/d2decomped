@@ -514,10 +514,11 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     draw_units_through(1 << 20);
 }
 
-void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
+bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
                     const d2d::dcc::Frame& frame,
                     const d2d::palette::Palette& pal,
                     int anchor_x, int anchor_y, int trans) {
+    bool wrote = false;
     const int dst_x = anchor_x + frame.box_left;
     const int dst_y = anchor_y + frame.box_top;
     const int screen_w = fb_width(framebuffer);
@@ -540,8 +541,10 @@ void blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
             }
             else { pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; }
             pixel[3] = 0xFF;
+            wrote = true;
         }
     }
+    return wrote;
 }
 
 void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerAnim& anim, int dir_want, std::uint32_t elapsed_ms,
@@ -573,8 +576,7 @@ void draw_composite(std::vector<std::uint8_t>& framebuffer, const Scene::PlayerA
                     std::uint32_t elapsed_ms, int anchor_x, int anchor_y, int trans) {
     bool blitted = false;
     composite_frames(anim, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& frame, const d2d::cof::Layer* layer) {
-        blit_dcc_frame(framebuffer, frame, pal, anchor_x, anchor_y, trans >= 0 ? trans : layer_trans(layer));
-        blitted = true;
+        blitted |= blit_dcc_frame(framebuffer, frame, pal, anchor_x, anchor_y, trans >= 0 ? trans : layer_trans(layer));
     });
     // D2D_ANIM_LOG counts what reached the screen, not what loaded (the Tree of Inifuss loaded and drew nothing).
     if (blitted && !anim.noted && !anim.kind.empty()) { anim.noted = true; Scene::note_drawn(anim.kind, anim.name); }
