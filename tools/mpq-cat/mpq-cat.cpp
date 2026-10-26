@@ -18,8 +18,10 @@
 int main(int argc, char** argv) try {
     std::filesystem::path out_dir;
     std::size_t head = 0;
-    for (; argc > 2 && (std::string(argv[1]) == "-d" || std::string(argv[1]) == "-n"); argc -= 2, argv += 2)
+    for (; argc > 2 && (std::string(argv[1]) == "-d" || std::string(argv[1]) == "-n"); argc -= 2, argv += 2) {
+        if (argv[2][0] == '-') { std::fprintf(stderr, "mpq-cat: %s needs a value, not %s\n", argv[1], argv[2]); return 2; }
         if (std::string(argv[1]) == "-d") out_dir = argv[2]; else head = std::stoul(argv[2]);
+    }
     if (argc < 3) { std::fprintf(stderr, "usage: mpq-cat [-d <out dir> [-n <bytes>]] <mpq dir> <file>...\n"); return 2; }
     const std::filesystem::path dir = argv[1];
     d2d::mpq::Stack mpqs;
