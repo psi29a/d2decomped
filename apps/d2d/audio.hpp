@@ -397,7 +397,7 @@ struct Audio {
         music_job_gain = gain;
         music_job_loop = loop;
         if (music_job.valid()) music_dropped.push_back(std::move(music_job));
-        music_job = std::async(std::launch::async, [dir = game_data.data_dir, path = std::move(path)]() -> std::optional<Decoded> {
+        music_job = std::async(std::launch::async, [dir = game_data.data_dir, song_path = std::move(path)]() -> std::optional<Decoded> {
             // An MPQ that won't open is left out, one that won't read is no
             // song (update's get() would rethrow it on the main thread).
             try {
@@ -407,10 +407,10 @@ struct Audio {
                         try { song_mpqs.push(*mpq); }
                         catch (const std::exception& error) { d2d::log::warn("music: {}", error.what()); }
                     }
-                const auto wav = song_mpqs.try_read(path);
+                const auto wav = song_mpqs.try_read(song_path);
                 return wav ? decode(*wav) : std::nullopt;
             } catch (const std::exception& error) {
-                d2d::log::warn("music {}: {}", path, error.what());
+                d2d::log::warn("music {}: {}", song_path, error.what());
                 return std::nullopt;
             }
         });
