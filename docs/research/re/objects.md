@@ -539,8 +539,8 @@ count; the server's unit uses that, FUN_005533d0 -> FUN_0066a9b0):
 - Objects 0x0c and 0xbd (mode 3) run backwards; not ported.
 
 23 object layers have a DCC shorter than their COF (the Tree of Inifuss:
-COF and AnimData 2 frames, DCC 1, FrameCnt0 1); no FrameCnt passes its
-DCC. d2d: `Npc::frames` / `loop_from`, `object_elapsed` (world_view.cpp).
+COF and AnimData 2 frames, DCC 1, FrameCnt0 1); FrameCnt keeps most of
+them inside their DCC, all but six (bugs.md #30, below). d2d: `Npc::frames` / `loop_from`, `object_elapsed` (world_view.cpp).
 
 Past a DCC's last frame no layer draws (`FUN_005feb80`, cof-draw-order.md
 "A layer shorter than its COF"), and an object's frame runs on to
