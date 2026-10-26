@@ -25,10 +25,17 @@ A player mode d2d has no code for (not in gamedata.hpp kModeCode) is
 the animations no run has reached yet, or that d2d never asks for.
 Needs build/tools/mpq-cat/mpq-cat (and D2_PATCH_INSTALLER for 1.14d's
 excel tables, as mpq-cat reads them).
+
+--audit checks the files instead of d2d's runs, LoD's included: every
+animation above whose COF layer has no DCC at all, or a DCC with fewer
+directions than the COF or fewer frames than the mode runs (an object's
+Objects.txt FrameCnt, FUN_004bcbb0; else the COF's), and every missile,
+overlay or item sprite the data names that no MPQ holds. A short one
+draws nothing on the frames it lacks (the Tree of Inifuss, PR #80).
 """
 import collections, os, re, subprocess, sys, tempfile
 
-kBase = ("d2data", "d2char")
+kBase = ("d2data", "d2char") + (("d2exp",) if "--audit" in sys.argv else ())
 kClasses = ("am", "ba", "ne", "pa", "so")                     # the base game's five
 kMonModes = ("DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN")
 kObjectModes = ("NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5")   # gamedata.hpp kObjectModes
@@ -64,8 +71,9 @@ for path in files:
 
 # What the data shows: (kind, name) -> its bucket's mode.
 shows, unused = {}, collections.Counter()
+token_of = {}                                                 # (kind, COF stem) -> its token (the folder)
 for token in kClasses:
-    for stem in cofs[("chars", token)]: shows[("chars", stem)] = stem[2:4].upper()
+    for stem in cofs[("chars", token)]: shows[("chars", stem)] = stem[2:4].upper(); token_of[("chars", stem)] = token
 
 ms2 = {row.get("Id", ""): row for row in table("MonStats2")}
 mon_modes, mon_weapons = collections.defaultdict(set), collections.defaultdict(set)
@@ -86,16 +94,71 @@ for (root, token), stems in cofs.items():
     for stem in stems:
         mode, weapon = stem[len(token):len(token) + 2].upper(), stem[len(token) + 2:]
         named = (mode in mon_modes[token] and weapon in mon_weapons[token]) if root == "monsters" else mode in obj_modes[token]
-        if named: shows[(root, stem)] = mode
+        if named: shows[(root, stem)] = mode; token_of[(root, stem)] = token
         else: unused[root] += 1
 
+missing = []                                                  # --audit: sprites the data names that no MPQ holds
 def sprites(kind, rows, column, folder, ext):
     for row in rows:
         name = row.get(column, "").lower()
         if name and f"data\\global\\{folder}\\{name}.{ext}" in files: shows[(kind, name)] = ""
+        elif name: missing.append(f"{kind} {name}")
 sprites("missiles", table("Missiles"), "CelFile", "missiles", "dcc")
 sprites("overlays", table("Overlay"), "Filename", "overlays", "dcc")
 for name in ("armor", "weapons", "misc"): sprites("items", table(name), "flippyfile", "items", "dc6")
+
+if "--audit" in sys.argv:
+    kLayers = ("hd", "tr", "lg", "ra", "la", "rh", "lh", "sh", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8")
+    frame_cnt = collections.defaultdict(int)                  # (token, mode) -> its longest FrameCnt
+    for row in table("objects"):
+        for i, mode in enumerate(kObjectModes):
+            if row.get(f"Mode{i}") == "1":
+                key = (row.get("Token", "").lower(), mode)
+                frame_cnt[key] = max(frame_cnt[key], int(row.get(f"FrameCnt{i}") or 0))
+    dccs = collections.defaultdict(list)                      # (root, token, layer, mode + weapon) -> DCC paths
+    for path in files:
+        if m := re.fullmatch(r"data\\global\\(chars|monsters|objects)\\(\w+)\\(\w\w)\\(\w+)\.dcc", path):
+            root, token, layer, stem = m.groups()
+            if stem.startswith(token + layer) and len(stem) >= len(token) + len(layer) + 4:
+                dccs[(root, token, layer, stem[-5:])].append(path)
+    with tempfile.TemporaryDirectory() as heads:
+        def fetch(paths, head):
+            for at in range(0, len(paths), 500):
+                subprocess.run([mpq_cat, "-d", heads] + (["-n", str(head)] if head else []) + [mpq_dir] + paths[at:at + 500], check=True)
+        def read(path):
+            try: return open(os.path.join(heads, path.replace("\\", "/")), "rb").read()
+            except FileNotFoundError: return b""
+        cof_path = {key: f"data\\global\\{key[0]}\\{token_of[key]}\\cof\\{key[1]}.cof" for key in shows if key[0] in ("chars", "monsters", "objects")}
+        fetch(sorted(cof_path.values()), 0)
+        wanted, problems = {}, collections.defaultdict(list)
+        for (root, stem), path in sorted(cof_path.items()):
+            cof = read(path)
+            if len(cof) < 28: problems[f"{root}: COF unreadable"].append(stem); continue
+            layer_count, frames, directions = cof[0], cof[1], cof[2]
+            token = path.split("\\")[3]
+            mode_weapon = stem[len(token):]
+            need = frame_cnt.get((token, mode_weapon[:2].upper()), 0) if root == "objects" else frames
+            for k in range(layer_count):
+                kind, weapon = cof[28 + 9 * k], cof[28 + 9 * k + 5:28 + 9 * k + 8].decode("latin-1").lower()
+                if kind >= 16: continue
+                found = dccs.get((root, token, kLayers[kind], mode_weapon[:2] + weapon))
+                if not found:
+                    if root != "chars": problems[f"{root}: a layer with no DCC"].append(f"{stem}/{kLayers[kind]}")
+                    continue
+                for dcc in found: wanted[dcc] = (root, stem, kLayers[kind], directions, need or frames)
+        fetch(sorted(wanted), 8)
+        for dcc, (root, stem, layer, directions, need) in sorted(wanted.items()):
+            head = read(dcc)
+            if len(head) < 7: problems[f"{root}: DCC unreadable"].append(dcc); continue
+            have_dirs, have_frames = head[2], int.from_bytes(head[3:7], "little")
+            if have_dirs < directions or have_frames < need:
+                problems[f"{root}: DCC short of its mode"].append(f"{dcc.split(chr(92))[-1]} ({have_dirs}x{have_frames}, needs {directions}x{need})")
+    for name in missing: problems[name.split()[0] + ": named, in no MPQ"].append(name.split()[1])
+    print(f"audited {len(cof_path)} COFs, {len(wanted)} DCCs")
+    for bucket, names in sorted(problems.items(), key=lambda kv: -len(kv[1])):
+        shown = names if "--all" in sys.argv else names[:8]
+        print(f"{len(names):5d}  {bucket}: {' '.join(shown)}{' ...' if len(shown) < len(names) else ''}")
+    sys.exit(1 if problems else 0)
 
 # The player modes d2d can draw (gamedata.hpp kModeCode).
 player_modes = set(re.findall(r'"([A-Z0-9]{2})"', re.search(r"kModeCode\[\d+\] = \{([^}]*)\}",

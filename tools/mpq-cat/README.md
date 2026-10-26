@@ -23,6 +23,7 @@ Use single quotes: the paths use backslashes.
 | You want | Command |
 |---|---|
 | Several files in a row | `mpq-cat <dir> 'file1' 'file2' > out` |
+| Many files, each to its own file (heads only) | `mpq-cat -d out/ -n 64 <dir> 'file1' 'file2'` (missing ones skipped) |
 | One column of a table | `mpq-cat <dir> 'data\global\excel\Levels.txt' \| cut -f1,2` |
 | A sprite or sound for another tool | `mpq-cat <dir> 'data\global\ui\cursor\hand.dc6' > hand.dc6` |
 
