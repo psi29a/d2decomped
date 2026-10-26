@@ -35,6 +35,7 @@ apart and doesn't fail the run; anything else exits 1. (Fewer directions than th
 own DCC's, FUN_005ff760.)
 """
 import collections, os, re, subprocess, sys, tempfile
+from pathlib import Path
 
 kBase = ("d2data", "d2char") + (("d2exp",) if "--audit" in sys.argv else ())
 kClasses = ("am", "ba", "ne", "pa", "so")                     # the base game's five
@@ -127,7 +128,7 @@ if "--audit" in sys.argv:
             for at in range(0, len(paths), 500):
                 subprocess.run([mpq_cat, "-d", heads] + (["-n", str(head)] if head else []) + [mpq_dir] + paths[at:at + 500], check=True)
         def read(path):
-            try: return open(os.path.join(heads, path.replace("\\", "/")), "rb").read()
+            try: return Path(heads, path.replace("\\", "/")).read_bytes()
             except FileNotFoundError: return b""
         cof_path = {key: f"data\\global\\{key[0]}\\{token_of[key]}\\cof\\{key[1]}.cof" for key in shows if key[0] in ("chars", "monsters", "objects")}
         fetch(sorted(cof_path.values()), 0)
@@ -135,7 +136,7 @@ if "--audit" in sys.argv:
         for (root, stem), path in sorted(cof_path.items()):
             cof = read(path)
             if len(cof) < 28 or len(cof) < 28 + 9 * cof[0]: problems[f"{root}: COF unreadable"].append(stem); continue   # its layer records too
-            layer_count, frames, directions = cof[0], cof[1], cof[2]
+            layer_count, frames = cof[0], cof[1]
             token = path.split("\\")[3]
             mode_weapon = stem[len(token):]
             need = frame_cnt.get((token, mode_weapon[:2].upper()), 0) if root == "objects" else frames
@@ -146,9 +147,9 @@ if "--audit" in sys.argv:
                 if not found:
                     if root != "chars": known[f"{root}: a layer in no MPQ, the others drawn (game.exe: fatal if asked for, FUN_005fe990; bugs.md #31)"].append(f"{stem}/{kLayers[kind]}")
                     continue
-                for dcc in found: wanted[dcc] = (root, stem, kLayers[kind], directions, need or frames)
+                for dcc in found: wanted[dcc] = (root, need or frames)
         fetch(sorted(wanted), 24)
-        for dcc, (root, stem, layer, directions, need) in sorted(wanted.items()):
+        for dcc, (root, need) in sorted(wanted.items()):
             head = read(dcc)
             if len(head) < 24: problems[f"{root}: DCC unreadable"].append(dcc); continue
             if dcc.endswith(".dc6"): have_frames = int.from_bytes(head[20:24], "little")
