@@ -437,6 +437,50 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    if (argc > 4 && std::string(argv[argc - 1]) == "crc") {
+        // Every level's collision as one checksum a line, in jaenster/libd2's
+        // golden form (coll_crc_verify.zig): per room FNV-1a over px, py, w, h
+        // and each u16 cell (all as u32 LE), summed over the level's rooms.
+        const char* patch = std::getenv("D2_PATCH_INSTALLER");
+        auto game = d2d::game::load_game_data(dir, patch ? fs::path(patch) : fs::path{}, 1);
+        if (!game) return 1;
+        const auto dash = range.find('-');
+        const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
+        const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        const auto hash = [](std::uint32_t& sum, std::uint32_t value) {
+            for (int shift = 0; shift < 32; shift += 8) sum = (sum ^ ((value >> shift) & 0xff)) * 0x01000193u;
+        };
+        for (auto seed = first;; ++seed) {
+            d2d::game::set_map_seed(*game, seed, dump_difficulty());
+            for (int level_id = 1; level_id <= 136; ++level_id) {
+                auto level = d2d::game::build_level(*game, *game->builder, level_id);
+                if (!level || level->rooms.empty()) continue;
+                const std::size_t count = level->rooms.size();
+                level->npcs.clear();                             // tiles only, as the golden: no room is populated
+                level->laid = { count };
+                d2d::game::relevel(*level, walk_order(count, seed, "list"));
+                const int walk_width = level->ds1.width() * 5;
+                std::uint32_t crc = 0;
+                std::size_t cells = 0;
+                for (const auto& room : level->rooms) {
+                    std::uint32_t room_hash = 0x811c9dc5u;
+                    hash(room_hash, std::uint32_t((level->world_x + room.x) * 5));
+                    hash(room_hash, std::uint32_t((level->world_y + room.y) * 5));
+                    hash(room_hash, std::uint32_t(room.width * 5));
+                    hash(room_hash, std::uint32_t(room.height * 5));
+                    for (int y = room.y * 5; y < (room.y + room.height) * 5; ++y)
+                        for (int x = room.x * 5; x < (room.x + room.width) * 5; ++x)
+                            hash(room_hash, level->walk[std::size_t(y) * std::size_t(walk_width) + std::size_t(x)]);
+                    crc += room_hash;
+                    cells += std::size_t(room.width * room.height * 25);
+                }
+                std::printf("{\"seed\":%u,\"diff\":%d,\"levelId\":%d,\"crc\":%u,\"cells\":%zu,\"px\":%d,\"py\":%d}\n", seed, dump_difficulty(), level_id, crc, cells, level->world_x * 5, level->world_y * 5);
+            }
+            std::fflush(stdout);
+            if (seed == last) break;
+        }
+        return 0;
+    }
     if (argc > 4 && std::string(argv[argc - 1]) == "layout") {
         // Act 2's outdoor rectangles (act2_layout), as tools/emu drlg.layout_dump prints them.
         d2d::mpq::Stack mpqs;

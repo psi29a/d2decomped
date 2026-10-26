@@ -32,6 +32,7 @@ differing lines, game.exe's above d2d's.
 | Monsters per room | add `monsters` (`DIFFICULTY=0..2`) |
 | Random object groups | `drlg-dump <dir> <seed> <level> objgroups` |
 | Collision grids | `drlg-dump <dir> <seed> <level> collision` (`ORDER=shuffle\|reverse\|list`) |
+| Every level's collision checksum, libd2's form | `drlg-dump <dir> 1-200 0 crc` (`DIFFICULTY=0..2`; `tools/emu/libd2_crc.py`) |
 | A whole game's seeds and containers | `drlg-dump <dir> <seed> 0 game` (`LEVELS=2,8,4,9`) |
 | Many seeds to files | `drlg-dump <dir> 1-300 2 out/` writes `out/<seed>.txt` |
 | Every level, all cores | `cd tools/emu && ./sweep.sh 1-50 monsters objgroups` |
