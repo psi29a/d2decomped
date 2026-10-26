@@ -447,6 +447,7 @@ int main(int argc, char** argv) try {
         const auto dash = range.find('-');
         const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
         const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        if (last < first) { std::fprintf(stderr, "crc: seeds %s run backwards\n", range.c_str()); return 2; }
         const auto hash = [](std::uint32_t& sum, std::uint32_t value) {
             for (int shift = 0; shift < 32; shift += 8) sum = (sum ^ ((value >> shift) & 0xff)) * 0x01000193u;
         };

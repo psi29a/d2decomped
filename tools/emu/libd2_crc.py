@@ -59,6 +59,7 @@ def main():
     failed = False
     for name in names:
         want = {key: r for key, r in golden(name).items() if first <= key[0] <= last}
+        if not want: sys.exit(f"{name}: libd2 has no seeds in {first}-{last} (it covers 1-200)")
         got = ours(first, last, DIFFICULTIES[name])
         bad = Counter(level for (seed, level), r in want.items() if got.get((seed, level), {}).get("crc") != r["crc"])
         levels = {level for _, level in want}
