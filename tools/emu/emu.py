@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import pefile
+from mpq_cache import MpqCache
 import unicorn.x86_const
 from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_INVALID, UC_PROT_ALL
 from unicorn.x86_const import *
@@ -70,6 +71,18 @@ def data_path():
     sys.exit(f"no game data: set D2_MPQ_DIR, or `data = <MPQ folder>` in {cfg} (the launcher writes it)")
 
 
+_mpq_cache = None
+
+
+def mpq_cache():
+    """The game's MPQ stack (1.14d patch first) through mpq-cat, cached in .cache/."""
+    global _mpq_cache
+    if _mpq_cache is None:
+        patch = os.environ.get("D2_PATCH_INSTALLER", str(Path.home() / "Downloads/Diablo II + LoD/patch/LODPatch_114d.exe"))
+        _mpq_cache = MpqCache(data_path(), BUILD / "tools" / "mpq-cat" / "mpq-cat", patch)
+    return _mpq_cache
+
+
 class Emu:
     def __init__(self, exe=None):
         exe = exe or os.path.join(data_path(), "bin", "game.exe")
@@ -105,9 +118,7 @@ class Emu:
         mu.reg_write(UC_X86_REG_FS, 2 << 3)
         mu.hook_add(UC_HOOK_CODE, self._stub, begin=STUB, end=STUB + STUB_SIZE - 1)
         mu.hook_add(UC_HOOK_MEM_INVALID, self._bad)
-        self.files = {}
-        self._mpqs = os.path.join(data_path())
-        self._cat = BUILD / "tools" / "mpq-cat" / "mpq-cat"
+        self._mpq_cache = mpq_cache()
         self.last_error = 0
 
     # ---- memory -------------------------------------------------------
@@ -208,18 +219,7 @@ class Emu:
     # ---- files --------------------------------------------------------
     def mpq_file(self, name):
         """A file from the game's MPQ stack (1.14d patch first), cached."""
-        key = name.lower().replace("/", "\\")
-        if key not in self.files:
-            cache = HERE / ".cache" / key.replace("\\", "_")
-            if not cache.exists():
-                env = dict(os.environ)
-                env.setdefault("D2_PATCH_INSTALLER", str(Path.home() / "Downloads/Diablo II + LoD/patch/LODPatch_114d.exe"))
-                p = subprocess.run([str(self._cat), self._mpqs, name], capture_output=True, env=env)
-                cache.parent.mkdir(exist_ok=True)
-                cache.write_bytes(p.stdout if p.returncode == 0 else b"")
-                if p.returncode: cache.with_suffix(".missing").touch()
-            self.files[key] = None if cache.with_suffix(".missing").exists() else cache.read_bytes()
-        return self.files[key]
+        return self._mpq_cache.read(name)
 
     # ---- Win32 stubs: w_<name>(emu) -> (eax, stdcall arg count) ----------
     def w_GetLastError(self): return self.last_error, 0

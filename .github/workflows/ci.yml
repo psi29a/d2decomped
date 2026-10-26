@@ -264,6 +264,12 @@ jobs:
           xargs -P $(nproc) -n 1 clang-tidy -p build --quiet --extra-arg=-Wno-unknown-warning-option < tidy_files.txt
 
       # No game data on the runners: tests that need MPQs print SKIP and pass.
+      - name: Tooling regression tests
+        if: runner.os != 'Windows'
+        run: |
+          python3 -m unittest tools/test_tidy_pr_select.py
+          (cd tools/emu && python3 -m unittest test_tooling.py)
+
       - name: Test (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash

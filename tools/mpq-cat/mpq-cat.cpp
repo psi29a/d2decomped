@@ -89,7 +89,7 @@ int main(int argc, char** argv) try {
         }
         const auto bytes = mpqs.try_read(argv[i]);
         if (!bytes && !out_dir.empty()) continue;
-        if (!bytes) { std::fprintf(stderr, "mpq-cat: %s not found\n", argv[i]); return 1; }
+        if (!bytes) { std::fprintf(stderr, "mpq-cat: %s not found\n", argv[i]); return 3; }
         if (out_dir.empty()) { std::fwrite(bytes->data(), 1, bytes->size(), stdout); continue; }
         const auto path = out_dir / relative;
         std::filesystem::create_directories(path.parent_path());

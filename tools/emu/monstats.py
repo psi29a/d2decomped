@@ -10,16 +10,16 @@ this checks them against the rule rules::monster_stats ports: MonLvl
 itself for a noRatio row (flag +0xc & 4). Prints mismatches and a count.
 """
 import csv
-import os
 
 import drlg
-
-CACHE = os.path.join(os.path.dirname(__file__), ".cache")
+import emu
 
 
 def table(name):
-    with open(os.path.join(CACHE, f"data_global_excel_{name}.txt"), encoding="latin1") as f:
-        rows = list(csv.reader(f, delimiter="\t"))
+    # game.exe loads the .bin tables, so the .txt ones come straight from the MPQs.
+    text = emu.mpq_cache().read(f"data\\global\\excel\\{name}.txt")
+    if text is None: raise FileNotFoundError(f"{name}.txt is in no MPQ")
+    rows = list(csv.reader(text.decode("latin1").splitlines(), delimiter="\t"))
     return [{k.lower(): v for k, v in zip(rows[0], r)} for r in rows[1:]]
 
 

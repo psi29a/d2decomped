@@ -32,9 +32,10 @@ the command to run first.
 | File | What it is | Run it |
 |---|---|---|
 | `validate-linux.sh` | CI's Linux build, clang-tidy and tests, in Docker (`validate-linux.Dockerfile`; its own `build-linux/`). Run before every push | `tools/validate-linux.sh` (exit status 0 = good) |
-| `tidy-pr-select.py` | CI only: picks the files a PR needs clang-tidy on | not run by hand |
+| `tidy-pr-select.py` | CI only: picks the files a PR needs clang-tidy on; checks in `test_tidy_pr_select.py` | `python3 -m unittest tools/test_tidy_pr_select.py` |
 | `sound_coverage.py` | Lists the base game's sounds d2d can't play yet, by the table column or game.exe code that plays them (needs a build, for mpq-cat) | `tools/sound_coverage.py ~/Workspace/private/diablo2` |
 | `anim_coverage.py` | Lists the base game's animations (player, monster and object COFs, missiles, overlays, item drops) d2d hasn't drawn in the runs given, by kind and mode. d2d logs what reaches the screen when `D2D_ANIM_LOG=<file>` is set (needs a build, for mpq-cat). `--audit`: the MPQs' own gaps instead, LoD too: COF layers with no DCC, DCCs short of their mode's frames or directions, sprites the data names that no MPQ holds (6 s) | `D2D_ANIM_LOG=$PWD/build/anims.log ctest --test-dir build -R 'quests_act\|_d2d'`, then `tools/anim_coverage.py ~/Workspace/private/diablo2 build/anims.log` |
+| `d2d_smoke.py` | Starts a no-save headless game, takes a screenshot and closes its process | `tools/d2d_smoke.py --data /path/to/mpqs --wait 1` |
 | `coverity.py` | Lists Coverity Scan issues with file:line, shows one, marks them False Positive / Intentional / Bug (auth: `--help`) | `tools/coverity.py list` |
 
 ## Before any of them

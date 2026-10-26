@@ -37,11 +37,19 @@ def ninja_deps(build_dir: str) -> dict[str, set[str]]:
 
 def main() -> int:
     if not os.path.exists("changed.txt"): return 0
-    changed = {os.path.abspath(line.strip()) for line in open("changed.txt") if line.strip()}
+    with open("changed.txt") as source:
+        changed = {os.path.abspath(line.strip()) for line in source if line.strip()}
     if not changed: return 0
     build_dir = os.environ.get("BUILD_DIR", "build")
     deps = ninja_deps(build_dir)                # keyed by absolute .o path
-    entries = json.load(open(os.path.join(build_dir, "compile_commands.json")))
+    with open(os.path.join(build_dir, "compile_commands.json")) as source:
+        entries = json.load(source)
+    entries = [entry for entry in entries if "/_deps/" not in entry["file"] and "/build/" not in entry["file"]]
+    # A new or incomplete Ninja dependency database cannot prove that an
+    # edited header affects no TU. Fall back to the full project tidy list.
+    if any(path.endswith(".hpp") for path in changed) and any(os.path.abspath(entry["output"]) not in deps for entry in entries):
+        for tu in sorted({entry["file"] for entry in entries}): print(tu)
+        return 0
     picked: list[str] = []
     for entry in entries:
         tu = entry["file"]

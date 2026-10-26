@@ -68,6 +68,8 @@ The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
 ## What's there
 
 - `emu.py`: the core `Emu` class.
+  - `mpq_cache.py` caches MPQ reads by archive and patch version. A tool
+    error stops the oracle; only a confirmed absent archive entry is cached.
   - `call(addr, *stack_args, ecx=, edx=)` calls a function. It covers
     stdcall, fastcall and cdecl (the caller pops nothing). It returns EAX.
   - `hook(addr, fn, nstack)` replaces a game.exe function with Python.
@@ -80,6 +82,8 @@ The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
   - `serve_files(e)` answers Storm's file calls (open, size, read, seek,
     close, name) from the MPQ stack through `mpq-cat`. Files are cached
     in `.cache/`, so the first run is slow and later runs are fast.
+  - `python3 -m unittest test_tooling.py` checks cache recovery and sweep
+    failure reporting without game data.
   - Win32 stubs are `w_<ImportName>` methods that return
     `(eax, stdcall arg count)`. An unstubbed import stops the run with its
     name and a stack of return addresses, so you add them as you go.
