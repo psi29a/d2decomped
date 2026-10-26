@@ -131,6 +131,7 @@ struct Unit {
     const Scene::MissileInfo* missile = nullptr;
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
     bool hold = false;                   // plays once and stays on its last frame (an opened chest)
+    std::uint8_t frames = 0, loop_from = 0;   // an object's FrameCnt / Start in its mode (Npc::frames), 0: the COF's length
     bool reverse = false;                // plays once backwards and stays on its first frame (a maggot burrowing)
     const d2d::dcc::Sprite* overlay = nullptr;   // over it (Overlay.txt npcalert: the quest balloon)
     // Its states' look (Scene::StateInfo): the colour shift (256, before
@@ -224,10 +225,8 @@ template <class Fn> void composite_frames(const Scene::PlayerAnim& anim, int dir
     for (const auto type : anim.cof.priority(d2d::cof::Cof::priority_row(dir, dirs), frame)) {
         if (type >= anim.dcc.size()) continue;
         const auto& spr = anim.layer(type);
-        if (dir >= spr.directions() || spr.frames_per_direction() == 0) continue;
-        // A DCC shorter than its COF (the Tree of Inifuss: COF 2 frames, DCC 1) stays on its last.
-        // unverified (source: Objects.txt FrameCnt0 = 1 for it): game.exe's object frame count not traced.
-        visit(spr.frame(dir, std::min<std::uint32_t>(frame, std::uint32_t(spr.frames_per_direction()) - 1)), cof_layer(anim, type));
+        if (dir >= spr.directions() || frame >= spr.frames_per_direction()) continue;
+        visit(spr.frame(dir, frame), cof_layer(anim, type));
     }
 }
 

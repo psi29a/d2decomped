@@ -25,6 +25,22 @@
 
 namespace d2d::client {
 
+namespace {
+
+// An object's time into its mode, as the client steps its frame (FUN_004bcbb0):
+// FrameCnt frames, then held on the last (CycleAnim 0) or back to Start.
+std::uint32_t object_elapsed(const Unit& unit, std::uint32_t elapsed) {
+    if (!unit.frames || !unit.anim) return elapsed;
+    const auto frame_ms = std::max<std::uint32_t>(unit.anim->ms_per_frame(), 1);
+    auto frame = elapsed / frame_ms;
+    if (frame < unit.frames) return elapsed;
+    const std::uint32_t loop_from = std::min<std::uint32_t>(unit.loop_from, unit.frames - 1u);
+    frame = unit.hold ? unit.frames - 1u : loop_from + (frame - loop_from) % (unit.frames - loop_from);
+    return frame * frame_ms + elapsed % frame_ms;
+}
+
+}  // namespace
+
 void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
                    const d2d::dt1::Tile& tile,
                    const d2d::palette::Palette& pal,
@@ -337,6 +353,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (++id == 0) { std::ranges::fill(mask, std::uint16_t{ 0 }); id = 1; }
             auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
             if (unit.hold) elapsed = std::min(elapsed, std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame());
+            elapsed = object_elapsed(unit, elapsed);
             shadow_composite(framebuffer, *unit.anim, unit.dir, elapsed, anchor_x, anchor_y, mask, id);
         }
     }
@@ -425,6 +442,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 const auto last = std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame();
                 if (unit.hold) elapsed = std::min(elapsed, last);
                 if (unit.reverse) elapsed = last - std::min(elapsed, last);
+                elapsed = object_elapsed(unit, elapsed);
                 if (unit.spirit) draw_composite(framebuffer, *unit.anim, tinted(upal, 205, 230, 255), unit.dir, elapsed, anchor_x, anchor_y, 4);   // half, pale
                 else draw_composite(framebuffer, *unit.anim, upal, unit.dir, elapsed, anchor_x, anchor_y);
                 if (hovered && unit.name && !unit.name->empty()) bounds = composite_bounds(*unit.anim, unit.dir, elapsed, anchor_x, anchor_y);

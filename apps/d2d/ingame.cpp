@@ -127,6 +127,14 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             const int index = game::mode_index(mode);
             return npc.root == "objects" && index >= 0 && !(npc.cycle >> index & 1);
         };
+        // An object's length in its mode is its FrameCnt, a loop going back to Start (FUN_004bcbb0).
+        auto frames_of = [](const Npc& npc, const UnitState* state, Unit& unit) {
+            const auto mode = state && !state->mode.empty() ? std::string_view(state->mode) : std::string_view(npc.mode);
+            const int index = game::mode_index(mode);
+            if (npc.root != "objects" || index < 0) return;
+            unit.frames = npc.frames[std::size_t(index)];
+            unit.loop_from = npc.loop_from[std::size_t(index)];
+        };
         // NPCs and objects, at their live position when they patrol.
         for (std::size_t i = 0; i < level.npcs.size(); ++i) {
             const auto& npc = level.npcs[i];
@@ -143,6 +151,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             if (state) units.back().says = state->says;
             units.back().shadow = npc.root != "objects";
             units.back().hold = holds(npc, state);
+            frames_of(npc, state, units.back());
             units.back().name_offset = npc.name_offset;
         }
         // The neighbour levels' objects and NPCs (torches by the camp's
@@ -163,6 +172,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 units.push_back({ x, y, &scene.npc_anim(npc, mode), state ? state->dir : 0, &no_name, state ? state->mode_ms : 0, -3 });
                 units.back().shadow = npc.root != "objects";
                 units.back().hold = holds(npc, state);
+                frames_of(npc, state, units.back());
             }
         if (merc && merc_state)                    // npc -2: not an NPC-menu unit
             units.push_back({ merc_state->x, merc_state->y,

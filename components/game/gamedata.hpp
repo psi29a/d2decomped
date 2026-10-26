@@ -115,6 +115,8 @@ struct Npc {
     std::uint8_t collision = 0;          // an object's HasCollision0..7, a bit a mode (NU OP ON S1..S5)
     std::uint8_t selectable = 0;         // its Selectable0..7, the same way
     std::uint8_t cycle = 0xff;           // its CycleAnim0..7: loops in that mode, else holds the last frame
+    std::array<std::uint8_t, 8> frames{};      // its FrameCnt0..7: a mode's length (FUN_004bcbb0), not its COF's
+    std::array<std::uint8_t, 8> loop_from{};   // its Start0..7: the frame a looping mode goes back to
     std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)
     int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     std::string id;                      // MonStats Id (npc.txt key)

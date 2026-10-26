@@ -523,3 +523,21 @@ smoulders; d2d drew it blazing.
 - d2d: `Npc::env_effect`; `World` sets NU / OP each tick by the day's type.
   ponytail: objects' FrameDelta isn't honoured (the bonfire's embers run at
   full speed; 91 objects have FrameDelta0 128).
+
+## Animation length (FUN_004bcbb0, client)
+
+The client steps an object's frame counter (unit +0x44, 8.8) by its rate
+(+0x4c) against Objects.txt, not the COF or AnimData (both say the COF's
+count; the server's unit uses that, FUN_005533d0 -> FUN_0066a9b0):
+
+- record +0xd8 + mode * 4: FrameCnt[mode] << 8. 0x100 (one frame): the
+  counter never moves.
+- record +0x108 + mode: CycleAnim[mode]. 0: once the counter reaches
+  FrameCnt - 1 it stays there; from OP (mode 1) the object goes to ON
+  (mode 2, its Start2 frame, +0x12b). 1: past FrameCnt it goes back to
+  Start[mode] (+0x129 + mode) << 8, keeping the overflow.
+- Objects 0x0c and 0xbd (mode 3) run backwards; not ported.
+
+23 object layers have a DCC shorter than their COF (the Tree of Inifuss:
+COF and AnimData 2 frames, DCC 1, FrameCnt0 1); no FrameCnt passes its
+DCC. d2d: `Npc::frames` / `loop_from`, `object_elapsed` (world_view.cpp).
