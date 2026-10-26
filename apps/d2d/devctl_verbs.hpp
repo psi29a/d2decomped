@@ -61,21 +61,21 @@ const char* screen_name(Screen screen) {
 // outlive it.
 void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& screen, CharSelectUI& csu, CharCreateUI& character,
                          Town& town, std::optional<Scene>& scene, Audio& audio) {
-    auto click_verb = [&win = win](const std::vector<std::string>& args, std::uint8_t button) {
+    auto click_verb = [&window = win](const std::vector<std::string>& args, std::uint8_t button) {
         if (args.size() < 3) return std::string("err click <x> <y>\n");
         // Args are game pixels; queued events carry window coords and get
         // converted back by SDL_ConvertEventToRenderCoordinates on poll.
         float x = 0, y = 0;
-        SDL_RenderCoordinatesToWindow(win.renderer, std::stof(args[1]), std::stof(args[2]), &x, &y);
+        SDL_RenderCoordinatesToWindow(window.renderer, std::stof(args[1]), std::stof(args[2]), &x, &y);
         // Motion + down + up land in the next frame's poll. One frame is
         // enough: update_button and the slot picker both accept a press
         // and release in the same frame.
         SDL_Event event{};
-        event.motion = { .type = SDL_EVENT_MOUSE_MOTION, .windowID = SDL_GetWindowID(win.window), .x = x, .y = y };
+        event.motion = { .type = SDL_EVENT_MOUSE_MOTION, .windowID = SDL_GetWindowID(window.window), .x = x, .y = y };
         SDL_PushEvent(&event);
         for (auto type : { SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_BUTTON_UP }) {
             event = {};
-            event.button = { .type = type, .windowID = SDL_GetWindowID(win.window),
+            event.button = { .type = type, .windowID = SDL_GetWindowID(window.window),
                           .button = button,
                           .down = type == SDL_EVENT_MOUSE_BUTTON_DOWN,
                           .clicks = 1, .x = x, .y = y };
