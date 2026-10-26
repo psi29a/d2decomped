@@ -521,8 +521,7 @@ smoulders; d2d drew it blazing.
   (mode 0 by day, 1 at night), but only InitFn 10 queues it for anything
   but the fissures (399, InitFn 58), and no object has InitFn 10 (stubs.md).
 - d2d: `Npc::env_effect`; `World` sets NU / OP each tick by the day's type.
-  ponytail: objects' FrameDelta isn't honoured (the bonfire's embers run at
-  full speed; 91 objects have FrameDelta0 128).
+  The embers' FrameDelta0 128 runs them at half speed (below).
 
 ## Animation length (FUN_004bcbb0, client)
 
@@ -537,6 +536,27 @@ count; the server's unit uses that, FUN_005533d0 -> FUN_0066a9b0):
   (mode 2, its Start2 frame, +0x12b). 1: past FrameCnt it goes back to
   Start[mode] (+0x129 + mode) << 8, keeping the overflow.
 - Objects 0x0c and 0xbd (mode 3) run backwards; not ported.
+
+Every mode set (`FUN_00624390`, type 2) starts the counter at Start[mode]
+<< 8 and its rate at FrameDelta[mode] (+0xf8 + mode * 2; 256 a frame a
+tick). Without Sync (+0x175) the rate is FrameDelta - FrameDelta / 16 + a
+roll of FrameDelta / 8 on the client unit's seed (0x624558), capped at
+0x7fff. With FrameCnt 1 (0x100) the counter never moves: the mode shows
+its Start frame (an opened casket, C5: FrameCnt2 1, Start2 6).
+
+OP's end (CycleAnim1 0, not a door: IsDoor +0x13a goes to `FUN_004bcb20`):
+once the counter reaches FrameCnt1 - 1 the client sets mode 2 (ON) itself,
+the counter at Start2 (+0x12b), OrderFlag2 (+0x133) 1 → unit flag
+0x100000, Parm7 (+0x194) → `FUN_0046c320(4)`, the unit's selectable bit
+from Selectable2 and its light at Lit2 (`FUN_004bc580`, Red/Green/Blue),
+and its footprint off (`FUN_00623830`) when HasCollision1 is set and
+HasCollision2 isn't. Object 0xbd steps 2 → 3 → 4 the same way.
+
+d2d: `Npc::frame_delta`, `object_elapsed` (world_view.cpp) runs the
+counter; `World`'s used shrines and chests go ON on the tick the client's
+would (`op_ticks`, world.cpp), with ON's footprint; the drawn unit takes
+ON's selectable bit and light from its mode. Not ported: the rate's roll (no client unit seed), OrderFlag2
+and Parm7.
 
 23 object layers have a DCC shorter than their COF (the Tree of Inifuss:
 COF and AnimData 2 frames, DCC 1, FrameCnt0 1); FrameCnt keeps most of

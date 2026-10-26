@@ -438,10 +438,14 @@ int main(int argc, char** argv) try {
     assert(std::ranges::count(world.cues.due, data->sound_index.at("shrine_recharge"), &Cues::Cue::sound) == 1);
     world.tick({}, 901 * kTickMs, 900 * kTickMs);
     assert(world.npc_states[std::size_t(shrine_index)].says == 3683 + shrine->shrine && world.view().boost_code == 14);
-    // OP from its use, then ON once FrameCnt1's frames have run.
+    // OP from its use, then ON once its counter reaches FrameCnt1 - 1 (Start1 0 at FrameDelta1 a tick).
     assert(world.npc_states[std::size_t(shrine_index)].mode == "OP" && world.npc_states[std::size_t(shrine_index)].mode_ms == 900 * kTickMs);
-    world.tick({}, 900 * kTickMs + std::uint32_t(shrine->op_frames) * 40u, 901 * kTickMs);
-    assert(world.npc_states[std::size_t(shrine_index)].mode == "ON" && world.npc_states[std::size_t(shrine_index)].mode_ms == 900 * kTickMs + std::uint32_t(shrine->op_frames) * 40u);
+    assert(shrine->loop_from[1] == 0 && shrine->frame_delta[1] > 0);
+    const std::uint32_t on_ms = (900 + std::uint32_t(((shrine->frames[1] - 1) * 256 + shrine->frame_delta[1] - 1) / shrine->frame_delta[1])) * kTickMs;
+    world.tick({}, on_ms - kTickMs, 901 * kTickMs);
+    assert(world.npc_states[std::size_t(shrine_index)].mode == "OP");
+    world.tick({}, on_ms, on_ms - kTickMs);
+    assert(world.npc_states[std::size_t(shrine_index)].mode == "ON" && world.npc_states[std::size_t(shrine_index)].mode_ms == on_ms);
     const int fire = world.actor->player_combat.res[0];
     stats[d2d::d2s::kStamina] = 0;
     world.operate(shrine_index, 902 * kTickMs, 8);

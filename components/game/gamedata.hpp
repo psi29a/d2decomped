@@ -116,7 +116,11 @@ struct Npc {
     std::uint8_t selectable = 0;         // its Selectable0..7, the same way
     std::uint8_t cycle = 0xff;           // its CycleAnim0..7: loops in that mode, else holds the last frame
     std::array<std::uint8_t, 8> frames{};      // its FrameCnt0..7: a mode's length (FUN_004bcbb0), not its COF's
-    std::array<std::uint8_t, 8> loop_from{};   // its Start0..7: the frame a looping mode goes back to
+    std::array<std::uint8_t, 8> loop_from{};   // its Start0..7: the frame a mode starts on and a loop goes back to
+    // Its FrameDelta0..7: 256 a frame a tick (unit +0x4c, FUN_00624390).
+    // ponytail: without Sync game.exe takes 1/16 off and adds up to 1/8 from
+    // the client unit's seed (0x624558); d2d runs it as written.
+    std::array<std::uint16_t, 8> frame_delta{};
     std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)
     int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     std::string id;                      // MonStats Id (npc.txt key)

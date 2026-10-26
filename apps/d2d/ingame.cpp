@@ -126,13 +126,14 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             const int index = game::mode_index(mode);
             return npc.root == "objects" && index >= 0 && !(npc.cycle >> index & 1);
         };
-        // An object's length in its mode is its FrameCnt, a loop going back to Start (FUN_004bcbb0).
+        // An object's length in its mode is its FrameCnt from Start at FrameDelta, a loop going back to Start (FUN_004bcbb0).
         auto frames_of = [](const Npc& npc, const UnitState* state, Unit& unit) {
             const auto mode = state && !state->mode.empty() ? std::string_view(state->mode) : std::string_view(npc.mode);
             const int index = game::mode_index(mode);
             if (npc.root != "objects" || index < 0) return;
             unit.frames = npc.frames[std::size_t(index)];
             unit.loop_from = npc.loop_from[std::size_t(index)];
+            unit.frame_delta = npc.frame_delta[std::size_t(index)];
         };
         // NPCs and objects, at their live position when they patrol.
         for (std::size_t i = 0; i < level.npcs.size(); ++i) {

@@ -27,16 +27,21 @@ namespace d2d::client {
 
 namespace {
 
-// An object's time into its mode, as the client steps its frame (FUN_004bcbb0):
-// FrameCnt frames, then held on the last (CycleAnim 0) or back to Start.
+// An object's time into its mode, as the client steps its frame: a counter
+// (8.8) from Start at FrameDelta a tick (FUN_00624390), held on FrameCnt - 1
+// (CycleAnim 0) or back to Start past FrameCnt; FrameCnt 1 never moves
+// (FUN_004bcbb0). The time it returns lands the anim's own rate on that frame.
 std::uint32_t object_elapsed(const Unit& unit, std::uint32_t elapsed) {
     if (!unit.frames || !unit.anim) return elapsed;
-    const auto frame_ms = std::max<std::uint32_t>(unit.anim->ms_per_frame(), 1);
-    auto frame = elapsed / frame_ms;
-    if (frame < unit.frames) return elapsed;
-    const std::uint32_t loop_from = std::min<std::uint32_t>(unit.loop_from, unit.frames - 1u);
-    frame = unit.hold ? unit.frames - 1u : loop_from + (frame - loop_from) % (unit.frames - loop_from);
-    return frame * frame_ms + elapsed % frame_ms;
+    const std::uint32_t frames = unit.frames, start = unit.loop_from;
+    const std::uint64_t counter = std::uint64_t(start) * 256u + std::uint64_t(elapsed / 40u) * unit.frame_delta;
+    std::uint64_t frame = start;
+    if (frames > 1 && start < frames - 1u) {
+        if (unit.hold) frame = std::min<std::uint64_t>(counter / 256u, frames - 1u);
+        else if (counter < std::uint64_t(frames) * 256u) frame = counter / 256u;
+        else frame = (start * 256u + (counter - start * 256u) % ((frames - start) * 256u)) / 256u;
+    }
+    return std::uint32_t(frame) * std::max<std::uint32_t>(unit.anim->ms_per_frame(), 1);
 }
 
 }  // namespace
@@ -353,7 +358,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (anchor_x < -200 || anchor_x > screen_w + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
             if (++id == 0) { std::ranges::fill(mask, std::uint16_t{ 0 }); id = 1; }
             auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
-            if (unit.hold) elapsed = std::min(elapsed, std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame());
+            if (unit.hold && !unit.frames) elapsed = std::min(elapsed, std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame());
             elapsed = object_elapsed(unit, elapsed);
             shadow_composite(framebuffer, *unit.anim, unit.dir, elapsed, anchor_x, anchor_y, mask, id);
         }
@@ -443,7 +448,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             } else {
                 auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
                 const auto last = std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame();
-                if (unit.hold) elapsed = std::min(elapsed, last);
+                if (unit.hold && !unit.frames) elapsed = std::min(elapsed, last);
                 if (unit.reverse) elapsed = last - std::min(elapsed, last);
                 elapsed = object_elapsed(unit, elapsed);
                 // An object's FrameCnt past its COF's frames (the Act 3 magic shrine: 13 in a 1-frame COF):

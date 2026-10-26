@@ -56,6 +56,18 @@ namespace d2d::game {
 
 // Levels.txt Waypoint: a level's index in the waypoint bits (FUN_00660e00), -1 none.
 // `level`'s units states, the ones its rooms made since (populate) added as they start.
+// The client's ticks from an object's OP to its ON (FUN_004bcbb0): the
+// counter runs from Start1 at FrameDelta1 a tick (FUN_00624390) until it
+// reaches FrameCnt1 - 1; -1: never (FrameCnt1 1, or a counter that doesn't move).
+static int op_ticks(const Npc& npc) {
+    if (!npc.op_frames) return 0;
+    if (npc.frames[1] == 1) return -1;
+    const int need = (int(npc.frames[1]) - 1 - int(npc.loop_from[1])) * 256;
+    if (need <= 0) return 0;
+    if (!npc.frame_delta[1]) return -1;
+    return (need + npc.frame_delta[1] - 1) / npc.frame_delta[1];
+}
+
 static void grow_states(std::vector<UnitState>& states, const Level& level) {
     if (states.size() >= level.npcs.size()) return;
     const auto fresh = npc_start(level);
@@ -2707,9 +2719,14 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             const int reset = npc.operate_fn == d2d::rules::operate_fn::kShrine && std::size_t(npc.shrine) < game_data->shrines.size() ? game_data->shrines[std::size_t(npc.shrine)].reset : 0;
             const bool back = reset > 0 && now_ms - when_ms >= d2d::rules::shrine_reset_frames(reset) * kTickMs;
             if (key.first == level && npc_index < npc_states.size()) {
-                const std::uint32_t on_ms = when_ms + std::uint32_t(npc.op_frames) * 40u;
-                const bool opening = now_ms < on_ms;
-                npc_states[npc_index].mode = back ? std::string_view{} : opening ? "OP" : "ON";
+                const auto on_ticks = op_ticks(npc);
+                const std::uint32_t on_ms = on_ticks < 0 ? 0 : when_ms + std::uint32_t(on_ticks) * kTickMs;
+                const bool opening = on_ticks < 0 || now_ms < on_ms;
+                const std::string_view mode = back ? std::string_view{} : opening ? "OP" : "ON";
+                // Its footprint in the new mode (ON: FUN_00623830 when HasCollision2 is off; jugs q4 / q5, xj).
+                // ponytail: on this level's tick only; one left mid-OP keeps OP's until it's back in view.
+                if (npc_states[npc_index].mode != mode) set_footprint(*level, npc, npc.collision >> mode_index(mode.empty() ? npc.mode : mode) & 1);
+                npc_states[npc_index].mode = mode;
                 npc_states[npc_index].mode_ms = back ? now_ms : opening ? when_ms : on_ms;   // its animation runs from the mode's start
                 // Its message overhead (ShrMsgN, 3683 + row: FUN_00661110 on
                 // "%d", 4 chars x 8 + 125 frames).
