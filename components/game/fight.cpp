@@ -1485,8 +1485,12 @@ auto Fight::add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fi
         }
     }
 
-auto Fight::row_damage(const GameData::MissileInfo& missile_info, int lvl) -> d2d::rules::MissileDamage {
+auto Fight::row_damage(const GameData::MissileInfo& missile_info, int lvl, const d2d::rules::CalcEnv& env, int skill_id) const -> d2d::rules::MissileDamage {
         auto damage = d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev, missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
+        if (damage.etype >= 0 && lvl >= 1 && !missile_info.edmg_sym.empty()) {   // FUN_0064b100 / FUN_0064b1d0
+            damage.elo = missile_elem(*game_data, missile_info, env, skill_id, lvl, false);
+            damage.ehi = std::max(missile_elem(*game_data, missile_info, env, skill_id, lvl, true), damage.elo);
+        }
         damage.srcdam = missile_info.src_damage;
         return damage;
     }
@@ -2890,7 +2894,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         const auto fighter = missile.by_merc ? merc_fighter() : actor->player_combat;
         const auto env = missile.by_merc ? merc_calc_env() : calc_env();
         auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = missile.info->etype < 0 ? 0 : missile.info->etype, .elo = missile.fixed, .ehi = missile.fixed }
-                : missile.info->skill.empty() ? row_damage(*missile.info, missile.level)
+                : missile.info->skill.empty() ? row_damage(*missile.info, missile.level, env, missile.skill)
                                         : d2d::rules::missile_damage(game_data->skills, *skill, env, missile.level);
         d2d::rules::Blow blow{ .hit = true };
         if (damage.srcdam > 0) {

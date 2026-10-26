@@ -456,6 +456,20 @@ int main(int argc, char** argv) try {
     assert(world.actor->boost.shrine == 0 && world.actor->player_combat.res[0] == fire);
     std::printf("OK: shrines: stamina filled, one state at a time, resist fire for 3600 frames\n");
 
+    // A row with no Skill (Meteor's fire): its EDmgSymPerCalc, skill('Inferno'.blvl) * 3, adds
+    // that percent to EMin + brackets before HitShift (FUN_0064b100 / FUN_0064b1d0).
+    {
+        const auto& meteor_fire = data->missiles.at("meteorfire");
+        const int inferno = data->skills.by_name.at("Inferno");
+        const d2d::rules::CalcEnv none{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, 1, nullptr };
+        const d2d::rules::CalcEnv twenty{ [&](int id) { return id == inferno ? 20 : 0; }, [](int) { return 0; }, [](int) { return 0; }, 1, nullptr };
+        const int meteor = data->skills.by_name.at("Meteor");   // the skill that cast it
+        const auto plain = world.fight.row_damage(meteor_fire, 10, none, meteor), synergy = world.fight.row_damage(meteor_fire, 10, twenty, meteor);
+        const int base_lo = plain.elo >> meteor_fire.hitshift, base_hi = plain.ehi >> meteor_fire.hitshift;
+        assert(plain.elo > 0 && synergy.elo == (base_lo + base_lo * 60 / 100) << meteor_fire.hitshift && synergy.ehi == (base_hi + base_hi * 60 / 100) << meteor_fire.hitshift);
+        std::printf("OK: Meteor's fire takes Inferno's synergy in the fight\n");
+    }
+
     // A chest's trap fires at its event 4, 35 frames after it opened
     // (FUN_00582510 -> FUN_005817a0); in act 1 a lightning trap (1) is a
     // firebolt (2).

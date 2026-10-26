@@ -74,16 +74,6 @@ struct Builder {
     }
 };
 
-// A missile row's own elemental damage in 256ths (FUN_0064b100 /
-// FUN_0064b1d0): (EMin + MinELev brackets) plus its EDmgSymPerCalc % of
-// that (FUN_00483360), then << HitShift.
-inline int missile_elem(const GameData& game_data, const GameData::MissileInfo& missile, const d2d::rules::CalcEnv& env, int skill_id, int lvl, bool max) {
-    int damage = (max ? missile.emax : missile.emin) + d2d::rules::level_bonus(max ? missile.emax_lev : missile.emin_lev, lvl);
-    if (const int bonus = missile.edmg_sym.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile.edmg_sym, env, skill_id, lvl); bonus != 0)
-        damage += int(std::int64_t(damage) * bonus / 100);
-    return damage << (missile.hitshift & 31);
-}
-
 inline const GameData::MissileInfo* missile_row(const GameData& game_data, const std::string& name) {
     const auto found = name.empty() ? game_data.missiles.end() : game_data.missiles.find(name);
     return found == game_data.missiles.end() ? nullptr : &found->second;

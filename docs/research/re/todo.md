@@ -24,7 +24,6 @@ Ranked by Seen, then by how much play it touches.
 |---|---|---|---|---|
 | 1 | Nobody has played an act end to end by play: the quest tests set each quest up with debug verbs. A play bot (clicks only) would give the real gap list | check | yes | PLAN.md "Checkpoint 2026-10-14 (later)", `tests/play_d2d.py` (planned) |
 | 2 | MonProp.txt isn't read: Mephisto's +cast / +swing speed (NM 15, Hell 30), the Council's extra fire (NM 40, Hell 100), Blunderbore's crushing blow, Blood Raven's knockback in Hell, quillrat6..8's thorns, the Iron Golem's row | build | maybe | Nightmare and Hell only, apart from the golem. Trace where game.exe applies it to a new monster |
-| 3 | Missiles' EDmgSymPerCalc in the fight: Meteor's fire, Immolation Arrow and Fist of the Heavens' bolts miss their synergies (the tooltips have them) | build | yes | PLAN.md "Checkpoint 2026-10-22 (2)" |
 | 4 | Item charges as skills | build | yes | fight.hpp:116, item_text.hpp:237 (the tooltip has no charges branch either) |
 | 5 | MonEquip.txt is hardcoded to Blood Raven's bow; the Valkyrie's gear by skill level (rows by `level`) isn't rolled | build | maybe | objgroups.cpp:552; pets.hpp |
 | 6 | MonItemPercent.txt (TreasureClassPercent 20: a monster's own gear dropping) isn't read | check | maybe | Matters once #5 gives monsters gear |
@@ -69,7 +68,7 @@ Known differences in the ones it draws, and what's left to check:
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
 | 25 | Timings from the COF, where AnimData.d2 is game.exe's | exact | maybe | world_view.hpp:198, fight.hpp:498, fight.hpp:729 |
-| 26 | Run / walk animation isn't sped by faster run/walk | exact | yes | world.cpp:2439 |
+| 26 | Run / walk animation isn't sped by faster run/walk. Traced 2026-10-26: `FUN_00623f50` sets a moving mode's rate (PlrMode table 0x6e8a00 +4: WL, RN, TW) to `FUN_006213d0` (a player: RN 0x65, else 0xd5) x (stat 0x43 + FRW 150 x f / (150 + f), table 0x6e8e24) / 100, at least 25 %; the base reads as RN slower than WL, so check what the client steps before porting | trace | yes | world.cpp `footstep_frame` ponytail |
 | 27 | Overlays: their light (Radius) isn't stamped, LoopWaitTime isn't applied | exact | yes | town.hpp:61, world_view.cpp:415 |
 | 28 | An NPC's act lasts 600 ms, not its animation; the balloon starts wherever d2d's loop is | exact | maybe | town.cpp:811, town.cpp:2732 |
 | 29 | COF transparent layers: which of 25 / 50 / 75 % draw effects 0..2 are | trace | maybe | unverified.md, deviations.md approximation 9 |

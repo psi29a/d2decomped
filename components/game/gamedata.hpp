@@ -972,6 +972,16 @@ void stamp_footprint(Level& level, Npc& npc);
 // An object's footprint into (solid) or out of the walk grid, leaving the
 // subtiles a tile blocks too (FUN_0064de30 / FUN_0064dc00).
 void set_footprint(const Level& level, const Npc& npc, bool solid);
+
+// A missile row's own elemental damage in 256ths (FUN_0064b100 /
+// FUN_0064b1d0): (EMin + MinELev brackets) plus its EDmgSymPerCalc % of
+// that (FUN_00483360), then << HitShift.
+inline int missile_elem(const GameData& game_data, const GameData::MissileInfo& missile, const d2d::rules::CalcEnv& env, int skill_id, int lvl, bool max) {
+    int damage = (max ? missile.emax : missile.emin) + d2d::rules::level_bonus(max ? missile.emax_lev : missile.emin_lev, lvl);
+    if (const int bonus = missile.edmg_sym.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile.edmg_sym, env, skill_id, lvl); bonus != 0)
+        damage += int(std::int64_t(damage) * bonus / 100);
+    return damage << (missile.hitshift & 31);
+}
 // An object's mode tokens, and the index of one (0 when unknown).
 inline constexpr std::array<std::string_view, 8> kObjectModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
 int mode_index(std::string_view mode);

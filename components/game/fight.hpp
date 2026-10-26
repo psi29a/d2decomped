@@ -626,9 +626,9 @@ struct Fight {
     // ponytail: aurastat2's progressive_tohit (par4) isn't given.
     void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing) { add_charges(actor->charges, fighter, swing, true); }
     void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
-    // A row with no Skill: its own element at level lvl, the weapon at its
-    // SrcDamage.
-    [[nodiscard]] static d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& missile_info, int lvl);
+    // A row with no Skill: its own element at level lvl with its synergy
+    // (EDmgSymPerCalc on `env`), the weapon at its SrcDamage.
+    [[nodiscard]] d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& missile_info, int lvl, const d2d::rules::CalcEnv& env, int skill_id) const;
     // A finishing hit on monster `on` releases every charge (FUN_005d5220):
     // with n charges (1..3) the skill's srvprgfunc n runs — prgstack skills
     // (Fists of Fire, Claws of Thunder, Blades of Ice) run 1..n, each with
