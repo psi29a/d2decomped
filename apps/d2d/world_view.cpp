@@ -553,7 +553,7 @@ void shadow_composite(std::vector<std::uint8_t>& framebuffer, const Scene::Playe
                       int anchor_x, int anchor_y, std::vector<std::uint16_t>& mask, std::uint16_t id) {
     composite_frames(anim, dir_want, elapsed_ms, [&](const d2d::dcc::Frame& frame, const d2d::cof::Layer* layer) {
         const int screen_w = fb_width(framebuffer);
-        if (layer && !layer->shadow) return;                               // the COF says this layer casts none                              // the COF says this layer casts none
+        if (layer && !layer->shadow) return;                               // the COF says this layer casts none
         const int bottom = frame.box_top + frame.height - 1;              // the frame's bottom row, from the anchor
         const int left = anchor_x + frame.box_left + bottom / 2, top = anchor_y + bottom / 2;
         for (std::int32_t pixel_row = 0; pixel_row < frame.height; pixel_row += 2) {          // rows up from the bottom
