@@ -48,3 +48,13 @@ the viewer behind it (the row was taken as the DCC direction).
 
 d2d: `composite_frames` (apps/d2d/world_view.hpp) does both.
 
+## A layer's file
+
+`FUN_005fe610` builds the path `<root>\<token>\<layer>\<token><layer><piece><mode><weapon>`
+and picks `.dc6` for a hard-coded list of monster ids (0xf2 Mephisto,
+0xfb, 0x16f, 0xf3, 0x11c, 0x14d, 0x220, 0x22f, 0x23a, 0x2c0, 0x2c1,
+0x2c5), `.dcc` for the rest; overlay row 0x7a (`mephisto`) is a `.dc6`
+too. `FUN_005fe990` loads it, and a file that isn't there is fatal
+(error 0x413). d2d tries `.dcc` then `.dc6` (the same files) and draws
+the other layers when neither is there.
+

@@ -119,7 +119,7 @@ if "--audit" in sys.argv:
                 frame_cnt[key] = max(frame_cnt[key], int(row.get(f"FrameCnt{i}") or 0))
     dccs = collections.defaultdict(list)                      # (root, token, layer, mode + weapon) -> DCC paths
     for path in files:
-        if m := re.fullmatch(r"data\\global\\(chars|monsters|objects)\\(\w+)\\(\w\w)\\(\w+)\.dcc", path):
+        if m := re.fullmatch(r"data\\global\\(chars|monsters|objects)\\(\w+)\\(\w\w)\\(\w+)\.dc[c6]", path):   # a few are DC6 (Mephisto's)
             root, token, layer, stem = m.groups()
             if stem.startswith(token + layer) and len(stem) >= len(token) + len(layer) + 4:
                 dccs[(root, token, layer, stem[-5:])].append(path)
@@ -145,21 +145,22 @@ if "--audit" in sys.argv:
                 if kind >= 16: continue
                 found = dccs.get((root, token, kLayers[kind], mode_weapon[:2] + weapon))
                 if not found:
-                    if root != "chars": problems[f"{root}: a layer with no DCC"].append(f"{stem}/{kLayers[kind]}")
+                    if root != "chars": known[f"{root}: a layer in no MPQ, the others drawn (game.exe: fatal if asked for, FUN_005fe990; bugs.md #31)"].append(f"{stem}/{kLayers[kind]}")
                     continue
                 for dcc in found: wanted[dcc] = (root, stem, kLayers[kind], directions, need or frames)
-        fetch(sorted(wanted), 8)
+        fetch(sorted(wanted), 24)
         for dcc, (root, stem, layer, directions, need) in sorted(wanted.items()):
             head = read(dcc)
-            if len(head) < 7: problems[f"{root}: DCC unreadable"].append(dcc); continue
-            have_dirs, have_frames = head[2], int.from_bytes(head[3:7], "little")
+            if len(head) < 24: problems[f"{root}: DCC unreadable"].append(dcc); continue
+            if dcc.endswith(".dc6"): have_frames = int.from_bytes(head[20:24], "little")
+            else: have_frames = int.from_bytes(head[3:7], "little")
             if have_frames < need:
                 line = f"{dcc.split(chr(92))[-1]} ({have_frames} frames, the mode runs {need})"
                 if root == "objects": known[f"{root}: DCC short of FrameCnt, blank past its last frame as in game.exe (FUN_005feb80; bugs.md #30)"].append(line)
                 else: known[f"{root}: DCC short of its mode, blank past its last frame as in game.exe (FUN_005feb80; bugs.md #29)"].append(line)
     for name in missing: problems[name.split()[0] + ": named, in no MPQ"].append(name.split()[1])
     print(f"audited {len(cof_path)} COFs, {len(wanted)} DCCs: {sum(map(len, problems.values()))} to look at, {sum(map(len, known.values()))} known")
-    for title, buckets in (("to look at", problems), ("known, handled as game.exe", known)):
+    for title, buckets in (("to look at", problems), ("known (bugs.md)", known)):
         if buckets: print(title + ":")
         for bucket, names in sorted(buckets.items(), key=lambda kv: -len(kv[1])):
             shown = names if "--all" in sys.argv else names[:8]
