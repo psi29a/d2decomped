@@ -21,6 +21,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -124,6 +125,7 @@ struct Unit {
     // An item on the ground instead of a composite: its flippy DC6, played
     // once from mode_ms (a frame a tick), then held on the last frame.
     const d2d::dc6::Sprite* sprite = nullptr;
+    std::string_view sprite_file;        // its FlippyFile, for D2D_ANIM_LOG
     const std::uint8_t* cmap = nullptr;  // ... through the item's colormap (Scene::item_map)
     std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };   // hover label colour
     // A missile: its DCC in direction `dir` (0..31), looping AnimLen frames

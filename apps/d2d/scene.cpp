@@ -61,7 +61,6 @@ const d2d::dcc::Sprite* Scene::overlay_sprite(const OverlayInfo& overlay) const 
         } catch (const std::exception& error) { d2d::log::warn("overlay {}: {}", overlay.file, error.what()); }
     }
     const bool usable = found->second.directions() && found->second.frames_per_direction();
-    if (fresh && usable) note_drawn("overlays", overlay.file);   // a missing or broken one was never drawn
     return usable ? &found->second : nullptr;
 }
 
@@ -109,7 +108,6 @@ const d2d::dc6::Sprite* Scene::flippy(const std::string& code) const {
     if (fresh)
         if (auto bytes = mpqs.try_read(R"(data\global\items\)" + info->second.flippy + ".dc6"))
             found->second = d2d::dc6::Sprite(*bytes);
-    if (fresh && found->second) note_drawn("items", info->second.flippy);   // a missing one was never drawn
     return found->second ? &*found->second : nullptr;
 }
 

@@ -119,6 +119,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         if (!in_view(ground_item.x, ground_item.y)) continue;
         Unit unit{ ground_item.x, ground_item.y, nullptr, 0, &ground_item.label, ground_item.now_ms, -1000 - int(i) };
         unit.sprite = scene.flippy(ground_item.item.code);
+        if (unit.sprite) unit.sprite_file = scene.rules.item_info.at(ground_item.item.code).flippy;
         unit.cmap = scene.item_map(ground_item.item, false);   // FUN_00471ec0: the character's colours
         unit.rgb = ground_item.rgb;
         out.push_back(std::move(unit));

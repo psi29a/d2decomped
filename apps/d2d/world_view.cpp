@@ -412,8 +412,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                     auto frame_index = (elapsed_ms - overlay.start) * std::uint32_t(std::max(overlay.overlay->rate, 1)) / 640;
                     if (overlay.once && frame_index >= frames) continue;
                     frame_index %= frames;
-                    blit_dcc_frame(framebuffer, spr->frame(std::uint8_t(std::uint32_t(unit.dir) % spr->directions()), std::int32_t(frame_index)), upal0,
-                                   anchor_x + overlay.overlay->x, anchor_y + overlay.overlay->dy(unit.overlay_class), draw_mode(overlay.overlay->trans));
+                    if (blit_dcc_frame(framebuffer, spr->frame(std::uint8_t(std::uint32_t(unit.dir) % spr->directions()), std::int32_t(frame_index)), upal0,
+                                       anchor_x + overlay.overlay->x, anchor_y + overlay.overlay->dy(unit.overlay_class), draw_mode(overlay.overlay->trans)))
+                        Scene::note_drawn("overlays", overlay.overlay->file);
                 }
             };
             draw_overs(true);
@@ -425,10 +426,10 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 const auto& spr = cel->second;
                 const std::uint32_t dirs = spr.directions(), fpd = std::uint32_t(spr.frames_per_direction());
                 if (dirs == 0 || fpd == 0) continue;
-                scene.note_drawn("missiles", unit.missile->cel_file);
                 const auto frame = (elapsed_ms - unit.mode_ms) * std::uint32_t(unit.missile->anim_speed) / (40u * 16u)
                                    % std::min<std::uint32_t>(std::uint32_t(unit.missile->anim_len), fpd);
-                blit_dcc_frame(framebuffer, spr.frame(d2d::game::missile_direction(unit.dir, int(dirs)), std::uint8_t(frame)), unit.missile->trans ? upal0 : upal, anchor_x, anchor_y, unit.missile->trans);
+                if (blit_dcc_frame(framebuffer, spr.frame(d2d::game::missile_direction(unit.dir, int(dirs)), std::uint8_t(frame)), unit.missile->trans ? upal0 : upal, anchor_x, anchor_y, unit.missile->trans))
+                    Scene::note_drawn("missiles", unit.missile->cel_file);
                 continue;
             }
             if (unit.sprite) {
@@ -437,6 +438,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 blit_at_anchor(framebuffer, *flippy, upal, anchor_x, anchor_y);
                 bounds = { anchor_x + flippy->offset_x, anchor_y + flippy->offset_y - int(flippy->height) + 1,
                       anchor_x + flippy->offset_x + int(flippy->width), anchor_y + flippy->offset_y + 1 };
+                if (bounds[2] > 0 && bounds[0] < screen_w && bounds[3] > 0 && bounds[1] < int(kScreenHeight)) Scene::note_drawn("items", unit.sprite_file);   // on screen
                 if (items) items->push_back({ &unit, bounds });
             } else {
                 auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
