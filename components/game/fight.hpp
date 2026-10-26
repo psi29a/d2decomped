@@ -149,6 +149,8 @@ struct Fight {
 
     std::vector<Monster> monsters;         // mon_level's (Level::spawns), kept while the game runs
     int next_id = 1;                       // the next monster's unit id
+    struct MadeBoss { int id, type, level; };
+    std::vector<MadeBoss> made_bosses;     // qualifying unique placements, in creation order (the Golden Bird)
     // A monster by unit id: its index in `monsters`, or -1.
     [[nodiscard]] int monster_index(int id) const;
     void add_monster(Monster monster);

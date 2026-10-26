@@ -112,9 +112,12 @@ auto Fight::monster_index(int id) const -> int {
         return found == monsters.end() ? -1 : int(found - monsters.begin());
     }
 
-auto Fight::add_monster(Monster monster) -> void { monster.id = next_id++; monsters.push_back(std::move(monster)); }
+auto Fight::add_monster(Monster monster) -> void { add_monster(std::move(monster), mon_level); }
 auto Fight::add_monster(Monster monster, const Level* where) -> void {
         monster.id = next_id++;
+        const auto* made_level = where ? where : mon_level ? mon_level : level;
+        if (made_level && (monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique))
+            made_bosses.push_back({ monster.id, monster.type, made_level->id });
         (where == mon_level || !where ? monsters : kept[where]).push_back(std::move(monster));
     }
 
@@ -129,6 +132,7 @@ auto Fight::new_game(int difficulty) -> void {
         game_difficulty = difficulty;
         spawning = start_spawning(*game_data, difficulty);
         monsters.clear();
+        made_bosses.clear();
         mon_level = nullptr;
         area_seen.clear();
         actor->curses = {};
@@ -4804,8 +4808,7 @@ auto Fight::rooms_up(const Level& here, float x, float y, bool arrived) -> void 
             const auto& spawns = spawning.levels[grown].spawns;
             const auto& region = std::size_t(grown->id) < spawning.regions.size() ? spawning.regions[std::size_t(grown->id)] : d2d::rules::Region{};
             auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), region, rng, game_difficulty, int(heroes.size()));
-            auto& into = grown == mon_level ? monsters : kept[grown];
-            for (auto& monster : made) { monster.id = next_id++; into.push_back(std::move(monster)); }
+            for (auto& monster : made) add_monster(std::move(monster), grown);
         }
     }
 

@@ -1897,6 +1897,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         bring_party(from, level, free_x, free_y, true);
         fight.enter(level);
         fight.rooms_up(*level, actor->player.x, actor->player.y, true);
+        act3_bind_new_bosses();
         reopen_doors();
         std::tie(actor->player.x, actor->player.y) = level->nearest_free(actor->player.x, actor->player.y);   // off what the room just made
         loot.enter(level);
@@ -2976,6 +2977,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         });
         each_player([&](Player&) { cross_level(); });
         for (const auto& player : players) fight.rooms_up(*level, player->player.x, player->player.y, false);
+        act3_bind_new_bosses();
         reopen_doors();
         grow_states(npc_states, *level);
         stones_up();

@@ -344,6 +344,28 @@ int main(int argc, char** argv) try {
         assert(!rallied(-1));
     }
 
+    {
+        // The Golden Bird binds to the first qualifying boss made in Act 3,
+        // including a nearby level while the player is still elsewhere.
+        World bird_world(&*data, -1, -1);
+        bird_world.enter(character);
+        Level act2{}, act3{};
+        act2.id = d2d::rules::level_ids::kLutGholein;
+        act3.id = d2d::rules::level_ids::kSpiderForest;
+        int type = 0;
+        while (std::size_t(type) < data->mon_is_npc.size() && (type == 0x197 || data->mon_is_npc[std::size_t(type)])) ++type;
+        assert(std::size_t(type) < data->mon_is_npc.size());
+        Monster boss;
+        boss.type = type;
+        boss.boss = d2d::rules::Boss::unique;
+        bird_world.fight.add_monster(boss, &act2);             // the earlier boss is in another act
+        const int first_act3 = bird_world.fight.next_id;
+        bird_world.fight.add_monster(boss, &act3);             // made in a nearby level
+        bird_world.fight.add_monster(boss, &act3);             // later Act 3 boss cannot replace it
+        bird_world.act3_bind_new_bosses();
+        assert(bird_world.golden_bird.bound == first_act3 && bird_world.fight.made_bosses.empty());
+    }
+
     World world(&*data, -1, -1);
     world.enter(character);
     for (std::uint32_t tick = 1; tick <= 25; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);

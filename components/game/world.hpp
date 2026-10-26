@@ -471,6 +471,7 @@ struct World {
     void act1_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act2_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act3_kill(const Fight::Kill& kill, std::uint32_t now_ms);
+    void act3_bind_new_bosses();
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.
