@@ -24,6 +24,13 @@ inline constexpr int kCursorLevelUp = 7;       // S→C 0x2C event 2
 inline constexpr int kCursorQuestDone = 14;
 inline constexpr int kCursorRepairItem = 15;
 inline constexpr int kSceneRain = 64;
+// Diablo's death (FUN_004cc410 at 0x4cc520): after its MonSounds DeathSound (diablo_death), the
+// next two rows, diablo_death_schwing 0x6a ticks on and diablo_death_hit 0xc1 ticks on.
+inline constexpr int kDiabloDeath = 745;
+inline constexpr int kDiabloDeathSchwing = 746;
+inline constexpr int kDiabloDeathHit = 747;
+inline constexpr int kDiabloSchwingTicks = 0x6a;
+inline constexpr int kDiabloHitTicks = 0xc1;
 inline constexpr std::array<int, 7> kClassSelect = { 17, 25, 21, 23, 19, 0, 0 };   // d2s class order; expansions have no classic intro cue
 inline constexpr std::array<int, 7> kClassDeselect = { 18, 26, 22, 24, 20, 0, 0 };
 

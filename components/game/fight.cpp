@@ -336,10 +336,17 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
                     const std::size_t attack_index = monster.mode == "A2";
                     if (rng(100) < sounds->att_prb[attack_index]) play(sounds->attack[attack_index], now_ms + std::uint32_t(sounds->att_del[attack_index]) * 40);
                     play(sounds->weapon[attack_index], now_ms + std::uint32_t(sounds->wea_del[attack_index]) * 40);
-                } else if (monster.mode == "GH" || monster.mode == "KB") {
-                    play(sounds->hit, now_ms + std::uint32_t(sounds->hit_del) * 40);
-                } else if (monster.mode == "DT") {
-                    play(sounds->death, now_ms + std::uint32_t(sounds->death_del) * 40);
+                } else if (monster.mode == "GH" || monster.mode == "KB" || monster.mode == "DT") {
+                    namespace snd = d2d::rules::sound_ids;
+                    const bool dying = monster.mode == "DT";
+                    const int struck = dying ? sounds->death : sounds->hit;
+                    play(struck, now_ms + std::uint32_t(dying ? sounds->death_del : sounds->hit_del) * 40);
+                    // Diablo's death row brings its schwing and hit after it (FUN_004cc410 at 0x4cc520,
+                    // tested on either row it plays).
+                    if (struck == snd::kDiabloDeath) {
+                        play(snd::kDiabloDeathSchwing, now_ms + std::uint32_t(snd::kDiabloSchwingTicks) * 40);
+                        play(snd::kDiabloDeathHit, now_ms + std::uint32_t(snd::kDiabloHitTicks) * 40);
+                    }
                 } else if (monster.mode.size() == 2 && monster.mode[0] == 'S' && monster.mode[1] >= '1' && monster.mode[1] <= '4') {
                     play(sounds->skill[std::size_t(monster.mode[1] - '1')], now_ms);   // FUN_004cb890
                 }

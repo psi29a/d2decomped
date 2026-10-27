@@ -63,6 +63,10 @@ sounds, both at once:
   critters) plays neither. Zombies and Fallen (`soft`) do.
 - Then a monster's MonSounds HitSound / DeathSound; a monster in state
   0x92 plays nothing (not ported).
+- Diablo's death (0x4cc520): when the row just played is 0x2e9
+  (`diablo_death`), the next two rows follow on FUN_004b9a00's delay:
+  0x2ea `diablo_death_schwing` at 0x6a ticks, 0x2eb `diablo_death_hit` at
+  0xc1 ticks (`sound_ids::kDiabloDeath*`).
 
 The hit class: Weapons.txt `hit class` (hitclass.txt codes: hth 1, 1hss 2,
 1hsl 3, 2hss 4, 2hsl 5, 1ht 6, 2ht 7, club 8, staf 9, bow 10, xbow 11,
@@ -322,21 +326,20 @@ keeps playing sounds: `FUN_0044efa0` still runs the sound tick
 ## In d2d
 
 `tools/sound_coverage.py` lists the base install's sounds d2d can't play yet
-(3,356 / 3,520 covered). Energy Shield, Barbarian Leap, restricted town skill
+(3,413 / 3,520 covered). Energy Shield, Barbarian Leap, restricted town skill
 attempts, successful life / mana leech, missile ProgSound, and ten classic
 quest music cues now have event paths. The music cues fire on the quest
 completion event and play as one-shots.
 
-The remaining 164 rows have these causes:
+The remaining 107 rows have these causes:
 
 | Rows | Why they are still silent |
 |---|---|
-| 125 class quest phrases | 25 per classic class have no matching server-event dispatch in stock 1.14d. The server xref audit identifies the missing event IDs; assigning them to nearby quest milestones would invent behavior. |
+| 70 class quest phrases | 14 per classic class (with their Group Size rows): act 2's begin_tainted, complete_tightspot, find_radament, find_summoner, find_tomb_decoy and find_tomb_true, unit sound events 0x31, 0x35 and 0x39..0x3c (the class row's +0x24 + event - 0x21, FUN_004cb9c0). The find table (0x72a2c4) has no row for them and the server xref audit found no quest sending those events, so stock 1.14d never plays them; assigning them to nearby quest milestones would invent behavior. |
 | 5 `event_desert_night_1..5` | No SoundEnviron row selects these names. The desert environments use their daytime event group at night too. |
 | 8 `rogue_confirm_*` | Hireling command confirmation voices; d2d has no hireling command action to trigger them. |
 | 14 NPC speech rows | The voice lookup is driven by specific localized string IDs. d2d's NPC quest-dialogue path does not yet produce the corresponding Alkor, Asheara, Cain, Guard, Hratli, Iron Wolf, Ormus, Tyrael, or Warriv dialogue strings. |
 | 8 monster / skeleton rows | MonSounds skill slots or animation-specific effects; d2d does not yet dispatch those cast/taunt events for the affected units. |
-| 2 Diablo death rows | These are timed parts of Diablo's client death sequence; d2d currently has no matching sequence callbacks. |
 | 1 `andariel_quake_loop` | The client starts this during Andariel's scripted death/level transition; d2d has no earthquake sequence. |
 | 1 `scene_tavern_interior` | Front-end tavern scene only; d2d does not implement that scene. |
 

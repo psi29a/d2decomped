@@ -27,6 +27,7 @@
 #include <sequences.hpp>
 #include <skill_text.hpp>
 #include <skills.hpp>
+#include <sound_ids.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 
@@ -401,6 +402,39 @@ int main(int argc, char** argv) try {
     std::tie(world.loot.ground.back().x, world.loot.ground.back().y) = std::pair{ world.actor->player.x, world.actor->player.y };
     world.tick({}, 26 * kTickMs, 25 * kTickMs);
     assert(world.actor->character.stats.get(d2d::d2s::kGold) == purse + 7 && world.loot.ground.empty());
+    {   // Diablo's death (FUN_004cc410): diablo_death on its DeaDelay, then the schwing 0x6a ticks
+        // on and the hit 0xc1 ticks on; another monster's death plays no more than its own row.
+        namespace snd = d2d::rules::sound_ids;
+        const std::uint32_t died_ms = 26 * kTickMs;
+        assert(data->sound_index.at("diablo_death") == snd::kDiabloDeath && data->sound_index.at("diablo_death_schwing") == snd::kDiabloDeathSchwing
+               && data->sound_index.at("diablo_death_hit") == snd::kDiabloDeathHit);
+        const auto count = [&](int sound, std::uint32_t when_ms) {
+            return std::ranges::count_if(world.cues.due, [&](const Cues::Cue& cue) { return cue.sound == sound && cue.when_ms == when_ms; });
+        };
+        const auto type_of = [&](std::string_view id) {
+            const auto found = std::ranges::find(data->monsters.types, id, [](const auto& type) { return std::string_view(type.id); });
+            assert(found != data->monsters.types.end());
+            return int(found - data->monsters.types.begin());
+        };
+        const auto dies = [&](std::string_view id) {
+            Monster dying;
+            dying.type = type_of(id);
+            dying.sounded = true;
+            dying.mode = "DT";
+            world.cues.due.clear();
+            world.fight.monster_sounds(dying, died_ms);
+        };
+        dies("diablo");
+        const auto& diablo = data->mon_sounds.at("diablo");
+        assert(diablo.death == snd::kDiabloDeath);
+        assert(count(snd::kDiabloDeath, died_ms + std::uint32_t(diablo.death_del) * kTickMs) == 1);
+        assert(count(snd::kDiabloDeathSchwing, died_ms + snd::kDiabloSchwingTicks * kTickMs) == 1);
+        assert(count(snd::kDiabloDeathHit, died_ms + snd::kDiabloHitTicks * kTickMs) == 1);
+        dies("zombie1");
+        assert(std::ranges::none_of(world.cues.due, [](const Cues::Cue& cue) { return cue.sound == snd::kDiabloDeathSchwing || cue.sound == snd::kDiabloDeathHit; }));
+        world.cues.due.clear();
+        std::printf("OK: Diablo's death plays its schwing and hit after it\n");
+    }
     {   // A vendor's stock and Kashya's hire list last the game, not one opening.
         const auto& npcs = world.level->npcs;
         const auto index_of = [&](int hc_idx) { return int(std::ranges::find(npcs, hc_idx, &Npc::hc_idx) - npcs.begin()); };
