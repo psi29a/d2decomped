@@ -380,8 +380,8 @@ when a same-named overlay/state field also appears in the tables.
 `Blow::hit_class` (+ `Swing::hit_class`, a missile's row) → `Monster::hit_class`
 in `Fight::land`; `Fight::monster_sounds` plays the impact on GH / KB / DT,
 `Fight::set_pmode` the swing, the skill's start sounds and the player's cry
-and impact (`Hero::struck_class`, a melee attacker's MonStats2 HitClass,
-else a monster missile's HitClass through `Foe::shot_class`),
+and impact (`Hero::struck_class`, from `Foe::hit_class`: the last landed
+blow's, a melee monster's MonStats2 HitClass or a missile's HitClass),
 `Fight::do_sounds` the do. Missiles: a `Missile::sound` id each, its
 TravelSound cued with it as owner, stopped by the client when it's gone from
 the View (`Audio::stop_owners`). States: `StateClock` in `dress()`. Footsteps:

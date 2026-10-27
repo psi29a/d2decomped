@@ -443,7 +443,7 @@ int main(int argc, char** argv) try {
         world.cues.due.clear();
         std::printf("OK: Diablo's death plays its schwing and hit after it\n");
     }
-    {   // A missile's hit class (Foe::shot_class) is the struck player's, a get-hit keeps it, and a
+    {   // A missile's hit class (Foe::hit_class) is the struck player's, a get-hit keeps it, and a
         // later block plays its block sound (FUN_004cb860): an arrow's block_arrow. A kick plays
         // weapon_kick (FUN_004cc5b0), an Assassin's 4 ticks on.
         namespace snd = d2d::rules::sound_ids;
@@ -458,7 +458,7 @@ int main(int argc, char** argv) try {
         world.cues.due.clear();
         auto side = std::array{ world.fight.player_foe(hit_ms), world.fight.merc_foe(hit_ms) };
         side[0].hits = 1;
-        side[0].shot_class = arrow;
+        side[0].hit_class = arrow;
         side[0].damage = side[0].physical = std::max(int(hero.character.stats.fixed(d2d::d2s::kMaxLife) / 4), 1);
         hero.pmode = -1;
         world.fight.hurt_side(side, hit_ms);
@@ -470,6 +470,30 @@ int main(int argc, char** argv) try {
         blocked[0].blocked = true;
         world.fight.hurt_side(blocked, hit_ms);
         assert(hero.pmode == kModeBL && count(snd::kBlockArrow, hit_ms) == 1);
+        // The landed blow's class, not a melee swing that missed the same frame; a small hit
+        // that knocks back plays it on the knockback's get-hit.
+        const auto zombie = std::ranges::find(data->monsters.types, std::string_view("zombie1"), [](const auto& type) { return std::string_view(type.id); });
+        assert(zombie != data->monsters.types.end() && zombie->hit_class != arrow);
+        Monster swinger;
+        swinger.type = int(zombie - data->monsters.types.begin());
+        world.fight.add_monster(swinger);
+        hero.pmode = -1;
+        world.cues.due.clear();
+        auto knocked = std::array{ world.fight.player_foe(hit_ms), world.fight.merc_foe(hit_ms) };
+        knocked[0].hits = 1;
+        knocked[0].hit_class = arrow;
+        knocked[0].melee_by.push_back(world.fight.monsters.back().id);
+        knocked[0].damage = knocked[0].physical = 1;
+        for (const auto& [step_x, step_y] : { std::pair{ 1.f, 0.f }, { -1.f, 0.f }, { 0.f, 1.f }, { 0.f, -1.f } })
+            if (!world.level->unit_blocked(hero.player.x + step_x, hero.player.y + step_y, hero.player.shape)) {
+                knocked[0].knocked_from = std::pair{ hero.player.x - step_x, hero.player.y - step_y };
+                break;
+            }
+        assert(knocked[0].knocked_from);
+        world.fight.hurt_side(knocked, hit_ms);
+        assert(hero.pmode == kModeGH && hero.shown_class == arrow && count(snd::impact(arrow, false).impact, hit_ms) == 1);
+        world.fight.monsters.pop_back();
+        hero.knock.reset();
         hero.pmode = -1;
         world.cues.due.clear();
         world.fight.set_pmode(kModeKK, hit_ms);

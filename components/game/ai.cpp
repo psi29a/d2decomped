@@ -1738,7 +1738,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             if (!next) { monster.whirl_last = -1; continue; }
             monster.whirl_last = next->id;
             auto& struck = const_cast<Foe&>(*next);
-            struck.take(d2d::rules::monster_blow(struck.fighter, struck.level, struck.motion(), skill_strike(game_data, monster, *spin, lvl), false, rng));
+            const auto taken = d2d::rules::monster_blow(struck.fighter, struck.level, struck.motion(), skill_strike(game_data, monster, *spin, lvl), false, rng);
+            struck.take(taken);
+            if (taken.hit) struck.hit_class = type_info.hit_class;
             struck.melee_by.push_back(monster.id);
         }
         monster.seq_frame = (*seq)[std::size_t(rows) % seq->size()].frame;
@@ -1889,7 +1891,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (foe.alive && dist <= kMeleeReach + 0.3f) {
                         const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), skill_strike(game_data, monster, *leap, skill_level(game_data, monster, monster.skill)), false, rng);
                         foe.take(taken);
-                        if (taken.hit) foe.knocked_from = std::pair{ unit.x, unit.y };
+                        if (taken.hit) { foe.knocked_from = std::pair{ unit.x, unit.y }; foe.hit_class = type_info.hit_class; }
                         d2d::log::info("{} lands its leap attack ({})", monster.npc.name, taken.hit ? "hit" : "missed");
                         foe.melee_by.push_back(monster.id);
                     }
@@ -2356,6 +2358,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     monster.frenzy.until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, struck_with->auralen, {}, monster.skill, lvl), 1)) * 40;
                 }
                 foe.take(taken);
+                if (taken.hit) foe.hit_class = type_info.hit_class;
                 if (taken.hit) monprop_hit(monster, foe, false);
                 if (taken.hit && smite && (struck_with->result_flags & 8)) foe.knocked_from = std::pair{ unit.x, unit.y };
                 if (taken.hit && smite) foe.stun_ticks = std::max(foe.stun_ticks, d2d::rules::eval_calc(game_data.skills, struck_with->calc[1], {}, monster.skill, skill_level(game_data, monster, monster.skill)));

@@ -391,7 +391,7 @@ struct Foe {
     int knock_under = 0x40;                   // MonProp knock lands on a draw's low 7 bits under it (FUN_005bf960)
     int crush_divisor = 10;                   // MonProp crush's life divisor, before a missile's doubling (FUN_005bffc0)
     int hits = 0;                             // hits that landed this frame (each wears its armour)
-    int shot_class = 0;                       // the Missiles.txt HitClass of the missile that landed this frame
+    int hit_class = 0;                        // the last landed blow's this frame: a melee monster's MonStats2 HitClass, a missile's Missiles.txt one
     bool running = false;                     // the player in RN: always hit by a swing, block a third
     [[nodiscard]] d2d::rules::Motion motion() const { return running ? d2d::rules::Motion::running : moving ? d2d::rules::Motion::walking : d2d::rules::Motion::standing; }
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
@@ -745,7 +745,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, rng, true);
             foe.take(taken);
             if (taken.hit && missile.owner >= 0) foe.shot_by.push_back(missile.owner);
-            if (taken.hit && missile.info) foe.shot_class = missile.info->hit_class;
+            if (taken.hit && missile.info) foe.hit_class = missile.info->hit_class;
             if (missile.info && missile.info->hit_func == 19 && missile.skill >= 0) foe.marked = { missile.skill, missile.level };   // FUN_005ab110
             if (missile.info && missile.info->return_fire && missile.owner >= 0) foe.fired_by.push_back(missile.owner);
             return true;
