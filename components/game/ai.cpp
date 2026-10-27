@@ -1794,7 +1794,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const int event = (*seq)[std::size_t(monster.seq_done)].event;
                 if (event == 4 || ((event == 1 || event == 2) && !monster.seq_once)) ++due;
                 // Jab's client do (cltdofunc 16, FUN_004f4590) on an event-3 row: Duriel's.
-                if (const auto* jab = event == 3 ? game_data.skills.get(monster.skill) : nullptr; jab && jab->clt_do_func == 16) ++monster.seq_sounds;
+                if (const auto* jab = event == 3 ? game_data.skills.get(monster.skill) : nullptr; jab && jab->clt_do_func == 16) {
+                    monster.seq_sound = jab->do_sound_b;
+                    ++monster.seq_sounds;
+                }
             }
         } else if (!monster.struck && now_ms >= unit.mode_ms + timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, monster.mode))) {
             monster.struck = true;

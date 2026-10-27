@@ -500,6 +500,7 @@ struct Fight {
     // ponytail: the sequence's rate taken as the class's A1 (animdata)
     // through attack_ticks; seqinput / seqtrans aren't read.
     void start_sequence(std::uint32_t now_ms);
+    [[nodiscard]] std::span<const d2d::rules::SeqFrame> skill_sequence() const;   // the swing skill's frames for the weapon, none for a plain mode
     // The movement a moving skill starts with (its srvstfunc):
     // Whirlwind (FUN_005d8f50) to the target at the class's walk velocity
     // (FUN_0056e5b0: CharStats +0x40), its sequence over and over;

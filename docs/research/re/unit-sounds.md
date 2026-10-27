@@ -9,7 +9,9 @@ A unit starting a mode plays its sound by unit type (FUN_004ca320):
 - **Player**: DT (0), GH (4), KB (0x13) → FUN_004cc410 (struck);
   A1 / A2 (7 / 8) → FUN_004cb6a0 (the swing); BL (9) → FUN_004cb860;
   KK (0xc) a kick sound by class; S3 (0xf) a Barbarian's swing, S4 (0x10)
-  an Assassin's.
+  an Assassin's. SQ (0x12) plays nothing (the byte table at 0x4cc74c), so a
+  sequence skill (Jab, Charge, Whirlwind) has no swing; d2d's `set_pmode`
+  skips it when `Fight::skill_sequence` has frames.
 - **Monster** (MonSounds.txt): DT (0), GH (3), KB (0xd) → FUN_004cc410;
   A1 / A2 (4 / 5) → FUN_004cb6a0 (Attack1/2 at its probability, Weapon1/2);
   S1..S4 → FUN_004cb890; DD (0xc) → FUN_004cb2c0. A mode MonSounds

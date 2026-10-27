@@ -173,7 +173,7 @@ struct Monster {
     std::string_view last_mode = "NU";        // as of the last sound check
     bool sounded = false;                     // its sounds have started (its Init played, FUN_004cc380)
     bool fleeing = false, flee_sound = false;  // Fallen's flee event while a nearby monster dies
-    int seq_sounds = 0;                       // a Jab sequence's event-3 rows passed: its dosound b, played by the client
+    int seq_sound = 0, seq_sounds = 0;        // a Jab sequence's event-3 rows passed and its dosound b, played by the client
     std::uint32_t sound_ms = 0, neutral_ms = 0, step_ms = 0;   // its last sound, Neutral, footstep (unit +0x7c / +0x80 / +0x84)
     std::uint32_t sound_tick = 0;             // the tick its Neutral last rolled
     int hit_class = 0;                        // the last hit's (unit +0xb0): the impact its GH / KB / DT plays
