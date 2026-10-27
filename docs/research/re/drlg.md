@@ -1128,6 +1128,28 @@ lies inside no room of the preset stays in the record and nothing ever
 makes it. d2d drops them the same way (`level_room_tiles`' leftovers), so
 every `Level::units` entry has a room.
 
+## What the client draws (2026-10-27, live)
+
+The client keeps its own copy of the level, and its picks are what the
+screen shows. Read live from game.exe under Wine (`whisper.py … town`
+against d2d's `debug tiles`), Lut Gholein after a waypoint arrival:
+
+- The client had 20 rooms up: every room within two rooms of the
+  player's (a 5x5 block, clipped at the level's edge), not just the
+  server's near list (9).
+- Its picks match d2d cell for cell (1280/1280, two seeds) when the
+  rooms come up in two batches, each in the order they were made (oldest
+  first, so row by row here): the near list, then the ring past it. The
+  server's order (the arrived room first, FUN_0056cf40, then the near
+  list) gives 950/1280. Only `ground.dt1` floor variants differ; walls
+  and shadows agree either way.
+- d2d: `Level::drawn` (the client's, drawn and on the automap) next to
+  `Level::picks` (the server's, collision and units); `player_moved`
+  records the batches in `client_order`.
+- Not traced: the client function that brings its rooms up, its exact
+  reach in rooms of other sizes, and whether the ring crosses into the
+  next level.
+
 ## A room's life on the server (2026-10-03)
 
 The room2 status (+0x44) is the shallowest depth at which a player's
