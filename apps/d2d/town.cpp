@@ -307,6 +307,7 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     };
     auto stamp8 = [&](float x, float y, int radius8, bool shadowed) {
         if (radius8 <= 0) return;
+        lighting.stamps.push_back({ int(x * 40), int(y * 40), radius8, shadowed });
         if (shadowed) lighting.grid.stamp_shadowed(int(x * 40), int(y * 40), radius8, 255);
         else lighting.grid.stamp(int(x * 40), int(y * 40), radius8, 255);
     };
@@ -314,12 +315,15 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     auto lamp = [&](std::uint64_t key, float x, float y, int radius, bool shadowed, int first = -1) {
         stamp8(x, y, eased(key, radius, first < 0 ? radius : first), shadowed);
     };
-    lamp(1, player_x, player_y, std::max(0, 13 + view.light_bonus), true);   // FUN_00460930: 13 + the bonus, capped at 18
-    for (const auto& other : view.others) lamp(0x100000000ull + other.id, other.unit.x, other.unit.y, 13, true);   // every player's own (their bonus isn't sent)
+    // A unit's light sits at its position + 4 eighths (FUN_00474160: (x >> 13) + 4);
+    // objects' cells already hold that half subtile.
+    constexpr float kHalf = 0.1f;                                   // 4 eighths of a subtile, in cells
+    lamp(1, player_x + kHalf, player_y + kHalf, std::max(0, 13 + view.light_bonus), true);   // FUN_00460930: 13 + the bonus, capped at 18
+    for (const auto& other : view.others) lamp(0x100000000ull + other.id, other.unit.x + kHalf, other.unit.y + kHalf, 13, true);   // every player's own (their bonus isn't sent)
     static constexpr std::array<std::string_view, 8> kModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
     auto lit = [&](const Npc& npc, std::string_view mode) {
         const auto found = std::ranges::find(kModes, mode.empty() ? std::string_view(npc.mode) : mode);
-        return npc.root == "objects" && found != kModes.end() ? int(npc.lit[std::size_t(found - kModes.begin())]) : 0;
+        return npc.root == "objects" && found != kModes.end() ? int(npc.lit[std::size_t(found - kModes.begin())]) >> 1 : 0;   // an object's light is half its Lit (FUN_004bc580)
     };
     for (std::size_t i = 0; i < view.level->npcs.size(); ++i) {
         const auto& npc = view.level->npcs[i];
@@ -329,9 +333,9 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     }
     for (const auto& neighbour : view.level->nearby)                  // the torches over the level's edge
         for (const auto& npc : neighbour.level->npcs) stamp(npc.x + float(neighbour.dx), npc.y + float(neighbour.dy), lit(npc, {}), true);
-    for (const auto& monster : view.monsters) if (monster.alive()) lamp(4ull << 32 | std::uint32_t(monster.id), monster.unit.x, monster.unit.y, monster.npc.light, false);
+    for (const auto& monster : view.monsters) if (monster.alive()) lamp(4ull << 32 | std::uint32_t(monster.id), monster.unit.x + kHalf, monster.unit.y + kHalf, monster.npc.light, false);
     for (const auto& portal : view.portals)                        // Lit1 (OP) while it opens, then Lit2 (ON)
-        lamp(5ull << 32 | std::uint32_t(portal.which), portal.x, portal.y, int(scene.town_portal.lit[now - portal.born < kPortalOpenMs ? 1 : 2]), true);
+        lamp(5ull << 32 | std::uint32_t(portal.which), portal.x, portal.y, int(scene.town_portal.lit[now - portal.born < kPortalOpenMs ? 1 : 2]) >> 1, true);
     for (const auto& missile : view.missiles) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
     for (const auto& missile : effects) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
     // States' overlays light their unit (Overlay.txt: InitRadius growing to

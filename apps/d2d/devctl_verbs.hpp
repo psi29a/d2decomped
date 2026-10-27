@@ -412,6 +412,13 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 for (int x = 0; x < light.grid.grid_size; ++x) out += "0123456789abcdefghijklmnopqrstuv"[light.grid.values[std::size_t(y * light.grid.grid_size + x)] >> 3];
                 out += '\n';
             }
+            if (args.size() >= 3 && args[2] == "more") {   // `debug light more`: the lights stamped and the subtiles walls block
+                for (const auto& stamp : light.stamps) out += std::format("light {} {} r8 {} {}\n", stamp.x, stamp.y, stamp.radius8, stamp.shadowed ? "shadowed" : "plain");
+                for (int y = 0; y < light.grid.grid_size; ++y) {
+                    for (int x = 0; x < light.grid.grid_size; ++x) out += light.grid.blocked[std::size_t(y * light.grid.grid_size + x)] ? '#' : '.';
+                    out += '\n';
+                }
+            }
             return out + "ok " + std::to_string(light.grid.origin_x) + " " + std::to_string(light.grid.origin_y) + " bonus=" + std::to_string(town.view.light_bonus) + "\n";
         }
         if (args.size() >= 2 && args[1] == "die") {        // the player (or player <id>, local co-op) dies where they stand

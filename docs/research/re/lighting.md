@@ -78,7 +78,9 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
     white;
   - monsters: MonStats2 Light / light-r/g/b (a unit's own light-radius
     stat if higher);
-  - objects: objects.txt Lit<mode> / Red / Green / Blue, 255;
+  - objects: half of objects.txt Lit<mode> (`FUN_004bc580`: Lit >> 1,
+    type 2), Red / Green / Blue, 255. Read live in Lut Gholein: its
+    torches (Lit 17 / 18) light radius 8 / 9;
   - missiles: Missiles.txt Light / Red / Green / Blue.
 - **Stamping** (`FUN_004748d0`): over the light's square, each subtile
   corner takes (r − d) × (intensity << 16) / r >> 16, d the distance
@@ -181,9 +183,15 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   blocked subtile); monsters' and missiles' lights (type 1) aren't.
   Light Quality is taken as high.
 - Light types from their callers of `FUN_00474160`: the player
-  (0x460cf0) and objects (0x4ae2ee) type 0; missiles (0x470555) and
-  MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; two static ones type 2
-  (0x4bc5bc, 0x4d6f85: cached shadows, `FUN_004750f0`).
+  (0x460cf0) and a monster's light-radius stat (0x4ae2ee,
+  `FUN_004ae210`: a hireling with a light-radius item) type 0; missiles
+  (0x470555) and MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; objects
+  (0x4bc5bc, `FUN_004bc580`) and 0x4d6f85 type 2 (cached shadows,
+  `FUN_004750f0`).
+- Checked live (Lut Gholein, game.exe under Wine, light grid at
+  0x7b0e68 vs `debug light` with `--toggle light_grid=off`, the same
+  spot and time of day): all 48 × 48 entries and the blocked subtiles
+  equal, with objects at half their Lit and units' lights + 4 eighths.
 
 - The player's radius is 13 + item_lightradius (stat 89) summed over what's
   worn, charms and sockets (the View's `light_bonus`), capped at 18.
