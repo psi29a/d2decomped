@@ -208,6 +208,7 @@ def host(whisper: Whisper, difficulty: str = "normal") -> str:
     for x_pos, y_pos in [*HOST_CLICKS, DIFFICULTY[difficulty]]:
         whisper.ask(f"click {x_pos} {y_pos}")
         time.sleep(2)
+    whisper.conn.settimeout(120)   # loading the act keeps game.exe's thread (and whisper's reply) busy past 10 s
     for _ in range(30):
         if whisper.ask("state")[-1] == "ok":
             return "in game: " + whisper.ask("state")[0]
