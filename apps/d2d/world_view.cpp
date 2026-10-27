@@ -85,7 +85,7 @@ void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Til
             if (idx == 0 || pixel_x < 0 || pixel_x >= screen_w) continue;
             const auto colour = pal[idx];
             auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
-            pixel[0] = std::uint8_t((pixel[0] * 3 + colour.r) / 4); pixel[1] = std::uint8_t((pixel[1] * 3 + colour.g) / 4); pixel[2] = std::uint8_t((pixel[2] * 3 + colour.b) / 4);
+            pixel[0] = std::uint8_t((pixel[0] + colour.r * 3) / 4); pixel[1] = std::uint8_t((pixel[1] + colour.g * 3) / 4); pixel[2] = std::uint8_t((pixel[2] + colour.b * 3) / 4);
         }
     }
 }
@@ -308,10 +308,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             auto splash = [&](const d2d::dt1::Tile& tile) {
                 if (rain && (tile.material_flags & 2)) { const auto [splash_x, splash_y] = iso(cell_x, cell_y); rain->floor(rain->rng, splash_x, splash_y); }
             };
-            if (!cell_level->picks.empty()) {                   // the tiles game.exe picked: floors, then shadows
-                for (const int layer : { 1, 2 })
-                    for (const auto& pick : cell_level->shown()[off])
-                        if (pick.layer == layer && !pick.hidden) { blit_cell(cell_x, cell_y, *pick.tile, layer); if (layer == 1) splash(*pick.tile); }
+            if (!cell_level->picks.empty()) {                   // the floors game.exe picked
+                for (const auto& pick : cell_level->shown()[off])
+                    if (pick.layer == 1 && !pick.hidden) { blit_cell(cell_x, cell_y, *pick.tile, 1); splash(*pick.tile); }
                 continue;
             }
 
@@ -328,15 +327,6 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                     splash(*tile);
                 }
             }
-
-            // Shadow layer: blended over the floor (blit_dt1_shadow).
-            for (const auto& shadow_layer : cell_map.shadows()) {
-                const auto& cell = shadow_layer.cells[off];
-                if (cell.hidden) continue;
-                if (cell.style == 0 && cell.sequence == 0 && cell.wall_type == 0) continue;
-                if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, /*type=*/13))
-                    blit_cell(cell_x, cell_y, *tile, 2);
-            }
         }
     }
 
@@ -346,6 +336,27 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         for (const auto& rain_splash : rain->splashes)
             if (const auto frames = scene.rain_splash[std::size_t(rain_splash.kind)].frames(); rain_splash.frame < int(frames.size()))
                 blit_additive(framebuffer, frames[std::size_t(rain_splash.frame)], upal_splash, nullptr, rain_splash.x, rain_splash.y);
+    // Tile shadows (orientation 13), once every floor is down: a shadow
+    // reaches over the cells after its own (FUN_004df510 → driver +0xa4,
+    // after the floors' FUN_004ded10 and the splashes).
+    for (int dy = -kReach; dy <= kReach; ++dy)
+        for (int dx = -kReach; dx <= kReach; ++dx) {
+            const int cell_x = base_x + dx, cell_y = base_y + dy;
+            const auto [cell_level, off] = cell_at(cell_x, cell_y);
+            if (!cell_level) continue;
+            if (!cell_level->picks.empty()) {
+                for (const auto& pick : cell_level->shown()[off])
+                    if (pick.layer == 2 && !pick.hidden) blit_cell(cell_x, cell_y, *pick.tile, 2);
+                continue;
+            }
+            for (const auto& shadow_layer : cell_level->ds1.shadows()) {
+                const auto& cell = shadow_layer.cells[off];
+                if (cell.hidden) continue;
+                if (cell.style == 0 && cell.sequence == 0 && cell.wall_type == 0) continue;
+                if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, /*type=*/13))
+                    blit_cell(cell_x, cell_y, *tile, 2);
+            }
+        }
     // Units' shadows, on the ground under the walls and units (the floor
     // pass FUN_004df510 → FUN_004dc7b0).
     {

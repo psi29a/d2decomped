@@ -122,8 +122,11 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   w = 0xbf, 0x7f, 0x3f / 255 (`FUN_00605880`), nearest palette colour.
 - **Tile shadows** (orientation 13): driver +0xa4 (0x512f90) draws each
   block through callback `FUN_004f82d0` at alpha 0xc0 → table 0 as
-  T[tile][ground]: a quarter of the tile over three quarters of the ground,
-  unlit. With Blended Shadows off, opaque.
+  T[ground][tile] (the screen byte picks the row): a quarter of the ground
+  under three quarters of the tile, unlit. With Blended Shadows off,
+  opaque. They go in the shadow pass `FUN_004df510`, with the units'
+  shadows, after every floor (`FUN_004ded10`) and the rain's splashes: a
+  shadow reaching over the next cells isn't painted over by their floors.
 - **Unit shadows:** driver +0x90 (0x5122e0 → `FUN_00601730` →
   `FUN_00608d60`) draws the frame from its bottom row up, every other row,
   each output row one up and one left: half as tall, leaning up-left from
@@ -146,7 +149,8 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   level for a tile when all the corners it reaches share it. Units take the level at their
   feet; additive missiles and overlays aren't lit.
 
-- Tile shadows blend at a quarter (`blit_dt1_shadow`); players', NPCs'
+- Tile shadows keep a quarter of the ground (`blit_dt1_shadow`), drawn
+  after every floor; players', NPCs'
   and monsters' composites cast shadows after the floor pass
   (`shadow_composite`), each pixel once however many layers cover it.
 

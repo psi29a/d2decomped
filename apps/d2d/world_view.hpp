@@ -60,9 +60,10 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
                    int screen_x, int screen_y, int alpha_all = 255, const Hole* hole = nullptr);
 
 // A shadow tile (orientation 13), Blended Shadows on (the Video Options
-// default): through the palette's alpha table 0 (PL2 +0x3500), a quarter
-// of the tile over three quarters of the ground, unlit (driver +0xa4,
-// callback FUN_004f82d0 at alpha 0xc0).
+// default): through the palette's alpha table 0 (PL2 +0x3500) as
+// T0[ground][tile], a quarter of the ground under three quarters of the
+// tile, unlit (driver +0xa4, callback FUN_004f82d0 at alpha 0xc0). Drawn
+// once every floor is down (FUN_004df510).
 // ponytail: the mix in RGB, not the table's nearest palette colour.
 void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile,
                      const d2d::palette::Palette& pal, int screen_x, int screen_y);
