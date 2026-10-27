@@ -1,3 +1,5 @@
+![D2Decomped](assets/icon/hero.png)
+
 # D2Decomp
 
 ![D2Decomp widescreen gameplay](https://mindwerks.net/assets/images/2026/10/d2decomp-widescreen-rogue-encampment.png)
@@ -156,6 +158,24 @@ Your install is read in place and never changed. Its Fullscreen,
 Widescreen and Skip intro movies boxes set `fullscreen =`, `widescreen =` and
 `video =`. Launch saves the
 settings, starts d2d and closes the launcher.
+
+## Collaborate
+
+Come and talk on the [D2Decomp Discord](https://discord.gg/EJxctR2hqn): questions,
+playtests, bug reports, and what to work on next.
+
+- **Report a bug** as a [GitHub issue](https://github.com/psi29a/d2decomped/issues):
+  what you did, what you expected, the d2d version, and `d2d.log` (in the
+  settings folder: [apps/d2d/README.md](apps/d2d/README.md)). A screenshot of the
+  original game doing it differently helps most.
+- **Send a change** as a pull request against `main`. CI builds Linux, macOS
+  and Windows and runs the tests; CodeRabbit reviews it.
+- **The original game is the reference.** A behavior change says where in 1.14d
+  it comes from (a function address, a table) and is checked against the
+  original where it can be. The notes live in
+  [docs/research/re](docs/research/re), the roadmap in [docs/PLAN.md](docs/PLAN.md).
+- **No game files.** Never commit data from the MPQs, the installer, or
+  `game.exe`; d2d reads them from your own install.
 
 ## License
 
