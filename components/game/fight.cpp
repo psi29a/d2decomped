@@ -458,6 +458,8 @@ auto Fight::die(std::uint32_t now_ms) -> void {
     actor->character.stats.values[d2d::d2s::kLife] = 0;
     set_pmode(kModeDT, now_ms);
     actor->attack_mon = -1;
+    actor->smove = {};           // a Whirlwind / Charge / Leap cut short isn't resumed by the next attack mode
+    actor->kicks_left = 0;
     d2d::log::info("the player died");
 }
 

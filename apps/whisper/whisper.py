@@ -166,10 +166,12 @@ def rooms_of(lines: list[str]) -> dict[str, list[str]]:
     """A tiles dump by room: "room X,Y" -> its mask line and tile lines."""
     rooms, room = {}, None
     for line in lines:
-        if line.startswith("room ") and " mask " in line:
-            room = " ".join(line.split()[:2])
-            rooms[room] = []
-        if room: rooms[room].append(line)
+        if line.startswith("room "):   # "room X,Y not loaded" ends the room before it too
+            room = " ".join(line.split()[:2]) if " mask " in line else None
+            if room:
+                rooms[room] = []
+        if room:
+            rooms[room].append(line)
     return rooms
 
 
@@ -200,6 +202,9 @@ DIFFICULTY = {"normal": (400, 280), "nightmare": (400, 323), "hell": (400, 366)}
 def host(whisper: Whisper, difficulty: str = "normal") -> str:
     """Clicks through to a hosted game; ponytail: fixed waits, no screen reading. A character with only Normal open
     gets no difficulty box, and that click lands on the empty list."""
+    difficulty = difficulty.lower()
+    if difficulty not in DIFFICULTY:
+        return f"err unknown difficulty {difficulty!r}: normal, nightmare or hell"
     for x_pos, y_pos in [*HOST_CLICKS, DIFFICULTY[difficulty]]:
         whisper.ask(f"click {x_pos} {y_pos}")
         time.sleep(2)

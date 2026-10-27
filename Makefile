@@ -85,7 +85,8 @@ endif
 	  command -v osascript >/dev/null || break; \
 	  osascript -e 'tell application "System Events" to set visible of application process "wine" to false' >/dev/null 2>&1 && break; sleep 0.1; \
 	done; \
-	for i in $$(seq 30); do python3 -c 'import socket; socket.create_connection(("127.0.0.1", 4100), 1)' 2>/dev/null && break; sleep 1; done; \
+	up=; for i in $$(seq 30); do python3 -c 'import socket; socket.create_connection(("127.0.0.1", 4100), 1)' 2>/dev/null && { up=1; break; }; sleep 1; done; \
+	test -n "$$up" || { echo "whisper never answered on 127.0.0.1:4100"; WINEPREFIX=$(PREFIX) $(WINESERVER) -k; exit 1; }; \
 	echo "game.exe up (whisper 127.0.0.1:4100; on macOS hidden: show it from the Dock)"; \
 	$(if $(filter host,$(word 2,$(RUN_WHAT))),sleep 3; $(WHISPER) host $(DIFF);) \
 	wait

@@ -1239,7 +1239,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 const int max_scroll = charselect_max_scroll(count);
                 int rows = -mouse.wheel;   // wheel up = scroll toward the top
                 bool play = false;
-                if (mouse.press_this_frame) {
+                if (mouse.press_this_frame && chosen_difficulty < 0) {   // a pick's click stays in the box, off the slots under it
                     const int slot = charselect_slot_at(mouse.x, mouse.y);
                     if (slot >= 0 && csu.scroll + slot < count) {
                         // A second press on the same character within

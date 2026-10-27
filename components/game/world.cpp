@@ -485,6 +485,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 actor->swing_skill = 0;
                 actor->attack_mon = -1;
                 actor->seq = {};
+                actor->smove = {};
+                actor->kicks_left = 0;
                 actor->player.dir = direction16(object.x - actor->player.x, object.y - actor->player.y);
                 fight.set_pmode(kModeKK, now_ms);
             }

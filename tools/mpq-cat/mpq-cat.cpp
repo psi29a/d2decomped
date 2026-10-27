@@ -64,9 +64,18 @@ int main(int argc, char** argv) try {
             HANDLE file = nullptr;
             const bool ok = SFileCreateFile(archive, name.c_str(), 0, DWORD(bytes.size()), 0, MPQ_FILE_COMPRESS | MPQ_FILE_REPLACEEXISTING, &file)
                 && SFileWriteFile(file, bytes.data(), DWORD(bytes.size()), MPQ_COMPRESSION_ZLIB) && SFileFinishFile(file);
-            if (!ok) { std::fprintf(stderr, "mpq-cat: can't add %s\n", name.c_str()); SFileCloseArchive(archive); return 1; }
+            if (!ok) {
+                std::fprintf(stderr, "mpq-cat: can't add %s\n", name.c_str());
+                SFileCloseArchive(archive);
+                std::filesystem::remove(patch_out);   // no half archive for `make run og` to find
+                return 1;
+            }
         }
-        SFileCloseArchive(archive);
+        if (!SFileCloseArchive(archive)) {   // writes the hash and block tables
+            std::fprintf(stderr, "mpq-cat: can't finish %s\n", patch_out.string().c_str());
+            std::filesystem::remove(patch_out);
+            return 1;
+        }
         std::printf("%s: %zu files\n", patch_out.string().c_str(), files.size());
         return 0;
     }
