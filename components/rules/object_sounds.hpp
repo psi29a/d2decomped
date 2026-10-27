@@ -10,6 +10,9 @@
 #include <algorithm>
 #include <array>
 
+#include "object_ids.hpp"
+#include "sound_ids.hpp"
+
 namespace d2d::rules {
 
 struct ObjectSounds {
@@ -495,6 +498,14 @@ inline int object_loop(int id, int mode) {
     if (sounds->loops[1] == mode || sounds->loops[1] == 8) return sounds->loops[0];
     if (sounds->loops[3] == mode || sounds->loops[3] == 8) return sounds->loops[2];
     return 0;
+}
+// An object's own call (FUN_004cb460, its unit-type-2 branch): the Gibbet
+// (26) in mode 0 plays cain_act1_help when a player is under 0x14 off
+// (unit_range), if it has played nothing yet (unit +0x80, set to the
+// game's frame after). 0 none.
+inline constexpr int kCallRange = 0x14;
+inline int object_call(int id, int mode, int range, bool played) {
+    return id == object_ids::kGibbet && mode == 0 && range < kCallRange && !played ? sound_ids::kCainHelp : 0;
 }
 
 }  // namespace d2d::rules

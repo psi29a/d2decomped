@@ -403,6 +403,7 @@ struct Town {
     StateClock state_clock;                // when each unit's states were first seen (their cast overlays)
     // The level's objects' modes as last seen (Town::object_sounds), by level->npcs index: "" not seen.
     std::vector<std::string_view> object_modes;
+    std::vector<char> object_called;          // an object's call has played (unit +0x80: rules::object_call), by level->npcs index
     const Level* object_level = nullptr;
     std::vector<int> object_loops;          // the objects' loops wanted now (their owners, -1 - index)
     void object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight_x, float sight_y);

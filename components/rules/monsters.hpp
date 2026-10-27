@@ -452,6 +452,14 @@ inline int unit_distance(int dx, int dy, int size_a, int size_b) {
     return down < across ? down + across * 2 : across + down * 2;
 }
 
+// The plain distance (FUN_006416d0, the client's object call): the deltas in
+// subtiles less both half sizes (FUN_00620510: a player 2, an object its
+// objects.txt SizeX), then the smaller plus twice the larger, halved.
+inline int unit_range(int dx, int dy, int size_a, int size_b) {
+    const int half = size_a / 2 + size_b / 2, across = std::max(std::abs(dx) - half, 0), down = std::max(std::abs(dy) - half, 0);
+    return (across <= down ? across + down * 2 : down + across * 2) / 2;
+}
+
 // A monster's door (FUN_005b0f50 → FUN_005dd0b0 mode 8, FUN_005dcd50):
 // of the closed IsDoor objects about, `spots` their offsets from it in
 // subtiles, the nearest by squared distance (FUN_005b0bd0) under 9, the

@@ -38,15 +38,15 @@ Ranked by Seen, then by how much play it touches.
 
 ## Sounds
 
-`tools/sound_coverage.py <mpq dir>`: 3,413 of the base install's 3,520
-sounds play, 107 don't (2026-10-27).
+`tools/sound_coverage.py <mpq dir>`: 3,414 of the base install's 3,520
+sounds play, 106 don't (2026-10-27).
 
 | # | What | Count | Kind | Seen | Notes |
 |---|---|---|---|---|---|
 | 16 | The hero's quest lines: each quest's "find" and "complete" voice, five classes | 70 | build | yes | Triggers include Cain rescue, Seven Tombs, Act 3 completions and prior Act 1 / 2 cues. 14 remaining per classic class (70 sounds: act 2's begin_tainted, complete_tightspot and four find lines, events 0x31, 0x35, 0x39..0x3c) have no server dispatch in stock 1.14d (unit-sounds.md). |
 | 17 | The classic quest music jingles (Andariel, Blood Raven, Den, Forge, Horadric …) | 10 | build | yes | Wired at the quest completion/object event; music.md |
 | 18 | Code-played one-offs: Andariel's quake loop and fire end, the Hellforge smash, shrine overlays, corpse loot, trap trigger, sewer water, Wanderer's fissure, monster casts, steal impacts | ~30 | build | yes | sound_coverage.py's "code:" buckets; Energy Shield, Barbarian Leap, town-restricted skill, leech, missile ProgSound, classic quest music cues and Diablo's death schwing / hit are wired. |
-| 19 | NPC lines left: Alkor / Asheara / Hratli / Ormus act 3 q4, Cain's act 1 help and act 4 greeting, Tyrael after a4q2, Warriv's act 2 gossip, guard greeting, rogue / Iron Wolf hireling confirms | ~20 | build | yes | npc-talk.md |
+| 19 | NPC lines left: Alkor / Asheara / Hratli / Ormus act 3 q4, Cain's act 4 greeting, Tyrael after a4q2, Warriv's act 2 gossip, guard greeting, rogue / Iron Wolf hireling confirms | 21 | build | yes | Cain's act 1 help is wired (the Gibbet's call). As traced, stock 1.14d plays none of the rest: not in the speech table, no client code plays them, and the rogue confirm's C→S 0x46 is never sent (unit-sounds.md). |
 | 20 | Skills' prgsound; block and kick sounds; monsters' own skill stsound | — | build | yes | unit-sounds.md; dosound a / b are in (only Jab's is ever played) |
 | 21 | Camp floors: DS1 tiles aren't in `room_floors`, so footsteps there are always dirt | — | exact | yes | unit-sounds.md |
 

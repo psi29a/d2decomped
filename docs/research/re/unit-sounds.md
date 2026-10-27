@@ -239,6 +239,15 @@ Object 0x3d's loops are by mode at 0x728338. The 13 objects sharing record
 0x729328 play only going to a later mode. Dumped whole into
 `components/rules/object_sounds.hpp`.
 
+One object calls on its own: the Gibbet (26, Cain caged in Tristram). FUN_004cb460's
+object branch plays 0xe57 `cain_act1_help` on it while it's in mode 0, when the
+player is under 0x14 off by FUN_006416d0 (the subtile deltas less both half
+sizes, FUN_00620510: a player 2, an object its objects.txt SizeX; then the
+smaller plus twice the larger, halved) and its +0x80 is still 0, then sets
++0x80 to the game frame (FUN_004cabc0): once per client unit. d2d:
+`rules::unit_range`, `rules::object_call`, played by `Town::object_sounds`
+once per level visit.
+
 ## Items in the panels (client, UI\inv.cpp)
 
 The item record (misc / armor / weapons.txt): dropsound +0x124,
@@ -326,21 +335,21 @@ keeps playing sounds: `FUN_0044efa0` still runs the sound tick
 ## In d2d
 
 `tools/sound_coverage.py` lists the base install's sounds d2d can't play yet
-(3,413 / 3,520 covered). Energy Shield, Barbarian Leap, restricted town skill
+(3,414 / 3,520 covered). Energy Shield, Barbarian Leap, restricted town skill
 attempts, successful life / mana leech, missile ProgSound, and ten classic
 quest music cues now have event paths. The music cues fire on the quest
 completion event and play as one-shots.
 
-The remaining 107 rows have these causes:
+The remaining 106 rows have these causes:
 
 | Rows | Why they are still silent |
 |---|---|
 | 70 class quest phrases | 14 per classic class (with their Group Size rows): act 2's begin_tainted, complete_tightspot, find_radament, find_summoner, find_tomb_decoy and find_tomb_true, unit sound events 0x31, 0x35 and 0x39..0x3c (the class row's +0x24 + event - 0x21, FUN_004cb9c0). The find table (0x72a2c4) has no row for them and the server xref audit found no quest sending those events, so stock 1.14d never plays them; assigning them to nearby quest milestones would invent behavior. |
 | 5 `event_desert_night_1..5` | No SoundEnviron row selects these names. The desert environments use their daytime event group at night too. |
-| 8 `rogue_confirm_*` | Hireling command confirmation voices; d2d has no hireling command action to trigger them. |
-| 14 NPC speech rows | The voice lookup is driven by specific localized string IDs. d2d's NPC quest-dialogue path does not yet produce the corresponding Alkor, Asheara, Cain, Guard, Hratli, Iron Wolf, Ormus, Tyrael, or Warriv dialogue strings. |
-| 8 monster / skeleton rows | MonSounds skill slots or animation-specific effects; d2d does not yet dispatch those cast/taunt events for the affected units. |
-| 1 `andariel_quake_loop` | The client starts this during Andariel's scripted death/level transition; d2d has no earthquake sequence. |
+| 8 `rogue_confirm_*` | Unit sound event 0xf on a Rogue (class 0x10f, FUN_004cb9c0). The server sends it only from C→S 0x46's handler (FUN_0054c4b0 → FUN_0054c430: the player's merc sent to a unit), and the stock client never builds 0x46, so stock 1.14d never plays them. |
+| 13 NPC speech rows | Alkor, Asheara, Cain's act 4 greeting, Guard, Hratli, Iron Wolf, Ormus, Tyrael and Warriv rows. None is in the speech table (0x72b0e0), the only way a dialogue string plays a voice, and no client code plays their numbers (where game.exe has them, they're string ids or line numbers: 0xe8d in FUN_004a1950 is a string), so as traced stock 1.14d never plays them. |
+| 8 monster / skeleton rows | Diablo's taunts: `monster_diablo_taunt_1` plays at frame 50 of the `diablo` missile (pCltDoFunc 37, FUN_004d6540, the missile's +0x10 current frame), which also shakes the screen at frame 150; d2d makes neither that missile nor screen shake (see `andariel_quake_loop`); `monster_diablo_taunt_ex`, with the screen shake, on event message 0x12, Diablo Walks the Earth (FUN_0049eb10), a realm event no single-player or d2d host sends. Not traced yet: `monster_cast_lightning`, `monster_meteor_impact`, `monster_izual_taunt`, `skeleton_cast_*` (no client code plays their numbers directly). |
+| 1 `andariel_quake_loop` | The screen shake's sound. FUN_00476a80 (strength, ramp in, hold, fade out in ms) starts a shake; each frame FUN_00476d40 takes its strength along that envelope, moves the camera up to twice it either way, and FUN_004769d0 plays this row unplaced at volume strength x 255 / 10 (at most 255), stopping it at 0. Shakes start from the missiles' pCltDoFunc 29 (andycontrol0), 31 (horadricstaff), 36 (durieldeathcontrol), 37 (diablo), 54 (anya) and 58 (royalstrikechaosice), event message 0x12 and the client skill function 0x727a90[145]; d2d has no screen shake yet. |
 | 1 `scene_tavern_interior` | Front-end tavern scene only; d2d does not implement that scene. |
 
 These are trigger or feature gaps, not missing audio files. The two shrine

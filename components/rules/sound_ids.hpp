@@ -31,6 +31,8 @@ inline constexpr int kDiabloDeathSchwing = 746;
 inline constexpr int kDiabloDeathHit = 747;
 inline constexpr int kDiabloSchwingTicks = 0x6a;
 inline constexpr int kDiabloHitTicks = 0xc1;
+// Cain in the Gibbet calls to a player near (FUN_004cb460; rules::object_call).
+inline constexpr int kCainHelp = 3671;
 inline constexpr std::array<int, 7> kClassSelect = { 17, 25, 21, 23, 19, 0, 0 };   // d2s class order; expansions have no classic intro cue
 inline constexpr std::array<int, 7> kClassDeselect = { 18, 26, 22, 24, 20, 0, 0 };
 

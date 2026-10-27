@@ -5,7 +5,10 @@
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <rules.hpp>
+#include <monsters.hpp>
+#include <object_ids.hpp>
 #include <object_sounds.hpp>
+#include <sound_ids.hpp>
 #include <shrines.hpp>
 
 #include <cassert>
@@ -199,6 +202,13 @@ int main() try {
     assert(door_mode(0, true) == 2 && door_mode(2, false) == 0 && door_mode(2, true) == 5);
     assert(door_mode(5, true) == -1 && door_mode(5, false) == 0 && door_mode(1, false) == -1);
     assert(object_sound(15, 2) == 2568 && object_sound(13, 0) == 2564 && object_sound(15, 1) == 0 && object_loop(37, 0) > 0 && object_loop(12, 3) > 0);   // object_door_wood_open, object_door_metal_close; a torch, a fountain loop
+    // The Gibbet's call (FUN_004cb460): FUN_006416d0's range, less the half sizes (the Gibbet's 3, a
+    // player's 2), the smaller plus twice the larger, halved; under 0x14, in mode 0, once.
+    assert(unit_range(0, 0, 3, 2) == 0 && unit_range(10, 4, 3, 2) == 9 && unit_range(-4, 10, 3, 2) == 9 && unit_range(-30, 0, 3, 2) == 28);
+    assert(unit_range(21, 0, 3, 2) == 19 && unit_range(22, 0, 3, 2) == 20);
+    const int gibbet = object_ids::kGibbet;
+    assert(object_call(gibbet, 0, 19, false) == sound_ids::kCainHelp && object_call(gibbet, 0, 20, false) == 0);
+    assert(object_call(gibbet, 0, 0, true) == 0 && object_call(gibbet, 1, 0, false) == 0 && object_call(gibbet + 1, 0, 0, false) == 0);
     // A well: half the maxima back, capped; nothing short, no drink.
     std::int64_t life = 10, mana = 100, stamina = 0;
     assert(well_drink(life, 100, mana, 100, stamina, 40) && life == 60 && mana == 100 && stamina == 20);

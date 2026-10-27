@@ -30,6 +30,7 @@
 #include <light.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>
+#include <monsters.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
@@ -2100,8 +2101,8 @@ auto Town::lead_leaves() -> int {
 auto Town::object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight_x, float sight_y) -> void {
         object_loops.clear();
         if (!level || !scene) return;
-        if (object_level != level) { object_modes.assign(level->npcs.size(), {}); object_level = level; }   // a new level: nothing has changed yet
-        if (object_modes.size() != level->npcs.size()) object_modes.resize(level->npcs.size());
+        if (object_level != level) { object_modes.assign(level->npcs.size(), {}); object_called.assign(level->npcs.size(), 0); object_level = level; }   // a new level: nothing has changed yet
+        if (object_modes.size() != level->npcs.size()) { object_modes.resize(level->npcs.size()); object_called.resize(level->npcs.size()); }
         for (std::size_t i = 0; i < level->npcs.size() && i < view.npc_states.size(); ++i) {
             const auto& npc = level->npcs[i];
             const auto& state = view.npc_states[i];
@@ -2111,6 +2112,12 @@ auto Town::object_sounds(const Audio& audio, std::uint32_t frame_ms, float sight
             if (!was.empty() && was != mode)
                 cues.cue(d2d::rules::object_sound(npc.object_id, d2d::game::mode_index(mode), d2d::game::mode_index(was)), frame_ms, state.x, state.y);
             was = mode;
+            const auto subtile = [](float value) { return int(std::floor(value * 5)); };
+            const int range = d2d::rules::unit_range(subtile(state.x) - subtile(sight_x), subtile(state.y) - subtile(sight_y), npc.size_x, 2);
+            if (const int call = d2d::rules::object_call(npc.object_id, d2d::game::mode_index(mode), range, object_called[i] != 0); call > 0) {
+                cues.cue(call, frame_ms, state.x, state.y);
+                object_called[i] = 1;
+            }
             if (const int loop = d2d::rules::object_loop(npc.object_id, d2d::game::mode_index(mode)); loop > 0) {
                 const int owner = -1 - int(i);
                 object_loops.push_back(owner);

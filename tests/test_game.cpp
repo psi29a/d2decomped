@@ -407,7 +407,7 @@ int main(int argc, char** argv) try {
         namespace snd = d2d::rules::sound_ids;
         const std::uint32_t died_ms = 26 * kTickMs;
         assert(data->sound_index.at("diablo_death") == snd::kDiabloDeath && data->sound_index.at("diablo_death_schwing") == snd::kDiabloDeathSchwing
-               && data->sound_index.at("diablo_death_hit") == snd::kDiabloDeathHit);
+               && data->sound_index.at("diablo_death_hit") == snd::kDiabloDeathHit && data->sound_index.at("cain_act1_help") == snd::kCainHelp);
         const auto count = [&](int sound, std::uint32_t when_ms) {
             return std::ranges::count_if(world.cues.due, [&](const Cues::Cue& cue) { return cue.sound == sound && cue.when_ms == when_ms; });
         };
