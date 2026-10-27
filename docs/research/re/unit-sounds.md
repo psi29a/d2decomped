@@ -81,8 +81,25 @@ weaponsnd.
   player of the skill's charclass (+0xc), unless an item cast has its own.
 - **Do** (FUN_004c6680, its client do-function done): dosound on the caster,
   tgtsound on its target (FUN_004648f0), none without one.
-- Not ported: dosound a / b (Jab, Strafe, Vine Attack: FUN_004c9b40 /
-  FUN_004f4590), prgsound (charge-ups, Hurricane), monsters' own stsound.
+- **dosound a / b** (+0x102 / +0x104): only two places read them (every
+  word read of either offset in game.exe). Jab's cltdofunc 16
+  (FUN_004f4590, table 0x727ba8) plays dosound a on a player, dosound b on a
+  monster, when the unit's frame event (+0x4e, set from the sequence or
+  AnimData frame) is 3. The client runs the do on each event 1..4 frame
+  (FUN_004af4d0 → FUN_004c68f0 → FUN_004c6680; 1..3 only until the start
+  call has run), so Jab's weapon_1ht / weapon_2ht plays on its sequence's
+  event-3 frames: 3 with a javelin (1ht) or a spear (2ht), none bare-handed.
+  Of the monsters with Jab only Duriel's MonSeq (seq_durieljab) has event-3
+  rows; the scarabs', the Act 2 guards' and hirelings' and the lancers' play
+  nothing. Cltstfunc 25 (FUN_004c9b40, table 0x727a90: Charge,
+  SerpentCharge) reads dosound a too, but Charge's is empty; a monster's
+  plays its MonSounds Skill1..4 for the MonStats slot holding the skill
+  (FUN_004f4f40). Strafe's and Vine Attack's dosound a / b are never read.
+  d2d: `Skill::do_sound_a` / `do_sound_b` / `clt_do_func`; the player's in
+  `Fight::strike` (`Hero::seq_sounded`), a monster's through
+  `Monster::seq_sounds` (ai.cpp's sequence rows) in `Fight::monster_sounds`.
+- Not ported: prgsound (charge-ups, Hurricane), monsters' own stsound, a
+  monster's Charge start sound (FUN_004f4f40).
 
 ## Missiles
 
@@ -331,7 +348,7 @@ the View (`Audio::stop_owners`). States: `StateClock` in `dress()`. Footsteps:
 `World::footstep_frame`, `Fight::monster_sounds`. Objects: the client's
 `Town::object_sounds`. Greetings: `World::greet_sound`. Sound rolls use
 `Fight::sound_rng`, apart from the game's.
-Left: the player's quest lines, monsters' own skill stsound, dosound a / b,
+Left: the player's quest lines, monsters' own skill stsound,
 prgsound, ProgSound, block (FUN_004cb860) and kick sounds, state 0x92, a
 missile's hit class on a player, the town's floor material (its DS1 tiles
 aren't in `room_floors`: dirt). Cursor item sounds (identify, repair, break,

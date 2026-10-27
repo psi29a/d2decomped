@@ -383,7 +383,8 @@ lines (missile names aren't passed in). What it does:
   skill has no sequence with that weapon.
 - A frame is 6 bytes `{u16 0, mode, frame, direction 0, event}`: the player
   shows `frame` of `mode`'s animation; event **1 is a hit** (the skill's
-  srvdofunc runs), 3 comes before some of Jab's and Charge's hits.
+  srvdofunc runs), 3 comes before some of Jab's and Charge's hits: Jab's
+  client do (cltdofunc 16) plays its dosound there (unit-sounds.md).
 - Generated into `components/rules/sequences.hpp` by
   `tools/ghidra/gen/sequences.py` (3450 frames, 207 entries). Which skills
   use them: 1 Jab, 2 Sacrifice, 4 Charge, 5 Conviction, 6 Inferno, 8

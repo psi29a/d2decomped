@@ -424,6 +424,9 @@ struct Skill {
     // (+0x100), tgtsound (+0x10a); flags stsounddelay (13: the swing's frames less 3) and weaponsnd (14).
     int st_sound = 0, st_sound_class = 0, item_cast_sound = 0, do_sound = 0, tgt_sound = 0;
     int prg_sound = 0, clt_st_func = 0;   // prgsound (+0x10e), cltstfunc (+0xf2: the client's start, table 0x727a90)
+    // dosound a / b (+0x102 / +0x104) and cltdofunc (+0xf4: the client's do, table 0x727ba8).
+    // Only cltdofunc 16 (Jab's, FUN_004f4590) and cltstfunc 25 (FUN_004c9b40) read a / b.
+    int do_sound_a = 0, do_sound_b = 0, clt_do_func = 0;
     bool st_sound_delay = false, weapon_sound = false;
     int srcdam_raw = 0;                    // SrcDam as written: a missile's weapon share (FUN_0064b860), 0 none
     std::string srvmissile;                // +0x46: the Missiles.txt row the skill fires

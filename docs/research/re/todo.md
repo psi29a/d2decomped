@@ -47,7 +47,7 @@ sounds play, 164 don't (2026-10-24).
 | 17 | The classic quest music jingles (Andariel, Blood Raven, Den, Forge, Horadric …) | 10 | build | yes | Wired at the quest completion/object event; music.md |
 | 18 | Code-played one-offs: Diablo's death hit / schwing, Andariel's quake loop and fire end, the Hellforge smash, shrine overlays, corpse loot, trap trigger, sewer water, Wanderer's fissure, monster casts, steal impacts | ~30 | build | yes | sound_coverage.py's "code:" buckets; Energy Shield, Barbarian Leap, town-restricted skill, leech, missile ProgSound, and classic quest music cues are wired. |
 | 19 | NPC lines left: Alkor / Asheara / Hratli / Ormus act 3 q4, Cain's act 1 help and act 4 greeting, Tyrael after a4q2, Warriv's act 2 gossip, guard greeting, rogue / Iron Wolf hireling confirms | ~20 | build | yes | npc-talk.md |
-| 20 | Skills' dosound a / b, prgsound; block and kick sounds; monsters' own skill stsound | — | build | yes | unit-sounds.md |
+| 20 | Skills' prgsound; block and kick sounds; monsters' own skill stsound | — | build | yes | unit-sounds.md; dosound a / b are in (only Jab's is ever played) |
 | 21 | Camp floors: DS1 tiles aren't in `room_floors`, so footsteps there are always dirt | — | exact | yes | unit-sounds.md |
 
 ## Animation and drawing

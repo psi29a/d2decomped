@@ -5,7 +5,7 @@
 // WeaponClass.txt rows through the pairs at 0x748418: hth, 1ht, 2ht, 1hs,
 // 2hs, bow, xbw, stf, 1js, 1jt, 1ss, 1st, ht1, ht2), each frame 6 bytes
 // {u16 0, mode, frame, direction 0, event}. Event 1 is the hit; 3 comes
-// before some of Jab's and Charge's hits (its use isn't traced). Higher
+// before some of Jab's and Charge's hits (Jab's dosound, FUN_004f4590). Higher
 // seqnums are monsters' (MonStats, FUN_00659e30).
 // Generated from the 1.14d dump (docs/research/re/skills.md, "Sequences").
 #pragma once
