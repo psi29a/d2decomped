@@ -439,6 +439,47 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             }
             return out + "\n";
         }
+        if (args.size() >= 2 && args[1] == "tiles") {      // every picked tile: `x y wall|floor|shadow o<orientation> <dt1>:<index>` (whisper town's form, level cells)
+            const auto& level = *town.level;
+            std::string out = std::format("level {}\n", level.id);
+            auto name_of = [&](const d2d::dt1::Tile* tile) {
+                for (const auto& [file, archive] : level.tile_dt1s.archive) {
+                    const auto tiles = archive->tiles();
+                    if (!tiles.empty() && tile >= tiles.data() && tile < tiles.data() + tiles.size()) return std::format("{}:{}", file->name, tile - tiles.data());
+                }
+                return std::string("?");
+            };
+            static constexpr std::array<const char*, 3> kKind = { "wall", "floor", "shadow" };
+            for (std::size_t cell = 0; cell < level.picks.size(); ++cell)
+                for (const auto& pick : level.picks[cell])
+                    out += std::format("{} {} {} o{} {}\n", cell % level.ds1.width(), cell / level.ds1.width(), kKind[std::min<std::size_t>(pick.layer, 2)],
+                                       int(pick.orient), name_of(pick.tile));
+            return out + "ok\n";
+        }
+        if (args.size() >= 2 && args[1] == "laid") {       // the order relevel laid the level's rooms in: `<list index> <x> <y>` per room, the first `up` were up
+            const auto& level = *town.level;
+            const std::size_t count = level.rooms.size();
+            std::string out = std::format("up {}\n", level.laid_up);
+            for (std::size_t step = 0; step < count; ++step) {
+                const std::size_t list_index = level.laid.empty() ? step : level.laid[step];
+                const auto& room = level.rooms[count - 1 - list_index];   // the list is newest first
+                out += std::format("{} {} {}\n", list_index, room.x, room.y);
+            }
+            return out + "ok\n";
+        }
+        if (args.size() >= 3 && args[1] == "relevel") {    // lay the level's tiles again, rooms up in this order: `debug relevel <x>,<y> ...` (room cells)
+            auto& level = const_cast<d2d::game::Level&>(*town.level);
+            std::vector<std::size_t> came_up;
+            for (std::size_t arg = 2; arg < args.size(); ++arg) {
+                const auto comma = args[arg].find(',');
+                const int x = std::atoi(args[arg].c_str()), y = comma == std::string::npos ? -1 : std::atoi(args[arg].c_str() + comma + 1);
+                for (std::size_t index = 0; index < level.rooms.size(); ++index)
+                    if (level.rooms[index].x == x && level.rooms[index].y == y) came_up.push_back(index);
+            }
+            level.laid.clear();
+            d2d::game::relevel(level, came_up);
+            return std::format("ok {}\n", came_up.size());
+        }
         if (args.size() >= 2 && args[1] == "party") {      // the Party screen with three sample players (no joined game needed): `debug party on|off`
             town.party_preview.clear();
             if (args.size() >= 3 && args[2] == "on")
