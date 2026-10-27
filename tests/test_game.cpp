@@ -7,6 +7,7 @@
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>
+#include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
 #include <drops.hpp>
@@ -23,6 +24,7 @@
 #include <quests.hpp>
 #include <replication.hpp>
 #include <rules.hpp>
+#include <sequences.hpp>
 #include <skill_text.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
