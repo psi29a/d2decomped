@@ -1793,6 +1793,7 @@ int main(int argc, char** argv) {
             { "pad_controls", &g_pad_controls },   // Configure Controls' gamepad page
             { "coop_lobby", &g_coop_lobby },       // SINGLE PLAYER / COOP, partners pick their characters on character select
             { "pause_sounds", &g_pause_sounds },   // the world's sounds hold while a local game is paused
+            { "light_grid", &g_light_grid },       // the light grid over the whole view, not game.exe's 48 x 48
         };
         std::string_view rest = toggles;
         while (!rest.empty()) {

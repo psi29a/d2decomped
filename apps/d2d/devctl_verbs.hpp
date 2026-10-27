@@ -405,7 +405,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             return std::string("ok ") + std::to_string(fight.missiles.size()) + "\n";
         }
         if (args.size() >= 2 && args[1] == "light") {      // the light grid round the player, a level (0..31) a subtile
-            const auto light = frame_light(*town.scene, town.view, town.cam_x, town.cam_y);
+            const std::pair<float, float> hero_at{ town.player.x, town.player.y };   // the player's light where they stand, as the frame's
+            const auto light = frame_light(*town.scene, town.view, town.cam_x, town.cam_y, {}, -1, {}, nullptr, std::uint32_t(SDL_GetTicks()), &hero_at);
             std::string out;
             for (int y = 0; y < light.grid.grid_size; ++y) {
                 for (int x = 0; x < light.grid.grid_size; ++x) out += "0123456789abcdefghijklmnopqrstuv"[light.grid.values[std::size_t(y * light.grid.grid_size + x)] >> 3];
