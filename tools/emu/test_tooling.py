@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Failure-path checks for the emulator's file cache and act sweep.
 
-Run from tools/emu with: uv run python -m unittest test_tooling
+Run from tools/emu with: python3 -m unittest test_tooling.py
 """
 import os
 import subprocess
@@ -93,6 +93,14 @@ echo "monsters level $level: $score/1 seeds match game.exe"
                 sweep, env = self.fake_tree(Path(directory), mode)
                 result = subprocess.run([str(sweep), "1-1", "monsters"], env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode == 0, mode == "ok", result.stdout + result.stderr)
+
+    def test_bad_input_is_a_usage_error(self):
+        for args, jobs in ((["08-09"], "2"), (["1-010"], "2"), (["1-1"], "x"), (["1-1"], "0")):
+            with self.subTest(args=args, jobs=jobs), tempfile.TemporaryDirectory() as directory:
+                sweep, env = self.fake_tree(Path(directory), "ok")
+                env["JOBS"] = jobs
+                result = subprocess.run([str(sweep), *args, "monsters"], env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
 
     def test_term_stops_the_jobs_and_the_sweep(self):
         with tempfile.TemporaryDirectory() as directory:

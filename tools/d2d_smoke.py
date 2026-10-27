@@ -13,7 +13,7 @@ Usage:
 
 Example:
   tools/d2d_smoke.py --data /path/to/mpqs --screen ingame --wait 20
-Exit code: 0 if d2d answered ping and wrote the screenshot, else 1.
+Exit code: 0 if d2d answered ping, wrote the screenshot and exited 0, else 1.
 The d2d log is in <config>/d2d/d2d.log.
 """
 import argparse
@@ -102,7 +102,13 @@ def main():
         print("screenshot:", send(sock, f"screenshot {a.out}"))
         ok = a.out.exists()
         print("quit:", send(sock, "quit"))
-        proc.wait(timeout=20)
+        try:
+            proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            print("d2d did not exit within 20s of quit")
+            proc.kill()
+            proc.wait()
+            ok = False
     finally:
         if proc.poll() is None:
             try:
@@ -118,7 +124,7 @@ def main():
                         proc.wait(timeout=5)
         sock.unlink(missing_ok=True)
     print("d2d exit code:", proc.returncode, "| screenshot:", a.out if ok else "none")
-    return 0 if ok else 1
+    return 0 if ok and proc.returncode == 0 else 1
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ seeds=${1:-1-50}
 kinds=${*:-monsters objgroups}
 case $seeds in *[!0-9-]*|*-*-*|''|-*|*-) echo "seeds must be FIRST-LAST" >&2; exit 2 ;; esac
 case $seeds in *-*) ;; *) echo "seeds must be FIRST-LAST" >&2; exit 2 ;; esac
+case $seeds in 0[0-9]*|*-0[0-9]*) echo "seeds must be FIRST-LAST, without leading zeros" >&2; exit 2 ;; esac
 first_seed=${seeds%-*}; last_seed=${seeds#*-}
 [ "$first_seed" -le "$last_seed" ] || { echo "empty seed range" >&2; exit 2; }
 for kind in $kinds; do

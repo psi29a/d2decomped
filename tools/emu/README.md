@@ -68,8 +68,6 @@ The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
 ## What's there
 
 - `emu.py`: the core `Emu` class.
-  - `mpq_cache.py` caches MPQ reads by archive and patch version. A tool
-    error stops the oracle; only a confirmed absent archive entry is cached.
   - `call(addr, *stack_args, ecx=, edx=)` calls a function. It covers
     stdcall, fastcall and cdecl (the caller pops nothing). It returns EAX.
   - `hook(addr, fn, nstack)` replaces a game.exe function with Python.
@@ -82,13 +80,15 @@ The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
   - `serve_files(e)` answers Storm's file calls (open, size, read, seek,
     close, name) from the MPQ stack through `mpq-cat`. Files are cached
     in `.cache/`, so the first run is slow and later runs are fast.
-  - `python3 -m unittest test_tooling.py` checks cache recovery and sweep
-    failure reporting without game data.
   - Win32 stubs are `w_<ImportName>` methods that return
     `(eax, stdcall arg count)`. An unstubbed import stops the run with its
     name and a stack of return addresses, so you add them as you go.
   - `backtrace()` scans the stack for code addresses. It's a heuristic,
     not an unwind.
+- `mpq_cache.py` caches MPQ reads by archive and patch version. A tool
+  error stops the oracle; only a confirmed absent archive entry is cached.
+- `python3 -m unittest test_tooling.py` checks cache recovery and sweep
+  failure reporting without game data.
 - `drops.py`: the drop roller (FUN_0055a6d0) as an oracle. It diffs
   `build/tools/drop-dump` over a seed range (`drops.py 1-100000`), or
   every treasure class's entries (`drops.py tables`), made items
@@ -127,6 +127,10 @@ uv run python diff_drlg.py 1-20 2 objgroups     # level 2..39
 uv run python diff_drlg.py 1-20 2 drops         # then three items dropped at each group object (FUN_00555da0)
 ./sweep.sh 1-50 monsters objgroups              # every level 2..39, a job per core but two (JOBS=n); progress on stderr
 ```
+
+`sweep.sh` exits 2 on bad input (seeds not FIRST-LAST or with a leading
+zero, an unknown kind, JOBS not a positive integer) and 1 when any level
+fails, mismatches or reports fewer results than asked.
 
 - `monprop_rows.py`: the MonProp rows as game.exe compiled them
   (DataTables +0xc30), per row its MonStats users and each difficulty's
