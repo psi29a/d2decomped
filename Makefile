@@ -4,8 +4,9 @@
 #
 #   make flatpak          build and install it for this user
 #   make run              start it (the launcher)
-#   make wine             Gcenx's Wine + a game.exe folder with whisper in build/ (D2_MPQ_DIR: MPQs + bin/game.exe)
-#   make run og           the original game.exe under that Wine, behind your windows (OG_FLAGS ?= -w -ns: windowed, no sound)
+#   make wine             Gcenx's Wine + a game.exe folder with whisper and patch_d2.mpq in build/
+#   make run og           the original game.exe under that Wine, hidden (OG_FLAGS ?= -w -ns: windowed, no sound)
+#   make run og host NAME   ... and on into a hosted TCP/IP game as d2d's save NAME (DIFF=normal|nightmare|hell)
 #   make bundle           build d2decomped-x86_64.flatpak, to copy to a Deck
 #   make deck             the bundle, copied to the Deck and installed (DECK=deck@steamdeck)
 #   make clean            drop the build and the bundle (keeps the module cache)
@@ -26,11 +27,20 @@ WINE     := build/wine/Contents/Resources/wine/bin/wine
 PREFIX   := $(CURDIR)/build/wine-prefix
 OG       := build/og
 D2_MPQ_DIR ?= $(HOME)/Workspace/private/diablo2
+D2_PATCH_INSTALLER ?= $(HOME)/Downloads/Diablo II + LoD/patch/LODPatch_114d.exe
+D2D_SAVES ?= $(HOME)/Library/Preferences/d2d/save
+OG_SAVES := $(PREFIX)/drive_c/users/$(USER)/Saved Games/Diablo II
 OG_FLAGS ?= -w -ns
-# `make run og`: what to run is the goal after `run`.
+DIFF     ?= normal
+WHISPER   = python3 apps/whisper/whisper.py 127.0.0.1 $$(head -1 $(OG)/whisper.txt)
+# `make run og host NAME`: the words after `run` say what to run; they're goals too, so they do nothing.
 RUN_WHAT := $(filter-out run,$(MAKECMDGOALS))
+ifneq ($(filter run,$(MAKECMDGOALS)),)
+$(RUN_WHAT):
+	@:
+endif
 
-.PHONY: help source flatpak run bundle deck clean distclean wine og
+.PHONY: help source flatpak run bundle deck clean distclean wine
 .DEFAULT_GOAL := help
 
 help:
@@ -45,19 +55,26 @@ flatpak: source
 	$(BUILDER) --user --install $(BUILDDIR) $(MANIFEST)
 
 run:
-ifeq ($(RUN_WHAT),og)
-	@# Wine's window takes the front: once whisper listens, the app you were in gets it back.
-	@front=$$(osascript -e 'tell application "System Events" to get bundle identifier of first application process whose frontmost is true'); \
-	cd $(OG) && WINEPREFIX=$(PREFIX) WINEDEBUG=-all $(CURDIR)/$(WINE) game.exe $(OG_FLAGS) > /dev/null 2>&1 & \
+ifeq ($(firstword $(RUN_WHAT)),og)
+	@# One game.exe at a time (a second can't start its LNG manager).
+	@WINEPREFIX=$(PREFIX) $(dir $(WINE))wineserver -k 2>/dev/null; true
+ifeq ($(word 2,$(RUN_WHAT)),host)
+	@# Only NAME in game.exe's save folder, fresh from d2d's: char select's first slot is it.
+	@test -f "$(D2D_SAVES)/$(word 3,$(RUN_WHAT)).d2s" || { echo "no $(D2D_SAVES)/$(word 3,$(RUN_WHAT)).d2s"; exit 1; }
+	@mkdir -p "$(OG_SAVES)" && rm -f "$(OG_SAVES)"/* && cp "$(D2D_SAVES)/$(word 3,$(RUN_WHAT))".* "$(OG_SAVES)/"
+endif
+	@# Hidden from the start (Wine's app is "wine"): it keeps drawing, so whisper screenshots still work.
+	@cd $(OG) && WINEPREFIX=$(PREFIX) WINEDEBUG=-all $(CURDIR)/$(WINE) game.exe $(OG_FLAGS) > /dev/null 2>&1 & \
+	for i in $$(seq 100); do \
+	  osascript -e 'tell application "System Events" to set visible of application process "wine" to false' >/dev/null 2>&1 && break; sleep 0.1; \
+	done; \
 	for i in $$(seq 30); do nc -z -G 1 127.0.0.1 4100 2>/dev/null && break; sleep 1; done; \
-	sleep 1; osascript -e "tell application id \"$$front\" to activate"; \
-	echo "game.exe up (whisper 127.0.0.1:4100); closing its window ends it"; wait
+	echo "game.exe up, hidden (whisper 127.0.0.1:4100; show it from the Dock)"; \
+	$(if $(filter host,$(word 2,$(RUN_WHAT))),sleep 3; $(WHISPER) host $(DIFF);) \
+	wait
 else
 	flatpak run $(APP)
 endif
-
-og:
-	@:
 
 $(WINE):
 	mkdir -p build/wine
@@ -74,6 +91,8 @@ wine: $(WINE)
 	done
 	mv $(OG)/ijl11.dll $(OG)/ijl11_real.dll
 	cp apps/whisper/ijl11.dll $(OG)/
+	cmake --build build --target mpq-cat
+	D2_PATCH_INSTALLER="$(D2_PATCH_INSTALLER)" build/tools/mpq-cat/mpq-cat -p $(OG)/patch_d2.mpq $(D2_MPQ_DIR)
 	test -f $(OG)/whisper.txt || printf '%s\n4100\n' "$$(openssl rand -hex 12)" > $(OG)/whisper.txt
 	WINEPREFIX=$(PREFIX) WINEDEBUG=-all $(WINE) wineboot -i
 	@echo "ready: make run og; token: $$(head -1 $(OG)/whisper.txt)"

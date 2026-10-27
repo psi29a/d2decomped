@@ -8,8 +8,10 @@ or open: check it before taking anyone on a quest; `town` prints the
 loaded rooms of the host player's level as tools/emu's tiles_dump does
 (`town D2D.txt` checks each loaded room against `drlg-dump DIR SEED
 LEVEL tiles` run with the seed and level it prints first, and
-D2_PATCH_INSTALLER set as diff_drlg.py sets it, or the data is pre-1.14d); anything else prints
-the reply.
+D2_PATCH_INSTALLER set as diff_drlg.py sets it, or the data is pre-1.14d); `host
+[normal|nightmare|hell]` clicks from the title screen to a hosted TCP/IP
+game with the one character in game.exe's save folder (Makefile `run og
+host NAME`); anything else prints the reply.
 """
 import math
 import socket
@@ -186,6 +188,28 @@ def town_check(live: list[str], d2d: list[str]) -> list[str]:
     return out
 
 
+# 800x600 menu clicks, title screen to a hosted TCP/IP game (1.14d).
+HOST_CLICKS = [(400, 100),   # the title screen away (on the main menu: the logo, nothing)
+               (400, 416),   # Other Multiplayer
+               (400, 333),   # TCP/IP Game
+               (400, 189),   # Host Game
+               (690, 555)]   # OK: the first (only) character
+DIFFICULTY = {"normal": (400, 280), "nightmare": (400, 323), "hell": (400, 366)}
+
+
+def host(whisper: Whisper, difficulty: str = "normal") -> str:
+    """Clicks through to a hosted game; ponytail: fixed waits, no screen reading. A character with only Normal open
+    gets no difficulty box, and that click lands on the empty list."""
+    for x_pos, y_pos in [*HOST_CLICKS, DIFFICULTY[difficulty]]:
+        whisper.ask(f"click {x_pos} {y_pos}")
+        time.sleep(2)
+    for _ in range(30):
+        if whisper.ask("state")[-1] == "ok":
+            return "in game: " + whisper.ask("state")[0]
+        time.sleep(1)
+    return "err no player after 30 s (screenshot to see where it stopped)"
+
+
 PARTY = {"invite": 6, "cancel": 7, "accept": 8, "leave": 9}   # C->S 0x5e (FUN_00478780)
 
 
@@ -287,6 +311,9 @@ def main() -> None:
             return
     if verb == "quests":
         print("\n".join(quests(whisper)))
+        return
+    if verb == "host":
+        print(host(whisper, *args))
         return
     if verb == "town":   # town [D2D.txt]
         live = town(whisper)
