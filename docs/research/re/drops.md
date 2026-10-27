@@ -345,8 +345,8 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
   there, not the rooms' full flags: units (0x1000 / 0x2000) don't block,
   and its walk stays on one level.
 - An assassin opens a locked chest without a key (player +4 == 6) isn't
-  modeled; the barrel's opening step for a player and the events aren't
-  either.
+  modeled; the events aren't either. A player opening a barrel kicks it
+  (FUN_005868a0: skill 1, Kick, KK at the barrel; World::operate).
 - One player in `loot.hpp`. Magic / gold find count gear only (no
   skills, no minion's owner). The picture (VarInvGfx) draw and affixes
   past the pick aren't game.exe's.

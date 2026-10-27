@@ -475,11 +475,19 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // (FUN_005474c0 / FUN_00582280); all but the barrel spring their trap
         // (InitFn 2's; FUN_00582510: arm_trap). Opened, mode 1; event 1
         // (FUN_005417d0, FrameCnt1 + 1 frames on) takes it to mode 2: the
-        // tick's OP -> ON.
-        // ponytail: the barrel's opening step for a player (a swing at it:
-        // FUN_006439b0 / FUN_00580a70) isn't here; it waits on the player's
-        // modes in fight.cpp (agent G's).
+        // tick's OP -> ON. A player opening a barrel kicks it (FUN_005868a0:
+        // skill 1, Kick, its KK through FUN_00580a70 at the barrel) as it
+        // breaks; the exploding barrel (FUN_00584330) has no kick. The kick's
+        // hit (FUN_0056caf0 -> FUN_0057ca80) lands on players and monsters
+        // only, so on the barrel it does nothing.
         if (const int operate_id = object.operate_fn; operate_id == d2d::rules::operate_fn::kCasket || operate_id == d2d::rules::operate_fn::kUrn || operate_id == d2d::rules::operate_fn::kBarrel || operate_id == d2d::rules::operate_fn::kCorpse) {
+            if (operate_id == d2d::rules::operate_fn::kBarrel && actor->pmode < 0) {
+                actor->swing_skill = 0;
+                actor->attack_mon = -1;
+                actor->seq = {};
+                actor->player.dir = direction16(object.x - actor->player.x, object.y - actor->player.y);
+                fight.set_pmode(kModeKK, now_ms);
+            }
             const auto [opened, drops] = open();
             if (!opened.opened) return;
             operated[{ level, npc_index }] = now_ms;
