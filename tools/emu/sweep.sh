@@ -37,7 +37,8 @@ case $jobs in *[!0-9]*|'') echo "JOBS must be a positive integer" >&2; exit 2 ;;
 [ "$jobs" -ge 1 ] || { echo "JOBS must be at least 1" >&2; exit 2; }
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
-export SWEEP_SEEDS="$seeds" SWEEP_KINDS="$kinds" SWEEP_OUT="$out" SWEEP_COUNT="$count" SWEEP_LEVELS=$((last - first + 1)) SWEEP_START=$(date +%s)
+started=$(date +%s)
+export SWEEP_SEEDS="$seeds" SWEEP_KINDS="$kinds" SWEEP_OUT="$out" SWEEP_COUNT="$count" SWEEP_LEVELS=$((last - first + 1)) SWEEP_START="$started"
 # A job per level, all kinds in it: game.exe loads once per level; the
 # later levels first (the slow ones), so none starts last.
 # In the background, so a signal stops the jobs and the sweep at once
