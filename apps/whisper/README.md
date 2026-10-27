@@ -49,6 +49,7 @@ Undo: delete `ijl11.dll`, rename `ijl11_real.dll` back.
 | Party up | `party accept 6` / `party invite 6` (the other player's id) |
 | Follow another player like a mercenary | `follow` (Ctrl-C stops) |
 | Read memory | `peek 463dd0 2` |
+| The host's level tiles, room by room, against d2d | `town` prints `level L seed S` + rooms; `town d2d.txt` checks each loaded room against `drlg-dump DIR S L tiles > d2d.txt` (set `D2_PATCH_INSTALLER` as `tools/emu/diff_drlg.py` does). Only rooms near the player are loaded: walk the town first |
 | The host player's quests (done / OPEN, this difficulty): check before any quest run | `quests` |
 | Is it alive, which build | `ping` (`ok` + `git describe` + build date; a bare `ok` is a build from before versions) |
 

@@ -4,7 +4,11 @@
 `screenshot PATH` saves the game's window as a BMP; `follow` runs the merc
 brain (below) until Ctrl-C; `party invite|cancel|accept|leave ID` sends
 C->S 0x5e; `quests` lists the host player's quests (this difficulty), done
-or open: check it before taking anyone on a quest; anything else prints
+or open: check it before taking anyone on a quest; `town` prints the
+loaded rooms of the host player's level as tools/emu's tiles_dump does
+(`town D2D.txt` checks each loaded room against `drlg-dump DIR SEED
+LEVEL tiles` run with the seed and level it prints first, and
+D2_PATCH_INSTALLER set as diff_drlg.py sets it, or the data is pre-1.14d); anything else prints
 the reply.
 """
 import math
@@ -85,6 +89,101 @@ def quests(whisper: Whisper) -> list[str]:
         return [f"quest state unreadable (not in a game yet?): {error}"]
     words = [int.from_bytes(raw[2 * k:2 * k + 2], "little") for k in range(48)]
     return [f"{'done' if words[k] & 1 else 'OPEN'}  {words[k]:04x}  {name}" for k, name in QUESTS.items()]
+
+
+class Memory:
+    """game.exe's memory over peek, 256-byte blocks cached; unreadable words read as 0."""
+    def __init__(self, whisper: Whisper) -> None:
+        self.whisper, self.blocks = whisper, {}
+
+    def r32(self, address: int) -> int:
+        base = address & ~0xff
+        if base not in self.blocks:
+            lines = self.whisper.ask(f"peek {base:x} 64")
+            self.blocks[base] = [0 if line.split()[1] == "?" else int(line.split()[1], 16) for line in lines[:-1]]
+        if address & 3:   # unaligned: two words
+            low = address & ~3
+            return (self.r32(low) >> 8 * (address & 3) | self.r32(low + 4) << 32 - 8 * (address & 3)) & 0xffffffff
+        return self.blocks[base][(address & 0xff) >> 2]
+
+    def s32(self, address: int) -> int:
+        value = self.r32(address)
+        return value - (1 << 32) if value & 0x80000000 else value
+
+    def cstr(self, address: int) -> str:
+        raw = b"".join(self.r32(address + 4 * k).to_bytes(4, "little") for k in range(64))
+        return raw.split(b"\0")[0].decode("latin-1")
+
+
+def town(whisper: Whisper) -> list[str]:
+    """tools/emu/drlg.py tiles_dump over a live game: player +0x2c path, +0x1c room1, +0x10 room2, +0x58 level
+    (+0x1b4 act, its +0x458 the map seed; offsets found in the emulator). Only rooms near the player have tiles (room +0x54); the rest say so."""
+    mem = Memory(whisper)
+    player = mem.r32(0x7a6a70)
+    room1 = mem.r32(mem.r32(player + 0x2c) + 0x1c) if player else 0
+    if not room1:
+        return ["no player room (not in a game yet?)"]
+    level = mem.r32(mem.r32(room1 + 0x10) + 0x58)
+    ranges, libs = [], {}   # drlg.py dt1_index: every DT1 game.exe has loaded
+    node = mem.r32(0x8adbb4)
+    while node:
+        name = mem.cstr(node).split("\\")[-1].lower()
+        buf = mem.r32(node + 0x104)
+        ranges.append((mem.r32(buf + 0x110), mem.r32(buf + 0x10c), name))
+        libs[mem.r32(node + 0x108)] = name
+        node = mem.r32(node + 0x10c)
+
+    def find(tile: int) -> tuple[str, int]:
+        if tile in libs: return libs[tile], -1
+        return next(((name, (tile - base) // 0x60) for base, count, name in ranges if base <= tile < base + 0x60 * count), ("?", tile))
+
+    x0, y0 = mem.s32(level + 0x1c), mem.s32(level + 0x20)
+    rooms, room = [], mem.r32(level + 0x10)
+    while room:
+        rooms.append(room)
+        room = mem.r32(room + 0x24)
+    out = [f"level {mem.r32(level + 0x1d0)} seed {mem.r32(mem.r32(level + 0x1b4) + 0x458)}"]
+    for room in sorted(rooms, key=lambda r: (mem.s32(r + 0x38), mem.s32(r + 0x34))):
+        where = f"room {mem.s32(room + 0x34) - x0},{mem.s32(room + 0x38) - y0}"
+        tiles = mem.r32(room + 0x54)
+        if not tiles:
+            out.append(f"{where} not loaded")
+            continue
+        dt1s = [find(mem.r32(room + 0x68 + 4 * k))[0] for k in range(32) if mem.r32(room + 0x68 + 4 * k)]
+        out.append(f"{where} mask {mem.r32(room + 0x50):x} dt1s {' '.join(dt1s)}")
+        for kind, count, array in (("wall", 0x08, 0x14), ("floor", 0x0c, 0x1c), ("shadow", 0x10, 0x24)):
+            entries = mem.r32(tiles + array)
+            for k in range(mem.r32(tiles + count)):
+                entry = entries + 0x30 * k
+                dt1, index = find(mem.r32(entry + 0x18))
+                out.append(f" {kind} {mem.s32(entry + 8)},{mem.s32(entry + 12)} o{mem.r32(entry + 0x1c)} {dt1}:{index}")
+    return out
+
+
+def rooms_of(lines: list[str]) -> dict[str, list[str]]:
+    """A tiles dump by room: "room X,Y" -> its mask line and tile lines."""
+    rooms, room = {}, None
+    for line in lines:
+        if line.startswith("room ") and " mask " in line:
+            room = " ".join(line.split()[:2])
+            rooms[room] = []
+        if room: rooms[room].append(line)
+    return rooms
+
+
+def town_check(live: list[str], d2d: list[str]) -> list[str]:
+    """Each room the live game has up, against d2d's: match, or the first line that differs."""
+    ours, out = rooms_of(d2d), [live[0]]
+    for room, lines in rooms_of(live).items():
+        mine = ours.get(room)
+        if mine == lines:
+            out.append(f"{room}: match ({len(lines) - 1} tiles)")
+        elif mine is None:
+            out.append(f"{room}: d2d has no such room")
+        else:
+            k = next((k for k, (a, b) in enumerate(zip(lines, mine)) if a != b), min(len(lines), len(mine)))
+            out.append(f"{room}: game.exe {lines[k] if k < len(lines) else '(end)'!r} / d2d {mine[k] if k < len(mine) else '(end)'!r}")
+    return out
 
 
 PARTY = {"invite": 6, "cancel": 7, "accept": 8, "leave": 9}   # C->S 0x5e (FUN_00478780)
@@ -188,6 +287,10 @@ def main() -> None:
             return
     if verb == "quests":
         print("\n".join(quests(whisper)))
+        return
+    if verb == "town":   # town [D2D.txt]
+        live = town(whisper)
+        print("\n".join(live if not args else town_check(live, open(args[0]).read().splitlines())))
         return
     if verb == "party":   # party invite|cancel|accept|leave PLAYER_ID
         print("\n".join(party(whisper, args[0], int(args[1]))))
