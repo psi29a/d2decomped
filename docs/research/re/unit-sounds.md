@@ -7,8 +7,8 @@ Traced 2026-10-21 from game.exe 1.14d (client side, `.\UNIT\UnitSnd.cpp`).
 A unit starting a mode plays its sound by unit type (FUN_004ca320):
 
 - **Player**: DT (0), GH (4), KB (0x13) → FUN_004cc410 (struck);
-  A1 / A2 (7 / 8) → FUN_004cb6a0 (the swing); BL (9) → FUN_004cb860;
-  KK (0xc) a kick sound by class; S3 (0xf) a Barbarian's swing, S4 (0x10)
+  A1 / A2 (7 / 8) → FUN_004cb6a0 (the swing); BL (9) → FUN_004cb860 (below);
+  KK (0xc) weapon_kick (below); S3 (0xf) a Barbarian's swing, S4 (0x10)
   an Assassin's. SQ (0x12) plays nothing (the byte table at 0x4cc74c), so a
   sequence skill (Jab, Charge, Whirlwind) has no swing; d2d's `set_pmode`
   skips it when `Fight::skill_sequence` has frames.
@@ -44,6 +44,24 @@ the 8-byte table at **0x727ed8** {sound, frames}:
 Its delay (FUN_004ca500) is `(frames x 256 + 128) / speed` ticks, speed
 being the animation's rate (unit +0x4c, 256 = a frame a tick; IAS in it).
 A swing plays hit or miss.
+
+## Block and kick
+
+- **Block** (BL, FUN_004cb860 → FUN_004ca810): the low nibble of the
+  player's hit class (unit +0xb0): 1..9 → 398 block_weapon, 10 / 11 (bow,
+  crossbow) → 401 block_arrow, anything else none (claw 12, overhead 13,
+  none 0; the byte table at 0x4ca864). It sets the unit's last sound (+0x7c)
+  too. The class is the last get-hit's, not the blocked attack's: a block
+  sets result flag 0x10 and clears flag 1 (FUN_0057ec10, from FUN_0057dfb0's
+  1), and FUN_0057cee0 copies the hit class into the server unit's +0xb0
+  only with flag 1. No hit packet (S→C 0x0c, FUN_00597cf0) goes out for a
+  block, so the client keeps the class of the last one. A block before any
+  hit plays nothing.
+- **Kick** (KK, in FUN_004cc5b0): 255 weapon_kick on the player, an
+  Assassin's 4 ticks on (FUN_004b9a00's delay), any other class's at once.
+
+d2d: `sound_ids::block` / `kKick`, `Fight::set_pmode`; `Hero::shown_class`
+keeps the class the last GH played.
 
 ## Struck, FUN_004cc410 → FUN_004ca560
 
@@ -367,7 +385,7 @@ the View (`Audio::stop_owners`). States: `StateClock` in `dress()`. Footsteps:
 `Town::object_sounds`. Greetings: `World::greet_sound`. Sound rolls use
 `Fight::sound_rng`, apart from the game's.
 Left: the player's quest lines, monsters' own skill stsound,
-prgsound, ProgSound, block (FUN_004cb860) and kick sounds, state 0x92, a
+prgsound, ProgSound, state 0x92, a
 missile's hit class on a player, the town's floor material (its DS1 tiles
 aren't in `room_floors`: dirt). Cursor item sounds (identify, repair, break,
 point-drop and convert) are cued at their successful actions; only the

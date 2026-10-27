@@ -60,6 +60,10 @@ int main(int argc, char** argv) {
         assert(snd::impact(0x21, false).impact == 321 && snd::impact(0x21, false).element == 0x164);
         assert(snd::impact(0x36, false).element == 0x16a && snd::impact(0x36, true).element == 0);  // cold: no layer on a death
         assert(snd::impact(0x30, true).element == 0x167 && snd::impact(10, false).impact == 347);
+        // A block (FUN_004ca810): block_weapon for 1..9, block_arrow for bow / crossbow, else none.
+        assert(snd::block(1) == 398 && snd::block(9) == 398 && snd::block(0x73) == 398);
+        assert(snd::block(10) == 401 && snd::block(11) == 401);
+        assert(snd::block(0) == 0 && snd::block(12) == 0 && snd::block(13) == 0);
         // Footsteps (FUN_004caf60 / FUN_004caeb0): the tick nearest each half of the cycle; the row by floor and run.
         int steps = 0;
         for (int tick = 0; tick < 16; ++tick) steps += snd::footfall(tick * 256 % 2048, 256, 2048, 2, 0);

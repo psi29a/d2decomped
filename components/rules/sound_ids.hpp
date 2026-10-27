@@ -147,4 +147,15 @@ inline Impact impact(int hit_class, bool dying) {
     return out;
 }
 
+// A player's block (FUN_004cb860 -> FUN_004ca810): block_weapon for hit
+// classes 1..9, block_arrow for bow and crossbow, none for the rest (claw,
+// overhead, none).
+inline constexpr int kBlockWeapon = 398, kBlockArrow = 401;
+inline int block(int hit_class) {
+    const int low = hit_class & 0xf;
+    return low >= 1 && low <= 9 ? kBlockWeapon : low == 10 || low == 11 ? kBlockArrow : 0;
+}
+// A player's kick (KK, FUN_004cc5b0): weapon_kick, an Assassin's 4 ticks on.
+inline constexpr int kKick = 255;
+
 }  // namespace d2d::rules::sound_ids

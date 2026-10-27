@@ -249,6 +249,7 @@ struct Fight {
         int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
         bool  item_cast = false;              // swing_skill is cast from an item (a scroll): its ItemCastSound
         int   struck_class = 0;               // the last hit on the player's hit class (unit +0xb0): its impact on GH / DT
+        int   shown_class = 0;                // the hit class the client last had, a get-hit's: its block sound
         std::int64_t self_hurt = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
         int merc_hurt = 0;                     // life the merc's swings cost it (a MonProp thorns monster's), taken with the monsters' hits
         // An SQ skill's sequence while it plays (sequences.hpp, for the weapon
