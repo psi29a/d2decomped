@@ -11,6 +11,7 @@
 #include <mpq.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
