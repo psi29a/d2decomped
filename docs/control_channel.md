@@ -59,9 +59,9 @@ Everything else is registered by the host binary via `Channel::on()`.
 | `debug corpses`             | `<level>\t<x>\t<y>\t<items>` per corpse, `ok` | The player's corpses. |
 | `debug rain [state]`       | `ok state= density= drops= splashes= wind=` | The weather; with a state (0 clear, 1 rising, 2 full, 3 falling) it starts that state next tick. |
 | `debug walls <x> <y>`      | `ok w<type>...`        | The current level's wall tiles at cell (x, y): each wall layer's orientation (h: hidden), or layer:orientation of the tiles game.exe picked. |
-| `debug tiles`               | `level <id>`, then `<x> <y> wall\|floor\|shadow o<orientation> <dt1>:<index>` per picked tile, `ok` | The current level's picked tiles, DS1 cells: diff against a live game.exe's (`whisper.py … town`, room-relative there). |
+| `debug tiles [server]`      | `level <id>`, then `<x> <y> wall\|floor\|shadow o<orientation> <dt1>:<index>` per picked tile, `ok` | The current level's tiles as drawn (the client's order, `Level::drawn`), or with `server` collision's (`Level::picks`), DS1 cells: diff against a live game.exe's (`whisper.py … town`, room-relative there). |
 | `debug laid`                | `up <n>`, then `<list index> <x> <y>` per room, `ok` | The order the current level's rooms were laid in (tiles depend on it: edge sharing); the first n were up. |
-| `debug relevel <x>,<y> ...` | `ok <rooms>`           | Lay the current level's tiles again with these rooms (DS1 cells of their corners) up in this order, the rest after; `debug tiles` shows the result. |
+| `debug relevel <x>,<y> ...` | `ok <rooms>`           | Lay the current level's server tiles again with these rooms (DS1 cells of their corners) up in this order, the rest after; `debug tiles server` shows the result. |
 | `debug alt on\|off`         | `ok`                   | Hold "Show Items" (Alt): every ground item's label. |
 | `debug day [deg]`          | `ok phase= time= intensity=` | The time of day, set to `deg` degrees (0 sunrise, 90 noon, 180 dusk, 270 midnight). |
 | `debug difficulty <d>`      | `ok`                   | Play on difficulty d (0 normal, 1 nightmare, 2 hell): a new game on d, as a real one starts: the levels built again for d (LvlMaze Rooms(N) / (H)), its monsters, entered in that difficulty's act town. A level-1 character dies at once past Normal; probe with a sturdy save. |

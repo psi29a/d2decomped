@@ -439,7 +439,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             }
             return out + "\n";
         }
-        if (args.size() >= 2 && args[1] == "tiles") {      // every picked tile: `x y wall|floor|shadow o<orientation> <dt1>:<index>` (whisper town's form, level cells)
+        if (args.size() >= 2 && args[1] == "tiles" && town.level) {      // every picked tile: `x y wall|floor|shadow o<orientation> <dt1>:<index>` (whisper town's form, level cells)
             const auto& level = *town.level;
             std::string out = std::format("level {}\n", level.id);
             auto name_of = [&](const d2d::dt1::Tile* tile) {
@@ -457,7 +457,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                                        int(pick.orient), name_of(pick.tile));
             return out + "ok\n";
         }
-        if (args.size() >= 2 && args[1] == "laid") {       // the order relevel laid the level's rooms in: `<list index> <x> <y>` per room, the first `up` were up
+        if (args.size() >= 2 && args[1] == "laid" && town.level) {       // the order relevel laid the level's rooms in: `<list index> <x> <y>` per room, the first `up` were up
             const auto& level = *town.level;
             const std::size_t count = level.rooms.size();
             std::string out = std::format("up {}\n", level.laid_up);
@@ -468,7 +468,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             }
             return out + "ok\n";
         }
-        if (args.size() >= 3 && args[1] == "relevel") {    // lay the level's tiles again, rooms up in this order: `debug relevel <x>,<y> ...` (room cells)
+        if (args.size() >= 3 && args[1] == "relevel" && town.level) {    // lay the level's tiles again, rooms up in this order: `debug relevel <x>,<y> ...` (room cells)
             auto& level = const_cast<d2d::game::Level&>(*town.level);
             std::vector<std::size_t> came_up;
             for (std::size_t arg = 2; arg < args.size(); ++arg) {
@@ -478,7 +478,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                     if (level.rooms[index].x == x && level.rooms[index].y == y) came_up.push_back(index);
             }
             level.laid.clear();
-            d2d::game::relevel(level, came_up);
+            d2d::game::relevel(level, came_up, town.world.game_data, &town.world.fight.spawning);   // the camp's rooms next door kept; `debug tiles server` shows it
             return std::format("ok {}\n", came_up.size());
         }
         if (args.size() >= 2 && args[1] == "party") {      // the Party screen with three sample players (no joined game needed): `debug party on|off`
