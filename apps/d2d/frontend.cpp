@@ -286,6 +286,25 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
         }
         return;
     }
+    if (select_ui.pick_difficulty) {
+        blit_dc6_grid(framebuffer, scene.difficulty_levels, pal, 237, rec_top(400, 200), 2);
+        // ponytail: heading in font16 gold; game.exe passes colour 7 (FUN_004fc9b0), not yet mapped, and record 0xab's font.
+        const int heading_width = scene.font.measure(select_ui.difficulty_heading);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 264 + (272 - heading_width) / 2,
+                               rec_top(260, 35) + (35 - scene.font.line_height()) / 2, select_ui.difficulty_heading,
+                               kTextGold[0], kTextGold[1], kTextGold[2]);
+        for (int index = 0; index < 3; ++index) {
+            const Button& button = select_ui.difficulty_btn[std::size_t(index)];
+            const std::string& label = select_ui.difficulty_label[std::size_t(index)];
+            const bool enabled = index < 2 || select_ui.hell_open;   // FUN_004f96f0(button, 0) greys it
+            if (button.chrome) blit_button_chrome(framebuffer, pal, *button.chrome, button.x, button.y, enabled && button.hovered && button.pressed);
+            const int label_x = button.x + (button.width - scene.font.measure(label)) / 2, label_y = button.y + (button.height - scene.font.line_height()) / 2;
+            if (!enabled)            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, label, 105, 105, 105);
+            else if (button.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, label, 255, 208, 80);
+            else                     scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, label_x, label_y, label);
+        }
+        return;
+    }
     if (select_ui.popup.empty()) return;
     // FUN_00433380 on a Sky screen: PopUpOK (record 0xde), the message
     // (0xe0, Font24) and OK (0xe1).

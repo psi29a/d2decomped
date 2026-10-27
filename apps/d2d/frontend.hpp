@@ -51,6 +51,17 @@ struct CharSelectUI {
     bool confirm_delete = false;
     std::string delete_text, yes_label, no_label;
     Button popup_no{}, popup_yes{};
+    // OK on a save past Normal (FUN_00439840 -> FUN_00439780): records 0xac
+    // DifficultyLevels at (237, 400 bottom), 0xab "SELECT DIFFICULTY"
+    // (0x2723) at (264, 260), 0xa8..0xaa NORMAL / NIGHTMARE / HELL
+    // (0x2722..0x2720, WideButtonBlank 272x35, bottoms 297 / 340 / 383,
+    // keys R / N / H; FUN_00439af0 plays at that difficulty); Esc (0xad)
+    // closes it. HELL is greyed until the save may play it.
+    bool pick_difficulty = false;
+    bool hell_open = false;
+    std::string difficulty_heading;
+    std::array<std::string, 3> difficulty_label;
+    std::array<Button, 3> difficulty_btn{};
     int selected = -1;           // index into Scene::saves, or -1
     int scroll = 0;              // index of the save in slot 0; always even
     std::uint32_t last_click_ms = 0;   // double-click = OK (FUN_0043a9d0)
@@ -77,6 +88,9 @@ std::string char_title(const d2d::d2s::Header& header);
 [[nodiscard]] int title_tier(const d2d::d2s::Header& header);
 // The hardest difficulty the save may play (0 normal .. 2 hell).
 [[nodiscard]] inline int top_difficulty(const d2d::d2s::Header& header) { return std::min(title_tier(header), 2); }
+// Whether OK asks for a difficulty first: Nightmare is open (FUN_00439840:
+// progression & 0x1f >= 4 classic, >= 5 LoD; single player or hosting only).
+[[nodiscard]] inline bool asks_difficulty(const d2d::d2s::Header& header) { return top_difficulty(header) >= 1; }
 
 // Visible slot index under (x, y), or -1. Row-major: slot i = row i/2, col i%2.
 int charselect_slot_at(int x, int y);

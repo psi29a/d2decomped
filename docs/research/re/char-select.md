@@ -95,6 +95,32 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
 - YES (`0x43b6b0`): `FUN_0043c750` deletes every file `<save dir><name>.*`
   (not directories), then `FUN_0043b080` rebuilds the list.
 
+## Select Difficulty
+
+- OK (`FUN_00439840`) on a save whose progression (`+0x324` high byte
+  & 0x1f) is >= 4 classic or >= 5 LoD opens the box, but only in single
+  player (`DAT_007795ec` 0) or when hosting TCP/IP (mode 2, config
+  `+0x19` gametype 8); a joiner plays the host's difficulty.
+- `FUN_00439780(ECX progression, EDX status & 0x20)` makes the frontend
+  records (table `0x708d10`, 0x30 bytes each):
+  - 0xac `DifficultyLevels.dc6` (2 frames, 256 + 70 wide) at (237, 400
+    bottom), 326x200;
+  - 0xab text box (264, 260) 272x35, string 0x2723 "SELECT DIFFICULTY",
+    colour 7;
+  - 0xa8 / 0xa9 / 0xaa NORMAL / NIGHTMARE / HELL (0x2722 / 0x2721 /
+    0x2720), `WideButtonBlank` 272x35 at x 264, bottoms 297 / 340 / 383,
+    keys R / N / H;
+  - 0xad, an off-screen button on Esc (`0x432ee0`: `FUN_0042f3f0` closes
+    the box).
+- HELL is made disabled (`FUN_004f96f0(button, 0)`), then enabled when
+  progression >= 8 classic or >= 10 LoD. NORMAL and NIGHTMARE are always
+  live.
+- The buttons (`0x439b80` / `0x439ba0` / `0x439bc0`) call
+  `FUN_00439af0(difficulty)`: config `+0x210` = 0 / 1 / 2, then the game
+  starts as OK does.
+- d2d: `CharSelectUI::pick_difficulty` (main.cpp sets the picked
+  difficulty as the save's current one, its act kept), not when joining.
+
 ## Not yet RE'd
 ## Input
 

@@ -662,6 +662,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         csu.yes_label   = tbl_label(0x142e, "YES");
         csu.popup_no    = Button{ 281, rec_top(337, 32), 96, 32, nullptr, &scene->cancel_button };
         csu.popup_yes   = Button{ 421, rec_top(337, 32), 96, 32, nullptr, &scene->cancel_button };
+        csu.difficulty_heading = tbl_label(0x2723, "SELECT DIFFICULTY");
+        for (int index = 0; index < 3; ++index) {
+            static constexpr int kBottom[3] = { 297, 340, 383 };
+            csu.difficulty_label[std::size_t(index)] = tbl_label(std::uint16_t(0x2722 - index), std::array{ "NORMAL", "NIGHTMARE", "HELL" }[std::size_t(index)]);
+            csu.difficulty_btn[std::size_t(index)] = Button{ 264, rec_top(kBottom[index], 35), 272, 35, nullptr, &scene->btn_wide };
+        }
     }
 
     const auto start_ticks = SDL_GetTicks();
@@ -949,6 +955,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     buttons({ &character.cancel_btn, &character.ok_btn });
                 } else if (screen == Screen::CharSelect) {
                     if (csu.confirm_delete) buttons({ &csu.popup_no, &csu.popup_yes });
+                    else if (csu.pick_difficulty) buttons({ &csu.difficulty_btn[0], &csu.difficulty_btn[1], &csu.difficulty_btn[2] });
                     else buttons({ &csu.create_btn, &csu.convert_btn, &csu.delete_btn, &csu.cancel_btn, &csu.ok_btn });
                 } else if (screen == Screen::InGame && town.controls.open && scene) {
                     for (const auto& [x, y] : town.controls.buttons(*scene)) points.push_back({ x, y });
@@ -958,7 +965,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_actions.snap_x != 0 || pad_actions.snap_y != 0) {
                 // Char select's d-pad steps its roster by key instead.
                 // Char select's d-pad steps its roster by key instead, as Configure Controls' steps its rows.
-                const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete) || (screen == Screen::InGame && town.controls.open);
+                const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete && !csu.pick_difficulty) || (screen == Screen::InGame && town.controls.open);
                 const auto points = by_key ? std::vector<pad::Point>{} : screen == Screen::InGame ? town.pad_snap_points() : menu_buttons();
                 if (const int pick = pad::snap_pick(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
                     mouse.x = points[std::size_t(pick)].x; mouse.y = points[std::size_t(pick)].y;
@@ -1209,6 +1216,24 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     render_charselect(framebuffer, *scene, csu, now_ms);
                     break;
                 }
+                int chosen_difficulty = -1;
+                if (csu.pick_difficulty) {   // the difficulty box takes the input until a pick or Esc
+                    Screen stay = screen;
+                    for (auto& button : csu.difficulty_btn) update_button(button, mouse, stay, quit);
+                    static constexpr SDL_Keycode kDifficultyKey[3] = { SDLK_R, SDLK_N, SDLK_H };   // records 0xa8..0xaa
+                    for (int index = 0; index < 3; ++index)
+                        if ((index < 2 || csu.hell_open)
+                            && ((csu.difficulty_btn[std::size_t(index)].hovered && mouse.release_this_frame)
+                                || std::ranges::find(keys_this_frame, kDifficultyKey[index]) != keys_this_frame.end()))
+                            chosen_difficulty = index;
+                    if (chosen_difficulty < 0) {
+                        if (std::ranges::find(keys_this_frame, SDLK_ESCAPE) != keys_this_frame.end()) csu.pick_difficulty = false;
+                        render_charselect(framebuffer, *scene, csu, now_ms);
+                        break;
+                    }
+                    csu.pick_difficulty = false;
+                    keys_this_frame.clear();
+                }
                 if (std::ranges::find(keys_this_frame, SDLK_ESCAPE) != keys_this_frame.end()) screen = Screen::Title;
                 const int count = int(scene->saves.size());
                 const int max_scroll = charselect_max_scroll(count);
@@ -1258,6 +1283,14 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                   &csu.cancel_btn, &csu.ok_btn})
                     update_button(*button, mouse, screen, quit);
                 if (play && csu.selected >= 0 && csu.selected < count) screen = Screen::InGame;
+                if (chosen_difficulty >= 0) screen = Screen::InGame;
+                // Past Normal, game.exe asks first (FUN_00439840); joining, the host's game sets it.
+                if (screen == Screen::InGame && chosen_difficulty < 0 && g_join_host.empty() && csu.selected >= 0 && csu.selected < count
+                    && asks_difficulty(scene->saves[std::size_t(csu.selected)])) {
+                    screen = Screen::CharSelect;
+                    csu.pick_difficulty = true;
+                    csu.hell_open = top_difficulty(scene->saves[std::size_t(csu.selected)]) >= 2;
+                }
                 if (csu.delete_btn.hovered && mouse.release_this_frame && csu.selected >= 0 && csu.selected < count) csu.confirm_delete = true;
                 if (screen == Screen::InGame) {
                     // Load the picked save into the in-game character.
@@ -1265,6 +1298,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     static_cast<Character&>(character) = character_of_save(*scene, std::size_t(csu.selected));
                     character.selected   = kSaveClassToUi[header.cls];
                     character.hardcore   = header.hardcore();
+                    if (chosen_difficulty >= 0)   // the pick is now the save's current difficulty, its act kept
+                        for (int index = 0; index < 3; ++index)
+                            character.header.difficulty[std::size_t(index)] = std::uint8_t((character.header.difficulty[std::size_t(index)] & 0x7f) | (index == chosen_difficulty ? 0x80 : 0));
                     if (g_join_host.empty()) {
                         set_map_seed(*scene, game_seed(character.header), character.header.active_difficulty());
                         town.enter();                            // the World takes the character

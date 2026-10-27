@@ -68,6 +68,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite      ip_box;             // FrontEnd\IPAddressBox (0x7797d4), 218x26
     d2d::dc6::Sprite      popup_ok_cancel;    // FrontEnd\PopUpOKCancel2 (0x779784), 264x176 in 2 frames
     d2d::dc6::Sprite      cancel_button;      // FrontEnd\CancelButtonBlank (0x7797b4), 96x32, 2 frames
+    d2d::dc6::Sprite      difficulty_levels;  // CharSelect\DifficultyLevels (0x77976c), 326x200 in 2 frames
     d2d::dc6::Sprite      popup_ok;           // FrontEnd\PopUpOK (0x779798), 264x176 in 2 frames
     d2d::font::Font       font24;             // Font24 (font id 7): popup messages
     d2d::font::Font       font42;             // Font42 (font id 3): screen titles

@@ -740,6 +740,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " name=" + (screen == Screen::CharSelect && scene && csu.selected >= 0 && std::size_t(csu.selected) < scene->saves.size()
                            ? std::string(scene->saves[std::size_t(csu.selected)].name) : character.name)
              + " hardcore=" + (character.hardcore ? "1" : "0")
+             + " difficulty=" + std::to_string(character.header.active_difficulty()) + (csu.pick_difficulty ? "?" : "")
              + " cam=" + std::format("{:.2f},{:.2f}", town.player.x, town.player.y)
              + " walking=" + (town.player.walking ? "1" : "0") + " dir=" + std::to_string(town.player.dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)

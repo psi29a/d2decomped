@@ -464,6 +464,7 @@ std::optional<Scene> load_scene(const fs::path& data_dir, const fs::path& patch_
         scene.ip_box = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\IPAddressBox.dc6)"));
         scene.popup_ok_cancel = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\PopUpOKCancel2.dc6)"));
         scene.cancel_button = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\CancelButtonBlank.dc6)"));
+        scene.difficulty_levels = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\CharSelect\DifficultyLevels.dc6)"));
         scene.popup_ok = d2d::dc6::Sprite(mpqs.read(R"(data\global\ui\FrontEnd\PopUpOK.dc6)"));
         auto font = [&](const char* name) {
             return d2d::font::Font(mpqs.read(std::string(R"(data\local\FONT\LATIN\)") + name + ".tbl"),
