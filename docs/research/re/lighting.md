@@ -95,13 +95,34 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
 - **Sampling:** `FUN_00475aa0(x, y)` reads the entry at (x >> 3, y >> 3),
   clamped to 0..47.
 
-## Drawing with it (DirectDraw, video mode 3)
+## Drawing with it (DirectDraw, video mode 3; GDI, mode 1, the same)
 
+- **Video modes** (`DAT_007c8cb0`; drivers at 0x72da80 by mode): 1
+  software GDI (0x74c4a8, what `-w` runs: read live under Wine), 3
+  DirectDraw (0x72f6d0), 4 Glide (0x72f178), 6 Direct3D (0x74bf28); 2
+  and 5 are empty. GDI's tile entries (+0x9c 0x6c94b0, +0xa4 0x6c9290)
+  are copies of DirectDraw's and draw through the same callbacks
+  (`DAT_007c914c`), so what follows holds for both.
 - **Tiles:** a floor's 6 × 6 subtile corners take the grid's light
-  (`FUN_004de260`); a wall's columns take it along its base
-  (`FUN_004dedf0`, count by orientation from 0x6db9d8). The driver
-  (0x72f6d0 +0x9c / +0xa0: 0x5131b0 / 0x5130a0) draws each 32-pixel
-  block with its corner lights through the game's callbacks (0x72da60).
+  (`FUN_004de260`). Walls (`FUN_004df1c0`) and roofs (`FUN_004dedf0`)
+  take 0x6db9d8[direction] lights (6 for DT1 directions 1..9) at spots
+  from the tile's cell origin (its subtile, not where it's drawn), by
+  direction from 0x72a9e8 (0x72abc8 while the wall is in front, tile
+  +0x24 bit 0), 6 {x, y} subtile pairs each, filled at start-up:
+
+  | direction | 0x72a9e8 | 0x72abc8 (in front) |
+  |---|---|---|
+  | 1 | (2, 5) (2, 3) (2, 1) (2, −1) (2, −3) (2, −5) | x −2 |
+  | 2 | (−5, 2) (−3, 2) (−1, 2) (1, 2) (3, 2) (5, 2) | y −2 |
+  | 3 | (2, 5) (2, 3) (2, 2) (2, 2) (3, 2) (5, 2) | each 2 → −2 |
+  | 4 | (−5, 2) (−3, 2) (−1, 2) (2, −1) (2, −3) (2, −5) | each 2 → −2 |
+  | 0, 5.. | (0, 0) × 6 | (0, 0) × 6 |
+
+  The driver (+0x9c) gives a 32-pixel block at x the lights [x >> 5] and
+  [(x >> 5) + 1] as its left and right corners, top and bottom alike.
+  The driver (0x72f6d0 +0x9c / +0xa0: 0x5131b0 / 0x5130a0) draws each
+  32-pixel block with its corner lights through the game's callbacks
+  (0x72da60).
 - **A block** (`FUN_004f8120`, `FUN_004f84f0`): nearly even corners
   draw flat at level light >> 3 (`FUN_004f8050`), level 31 unlit
   (`FUN_004f7ea0`); otherwise a 32 × 32 table of levels bilinear between
@@ -142,11 +163,12 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   View; `frame_light` fills a `LightGrid` round the player with the
   level's light or the day's, and stamps the player (13), objects (Lit by
   mode), monsters and missiles.
-- `render_world` draws floors and walls through `blit_dt1_tile_lit`: each
-  pixel bilinear between the subtile corners round the ground it's over,
-  found from its screen position (floor tiles are 128 tall and reach past
-  their own cell); a wall's column where it crosses the cell's middle. One
-  level for a tile when all the corners it reaches share it. Units take the level at their
+- `render_world` draws floors through `blit_dt1_tile_lit`: each pixel
+  bilinear between the subtile corners round the ground it's over, found
+  from its screen position (floor tiles are 128 tall and reach past their
+  own cell); one level for a tile when all the corners it reaches share
+  it. Walls and roofs go through `blit_dt1_wall_lit`: the six lights
+  above, each column's pixels between its two. Units take the level at their
   feet; additive missiles and overlays aren't lit.
 
 - Tile shadows keep a quarter of the ground (`blit_dt1_shadow`), drawn

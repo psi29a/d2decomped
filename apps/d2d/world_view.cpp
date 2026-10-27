@@ -91,7 +91,7 @@ void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Til
 }
 
 void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
-                       int screen_x, int screen_y, int cell_x, int cell_y, int top_x, int top_y, bool floor, int alpha_all , const Hole* hole) {
+                       int screen_x, int screen_y, int cell_x, int cell_y, int top_x, int top_y, int alpha_all , const Hole* hole) {
     // The subtile corners round the cell: a tile's pixels reach up to 6
     // subtiles before its top corner (tall floors) and 8 past.
     constexpr int kPatch = 16, kOrigin = 6;
@@ -126,8 +126,58 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
             if (idx == 0) continue;
             const int pixel_x = screen_x + x;
             if (pixel_x < 0 || pixel_x >= screen_w) continue;
-            const auto lvl = level(pixel_x - top_x, floor ? pixel_y - top_y : kIsoH / 2);
+            const auto lvl = level(pixel_x - top_x, pixel_y - top_y);
             const auto col = pals[lvl][idx];
+            auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
+            const int alpha = hole ? hole->alpha(pixel_x, pixel_y, alpha_all) : alpha_all;
+            if (alpha >= 255) { pixel[0] = col.r; pixel[1] = col.g; pixel[2] = col.b; }
+            else { pixel[0] = std::uint8_t((pixel[0] * (255 - alpha) + col.r * alpha) / 255); pixel[1] = std::uint8_t((pixel[1] * (255 - alpha) + col.g * alpha) / 255); pixel[2] = std::uint8_t((pixel[2] * (255 - alpha) + col.b * alpha) / 255); }
+            pixel[3] = 0xFF;
+        }
+    }
+}
+
+void blit_dt1_wall_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
+                       int screen_x, int screen_y, int cell_x, int cell_y, bool in_front, int alpha_all, const Hole* hole) {
+    // 0x72a9e8 (0x72abc8 for a wall in front) by the tile's direction, filled
+    // at start-up (read live): subtiles from the cell's top corner, one per
+    // 32-pixel column edge.
+    using Points = std::array<std::array<int, 2>, 6>;
+    static constexpr std::array<Points, 5> kPoints{ {
+        { { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+        { { { 2, 5 }, { 2, 3 }, { 2, 1 }, { 2, -1 }, { 2, -3 }, { 2, -5 } } },
+        { { { -5, 2 }, { -3, 2 }, { -1, 2 }, { 1, 2 }, { 3, 2 }, { 5, 2 } } },
+        { { { 2, 5 }, { 2, 3 }, { 2, 2 }, { 2, 2 }, { 3, 2 }, { 5, 2 } } },
+        { { { -5, 2 }, { -3, 2 }, { -1, 2 }, { 2, -1 }, { 2, -3 }, { 2, -5 } } },
+    } };
+    static constexpr std::array<Points, 5> kFrontPoints{ {
+        { { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } } },
+        { { { -2, 5 }, { -2, 3 }, { -2, 1 }, { -2, -1 }, { -2, -3 }, { -2, -5 } } },
+        { { { -5, -2 }, { -3, -2 }, { -1, -2 }, { 1, -2 }, { 3, -2 }, { 5, -2 } } },
+        { { { -2, 5 }, { -2, 3 }, { -2, -2 }, { -2, -2 }, { 3, -2 }, { 5, -2 } } },
+        { { { -5, -2 }, { -3, -2 }, { -1, -2 }, { -2, -1 }, { -2, -3 }, { -2, -5 } } },
+    } };
+    const auto& points = (in_front ? kFrontPoints : kPoints)[std::size_t(tile.direction >= 1 && tile.direction <= 4 ? tile.direction : 0)];
+    std::array<int, 6> lights{};
+    int low = 255, high = 0;
+    for (std::size_t k = 0; k < lights.size(); ++k) {
+        lights[k] = light.grid.at(cell_x * 5 + points[k][0], cell_y * 5 + points[k][1]);
+        low = std::min(low, lights[k]); high = std::max(high, lights[k]);
+    }
+    const auto& pals = *light.pal;
+    if (low >> 3 == high >> 3) { blit_dt1_tile(framebuffer, tile, pals[std::size_t(low >> 3)], screen_x, screen_y, alpha_all, hole); return; }
+    const int tile_height = std::abs(tile.height);
+    const int screen_w = fb_width(framebuffer);
+    for (int y = 0; y < tile_height; ++y) {
+        const int pixel_y = screen_y + y;
+        if (pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
+        const auto* row = tile.pixels.data() + std::size_t(y) * tile.width;
+        for (int x = 0; x < tile.width; ++x) {
+            const std::uint8_t idx = row[x];
+            const int pixel_x = screen_x + x;
+            if (idx == 0 || pixel_x < 0 || pixel_x >= screen_w) continue;
+            const int column = std::min(x / 32, 4), along = x - column * 32;
+            const auto col = pals[std::size_t((lights[std::size_t(column)] * (32 - along) + lights[std::size_t(column) + 1] * along) / 32 >> 3)][idx];
             auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * std::size_t(screen_w) + std::size_t(pixel_x)) * 4;
             const int alpha = hole ? hole->alpha(pixel_x, pixel_y, alpha_all) : alpha_all;
             if (alpha >= 255) { pixel[0] = col.r; pixel[1] = col.g; pixel[2] = col.b; }
@@ -213,16 +263,21 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         // upper walls rise above it, lower walls (16..19: Act 5's cliffs) hang below.
         const int screen_y = layer == 0 && tile.type >= 16 ? iso_y + kIsoH - tile.y_shift : iso_y - (tile_height - kIsoH);
         if (layer == 2) blit_dt1_shadow(framebuffer, tile, pal, screen_x, screen_y);
-        else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, iso_x, iso_y, layer == 1, alpha);
+        else if (light && layer == 0) blit_dt1_wall_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha < 255, alpha);   // ponytail: "in front" read off the alpha, so a wall fading back still samples the front spots
+        else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, iso_x, iso_y, alpha);
         else blit_dt1_tile(framebuffer, tile, pal, screen_x, screen_y, alpha);
     };
     // Walls in front of the player see-through (FUN_004dd060 /
-    // FUN_004dd180): a wall 1..3 cells past the player's cell in x
-    // (orientations 1 4 5 7 8 10 12) or in y (2 3 6 7 9 11 12) fades to
-    // alpha 0x80 over 500 ms, and back to 0xff once it isn't. Roofs (15)
-    // and lower walls (16..19) never fade.
+    // FUN_004dd180, the room mode: DAT_0072a968 is 1 in 1.14d and nothing
+    // writes it): a wall of a Logicals preset's area (FUN_0066d110) other
+    // than the player's, the player's cell before the area's top-left in x
+    // or y, fades to alpha 0x80 over 500 ms, and back to 0xff once it isn't.
+    // Any other room is one area and its walls never fade (FUN_0066c9c0:
+    // +0x10 stays 0), so no town's do. Roofs (15) and lower walls (16..19)
+    // never fade.
     // ponytail: the blend is linear in RGB, not the driver's alpha table;
-    // game.exe's room-based mode (DAT_0072a968) isn't built.
+    // a wall on a room's far edge takes the room it opens (room_of), and
+    // tile flag 4 (never fades) isn't kept on the picks.
     struct Fade { int from = 255, target = 255; std::uint32_t changed_at = 0; };
     static std::unordered_map<std::uint64_t, Fade> fades;
     // The players (a player's Height2 units; the camera's point without one):
@@ -235,12 +290,30 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         const auto [hole_x, hole_y] = iso_point(player_x, player_y);
         hole.at.emplace_back(hole_x, hole_y - 40);
     }
-    auto wall_alpha = [&](const void* level_key, int off, int type, int wall_index, int cell_x, int cell_y) {
-        static constexpr std::uint16_t kFadeOnX = 1 << 1 | 1 << 4 | 1 << 5 | 1 << 7 | 1 << 8 | 1 << 10 | 1 << 12;
-        static constexpr std::uint16_t kFadeOnY = 1 << 2 | 1 << 3 | 1 << 6 | 1 << 7 | 1 << 9 | 1 << 11 | 1 << 12;
-        const bool see = type < 16 && std::ranges::any_of(players, [&](const auto& player) {
-            const int pcx = int(std::floor(player.first)), pcy = int(std::floor(player.second));
-            return (cell_x > pcx && cell_x < pcx + 4 && (kFadeOnX >> type & 1)) || (cell_y > pcy && cell_y < pcy + 4 && (kFadeOnY >> type & 1));
+    // The area record at a cell (FUN_0066ce30's grid): null in a room
+    // without Logicals (its one area has no rect).
+    auto area_at = [](const Level& holder, int x, int y) -> const d2d::drlg::Area* {
+        const int room = d2d::game::room_of(holder, float(x) + 0.5f, float(y) + 0.5f);
+        if (room < 0 || std::size_t(room) >= holder.room_areas.size()) return nullptr;
+        for (const auto& area : holder.room_areas[std::size_t(room)])
+            if (x >= area.full_left && y >= area.full_top && x < area.full_right && y < area.full_bottom) return &area;
+        return nullptr;
+    };
+    struct Standing { int x, y; std::uint32_t id; };
+    std::vector<Standing> standing;                       // each player's cell and area id (DAT_007c8a08 / 0c / 10)
+    for (const auto& [player_x, player_y] : players) {
+        const int pcx = int(std::floor(player_x)), pcy = int(std::floor(player_y));
+        const auto* area = area_at(level, pcx, pcy);
+        standing.push_back({ pcx, pcy, area ? area->id : 1u });
+    }
+    auto wall_alpha = [&](const Level* wall_level, int off, int type, int wall_index, int cell_x, int cell_y) {
+        const void* level_key = wall_level;
+        int shift_x = 0, shift_y = 0;                     // a neighbour level's cells from this one's
+        for (const auto& neighbour : level.nearby)
+            if (neighbour.level == wall_level) { shift_x = neighbour.dx; shift_y = neighbour.dy; }
+        const auto* area = type < 16 ? area_at(*wall_level, cell_x - shift_x, cell_y - shift_y) : nullptr;
+        const bool see = area && std::ranges::any_of(standing, [&](const Standing& player) {
+            return area->id != player.id && (player.x < area->full_left + shift_x || player.y < area->full_top + shift_y);
         });
         const int want = see ? 0x80 : 0xff;
         const auto key = std::uint64_t(reinterpret_cast<std::uintptr_t>(level_key)) * 1000003u ^ (std::uint64_t(off) << 12 | std::uint64_t(type) << 6 | std::uint64_t(wall_index));
@@ -503,10 +576,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 // Roof — hoist by the DT1's own roof_height.
                 auto [iso_x, iso_y] = iso(cell_x, cell_y);
                 iso_y -= tile.roof_height;
-                // A roof is flat: lit like a floor, where each pixel lies on
-                // the roof's plane (its top corner at the hoisted iso_y).
+                // Lit from its cell on the ground, not where it's drawn (blit_dt1_wall_lit).
                 const Hole* cutout = g_roof_cutout ? &hole : nullptr;
-                if (light) blit_dt1_tile_lit(framebuffer, tile, *light, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), cell_x, cell_y, iso_x, iso_y, true, 255, cutout);
+                if (light) blit_dt1_wall_lit(framebuffer, tile, *light, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), cell_x, cell_y, false, 255, cutout);
                 else blit_dt1_tile(framebuffer, tile, pal, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), 255, cutout);
             };
             if (!cell_level->picks.empty()) {

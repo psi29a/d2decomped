@@ -36,6 +36,9 @@ namespace d2d::client {
 // round the player, so a player under a roof stays in sight. game.exe
 // draws roofs whole (walls.md). Off: --toggle trans_roof=off.
 inline bool g_roof_cutout = true;
+// --toggle light_grid: the light grid over the whole view (deviations.md
+// #1); off, game.exe's 48 x 48 round the player (bugs.md #11).
+inline bool g_light_grid = true;
 inline bool g_autoparty = true;      // a joined game: invite the others, accept invites (deviations.md #7); off: --toggle autoparty=off
 inline bool g_autoloot = true;        // gold walked over is picked up (deviations.md #5); off: --toggle autoloot=off
 struct Hole {
@@ -95,11 +98,18 @@ struct Lighting {
 
 // A DT1 tile of cell (gx, gy), its top corner on screen at (top_x, top_y),
 // lit: a floor pixel by where it lies on the ground (the inverse of the
-// iso projection), a wall's column where it crosses the cell's middle,
-// bilinear between the cell's 6 x 6 subtile corners. One level for the tile
+// iso projection), bilinear between the cell's 6 x 6 subtile corners. One level for the tile
 // when they share it.
 void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
-                       int screen_x, int screen_y, int cell_x, int cell_y, int top_x, int top_y, bool floor, int alpha_all = 255, const Hole* hole = nullptr);
+                       int screen_x, int screen_y, int cell_x, int cell_y, int top_x, int top_y, int alpha_all = 255, const Hole* hole = nullptr);
+
+// A wall or roof of cell (cell_x, cell_y), lit as game.exe's wall and roof
+// draws do (FUN_004df1c0, FUN_004dedf0; the driver's +0x9c): six lights on
+// the ground along the cell by the DT1's direction (0x6db9d8 counts,
+// 0x72a9e8 spots; 0x72abc8 for a wall in front, tile +0x24 bit 0), one per
+// 32-pixel column edge, each column's pixels between its two.
+void blit_dt1_wall_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
+                       int screen_x, int screen_y, int cell_x, int cell_y, bool in_front, int alpha_all = 255, const Hole* hole = nullptr);
 
 // Render the loaded DS1 onto the framebuffer around the camera point
 // (cam_x, cam_y), in cells. Draws in D2's back-to-front Z order:
