@@ -57,7 +57,7 @@ flatpak: source
 run:
 ifeq ($(firstword $(RUN_WHAT)),og)
 	@# One game.exe at a time (a second can't start its LNG manager).
-	@WINEPREFIX=$(PREFIX) $(dir $(WINE))wineserver -k 2>/dev/null; true
+	@WINEPREFIX=$(PREFIX) $(dir $(WINE))wineserver -k 2>/dev/null; WINEPREFIX=$(PREFIX) $(dir $(WINE))wineserver -w 2>/dev/null; true
 ifeq ($(word 2,$(RUN_WHAT)),host)
 	@# Only NAME in game.exe's save folder, fresh from d2d's: char select's first slot is it.
 	@test -f "$(D2D_SAVES)/$(word 3,$(RUN_WHAT)).d2s" || { echo "no $(D2D_SAVES)/$(word 3,$(RUN_WHAT)).d2s"; exit 1; }
