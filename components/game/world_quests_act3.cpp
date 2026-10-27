@@ -163,6 +163,9 @@ auto World::act3_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         }
     }
 
+// FUN_005a09e0 calls FUN_00544e80 when a qualifying boss is made,
+// including one in a nearby room before the player enters that level.
+// ponytail: drained once a tick (after rooms_up) and on arrival, in creation order.
 auto World::act3_bind_new_bosses() -> void {
         auto made = std::exchange(fight.made_bosses, {});
         if (hosted_quests) return;
@@ -176,9 +179,7 @@ auto World::act3_bind_new_bosses() -> void {
 auto World::act3_update(std::uint32_t now_ms) -> void {
         if (d2d::rules::quest::bit(quests(), d2d::rules::BlackenedTempleQuest::kQuest, 0)) guardian.chain();   // a3q5's +0xf0
         mephisto_bridge(now_ms);
-        // FUN_005a09e0 calls FUN_00544e80 when a qualifying boss is made,
-        // including one in a nearby room before the player enters that level.
-        act3_bind_new_bosses();
+        // The Golden Bird's items picked up (FUN_005ba6a0). ponytail: pickups polled.
         if (const bool figurine = carries(d2d::rules::GoldenBirdQuest::kFigurine), bird = carries(d2d::rules::GoldenBirdQuest::kBird); !hosted_quests) {
             if (figurine && !actor->had_figurine && golden_bird.picked_up(quests(), false)) class_cue("act3_find_jade", now_ms);   // unit event 0x48
             if (bird && !actor->had_bird) golden_bird.picked_up(quests(), true);
@@ -197,7 +198,6 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
                 const int party = 2 + int(fight.rng.next() % 6);
                 fight.add_monster(std::move(fetish_lord));
                 blade.spawned = true; blade.guardian = fight.monsters.back().id;
-                act3_bind_new_bosses();
                 for (int i = 0; minion >= 0 && i < party; ++i) {
                     auto fetish = make_monster(*game_data, minion, altar.x + float(i % 3) - 1, altar.y + float(i / 3), fight.rng, diff, true, int(players.size()));
                     fetish.boss = d2d::rules::Boss::minion;

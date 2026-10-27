@@ -358,12 +358,20 @@ int main(int argc, char** argv) try {
         Monster boss;
         boss.type = type;
         boss.boss = d2d::rules::Boss::unique;
+        bird_world.hosted_quests = true;                       // the game's own records: nothing binds
+        bird_world.fight.add_monster(boss, &act3);
+        bird_world.act3_bind_new_bosses();
+        assert(bird_world.golden_bird.bound == -1 && bird_world.golden_bird.armed && bird_world.fight.made_bosses.empty());
+        bird_world.hosted_quests = false;
         bird_world.fight.add_monster(boss, &act2);             // the earlier boss is in another act
         const int first_act3 = bird_world.fight.next_id;
         bird_world.fight.add_monster(boss, &act3);             // made in a nearby level
         bird_world.fight.add_monster(boss, &act3);             // later Act 3 boss cannot replace it
         bird_world.act3_bind_new_bosses();
         assert(bird_world.golden_bird.bound == first_act3 && bird_world.fight.made_bosses.empty());
+        bird_world.fight.add_monster(boss, &act3);             // unarmed: later bosses are dropped
+        bird_world.act3_bind_new_bosses();
+        assert(bird_world.golden_bird.bound == first_act3 && !bird_world.golden_bird.armed && bird_world.fight.made_bosses.empty());
     }
 
     World world(&*data, -1, -1);
