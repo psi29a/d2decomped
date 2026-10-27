@@ -474,7 +474,10 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         static std::uint16_t id = 0;
         for (const auto& unit : units) {
             if (!unit.anim || !unit.shadow) continue;
-            const auto [anchor_x, anchor_y] = iso_point(unit.x, unit.y);
+            // An object's shadow leans from game.exe's position, half a
+            // subtile before its cell's (measured live: the Lut Gholein braziers).
+            const float back = unit.object ? 0.1f : 0.f;
+            const auto [anchor_x, anchor_y] = iso_point(unit.x - back, unit.y - back);
             if (anchor_x < -200 || anchor_x > screen_w + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
             if (++id == 0) { std::ranges::fill(mask, std::uint16_t{ 0 }); id = 1; }
             auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);

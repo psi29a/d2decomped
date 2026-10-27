@@ -149,7 +149,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             units.push_back({ x, y, &anim, state ? state->dir : 0, unselectable ? &none : &npc.name, state ? state->mode_ms : 0, int(i) });
             if (state && state->alert) units.back().overlay = &scene.npc_alert;
             if (state) units.back().says = state->says;
-            units.back().shadow = npc.root != "objects";
+            units.back().object = npc.root == "objects";
             units.back().hold = holds(npc, state);
             frames_of(npc, state, units.back());
             units.back().name_offset = npc.name_offset;
@@ -170,7 +170,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (std::abs(x - cam_x) >= 14 || std::abs(y - cam_y) >= 14) continue;
                 const auto mode = state && state->walking ? std::string_view("WL") : state && !state->mode.empty() ? state->mode : std::string_view(npc.mode);
                 units.push_back({ x, y, &scene.npc_anim(npc, mode), state ? state->dir : 0, &no_name, state ? state->mode_ms : 0, -3 });
-                units.back().shadow = npc.root != "objects";
+                units.back().object = npc.root == "objects";
                 units.back().hold = holds(npc, state);
                 frames_of(npc, state, units.back());
             }

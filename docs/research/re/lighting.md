@@ -182,7 +182,12 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   each output row one up and one left: half as tall, leaning up-left from
   (x + xoff + yoff / 2, y + yoff / 2). Each pixel becomes T0[ground][0]:
   a quarter of the ground (black when not blended). MonStats2 Shadow says
-  which monsters cast one (all of them in 1.14d).
+  which monsters cast one (all of them in 1.14d). Objects cast one too:
+  `FUN_004dc710` marks every object drawn (unit +0xc8 bit 0x80), and
+  `FUN_004dd7c0` lists each such unit for the shadow pass (`FUN_004dd6e0`
+  → `FUN_00471620`); the COF's layers say which parts do (Lut Gholein's
+  braziers, read live). An object's shadow leans from its position, half
+  a subtile before d2d's object cell.
 
 ## d2d
 
