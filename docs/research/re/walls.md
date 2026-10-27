@@ -41,9 +41,15 @@ d2d: `wall_alpha` in `render_world`, over `Level::room_areas`
 ## Roofs
 
 Roofs never fade and aren't hidden by where the player stands: the roof
-draw (`FUN_004dedf0`) skips only tiles flagged 0x400 (alpha 0) or 8
+draw (`FUN_004dea70`, after the walls and units) skips only tiles flagged 0x400 (alpha 0) or 8
 (hidden in the DS1: tile word bit 31); its timer that would set 8 (tile
 +0x24 bit 2) is never armed in 1.14d. A player under a roof stays under it.
+
+On screen, walls (upper and lower) stand 16 px higher than a floor's
+frame would put them: measured live against game.exe in Lut Gholein
+(floors, raised roofs, units and walls each on game.exe's pixels), not
+traced to the entry y (`FUN_0066dc50`); lower walls follow the upper
+ones untested.
 
 d2d cuts a see-through circle in roofs round the player by default
 (deviations.md improvement 4; `--toggle trans_roof=off` for game.exe's).

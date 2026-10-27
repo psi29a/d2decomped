@@ -80,6 +80,7 @@ void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Til
 struct Lighting {
     d2d::rules::LightGrid grid;
     const std::array<d2d::palette::Palette, 32>* pal = nullptr;
+    int ambient = 255;                                     // the day's (or the level's) light, before any lamp: what roofs take
     struct Stamp { int x, y, radius8; bool shadowed; };   // eighths of a subtile, as game.exe's light list (0x7b5668)
     std::vector<Stamp> stamps;                             // what lit it (devctl `debug light`)
     // The light at (x, y), cells, 0..255.
@@ -98,15 +99,15 @@ struct Lighting {
     [[nodiscard]] int unit_at(float x, float y) const { return grid.at(int(std::floor(x * 5)), int(std::floor(y * 5))); }
 };
 
-// A DT1 tile of cell (gx, gy), its top corner on screen at (top_x, top_y),
-// lit: a floor pixel by where it lies on the ground (the inverse of the
-// iso projection), bilinear between the cell's 6 x 6 subtile corners. One level for the tile
-// when they share it.
+// A floor (or a flat roof) of cell (cell_x, cell_y), lit as game.exe's
+// software modes do (FUN_004ddef0's 8 x 8 table round the cell, the block
+// callback FUN_004f8b80 per 32 x 16 block; lighting.md). One level for the
+// tile when the table shares it.
 void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
-                       int screen_x, int screen_y, int cell_x, int cell_y, int top_x, int top_y, int alpha_all = 255, const Hole* hole = nullptr);
+                       int screen_x, int screen_y, int cell_x, int cell_y, int alpha_all = 255, const Hole* hole = nullptr);
 
-// A wall or roof of cell (cell_x, cell_y), lit as game.exe's wall and roof
-// draws do (FUN_004df1c0, FUN_004dedf0; the driver's +0x9c): six lights on
+// A wall of cell (cell_x, cell_y), lit as game.exe's wall draws do
+// (FUN_004df1c0, FUN_004dedf0 for lower walls; the driver's +0x9c): six lights on
 // the ground along the cell by the DT1's direction (0x6db9d8 counts,
 // 0x72a9e8 spots; 0x72abc8 for a wall in front, tile +0x24 bit 0), one per
 // 32-pixel column edge, each column's pixels between its two.
