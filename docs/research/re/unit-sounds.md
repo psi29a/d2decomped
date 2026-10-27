@@ -83,8 +83,10 @@ weaponsnd.
   player of the skill's charclass (+0xc), unless an item cast has its own.
 - **Do** (FUN_004c6680, its client do-function done): dosound on the caster,
   tgtsound on its target (FUN_004648f0), none without one.
-- **dosound a / b** (+0x102 / +0x104): only two places read them (every
-  word read of either offset in game.exe). Jab's cltdofunc 16
+- **dosound a / b** (+0x102 / +0x104): only two places read them: an
+  objdump of game.exe's .text for 16-bit loads of `[reg+0x102]` /
+  `[reg+0x104]` finds 0x4c9c00 (FUN_004c9b40), 0x4f45c7 and 0x4f45e8
+  (FUN_004f4590), and no others. Jab's cltdofunc 16
   (FUN_004f4590, table 0x727ba8) plays dosound a on a player, dosound b on a
   monster, when the unit's frame event (+0x4e, set from the sequence or
   AnimData frame) is 3. The client runs the do on each event 1..4 frame
@@ -96,10 +98,12 @@ weaponsnd.
   nothing. Cltstfunc 25 (FUN_004c9b40, table 0x727a90: Charge,
   SerpentCharge) reads dosound a too, but Charge's is empty; a monster's
   plays its MonSounds Skill1..4 for the MonStats slot holding the skill
-  (FUN_004f4f40). Strafe's and Vine Attack's dosound a / b are never read.
+  (FUN_004f4f40). Strafe's and Vine Attack's dosound a / b are never read
+  (neither reaches those two functions).
   d2d: `Skill::do_sound_a` / `do_sound_b` / `clt_do_func`; the player's in
   `Fight::strike` (`Hero::seq_sounded`), a monster's through
-  `Monster::seq_sounds` (ai.cpp's sequence rows) in `Fight::monster_sounds`.
+  `Monster::seq_sounds` (ai.cpp's sequence rows) in `Fight::monster_sounds`,
+  dropped for a monster that is dead or away from the players.
 - Not ported: prgsound (charge-ups, Hurricane), monsters' own stsound, a
   monster's Charge start sound (FUN_004f4f40).
 

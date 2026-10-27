@@ -298,8 +298,10 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
             if (sounds) play(sounds->flee, now_ms);
             monster.flee_sound = false;
         }
-        // Jab's event-3 rows (FUN_004f4590): a monster's dosound b.
-        for (; monster.seq_sounds > 0; --monster.seq_sounds) play(monster.seq_sound, now_ms);
+        // Jab's event-3 rows (FUN_004f4590): a monster's dosound b, none once it's dead.
+        if (monster.alive())
+            for (int row = 0; row < monster.seq_sounds; ++row) play(monster.seq_sound, now_ms);
+        monster.seq_sounds = 0;
         // As it first shows (FUN_004cc380): its Init, outside town, a Neutral's start.
         if (!monster.sounded) {
             monster.sounded = true;
@@ -4589,8 +4591,10 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     cues.cue(flown.hit_sound, now_ms, flown.x, flown.y);
             std::ranges::move(pending, std::back_inserter(missiles));
             pending.clear();
-            for (auto& monster : monsters)
+            for (auto& monster : monsters) {
                 if (near_players(monster.unit.x, monster.unit.y)) monster_sounds(monster, now_ms);
+                else monster.seq_sounds = 0;             // a far Jab's event-3 rows go unheard, not saved for later
+            }
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 hurt_side(std::span(foes).subspan(side.at, 2), now_ms);

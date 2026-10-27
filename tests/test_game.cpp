@@ -27,7 +27,6 @@
 #include <sequences.hpp>
 #include <skill_text.hpp>
 #include <skills.hpp>
-#include <sound_ids.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 
@@ -444,10 +443,14 @@ int main(int argc, char** argv) try {
         const auto look = hero.character.appearance;
         hero.character.character_class = d2d::d2s::kAmazon;      // her starting javelin: 1ht, which has Jab's sequence
         hero.character.appearance.reset();
-        hero.swing_skill = 10;
+        const auto levels = fight.skill_level;
+        const int attack = hero.attack_skill;
+        const auto mana = hero.character.stats.values[d2d::d2s::kMana];
+        fight.skill_level = [](int) { return 1; };
+        hero.attack_skill = 10;
+        hero.character.stats.values[d2d::d2s::kMana] = 100 << 8;
         world.cues.due.clear();
-        fight.set_pmode(kModeA1, 2000 * kTickMs);
-        fight.start_sequence(2000 * kTickMs);
+        assert(fight.start_swing(2000 * kTickMs) && hero.swing_skill == 10);
         assert(hero.seq.size() == d2d::rules::sequence(1, "1ht").size());
         // SQ (0x12) plays no swing (FUN_004cc5b0): only Jab's start, its stsoundclass (amazon_jab).
         assert(world.cues.due.size() == 1 && world.cues.due[0].sound == jab->st_sound_class);
@@ -460,12 +463,50 @@ int main(int argc, char** argv) try {
         assert(std::ranges::count(world.cues.due, jab->do_sound_a, &Cues::Cue::sound) == sound_frames);
         hero.character.character_class = barbarian;
         hero.character.appearance = look;
+        fight.skill_level = levels;
+        hero.attack_skill = attack;
+        hero.character.stats.values[d2d::d2s::kMana] = mana;
         hero.swing_skill = 0;
         hero.seq = {};
         hero.smove = {};
         hero.pmode = -1;
         world.cues.due.clear();
         std::printf("OK: Jab's dosound a on its %td event-3 frames\n", sound_frames);
+    }
+    // A monster's Jab: ai.cpp counts its MonSeq's event-3 rows (only Duriel's
+    // has them), monster_sounds plays dosound b once each, none once dead.
+    {
+        const auto* jab = data->skills.get(10);
+        const int row = int(data->mon_bin[std::size_t(d2d::rules::monster_ids::kDuriel)]);
+        const auto& duriel_type = data->monsters.types[std::size_t(row)];
+        const auto named = std::ranges::find_if(duriel_type.sk_mode, [&](const std::string& mode) { return data->mon_seqs.contains(mode); });
+        assert(named != duriel_type.sk_mode.end());
+        const auto sound_rows = std::ranges::count(data->mon_seqs.at(*named), 3, &GameData::MonSeqFrame::event);
+        assert(sound_rows > 0);
+        d2d::rules::Rng spawn_rng{ 7 };
+        auto duriel = make_monster(*data, row, hero.player.x + 2, hero.player.y, spawn_rng, 0);
+        const std::uint32_t start = 3000 * kTickMs;
+        set_mode(*data, duriel, "S1", start);                   // Jab's mode (FUN_005db2d0: mode 8)
+        duriel.skill = 10;
+        std::vector<Foe> foes(1);
+        foes[0].alive = false;
+        std::vector<Missile> shots;
+        const Crowd nobody{};
+        monster_update(*data, *world.level, duriel, foes, spawn_rng, start + 60000, 0.04f, nobody, shots);
+        assert(duriel.seq_sounds == sound_rows && duriel.seq_sound == jab->do_sound_b);
+        duriel.sounded = true;
+        duriel.last_mode = duriel.mode;
+        world.cues.due.clear();
+        fight.monster_sounds(duriel, start + 60000);
+        assert(std::ranges::count(world.cues.due, jab->do_sound_b, &Cues::Cue::sound) == sound_rows && duriel.seq_sounds == 0);
+        fight.monster_sounds(duriel, start + 60040);            // nothing replays
+        assert(std::ranges::count(world.cues.due, jab->do_sound_b, &Cues::Cue::sound) == sound_rows);
+        duriel.seq_sounds = 1;                                   // a row on the frame it dies: dropped
+        duriel.hit_points = 0;
+        fight.monster_sounds(duriel, start + 60080);
+        assert(std::ranges::count(world.cues.due, jab->do_sound_b, &Cues::Cue::sound) == sound_rows && duriel.seq_sounds == 0);
+        world.cues.due.clear();
+        std::printf("OK: Duriel's Jab plays dosound b on its %td event-3 rows\n", sound_rows);
     }
     const auto poisoned = [&] { return std::ranges::any_of(hero.regen, &Fight::Regen::poison); };
     hero.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
