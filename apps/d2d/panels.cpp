@@ -743,9 +743,9 @@ void automap_reveal(const Scene& scene, const Level& level, Automap& automap, fl
             // not hidden (flag 8); FUN_00457cf0 looks the cel up by the
             // DT1 tile's orientation, main and sub index (+0x14, +0x18,
             // +0x1c); a lower wall (the room tile's orientation past 15) sits 24 down.
-            if (!level.picks.empty()) {
+            if (!level.shown().empty()) {
                 for (const int floor_or_wall : { 1, 0 })
-                    for (const auto& pick : level.picks[std::size_t(tile_y * width + tile_x)]) {
+                    for (const auto& pick : level.shown()[std::size_t(tile_y * width + tile_x)]) {
                         if (pick.layer != floor_or_wall || pick.hidden) continue;
                         if (const int cel = automap_cel(scene, level, pick.tile->type, pick.tile->style, pick.tile->sequence, hash); cel >= 0)
                             automap.add({ cel, automap_x, automap_y + (pick.orient > 15 ? 24 : 0), floor_or_wall == 1 ? 0 : 1 });

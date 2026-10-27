@@ -450,8 +450,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                 return std::string("?");
             };
             static constexpr std::array<const char*, 3> kKind = { "wall", "floor", "shadow" };
-            for (std::size_t cell = 0; cell < level.picks.size(); ++cell)
-                for (const auto& pick : level.picks[cell])
+            const auto& picks = args.size() >= 3 && args[2] == "server" ? level.picks : level.shown();   // `debug tiles server`: collision's
+            for (std::size_t cell = 0; cell < picks.size(); ++cell)
+                for (const auto& pick : picks[cell])
                     out += std::format("{} {} {} o{} {}\n", cell % level.ds1.width(), cell / level.ds1.width(), kKind[std::min<std::size_t>(pick.layer, 2)],
                                        int(pick.orient), name_of(pick.tile));
             return out + "ok\n";

@@ -204,6 +204,14 @@ struct Level {
     // was when the room it lies in came up, none if that was before its own.
     struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; const d2d::dt1::Tile* stamp = nullptr; };
     std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
+    // What the screen shows: game.exe's client brings each batch of rooms up
+    // in the order they were made (the near list and the ring past it, oldest
+    // first), the server the arrived room first; edge sharing makes their
+    // picks differ (Lut Gholein's sand: 1280/1280 cells live this way, 950
+    // as `picks`). Empty: the same as `picks`. Collision stays the server's.
+    std::vector<std::vector<Pick>> drawn;
+    std::vector<std::size_t> drawn_laid;                // the order drawn was laid in (list indices), empty: none
+    [[nodiscard]] const std::vector<std::vector<Pick>>& shown() const noexcept { return drawn.empty() ? picks : drawn; }
     // Shared tiles re-picked after the room they lie in came up: that grid's
     // cell loses the old tile's flags and takes the new one's (FUN_0064c860).
     struct Patch { int x, y; const d2d::dt1::Tile* old_tile; const d2d::dt1::Tile* tile; };
@@ -914,6 +922,7 @@ struct Spawning {
         std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
         std::vector<bool> up;                              // by Level::rooms index: its room1 made (and populated)
         std::vector<std::size_t> order;                    // Level::rooms indices as they came up
+        std::vector<std::size_t> client_order;             // the same, each batch in made order (Level::drawn)
         // The level's object placement as it stands (objgroups.cpp): objrgn's
         // record of it, the units' collision so far; each room's object
         // groups (by Level::rooms index) and its seed after its monsters,

@@ -405,10 +405,16 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     // arrived room first, then the near list's: the picks and collision of a
     // shared edge depend on which rooms are up already (relevel).
     std::vector<const Level*> moved;
+    std::vector<std::pair<const Level*, std::size_t>> batch_from;   // where this move's batch starts in client_order
     auto bring_up = [&](const Level* which, std::size_t index) {
         auto& order = spawning.levels[which].order;
         if (std::ranges::contains(order, index)) return;
         order.push_back(index);
+        auto& client = spawning.levels[which].client_order;
+        auto from = std::ranges::find(batch_from, which, &std::pair<const Level*, std::size_t>::first);
+        if (from == batch_from.end()) from = batch_from.insert(batch_from.end(), { which, client.size() });
+        client.push_back(index);
+        std::sort(client.begin() + std::ptrdiff_t(from->second), client.end());   // the client's batch: made order
         if (!std::ranges::contains(moved, which)) moved.push_back(which);
     };
     auto lay = [&] {
@@ -438,6 +444,24 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
         fresh.push_back(near_room);
     }
     for (const auto& near_room : fresh) bring_up(near_room.level, std::size_t(near_room.room));
+    // The client draws further out: every room of this level within two rooms
+    // of the player's (live Lut Gholein: the 5x5 block, 20 rooms with the
+    // level's edge), after the near list, made order (Level::drawn only).
+    // ponytail: this level's rooms only, two 8-cell rooms out; the client's own
+    // reach (FUN_?) isn't traced, nor whether it crosses into the next level.
+    if (level.rooms.size() == rects.size()) {
+        auto& state = spawning.levels[&level];
+        const auto& here = rects[std::size_t(room)];
+        const std::size_t ring_from = state.client_order.size();
+        for (std::size_t index = 0; index < rects.size(); ++index) {
+            const auto& other = rects[index];
+            const bool reach = other.x < here.x + here.width + 16 && other.x + other.width > here.x - 16
+                            && other.y < here.y + here.height + 16 && other.y + other.height > here.y - 16;
+            if (reach && !std::ranges::contains(state.client_order, index)) state.client_order.push_back(index);
+        }
+        std::sort(state.client_order.begin() + std::ptrdiff_t(ring_from), state.client_order.end());
+        if (state.client_order.size() > ring_from && !std::ranges::contains(moved, &level)) moved.push_back(&level);
+    }
     lay();
     for (auto it = fresh.rbegin(); it != fresh.rend(); ++it) {
         const auto from = size_of(it->level);
@@ -879,7 +903,18 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
     for (const auto room : came_up) if (room < count && !taken[count - 1 - room]) { order.push_back(count - 1 - room); taken[count - 1 - room] = true; }
     const std::size_t up_count = order.size();                 // the rest are laid for their tiles; they merge no areas (merge_areas)
     for (std::size_t i = 0; i < count; ++i) if (!taken[i]) order.push_back(i);
-    if (outside.empty() && up_count == level.laid_up && (order == level.laid || (level.laid.empty() && std::ranges::is_sorted(order) && order.size() == count))) return;
+    // The client's (Level::drawn): the same, each batch in made order, list indices; empty when it's the server's.
+    std::vector<std::size_t> client;
+    if (spawning)
+        if (const auto state = spawning->levels.find(&level); state != spawning->levels.end() && !state->second.client_order.empty()) {
+            std::vector<bool> client_taken(count);
+            for (const auto room : state->second.client_order)
+                if (room < count && !client_taken[count - 1 - room]) { client.push_back(count - 1 - room); client_taken[count - 1 - room] = true; }
+            for (std::size_t i = 0; i < count; ++i) if (!client_taken[i]) client.push_back(i);
+            if (client == order) client.clear();
+        }
+    if (outside.empty() && up_count == level.laid_up && client == level.drawn_laid
+        && (order == level.laid || (level.laid.empty() && std::ranges::is_sorted(order) && order.size() == count))) return;
     const auto start_ms = d2d::log::ms();
     std::vector<std::string> notes;
     const auto built = lay_tiles(level, level.rooms, order, notes, std::move(outside), up_count);
@@ -899,6 +934,16 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
             level.unit_rooms.push_back(room.seed ? int(room.seed - level.rooms.data()) : -1);
         }
     finish_level(level);
+    level.drawn.clear();
+    if (!client.empty()) {                               // the client's picks, collision's untouched
+        auto server_picks = std::move(level.picks);
+        auto server_patches = std::move(level.patches);
+        std::vector<std::string> client_notes;
+        lay_tiles(level, level.rooms, client, client_notes, game_data ? camp_rooms(*game_data, *spawning, level) : std::vector<d2d::drlg::BuiltRoom>{}, up_count);
+        level.drawn = std::exchange(level.picks, std::move(server_picks));
+        level.patches = std::move(server_patches);
+    }
+    level.drawn_laid = std::move(client);
     level.laid = std::move(order);
     level.laid_up = up_count;
     stamp_footprints(level);
