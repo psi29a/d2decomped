@@ -401,7 +401,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             for (std::size_t i = 0; i < fight.monsters.size(); ++i)
                 if (const float distance = std::hypot(fight.monsters[i].unit.x - town.player.x, fight.monsters[i].unit.y - town.player.y); fight.monsters[i].alive() && distance < best_distance) { best_distance = distance; best = int(i); }
             if (best < 0) return std::string("err no monster\n");
-            fight.release(std::size_t(best), std::uint32_t(SDL_GetTicks()));
+            fight.release(std::size_t(best), town.world_ms);   // the World's clock, as its own releases
             return std::string("ok ") + std::to_string(fight.missiles.size()) + "\n";
         }
         if (args.size() >= 2 && args[1] == "light") {      // the light grid round the player, a level (0..31) a subtile
