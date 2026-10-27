@@ -222,6 +222,11 @@ int main(int argc, char** argv) try {
         const auto* bash = data->skills.get(126);
         assert(bash && bash->st_sound_class == data->sound_index.at("barbarian_grunt_small_1") && bash->st_sound_delay && bash->hit_class == 112);
         const auto& bolt = data->missiles.at("firebolt");
+        // Missiles.txt HitClass is a number (FUN_00661b20: type 4, +0x94): an arrow's bow class
+        // is the struck player's impact_arrow, and a later block's block_arrow.
+        const int arrow = data->missiles.at("arrow").hit_class;
+        assert(arrow == 10 && data->missiles.at("javelin").hit_class == 6 && data->missiles.at("goospit1").hit_class == 0xb0);
+        assert(d2d::rules::sound_ids::impact(arrow, false).impact == 347 && d2d::rules::sound_ids::block(arrow) == 401);
         assert(std::ranges::any_of(data->monsters.types, [](const auto& type) { return type.id == "zombie1" && type.hit_class == 12; }));
         const auto& zombie = data->mon_sounds.at("zombie");   // its Neutral every 300 ticks at most, two light steps a walk
         assert(zombie.neutral == data->sound_index.at("zombie_neutral_1") && zombie.neutral_time == 300 && zombie.footstep == data->sound_index.at("light_walk_dirt_1") && zombie.fs_count == 2);

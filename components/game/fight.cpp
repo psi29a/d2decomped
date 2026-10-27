@@ -4724,9 +4724,9 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);
-        if (foe.hits > 0) {                                         // a monster's MonStats2 HitClass; a missile's none here
+        if (foe.hits > 0) {                                         // a monster's MonStats2 HitClass, else a missile's Missiles.txt one
             const int striker = foe.melee_by.empty() ? -1 : monster_index(foe.melee_by.back());
-            actor->struck_class = striker < 0 || monsters[std::size_t(striker)].type < 0 ? 0 : game_data->monsters.types[std::size_t(monsters[std::size_t(striker)].type)].hit_class;
+            actor->struck_class = striker < 0 || monsters[std::size_t(striker)].type < 0 ? foe.shot_class : game_data->monsters.types[std::size_t(monsters[std::size_t(striker)].type)].hit_class;
         }
         foe.damage = absorb(foe, now_ms);
         foe.damage += int(actor->self_hurt >> 8);

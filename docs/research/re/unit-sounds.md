@@ -88,8 +88,10 @@ sounds, both at once:
 
 The hit class: Weapons.txt `hit class` (hitclass.txt codes: hth 1, 1hss 2,
 1hsl 3, 2hss 4, 2hsl 5, 1ht 6, 2ht 7, club 8, staf 9, bow 10, xbow 11,
-claw 12, over 13), Missiles.txt HitClass for a missile, Skills.txt
-HitClass (+0x134, a number) OR-ed in (Bash 112 = 0x70).
+claw 12, over 13), Missiles.txt HitClass for a missile (a number, not a
+code: FUN_00661b20's column list reads it as type 4, a byte, into record
++0x94; arrow 10, javelin 6, goospit 0xb0), Skills.txt HitClass (+0x134, a
+number) OR-ed in (Bash 112 = 0x70).
 
 ## Skills (Skills.cpp, client)
 
@@ -377,7 +379,8 @@ when a same-named overlay/state field also appears in the tables.
 `Blow::hit_class` (+ `Swing::hit_class`, a missile's row) → `Monster::hit_class`
 in `Fight::land`; `Fight::monster_sounds` plays the impact on GH / KB / DT,
 `Fight::set_pmode` the swing, the skill's start sounds and the player's cry
-and impact (`Hero::struck_class`, a melee attacker's MonStats2 HitClass),
+and impact (`Hero::struck_class`, a melee attacker's MonStats2 HitClass,
+else a monster missile's HitClass through `Foe::shot_class`),
 `Fight::do_sounds` the do. Missiles: a `Missile::sound` id each, its
 TravelSound cued with it as owner, stopped by the client when it's gone from
 the View (`Audio::stop_owners`). States: `StateClock` in `dress()`. Footsteps:
@@ -385,8 +388,7 @@ the View (`Audio::stop_owners`). States: `StateClock` in `dress()`. Footsteps:
 `Town::object_sounds`. Greetings: `World::greet_sound`. Sound rolls use
 `Fight::sound_rng`, apart from the game's.
 Left: the player's quest lines, monsters' own skill stsound,
-prgsound, ProgSound, state 0x92, a
-missile's hit class on a player, the town's floor material (its DS1 tiles
+prgsound, ProgSound, state 0x92, the town's floor material (its DS1 tiles
 aren't in `room_floors`: dirt). Cursor item sounds (identify, repair, break,
 point-drop and convert) are cued at their successful actions; only the
 convert-ready cue remains.

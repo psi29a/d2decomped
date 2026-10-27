@@ -36,9 +36,9 @@ inline constexpr int kCainHelp = 3671;
 inline constexpr std::array<int, 7> kClassSelect = { 17, 25, 21, 23, 19, 0, 0 };   // d2s class order; expansions have no classic intro cue
 inline constexpr std::array<int, 7> kClassDeselect = { 18, 26, 22, 24, 20, 0, 0 };
 
-// A hit class (hitclass.txt's rows, as Weapons.txt "hit class" and
-// Missiles.txt HitClass name them) in its low nibble; a skill's HitClass
-// adds an element's layer in the high one (Skills.txt writes the number).
+// A hit class (hitclass.txt's rows, as Weapons.txt "hit class" names them)
+// in its low nibble; a skill's HitClass adds an element's layer in the high
+// one (Skills.txt and Missiles.txt write the number).
 inline constexpr std::array<std::string_view, 14> kHitClassCodes = { "", "hth", "1hss", "1hsl", "2hss", "2hsl", "1ht", "2ht",
                                                                      "club", "staf", "bow", "xbow", "claw", "over" };
 inline int hit_class(std::string_view code) {

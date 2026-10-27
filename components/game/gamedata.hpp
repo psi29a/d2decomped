@@ -691,7 +691,7 @@ struct GameData {
     struct MissileInfo { std::string name, cel_file; int vel = 0, range = 0, src_damage = 0, min = 0, max = 0, anim_speed = 16, anim_len = 1;
                          int vel_lev = 0, max_vel = 0, accel = 0, activate = 0;   // its flight (rules::MissileFlight)
                          std::string skill; int lev_range = 0, hit_func = 0, hit_par1 = 0;
-                         int hit_class = 0;                                     // HitClass (sound_ids::hit_class): its impact sound
+                         int hit_class = 0;                                     // HitClass, a number (+0x94, FUN_00661b20 type 4): its impact sound
                          int travel_sound = 0, hit_sound = 0, prog_sound = 0;   // TravelSound (+0x12), HitSound (+0x14), ProgSound (+0x34)
                          bool to_hit = false, collide_kill = true, pierce = false;
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
