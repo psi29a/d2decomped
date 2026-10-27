@@ -391,7 +391,7 @@ struct Foe {
     int knock_under = 0x40;                   // MonProp knock lands on a draw's low 7 bits under it (FUN_005bf960)
     int crush_divisor = 10;                   // MonProp crush's life divisor, before a missile's doubling (FUN_005bffc0)
     int hits = 0;                             // hits that landed this frame (each wears its armour)
-    int shot_class = 0;                       // a missile's that landed this frame: its Missiles.txt HitClass
+    int shot_class = 0;                       // the Missiles.txt HitClass of the missile that landed this frame
     bool running = false;                     // the player in RN: always hit by a swing, block a third
     [[nodiscard]] d2d::rules::Motion motion() const { return running ? d2d::rules::Motion::running : moving ? d2d::rules::Motion::walking : d2d::rules::Motion::standing; }
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame

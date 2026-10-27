@@ -60,8 +60,9 @@ A swing plays hit or miss.
 - **Kick** (KK, in FUN_004cc5b0): 255 weapon_kick on the player, an
   Assassin's 4 ticks on (FUN_004b9a00's delay), any other class's at once.
 
-d2d: `sound_ids::block` / `kKick`, `Fight::set_pmode`; `Hero::shown_class`
-keeps the class the last GH played.
+d2d: `sound_ids::block` / `kKick` / `kKickDelayMs`, `Fight::set_pmode`;
+`Hero::shown_class` keeps the class the last GH played (none again in a new
+game, `Fight::new_game`).
 
 ## Struck, FUN_004cc410 → FUN_004ca560
 

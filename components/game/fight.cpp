@@ -150,6 +150,7 @@ auto Fight::new_game(int difficulty) -> void {
         actor->pets.clear();
         actor->attack_mon = -1;
         actor->pmode = -1;
+        actor->struck_class = actor->shown_class = 0;   // a new game's unit: no hit class yet
     }
 
 auto Fight::merc_joins() -> void {
@@ -428,7 +429,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->prate = len ? float(anim.length_ms()) / float(len) : 1.f;
         actor->pmode_until = mode == kModeDD ? 0 : now_ms + len;
         // Struck or dying (FUN_004cc410's player branch): the hit's impact, then the class's own cry.
-        // ponytail: FUN_004b9e90's check before the GH cry isn't traced; a missile's hit class isn't kept.
+        // ponytail: FUN_004b9e90's check before the GH cry isn't traced.
         if (mode == kModeGH || mode == kModeDT) {
             const auto impact = d2d::rules::sound_ids::impact(actor->struck_class, mode == kModeDT);
             cues.cue(impact.impact, now_ms, actor->player.x, actor->player.y);
@@ -447,7 +448,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             cues.cue(d2d::rules::sound_ids::block(actor->shown_class), now_ms, actor->player.x, actor->player.y);
         // A kick (FUN_004cc5b0's KK): weapon_kick, an Assassin's 4 ticks on.
         if (mode == kModeKK)
-            cues.cue(d2d::rules::sound_ids::kKick, now_ms + (actor->character.character_class == d2d::d2s::kAssassin ? 4 * 40 : 0), actor->player.x, actor->player.y);
+            cues.cue(d2d::rules::sound_ids::kKick, now_ms + (actor->character.character_class == d2d::d2s::kAssassin ? d2d::rules::sound_ids::kKickDelayMs : 0u), actor->player.x, actor->player.y);
         // A skill starting (FUN_004c6140): its stsound (its ItemCastSound from an item), the
         // weapon's swing for weaponsnd, and the class's own stsoundclass; stsounddelay holds
         // them back the swing's frames less 3 ticks (FUN_004ca500).

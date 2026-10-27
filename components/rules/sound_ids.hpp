@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdlib>
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 
 namespace d2d::rules::sound_ids {
@@ -157,5 +158,6 @@ inline int block(int hit_class) {
 }
 // A player's kick (KK, FUN_004cc5b0): weapon_kick, an Assassin's 4 ticks on.
 inline constexpr int kKick = 255;
+inline constexpr std::uint32_t kKickDelayMs = 4 * 40;   // FUN_004b9a00's delay, 4 ticks
 
 }  // namespace d2d::rules::sound_ids

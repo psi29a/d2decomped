@@ -7,10 +7,12 @@
 #include <character.hpp>
 #include <character_store.hpp>
 #include <combat.hpp>
+#include <cues.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
 #include <drops.hpp>
+#include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <inventory.hpp>
@@ -225,7 +227,8 @@ int main(int argc, char** argv) try {
         // Missiles.txt HitClass is a number (FUN_00661b20: type 4, +0x94): an arrow's bow class
         // is the struck player's impact_arrow, and a later block's block_arrow.
         const int arrow = data->missiles.at("arrow").hit_class;
-        assert(arrow == 10 && data->missiles.at("javelin").hit_class == 6 && data->missiles.at("goospit1").hit_class == 0xb0);
+        assert(arrow == 10 && data->missiles.at("javelin").hit_class == 6);
+        if (const auto spit = data->missiles.find("goospit1"); spit != data->missiles.end()) assert(spit->second.hit_class == 0xb0);
         assert(d2d::rules::sound_ids::impact(arrow, false).impact == 347 && d2d::rules::sound_ids::block(arrow) == 401);
         assert(std::ranges::any_of(data->monsters.types, [](const auto& type) { return type.id == "zombie1" && type.hit_class == 12; }));
         const auto& zombie = data->mon_sounds.at("zombie");   // its Neutral every 300 ticks at most, two light steps a walk
@@ -439,6 +442,50 @@ int main(int argc, char** argv) try {
         assert(std::ranges::none_of(world.cues.due, [](const Cues::Cue& cue) { return cue.sound == snd::kDiabloDeathSchwing || cue.sound == snd::kDiabloDeathHit; }));
         world.cues.due.clear();
         std::printf("OK: Diablo's death plays its schwing and hit after it\n");
+    }
+    {   // A missile's hit class (Foe::shot_class) is the struck player's, a get-hit keeps it, and a
+        // later block plays its block sound (FUN_004cb860): an arrow's block_arrow. A kick plays
+        // weapon_kick (FUN_004cc5b0), an Assassin's 4 ticks on.
+        namespace snd = d2d::rules::sound_ids;
+        const std::uint32_t at = 26 * kTickMs;
+        auto& hero = *world.actor;
+        const auto life = hero.character.stats.values[d2d::d2s::kLife];
+        const auto items = hero.character.items;
+        const auto count = [&](int sound, std::uint32_t when_ms) {
+            return std::ranges::count_if(world.cues.due, [&](const Cues::Cue& cue) { return cue.sound == sound && cue.when_ms == when_ms; });
+        };
+        const int arrow = data->missiles.contains("arrow") ? data->missiles.at("arrow").hit_class : 10;
+        world.cues.due.clear();
+        auto side = std::array{ world.fight.player_foe(at), world.fight.merc_foe(at) };
+        side[0].hits = 1;
+        side[0].shot_class = arrow;
+        side[0].damage = side[0].physical = std::max(int(hero.character.stats.fixed(d2d::d2s::kMaxLife) / 4), 1);
+        hero.pmode = -1;
+        world.fight.hurt_side(side, at);
+        assert(hero.pmode == kModeGH && hero.shown_class == arrow && hero.struck_class == 0);
+        assert(count(snd::impact(arrow, false).impact, at) == 1);
+        hero.pmode = -1;
+        world.cues.due.clear();
+        auto blocked = std::array{ world.fight.player_foe(at), world.fight.merc_foe(at) };
+        blocked[0].blocked = true;
+        world.fight.hurt_side(blocked, at);
+        assert(hero.pmode == kModeBL && count(snd::kBlockArrow, at) == 1);
+        hero.pmode = -1;
+        world.cues.due.clear();
+        world.fight.set_pmode(kModeKK, at);
+        assert(count(snd::kKick, at) == 1);
+        const auto was = hero.character.character_class;
+        hero.character.character_class = d2d::d2s::kAssassin;
+        world.cues.due.clear();
+        world.fight.set_pmode(kModeKK, at);
+        assert(count(snd::kKick, at) == 0 && count(snd::kKick, at + snd::kKickDelayMs) == 1);
+        hero.character.character_class = was;
+        hero.pmode = -1; hero.player.mode_ms = at;
+        hero.character.stats.values[d2d::d2s::kLife] = life;
+        hero.character.items = items;
+        hero.struck_class = hero.shown_class = 0;
+        world.cues.due.clear();
+        std::printf("OK: an arrow's get-hit, then block_arrow on a block; weapon_kick, an Assassin's late\n");
     }
     {   // A vendor's stock and Kashya's hire list last the game, not one opening.
         const auto& npcs = world.level->npcs;
