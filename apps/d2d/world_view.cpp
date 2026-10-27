@@ -10,6 +10,7 @@
 #include <dc6.hpp>
 #include <dt1.hpp>
 #include <palette.hpp>
+#include <room_tiles.hpp>
 #include <weather.hpp>
 
 #include <algorithm>
@@ -113,32 +114,32 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
     // (the right one with game.exe's odd pick: C, not D), top-left,
     // top-right, bottom-right, bottom-left of the block; each row runs down
     // the left and right edges (FUN_004f8850), then across through the ramp
-    // table 0x7ca320 (floor(L + (R - L) * u / 32)).
+    // table 0x7ca320 (floor(L + (R - L) * u / 32)); A..D are entries 9, 10, 17, 18.
     struct Block { bool flat; int level, v0, v1, v2, v3; };
     std::array<Block, 25> blocks{};
     auto entry = [&](int row, int col) { return table[std::size_t(row * 8 + col)]; };
-    for (int by = 0; by < 5; ++by)
-        for (int bx = 0; bx < 5; ++bx) {
-            const int a = entry(by + 1, bx + 1), b = entry(by + 1, bx + 2), c = entry(by + 2, bx + 1), d = entry(by + 2, bx + 2);
-            auto& block = blocks[std::size_t(by * 5 + bx)];
-            block.flat = std::abs(b - a) + std::abs(c - a) + std::abs(d - b) < 10;
-            block.level = a >> 3;
-            block.v0 = (c + entry(by + 2, bx) + a + entry(by + 1, bx)) >> 2;
-            block.v1 = (entry(by, bx + 1) + entry(by, bx + 2) + b + a) >> 2;
-            block.v2 = (entry(by + 2, bx + 3) + c + entry(by + 1, bx + 3) + b) >> 2;
-            block.v3 = (entry(by + 3, bx + 1) + entry(by + 3, bx + 2) + d + c) >> 2;
+    for (int block_y = 0; block_y < 5; ++block_y)
+        for (int block_x = 0; block_x < 5; ++block_x) {
+            const int ent_a = entry(block_y + 1, block_x + 1), ent_b = entry(block_y + 1, block_x + 2), ent_c = entry(block_y + 2, block_x + 1), ent_d = entry(block_y + 2, block_x + 2);
+            auto& block = blocks[std::size_t(block_y * 5 + block_x)];
+            block.flat = std::abs(ent_b - ent_a) + std::abs(ent_c - ent_a) + std::abs(ent_d - ent_b) < 10;
+            block.level = ent_a >> 3;
+            block.v0 = (ent_c + entry(block_y + 2, block_x) + ent_a + entry(block_y + 1, block_x)) >> 2;
+            block.v1 = (entry(block_y, block_x + 1) + entry(block_y, block_x + 2) + ent_b + ent_a) >> 2;
+            block.v2 = (entry(block_y + 2, block_x + 3) + ent_c + entry(block_y + 1, block_x + 3) + ent_b) >> 2;
+            block.v3 = (entry(block_y + 3, block_x + 1) + entry(block_y + 3, block_x + 2) + ent_d + ent_c) >> 2;
         }
     auto level = [&](int offset_x, int offset_y) {
         // The subtile under the pixel (its diamond's block), then where in
         // the block's rectangle it lies. Tall floors' and roofs' pixels past
         // the 5 x 5 take the nearest block.
-        const int bx = std::clamp(int(std::floor((float(offset_x) / 16.f + float(offset_y) / 8.f) / 2.f)), 0, 4);
-        const int by = std::clamp(int(std::floor((float(offset_y) / 8.f - float(offset_x) / 16.f) / 2.f)), 0, 4);
-        const auto& block = blocks[std::size_t(by * 5 + bx)];
+        const int block_x = std::clamp(int(std::floor((float(offset_x) / 16.f + float(offset_y) / 8.f) / 2.f)), 0, 4);
+        const int block_y = std::clamp(int(std::floor((float(offset_y) / 8.f - float(offset_x) / 16.f) / 2.f)), 0, 4);
+        const auto& block = blocks[std::size_t(block_y * 5 + block_x)];
         if (block.flat) return std::size_t(block.level);
-        const int u = std::clamp(offset_x - ((bx - by) * 16 - 16), 0, 31), r = std::clamp(offset_y - (bx + by) * 8, 0, 15);
-        const int left = (block.v0 * 16 + (block.v3 - block.v0) * r) >> 7, right = (block.v1 * 16 + (block.v2 - block.v1) * r) >> 7;
-        const int step = (right - left) * u;
+        const int along = std::clamp(offset_x - ((block_x - block_y) * 16 - 16), 0, 31), row_in = std::clamp(offset_y - (block_x + block_y) * 8, 0, 15);
+        const int left = (block.v0 * 16 + (block.v3 - block.v0) * row_in) >> 7, right = (block.v1 * 16 + (block.v2 - block.v1) * row_in) >> 7;
+        const int step = (right - left) * along;
         return std::size_t(std::clamp(left + (step >= 0 ? step / 32 : -((-step + 31) / 32)), 0, 31));
     };
     const int tile_height = std::abs(tile.height);
