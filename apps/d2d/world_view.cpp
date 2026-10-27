@@ -474,9 +474,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         static std::uint16_t id = 0;
         for (const auto& unit : units) {
             if (!unit.anim || !unit.shadow) continue;
-            // An object's shadow leans from game.exe's position, half a
-            // subtile before its cell's (measured live: the Lut Gholein braziers).
-            const float back = unit.object ? 0.1f : 0.f;
+            const float back = unit.object ? 0.1f : 0.f;      // game.exe's position, as the unit's draw
             const auto [anchor_x, anchor_y] = iso_point(unit.x - back, unit.y - back);
             if (anchor_x < -200 || anchor_x > screen_w + 200 || anchor_y < -100 || anchor_y > int(kScreenHeight) + 300) continue;
             if (++id == 0) { std::ranges::fill(mask, std::uint16_t{ 0 }); id = 1; }
@@ -514,7 +512,10 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     auto draw_units_through = [&](int diag) {
         for (; next_unit < order.size() && diag_of(order[next_unit]) <= diag; ++next_unit) {
             const Unit& unit = *order[next_unit];
-            const auto [anchor_x, anchor_y] = iso_point(unit.x, unit.y);
+            // An object stands at game.exe's position, half a subtile before
+            // its cell's (measured live: Lut Gholein's waypoint flames and braziers).
+            const float back = unit.object ? 0.1f : 0.f;
+            const auto [anchor_x, anchor_y] = iso_point(unit.x - back, unit.y - back);
             // Bright-alpha (draw mode 7): the unit under the cursor
             // (FUN_00467a10 -> FUN_00471ec0) and a Ghostly champion
             // (umod 36, FUN_005a1080). Its light doubles, clamped

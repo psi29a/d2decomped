@@ -162,7 +162,7 @@ struct Unit {
     int overlay_class = 0;               // Overlay.txt's Height: FUN_006223a0 (players 1, monsters OverlayHeight - 1)
     std::uint16_t says = 0;              // string id over its head (UnitState::says)
     bool shadow = true;                  // a composite casts one, objects too, where its COF layers say (FUN_004dc710 marks every object drawn; FUN_00471620)
-    bool object = false;                 // an object: its cell holds half a subtile past game.exe's position (its shadow starts there)
+    bool object = false;                 // an object: its cell holds half a subtile past game.exe's position, where it's drawn
     bool spirit = false;                 // local co-op's ghost: pale, half see-through, no shadow (docs/design/local-coop.md)
     std::optional<int> name_offset;      // an object's hover name sits this far over its feet, not over its frame (Npc::name_offset)
 };

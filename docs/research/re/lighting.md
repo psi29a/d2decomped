@@ -186,8 +186,9 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   `FUN_004dc710` marks every object drawn (unit +0xc8 bit 0x80), and
   `FUN_004dd7c0` lists each such unit for the shadow pass (`FUN_004dd6e0`
   → `FUN_00471620`); the COF's layers say which parts do (Lut Gholein's
-  braziers, read live). An object's shadow leans from its position, half
-  a subtile before d2d's object cell.
+  braziers, read live). An object is drawn, and its shadow leans, from
+  its position: half a subtile before d2d's object cell, which holds the
+  light's spot (measured live: the braziers and the waypoint's flames).
 
 ## d2d
 
