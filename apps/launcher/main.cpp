@@ -35,6 +35,7 @@
 #include <QProgressBar>
 #include <QPainter>
 #include <QPixmap>
+#include <QPointer>
 #include <QPushButton>
 #include <QSettings>
 #include <QStyle>
@@ -536,6 +537,10 @@ public:
 #endif
         connect(addToSteam_, &QPushButton::clicked, this, &MainWindow::addToSteam);
 
+        verify_ = new QPushButton(tr("Verify files..."), this);
+        verify_->setToolTip(tr("Reads every file in the game's MPQs to check the install isn't damaged."));
+        connect(verify_, &QPushButton::clicked, this, &MainWindow::verifyFiles);
+
         // d2d.cfg's `fullscreen`, the same key d2d's Alt+Enter writes.
         fullscreen_ = cfgCheckBox(tr("Fullscreen"), "fullscreen", "1", "0");
         fullscreen_->setToolTip(tr("Borderless fullscreen (Alt+Enter switches in game)"));
@@ -629,6 +634,7 @@ public:
         auto* btnRow = new QHBoxLayout;
         btnRow->addWidget(fetchBins_);
         btnRow->addWidget(addToSteam_);
+        btnRow->addWidget(verify_);
         btnRow->addStretch();
         btnRow->addWidget(launch_);
         layout->addLayout(btnRow);
@@ -657,7 +663,11 @@ public:
 
     // A scan still running posts to us: wait so it never outlives `this`
     // (Qt drops the queued call once we're gone).
-    ~MainWindow() override { QThreadPool::globalInstance()->waitForDone(); saveSettings(); }
+    ~MainWindow() override {
+        if (verify_cancel_) *verify_cancel_ = true;   // a verify of every MPQ takes a while
+        QThreadPool::globalInstance()->waitForDone();
+        saveSettings();
+    }
 
     // Steam's Gaming Mode / Big Picture: no keyboard, and Steam ends the
     // session when the process it started exits. Usable data → straight
@@ -828,6 +838,77 @@ private:
     // Writes our entry into every Steam account's shortcuts.vdf and the art
     // into its grid/. A running Steam keeps its own copy and saves it over
     // ours, so it has to be closed first.
+    // Every MPQ d2d reads, plus the patch layer, read file by file
+    // (mpq::verify). The report names what's damaged and the StormLib that
+    // read it: damage in one archive is the data, every file failing is
+    // the StormLib.
+    void verifyFiles() {
+        const auto install = classify_dir(path_);
+        if (!install) return;
+        std::vector<std::filesystem::path> archives;
+        for (const char* name : { "d2data.mpq", "d2exp.mpq", "d2char.mpq", "d2sfx.mpq", "d2speech.mpq", "d2music.mpq",
+                                  "d2video.mpq", "d2xtalk.mpq", "d2xmusic.mpq", "d2xvideo.mpq" })
+            if (const auto mpq = d2d::install::find_file(install->dir, name)) archives.push_back(*mpq);
+        if (!install->patch_mpq.empty()) archives.push_back(install->patch_mpq);
+        if (QFileInfo::exists(patch_path_) && to_path(patch_path_) != install->patch_mpq) archives.push_back(to_path(patch_path_));
+        std::uint64_t total = 0;
+        for (const auto& path : archives) {
+            std::error_code error;
+            const auto size = std::filesystem::file_size(path, error);
+            if (!error) total += size;
+        }
+
+        auto* dialog = new QProgressDialog(tr("Verifying..."), tr("Cancel"), 0, 1000, this);
+        dialog->setWindowTitle(tr("Verify files"));
+        dialog->setWindowModality(Qt::WindowModal);
+        dialog->setMinimumDuration(0);
+        dialog->setAutoClose(false);
+        dialog->setAutoReset(false);
+        auto cancel = std::make_shared<std::atomic<bool>>(false);
+        verify_cancel_ = cancel;
+        connect(dialog, &QProgressDialog::canceled, this, [cancel, dialog] { *cancel = true; dialog->deleteLater(); });
+        const QPointer<QProgressDialog> guard(dialog);
+        QThreadPool::globalInstance()->start([this, archives, total, cancel, guard] {
+            QString report = tr("StormLib %1\n").arg(STORMLIB_VERSION_STRING);
+            QStringList damaged;
+            std::uint64_t done = 0;
+            int shown = -1;
+            for (const auto& path : archives) {
+                const QString name = from_path(path.filename());
+                QMetaObject::invokeMethod(this, [guard, name] { if (guard) guard->setLabelText(tr("Verifying %1...").arg(name)); },
+                                          Qt::QueuedConnection);
+                try {
+                    const auto result = d2d::mpq::verify(path, [&](std::uint64_t packed) {
+                        done += packed;
+                        const int permille = total ? int(std::min<std::uint64_t>(done * 1000 / total, 1000)) : 0;
+                        if (permille != std::exchange(shown, permille))
+                            QMetaObject::invokeMethod(this, [guard, permille] { if (guard) guard->setValue(permille); },
+                                                      Qt::QueuedConnection);
+                        return !cancel->load();
+                    });
+                    if (result.damaged.empty()) report += tr("%1: %2 files OK\n").arg(name).arg(result.files);
+                    else report += tr("%1: %2 of %3 files damaged\n").arg(name).arg(result.damaged.size()).arg(result.files);
+                    for (const auto& file : result.damaged) damaged << name + ": " + QString::fromStdString(file);
+                } catch (const std::exception& error) {
+                    report += tr("%1: won't open (%2)\n").arg(name, QString::fromUtf8(error.what()));
+                    damaged << name;
+                }
+                if (cancel->load()) return;
+            }
+            QMetaObject::invokeMethod(this, [this, guard, report, damaged] {
+                delete guard;   // now: deleteLater waits out the report's exec()
+                QMessageBox box(damaged.isEmpty() ? QMessageBox::Information : QMessageBox::Warning, tr("Verify files"),
+                                damaged.isEmpty() ? tr("The game files are intact.")
+                                                  : tr("Some game files are damaged. Copy those MPQs again from the CDs or installer."),
+                                QMessageBox::Ok, this);
+                box.setInformativeText(report.trimmed());
+                if (!damaged.isEmpty()) box.setDetailedText(damaged.join('\n'));
+                box.setTextInteractionFlags(Qt::TextSelectableByMouse);
+                box.exec();
+            }, Qt::QueuedConnection);
+        });
+    }
+
     void addToSteam() {
         if (QMessageBox::question(this, tr("Add to Steam"),
                 tr("Close Steam first (Steam → Exit): a running Steam would undo this when it quits.\n\n"
@@ -924,6 +1005,7 @@ private:
         // Launch needs the d2d binary and game data d2d can use.
         const QString engine = engineBinaryPath();
         launch_->setEnabled(ok && !engine.isEmpty());
+        verify_->setEnabled(install.has_value());
         launch_->setToolTip(
             !ok              ? tr("Install the game first.")
           : engine.isEmpty() ? tr("d2d not found beside the launcher.")
@@ -1086,6 +1168,8 @@ private:
     QPushButton* install_{};
     QPushButton* fetchBins_{};
     QPushButton* addToSteam_{};
+    QPushButton* verify_{};
+    std::shared_ptr<std::atomic<bool>> verify_cancel_;   // the running verify's Cancel
     QPushButton* launch_{};
     QCheckBox* fullscreen_{};
     QCheckBox* widescreen_{};

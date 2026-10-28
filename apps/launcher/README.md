@@ -38,6 +38,7 @@ Pick your Diablo II install from the list, then press **Launch**.
 | "No Diablo II install found" | **Search more places...**, or **Add folder...** at the folder with `d2data.mpq`, or install from the ISOs |
 | "Can't use this install" | Usually an old version: use **Fix: use LODPatch_114d.exe...** |
 | "Download failed" | Download LODPatch_114d.exe yourself, then use the Fix button |
+| Missing or stuttering sounds, "MPQ read failed" in the log | **Verify files...**: reads every file of every MPQ and names the damaged ones. Copy those MPQs again. When everything fails, the cause is the StormLib it names, not your files |
 | "d2d not found beside the launcher." | Build d2d too (`cmake --build build`); the two must sit side by side |
 
 Your install is read in place and never changed.

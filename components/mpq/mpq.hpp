@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -195,6 +196,41 @@ private:
     HANDLE handle_ = nullptr;
     std::unordered_map<std::string, std::string> remap_;   // installer only
 };
+
+// Every file in the archive at `path` read through, decompressed, and
+// checked against its sector CRCs / (attributes) CRC32 and MD5 where the
+// archive has them (SFileVerifyFile; of D2's, only d2exp, d2xtalk and
+// d2xmusic carry (attributes), CRC32s only). Names unknown to the archive's
+// listfile (d2video.mpq has none) come back as StormLib's File00000000.xxx.
+// `progress` gets each file's packed size; false from it stops early.
+// Throws when the archive won't open.
+struct Verified {
+    std::size_t files = 0;
+    std::vector<std::string> damaged;
+};
+[[nodiscard]] inline Verified verify(const std::filesystem::path& path,
+                                     const std::function<bool(std::uint64_t)>& progress) {
+    HANDLE archive{};
+    if (!SFileOpenArchive(path.string<TCHAR>().c_str(), 0, MPQ_OPEN_READ_ONLY | STREAM_FLAG_READ_ONLY, &archive))
+        throw std::runtime_error("MPQ open failed: " + path.string());
+    Verified result;
+    SFILE_FIND_DATA found{};
+    HANDLE find = SFileFindFirstFile(archive, "*", &found, nullptr);
+    for (bool more = find != nullptr; more; more = SFileFindNextFile(find, &found)) {
+        const std::string_view name = found.cFileName;
+        if (name == "(listfile)" || name == "(attributes)" || name == "(signature)") continue;
+        ++result.files;
+        // LoD's (attributes) CRC32s for WAVs are of the WAV before its lossy
+        // ADPCM packing, so they never match (bugs.md); the read still counts.
+        const DWORD ignore = name.ends_with(".wav") || name.ends_with(".WAV") ? VERIFY_FILE_CHECKSUM_ERROR : 0;
+        if (SFileVerifyFile(archive, found.cFileName, SFILE_VERIFY_ALL) & VERIFY_FILE_ERROR_MASK & ~ignore)
+            result.damaged.emplace_back(name);
+        if (!progress(found.dwCompSize)) break;
+    }
+    if (find) SFileFindClose(find);
+    SFileCloseArchive(archive);
+    return result;
+}
 
 class Stack {
 public:

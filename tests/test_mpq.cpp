@@ -9,11 +9,14 @@
 #include <mpq.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <fstream>
+#include <ios>
 #include <string>
 #include <utility>
 
@@ -96,6 +99,26 @@ int main() try {
         std::printf("installer layer OK\n");
     } else {
         std::printf("SKIP installer: %s not found\n", inst.string().c_str());
+    }
+
+    // verify: every file of an intact archive reads; junk written over a
+    // copy's middle shows up as damaged files.
+    if (const auto sfx = dir / "d2sfx.mpq"; fs::exists(sfx)) {
+        const auto keep_going = [](std::uint64_t) { return true; };
+        const auto intact = verify(sfx, keep_going);
+        assert(intact.files > 2000 && intact.damaged.empty());
+        const auto copy = fs::temp_directory_path() / "test_mpq_damaged.mpq";
+        fs::copy_file(sfx, copy, fs::copy_options::overwrite_existing);
+        {
+            std::fstream file(copy, std::ios::in | std::ios::out | std::ios::binary);
+            file.seekp(std::streamoff(fs::file_size(copy) / 2));
+            const std::string junk(1 << 16, '\xff');
+            file.write(junk.data(), std::streamsize(junk.size()));
+        }
+        const auto damaged = verify(copy, keep_going);
+        fs::remove(copy);
+        assert(damaged.files == intact.files && !damaged.damaged.empty());
+        std::printf("verify: %zu files, %zu damaged in the junked copy\n", intact.files, damaged.damaged.size());
     }
 
     std::printf("OK\n");
