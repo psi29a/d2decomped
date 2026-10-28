@@ -6,6 +6,7 @@
 // D2_MPQ_DIR must contain at least d2char.mpq; d2data.mpq is a bonus that
 // exercises the Stack. QSettings-picked default lets the plain developer
 // setup ("run the launcher, install, run this") work with zero env fuss.
+#include <log.hpp>
 #include <mpq.hpp>
 
 #include <cassert>
@@ -18,6 +19,7 @@
 #include <fstream>
 #include <ios>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace fs = std::filesystem;
@@ -116,8 +118,19 @@ int main() try {
             file.write(junk.data(), std::streamsize(junk.size()));
         }
         const auto damaged = verify(copy, keep_going);
-        fs::remove(copy);
         assert(damaged.files == intact.files && !damaged.damaged.empty());
+        // A Stack reads a damaged file as missing, with one warning however
+        // often it's asked for (a looping sound asks every play).
+        {
+            static int warnings = 0;
+            d2d::log::set_sink([](d2d::log::Level, std::string_view) { ++warnings; });
+            Stack mpqs;
+            mpqs.push(copy);
+            assert(!mpqs.try_read(damaged.damaged.front()) && !mpqs.try_read(damaged.damaged.front()));
+            assert(warnings == 1);
+            d2d::log::set_sink(nullptr);
+        }
+        fs::remove(copy);
         std::printf("verify: %zu files, %zu damaged in the junked copy\n", intact.files, damaged.damaged.size());
     }
 

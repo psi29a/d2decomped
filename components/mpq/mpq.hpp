@@ -15,6 +15,8 @@
 
 #include "bnpatch.hpp"
 
+#include <log.hpp>
+
 #include <StormLib.h>
 #include <StormPort.h>
 
@@ -29,6 +31,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -170,7 +173,6 @@ public:
         return File(file);
     }
 
-private:
     // Case/slash-insensitive lookup key, like MPQ name hashing.
     static std::string key(std::string_view name) {
         std::string normalised(name);
@@ -178,6 +180,7 @@ private:
         return normalised;
     }
 
+private:
     [[nodiscard]] std::optional<std::vector<std::byte>>
     read_raw(std::string_view name) const {
         const std::string namez(name);
@@ -258,7 +261,7 @@ public:
 
     [[nodiscard]] std::vector<std::byte> read(std::string_view name) const {
         auto data = try_read(name);
-        if (!data) throw std::runtime_error("MPQ stack: file not found: "
+        if (!data) throw std::runtime_error((failed_.contains(Archive::key(name)) ? "MPQ read failed: " : "MPQ stack: file not found: ")
                                             + std::string(name));
         return std::move(*data);
     }
@@ -266,8 +269,33 @@ public:
     // First archive that has the file wins. An installer's delta entry is
     // applied to the file from the archives below it; when that base
     // doesn't match (CRC/size), the lookup falls through to the base.
+    // A file that's there but won't read (a damaged MPQ) is logged once and
+    // from then on is missing: no retry each time a sound or frame wants it.
     [[nodiscard]] std::optional<std::vector<std::byte>>
     try_read(std::string_view name) const {
+        if (failed_.contains(Archive::key(name))) return std::nullopt;
+        try {
+            return find(name);
+        } catch (const std::exception& error) {
+            failed_.insert(Archive::key(name));
+            d2d::log::warn("{}. A damaged MPQ? Run Verify files in the launcher. Not read again this run.", error.what());
+            return std::nullopt;
+        }
+    }
+
+    // There but unreadable: try_read logged it already.
+    [[nodiscard]] bool failed(std::string_view name) const { return failed_.contains(Archive::key(name)); }
+
+    // First plain archive that has the file, for streaming.
+    [[nodiscard]] std::optional<File> open(std::string_view name) const {
+        for (const auto& archive : archives_)
+            if (auto file = archive.open(name)) return file;
+        return std::nullopt;
+    }
+
+private:
+    [[nodiscard]] std::optional<std::vector<std::byte>>
+    find(std::string_view name) const {
         for (std::size_t i = 0; i < archives_.size(); ++i) {
             const auto& archive = archives_[i];
             if (auto data = archive.try_read(name)) return data;
@@ -283,16 +311,11 @@ public:
         return std::nullopt;
     }
 
-    // First plain archive that has the file, for streaming.
-    [[nodiscard]] std::optional<File> open(std::string_view name) const {
-        for (const auto& archive : archives_)
-            if (auto file = archive.open(name)) return file;
-        return std::nullopt;
-    }
-
-private:
     std::vector<Archive> archives_;
     std::vector<std::pair<std::filesystem::path, bool>> sources_;   // what was pushed: path, installer
+    // Keys of files that failed to read. Mutable from const reads: a Stack
+    // is one thread's, like its StormLib handles (reopen for another).
+    mutable std::unordered_set<std::string> failed_;
 };
 
 }  // namespace d2d::mpq

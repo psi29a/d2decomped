@@ -73,6 +73,6 @@ else()
 endif()
 
 add_library(mpq INTERFACE)
-target_link_libraries(mpq INTERFACE storm)
+target_link_libraries(mpq INTERFACE storm log)
 target_include_directories(mpq INTERFACE ${CMAKE_CURRENT_SOURCE_DIR} ${STORMLIB_INCLUDE_DIR})
 target_compile_features(mpq INTERFACE cxx_std_${CMAKE_CXX_STANDARD})

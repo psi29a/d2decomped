@@ -3,7 +3,8 @@
 // (ISO 8601, ms), goes to stdout (warnings and errors to stderr) and to
 // the log file once one is open. Init sections read like ../thirdeye's
 // ("Initializing X...", details indented under it). Five levels, error
-// .. trace; lines below the level (info by default) are dropped.
+// .. trace; lines below the level (info by default) are dropped. On a
+// terminal the [ERROR] / [WARNING] tag is red; the file gets plain text.
 #pragma once
 
 #include <atomic>
@@ -19,6 +20,10 @@
 #include <string>
 #include <string_view>
 #include <utility>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 namespace d2d::log {
 
@@ -58,13 +63,28 @@ inline void open(const std::filesystem::path& path, bool append = false) {
     if (!g_file) std::fprintf(stderr, "Failed to open log file %s\n", path.string().c_str());
 }
 
-inline void write(Level level, const char* tag, const std::string& msg) {
+// ponytail: plain on Windows (no VT mode is turned on there); add
+// SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING) when a console wants red.
+inline bool is_terminal(std::FILE* out) {
+#ifdef _WIN32
+    (void)out;
+    return false;
+#else
+    return isatty(fileno(out)) != 0;
+#endif
+}
+
+inline void write(Level level, std::string_view tag, const std::string& msg) {
     if (!enabled(level)) return;
-    const auto line = std::format("{:%FT%TZ} {}{}\n", std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now()), tag, msg);
+    const auto stamp = std::format("{:%FT%TZ} ", std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now()));
+    const auto line = stamp + (tag.empty() ? "" : std::string(tag) + " ") + msg + "\n";
     {
         std::lock_guard lock(g_mutex);
         std::FILE* out = level <= Level::warning ? stderr : stdout;
-        std::fputs(line.c_str(), out);
+        if (level <= Level::warning && is_terminal(out))
+            std::fputs(std::format("{}\x1b[31m{}\x1b[0m {}\n", stamp, tag, msg).c_str(), out);
+        else
+            std::fputs(line.c_str(), out);
         std::fflush(out);
         if (g_file) g_file << line << std::flush;
     }
@@ -73,19 +93,19 @@ inline void write(Level level, const char* tag, const std::string& msg) {
 }
 
 template <class... A> void error(std::format_string<A...> format, A&&... args) {
-    write(Level::error, "error: ", std::format(format, std::forward<A>(args)...));
+    write(Level::error, "[ERROR]", std::format(format, std::forward<A>(args)...));
 }
 template <class... A> void warn(std::format_string<A...> format, A&&... args) {
-    write(Level::warning, "warning: ", std::format(format, std::forward<A>(args)...));
+    write(Level::warning, "[WARNING]", std::format(format, std::forward<A>(args)...));
 }
 template <class... A> void info(std::format_string<A...> format, A&&... args) {
     write(Level::info, "", std::format(format, std::forward<A>(args)...));
 }
 template <class... A> void debug(std::format_string<A...> format, A&&... args) {
-    if (enabled(Level::debug)) write(Level::debug, "debug: ", std::format(format, std::forward<A>(args)...));
+    if (enabled(Level::debug)) write(Level::debug, "[DEBUG]", std::format(format, std::forward<A>(args)...));
 }
 template <class... A> void trace(std::format_string<A...> format, A&&... args) {
-    if (enabled(Level::trace)) write(Level::trace, "trace: ", std::format(format, std::forward<A>(args)...));
+    if (enabled(Level::trace)) write(Level::trace, "[TRACE]", std::format(format, std::forward<A>(args)...));
 }
 
 }  // namespace d2d::log

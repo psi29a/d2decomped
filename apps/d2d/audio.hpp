@@ -23,6 +23,7 @@
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -79,6 +80,7 @@ struct Audio {
     std::uint64_t music_fade_in_ms = 0;          // for the song being decoded
     d2d::mpq::Stack music_mpqs;                  // music archives aren't part of GameData::mpqs
     std::filesystem::path music_mpqs_dir;
+    std::unordered_set<int> unplayable;          // Sounds.txt rows that didn't read or decode: logged once, not tried again
     int voice_sound() const { return voice.sound; }
     // The game menu's sliders, 0..100 ("Master Volume" 0x8817b0, "Music
     // Volume" 0x8817b4): 0x4dfc84 scales a sound's volume by music / 100
@@ -185,7 +187,11 @@ struct Audio {
     }
     bool start(Channel& channel, std::span<const std::byte> wav, float gain, bool loop, int index) {
         const auto decoded = decode(wav);
-        if (!decoded) { d2d::log::warn("sound {}: {}", index, SDL_GetError()); return false; }
+        if (!decoded) {
+            d2d::log::warn("sound {}: {}", index, SDL_GetError());
+            if (index > 0) unplayable.insert(index);
+            return false;
+        }
         return start(channel, *decoded, gain, loop, index);
     }
     // A sound not placed in the world (the UI's, the level's ambient events)
@@ -281,6 +287,7 @@ struct Audio {
     }
     std::optional<std::vector<std::byte>> read_wav(const GameData& game_data, const GameData::Sound& snd, int index) {
         std::optional<std::vector<std::byte>> wav;
+        if (unplayable.contains(index)) return wav;
         // One there that won't read (a cut-short MPQ) goes unheard.
         try {
             if (snd.music) wav = game_data.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
@@ -300,9 +307,14 @@ struct Audio {
                 if (!wav) wav = game_data.mpqs.try_read(std::string(root) + snd.file);
         } catch (const std::exception& error) {
             d2d::log::warn("sound {}: {}", index, error.what());
+            unplayable.insert(index);
             return std::nullopt;
         }
-        if (!wav) d2d::log::warn("sound {}: {} not found", index, snd.file);
+        if (!wav) {
+            if (!game_data.mpqs.failed(std::string(R"(data\global\sfx\)") + snd.file))   // else logged as unreadable
+                d2d::log::warn("sound {}: {} not found", index, snd.file);
+            unplayable.insert(index);
+        }
         return wav;
     }
     void play(Channel& channel, const GameData& game_data, int index) {
@@ -321,7 +333,7 @@ struct Audio {
     }
     // A free world channel (else the oldest), the sound started in it at `mix`.
     Channel* play_mixed(const GameData& game_data, const GameData::Sound& snd, int index, const d2d::rules::SoundMix& mix) {
-        if (!ok || !mix.audible || mix.volume <= 0) return nullptr;
+        if (!ok || !mix.audible || mix.volume <= 0 || unplayable.contains(index)) return nullptr;
         const auto done = [](const Channel& channel) {
             ALint state = AL_STOPPED;
             if (channel.src) alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
@@ -334,7 +346,11 @@ struct Audio {
         if (!wav) return nullptr;
         if (direct_channels) {
             const auto decoded = decode(*wav);
-            if (!decoded) { d2d::log::warn("sound {}: {}", index, SDL_GetError()); return nullptr; }
+            if (!decoded) {
+                d2d::log::warn("sound {}: {}", index, SDL_GetError());
+                unplayable.insert(index);
+                return nullptr;
+            }
             start_split(channel, *decoded, snd.loop, index);
         } else {
             start(channel, *wav, 1.f, snd.loop, index);
