@@ -846,9 +846,11 @@ private:
         const auto install = classify_dir(path_);
         if (!install) return;
         std::vector<std::filesystem::path> archives;
+        QStringList missing;   // all ten are LoD's, and d2d needs LoD
         for (const char* name : { "d2data.mpq", "d2exp.mpq", "d2char.mpq", "d2sfx.mpq", "d2speech.mpq", "d2music.mpq",
                                   "d2video.mpq", "d2xtalk.mpq", "d2xmusic.mpq", "d2xvideo.mpq" })
             if (const auto mpq = d2d::install::find_file(install->dir, name)) archives.push_back(*mpq);
+            else missing << QString::fromUtf8(name);
         if (!install->patch_mpq.empty()) archives.push_back(install->patch_mpq);
         if (QFileInfo::exists(patch_path_) && to_path(patch_path_) != install->patch_mpq) archives.push_back(to_path(patch_path_));
         std::uint64_t total = 0;
@@ -868,9 +870,10 @@ private:
         verify_cancel_ = cancel;
         connect(dialog, &QProgressDialog::canceled, this, [cancel, dialog] { *cancel = true; dialog->deleteLater(); });
         const QPointer<QProgressDialog> guard(dialog);
-        QThreadPool::globalInstance()->start([this, archives, total, cancel, guard] {
+        QThreadPool::globalInstance()->start([this, archives, missing, total, cancel, guard] {
             QString report = tr("StormLib %1\n").arg(STORMLIB_VERSION_STRING);
-            QStringList damaged;
+            QStringList damaged = missing;
+            for (const auto& name : missing) report += tr("%1: missing\n").arg(name);
             std::uint64_t done = 0;
             int shown = -1;
             for (const auto& path : archives) {
@@ -899,7 +902,7 @@ private:
                 delete guard;   // now: deleteLater waits out the report's exec()
                 QMessageBox box(damaged.isEmpty() ? QMessageBox::Information : QMessageBox::Warning, tr("Verify files"),
                                 damaged.isEmpty() ? tr("The game files are intact.")
-                                                  : tr("Some game files are damaged. Copy those MPQs again from the CDs or installer."),
+                                                  : tr("Some game files are damaged or missing. Copy those MPQs again from the CDs or installer."),
                                 QMessageBox::Ok, this);
                 box.setInformativeText(report.trimmed());
                 if (!damaged.isEmpty()) box.setDetailedText(damaged.join('\n'));
