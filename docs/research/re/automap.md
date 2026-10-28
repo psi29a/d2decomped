@@ -40,13 +40,21 @@ room tile's own orientation (`+0x1c`).
 flag 8 (hidden). Unless `all` (or `DAT_007a51a0`) is set, only tiles
 with flag 0x20000 count.
 
-Flag 0x20000 is "drawn on screen". The tile draws set it:
-- floors, `FUN_004dea70`: after `FUN_004f68e0` draws a tile whose spot is
-  inside the view's box (view `+0x14..+0x20`; the box itself not traced);
-- walls, roofs and the rest, `FUN_004dedf0` / `FUN_004def80` /
-  `FUN_004df1c0`: when the draw (`FUN_004f6950` / `FUN_004f6920`) says
-  it drew;
-- `FUN_004dde80`, from `FUN_004de410`.
+Flag 0x20000 is "drawn on screen". The tile draws set it, each tile
+by its own draw, so a cell's floors and walls come in apart:
+- floors (`FUN_004de730` -> `FUN_004de410` -> `FUN_004dde80`) and roofs
+  (`FUN_004dea70`): when the draw's spot (screen x = tile px x + 0x50 -
+  view x, y = tile px y - 0x50 - view y, a roof's also less its height:
+  the buffer's top left) is inside the view's box, view `+0x14..+0x20`.
+  `FUN_00476000` sets it to `{-0x50, -0x50, W + 0x50, H - 0x2f}` (W, H:
+  `0x71146c`, `0x711470`); the 3D modes (`FUN_004f51d0` != 0) take 0x2d
+  more off the left and 0x1e off the top, 0x1e onto the right.
+- walls and lower walls (`FUN_004df1c0`, `FUN_004dedf0`): when the
+  driver's wall draw (`+0xa0`, DirectDraw / GDI `FUN_005130a0`) drew a
+  block: a 32 px block whose top left is in x `[-0x20, W)`, y
+  `(-0x21, H + 0x20)` (`0x7c9138`, `0x7c913c`: the draw buffer's W
+  and H). A side panel open takes its half: right (`FUN_0045ae90` 1)
+  x `< W - W/2`, left (2) x `>= W/2 - 0x20`.
 
 So the map only ever gets tiles that have been on screen. Callers:
 - `FUN_00459020`, each time the player has moved 80 client px (an
@@ -244,13 +252,17 @@ dropped, otherwise the cel decides.
 ## d2d
 
 - Tab toggles the automap.
-- The cells render_world drew (a floor or wall tile's box on screen,
-  `g_drawn_cells`) are revealed, as game.exe's flag 0x20000. Before
-  2026-10-28 d2d took every tile within 12 of the player, a square about
-  three screens across (a tester saw the map run past what's in view).
-  Not like game.exe: a cell drawn reveals its floors and walls together,
-  a wall counts by its box, not by a pixel drawn, and widescreen's wider
-  view reveals more.
+- What render_world drew last frame (`g_drawn`, with the level it
+  drew) is revealed, as game.exe's flag 0x20000: a floor or roof by the
+  view box, a wall by its blocks with the side panel's half, each above.
+  A cell's drawn floors reveal its floors, its drawn walls its walls.
+  Before 2026-10-28 d2d took every tile within 12 of the player, a
+  square about three screens across (a tester saw the map run past
+  what's in view). W is the screen's width, as game.exe's box takes
+  `0x71146c`: a wider screen reveals more there too.
+  Not like game.exe: a wall's blocks are taken to fill its box (an
+  empty block counts), and a cell's walls (roof included) come in
+  together.
 - A generated level reveals its `Level::picks` (the DT1 tiles game.exe's
   rooms take), by their DT1 header like `FUN_00457cf0`. A maze level's
   (caves, crypts, Jail, Cathedral, Catacombs) DS1 is blank, so reading
@@ -279,8 +291,11 @@ dropped, otherwise the cel decides.
   - Object icons (`automap_icons`): objects with an Objects.txt AutoMap
     cel (shrines, wells, the Cairn Stones, the Tree of Inifuss, ...) go
     in list 2 at their px / 10 + (1, -3), with `FUN_00458dc0`'s
-    conditions. game.exe adds them as a unit's flag 0x10000000 comes up;
-    d2d within its 12-tile reveal reach.
+    conditions, once drawn: game.exe's unit flag 0x10000000, set by
+    `FUN_004dc7b0` when the unit's draw (`FUN_00471ec0`) says it drew
+    (0x20000000 then marks it added). d2d counts an object whose frame
+    box is on screen (`FUN_00471ec0`'s own test not traced); a neighbour
+    level's objects aren't counted.
   - The top right's lines (above), but the game name / password and the
     game type 6 / 8 line.
 - Not yet: other players' pets' marks, the bank's name, the miniatures.

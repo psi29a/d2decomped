@@ -259,7 +259,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const int screen_w = fb_width(framebuffer);
     const int cx0 = screen_w / 2;
-    g_drawn_cells.clear();
+    g_drawn.level = &level;
+    g_drawn.cells.clear();
+    g_drawn.objects.clear();
     const int map_width  = map.width();
     const int base_x = int(std::floor(cam_x)), base_y = int(std::floor(cam_y));
     // Screen position of cell (gx, gy)'s tile point. A floor's 128-row
@@ -287,6 +289,21 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // Blit a single tile at cell (gx, gy)'s iso position, honouring the
     // 80-tall-diamond-at-bottom convention shared by floor/wall pixel
     // buffers.
+    // Drawn, as game.exe sets tile flag 0x20000: a floor or roof whose
+    // spot (its buffer's top left) is in the view's box {-0x50, -0x50,
+    // W + 0x50, H - 0x2f} (FUN_00476000; tested in FUN_004de410 and
+    // FUN_004dea70); a wall with a 32 px block whose top left is in
+    // {-0x20, -0x20, W, H + 0x20}, a side panel taking its half
+    // (FUN_005130a0, the driver's wall draw).
+    // ponytail: a wall's blocks taken to fill its box; game.exe skips empty ones
+    auto floor_drawn = [&](int screen_x, int screen_y) {
+        return screen_x >= -0x50 && screen_x < screen_w + 0x50 && screen_y >= -0x50 && screen_y < int(kScreenHeight) - 0x2f;
+    };
+    auto wall_drawn = [&](int screen_x, int screen_y, int width, int height) {
+        const int left = g_drawn.panel_side == 2 ? screen_w / 2 - 0x20 : -0x20;
+        const int right = g_drawn.panel_side == 1 ? screen_w - screen_w / 2 : screen_w;
+        return screen_x < right && screen_x + width - 0x20 >= left && screen_y < int(kScreenHeight) + 0x20 && screen_y + height >= 0;
+    };
     // `layer`: 0 wall, 1 floor, 2 shadow (the pass, not the DT1's own type field).
     auto blit_cell = [&](int cell_x, int cell_y, const d2d::dt1::Tile& tile, int layer, int alpha = 255) {
         const auto [iso_x, iso_y] = iso(cell_x, cell_y);
@@ -299,9 +316,8 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         // units and walls each on game.exe's pixels; not traced).
         const int wall_lift = layer == 0 ? 16 : 0;
         const int screen_y = (layer == 0 && tile.type >= 16 ? iso_y + kIsoH - tile.y_shift : iso_y - (tile_height - kIsoH)) - wall_lift;
-        // ponytail: its box on screen counts as drawn; game.exe's walls need a pixel drawn (FUN_004f6950's result)
-        if (layer != 2 && screen_x < screen_w && screen_x + kIsoW > 0 && screen_y < int(kScreenHeight) && screen_y + std::max(tile_height, kIsoH) > 0)
-            g_drawn_cells.emplace_back(cell_x, cell_y);
+        if (layer == 1 ? floor_drawn(screen_x, screen_y) : layer == 0 && wall_drawn(screen_x, screen_y, tile.width, tile_height))
+            g_drawn.cells.push_back({ cell_x, cell_y, layer == 1 });
         if (layer == 2) blit_dt1_shadow(framebuffer, tile, pal, screen_x, screen_y);
         else if (light && layer == 0) blit_dt1_wall_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha < 255, alpha);   // ponytail: "in front" read off the alpha, so a wall fading back still samples the front spots
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha);
@@ -583,6 +599,11 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 // game.exe's frame runs on, its DCCs have no cell there (FUN_005feb80), nothing draws.
                 // ponytail: blank outright, not the COF priority game.exe reads past its table.
                 const bool past_cof = unit.frames && elapsed / std::max<std::uint32_t>(unit.anim->ms_per_frame(), 1) >= std::uint32_t(unit.anim->cof.frames_per_direction());
+                if (!past_cof && unit.object && unit.npc >= 0) {     // drawn: its unit flag 0x10000000 (FUN_004dc7b0)
+                    // ponytail: its frame box on screen; FUN_00471ec0's own "drew" not traced
+                    const auto box = composite_bounds(*unit.anim, unit.dir, elapsed, anchor_x, anchor_y);
+                    if (box[2] > 0 && box[0] < screen_w && box[3] > 0 && box[1] < int(kScreenHeight)) g_drawn.objects.push_back(unit.npc);
+                }
                 if (!past_cof && unit.spirit) draw_composite(framebuffer, *unit.anim, tinted(upal, 205, 230, 255), unit.dir, elapsed, anchor_x, anchor_y, 4);   // half, pale
                 else if (!past_cof) draw_composite(framebuffer, *unit.anim, upal, unit.dir, elapsed, anchor_x, anchor_y);
                 if (!past_cof && hovered && unit.name && !unit.name->empty()) bounds = composite_bounds(*unit.anim, unit.dir, elapsed, anchor_x, anchor_y);
@@ -651,6 +672,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         // roof_height to FUN_004ddef0, which then fills the table with
         // the environment's light, no lamps); a flat one is lit as a floor.
         const Hole* cutout = g_roof_cutout ? &hole : nullptr;
+        if (floor_drawn(iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH))) g_drawn.cells.push_back({ roof.cell_x, roof.cell_y, false });   // a roof is in the walls' list
         if (light && tile.roof_height) blit_dt1_tile(framebuffer, tile, (*light->pal)[std::size_t(std::clamp(light->ambient, 0, 255) >> 3)], iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), 255, cutout);
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), roof.cell_x, roof.cell_y, 255, cutout);
         else blit_dt1_tile(framebuffer, tile, pal, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), 255, cutout);

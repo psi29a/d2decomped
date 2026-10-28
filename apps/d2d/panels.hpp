@@ -237,15 +237,15 @@ inline constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,
 
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash);
 
-// `cells` of the level's grid, each once (its floors, then its walls),
-// from the grid they're in shifted by (shift_x, shift_y): a neighbour
-// level's from the drawn level's.
-void automap_reveal(const Scene& scene, const Level& level, Automap& automap, std::span<const std::pair<int, int>> cells,
+// `cells` of the level's grid, a drawn floor's floors and a drawn wall's
+// walls each once, from the grid they're in shifted by (shift_x,
+// shift_y): a neighbour level's from the drawn level's.
+void automap_reveal(const Scene& scene, const Level& level, Automap& automap, std::span<const DrawnCell> cells,
                     int shift_x = 0, int shift_y = 0);
 
-// The level's objects with an Objects.txt AutoMap cel near the player into
-// list 2 (FUN_00458dc0 -> FUN_00457e80).
-void automap_icons(const Level& level, Automap& automap, float player_x, float player_y, const std::vector<UnitState>& states);
+// The `drawn` objects (Level::npcs indexes) with an Objects.txt AutoMap
+// cel into list 2 (FUN_00458dc0 -> FUN_00457e80).
+void automap_icons(const Level& level, Automap& automap, std::span<const int> drawn, const std::vector<UnitState>& states);
 
 void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Automap& automap, float player_x, float player_y);
 

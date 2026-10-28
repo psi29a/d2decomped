@@ -13,7 +13,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 // Set to 1 by d2d_sigint_handler on SIGINT/SIGTERM; polled each frame.
@@ -56,11 +55,19 @@ constexpr int kMaxViewWidth = 1400;
 // (see main.cpp's resize handling). Read by the world's light grid and rain.
 inline int g_view_width = int(kScreenWidth);
 
-// The cells (render_world's level grid) whose floor or wall tile landed on
-// screen in the last render_world: game.exe's tile flag 0x20000, set by
-// its tile draws (FUN_004dea70, FUN_004dedf0, ...); the automap reveals
-// only those (automap.md "Revealing").
-inline std::vector<std::pair<int, int>> g_drawn_cells;
+// What the last render_world drew, as game.exe's flags: a floor's or
+// wall's tile flag 0x20000 (its tile draws, FUN_004de410 / FUN_005130a0)
+// and an object's unit flag 0x10000000 (FUN_004dc7b0). The automap
+// reveals only those, and only for the level they were drawn in
+// (automap.md "Revealing").
+struct DrawnCell { int x, y; bool floor; };     // render_world's level grid
+struct Drawn {
+    const Level* level = nullptr;
+    int panel_side = 0;                         // Automap::panel_side: a wall draws only in the other half (FUN_005130a0)
+    std::vector<DrawnCell> cells;
+    std::vector<int> objects;                   // Level::npcs indexes
+};
+inline Drawn g_drawn;
 
 // Dev overlay toggled by devctl `debug collision`: blocked subtiles in red.
 inline bool g_debug_collision = false;

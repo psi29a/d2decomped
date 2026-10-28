@@ -219,9 +219,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
     channel.on("debug", [&](const std::vector<std::string>& args) {
         if (args.size() >= 2 && args[1] == "automap" && scene) {    // reveal the whole level
             const auto& map = town.level->ds1;
-            std::vector<std::pair<int, int>> every;
+            std::vector<DrawnCell> every;
             for (int y = 0; y < int(map.height()); ++y)
-                for (int x = 0; x < int(map.width()); ++x) every.emplace_back(x, y);
+                for (int x = 0; x < int(map.width()); ++x) for (const bool floor : { true, false }) every.push_back({ x, y, floor });
             automap_reveal(*scene, *town.level, town.automap, every);
             return "ok " + std::to_string(town.automap.cells.size()) + "\n";
         }

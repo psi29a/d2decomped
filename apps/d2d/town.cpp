@@ -1015,6 +1015,7 @@ auto Town::automap_frame() -> void {
         automap.names = values[5] != 0;
         const bool right_open = inv_open || tree_open, left_open = char_open || stash_open || cube_open || quest_log.open || waypoint.open || store.npc >= 0;
         automap.panel_side = right_open == left_open ? 0 : right_open ? 1 : 2;
+        g_drawn.panel_side = automap.panel_side;
         automap.in_town = level && d2d::rules::level_ids::is_town(level->id);
         automap.portraits = portraits_shown;
         automap.marks.clear();
@@ -1598,14 +1599,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // An open NPC menu takes every click: an entry runs its action,
         // anything else closes it.
         bool menu_click = false;
-        const auto& unit = view.player;
-        automap_reveal(*scene, *level, automap, g_drawn_cells);
-        automap_icons(*level, automap, unit.x, unit.y, view.level == level ? view.npc_states : std::vector<UnitState>{});
-        for (const auto& neighbour : level->nearby)                   // what's in view across the edge
-            if (neighbour.level->layer == level->layer) {
-                automap_reveal(*scene, *neighbour.level, automap, g_drawn_cells, neighbour.dx, neighbour.dy);
-                automap_icons(*neighbour.level, automap, unit.x - float(neighbour.dx), unit.y - float(neighbour.dy), {});
-            }
+        if (g_drawn.level == level) {                                 // drawn last frame, in this level
+            automap_reveal(*scene, *level, automap, g_drawn.cells);
+            automap_icons(*level, automap, g_drawn.objects, view.level == level ? view.npc_states : std::vector<UnitState>{});
+            for (const auto& neighbour : level->nearby)               // what's in view across the edge
+                if (neighbour.level->layer == level->layer) automap_reveal(*scene, *neighbour.level, automap, g_drawn.cells, neighbour.dx, neighbour.dy);
+        }
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
         // the speech string) follows the speech box.
         if (speech.npc < 0 && audio.voice.src) audio.stop_voice();
