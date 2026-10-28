@@ -21,6 +21,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 `light_grid` (improvement 1), `trans_roof` (improvement 4), `autoloot` (improvement 5),
 `autoparty` (improvement 7), `pad_controls` (improvement 11), `coop_lobby` (improvement 12),
 `pause_sounds` (improvement 13).
+`--toggle scalemode=pixelart|nearest|linear` picks the upscale filter (Additions).
 
 ## Improvements
 
@@ -70,6 +71,7 @@ the ones a player could notice or a test could trip on.
 | The devctl channel and its `debug` verbs (docs/control_channel.md) | Driving the game in tests |
 | `D2D_ANIM_LOG=<file>`: each animation's first draw appended to the file (`Scene::note_drawn`) | Animation coverage (tools/anim_coverage.py); nothing is written when it isn't set |
 | Borderless fullscreen: Alt+Enter, `fullscreen = 1` in d2d.cfg, the launcher's Fullscreen box | game.exe's own display modes and `-w` aren't traced; borderless doesn't change the desktop's resolution
+| The window's upscale filter: `scalemode = pixelart` (default; nearest with blended edges, SDL 3.4's `SDL_SCALEMODE_PIXELART`, plain nearest on SDL 3.2), `nearest` or `linear` in d2d.cfg, the launcher's Scaling dropdown, `--toggle scalemode=` | game.exe draws 800×600 unscaled; d2d's bigger windows and fullscreen stretch it, and pixel art stays sharp where linear blurred it (Thomas, 2026-10-28) |
 | Widescreen (`--widescreen`, `widescreen = 1`, `--view-width`): the in-game world draws wider than 800 pixels, at the window's aspect (at most 1400); the HUD and panels stay 800×600, centred. Off by default | Modern displays. A wider view shows more of the map than game.exe ever did (it is a client view only: monsters update 30 cells out, the host replicates 28, the view is at most 13 across); the UI isn't re-laid-out yet (#39) |
 | Local co-op: up to 4 players in one game on one screen (docs/design/local-coop.md). They are one party: experience, NoDrop and gold go by game.exe's party rules (party.md). One screen keeps them on one level: a warp, a portal, a level's edge or a respawn takes the whole party. Players walk through each other, and a step that would spread the party past one screen is undone (`World::leash`). Death with a partner alive makes a ghost (gear kept, D2's penalty) that a partner's Resurrect channel raises, or a town; everyone dead respawns in town as in single player. Quest credit is one rule for every quest (`World::credit_party`: what the acting player gained, a partner who hasn't done that quest gains), where game.exe has a callback per quest | Friends on one Steam Deck; game.exe has no shared-screen play
 | Gamepads (SDL3; apps/d2d/README.md, docs/design/controller-plan.md): stick walking, soft targeting with the target hovered and an "A  Talk" prompt, the right stick aiming in the field, d-pad hops through every panel, shoulders through a menu's buttons, rebindable in d2d.cfg `pad_*` and Configure Controls' pad page | Couch and Steam Deck play; game.exe has no pad

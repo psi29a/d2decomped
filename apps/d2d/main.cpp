@@ -375,6 +375,7 @@ static std::uint32_t game_seed(const d2d::d2s::Header& header) {
     return g_map_seed;
 }
 static int         g_scale = 1;          // window = game res * g_scale
+static SDL_ScaleMode g_scale_mode = SDL_SCALEMODE_PIXELART;   // d2d.cfg scalemode, --toggle scalemode=
 static bool        g_fullscreen = false; // d2d.cfg fullscreen = 1 (Alt+Enter flips and saves it)
 static bool        g_widescreen = false; // d2d.cfg widescreen = 1 / --widescreen: the game view widens to the window
 static int         g_forced_view_w = 0;  // --view-width: the widescreen width, else the window's aspect
@@ -455,6 +456,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     d2d::log::info("Initializing SDL... done! SDL {}.{}.{} ({})", SDL_VERSIONNUM_MAJOR(sdl_v),
                    SDL_VERSIONNUM_MINOR(sdl_v), SDL_VERSIONNUM_MICRO(sdl_v), SDL_GetCurrentVideoDriver());
     Window win;
+    win.scale_mode = g_scale_mode;
     if (!win.open(int(kScreenWidth), int(kScreenHeight), g_scale, g_fullscreen, g_widescreen, g_widescreen ? 1066 : 0)) { SDL_Quit(); return 1; }
     SentryFrameAttachment crash_frame;
     if (sentry_is_enabled()) {
@@ -1684,7 +1686,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, coop_lobby, pause_sounds, light_grid)");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, coop_lobby, pause_sounds, light_grid); scalemode=pixelart|nearest|linear");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     std::string join_host, game_exe, log_level = "info";
     app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
@@ -1795,6 +1797,7 @@ int main(int argc, char** argv) {
             { "pause_sounds", &g_pause_sounds },   // the world's sounds hold while a local game is paused
             { "light_grid", &g_light_grid },       // the light grid over the whole view, not game.exe's 48 x 48
         };
+        if (const auto mode = scale_mode_named(cfg["scalemode"])) g_scale_mode = *mode;
         std::string_view rest = toggles;
         while (!rest.empty()) {
             const auto comma = rest.find(',');
@@ -1802,9 +1805,14 @@ int main(int argc, char** argv) {
             rest = comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1);
             const auto equals_at = item.find('=');
             const auto name = item.substr(0, equals_at), value = equals_at == std::string_view::npos ? std::string_view("on") : item.substr(equals_at + 1);
+            if (name == "scalemode") {
+                if (const auto mode = scale_mode_named(value)) g_scale_mode = *mode;
+                else d2d::log::warn("--toggle: unknown '{}' (scalemode=pixelart|nearest|linear)", std::string(item));
+                continue;
+            }
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, coop_lobby, pause_sounds; values on|off)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, coop_lobby, pause_sounds, light_grid; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";

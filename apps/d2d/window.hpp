@@ -9,10 +9,25 @@
 #include <log.hpp>
 
 #include <atomic>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#if !SDL_VERSION_ATLEAST(3, 4, 0)
+#define SDL_SCALEMODE_PIXELART SDL_SCALEMODE_NEAREST   // 3.2 has no pixel-art mode: plain nearest is closest
+#endif
+
 namespace d2d::client {
+
+// The upscale filter by name: d2d.cfg's `scalemode` (the launcher's
+// dropdown) and --toggle scalemode=. Empty for any other name.
+inline std::optional<SDL_ScaleMode> scale_mode_named(std::string_view name) {
+    if (name == "pixelart") return SDL_SCALEMODE_PIXELART;
+    if (name == "nearest") return SDL_SCALEMODE_NEAREST;
+    if (name == "linear") return SDL_SCALEMODE_LINEAR;
+    return std::nullopt;
+}
 
 // RAII holders — SDL_Init failure is the only thing we treat as fatal;
 // everything else logs and returns false so the caller can bail out.
@@ -23,6 +38,7 @@ struct Window {
     SDL_Window*   window = nullptr;
     SDL_Renderer* renderer = nullptr;
     SDL_Texture*  texture = nullptr;
+    SDL_ScaleMode scale_mode = SDL_SCALEMODE_PIXELART;   // set before open()
 
     Window() = default;
     ~Window() {
@@ -69,8 +85,7 @@ struct Window {
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
                               SDL_TEXTUREACCESS_STREAMING, width_, height_);
         if (!texture) { d2d::log::error("SDL_CreateTexture: {}", SDL_GetError()); return false; }
-        // Linear filter on upscale, as thirdeye does.
-        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+        SDL_SetTextureScaleMode(texture, scale_mode);
         return true;
     }
 
@@ -82,7 +97,7 @@ struct Window {
         if (width_ == view_w) return true;
         SDL_Texture* wider = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, width_, int(kScreenHeight));
         if (!wider) { d2d::log::error("SDL_CreateTexture: {}", SDL_GetError()); return false; }
-        SDL_SetTextureScaleMode(wider, SDL_SCALEMODE_LINEAR);
+        SDL_SetTextureScaleMode(wider, scale_mode);
         SDL_DestroyTexture(texture);
         texture = wider;
         SDL_SetRenderLogicalPresentation(renderer, width_, int(kScreenHeight), SDL_LOGICAL_PRESENTATION_LETTERBOX);

@@ -11,6 +11,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QCoreApplication>
 #include <QDir>
@@ -546,6 +547,17 @@ public:
         fullscreen_->setToolTip(tr("Borderless fullscreen (Alt+Enter switches in game)"));
         widescreen_ = cfgCheckBox(tr("Widescreen"), "widescreen", "1", "0");
         widescreen_->setToolTip(tr("Widen the in-game view to the window's aspect ratio; menus and panels keep their 800x600 layout."));
+        // d2d.cfg's `scalemode`: how the 800x600 frame is stretched to the window.
+        scaleMode_ = new QComboBox(this);
+        scaleMode_->addItem(tr("Pixel art"), "pixelart");
+        scaleMode_->addItem(tr("Nearest"), "nearest");
+        scaleMode_->addItem(tr("Smooth"), "linear");
+        scaleMode_->setToolTip(tr("Upscaling: Pixel art keeps pixels sharp without uneven sizes, Nearest is hard blocks, Smooth blurs."));
+        connect(scaleMode_, &QComboBox::currentIndexChanged, this, [this] {
+            const auto cfg = d2d::userdir::user_dir("d2d") / "d2d.cfg";
+            if (!d2d::userdir::save_cfg(cfg, { { "scalemode", scaleMode_->currentData().toString().toStdString() } }))
+                QMessageBox::warning(this, tr("Settings"), tr("Could not write %1").arg(from_path(cfg)));
+        });
         // `video = 0` is d2d's --no-video, so the box is the inverse.
         skipVideo_ = cfgCheckBox(tr("Skip intro movies"), "video", "0", "1");
         skipVideo_->setToolTip(tr("Start at the main menu without the logo and intro cinematics."));
@@ -629,6 +641,8 @@ public:
         optionsRow->addSpacing(12);
         optionsRow->addWidget(skipVideo_);
         optionsRow->addStretch();
+        optionsRow->addWidget(new QLabel(tr("Scaling:"), this));
+        optionsRow->addWidget(scaleMode_);
         layout->addLayout(optionsRow);
 
         auto* btnRow = new QHBoxLayout;
@@ -699,10 +713,11 @@ private:
         d2d::userdir::load_cfg(d2d::userdir::user_dir("d2d") / "d2d.cfg", cfg);
         if (patch_path_.isEmpty())   // a hand-set `patch =` in d2d.cfg counts
             patch_path_ = QString::fromStdString(cfg["patch"]);
-        const QSignalBlocker quiet(fullscreen_), quiet_widescreen(widescreen_), quiet_video(skipVideo_);   // loading isn't a change to write back
+        const QSignalBlocker quiet(fullscreen_), quiet_widescreen(widescreen_), quiet_video(skipVideo_), quiet_scale(scaleMode_);   // loading isn't a change to write back
         fullscreen_->setChecked(cfg["fullscreen"] == "1");
         widescreen_->setChecked(cfg["widescreen"] == "1");
         skipVideo_->setChecked(cfg["video"] == "0");
+        scaleMode_->setCurrentIndex(std::max(0, scaleMode_->findData(QString::fromStdString(cfg["scalemode"]))));   // unset: Pixel art, d2d's default
         source_ = settings.value("game/source", "manual").toString();
         const QSignalBlocker crashReportsQuiet(crashReports_);
         crashReports_->setChecked(settings.value("privacy/sendCrashReports", false).toBool());
@@ -1176,6 +1191,7 @@ private:
     QPushButton* launch_{};
     QCheckBox* fullscreen_{};
     QCheckBox* widescreen_{};
+    QComboBox* scaleMode_{};
     QCheckBox* skipVideo_{};
     QCheckBox* crashReports_{};
     QLineEdit* crashNotes_{};

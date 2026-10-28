@@ -25,6 +25,7 @@ Or use [the launcher](../launcher/README.md), which finds them for you.
 | Join an original game.exe host (your network only) | `d2d --join 192.168.50.68` |
 | Skip the intro movies | `--no-video` |
 | Bigger window | `--scale 2` |
+| Upscale filter (default `pixelart`; also in the launcher) | `--toggle scalemode=nearest` (or `linear`) |
 | Straight into a new character | `--start-screen charcreate --start-class 1 --start-name Test` (class 0..6: Amazon, Sorceress, Necromancer, Paladin, Barbarian, Druid, Assassin) |
 | Don't touch your saves | `--no-save` |
 | Turn a d2d extra off | `--toggle autoloot=off,trans_roof=off,autoparty=off,pause_sounds=off` |
