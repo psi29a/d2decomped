@@ -20,7 +20,7 @@ class CacheTests(unittest.TestCase):
         if not binary.exists():
             self.skipTest("build mpq-cat first")
         with tempfile.TemporaryDirectory() as directory:
-            result = subprocess.run([str(binary), directory, "absent.txt"], capture_output=True)
+            result = subprocess.run([str(binary), directory, "absent.txt"], capture_output=True, check=False)
             self.assertEqual(result.returncode, 3, result.stderr)
 
     def test_changed_patch_uses_another_cache_directory(self):
@@ -91,7 +91,7 @@ echo "monsters level $level: $score/1 seeds match game.exe"
         for mode in ("ok", "mismatch", "error", "missing"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
                 sweep, env = self.fake_tree(Path(directory), mode)
-                result = subprocess.run([str(sweep), "1-1", "monsters"], env=env, capture_output=True, text=True)
+                result = subprocess.run([str(sweep), "1-1", "monsters"], env=env, capture_output=True, text=True, check=False)
                 self.assertEqual(result.returncode == 0, mode == "ok", result.stdout + result.stderr)
 
     def test_bad_input_is_a_usage_error(self):
@@ -99,7 +99,7 @@ echo "monsters level $level: $score/1 seeds match game.exe"
             with self.subTest(args=args, jobs=jobs), tempfile.TemporaryDirectory() as directory:
                 sweep, env = self.fake_tree(Path(directory), "ok")
                 env["JOBS"] = jobs
-                result = subprocess.run([str(sweep), *args, "monsters"], env=env, capture_output=True, text=True)
+                result = subprocess.run([str(sweep), *args, "monsters"], env=env, capture_output=True, text=True, check=False)
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
 
     def test_term_stops_the_jobs_and_the_sweep(self):

@@ -25,7 +25,7 @@ class MpqCache:
             missing = cache.with_suffix(".missing")
             if not cache.exists():
                 result = subprocess.run([self.cat, self.mpqs, name], capture_output=True,
-                                        env={**os.environ, "D2_PATCH_INSTALLER": self.patch})
+                                        env={**os.environ, "D2_PATCH_INSTALLER": self.patch}, check=False)
                 if result.returncode not in (0, 3):
                     raise RuntimeError(f"mpq-cat {name}: {result.stderr.decode(errors='replace').strip() or f'exited {result.returncode}'}")
                 cache.parent.mkdir(parents=True, exist_ok=True)
