@@ -354,6 +354,28 @@ int main(int argc, char** argv) try {
         assert(rallied(0));
         assert(!rallied(-1));
     }
+    {
+        // Diablo's cold touch (DiabCold, FUN_005cce80) lands one sure hit: the foe keeps
+        // Diablo's hit class for its get-hit's impact sound and a later block's.
+        const auto diablo_row = data->monsters.by_id.find("diablo");
+        const auto cold = data->skills.by_name.find("DiabCold");
+        assert(diablo_row != data->monsters.by_id.end() && cold != data->skills.by_name.end());
+        d2d::rules::Rng cold_rng{ 3 };
+        Level here{};
+        here.id = d2d::rules::level_ids::kBloodMoor;
+        std::vector<Monster> pack{ make_monster(*data, int(diablo_row->second), 10.f, 10.f, cold_rng, 0) };
+        auto& diablo = pack[0];
+        diablo.skill = cold->second;
+        set_mode(*data, diablo, "SC", 0);
+        std::array<Foe, 1> foes{};
+        foes[0].x = 11.f; foes[0].y = 10.f;
+        const Crowd crowd;
+        std::vector<Missile> missiles;
+        for (std::uint32_t frame = 1; frame <= 100 && foes[0].hits == 0; ++frame)
+            monster_update(*data, here, diablo, foes, cold_rng, frame * 40, 0.04f, crowd, missiles, pack);
+        const int diablo_class = data->monsters.types[diablo_row->second].hit_class;
+        assert(diablo_class != 0 && foes[0].hits == 1 && foes[0].hit_class == diablo_class);
+    }
 
     {
         // The Golden Bird binds to the first qualifying boss made in Act 3,

@@ -1679,7 +1679,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             stats.a1_min = d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, false) >> 8;
             stats.a1_max = std::max(d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, true) >> 8, stats.a1_min);
             for (auto& element : stats.elements) element.mode = "";
-            foe.take(d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng));
+            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng);
+            foe.take(taken);
+            if (taken.hit) foe.hit_class = type_info.hit_class;
         };
         if (monster.diab_run == 1) {
             monster.seq_frame = std::min(frames, par[2]);
@@ -2118,7 +2120,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     for (auto& element : stats.elements) element = {};
                     const auto added = d2d::rules::row_damage(cast->etype, cast->emin, cast->emax, cast->emin_lev, cast->emax_lev, cast->hitshift, cast->elen, cast->elen_lev, lvl);
                     if (added.etype >= 0) stats.elements[0] = { added.etype, 100, added.elo >> 8, added.ehi >> 8, added.elen, "A1" };
-                    foe.take(d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng));
+                    const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng);
+                    foe.take(taken);
+                    if (taken.hit) foe.hit_class = type_info.hit_class;
                 } else if (cast->srvdofunc == ServerDoFunction::kFingerMageSpider || cast->srvdofunc == ServerDoFunction::kDoomKnightMissile
                            || cast->srvdofunc == ServerDoFunction::kGuidedMissile) {
                     // FUN_005ccfa0 / FUN_005cdfb0 / do 10: one srvmissilea at the target;
