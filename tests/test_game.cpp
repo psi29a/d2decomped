@@ -372,7 +372,7 @@ int main(int argc, char** argv) try {
         bird_world.fight.add_monster(boss, &act3);             // later Act 3 boss cannot replace it
         bird_world.act3_bind_new_bosses();
         assert(bird_world.golden_bird.bound == first_act3 && bird_world.fight.made_bosses.empty());
-        bird_world.fight.add_monster(boss, &act3);             // unarmed: later bosses are dropped
+        bird_world.fight.add_monster(std::move(boss), &act3);  // unarmed: later bosses are dropped
         bird_world.act3_bind_new_bosses();
         assert(bird_world.golden_bird.bound == first_act3 && !bird_world.golden_bird.armed && bird_world.fight.made_bosses.empty());
     }
@@ -507,7 +507,7 @@ int main(int argc, char** argv) try {
         const auto look = hero.character.appearance;
         hero.character.character_class = d2d::d2s::kAmazon;      // her starting javelin: 1ht, which has Jab's sequence
         hero.character.appearance.reset();
-        const auto levels = fight.skill_level;
+        auto levels = std::move(fight.skill_level);
         const int attack = hero.attack_skill;
         const auto mana = hero.character.stats.values[d2d::d2s::kMana];
         fight.skill_level = [](int) { return 1; };
@@ -527,7 +527,7 @@ int main(int argc, char** argv) try {
         assert(std::ranges::count(world.cues.due, jab->do_sound_a, &Cues::Cue::sound) == sound_frames);
         hero.character.character_class = barbarian;
         hero.character.appearance = look;
-        fight.skill_level = levels;
+        fight.skill_level = std::move(levels);
         hero.attack_skill = attack;
         hero.character.stats.values[d2d::d2s::kMana] = mana;
         hero.swing_skill = 0;

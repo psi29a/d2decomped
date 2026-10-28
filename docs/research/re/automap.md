@@ -44,8 +44,8 @@ Flag 0x20000 is "drawn on screen". The tile draws set it, each tile
 by its own draw, so a cell's floors and walls come in apart:
 - floors (`FUN_004de730` -> `FUN_004de410` -> `FUN_004dde80`) and roofs
   (`FUN_004dea70`): when the draw's spot (screen x = tile px x + 0x50 -
-  view x, y = tile px y - 0x50 - view y, a roof's also less its height:
-  the buffer's top left) is inside the view's box, view `+0x14..+0x20`.
+  view x, y = tile px y - 0x50 - view y, less a roof's height: the
+  buffer's top left) is inside the view's box, view `+0x14..+0x20`.
   `FUN_00476000` sets it to `{-0x50, -0x50, W + 0x50, H - 0x2f}` (W, H:
   `0x71146c`, `0x711470`); the 3D modes (`FUN_004f51d0` != 0) take 0x2d
   more off the left and 0x1e off the top, 0x1e onto the right.

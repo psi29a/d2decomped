@@ -870,7 +870,7 @@ private:
         verify_cancel_ = cancel;
         connect(dialog, &QProgressDialog::canceled, this, [cancel, dialog] { *cancel = true; dialog->deleteLater(); });
         const QPointer<QProgressDialog> guard(dialog);
-        QThreadPool::globalInstance()->start([this, archives, missing, total, cancel, guard] {
+        QThreadPool::globalInstance()->start([this, archives = std::move(archives), missing = std::move(missing), total, cancel = std::move(cancel), guard] {
             QString report = tr("StormLib %1\n").arg(STORMLIB_VERSION_STRING);
             QStringList damaged = missing;
             for (const auto& name : missing) report += tr("%1: missing\n").arg(name);

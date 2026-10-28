@@ -1013,7 +1013,8 @@ auto Town::automap_frame() -> void {
         automap.center = values[3] != 0;
         automap.party = values[4] != 0;
         automap.names = values[5] != 0;
-        const bool right_open = inv_open || tree_open, left_open = char_open || stash_open || cube_open || quest_log.open || waypoint.open || store.npc >= 0;
+        const bool right_open = inv_open || tree_open, left_open = char_open || stash_open || cube_open || quest_log.open || waypoint.open || store.npc >= 0
+                                                                || party.open || hireling.open;   // FUN_00455f20: UI 0x16, 0x24 left too
         automap.panel_side = right_open == left_open ? 0 : right_open ? 1 : 2;
         g_drawn.panel_side = automap.panel_side;
         automap.in_town = level && d2d::rules::level_ids::is_town(level->id);
