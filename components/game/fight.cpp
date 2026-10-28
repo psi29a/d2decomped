@@ -434,7 +434,6 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             const auto impact = d2d::rules::sound_ids::impact(actor->struck_class, mode == kModeDT);
             cues.cue(impact.impact, now_ms, actor->player.x, actor->player.y);
             cues.cue(impact.element, now_ms, actor->player.x, actor->player.y);
-            if (mode == kModeGH) actor->shown_class = actor->struck_class;
             actor->struck_class = 0;
             if (const int cls = actor->character.character_class; cls >= 0 && cls < 7) {
                 const auto& voice = d2d::rules::sound_ids::kPlayerVoice[std::size_t(cls)];
@@ -4657,7 +4656,11 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         auto& foe = side[0];
         // The last landed blow's hit class (unit +0xb0), before a knockback's GH plays its impact.
-        if (foe.hits > 0) actor->struck_class = foe.hit_class;
+        // The client gets it on every landed hit, a get-hit or not: FUN_0057cee0 copies it with
+        // result flag 1, and a hit too small for a GH sets unit flag 0x8000, so FUN_00597cf0 sends
+        // it in S->C 0x0c. A later block plays its class.
+        // ponytail: state 0x36 (uninterruptable) drops result flag 4, so no 0x0c; d2d has no such state.
+        if (foe.hits > 0) actor->struck_class = actor->shown_class = foe.hit_class;
         // Poison works on the player over its ticks (a negative potion).
         // One poison at a time: a new one at least as strong replaces it
         // (and its length), a weaker one is ignored (FUN_0057ac50).

@@ -51,18 +51,20 @@ A swing plays hit or miss.
   player's hit class (unit +0xb0): 1..9 → 398 block_weapon, 10 / 11 (bow,
   crossbow) → 401 block_arrow, anything else none (claw 12, overhead 13,
   none 0; the byte table at 0x4ca864). It sets the unit's last sound (+0x7c)
-  too. The class is the last get-hit's, not the blocked attack's: a block
-  sets result flag 0x10 and clears flag 1 (FUN_0057ec10, from FUN_0057dfb0's
-  1), and FUN_0057cee0 copies the hit class into the server unit's +0xb0
-  only with flag 1. No hit packet (S→C 0x0c, FUN_00597cf0) goes out for a
-  block, so the client keeps the class of the last one. A block before any
-  hit plays nothing.
+  too. The class is the last landed hit's, not the blocked attack's: a
+  block sets result flag 0x10 and clears flag 1 (FUN_0057ec10, from
+  FUN_0057dfb0's 1), and FUN_0057cee0 copies the hit class into the server
+  unit's +0xb0 only with flag 1. A landed hit reaches the client either as
+  the GH, or, too small for one (FUN_0057cb00, no stun), as unit flag
+  0x8000, which makes FUN_00598220 send S→C 0x0c (FUN_00597cf0, +0xb0 at +7).
+  No hit packet goes out for a block, so the client keeps the class of the
+  last hit. A block before any hit plays nothing.
 - **Kick** (KK, in FUN_004cc5b0): 255 weapon_kick on the player, an
   Assassin's 4 ticks on (FUN_004b9a00's delay), any other class's at once.
 
 d2d: `sound_ids::block` / `kKick` / `kKickDelayMs`, `Fight::set_pmode`;
-`Hero::shown_class` keeps the class the last GH played (none again in a new
-game, `Fight::new_game`).
+`Hero::shown_class` keeps the last landed hit's class, a GH or not (none
+again in a new game, `Fight::new_game`).
 
 ## Struck, FUN_004cc410 → FUN_004ca560
 

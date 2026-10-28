@@ -516,6 +516,21 @@ int main(int argc, char** argv) try {
         assert(hero.pmode == kModeGH && hero.shown_class == arrow && count(snd::impact(arrow, false).impact, hit_ms) == 1);
         world.fight.monsters.pop_back();
         hero.knock.reset();
+        // A hit too small for a get-hit moves the class too (FUN_0057cee0 sets unit flag 0x8000,
+        // FUN_00597cf0 sends +0xb0 in S->C 0x0c): the next block plays the zombie's.
+        hero.pmode = -1;
+        world.cues.due.clear();
+        auto grazed = std::array{ world.fight.player_foe(hit_ms), world.fight.merc_foe(hit_ms) };
+        grazed[0].hits = 1;
+        grazed[0].hit_class = zombie->hit_class;
+        grazed[0].damage = grazed[0].physical = 1;
+        world.fight.hurt_side(grazed, hit_ms);
+        assert(hero.pmode != kModeGH && hero.shown_class == zombie->hit_class);
+        hero.pmode = -1;
+        auto blocked_again = std::array{ world.fight.player_foe(hit_ms), world.fight.merc_foe(hit_ms) };
+        blocked_again[0].blocked = true;
+        world.fight.hurt_side(blocked_again, hit_ms);
+        assert(hero.pmode == kModeBL && snd::block(zombie->hit_class) != snd::kBlockArrow && count(snd::block(zombie->hit_class), hit_ms) == 1);
         hero.pmode = -1;
         world.cues.due.clear();
         world.fight.set_pmode(kModeKK, hit_ms);
@@ -531,7 +546,7 @@ int main(int argc, char** argv) try {
         hero.character.items = items;
         hero.struck_class = hero.shown_class = 0;
         world.cues.due.clear();
-        std::printf("OK: an arrow's get-hit, then block_arrow on a block; weapon_kick, an Assassin's late\n");
+        std::printf("OK: an arrow's get-hit, then block_arrow on a block; a graze's class blocked; weapon_kick, an Assassin's late\n");
     }
     {   // A vendor's stock and Kashya's hire list last the game, not one opening.
         const auto& npcs = world.level->npcs;
