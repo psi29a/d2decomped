@@ -517,20 +517,22 @@ int main(int argc, char** argv) try {
         world.fight.monsters.pop_back();
         hero.knock.reset();
         // A hit too small for a get-hit moves the class too (FUN_0057cee0 sets unit flag 0x8000,
-        // FUN_00597cf0 sends +0xb0 in S->C 0x0c): the next block plays the zombie's.
+        // FUN_00597cf0 sends +0xb0 in S->C 0x0c): the next block plays a weapon's, not the arrow's.
+        const auto weapon = std::ranges::find_if(data->monsters.types, [](const auto& type) { return snd::block(type.hit_class) == snd::kBlockWeapon; });
+        assert(weapon != data->monsters.types.end());
         hero.pmode = -1;
         world.cues.due.clear();
         auto grazed = std::array{ world.fight.player_foe(hit_ms), world.fight.merc_foe(hit_ms) };
         grazed[0].hits = 1;
-        grazed[0].hit_class = zombie->hit_class;
+        grazed[0].hit_class = weapon->hit_class;
         grazed[0].damage = grazed[0].physical = 1;
         world.fight.hurt_side(grazed, hit_ms);
-        assert(hero.pmode != kModeGH && hero.shown_class == zombie->hit_class);
+        assert(hero.pmode != kModeGH && hero.shown_class == weapon->hit_class);
         hero.pmode = -1;
         auto blocked_again = std::array{ world.fight.player_foe(hit_ms), world.fight.merc_foe(hit_ms) };
         blocked_again[0].blocked = true;
         world.fight.hurt_side(blocked_again, hit_ms);
-        assert(hero.pmode == kModeBL && snd::block(zombie->hit_class) != snd::kBlockArrow && count(snd::block(zombie->hit_class), hit_ms) == 1);
+        assert(hero.pmode == kModeBL && count(snd::kBlockWeapon, hit_ms) == 1 && count(snd::kBlockArrow, hit_ms) == 0);
         hero.pmode = -1;
         world.cues.due.clear();
         world.fight.set_pmode(kModeKK, hit_ms);

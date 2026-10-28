@@ -441,7 +441,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             }
         }
         // A block (FUN_004cb860): by the hit class the client last had (unit +0xb0), the
-        // last get-hit's. A blocked hit clears its flag 1 (FUN_0057ec10), so FUN_0057cee0
+        // last landed hit's. A blocked hit clears its flag 1 (FUN_0057ec10), so FUN_0057cee0
         // keeps the old class and no hit packet (S→C 0x0c) carries a new one.
         if (mode == kModeBL)
             cues.cue(d2d::rules::sound_ids::block(actor->shown_class), now_ms, actor->player.x, actor->player.y);
