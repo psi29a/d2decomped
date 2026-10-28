@@ -709,8 +709,13 @@ private:
         QSettings settings;
         path_ = settings.value("game/dataPath").toString();
         patch_path_ = settings.value("game/patchPath").toString();
+        // d2d's layers (global, its working dir = beside the engine, user;
+        // later wins), so the boxes show what d2d will use.
         d2d::userdir::Config cfg;
-        d2d::userdir::load_cfg(d2d::userdir::user_dir("d2d") / "d2d.cfg", cfg);
+        const QString engine = engineBinaryPath();
+        for (const auto& dir : { d2d::userdir::global_dir("d2d"), engine.isEmpty() ? std::filesystem::path() : to_path(QFileInfo(engine).absolutePath()),
+                                 d2d::userdir::user_dir("d2d") })
+            if (!dir.empty()) d2d::userdir::load_cfg(dir / "d2d.cfg", cfg);
         if (patch_path_.isEmpty())   // a hand-set `patch =` in d2d.cfg counts
             patch_path_ = QString::fromStdString(cfg["patch"]);
         const QSignalBlocker quiet(fullscreen_), quiet_widescreen(widescreen_), quiet_video(skipVideo_), quiet_scale(scaleMode_);   // loading isn't a change to write back
