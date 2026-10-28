@@ -26,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_D2D = ROOT / "build/apps/d2d/d2d"
-DEFAULT_DATA = Path(os.environ.get("D2_MPQ_DIR", Path.home() / "Workspace/private/diablo2"))
+SUN_PATH_MAX = 104   # AF_UNIX path bytes with its NUL: 104 on macOS, 108 on Linux
 
 
 def send(sock_path, line, timeout=30.0):
@@ -50,7 +50,7 @@ def send(sock_path, line, timeout=30.0):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--d2d", type=Path, default=DEFAULT_D2D)
-    ap.add_argument("--data", type=Path, default=DEFAULT_DATA)
+    ap.add_argument("--data", type=Path, default=os.environ.get("D2_MPQ_DIR"), help="the MPQ folder (default: $D2_MPQ_DIR)")
     ap.add_argument("--config", type=Path, default=ROOT / "build/smoke-config")
     ap.add_argument("--screen", default="ingame")
     ap.add_argument("--class", dest="cls", type=int, default=0,
@@ -62,6 +62,9 @@ def main():
     a = ap.parse_args()
     if a.wait < 0:
         ap.error("--wait must be nonnegative")
+    if a.data is None:
+        ap.error("no game data: pass --data MPQ_DIR or set D2_MPQ_DIR")
+    a.data = Path(a.data)
     a.out = a.out.resolve()  # d2d resolves relative paths against its own screenshots dir
     if any(c.isspace() for c in str(a.out)):
         ap.error(f"--out can't hold whitespace (devctl splits its arguments on it): {a.out}")
@@ -72,6 +75,9 @@ def main():
     a.config.mkdir(parents=True, exist_ok=True)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     sock = a.config / "devctl.sock"
+    if len(os.fsencode(sock.resolve())) >= SUN_PATH_MAX:
+        sys.exit(f"devctl socket path too long for AF_UNIX ({len(os.fsencode(sock.resolve()))} bytes): {sock}; "
+                 "pass a shorter --config")
     sock.unlink(missing_ok=True)
     a.out.unlink(missing_ok=True)
 
@@ -91,8 +97,8 @@ def main():
                 try:
                     if send(sock, "ping", 5).endswith("ok"):
                         break
-                except OSError:
-                    pass
+                except (ConnectionRefusedError, FileNotFoundError, TimeoutError):
+                    pass   # not listening yet; anything else (a bad path) fails loudly
             time.sleep(0.5)
         else:
             print("d2d did not answer ping (exit code %s)" % proc.poll())
