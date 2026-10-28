@@ -2,7 +2,8 @@
 // Where the automap scrolls: its cels and marks draw at (px / div -
 // scroll.x, py / div - scroll.y) (FUN_00459700, after FUN_0045b440 and
 // FUN_00457640; docs/research/re/automap.md "Drawing"). Checked against
-// game.exe in tools/emu/automap_scroll.py.
+// game.exe in tools/emu/automap_scroll.py. And which units the view
+// draws, which is what puts an object's icon on the map.
 #pragma once
 
 namespace d2d::rules {
@@ -25,6 +26,35 @@ constexpr AutomapScroll automap_scroll(int client_x, int client_y, int width, in
     // lands on their feet, (400, 294) at 800 x 600.
     const int view_left = client_x - width / 2, view_top = client_y - height / 2 + 0x10;
     return { view_left / divisor - width / 2 - shift + 0x28 + offset_x, view_top / divisor - (height - 40) / 2 + 0xf + offset_y };
+}
+
+// A client px coordinate's tile (FUN_00643340: 2y + x for x, 2y - x for
+// y, over 160; one less below zero, an exact multiple too).
+constexpr int client_tile(int value) { return value < 0 ? value / 160 - 1 : value / 160; }
+
+// Whether a unit at client px (unit_x, unit_y) lands in the view's unit
+// grid, the draw list that sets its flag 0x10000000 and so its automap
+// icon (FUN_004ddb70 -> FUN_004dd7c0 -> FUN_004dc7b0). `view_x` /
+// `view_y`: the view's top left, the player less half the view
+// (FUN_0044c990: W / 2, (H - 40) / 2); `width` x `height` the view, W x
+// (H - 40) (FUN_00476000). The grid is width / 160 + 11 + height / 80 + 11
+// tiles square (FUN_004dce60), from the view's tile less 3 in x and less
+// width / 160 + 11 in y (FUN_004ddb70).
+constexpr bool in_unit_grid(int view_x, int view_y, int width, int height, int unit_x, int unit_y) {
+    const int columns = width / 160 + 11, size = columns + height / 80 + 11;
+    const int cell_x = client_tile(2 * unit_y + unit_x) - (client_tile(2 * view_y + view_x) - 3);
+    const int cell_y = client_tile(2 * unit_y - unit_x) - (client_tile(2 * view_y - view_x) - columns);
+    return cell_x >= 0 && cell_y >= 0 && cell_x < size && cell_y < size;
+}
+
+// Whether a room (act tiles) has its units put in that grid: its client
+// px box (FUN_00619c40, corners by FUN_006433c0: (x - y) * 80 - 80,
+// (x + y) * 40 + 80) meets the view's, widened 200 left and 400 down
+// (FUN_004dd7c0).
+constexpr bool room_in_view(int view_x, int view_y, int width, int height, int room_x, int room_y, int room_width, int room_height) {
+    const int left = (room_x - room_y - room_height) * 80 - 80, top = (room_x + room_y) * 40 + 80;
+    const int right = (room_x + room_width - room_y) * 80 - 80, bottom = (room_x + room_width + room_y + room_height) * 40 + 80;
+    return left <= view_x + width && top <= view_y + height + 400 && view_x - 200 <= right && view_y <= bottom;
 }
 
 }  // namespace d2d::rules

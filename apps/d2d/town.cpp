@@ -420,7 +420,6 @@ static std::filesystem::path automap_dir(const World& world) { return world.char
 auto Town::enter() -> void {
         automap.cells.clear();                    // a new game: what the files beside the save kept
         automap.placed.clear();
-        automap.revealed.clear();
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
         mini = {};                                // open (FUN_004567f0; ponytail: not the "Mini Panel" registry value)
@@ -1602,7 +1601,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         bool menu_click = false;
         if (g_drawn.level == level) {                                 // drawn last frame, in this level
             automap_reveal(*scene, *level, automap, g_drawn.cells);
-            automap_icons(*level, automap, g_drawn.objects, view.level == level ? view.npc_states : std::vector<UnitState>{});
+            if (view.level == level) automap_icons(*world.game_data, *level, automap, view.player.x, view.player.y, view.npc_states);
             for (const auto& neighbour : level->nearby)               // what's in view across the edge
                 if (neighbour.level->layer == level->layer) automap_reveal(*scene, *neighbour.level, automap, g_drawn.cells, neighbour.dx, neighbour.dy);
         }

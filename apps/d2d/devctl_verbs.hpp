@@ -221,7 +221,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
             const auto& map = town.level->ds1;
             std::vector<DrawnCell> every;
             for (int y = 0; y < int(map.height()); ++y)
-                for (int x = 0; x < int(map.width()); ++x) for (const bool floor : { true, false }) every.push_back({ x, y, floor });
+                for (int x = 0; x < int(map.width()); ++x) every.push_back({ x, y, nullptr });
             automap_reveal(*scene, *town.level, town.automap, every);
             return "ok " + std::to_string(town.automap.cells.size()) + "\n";
         }

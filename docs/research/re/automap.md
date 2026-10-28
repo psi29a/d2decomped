@@ -253,16 +253,14 @@ dropped, otherwise the cel decides.
 
 - Tab toggles the automap.
 - What render_world drew last frame (`g_drawn`, with the level it
-  drew) is revealed, as game.exe's flag 0x20000: a floor or roof by the
-  view box, a wall by its blocks with the side panel's half, each above.
-  A cell's drawn floors reveal its floors, its drawn walls its walls.
-  Before 2026-10-28 d2d took every tile within 12 of the player, a
-  square about three screens across (a tester saw the map run past
-  what's in view). W is the screen's width, as game.exe's box takes
-  `0x71146c`: a wider screen reveals more there too.
-  Not like game.exe: a wall's blocks are taken to fill its box (an
-  empty block counts), and a cell's walls (roof included) come in
-  together.
+  drew) is revealed, as game.exe's flag 0x20000, tile by tile (each
+  `DrawnCell` names its pick or DS1 layer cell): a floor or roof by the
+  view box, a wall by its DT1 blocks (`dt1::Tile::blocks`) with the side
+  panel's half, each above. Before 2026-10-28 d2d took every tile
+  within 12 of the player, a square about three screens across (a
+  tester saw the map run past what's in view). W is the screen's width,
+  as game.exe's box takes `0x71146c`: a wider screen reveals more there
+  too.
 - A generated level reveals its `Level::picks` (the DT1 tiles game.exe's
   rooms take), by their DT1 header like `FUN_00457cf0`. A maze level's
   (caves, crypts, Jail, Cathedral, Catacombs) DS1 is blank, so reading
@@ -292,10 +290,20 @@ dropped, otherwise the cel decides.
     cel (shrines, wells, the Cairn Stones, the Tree of Inifuss, ...) go
     in list 2 at their px / 10 + (1, -3), with `FUN_00458dc0`'s
     conditions, once drawn: game.exe's unit flag 0x10000000, set by
-    `FUN_004dc7b0` when the unit's draw (`FUN_00471ec0`) says it drew
-    (0x20000000 then marks it added). d2d counts an object whose frame
-    box is on screen (`FUN_00471ec0`'s own test not traced); a neighbour
-    level's objects aren't counted.
+    `FUN_004dc7b0` for each unit of the view's draw list (`FUN_004df1c0`;
+    0x20000000 then marks it added). `FUN_00471ec0` returns 1 whenever
+    the unit has a frame (0 only for Objects.txt Draw off or no graphics),
+    so "drawn" is "in the list", not "on screen". `FUN_004ddb70` ->
+    `FUN_004dd7c0` fill it from the player's room's near list
+    (`FUN_00619bd0`): a room whose client px box (`FUN_00619c40`, corners
+    by `FUN_006433c0`) meets the view's, widened 200 left and 400 down,
+    puts each unit whose tile (`FUN_00643340`) is in the view's unit grid:
+    W/160 + 11 + (H-40)/80 + 11 tiles square (`FUN_004dce60`), from the
+    view's tile less 3 in x and less W/160 + 11 in y. At 800 x 600 that is
+    x -9..+24, y -17..+16 tiles round the player: well past the screen
+    toward its bottom right. `rules::in_unit_grid` / `room_in_view`, and
+    `automap_icons` over the near rooms (`game::missile_rooms`), the
+    neighbour levels' objects too.
   - The top right's lines (above), but the game name / password and the
     game type 6 / 8 line.
 - Not yet: other players' pets' marks, the bank's name, the miniatures.

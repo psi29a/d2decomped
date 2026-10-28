@@ -86,6 +86,7 @@ struct Tile {
     std::array<std::uint8_t, 25> subtile_flags{};
     std::int32_t y_shift{};             // added to block y to land in pixels[]
     std::vector<std::uint8_t> pixels;   // width * abs(height), 0=transparent
+    std::vector<std::pair<std::int16_t, std::int16_t>> blocks;   // each block's top left in pixels[] (a wall's draw clips by them)
 };
 
 // Whether an archive decodes its tiles' pixels. A headless game server
@@ -206,6 +207,7 @@ private:
 
             tiles_[i].y_shift = -min_y;   // >= 0
             for (const auto& block : decoded) {
+                tiles_[i].blocks.emplace_back(block.x, std::int16_t(block.y - min_y));
                 if (block.format == 1) {
                     decode_isometric(tiles_[i], block.x, block.y, block.enc);
                 } else {
