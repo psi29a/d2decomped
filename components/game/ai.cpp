@@ -562,7 +562,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const auto& per_difficulty = type_info.diff[std::size_t(monster.difficulty)];
-    const bool andariel = type_info.ai_name == "Andariel", nest = type_info.ai_name == "FoulCrowNest" || type_info.ai_name == "GargoyleTrap";
+    const bool andariel = type_info.ai_name == "Andariel", nest = type_info.ai_name == "FoulCrowNest" || type_info.ai_name == "GargoyleTrap" || type_info.ai_name == "Sarcophagus";
     const bool cursed = monster.special == 10 || monster.special == 11;   // the curse thinks run whatever its own
     if (!andariel && !cursed && !d2d::rules::traced_ai(type_info.ai_name)) return false;
     auto idle = [&](int frames) {                                  // FUN_005de080
@@ -1224,6 +1224,33 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.imp_near = imp_found >= 0;
         }
     }
+    // The rest the levels place: the spots. The arrow traps' level kind is
+    // drawn when one first fires there (in range, lined up, past its frame;
+    // FUN_005fb650): Act 1's (levels below 40) the spike, else rand(3) on
+    // that trap's seed. The desert turret's lines (FUN_005fd470 skill 0xcb:
+    // FUN_00645910 from it, mask 0x805, no size) to each step's point and to
+    // the target.
+    {
+        const auto& name = type_info.ai_name;
+        const bool arrow = name == "Trap-RightArrow" || name == "Trap-LeftArrow";
+        if (arrow || name == "HellMeteor" || name == "DesertTurret") {
+            input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
+        }
+        if (arrow) {
+            const int off = name == "Trap-RightArrow" ? target_x - x : target_y - y;
+            if (level.trap_kind < 0 && input.aip[0] <= input.dist && input.dist <= input.aip[1] && std::abs(off) < 3 && monster.ai_state < frame)
+                level.trap_kind = level.id < 40 ? 0 : monster.seed(3);
+            input.trap_kind = level.trap_kind;
+        }
+        if (name == "DesertTurret") {
+            const auto wall805 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); };
+            for (std::size_t step = 0; step < input.ray_clear.size(); ++step) {
+                const auto& [step_x, step_y] = d2d::rules::kTurretStep[step];
+                input.ray_clear[step] = !d2d::rules::sight_blocked(x, y, 0, x + step_x * input.aip[4], y + step_y * input.aip[4], 0, wall805);
+            }
+            input.usable = !d2d::rules::sight_blocked(x, y, 0, target_x, target_y, 0, wall805);
+        }
+    }
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
         monster.chase = int(target - foes.data());
         unit.dir = direction16(dx, dy);
@@ -1544,6 +1571,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // Nihlathak's (FUN_005df850, off themselves) are the map's.
             if (act.spot) { monster.skill_x = target_x; monster.skill_y = target_y; }   // at the target's spot (UberIzual's teleport)
             if ((type_info.ai_name == "ZakarumPriest" || type_info.ai_name == "HighPriest" || type_info.ai_name == "Imp" || type_info.ai_name == "Nihlathak" || baal) && (act.x || act.y)) { monster.skill_x = act.x; monster.skill_y = act.y; }
+            // The hell meteor's and the turret's points are the map's too, aimed at (do 28 / 105 read it, FUN_0056d2c0).
+            if ((type_info.ai_name == "HellMeteor" || type_info.ai_name == "DesertTurret") && act.unit == d2d::rules::ThinkUnit::none) {
+                monster.skill_x = act.x || act.y ? act.x : x; monster.skill_y = act.x || act.y ? act.y : y; monster.at_point = true;
+            }
             if (monster.skill_unit >= 0) unit.dir = direction16(pack[std::size_t(monster.skill_unit)].unit.x - unit.x, pack[std::size_t(monster.skill_unit)].unit.y - unit.y);
             if (type_info.ai_name == "GargoyleTrap") {                 // square on (FUN_005f9490): along the axis it's nearer the target's
                 const bool down = std::abs(target_x - x) < std::abs(target_y - y);
@@ -1852,6 +1883,30 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const auto stem = base.substr(0, base.find_last_not_of("0123456789") + 1);
                 const int first = base.size() > stem.size() ? std::atoi(base.c_str() + stem.size()) : 1;
                 andariel_missile(game_data, monster, stem + std::to_string(first + type_info.trans_lvl), dx, dy, now_ms, missiles, skill_level(game_data, monster, monster.skill));
+                monster.seq_once = true;
+            } else if (skill("DesertTurret")) {                               // srvdofunc 105 (FUN_005cd6a0): calc1 desertfireballs fanned at its point
+                const int lvl = skill_level(game_data, monster, monster.skill);
+                const auto* fan = game_data.skills.get(monster.skill);
+                const int count = fan ? d2d::rules::eval_calc(game_data.skills, fan->calc[0], {}, monster.skill, lvl) : 0;
+                for (const auto& [from_x, from_y, off_x, off_y] : d2d::rules::turret_fan(subtile(unit.x), subtile(unit.y), monster.skill_x, monster.skill_y, count)) {
+                    const std::size_t had = missiles.size();
+                    andariel_missile(game_data, monster, fan->srvmissilea, float(off_x) / 5, float(off_y) / 5, now_ms, missiles, lvl, fan);
+                    if (missiles.size() > had) {
+                        auto& launched = missiles.back();
+                        launched.x = (float(from_x) + 0.5f) / 5; launched.y = (float(from_y) + 0.5f) / 5;
+                        launched.to = { launched.x + float(off_x) / 5, launched.y + float(off_y) / 5 };
+                    }
+                }
+                monster.seq_once = true;
+            } else if (skill("ArcaneTower")) {                                // srvdofunc 106 (FUN_005cd870): with a target, the nova of its srvmissilea
+                const int lvl = skill_level(game_data, monster, monster.skill);
+                if (const auto* tower = game_data.skills.get(monster.skill); tower && foe.alive)
+                    for (int k = 0; k < 64; ++k) {
+                        const float angle = float(k) * 2 * 3.14159265f / 64;
+                        const std::size_t had = missiles.size();
+                        andariel_missile(game_data, monster, tower->srvmissilea, std::cos(angle), std::sin(angle), now_ms, missiles, lvl, tower);
+                        if (missiles.size() > had) missiles.back().to.reset();
+                    }
                 monster.seq_once = true;
             } else if (skill("GargoyleTrap")) {                               // srvdofunc 93 (FUN_005cc050): srvmissilea shafire3 square on at its target
                 const auto [from_x, from_y, off_x, off_y] = d2d::rules::gargoyle_shot(subtile(unit.x), subtile(unit.y), subtile(foe.x), subtile(foe.y));
@@ -2193,13 +2248,23 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     monster.breath_next = now_ms;
                     monster.next_act = std::max(monster.next_act, monster.breath_until);
                 } else if (cast->srvdofunc == ServerDoFunction::kMissileAtTarget) {
-                    // FUN_005ca3e0: its srvmissilea at the target (MonBlizzard's centre).
+                    // FUN_005ca3e0: its srvmissilea at the target (MonBlizzard's centre),
+                    // or at its point (the hell meteor's), when the missile's Size
+                    // square there is clear of mask 5 (FUN_0056e450 -> FUN_0064d800).
                     // ponytail: a blizzard's centre flies there.
                     // One that doesn't move (Baal Taunt's control) stands at the target.
+                    const float aim_x = monster.at_point ? (float(monster.skill_x) + 0.5f) / 5 - unit.x : dx, aim_y = monster.at_point ? (float(monster.skill_y) + 0.5f) / 5 - unit.y : dy;
+                    const auto meteor = game_data.missiles.find(cast->srvmissilea);
+                    const int size = meteor == game_data.missiles.end() ? 1 : std::max(meteor->second.size, 1);
+                    const int point_x = subtile(unit.x + aim_x), point_y = subtile(unit.y + aim_y);
+                    bool clear = true;
+                    for (int at_y = point_y - (size >> 1); at_y < point_y - (size >> 1) + size; ++at_y)
+                        for (int at_x = point_x - (size >> 1); at_x < point_x - (size >> 1) + size; ++at_x)
+                            clear = clear && !level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 5);
                     const std::size_t before = missiles.size();
-                    andariel_missile(game_data, monster, cast->srvmissilea, dx, dy, now_ms, missiles, lvl, cast);
+                    if (clear) andariel_missile(game_data, monster, cast->srvmissilea, aim_x, aim_y, now_ms, missiles, lvl, cast);
                     if (missiles.size() > before && missiles.back().velocity_x == 0 && missiles.back().velocity_y == 0) {
-                        missiles.back().x += dx; missiles.back().y += dy;
+                        missiles.back().x += aim_x; missiles.back().y += aim_y;
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kMonPoisonNova) {
                     // FUN_005ccd10: srvmissilea out 8 ways (0x6e31e8 / 0x6e31a8), and the 8 between with calc2 2.
@@ -2428,8 +2493,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // at its thinks: when next_act is due and no chase is under way (a chase
     // runs as think()'s does, move_frame). With none it thinks again aidel
     // on (FUN_005a73e0).
-    // ponytail: acts 4-5 and Coldworm (SandMaggotQueen) only, every other acts 1-3 AI is traced: the
-    // foe it found is the frame's foe from the next frame on.
+    // The foe it found is the frame's foe from the next frame on. (No placed
+    // monster comes here: see monster_update.)
     const bool chasing = monster.mode == "WL" && !monster.steps.empty() && monster.aware;
     if (now_ms >= monster.next_act && !chasing) {
         if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) {   // its door first, as think's
@@ -2474,8 +2539,6 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         }
         // Shooters (MissA2) shoot from up to 7 cells: each think (aidel)
         // the aip2 chance to fire, else close in.
-        // ponytail: aip2 read as the shoot chance; for AIs not traced (acts 4-5,
-        // Coldworm).
         if (miss != game_data.missiles.end() && dist < 7 && now_ms >= monster.next_act) {
             monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
             if (rng(100) < std::max(type_info.diff[std::size_t(monster.difficulty)].aip[1], 1)) {

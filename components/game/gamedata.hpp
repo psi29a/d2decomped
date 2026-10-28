@@ -366,6 +366,9 @@ struct Level {
     // Its monster region's MonStats rows by difficulty (trap 8), set when a
     // game first populates it.
     mutable std::array<std::vector<int>, 3> region;
+    // Its arrow traps' kind (FUN_005fb650: the game's level record +0x2d4):
+    // -1 till one first fires, then 1 the poison ball, else the spike.
+    mutable int trap_kind = -1;
 };
 
 // What the game's rules read: the tables, the levels, animation timings,

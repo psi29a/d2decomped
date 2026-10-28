@@ -598,7 +598,9 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
 // (Act 1 rows) Place -> MonStats row (by Id) -> its MonStatsEx's MonStats2
 // row (monster_npc).
 // Positions are in subtiles; a unit stands at its subtile's centre.
-// ponytail: act 1 only, NU idle only; "place_*" spawn markers skipped.
+// Other towns come in through ds1_units. Every camp monster is made in mode
+// 1 (NU) and its place_* markers make nothing: game.exe's populate of the
+// camp (FUN_0052d0f0) makes the same 13, checked at seed 0x1234.
 void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     auto txt = [&](const char* name) {
         auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + name + ".txt");

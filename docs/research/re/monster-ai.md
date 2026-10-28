@@ -600,6 +600,66 @@ MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
   set: drops `cm2` (the Hellfire Torch) through `FUN_00559a30(7)`, then a
   `std` (Standard of Heroes) per +0x8c; each four-byte code ends in a space.
 
+## Turrets, traps and the rest (traced 2026-10-28)
+
+The MonAIs a level places that were left on the generic melee think. A
+sweep of every level (`drlg-dump ... monsters`, map seeds 1..4 and 7)
+places only these seven untraced classes; town NPCs, pets and quest NPCs
+think elsewhere. All are search type 1 (no target found: no think).
+`mon_ais.py` runs them (`LATE_AIS`: Act 2's scene and the trap kind),
+`tests/mon_ais_late_cases.inc`.
+
+| ai | name | think | where |
+|---|---|---|---|
+| 33 | HellMeteor | `FUN_005f56d0` | the River of Flame |
+| 45 | Sarcophagus | `FUN_005f6a10` (init `FUN_005f6630`) | Act 2's tombs |
+| 78 / 79 | Trap-RightArrow / Trap-LeftArrow | `FUN_005fb6c0` / `FUN_005fb7e0` | the arrow traps (327, 328) of Acts 2-3 |
+| 93 | ArcaneTower | `FUN_005e0f60` | the lightning spire (Arcane Sanctuary) |
+| 94 | DesertTurret | `FUN_005e0980` | the fire towers (372) |
+| 97 | Spirit | `FUN_005e3840` | Mephisto's spirit (the Durance) |
+
+- **HellMeteor**: with Skill1, `rand(100) < aip1` on its seed: Skill1 at
+  its own spot plus `rand(2·aip3) − aip3` on x, then y, no unit; else
+  stands aip2. Skill1 is do 28 (`FUN_005ca3e0`): its srvmissilea toward
+  the path's point (`FUN_0056d2c0`) when the missile's Size square there
+  is clear of mask 5 (`FUN_0056e450` → `FUN_0064d800`).
+- **Sarcophagus**: the FoulCrowNest's think but past 25 (not 20) it
+  stands 25, it's gone (mode 0, flag 0x20000) once it's laid **more than**
+  aip3, and the frame is stamped only when it lays.
+- **The arrow traps**: out of aip1..aip2 they stand 40. Within 2 of the
+  target's column (Right, x) or row (Left, y) and past their frame
+  (+0x14): the frame is aip3 on, then `FUN_005fb650`'s kind: 1 casts
+  Skill1 (+0x1c aip4 on), else A1 (MissA1, the spike). Else stand 30.
+  `FUN_005fb650` keeps one kind a level (the game's level record
+  +0x2d4, -1 at first): levels below 40 (Act 1) 0, else `rand(3)` on the
+  trap's seed (`FUN_004bc500(seed, 0, 3)`), drawn when the first one
+  fires. bugs.md #36.
+- **ArcaneTower**: its count (+0x18) starts at aip1. Before its frame
+  (+0x1c) it stands 10. Casting (+0x14 0, Skill1 set): Skill1 at the
+  target, the count down one; done, it swaps to striking (+0x14 1, count
+  aip4, frame aip3 on), else frame aip2 on. Striking: A1 (MissA1
+  arcanelightningbolt), count down one; done, back to casting (count
+  aip1, frame aip5 on), else frame aip6 on. Skill1 (do 106,
+  `FUN_005cd870`), with a target (`FUN_00553540`): `FUN_0056d400`, the
+  64-missile ring of srvmissilea at its level's velocity
+  (`FUN_00663270`: Vel + VelLev × lvl / 8).
+- **DesertTurret**: with Skill1 and +0x14 0, Skill1 where it stands
+  (+0x1c 0, +0x14 the frame). Before +0x14 it stands 10. Within aip4 of
+  the target: its step +0x1c turns by 0x6e33e0[eighth × 8 + step] (the
+  eighth: `DAT_00745600` of `FUN_0064fdc0`), and with both lines clear
+  (`FUN_005fd470` skill 0xcb: `FUN_00645910` mask 0x805, to the point and
+  to the target) it casts Skill1 at its spot + 0x6e33a0[step] × aip5, no
+  unit, and sets its path's point there (`FUN_00648ad0`); the run +0x18
+  counts up, and past aip2 +0x14 is aip3 on (the run 0), else aip1 on.
+  Otherwise the run counts down and it stands 10 (15 out of aip4).
+  Skill1 is do 105 (`FUN_005cd6a0`): calc1 desertfireballs across the
+  way to the path's point, 2 subtiles apart on the axis the offset's signs
+  pick, each from the turret + offset / 6 (both axes the x offset:
+  bugs.md #35) flying the offset (flags 3). `tools/emu/turret_fan.py`,
+  `rules::turret_fan`.
+- **Spirit**: once it's struck (+0x14) it stands 50; in melee A1 (+0x14
+  1); else stands 10.
+
 ## Doors — FUN_005b0f50
 
 Driver step 1. With MonStats flags byte +0xc & 8 (opendoors, DAT_006ce274):

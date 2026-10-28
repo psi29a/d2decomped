@@ -668,10 +668,11 @@ int main() {
 #include "mon_ais_baal_cases.inc"
 #include "mon_ais_uber_cases.inc"
 #include "mon_ais_imp_ride_cases.inc"
+#include "mon_ais_late_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
-                // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's fields.
-                struct AiCase { std::string_view name; bool other, act3_scene, act4_scene, act5_scene; };
+                // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's / the late ones' fields.
+                struct AiCase { std::string_view name; bool other, act3_scene, act4_scene, act5_scene, late_scene; };
                 static constexpr AiCase kAis[] = {
 #include "mon_ais_names.inc"
                 };
@@ -737,6 +738,10 @@ int main() {
                         input.spawn_found = read() != 0; input.spawn_room = read() != 0; input.defile = read() != 0;
                         input.ancient = read(); input.asleep = read() != 0; input.state36 = read() != 0; input.picked = read() != 0;
                         if (ai_of(which) == "ImpRide") input.riding = read() != 0;
+                    }
+                    if (kAis[std::size_t(which)].late_scene) {
+                        input.trap_kind = read();
+                        input.ray_clear.fill(input.usable);                    // FUN_005fd470 answers one for any line
                     }
                     d2d::rules::Rng seed;
                     seed.low = std::uint32_t(std::stoll([&] { std::string text; fields >> text; return text; }()));
@@ -1366,6 +1371,25 @@ int main() {
         assert((d2d::rules::gargoyle_shot(10, 10, 12, 30) == std::array{ 9, 12, 2, 20 }));
         assert((d2d::rules::gargoyle_shot(10, 10, 30, 11) == std::array{ 12, 9, 20, 1 }));
         assert((d2d::rules::gargoyle_shot(10, 10, 16, 16) == std::array{ 10, 9, 6, 4 }));
+        // The desert turret's fan (FUN_005cd6a0; tools/emu/turret_fan.py): x, y,
+        // the point, calc1 | each missile's start and offset.
+        static constexpr std::string_view kFans[] = {
+#include "turret_fan_cases.inc"
+        };
+        for (const std::string_view fan_line : kFans) {
+            const std::string line(fan_line);
+            std::istringstream fields(line.substr(0, line.find('|')));
+            int from_x = 0, from_y = 0, to_x = 0, to_y = 0, count = 0;
+            fields >> from_x >> from_y >> to_x >> to_y >> count;
+            std::vector<std::array<int, 4>> want;
+            std::istringstream shots(line.substr(line.find('|') + 1));
+            for (std::string shot; std::getline(shots, shot, ';');) {
+                std::istringstream four(shot);
+                std::array<int, 4> value{};
+                if (four >> value[0] >> value[1] >> value[2] >> value[3]) want.push_back(value);
+            }
+            assert(d2d::rules::turret_fan(from_x, from_y, to_x, to_y, count) == want);
+        }
         assert((d2d::rules::gargoyle_shot(10, 10, 4, 0) == std::array{ 9, 8, -4, -10 }));
         // The Countess (FUN_005e5c50): away from home's room she walks back;
         // a target elsewhere gets the firewall from home only; the map AI

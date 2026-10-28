@@ -360,6 +360,8 @@ enum class ServerDoFunction : int {
     kDiabRun = 103,                // FUN_005cd380: the run at the target, a hit on contact
     kDiabPrison = 104,             // FUN_005cd5d0: a bone prison round the unit
     kRegurgitatorEat = 108,        // FUN_005cdc10: a corpse eaten, life back
+    kDesertTurret = 105,           // FUN_005cd6a0: calc1 srvmissilea fanned at the skill's point
+    kArcaneTower = 106,            // FUN_005cd870: the nova of its srvmissilea (FUN_0056d400)
     kMonFrenzy = 109,              // FUN_005cdf10: a strike (FUN_005cddd0), the frenzy state on
     kMonCurseCast = 112,           // FUN_005ce2b0: one of five curses (0x6e3228) on rand(5)
     kBookOrScroll = 113,           // Identify, Town Portal

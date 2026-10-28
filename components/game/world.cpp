@@ -1149,6 +1149,7 @@ auto World::new_game() -> void {
         for (const auto& [id, built] : game_data->levels) {
             if (!built) continue;
             auto& level_rw = const_cast<Level&>(*built);         // GameData owns its levels mutable
+            level_rw.trap_kind = -1;
             if (level_rw.npcs.size() > level_rw.npc_base && level_rw.walk.size() == level_rw.tile_walk.size()) {
                 level_rw.npcs.resize(level_rw.npc_base);
                 level_rw.walk = level_rw.tile_walk;

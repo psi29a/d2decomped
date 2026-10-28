@@ -1280,6 +1280,12 @@ struct ThinkIn {
     // target.
     int ancient = 0;
     bool asleep = false, state36 = false, picked = false;
+    // The arrow traps': the level's trap kind (FUN_005fb650: 1 the poison
+    // ball, else the spike). The desert turret's: the line to each of the
+    // 8 points it may cast at clear (FUN_005fd470 skill 0xcb: FUN_00645910,
+    // mask 0x805), by kTurretStep; `usable` the line to its target.
+    int trap_kind = 0;
+    std::array<bool, 8> ray_clear{};
 };
 
 // A monster's skill level (FUN_00573cb0): Sk*lvl + DifficultyLevels
@@ -1290,7 +1296,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 100> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 107> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1301,7 +1307,8 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "VileMother", "VileDog", "FingerMage", "Regurgitator", "DoomKnight", "AbyssKnight", "OblivionKnight", "Megademon", "Izual", "Diablo", "TrappedSoul", "BaalCrab", "BaalCrabClone",
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
-                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt", "UberIzual", "UberMephisto", "UberDiablo", "UberBaal", "SiegeTower" };
+                                                               "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt", "UberIzual", "UberMephisto", "UberDiablo", "UberBaal", "SiegeTower",
+                                                               "HellMeteor", "Sarcophagus", "Spirit", "ArcaneTower", "Trap-RightArrow", "Trap-LeftArrow", "DesertTurret" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -1332,6 +1339,33 @@ inline std::array<int, 4> gargoyle_shot(int x, int y, int target_x, int target_y
     const bool down = std::abs(target_x - x) < std::abs(target_y - y);
     const int off_x = (down ? toward(x, target_x) : target_x) - x, off_y = (down ? target_y : toward(y, target_y)) - y;
     return { x + off_x / 6 - 1, y + off_y / 6 - 1, off_x, off_y };
+}
+
+// The desert turret's casting steps (0x6e33a0: subtiles, x aip5) and its
+// step's turn toward the target's eighth (0x6e33e0: [eighth][step]).
+inline constexpr std::array<std::array<int, 2>, 8> kTurretStep{ { { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 }, { 1, 0 } } };
+inline constexpr std::array<std::array<int, 8>, 8> kTurretTurn{ { { 0, 0, 1, 2, 5, 6, 7, 0 }, { 1, 1, 1, 2, 3, 6, 7, 0 }, { 1, 2, 2, 2, 3, 4, 7, 0 }, { 1, 2, 3, 3, 3, 4, 5, 6 },
+                                                                  { 1, 2, 3, 4, 4, 4, 5, 6 }, { 7, 2, 3, 4, 5, 5, 5, 6 }, { 7, 0, 3, 4, 5, 6, 6, 6 }, { 7, 0, 1, 4, 5, 6, 7, 7 } } };
+
+// The desert turret's fan (srvdofunc 105, FUN_005cd6a0): `count` missiles
+// from (x, y) at the point (to_x, to_y), side by side 2 subtiles apart
+// across the way (by the offset's signs), centred on it. Each starts the
+// offset / 6 out on both axes from the x offset (bugs.md), and flies the
+// offset on (FUN_0059fa30 flags 3). None when the point is its spot.
+// {from x, from y, offset x, offset y} each.
+inline std::vector<std::array<int, 4>> turret_fan(int x, int y, int to_x, int to_y, int count) {
+    const int dx = to_x - x, dy = to_y - y;
+    if (dx == 0 && dy == 0) return {};
+    int side_x = 0, side_y = 0;
+    if (dx < 0 && dy < 0) { side_x = 2; side_y = -2; }
+    else if (dx == 0) side_x = dy < 0 ? 2 : -2;
+    else if (dx > 0) { side_y = 2; side_x = dy < 0 ? 2 : dy > 0 ? -2 : 0; }
+    else if (dy > 0) { side_x = -2; side_y = -2; }
+    else if (dy == 0) side_y = -2;
+    std::vector<std::array<int, 4>> out;
+    int off_x = dx - count / 2 * side_x, off_y = dy - count / 2 * side_y;
+    for (int k = 0; k < count; ++k, off_x += side_x, off_y += side_y) out.push_back({ x + off_x / 6, y + off_x / 6, off_x, off_y });
+    return out;
 }
 
 // `away(n, run)` backs off n subtiles from the target (FUN_005defe0 walking,
@@ -3581,6 +3615,95 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             return cast(0);
         }
         return roll() < 0x32 ? walk : Think{ MonAct::idle, aip[4] };
+    }
+    // HellMeteor (33, FUN_005f56d0; the River of Flame's): with Skill1, aip1 %
+    // casts it at a point aip3 about itself (rand(2 aip3) - aip3 off on x,
+    // then y), at no unit; else it stands aip2.
+    if (ai_name == "HellMeteor") {
+        if (input.skill[0] && roll() < aip[0]) {
+            const int x = rng(2 * aip[2]) + input.self_x - aip[2];
+            const int y = rng(2 * aip[2]) + input.self_y - aip[2];
+            return { MonAct::skill, 0, x, y, ThinkUnit::none };
+        }
+        return { MonAct::idle, aip[1] };
+    }
+    // Sarcophagus (45, FUN_005f6a10; init FUN_005f6630, the nest's): past 25
+    // stands 25; once it's laid more than aip3 it's gone (mode 0); every
+    // aip1 frames (stamped only when it lays) it lays (Skill1, Nest) where
+    // there's room; else stands 20 + a seed step % 10.
+    if (ai_name == "Sarcophagus") {
+        if (input.dist > 25) return { MonAct::idle, 25 };
+        if (*input.state2 > aip[2]) return { MonAct::gone };
+        if (input.skill[0] && std::abs(input.frame - *input.state) >= aip[0] && input.spot_free) {
+            ++*input.state2;
+            *input.state = input.frame;
+            return { MonAct::skill, 0 };
+        }
+        return { MonAct::idle, int(rng.next() % 10) + 20 };
+    }
+    // Spirit (97, FUN_005e3840; Mephisto's in the Durance): once it's struck
+    // (its scratch word) it stands 50; in melee it strikes (A1); else stands 10.
+    if (ai_name == "Spirit") {
+        if (*input.state != 0) return { MonAct::idle, 50 };
+        if (input.in_melee) { *input.state = 1; return { MonAct::a1 }; }
+        return { MonAct::idle, 10 };
+    }
+    // ArcaneTower (93, FUN_005e0f60; the lightning spire): its count (state2)
+    // starts at aip1; before its frame (state3) it stands 10. Casting (state
+    // 0, with Skill1) it casts Skill1 at the target, aip2 frames on, and after
+    // the count's done strikes: aip4 of them (A1), aip6 frames apart; the
+    // count done, it casts again aip5 frames on (aip3 after the casts).
+    if (ai_name == "ArcaneTower") {
+        if (*input.state2 == 0) *input.state2 = aip[0];
+        if (input.frame < *input.state3) return { MonAct::idle, 10 };
+        if (input.skill[0] && *input.state == 0) {
+            if (--*input.state2 < 1) { *input.state = 1; *input.state2 = aip[3]; *input.state3 = aip[2] + input.frame; }
+            else *input.state3 = aip[1] + input.frame;
+            return cast(0);
+        }
+        if (--*input.state2 < 1) { *input.state = 0; *input.state2 = aip[0]; *input.state3 = aip[4] + input.frame; }
+        else *input.state3 = aip[5] + input.frame;
+        return { MonAct::a1 };
+    }
+    // Trap-RightArrow / Trap-LeftArrow (78 / 79, FUN_005fb6c0 / FUN_005fb7e0):
+    // a target aip1..aip2 off and within 2 of its column (Right) or row
+    // (Left), past its frame (state): aip3 frames on, the level's poison kind
+    // casts Skill1 (state3 aip4 frames on), another the spike (A1); else it
+    // stands 30. Out of that range it stands 40.
+    if (ai_name == "Trap-RightArrow" || ai_name == "Trap-LeftArrow") {
+        if (input.dist < aip[0] || aip[1] < input.dist) return { MonAct::idle, 40 };
+        const int off = ai_name == "Trap-RightArrow" ? input.target_x - input.self_x : input.target_y - input.self_y;
+        if (std::abs(off) < 3 && *input.state < input.frame) {
+            *input.state = aip[2] + input.frame;
+            if (input.trap_kind != 1) return { MonAct::a1 };
+            if (input.skill[0]) { *input.state3 = aip[3] + input.frame; return cast(0); }
+        }
+        return { MonAct::idle, 30 };
+    }
+    // DesertTurret (94, FUN_005e0980; the fire towers): with Skill1 and no
+    // frame yet it casts it where it stands (state3 0, state the frame);
+    // before its frame (state) it stands 10. Within aip4 of the target it
+    // turns its step (state3) toward the target's eighth (DAT_00745600 of
+    // the 64 direction, 0x6e33e0) and, the lines there and to the target
+    // clear, casts Skill1 aip5 steps (0x6e33a0) off itself, at no unit: aip1
+    // frames on, aip3 once it's cast more than aip2 times running (the run
+    // then 0). Else the run counts down one and it stands 10 (15 out of reach).
+    if (ai_name == "DesertTurret") {
+        if (input.skill[0] && *input.state == 0) { *input.state3 = 0; *input.state = input.frame; return { MonAct::skill, 0, 0, 0, ThinkUnit::none }; }
+        if (input.frame < *input.state) return { MonAct::idle, 10 };
+        const bool in_reach = input.dist <= aip[3];
+        if (in_reach) {
+            const int eighth = ((direction64(input.self_x, input.self_y, input.target_x, input.target_y) + 4) >> 3) & 7;
+            const int step = kTurretTurn[std::size_t(eighth)][std::size_t(*input.state3 & 7)];
+            *input.state3 = step;
+            if (input.skill[0] && input.ray_clear[std::size_t(step)] && input.usable) {
+                if (++*input.state2 > aip[1]) { *input.state = aip[2] + input.frame; *input.state2 = 0; }
+                else *input.state = aip[0] + input.frame;
+                return { MonAct::skill, 0, input.self_x + kTurretStep[std::size_t(step)][0] * aip[4], input.self_y + kTurretStep[std::size_t(step)][1] * aip[4], ThinkUnit::none };
+            }
+        }
+        if (*input.state2 > 0) --*input.state2;
+        return { MonAct::idle, in_reach ? 10 : 15 };
     }
     return { MonAct::untraced };
 }

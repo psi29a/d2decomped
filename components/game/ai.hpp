@@ -863,9 +863,11 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
 // aidel ticks between attacks;
 // otherwise wander near home (Levels.txt MonWndr): stand 2-5 s, walk to a
 // random spot within 3 cells.
-// ponytail: acts 4-5 and Coldworm (SandMaggotQueen) only, every other acts 1-3 MonStats AI is traced: an AI
-// whose think isn't traced (rules::traced_ai) gets one melee think (MonStats aip1..8 unread); distances and timings by eye;
-// chasing goes straight at the player, sliding to a stop at walls.
+// An AI whose think isn't traced (rules::traced_ai) gets one melee think
+// (MonStats aip1..8 unread); distances and timings by eye; chasing goes
+// straight at the player, sliding to a stop at walls. No monster a level
+// places has one (every level, map seeds 1..4 and 7): it's a safety net;
+// town NPCs, pets and quest NPCs think elsewhere.
 // A unique's attack starting (the mode-change hook, event 0): Spectral Hit
 // picks this attack's element (uniques.hpp kSpectralElement), in el[2].
 void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);

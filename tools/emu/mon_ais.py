@@ -68,13 +68,17 @@ AIS = {
     "UberIzual": 0x5f8c80, "UberMephisto": 0x5f81c0, "UberDiablo": 0x5e9df0, "UberBaal": 0x5fd200,
     # A riding imp's (special AI 16, 0x73d358 row + 8) and the barricade tower's (MonAI 113).
     "ImpRide": 0x5e2d80, "SiegeTower": 0x5e1860,
+    # The rest the levels place (monster-ai.md "Turrets, traps and the rest"): a scene of their own.
+    "HellMeteor": 0x5f56d0, "Sarcophagus": 0x5f6a10, "Spirit": 0x5e3840, "ArcaneTower": 0x5e0f60,
+    "Trap-RightArrow": 0x5fb6c0, "Trap-LeftArrow": 0x5fb7e0, "DesertTurret": 0x5e0980,
 }
 DIABLO_LIKE = ("Diablo", "DiabloOther", "BaalCrab", "BaalCrabClone")   # his pick, kept point, hands
 BAAL_SKILLS = {0x13b: 2, 0x13c: 0, 0x13d: 1, 0x13e: 3}                 # FUN_005fcb60's raw ids: Skill3, 1, 2, 4
 CURSE_AIS = ("DimVision", "Terror", "BatDemonOther", "SandMaggotOther")
-ACT3_AIS = tuple(list(AIS)[list(AIS).index("Mosquito"):])   # Act 4's too: their scene is Act 3's and more
-ACT4_AIS = tuple(list(AIS)[list(AIS).index("VileMother"):])
-ACT5_AIS = tuple(list(AIS)[list(AIS).index("ReanimatedHorde"):])
+LATE_AIS = tuple(list(AIS)[list(AIS).index("HellMeteor"):])  # their own scene: Act 2's and the trap kind
+ACT3_AIS = tuple(a for a in list(AIS)[list(AIS).index("Mosquito"):] if a not in LATE_AIS)   # Act 4's too: their scene is Act 3's and more
+ACT4_AIS = tuple(a for a in list(AIS)[list(AIS).index("VileMother"):] if a not in LATE_AIS)
+ACT5_AIS = tuple(a for a in list(AIS)[list(AIS).index("ReanimatedHorde"):] if a not in LATE_AIS)
 ORDER = list(AIS)
 
 
@@ -85,7 +89,7 @@ def write_names(path):
         f.write("// tools/emu/mon_ais.py --dump (write_names): the AIs the cases number, ORDER.\n")
         for ai in ORDER:
             other = ai.endswith("Other")
-            f.write(f'{{ "{ai.removesuffix("Other")}", {str(other).lower()}, {str(ai in ACT3_AIS).lower()}, {str(ai in ACT4_AIS).lower()}, {str(ai in ACT5_AIS).lower()} }},\n')
+            f.write(f'{{ "{ai.removesuffix("Other")}", {str(other).lower()}, {str(ai in ACT3_AIS).lower()}, {str(ai in ACT4_AIS).lower()}, {str(ai in ACT5_AIS).lower()}, {str(ai in LATE_AIS).lower()} }},\n')
 # Think acts (rules::MonAct) by name; units (rules::ThinkUnit).
 ACTS = ["idle", "a1", "a2", "s2", "skill", "walk", "run", "approach", "keep", "circle", "wander", "none", "die", "around",
         "home", "point", "untraced", "s3", "s4", "seq", "fly", "gone", "s1", "sc", "mode_at", "move_to", "spawn", "direct"]
@@ -224,6 +228,17 @@ def setup(rng, ai):
     # (FUN_005dd0b0 with FUN_005e1720); the target in state 0x20 (FUN_00625760),
     # its FUN_00625d10 / FUN_00625d60, the units' own lives (FUN_00621f20);
     # its command's last frame (+0x14).
+    # The arrow traps' level kind (FUN_005fb650: 0 / 2 the spike, 1 the poison
+    # ball); the desert turret's step (+0x1c) is one of its eight.
+    if ai in LATE_AIS:
+        s["trap_kind"] = rng.randint(0, 2)
+        if ai == "DesertTurret": s["ctrl"][2] = rng.randint(0, 7)
+        if ai.startswith("Trap-") and rng.random() < 0.7:                  # in its range and lined up, often
+            s["dist"] = rng.randint(min(s["aip"][0], s["aip"][1]), max(s["aip"][0], s["aip"][1]))
+            mx, my = s["spots"]["mon"]
+            fx, fy = s["spots"]["foe"]
+            s["spots"]["foe"] = s["spot"] = (mx + rng.randint(-3, 3), fy) if ai == "Trap-RightArrow" else (fx, my + rng.randint(-3, 3))
+            s["ctrl"][0] = rng.choice((0, s["frame"] + rng.randint(-20, 20)))
     if ai in ACT5_AIS:
         s["lines"] = rng.random() < 0.6
         s["sk_range"] = rng.choice((0, rng.randint(0, 30)))
@@ -590,6 +605,7 @@ def install(e):
     e.hook(0x45ae20, lambda e: cur["s"]["spots"][name(e.mu.reg_read(RECX)) or "mon"][1], 0)
     e.hook(0x5e6020, lambda e: int(cur["s"].get("spawn_found", True)), 1)
     e.hook(0x5fd350, lambda e: int(cur["s"].get("spawn_room", True)), 3)                          # it dies (the egg hatched)                                   # Radament's: FUN_00599420 (the quest's)
+    e.hook(0x5fb650, lambda e: cur["s"]["trap_kind"], 0)                                            # the arrow traps' level kind
 
 
 def run_game(e, s, addr, rng_moves):
@@ -750,6 +766,7 @@ def dump_case(s, act, pace, effects, asks, ctrl, seed):
         nums += [int(s["catapult_gone"]), int(s["strike_spot"]), int(s["spawn_unset"]), int(s["spawn_found"]), int(s["spawn_room"]), int(s["defile"]),
                  s["ancient"], int(s["asleep"]), int(s["state36"]), int(s.get("d_target", False))]
         if s["ai"] == "ImpRide": nums += [int(s["riding"])]
+    if s["ai"] in LATE_AIS: nums += [s["trap_kind"]]
     nums += list(s["seed"])
     kinds = {"state": 0, "overlay": 1, "stat": 2, "rally": 3, "command_done": 4, "summoner_open": 5, "aura": 6, "land": 7, "takeoff": 8,
              "toggle": 9, "unset": 10, "set_word": 11, "bless": 12, "greet": 13, "mark": 14, "mount": 15, "retarget": 16, "clone": 17}

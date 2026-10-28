@@ -91,7 +91,7 @@ struct BuiltRoom {
     // FUN_00667970's tile infos of type 0xb (orientation 10/11, style 30..33 ->
     // sequence, sequence + 5, 10, 11; level +0x2c): level-relative tiles, the
     // start spot of a Levels Position level.
-    // ponytail: type 0xb only, not 0x6eed88's kin types (unseen in Act 1).
+    // 0x6eed88 gives kin only to indices 0 and 5 (any of 0..4, 5..9); 0xb matches itself.
     std::vector<std::pair<int, int>> starts;
     // Every such tile with its spawn index (0..4 a join's start, 11 a town
     // portal's arrival): a town's Level::start / portal_spot.
