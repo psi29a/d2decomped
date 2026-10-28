@@ -348,15 +348,16 @@ The remaining 106 rows have these causes:
 | 5 `event_desert_night_1..5` | No SoundEnviron row selects these names. The desert environments use their daytime event group at night too. |
 | 8 `rogue_confirm_*` | Unit sound event 0xf on a Rogue (class 0x10f, FUN_004cb9c0). The server sends it only from C→S 0x46's handler (FUN_0054c4b0 → FUN_0054c430: the player's merc sent to a unit), and the stock client never builds 0x46, so stock 1.14d never plays them. |
 | 13 NPC speech rows | Alkor, Asheara, Cain's act 4 greeting, Guard, Hratli, Iron Wolf, Ormus, Tyrael and Warriv rows. None is in the speech table (0x72b0e0), the only way a dialogue string plays a voice, and no client code plays their numbers (where game.exe has them, they're string ids or line numbers: 0xe8d in FUN_004a1950 is a string), so as traced stock 1.14d never plays them. |
-| 8 monster / skeleton rows | Diablo's taunts: `monster_diablo_taunt_1` plays at frame 50 of the `diablo` missile (pCltDoFunc 37, FUN_004d6540, the missile's +0x10 current frame), which also shakes the screen at frame 150; d2d makes neither that missile nor screen shake (see `andariel_quake_loop`); `monster_diablo_taunt_ex`, with the screen shake, on event message 0x12, Diablo Walks the Earth (FUN_0049eb10), a realm event no single-player or d2d host sends. Not traced yet: `monster_cast_lightning`, `monster_meteor_impact`, `monster_izual_taunt`, `skeleton_cast_*` (no client code plays their numbers directly). |
+| 2 `monster_diablo_taunt_*` | Diablo's taunts: `monster_diablo_taunt_1` plays at frame 50 of the `diablo` missile (pCltDoFunc 37, FUN_004d6540, the missile's +0x10 current frame), which also shakes the screen at frame 150; d2d makes neither that missile nor screen shake (see `andariel_quake_loop`); `monster_diablo_taunt_ex`, with the screen shake, on event message 0x12, Diablo Walks the Earth (FUN_0049eb10), a realm event no single-player or d2d host sends. |
+| 6 monster / skeleton rows | `monster_cast_lightning` (421), `monster_meteor_impact` (437), `skeleton_cast_cold` / `_lightning` / `_poison` (1799..1801) and `monster_izual_taunt_2` (4644). No table column names them (Skills stsound names their siblings `monster_cast_cold` / `_fire`, MonSounds Weapon1 / 2 `skeleton_cast_fire` for every skeleton mage, all four rows being `firemage.wav`) and game.exe has no `mov ecx, <id>` / `push <id>` before a play for them (the 0x1a5 / 0x1b5 / 0x706 / 0x708 immediates are FUN_00477170's monster classes, screen-coordinate compares in FUN_0049a*/0049b*, assert line numbers for FUN_00408090, and a (string, number) record at 0x640d6e). The swing, FUN_004cb6a0, plays Weapon1 / 2 (+0x10 / +0x28) as they are, with no element offset; the taunt, FUN_004cbde0 event 0x10, plays +0x74 Taunt alone (`monster_izual_taunt_1`, Group Size 0). So as traced stock 1.14d never plays them. |
 | 1 `andariel_quake_loop` | The screen shake's sound. FUN_00476a80 (strength, ramp in, hold, fade out in ms) starts a shake; each frame FUN_00476d40 takes its strength along that envelope, moves the camera up to twice it either way, and FUN_004769d0 plays this row unplaced at volume strength x 255 / 10 (at most 255), stopping it at 0. Shakes start from the missiles' pCltDoFunc 29 (andycontrol0), 31 (horadricstaff), 36 (durieldeathcontrol), 37 (diablo), 54 (anya) and 58 (royalstrikechaosice), event message 0x12 and the client skill function 0x727a90[145]; d2d has no screen shake yet. |
 | 1 `scene_tavern_interior` | Front-end tavern scene only; d2d does not implement that scene. |
 
-Of the 106, 91 are traced as never played by stock 1.14d: the 70 class
-quest phrases, the 8 rogue confirms and the 13 NPC rows. So d2d plays 3,414
-of the 3,429 rows the original does. The five desert-night rows aren't
-counted with them: no SoundEnviron row names them, but no code path playing
-them has been ruled out.
+Of the 106, 97 are traced as never played by stock 1.14d: the 70 class
+quest phrases, the 8 rogue confirms, the 13 NPC rows and the 6 monster /
+skeleton rows. So d2d plays 3,414 of the 3,423 rows the original does. The
+five desert-night rows aren't counted with them: no SoundEnviron row names
+them, but no code path playing them has been ruled out.
 
 These are trigger or feature gaps, not missing audio files. The two shrine
 sounds are covered by shrine activation cues; the audit counts code cues even
