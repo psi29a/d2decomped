@@ -1784,7 +1784,7 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
         auto& monster = monsters[monster_index];
         const auto [players, nearby] = drop_counts();
         if (!credit) {                                      // a monster's kill (FUN_0057e7b0: no player behind it)
-            loot.drop(monster, spawning.game, now_ms, players, nearby);
+            if (!monster.no_drop) loot.drop(monster, spawning.game, now_ms, players, nearby);
             kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super, monster.id, 0 });
             return;
         }
@@ -1795,7 +1795,8 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
         // killer's, none nobody's.
         // ponytail: the merc's share (FUN_0057e860) isn't kept.
         Hero& killer = *actor;
-        if (heroes.size() == 1) {
+        if (monster.no_exp) {
+        } else if (heroes.size() == 1) {
             gain_exp(monster.stats.exp, monster, now_ms);
         } else {
             std::vector<Hero*> members;
@@ -1816,7 +1817,7 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
             }
             act_as(killer);
         }
-        loot.drop(monster, spawning.game, now_ms, players, nearby);
+        if (!monster.no_drop) loot.drop(monster, spawning.game, now_ms, players, nearby);
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super, monster.id, killer.id });
     }
 
@@ -4495,11 +4496,12 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     foe.pick.state_b = now_ms < monster.chill_until;   // state 0xb, cold
                 }
             std::vector<Monster> born;
+            auto* rooms_in_play = &spawning.levels[level];
             act_as(*heroes.front());
             for (std::size_t i = 0; i < monsters.size(); ++i) {
                 auto& monster = monsters[i];
                 if (near_players(monster.unit.x, monster.unit.y)
-                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door))
+                    && monster_update(*game_data, *level, monster, foes, rng, now_ms, elapsed, crowd, missiles, monsters, &born, &area_seen, &open_door, rooms_in_play))
                     killed(i, now_ms);                           // on a player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };

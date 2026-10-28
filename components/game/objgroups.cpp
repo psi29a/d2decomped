@@ -862,14 +862,7 @@ struct ObjectRooms {
         // FUN_0063ec70 + FUN_0054e2a0: a base monster as the level has it (as populate()'s own()).
         const auto& types = game_data.monsters.types;
         auto own = [&](int base_bin) {
-            int row = int(game_data.mon_bin[std::size_t(base_bin)]);
-            const auto listed = std::ranges::find_if(level.mon.mon, [&](int mon_row) { return mon_row >= 0 && std::size_t(mon_row) < types.size() && types[std::size_t(mon_row)].base == types[std::size_t(row)].base; });
-            if (listed != level.mon.mon.end()) row = *listed;
-            else if (std::ranges::any_of(level.mon.mon, [](int mon_row) { return mon_row >= 0; })) {
-                // FUN_0063ec70: else up its class (NextInClass) while the next's Level is at most MonLvl1Ex + 1.
-                const int top = std::size_t(level.id) < game_data.area_level.size() ? game_data.area_level[std::size_t(level.id)][0] + 1 : 0;
-                for (int next = types[std::size_t(row)].next_in_class; next >= 0 && std::size_t(next) < types.size() && types[std::size_t(next)].level[0] <= top; next = types[std::size_t(next)].next_in_class) row = next;
-            }
+            const int row = level_monster(game_data, level, int(game_data.mon_bin[std::size_t(base_bin)]));
             const int base = types[std::size_t(row)].base, id = level.id;
             auto bin = [&](int bin_row) { return int(game_data.mon_bin[std::size_t(bin_row)]); };
             if (base == bin(0x13)) return id == 6 ? bin(0x14) : id == 7 || id == 12 || id == 16 ? bin(0x15) : row;

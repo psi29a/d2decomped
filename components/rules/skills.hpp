@@ -384,6 +384,7 @@ enum class ServerDoFunction : int {
     kImpFireMissile = 132,         // FUN_005d2090: srvmissilea + TransLvl at the target, once
     kImpregnate = 133,             // FUN_005d2250: state 0x6e on a monster; dead, its summon comes out
     kSiegeBeastStomp = 134,        // FUN_005d2320: needs a srvmissilea, row 301 has none: nothing
+    kMinionSpawner = 135,          // FUN_005d2490: what its start picked (FUN_0056e620), made through FUN_005b2f20
     kDeathMaul = 136,              // FUN_005d25b0: srvmissilea at the target's spot, its range by the distance
     kBaalColdMissiles = 139,       // FUN_005d2940: srvmissilea (a maker) at the target's spot
     kBaalTentacle = 140,           // FUN_005d2c20: 2 + rand(3) + difficulty tentacles about the target

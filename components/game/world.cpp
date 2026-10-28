@@ -957,11 +957,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
         if (trap == 8) {                               // FUN_005822f0: 1 or 2 of the level's undead family
             const int fam = d2d::rules::trap_undead(level->region[std::size_t(diff)], 0);
             if (fam < 0 || fight.mon_level != level) { d2d::log::info("trap 8: no undead here"); return; }
-            // FUN_0063ec70: the level's own variant of the family.
-            // ponytail: from the region, else the family's first (FUN_006510c0's step not traced).
-            int type = fam;
-            const auto& types = game_data->monsters.types;
-            for (const int monstats_row : level->region[std::size_t(diff)]) if (types[std::size_t(monstats_row)].base == types[std::size_t(fam)].base) { type = monstats_row; break; }
+            const int type = level_monster(*game_data, *level, fam);   // FUN_0063ec70: the level's own variant of the family
             const int count = undead ? undead : int(rng.next() & 1) + 1;
             for (int k = 0; k < count; ++k) {
                 const auto [free_x, free_y] = level->nearest_free(x + float(k) * 0.4f, y + 0.4f);
@@ -973,7 +969,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
                 monster.aware = true;
                 fight.add_monster(std::move(monster));
             }
-            d2d::log::info("trap 8: {} x{}", types[std::size_t(type)].id, count);
+            d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, count);
             return;
         }
         const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";

@@ -343,6 +343,16 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
 
 int room_of(const Level& level, float x, float y) { return room_holding(room_rects(level), level, x, y); }
 
+int level_monster(const GameData& game_data, const Level& level, int row) {
+    const auto& types = game_data.monsters.types;
+    if (row < 0 || std::size_t(row) >= types.size() || std::ranges::none_of(level.mon.mon, [](int mon_row) { return mon_row >= 0; })) return row;
+    const auto listed = std::ranges::find_if(level.mon.mon, [&](int mon_row) { return mon_row >= 0 && std::size_t(mon_row) < types.size() && types[std::size_t(mon_row)].base == types[std::size_t(row)].base; });
+    if (listed != level.mon.mon.end()) return *listed;
+    const int top = std::size_t(level.id) < game_data.area_level.size() ? game_data.area_level[std::size_t(level.id)][0] + 1 : 0;
+    for (int next = types[std::size_t(row)].next_in_class; next >= 0 && std::size_t(next) < types.size() && types[std::size_t(next)].level[0] <= top; next = types[std::size_t(next)].next_in_class) row = next;
+    return row;
+}
+
 std::uint32_t area_id_at(const GameData& game_data, const Level& level, float from_x, float from_y, float x, float y) {
     const float act_x = x + float(level.world_x), act_y = y + float(level.world_y);
     auto id_in = [&](const Level& holder, int room, const RoomRect& rect) -> std::uint32_t {   // FUN_0066ce30 on that room

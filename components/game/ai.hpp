@@ -196,6 +196,10 @@ struct Monster {
     int step = 0, budget = 0, end_x = 0, end_y = 0;
     int chase = -1;
     bool corpse_used = false;                 // raised (Raise Skeleton): its corpse is gone
+    // Unit flags a skill's young carry (+0xc4): 0x4000000 no experience for
+    // its kill (FUN_005a4ef0 skips FUN_0057e990), 0x20000 no drop
+    // (FUN_005a6830 returns at once).
+    bool no_exp = false, no_drop = false;
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
@@ -881,7 +885,21 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 // `open_door`: its door at a think (OpenDoor).
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
-                    std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr);
+                    std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr,
+                    Spawning::LevelState* rooms_in_play = nullptr);
+
+// FUN_005b2f20 -> FUN_005b2a00 for a monster made in play: rings of 3
+// subtiles out to 3 x radius round (x, y) (radius -1: the spot alone), each
+// walked from a point drawn on the room's seed (rules::monster_detail::place;
+// three draws at the spot alone), the first spot inside `room`'s rect
+// (Level::rooms index; the callers pass the room FUN_00620bb0 names) where a
+// monster of `type` fits: FUN_0064d9b0, its shape on the grid and among the
+// units. FUN_005fd350 only refuses the nest BaseIds (0xce, 0xe4, 0x12a,
+// 0x14e, 0x210), none made in play. `rooms_in_play`: the level's rooms as
+// play left them (Spawning::LevelState: up, their seeds); a room not up
+// places nothing (game.exe has no room there, FUN_00463740).
+bool spawn_spot(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning::LevelState* rooms_in_play, int type, int x, int y, int radius,
+                int room, int& out_x, int& out_y);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.

@@ -660,6 +660,48 @@ think elsewhere. All are search type 1 (no target found: no think).
 - **Spirit**: once it's struck (+0x14) it stands 50; in melee A1 (+0x14
   1); else stands 10.
 
+## Skills made in play: spawns and the rest (traced 2026-10-28)
+
+- **A monster made in play** (`FUN_005b2f20` → `FUN_005b2a00`, request
+  `{game, room, 0, class, mode, 0, x, y, radius, flags}`): rings of 3
+  subtiles out to 3 × radius round (x, y) (radius −1 the spot alone,
+  three draws on the room's seed), the first spot in the room's rect where
+  the class fits (`FUN_005fd350`, `FUN_0064d9b0`). Flags: 1 a dry run, 0x20
+  unit flags 3, 2 no family mods (`FUN_005b21b0`), 0x40 no party
+  (`FUN_005b2830`). MonStats byte +0x4c 1 adds unit flag 0x20000 (only
+  rows with no treasure class). The party only matters for an evil hole's
+  fallen1, which no level places. d2d: `spawn_spot`, on the room's seed
+  as play left it (`Spawning::LevelState`).
+- **Unit flags +0xc4**: 0x4000000 no experience for the kill
+  (`FUN_005a4ef0` skips `FUN_0057e990`), 0x20000 no drop (`FUN_005a6830`
+  returns at once). Nest's young (do 91, `FUN_005cbe00`: radius 1) and
+  MinionSpawner's get both; MagottLay's egg (radius −1) and Coldworm's young
+  (radius 2, flags 0x42) 0x4000000. d2d: `Monster::no_exp` / `no_drop`.
+- **The nests' spot** (`FUN_005fd350`, ECX the caster's class): crownest
+  (0xce) 3 below it, sarcophagus (0xe4) 2 below, vile mother (0x12a) the
+  spot itself (a flag: always free), 0x14e 2 up-left (mask 0x1c0), 0x210 2
+  right 4 below: in a room, a plus clear of 0x3c01. Any other family: free.
+- **The vile mother's lay** (`FUN_005f9e30`): eight tries from the
+  target's eighth on, each 3 × `DAT_006ea998` / `DAT_006ea978`[{6, 4, 2,
+  2, 2, 0, 6, 6}[eighth]]; the first free (`FUN_005fd350`) takes Skill1
+  (Nest, seq_vileres) there.
+- **MinionSpawner** (start 62, `FUN_005d2420` → `FUN_0056e620` →
+  `FUN_0063ea70`): the caster's MonStats spawn at its spot + spawnx /
+  spawny in spawnmode (outside 0..15: NU). With no spawn row (Nihlathak),
+  the class in AI control +0x3c, which his think sets to
+  `FUN_0063ec70(room, 0x1c5)`, the level's own minion. Do 135
+  (`FUN_005d2490`): made at radius −1, else 4.
+- **The level's own monster** `FUN_0063ec70`: monsters.md; the chain's
+  bound is the family's count (MonStats +0x4a, `FUN_006510c0`), which the
+  chain never outruns. d2d: `level_monster`.
+- **Corpse Explosion from a monster** (Nihlathak, do 55 `FUN_005c4df0`, the
+  Necromancer's own): at the corpse his think found, used (state 0x68);
+  each foe within aurarange / 2 of it takes calc1..calc2 % of its life,
+  half physical, half fire.
+- **Smite** (do 150, the Baal minions' A2) and **Power Strike** (start 6,
+  MonPowerStrike / MonIceSpear, A1) play their Sk mode; the strike lands
+  as the swing's (Power Strike: no to-hit bonus, calc1 %, the element).
+
 ## Doors — FUN_005b0f50
 
 Driver step 1. With MonStats flags byte +0xc & 8 (opendoors, DAT_006ce274):

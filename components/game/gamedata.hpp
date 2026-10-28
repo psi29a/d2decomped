@@ -1061,6 +1061,12 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
 std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, const Level& level, float x, float y);
 // The room holding (x, y) cells (its Level::rooms index), -1 none.
 int room_of(const Level& level, float x, float y);
+// The level's own monster of MonStats `row`'s family (FUN_0063ec70): the
+// first of the level's list (Levels.bin +0x33 / +0x36: Mon1..10) of that
+// BaseId; else up the family's chain (NextInClass, at most its count,
+// MonStats +0x4a) while the next's Level is at most MonLvl1Ex + 1. A level
+// with no list keeps `row`.
+int level_monster(const GameData& game_data, const Level& level, int row);
 // FUN_0061b130(room, x, y): the spawn area id (record +0x28) at (x, y)
 // cells as seen from the room holding (from_x, from_y): that room if it
 // holds the point, else the first of its near list that does, any level
