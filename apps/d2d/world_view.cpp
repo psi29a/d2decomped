@@ -259,6 +259,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const int screen_w = fb_width(framebuffer);
     const int cx0 = screen_w / 2;
+    g_drawn_cells.clear();
     const int map_width  = map.width();
     const int base_x = int(std::floor(cam_x)), base_y = int(std::floor(cam_y));
     // Screen position of cell (gx, gy)'s tile point. A floor's 128-row
@@ -298,6 +299,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         // units and walls each on game.exe's pixels; not traced).
         const int wall_lift = layer == 0 ? 16 : 0;
         const int screen_y = (layer == 0 && tile.type >= 16 ? iso_y + kIsoH - tile.y_shift : iso_y - (tile_height - kIsoH)) - wall_lift;
+        // ponytail: its box on screen counts as drawn; game.exe's walls need a pixel drawn (FUN_004f6950's result)
+        if (layer != 2 && screen_x < screen_w && screen_x + kIsoW > 0 && screen_y < int(kScreenHeight) && screen_y + std::max(tile_height, kIsoH) > 0)
+            g_drawn_cells.emplace_back(cell_x, cell_y);
         if (layer == 2) blit_dt1_shadow(framebuffer, tile, pal, screen_x, screen_y);
         else if (light && layer == 0) blit_dt1_wall_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha < 255, alpha);   // ponytail: "in front" read off the alpha, so a wall fading back still samples the front spots
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha);

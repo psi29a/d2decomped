@@ -21,6 +21,7 @@
 #include <string_view>
 #include <tuple>
 #include <unordered_map>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -236,7 +237,11 @@ inline constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,
 
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash);
 
-void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y);
+// `cells` of the level's grid, each once (its floors, then its walls),
+// from the grid they're in shifted by (shift_x, shift_y): a neighbour
+// level's from the drawn level's.
+void automap_reveal(const Scene& scene, const Level& level, Automap& automap, std::span<const std::pair<int, int>> cells,
+                    int shift_x = 0, int shift_y = 0);
 
 // The level's objects with an Objects.txt AutoMap cel near the player into
 // list 2 (FUN_00458dc0 -> FUN_00457e80).

@@ -1599,11 +1599,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // anything else closes it.
         bool menu_click = false;
         const auto& unit = view.player;
-        automap_reveal(*scene, *level, automap, unit.x, unit.y);
+        automap_reveal(*scene, *level, automap, g_drawn_cells);
         automap_icons(*level, automap, unit.x, unit.y, view.level == level ? view.npc_states : std::vector<UnitState>{});
         for (const auto& neighbour : level->nearby)                   // what's in view across the edge
             if (neighbour.level->layer == level->layer) {
-                automap_reveal(*scene, *neighbour.level, automap, unit.x - float(neighbour.dx), unit.y - float(neighbour.dy));
+                automap_reveal(*scene, *neighbour.level, automap, g_drawn_cells, neighbour.dx, neighbour.dy);
                 automap_icons(*neighbour.level, automap, unit.x - float(neighbour.dx), unit.y - float(neighbour.dy), {});
             }
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for

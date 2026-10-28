@@ -16,6 +16,7 @@
 #include <object_ids.hpp>
 #include <palette.hpp>
 #include <quests.hpp>
+#include <automap_scroll.hpp>
 #include <rules.hpp>
 
 #include <algorithm>
@@ -27,6 +28,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -723,47 +725,51 @@ void save_automap(Automap& automap, const std::filesystem::path& dir, const std:
     for (auto& cell : automap.cells) cell.saved = true;
 }
 
-void automap_reveal(const Scene& scene, const Level& level, Automap& automap, float player_x, float player_y) {
+// game.exe adds the tiles drawn on screen (flag 0x20000) of the player's
+// room and its near rooms each time the player has moved 80 px
+// (FUN_00459020); d2d the cells render_world drew (g_drawn_cells).
+void automap_reveal(const Scene& scene, const Level& level, Automap& automap, std::span<const std::pair<int, int>> cells,
+                    int shift_x, int shift_y) {
     const auto& map = level.ds1;
     const int width = int(map.width()), height = int(map.height());
     if (width == 0) return;
     auto& seen = automap.revealed[level.id];
     if (seen.size() != std::size_t(width * height)) seen.assign(std::size_t(width * height), 0);
-    const int cell_x = int(std::floor(player_x)), cell_y = int(std::floor(player_y)), reach = 12;
-    for (int tile_y = std::max(0, cell_y - reach); tile_y < std::min(height, cell_y + reach); ++tile_y)
-        for (int tile_x = std::max(0, cell_x - reach); tile_x < std::min(width, cell_x + reach); ++tile_x) {
-            auto& done = seen[std::size_t(tile_y * width + tile_x)];
-            if (done) continue;
-            done = 1;
-            const int act_x = tile_x + level.world_x, act_y = tile_y + level.world_y;     // act tiles
-            const std::uint32_t hash = std::uint32_t(act_x) * 73856093u ^ std::uint32_t(act_y) * 19349663u;   // unsigned: wraps, not UB
-            const int automap_x = (act_x - act_y) * 80 / 10, automap_y = (act_x + act_y) * 40 / 10;
-            // A generated level's tiles are its picks (a maze's DS1 is blank):
-            // FUN_00458f40 adds the room's floors, then its walls, each
-            // not hidden (flag 8); FUN_00457cf0 looks the cel up by the
-            // DT1 tile's orientation, main and sub index (+0x14, +0x18,
-            // +0x1c); a lower wall (the room tile's orientation past 15) sits 24 down.
-            if (!level.shown().empty()) {
-                for (const int floor_or_wall : { 1, 0 })
-                    for (const auto& pick : level.shown()[std::size_t(tile_y * width + tile_x)]) {
-                        if (pick.layer != floor_or_wall || pick.hidden) continue;
-                        if (const int cel = automap_cel(scene, level, pick.tile->type, pick.tile->style, pick.tile->sequence, hash); cel >= 0)
-                            automap.add({ cel, automap_x, automap_y + (pick.orient > 15 ? 24 : 0), floor_or_wall == 1 ? 0 : 1 });
-                    }
-                continue;
-            }
-            for (const auto& layer : map.floors()) {
-                const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
-                if (tile.hidden || !(tile.prop1 & 2)) continue;
-                if (const int cel = automap_cel(scene, level, 0, tile.style, tile.sequence, hash); cel >= 0) automap.add({ cel, automap_x, automap_y, 0 });
-            }
-            for (const auto& layer : map.walls()) {
-                const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
-                if (tile.hidden || tile.wall_type == 0) continue;
-                if (const int cel = automap_cel(scene, level, tile.wall_type, tile.style, tile.sequence, hash); cel >= 0)
-                    automap.add({ cel, automap_x, automap_y + (tile.wall_type > 15 ? 24 : 0), 1 });
-            }
+    for (const auto& [drawn_x, drawn_y] : cells) {
+        const int tile_x = drawn_x - shift_x, tile_y = drawn_y - shift_y;
+        if (tile_x < 0 || tile_y < 0 || tile_x >= width || tile_y >= height) continue;
+        auto& done = seen[std::size_t(tile_y * width + tile_x)];
+        if (done) continue;
+        done = 1;
+        const int act_x = tile_x + level.world_x, act_y = tile_y + level.world_y;     // act tiles
+        const std::uint32_t hash = std::uint32_t(act_x) * 73856093u ^ std::uint32_t(act_y) * 19349663u;   // unsigned: wraps, not UB
+        const int automap_x = (act_x - act_y) * 80 / 10, automap_y = (act_x + act_y) * 40 / 10;
+        // A generated level's tiles are its picks (a maze's DS1 is blank):
+        // FUN_00458f40 adds the room's floors, then its walls, each
+        // not hidden (flag 8); FUN_00457cf0 looks the cel up by the
+        // DT1 tile's orientation, main and sub index (+0x14, +0x18,
+        // +0x1c); a lower wall (the room tile's orientation past 15) sits 24 down.
+        if (!level.shown().empty()) {
+            for (const int floor_or_wall : { 1, 0 })
+                for (const auto& pick : level.shown()[std::size_t(tile_y * width + tile_x)]) {
+                    if (pick.layer != floor_or_wall || pick.hidden) continue;
+                    if (const int cel = automap_cel(scene, level, pick.tile->type, pick.tile->style, pick.tile->sequence, hash); cel >= 0)
+                        automap.add({ cel, automap_x, automap_y + (pick.orient > 15 ? 24 : 0), floor_or_wall == 1 ? 0 : 1 });
+                }
+            continue;
         }
+        for (const auto& layer : map.floors()) {
+            const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
+            if (tile.hidden || !(tile.prop1 & 2)) continue;
+            if (const int cel = automap_cel(scene, level, 0, tile.style, tile.sequence, hash); cel >= 0) automap.add({ cel, automap_x, automap_y, 0 });
+        }
+        for (const auto& layer : map.walls()) {
+            const auto& tile = layer.cells[std::size_t(tile_y * width + tile_x)];
+            if (tile.hidden || tile.wall_type == 0) continue;
+            if (const int cel = automap_cel(scene, level, tile.wall_type, tile.style, tile.sequence, hash); cel >= 0)
+                automap.add({ cel, automap_x, automap_y + (tile.wall_type > 15 ? 24 : 0), 1 });
+        }
+    }
 }
 
 // FUN_00458dc0 as a room's units come in: an object with an Objects.txt
@@ -808,10 +814,9 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     // one goes to the other corner (FUN_00459700).
     const bool on_left = automap.panel_side == 1 ? true : automap.panel_side == 2 ? false : automap.left;
     const int shift = mini ? 0 : automap.panel_side == 1 ? -kWidth / 4 : automap.panel_side == 2 ? kWidth / 4 : 0;
-    const int box_x = on_left ? 0 : kWidth * 2 / 3, box_y = on_left ? (automap.portraits ? 0x60 : 0) : 0x4e;   // FUN_00457520
-    const int offset_x = mini ? kWidth / 3 - box_x - 0x10 : 0, offset_y = mini ? kHeight / 3 - box_y - 0x10 : 0;   // 0x7a5188 / 0x7a518c
-    const int scroll_x = int(std::lround((player_x - player_y) * 80 / float(divisor))) - kWidth / 2 - shift + 0x28 + offset_x;
-    const int scroll_y = int(std::lround((player_x + player_y) * 40 / float(divisor))) - kHeight / 2 + 0xf + offset_y;
+    // The player's cell on their feet, full size (rules/automap_scroll.hpp).
+    const auto [scroll_x, scroll_y] = d2d::rules::automap_scroll(int(std::lround((player_x - player_y) * 80)), int(std::lround((player_x + player_y) * 40)),
+                                                                 kWidth, kHeight, mini, on_left, automap.portraits, automap.panel_side);
     // The cels' clip: the screen, or the mini map's box (FUN_00459440).
     const int clip_x0 = !mini ? 0 : on_left ? 0 : kWidth - 0x119;
     const int clip_y0 = !mini ? 0 : on_left ? (automap.portraits ? 0x60 : 0) - 0x15 : 0x39;
@@ -826,7 +831,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         if (fade == 2) return 1;
         if (fade == 3) return automap.in_town ? (mini ? 1 : 2) : 5;
         if (fade != 1 || mini) return 5;
-        const int centre_x = kWidth / 2 + shift, centre_y = kHeight / 2;
+        const int centre_x = kWidth / 2 + shift, centre_y = (kHeight - 40) / 2;   // 0x7a5220 / 2, 0x7a521c / 2
         if (x < centre_x - 0x8c || x > centre_x + 0x8c || y < centre_y - 0x96 || y > centre_y + 0x82) return 5;
         const int across = std::abs(centre_x - x), down = std::abs(centre_y - 10 - y);
         const int distance = (down < across ? down + across * 2 : across + down * 2) / 2;
