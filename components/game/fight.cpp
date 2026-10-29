@@ -63,12 +63,12 @@ constexpr int kTerror = 77;                     // Skills.txt Terror: Howl's sta
 // so): its resists as stats 0x24 / 0x25 / 0x27 / 0x29 / 0x2b, raw, and its
 // aura as its right skill (FUN_005701b0 sets it: a merc's FUN_005e4d30, a
 // summon's FUN_005c4470, Aura Enchanted's FUN_005a1650) at its level.
-// A monster's or summon's max damage is its last swing's (rules::swing_max_damage).
+// A monster's or summon's max damage is its last swing's (rules::swing_max_damage),
+// the merc's its max damage stats (merc_foe).
 // None has a left skill: every FUN_005701b0 call with EDX 1 is a player's
 // (FUN_0055c5c0, FUN_0056af80 test unit type 0; FUN_0055da70 / FUN_00580280
 // put a player's saved hands back).
-// ponytail: the merc's max damage left 0.
-d2d::rules::DiabloPick unit_pick(const GameData& game_data, std::array<int, 5> res, int aura, int aura_level, int max_damage = 0) {
+d2d::rules::DiabloPick unit_pick(const GameData& game_data, std::array<int, 5> res, int aura, int aura_level, int max_damage) {
     d2d::rules::DiabloPick pick;
     pick.max_damage = max_damage;
     std::tie(pick.damage_resist, pick.magic_resist, pick.fire_resist, pick.light_resist, pick.cold_resist) = std::tuple{ res[0], res[1], res[2], res[3], res[4] };
@@ -4512,8 +4512,8 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
             int aura_level = 0;
             for (std::size_t k = 0; k < actor->merc_ids.size(); ++k) if (actor->merc_ids[k] == actor->merc_aura) aura_level = actor->merc_levels[k];
             foe.pick = unit_pick(*game_data, { stat(0x24) + curse_dr, stat(0x25), actor->merc_st.resist + stat(0x27), actor->merc_st.resist + stat(0x29), actor->merc_st.resist + stat(0x2b) },
-                                 actor->merc_aura, aura_level);
-            foe.pick.max_damage = stat(0x16) + stat(0x31) + stat(0x33) + stat(0x35) + stat(0x37) + (stat(0x3a) >> 8);   // 0x16 holds no base (merc_fighter)
+                                 actor->merc_aura, aura_level,
+                                 stat(0x16) + stat(0x31) + stat(0x33) + stat(0x35) + stat(0x37) + (stat(0x3a) >> 8));   // 0x16 holds no base (merc_fighter)
         }
         on_foe_states(foe, 1, now_ms);
         return foe;
