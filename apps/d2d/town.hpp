@@ -203,6 +203,9 @@ struct Town {
     struct Said { std::uint16_t string = 0; std::uint32_t until = 0; };
     std::map<std::uint64_t, Said> net_said;                 // the host's overhead messages by unit key (0x26 type 5)
     bool portraits_shown = false;                           // last frame drew party portraits (the chat moves down)
+    int merc_portrait_x = -1, merc_portrait_y = 0;          // where last frame drew the merc's (DAT_007beed4 / beed8), -1 none
+    std::uint32_t merc_hover_at = 0;                        // since when the cursor's been on it (DAT_007beee8), 0 not
+    bool merc_hovered = false;                              // 700 ms on it with nothing in hand: drawn mode 7, its hint shown
     auto event_text(const NetGame::Event& event) const -> std::string;
     auto draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void;
     auto wrap_chat(const std::string& text, int width) const -> std::vector<std::string>;

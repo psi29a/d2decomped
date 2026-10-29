@@ -1269,6 +1269,22 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
         if (party.open && !net_game && !coop_hud_hidden() && party_preview.empty()) party.open = false;
+        // The merc's portrait (FUN_00493760 / FUN_004936e0 / FUN_004938e0): 700 ms
+        // on it (x .. x + 0x2e, y 0x18 .. 0x3c) with nothing in hand lights it
+        // and shows its hint; a right-click opens the Hireling screen; a
+        // potion let go on it goes to the merc (0x61 slot 0).
+        {
+            const bool over = merc_portrait_x >= 0 && mouse.x >= merc_portrait_x && mouse.x <= merc_portrait_x + 0x2e && mouse.y >= 0x18 && mouse.y <= 0x3c;
+            if (!over) merc_hover_at = 0;
+            else if (merc_hover_at == 0) merc_hover_at = std::max<std::uint32_t>(frame_ms, 1);
+            merc_hovered = over && !held && frame_ms - merc_hover_at >= 700;
+            if (over && mouse.rpress_this_frame && character.expansion && view.merc_sheet) {
+                hireling.open = true;
+                char_open = stash_open = cube_open = quest_log.open = false;
+                mouse.rpress_this_frame = false;
+            }
+            if (over && mouse.press_this_frame && held) { send(cmd::MercItem{ 0 }); mouse.press_this_frame = mouse.release_this_frame = false; }
+        }
         // The Hireling screen's clicks: its close button, an item on or off the merc (0x61).
         if (hireling.open && !help.open && !controls.open && !game_menu.open) {
             if (!view.merc_sheet) hireling.open = false;
@@ -3672,19 +3688,34 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 // PetType name) in Font6, cut to 0x42 px, centred on x + 0x16, its baseline
 // at y 0x48 and 0x52 by turns (FUN_00492fa0). None while a left panel is
 // open (FUN_0045ae90 2 / 3 (?)).
-// ponytail: no hover text or the merc's PopupHireling flash, no Show
-// Portraits toggle (DAT_007beecc); the bar's mode 5 blend is drawn solid;
-// a joined game's merc and pets are only ours as the view has them.
+// The bars are mode 5 (as is); Z (Show Portraits, DAT_007beecc) hides them.
+// ponytail: the first hire's PopupHireling hint (registry, FUN_004939b0)
+// isn't shown; a joined game's summons (the host's monsters, 0xac owner
+// ours) get no portrait, their PetType unread.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     if (left_open || portraits_hidden || coop_hud_hidden()) return;   // local co-op's: draw_coop_portraits
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
     const auto& font = scene->font_tiny.line_height() > 0 ? scene->font_tiny : scene->font;
     int x = 15, name_y = 0x48;
-    const auto portrait = [&](const d2d::dc6::Sprite* icon, int life, std::string name, int count) {
+    merc_portrait_x = -1;
+    // Each icon at draw mode 1 (FUN_004f6480: half over what's there); the
+    // merc's at mode 7 while hovered (its table untraced, lighting.md: drawn as is).
+    const auto portrait = [&](const d2d::dc6::Sprite* icon, int life, std::string name, int count, bool lit = false) {
         if (icon && icon->total_frames() > 0) {
             const auto& frame = icon->frame(0, 0);
-            blit_sprite(framebuffer, frame, pal, x, 0x3c - int(frame.height) + 1);
+            const int top = 0x3c - int(frame.height) + 1, frame_w = fb_width(framebuffer);
+            for (std::uint32_t row = 0; row < frame.height; ++row)
+                for (std::uint32_t column = 0; column < frame.width; ++column) {
+                    const int px = x + int(column), py = top + int(row);
+                    const auto index = frame.pixels[row * frame.width + column];
+                    if (index == 0 || px < 0 || px >= frame_w || py < 0 || py >= int(kScreenHeight)) continue;
+                    const auto colour = pal[index];
+                    auto* pixel = &framebuffer[(std::size_t(py) * std::size_t(frame_w) + std::size_t(px)) * 4];
+                    pixel[0] = lit ? colour.r : std::uint8_t((pixel[0] + colour.r) / 2);
+                    pixel[1] = lit ? colour.g : std::uint8_t((pixel[1] + colour.g) / 2);
+                    pixel[2] = lit ? colour.b : std::uint8_t((pixel[2] + colour.b) / 2);
+                }
         }
         if (life >= 0) fill_bar(framebuffer, x, 0xe, 0x2e, 5, std::clamp(life, 0, 100), life_colour(std::clamp(life, 0, 100)));
         if (count > 0) {
@@ -3712,9 +3743,11 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
     };
     const auto gone = [](std::string_view mode) { return mode == "DT" || mode == "DD"; };
     if (view.merc && !gone(view.merc->mode))
-        if (const auto* type = game_data.pet_type("hireable"))
+        if (const auto* type = game_data.pet_type("hireable")) {
+            merc_portrait_x = x; merc_portrait_y = name_y;
             portrait(icon_of(*type, view.merc_sheet ? view.merc_sheet->cls : -1),
-                     view.merc_sheet ? int(std::int64_t(view.merc_sheet->life) * 100 / std::max(view.merc_sheet->max_life, 1)) : -1, merc_label, 0);
+                     view.merc_sheet ? int(std::int64_t(view.merc_sheet->life) * 100 / std::max(view.merc_sheet->max_life, 1)) : -1, merc_label, 0, merc_hovered);
+        }
     for (const auto& type : game_data.pet_types) {
         if (type.icon_type < 1 || type.icon_type > 3) continue;
         const View::Pet* first = nullptr;
@@ -3725,6 +3758,20 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
         auto name = lookup_string(*scene, std::string_view(type.name));
         portrait(icon_of(type, first->npc.hc_idx), type.icon_type != 2 || (count == 1 && type.draw_life) ? first->life : -1,
                  name ? u16_to_latin1(*name) : std::string{}, type.icon_type == 2 ? count : 0);
+    }
+    // The merc's hint (FUN_00494020's tail): 0x58a3 "Right-click to Open
+    // Inventory (%s)" with the Hireling key (FUN_0046a530: action 0x36), 0xf9e
+    // "\n", 0x58a2 "Drop Potion on Portrait to Heal"; FUN_00502280 at
+    // (x, y + 0x24), last line on top.
+    if (merc_hovered && merc_portrait_x >= 0) {
+        auto key = keys::key_of(key_table, keys::kHireling, 1);
+        if (key == keys::kNone) key = keys::key_of(key_table, keys::kHireling, 0);
+        const auto id = keys::name_id(key);
+        const std::string key_name = key == keys::kNone ? std::string{} : id ? string_id(*scene, id) : std::string(1, char(key & 0xff));
+        auto open = string_id(*scene, 0x58a3);
+        if (const auto spot = open.find("%s"); spot != std::string::npos) open.replace(spot, 2, key_name);
+        draw_hover_text(framebuffer, *scene, { { string_id(*scene, 0x58a2), kTxtWhite }, { open, kTxtWhite } }, merc_portrait_x, merc_portrait_x,
+                        merc_portrait_y + 0x24, merc_portrait_y + 0x24);
     }
 }
 
