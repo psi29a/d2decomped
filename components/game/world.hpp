@@ -261,10 +261,20 @@ struct World {
     // does, and are left alone.
     // ponytail: one rule for the other quests; a callback that asks more
     // (an act, a bit besides 0 and 1) isn't told apart.
-    static constexpr std::array<int, 16> kOwnCredit{ 1, 2, 3, 4, 5, 6, 9, 11, 12, 13, 14, 0x13, 0x15, 0x16, 0x19, 0x1a };   // Den, Burial, Tools, Cain, Tower, Andariel, Radament, Tainted Sun, Arcane, Summoner, Tombs, Blade, Temple, Guardian, Izual, Terror's End
+    static constexpr std::array<int, 19> kOwnCredit{ 1, 2, 3, 4, 5, 6, 9, 11, 12, 13, 14, 0x13, 0x15, 0x16, 0x19, 0x1a, 0x23, 0x26, 0x28 };   // Den, Burial, Tools, Cain, Tower, Andariel, Radament, Tainted Sun, Arcane, Summoner, Tombs, Blade, Temple, Guardian, Izual, Terror's End, Siege, Betrayal, Eve
     // The party's share of a step (FUN_00540510; local co-op is one party):
     // each other player in the act (the quest's own act; Act 1's here),
     // neither done nor due, gets `bits`.
+    // Every player in the act neither done nor due gets `bits` (a party pass
+    // with no one left out: the mover's own taken already).
+    void party_bits_all(int quest, std::initializer_list<int> bits) {
+        const int in_act = act();
+        each_player([&](Player&) {
+            auto& theirs = quests();
+            if (act() != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
+            for (const int bit : bits) d2d::rules::quest::set(theirs, quest, bit);
+        });
+    }
     void party_bits(int quest, std::initializer_list<int> bits) {
         const int mover = actor->id, in_act = act();
         each_player([&](Player& player) {

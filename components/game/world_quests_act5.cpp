@@ -176,10 +176,9 @@ auto World::act5_alert(int hc_idx) -> bool {
 
 auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
-        const bool about = rooms_near(*game_data, *level, actor->player.x, actor->player.y, kill.x, kill.y);
         // Shenk the Overseer (superunique 0x2a, bound to 0x1f: FUN_00587330).
-        if (kill.super == d2d::rules::SiegeQuest::kShenk) {
-            siege.killed(quests(), about);
+        if (kill.super == d2d::rules::SiegeQuest::kShenk) {   // each player in his room or its near list; the rest bit 14
+            each_player([&](Player& player) { siege.killed(quests(), rooms_near(*game_data, *level, player.player.x, player.player.y, kill.x, kill.y)); });
             d2d::log::info("Siege on Harrogath: Shenk is dead");
         }
         // Rescue on Mount Arreat (FUN_00588040, units bound to 0x20): a door
@@ -257,8 +256,14 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             eve.killed();
             const auto killer = std::ranges::find(players, kill.killer, [](const auto& player) { return player->id; });
             const bool first = killer != players.end() && !d2d::rules::quest::bit((*killer)->character.header.quests[std::size_t(std::clamp((*killer)->character.header.active_difficulty(), 0, 2))], d2d::rules::EveQuest::kQuest, 0);
+            // The passes (FUN_0058dea0, LAB_0058dd90, LAB_0058dde0): those in the
+            // Chamber; then, with one of them done, the party's in Act 5 bits 0 and
+            // 13 (FUN_0058dc60); then the rest bit 14.
             int done_here = 0;
-            each_player([&](Player&) { if (d2d::rules::EveQuest::reward(quests(), level->id == d2d::rules::EveQuest::kChamber)) { open_act(5); ++done_here; } });
+            const bool in_chamber = level->id == d2d::rules::EveQuest::kChamber;
+            each_player([&](Player&) { if (in_chamber && d2d::rules::EveQuest::reward(quests(), true)) { open_act(5); ++done_here; } });
+            if (done_here > 0 && act() == 4) party_bits_all(d2d::rules::EveQuest::kQuest, { 0, 13 });
+            each_player([&](Player&) { if (!in_chamber || !d2d::rules::quest::bit(quests(), d2d::rules::EveQuest::kQuest, 13)) d2d::rules::EveQuest::reward(quests(), false); });
             if (first) {
                 const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
                 for (int pile = 0; pile < done_here; ++pile) {
@@ -285,7 +290,9 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             }
         // Nihlathak (MonStats base 0x20e, bound to 0x22: FUN_0058b7a0).
         if (std::size_t(kill.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(kill.type)].base == d2d::rules::BetrayalQuest::kNihlathak) {
-            if (betrayal.killed(quests(), about)) betrayal_log_at = now_ms + d2d::rules::BetrayalQuest::kLogTicks * kTickMs;
+            bool timer = false;                        // each player by him (FUN_0058b7a0's pass)
+            each_player([&](Player& player) { timer |= betrayal.killed(quests(), rooms_near(*game_data, *level, player.player.x, player.player.y, kill.x, kill.y)); });
+            if (timer) betrayal_log_at = now_ms + d2d::rules::BetrayalQuest::kLogTicks * kTickMs;
             d2d::log::info("Betrayal of Harrogath: Nihlathak is dead");
         }
     }
