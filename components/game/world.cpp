@@ -899,23 +899,32 @@ auto World::explode(int npc_index, std::uint32_t now_ms) -> void {
         const auto& barrel = level->npcs[std::size_t(npc_index)];
         operated[{ level, npc_index }] = now_ms;
         // FUN_00584240: a physical blast (FUN_005dfa00 type 0) on each live
-        // unit within 3 subtiles.
-        // ponytail: the level's units in the order player, merc, monsters,
-        // not its room's unit list (the seed's draws go by that order); a
-        // monster's and the merc's life in whole points, not the game's
-        // 256ths; the merc's dexterity isn't kept (MercStats), so its roll
-        // takes 255, the 65 % floor every hireling's own dexterity puts it at.
+        // unit within 3 subtiles: every player, their merc and pets, then
+        // the monsters.
+        // ponytail: in that order, not the rooms' unit lists (the seed's
+        // draws go by those); a monster's, pet's and the merc's life in whole
+        // points (Monster::hit_points), not the game's 256ths.
         auto nearby = [&](float x, float y, float subtiles) { return std::hypot(x - barrel.x, y - barrel.y) * 5 <= subtiles; };
-        const auto& fighter = actor->player_combat;
-        if (nearby(actor->player.x, actor->player.y, 3) && actor->character.stats.values[kLife] > 0)
-            take_blast(actor->character.stats.values[kLife], d2d::rules::blast_taken(blast(barrel, actor->player.x, actor->player.y, 2, actor->character.stats.values[kLife], int(actor->character.stats.get(kLevel)),
-                                                                                    int(actor->character.stats.get(kDex) + actor->psum[kDex]), fighter.defense),
-                                                                              fighter.dr_flat, fighter.dr_pct));
-        if (actor->merc && nearby(actor->merc->unit.x, actor->merc->unit.y, 3) && actor->merc->hit_points > 0) {
-            const auto merc_fighter = fight.merc_fighter();
-            actor->merc->hit_points -= d2d::rules::blast_taken(blast(barrel, actor->merc->unit.x, actor->merc->unit.y, 2, std::int64_t(actor->merc->hit_points) << 8, actor->merc_st.level, 255, merc_fighter.defense),
-                                                       merc_fighter.dr_flat, merc_fighter.dr_pct) >> 8;
-        }
+        each_player([&](Player& player) {
+            const auto& fighter = player.player_combat;
+            if (nearby(player.player.x, player.player.y, 3) && player.character.stats.values[kLife] > 0)
+                take_blast(player.character.stats.values[kLife], d2d::rules::blast_taken(blast(barrel, player.player.x, player.player.y, 2, player.character.stats.values[kLife], int(player.character.stats.get(kLevel)),
+                                                                                        int(player.character.stats.get(kDex) + player.psum[kDex]), fighter.defense),
+                                                                                  fighter.dr_flat, fighter.dr_pct));
+            if (player.merc && nearby(player.merc->unit.x, player.merc->unit.y, 3) && player.merc->hit_points > 0) {
+                const auto merc_fighter = fight.merc_fighter();
+                const int dexterity = player.merc_st.dex + int(fight.merc_gear().sum[std::size_t(kDex)]);
+                player.merc->hit_points -= d2d::rules::blast_taken(blast(barrel, player.merc->unit.x, player.merc->unit.y, 2, std::int64_t(player.merc->hit_points) << 8, player.merc_st.level, dexterity, merc_fighter.defense),
+                                                           merc_fighter.dr_flat, merc_fighter.dr_pct) >> 8;
+            }
+            for (auto& pet : player.pets) {
+                if (pet.where != level || !pet.monster.alive() || !nearby(pet.monster.unit.x, pet.monster.unit.y, 3)) continue;
+                const auto target = pet.monster.target(*game_data);
+                const int damage = d2d::rules::blast_taken(blast(barrel, pet.monster.unit.x, pet.monster.unit.y, game_data->monsters.types[std::size_t(pet.monster.type)].size,
+                                                                 std::int64_t(pet.monster.hit_points) << 8, pet.monster.stats.level, 0, pet.monster.stats.armor_class), 0, target.res[0]);
+                fight.pet_hurt(pet, damage >> 8, now_ms);
+            }
+        });
         if (fight.mon_level == level)
             for (std::size_t k = 0; k < fight.monsters.size(); ++k) {
                 auto& monster = fight.monsters[k];
