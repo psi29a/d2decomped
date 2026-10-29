@@ -252,9 +252,9 @@ int main() {
     tables_copy.skill_costs.assign(55, { 0, 0 }); tables_copy.skill_costs[54] = { 256, 100 };
     tables_copy.skill_levels.assign(55, { 0, 0 }); tables_copy.skill_levels[54] = { 18, 20 };
     const std::vector<d2d::d2s::ItemProp> half_charged{ { .stat = 204, .param = 54 << 6 | 3, .value = 10 << 8 | 5 } };
-    Item wand = whole; wand.props = half_charged;
+    Item wand = std::move(whole); wand.props = half_charged;
     assert(charges_repair_cost(tables_copy, wand) == 5 * 27492 / 10 && repair_cost(tables_copy, wand, "Charsi", header) == 5 * 27492 / 10);
-    Item worn_wand = worn; worn_wand.durability = 10; worn_wand.props = half_charged;
+    Item worn_wand = std::move(worn); worn_wand.durability = 10; worn_wand.props = half_charged;
     assert(repair_cost(tables_copy, worn_wand, "Charsi", header) == 1000 * 30 / 40 / 2 + 5 * 27492 / 10);
     Item ghost_wand = wand; ghost_wand.ethereal = true;
     assert(repair_cost(tables_copy, ghost_wand, "Charsi", header) == 0);

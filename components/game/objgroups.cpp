@@ -940,7 +940,7 @@ struct ObjectRooms {
                     auto door = unit;
                     --door.x;
                     const auto before = spawns ? spawns->size() : 0;
-                    monster_or_npc(hc_idx, door, stay ? 0 : 4);
+                    monster_or_npc(hc_idx, door, 4);   // never a stay one (FUN_0054e3a0's list)
                     if (d2d::rules::quest::bit(game_quests, 0x20, 15) && spawns && spawns->size() > before) lay_dead(spawns->back());
                     continue;
                 }
