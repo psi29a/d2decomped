@@ -114,6 +114,37 @@ int main() try {
         assert(items[0].code == "hp1" && items[0].simple && items[0].identified);
         assert(items[0].location == 2 && items[0].column == 3);
     }
+    // A compact questdiffcheck item (FUN_0062a970): its difficulty (stat
+    // 0x164, 2 bits) right after the code, then the realm bit; no socket
+    // count. Read, then written back bit for bit.
+    {
+        std::vector<std::byte> bytes(0x2FD + 4 + 14);
+        std::size_t bit = (0x2FD + 4) * 8;
+        auto put = [&](std::uint32_t value, int bits) {
+            for (int i = 0; i < bits; ++i, ++bit)
+                if (value >> i & 1) bytes[bit >> 3] |= std::byte(1 << (bit & 7));
+        };
+        std::memcpy(bytes.data() + 0x2FD, "JM\x01\x00", 4);
+        put(0x4d4a, 16);
+        put(1u << 21 | 1u << 4, 32);
+        put(101, 10);
+        put(0, 3); put(0, 4); put(2, 4); put(1, 4); put(1, 3);   // inventory, 2, 1
+        for (char letter : std::string("bks ")) put(std::uint8_t(letter), 8);
+        put(2, 2);                           // Hell
+        put(0, 1);                           // no realm data
+        d2d::d2s::ItemTables item_tables;
+        item_tables.quest_difficulty.insert("bks");
+        item_tables.stats.resize(d2d::d2s::kQuestItemDifficulty + 1);
+        item_tables.stats[d2d::d2s::kQuestItemDifficulty].save_bits = 2;
+        const auto items = d2d::d2s::parse_items(bytes, item_tables);
+        assert(items.size() == 1 && items[0].code == "bks" && items[0].quest_difficulty == 2 && items[0].socketed_items.empty());
+        d2d::d2s::detail::BitWriter writer;
+        d2d::d2s::detail::write_item(writer, items[0], item_tables);
+        writer.align();
+        auto expected = std::span(bytes).subspan(0x2FD + 4, writer.out.size());
+        expected[4] |= std::byte{ 1 << 7 };  // write_item sets flag 23, as every real save has it
+        assert(std::ranges::equal(writer.out, expected));
+    }
     {
         const char* saves_env = std::getenv("D2_SAVES_DIR");
         const char* mpq_env = std::getenv("D2_MPQ_DIR");

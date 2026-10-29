@@ -100,7 +100,16 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
         writer.write(0, 7);
     } else {
         for (std::size_t i = 0; i < 4; ++i) writer.write(i < item.code.size() ? std::uint8_t(item.code[i]) : std::uint8_t(' '), 8);
-        writer.write(std::uint32_t(item.socketed_items.size()), 3);
+        if (item.simple) {                                    // as d2s_items.hpp reads a compact item
+            if (item.version > 92 && item_tables.quest_difficulty.contains(item.code) && item_tables.stats.size() > kQuestItemDifficulty) {
+                const auto& stat = item_tables.stats[kQuestItemDifficulty];
+                writer.write(std::uint32_t(std::max(item.quest_difficulty, 0) + stat.save_add), stat.save_bits);
+            }
+            if (item.version > 86) {
+                writer.write(!item.realm.empty(), 1);
+                for (const auto word : item.realm) writer.write(word, 32);
+            }
+        } else writer.write(std::uint32_t(item.socketed_items.size()), 3);
         if (!item.simple) {
             writer.write(item.uid, 32); writer.write(std::uint32_t(item.ilvl), 7); writer.write(std::uint32_t(item.quality), 4);
             writer.write(item.picture >= 0, 1); if (item.picture >= 0) writer.write(std::uint32_t(item.picture), 3);

@@ -107,6 +107,10 @@ struct Item {
     std::size_t main_props = 0;
     std::vector<std::size_t> set_list_sizes;
     int ear_class = 0, ear_level = 0;
+    // A compact questdiffcheck item's difficulty (stat 0x164, -1 none) and
+    // the realm data a save may give a compact item (2 or 3 words).
+    int quest_difficulty = -1;
+    std::vector<std::uint32_t> realm;
 };
 
 // What the parser needs from the excel tables.
@@ -115,6 +119,7 @@ struct ItemTables {
     std::vector<Stat> stats;                        // by ItemStatCost ID
     std::unordered_set<std::string> armor, weapons, stackable;
     std::unordered_set<std::string> compact;        // misc.txt compactsave: written short (simple)
+    std::unordered_set<std::string> quest_difficulty;   // quest and questdiffcheck (ItemsTxt +0x12a / +0x12b)
 
     static ItemTables from(const txt::Table& isc, const txt::Table& armor_t,
                            const txt::Table& weapons_t, const txt::Table& misc_t) {
@@ -137,6 +142,9 @@ struct ItemTables {
                 into.insert(code);
                 if (tab.get(row, "stackable") == "1") item_tables.stackable.insert(code);
                 if (tab.get(row, "compactsave") == "1") item_tables.compact.insert(code);
+                if (!tab.get(row, "quest").empty() && tab.get(row, "quest") != "0" && !tab.get(row, "questdiffcheck").empty()
+                    && tab.get(row, "questdiffcheck") != "0")
+                    item_tables.quest_difficulty.insert(code);
             }
         };
         std::unordered_set<std::string> misc;
@@ -263,10 +271,18 @@ inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = null
             if (letter != ' ' && letter != '\0') parsed.code.push_back(letter);
         }
         // A compact item (FUN_0062a970) has no socket count: gold's amount
-        // follows its code (1 bit: 32 or 12). ponytail: a quest item's
-        // difficulty bits (ItemsTxt +0x12a / +0x12b) aren't read.
-        if (net && parsed.simple) { if (parsed.code == "gld") net->gold = int(bits.read(bits.read(1) ? 32 : 12)); }
-        else filled = int(bits.read(3));
+        // follows its code (1 bit: 32 or 12), then a questdiffcheck quest
+        // item's difficulty (version > 92), then in a save a bit and, set,
+        // realm data (version > 86; a third word past 93).
+        if (parsed.simple) {
+            if (net && parsed.code == "gld") net->gold = int(bits.read(bits.read(1) ? 32 : 12));
+            if (parsed.version > 92 && item_tables.quest_difficulty.contains(parsed.code) && item_tables.stats.size() > kQuestItemDifficulty) {
+                const auto& stat = item_tables.stats[kQuestItemDifficulty];
+                parsed.quest_difficulty = int(bits.read(stat.save_bits)) - stat.save_add;
+            }
+            if (!net && parsed.version > 86 && bits.read(1))
+                for (int word = 0; word < (parsed.version > 93 ? 3 : 2); ++word) parsed.realm.push_back(bits.read(32));
+        } else filled = int(bits.read(3));
         if (!parsed.simple) {
             if (!net) parsed.uid = bits.read(32);
             parsed.ilvl = int(bits.read(7)); parsed.quality = int(bits.read(4));
