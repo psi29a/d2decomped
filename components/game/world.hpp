@@ -260,7 +260,18 @@ struct World {
     // does, and are left alone.
     // ponytail: one rule for the other quests; a callback that asks more
     // (an act, a bit besides 0 and 1) isn't told apart.
-    static constexpr std::array<int, 13> kOwnCredit{ 1, 2, 3, 5, 6, 9, 11, 12, 13, 14, 0x13, 0x15, 0x16 };   // Den, Burial, Tools, Tower, Andariel, Radament, Tainted Sun, Arcane, Summoner, Tombs, Blade, Temple, Guardian
+    static constexpr std::array<int, 14> kOwnCredit{ 1, 2, 3, 4, 5, 6, 9, 11, 12, 13, 14, 0x13, 0x15, 0x16 };   // Den, Burial, Tools, Cain, Tower, Andariel, Radament, Tainted Sun, Arcane, Summoner, Tombs, Blade, Temple, Guardian
+    // The party's share of a step (FUN_00540510; local co-op is one party):
+    // each other player in the act (the quest's own act; Act 1's here),
+    // neither done nor due, gets `bits`.
+    void party_bits(int quest, std::initializer_list<int> bits) {
+        const int mover = actor->id, in_act = act();
+        each_player([&](Player& player) {
+            auto& theirs = quests();
+            if (player.id == mover || act() != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
+            for (const int bit : bits) d2d::rules::quest::set(theirs, quest, bit);
+        });
+    }
     // A quest kill's credit as game.exe passes it over the players
     // (FUN_005537d0): `took_part` for each player `is_near` (who isn't done
     // or due: bits 13, 1, ...); then the party of any who now has bit 13

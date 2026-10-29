@@ -1248,11 +1248,11 @@ int main(int argc, char** argv) try {
             quest::set(theirs, 6, 0);                                     // done Sisters to the Slaughter already
             coop.credit_party([&] {
                 auto& mine = coop.quests();
-                quest::set(mine, 4, 13); quest::set(mine, 4, 1);
+                quest::set(mine, 10, 13); quest::set(mine, 10, 1);
                 quest::set(mine, 6, 13);
                 quest::set(mine, 5, 13);                                  // the Tower credits each player itself (World::kOwnCredit)
             });
-            assert(quest::bit(theirs, 4, 13) && quest::bit(theirs, 4, 1) && !quest::bit(theirs, 6, 13) && !quest::bit(theirs, 5, 13));
+            assert(quest::bit(theirs, 10, 13) && quest::bit(theirs, 10, 1) && !quest::bit(theirs, 6, 13) && !quest::bit(theirs, 5, 13));
         }
 
         // Death in co-op (local-coop.md): a ghost with its body where it fell,

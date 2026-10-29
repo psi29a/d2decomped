@@ -1882,10 +1882,25 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         if (object.operate_fn == d2d::rules::operate_fn::kGibbet) {
             if (!cain.gibbet(quest_bits, fresh)) return;
             class_cue("act1_rescue_cain", now_ms);   // FUN_00593290: unit event 0x30
+            party_bits(d2d::rules::CainQuest::kQuest, { 13, 1 });     // the party in Act 1 (FUN_005930b0)
             operated[{ level, npc_index }] = now_ms;
             const auto found = std::ranges::find(level->npcs, d2d::rules::monster_ids::kCain, &Npc::hc_idx);
             const bool spawned = found != level->npcs.end();
             cain.rescued(spawned);
+            // Over the players (FUN_00593130 / LAB_005931c0): those in Tristram, then their
+            // party, neither done nor due, bits 13 and 1; the rest bit 14.
+            kill_credit(d2d::rules::CainQuest::kQuest, 0, { 13, 1 }, [&](const Player&) { return level->id == d2d::rules::CainQuest::kTristram; },
+                        [&](Player&) {
+                            auto& bits = quests();
+                            if (!d2d::rules::quest::bit(bits, d2d::rules::CainQuest::kQuest, 0) && !d2d::rules::quest::bit(bits, d2d::rules::CainQuest::kQuest, 1)) {
+                                d2d::rules::quest::set(bits, d2d::rules::CainQuest::kQuest, 13); d2d::rules::quest::set(bits, d2d::rules::CainQuest::kQuest, 1);
+                            }
+                        },
+                        [&](Player&) {
+                            auto& bits = quests();
+                            if (!d2d::rules::quest::bit(bits, d2d::rules::CainQuest::kQuest, 0) && !d2d::rules::quest::bit(bits, d2d::rules::CainQuest::kQuest, 1))
+                                d2d::rules::quest::set(bits, d2d::rules::CainQuest::kQuest, 14);
+                        });
             if (spawned) cain_walk = { .npc = int(found - level->npcs.begin()), .next = now_ms + std::uint32_t(object.op_frames) * 40 };
             else open_portal_at(object.x + 6, object.y + 6, now_ms);
             d2d::log::info("Search for Cain: Cain is free");
@@ -1904,6 +1919,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         operated[{ level, npc_index }] = now_ms;
         if (lit == Cain::Stone::lit) return;
         actor->character.items.erase(std::ranges::find(actor->character.items, std::string_view("bkd"), &d2d::d2s::Item::code));
+        party_bits(Cain::kQuest, { 4 });                      // the party in Act 1 (LAB_005936b0)
         const auto lambda = std::ranges::find(level->npcs, 21, &Npc::object_id);
         const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
         portal[2] = { level, spot_x, spot_y, now_ms };
