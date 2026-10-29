@@ -362,7 +362,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         if (level == level_ids::kKurastSewersLevel1)
             for (const auto& [from, to_room] : kSewer92Specials) {
                 const auto found = std::ranges::find_if(list, [&](int index) { return !rooms[std::size_t(index)].special && rooms[std::size_t(index)].def == from; });
-                if (found == list.end()) continue;                  // ponytail: game.exe asserts (Maze.cpp 0x849..0x84c); never seen
+                if (found == list.end()) continue;                  // game.exe asserts here; unreachable (bugs.md #39)
                 auto& room = rooms[std::size_t(*found)];
                 room.special = true; room.def = to_room; room.file = -1;
             }
@@ -386,7 +386,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
         const int rotation = int(seed.next() & 3);
         std::array<int, 60> kept{};
         kept.fill(-1);
-        auto step = [&](int from, int side) { return from < 0 ? -1 : arm(from, side); };   // ponytail: game.exe goes on from a null room (a crash); d2d stops the arm
+        auto step = [&](int from, int side) { return from < 0 ? -1 : arm(from, side); };   // game.exe goes on from a null room; unreachable (bugs.md #39)
         for (int arm_index = 0; arm_index < 4; ++arm_index) {
             const int side = arm_index & 3, next = (arm_index + 1) & 3, back = (arm_index + 2) & 3, before = (arm_index + 3) & 3;
             auto* slot = &kept[std::size_t(arm_index * 15)];
@@ -536,7 +536,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
             // two Bridge rooms on up from it (no set_def), the forge swapped
             // in on a roll, then a LavaX room on all eight sides of every
             // room listed so far but the last bridge.
-            // ponytail: a room that doesn't fit leaves game.exe going on from a null room (a crash); never seen, d2d stops.
+            // A room that doesn't fit leaves game.exe going on from a null room; unreachable (bugs.md #39), d2d stops.
             const int lowest = best_fit(3, [](const Room& room, const Room& best) { return room.y > best.y; });   // FUN_006724a0
             if (lowest >= 0) connect(lowest, 3, 852, -1);
             const int topmost = best_fit(1, [](const Room& room, const Room& best) { return room.y < best.y; });  // FUN_006723e0
@@ -573,7 +573,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
                 // Up from the topmost room two rooms and a special (0x14d) to
                 // their left; right from the rightmost two rooms, a special
                 // (0x150) above or below, and a room past it.
-                // ponytail: a step that doesn't fit leaves game.exe's room pointer null (a crash there); d2d stops the arm.
+                // A step that doesn't fit leaves game.exe's room pointer null; unreachable (bugs.md #39), d2d stops the arm.
                 int room_at = best_fit(1, [](const Room& room, const Room& best) { return room.y < best.y; });
                 for (int step = 0; step < 2 && room_at >= 0; ++step) room_at = arm(room_at, 1);
                 if (room_at >= 0) connect(room_at, 0, 0x14d);
@@ -646,7 +646,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
                 if (place(probe, other_index, side)) anchor = other_index;
                 rooms.pop_back();
             }
-            // ponytail: no room fits the court: game.exe goes on from a null room (a crash); never seen, d2d stops.
+            // No room fits the court: game.exe goes on from a null room; unreachable (bugs.md #39), d2d stops.
             if (anchor < 0) { notes.push_back("drlg: no room fits the Barracks' court"); return {}; }
             // Court Connect (FUN_00670de0): no merge, no set_def of its own.
             court_room = alloc(maze.width, maze.height);
