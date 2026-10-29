@@ -931,11 +931,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (mummy) { input.corpse = corpse >= 0; input.aid = aid >= 0; }
         else { input.kin = kin >= 0; input.kin_dist = kin_dist; }
     }
-    // The Vulture's: the spots, the rooms, a weak foe within 11 (squared
-    // 0x79) at most aip3 % life (FUN_005f30f0), its group, the free spot
+    // The Vulture's: the spots, the rooms, a weak unit within 11 (squared
+    // 0x79) at most aip3 % life (FUN_005f30f0: a player or a monster, not
+    // itself, alive, life <= max / 100 x aip3), its group, the free spot
     // nearest its circling point.
-    // ponytail: a weak one is a foe (players and monsters both, in game.exe);
-    // one free-spot search (the level's nearest), not one per room.
+    // ponytail: one free-spot search (the level's nearest), not one per room.
     if (type_info.ai_name == "Vulture") {
         input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
         input.same_room = room_at(level, unit.x, unit.y) == room_at(level, target->x, target->y);
@@ -948,6 +948,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         for (const auto& foe : foes) {
             const int off_x = subtile(foe.x) - x, off_y = subtile(foe.y) - y;
             if (foe.alive && off_x * off_x + off_y * off_y <= 0x79 && foe.life_pct <= input.aip[2]) input.victim = true;
+        }
+        for (const auto& other : pack) {
+            const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
+            if (&other != &monster && other.alive() && off_x * off_x + off_y * off_y <= 0x79 && other.hit_points <= other.stats.hit_points / 100 * input.aip[2])
+                input.victim = true;
         }
         if (monster.ai_state2 != 0 && monster.ai_state3 != 0) {
             const auto [free_x, free_y] = level.nearest_free((float(monster.ai_state2) + 0.5f) / 5, (float(monster.ai_state3) + 0.5f) / 5);

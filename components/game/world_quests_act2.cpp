@@ -127,7 +127,8 @@ auto World::act2_tick() -> void {
         // The act's sky (S->C 0x53, FUN_0059a100 / FUN_0059a170): dark
         // while the Tainted Sun has it out and the player's in Act 2; a
         // joined game's comes from the host.
-        // N-player gap: d2d keeps one clock, not one an act.
+        // One clock, not one an act: d2d's players share a level (local
+        // co-op), a joined game's sky is the host's.
         if (const bool dark = tainted.dark && act() == 1; !hosted_quests && dark != day.eclipse) day.set(dark ? 5 : 2, 0, dark);
     }
 
