@@ -162,7 +162,9 @@ struct LamEsenQuest {
 // on the bird (531: bit 4), Alkor takes the bird (534: bit 1) and brews the
 // Potion of Life ("xyz ", 538: bits 0, 13, 5; 2..11 cleared, FUN_0065c3e0):
 // drunk with bit 5, +20 max life (0x55e44e: stat 7 0x1400) and bit 5 clears.
-// N-player gap: the carried count is this player's.
+// Its count of the figurine and bird carried (data+0x10) only triggers a
+// log resend when a joiner brings the first in (FUN_005ba9e0); d2d's log is
+// each player's own.
 struct GoldenBirdQuest {
     static constexpr int kQuest = 0x14, kCain = monster_ids::kCainAct3, kAsheara = monster_ids::kAsheara, kMeshif = monster_ids::kMeshifAct3,
                          kAlkor = monster_ids::kAlkor;
