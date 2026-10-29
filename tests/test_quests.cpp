@@ -399,18 +399,18 @@ int main() {
     // the guard at the gate; the Arcane Sanctuary done here moves him in
     // (west of the gate while the Seven Tombs wait), the Seven Tombs given
     // moves him east, and act 3 open sends the guard away.
-    QuestBits act2{}, game{};
-    auto spots = palace_spots(act2, game);
+    // The game's flags and the Seven Tombs record (open, state) only.
+    QuestBits game{};
+    auto spots = palace_spots(game, true, 1);
     assert(spots.outside && spots.guard && !spots.palace);
-    quest::set(act2, 12, 13);
+    quest::set(game, 12, 13);
     quest::set(game, 9, 13);
-    spots = palace_spots(act2, game);
+    spots = palace_spots(game, true, 1);
     assert(!spots.outside && spots.palace && spots.palace_west);
-    quest::set(act2, 14, 2);
-    spots = palace_spots(act2, game);
+    spots = palace_spots(game, true, 2);
     assert(!spots.outside && spots.palace && !spots.palace_west);
-    quest::set(act2, 14, 13);
-    assert(!palace_spots(act2, game).guard);
+    quest::set(game, 14, 13);
+    assert(!palace_spots(game, false, 5).guard);
 
     // Act 2's opening: Jerhyn greets with his "!" until heard, which is
     // the player's bit 0 and the game's bit 13 (him into the palace).
@@ -418,7 +418,7 @@ int main() {
     assert(ActTwoOpening::alert(opening, ActTwoOpening::kJerhyn) && ActTwoOpening::talk(opening, ActTwoOpening::kJerhyn).size() == 1);
     ActTwoOpening::said(opening, opening_game, ActTwoOpening::kJerhyn, ActTwoOpening::kGreeting);
     assert(quest::bit(opening, 8, 0) && quest::bit(opening_game, 8, 13) && !ActTwoOpening::alert(opening, ActTwoOpening::kJerhyn));
-    assert(palace_spots(QuestBits{}, opening_game).palace);
+    assert(palace_spots(opening_game, true, 1).palace);
 
     // Radament's Lair: Atma's "!" from the start; her 304 heard (talk shut)
     // logs it; out of town is under way; the kill marks 13 / 1 / 5 and drops

@@ -411,20 +411,18 @@ struct AndyQuest {
 // subtile east unless quest 14 has bit 13, and Jerhyn in the palace
 // (FUN_0059ef70: x - 10 with that record open and under 2, else x + 15;
 // y - 3) unless quests 8 and 9 lack bit 13 and the record holds.
-// Quests 8 and 9 are the game's flags (`game_bits`, game +0x10f4 +0xc).
-// ponytail: quests 12 and 14 are the player's (one player; their records
-// aren't ported), and the Seven Tombs record's state is "under 2" while
-// quest 14 has none of bits 1..11.
+// The bits are the game's flags (`game_bits`, game +0x10f4 +0xc,
+// FUN_00544760); the record is the Seven Tombs' (FUN_00543640: +9 open,
+// +0xc state).
 struct PalaceSpots {
     bool outside = false, palace = false, guard = false;
     bool palace_west = false;          // the palace spot is x - 10 (else x + 15)
 };
-[[nodiscard]] inline PalaceSpots palace_spots(const QuestBits& quest_bits, const QuestBits& game_bits) {
-    bool tombs_early = !quest::bit(quest_bits, 14, 0) && !quest::bit(quest_bits, 14, 15);
-    for (int bit = 1; bit <= 11; ++bit) tombs_early = tombs_early && !quest::bit(quest_bits, 14, bit);
+[[nodiscard]] inline PalaceSpots palace_spots(const QuestBits& game_bits, bool tombs_open, int tombs_state) {
+    const bool tombs_early = tombs_open && tombs_state < 2;
     PalaceSpots spots;
-    spots.outside = !quest::bit(game_bits, 8, 13) && !quest::bit(quest_bits, 12, 13) && tombs_early;
-    spots.guard = !quest::bit(quest_bits, 14, 13);
+    spots.outside = !quest::bit(game_bits, 8, 13) && !quest::bit(game_bits, 12, 13) && tombs_early;
+    spots.guard = !quest::bit(game_bits, 14, 13);
     spots.palace = !(!quest::bit(game_bits, 8, 13) && !quest::bit(game_bits, 9, 13) && tombs_early);
     spots.palace_west = tombs_early;
     return spots;

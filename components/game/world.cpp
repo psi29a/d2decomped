@@ -1240,7 +1240,7 @@ auto World::stones_up() -> void {
 
 // Lut Gholein's palace NPCs as the quests stand (rules::palace_spots).
 auto World::show_palace() -> void {
-        const auto spots = d2d::rules::palace_spots(quests(), game_bits);
+        const auto spots = d2d::rules::palace_spots(game_bits, tombs.open, tombs.state);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
             switch (level->npcs[i].palace) {
             case 1: npc_states[i].hidden = !spots.outside; break;
