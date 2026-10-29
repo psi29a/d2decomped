@@ -144,10 +144,21 @@ auto World::act4_alert(int hc_idx) -> bool {
 auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
         if (kill.type == d2d::rules::IzualQuest::kIzual) {                // FUN_005b4020, his ghost 3 ticks on
-            izual.killed(quests(), kill.x, kill.y);
+            // The killer and every player in his room or one next to it
+            // (FUN_005b3f20) bits 13 and 1; then each with bit 13 its line
+            // (LAB_005b3de0 -> sound event 0x4a), the rest bit 14 (LAB_005b3cd0).
+            namespace quest = d2d::rules::quest;
+            constexpr int kIzualQuest = d2d::rules::IzualQuest::kQuest;
+            const int killer = actor->id;
+            each_player([&](Player& player) {
+                if (player.id == killer || near_room(kill.x, kill.y, player.player.x, player.player.y)) izual.killed(quests(), kill.x, kill.y);
+            });
+            each_player([&](Player&) {
+                auto& bits = quests();
+                if (quest::bit(bits, kIzualQuest, 13)) class_cue("act4_free_izual", now_ms);
+                else if (!quest::bit(bits, kIzualQuest, 0) && !quest::bit(bits, kIzualQuest, 1)) quest::set(bits, kIzualQuest, 14);
+            });
             music_cue("music_quest_izual");
-            if (d2d::rules::quest::bit(quests(), d2d::rules::IzualQuest::kQuest, 13))
-                class_cue("act4_free_izual", now_ms);                    // LAB_005b3de0 -> sound event 0x4a
             izual_ghost_at = now_ms + 3 * kTickMs;
             d2d::log::info("The Fallen Angel: Izual is dead");
         }
@@ -158,14 +169,25 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (std::ranges::contains(d2d::rules::TerrorQuest::kSealBosses, kill.super) && terror.boss_died()) diablo_release(now_ms);
         if (kill.type == d2d::rules::TerrorQuest::kDiablo && !terror.dead) {   // FUN_005b52e0 -> FUN_005b4d20
             const bool expansion = actor->character.header.expansion();
-            terror.diablo_died(quests(), expansion, actor->id);
+            // Every player in his room or one next to it (FUN_005b5140), not
+            // done, takes part (FUN_005b4d20); the rest bit 14 (LAB_005b4970).
             // Classic: the next difficulty opens (FUN_00538680); with bit 13 the
             // client plays the end on leaving (S->C 0x5d -> FUN_004a2cb0: DAT_007a0604);
             // the 90 / 95 s timer runs (act4_update). LoD goes on to Tyrael's portal.
+            namespace quest = d2d::rules::quest;
+            constexpr int kTerrorQuest = d2d::rules::TerrorQuest::kQuest;
+            each_player([&](Player& player) {
+                auto& bits = quests();
+                if (near_room(kill.x, kill.y, player.player.x, player.player.y)) {
+                    const bool was_done = quest::bit(bits, kTerrorQuest, 0) || quest::bit(bits, kTerrorQuest, 1);
+                    terror.diablo_died(bits, expansion, player.id);
+                    if (!was_done && !expansion) open_act(4);
+                } else if (!quest::bit(bits, kTerrorQuest, 0) && !quest::bit(bits, kTerrorQuest, 1)) quest::set(bits, kTerrorQuest, 14);
+            });
+            if (!terror.dead) { terror.dead = true; if (terror.open) { terror.log = 13; terror.news = true; } }   // no one by him: the record's death all the same
             if (!expansion) {
-                open_act(4);
                 diablo_dead_at = std::max(now_ms, 1u);
-                end_movie = d2d::rules::quest::bit(quests(), d2d::rules::TerrorQuest::kQuest, 13);
+                end_movie = d2d::rules::quest::bit(quests(), kTerrorQuest, 13);
             }
             d2d::log::info("Terror's End: Diablo is dead{}", expansion ? "" : " (classic: the next difficulty is open)");
         }

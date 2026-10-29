@@ -757,6 +757,10 @@ def act4():
         kill_until("its boss dead", lambda: True, 1)
     kill_until("the seals broken", lambda: "the seals are broken" in log_text())
     until("Diablo comes", lambda: "Terror's End: Diablo" in log_text(), 10)
+    # Only players in his room or one next to it take part (FUN_005b5140): by him first.
+    until("Diablo made", lambda: any(l.startswith("diablo\t") for l in cmd("monsters").splitlines()), 30)
+    diablo = [l.split("\t") for l in cmd("monsters").splitlines() if l.startswith("diablo\t")][0]
+    cmd(f"debug warp {int(float(diablo[1]))} {int(float(diablo[2])) + 3}"); time.sleep(1)
     kill_until("Diablo dead", lambda: "Diablo is dead" in log_text())
     assert bits(0x1a) & 0x2001 == 0x2001, f"word 0x1a: {bits(0x1a):#x}"
     go(103)
