@@ -263,12 +263,24 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
         cues.cue("item_potion_drink", now_ms, actor->player.x, actor->player.y);
     }
 
-auto Fight::cure(std::uint32_t now_ms) -> bool {
-        const bool cursed = now_ms < actor->curses[0].until;
-        const bool poisoned = std::erase_if(actor->regen, [](const Regen& regen_entry) { return regen_entry.poison; }) > 0;
-        actor->curses = {};
-        if (actor->merc && actor->merc->hit_points > 0) actor->merc->hit_points = merc_max_life();
-        return cursed || poisoned;
+auto Fight::cure(std::uint32_t now_ms, bool well) -> bool {
+        bool counts = now_ms < actor->curses[0].until;
+        counts |= std::erase_if(actor->regen, [](const Regen& regen_entry) { return regen_entry.poison; }) > 0;
+        actor->curses[0] = {};
+        if (actor->merc && actor->merc->hit_points > 0) {
+            const int max_life = merc_max_life();
+            counts |= actor->merc->hit_points < max_life;
+            counts |= !well && (now_ms < actor->curses[1].until || now_ms < actor->merc_poison_until);
+            actor->merc->hit_points = max_life;
+            actor->curses[1] = {};
+            actor->merc_poison_until = 0; actor->merc_poison_acc = 0;
+        }
+        for (auto& pet : actor->pets)
+            if (pet.monster.alive()) {
+                counts |= pet.monster.hit_points < pet.monster.stats.hit_points;
+                pet.monster.hit_points = pet.monster.stats.hit_points;
+            }
+        return counts;
     }
 
 auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
@@ -286,6 +298,12 @@ auto Fight::apply_regen(std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         mana += double(d2d::rules::mana_per_frame(actor->character.stats.values[kMaxMana], gains.mana_regen, actor->player_combat.mana_regen, int(actor->psum[kManaRecovery])))
               * double(now_ms / 40 - last_ms / 40);
         actor->regen_acc_life += life; actor->regen_acc_mana += mana;
+        if (actor->merc && actor->merc->hit_points > 0 && last_ms < actor->merc_poison_until) {   // its poison: life lost with the next hits
+            actor->merc_poison_acc += actor->merc_poison_rate * double(std::min(now_ms, actor->merc_poison_until) - last_ms);
+            const int loss = int(actor->merc_poison_acc);
+            actor->merc_poison_acc -= loss;
+            actor->merc_hurt += loss;
+        }
         if (actor->merc && actor->merc->hit_points > 0 && last_ms < actor->merc_heal_until) {   // the merc's healthpot
             actor->merc_heal_acc += actor->merc_heal_rate * double(std::min(now_ms, actor->merc_heal_until) - last_ms);
             const int gain = int(actor->merc_heal_acc);
@@ -4708,7 +4726,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
 // this frame: the merc's life and flinch, then the player's poison, chill,
 // stun, knockback, curses, Mana Burn, block, armour wear and life.
 auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
-        side[1].damage += std::exchange(actor->merc_hurt, 0);      // its swings' thorns (merc_strike)
+        side[1].damage += std::exchange(actor->merc_hurt, 0);      // its swings' thorns (merc_strike), its poison (apply_regen)
+        if (side[1].poison > 0 && side[1].poison_ticks > 0) {       // one at a time: a new one at least as strong replaces it (FUN_0057ac50)
+            const double rate = side[1].poison / 256.0 / 40.0;      // its life is whole points, the poison 256ths a frame
+            if (now_ms >= actor->merc_poison_until || rate >= actor->merc_poison_rate) {
+                actor->merc_poison_rate = rate;
+                actor->merc_poison_until = now_ms + std::uint32_t(side[1].poison_ticks) * 40;
+            }
+        }
         if (actor->merc && actor->merc->mode != "DT")           // Crushing Blows, after the hits (monprop_hit)
             for (const int divisor : side[1].crushed) {
                 side[1].damage += int(crushing_blow(std::max(actor->merc->hit_points - side[1].damage, 0), divisor, side[1].pick.damage_resist));

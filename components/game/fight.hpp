@@ -256,7 +256,7 @@ struct Fight {
         int   struck_class = 0;               // the last hit on the player's hit class (unit +0xb0): its impact on GH / DT
         int   shown_class = 0;                // the hit class the client last had, any landed hit's (GH or S->C 0x0c): its block sound
         std::int64_t self_hurt = 0;            // life (256ths) the player's own skills cost (Sacrifice), taken with the monsters' hits
-        int merc_hurt = 0;                     // life the merc's swings cost it (a MonProp thorns monster's), taken with the monsters' hits
+        int merc_hurt = 0;                     // life the merc lost besides the hits (thorns on its swings, its poison), taken with the monsters' hits
         // An SQ skill's sequence while it plays (sequences.hpp, for the weapon
         // class): its frames, each seq_frame_ms long, and the hits (event 1)
         // already struck.
@@ -337,6 +337,8 @@ struct Fight {
         struct Boost { int shrine = 0; std::vector<std::pair<int, int>> stats; std::uint32_t until = 0; } boost;
         double merc_heal_rate = 0, merc_heal_acc = 0;  // the merc's healthpot: life per ms, its fraction
         std::uint32_t merc_heal_until = 0;
+        double merc_poison_rate = 0, merc_poison_acc = 0;  // the merc's poison (FUN_0057ac50, as the player's): life per ms, its fraction
+        std::uint32_t merc_poison_until = 0;
         double regen_acc_life = 0, regen_acc_mana = 0;
         std::uint32_t need_mana_until = 0;
         bool portal_due = false;                       // Town Portal's action frame came
@@ -378,10 +380,11 @@ struct Fight {
     // A healer's and a well's cure (FUN_00578d30 / FUN_00585720): poison
     // (state 2), freeze (state 1: a player's is chill, FUN_0057b230, so
     // none) and the curses (FUN_00578c20, the states flagged at
-    // DataTables+0xfc); chill stays. The merc's (FUN_00578ca0 / FUN_005856a0)
-    // fills its life too. True when the player lost any.
-    // ponytail: the merc's poison isn't kept, nor whether its drink counts.
-    bool cure(std::uint32_t now_ms);
+    // DataTables+0xfc); chill stays. Each pet and the merc (FUN_00574de0)
+    // gets its life filled and its poison and curse cleared (FUN_00578ca0 /
+    // FUN_005856a0). True when anything was: for a well (`well`) a pet's or
+    // the merc's life only, as FUN_005856a0 counts.
+    bool cure(std::uint32_t now_ms, bool well);
     int game_difficulty = 0;                         // new_game's
     bool remote_monsters = false;                    // a game joined on a game.exe host: its monsters (S->C 0xac), none made here
 

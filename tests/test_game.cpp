@@ -811,9 +811,9 @@ int main(int argc, char** argv) try {
         assert(hero.character.stats.values[d2d::d2s::kMaxMana] == own);
     }
     hero.chilled = 1000 * kTickMs;
-    assert(fight.cure(26 * kTickMs) && !poisoned() && hero.curses[0].until == 0 && fight.chill_rate(26 * kTickMs) == -50);
+    assert(fight.cure(26 * kTickMs, false) && !poisoned() && hero.curses[0].until == 0 && fight.chill_rate(26 * kTickMs) == -50);
     fight.update_fighters(26 * kTickMs);
-    assert(!fight.cure(26 * kTickMs));
+    assert(!fight.cure(26 * kTickMs, false));
     hero.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
     fight.potion("yps", 26 * kTickMs);
     fight.potion("wms", 26 * kTickMs);

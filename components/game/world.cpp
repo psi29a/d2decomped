@@ -466,7 +466,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             if (well.mode >= 2) return;
             const bool drank = d2d::rules::well_drink(stat_values[kLife], stat_values[kMaxLife], stat_values[kMana], stat_values[kMaxMana],
                                                       stat_values[kStamina], stat_values[kMaxStamina]);
-            if (!fight.cure(now_ms) && !drank) return;   // a cure counts as a drink too
+            if (!fight.cure(now_ms, true) && !drank) return;   // a cure counts as a drink too
             well = { well.mode + 1, now_ms };
             to_mode(well.mode);
             d2d::log::info("well {}: mode {}", npc_index, kObjectModes[std::size_t(well.mode)]);
@@ -2860,7 +2860,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                         if (npc.mode == "NU" && !operated.contains({ level, actor->interact_npc })) operated[{ level, actor->interact_npc }] = now_ms;
                         else actor->events.push_back(ev::OpenUI{ ev::OpenUI::waypoint, actor->interact_npc });
                     } else {
-                        if (d2d::rules::is_healer(npc.hc_idx)) { d2d::rules::heal(actor->character.stats); fight.cure(now_ms); }
+                        if (d2d::rules::is_healer(npc.hc_idx)) { d2d::rules::heal(actor->character.stats); fight.cure(now_ms, false); }
                         // In Hell, a Den of Evil done before the reset existed
                         // opens it on meeting Akara (FUN_0058fd20: quest 41 bits
                         // 13 and 1).
