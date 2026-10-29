@@ -156,6 +156,18 @@ shows Overlay.txt `npcalert`: NPCSpeechBalloon.dcc, 16 frames drawn about
 d2d: `DenQuest::alert` → `UnitState::alert` (replicated) → `Unit::overlay`
 (world.hpp, drawn additive).
 
+The balloon's AnimRate 9 means 144/256 of a frame per game tick,
+about 14.06 frames/s, not 9 frames/s. `FUN_004b3380` creates kind 3:
+`FUN_00470c30` loops it without applying npcalert's LoopWaitTime 7000.
+The client keeps an independent start clock for each NPC's alert, so a
+new balloon begins at frame 0. Clocks reset with the level and on
+`Town::enter` (the same Town is reused for the next game);
+joined alerts take their start from the host packet's arrival time,
+including a repeated packet while already showing. The joined game's
+existing local expiration after 16 * 111 ms and palace-guard handling
+remain open (`Town::net_quests`). See states.md for the original-code
+timing oracle and regression cases.
+
 ## Akara's Reset Stat/Skill Points (quest 41)
 
 - **The menu:** `0x4b6da0` patches Akara's menu record (0x726c48) to talk,

@@ -40,6 +40,7 @@
 #include <skills.hpp>
 #include <object_sounds.hpp>
 #include <outdoor.hpp>
+#include <overlays.hpp>
 #include <sound_ids.hpp>
 #include <uniques.hpp>
 #include <userdir.hpp>
@@ -356,7 +357,7 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     auto overs = [&](const Unit& unit, float x, float y) {
         for (std::size_t k = 0; k < unit.overs.size(); ++k) {
             const auto& overlay = unit.overs[k];
-            if (overlay.overlay->radius > 0 && (!overlay.once || (now - overlay.start) * std::uint32_t(std::max(overlay.overlay->rate, 1)) / 640 < std::uint32_t(overlay.overlay->frames)))
+            if (overlay.overlay->radius > 0 && d2d::rules::overlay_frame(now - overlay.start, overlay.overlay->rate, overlay.overlay->frames, overlay.once) >= 0)
                 lamp(6ull << 56 ^ std::uint64_t(reinterpret_cast<std::uintptr_t>(overlay.overlay)) ^ std::uint64_t(std::uint32_t(unit.npc)) << 40 ^ overlay.start,
                      x, y, overlay.overlay->radius, false, overlay.overlay->init_radius);
         }
@@ -428,6 +429,8 @@ auto Town::enter() -> void {
         automap.placed.clear();
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
+        alert_clocks.clear();                      // Town is reused when a second game starts on the same level
+        alert_level = nullptr;
         mini = {};                                // open (FUN_004567f0; ponytail: not the "Mini Panel" registry value)
         game_menu.open = false;
         controls.open = false;
@@ -2978,10 +2981,10 @@ auto Town::take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> lines, std:
 // A joined game's quest talk (the host runs the quests): each NPC's lines
 // as it sends them (0x27 mode 1) — the one we're talking to takes them
 // now, one that comes first waits for d2d's menu — and its "!" (0x8a):
-// npcalert once over that NPC (16 frames, ~1.8 s), as game.exe's client
-// puts the overlay on (FUN_004b3380 -> FUN_00470390, overlay 0x48).
-// ponytail: the balloon plays from wherever d2d's loop is, not frame 0;
-// 0x8a's palace guard check (class 0x14b, FUN_004b1620) isn't here.
+// npcalert over that NPC, as game.exe's client puts the looping overlay
+// on (FUN_004b3380 -> FUN_00470390, overlay 0x48).
+// ponytail: 0x8a's palace guard check (class 0x14b, FUN_004b1620) isn't
+// here, and its alert still expires locally after 16 * 111 ms.
 auto Town::net_quests(std::uint32_t frame_ms) -> void {
         for (auto& host_quest : net_game->npc_quests) {
             const auto* host_npc = npc_menu.npc >= 0 ? net_npc(npc_menu.npc) : nullptr;
@@ -3316,6 +3319,16 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             }
         }
         std::erase_if(state_clock.seen, [&](const auto& entry) { return frame_ms - entry.second.last > 5000; });
+        if (alert_level != level) { alert_clocks.clear(); alert_level = level; }
+        alert_clocks.resize(view.npc_states.size());
+        for (std::size_t i = 0; i < view.npc_states.size(); ++i) {
+            alert_clocks[i].set(view.npc_states[i].alert, frame_ms);
+            if (net_game && view.npc_states[i].alert) {
+                const auto* host_npc = net_npc(int(i));
+                const auto shown = host_npc ? net_alert_ms.find(host_npc->id) : net_alert_ms.end();
+                if (shown != net_alert_ms.end()) alert_clocks[i].start = frame_ms - (world_ms - shown->second);
+            }
+        }
         Unit player_look{};
         auto look_states = player_states(*scene, view);
         if (net_game)
@@ -3371,7 +3384,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open, view.stamina_blue }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost);
+                          char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open, view.stamina_blue }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;

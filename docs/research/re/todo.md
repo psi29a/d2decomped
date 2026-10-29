@@ -5,7 +5,7 @@ One list of what d2d still doesn't do, or doesn't do the way game.exe
 classes and items are out of scope here: what's open there is in PLAN.md
 "Checkpoint 2026-10-24: Act 5" ("Still open for Act 5"). The details stay
 in the docs each row points to; this file is the index. Rows as of
-2026-10-23; the sound and `ponytail:` counts as of 2026-10-28.
+2026-10-23; the sound count as of 2026-10-28, `ponytail:` as of 2026-10-29.
 
 **Kind:**
 - *build*: game.exe does it and d2d doesn't yet.
@@ -74,8 +74,8 @@ Known differences in the ones it draws, and what's left to check:
 | # | What | Kind | Seen | Where |
 |---|---|---|---|---|
 | 25 | Timings from the COF, where AnimData.d2 is game.exe's | exact | maybe | world_view.hpp:198, fight.hpp:498, fight.hpp:729 |
-| 27 | Overlays: their light (Radius) isn't stamped, LoopWaitTime isn't applied | exact | yes | town.hpp:61, world_view.cpp:415 |
-| 28 | An NPC's act lasts 600 ms, not its animation; the balloon starts wherever d2d's loop is | exact | maybe | town.cpp:811, town.cpp:2732 |
+| 27 | Kind 8's visible state overlays aren't rotated after 50 ticks; active states draw together | exact | maybe | states.md, town.hpp `StateClock`; Radius is stamped and LoopWaitTime applies only to kind 6 |
+| 28 | A joined monster's act lasts 600 ms, not its animation | exact | maybe | town.cpp `net_overlay`; balloon starts and rate now traced (quests.md) |
 | 29 | COF transparent layers: which of 25 / 50 / 75 % draw effects 0..2 are | trace | maybe | unverified.md, deviations.md approximation 9 |
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
 | 31 | Static lights' shadows (type 2) not built | build | maybe | lighting.md, deviations.md approximation 5 |
@@ -113,8 +113,8 @@ docs/design/net-join-plan.md, PLAN.md "Checkpoint 2026-10-19".
 
 ## The long tail
 
-494 `ponytail:` notes in components/ and apps/ (2026-10-29), most in
-ai.cpp (60), fight.cpp (49), world.cpp (44) and fight.hpp (42). Each names
+496 `ponytail:` notes in components/ and apps/ (2026-10-29), most in
+ai.cpp (60), fight.cpp (48), world.cpp (44) and fight.hpp (42). Each names
 the game.exe function to trace when it matters. act1-gaps.md sorted them
 on 2026-10-10 (most don't change single-player play); `git grep -n
 ponytail:` lists them. Items here that a player could notice belong in a

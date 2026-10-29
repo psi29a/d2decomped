@@ -34,8 +34,25 @@ Overlay.txt (record 0x84, `FUN_00470390` makes one):
 | Height1..4 | 0x5c..0x68 | added to Yoffset by the unit's class (`FUN_006223a0`): players 1, monsters MonStats2 OverlayHeight − 1, others 0; −1 adds 75 |
 | AnimRate | 0x6c | × 16: 1/256ths of a frame a tick |
 | InitRadius, Radius, RGB | 0x70, 0x74, 0x7d.. | the overlay's light: starts at InitRadius, grows a subtile a frame to Radius (`FUN_004755a0`) |
-| LoopWaitTime | 0x78 | a pause between loops |
+| LoopWaitTime | 0x78 | a pause in milliseconds between loops, only for overlay kind 6 |
 | Trans | 0x7c | the draw mode, as a COF layer's draw effect (3 additive) |
+
+`FUN_00470c30` advances the 8.8 frame counter by `AnimRate * 16`
+per 40 ms tick, preserving fractional frames on a wrap. Kinds 3 and 8
+loop without consulting LoopWaitTime; kind 4 ends on the first wrap
+and may create successor overlays (`FUN_004d9920`). Kind 6 alone stops
+advancing between loops until GetTickCount has reached its wait.
+
+d2d uses `rules::overlay_frame` for drawing and one-shot light lifetime,
+with whole ticks and a 64-bit intermediate so the multiplication cannot
+wrap in a long session. `frame_light` already stamps overlay lights:
+the old note saying Radius was not stamped was stale. The 288 cases in
+`tests/overlay_cases.inc` run the original update for kinds 3, 4 and 8
+overlays; `tools/emu/overlays.py` also checks kind 6's wait boundary and
+the duplicate-clock guard. Captured from stock 1.14d, SHA-256
+`631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf`.
+REA dossier: `ev_9c7994bddc33d76bd8f3b6013765032d1dc9160ba35344f3e90da8a6fe8263cd`
+(static trace; the emulator supplies execution evidence).
 
 ## Worn items
 
@@ -46,7 +63,12 @@ tint byte, so a save's tints leave it out.
 
 ## Not yet
 
-- LoopWaitTime isn't applied.
+- Kind 8's visible state group rotates after 50 update ticks
+  (`FUN_0046def0`, `FUN_0046df40`, `FUN_00470c30`); d2d still draws the
+  active states together. The timing cases leave the rotation flag off
+  to isolate the frame counter.
+- Kind 6 delayed overlays are not instantiated by the state renderer;
+  the state's ordinary loops do not need that delay.
 - The player's own chill ("cold") and poison show as on a monster
   (View chilled / poisoned, `player_states`). The chill's −50 on
   other_animrate (stat 69) isn't applied.

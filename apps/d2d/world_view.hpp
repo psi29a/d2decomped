@@ -165,6 +165,7 @@ struct Unit {
     bool object = false;                 // an object: its cell holds half a subtile past game.exe's position, where it's drawn
     bool spirit = false;                 // local co-op's ghost: pale, half see-through, no shadow (docs/design/local-coop.md)
     std::optional<int> name_offset;      // an object's hover name sits this far over its feet, not over its frame (Npc::name_offset)
+    std::uint32_t overlay_start = 0;
 };
 
 

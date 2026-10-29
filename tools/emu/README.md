@@ -37,6 +37,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Walk / run animation rate | `uv run python walk_rates.py > g.txt; ../../build/tests/test_combat --walk-rates \| diff g.txt -` | no output |
 | Skill tooltip lines | `uv run python skill_tips.py 20 0 > g.txt; ../../build/tests/test_game --skill-tips 20 0 \| grep '^[0-9]' \| iconv -f latin1 -t utf-8 \| diff g.txt -` | no output |
 | Key bindings (assign rules, key names) | `uv run python keys.py \| diff - <(../../build/tests/test_keyconfig --dump)` | no output |
+| Overlay frames, loop/one-shot endings, delayed-loop wait | `uv run python overlays.py > /tmp/overlay_cases.inc && diff ../../tests/overlay_cases.inc /tmp/overlay_cases.inc` | no diff; also checks kind 6's wait and duplicate clock |
 
 ## When it breaks
 

@@ -10,6 +10,7 @@
 #include <dc6.hpp>
 #include <dt1.hpp>
 #include <palette.hpp>
+#include <overlays.hpp>
 #include <room_tiles.hpp>
 #include <weather.hpp>
 
@@ -575,9 +576,8 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                     const auto* spr = scene.overlay_sprite(*overlay.overlay);
                     if (!spr || elapsed_ms < overlay.start) continue;
                     const auto frames = std::uint32_t(std::min(overlay.overlay->frames, int(spr->frames_per_direction())));
-                    auto frame_index = (elapsed_ms - overlay.start) * std::uint32_t(std::max(overlay.overlay->rate, 1)) / 640;
-                    if (overlay.once && frame_index >= frames) continue;
-                    frame_index %= frames;
+                    const int frame_index = d2d::rules::overlay_frame(elapsed_ms - overlay.start, overlay.overlay->rate, int(frames), overlay.once);
+                    if (frame_index < 0 || !spr->directions()) continue;
                     if (blit_dcc_frame(framebuffer, spr->frame(std::uint8_t(std::uint32_t(unit.dir) % spr->directions()), std::int32_t(frame_index)), upal0,
                                        anchor_x + overlay.overlay->x, anchor_y + overlay.overlay->dy(unit.overlay_class), draw_mode(overlay.overlay->trans)))
                         Scene::note_drawn("overlays", overlay.overlay->file);
@@ -624,10 +624,11 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             // Its overlay (npcalert: Xoffset -5, Yoffset -7, the NPCs'
             // OverlayHeight row 0; Trans 3, draw mode 3 additive), 16
             // frames at AnimRate 9.
-            // ponytail: AnimRate read as frames a second; LoopWaitTime
-            // (7000) not applied.
-            if (unit.overlay && unit.overlay->directions() && unit.overlay->frames_per_direction())
-                blit_dcc_frame(framebuffer, unit.overlay->frame(0, std::uint8_t(elapsed_ms / 111 % unit.overlay->frames_per_direction())), upal0, anchor_x - 5, anchor_y - 7, 1);
+            // Kind 3: loops without LoopWaitTime (FUN_004b3380 / 00470c30).
+            if (unit.overlay && unit.overlay->directions() && unit.overlay->frames_per_direction()) {
+                const int frame = d2d::rules::overlay_frame(elapsed_ms - unit.overlay_start, 9, int(unit.overlay->frames_per_direction()));
+                if (frame >= 0) blit_dcc_frame(framebuffer, unit.overlay->frame(0, std::uint8_t(frame)), upal0, anchor_x - 5, anchor_y - 7, 1);
+            }
             // Last drawn unit under the cursor = the frontmost one.
             if (hovered && unit.name && !unit.name->empty()) {
                 if (mouse_x >= bounds[0] && mouse_x < bounds[2] && mouse_y >= bounds[1] && mouse_y < bounds[3])

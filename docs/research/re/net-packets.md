@@ -514,8 +514,11 @@ ids).
 - **0x8a NPC interaction** (6; `FUN_004b3380`): +1 type, +2 u32 id. The
   host's NPC think sends it (`FUN_00544660`) when one of the act's quests
   (+0xec) has something for the player: the client puts overlay 0x48
-  (`npcalert`, the "!") on the NPC once (`FUN_00470390`). d2d:
-  `NetGame::npc_alerts` → the balloon for 16 frames.
+  (`npcalert`, the "!") on the NPC as a kind-3 loop (`FUN_00470390`,
+  `FUN_00470c30`; LoopWaitTime is unused). d2d:
+  `NetGame::npc_alerts` → an independent balloon start at the packet's
+  arrival, AnimRate 9 at 25 ticks/s; the existing local expiration after
+  16 * 111 ms remains an approximation (quests.md).
   Class 0x216 closes the UI (`FUN_004b9a00`); if it isn't the unit being
   talked to, the player resets (`FUN_00470390(3)`); class 0x14b runs
   quest checks.

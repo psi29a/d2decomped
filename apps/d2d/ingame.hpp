@@ -10,6 +10,7 @@
 
 #include <d2s_items.hpp>
 #include <weather.hpp>
+#include <overlays.hpp>
 
 #include <cstdint>
 #include <span>
@@ -59,6 +60,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    const Hud& hud = {},             // the HUD's poison tint, run button
                    std::vector<std::uint8_t>* wide = nullptr,    // widescreen: the world draws here, its centre 800 wide copied to framebuffer
                    std::pair<float, float> player_offset = {},   // the player off the camera's point, cells (local co-op's camera)
-                   bool player_spirit = false);                  // the player a ghost (local co-op's dead): pale, see-through
+                   bool player_spirit = false,                   // the player a ghost (local co-op's dead): pale, see-through
+                   std::span<const d2d::rules::OverlayClock> alert_clocks = {});
 
 }  // namespace d2d::client

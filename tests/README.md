@@ -20,6 +20,12 @@ data; `ctest -V` shows its "the checks above ran" line.
 
 Run: `ctest --test-dir build --output-on-failure`.
 
+`test_overlays` needs no assets: its 288 frame cases were captured from
+stock 1.14d's `FUN_00470c30` by `tools/emu/overlays.py`. They cover
+ordinary and state loops, cast endings, tick boundaries, a stopped
+animation and a rate faster than one loop per tick. The test also checks
+independent alert starts, restarts, new-level resets and clock wrap.
+
 Fast act checks (need the MPQs and `D2_PATCH_INSTALLER`): the quests of
 Acts 1–5 played headless, an act per test, side by side:
 `ctest --test-dir build -R quests_act -j3`. Each act's levels against

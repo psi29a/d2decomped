@@ -2,6 +2,8 @@
 // Definitions for ingame.hpp: the in-game frame and the rain.
 #include "ingame.hpp"
 
+#include <overlays.hpp>
+
 #include "common.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
@@ -125,7 +127,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                    const Unit* player_look ,     // its states' colour shift and overlays
                    bool show_items,               // Alt held: every ground item's name
                    const Hud& hud,
-                   std::vector<std::uint8_t>* wide, std::pair<float, float> player_offset, bool player_spirit) {
+                   std::vector<std::uint8_t>* wide, std::pair<float, float> player_offset, bool player_spirit,
+                   std::span<const d2d::rules::OverlayClock> alert_clocks) {
     // Widescreen: the world (and its labels) draw on `wide`; its centre
     // 800x600 is then copied into `framebuffer`, where the HUD and panels draw
     // as at 800x600. Mouse x is relative to that centre, so the world's is
@@ -187,7 +190,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             // An object in a new mode keeps its name where it's Selectable in it (an open door).
             const bool unselectable = state && !state->mode.empty() && npc.root == "objects" && !(npc.selectable >> game::mode_index(state->mode) & 1);
             units.push_back({ x, y, &anim, state ? state->dir : 0, unselectable ? &none : &npc.name, state ? state->mode_ms : 0, int(i) });
-            if (state && state->alert) units.back().overlay = &scene.npc_alert;
+            if (state && state->alert) {
+                units.back().overlay = &scene.npc_alert;
+                if (i < alert_clocks.size()) units.back().overlay_start = alert_clocks[i].start;
+            }
             if (state) units.back().says = state->says;
             units.back().object = npc.root == "objects";
             units.back().hold = holds(npc, state);

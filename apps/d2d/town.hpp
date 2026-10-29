@@ -24,6 +24,7 @@
 
 #include <d2s_items.hpp>
 #include <quests.hpp>
+#include <overlays.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
@@ -59,8 +60,10 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
 // A unit's states' look (Scene::StateInfo) onto it: the colour shift of
 // the one with the highest colorpri, each one's overlays while it lasts,
 // its cast overlay once from when the client first saw it (StateClock).
-// ponytail: an overlay's light (Radius) isn't stamped; LoopWaitTime isn't
-// applied.
+// Overlay lights are stamped by frame_light. These overlay kinds don't
+// use LoopWaitTime (FUN_00470c30: only kind 6 waits).
+// ponytail: kind 8 rotates the visible state's overlays after 50 ticks
+// (FUN_0046def0 / 0046df40); d2d draws the active states together.
 struct StateClock {
     struct Seen { std::uint32_t start = 0, last = 0; float x = 0, y = 0; bool off = false; };
     std::map<std::pair<int, const GameData::StateInfo*>, Seen> seen;   // by (unit key, state)
@@ -410,6 +413,8 @@ struct Town {
     bool  player_walked = false;           // `walking` as of the last frame
     bool alt_held = false;                 // devctl `debug alt on`: "Show Items" held
     StateClock state_clock;                // when each unit's states were first seen (their cast overlays)
+    std::vector<d2d::rules::OverlayClock> alert_clocks;
+    const Level* alert_level = nullptr;     // reset on a level change and on enter (Town is reused between games)
     // The level's objects' modes as last seen (Town::object_sounds), by level->npcs index: "" not seen.
     std::vector<std::string_view> object_modes;
     std::vector<char> object_called;          // an object's call has played (unit +0x80: rules::object_call), by level->npcs index
