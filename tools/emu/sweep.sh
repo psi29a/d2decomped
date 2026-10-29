@@ -81,4 +81,5 @@ for level in $(seq "$first" "$last"); do
     seen=$((seen + found))
 done
 [ "$seen" -eq "$total" ] || failed=1
+[ "$failed" -eq 0 ] || echo "sweep FAILED: a level didn't finish, crashed or mismatched (details on stderr)"
 exit "$failed"
