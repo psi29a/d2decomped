@@ -592,8 +592,9 @@ struct RadamentQuest {
 // 3 Cain's read the scroll (or seen any part), 4 / 5 / 6 the amulet /
 // shaft / Cube shown, 10 the staff shown, 13 / 14 done here / by others,
 // 15 closed. Its log is its own (+0xe8, FUN_0059e630).
-// N-player gap: the counts of players carrying each part (data+0x18..0x24)
-// are what this one carries.
+// The record counts the parts it made (data+0x18..0x24) but nothing decides
+// on them (their one reader, by the Cube's count, zeroes it). Its chests give
+// a part to each player who wants one (World::operate).
 struct HoradricStaffQuest {
     static constexpr int kQuest = 10, kCain = monster_ids::kCainAct2;
     static constexpr int kScrollChest = 40, kShaftChest = 41, kCubeChest = 39;   // OperateFns (objects.txt 355, 356, 354)
@@ -1168,8 +1169,8 @@ struct SevenTombsQuest {
 // Valley of Snakes; the altar in the Claw Viper Temple's second level
 // brings it back. Bits: 0 done, 1 reward due, 2 the dark seen, 3 Drognan
 // told, 4 in the temple, 13 took part, 14 done by someone else, 15 closed.
-// N-player gap: the party's credit (LAB_0059a0b0 -> 0x59a040) is
-// World::credit_party's one rule.
+// The altar's share for the other players (its room's, their party's) and
+// their amulets are World::operate's.
 struct TaintedSunQuest {
     static constexpr int kQuest = 11, kDrognan = monster_ids::kDrognan, kLostCity = level_ids::kLostCity, kValley = level_ids::kValleyOfSnakes;
     static constexpr int kTemple = level_ids::kClawViperTempleLevel2, kAltar = 149;   // objects.txt row (InitFn 20, OperateFn 24)
@@ -1295,20 +1296,27 @@ struct TaintedSunQuest {
         if (used) return {};
         used = true;
         Use out{ .used = true };
-        out.amulets = !has_amulet && !has_staff && !quest::bit(quest_bits, 10, 0) ? 1 : 0;
+        out.amulets = wants_amulet(quest_bits, has_amulet, has_staff) ? 1 : 0;
         if (!open) return out;
         dark = false;
         state = 4;
+        out.took_part = credit(quest_bits);       // LAB_0059a730: voice 0x34
+        quest::set(game_bits, kQuest, 13);
+        log_in = 10;
+        return out;
+    }
+    // A player's share of the altar (the operator's, one in its room or
+    // their party's): bits 1 and 13, 14 off, unless done. True: bit 13.
+    static bool credit(QuestBits& quest_bits) {
         if (!quest::bit(quest_bits, kQuest, 0)) {
             quest::set(quest_bits, kQuest, 1);
             quest::set(quest_bits, kQuest, 13);
             quest::set(quest_bits, kQuest, 14, false);
         }
-        out.took_part = quest::bit(quest_bits, kQuest, 13);   // LAB_0059a730: voice 0x34
-        quest::set(game_bits, kQuest, 13);
-        log_in = 10;
-        return out;
+        return quest::bit(quest_bits, kQuest, 13);
     }
+    // Whether a player gets a Viper Amulet from it (LAB_0059a770).
+    static bool wants_amulet(const QuestBits& quest_bits, bool has_amulet, bool has_staff) { return !has_amulet && !has_staff && !quest::bit(quest_bits, 10, 0); }
 };
 
 // Quest 4; bits: 0 done, 1 reward due, 2 Akara told, 3 under way, 4 the

@@ -582,10 +582,12 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             operated[{ level, npc_index }] = now_ms;
             to_mode(object.op_frames ? 1 : 2);
             if (hosted_quests) return;
-            if (const auto part = staff.chest(operate_id, quests(), staff_items()); !part.empty()) {
-                loot.put({ .code = part }, object.x, object.y, here, fight.spawning.game, now_ms);
-                if (part == "msf") loot.ground.back().item.identified = true;
-            }
+            each_player([&](Player&) {                         // a part for each player who wants one (LAB_00599700 ..)
+                if (const auto part = staff.chest(operate_id, quests(), staff_items()); !part.empty()) {
+                    loot.put({ .code = part }, object.x, object.y, here, fight.spawning.game, now_ms);
+                    if (part == "msf") loot.ground.back().item.identified = true;
+                }
+            });
             const auto [low, high] = d2d::rules::kChestLevels[1];
             std::vector<d2d::rules::Drop> drops;
             d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
@@ -604,11 +606,25 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             const auto use = tainted.use_altar(quests(), game_bits, carries("vip"), carries("hst"));
             if (use.refused) { d2d::log::info("I can't use this yet."); return; }   // voice 0x13
             if (!use.used) return;
-            if (use.took_part) music_cue("music_quest_tainted");
             operated.try_emplace({ level, npc_index }, now_ms);
             to_mode(1);
+            // The others: in the altar's room (FUN_0059a680) or the party
+            // (0x59a040; local co-op is one party) in Act 2, their share and
+            // voice; an amulet each who wants one (LAB_0059a770).
+            const int operator_id = actor->id;
+            int amulets = use.amulets;
+            bool took_part = use.took_part;
             if (use.took_part) class_cue("act2_complete_tainted", now_ms);
-            for (int amulet = 0; amulet < use.amulets; ++amulet) {
+            each_player([&](Player& player) {
+                if (player.id == operator_id) return;
+                if (tainted.open && (near_room(object.x, object.y, player.player.x, player.player.y) || act() == 1) && d2d::rules::TaintedSunQuest::credit(quests())) {
+                    class_cue("act2_complete_tainted", now_ms);
+                    took_part = true;
+                }
+                amulets += d2d::rules::TaintedSunQuest::wants_amulet(quests(), carries("vip"), carries("hst")) ? 1 : 0;
+            });
+            if (took_part) music_cue("music_quest_tainted");
+            for (int amulet = 0; amulet < amulets; ++amulet) {
                 loot.put({ .code = "vip" }, object.x, object.y, here, fight.spawning.game, now_ms);
                 loot.ground.back().item.identified = true;
             }
@@ -617,7 +633,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(1, diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
             for (std::uint32_t gold = fight.spawning.quests.next() % 5 + 5; gold > 0; --gold) drops.push_back({ .code = "gld" });
             for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
-            d2d::log::info("The Tainted Sun: the altar, the sun's back ({} drops)", drops.size() + std::size_t(use.amulets));
+            d2d::log::info("The Tainted Sun: the altar, the sun's back ({} drops)", drops.size() + std::size_t(amulets));
             return;
         }
         // Lam Esen's tome on its stand (OperateFn 28, FUN_005b7a60): once, it
