@@ -11,6 +11,7 @@
 #include "world_view.hpp"
 
 #include <d2s_items.hpp>
+#include <palette.hpp>
 #include <rules.hpp>
 #include <weather.hpp>
 

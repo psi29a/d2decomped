@@ -27,7 +27,6 @@
 #include <format>
 #include <initializer_list>
 #include <limits>
-#include <numbers>
 #include <span>
 #include <string>
 #include <string_view>
