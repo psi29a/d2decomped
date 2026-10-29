@@ -1829,7 +1829,6 @@ inline void chain(int quest, DenQuest& den, BurialQuest& burial, CainQuest& cain
 // its animation still to play (bit 12 clear), 1 done, 2 hidden, 3 shown.
 // The Den's states 3 / 4 add the count ("Monsters remaining: " N, 3739 for
 // one or none).
-// ponytail: single player (DAT_007a0610 0: 3729, never 3730).
 inline constexpr std::array<std::array<std::uint16_t, 29>, 12> kQuestLogRecords = { {
     { 3714, 76, 4, 3735, 64, 3736, 64, 3737, 64, 3738, 64, 3740, 64, 3725, 3725, 3725, 3725, 3725, 3725, 3725, 3725,
       3740, 64, 3728, 3725, 3727, 3725, 3726, 64 },
@@ -1865,6 +1864,7 @@ struct QuestState {
     QuestLogStates log{};                  // the log state the server sent, by quest (the view's quest_log)
     QuestGameFlags game{};                 // the game's quest flags (the view's game_quests)
     int den_left = 0;                      // DAT_007bf2a4
+    bool multiplayer = false;              // DAT_007a0610 != 0: any game type but single player's (a joined game)
 };
 inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const QuestState& quest_state) {
     if (quest < 1 || quest > 14 || quest == 7 || quest == 8) return {};
@@ -1891,7 +1891,7 @@ inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, 
     }
     if (bit1 && flag(15)) return rec[21] == 3725 ? QuestText{} : entry(rec[21], rec[22], 3, 10, false);
     if (log_state == 0)
-        return (game(13) || game(15)) && !b13 && !bit1 ? entry(3729, 3725, 3, -1, false) : QuestText{};
+        return (game(13) || game(15)) && !b13 && !bit1 ? entry(3729 + quest_state.multiplayer, 3725, 3, -1, false) : QuestText{};
     if (log_state > 13) return {};
     if (quest == 1) {                                       // the Den (name 3714): its count
         QuestText text = entry(rec[std::size_t(2 * log_state + 1)], rec[std::size_t(2 * log_state + 2)], log_state == 13 ? (flag(12) ? 1 : 0) : 3, log_state, true);
@@ -1899,7 +1899,8 @@ inline QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, 
         return text;
     }
     int line = rec[std::size_t(2 * log_state + 1)];
-    if ((!b13 && !bit1 && game(13)) || flag(14) || line == 3727) line = 3729;
+    if ((!b13 && !bit1 && game(13)) || flag(14)) line = 3729 + quest_state.multiplayer;   // "done by another player"
+    else if (line == 3727 && !quest_state.multiplayer) line = 3729;
     return entry(line, rec[std::size_t(2 * log_state + 2)], log_state == 13 ? (flag(12) ? 1 : 0) : 3, log_state, true);
 }
 // The quest log's acts (FUN_004a2220): an act's tab is there once the act

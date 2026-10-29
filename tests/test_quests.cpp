@@ -316,6 +316,9 @@ int main() {
     log_state.game[5] = 1 << 13;                                                       // the Countess dead in this game, not by us
     text = quest_text(text_bits, 5, log_state);
     assert(text.string == 3729 && text.speech == 0 && text.shown == 3);
+    log_state.multiplayer = true;                                                      // a joined game (DAT_007a0610 9): ...Multi, 3727 kept
+    assert(quest_text(text_bits, 5, log_state).string == 3730 && quest_text(text_bits, 4, log_state).string == 3727);
+    log_state.multiplayer = false;
     {   // The Seven Tombs' own case (record 0x723a64): quest 14's bit 3 / 4, the Summoner's done at log state 1.
         QuestBits tomb_bits{};
         QuestState tomb_state{};
