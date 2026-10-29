@@ -59,8 +59,8 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 12 | TCP/IP Options' own address | Read again every 5 s (record 0x10b) | Read once as the screen opens | only if the network changes while it's up | main.cpp `Screen::TcpIp` |
 | 13 | World sounds' pan, and a loop back in range | Pans by turning the far speaker down to (255 − pan) / 127 (`FUN_00515890`); a Tracking loop stopped past its far range waits, not freed, and starts again back in range (`FUN_004ba020`) | matched since this commit: each world sound is two sources, one per speaker (`AL_SOFT_direct_channels`, `Audio::start_split`); without the extension OpenAL pans a mono source by its angle | only without the extension | audio.hpp `apply_mix` |
 
-513 smaller shortcuts are marked `ponytail:` in components/ and apps/
-(2026-10-28; `git grep -c ponytail: -- components apps`); this table holds
+494 smaller shortcuts are marked `ponytail:` in components/ and apps/
+(2026-10-29; `git grep -c ponytail: -- components apps`); this table holds
 the ones a player could notice or a test could trip on.
 
 ## Additions

@@ -110,8 +110,8 @@ docs/design/net-join-plan.md, PLAN.md "Checkpoint 2026-10-19".
 
 ## The long tail
 
-513 `ponytail:` notes in components/ and apps/ (2026-10-28), most in
-ai.cpp (71), fight.cpp (47), world.cpp (45) and fight.hpp (42). Each names
+494 `ponytail:` notes in components/ and apps/ (2026-10-29), most in
+ai.cpp (60), fight.cpp (49), world.cpp (44) and fight.hpp (42). Each names
 the game.exe function to trace when it matters. act1-gaps.md sorted them
 on 2026-10-10 (most don't change single-player play); `git grep -n
 ponytail:` lists them. Items here that a player could notice belong in a
