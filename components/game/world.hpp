@@ -261,7 +261,7 @@ struct World {
     // does, and are left alone.
     // ponytail: one rule for the other quests; a callback that asks more
     // (an act, a bit besides 0 and 1) isn't told apart.
-    static constexpr std::array<int, 10> kOwnCredit{ 1, 2, 3, 5, 9, 11, 12, 13, 14, 0x16 };   // Den, Burial, Tools, Tower, Radament, Tainted Sun, Arcane, Summoner, Tombs, Guardian
+    static constexpr std::array<int, 12> kOwnCredit{ 1, 2, 3, 5, 9, 11, 12, 13, 14, 0x13, 0x15, 0x16 };   // Den, Burial, Tools, Tower, Radament, Tainted Sun, Arcane, Summoner, Tombs, Blade, Temple, Guardian
     // A quest kill's credit as game.exe passes it over the players
     // (FUN_005537d0): `took_part` for each player `is_near` (who isn't done
     // or due: bits 13, 1, ...); then the party of any who now has bit 13

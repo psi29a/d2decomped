@@ -296,8 +296,8 @@ struct GoldenBirdQuest {
 // a rare ring (593: bit 8; item level 21 / 35 / 75); Asheara (252) a free
 // mercenary (589: bit 7, FUN_00579180). Both: bits 13 and 0. Bits: 2 told,
 // 3 Hratli's told, 4 the Gidbinn found, 5 carried, 9 its first pickup, 14
-// others'. N-player gap: the party's bits (FUN_005b91b0) are
-// World::credit_party's one rule.
+// others'. The hand-in's party share (FUN_005b91b0) and the guardian's
+// marks for everyone are World's.
 struct BladeQuest {
     static constexpr int kQuest = 0x13, kHratli = monster_ids::kHratli, kOrmus = monster_ids::kOrmus, kAsheara = monster_ids::kAsheara;
     static constexpr int kHratliTells = 571, kOrmusTakes = 587, kAshearaMerc = 589, kOrmusRing = 593;
@@ -395,6 +395,12 @@ struct BladeQuest {
         if (block >= 0)
             for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
         return out;
+    }
+    // A party member's share of the hand-in (FUN_005b91b0): in act 3, none of
+    // bits 0, 6, 7, 8: bit 6 (Ormus's ring and Asheara's mercenary due).
+    static void party_credit(QuestBits& quest_bits, bool in_act3) {
+        for (const int bit : { 0, 6, 8, 7 }) if (quest::bit(quest_bits, kQuest, bit)) return;
+        if (in_act3) quest::set(quest_bits, kQuest, 6);
     }
     // The "!" (FUN_005b8e10).
     [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, bool has_gidbinn) const {
@@ -556,8 +562,7 @@ struct KhalimQuest {
 // one with bit 4, the orb broken. Cain (245) hears it (626) with bit 4: done
 // (bit 0; Khalim's parts gone once his Will's done). Bits: 2 told, 3 under
 // way, 4 the Council dead (Cain's due), 13 / 14 here / others'.
-// N-player gap: the party's and the room's credit are World::credit_party's
-// one rule; the counts of players needing a flail or a Cube aren't kept.
+// The Council's drops and credit go over the players (World::act3_kill).
 struct BlackenedTempleQuest {
     static constexpr int kQuest = 0x15, kOrmus = monster_ids::kOrmus, kCain = monster_ids::kCainAct3, kTells = 594, kDone = 626;
     static constexpr int kCauseway = 82, kDocks = 75;
@@ -587,25 +592,32 @@ struct BlackenedTempleQuest {
         if (from != kDocks || state < 2 || state > 3 || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 4)) return;
         state = game_done ? 4 : 5;   // LAB_005badc0 after it marks none: the state's past 2 / 3
     }
-    // A Council member died (FUN_005bbc00). What it drops.
-    struct Drops { bool flail = false, cube = false, last = false; };
-    Drops council_died(QuestBits& quest_bits, QuestBits& game_bits, bool in_act3, bool khalim_done, bool has_flail_or_will, bool has_cube) {
-        Drops out;
-        if (!flail_dropped) {
-            if (in_act3 && !khalim_done && !has_flail_or_will) { out.flail = true; flail_dropped = true; }
-        } else if (!cube_dropped) {
-            cube_dropped = true;
-            out.cube = in_act3 && !has_cube;
-        }
+    // A Council member died (FUN_005bbc00): the first's round drops a flail
+    // for each player who needs one, the next's a Cube for each without
+    // (wants_flail / wants_cube); the last is the record's end, each
+    // player's share their own (council_credit).
+    struct Death { bool flail_round = false, cube_round = false, last = false; };
+    Death council_died(QuestBits& game_bits) {
+        Death out;
+        if (!flail_dropped) { flail_dropped = true; out.flail_round = true; }
+        else if (!cube_dropped) { cube_dropped = true; out.cube_round = true; }
         if (!open || council <= 0 || --council != 0) return out;
         out.last = true;
         state = orb_broken ? 7 : 6;
-        if (in_act3 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 4)) {
-            quest::set(quest_bits, kQuest, khalim_done ? 0 : 4);
-            quest::set(quest_bits, kQuest, 13);
-        }
         quest::set(game_bits, kQuest, 13);
         return out;
+    }
+    [[nodiscard]] static bool wants_flail(bool in_act3, bool khalim_done, bool has_flail_or_will) { return in_act3 && !khalim_done && !has_flail_or_will; }
+    [[nodiscard]] static bool wants_cube(bool in_act3, bool has_cube) { return in_act3 && !has_cube; }
+    // A player's share of the last death (FUN_005bae20): in act 3 by the
+    // killer (its room or one next to it), neither done nor bit 4: bit 13 and
+    // bit 0 (Khalim's Will done) or 4; else not done: bit 14. True: bit 13 set.
+    static bool council_credit(QuestBits& quest_bits, bool by_kill, bool khalim_done) {
+        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 4)) return false;
+        if (!by_kill) { quest::set(quest_bits, kQuest, 14); return false; }
+        quest::set(quest_bits, kQuest, khalim_done ? 0 : 4);
+        quest::set(quest_bits, kQuest, 13);
+        return true;
     }
     // The orb hit with Khalim's Will held (FUN_005bb980): broken on the second.
     bool hit_orb(QuestBits& quest_bits) {
