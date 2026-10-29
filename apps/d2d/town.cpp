@@ -10,6 +10,7 @@
 #include "gamepad.hpp"
 #include "gamepad_map.hpp"
 #include "ingame.hpp"
+#include "items.hpp"
 #include "keyconfig.hpp"
 #include "panels.hpp"
 #include "party.hpp"
@@ -3707,11 +3708,11 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
             const int top = 0x3c - int(frame.height) + 1, frame_w = fb_width(framebuffer);
             for (std::uint32_t row = 0; row < frame.height; ++row)
                 for (std::uint32_t column = 0; column < frame.width; ++column) {
-                    const int px = x + int(column), py = top + int(row);
+                    const int pixel_x = x + int(column), pixel_y = top + int(row);
                     const auto index = frame.pixels[row * frame.width + column];
-                    if (index == 0 || px < 0 || px >= frame_w || py < 0 || py >= int(kScreenHeight)) continue;
+                    if (index == 0 || pixel_x < 0 || pixel_x >= frame_w || pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
                     const auto colour = pal[index];
-                    auto* pixel = &framebuffer[(std::size_t(py) * std::size_t(frame_w) + std::size_t(px)) * 4];
+                    auto* pixel = &framebuffer[(std::size_t(pixel_y) * std::size_t(frame_w) + std::size_t(pixel_x)) * 4];
                     pixel[0] = lit ? colour.r : std::uint8_t((pixel[0] + colour.r) / 2);
                     pixel[1] = lit ? colour.g : std::uint8_t((pixel[1] + colour.g) / 2);
                     pixel[2] = lit ? colour.b : std::uint8_t((pixel[2] + colour.b) / 2);
