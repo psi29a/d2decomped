@@ -1833,7 +1833,12 @@ auto Fight::merc_share(const Monster& monster) -> void {
         auto& header = actor->character.header;
         if (!actor->merc || !actor->merc->alive() || monster.stats.exp <= 0) return;
         const int merc_level = actor->merc_st.level;
-        const auto award = d2d::rules::kill_exp(int(std::min<std::int64_t>(monster.stats.exp, 0x7fffffff)), merc_level, monster.stats.level);
+        auto award = d2d::rules::kill_award(int(std::min<std::int64_t>(monster.stats.exp, 0x7fffffff)), merc_level, monster.stats.level, 0,
+                                            game_data->exp_ratio, game_data->exp_ratio_shift, game_data->max_level);
+        if (const auto* row = d2d::rules::hireling_row(game_data->rules, header.merc_type, merc_level)) {   // FUN_0057e3f0: a level's span / 64 at most
+            const auto need = [&](std::int64_t level) { return std::uint32_t((level + 1) * level * level * row->exp_per_level); };
+            award = std::min<std::int64_t>(award, (need(merc_level + 1) - need(merc_level)) >> 6);
+        }
         header.merc_exp = d2d::rules::merc_kill_exp(header.merc_exp, award, merc_blow, merc_level,
                                                     int(actor->character.stats.get(d2d::d2s::kLevel)));
         merc_level_stats();
@@ -1851,8 +1856,8 @@ auto Fight::drop_counts() -> std::pair<int, int> {
 
 auto Fight::gain_exp(std::int64_t share, const Monster& monster, std::uint32_t now_ms) -> void {
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
-        auto exp = d2d::rules::kill_exp(int(std::min<std::int64_t>(share, 0x7fffffff)), int(actor->character.stats.get(d2d::d2s::kLevel)), monster.stats.level);
-        exp += exp * int(actor->psum[d2d::d2s::kAddExperience]) / 100;                   // item_addexperience (the experience shrine)
+        const auto exp = d2d::rules::kill_award(int(std::min<std::int64_t>(share, 0x7fffffff)), int(actor->character.stats.get(d2d::d2s::kLevel)), monster.stats.level,
+                                                int(actor->psum[d2d::d2s::kAddExperience]), game_data->exp_ratio, game_data->exp_ratio_shift, game_data->max_level);   // item_addexperience: the experience shrine
         const int levels_gained = d2d::rules::gain_exp(actor->character.stats, exp, game_data->exp_next, game_data->class_gains[save_class]);
         d2d::log::info("{} killed {} (+{} exp){}", actor->character.name, monster.npc.name, exp, levels_gained ? std::format(", level {}", actor->character.stats.get(d2d::d2s::kLevel)) : "");
         if (levels_gained) {

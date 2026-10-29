@@ -56,8 +56,15 @@ on its level (FUN_005404f0), 1 without a party.
    by Hireling.txt's (L+1)·L²·Exp/Lvl (FUN_00663790; FUN_00572840 the
    stats). d2d: rules::merc_kill_exp, Fight::merc_share.
 3. No party (FUN_00554630 == 0xffff): the killer gets FUN_0057e480's
-   award (the level penalty, + stat 0x55 item_addexperience), added by
-   FUN_0057e510.
+   award, added by FUN_0057e510. FUN_0057e480: 1 for a kill worth none, 0
+   at MaxLvl (FUN_00611830); the level difference (FUN_0057e2f0, 256ths:
+   the character 6..10+ above 207 / 159 / 110 / 61 / 13 at 0x6e1668, the
+   monster 6..10+ above 225 / 174 / 92 / 38 / 5 at 0x6e1694, or clvl / mlvl
+   from clvl 25); Experience.txt's ExpRatio for clvl >> the MaxLvl row's
+   (FUN_0057e390); + stat 0x55 % (FUN_00483360, the truncating MulDiv with
+   shortcuts: rules::scale); a merc's capped at its level's span / 64
+   (FUN_0057e3f0). d2d: rules::kill_award, checked against game.exe by
+   tools/emu/kill_exp.py.
 4. A party: FUN_0057e6c0.
 
 ### FUN_0057e6c0

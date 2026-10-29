@@ -803,13 +803,20 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
 
     // Char panel: next-level experience (row "<level>", same for every
     // class) and the expansion's resistance penalty per difficulty.
-    if (const auto experience_table = txt("experience"); experience_table.size() > 0)
-        for (std::size_t row = 0; row < experience_table.size(); ++row)
+    if (const auto experience_table = txt("experience"); experience_table.size() > 0) {
+        for (std::size_t row = 0; row < experience_table.size(); ++row) {
             if (const auto level_text = experience_table.get(row, "Level"); !level_text.empty() && level_text[0] >= '0' && level_text[0] <= '9') {
                 const auto level = std::size_t(std::stoi(std::string(level_text)));
                 if (level >= game_data.exp_next.size()) game_data.exp_next.resize(level + 1, -1);
                 game_data.exp_next[level] = std::stoll(std::string(experience_table.get(row, "Amazon")));
+                if (level >= game_data.exp_ratio.size()) game_data.exp_ratio.resize(level + 1, 0);
+                game_data.exp_ratio[level] = std::stoi(std::string(experience_table.get(row, "ExpRatio")));
+            } else if (level_text == "MaxLvl") {
+                game_data.exp_ratio_shift = std::stoi(std::string(experience_table.get(row, "ExpRatio")));
+                game_data.max_level = std::stoi(std::string(experience_table.get(row, "Amazon")));
             }
+        }
+    }
     if (const auto pet_table = txt("PetType"); pet_table.size() > 0)
         for (std::size_t row = 0; row < pet_table.size(); ++row) {
             GameData::PetType pet;

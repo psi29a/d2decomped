@@ -435,16 +435,45 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     return taken;
 }
 
-// Experience for a kill: the monster's, less when the character outlevels
-// it by more than 5 (81 / 62 / 43 / 24 % at 6..9 levels, 5 % from 10), or
-// scaled by clvl / mlvl when the monster is more than 5 levels higher.
-// ponytail: single player: the party share waits for a party; Experience.txt
-// ExpRatio (past level 69) waits for later acts.
+// game.exe's a x b / c (FUN_00483360), truncated: c 0 gives 0; a past
+// 0x100000 goes a / c x b when c <= a >> 4, b past 0x10000 b / c x a when
+// c <= b >> 4; else in 64 bits when either is that large, 32 (wrapping)
+// when neither is.
+inline int scale(int a, int b, int c) {
+    if (c == 0) return 0;
+    if (a > 0x100000) return c <= a >> 4 ? a / c * b : int(std::int64_t(a) * b / c);
+    if (b > 0x10000) return c <= b >> 4 ? b / c * a : int(std::int64_t(a) * b / c);
+    return std::int32_t(std::uint32_t(a) * std::uint32_t(b)) / c;
+}
+
+// A kill's experience by the level difference (FUN_0057e2f0), in 256ths:
+// the character above the monster by 6..10+ 207 / 159 / 110 / 61 / 13
+// (0x6e1668); the monster above by 6..10+ 225 / 174 / 92 / 38 / 5
+// (0x6e1694), or clvl / mlvl once the character's level is 25 or more.
 inline std::int64_t kill_exp(int exp, int clvl, int mlvl) {
-    static constexpr int kPenalty[5] = { 81, 62, 43, 24, 5 };
-    if (clvl > mlvl + 5) return std::int64_t(exp) * kPenalty[std::min(clvl - mlvl - 6, 4)] / 100;
-    if (mlvl > clvl + 5) return std::int64_t(exp) * clvl / mlvl;
-    return exp;
+    static constexpr std::array<int, 11> kCharacterAbove{ 256, 256, 256, 256, 256, 256, 207, 159, 110, 61, 13 };
+    static constexpr std::array<int, 11> kMonsterAbove{ 256, 256, 256, 256, 256, 256, 225, 174, 92, 38, 5 };
+    int factor = 0;
+    if (mlvl <= clvl) factor = kCharacterAbove[std::size_t(std::min(clvl - mlvl, 10))];
+    else if (clvl >= 25 && mlvl > 0) return scale(exp, clvl, mlvl);
+    else factor = kMonsterAbove[std::size_t(std::min(mlvl - clvl, 10))];
+    return factor == 256 ? exp : scale(exp, factor, 256);
+}
+
+// What a kill gives a unit of level `clvl` (FUN_0057e480): 1 for a kill
+// worth none, 0 at `max_level` (Experience.txt MaxLvl); else kill_exp, then
+// the level's ExpRatio (`ratios`, by level) >> `shift` (the MaxLvl row's
+// ExpRatio, FUN_0057e390: (exp >> shift) x ratio where exp x ratio would
+// overflow), then + item_addexperience % of that.
+inline std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::span<const int> ratios, int shift, int max_level) {
+    if (exp < 1) return 1;
+    if (clvl >= max_level) return 0;
+    auto award = int(kill_exp(exp, clvl, mlvl));
+    const int ratio = clvl >= 1 && std::size_t(clvl) < ratios.size() ? ratios[std::size_t(clvl)] : 0;
+    if (award > 0 && shift >= 1 && shift <= 31)
+        award = award > (0x7fffffff >> (((ratio >> shift) + shift) & 31)) ? (award >> shift) * ratio : award * ratio >> shift;
+    if (add_pct != 0) award += scale(award, add_pct, 100);
+    return award;
 }
 
 // A kill's experience shared by the party members who share it

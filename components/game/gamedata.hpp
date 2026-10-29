@@ -480,6 +480,8 @@ struct GameData {
     // server keeps only the tiles' headers and walk flags.
     bool tile_pixels = false;
     std::vector<std::int64_t> exp_next;          // experience.txt: exp for level+1, by level
+    std::vector<int> exp_ratio;                  // experience.txt ExpRatio, by level (rules::kill_award)
+    int exp_ratio_shift = 10, max_level = 99;    // the MaxLvl row's ExpRatio and Amazon
     // PetType.txt rows (Skills.txt pettype names one; "hireable" the merc's):
     // the automap marks it (FUN_00478d90), its portrait (FUN_00494020: icon
     // type 1 one, 2 a count, 3 one of several; the icon by MonStats class,

@@ -31,8 +31,19 @@ int main(int argc, char** argv) {
     assert(moving_anim_rate(false, 0) == 53 && moving_anim_rate(true, 400) == 404);
     assert(hit_chance(100, 100, 1, 1) == 50);
     assert(hit_chance(1000, 1, 5, 1) == 95 && hit_chance(10, 1000, 1, 1) == 5);
-    assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 24 && kill_exp(100, 20, 1) == 5);
-    assert(kill_exp(100, 1, 10) == 10);
+    // FUN_0057e2f0's 256ths (0x6e1668 / 0x6e1694), clvl / mlvl from level 25.
+    assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 100 * 61 / 256 && kill_exp(100, 20, 1) == 100 * 13 / 256);
+    assert(kill_exp(100, 1, 10) == 100 * 38 / 256 && kill_exp(1000, 30, 40) == 750 && kill_exp(100, 1, 6) == 100);
+    // game.exe's own (tools/emu/kill_exp.py 400 3): exp clvl mlvl award, MulDiv's shortcuts included.
+    for (const auto& [exp, clvl, mlvl, award] : std::to_array<std::array<int, 4>>({ { 1950, 48, 54, 1733 }, { 537, 61, 34, 27 }, { 3007937, 70, 78, 2699410 },
+                                                                                   { 1471826, 75, 30, 74737 }, { 2188, 9, 62, 42 }, { 1741519, 3, 49, 34010 }, { 1056068, 20, 28, 379500 } }))
+        assert(kill_exp(exp, clvl, mlvl) == award);
+    // FUN_0057e480: ExpRatio past 69 (976 at 70, >> 10), item_addexperience %, 1 for none, 0 at the cap.
+    const std::vector<int> ratios(100, 1024);
+    auto ratio70 = ratios; ratio70[70] = 976;
+    assert(kill_award(1000, 70, 70, 0, ratio70, 10, 99) == 1000 * 976 >> 10 && kill_award(1000, 10, 10, 50, ratios, 10, 99) == 1500);
+    assert(kill_award(0, 10, 10, 0, ratios, 10, 99) == 1 && kill_award(1000, 99, 99, 0, ratios, 10, 99) == 0);
+    assert(scale(0x200000, 3, 0x10) == 0x200000 / 0x10 * 3 && scale(7, 3, 2) == 10 && scale(1, 1, 0) == 0);
     // The fighter: weapon damage with enhanced damage and the strength
     // bonus, attack rating, shield block, the rest straight from the sums.
     Tables tables;
