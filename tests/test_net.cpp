@@ -169,6 +169,11 @@ int main() try {
         assert(boss && boss->flags == 6 && boss->super == 37 && boss->mods == std::vector<int>({ 5, 30, 22 }) && boss->name_seed == 35294);
         const std::array<std::uint8_t, 14> plain = { 0xac, 0xba, 0, 0, 0, 0x38, 0x01, 0x75, 0x1e, 0xd3, 0x15, 0x80, 0x0e, 0x01 };
         assert(!d2gs::s2c::monster_boss(plain, doomknight3));
+        assert(d2gs::s2c::monster_tail(de_seis, doomknight3)->owner == 0);
+        // A pet of player 5: no components, no boss, the owner bit and 31 bits of id.
+        const std::array<std::uint8_t, 18> pet = { 0xac, 9, 0, 0, 0, 0x38, 0x01, 0x75, 0x1e, 0xd3, 0x15, 0x80, 18, 0xc0, 0x02, 0, 0, 0 };
+        const auto pet_tail = d2gs::s2c::monster_tail(pet, doomknight3);
+        assert(pet_tail && !pet_tail->boss && pet_tail->owner == 5);
     }
     assert(d2gs::s2c_name(0x59) == "assign player" && d2gs::s2c_name(0xb5).empty());
 

@@ -115,6 +115,7 @@ struct View {
     // pettype: its skill's Skills.txt pettype (PetType.txt row); life: percent.
     struct Pet { Npc npc; UnitState unit; std::string_view mode; std::string_view pettype; int life = 100; };
     std::vector<Pet> pets;                 // the player's summons on this level
+    std::vector<Pet> party_pets;           // the other players' mercs ("hireable") and summons on it (local co-op; life unused)
     std::vector<Monster> monsters;         // the level's
     struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; };
     std::vector<Shot> missiles;

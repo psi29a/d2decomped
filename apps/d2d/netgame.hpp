@@ -44,6 +44,7 @@ struct NetGame {
         int flags = 0;                // our relation flags toward it (0x8c: 1 loot, 2 not heard, 4 squelched, 8 hostile)
         int life = 128;               // of 128
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
+        std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
         std::unordered_map<std::uint32_t, d2d::d2s::Item> worn;   // another player's: by item id (0x9d)
         int skill = -1;               // a player's last skill (0x4c / 0x4d), Skills.txt id

@@ -554,8 +554,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             unit.cls = read_u16(packet, 5);
             place(unit, read_u16(packet, 7), read_u16(packet, 9));
             unit.life = packet[0xb];
-            if (const auto boss = d2d::net::d2gs::s2c::monster_boss(packet, unit.cls >= 0 && std::size_t(unit.cls) < monster_parts.size() ? monster_parts[std::size_t(unit.cls)] : std::array<std::uint8_t, 16>{})) {
-                unit.boss_flags = boss->flags; unit.super = boss->super; unit.mods = boss->mods; unit.name_seed = boss->name_seed;
+            if (const auto tail = d2d::net::d2gs::s2c::monster_tail(packet, unit.cls >= 0 && std::size_t(unit.cls) < monster_parts.size() ? monster_parts[std::size_t(unit.cls)] : std::array<std::uint8_t, 16>{})) {
+                if (tail->boss) { unit.boss_flags = tail->boss->flags; unit.super = tail->boss->super; unit.mods = tail->boss->mods; unit.name_seed = tail->boss->name_seed; }
+                unit.owner = tail->owner;
             }
         }
         break;

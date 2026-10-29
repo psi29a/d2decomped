@@ -190,8 +190,10 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
     // 1: pets and the other players, 2: missiles.
     {
         wire::Out chunk;
-        chunk.u16(int(view.pets.size()));
-        for (const auto& pet : view.pets) { wire::npc(chunk, pet.npc); wire::unit(chunk, pet.unit); chunk.str(pet.mode).str(pet.pettype).u8(pet.life); }
+        for (const auto* pets : { &view.pets, &view.party_pets }) {
+            chunk.u16(int(pets->size()));
+            for (const auto& pet : *pets) { wire::npc(chunk, pet.npc); wire::unit(chunk, pet.unit); chunk.str(pet.mode).str(pet.pettype).u8(pet.life); }
+        }
         chunk.u16(int(view.others.size()));
         for (const auto& other : view.others) {
             wire::unit(chunk, other.unit);
@@ -399,13 +401,15 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         for (int count = u16(); count > 0 && input.ok; --count) view.buffs.push_back(i32());
     });
     body([&] {
-        view.pets.clear();
-        for (int count = u16(); count > 0 && input.ok; --count) {
-            auto npc = wire::npc(input);
-            const auto unit = wire::unit(input);
-            const auto mode = wire::intern(input.str());
-            const auto pettype = wire::intern(input.str());
-            view.pets.push_back({ std::move(npc), unit, mode, pettype, input.get<std::uint8_t>() });
+        for (auto* pets : { &view.pets, &view.party_pets }) {
+            pets->clear();
+            for (int count = u16(); count > 0 && input.ok; --count) {
+                auto npc = wire::npc(input);
+                const auto unit = wire::unit(input);
+                const auto mode = wire::intern(input.str());
+                const auto pettype = wire::intern(input.str());
+                pets->push_back({ std::move(npc), unit, mode, pettype, input.get<std::uint8_t>() });
+            }
         }
         view.others.clear();
         for (int count = u16(); count > 0 && input.ok; --count) {

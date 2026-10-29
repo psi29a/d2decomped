@@ -155,10 +155,11 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                         view.merc->mode == "DT" ? nullptr : merc_label, view.merc->unit.mode_ms, -2 });
         out.back().hold = view.merc->mode == "DT";
     }
-    for (const auto& pet : view.pets) {
-        out.push_back({ pet.unit.x, pet.unit.y, &scene.npc_anim(pet.npc, pet.mode), pet.unit.dir, nullptr, pet.unit.mode_ms, -3 });
-        out.back().hold = pet.mode == "DT";
-    }
+    for (const auto* pets : { &view.pets, &view.party_pets })
+        for (const auto& pet : *pets) {
+            out.push_back({ pet.unit.x, pet.unit.y, &scene.npc_anim(pet.npc, pet.mode), pet.unit.dir, nullptr, pet.unit.mode_ms, -3 });
+            out.back().hold = pet.mode == "DT";
+        }
     // A joined game's other players, in what they wear (0x9d), walking,
     // standing or in a skill's mode.
     const bool in_town = view.level && d2d::rules::level_ids::is_town(view.level->id);
@@ -1069,8 +1070,8 @@ auto Town::automap_frame() -> void {
         // magenta, our merc and pets teal, interacting NPCs white (but the
         // Ancient statues) with their names in gold (Names on), town and
         // red portals yellow; then the party anywhere (FUN_0045ab60), green,
-        // the others red.
-        // ponytail: other players' pets aren't marked (game.exe: green, Party on).
+        // the others red; with Party on, the party's pets green too (a
+        // joined game's: the host's monsters whose 0xac owner is in our party).
         const auto rooms = level && view.level == level ? missile_rooms(*world.game_data, *level, view.player.x, view.player.y) : std::vector<std::array<int, 4>>{};
         const auto close_by = [&](float x, float y) {
             const int sub_x = int(std::floor((x + world_x) * 5)), sub_y = int(std::floor((y + world_y) * 5));
@@ -1087,6 +1088,19 @@ auto Town::automap_frame() -> void {
             const auto* type = world.game_data->pet_type(pet.pettype);
             if (type && type->automap && pet.mode != "DT" && pet.mode != "DD" && close_by(pet.unit.x, pet.unit.y)) add(pet.unit.x, pet.unit.y, kTeal);
         }
+        constexpr std::array<int, 3> kPartyPet{ 0x48, 0xa0, 0x34 };
+        if (automap.party)
+            for (const auto& pet : view.party_pets) {
+                const auto* type = world.game_data->pet_type(pet.pettype);
+                if (type && type->automap && pet.mode != "DT" && pet.mode != "DD" && close_by(pet.unit.x, pet.unit.y)) add(pet.unit.x, pet.unit.y, kPartyPet);
+            }
+        if (automap.party && net_game && own_party != 0xffff)
+            for (const auto& monster : view.monsters) {
+                const auto unit = net_game->units.find(std::uint64_t(1) << 32 | std::uint32_t(monster.id));
+                if (unit == net_game->units.end() || unit->second.owner == 0 || unit->second.owner == net_game->self_id || !monster.alive()) continue;
+                const auto owner = net_game->units.find(std::uint64_t(unit->second.owner));
+                if (owner != net_game->units.end() && owner->second.party == own_party && close_by(monster.unit.x, monster.unit.y)) add(monster.unit.x, monster.unit.y, kPartyPet);
+            }
         const auto npc_mark = [&](const Npc& npc, float x, float y) {
             if (!npc.interact || npc.id.starts_with("ancientstatue") || !close_by(x, y)) return;
             add(x, y, kWhite, automap.names ? npc.name : std::string{}, kGold);

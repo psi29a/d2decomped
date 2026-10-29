@@ -91,6 +91,7 @@ int main(int argc, char** argv) try {
         sent.quest_log.back() = 9;
         sent.game_quests.back() = 0x8000;
         sent.events = { ev::Reassigned{}, ev::Lightning{} };
+        sent.party_pets.push_back({ Npc{}, UnitState{}, "WL", "hireable", 100 });   // a partner's merc (local co-op)
         ViewEncoder encoder;
         const auto bytes = encode_view(empty_data, sent, encoder);
         View received;
@@ -98,6 +99,7 @@ int main(int argc, char** argv) try {
         assert(received.quest_log == sent.quest_log);
         assert(received.game_quests == sent.game_quests);
         assert(received.events.size() == 2 && std::holds_alternative<ev::Reassigned>(received.events[0]) && std::holds_alternative<ev::Lightning>(received.events[1]));
+        assert(received.pets.empty() && received.party_pets.size() == 1 && received.party_pets[0].pettype == "hireable" && received.party_pets[0].mode == "WL");
     }
     {
         // MonProp's stats on a monster: IAS on A1 / A2, FCR on SC (120 x v /

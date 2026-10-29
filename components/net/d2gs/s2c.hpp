@@ -42,9 +42,12 @@ inline auto quest_word_of_record(int record) -> int {
 // components (1, then 16, each 1 bit under 3 choices, else bit_width(n - 1)
 // with n MonStats2's HDv..S8v count), then the boss: 1, 5 flags (champion,
 // unique, superunique, minion, ghostly), a superunique's SuperUniques row
-// (16), mods 8 bits each till a 0 (at most 9), the name seed (16).
+// (16), mods 8 bits each till a 0 (at most 9), the name seed (16), then 1
+// and an owning player's id (32); then the owner: 1, its id (31: a pet's
+// or merc's player).
 struct MonsterBoss { int flags = 0; int super = -1; std::vector<int> mods; int name_seed = 0; };   // flags: 1 champion, 2 unique, 4 superunique, 8 minion, 0x10 ghostly
-inline auto monster_boss(std::span<const std::uint8_t> packet, const std::array<std::uint8_t, 16>& choices) -> std::optional<MonsterBoss> {
+struct MonsterTail { std::optional<MonsterBoss> boss; std::uint32_t owner = 0; };              // owner 0: none
+inline auto monster_tail(std::span<const std::uint8_t> packet, const std::array<std::uint8_t, 16>& choices) -> std::optional<MonsterTail> {
     if (packet.size() < 0xd || packet[0] != 0xac) return std::nullopt;
     const std::size_t end = std::min<std::size_t>(packet[0xc], packet.size()) * 8;
     std::size_t bit_at = 0xd * 8;
@@ -60,14 +63,24 @@ inline auto monster_boss(std::span<const std::uint8_t> packet, const std::array<
     bits(4);
     if (bits(1))
         for (const int count : choices) bits(count < 3 ? 1 : std::bit_width(unsigned(count - 1)));
-    if (!bits(1) || over) return std::nullopt;
-    MonsterBoss out;
-    for (int flag = 0; flag < 5; ++flag) out.flags |= int(bits(1)) << flag;
-    if (out.flags & 4) out.super = int(bits(16));
-    for (std::uint32_t mod = bits(8); mod != 0 && out.mods.size() < 9; mod = bits(8)) out.mods.push_back(int(mod));
-    out.name_seed = int(bits(16));
-    if (over) return std::nullopt;
+    MonsterTail out;
+    if (bits(1)) {
+        MonsterBoss boss;
+        for (int flag = 0; flag < 5; ++flag) boss.flags |= int(bits(1)) << flag;
+        if (boss.flags & 4) boss.super = int(bits(16));
+        for (std::uint32_t mod = bits(8); mod != 0 && boss.mods.size() < 9; mod = bits(8)) boss.mods.push_back(int(mod));
+        boss.name_seed = int(bits(16));
+        if (bit_at < end && bits(1)) bits(32);
+        if (over) return std::nullopt;
+        out.boss = std::move(boss);
+    }
+    if (bit_at < end && bits(1)) out.owner = bits(31);
+    if (over) out.owner = 0;                       // cut short: no owner read
     return out;
+}
+inline auto monster_boss(std::span<const std::uint8_t> packet, const std::array<std::uint8_t, 16>& choices) -> std::optional<MonsterBoss> {
+    const auto tail = monster_tail(packet, choices);
+    return tail ? tail->boss : std::nullopt;
 }
 
 }  // namespace d2d::net::d2gs::s2c
