@@ -708,7 +708,7 @@ struct HoradricStaffQuest {
 // Canyon of the Magi. Bits: 0 done, 1 reward due, 2..5 under way (the
 // mark), 7 / 8 the guard's two lines heard, 13 took part, 14 by others,
 // 15 closed.
-// N-player gap: party credit is World::credit_party's one rule. The
+// The journal credits each player in the Sanctuary (World::operate). The
 // palace door's mode (data+0x38) and Jerhyn's moves are show_palace's.
 struct ArcaneQuest {
     static constexpr int kQuest = 12, kDrognan = monster_ids::kDrognan, kJerhyn = monster_ids::kJerhyn, kGuard = monster_ids::kPalaceGuard;
@@ -853,13 +853,18 @@ struct ArcaneQuest {
         }
     }
     // Horazon's Journal read (OperateFn 42, FUN_0059b970): its 396 to the
-    // player (FUN_005456a0), its room kept; open and not done: state 5, and
-    // a player in the Sanctuary without bit 0 / 1 gets 13, 1, 0 (their
-    // 2..11 cleared, then 8, 7: FUN_0059b3f0); else bit 14 (LAB_0059b320).
-    void journal(QuestBits& quest_bits, int room, bool in_sanctuary) {
+    // player (FUN_005456a0), its room kept. True: open and not done, now
+    // state 5; each player then takes their credit (journal_credit).
+    bool journal(int room) {
         journal_room = room;
-        if (!open || state == 5) return;
+        if (!open || state == 5) return false;
         state = 5;
+        return true;
+    }
+    // A player's credit at the first read: in the Sanctuary without bit 0 /
+    // 1, 13, 1, 0 (their 2..11 cleared, then 8, 7: FUN_0059b3f0); else bit
+    // 14 (LAB_0059b320).
+    static void journal_credit(QuestBits& quest_bits, bool in_sanctuary) {
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return;
         if (in_sanctuary) {
             for (const int bit : { 13, 1, 0 }) quest::set(quest_bits, kQuest, bit);

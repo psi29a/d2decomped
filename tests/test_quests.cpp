@@ -518,7 +518,7 @@ int main() {
     assert(arcane.state == 3 && arcane.log == 3 && quest::bit(sanctuary, 12, 3));
     arcane.enter(sanctuary, 54, ArcaneQuest::kSanctuary, 1);
     assert(arcane.state == 4 && arcane.log == 4 && quest::bit(sanctuary, 12, 5));
-    arcane.journal(sanctuary, 7, true);
+    if (arcane.journal(7)) ArcaneQuest::journal_credit(sanctuary, true);
     assert(arcane.state == 5 && quest::bit(sanctuary, 12, 0) && quest::bit(sanctuary, 12, 1) && quest::bit(sanctuary, 12, 13) && !quest::bit(sanctuary, 12, 5));
     assert(!arcane.said(sanctuary, sanctuary_game, -1, ArcaneQuest::kJournal, 3, 1) && arcane.log == 5);
     assert(arcane.said(sanctuary, sanctuary_game, -1, ArcaneQuest::kJournal, 7, 1) && quest::bit(sanctuary_game, 12, 13));

@@ -761,7 +761,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // and the quest's (ArcaneQuest::journal).
         if (object.operate_fn == d2d::rules::operate_fn::kJournal) {
             if (operated.try_emplace({ level, npc_index }, now_ms).second) to_mode(1);
-            if (!hosted_quests) arcane.journal(quests(), object.room, level->id == d2d::rules::ArcaneQuest::kSanctuary);
+            if (!hosted_quests && arcane.journal(object.room))
+                each_player([&](Player&) { d2d::rules::ArcaneQuest::journal_credit(quests(), level->id == d2d::rules::ArcaneQuest::kSanctuary); });
             actor->events.push_back(ev::Speech{ npc_index, d2d::rules::ArcaneQuest::kJournal });
             return;
         }
