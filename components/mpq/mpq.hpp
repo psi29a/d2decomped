@@ -8,9 +8,6 @@
 // Header-only. No exceptions on missing files — use try_read; read() throws
 // only when the file exists but the read itself fails (I/O error, decompress
 // failure). Constructor throws when the archive won't open at all.
-//
-// ponytail: no listfile enumeration API here yet. Add when the first caller
-// needs it — StormLib's SFileFindFirstFile/Next is straightforward.
 #pragma once
 
 #include "bnpatch.hpp"

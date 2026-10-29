@@ -1608,6 +1608,13 @@ int main(int argc, char** argv) {
 #ifdef SIGPIPE                                        // POSIX only; Windows has no SIGPIPE
     std::signal(SIGPIPE, SIG_IGN);
 #endif
+#ifdef _WIN32
+    // Warnings in colour: escape codes only work once VT processing is on.
+    if (const HANDLE console = GetStdHandle(STD_ERROR_HANDLE); console != INVALID_HANDLE_VALUE) {
+        DWORD mode = 0;
+        d2d::log::g_windows_vt = GetConsoleMode(console, &mode) && SetConsoleMode(console, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    }
+#endif
 
     // Per-user dir, thirdeye layout (components/userdir): d2d.cfg, save/,
     // screenshots/. Config loads global -> ./ -> user, later wins.

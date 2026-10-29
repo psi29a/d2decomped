@@ -21,7 +21,9 @@
 #include <string_view>
 #include <utility>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
 #endif
 
@@ -63,12 +65,13 @@ inline void open(const std::filesystem::path& path, bool append = false) {
     if (!g_file) std::fprintf(stderr, "Failed to open log file %s\n", path.string().c_str());
 }
 
-// ponytail: plain on Windows (no VT mode is turned on there); add
-// SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING) when a console wants red.
+// Windows colours only once the app has turned on VT processing for its
+// console (SetConsoleMode) and set this.
+inline std::atomic<bool> g_windows_vt = false;
+
 inline bool is_terminal(std::FILE* out) {
 #ifdef _WIN32
-    (void)out;
-    return false;
+    return g_windows_vt && _isatty(_fileno(out)) != 0;
 #else
     return isatty(fileno(out)) != 0;
 #endif

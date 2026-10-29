@@ -192,8 +192,8 @@ Translated translate(std::span<const std::string_view> arguments, const CLI::App
         }
         const bool next_is_value = index + 1 < arguments.size()
             && following_is_value(*token, leftover, arguments[index + 1]);
-        // ponytail: -nosave is the only switch wired (d2d's --no-save).
-        // A wired name is rewritten and its value is passed through for
+        // -nosave is the only switch wired (d2d's --no-save); switches.md's
+        // d2d column says where each other one stands. A wired name is rewritten and its value is passed through for
         // CLI11, which checks the type. -seed stays ignored until
         // DEBUG/SEED is traced (switches.md). Anything else is logged and
         // dropped, value included, so an old command line still starts.

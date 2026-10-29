@@ -104,8 +104,8 @@ private:
             // D2 stores values as single-byte (Latin-1 / Windows-1252 for
             // LATIN builds; a locale-specific MBCS for CYR/JPN/KOR). Non-LATIN
             // builds aren't handled here yet — treat every byte as Latin-1 for
-            // now. unverified (source: OpenD2's Latin path): the encoding.
-            // ponytail: Latin-1 only; add MBCS decode when a non-Latin TBL fails.
+            // now. unverified (source: OpenD2's Latin path): the encoding;
+            // non-Latin installs untested (unverified.md, todo.md "Formats").
             if (valLen == 0 || valOff + std::size_t(valLen) > bytes.size()) continue;
             const auto* valp = reinterpret_cast<const unsigned char*>(bytes.data() + valOff);
             std::u16string value;

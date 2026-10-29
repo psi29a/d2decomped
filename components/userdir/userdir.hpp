@@ -9,8 +9,8 @@
 //   global dir  macOS    /Library/Preferences/<app>/
 //               Linux    /etc/<app>/
 //               Windows  Program Files\<app>
-// ponytail: a few free functions instead of thirdeye's FixedPath template
-// + token mapping; port the ?user?/?global? tokens when a cfg needs them.
+// A few free functions, not thirdeye's FixedPath template: d2d's cfgs use
+// no ?user? / ?global? tokens.
 #pragma once
 
 #include <algorithm>

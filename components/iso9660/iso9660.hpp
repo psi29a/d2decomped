@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // iso9660.hpp — minimal ISO 9660 + Joliet reader, header-only.
 //
-// ponytail: scope is "read the 4 D2 ISOs". No Rock Ridge, no UDF, no raw
-// BIN/CUE (2352-byte sectors), no writes. Upgrade path if we ever hit a
-// non-D2 disc: replace with libarchive.
+// It reads the D2 ISOs: the discs are plain ISO 9660 + Joliet, so no Rock
+// Ridge, UDF, raw BIN/CUE (2352-byte sectors) or writes.
 //
 // Layout reminder (all offsets in 2048-byte sectors):
 //   sector 16..N: volume descriptors

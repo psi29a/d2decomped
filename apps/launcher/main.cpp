@@ -737,8 +737,8 @@ private:
     }
     // QSettings always; d2d.cfg's `data` / `patch` only for an install d2d
     // can use (d2d stops on a bad `data =`).
-    // ponytail: no patch chosen leaves d2d.cfg's `patch` as it is (a
-    // hand-set LODPatch_114d.exe survives); a stale one is the user's to clear.
+    // No patch chosen leaves d2d.cfg's `patch` as it is (a hand-set
+    // LODPatch_114d.exe survives); a stale one is the user's to clear.
     bool persist() {
         saveSettings();
         const auto install = classify_dir(path_);
@@ -752,8 +752,8 @@ private:
     }
 
     // Look for installs off the UI thread; results land in onDetected.
-    // ponytail: no time budget, a slow network drive in a probed folder
-    // stalls the list (not the window); add a 2 s cutoff if that bites.
+    // No time budget: a slow network drive in a probed folder stalls the
+    // list, never the window.
     void scan() {
         status_->setText(tr("Looking for Diablo II..."));
         status_->setStyleSheet("color: gray;");

@@ -200,8 +200,8 @@ DIFFICULTY = {"normal": (400, 280), "nightmare": (400, 323), "hell": (400, 366)}
 
 
 def host(whisper: Whisper, difficulty: str = "normal") -> str:
-    """Clicks through to a hosted game; ponytail: fixed waits, no screen reading. A character with only Normal open
-    gets no difficulty box, and that click lands on the empty list."""
+    """Clicks through to a hosted game on fixed waits, without reading the screen. A character with only Normal
+    open gets no difficulty box, and that click lands on the empty list."""
     difficulty = difficulty.lower()
     if difficulty not in DIFFICULTY:
         return f"err unknown difficulty {difficulty!r}: normal, nightmare or hell"
@@ -242,8 +242,8 @@ def on_screen(point: tuple[int, int]) -> bool:
 def follow(whisper: Whisper) -> None:
     """A merc: stay by the other player, fight what's near us both, drink when low.
 
-    ponytail: one leader (the nearest other player), the left skill only,
-    belt columns 1-4 in turn; warps and waypoints are left to the driver.
+    One leader (the nearest other player), the left skill only, belt
+    columns 1-4 in turn; warps and waypoints are left to the driver.
     """
     last_drink, belt, partied, last_seen = 0.0, 0, set(), None
     while True:

@@ -18,8 +18,8 @@ namespace d2d::net::d2gs {
 class Huffman {
 public:
     // Refuses lengths outside 1..15 or an incomplete / overfull code
-    // (check_lengths). ponytail: game.exe's build only refuses 0 and >= 16;
-    // a Kraft sum other than 1 would give a code that can't round trip.
+    // (check_lengths). game.exe's build only refuses 0 and >= 16, but its
+    // one table is complete; a Kraft sum other than 1 can't round trip.
     static auto build(std::span<const std::uint8_t> lengths) -> std::expected<Huffman, std::string>;
 
     // Codes MSB first, the last byte zero-padded; appended to `out`.

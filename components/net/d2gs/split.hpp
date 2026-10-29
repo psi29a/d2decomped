@@ -76,8 +76,8 @@ private:
 // take the packets. Raw at first (the host's AF 01 comes unframed); the
 // first AF with a nonzero byte 1 switches to frames for the next read.
 // AF 81 installs its table for the frames after the one carrying it.
-// ponytail: game.exe also stamps GetTickCount() into a received 0x8f at
-// +0xd; the caller times pongs itself.
+// game.exe also stamps GetTickCount() into a received 0x8f at +0xd; the
+// caller times pongs itself.
 class Receiver {
 public:
     Receiver(const Huffman& huffman, const SizeTable& sizes) : huffman_(huffman), splitter_(sizes) {}
