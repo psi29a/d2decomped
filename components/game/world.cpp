@@ -1357,26 +1357,31 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
     }
 
 // Mephisto's death hook (a3q6, FUN_005bc8b0: record slot +0xc0). The
-// killer, and each player in the Durance's third level (FUN_005bc190), not
-// done gets word 0x16 bits 0xd, 0 and 0xb and progression diff x 4 (5 in
-// LoD) + 3 (FUN_005bc140 -> FUN_00538680), and a Mephisto's Soulstone
-// ("mss ", FUN_00559a30) unless it had bit 0xb. The record's state goes
-// to 2; the hellgate (InitFn 44 put its id at +4) to mode 1, its event 1
+// killer without word 0x16 bit 0, and each other player in the Durance's
+// third level without bits 0 and 0xb (FUN_005bc190), gets bits 0xd, 0 and
+// 0xb and progression diff x 4 (5 in LoD) + 3 (FUN_005bc140 ->
+// FUN_00538680); each that hadn't bit 0xb owes a Mephisto's Soulstone
+// (record +0x1c): that many "mss " drop from him (FUN_00559a30,
+// Loot::put's drop_spot). The record's state goes to 2;
+// the hellgate (InitFn 44 put its id at +4) to mode 1, its event 1
 // FrameCnt1 + 1 frames on taking it to mode 2 (FUN_00581490).
-// ponytail: one player, the World's; the soulstone falls at his spot (the
-// dying unit's), not by FUN_00559a30's own search.
 auto World::mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         each_player([&](Player& player) { guardian.killed(player.id); });   // the killer and each player in the level: one level in co-op
         class_cue("act3_complete_guardian", now_ms);   // FUN_005bc8b0: unit event 0x42
         music_cue("music_quest_mephisto");
         bridge_check = now_ms + 24 * kTickMs;
-        auto& bits = quests();
-        if (!d2d::rules::quest::bit(bits, 0x16, 0)) {
+        int owed = 0;
+        const int killer = actor->id;
+        each_player([&](Player& player) {
+            auto& bits = quests();
             const bool had_stone = d2d::rules::quest::bit(bits, 0x16, 0xb);
+            if (d2d::rules::quest::bit(bits, 0x16, 0)) return;
+            if (player.id != killer && (level->id != d2d::rules::level_ids::kDuranceOfHateLevel3 || had_stone)) return;
             for (const int bit : { 0xd, 0, 0xb }) d2d::rules::quest::set(bits, 0x16, bit);
             open_act(3);
-            if (!had_stone) loot.put({ .code = "mss" }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
-        }
+            owed += had_stone ? 0 : 1;
+        });
+        for (int stone = 0; stone < owed; ++stone) loot.put({ .code = "mss" }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
         if (const Level* durance = game_data->level(d2d::rules::level_ids::kDuranceOfHateLevel3)) {
             const auto gate = std::ranges::find(durance->npcs, d2d::rules::object_ids::kHellgate, &Npc::object_id);
             if (gate != durance->npcs.end()) doors[{ durance, int(gate - durance->npcs.begin()) }] = Door{ 1, now_ms };
