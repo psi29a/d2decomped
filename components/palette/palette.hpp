@@ -71,6 +71,18 @@ public:
         return entries_[idx];
     }
     [[nodiscard]] std::span<const Rgba> entries() const noexcept { return entries_; }
+    // The index whose colour is nearest (r, g, b) (FUN_004fb180 ->
+    // FUN_00605210): the least squared distance, the first on a tie.
+    [[nodiscard]] std::uint8_t nearest(int red, int green, int blue) const noexcept {
+        std::uint8_t found = 0;
+        unsigned best = ~0u;
+        for (std::size_t i = 0; i < entries_.size(); ++i) {
+            const auto& colour = entries_[i];
+            const auto off_r = unsigned(colour.r - red), off_g = unsigned(colour.g - green), off_b = unsigned(colour.b - blue);
+            if (const unsigned distance = off_b * off_b + off_g * off_g + off_r * off_r; distance < best) { best = distance; found = std::uint8_t(i); }
+        }
+        return found;
+    }
 
     // Overwrite the alpha for one entry — handy when a specific tileset
     // treats a non-zero index as chroma-key.

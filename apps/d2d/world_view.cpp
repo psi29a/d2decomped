@@ -307,7 +307,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     };
     // `layer`: 0 wall, 1 floor, 2 shadow (the pass, not the DT1's own type field).
     // `source`: the Level::Pick or DS1 layer cell it's drawn for (g_drawn).
-    auto blit_cell = [&](int cell_x, int cell_y, const d2d::dt1::Tile& tile, int layer, const void* source, int alpha = 255) {
+    auto blit_cell = [&](int cell_x, int cell_y, const d2d::dt1::Tile& tile, int layer, const void* source, int alpha = 255) -> bool {
         const auto [iso_x, iso_y] = iso(cell_x, cell_y);
         const int tile_height = std::abs(tile.height);
         const int screen_x = iso_x - kIsoW / 2;         // block x counts from the cell's left corner, whatever the tile's width
@@ -318,12 +318,13 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         // units and walls each on game.exe's pixels; not traced).
         const int wall_lift = layer == 0 ? 16 : 0;
         const int screen_y = (layer == 0 && tile.type >= 16 ? iso_y + kIsoH - tile.y_shift : iso_y - (tile_height - kIsoH)) - wall_lift;
-        if (layer == 1 ? floor_drawn(screen_x, screen_y) : layer == 0 && wall_drawn(screen_x, screen_y, tile))
-            g_drawn.cells.push_back({ cell_x, cell_y, source });
+        const bool drawn = layer == 1 ? floor_drawn(screen_x, screen_y) : layer == 0 && wall_drawn(screen_x, screen_y, tile);
+        if (drawn) g_drawn.cells.push_back({ cell_x, cell_y, source });
         if (layer == 2) blit_dt1_shadow(framebuffer, tile, pal, screen_x, screen_y);
         else if (light && layer == 0) blit_dt1_wall_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha < 255, alpha);   // ponytail: "in front" read off the alpha, so a wall fading back still samples the front spots
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha);
         else blit_dt1_tile(framebuffer, tile, pal, screen_x, screen_y, alpha);
+        return drawn;
     };
     // Walls in front of the player see-through (FUN_004dd060 /
     // FUN_004dd180, the room mode: DAT_0072a968 is 1 in 1.14d and nothing
@@ -427,6 +428,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         }
     // Row-major sweep so back rows render first. dy increases downward
     // in screen space, so we iterate low→high dy for back-to-front.
+    if (rain) rain->floors(level.mud);                   // FUN_004de730: this pass's splash / bubble gates
     for (int dy = -kReach; dy <= kReach; ++dy) {
         for (int dx = -kReach; dx <= kReach; ++dx) {
             const int cell_x = base_x + dx;
@@ -434,14 +436,14 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             const auto [cell_level, off] = cell_at(cell_x, cell_y);
             if (!cell_level) continue;
             const auto& cell_map = cell_level->ds1;
-            // A floor whose DT1 material flags have 2 may splash in the rain
-            // (FUN_004de410, as the tile's drawn).
-            auto splash = [&](const d2d::dt1::Tile& tile) {
-                if (rain && (tile.material_flags & 2)) { const auto [splash_x, splash_y] = iso(cell_x, cell_y); rain->floor(rain->rng, splash_x, splash_y); }
+            // A floor drawn whose DT1 material flags have 2 may splash in
+            // the rain or bubble in the mud (FUN_004de410).
+            auto splash = [&](const d2d::dt1::Tile& tile, bool drawn) {
+                if (rain && drawn && (tile.material_flags & 2)) { const auto [splash_x, splash_y] = iso(cell_x, cell_y); rain->floor(rain->rng, splash_x, splash_y); }
             };
             if (!cell_level->picks.empty()) {                   // the floors game.exe picked
                 for (const auto& pick : cell_level->shown()[off])
-                    if (pick.layer == 1 && !pick.hidden) { blit_cell(cell_x, cell_y, *pick.tile, 1, &pick); splash(*pick.tile); }
+                    if (pick.layer == 1 && !pick.hidden) splash(*pick.tile, blit_cell(cell_x, cell_y, *pick.tile, 1, &pick));
                 continue;
             }
 
@@ -454,19 +456,29 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 // (0, 0, 0) with it is the grass tile, without it nothing.
                 if (cell.hidden || !(cell.prop1 & 2)) continue;
                 if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, /*type=*/0)) {
-                    blit_cell(cell_x, cell_y, *tile, 1, &cell);
-                    splash(*tile);
+                    splash(*tile, blit_cell(cell_x, cell_y, *tile, 1, &cell));
                 }
             }
         }
     }
 
-    // The rain's splashes on the floor (FUN_00473c00 → FUN_00473a70: draw
-    // mode 3, additive).
-    if (rain)
-        for (const auto& rain_splash : rain->splashes)
-            if (const auto frames = scene.rain_splash[std::size_t(rain_splash.kind)].frames(); rain_splash.frame < int(frames.size()))
-                blit_additive(framebuffer, frames[std::size_t(rain_splash.frame)], upal_splash, nullptr, rain_splash.x, rain_splash.y);
+    // The rain's splashes and the mud's bubbles on the floor (FUN_00473c00 →
+    // FUN_00473a70: draw mode 3, additive), each moved by the side panel's
+    // quarter (-W/4 right open, +W/4 left) and drawn when that spot lies in
+    // the half the panel leaves, above the bottom 47 pixels. game.exe bug
+    // (bugs.md #38): the software modes don't shift the world, so they jump.
+    if (rain) {
+        const int shift = g_drawn.panel_side == 1 ? -(screen_w / 4) : g_drawn.panel_side == 2 ? screen_w / 4 : 0;
+        const int left = g_drawn.panel_side == 2 ? screen_w / 4 * 2 : 0, right = g_drawn.panel_side == 1 ? screen_w - screen_w / 4 * 2 : screen_w;
+        const auto overlay = [&](const std::array<d2d::dc6::Sprite, 4>& sprites, const d2d::rules::Rain::Splash& piece) {
+            const int at_x = piece.x + shift;
+            if (at_x < left || at_x >= right || piece.y < 0 || piece.y >= int(kScreenHeight) - 0x2f) return;
+            if (const auto frames = sprites[std::size_t(piece.kind)].frames(); piece.frame < int(frames.size()))
+                blit_additive(framebuffer, frames[std::size_t(piece.frame)], upal_splash, nullptr, at_x, piece.y);
+        };
+        for (const auto& rain_splash : rain->splashes) overlay(scene.rain_splash, rain_splash);
+        for (const auto& bubble : rain->bubbles) overlay(scene.mud_bubble, bubble);
+    }
     // Tile shadows (orientation 13), once every floor is down: a shadow
     // reaches over the cells after its own (FUN_004df510 → driver +0xa4,
     // after the floors' FUN_004ded10 and the splashes).

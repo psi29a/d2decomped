@@ -311,8 +311,10 @@ void load_monster_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     for (const auto& [name, missile] : scene.missiles)
         if (auto bytes = mpqs.try_read(R"(data\global\missiles\)" + missile.cel_file + ".dcc")) cels.emplace_back(&scene.missile_cels[name], std::move(*bytes));
     if (auto bytes = mpqs.try_read(R"(data\global\overlays\NPCSpeechBalloon.dcc)")) cels.emplace_back(&scene.npc_alert, std::move(*bytes));
-    for (std::size_t i = 0; i < 4; ++i)                // the rain's splashes (FUN_00472890)
+    for (std::size_t i = 0; i < 4; ++i) {              // the rain's splashes and the mud's bubbles (FUN_00472890)
         if (auto bytes = mpqs.try_read(R"(data\global\UncompOverlays\Rain)" + std::to_string(i + 1) + ".dc6")) scene.rain_splash[i] = d2d::dc6::Sprite(*bytes);
+        if (auto bytes = mpqs.try_read(R"(data\global\UncompOverlays\bubble)" + std::to_string(i + 1) + ".dc6")) scene.mud_bubble[i] = d2d::dc6::Sprite(*bytes);
+    }
     // Their DCCs decode on every core (the reads above stay on this thread:
     // StormLib handles aren't shared).
     {

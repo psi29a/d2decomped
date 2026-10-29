@@ -227,6 +227,7 @@ struct Scene : GameData {
     d2d::dc6::Sprite automap_cels_small;               // UI\AutoMap\MaxiMapS.dc6: the mini map's
     std::unordered_map<std::string, d2d::dcc::Sprite> missile_cels;   // a missile's CelFile DCC, by Missiles.txt row name
     std::array<d2d::dc6::Sprite, 4> rain_splash;       // UncompOverlays\Rain1..4 (Rain3 / 4 splash where drops fall)
+    std::array<d2d::dc6::Sprite, 4> mud_bubble;        // UncompOverlays\bubble1..4 (bubble3 where a Mud level's water bubbles)
     d2d::dcc::Sprite npc_alert;                        // Overlay.txt npcalert: NPCSpeechBalloon.dcc
     mutable std::unordered_map<const OverlayInfo*, d2d::dcc::Sprite> overlay_sprites;   // loaded when first drawn
     // A monster's colour (FUN_00477530): 2..7 its graphic's

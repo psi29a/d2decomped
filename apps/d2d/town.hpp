@@ -490,6 +490,10 @@ struct Town {
     bool quest_log_was_open = false;               // UI 0xf last frame: shutting it marks the animations seen (FUN_004a28d0)
     int replay_speech = 0;                         // questlast: a quest message to play again
     d2d::rules::Rain rain;                         // the weather (its state lasts the session, like game.exe's)
+    auto rain_join() -> void;
+    std::uint32_t thunder_at = 0;                  // the thunder queued by a strike (FUN_004b9a00's delay)
+    int thunder_x = 0, thunder_y = 0;
+    bool thunder_due = false;
     std::uint32_t rain_ms = 0;
     float rain_cam_x = 0, rain_cam_y = 0;          // the camera at the last weather tick
     int rain_vol = 0;                              // the rain sound's volume 0..255

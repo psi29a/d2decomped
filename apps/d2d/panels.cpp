@@ -882,14 +882,8 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     // mark's (Town::automap_frame picks them as FUN_00459bc0 does). Names
     // in font6, centred, 10 above the mark (FUN_0045a760).
     const auto nearest = [&](int want_r, int want_g, int want_b) {
-        std::array<std::uint8_t, 3> found{};
-        int best = 1 << 30;
-        for (std::size_t i = 0; i < 256 && i < pal.entries().size(); ++i) {
-            const auto colour = pal[std::uint8_t(i)];
-            const int distance = (colour.r - want_r) * (colour.r - want_r) + (colour.g - want_g) * (colour.g - want_g) + (colour.b - want_b) * (colour.b - want_b);
-            if (distance < best) { best = distance; found = { colour.r, colour.g, colour.b }; }
-        }
-        return found;
+        const auto colour = pal[pal.nearest(want_r, want_g, want_b)];
+        return std::array<std::uint8_t, 3>{ colour.r, colour.g, colour.b };
     };
     const auto mark = [&](float unit_x, float unit_y, const std::array<std::uint8_t, 3>& colour) {
         const int marker_x = int(std::lround((unit_x - unit_y) * 80 / float(divisor))) - scroll_x + 8;

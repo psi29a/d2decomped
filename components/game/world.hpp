@@ -58,6 +58,12 @@ namespace ev {
 // The player's level changed (`from`): a crossing or warp (`keep_map`:
 // the automap stays open) or a respawn.
 struct LevelChanged { const Level* from = nullptr; bool keep_map = false; };
+// The player put somewhere at once in its level (a Teleport, Dragon Flight:
+// FUN_00554ea0's flag 0x10000, the host's S->C 0x15).
+struct Reassigned {};
+// A Thunder Storm bolt struck (its client do 84, FUN_004e3c50): the
+// weather's lightning (FUN_00472c50).
+struct Lightning {};
 // Arrived at an object or NPC that opens a panel (game.exe's 0x58 "open
 // UI" and the NPC interaction).
 // A talk carries the NPC's quest messages for the player (quests.hpp).
@@ -70,7 +76,7 @@ struct QuestNews { int quest = 0; };
 // A short quest music sting, over the level's looping song.
 struct MusicCue { int sound = 0; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP

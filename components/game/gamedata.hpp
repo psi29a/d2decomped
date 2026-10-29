@@ -180,6 +180,7 @@ struct Level {
     int night_ambience = 0, day_event = 0, night_event = 0, event_delay = 0;   // its Night Ambience, Day / Night Event, Event Delay (sound ticks)
     int light = -1;                                    // Levels.txt Intensity when it has its own light (caves: 0), -1 the day's
     bool rain = false;                                 // Levels.txt Rain: the weather reaches it
+    bool mud = false;                                  // Levels.txt Mud: its water floors bubble
     // Levels.txt cmon1..4 / cpct1..4 / camt1..4: the client's critters (MonStats row, % a room, x count; critters.md).
     struct Critter { int row = -1, percent = 0, amount = 0; };
     std::array<Critter, 4> critters{};

@@ -25,6 +25,7 @@ inline constexpr int kCursorLevelUp = 7;       // S→C 0x2C event 2
 inline constexpr int kCursorQuestDone = 14;
 inline constexpr int kCursorRepairItem = 15;
 inline constexpr int kSceneRain = 64;
+inline constexpr int kEventThunder = 202;              // event_thunder_1: the lightning's thunder (FUN_00473910)
 // Diablo's death (FUN_004cc410 at 0x4cc520): after its MonSounds DeathSound (diablo_death), the
 // next two rows, diablo_death_schwing 0x6a ticks on and diablo_death_hit 0xc1 ticks on.
 inline constexpr int kDiabloDeath = 745;

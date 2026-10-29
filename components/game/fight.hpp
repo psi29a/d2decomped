@@ -164,6 +164,8 @@ struct Fight {
     // World's Player adds the rest of their state; `actor` is the one acting.
     struct Hero {
         int id = 0;                        // the player's unit id in the game (World::join): 1, 2 ...
+        bool reassigned = false;           // put somewhere at once (Teleport): the World tells its client (ev::Reassigned)
+        bool storm_struck = false;         // a Thunder Storm bolt struck (its client do 84): the client's lightning (ev::Lightning)
         Character character;               // the World's own copy (the client's is a copy of the View's)
         UnitState player;                  // DS1 cells (x.5 = a cell centre)
         std::optional<Monster> merc;       // the save's mercenary, a monster on the player's side (merc_turn)

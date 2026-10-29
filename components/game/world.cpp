@@ -2941,7 +2941,9 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         fight.world(in_moor, now_ms, elapsed, crowd);
         credit_party([&] { den_count(now_ms); });                // the merc's or a missile's kill counts with the player dead
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
-        each_player([&](Player&) {
+        each_player([&](Player& player) {
+            if (std::exchange(player.reassigned, false)) player.events.push_back(ev::Reassigned{});
+            if (std::exchange(player.storm_struck, false)) player.events.push_back(ev::Lightning{});
             if (!fight.dead()) {
                 use_warp();
                 if (actor->portal_due) { actor->portal_due = false; open_portal(now_ms); }

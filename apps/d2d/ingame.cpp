@@ -30,25 +30,64 @@
 
 namespace d2d::client {
 
-void draw_rain(std::vector<std::uint8_t>& framebuffer, const d2d::rules::Rain& rain) {
+void draw_rain(std::vector<std::uint8_t>& framebuffer, const d2d::rules::Rain& rain, const d2d::palette::Palette& pal, int panel_side) {
+    // FUN_00473470: drops and flakes whose spot (or a drop's end) lies in
+    // the view less the bottom 47 pixels, the half a side panel leaves
+    // (FUN_0045ae90: 1 right open, 2 left), drawn as the software modes'
+    // line (FUN_006c8c80: solid, a palette index, the alpha unused).
+    const int screen_w = fb_width(framebuffer), screen_h = int(framebuffer.size() / 4) / std::max(screen_w, 1);
     const int bottom = int(kScreenHeight) - 47;
-    const int screen_w = fb_width(framebuffer);
+    const int left = panel_side == 2 ? screen_w / 4 * 2 : 0, right = panel_side == 1 ? screen_w - screen_w / 4 * 2 : screen_w;
+    const auto inside = [&](int x, int y) { return x >= left && x < right && y >= 0 && y < bottom; };
+    if (rain.flashing) {                                  // the lightning (FUN_004f6300: colour 0xff, mode 5, solid)
+        const auto white = pal[0xff];
+        for (int y = 0; y < std::min(bottom, screen_h); ++y)
+            for (int x = std::max(left, 0); x < std::min(right, screen_w); ++x) {
+                auto* pixel = framebuffer.data() + (std::size_t(y) * std::size_t(screen_w) + std::size_t(x)) * 4;
+                pixel[0] = white.r; pixel[1] = white.g; pixel[2] = white.b;
+            }
+        return;
+    }
+    const auto plot = [&](int x, int y, std::uint8_t index) {
+        if (x < 0 || y < 0 || x >= screen_w || y >= screen_h) return;
+        const auto colour = pal[index];
+        auto* pixel = framebuffer.data() + (std::size_t(y) * std::size_t(screen_w) + std::size_t(x)) * 4;
+        pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b;
+    };
+    const auto line = [&](int x, int y, int to_x, int to_y, std::uint8_t index) {   // FUN_006c8c80
+        int run_x = to_x - x, run_y = to_y - y;
+        const int step_x = run_x < 0 ? -1 : 1, step_y = run_y < 0 ? -1 : 1;
+        run_x = std::abs(run_x); run_y = std::abs(run_y);
+        plot(x, y, index);
+        int error = 0;
+        if (run_x < run_y) {
+            for (int left_steps = run_y; left_steps > 0; --left_steps) {
+                y += step_y; error += run_x;
+                if (run_y < error) { x += step_x; error -= run_y; }
+                plot(x, y, index);
+            }
+        } else {
+            for (int left_steps = run_x; left_steps > 0; --left_steps) {
+                x += step_x; error += run_y;
+                if (run_x < error) { y += step_y; error -= run_x; }
+                plot(x, y, index);
+            }
+        }
+    };
     for (const auto& drop : rain.drops) {
-        int dx = 0, dy = 0;
-        if (!drop.landed) {
-            dx = int(d2d::rules::cos512(rain.wind) * float(drop.len));
-            dy = int(d2d::rules::sin512(rain.wind) * float(drop.len));
-            if (const int room = drop.bottom - drop.y; room < dy) { dx = dy ? room * dx / dy : 0; dy = room; }
+        if (rain.snow) {
+            if (!inside(drop.x, drop.y) || drop.size < 0 || drop.size > 7) continue;
+            const auto index = rain.index[3][std::size_t(d2d::rules::flake_tone(drop.kind, drop.size))];
+            for (const auto& [from_x, from_y, to_x, to_y] : { d2d::rules::kFlake[std::size_t(drop.size)], d2d::rules::kFlake[std::size_t(drop.size) + 1] })
+                line(drop.x + from_x, drop.y + from_y, drop.x + to_x, drop.y + to_y, index);
+            continue;
         }
-        const auto rgb = d2d::rules::rain_rgb(drop.kind, drop.tone);
-        const bool half = drop.kind == 0;
-        const int steps = std::max({ std::abs(dx), std::abs(dy), 1 });
-        for (int k = 0; k <= steps; ++k) {
-            const int x = drop.x + dx * k / steps, y = drop.y + dy * k / steps;
-            if (x < 0 || y < 0 || x >= screen_w || y >= bottom) continue;
-            auto* pixel = framebuffer.data() + (std::size_t(y) * std::size_t(screen_w) + std::size_t(x)) * 4;
-            for (int channel = 0; channel < 3; ++channel) pixel[channel] = half ? std::uint8_t((pixel[channel] + rgb[std::size_t(channel)]) / 2) : rgb[std::size_t(channel)];
-        }
+        const auto index = rain.index[std::size_t(drop.kind == 0 ? 0 : drop.kind == 2 ? 2 : 1)][std::size_t(drop.tone)];
+        if (drop.landed) { if (inside(drop.x, drop.y)) line(drop.x, drop.y, drop.x, drop.y, index); continue; }
+        int dx = int(d2d::rules::cos512(rain.wind) * float(drop.len));
+        int dy = int(d2d::rules::sin512(rain.wind) * float(drop.len));
+        if (const int room = drop.bottom - drop.y; room < dy) { dx = room * dx / dy; dy = room; }
+        if (inside(drop.x, drop.y) || inside(drop.x + dx, drop.y + dy)) line(drop.x, drop.y, drop.x + dx, drop.y + dy, index);
     }
 }
 
@@ -184,7 +223,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
         std::vector<std::pair<const Unit*, std::array<int, 4>>> items;
         render_world(world, scene, level, cam_x, cam_y, elapsed_ms, units, world_mouse_x, mouse_y, &hovered, light, rain, show_items ? &items : nullptr);
-        if (rain) draw_rain(world, *rain);
+        if (rain) draw_rain(world, *rain, scene.act_pal.entries().empty() ? scene.pal : scene.act_pal,
+                            hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2);
         if (hovered_npc) *hovered_npc = hovered.first ? hovered.first->npc : -1;
         // What a unit says (a shrine's message), centred over it.
         // ponytail: game.exe's overhead chat draw (Chat.cpp) isn't traced:

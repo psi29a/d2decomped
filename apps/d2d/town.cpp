@@ -432,6 +432,7 @@ auto Town::enter() -> void {
         focus = 0;
         skillbar.new_game();
         publish();
+        if (scene && level) rain_join();
         if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
     }
 
@@ -1106,6 +1107,25 @@ auto Town::automap_frame() -> void {
         }
     }
 
+// The weather at the join (FUN_00472890): its colours as the palette's
+// nearest now, full's base by the act, snow or not.
+auto Town::rain_join() -> void {
+        const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+        for (int tone = 0; tone < 12; ++tone) {
+            for (int kind = 0; kind < 3; ++kind) {
+                const auto rgb = d2d::rules::rain_rgb(kind, tone);
+                rain.index[std::size_t(kind)][std::size_t(tone)] = pal.nearest(rgb[0], rgb[1], rgb[2]);
+            }
+            const auto grey = d2d::rules::snow_rgb(tone);
+            rain.index[3][std::size_t(tone)] = pal.nearest(grey[0], grey[1], grey[2]);
+        }
+        for (std::size_t i = 0; i < 4; ++i) {          // FUN_006019f0: the overlays' frame counts
+            rain.splash_frames[i] = int(scene->rain_splash[i].frames().size());
+            rain.bubble_frames[i] = int(scene->mud_bubble[i].frames().size());
+        }
+        rain.join(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));
+    }
+
 auto Town::new_game() -> void {
         world.new_game();
         skillbar.new_game();
@@ -1651,12 +1671,21 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             critter_tick(frame_ms);
             const float dx = cam_x - rain_cam_x, dy = cam_y - rain_cam_y;
             rain_cam_x = cam_x; rain_cam_y = cam_y;
+            ++rain.clock;                                 // the client frame (0x7a0498)
+            if (level->mud) rain.tick_bubbles(int(std::lround((dx - dy) * (kIsoW / 2))), int(std::lround((dx + dy) * (kIsoH / 2))));
+            else rain.bubbles.clear();
             if (!level->rain) { rain.drops.clear(); rain.splashes.clear(); }
             else rain.tick(rain.rng, g_view_width, int(kScreenHeight), int(std::lround((dx - dy) * (kIsoW / 2))), int(std::lround((dx + dy) * (kIsoH / 2))),
-                           d2d::rules::kDay[std::size_t(view.day.phase)].type);
-            const int want = level->rain ? int(rain.volume() * 255.f) : 0;
+                           d2d::rules::kDay[std::size_t(view.day.phase)].type, level->id, d2d::rules::level_ids::act_of(level->id));
+            const int want = level->rain && !rain.snow ? int(rain.volume() * 255.f) : 0;   // FUN_00473c40: no sound in the snow
             rain_vol = rain_vol < want ? std::min(want, rain_vol + 6) : std::max(want, rain_vol - 6);
         }
+        // The lightning's drawn frame (a frame drawn each update) (FUN_00473910): its flash, and thunder
+        // queued that many sound ticks on.
+        if (const auto strike = rain.frame(rain.rng, audio.dev != nullptr); strike.thunder >= 0) {
+            thunder_at = frame_ms + std::uint32_t(strike.thunder) * 40; thunder_x = strike.x; thunder_y = strike.y; thunder_due = true;
+        }
+        if (thunder_due && frame_ms >= thunder_at) { thunder_due = false; audio.play_placed(*scene, d2d::rules::sound_ids::kEventThunder, 0, float(thunder_x), float(thunder_y)); }
         if (rain_vol > 0 && audio.rain.sound != d2d::rules::sound_ids::kSceneRain) audio.play(audio.rain, *scene, d2d::rules::sound_ids::kSceneRain);
         if (rain_vol == 0 && audio.rain.sound) audio.stop(audio.rain);
         if (audio.rain.src && scene->sounds.size() > d2d::rules::sound_ids::kSceneRain)
@@ -2475,6 +2504,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             world.host_warps = true;
             if (net_game->take_reassign() && level) {
                 net_moving_until = 0;
+                rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));
                 const float to_x = (net_game->self_x + 0.5f) / 5.f - float(level->world_x), to_y = (net_game->self_y + 0.5f) / 5.f - float(level->world_y);
                 const auto inside = [](const Level& where, float cell_x, float cell_y) {
                     return cell_x >= 0 && cell_y >= 0 && cell_x < float(where.ds1.width()) && cell_y < float(where.ds1.height());
@@ -2842,8 +2872,11 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             prev_y += float(level_changed->from->world_y - level->world_y);
             npc_menu = {}; store = {}; speech = {}; waypoint = {}; menu_after_speech = -1;
             level_ms = frame_ms;                                  // its song comes in 3 s later
+            rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));   // the host's 0x15 for the warp
             return;
         }
+        if (std::holds_alternative<ev::Lightning>(event)) { rain.set_off(); return; }
+        if (std::holds_alternative<ev::Reassigned>(event)) { rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id)); return; }
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.play_sfx(*scene, music->sound, float(audio.music_volume) / 100.f, 0); return; }
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once
@@ -3283,7 +3316,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       char_open ? &character.stats : nullptr, &character.stats, &character.panel, mode_ms, &character.items,
                       &hovered_npc, stash_open || cube_open ? &character.items : nullptr, character.expansion, belt_open,
                       cube_open ? (transmute_down ? 2 : 1) : 0, &npc_menu, &speech, &automap, &store, stat_pressed,
-                      nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, level->rain ? &rain : nullptr,
+                      nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, &rain,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),

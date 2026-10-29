@@ -56,5 +56,49 @@ width (bugs.md #10).
 `FUN_004e42e0`: while it rains, Sounds.txt 64 `scene_rain` (rain2.wav)
 loops at volume × 255, easing 6 a sound tick.
 
-ponytail: snow, mud bubbles, and the lightning flash (`FUN_00473910`, set
-off by a skill's effect) aren't built.
+## Snow (Act 5)
+
+- **Snow or not** (`FUN_004726f0`, on rising and with a flag from the join
+  and every S→C 0x15 reassign, which carries 1 in all logged packets but
+  two): in Act 5, rand(100) on the player's seed at least the level's bar
+  (25 in 109..112, else 0) snows (0x7a8a14), the flag always; 117 / 120 /
+  121 make flakes a size bigger (0x7a8a18); 120 / 121 hold the cycle full
+  (0x7a8a1c: `FUN_00473d00` refuses any other state, though the refused
+  fall's density is taken once). Elsewhere it rains. Rain ↔ snow clears
+  the drops; snow ends the lightning.
+- **Full** (`FUN_00472400`) by level: 109..112 density 32 + rand(56), wind
+  42 + rand(170); 117 32 + rand(112), wind 170 + rand(56); 120 / 121
+  density 256, wind 28 + rand(28) and now 28. Full's base is tripled for a
+  game joined in Act 3 or 5 (`FUN_00472890`).
+- **Flakes** (`FUN_00473090`): one more seed draw, speed 8 + ⌊28f⌋, shape
+  (lands − 40) × 7 / (height − 87) (+1 big), 1 tick landed. They move at
+  max(|cos wind|, 0.25) of their speed and sway 2 sin(frame × 512 / 25 +
+  phase); the wind eases 1 a tick and turns every 250..1124 ticks. Drawn
+  as lines 0x6d6e78[shape] and [shape + 1] (16-byte stride), grey 120 +
+  80 i / 12 at index shape × 12 / 8, halved at dusk / dawn, a quarter at
+  night (`FUN_00472fb0`, the software modes). No rain sound
+  (`FUN_00473c40`).
+- **Lines** (`FUN_006c8c80`, GDI; DirectDraw's the same): a solid
+  Bresenham in a palette index; the alpha byte (0x7f / 0xff and the
+  snow's) is unused in the software modes. The colours are the palette's
+  nearest (`FUN_004fb180`), made once at the join.
+
+## Splash and bubble passes
+
+`FUN_004de730` per floor pass: splashes when 3 client frames have passed
+since the last such pass, at int(volume × 1000) in 1000; bubbles in a
+Levels.txt Mud level when 25 have. Each drawn material-2 floor rolls
+rand(1000) once for both: a bubble (`FUN_00472ec0`: bubble3, y 30 higher,
+a frame every 2 ticks; ticked by `FUN_00472d10` in Mud levels) under 100.
+Splashes and bubbles draw moved by ∓W/4 with a side panel open (bugs.md
+#38).
+
+## Lightning
+
+A Thunder Storm strike (skill 57's client do 84, `FUN_004e3c50`) sets off
+`FUN_00472c50` (ECX 0: the first strike silent) unless it's on. Each drawn
+frame (`FUN_00473910`) with a flash due draws the view white (colour 0xff,
+mode 5, at over 9 fps, instead of the rain); a strike's second flash is 3
+ticks on, then the next strike 500 + rand(1500) ticks on with
+event_thunder_1 (202) 25 + rand(50) sound ticks later at ±200 each way.
+Full rain, falling and snow put it out.

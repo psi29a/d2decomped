@@ -1173,6 +1173,7 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
         level->layer = num(text("Layer"));
         level->light = level_light(text("Intensity"), text("Red"), text("Green"), text("Blue"));
         level->rain = text("Rain") == "1";
+        level->mud = text("Mud") == "1";
         level->teleport = d2d::drlg::to_int(text("Teleport"), 1);
         level->critters = level_critters(game_data.monsters, text);
         for (std::size_t env_row = 0; env_row < builder.sound_env.size(); ++env_row)

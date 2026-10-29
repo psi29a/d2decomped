@@ -1175,6 +1175,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 actor->player.x = target_x; actor->player.y = target_y;
                 actor->player.path.clear(); actor->player.walking = false;
                 actor->player.goal_x = target_x; actor->player.goal_y = target_y;
+                actor->reassigned = true;                                           // FUN_00554ea0's 0x10000: the client's 0x15
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {             // the kick, then its charges released, hit or not (FUN_005d5220)
                     land(std::size_t(tgt), d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), rng,
                                                                    skill_swing(skill, lvl, env, true)),
@@ -1472,7 +1473,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
                 if (monster.id > actor->storm_last && (best < 0 || monster.id < monsters[std::size_t(best)].id)) best = int(j);
             }
             if (best < 0) best = lowest;
-            if (best >= 0) actor->storm_last = monsters[std::size_t(best)].id;
+            if (best >= 0) { actor->storm_last = monsters[std::size_t(best)].id; actor->storm_struck = true; }
             if (best >= 0)
                 land(std::size_t(best), d2d::rules::missile_blow(d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), thunderstorm->level),
                                                                  target_of(std::size_t(best)), pierce(), rng), true, now_ms);
