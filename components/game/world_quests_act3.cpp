@@ -85,6 +85,14 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
             if (heard.takes_tome) take_carried(d2d::rules::LamEsenQuest::kTome);
             actor->character.stats.values[d2d::d2s::kStatPts] += heard.stat_points;
             d2d::log::info("Lam Esen's Tome: handed to Alkor, +{} stat points", heard.stat_points);
+            if (heard.first) {
+                const int giver = actor->id;
+                each_player([&](Player& player) {
+                    if (player.id == giver) return;
+                    const int points = d2d::rules::LamEsenQuest::hand_in_credit(quests(), d2d::rules::level_act(level->id) == 2);
+                    if (points) { player.character.stats.values[d2d::d2s::kStatPts] += points; class_cue("act3_complete_lamesen", now); }
+                });
+            }
         }
         // The Golden Bird (FUN_005ba320): the figurine for the bird at Meshif's, the bird to Alkor, his potion.
         using Bird = d2d::rules::GoldenBirdQuest;

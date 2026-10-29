@@ -39,9 +39,9 @@ struct HratliGreeting {
 // InitFn 23 / OperateFn 28). Bits: 0 done, 1 reward due, 2 told, 3 under
 // way, 13 done here, 14 done by others, 15 closed. The reward: 5 stat
 // points (FUN_006272b0 stat 4) the moment Alkor takes it.
-// N-player gap: the party's bits on hand-in (FUN_005b74e0 / 005b75d0:
-// everyone in act 3) are World::credit_party's one rule; the holders'
-// count is this player's.
+// The first hand-in's share for the others is World::act3_said's
+// (hand_in_credit). The holders' count (data+8) is the game's: the tomes
+// out (the stand's, a joiner's) less those handed in.
 struct LamEsenQuest {
     static constexpr int kQuest = 0x11, kAlkor = monster_ids::kAlkor, kInit = 549, kSuccess = 564;
     static constexpr int kLowerKurast = 79, kDocks = 75, kStatPoints = 5;
@@ -115,7 +115,7 @@ struct LamEsenQuest {
     // with the tome: it's taken (`gives_tome`), and the first time everyone in
     // act 3 not done gets bits 13, 0, 1, the reward (bit 1 -> 5 stat points),
     // others bit 14; done here: the game's bit 13, state 5.
-    struct Heard { bool takes_tome = false; int stat_points = 0; };
+    struct Heard { bool takes_tome = false; int stat_points = 0; bool first = false; };   // first: the others' share is due (hand_in_credit)
     Heard said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, bool has_tome, bool in_act3, int player) {
         if (npc != kAlkor || quest::bit(quest_bits, kQuest, 0)) return {};
         if (string == kInit) { state = 2; told(quest_bits); return {}; }
@@ -123,13 +123,22 @@ struct LamEsenQuest {
         Heard out;
         if (has_tome) { out.takes_tome = true; flourish = true; rewarded.add(player); if (holders > 0) --holders; }
         if (first) {
-            if (in_act3 && !quest::bit(quest_bits, kQuest, 1)) for (const int bit : { 13, 0, 1 }) quest::set(quest_bits, kQuest, bit);
             first = false;
-            if (quest::bit(quest_bits, kQuest, 1)) { out.stat_points = kStatPoints; quest::set(quest_bits, kQuest, 1, false); }
-            if (!quest::bit(quest_bits, kQuest, 0)) quest::set(quest_bits, kQuest, 14);
+            out.first = true;
+            out.stat_points = hand_in_credit(quest_bits, in_act3);
         }
         if (quest::bit(quest_bits, kQuest, 13) && open) { quest::set(game_bits, kQuest, 13); state = 5; }
         return out;
+    }
+    // A player's share of the first hand-in (FUN_005b74e0 over the players,
+    // FUN_005b7580, FUN_005b75d0): in act 3 bits 13, 0, 1, then bit 1 pays
+    // the stat points and clears; not done: bit 14. The points.
+    static int hand_in_credit(QuestBits& quest_bits, bool in_act3) {
+        if (in_act3 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) for (const int bit : { 13, 0, 1 }) quest::set(quest_bits, kQuest, bit);
+        int points = 0;
+        if (quest::bit(quest_bits, kQuest, 1)) { points = kStatPoints; quest::set(quest_bits, kQuest, 1, false); }
+        if (!quest::bit(quest_bits, kQuest, 0)) quest::set(quest_bits, kQuest, 14);
+        return points;
     }
     // Its log (FUN_005b7d70): hidden till Act 2's last (word 0xf bit 0);
     // done 0xb (0xd here); the tome carried 2; under way 1, lost (taken, none
