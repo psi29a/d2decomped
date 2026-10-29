@@ -79,8 +79,9 @@ struct Loot {
     // draws on it between the death and FUN_0055a6d0; Find Item rolls on
     // from where the kill left it). Magic and better come unidentified;
     // each lands where drop_at finds room.
-    // `players` in the game, `nearby` of the killer's party on its level (NoDrop).
-    void drop(Monster& monster, d2d::rules::Rng& game_seed, std::uint32_t now_ms, int players = 1, int nearby = 1) {
+    // `players` in the game, `nearby` of the killer's party on its level (NoDrop);
+    // `merc_find` / `merc_gold`: the merc's own when it made the kill.
+    void drop(Monster& monster, d2d::rules::Rng& game_seed, std::uint32_t now_ms, int players = 1, int nearby = 1, int merc_find = 0, int merc_gold = 0) {
         const int diff = character->header.active_difficulty();
         // Champions drop from TreasureClass2, uniques from 3, superuniques
         // from their SuperUniques TC (for the difficulty).
@@ -98,10 +99,11 @@ struct Loot {
         const bool quest_open = type_info.tc_quest_id && !quest_tc.empty() && !header.quest_flag(diff, type_info.tc_quest_id, 15)
                                 && !header.quest_flag(diff, type_info.tc_quest_id, 1) && !header.quest_flag(diff, type_info.tc_quest_id, type_info.tc_quest_cp);
         const auto rolled = d2d::rules::tc_upgrade(game_data->rules, quest_open ? quest_tc : treasure_class, diff > 0 && !type_info.tc_fixed ? monster.stats.level : 0);
-        // The killer's magic find (stat 80) and gold find (79) from its gear.
-        // ponytail: one player; the player's kills only (no minion's owner,
-        // FUN_0058f0d0), gear only (no skill / state find).
-        int magic_find = 0, gold_find = 0;
+        // The killer's magic find (stat 80) and gold find (79) and its
+        // owner's (FUN_005589a0, FUN_0058f0d0): the player's gear, + the
+        // merc's for its kill (a pet has none); no 1.14d skill or state
+        // gives either, the wisps' dance aside.
+        int magic_find = merc_find, gold_find = merc_gold;
         for (const auto& prop : gear_props(*game_data, character->items)) {
             if (prop.stat == d2d::d2s::kMagicFind) magic_find += prop.value;
             if (prop.stat == d2d::d2s::kGoldFind) gold_find += prop.value;

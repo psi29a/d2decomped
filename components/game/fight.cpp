@@ -1843,7 +1843,10 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
             }
             act_as(killer);
         }
-        if (!monster.no_drop) loot.drop(monster, spawning.game, now_ms, players, nearby);
+        if (!monster.no_drop) {
+            const auto merc_sum = merc_blow ? merc_gear().sum : d2d::rules::StatSum{};
+            loot.drop(monster, spawning.game, now_ms, players, nearby, int(merc_sum[std::size_t(d2d::d2s::kMagicFind)]), int(merc_sum[std::size_t(d2d::d2s::kGoldFind)]));
+        }
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super, monster.id, killer.id });
     }
 
