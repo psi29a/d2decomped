@@ -59,6 +59,12 @@ int main() {
     other_den.enter_den(other_bits);
     assert(other_den.killed(0) == DenQuest::Kill::cleared && DenQuest::credit(other_bits, true) && other_den.talk(other_bits, 148)[0].string == 76);
 
+    {   // Tools of the Trade: a party member's share of the malus coming back (0x591430): clvl 8+, not done or due.
+        QuestBits low{}, high{}, done{};
+        quest::set(done, ToolsQuest::kQuest, 0);
+        ToolsQuest::party_credit(low, 7); ToolsQuest::party_credit(high, 8); ToolsQuest::party_credit(done, 30);
+        assert(!quest::bit(low, 3, 1) && quest::bit(high, 3, 13) && quest::bit(high, 3, 1) && !quest::bit(done, 3, 13));
+    }
     // Sisters to the Slaughter: available 20 ticks after the chain reaches it; Cain gives it;
     // the Catacombs; Andariel's kill (portal at tick 10, log 3 at 12);
     // Warriv's reward, once.

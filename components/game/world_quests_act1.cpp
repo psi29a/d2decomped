@@ -88,6 +88,10 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
         const int tools_was = tools.state;
         if (tools.said(quests(), hc_idx, message_string, holding_malus())) {   // FUN_00544160: the malus goes
             class_cue("act1_complete_tools", now);   // Charsi's completion voice, unit event 0x24
+            const int returner = actor->id;          // the party's share (local co-op: everyone's the party)
+            each_player([&](Player& player) {
+                if (player.id != returner) d2d::rules::ToolsQuest::party_credit(quests(), int(player.character.stats.get(d2d::d2s::kLevel)));
+            });
             if (tools_was == 4 && tools.state == 5) chain(3);   // FUN_00591490: its own +0xf0
             else if (tools.active && tools.carried_in) andy.chain();   // data+0xa1: quest 6's +0xf0
             take_carried("hdm");

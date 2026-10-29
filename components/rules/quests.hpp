@@ -1683,9 +1683,11 @@ struct TowerQuest {
 // 3 out of town / the malus dropped, 6 the malus picked up once, 13
 // returned in this game, 14 returned by someone else, 15 closed. The
 // malus ('hdm ') drops from its stand, object 108 in the Barracks.
-// ponytail: one player — the participant and party lists, the carrier
-// count (+0x9c) and the reset when the last carrier loses it (0x5918d0,
-// events 6 / 9) are left out.
+// The carrier count (+0x9c) feeds only a log refresh when the last carrier
+// leaves (event 9); d2d's log goes by what each player holds. Its reset
+// when the last carrier loses the malus (0x5918d0) hangs off event 6,
+// whose wrapper nothing calls (stubs.md). The participant list (FUN_00545200
+// on a return) is only ever emptied by leaving.
 struct ToolsQuest {
     static constexpr int kQuest = 3, kCharsi = monster_ids::kCharsi, kClvl = 8, kStand = operate_fn::kMalusStand;
     int state = 0;           // +0xc: 0 closed, 1 open, 2 Charsi gave it, 3 out of town, 4 the malus dropped, 5 returned
@@ -1758,6 +1760,13 @@ struct ToolsQuest {
         quest::set(quest_bits, kQuest, 1);
         if (active && state == 4) { state = 5; returned = true; game_returned = true; }
         return true;
+    }
+    // Another party member's share when the malus comes back (FUN_00540510,
+    // 0x591430): clvl 8+, neither done nor due: bits 13 and 1.
+    static void party_credit(QuestBits& quest_bits, int clvl) {
+        if (clvl < kClvl || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return;
+        quest::set(quest_bits, kQuest, 13);
+        quest::set(quest_bits, kQuest, 1);
     }
     // The talk with `npc` closed (0x5913c0).
     void talk_closed(QuestBits& quest_bits, int npc) {
