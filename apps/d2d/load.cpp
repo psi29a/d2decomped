@@ -14,6 +14,7 @@
 #include <dcc.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level_ids.hpp>
 #include <log.hpp>
 #include <mpq.hpp>
 #include <palette.hpp>
@@ -535,11 +536,13 @@ void finish_scene(Scene& scene, const fs::path& save_dir, std::uint32_t map_seed
             map_seed = save_seed(scene.saves.front());
             act = scene.saves.front().active_act();
         }
-        // ponytail: Act 1 preloads whatever act the save was left in; that
-        // act's town builds as the game starts (GameData::level). Preloading
-        // it here instead would hide that wait.
-        if (act != 0) d2d::log::info("  Newest save is in act {}; its town builds as the game starts", act + 1);
         game::load_game_world(scene, mpqs, map_seed);
+        // A later act's town starts building on the builder thread while the
+        // menus run (as the camp's neighbours do, deviations.md improvement 8).
+        if (act > 0 && std::size_t(act) < d2d::rules::level_ids::kActTowns.size()) {
+            scene.want_level(d2d::rules::level_ids::kActTowns[std::size_t(act)]);
+            d2d::log::info("  Newest save is in act {}; its town builds while the menus run", act + 1);
+        }
         load_ui_sprites(scene, mpqs);
         load_monster_sprites(scene, mpqs);
         load_act_palettes(scene, mpqs, 0);
