@@ -1700,11 +1700,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             return false;
         }
     }
-    if (monster.mode == "KB") {                                     // knocked back: along to leap_to over the mode (Fight::land)
-        const float done = std::clamp(float(now_ms - monster.unit.mode_ms) / float(std::max<std::uint32_t>(monster.mode_until - monster.unit.mode_ms, 1)), 0.f, 1.f);
-        monster.unit.x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * done;
-        monster.unit.y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * done;
-        if (now_ms < monster.mode_until) return false;
+    if (monster.mode == "KB") {                                     // knocked back (Fight::land)
+        if (knock_slide(monster, now_ms)) return false;
         if (type_info.base == 0x4e) {                                  // FUN_005a8520: a Sand Leaper thinks on, else GH
             set_mode(game_data, monster, "NU", now_ms);
             monster.next_act = now_ms + (now_ms < monster.stun_until ? 45 : 15) * 40;

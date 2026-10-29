@@ -429,15 +429,24 @@ struct Foe {
     }
 };
 
+// A knocked-back unit's slide (mode KB, Fight::knock_back: a monster, a
+// pet or the merc): along to its leap_to over the mode. True while it lasts.
+inline bool knock_slide(Monster& monster, std::uint32_t now_ms) {
+    const float done = std::clamp(float(now_ms - monster.unit.mode_ms) / float(std::max<std::uint32_t>(monster.mode_until - monster.unit.mode_ms, 1)), 0.f, 1.f);
+    monster.unit.x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * done;
+    monster.unit.y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * done;
+    return now_ms < monster.mode_until;
+}
+
 // A monster's MonProp hit events on a foe it hit (FUN_005c0c30 over its
 // event list +0x90; the melee event, or the missile one, 6, for its
 // missile's): each draws on the monster's seed.
 // - Knockback (stat 81, func 7, FUN_005bf960): a draw's low 7 bits under
-//   the foe's `knock_under`, result flag 8 from where the monster stands.
+//   the foe's `knock_under`, result flag 8 from where the monster stands;
+//   a player slides in Fight::hurt_side, a pet or the merc as a monster does.
 // - Crushing Blow (stat 136, func 16, FUN_005bffc0): a draw % 100 under
 //   the value; it takes current life / the foe's `crush_divisor`, doubled
 //   for a missile, less its damageresist (crushing_blow), after the hit.
-// ponytail: a pet's or the merc's knockback (knocked_from) isn't played.
 inline void monprop_hit(Monster& monster, Foe& foe, bool missile) {
     if (monster.props.knock > 0 && int(monster.seed.next() & 0x7f) < foe.knock_under) foe.knocked_from = std::pair{ monster.unit.x, monster.unit.y };
     if (monster.props.crush > 0 && int(monster.seed.next() % 100) < monster.props.crush)

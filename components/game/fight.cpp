@@ -2114,6 +2114,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             if (now_ms >= actor->merc->mode_until) { actor->merc.reset(); actor->character.header.merc_dead = true; d2d::log::info("the merc died"); }
             return;
         }
+        if (actor->merc->mode == "KB") { if (d2d::game::knock_slide(*actor->merc, now_ms)) return; set("GH"); }   // knocked back, then its get-hit (as a monster's)
         if (actor->merc->mode == "GH") { if (now_ms < actor->merc->mode_until) return; set("NU"); actor->merc->next_act = now_ms; }
         const bool archer = actor->merc_npc && actor->merc_npc->id == "roguehire";
         const float reach = archer ? 6.f : kMeleeReach;
@@ -3552,6 +3553,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     blade_shield(*skill, buff.level, unit.x, unit.y, actor->player_combat, false, now_ms);
                 }
             if (pet.until && now_ms >= pet.until) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); continue; }
+            if (monster.mode == "KB") { if (d2d::game::knock_slide(monster, now_ms)) continue; set_mode(*game_data, monster, "GH", now_ms); }   // knocked back, then its get-hit
             const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name;
             const bool traced = d2d::rules::traced_pet_ai(ai_name);
             if (pet.shot_skill >= 0 && !traced) { trap_turn(pet, now_ms); continue; }
@@ -4641,6 +4643,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     pet_hurt(pet, foe.damage, now_ms);
                     for (const int divisor : foe.crushed)                // Crushing Blows, after the hits (FUN_005bffc0)
                         if (pet.monster.alive()) pet_hurt(pet, int(crushing_blow(pet.monster.hit_points, divisor, foe.pick.damage_resist)), now_ms);
+                    if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);
                 }
                 pets_turn(now_ms, elapsed, crowd);
                 player_shots(now_ms);
@@ -4746,10 +4749,14 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             for (const int divisor : side[1].crushed) {
                 side[1].damage += int(crushing_blow(std::max(actor->merc->hit_points - side[1].damage, 0), divisor, side[1].pick.damage_resist));
             }
+        if (actor->merc && side[1].knocked_from && actor->merc->hit_points > side[1].damage && actor->merc->mode != "DT")
+            knock_back(*actor->merc, side[1].knocked_from->first, side[1].knocked_from->second, now_ms);   // as a monster's, before its get-hit
         if (actor->merc && side[1].damage > 0 && actor->merc->mode != "DT") {
             actor->merc->hit_points -= side[1].damage;
             auto& unit = actor->merc->unit;
-            const auto mode = actor->merc->hit_points <= 0 ? std::string_view("DT") : side[1].damage * 12 >= merc_max_life() ? std::string_view("GH") : actor->merc->mode;
+            const auto mode = actor->merc->hit_points <= 0                                     ? std::string_view("DT")
+                            : actor->merc->mode != "KB" && side[1].damage * 12 >= merc_max_life() ? std::string_view("GH")
+                                                                                                   : actor->merc->mode;
             if (mode != actor->merc->mode) {
                 actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = false; unit.path.clear();
                 actor->merc->mode_until = now_ms + game_data->npc_timing(actor->merc->npc, mode).length_ms();
