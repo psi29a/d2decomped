@@ -941,8 +941,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         input.same_room = room_at(level, unit.x, unit.y) == room_at(level, target->x, target->y);
         input.can_land = monster.aloft;                            // FUN_005f2fc0 fails on a landed one (pattern 1)
         // In a group: an owner (FUN_0058f0d0: AI control +0x28 / +0x2c, set by
-        // FUN_0058f030 for a boss's minions, FUN_005a0c00), not a plain pack's.
-        // ponytail: a flagged MonStats party's (FUN_005b2830, +0xc & DAT_006ce278) and a boss's own aren't counted; no vulture has one.
+        // FUN_0058f030 on a boss's minions, FUN_005a0c00; never on the boss),
+        // not a plain pack's. A MonStats SetBoss party (FUN_005b2830, +0xc &
+        // 0x10) would group too, but no Vulture row has SetBoss or minion1.
         input.grouped = monster.boss == d2d::rules::Boss::minion;
         for (const auto& foe : foes) {
             const int off_x = subtile(foe.x) - x, off_y = subtile(foe.y) - y;
