@@ -1005,9 +1005,10 @@ struct ObjectRooms {
         if (target == 0x7fffffff) target = int(std::ranges::count_if(level.room_flags, [](std::uint32_t room_flag) { return !(room_flag & 0x800000); }));
         ++counter;
         if (room_themes) {                                                                              // FUN_00552400
-            // ponytail: a theme's own fn (0x731e6c) never runs for act 1's
-            // masks (8, 60: the pick's bit number isn't under the count, or its fn is null);
-            // only its object-seed rolls are taken.
+            // A theme's own fn (0x731e6c) never runs: FUN_00552400 takes the
+            // pick only when its number (bit + 1) is under the mask's count, and
+            // no Levels.txt mask (8, 60, 48) passes with one that has a fn
+            // (bugs.md #37); only its object-seed rolls are taken.
             if (target < 0) return true;
             const int roll = int(rgn.next() % 100);
             int odds = counter > target / 2 ? 5 : 0;
