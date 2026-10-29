@@ -24,6 +24,7 @@ static Item item(const char* code, int quality = 2) {
     Item item;
     item.code = code;
     item.quality = quality;
+    item.identified = true;
     return item;
 }
 
@@ -160,11 +161,21 @@ int main() {
     held = item("box");
     assert(!put_in_grid(cursor_tables, items, held, 4, 3, 4, 0, 0) && put_in_grid(cursor_tables, items, held, 5, 6, 8, 0, 0));
 
+    {   // FUN_0062eaf0: requirements -20 % (stat 91) and an ethereal item's 10 less; no strength meets nothing.
+        ItemInfo info; info.req_str = 100; info.req_dex = 50;
+        Item gear = item("xxx"); gear.props = { { .stat = 91, .value = -20 } };
+        assert(meets_stats(info, gear, 80, 40, 1) && !meets_stats(info, gear, 79, 40, 1) && !meets_stats(info, gear, 80, 39, 1));
+        gear.ethereal = true;
+        assert(meets_stats(info, gear, 70, 30, 1) && !meets_stats(info, gear, 69, 30, 1) && !meets_stats(ItemInfo{}, gear, 0, 30, 1));
+    }
     // Equipping: slot, class and requirement checks, swaps.
     std::vector<Item> empty;
     held = item("cap");
     assert(!equip(cursor_tables, empty, held, 3, sorc));                                     // not a torso item
     assert(!equip(cursor_tables, empty, held, 1, Wearer{ .cls = d2d::d2s::kSorceress, .lvl = 4 }));             // level 5 needed
+    held->identified = false;
+    assert(!equip(cursor_tables, empty, held, 1, sorc));                                     // unidentified (FUN_0062eaf0)
+    held->identified = true;
     assert(equip(cursor_tables, empty, held, 1, sorc) && !held && item_at(empty, 1, 1));
     held = item("ssd");
     assert(!equip(cursor_tables, empty, held, 4, Wearer{ .cls = d2d::d2s::kSorceress, .str = 10 }));            // 25 strength needed
@@ -423,6 +434,7 @@ int main() {
     // Identify: carried, worn and belt items; not the stash.
     std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap") };
     unid[2].location = 1;
+    for (auto& unknown : unid) unknown.identified = false;
     assert(unidentified(unid) == 2 && identify_all(unid) == 2 && unidentified(unid) == 0 && !unid[1].identified);
 
     // D2's seed: low * 0x6AC690C5 + high, high starting at 666.

@@ -640,25 +640,47 @@ inline const ItemInfo* info_of(const Tables& tables, const d2d::d2s::Item& item)
     return found != tables.item_info.end() ? &found->second : nullptr;
 }
 
-// Can `it` be worn in body slot `slot` by `w` at all (slot, class, stat
-// and level requirements), ignoring what's already equipped?
-// `required_level`: the item's full requirement (FUN_0062b5b0, which
-// FUN_0062eaf0 checks level against; stat 92 can take it below the
-// base's), or -1 for the base's levelreq.
-// ponytail: base str/dex only; FUN_0062eaf0 also takes stat 91
-// ("requirements -x%"), ethereal -10 and refuses an unidentified item.
+// game.exe's value x times / over (FUN_00483360), truncated: over 0 gives 0;
+// value past 0x100000 goes value / over x times when over <= value >> 4, times
+// past 0x10000 times / over x value when over <= times >> 4; else in 64 bits when
+// either is that large, 32 (wrapping) when neither is.
+inline int scale(int value, int times, int over) {
+    if (over == 0) return 0;
+    if (value > 0x100000) return over <= value >> 4 ? value / over * times : int(std::int64_t(value) * times / over);
+    if (times > 0x10000) return over <= times >> 4 ? times / over * value : int(std::int64_t(value) * times / over);
+    return std::int32_t(std::uint32_t(value) * std::uint32_t(times)) / over;
+}
+
+// FUN_0062eaf0's strength, dexterity and level: the base's ReqStr / ReqDex
+// each + itself x the item's stat 91 ("requirements -x%") / 100
+// (FUN_00483360), 10 less on an ethereal item; a wearer with no strength
+// or no dexterity meets neither. `required_level`: the item's full
+// requirement (FUN_0062b5b0; stat 92 can take it below the base's), or -1
+// for the base's levelreq.
+inline bool meets_stats(const ItemInfo& info, const d2d::d2s::Item& item, int str, int dex, int lvl, int required_level = -1) {
+    int percent = 0;
+    for (const auto& prop : item.props) if (prop.stat == d2d::d2s::kRequirementPercent) percent += prop.value;
+    const int ethereal = item.ethereal ? 10 : 0;
+    const int req_str = info.req_str + (percent ? scale(info.req_str, percent, 100) : 0) - ethereal;
+    const int req_dex = info.req_dex + (percent ? scale(info.req_dex, percent, 100) : 0) - ethereal;
+    return str >= 1 && str >= req_str && dex >= 1 && dex >= req_dex && lvl >= (required_level >= 0 ? required_level : info.req_lvl);
+}
+
 // The class, stat and level requirements alone (FUN_0062eaf0's, any slot).
 inline bool meets_requirements(const Tables& tables, const d2d::d2s::Item& item, const Wearer& wearer, int required_level = -1) {
     const auto* info = info_of(tables, item);
     if (!info) return false;
     if (const auto class_code = type_class(tables, info->type); !class_code.empty() && (wearer.cls < 0 || wearer.cls > 6 || class_code != kClassCode[std::size_t(wearer.cls)]))
         return false;
-    return wearer.str >= info->req_str && wearer.dex >= info->req_dex && wearer.lvl >= (required_level >= 0 ? required_level : info->req_lvl);
+    return meets_stats(*info, item, wearer.str, wearer.dex, wearer.lvl, required_level);
 }
 
+// Can `it` be worn in body slot `slot` by `w` at all (slot, class, stat and
+// level requirements, identified: FUN_0062eaf0), ignoring what's already
+// equipped?
 inline bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot, const Wearer& wearer, int required_level = -1) {
     const auto* info = info_of(tables, item);
-    if (!info) return false;
+    if (!info || !item.identified) return false;
     const auto found = tables.types.find(info->type);
     if (found == tables.types.end() || slot < d2d::d2s::body_location::kFirst || (found->second.body[0] != slot && found->second.body[1] != slot)) return false;
     return meets_requirements(tables, item, wearer, required_level);

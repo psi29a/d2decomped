@@ -292,10 +292,8 @@ MercAttack merc_attack(const MercFightView& view, int& chance_growth, int x, int
 // or polearm (338, the desert guard), a shield or a one-handed sword (359,
 // the iron wolf), a one-handed axe (560) or a sword (561), the two
 // barbarians also a primal helm; then its strength, dexterity and level
-// against the item's (FUN_0062eaf0). Where it goes: the head, the torso, a
-// shield the left hand, the rest the right.
-// ponytail: FUN_0062eaf0's other checks (ethereal, the "requirements -x%"
-// stat) aren't applied, as for the player's (can_wear).
+// against the item's (FUN_0062eaf0, meets_stats). Where it goes: the head,
+// the torso, a shield the left hand, the rest the right.
 [[nodiscard]] inline int merc_slot(const Tables& tables, const d2d::d2s::Item& item, int merc_class, int str, int dex, int level) {
     namespace body = d2d::d2s::body_location;
     const auto* info = info_of(tables, item);
@@ -311,7 +309,7 @@ MercAttack merc_attack(const MercFightView& view, int& chance_growth, int x, int
     else if (merc_class == 560 && of_type("axe") && !info->two_handed) slot = body::kRightArm;
     else if (merc_class == 561 && of_type("swor")) slot = body::kRightArm;
     if ((merc_class == 560 || merc_class == 561) && of_type("phlm")) slot = body::kHead;
-    if (slot == 0 || str < info->req_str || dex < info->req_dex || level < info->req_lvl) return 0;
+    if (slot == 0 || !meets_stats(*info, item, str, dex, level)) return 0;
     return slot;
 }
 
