@@ -742,7 +742,7 @@ TcpIpUI tcpip_ui(const Scene& scene, const std::string& own_ip) {
     tcpip.host_text = str(0x1402, "");
     tcpip.join_text = str(0x1403, "");
     tcpip.prompt = str(0x2b1f, "Enter Host IP Address to Join Game");
-    // ponytail: HOST GAME does nothing; d2d only joins a game.exe host.
+    // HOST GAME does nothing until d2d hosts (docs/design/net-host.md); it joins a game.exe host.
     tcpip.host = Button{ 265, rec_top(206, 35), 272, 35, nullptr, &scene.btn_wide };
     tcpip.join = Button{ 265, rec_top(264, 35), 272, 35, nullptr, &scene.btn_wide };
     tcpip.cancel = Button{ 39, rec_top(571, 35), 128, 35, nullptr, &scene.medium_button, Screen::OtherMultiplayer, true };

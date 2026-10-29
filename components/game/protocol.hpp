@@ -127,8 +127,8 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
 // little-endian. Positions go as float32 cells.
-// ponytail: little-endian hosts; the byte-exact D2GS layouts are a later
-// codec's (docs/research/re/network.md).
+// For little-endian hosts; game.exe's byte-exact D2GS layouts are
+// components/net/d2gs's, for a joined game (battlenet.md: a client codec).
 namespace wire {
 struct Out {
     std::vector<std::uint8_t> bytes;

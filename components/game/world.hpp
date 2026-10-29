@@ -3,10 +3,9 @@
 // runs — levels, the player's unit, the merc, NPCs, monsters, missiles,
 // ground items, objects, the rolls — stepped by commands from the client
 // (protocol.hpp). What the client needs to hear back goes out as Events.
-// ponytail: one player; the character (cc) is shared with the client
-// until the CharacterStore, and item moves, stat / skill points and the
-// store still edit it client-side; the rng is shared too. Waits for
-// networking and several players.
+// It runs N players (local co-op); what still stands between it and a
+// hosted game is docs/design/multiplayer.md's "Still to change" and
+// net-host.md's section 1.
 #pragma once
 
 #include "ai.hpp"

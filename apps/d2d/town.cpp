@@ -465,8 +465,8 @@ auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { 
 // joined game); a melee swing walks up here and plays for show, the host
 // walks up there and hits. Objects and waypoints by the host unit nearest
 // d2d's.
-// ponytail: NPC talk and trade stay local (the host's gold and items don't
-// follow); belt, item moves, stat and skill points aren't sent (M9).
+// NPC talk and trade stay local (the host's gold and items don't follow);
+// belt, item moves, stat and skill points aren't sent: net-join-plan.md M9.
 auto Town::send(const Command& command) -> void {
         if (!net_game || !level) { net.send(command); return; }
         auto subtile_x = [&](float cell_x) { return (cell_x + float(level->world_x)) * 5.f; };
