@@ -1548,9 +1548,10 @@ struct CainQuest {
 // The Forgotten Tower, one game's (a1q5.cpp, the record at FUN_00595920).
 // Quest 5; bits: 0 done (set at the kill: no reward talk), 2..6 progress,
 // 13 took part, 14 not there.
-// N-player gap: the cellar-5 participants (data+0x8c) and party passes
-// aren't kept. ponytail: rec+9 (active) is taken as always set, so the
-// tome never starts read (InitFn 4, FUN_00595a00).
+// The kill's passes over the players are World::countess_died's (the
+// cellar-5 list's pass, FUN_00594dd0, never fires: the first set bit 0).
+// ponytail: rec+9 (active) is taken as always set, so the tome never
+// starts read (InitFn 4, FUN_00595a00).
 struct TowerQuest {
     static constexpr int kQuest = 5, kTower = level_ids::kForgottenTower, kCellar = level_ids::kTowerCellarLevel5, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
     // Her treasure's spawner (Missiles.txt towerchestspawner: Range,
@@ -1664,12 +1665,15 @@ struct TowerQuest {
     // The Countess died (FUN_00595710, once: rec+0xc0 is cleared). True:
     // the player's kill for the quest (FUN_00594f10: in cellar 5 — bits 13
     // and 0, the voice); elsewhere bit 14. The 7-tick timer starts.
+    // Called for each player in turn (FUN_00594f10's pass); the record's
+    // part once.
     bool killed(QuestBits& quest_bits, bool in_cellar, int player) {
-        if (dead) return false;
-        dead = true;
-        state = 5;
-        first_talk = true;
-        log_in = 7;
+        if (!dead) {
+            dead = true;
+            state = 5;
+            first_talk = true;
+            log_in = 7;
+        }
         if (quest::bit(quest_bits, kQuest, 0)) return false;
         if (!in_cellar) { quest::set(quest_bits, kQuest, 14); return false; }
         quest::set(quest_bits, kQuest, 13);

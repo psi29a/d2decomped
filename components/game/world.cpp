@@ -1603,11 +1603,25 @@ auto World::kashya_merc() -> void {
         d2d::log::info("Sisters' Burial Grounds: Kashya's reward, a mercenary");
     }
 
-// The Countess's death hook (FUN_00595710): the quest's bits and, for the
-// player's kill, their complete_tower line (unit event 0x25). Her drop is
-// her SuperUniques TC's (negative picks: an item and a rune roll).
+// The Countess's death hook (FUN_00595710): each player in cellar 5 takes
+// part (FUN_00594f10: bits 13 and 0, their complete_tower line, unit event
+// 0x25), the rest bit 14; then the party of any who took part, anywhere in
+// Act 1 and lacking bit 0, bits 13 and 0 (LAB_005953d0 -> LAB_00595370).
+// Her drop is her SuperUniques TC's (negative picks: an item and a rune roll).
 auto World::countess_died(std::uint32_t now_ms) -> void {
-        const bool quest_kill = tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar, actor->id);
+        bool quest_kill = false;
+        each_player([&](Player& player) {
+            if (!tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar, player.id)) return;
+            class_cue("act1_complete_tower", now_ms);
+            quest_kill = true;
+        });
+        if (quest_kill && act() == 0)
+            each_player([&](Player&) {
+                auto& bits = quests();
+                if (d2d::rules::quest::bit(bits, d2d::rules::TowerQuest::kQuest, 0)) return;
+                d2d::rules::quest::set(bits, d2d::rules::TowerQuest::kQuest, 13);
+                d2d::rules::quest::set(bits, d2d::rules::TowerQuest::kQuest, 0);
+            });
         // Her treasure (FUN_005954f0, dead and not yet made: d+0x118 / 0x119):
         // a towerchestspawner (missile 332) at each chest of cellar 5 (object
         // 371, InitFn 47 lists up to 8).
@@ -1620,9 +1634,7 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
             for (std::size_t i = 0; i < level->npcs.size() && treasure.size() < 8; ++i)
                 if (level->npcs[i].root == "objects" && level->npcs[i].object_id == d2d::rules::object_ids::kLargeChestR) treasure.push_back({ level, int(i), d2d::rules::TowerQuest::kTreasureFrames });
         }
-        if (!quest_kill) return;
-        class_cue("act1_complete_tower", now_ms);
-        d2d::log::info("The Forgotten Tower: the Countess is dead");
+        if (quest_kill) d2d::log::info("The Forgotten Tower: the Countess is dead");
     }
 
 // The towerchestspawner's frame (FUN_005af300; Missiles.txt row 332:
