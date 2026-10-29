@@ -411,6 +411,8 @@ struct Fight {
     void new_game(int difficulty);
     // The save's merc joins: its fighting stats at its experience.
     void merc_joins();
+    // The merc's stats and skill levels for its experience (FUN_00572840).
+    void merc_level_stats();
     // Back in camp after dying: full life, no potions or poison working.
     void revive(std::uint32_t now_ms);
 
@@ -695,8 +697,11 @@ struct Fight {
 
     // Monster i died (the player's or the merc's doing): the player gets the
     // experience, its pack may scatter, it drops its loot.
-    // ponytail: the merc's own experience share isn't kept.
     void killed(std::size_t monster_index, std::uint32_t now_ms, bool credit = true);
+    // The killer's merc's share of it (rules::merc_kill_exp) and its level; the owner's
+    // unit event 0x5b on a level-up (FUN_00553380) isn't traced or played.
+    void merc_share(const Monster& monster);
+    bool merc_blow = false;                // the blow being landed is the merc's (its strike, arrow or skill missile)
     // The players in the game and those of them alive (the party on the
     // level: one screen), for NoDrop (Loot::drop); alone, 1 and 1.
     [[nodiscard]] std::pair<int, int> drop_counts();

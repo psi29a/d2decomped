@@ -1675,6 +1675,18 @@ inline MercStats merc_stats(const Tables& tables, int id, std::uint32_t exp) {
     return merc;
 }
 
+// The merc's share of its owner's kill (FUN_0057e990 -> FUN_0057e860):
+// `award` is the kill's experience at the merc's level (FUN_0057e480);
+// 86 / 256 of it (to zero) unless the merc struck the blow, then twice that
+// added while the merc is under its owner's level and level 98
+// (Experience.txt MaxLvl - 1, FUN_00611830(0)). The new experience; the
+// level follows from it (merc_stats).
+inline std::uint32_t merc_kill_exp(std::uint32_t merc_exp, std::int64_t award, bool merc_blow, int merc_level, int owner_level) {
+    if (!merc_blow) award = award * 0x56 / 256;
+    if (award <= 0 || merc_level >= owner_level || merc_level >= 98) return merc_exp;
+    return merc_exp + std::uint32_t(award * 2);
+}
+
 // Hires `o`: pays its cost (carried gold, then the stash) and makes it
 // the save's mercenary. False if it can't be paid for.
 inline bool hire(const MercOffer& offer, d2d::d2s::Header& header, d2d::d2s::Stats& stats) {

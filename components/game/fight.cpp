@@ -157,9 +157,20 @@ auto Fight::new_game(int difficulty) -> void {
 
 auto Fight::merc_joins() -> void {
         const auto& header = actor->character.header;
-        actor->merc_st = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp);
         actor->merc_target = -1; actor->merc_chase = false;
-        actor->merc_ids = {}; actor->merc_levels = {}; actor->merc_growth = 0; actor->merc_aura = -1; actor->merc_skill = -1; actor->merc_seq = nullptr; actor->merc_buff = {}; actor->merc_cry = {}; actor->leap.reset(); actor->knock.reset();
+        actor->merc_growth = 0; actor->merc_aura = -1; actor->merc_skill = -1; actor->merc_seq = nullptr; actor->merc_buff = {}; actor->merc_cry = {}; actor->leap.reset(); actor->knock.reset();
+        merc_level_stats();
+        if (!actor->merc) return;
+        actor->merc->hit_points = merc_max_life();
+        actor->merc->mode = "NU"; actor->merc->next_act = 0; actor->merc->move_pct = 0;
+        actor->merc->seed = d2d::rules::Rng(header.merc_seed);
+        actor->merc->type = actor->merc_npc ? game_data->monsters.row(actor->merc_npc->id) : -1;
+    }
+
+auto Fight::merc_level_stats() -> void {
+        const auto& header = actor->character.header;
+        actor->merc_st = d2d::rules::merc_stats(game_data->rules, header.merc_type, header.merc_exp);
+        actor->merc_ids = {}; actor->merc_levels = {};
         if (const auto* row = d2d::rules::hireling_row(game_data->rules, header.merc_type, actor->merc_st.level)) {
             for (std::size_t k = 0; k < actor->merc_ids.size(); ++k)
                 if (const auto* skill = skill_named(row->skills[k].name)) actor->merc_ids[k] = skill->id;
@@ -168,11 +179,6 @@ auto Fight::merc_joins() -> void {
                 return skill ? skill->reqlevel : 0x7fff;
             });
         }
-        if (!actor->merc) return;
-        actor->merc->hit_points = merc_max_life();
-        actor->merc->mode = "NU"; actor->merc->next_act = 0; actor->merc->move_pct = 0;
-        actor->merc->seed = d2d::rules::Rng(header.merc_seed);
-        actor->merc->type = actor->merc_npc ? game_data->monsters.row(actor->merc_npc->id) : -1;
     }
 
 auto Fight::revive(std::uint32_t now_ms) -> void {
@@ -1795,8 +1801,8 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
         // subtiles of the dead (dx² + dy² <= 0x1900, FUN_0057e5a0) share it
         // by level (rules::party_shares) — one of them leaves it all the
         // killer's, none nobody's.
-        // ponytail: the merc's share (FUN_0057e860) isn't kept.
         Hero& killer = *actor;
+        if (!monster.no_exp) merc_share(monster);
         if (monster.no_exp) {
         } else if (heroes.size() == 1) {
             gain_exp(monster.stats.exp, monster, now_ms);
@@ -1821,6 +1827,17 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
         }
         if (!monster.no_drop) loot.drop(monster, spawning.game, now_ms, players, nearby);
         kills.push_back({ monster.type, monster.unit.x, monster.unit.y, monster.stats.level, monster.super, monster.id, killer.id });
+    }
+
+auto Fight::merc_share(const Monster& monster) -> void {
+        auto& header = actor->character.header;
+        if (!actor->merc || !actor->merc->alive() || monster.stats.exp <= 0) return;
+        const int merc_level = actor->merc_st.level;
+        const auto award = d2d::rules::kill_exp(int(std::min<std::int64_t>(monster.stats.exp, 0x7fffffff)), merc_level, monster.stats.level);
+        header.merc_exp = d2d::rules::merc_kill_exp(header.merc_exp, award, merc_blow, merc_level,
+                                                    int(actor->character.stats.get(d2d::d2s::kLevel)));
+        merc_level_stats();
+        if (actor->merc_st.level > merc_level) d2d::log::info("{}'s mercenary reaches level {}", actor->character.name, actor->merc_st.level);
     }
 
 auto Fight::drop_counts() -> std::pair<int, int> {
@@ -1851,7 +1868,9 @@ auto Fight::merc_strike(std::size_t target, const d2d::rules::Swing& swing, std:
         const auto fighter = merc_fighter();
         const int thorns = monsters[target].props.thorns;
         const auto blow = d2d::rules::player_blow(fighter, target_of(target), actor->merc_st.level, rng, swing);
+        merc_blow = true;
         const bool landed = land(target, blow, false, now_ms);
+        merc_blow = false;
         // A MonProp thorns monster's flat value back on the merc, a melee
         // striker as the player is (FUN_005bf670), through its damage reduction.
         if (landed && thorns > 0) actor->merc_hurt += std::max(thorns * (100 - fighter.dr_pct) / 100 - fighter.dr_flat, 0);
@@ -2103,7 +2122,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                     Missile missile{ &missile_info, unit.x, unit.y, dx / distance * speed, dy / distance * speed, missile_facing(unit.x, unit.y, dx, dy), now_ms, now_ms + std::uint32_t(missile_info.range) * 40, {} };
                     missile.to = { target.unit.x, target.unit.y };
                     const auto fighter = merc_fighter();                    // its bow's damage and attack rating with its gear
-                    missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = actor->merc_st.level; missile.friendly = true; missile.caster = actor->id;
+                    missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = actor->merc_st.level; missile.friendly = true; missile.caster = actor->id; missile.by_merc = true;
                     missiles.push_back(std::move(missile));
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
                     // A melee skill (Jab, Bash, Stun) builds its hit as the
@@ -4617,6 +4636,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             }
             missiles_update(*level, missiles, foes, rng, now_ms, reach, [&](Missile& missile) {
                 if (Hero* caster = hero_of(missile.caster)) act_as(*caster);
+                merc_blow = missile.by_merc;
                 const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& monster = monsters[i];
@@ -4641,6 +4661,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 }
                 return false;
             }, [&](int owner) { const int index = monster_index(owner); return index >= 0 && monsters[std::size_t(index)].alive(); });
+            merc_blow = false;
             for (auto& foe : foes)                               // the shooters' MonProp events (knock, crush)
                 for (const int owner : foe.shot_by)
                     if (const int shooter = monster_index(owner); shooter >= 0) monprop_hit(monsters[std::size_t(shooter)], foe, true);

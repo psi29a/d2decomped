@@ -409,6 +409,10 @@ int main() {
     assert(wallet2.get(kGold) == 0 && wallet2.get(kGoldBank) == 30 && !hire(offer, merc_header, wallet2));
     // Resurrection: level^2 / 2 * 15 (integer halving), capped at 50,000.
     assert(merc_resurrect_cost(1) == 0 && merc_resurrect_cost(5) == 180 && merc_resurrect_cost(20) == 3000 && merc_resurrect_cost(98) == 50000);
+    // The merc's kill share (FUN_0057e860): 86 / 256 of the award unless its own blow, then twice;
+    // none at or over its owner's level or at 98.
+    assert(merc_kill_exp(1000, 300, false, 10, 20) == 1000 + 300 * 86 / 256 * 2 && merc_kill_exp(1000, 300, true, 10, 20) == 1600);
+    assert(merc_kill_exp(1000, 300, true, 20, 20) == 1000 && merc_kill_exp(1000, 300, true, 98, 99) == 1000 && merc_kill_exp(1000, 2, false, 10, 20) == 1000);
     assert(!resurrect_merc(5, merc_header, wallet2));                                  // alive
     merc_header.merc_dead = true;
     wallet2.values[kGold] = 100; wallet2.values[kGoldBank] = 100;

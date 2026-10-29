@@ -49,8 +49,12 @@ on its level (FUN_005404f0), 1 without a party.
 ## Experience for a kill — FUN_0057e990
 
 1. The killer resolved (FUN_0057e7b0): a pet's owner, a player as is.
-2. The merc (FUN_00574ec0(7)) gets its own share (FUN_0057e860: 86/256 of
-   the penalised award when the killer isn't the merc). d2d: not kept.
+2. The merc (FUN_00574ec0(7)) gets its own share: FUN_0057e480's award at
+   the merc's level, 86/256 of it (to zero) when the blow wasn't the
+   merc's; FUN_0057e860 adds twice that to its experience while it's under
+   its owner's level and level 98 (FUN_00611830(0) - 1), then levels it up
+   by Hireling.txt's (L+1)·L²·Exp/Lvl (FUN_00663790; FUN_00572840 the
+   stats). d2d: rules::merc_kill_exp, Fight::merc_share.
 3. No party (FUN_00554630 == 0xffff): the killer gets FUN_0057e480's
    award (the level penalty, + stat 0x55 item_addexperience), added by
    FUN_0057e510.
