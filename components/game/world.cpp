@@ -1375,13 +1375,36 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 // ponytail: loot's rng, not the game's quest rng (game+0x10f4); quests:
 // agent A's.
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
-        if (level->id == d2d::rules::level_ids::kCatacombsLevel4) each_player([&](Player& player) { andy.in_lair(quests(), player.id); });
-        if (!andy.killed(quests())) return;
-        class_cue("act1_complete_andariel", now_ms);   // unit event 0x21: participant's class voice
+        namespace quest = d2d::rules::quest;
+        constexpr int kQuest = d2d::rules::AndyQuest::kQuest;
+        const bool first = andy.killed(quests());      // the killer's (FUN_00596210)
+        if (first) {
+            open_act(1);
+            for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
+                loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
+        }
+        // Every player (FUN_005965a0's passes): the news lists for those in her
+        // lair (FUN_00596260); the killer's party in Act 1, neither done nor
+        // due, the lists and the killer's share (0x596440 -> FUN_00596320);
+        // anyone else neither done nor due bit 14 (0x5963e0); each with bits 1
+        // and 13 their act1_complete_andariel (0x596170, unit event 0x21).
+        const bool killer_took_part = quest::bit(quests(), kQuest, 13);
+        each_player([&](Player& player) { if (level->id == d2d::rules::level_ids::kCatacombsLevel4) andy.in_lair(quests(), player.id); });
+        const int killer = actor->id;
+        each_player([&](Player& player) {
+            auto& bits = quests();
+            if (player.id == killer || !killer_took_part || act() != 0 || quest::bit(bits, kQuest, 0) || quest::bit(bits, kQuest, 1)) return;
+            andy.cain.add(player.id); andy.akara.add(player.id); andy.kashya.add(player.id);
+            quest::set(bits, kQuest, 13); quest::set(bits, kQuest, 1);
+            open_act(1);
+        });
+        each_player([&](Player&) {
+            auto& bits = quests();
+            if (!quest::bit(bits, kQuest, 0) && !quest::bit(bits, kQuest, 1)) quest::set(bits, kQuest, 14);
+            if (quest::bit(bits, kQuest, 1) && quest::bit(bits, kQuest, 13)) class_cue("act1_complete_andariel", now_ms);
+        });
+        if (!first) return;
         music_cue("music_quest_andariel");
-        open_act(1);
-        for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
-            loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
         d2d::log::info("Sisters to the Slaughter: Andariel is dead, return to Warriv");
     }
 
