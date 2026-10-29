@@ -236,6 +236,7 @@ struct Fight {
             int left_skill = -1;
             std::vector<Charge> charges;               // a Shadow's charge-ups' charges (as the player's)
             std::vector<SelfState> buffs;              // a Shadow's self states (Burst of Speed, Fade, Venom, Cloak, Blade Shield)
+            Curse curse;                               // a monster's curse on it (the newest, as the player's)
             std::unordered_map<int, int> buff_stats;   // their aurastats summed (pet_buffs)
             int bo_life = 0;                           // a war cry's maxhp percent on its life (pet_buffs)
             std::uint32_t blade_next = 0;              // its Blade Shield's next strike
@@ -555,7 +556,7 @@ struct Fight {
     bool land(std::size_t monster_index, const d2d::rules::Blow& blow, bool by_player, std::uint32_t now_ms);
     void player_thorns(std::size_t target, const d2d::rules::Blow& blow);   // a MonProp thorns monster's flat value back on the player's melee blow that landed, through the whole hero's DR
     void merc_strike(std::size_t target, const d2d::rules::Swing& swing, std::uint32_t now_ms);   // the merc's melee blow on a monster, and its thorns back
-    void pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& blow, std::uint32_t now_ms);   // a pet's melee blow, and its thorns back
+    void pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms);   // a pet's melee blow, and its thorns back
     // A monster with GH and KB modes knocked back away from (from_x, from_y): land's knockback, a monster foe's (Smite, MonProp knock).
     void knock_back(Monster& target, float from_x, float from_y, std::uint32_t now_ms);
 
@@ -1075,6 +1076,7 @@ struct Fight {
     // Whether (x, y) is within 30 cells of a player (the rooms in play).
     [[nodiscard]] bool near_players(float x, float y) const;
     void hurt_side(std::span<Foe> side, std::uint32_t now_ms);
+    [[nodiscard]] Hero::Curse monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms);
     // Bosses' auras (Aura Enchanted), each at its level within its
     // aurarange: Might, Blessed Aim, Fanaticism add their damage / to-hit %
     // to the monsters there; Conviction cuts the foes' resistances and

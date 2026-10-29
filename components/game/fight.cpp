@@ -1912,8 +1912,11 @@ auto Fight::player_thorns(std::size_t target, const d2d::rules::Blow& blow) -> v
             actor->self_hurt += std::int64_t(std::max(thorns * (100 - hero.dr_pct) / 100 - hero.dr_flat, 0)) << 8;
 }
 
-auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& blow, std::uint32_t now_ms) -> void {
+auto Fight::pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms) -> void {
         const int thorns = monsters[target].props.thorns;
+        auto blow = struck;
+        if (const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent); percent != 0 && blow.hit)   // a curse's (Weaken) on its physical part
+            blow.damage = std::max(blow.damage + d2d::rules::resisted(blow.phys * percent / 100, target_of(target).res[0]), 0);
         const bool landed = land(target, blow, false, now_ms);
         // A MonProp thorns monster's flat value back on the pet (FUN_005bf670),
         // a monster striker: through its own damage resist, as a monster's hit on a monster.
@@ -3496,6 +3499,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         static constexpr std::array<int, 4> kResists{ d2d::d2s::kFireResist, d2d::d2s::kLightningResist, d2d::d2s::kColdResist, d2d::d2s::kPoisonResist };
         for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(pet.res[k] + pet_buff_stat(pet, kResists[k]), 95);   // Fade's on a Shadow
         fighter.thorns_pct = pet.thorns;                             // Iron Golem's thorns
+        fighter.dr_pct = std::min(pet_buff_stat(pet, d2d::d2s::kDamageResist), 50);   // a curse's (Amplify Damage)
         const auto& type_info = game_data->monsters.types[std::size_t(pet.monster.type)];
         const bool still = type_info.velocity == 0 && type_info.run == 0 && pet.ranged >= 0;   // a Hydra, like a trap, isn't there to hit
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
@@ -3504,7 +3508,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         monster_foe_props(*game_data, pet.monster, foe);
         foe.life_pct = int(std::int64_t(pet.monster.hit_points) * 100 / std::max(pet.monster.stats.hit_points, 1));
         const auto& own = type_info.diff[std::size_t(pet.monster.difficulty)].res;
-        std::array<int, 5> res{ own[0], own[1] };
+        std::array<int, 5> res{ own[0] + pet_buff_stat(pet, d2d::d2s::kDamageResist), own[1] };
         for (std::size_t k = 0; k < 3; ++k) res[k + 2] = pet.res[k] + pet_buff_stat(pet, kResists[k]);
         foe.pick = unit_pick(*game_data, res, pet.aura, pet.aura_level, d2d::rules::swing_max_damage(pet.monster.stats, pet.monster.swing_mode));
         return foe;
@@ -3545,7 +3549,9 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
         for (auto& pet : actor->pets) {
             auto& monster = pet.monster;
             auto& unit = monster.unit;
-            if (std::erase_if(pet.buffs, [&](const SelfState& buff) { return now_ms >= buff.until; }) > 0) pet_buffs(pet);
+            const bool curse_spent = pet.curse.skill >= 0 && now_ms >= pet.curse.until;
+            if (curse_spent) pet.curse = {};
+            if (std::erase_if(pet.buffs, [&](const SelfState& buff) { return now_ms >= buff.until; }) > 0 || curse_spent) pet_buffs(pet);
             if (!monster.alive() || pet.where != level) continue;
             for (const auto& buff : pet.buffs)                              // a Shadow's Blade Shield, as the player's
                 if (const auto* skill = game_data->skills.get(buff.skill); skill && skill->srvdofunc == ServerDoFunction::kBladeShield && now_ms >= pet.blade_next) {
@@ -4221,10 +4227,13 @@ auto Fight::blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float
 auto Fight::pet_buffs(Pet& pet) -> void {
         pet.buff_stats.clear();
         const auto env = calc_env();
-        for (const auto& buff : pet.buffs)
-            if (const auto* skill = game_data->skills.get(buff.skill))
+        auto add = [&](int skill_id, int lvl) {
+            if (const auto* skill = game_data->skills.get(skill_id))
                 for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
-                    if (skill->aurastat[k] >= 0) pet.buff_stats[skill->aurastat[k]] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, buff.level);
+                    if (skill->aurastat[k] >= 0) pet.buff_stats[skill->aurastat[k]] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, lvl);
+        };
+        for (const auto& buff : pet.buffs) add(buff.skill, buff.level);
+        if (pet.curse.skill >= 0) add(pet.curse.skill, pet.curse.level);
         // Battle Orders' maxhp percent on its life, as the player's (bo_life).
         auto& stats = pet.monster.stats;
         const int want = int(std::int64_t(stats.hit_points - pet.bo_life) * pet_buff_stat(pet, d2d::d2s::kMaxLifePercent) / 100);
@@ -4644,6 +4653,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     for (const int divisor : foe.crushed)                // Crushing Blows, after the hits (FUN_005bffc0)
                         if (pet.monster.alive()) pet_hurt(pet, int(crushing_blow(pet.monster.hit_points, divisor, foe.pick.damage_resist)), now_ms);
                     if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);
+                    if (const auto curse = monster_curse(foe.cursed, now_ms); curse.skill >= 0 && pet.monster.alive()) { pet.curse = curse; pet_buffs(pet); }
                 }
                 pets_turn(now_ms, elapsed, crowd);
                 player_shots(now_ms);
@@ -4736,6 +4746,17 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
 // What the monsters did to the acting player (`side` [0]) and their merc ([1])
 // this frame: the merc's life and flinch, then the player's poison, chill,
 // stun, knockback, curses, Mana Burn, block, armour wear and life.
+// A monster's curse as it takes hold: its auralen, dimvision's and terror's
+// over AiCurseDivisor, 25 frames at least; skill -1 for none.
+auto Fight::monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms) -> Hero::Curse {
+        const auto* skill = game_data->skills.get(cursed.skill);
+        if (!skill) return {};
+        int length = calc(*skill, skill->auralen, cursed.level);
+        if (const int divisor = game_data->curse_divisor[std::size_t(std::clamp(game_difficulty, 0, 2))]; divisor != 0 && (skill->auratarget == "dimvision" || skill->auratarget == "terror"))
+            length /= divisor;
+        return { skill->id, cursed.level, now_ms + std::uint32_t(std::max(length, 25)) * 40 };
+    }
+
 auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         side[1].damage += std::exchange(actor->merc_hurt, 0);      // its swings' thorns (merc_strike), its poison (apply_regen)
         if (side[1].poison > 0 && side[1].poison_ticks > 0) {       // one at a time: a new one at least as strong replaces it (FUN_0057ac50)
@@ -4820,13 +4841,10 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                 set_pmode(kModeGH, now_ms);
             }
         }
-        for (std::size_t k = 0; k < 2; ++k)                  // a monster's curse: its auralen (dimvision / terror's over AiCurseDivisor)
-            if (const auto* skill = game_data->skills.get(side[k].cursed.skill)) {
-                int length = calc(*skill, skill->auralen, side[k].cursed.level);
-                if (const int divisor = game_data->curse_divisor[std::size_t(std::clamp(game_difficulty, 0, 2))]; divisor != 0 && (skill->auratarget == "dimvision" || skill->auratarget == "terror"))
-                    length /= divisor;
-                actor->curses[k] = { skill->id, side[k].cursed.level, now_ms + std::uint32_t(std::max(length, 25)) * 40 };
-                d2d::log::info("{} cursed: {} level {}", k ? "the merc" : "the player", skill->name, side[k].cursed.level);
+        for (std::size_t k = 0; k < 2; ++k)
+            if (const auto curse = monster_curse(side[k].cursed, now_ms); curse.skill >= 0) {
+                actor->curses[k] = curse;
+                d2d::log::info("{} cursed: skill {} level {}", k ? "the merc" : "the player", curse.skill, curse.level);
             }
         for (std::size_t k = 0; k < 2; ++k)
             if (const auto* skill = game_data->skills.get(side[k].marked.skill)) {

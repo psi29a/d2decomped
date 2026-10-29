@@ -2174,8 +2174,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // do 30 (FUN_005c37c0) from a monster: its curse on each of
                     // the player's side within aurarangecalc subtiles of the
                     // target's spot (FUN_0056e780, enemies only), the newest in
-                    // place of the last (Fight::curses).
-                    // ponytail: a pet's curse isn't kept (only the player's and the merc's).
+                    // place of the last (Fight::curses, a pet's Pet::curse).
                     const int radius = d2d::rules::eval_calc(game_data.skills, cast->aurarange, {}, monster.skill, lvl);
                     for (auto& near_foe : foes)
                         if (near_foe.alive && !near_foe.of && !foe.of && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
