@@ -3695,11 +3695,11 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 // ours) get no portrait, their PetType unread.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
-    if (left_open || portraits_hidden || coop_hud_hidden()) return;   // local co-op's: draw_coop_portraits
+    merc_portrait_x = -1;                                             // none to hover or drop on until drawn
+    if (left_open || portraits_hidden || coop_hud_hidden()) { merc_hovered = false; merc_hover_at = 0; return; }   // local co-op's: draw_coop_portraits
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
     const auto& font = scene->font_tiny.line_height() > 0 ? scene->font_tiny : scene->font;
     int x = 15, name_y = 0x48;
-    merc_portrait_x = -1;
     // Each icon at draw mode 1 (FUN_004f6480: half over what's there); the
     // merc's at mode 7 while hovered (its table untraced, lighting.md: drawn as is).
     const auto portrait = [&](const d2d::dc6::Sprite* icon, int life, std::string name, int count, bool lit = false) {

@@ -231,6 +231,7 @@ struct World {
     // The players, in join order; [0] is there from the start. `actor` is the
     // one acting now (act_as): the World's, the fight's and the loot's.
     std::vector<std::unique_ptr<Player>> players;
+    int next_player_id = 1;                 // add_player's next unit id
     Player* actor = nullptr;
     void act_as(Player& player);
     [[nodiscard]] Player& lead() const { return *players.front(); }

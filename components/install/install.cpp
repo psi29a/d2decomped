@@ -518,7 +518,34 @@ auto wine_prefixes(const fs::path& home, std::string_view wineprefix, bool searc
     if (home.empty()) return out;
     add(home / ".wine");
     // The quoted or bare value after `key` on each line of a text file.
-    auto values = [](const fs::path& file, std::string_view key, auto&& use) {
+    // A value as YAML / VDF quote it: "..." with backslash escapes (\\ \"
+    // \n \t \xHH \uHHHH \UHHHHHHHH), '...' with '' for a quote, else bare.
+    auto unquote = [](std::string_view value) {
+        std::string out;
+        if (value.starts_with('\'')) {
+            for (std::size_t at = 1; at < value.size(); ++at) {
+                if (value[at] != '\'') { out += value[at]; continue; }
+                if (at + 1 < value.size() && value[at + 1] == '\'') { out += '\''; ++at; continue; }
+                break;
+            }
+            return out;
+        }
+        if (!value.starts_with('"')) return std::string(value.substr(0, value.find_last_not_of(" \t\r") + 1));
+        for (std::size_t at = 1; at < value.size() && value[at] != '"'; ++at) {
+            if (value[at] != '\\' || at + 1 == value.size()) { out += value[at]; continue; }
+            const char escape = value[++at];
+            const int digits = escape == 'x' ? 2 : escape == 'u' ? 4 : escape == 'U' ? 8 : 0;
+            if (digits == 0) { out += escape == 'n' ? '\n' : escape == 't' ? '\t' : escape; continue; }
+            std::uint32_t code = 0;
+            for (int digit = 0; digit < digits && at + 1 < value.size() && std::isxdigit(static_cast<unsigned char>(value[at + 1])); ++digit) {
+                const char hex = lower(value[++at]);
+                code = code * 16 + std::uint32_t(hex <= '9' ? hex - '0' : hex - 'a' + 10);
+            }
+            append_utf8(out, code);
+        }
+        return out;
+    };
+    auto values = [&](const fs::path& file, std::string_view key, auto&& use) {
         const auto text = read_file(file, 1u << 20);
         if (!text) return;
         for (const auto line_range : std::views::split(std::string_view(*text), '\n')) {
@@ -526,9 +553,8 @@ auto wine_prefixes(const fs::path& home, std::string_view wineprefix, bool searc
             line.remove_prefix(std::min(line.find_first_not_of(" \t"), line.size()));
             if (!line.starts_with(key)) continue;
             line.remove_prefix(key.size());
-            line.remove_prefix(std::min(line.find_first_not_of(" \t\""), line.size()));
-            line = line.substr(0, line.find_last_not_of(" \t\r\"") + 1);
-            if (!line.empty()) use(utf8_path(line));
+            line.remove_prefix(std::min(line.find_first_not_of(" \t"), line.size()));
+            if (const auto value = unquote(line); !value.empty()) use(utf8_path(value));
         }
     };
     // Linux. Lutris: ~/Games, then each game's own `prefix:` (its YAML).

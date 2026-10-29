@@ -174,7 +174,7 @@ Sets rec+0xa = 1, rec+0xd = 6 and rec+0x10 = 3. Allocates data (0x1bc bytes, FUN
 | +0xa8 | FUN_005921b0 | talk closed |
 | +0xac | FUN_00596de0 | level change |
 | +0xb0 | FUN_00592e20 | event 4; if +9, runs LAB_00592130 over players |
-| +0xb8 | FUN_00592e60 | event 6; if !data+0x4f and state < 6: state 3, then 592bd0 |
+| +0xb8 | FUN_00592e60 | event 6 (never raised: stubs.md); if !data+0x4f and state < 6: state 3, then 592bd0 |
 | +0xc0 | FUN_00593e70 | monster death (Cow King) |
 | +0xc4 | FUN_00592c80 | quest item removed |
 | +0xc8 | LAB_00592cf0 | player leaves game |
@@ -246,7 +246,7 @@ Sets rec+0xa = 1, rec+0xd = 6 and rec+0x10 = 3. Allocates data (0x1bc bytes, FUN
 | 0 | not started | |
 | 1 | available | FUN_00593d70; stone operate |
 | 2 | Akara told | heard 0x61 |
-| 3 | left town / rewound | leaving town in state 2; +0xb8; +0xc4 |
+| 3 | left town / rewound | leaving town in state 2; +0xc4 (+0xb8's event 6 is never raised) |
 | 4 | has scroll | Inifuss operate |
 | 5 | deciphered / stones | heard 0x70; stone operate; Tristram entry |
 | 6 | done | heard 0x76 |

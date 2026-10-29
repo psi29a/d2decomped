@@ -11,7 +11,7 @@ This file covers the Tools of the Trade (a1q3), Andariel and Sisters to the Slau
 | 3 enter level | +0xac | `0x543b90` |
 | 4 item into inventory | +0xb0 | `0x543d80` |
 | 5 item dropped | +0xb4 | `0x543db0` |
-| 6 | +0xb8 | `0x543de0` |
+| 6 | +0xb8 | `0x543de0` (nothing calls it: stubs.md) |
 | 8 monster dies | +0xc0 | `0x543a30` (walks the monster's +0x74 list) |
 | 9 / 10 player leaves | +0xc4 / +0xc8 | `0x543bd0` |
 | 11 message heard | +0xcc | `0x5443b0` |
@@ -70,7 +70,7 @@ The slots are listed with their event numbers from quests.md.
 | +0xa8 | 2 talk closed | `0x5913c0` | `data[2]` → mark the flags (`0x591340`), log 1; `data[3]` → log 1 |
 | +0xac | 3 enter level | `LAB_00591810` | See "Enter level" below |
 | +0xb0 | 4 item into inventory | `FUN_00591960` | See "Malus picked up" below |
-| +0xb8 | 6 | `0x591a90` | count−−; at 0 with +0x98 == 2 → reset `0x5918d0` |
+| +0xb8 | 6 | `0x591a90` | count−−; at 0 with +0x98 == 2 → reset `0x5918d0` (never runs: event 6's wrapper is an orphan, stubs.md) |
 | +0xc4 | 9 quest item carried out | `0x591a20` | count−−; at 0 with `data[1]` and +0x98 == 2 → log 0 refresh |
 | +0xc8 | 10 player leaves | `0x591a60` | `FUN_00545240` (participant removal) |
 | +0xcc | 11 message heard | `FUN_00591490` | See "Charsi" below |
@@ -155,7 +155,9 @@ if log != 1: log 0 via FUN_00544300(0, 0x5912e0, 0)
 
 ### Reset (`0x5918d0`)
 
-This runs when the last carrier drops or loses the malus (the +0xb8 path):
+This would run when the last carrier drops or loses the malus (the +0xb8
+path), but nothing in 1.14d raises event 6 (`0x543de0` has no caller,
+jump or pointer: stubs.md), so it never does:
 ```
 if !rec+9: return 0
 data+0x98 = 0

@@ -144,6 +144,7 @@ auto Fight::new_game(int difficulty) -> void {
         next_id = 1;
         missiles.clear();
         actor->regen.clear();
+        actor->merc_hurt = 0; actor->merc_poison_rate = actor->merc_poison_acc = 0; actor->merc_poison_until = 0;
         actor->charges.clear();
         actor->self_states.clear();
         actor->boost = {};
@@ -158,6 +159,7 @@ auto Fight::new_game(int difficulty) -> void {
 auto Fight::merc_joins() -> void {
         const auto& header = actor->character.header;
         actor->merc_target = -1; actor->merc_chase = false;
+        actor->merc_hurt = 0; actor->merc_poison_rate = actor->merc_poison_acc = 0; actor->merc_poison_until = 0;
         actor->merc_growth = 0; actor->merc_aura = -1; actor->merc_skill = -1; actor->merc_seq = nullptr; actor->merc_buff = {}; actor->merc_cry = {}; actor->leap.reset(); actor->knock.reset();
         merc_level_stats();
         if (!actor->merc) return;
@@ -2827,6 +2829,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             auto& missile = missiles[k];
             if (!missile.friendly || missile.skill < 0 || !missile.info) continue;   // the player's side's (a monster's carries its skill too)
             if (Hero* caster = hero_of(missile.caster)) act_as(*caster);              // its caster's skills, credit and leech
+            merc_blow = casting_merc = missile.by_merc;                              // a merc's burst kills and fires as the merc's
             const auto* skill = game_data->skills.get(missile.skill);
             if (!skill) continue;
             const int age = int(now_ms - missile.born) / 40;
@@ -2928,6 +2931,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 missile.velocity_x = missile.velocity_y = 0;
             }
         }
+        merc_blow = casting_merc = false;
     }
 
 auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms) -> void {
@@ -4684,7 +4688,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             }
             missiles_update(*level, missiles, foes, rng, now_ms, reach, [&](Missile& missile) {
                 if (Hero* caster = hero_of(missile.caster)) act_as(*caster);
-                merc_blow = missile.by_merc;
+                merc_blow = casting_merc = missile.by_merc;
                 const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& monster = monsters[i];
@@ -4709,7 +4713,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 }
                 return false;
             }, [&](int owner) { const int index = monster_index(owner); return index >= 0 && monsters[std::size_t(index)].alive(); });
-            merc_blow = false;
+            merc_blow = casting_merc = false;
             for (auto& foe : foes)                               // the shooters' MonProp events (knock, crush)
                 for (const int owner : foe.shot_by)
                     if (const int shooter = monster_index(owner); shooter >= 0) monprop_hit(monsters[std::size_t(shooter)], foe, true);

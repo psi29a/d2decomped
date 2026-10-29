@@ -105,9 +105,10 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
                 const auto& stat = item_tables.stats[kQuestItemDifficulty];
                 writer.write(std::uint32_t(std::max(quest_difficulty_of(item), 0) + stat.save_add), stat.save_bits);
             }
-            if (item.version > 86) {
+            if (item.version > 86) {                       // the version's word count, as the parser reads it back
                 writer.write(!item.realm.empty(), 1);
-                for (const auto word : item.realm) writer.write(word, 32);
+                if (!item.realm.empty())
+                    for (std::size_t word = 0; word < (item.version > 93 ? 3u : 2u); ++word) writer.write(word < item.realm.size() ? item.realm[word] : 0, 32);
             }
         } else writer.write(std::uint32_t(item.socketed_items.size()), 3);
         if (!item.simple) {

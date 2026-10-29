@@ -113,7 +113,7 @@ auto World::act_as(Player& player) -> void {
 
 auto World::add_player() -> Player& {
     auto& player = *players.emplace_back(std::make_unique<Player>());
-    player.id = players.size() > 1 ? players[players.size() - 2]->id + 1 : 1;
+    player.id = next_player_id++;                    // a unit id: never reused in a game, so no quest list holds a leaver's
     // The first player's town portal is [0] / [1]; the others' the first free pair from [8].
     for (std::size_t pair = kGamePortals; players.size() > 1; pair += 2)
         if (std::ranges::none_of(players, [&](const auto& other) { return other.get() != &player && other->portal_pair == pair; })) {
@@ -1224,7 +1224,8 @@ auto World::spawn_merc() -> void {
 
 auto World::swap_npcs(const Level* from) -> void {
         actor->arrived_at = now;
-        if (from && from != level) { act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); act5_enter(*from); }
+        if (from && from != level)                           // each player's level change (event 3): the party moved too (bring_party)
+            each_player([&](Player&) { act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); act5_enter(*from); });
         if (from) other_npcs[from] = std::move(npc_states);
         if (const auto found = other_npcs.find(level); found != other_npcs.end()) {
             npc_states = std::move(found->second);
