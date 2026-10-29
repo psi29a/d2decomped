@@ -1298,17 +1298,28 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // D2 movement: press or hold the left button on the ground
         // and the character walks toward that point (the target
         // tracks the cursor while held); the camera follows.
-        // Chat (a joined game): Enter opens a line, typing and Backspace edit
-        // it, Enter sends it (0x15) and Esc drops it. The host's 0x26 comes
-        // back to everyone, us too, as "name: message".
-        // ponytail: no whispers (/w name), no single-player echo.
-        if (net_game && !gold_box && !game_menu.open) {
+        // Chat: Enter opens a line, typing and Backspace edit it, Enter sends
+        // it (0x15) and Esc drops it. The host's 0x26 comes back to everyone,
+        // us too, as "name: message"; without a host (single player, local
+        // co-op) game.exe's own server echoes it so, d2d's chat shows it.
+        // "@name message" whispers (FUN_0047bad0: a name under 0x32, then
+        // the message; else the whole line goes to all).
+        if (!gold_box && !game_menu.open) {
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             for (const auto key : keys_this_frame) {
                 if (chat_typing && key == SDLK_BACKSPACE && !chat_typing->empty()) chat_typing->pop_back();
                 if (!chat_typing) { if (keys::bound(key_table, keys::kChat, virtual_key(key))) chat_typing = std::string{}; continue; }   // the key config's Chat (Enter)
                 if (key != SDLK_RETURN && key != SDLK_KP_ENTER) continue;
-                if (!chat_typing->empty()) net_game->say(*chat_typing);
+                if (const std::string_view line = *chat_typing; !line.empty()) {
+                    std::string_view target, message = line;
+                    if (line.starts_with('@') && net_game)              // '@' needs a multiplayer game (its entry's flag)
+                        if (const auto space = line.find(' '); space != std::string_view::npos && space > 1 && space - 1 < 0x32 && space + 1 < line.size()) {
+                            target = line.substr(1, space - 1);
+                            message = line.substr(space + 1);
+                        }
+                    if (net_game) net_game->say(message, target);
+                    else add_chat(character.name + string_id(*scene, 0xfd0) + std::string(message), 0, character.name.size());
+                }
                 chat_typing.reset();
             }
         }

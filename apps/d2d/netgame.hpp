@@ -168,7 +168,7 @@ struct NetGame {
     auto trade_answer(bool accept) -> void;
     auto trade_accept() -> void;
     auto trade_cancel() -> void;
-    auto say(std::string_view message) -> void;   // chat to all (0x15)
+    auto say(std::string_view message, std::string_view target = {}) -> void;   // chat to all, or a whisper to `target` (0x15)
     auto phrase(std::uint16_t which) -> void;     // a Say (0x3f, 0x19..0x20)
     auto merc_item(std::uint16_t slot) -> void;   // the merc's items (0x61): 0 give the held one, 1..10 take that one
     // The Party screen's (docs/research/re/party.md): its big button

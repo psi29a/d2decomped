@@ -93,11 +93,14 @@ inline auto update_quests() -> Bytes { return { 0x40 }; }
 // packet's first byte for it, seen live 2026-10-17). The host sends it on
 // as 0x26 type 1 (2 when a target is named), the sender's name and level
 // filled in.
-inline auto chat(std::string_view message) -> Bytes {
-    Bytes out{ 0x15, 0x01, 0x00 };
+// A whisper (`target` named, "@name message" typed: FUN_0047bad0's
+// table at 0x712f7c) goes as type 2.
+inline auto chat(std::string_view message, std::string_view target = {}) -> Bytes {
+    Bytes out{ 0x15, std::uint8_t(target.empty() ? 1 : 2), 0x00 };
     for (const char letter : message.substr(0, 255)) put_u8(out, std::uint8_t(letter));
     put_u8(out, 0);   // the message's end
-    put_u8(out, 0);   // no target
+    for (const char letter : target.substr(0, 0x31)) put_u8(out, std::uint8_t(letter));
+    put_u8(out, 0);   // the target's end
     put_u8(out, 0);   // no more bytes
     return out;
 }

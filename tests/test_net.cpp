@@ -144,6 +144,7 @@ int main() try {
         assert(d2gs::c2s::ping(1234).size() == 13);
         // Chat to all: type 1, language 0, the message, no target (54a5d0 wants size > length + 4).
         assert((d2gs::c2s::chat("hi") == d2d::net::Bytes{ 0x15, 0x01, 0x00, 'h', 'i', 0x00, 0x00, 0x00 }));
+        assert((d2gs::c2s::chat("hi", "Mi") == d2d::net::Bytes{ 0x15, 0x02, 0x00, 'h', 'i', 0x00, 'M', 'i', 0x00, 0x00 }));   // "@Mi hi": a whisper
         // 0x3c: the hand's skill (bit 31 the left) and a charged entry's item, else -1.
         assert((d2gs::c2s::select_skill(54, true, 0x1234) == d2d::net::Bytes{ 0x3c, 54, 0, 0, 0x80, 0x34, 0x12, 0, 0 }));
         assert((d2gs::c2s::select_skill(0, false) == d2d::net::Bytes{ 0x3c, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff }));

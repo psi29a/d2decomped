@@ -133,7 +133,7 @@ auto NetGame::trade_accept() -> void {
     trade.state = 7;
 }
 
-auto NetGame::say(std::string_view message) -> void { send({ d2d::net::d2gs::c2s::chat(message) }); }
+auto NetGame::say(std::string_view message, std::string_view target) -> void { send({ d2d::net::d2gs::c2s::chat(message, target) }); }
 auto NetGame::phrase(std::uint16_t which) -> void { send({ d2d::net::d2gs::c2s::phrase(which) }); }
 auto NetGame::merc_item(std::uint16_t slot) -> void { send({ d2d::net::d2gs::c2s::merc_item(slot) }); }
 
