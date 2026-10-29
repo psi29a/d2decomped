@@ -435,15 +435,15 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     return taken;
 }
 
-// game.exe's a x b / c (FUN_00483360), truncated: c 0 gives 0; a past
-// 0x100000 goes a / c x b when c <= a >> 4, b past 0x10000 b / c x a when
-// c <= b >> 4; else in 64 bits when either is that large, 32 (wrapping)
-// when neither is.
-inline int scale(int a, int b, int c) {
-    if (c == 0) return 0;
-    if (a > 0x100000) return c <= a >> 4 ? a / c * b : int(std::int64_t(a) * b / c);
-    if (b > 0x10000) return c <= b >> 4 ? b / c * a : int(std::int64_t(a) * b / c);
-    return std::int32_t(std::uint32_t(a) * std::uint32_t(b)) / c;
+// game.exe's value x by / over (FUN_00483360), truncated: over 0 gives 0;
+// value past 0x100000 goes value / over x by when over <= value >> 4, by
+// past 0x10000 by / over x value when over <= by >> 4; else in 64 bits when
+// either is that large, 32 (wrapping) when neither is.
+inline int scale(int value, int by, int over) {
+    if (over == 0) return 0;
+    if (value > 0x100000) return over <= value >> 4 ? value / over * by : int(std::int64_t(value) * by / over);
+    if (by > 0x10000) return over <= by >> 4 ? by / over * value : int(std::int64_t(value) * by / over);
+    return std::int32_t(std::uint32_t(value) * std::uint32_t(by)) / over;
 }
 
 // A kill's experience by the level difference (FUN_0057e2f0), in 256ths:

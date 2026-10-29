@@ -9,6 +9,7 @@
 #include <rules.hpp>
 #include <sound_ids.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
