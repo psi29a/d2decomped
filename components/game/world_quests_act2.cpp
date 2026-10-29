@@ -51,30 +51,30 @@ auto World::act2_join() -> void {
     }
 
 auto World::act2_enter(const Level& from) -> void {
-        radament.enter(quests(), from.id);
-        if (from.id == d2d::rules::level_ids::kLutGholein) staff.rewarded = false;   // LAB_00599a00
-        arcane.enter(quests(), from.id, level->id);
-        summoner.enter(from.id, level->id);
-        tombs.enter(quests(), from.id, level->id);
+        radament.enter(quests(), from.id, actor->id);
+        if (from.id == d2d::rules::level_ids::kLutGholein) staff.rewarded.remove(actor->id);   // LAB_00599a00
+        arcane.enter(quests(), from.id, level->id, actor->id);
+        summoner.enter(from.id, level->id, actor->id);
+        tombs.enter(quests(), from.id, level->id, actor->id);
         if (level->id == tombs.true_tomb)   // the orifice's InitFn 21 (FUN_0059db50): the level's rooms all come up
             for (std::size_t index = 0; index < level->npcs.size(); ++index)
                 if (level->npcs[index].operate_fn == d2d::rules::operate_fn::kOrifice && tombs.orifice_seen()) operated.try_emplace({ level, int(index) }, now);
-        if (tainted.enter(from.id, level->id)) tainted.dark_in = int(fight.spawning.quests(17));
+        if (tainted.enter(from.id, level->id, actor->id)) tainted.dark_in = int(fight.spawning.quests(17));
         if (level->id == d2d::rules::TaintedSunQuest::kTemple)   // the altar's InitFn 20 (FUN_0059a3f0): the level's rooms all come up
             for (const auto& object : level->npcs) if (object.root == "objects" && object.object_id == d2d::rules::TaintedSunQuest::kAltar) tainted.altar_seen();
     }
 
 auto World::act2_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh) -> void {
         std::ranges::copy(d2d::rules::ActTwoOpening::talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(radament.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(tainted.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(staff.talk(quests(), hc_idx, staff_items()), std::back_inserter(out));
+        std::ranges::copy(radament.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
+        std::ranges::copy(tainted.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
+        std::ranges::copy(staff.talk(quests(), hc_idx, staff_items(), actor->id), std::back_inserter(out));
         std::ranges::copy(arcane.talk(quests(), hc_idx, [&] {          // the guard's line: one roll a talk on the quest seed
                               if (fresh) guard_line = 187 + int(fight.spawning.quests.next() % 3);
                               return std::uint32_t(guard_line - 187);
-                          }), std::back_inserter(out));
-        std::ranges::copy(summoner.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(tombs.talk(quests(), hc_idx, d2d::rules::quest::bit(game_bits, d2d::rules::SummonerQuest::kQuest, 13)), std::back_inserter(out));
+                          }, actor->id), std::back_inserter(out));
+        std::ranges::copy(summoner.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
+        std::ranges::copy(tombs.talk(quests(), hc_idx, d2d::rules::quest::bit(game_bits, d2d::rules::SummonerQuest::kQuest, 13), actor->id), std::back_inserter(out));
     }
 
 auto World::act2_talk_closed(int hc_idx) -> void {
@@ -86,14 +86,14 @@ auto World::act2_talk_closed(int hc_idx) -> void {
 auto World::act2_said(int hc_idx, int message_string) -> void {
         d2d::rules::ActTwoOpening::said(quests(), game_bits, hc_idx, message_string);
         const int radament_was = radament.state;
-        radament.said(quests(), game_bits, hc_idx, message_string);
+        radament.said(quests(), game_bits, hc_idx, message_string, actor->id);
         if (radament_was != 5 && radament.state == 5) tombs.chain();        // Radament's +0xf0: on to record 13's
         const int tainted_was = tainted.state;
-        tainted.said(quests(), game_bits, hc_idx, message_string);
+        tainted.said(quests(), game_bits, hc_idx, message_string, actor->id);
         if (tainted_was != 5 && tainted.state == 5 && arcane.chain()) tombs.chain();   // the Tainted Sun's +0xf0: on to record 11's, then 13's
-        arcane.said(quests(), game_bits, hc_idx, message_string, room_of(*level, actor->player.x, actor->player.y));
-        summoner.said(quests(), game_bits, message_string);
-        if (const auto heard = tombs.said(quests(), game_bits, hc_idx, message_string, level->id == d2d::rules::SevenTombsQuest::kLair); heard.town_portal) {
+        arcane.said(quests(), game_bits, hc_idx, message_string, room_of(*level, actor->player.x, actor->player.y), actor->id);
+        summoner.said(quests(), game_bits, message_string, actor->id);
+        if (const auto heard = tombs.said(quests(), game_bits, hc_idx, message_string, level->id == d2d::rules::SevenTombsQuest::kLair, actor->id); heard.town_portal) {
             open_portal_at(actor->player.x, actor->player.y + 0.6f, now);              // Tyrael's (FUN_0056d130: object 59 to level 40)
             if (heard.act3) open_act(2);                                  // Act 3 open
             d2d::log::info("The Seven Tombs: Tyrael's portal");
@@ -101,7 +101,7 @@ auto World::act2_said(int hc_idx, int message_string) -> void {
             for (const char* code : { "hst", "vip", "msf" }) take_carried(code);
         }
         if (hc_idx == d2d::rules::ArcaneQuest::kDrognan || hc_idx == d2d::rules::ArcaneQuest::kJerhyn) show_palace();   // the guard steps aside
-        if (staff.said(quests(), hc_idx, message_string)) take_carried("tr1");   // the scroll read: it goes
+        if (staff.said(quests(), hc_idx, message_string, actor->id)) take_carried("tr1");   // the scroll read: it goes
     }
 
 auto World::act2_tick() -> void {

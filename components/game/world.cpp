@@ -1337,7 +1337,8 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 // ponytail: loot's rng, not the game's quest rng (game+0x10f4); quests:
 // agent A's.
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
-        if (!andy.killed(quests(), level->id == d2d::rules::level_ids::kCatacombsLevel4)) return;
+        if (level->id == d2d::rules::level_ids::kCatacombsLevel4) each_player([&](Player& player) { andy.in_lair(quests(), player.id); });
+        if (!andy.killed(quests())) return;
         class_cue("act1_complete_andariel", now_ms);   // unit event 0x21: participant's class voice
         music_cue("music_quest_andariel");
         open_act(1);
@@ -1558,7 +1559,7 @@ auto World::kashya_merc() -> void {
 // player's kill, their complete_tower line (unit event 0x25). Her drop is
 // her SuperUniques TC's (negative picks: an item and a rune roll).
 auto World::countess_died(std::uint32_t now_ms) -> void {
-        const bool quest_kill = tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar);
+        const bool quest_kill = tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar, actor->id);
         // Her treasure (FUN_005954f0, dead and not yet made: d+0x118 / 0x119):
         // a towerchestspawner (missile 332) at each chest of cellar 5 (object
         // 371, InitFn 47 lists up to 8).
@@ -2281,11 +2282,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         if (const auto* message = std::get_if<cmd::QuestMessage>(&command)) {   // only what that NPC has to say
             if (hosted_quests || std::size_t(message->npc) >= level->npcs.size()) return true;
             if (level->npcs[std::size_t(message->npc)].operate_fn == d2d::rules::operate_fn::kJournal) {     // the journal's 396 (a2q4's +0xcc: no NPC)
-                if (arcane.said(quests(), game_bits, -1, message->string, room_of(*level, actor->player.x, actor->player.y))) canyon_portal(now);
+                if (arcane.said(quests(), game_bits, -1, message->string, room_of(*level, actor->player.x, actor->player.y), actor->id)) canyon_portal(now);
                 return true;
             }
             if (level->npcs[std::size_t(message->npc)].operate_fn == d2d::rules::operate_fn::kMoldyTome) {   // the tome's 127 (FUN_00594960: no NPC check)
-                if (message->string == d2d::rules::TowerQuest::kTome && !closed_at_join[std::size_t(d2d::rules::TowerQuest::kQuest)]) { tower.read_tome(quests()); d2d::log::info("The Forgotten Tower: read the Moldy Tome"); }
+                if (message->string == d2d::rules::TowerQuest::kTome && !closed_at_join[std::size_t(d2d::rules::TowerQuest::kQuest)]) { tower.read_tome(quests(), actor->id); d2d::log::info("The Forgotten Tower: read the Moldy Tome"); }
                 return true;
             }
             const int hc_idx = level->npcs[std::size_t(message->npc)].hc_idx;

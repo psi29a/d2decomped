@@ -37,6 +37,14 @@ inline void set(QuestBits& quest_bits, int quest, int bit, bool set = true) {
     auto& byte = quest_bits[std::size_t(bit_index >> 3)];
     byte = std::uint8_t(set ? byte | mask : byte & ~mask);
 }
+// A record's list of players by unit id (game.exe: up to 32 ids, the count
+// at +0x80; FUN_005452c0 looks one up, FUN_00545240 drops one).
+struct Players {
+    std::vector<int> ids;
+    [[nodiscard]] bool has(int player) const { return std::ranges::contains(ids, player); }
+    void add(int player) { if (!has(player)) ids.push_back(player); }
+    void remove(int player) { std::erase(ids, player); }
+};
 }  // namespace quest
 // Akara's reset of the stat and skill points (the Den of Evil's reward):
 // its flags are quest 41's (0 used, 1 open, 13 opened late).
@@ -159,8 +167,7 @@ struct DenQuest {
 // FUN_00591210). Quest 2; bits: 0 done, 1 reward due, 2 given, 3 / 4 in
 // the Burial Grounds, 13 took part in the kill, 14 killed by someone
 // else, 15 closed.
-// ponytail: one player — the rewarded list (rec+0x1c) is a bool, the
-// party share of the kill (LAB_00590e70) is left out.
+// N-player gap: the party share of the kill (LAB_00590e70) is World::credit_party's one rule.
 struct BurialQuest {
     static constexpr int kQuest = 2, kKashya = monster_ids::kKashya, kBurial = level_ids::kBurialGrounds, kBloodRaven = monster_ids::kBloodRaven;
     bool open = true;   // +9: closed in this game when the player's done it (FUN_00546270)
@@ -168,7 +175,7 @@ struct BurialQuest {
     int log = 0;        // +0xb
     int log_in = 0;     // ticks to the kill's "return to Kashya" (timer 0xf, LAB_00590bf0), 0 not running
     bool pending = false;    // data+3: Kashya gave it, the log waits for the talk to close
-    bool rewarded = false;   // in the +0x1c list: took the reward, still in town
+    quest::Players rewarded;   // in the +0x1c list: took the reward, still in town
 
     // A player's bits for the state (LAB_00590890).
     void mark(QuestBits& quest_bits) const {
@@ -206,10 +213,10 @@ struct BurialQuest {
         { { kKashya, 92, true }, { 155, 96, false }, { 154, 94, false }, { 148, 93, false }, { 147, 95, false } },
         { { 155, 96, false }, { kKashya, 92, false }, { 148, 93, false }, { 147, 95, false } },
     };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player) const {
         int block = -1;
         if (quest::bit(quest_bits, kQuest, 1)) block = 3;
-        else if (rewarded) block = 4;
+        else if (rewarded.has(player)) block = 4;
         else if (state >= 1 && state <= 3 && !quest::bit(quest_bits, kQuest, 0)) block = state - 1;
         std::vector<QuestMsg> out;
         if (block >= 0)
@@ -224,14 +231,14 @@ struct BurialQuest {
     // The player heard `string` from `npc` (FUN_00590980). True: Kashya's
     // reward — done, and a free hireling (FUN_00579180). The state going
     // to 5 runs the chain (+0xf0).
-    bool said(QuestBits& quest_bits, int npc, int string) {
+    bool said(QuestBits& quest_bits, int npc, int string, int player) {
         if (npc != kKashya) return false;
         if (string == 81) { pending = true; state = 2; mark(quest_bits); return false; }
         if (string != 92 || !quest::bit(quest_bits, kQuest, 1)) return false;
         if (quest::bit(quest_bits, kQuest, 13) && state != 5) { log = 0xd; state = 5; }
         quest::set(quest_bits, kQuest, 0);
         quest::set(quest_bits, kQuest, 1, false);
-        rewarded = true;
+        rewarded.add(player);
         return true;
     }
     // The talk with `npc` closed (LAB_00590920).
@@ -241,7 +248,7 @@ struct BurialQuest {
         mark(quest_bits);
     }
     // The player went from level `from` to `dest` (FUN_00590fa0).
-    void enter(QuestBits& quest_bits, int from, int dest) {
+    void enter(QuestBits& quest_bits, int from, int dest, int player) {
         if (dest == kBurial && open) {
             const bool bumped = state < 3;
             if (bumped) state = 3;
@@ -249,7 +256,7 @@ struct BurialQuest {
             if (bumped) { mark(quest_bits); return; }
         }
         if (from != 1) return;
-        rewarded = false;                         // FUN_00545310
+        rewarded.remove(player);                         // FUN_00545310
         if (state == 2 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) { state = 3; mark(quest_bits); }
     }
     // Blood Raven died (FUN_00590ec0). True: the player's kill for it
@@ -270,8 +277,6 @@ struct BurialQuest {
 // Sisters to the Slaughter, one game's (a1q6.cpp, the record at
 // FUN_00596990). Quest 6; bits: 0 done, 1 reward due, 2 given, 3 / 4 in
 // the Catacombs, 13 took part, 14 cleared by someone else, 15 closed.
-// ponytail: one player — the Cain / Akara / Kashya lists (+0x000 / +0x084
-// / +0x108) and the rewarded list (rec+0x1c) are a bool each for them.
 struct AndyQuest {
     static constexpr int kQuest = 6, kCain = monster_ids::kCampCain, kAkara = monster_ids::kAkara, kKashya = monster_ids::kKashya,
                          kWarriv = monster_ids::kWarriv, kAndariel = monster_ids::kAndariel;
@@ -280,7 +285,8 @@ struct AndyQuest {
     int start_in = 0;   // ticks to the start timer (0x14, then 0x596580), 0 not running
     bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
     int after_kill = 0; // +0x192: ticks since Andariel died (timer 0x596500), 0 not running
-    bool cain = false, akara = false, kashya = false, rewarded = false;
+    quest::Players cain, akara, kashya;   // data +0x000 / +0x084 / +0x108: players with her death's news for them (FUN_00596260)
+    quest::Players rewarded;              // rec+0x1c
     bool cain_pending = false;   // +0x195: Cain gave it, the log waits for the talk to close
 
     // A player's bits for the state (0x595bd0).
@@ -323,14 +329,14 @@ struct AndyQuest {
         { { kKashya, 181, true }, { kCain, 184, true }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, true }, { kAkara, 179, true } },
         { { kKashya, 181, false }, { kCain, 184, false }, { 154, 180, false }, { 147, 182, false }, { kWarriv, 183, false }, { kAkara, 179, false } },
     };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player) const {
         const bool bit0 = quest::bit(quest_bits, kQuest, 0), b13 = quest::bit(quest_bits, kQuest, 13);
-        const bool listed = (npc == kCain && cain) || (npc == kAkara && akara) || (npc == kKashya && kashya);
+        const bool listed = (npc == kCain && cain.has(player)) || (npc == kAkara && akara.has(player)) || (npc == kKashya && kashya.has(player));
         const bool cak = npc == kCain || npc == kAkara || npc == kKashya;
         int block = -1;
         if (listed) block = 3;
         else if (quest::bit(quest_bits, kQuest, 1)) block = cak ? 4 : 3;
-        else if (rewarded) block = 4;
+        else if (rewarded.has(player)) block = 4;
         else if (state == 1 && npc == kCain && !bit0) block = 0;
         else if (state != 0 && !(bit0 && !b13) && !(state >= 4 && !b13) && !(bit0 && b13)) block = state - 1;
         std::vector<QuestMsg> out;
@@ -339,24 +345,24 @@ struct AndyQuest {
         return out;
     }
     // The balloon over `npc` (FUN_005967f0).
-    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc) const {
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, int player) const {
         const bool bit0 = quest::bit(quest_bits, kQuest, 0), bit1 = quest::bit(quest_bits, kQuest, 1);
-        if (npc == kCain) return cain || (!bit0 && state == 1 && !bit1);
+        if (npc == kCain) return cain.has(player) || (!bit0 && state == 1 && !bit1);
         if (npc == kWarriv) return !bit0 && bit1;
-        return (npc == kAkara && akara) || (npc == kKashya && kashya);
+        return (npc == kAkara && akara.has(player)) || (npc == kKashya && kashya.has(player));
     }
     // The player heard `string` from `npc` (FUN_00595c60). True: Warriv's
     // reward — done (bit 0), and the quest's complete message.
-    bool said(QuestBits& quest_bits, int npc, int string) {
+    bool said(QuestBits& quest_bits, int npc, int string, int player) {
         if (npc == kCain && string == 166) { state = 2; cain_pending = true; mark(quest_bits); }
-        if (npc == kCain && string == 184) cain = false;
-        if (npc == kAkara && string == 179) akara = false;
-        if (npc == kKashya && string == 181) kashya = false;
+        if (npc == kCain && string == 184) cain.remove(player);
+        if (npc == kAkara && string == 179) akara.remove(player);
+        if (npc == kKashya && string == 181) kashya.remove(player);
         if (npc != kWarriv || string != 183 || !quest::bit(quest_bits, kQuest, 1)) return false;
         if (quest::bit(quest_bits, kQuest, 13)) { log = 0xd; state = 5; }
         quest::set(quest_bits, kQuest, 1, false);
         quest::set(quest_bits, kQuest, 0);
-        rewarded = true;
+        rewarded.add(player);
         return true;
     }
     // The talk with `npc` closed (0x595b80).
@@ -376,16 +382,20 @@ struct AndyQuest {
     }
     // Andariel died (FUN_005965a0). True: the player's kill for the quest
     // (bits 13 and 1, FUN_00596210) — Act 2 opens and her quest drop is
-    // due: two chipped gems, one standard. `in_lair`: the player's in her
-    // level (FUN_00596260: the lists).
-    // ponytail: a merc's kill counts as the player's.
-    bool killed(QuestBits& quest_bits, bool in_lair) {
+    // due: two chipped gems, one standard. A merc's or pet's kill is its
+    // owner's (Fight::Kill::killer).
+    bool killed(QuestBits& quest_bits) {
         const bool first = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         if (first) { quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1); }
-        if (in_lair && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15)) cain = akara = kashya = true;
         after_kill = 1;
         state = 4;
         return first;
+    }
+    // A player in her level at her death (FUN_00596260): Cain, Akara and
+    // Kashya have news for them, unless they're done or closed.
+    void in_lair(const QuestBits& quest_bits, int player) {
+        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) return;
+        cain.add(player); akara.add(player); kashya.add(player);
     }
     // Her quest drop's codes (0x7361dc chipped, 0x736444 standard), by lo % 7.
     static constexpr const char* kChipped[7] = { "gcv", "gcr", "gcb", "gcy", "gcg", "gcw", "skc" };
@@ -447,9 +457,8 @@ struct ActTwoOpening {
 // out from the start (state 1). Bits: 0 done, 1 reward due, 2 Atma told,
 // 3 / 4 under way, 5 the Book of Skill due (cleared reading it), 13 took
 // part, 14 killed by someone else, 15 closed.
-// ponytail: one player — the rewarded list (rec+0x1c) is a bool, the party's
-// bits (FUN_00598d40) and the chain on to the Seven Tombs (+0x10 13, its
-// record not ported) are left out.
+// N-player gap: the party's bits (FUN_00598d40) are World::credit_party's
+// one rule; the chain on to the Seven Tombs (+0x10 13) is World's.
 struct RadamentQuest {
     static constexpr int kQuest = 9, kAtma = monster_ids::kAtma, kLair = level_ids::kSewersLevel3, kRadament = monster_ids::kRadament;
     static constexpr int kInit = 304, kSuccess = 334;
@@ -458,7 +467,7 @@ struct RadamentQuest {
     int log = 0;        // +0xb
     int log_in = 0;     // ticks to the kill's "return to Atma" (timer 0xc, LAB_00598f70)
     bool pending = false;          // data+8: Atma spoke, the log waits for the talk to close
-    bool rewarded = false;         // in the +0x1c list
+    quest::Players rewarded;         // in the +0x1c list
     bool reward_closed = false;    // data+0x10: joined closed with the reward due
 
     // A player's bits for the state (LAB_005989e0).
@@ -500,10 +509,10 @@ struct RadamentQuest {
         { { 175, 331, false }, { kAtma, 334, false }, { 198, 325, false }, { 199, 330, false }, { 177, 326, false }, { 244, 333, false },
           { 210, 328, false }, { 200, 329, false }, { 178, 332, false } },
     };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player) const {
         int block = -1;
         if (quest::bit(quest_bits, kQuest, 1)) block = 3;
-        else if (rewarded) block = 4;
+        else if (rewarded.has(player)) block = 4;
         else if (!quest::bit(quest_bits, kQuest, 0) && state != 0 && (state < 4 || quest::bit(quest_bits, kQuest, 13))) block = state - 1;
         std::vector<QuestMsg> out;
         if (block >= 0 && block <= 4)
@@ -517,7 +526,7 @@ struct RadamentQuest {
     }
     // The player heard `string` from `npc` (FUN_00598a70). Atma's thanks with
     // the reward due: done (the book was the reward).
-    void said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string) {
+    void said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, int player) {
         if (npc != kAtma) return;
         if (string == kInit) { pending = true; state = 2; mark(quest_bits); return; }
         if (string != kSuccess || !quest::bit(quest_bits, kQuest, 1)) return;
@@ -527,7 +536,7 @@ struct RadamentQuest {
         }
         quest::set(quest_bits, kQuest, 0);
         quest::set(quest_bits, kQuest, 1, false);
-        rewarded = true;
+        rewarded.add(player);
     }
     // The talk with `npc` closed (LAB_00598990).
     void talk_closed(QuestBits& quest_bits, int npc) {
@@ -536,9 +545,9 @@ struct RadamentQuest {
         mark(quest_bits);
     }
     // The player went from level `from` (LAB_00599130): out of town.
-    void enter(QuestBits& quest_bits, int from) {
+    void enter(QuestBits& quest_bits, int from, int player) {
         if (from != level_ids::kLutGholein) return;
-        rewarded = false;                         // FUN_00545310
+        rewarded.remove(player);                         // FUN_00545310
         if (state == 2 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) { state = 3; mark(quest_bits); }
     }
     // Radament died (FUN_00599020). The books to drop at him (one each for a
@@ -573,14 +582,14 @@ struct RadamentQuest {
 // 3 Cain's read the scroll (or seen any part), 4 / 5 / 6 the amulet /
 // shaft / Cube shown, 10 the staff shown, 13 / 14 done here / by others,
 // 15 closed. Its log is its own (+0xe8, FUN_0059e630).
-// N-player gap: one player — the rewarded list is a bool and the counts of
-// players carrying each part (data+0x18..0x24) are what this one carries.
+// N-player gap: the counts of players carrying each part (data+0x18..0x24)
+// are what this one carries.
 struct HoradricStaffQuest {
     static constexpr int kQuest = 10, kCain = monster_ids::kCainAct2;
     static constexpr int kScrollChest = 40, kShaftChest = 41, kCubeChest = 39;   // OperateFns (objects.txt 355, 356, 354)
     struct Items { bool scroll = false, shaft = false, cube = false, amulet = false, staff = false; };
     bool open = true;              // +9
-    bool rewarded = false;         // in the +0x1c list
+    quest::Players rewarded;         // in the +0x1c list
     bool shaft_dropped = false;    // data+0x28: the shaft chest gave one
     bool cube_dropped = false;     // data+0x29: the Cube chest gave one
     bool staff_made = false;       // data+0x2a: transmuted (FUN_0059e5c0; the player's bit 11)
@@ -609,13 +618,13 @@ struct HoradricStaffQuest {
     // Cain's lines (FUN_00599910): blocks at 0x739918, one each; 0..4
     // greet (kind 0), 5..9 are topics.
     static constexpr std::array<int, 10> kLines{ 335, 336, 337, 338, 339, 339, 335, 336, 337, 338 };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, const Items& items) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, const Items& items, int player) const {
         if (npc != kCain) return {};
         int block = 4;
         if (!quest::bit(quest_bits, kQuest, 1)) {
             const auto found = pick(quest_bits, items);
             if (found.news && found.block >= 0) block = found.block;
-            else if (rewarded) block = 5;
+            else if (rewarded.has(player)) block = 5;
             else if (quest::bit(quest_bits, kQuest, 0)) return {};
             else if (found.block < 0) { if (!quest::bit(quest_bits, kQuest, 3)) return {}; block = 6; }
             else block = found.block;
@@ -628,7 +637,7 @@ struct HoradricStaffQuest {
     }
     // The player heard `string` from Cain (FUN_005997f0). True: he read the
     // scroll, which goes (FUN_00544160 -> FUN_005440a0).
-    bool said(QuestBits& quest_bits, int npc, int string) {
+    bool said(QuestBits& quest_bits, int npc, int string, int player) {
         if (npc != kCain) return false;
         switch (string) {
         case 335: quest::set(quest_bits, kQuest, 3); return true;
@@ -637,7 +646,7 @@ struct HoradricStaffQuest {
         case 338: quest::set(quest_bits, kQuest, 6); break;
         case 339:
             quest::set(quest_bits, kQuest, 1, false);
-            rewarded = true;
+            rewarded.add(player);
             for (const int bit : { 10, 4, 6, 5 }) quest::set(quest_bits, kQuest, bit);
             break;
         default: return false;
@@ -688,7 +697,7 @@ struct HoradricStaffQuest {
 // Canyon of the Magi. Bits: 0 done, 1 reward due, 2..5 under way (the
 // mark), 7 / 8 the guard's two lines heard, 13 took part, 14 by others,
 // 15 closed.
-// N-player gaps: one player (the rewarded bool, no party credit); the
+// N-player gap: party credit is World::credit_party's one rule. The
 // palace door's mode (data+0x38) and Jerhyn's moves are show_palace's.
 struct ArcaneQuest {
     static constexpr int kQuest = 12, kDrognan = monster_ids::kDrognan, kJerhyn = monster_ids::kJerhyn, kGuard = monster_ids::kPalaceGuard;
@@ -703,7 +712,7 @@ struct ArcaneQuest {
     bool pending = false;      // data+4: Drognan spoke, the log waits for the talk to close
     int journal_room = -1;     // data+8: the journal's room (the Sanctuary's)
     bool portal_made = false;  // data+0x16
-    bool rewarded = false;
+    quest::Players rewarded;
 
     // A player's bits for the state (LAB_0059adb0).
     void mark(QuestBits& quest_bits) const {
@@ -762,11 +771,11 @@ struct ArcaneQuest {
     };
     // `roll`: the quest seed's next step, drawn only for the guard's line.
     template <class Roll>
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, Roll&& roll) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, Roll&& roll, int player) const {
         if (npc == kGuard) return { { guard_in ? 187 + int(roll() % 3) : 186, true } };
         int block = -1;
         if (quest::bit(quest_bits, kQuest, 1)) block = 4;
-        else if (rewarded) block = 5;
+        else if (rewarded.has(player)) block = 5;
         else if (state != 0 && open && !quest::bit(quest_bits, kQuest, 0) && !(state > 4 && !quest::bit(quest_bits, kQuest, 13))) block = state - 1;
         std::vector<QuestMsg> out;
         if (block >= 0 && block < 6)
@@ -787,7 +796,7 @@ struct ArcaneQuest {
     // The player heard `string` from `npc` (FUN_0059af50). True: the
     // journal's 396 heard in its room: the way to the Canyon opens there
     // (FUN_0056d130: object 60 to level 46), once; the game's bit 13.
-    bool said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, int player_room) {
+    bool said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, int player_room, int player) {
         if (npc == kGuard) {
             if (string == 186) quest::set(quest_bits, kQuest, 7);
             else if (string >= 187 && string <= 189) quest::set(quest_bits, kQuest, 8);
@@ -795,7 +804,7 @@ struct ArcaneQuest {
         }
         if (string >= kThanksFirst && string <= kThanksLast && quest::bit(quest_bits, kQuest, 1)) {
             quest::set(quest_bits, kQuest, 1, false);
-            rewarded = true;
+            rewarded.add(player);
         }
         if (string == kJournal) {
             if (open && log < 5) log = 5;
@@ -817,7 +826,7 @@ struct ArcaneQuest {
         mark(quest_bits);
     }
     // The player went from `from` to `dest` (FUN_0059f0c0).
-    void enter(QuestBits& quest_bits, int from, int dest) {
+    void enter(QuestBits& quest_bits, int from, int dest, int player) {
         if (dest == kSanctuary) {
             const bool before = state <= 3;
             if (before) state = 4;
@@ -828,7 +837,7 @@ struct ArcaneQuest {
         }
         if (dest == kHarem) { quest::set(quest_bits, kQuest, 8); quest::set(quest_bits, kQuest, 7); }
         if (from == level_ids::kLutGholein) {
-            rewarded = false;                     // FUN_00545310
+            rewarded.remove(player);                     // FUN_00545310
             if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && state == 3) { state = 4; mark(quest_bits); }
         }
     }
@@ -854,7 +863,7 @@ struct ArcaneQuest {
 // when he first goes for a player (FUN_005f85c0 -> FUN_0059c330); his
 // death credits the players by him; the town's thanks finish it. Bits: 0
 // done, 1 reward due, 2 under way, 13 took part, 14 by others, 15 closed.
-// N-player gaps: one player (the rewarded bool, no party credit).
+// N-player gap: party credit is World::credit_party's one rule.
 struct SummonerQuest {
     static constexpr int kQuest = 13, kSummoner = monster_ids::kSummoner, kSanctuary = level_ids::kArcaneSanctuary;
     static constexpr int kThanksFirst = 419, kThanksLast = 429;
@@ -863,7 +872,7 @@ struct SummonerQuest {
     int log = 0;
     bool started = false;      // data+1
     int log_in = 0;            // data+8: the death's 3-tick timer (LAB_0059bfd0)
-    bool rewarded = false;
+    quest::Players rewarded;
     void mark(QuestBits& quest_bits) const {   // LAB_0059bd10
         if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && state == 1) quest::set(quest_bits, kQuest, 2);
     }
@@ -908,11 +917,11 @@ struct SummonerQuest {
     };
     // FUN_0059bbc0: the reward due → block 1; rewarded → 2; else by the
     // state (0x73b278: -1, 0, 1, 2).
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player) const {
         int block = -1;
         const bool b13 = quest::bit(quest_bits, kQuest, 13);
         if (quest::bit(quest_bits, kQuest, 1)) block = 1;
-        else if (rewarded) block = 2;
+        else if (rewarded.has(player)) block = 2;
         else if (open && state != 0 && !(quest::bit(quest_bits, kQuest, 0) && !b13) && !(state > 1 && !b13)) block = state - 1;
         std::vector<QuestMsg> out;
         if (block >= 0 && block < 3)
@@ -923,14 +932,14 @@ struct SummonerQuest {
         static constexpr std::array<int, 10> kTown{ 176, 175, 199, 177, 202, 244, 210, 201, 200, 178 };
         return std::ranges::find(kTown, npc) != kTown.end() && quest::bit(quest_bits, kQuest, 1);
     }
-    void said(QuestBits& quest_bits, QuestBits& game_bits, int string) {     // FUN_0059bd70
+    void said(QuestBits& quest_bits, QuestBits& game_bits, int string, int player) {     // FUN_0059bd70
         if (string < kThanksFirst || string > kThanksLast || !quest::bit(quest_bits, kQuest, 1)) return;
         if (quest::bit(quest_bits, kQuest, 13)) { log = 0xd; quest::set(game_bits, kQuest, 13); state = 3; }
-        rewarded = true;
+        rewarded.add(player);
         quest::set(quest_bits, kQuest, 0);
         quest::set(quest_bits, kQuest, 1, false);
     }
-    void enter(int from, int dest) { if (open && dest >= level_ids::kLutGholein && from == level_ids::kLutGholein) rewarded = false; }   // LAB_0059c200
+    void enter(int from, int dest, int player) { if (open && dest >= level_ids::kLutGholein && from == level_ids::kLutGholein) rewarded.remove(player); }   // LAB_0059c200
 };
 
 // The Seven Tombs (a2q6.cpp, the record at FUN_0059d5b0): quest 14. Open
@@ -943,7 +952,7 @@ struct SummonerQuest {
 // heard, 4 Jerhyn's reward heard, 5 at Duriel's death, 6..11 the town's
 // lines heard, 13 took part, 14 by others, 15 closed. Its log is its own
 // (+0xe8, FUN_0059ca50).
-// N-player gaps: one player (the rewarded bool, no party credit); the
+// N-player gap: party credit is World::credit_party's one rule. The
 // orifice's panel (the staff dragged in: C->S 0x44) is skipped — using it
 // with the staff places it; the log override (data+0x10 / +0x14) isn't
 // traced; Tyrael's prison (data+0x2c) isn't opened.
@@ -966,7 +975,7 @@ struct SevenTombsQuest {
     bool timer_started = false;   // data+3
     int open_in = -1;          // the orifice's timer (FUN_0059d870)
     int log_in = 0;            // Duriel's death's 8-tick timer (LAB_0059cee0)
-    bool rewarded = false;
+    quest::Players rewarded;
     void mark(QuestBits& quest_bits) const {    // FUN_0059c6c0
         if (!quest::bit(quest_bits, kQuest, 0) && state > 1) quest::set(quest_bits, kQuest, 2);
     }
@@ -989,9 +998,9 @@ struct SevenTombsQuest {
         return 0xc;
     }
     // The player went from `from` to `dest` (FUN_0059d1c0): levels 40..74.
-    void enter(QuestBits& quest_bits, int from, int dest) {
+    void enter(QuestBits& quest_bits, int from, int dest, int player) {
         if (dest < level_ids::kLutGholein || dest > level_ids::kArcaneSanctuary) return;
-        if (from == level_ids::kLutGholein) rewarded = false;
+        if (from == level_ids::kLutGholein) rewarded.remove(player);
         if (!open) return;
         if (!duriel_dead && true_tomb) {
             if (dest == true_tomb) {
@@ -1029,7 +1038,7 @@ struct SevenTombsQuest {
     // The town's first lines after Tyrael, by the bit each sets.
     static constexpr std::array<std::pair<int, int>, 6> kTownLines{ { { 176, 6 }, { 175, 7 }, { 177, 8 }, { 202, 9 }, { 244, 10 }, { 178, 11 } } };
     // `summoner_done`: the game's quest 13 bit 13 (Drognan stays quiet in block 1).
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool summoner_done) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool summoner_done, int player) const {
         auto lines = [&](int block) {
             std::vector<QuestMsg> out;
             for (const auto& entry : kBlocks[block]) if (entry.npc == npc) out.push_back({ entry.string, entry.greet });
@@ -1040,7 +1049,7 @@ struct SevenTombsQuest {
             for (const auto& [who, bit] : kTownLines) if (who == npc && !quest::bit(quest_bits, kQuest, bit)) return lines(6);
         if (quest::bit(quest_bits, kQuest, 3)) return lines(3);
         if (quest::bit(quest_bits, kQuest, 4)) return npc == kMeshif ? lines(5) : lines(4);
-        if (rewarded) return lines(4);
+        if (rewarded.has(player)) return lines(4);
         if (state == 0) return {};
         const bool b13 = quest::bit(quest_bits, kQuest, 13);
         if ((quest::bit(quest_bits, kQuest, 0) && !b13) || (state > 3 && !b13)) return {};
@@ -1063,7 +1072,7 @@ struct SevenTombsQuest {
     }
     // What hearing `string` from `npc` does (FUN_0059cb20).
     struct Heard { bool town_portal = false, act3 = false, take_staff = false; };
-    Heard said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, bool in_lair) {
+    Heard said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, bool in_lair, int player) {
         Heard out;
         if (npc == kTyrael) {
             if (!open || string != kTyraelLine || tyrael_portal) return out;
@@ -1094,7 +1103,7 @@ struct SevenTombsQuest {
             if (quest::bit(quest_bits, kQuest, 13)) { quest::set(game_bits, kQuest, 13); state = 5; log = 0xd; }
             quest::set(quest_bits, kQuest, 0);
             quest::set(quest_bits, kQuest, 4, false);
-            rewarded = true;
+            rewarded.add(player);
             return out;
         }
         static constexpr std::array<std::pair<int, int>, 6> kLineBits{ { { 444, 9 }, { 445, 6 }, { 446, 7 }, { 447, 11 }, { 449, 8 }, { 452, 10 } } };
@@ -1149,8 +1158,8 @@ struct SevenTombsQuest {
 // Valley of Snakes; the altar in the Claw Viper Temple's second level
 // brings it back. Bits: 0 done, 1 reward due, 2 the dark seen, 3 Drognan
 // told, 4 in the temple, 13 took part, 14 done by someone else, 15 closed.
-// N-player gap: one player here — the rewarded list (rec+0x1c) is a bool,
-// the party's credit (LAB_0059a0b0 -> 0x59a040) isn't here.
+// N-player gap: the party's credit (LAB_0059a0b0 -> 0x59a040) is
+// World::credit_party's one rule.
 struct TaintedSunQuest {
     static constexpr int kQuest = 11, kDrognan = monster_ids::kDrognan, kLostCity = level_ids::kLostCity, kValley = level_ids::kValleyOfSnakes;
     static constexpr int kTemple = level_ids::kClawViperTempleLevel2, kAltar = 149;   // objects.txt row (InitFn 20, OperateFn 24)
@@ -1162,7 +1171,7 @@ struct TaintedSunQuest {
     bool dark = false;  // data+2: the sun's out (FUN_0061c450 .. FUN_0061c4d0)
     bool used = false;  // data+4: the altar's been used (data+8 its mode 2)
     int log_in = 0;     // the altar's timer (10 ticks, LAB_0059a700): log 3
-    bool rewarded = false;
+    quest::Players rewarded;
 
     // A player's bits for the state (LAB_0059a4f0).
     void mark(QuestBits& quest_bits) const {
@@ -1192,10 +1201,10 @@ struct TaintedSunQuest {
     // The player went from level `from` to `dest` (FUN_0059ee00). True:
     // the desert's far end starts the darkness's timer, rand(17) ticks on
     // the quest seed (FUN_0059edc0), which the caller rolls into dark_in.
-    bool enter(int from, int dest) {
+    bool enter(int from, int dest, int player) {
         const bool starts = (dest == kLostCity || dest == kValley) && state == 0 && open && dark_in < 0 && !dark;
         if (from == level_ids::kLutGholein) {
-            rewarded = false;                     // FUN_00545310
+            rewarded.remove(player);                     // FUN_00545310
             if (state == 2) state = 3;
         }
         return starts;
@@ -1227,11 +1236,11 @@ struct TaintedSunQuest {
         { { 176, 368, false }, { 175, 366, false }, { 198, 363, false }, { 201, 362, false }, { 199, 364, false }, { kDrognan, 371, false },
           { 202, 370, false }, { 210, 367, false }, { 200, 365, false }, { 178, 369, false } },
     };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player) const {
         int block = -1;
         if (quest::bit(quest_bits, kQuest, 1)) block = 3;
         else if (quest::bit(quest_bits, kQuest, 14)) return {};
-        else if (rewarded) block = 4;
+        else if (rewarded.has(player)) block = 4;
         else if (state != 0 && open && !quest::bit(quest_bits, kQuest, 0) && state <= 3) block = state - 1;
         std::vector<QuestMsg> out;
         if (block >= 0)
@@ -1247,7 +1256,7 @@ struct TaintedSunQuest {
     }
     // The player heard `string` from `npc` (LAB_0059ebe0): Drognan's 348
     // tells it; any thanks (362..372) with the reward due is done.
-    void said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string) {
+    void said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, int player) {
         if (string == kTold) {
             if (!open || npc != kDrognan) return;
             if (log == 1) log = 2;
@@ -1259,7 +1268,7 @@ struct TaintedSunQuest {
         if (!quest::bit(quest_bits, kQuest, 1)) return;
         quest::set(quest_bits, kQuest, 0);
         quest::set(quest_bits, kQuest, 1, false);
-        rewarded = true;
+        rewarded.add(player);
         if (!open) quest::set(game_bits, kQuest, 13);
     }
     // The altar used (OperateFn 24, FUN_0059a7e0). `refused`: the player has
@@ -1295,10 +1304,10 @@ struct TaintedSunQuest {
 // Quest 4; bits: 0 done, 1 reward due, 2 Akara told, 3 under way, 4 the
 // stones done, 10 the Cow King dead, 13 took part in the rescue, 14 missed
 // it, 15 closed. Fields are the record's data (rec+0x18) bytes.
-// ponytail: one player — lists A (+0xb4, missed the rescue), B (+0x138,
-// heard Cain's thanks) and the rewarded list (rec+0x1c) are a bool each;
-// the party's bits, the voices and the quest-item-gone rewind (+0xc4,
-// FUN_00592c80: d2d's scrolls only go by the quest) are left out.
+// Left out: the party's bits (stage B of docs/PONYTAIL_PLAN.md group 4),
+// the voices and the quest-item-gone rewind (+0xc4, FUN_00592c80: d2d's
+// scrolls only go by the quest); the missed rescue marks the player
+// arriving in Lut Gholein, where FUN_00592b10 marks every player.
 struct CainQuest {
     static constexpr int kQuest = 4, kAkara = monster_ids::kAkara, kCain = monster_ids::kCain, kCampCain = monster_ids::kCampCain, kStony = level_ids::kStonyField, kTristram = level_ids::kTristram;
     int state = 0;      // +0xc: 0 init, 1 open, 2 Akara told, 3 out of town, 4 scroll, 5 deciphered / stones, 6 done, 7 the Rogues got him
@@ -1311,7 +1320,8 @@ struct CainQuest {
     bool resolved = false, camp_cain = false, camp_due = false, akara_log = false, closed_join = false;    // +0x50, +0x51, +0x52, +0x53, +0x63
     bool decipher_log = false, portal_made = false, tree_used = false;                                     // +0x64, +0x45, +0x58
     bool rescued_flag = false;  // the game's flag (4, 13): Cain rescued game-wide
-    bool missed = false, thanked = false, rewarded = false;
+    quest::Players missed, thanked;   // lists A (+0xb4: missed the rescue) and B (+0x138: heard Cain's thanks)
+    quest::Players rewarded;          // rec+0x1c
 
     // The chain reached it (+0xf0, FUN_00593d70, from quest 2's): state
     // 0 → 1. True: it passes on to quest 3's (+0x10).
@@ -1360,13 +1370,13 @@ struct CainQuest {
         { { kCampCain, 125, false } },
         { { kCain, 124, true } },
     };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool bks) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, bool bks, int player) const {
         const bool bit0 = quest::bit(quest_bits, kQuest, 0), bit1 = quest::bit(quest_bits, kQuest, 1), b13 = quest::bit(quest_bits, kQuest, 13), b14 = quest::bit(quest_bits, kQuest, 14);
         int block = -1;
-        if (npc == kCampCain && !thanked && b13) block = 5;
-        else if (bit1) block = npc == kCampCain && thanked ? 7 : 5;
-        else if (missed) block = 6;
-        else if (rewarded) block = npc == kCampCain && !thanked ? 5 : b14 ? 8 : bit0 ? 7 : -1;
+        if (npc == kCampCain && !thanked.has(player) && b13) block = 5;
+        else if (bit1) block = npc == kCampCain && thanked.has(player) ? 7 : 5;
+        else if (missed.has(player)) block = 6;
+        else if (rewarded.has(player)) block = npc == kCampCain && !thanked.has(player) ? 5 : b14 ? 8 : bit0 ? 7 : -1;
         else if (!b14 && state != 0 && !bit0 && !quest::bit(quest_bits, kQuest, 15)) block = bks ? 3 : state == 4 ? 2 : state <= 5 ? state - 1 : -1;
         if (npc == kCain) block = 9;
         std::vector<QuestMsg> out;
@@ -1375,10 +1385,10 @@ struct CainQuest {
         return out;
     }
     // The balloon over `npc` (FUN_00592fb0).
-    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, bool bks = false) const {
+    [[nodiscard]] bool alert(const QuestBits& quest_bits, int npc, bool bks, int player) const {
         const bool bit0 = quest::bit(quest_bits, kQuest, 0), bit1 = quest::bit(quest_bits, kQuest, 1), b13 = quest::bit(quest_bits, kQuest, 13);
         if (npc == kAkara) return (state == 4 && !bit0 && !bit1 && bks) || (state == 1 && !bit0 && !bit1) || (state == 6 && b13 && !bit0) || bit1;
-        return npc == kCampCain && (missed || (!thanked && b13));
+        return npc == kCampCain && (missed.has(player) || (!thanked.has(player) && b13));
     }
     // The player heard `string` from `npc` (FUN_00592250). decipher: Akara
     // takes the scroll (bks) for the deciphered one (bkd, FUN_005466b0 ilvl
@@ -1386,10 +1396,10 @@ struct CainQuest {
     // Nightmare 30 / Hell 60 rare). With bit 13, the game's flag (4, 13)
     // going on runs the chain (+0xf0).
     enum class Said { none, decipher, ring };
-    Said said(QuestBits& quest_bits, int npc, int string, bool bks) {
+    Said said(QuestBits& quest_bits, int npc, int string, bool bks, int player) {
         if (npc == kCampCain) {
-            if (string == 125) { rewarded = true; missed = false; }
-            if (string == 126 || string == 123) thanked = true;
+            if (string == 125) { rewarded.add(player); missed.remove(player); }
+            if (string == 126 || string == 123) thanked.add(player);
             return Said::none;
         }
         if (npc != kAkara) return Said::none;
@@ -1402,7 +1412,7 @@ struct CainQuest {
         if (string != 118 || !quest::bit(quest_bits, kQuest, 1)) return Said::none;
         quest::set(quest_bits, kQuest, 0);
         quest::set(quest_bits, kQuest, 1, false);
-        rewarded = true;
+        rewarded.add(player);
         if (quest::bit(quest_bits, kQuest, 13)) {
             log = 0xd; state = 6;
             rescued_flag = true;
@@ -1418,16 +1428,16 @@ struct CainQuest {
     }
     // The player went from level `from` to `dest` (FUN_00596de0). True:
     // camp Cain's due in the camp (FUN_00592960).
-    bool enter(QuestBits& quest_bits, int from, int dest) {
+    bool enter(QuestBits& quest_bits, int from, int dest, int player) {
         if (dest == kTristram && !camp_cain && !resolved && state > 5) { state = 5; log = 4; mark(quest_bits); }
         const bool fresh = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         if (from == level_ids::kRogueEncampment) {
-            rewarded = missed = false;
+            rewarded.remove(player); missed.remove(player);
             // ponytail: marked now, not at the next event 4 (FUN_00592e20)
             if (fresh && state == 2) { state = 3; mark(quest_bits); }
         }
         if (dest == level_ids::kRogueEncampment) return camp_spawn();
-        if (dest == level_ids::kLutGholein && fresh && !resolved && state < 6) { rogues(quest_bits); tree_used = true; }
+        if (dest == level_ids::kLutGholein && fresh && !resolved && state < 6) { rogues(quest_bits, player); tree_used = true; }
         return false;
     }
     // Camp Cain appears if he's due (FUN_005940e0 / FUN_00592960).
@@ -1439,14 +1449,14 @@ struct CainQuest {
     // Not rescued before Act 2: the Rogues get him (FUN_00597310; the Lut
     // Gholein arrival's the same, with the tree's mode). FUN_00596ca0(0, 1)
     // resolves it; the players still in it missed it (FUN_00592b10).
-    void rogues(QuestBits& quest_bits) {
+    void rogues(QuestBits& quest_bits, int player) {
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1) || resolved || state >= 6) return;
         resolved = true;
         if (!camp_cain) camp_due = true;
         state = 7; log = 5;
         rescued_flag = true;
         quest::set(quest_bits, kQuest, 14);
-        missed = true;
+        missed.add(player);
     }
     // The Tree of Inifuss (OperateFn 12, FUN_00593af0). True: the scroll
     // (bks) drops at the tree.
@@ -1528,9 +1538,9 @@ struct CainQuest {
 // The Forgotten Tower, one game's (a1q5.cpp, the record at FUN_00595920).
 // Quest 5; bits: 0 done (set at the kill: no reward talk), 2..6 progress,
 // 13 took part, 14 not there.
-// ponytail: one player — lists A / B (rec+0x18) are `told` / `due`, the
-// cellar-5 list and party passes are left out; rec+9 (active) is taken as
-// always set, so the tome never starts read (InitFn 4, FUN_00595a00).
+// N-player gap: the cellar-5 participants (data+0x8c) and party passes
+// aren't kept. ponytail: rec+9 (active) is taken as always set, so the
+// tome never starts read (InitFn 4, FUN_00595a00).
 struct TowerQuest {
     static constexpr int kQuest = 5, kTower = level_ids::kForgottenTower, kCellar = level_ids::kTowerCellarLevel5, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
     // Her treasure's spawner (Missiles.txt towerchestspawner: Range,
@@ -1539,8 +1549,8 @@ struct TowerQuest {
     int state = 0;      // +0xc: 0 init, 2 started, 3 cellar / out of town, 5 Countess dead (1 and 4 unused)
     int log = 0;        // +0xb
     int log_in = 0;     // ticks to the kill's timer (0x5954c0, 7), 0 not running
-    bool told = false;  // list A: had their success talk
-    bool due = false;   // list B: killed her in cellar 5, the success talk due
+    quest::Players told;   // list A (data+0x00): had their success talk
+    quest::Players due;    // list B (data+0x34): killed her in cellar 5, the success talk due
     bool dead = false;  // d+0x118: rec+0xc0 is gone
     bool treasure = false;   // d+0x119: her treasure's spawners made
     bool first_talk = false;   // d+0x11a
@@ -1572,9 +1582,9 @@ struct TowerQuest {
     }
     // The Moldy Tome read (OperateFn 6, FUN_00594e70), then its message
     // 127 heard.
-    void read_tome(QuestBits& quest_bits) {
+    void read_tome(QuestBits& quest_bits, int player) {
         if (state < 2) { state = 2; if (log == 0) tome_early = true; }
-        said(quest_bits, -1, kTome);
+        said(quest_bits, -1, kTome, player);
     }
     // What `npc` says about it (FUN_00594c50): blocks at 0x737ed8 by the
     // state (0x7382ac: -1, -1, 0, 1, 2, 3, -1).
@@ -1585,13 +1595,13 @@ struct TowerQuest {
         { { 150, 140, true }, { 155, 141, true }, { 265, 145, true }, { 154, 144, true }, { 148, 143, true }, { 147, 142, true } },
         { { 150, 140, false }, { 155, 141, false }, { 265, 145, false }, { 154, 144, false }, { 148, 143, false }, { 147, 142, false } },
     };
-    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) const {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player) const {
         const bool bit0 = quest::bit(quest_bits, kQuest, 0), b13 = quest::bit(quest_bits, kQuest, 13);
         if (bit0 && !b13) return {};
-        if (state > 3 && !due && !told) return {};
+        if (state > 3 && !due.has(player) && !told.has(player)) return {};
         int block = -1;
-        if (due) block = 2;
-        else if (bit0) { if (!told) return {}; block = 3; }
+        if (due.has(player)) block = 2;
+        else if (bit0) { if (!told.has(player)) return {}; block = 3; }
         else if (state >= 2 && state <= 5) block = state - 2;
         std::vector<QuestMsg> out;
         if (block >= 0)
@@ -1600,13 +1610,13 @@ struct TowerQuest {
     }
     // The balloon over `npc` (FUN_005952c0): the success talk's due, not
     // with Warriv or Gheed.
-    [[nodiscard]] bool alert(const QuestBits&, int npc) const {
-        return due && (npc == monster_ids::kKashya || npc == monster_ids::kCharsi || npc == monster_ids::kAkara || npc == monster_ids::kCampCain);
+    [[nodiscard]] bool alert(const QuestBits&, int npc, int player) const {
+        return due.has(player) && (npc == monster_ids::kKashya || npc == monster_ids::kCharsi || npc == monster_ids::kAkara || npc == monster_ids::kCampCain);
     }
     // The player heard `string` from `npc` (FUN_00594960). True: the first
     // success talk after the kill — the chain opens (rec+0xf0, FUN_00595240
     // → quest 3's).
-    bool said(QuestBits& quest_bits, int npc, int string) {
+    bool said(QuestBits& quest_bits, int npc, int string, int player) {
         if (string == kTome) {                         // no NPC check
             bool changed = false;
             if (tome_early) {
@@ -1622,11 +1632,11 @@ struct TowerQuest {
         if (!town || string < 140 || string > 145) return false;
         bool chain = false;
         if (quest::bit(quest_bits, kQuest, 13) && first_talk) { first_talk = false; state = 5; chain = true; }
-        if (due) { due = false; told = true; }
+        if (due.has(player)) { due.remove(player); told.add(player); }
         return chain;
     }
     // The player went from level `from` to `dest` (FUN_00595010).
-    void enter(QuestBits& quest_bits, int from, int dest) {
+    void enter(QuestBits& quest_bits, int from, int dest, int player) {
         if (dest == kTower) {
             if (state == 0) { state = 2; log = 3; }
             else if (state <= 3 && log == 1) log = 4;
@@ -1638,13 +1648,13 @@ struct TowerQuest {
             mark(quest_bits);
         } else if (from == 1) {                        // out of town
             if (state == 2) { if (!quest::bit(quest_bits, kQuest, 0)) state = 3; }
-            else if (state == 5) told = false;         // FUN_00594740 (then rec+0xa = 0 once both lists are empty)
+            else if (state == 5) told.remove(player);        // FUN_00594740 (then rec+0xa = 0 once both lists are empty)
         }
     }
     // The Countess died (FUN_00595710, once: rec+0xc0 is cleared). True:
     // the player's kill for the quest (FUN_00594f10: in cellar 5 — bits 13
     // and 0, the voice); elsewhere bit 14. The 7-tick timer starts.
-    bool killed(QuestBits& quest_bits, bool in_cellar) {
+    bool killed(QuestBits& quest_bits, bool in_cellar, int player) {
         if (dead) return false;
         dead = true;
         state = 5;
@@ -1655,7 +1665,7 @@ struct TowerQuest {
         quest::set(quest_bits, kQuest, 13);
         quest::set(quest_bits, kQuest, 0);
         quest::set(quest_bits, kQuest, 1, false);
-        due = true;
+        due.add(player);
         return true;
     }
 };

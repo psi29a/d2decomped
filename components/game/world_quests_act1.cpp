@@ -46,10 +46,10 @@ auto World::act1_join() -> void {
 
 auto World::act1_enter(const Level& from) -> void {
         andy.enter(quests(), from.id, level->id);
-        burial.enter(quests(), from.id, level->id);
-        tower.enter(quests(), from.id, level->id);
+        burial.enter(quests(), from.id, level->id, actor->id);
+        tower.enter(quests(), from.id, level->id, actor->id);
         tools.enter(quests(), from.id);
-        cain.enter(quests(), from.id, level->id);
+        cain.enter(quests(), from.id, level->id, actor->id);
     }
 
 auto World::act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh) -> void {
@@ -66,11 +66,11 @@ auto World::act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool f
             out.push_back({ flavie_line, true });
         }
         std::ranges::copy(den.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(andy.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(burial.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(tower.talk(quests(), hc_idx), std::back_inserter(out));
+        std::ranges::copy(andy.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
+        std::ranges::copy(burial.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
+        std::ranges::copy(tower.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
         std::ranges::copy(tools.talk(quests(), hc_idx, holding_malus(), int(actor->character.stats.get(d2d::d2s::kLevel))), std::back_inserter(out));
-        std::ranges::copy(cain.talk(quests(), hc_idx, carries("bks")), std::back_inserter(out));
+        std::ranges::copy(cain.talk(quests(), hc_idx, carries("bks"), actor->id), std::back_inserter(out));
     }
 
 auto World::act1_talk_closed(int hc_idx) -> void {
@@ -81,8 +81,8 @@ auto World::act1_talk_closed(int hc_idx) -> void {
     }
 
 auto World::act1_said(int hc_idx, int message_string) -> void {
-        if (tower.said(quests(), hc_idx, message_string)) { d2d::log::info("The Forgotten Tower: done"); chain(5); }   // FUN_00594960
-        if (andy.said(quests(), hc_idx, message_string)) {
+        if (tower.said(quests(), hc_idx, message_string, actor->id)) { d2d::log::info("The Forgotten Tower: done"); chain(5); }   // FUN_00594960
+        if (andy.said(quests(), hc_idx, message_string, actor->id)) {
             d2d::log::info("Sisters to the Slaughter: done, Warriv's caravan goes east");
         }
         const int tools_was = tools.state;
@@ -96,7 +96,7 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
         using Said = d2d::rules::CainQuest::Said;
         const auto scroll = std::ranges::find(actor->character.items, std::string_view("bks"), &d2d::d2s::Item::code);
         const bool cain_flagged = cain.rescued_flag;
-        const auto cain_said = cain.said(quests(), hc_idx, message_string, scroll != actor->character.items.end());
+        const auto cain_said = cain.said(quests(), hc_idx, message_string, scroll != actor->character.items.end(), actor->id);
         if (cain_said == Said::ring && !cain_flagged && d2d::rules::quest::bit(quests(), 4, 13)) chain(4);   // FUN_00592250: the game's (4, 13) goes on
         if (cain_said == Said::decipher) {        // ponytail: bks becomes bkd where it lies (same size), not a new item (agent A's)
             scroll->code = "bkd";
@@ -116,7 +116,7 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
             d2d::log::info("Den of Evil: Akara's reward, a skill point");
             if (den_was != 5 && den.state == 5) chain(1);   // FUN_0058fdd0
         }
-        if (burial.said(quests(), hc_idx, message_string)) {
+        if (burial.said(quests(), hc_idx, message_string, actor->id)) {
             kashya_merc();
             if (burial_was != 5 && burial.state == 5) chain(2);   // FUN_00590980
         }
@@ -131,11 +131,11 @@ auto World::act1_tick() -> void {
 
 auto World::act1_alert(int hc_idx) -> bool {
         return den.alert(quests(), hc_idx)
-            || andy.alert(quests(), hc_idx)
+            || andy.alert(quests(), hc_idx, actor->id)
             || burial.alert(quests(), hc_idx)
-            || tower.alert(quests(), hc_idx)
+            || tower.alert(quests(), hc_idx, actor->id)
             || tools.alert(quests(), hc_idx, holding_malus(), int(actor->character.stats.get(d2d::d2s::kLevel)))
-            || cain.alert(quests(), hc_idx, carries("bks"));
+            || cain.alert(quests(), hc_idx, carries("bks"), actor->id);
     }
 
 auto World::act1_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
