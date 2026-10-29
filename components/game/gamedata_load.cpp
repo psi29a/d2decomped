@@ -437,6 +437,16 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     game_data.mon_bin = ms_bin;
     game_data.mon_is_npc.resize(monstats.size());
     for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) game_data.mon_is_npc[row_index] = monstats.get(row_index, "npc") == "1";
+    game_data.mon_equip_oninit.assign(monstats.size(), {});
+    if (const auto equip = txt("MonEquip"); equip.size() > 0)
+        for (std::size_t row_index = 0; row_index < equip.size(); ++row_index) {
+            if (equip.get(row_index, "oninit") != "1") continue;
+            const auto found = game_data.monsters.by_id.find(std::string(equip.get(row_index, "monster")));
+            if (found == game_data.monsters.by_id.end()) continue;
+            int items = 0;
+            for (const char* column : { "item1", "item2", "item3" }) items += equip.get(row_index, column).empty() ? 0 : 1;
+            if (items > 0) game_data.mon_equip_oninit[std::size_t(found->second)].push_back(items);
+        }
     if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 15, 21, 31-35, 40-42 (none random; 24 is never applied); Charged Bolt's wander");
 }
 

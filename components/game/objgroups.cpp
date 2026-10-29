@@ -576,9 +576,10 @@ struct ObjectRooms {
         if (type_at(type)) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
         (void)d2d::rules::monster_variant(type, own);
         own.next();
-        // FUN_005d6b60: an oninit MonEquip row rolls its slot and makes its item (2 game steps).
-        // ponytail: acts 1-3's only oninit row is Blood Raven's bow (MonEquip.txt's other, flyingscimitar, is later); read MonEquip.txt for more.
-        if (type_at(type) && types[std::size_t(type)].id == "bloodraven") { own(1); game.next(); game.next(); }
+        // FUN_005d6b60: each oninit MonEquip row rolls which of its items on
+        // the unit's seed and makes it (2 game steps).
+        if (std::size_t(type) < game_data.mon_equip_oninit.size())
+            for (const int items : game_data.mon_equip_oninit[std::size_t(type)]) { own(items); game.next(); game.next(); }
         const bool npc = type_at(type) && std::size_t(type) < game_data.mon_is_npc.size() && game_data.mon_is_npc[std::size_t(type)];
         if (spawns && !npc) spawns->push_back({ type, at_x, at_y, leader, -1, d2d::rules::Boss::none, {}, 0, value });
         last_made = own;
