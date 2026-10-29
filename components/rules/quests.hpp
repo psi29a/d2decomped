@@ -69,9 +69,9 @@ struct QuestMsg { int string = 0; bool greet = false; };
 // The Den of Evil, one game's (the quest record at FUN_00590720). Quest 1
 // in the flags; bits: 0 done, 1 reward due, 2 given, 3 / 4 in the Den,
 // 13 cleared in this game, 14 cleared by someone else, 15 closed.
-// ponytail: one player — the party and late-joiner lists are left out.
 struct DenQuest {
     static constexpr int kQuest = 1, kAkara = monster_ids::kAkara, kDen = level_ids::kDenOfEvil;
+    quest::Players participants;   // data list: each player who killed one of its monsters (FUN_00545200)
     int state = 1;      // +0xc: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded
     int log = 0;        // +0xb
     bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
@@ -131,19 +131,29 @@ struct DenQuest {
         if (npc != kAkara || quest::bit(quest_bits, kQuest, 0)) return false;
         return (state == 1 && !quest::bit(quest_bits, kQuest, 1)) || quest::bit(quest_bits, kQuest, 1);
     }
+    // A monster died at `player`'s hand (FUN_00590260: added to the list
+    // unless there).
+    void took_part(int player) { if (state < 4 && active) participants.add(player); }
     // A monster died; `remaining` are the Den's left (level +0x2cc - +0x2d0)
-    // (FUN_00590260). 0: cleared — the reward's due (FUN_005455f0, bits 13
-    // and 1) unless it's been had.
+    // (FUN_00590260). 0: cleared (each player's credit follows).
     enum class Kill { none, few, cleared };
-    Kill killed(QuestBits& quest_bits, int remaining) {
+    Kill killed(int remaining) {
         if (state >= 4) return Kill::none;        // its callback's gone once cleared
         if (remaining > 0) {
             if (remaining < 6) log = 4;            // "Monsters remaining: N"
             return remaining < 6 ? Kill::few : Kill::none;
         }
         state = 4;
-        if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1)) { quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1); }
         return Kill::cleared;
+    }
+    // The clear's credit for one player neither done nor due: a participant
+    // bits 13 and 1, the reward due (FUN_005455f0), any other bit 14 (cleared
+    // by someone else, FUN_00590080). True: a participant's.
+    static bool credit(QuestBits& quest_bits, bool listed) {
+        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return false;
+        quest::set(quest_bits, kQuest, listed ? 13 : 14);
+        if (listed) quest::set(quest_bits, kQuest, 1);
+        return listed;
     }
     // The player heard `string` from `npc` (FUN_0058fdd0, packet 0x31).
     // True: Akara's reward — a skill point (stat 5 + 1), done; quest 41

@@ -1814,15 +1814,18 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
 auto World::den_count(std::uint32_t now_ms) -> void {
         if (level->id != d2d::rules::DenQuest::kDen || fight.mon_level != level) return;
         const int left = int(std::ranges::count_if(fight.monsters, &Monster::alive));
+        for (const auto& kill : fight.kills)
+            if (kill.killer > 0) den.took_part(kill.killer);   // a monster's death: its killer takes part
         if (den_left >= 0 && left < den_left) {
-            const auto kill = den.killed(quests(), left);
+            const auto kill = den.killed(left);
             if (kill == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", left == 1 ? "one monster left" : std::format("monsters remaining: {}", left));
             if (kill == d2d::rules::DenQuest::Kill::cleared) {
                 d2d::log::info("Den of Evil: cleared");
                 music_cue("music_quest_den");
                 den_log_at = now_ms + 8 * kTickMs;     // the log's "Return to Akara" 8 ticks on (LAB_00590230)
-                if (d2d::rules::quest::bit(quests(), 1, 13))
-                    class_cue("act1_complete_den", now_ms);
+                each_player([&](Player& player) {
+                    if (d2d::rules::DenQuest::credit(quests(), den.participants.has(player.id))) class_cue("act1_complete_den", now_ms);   // unit event 0x23
+                });
             }
         }
         den_left = left;
@@ -2985,7 +2988,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         for (auto& player : players)
             player->owner_mode = !player->player.walking ? 1 : player->running && player->character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
         fight.world(in_moor, now_ms, elapsed, crowd);
-        credit_party([&] { den_count(now_ms); });                // the merc's or a missile's kill counts with the player dead
+        den_count(now_ms);                                       // each player's credit its own (DenQuest::credit)
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         each_player([&](Player& player) {
             if (std::exchange(player.reassigned, false)) player.events.push_back(ev::Reassigned{});

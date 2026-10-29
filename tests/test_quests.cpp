@@ -36,11 +36,15 @@ int main() {
     again.join(quest_bits);
     assert(again.state == 3 && again.log == 2);
 
-    assert(den.killed(quest_bits, 9) == DenQuest::Kill::none && den.log == 2);
-    assert(den.killed(quest_bits, 5) == DenQuest::Kill::few && den.log == 4);         // "Monsters remaining"
+    den.took_part(1);                                                                  // player 1 killed one
+    assert(den.killed(9) == DenQuest::Kill::none && den.log == 2);
+    assert(den.killed(5) == DenQuest::Kill::few && den.log == 4);                    // "Monsters remaining"
 
-    assert(den.killed(quest_bits, 0) == DenQuest::Kill::cleared && den.state == 4);
-    assert(quest::bit(quest_bits, 1, 1) && quest::bit(quest_bits, 1, 13) && den.killed(quest_bits, 0) == DenQuest::Kill::none);
+    assert(den.killed(0) == DenQuest::Kill::cleared && den.state == 4);
+    QuestBits bystander{};                                                             // player 2 killed none: cleared by someone else
+    assert(DenQuest::credit(quest_bits, den.participants.has(1)) && !DenQuest::credit(bystander, den.participants.has(2)));
+    assert(quest::bit(quest_bits, 1, 1) && quest::bit(quest_bits, 1, 13) && den.killed(0) == DenQuest::Kill::none);
+    assert(quest::bit(bystander, 1, 14) && !quest::bit(bystander, 1, 1));
 
     // Akara's reward, once.
     assert(akara().size() == 1 && akara()[0].string == 76 && akara()[0].greet);
@@ -53,7 +57,7 @@ int main() {
     QuestBits other_bits{};
     DenQuest other_den;
     other_den.enter_den(other_bits);
-    assert(other_den.killed(other_bits, 0) == DenQuest::Kill::cleared && other_den.talk(other_bits, 148)[0].string == 76);
+    assert(other_den.killed(0) == DenQuest::Kill::cleared && DenQuest::credit(other_bits, true) && other_den.talk(other_bits, 148)[0].string == 76);
 
     // Sisters to the Slaughter: available 20 ticks after the chain reaches it; Cain gives it;
     // the Catacombs; Andariel's kill (portal at tick 10, log 3 at 12);
