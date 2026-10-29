@@ -206,9 +206,13 @@ struct TcpIpUI {
     bool has_ip = false;                  // not 127.0.0.1: HOST, JOIN and the label are live
     bool box_open = false;                // the join box is up
     std::string address;                  // typed into it
+    std::string popup;                    // the test connect's failure (FUN_00433380), "" none
+    std::string no_connect;               // "Cannot Connect to Server" (0x145b)
+    Button popup_ok{};                    // its OK (0xe1)
 };
 TcpIpUI tcpip_ui(const Scene& scene, const std::string& own_ip);
 void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip, std::uint32_t elapsed_ms);
+void render_tcpip_popup(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip);
 
 // How many entries are unlocked, from what has been seen: game.exe's
 // chain (FUN_00431600) over its registry bits — 0x01 LoD ending: 7,

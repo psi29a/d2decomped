@@ -748,6 +748,8 @@ TcpIpUI tcpip_ui(const Scene& scene, const std::string& own_ip) {
     tcpip.cancel = Button{ 39, rec_top(571, 35), 128, 35, nullptr, &scene.medium_button, Screen::OtherMultiplayer, true };
     tcpip.box_cancel = Button{ 281, rec_top(337, 32), 96, 32, nullptr, &scene.cancel_button };
     tcpip.box_ok = Button{ 421, rec_top(337, 32), 96, 32, nullptr, &scene.cancel_button };
+    tcpip.no_connect = str(0x145b, "Cannot Connect to Server");
+    tcpip.popup_ok = Button{ 351, rec_top(337, 32), 96, 32, nullptr, &scene.cancel_button };
     return tcpip;
 }
 
@@ -785,6 +787,18 @@ void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     if (((elapsed_ms / 500) & 1) == 0) scene.font_formal12.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, typed, edit_y, "|");
     button(tcpip.box_cancel, tcpip.cancel_label, true);
     button(tcpip.box_ok, tcpip.ok_label, true);
+}
+
+void render_tcpip_popup(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const TcpIpUI& tcpip) {
+    if (tcpip.popup.empty()) return;
+    // FUN_00433380 on a Sky screen: PopUpOK (0xde), the message (0xe0, Font24), OK (0xe1).
+    blit_dc6_grid(framebuffer, scene.popup_ok, scene.pal, 268, rec_top(350, 176), 2);
+    draw_text_box(framebuffer, scene, scene.font24, tcpip.popup, 268, 300, 264, 100);
+    const auto& ok = tcpip.popup_ok;
+    blit_button_chrome(framebuffer, scene.pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
+    const int label_x = ok.x + (ok.width - scene.font.measure(tcpip.ok_label)) / 2, label_y = ok.y + (ok.height - scene.font.line_height()) / 2;
+    if (ok.hovered) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, tcpip.ok_label, 255, 208, 80);
+    else            scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, label_x, label_y, tcpip.ok_label);
 }
 
 TitleUI title_ui(const Scene& scene, bool coop) {

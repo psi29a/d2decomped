@@ -1151,7 +1151,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     return button.hovered && mouse.release_this_frame;
                 };
                 const bool escape = std::ranges::find(keys_this_frame, SDLK_ESCAPE) != keys_this_frame.end();
-                if (tcpip.box_open) {
+                if (!tcpip.popup.empty()) {                  // the failed test's popup: OK back to these options (FUN_0042ffe0)
+                    Screen stay = screen;
+                    update_button(tcpip.popup_ok, mouse, stay, quit);
+                    if ((tcpip.popup_ok.hovered && mouse.release_this_frame) || escape) tcpip.popup.clear();
+                } else if (tcpip.box_open) {
                     // The edit line (record 0x10d) takes up to 255 characters.
                     for (const char letter : text_this_frame) if (tcpip.address.size() < 255) tcpip.address.push_back(letter);
                     if (backspace_this_frame && !tcpip.address.empty()) tcpip.address.pop_back();
@@ -1159,16 +1163,22 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     const bool ok = clicked(tcpip.box_ok) || enter;
                     if (clicked(tcpip.box_cancel) || escape) tcpip.box_open = false;
                     else if (ok && !tcpip.address.empty()) {
-                        // FUN_00434790: the address is kept (registry LastTcpIp), then
-                        // char-select joins it (game type 9).
-                        // ponytail: game.exe connects once here to test the host and
-                        // stays on an error; d2d finds out when char-select joins.
+                        // FUN_00434790: the address is kept (registry LastTcpIp), then one
+                        // test connect (FUN_0052a750, port 4000): failing, "Cannot Connect
+                        // to Server" (0x145b); else char-select joins it (game type 9).
+                        // ponytail: its "connecting" screen (FUN_0042f6e0) isn't drawn: the
+                        // box stays up over the wait (5 s at most).
                         g_last_tcp_ip = tcpip.address;
                         if (!d2d::userdir::save_cfg(g_user_dir / "d2d.cfg", { { "last_tcp_ip", g_last_tcp_ip } }))
                             d2d::log::warn("d2d.cfg: last_tcp_ip not saved");
-                        g_join_host = tcpip.address;
                         tcpip.box_open = false;
-                        screen = Screen::CharSelect;
+                        if (auto test = d2d::net::TcpConnection::connect(tcpip.address, 4000, 5000); !test) {
+                            d2d::log::warn("join {}: {}", tcpip.address, test.error());
+                            tcpip.popup = tcpip.no_connect;
+                        } else {
+                            g_join_host = tcpip.address;
+                            screen = Screen::CharSelect;
+                        }
                     }
                 } else {
                     const bool join = clicked(tcpip.join) && tcpip.has_ip;
@@ -1178,6 +1188,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (join) { tcpip.box_open = true; tcpip.address = g_last_tcp_ip; }
                 }
                 render_tcpip(framebuffer, *scene, tcpip, now_ms);
+                render_tcpip_popup(framebuffer, *scene, tcpip);
                 break;
             }
             case Screen::Credits:
