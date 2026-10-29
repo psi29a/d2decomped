@@ -506,8 +506,15 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         if (args.size() >= 2 && args[1] == "rain") {       // the weather: `debug rain [state]` (0 clear .. 3 falling) starts that state next tick
             auto& rain = town.rain;
             if (args.size() >= 3) { rain.state = (std::atoi(args[2].c_str()) + 3) % 4; rain.left = 0; }
-            return "ok state=" + std::to_string(rain.state) + " density=" + std::to_string(rain.density) + " drops=" + std::to_string(rain.drops.size())
-                 + " splashes=" + std::to_string(rain.splashes.size()) + " wind=" + std::to_string(rain.wind) + "\n";
+            std::string out = "ok state=" + std::to_string(rain.state) + " density=" + std::to_string(rain.density) + " drops=" + std::to_string(rain.drops.size())
+                            + " splashes=" + std::to_string(rain.splashes.size()) + " bubbles=" + std::to_string(rain.bubbles.size()) + " wind=" + std::to_string(rain.wind)
+                            + " lightning=" + std::to_string(rain.lightning) + " second=" + std::to_string(rain.second) + " flash=" + std::to_string(rain.flash)
+                            + " strike_left=" + std::to_string(rain.strike_left) + " flashing=" + std::to_string(rain.flashing);
+            if (!rain.bubbles.empty()) {
+                const auto& bubble = rain.bubbles.front();
+                out += " bubble=" + std::to_string(bubble.x) + "," + std::to_string(bubble.y) + "," + std::to_string(bubble.kind) + "," + std::to_string(bubble.frame);
+            }
+            return out + "\n";
         }
         if (args.size() >= 2 && args[1] == "day") {        // the time of day: `debug day [degrees]`
             auto& day = town.world.day;

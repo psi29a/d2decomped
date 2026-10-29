@@ -90,12 +90,14 @@ int main(int argc, char** argv) try {
         sent.level = &empty_data.town;
         sent.quest_log.back() = 9;
         sent.game_quests.back() = 0x8000;
+        sent.events = { ev::Reassigned{}, ev::Lightning{} };
         ViewEncoder encoder;
         const auto bytes = encode_view(empty_data, sent, encoder);
         View received;
         assert(apply_view(empty_data, bytes, received));
         assert(received.quest_log == sent.quest_log);
         assert(received.game_quests == sent.game_quests);
+        assert(received.events.size() == 2 && std::holds_alternative<ev::Reassigned>(received.events[0]) && std::holds_alternative<ev::Lightning>(received.events[1]));
     }
     {
         // MonProp's stats on a monster: IAS on A1 / A2, FCR on SC (120 x v /

@@ -15,32 +15,39 @@ import sys
 import emu
 
 
-def run(e, x, y, to_x, to_y, count):
+CASE = {}
+
+
+def install(e):
+    """The tables and hooks, once: each hook reads the case at hand (CASE)."""
     data, rows = e.alloc(0x1000), e.alloc(0x23c * 4)
     e.w32(0x744304, data); e.w32(data + 0xba0, 4); e.w32(data + 0xb98, rows); e.w32(data + 0xb6c, 100)
     e.mu.mem_write(rows + 0x23c * 3 + 0x48, (7).to_bytes(2, "little"))   # skill 3: srvmissilea 7
-    unit = e.alloc(0x200)
-    out = []
     def point(_e):
-        e.w32(e.arg(0), to_x); e.w32(e.arg(1), to_y); return 1
+        e.w32(e.arg(0), CASE["to"][0]); e.w32(e.arg(1), CASE["to"][1]); return 1
     def made(_e):
         block = e.mu.reg_read(emu.UC_X86_REG_EDX)
-        out.append((e.s32(block + 0x14), e.s32(block + 0x18), e.s32(block + 0x1c), e.s32(block + 0x20), e.r32(block)))
+        CASE["out"].append((e.s32(block + 0x14), e.s32(block + 0x18), e.s32(block + 0x1c), e.s32(block + 0x20), e.r32(block)))
         return 1
     e.hook(0x56d2c0, point, 2)
-    e.hook(0x45adf0, lambda _e: x, 0)
-    e.hook(0x45ae20, lambda _e: y, 0)
-    e.hook(0x646ca0, lambda _e: count, 4)
+    e.hook(0x45adf0, lambda _e: CASE["at"][0], 0)
+    e.hook(0x45ae20, lambda _e: CASE["at"][1], 0)
+    e.hook(0x646ca0, lambda _e: CASE["count"], 4)
     e.hook(0x59fa30, made, 0)
-    e.call(0x5cd6a0, 3, 1, ecx=e.alloc(0x100), edx=unit)                # skill 3 at level 1
-    assert all(flags == 3 for *_, flags in out)
-    return [m[:4] for m in out]
+
+
+def run(e, x, y, to_x, to_y, count):
+    CASE.update(at=(x, y), to=(to_x, to_y), count=count, out=[])
+    e.call(0x5cd6a0, 3, 1, ecx=e.alloc(0x100), edx=e.alloc(0x200))      # skill 3 at level 1
+    assert all(flags == 3 for *_, flags in CASE["out"])
+    return [m[:4] for m in CASE["out"]]
 
 
 def main():
     cases = int(sys.argv[1]) if len(sys.argv) > 1 else 40
     rng = random.Random(int(sys.argv[2]) if len(sys.argv) > 2 else 1)
     e = emu.Emu()
+    install(e)
     mark = e.brk
     for _ in range(cases):
         e.brk = mark
