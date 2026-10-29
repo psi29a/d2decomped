@@ -250,7 +250,7 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 
 // The layer's saved cells into `automap` (FUN_00458750), and its new ones
 // out (FUN_004584c0); `dir` "" saves nothing.
-void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer);
+void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer, int cel_count);
 void save_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer);
 
 // The waypoint panel (FUN_0049c9c0; hit tests FUN_0049c490/0049c510),

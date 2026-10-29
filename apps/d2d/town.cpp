@@ -440,7 +440,7 @@ auto Town::enter() -> void {
         hand_items.clear();
         publish();
         if (scene && level) rain_join();
-        if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
+        if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer, int(scene->automap_cels.frames_per_direction()));
     }
 
 // The automap's new cells go out with the save, as on leaving a game
@@ -2913,7 +2913,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
                 const bool seen = other_automaps.count(level->layer) != 0;
                 other_automaps[level_changed->from->layer] = std::move(automap);
                 automap = std::move(other_automaps[level->layer]);
-                if (!seen) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
+                if (!seen) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer, int(scene->automap_cels.frames_per_direction()));
                 if (level_changed->keep_map) automap.open = other_automaps[level_changed->from->layer].open;
             }
             hovered_npc = -1;

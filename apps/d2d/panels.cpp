@@ -704,11 +704,12 @@ bool Automap::add(const Cell& cell) {
     return true;
 }
 
-void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer) {
+void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer, int cel_count) {
     if (dir.empty() || name.empty()) return;
     const auto file = d2d::d2s::automap_file(dir, name, map_seed);
     if (file.empty()) return;
-    const auto loaded = d2d::d2s::read_automap(file, layer, game::object_seed(map_seed).low);
+    const auto loaded = d2d::d2s::read_automap(file, layer, game::object_seed(map_seed).low,
+                                                { cel_count > 0 ? cel_count : -1, -1, -1, -1 });   // no MaxiMap: unchecked (else every record cut); no miniatures: list 3 unchecked
     for (std::size_t list = 0; list < loaded.lists.size(); ++list)
         for (const auto& cell : loaded.lists[list]) automap.add({ cell.cel, cell.x, cell.y, int(list), true });
 }

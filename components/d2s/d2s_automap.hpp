@@ -78,8 +78,10 @@ inline void automap_put_heads(std::fstream& file, const std::array<std::uint32_t
 
 // FUN_00457f40: the .ma file for `map_seed`, Name.map brought up to date on
 // the way. "" when Name.map can't be made.
-// ponytail: game.exe looks in the save dir's subdirectory DAT_007a0500 first
-// (empty in single player); only the save dir here.
+// game.exe first tries the save dir's subdirectory DAT_007a0500, which
+// FUN_0044d900 copies from the launch info's +0xd5 (32 chars, after the
+// character's name at +0xbd): by its place a Battle.net account, not
+// confirmed. d2d never logs into Battle.net, so only the save dir.
 inline std::filesystem::path automap_file(const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed) {
     namespace fs = std::filesystem;
     const auto base = (dir / name).string();
@@ -99,7 +101,7 @@ inline std::filesystem::path automap_file(const std::filesystem::path& dir, cons
         detail::automap_put32(head + 8 + 4 * slot, map_seed);
         fs::remove(slot_file(slot), error);
     } else {
-        // ponytail: a `next` past 3 starts over here; game.exe would index past seed[3].
+        // A `next` past 3 starts over here; game.exe writes past seed[3] (bugs.md #40).
         detail::automap_put32(head, kAutomapIndexVersion);
         detail::automap_put32(head + 4, 1);
         detail::automap_put32(head + 8, map_seed);
@@ -112,10 +114,12 @@ inline std::filesystem::path automap_file(const std::filesystem::path& dir, cons
 }
 
 // FUN_00458750: every record of `layer`, in file order. A record of another
-// layer cuts the chain there (FUN_004586e0) and ends it.
-// ponytail: game.exe also cuts the chain at a cel past its cel file's count;
-// the draw skips those cels instead.
-inline AutomapLayer read_automap(const std::filesystem::path& path, int layer, std::uint32_t object_seed) {
+// layer cuts the chain there (FUN_004586e0) and ends it. A cel at or past its
+// cel file's count (`cel_counts`: [0] for lists 0..2, [cel_file] for list 3;
+// < 0 unknown, not checked) cuts the chain at that record too and ends that
+// list, but the record's other lists and the rest of the chain still load.
+inline AutomapLayer read_automap(const std::filesystem::path& path, int layer, std::uint32_t object_seed,
+                                 const std::array<int, 4>& cel_counts = { -1, -1, -1, -1 }) {
     AutomapLayer out;
     out.object_seed = object_seed;
     if (layer < 0 || layer >= kAutomapLayers) return out;
@@ -130,7 +134,8 @@ inline AutomapLayer read_automap(const std::filesystem::path& path, int layer, s
         file.seekg(std::streamoff(offset));
         file.read(reinterpret_cast<char*>(record), 32);
         if (file.gcount() != 32) break;
-        if (int(detail::automap_get32(record + 4)) != layer) {
+        const auto cut = [&] {   // FUN_004586e0: the previous record's next, or the head, to 0
+            const auto read_at = file.tellg();
             if (previous != 0) {
                 file.seekp(std::streamoff(previous));
                 detail::automap_write32(file, 0);
@@ -138,6 +143,10 @@ inline AutomapLayer read_automap(const std::filesystem::path& path, int layer, s
                 heads[std::size_t(layer)] = 0;
                 detail::automap_put_heads(file, heads);
             }
+            file.seekg(read_at);
+        };
+        if (int(detail::automap_get32(record + 4)) != layer) {
+            cut();
             break;
         }
         out.cel_file = detail::automap_get32(record + 8);
@@ -151,9 +160,12 @@ inline AutomapLayer read_automap(const std::filesystem::path& path, int layer, s
             std::vector<unsigned char> raw(size);
             file.read(reinterpret_cast<char*>(raw.data()), std::streamsize(size));
             if (file.gcount() != std::streamsize(size)) return out;
-            for (std::size_t at = 0; at + 6 <= raw.size(); at += 6)
-                out.lists[list].push_back({ std::int16_t(raw[at] | raw[at + 1] << 8), std::int16_t(raw[at + 2] | raw[at + 3] << 8),
-                                            std::int16_t(raw[at + 4] | raw[at + 5] << 8) });
+            const int count = list == 3 ? (out.cel_file < 4 ? cel_counts[out.cel_file] : -1) : cel_counts[0];
+            for (std::size_t at = 0; at + 6 <= raw.size(); at += 6) {
+                const auto cel = std::int16_t(raw[at] | raw[at + 1] << 8);
+                if (count >= 0 && cel >= count) { cut(); break; }
+                out.lists[list].push_back({ cel, std::int16_t(raw[at + 2] | raw[at + 3] << 8), std::int16_t(raw[at + 4] | raw[at + 5] << 8) });
+            }
         }
         previous = offset;
         offset = detail::automap_get32(record);

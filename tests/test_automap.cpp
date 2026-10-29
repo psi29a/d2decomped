@@ -68,6 +68,14 @@ int main() {
     assert(back.lists[2].size() == 1 && back.lists[2][0].cel == 4);
     assert(read_automap(file, 0, 0).lists[1].size() == 1 && read_automap(file, 3, 0).lists[0].empty());
 
+    // Only 5 cels: cel 5 ends layer 1's first floor list and cuts its head,
+    // cel 7 cuts the first record's link; the rest still loads this once.
+    const auto cut = read_automap(file, 1, 78, { 5, -1, -1, -1 });
+    assert(cut.lists[0].size() == 1 && cut.lists[0][0].cel == 3 && cut.lists[1].empty() && cut.lists[2].size() == 1);
+    const auto after = bytes_of(file);
+    assert(u32(after, 4) == 0 && u32(after, 400) == 0 && u32(after, 0) == 450);
+    assert(read_automap(file, 1, 78).lists[0].empty());
+
     // Other seeds take the next slots; the first is found again; a fifth
     // wraps to slot 0 and drops its old file.
     assert(automap_file(dir, "Hero", 2) == dir / "Hero.ma1");
