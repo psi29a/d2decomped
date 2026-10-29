@@ -177,7 +177,8 @@ struct DenQuest {
 // FUN_00591210). Quest 2; bits: 0 done, 1 reward due, 2 given, 3 / 4 in
 // the Burial Grounds, 13 took part in the kill, 14 killed by someone
 // else, 15 closed.
-// N-player gap: the party share of the kill (LAB_00590e70) is World::credit_party's one rule.
+// The kill's credit over the players (participants, the party, the rest)
+// is World::blood_raven_died's (World::kill_credit).
 struct BurialQuest {
     static constexpr int kQuest = 2, kKashya = monster_ids::kKashya, kBurial = level_ids::kBurialGrounds, kBloodRaven = monster_ids::kBloodRaven;
     bool open = true;   // +9: closed in this game when the player's done it (FUN_00546270)
@@ -465,8 +466,9 @@ struct ActTwoOpening {
 // out from the start (state 1). Bits: 0 done, 1 reward due, 2 Atma told,
 // 3 / 4 under way, 5 the Book of Skill due (cleared reading it), 13 took
 // part, 14 killed by someone else, 15 closed.
-// N-player gap: the party's bits (FUN_00598d40) are World::credit_party's
-// one rule; the chain on to the Seven Tombs (+0x10 13) is World's.
+// The kill's credit over the players (FUN_00598d40 the party's) is
+// World::radament_died's; the chain on to the Seven Tombs (+0x10 13) is
+// World's.
 struct RadamentQuest {
     static constexpr int kQuest = 9, kAtma = monster_ids::kAtma, kLair = level_ids::kSewersLevel3, kRadament = monster_ids::kRadament;
     static constexpr int kInit = 304, kSuccess = 334;
@@ -871,7 +873,7 @@ struct ArcaneQuest {
 // when he first goes for a player (FUN_005f85c0 -> FUN_0059c330); his
 // death credits the players by him; the town's thanks finish it. Bits: 0
 // done, 1 reward due, 2 under way, 13 took part, 14 by others, 15 closed.
-// N-player gap: party credit is World::credit_party's one rule.
+// The kill's credit over the players is World::act2_kill's (kill_credit).
 struct SummonerQuest {
     static constexpr int kQuest = 13, kSummoner = monster_ids::kSummoner, kSanctuary = level_ids::kArcaneSanctuary;
     static constexpr int kThanksFirst = 419, kThanksLast = 429;
@@ -960,7 +962,7 @@ struct SummonerQuest {
 // heard, 4 Jerhyn's reward heard, 5 at Duriel's death, 6..11 the town's
 // lines heard, 13 took part, 14 by others, 15 closed. Its log is its own
 // (+0xe8, FUN_0059ca50).
-// N-player gap: party credit is World::credit_party's one rule. The
+// Duriel's death marks each player in the Lair (World::act2_kill). The
 // orifice's panel (the staff dragged in: C->S 0x44) is skipped — using it
 // with the staff places it; the log override (data+0x10 / +0x14) isn't
 // traced; Tyrael's prison (data+0x2c) isn't opened.

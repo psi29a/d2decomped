@@ -147,13 +147,12 @@ auto World::act2_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             each_player([&](Player&) { tombs.duriel_died(quests(), level->id == d2d::rules::SevenTombsQuest::kLair); });
             d2d::log::info("The Seven Tombs: Duriel is dead");
         }
-        // The Summoner (FUN_0059c150): each player by him (his room or one next to it) takes part, the rest heard of it.
-        if (kill.type == d2d::rules::monster_ids::kSummoner) {
-            bool any = false;
-            each_player([&](Player& player) {
-                any |= summoner.killed(quests(), level->id == d2d::rules::SummonerQuest::kSanctuary && near_room(kill.x, kill.y, player.player.x, player.player.y));
-            });
-            if (any) d2d::log::info("The Summoner: dead");
+        // The Summoner (FUN_0059c150): each player by him (his room or one next to it) takes part
+        // (FUN_0059be70), their party in Act 2, the rest heard of it (LAB_0059c0f0).
+        if (kill.type == d2d::rules::monster_ids::kSummoner && summoner.open) {
+            const auto by_kill = [&](const Player& player) { return level->id == d2d::rules::SummonerQuest::kSanctuary && near_room(kill.x, kill.y, player.player.x, player.player.y); };
+            kill_credit(d2d::rules::SummonerQuest::kQuest, 1, { 13, 1 }, by_kill, [&](Player&) { summoner.killed(quests(), true); }, [&](Player&) { summoner.killed(quests(), false); });
+            d2d::log::info("The Summoner: dead");
         }
     }
 
@@ -162,7 +161,11 @@ auto World::act2_update() -> void {
         // His first think (FUN_005f85c0: AI control +0x14 0 -> 1) opens it (FUN_0059c330).
         if (!summoner.started && !hosted_quests && level->id == d2d::rules::SummonerQuest::kSanctuary)
             for (const auto& monster : fight.monsters)
-                if (monster.type == d2d::rules::monster_ids::kSummoner && monster.alive() && monster.ai_state != 0) { summoner.engaged(quests()); break; }
+                if (monster.type == d2d::rules::monster_ids::kSummoner && monster.alive() && monster.ai_state != 0) {
+                    summoner.engaged(quests());
+                    each_player([&](Player&) { summoner.mark(quests()); });   // every player's bit 2 (FUN_0059c330's mark)
+                    break;
+                }
     }
 
 }  // namespace d2d::game

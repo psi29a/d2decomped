@@ -32,6 +32,7 @@
 #include <sequences.hpp>
 
 #include <algorithm>
+#include <initializer_list>
 #include <array>
 #include <bitset>
 #include <cstdint>
@@ -261,6 +262,31 @@ struct World {
     // ponytail: one rule for the other quests; a callback that asks more
     // (an act, a bit besides 0 and 1) isn't told apart.
     static constexpr std::array<int, 7> kOwnCredit{ 1, 2, 3, 9, 13, 14, 0x16 };   // Den, Burial, Tools, Radament, Summoner, Tombs, Guardian
+    // A quest kill's credit as game.exe passes it over the players
+    // (FUN_005537d0): `took_part` for each player `is_near` (who isn't done
+    // or due: bits 13, 1, ...); then the party of any who now has bit 13
+    // (FUN_00540510; local co-op is one party), each member in `act`
+    // neither done nor due getting `party_bits`; then `heard` for the rest
+    // (bit 14 to those neither done nor due).
+    template <class Near, class TookPart, class Heard>
+    void kill_credit(int quest, int in_act, std::initializer_list<int> party_bits, Near&& is_near, TookPart&& took_part, Heard&& heard) {
+        namespace quest_bit = d2d::rules::quest;
+        std::vector<int> passed;
+        bool any = false;
+        each_player([&](Player& player) {
+            if (!is_near(player)) return;
+            took_part(player);
+            passed.push_back(player.id);
+            any |= quest_bit::bit(quests(), quest, 13);
+        });
+        each_player([&](Player& player) {
+            if (!any || act() != in_act || std::ranges::contains(passed, player.id)) return;
+            auto& bits = quests();
+            if (quest_bit::bit(bits, quest, 0) || quest_bit::bit(bits, quest, 1)) return;
+            for (const int bit : party_bits) quest_bit::set(bits, quest, bit);
+        });
+        each_player([&](Player& player) { if (!std::ranges::contains(passed, player.id)) heard(player); });
+    }
     template <class Step> void credit_party(Step&& step) {
         if (players.size() == 1) { step(); return; }
         Player& mover = *actor;

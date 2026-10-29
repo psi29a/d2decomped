@@ -1431,16 +1431,17 @@ auto World::mephisto_bridge(std::uint32_t now_ms) -> void {
     }
 
 // Blood Raven's death hook (FUN_00590ec0): each player near the killer
-// (FUN_00590c40: in its room or one next to it) takes part, the rest heard
-// of it (bit 14).
+// (FUN_00590c40: in its room or one next to it) takes part, then their
+// party in Act 1 (LAB_00590e70 -> FUN_00590d60), the rest heard of it
+// (LAB_00590dd0: bit 14); each with bit 13 says act1_complete_burial
+// (LAB_00590e30, voice 0x22).
 auto World::blood_raven_died(std::uint32_t now_ms) -> void {
+        if (!burial.open) return;
         const float killer_x = actor->player.x, killer_y = actor->player.y;
+        const auto by_kill = [&](const Player& player) { return level->id == d2d::rules::BurialQuest::kBurial && near_room(killer_x, killer_y, player.player.x, player.player.y); };
+        kill_credit(d2d::rules::BurialQuest::kQuest, 0, { 13, 1 }, by_kill, [&](Player&) { burial.killed(quests(), true); }, [&](Player&) { burial.killed(quests(), false); });
         bool any = false;
-        each_player([&](Player& player) {
-            if (!burial.killed(quests(), level->id == d2d::rules::BurialQuest::kBurial && near_room(killer_x, killer_y, player.player.x, player.player.y))) return;
-            class_cue("act1_complete_burial", now_ms);
-            any = true;
-        });
+        each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), d2d::rules::BurialQuest::kQuest, 13)) { class_cue("act1_complete_burial", now_ms); any = true; } });
         if (!any) return;
         music_cue("music_quest_bloodraven");
         d2d::log::info("Sisters' Burial Grounds: Blood Raven is dead, return to Kashya");
@@ -1539,19 +1540,22 @@ auto World::canyon_portal(std::uint32_t now_ms) -> void {
     }
 
 // Radament's death hook (FUN_00599020): each player near the killer
-// (FUN_00598e20: in its room or one next to it) takes part, the rest heard
-// of it; a book each for those due one without one drops at him
+// (FUN_00598e20: in its room or one next to it) takes part (13, 1, 5),
+// then their party in Act 2 (FUN_00598d40), the rest heard of it
+// (LAB_00598dc0); a book each for those due one without one drops at him
 // (LAB_00598fa0, FUN_00559a30).
 auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
+        if (!radament.open) return;
         const float killer_x = actor->player.x, killer_y = actor->player.y;
         int books = 0;
         bool any = false;
-        each_player([&](Player& player) {
-            const auto result = radament.killed(quests(), game_bits, level->id == d2d::rules::RadamentQuest::kLair && near_room(killer_x, killer_y, player.player.x, player.player.y),
-                                                carries("ass"));
+        const auto by_kill = [&](const Player& player) { return level->id == d2d::rules::RadamentQuest::kLair && near_room(killer_x, killer_y, player.player.x, player.player.y); };
+        const auto credit = [&](bool took_part) {
+            const auto result = radament.killed(quests(), game_bits, took_part, carries("ass"));
             books += result.books;
             if (result.took_part) { class_cue("act2_complete_radament", now_ms); any = true; }
-        });
+        };
+        kill_credit(d2d::rules::RadamentQuest::kQuest, 1, { 13, 1, 5 }, by_kill, [&](Player&) { credit(true); }, [&](Player&) { credit(false); });
         for (int i = 0; i < books; ++i) loot.put({ .code = "ass" }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
         if (any) music_cue("music_quest_radament");
         if (radament.state == 4) d2d::log::info("Radament's Lair: Radament is dead, return to Atma");
