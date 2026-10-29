@@ -105,21 +105,21 @@ auto World::act4_talk_closed(int hc_idx) -> void {
 
 auto World::act4_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> void {
         std::ranges::copy(d2d::rules::Act4Opening::talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(izual.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(hellforge.talk(quests(), hc_idx, carries(d2d::rules::HellforgeQuest::kStone)), std::back_inserter(out));
+        std::ranges::copy(izual.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
+        std::ranges::copy(hellforge.talk(quests(), hc_idx, carries(d2d::rules::HellforgeQuest::kStone), actor->id), std::back_inserter(out));
         std::ranges::copy(terror.talk(quests(), hc_idx, actor->character.header.expansion()), std::back_inserter(out));
     }
 
 auto World::act4_said(int hc_idx, int message_string) -> void {
         d2d::rules::Act4Opening::said(quests(), hc_idx, message_string);
         // The Fallen Angel's reward (FUN_005b39a0): 2 skill points (FUN_006272b0 stat 5).
-        if (const auto heard = izual.said(quests(), hc_idx, message_string); heard.skill_points || heard.chain) {
+        if (const auto heard = izual.said(quests(), hc_idx, message_string, actor->id); heard.skill_points || heard.chain) {
             actor->character.stats.values[d2d::d2s::kSkillPts] += heard.skill_points;
             if (heard.skill_points) d2d::log::info("The Fallen Angel: Tyrael's reward, +{} skill points", heard.skill_points);
             if (heard.chain) act4_chain();
         }
         // The Hellforge (FUN_005b6100): Cain's soulstone (FUN_005466b0 "mss "), his reward.
-        if (const auto heard = hellforge.said(quests(), hc_idx, message_string); heard.gives_stone || heard.chain) {
+        if (const auto heard = hellforge.said(quests(), hc_idx, message_string, actor->id); heard.gives_stone || heard.chain) {
             if (heard.gives_stone) { give_item(d2d::rules::HellforgeQuest::kStone, now); actor->had_soulstone = true; d2d::log::info("The Hellforge: Cain's soulstone"); }
             if (heard.chain) act4_chain();
         }
@@ -158,7 +158,7 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (std::ranges::contains(d2d::rules::TerrorQuest::kSealBosses, kill.super) && terror.boss_died()) diablo_release(now_ms);
         if (kill.type == d2d::rules::TerrorQuest::kDiablo && !terror.dead) {   // FUN_005b52e0 -> FUN_005b4d20
             const bool expansion = actor->character.header.expansion();
-            terror.diablo_died(quests(), expansion);
+            terror.diablo_died(quests(), expansion, actor->id);
             // Classic: the next difficulty opens (FUN_00538680); with bit 13 the
             // client plays the end on leaving (S->C 0x5d -> FUN_004a2cb0: DAT_007a0604);
             // the 90 / 95 s timer runs (act4_update). LoD goes on to Tyrael's portal.

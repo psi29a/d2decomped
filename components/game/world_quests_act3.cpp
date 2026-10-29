@@ -64,12 +64,12 @@ auto World::act3_enter(const Level& from) -> void {
 
 auto World::act3_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> void {
         std::ranges::copy(d2d::rules::HratliGreeting::talk(quests(), hc_idx, actor->character.header.cls), std::back_inserter(out));
-        std::ranges::copy(lam_esen.talk(quests(), hc_idx, carries(d2d::rules::LamEsenQuest::kTome)), std::back_inserter(out));
+        std::ranges::copy(lam_esen.talk(quests(), hc_idx, carries(d2d::rules::LamEsenQuest::kTome), actor->id), std::back_inserter(out));
         std::ranges::copy(khalim.talk(quests(), hc_idx, khalim_parts(), !temple.orb_broken), std::back_inserter(out));
-        std::ranges::copy(temple.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(guardian.talk(quests(), hc_idx), std::back_inserter(out));
-        std::ranges::copy(blade.talk(quests(), hc_idx, carries(d2d::rules::BladeQuest::kGidbinn)), std::back_inserter(out));
-        std::ranges::copy(golden_bird.talk(quests(), hc_idx, carries(d2d::rules::GoldenBirdQuest::kFigurine), carries(d2d::rules::GoldenBirdQuest::kBird)), std::back_inserter(out));
+        std::ranges::copy(temple.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
+        std::ranges::copy(guardian.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
+        std::ranges::copy(blade.talk(quests(), hc_idx, carries(d2d::rules::BladeQuest::kGidbinn), actor->id), std::back_inserter(out));
+        std::ranges::copy(golden_bird.talk(quests(), hc_idx, carries(d2d::rules::GoldenBirdQuest::kFigurine), carries(d2d::rules::GoldenBirdQuest::kBird), actor->id), std::back_inserter(out));
     }
 
 auto World::act3_talk_closed(int hc_idx) -> void {
@@ -80,7 +80,7 @@ auto World::act3_talk_closed(int hc_idx) -> void {
 auto World::act3_said(int hc_idx, int message_string) -> void {
         d2d::rules::HratliGreeting::said(quests(), game_bits, hc_idx, message_string);
         // Lam Esen's Tome handed to Alkor (FUN_005b7740): the tome goes (FUN_00544160), 5 stat points.
-        if (const auto heard = lam_esen.said(quests(), game_bits, hc_idx, message_string, carries(d2d::rules::LamEsenQuest::kTome), d2d::rules::level_act(level->id) == 2); heard.takes_tome || heard.stat_points) {
+        if (const auto heard = lam_esen.said(quests(), game_bits, hc_idx, message_string, carries(d2d::rules::LamEsenQuest::kTome), d2d::rules::level_act(level->id) == 2, actor->id); heard.takes_tome || heard.stat_points) {
             if (heard.stat_points) class_cue("act3_complete_lamesen", now);
             if (heard.takes_tome) take_carried(d2d::rules::LamEsenQuest::kTome);
             actor->character.stats.values[d2d::d2s::kStatPts] += heard.stat_points;
@@ -88,7 +88,7 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         }
         // The Golden Bird (FUN_005ba320): the figurine for the bird at Meshif's, the bird to Alkor, his potion.
         using Bird = d2d::rules::GoldenBirdQuest;
-        const auto bird = golden_bird.said(quests(), game_bits, hc_idx, message_string, carries(Bird::kFigurine), carries(Bird::kBird));
+        const auto bird = golden_bird.said(quests(), game_bits, hc_idx, message_string, carries(Bird::kFigurine), carries(Bird::kBird), actor->id);
         if (bird.takes_figurine) take_carried(Bird::kFigurine);
         if (bird.gives_bird) { give_item(Bird::kBird, now); actor->had_bird = true; d2d::log::info("The Golden Bird: Meshif's golden bird"); }
         if (bird.takes_bird) take_carried(Bird::kBird);
@@ -97,14 +97,14 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         // (FUN_005bb210): Cain's done, Khalim's parts gone once his Will's done.
         khalim.said(quests(), hc_idx, message_string);
         guardian.said(quests(), hc_idx, message_string, d2d::rules::quest::bit(game_bits, d2d::rules::GuardianQuest::kQuest, 13));
-        if (temple.said(quests(), game_bits, hc_idx, message_string, d2d::rules::quest::bit(game_bits, d2d::rules::BlackenedTempleQuest::kQuest, 13))) {
+        if (temple.said(quests(), game_bits, hc_idx, message_string, d2d::rules::quest::bit(game_bits, d2d::rules::BlackenedTempleQuest::kQuest, 13), actor->id)) {
             using K = d2d::rules::KhalimQuest;
             for (const char* part : { K::kEyeCode, K::kHeartCode, K::kBrainCode, K::kFlailCode, K::kWillCode }) while (carries(part)) take_carried(part);
             d2d::log::info("The Blackened Temple: done, Khalim's parts taken");
         }
         // The Blade of the Old Religion (FUN_005b9240): Ormus takes the Gidbinn, his rare ring; Asheara's free mercenary (FUN_00579180).
         using Blade = d2d::rules::BladeQuest;
-        const auto blade_heard = blade.said(quests(), game_bits, hc_idx, message_string, carries(Blade::kGidbinn));
+        const auto blade_heard = blade.said(quests(), game_bits, hc_idx, message_string, carries(Blade::kGidbinn), actor->id);
         if (blade_heard.takes_gidbinn) {
             class_cue("act3_complete_blade", now);   // FUN_005b9520: unit event 0x41
             take_carried(Blade::kGidbinn);

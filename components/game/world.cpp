@@ -1357,7 +1357,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 // ponytail: one player, the World's; the soulstone falls at his spot (the
 // dying unit's), not by FUN_00559a30's own search.
 auto World::mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
-        guardian.killed();
+        each_player([&](Player& player) { guardian.killed(player.id); });   // the killer and each player in the level: one level in co-op
         class_cue("act3_complete_guardian", now_ms);   // FUN_005bc8b0: unit event 0x42
         music_cue("music_quest_mephisto");
         bridge_check = now_ms + 24 * kTickMs;
