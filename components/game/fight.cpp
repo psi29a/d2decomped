@@ -1953,6 +1953,14 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
             sum[kMaxDamage] += actor->merc_st.dmg_max;
         }
         sum[kToHit] += actor->merc_st.attack_rating;
+        // A monster's curse on it (Amplify Damage, Weaken): its aurastats
+        // join its stats (merc_foe drops a spent one).
+        if (const auto* skill = actor->curses[1].skill >= 0 ? game_data->skills.get(actor->curses[1].skill) : nullptr) {
+            const d2d::rules::CalcEnv env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, actor->merc_st.level, nullptr };
+            for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
+                if (skill->aurastat[k] >= 0 && std::size_t(skill->aurastat[k]) < sum.size())
+                    sum[std::size_t(skill->aurastat[k])] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, actor->curses[1].level);
+        }
         Stats stats;
         stats.values[kLevel] = actor->merc_st.level;
         stats.values[kStr] = actor->merc_st.str + sum[kStr];
@@ -4481,6 +4489,7 @@ auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
     }
 
 auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
+        if (now_ms >= actor->curses[1].until) actor->curses[1] = {};   // merc_fighter reads one still on
         Foe foe{ actor->merc ? actor->merc->unit.x : 0, actor->merc ? actor->merc->unit.y : 0, actor->merc_st.level, actor->merc && actor->merc->mode != "DT",
                  actor->merc && actor->merc->unit.walking, merc_fighter() };
         foe.pet = true;                                  // the merc: its MonStats class's size
@@ -4491,13 +4500,12 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
             foe.size = type_info.size; foe.threat = type_info.threat;
             foe.knock_under = type_info.large ? 0x20 : type_info.small ? 0x80 : 0x40;   // as a monster's (monster_foe_props); crush a hireling's 10
         }
-        // The merc's curse: its damageresist (Amplify Damage's -100 %).
-        // ponytail: its other aurastats (Weaken's damagepercent) aren't on the merc's fighter.
+        // The merc's curse's damageresist (Amplify Damage's -100 %) for
+        // Diablo's score; merc_fighter has all its aurastats.
         int curse_dr = 0;
-        if (const auto* skill = now_ms < actor->curses[1].until ? game_data->skills.get(actor->curses[1].skill) : nullptr)
+        if (const auto* skill = actor->curses[1].skill >= 0 ? game_data->skills.get(actor->curses[1].skill) : nullptr)
             for (std::size_t i = 0; i < skill->aurastat.size(); ++i)
                 if (skill->aurastat[i] == d2d::d2s::kDamageResist) curse_dr += calc(*skill, skill->aura_calc[i], actor->curses[1].level);
-        foe.fighter.dr_pct += curse_dr;
         if (actor->merc) {                                          // its stats for Diablo's score: base + gear + curse, raw (no penalty or cap)
             const auto sum = merc_gear().sum;
             const auto stat = [&](int id) { return int(sum[std::size_t(id)]); };
