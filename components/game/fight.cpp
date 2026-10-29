@@ -1836,7 +1836,7 @@ auto Fight::merc_share(const Monster& monster) -> void {
         auto award = d2d::rules::kill_award(int(std::min<std::int64_t>(monster.stats.exp, 0x7fffffff)), merc_level, monster.stats.level, 0,
                                             game_data->exp_ratio, game_data->exp_ratio_shift, game_data->max_level);
         if (const auto* row = d2d::rules::hireling_row(game_data->rules, header.merc_type, merc_level)) {   // FUN_0057e3f0: a level's span / 64 at most
-            const auto need = [&](std::int64_t level) { return std::uint32_t((level + 1) * level * level * row->exp_per_level); };
+            const auto need = [&](std::int64_t at_level) { return std::uint32_t((at_level + 1) * at_level * at_level * row->exp_per_level); };
             award = std::min<std::int64_t>(award, (need(merc_level + 1) - need(merc_level)) >> 6);
         }
         header.merc_exp = d2d::rules::merc_kill_exp(header.merc_exp, award, merc_blow, merc_level,
