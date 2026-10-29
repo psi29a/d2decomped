@@ -18,31 +18,34 @@ namespace d2d::rules {
 struct DayPhase { int start, type; };
 inline constexpr std::array<DayPhase, 6> kDay{ { { 320, 3 }, { 340, 3 }, { 0, 0 }, { 160, 1 }, { 180, 1 }, { 200, 2 } } };
 inline constexpr int kDayScale = 128;
-// The eclipse's phases (0x744480: Tainted Sun's dark sky).
+// The eclipse's phases (0x744480: Tainted Sun's dark sky), and the starts
+// Act 4's eclipse steps past instead (0x744438).
 inline constexpr std::array<DayPhase, 6> kEclipse{ { { 300, 3 }, { 0, 0 }, { 60, 1 }, { 120, 2 }, { 180, 2 }, { 240, 2 } } };
+inline constexpr std::array<DayPhase, 6> kAct4Eclipse{ { { 340, 3 }, { 350, 3 }, { 0, 0 }, { 180, 1 }, { 190, 1 }, { 200, 2 } } };
 
 // A game's clock; a new game starts at sunrise (FUN_0061be40).
 // The eclipse (+0x30) as the client has it from S->C 0x53 (FUN_0061c240):
 // its own phases, no night's extra frame, and the light falling 8 a frame
 // to 32 (FUN_0061bb80), whatever the hour.
-// ponytail: Act 4's clock (15 more a frame, its eclipse phases 0x744438)
-// isn't here. The phases' colours aren't used: the software renderer
-// draws intensity only.
+// The phases' colours aren't used: the software renderer draws intensity
+// only.
 struct Day {
     int phase = 2, time = 0;                   // time: frames into the day
     bool eclipse = false;
     int dimmed = 255;                          // the eclipse's intensity (+0xc), falling
-    // A client frame (FUN_0061bee0, `act` 0-based): one frame, two at
-    // night, ten at night in Act 3. Past the next phase's start the phase
-    // moves on and the clock snaps to that start. game.exe bug (bugs.md
-    // #9): phase 2 starts at 0°, so phase 1 moves on at its first frame and
-    // the day is 340° long.
+    // A client frame (FUN_0061bee0, `act` 0-based): one frame; out of the
+    // eclipse 16 in Act 4, else two at night (ten in Act 3). Past the next
+    // phase's start the phase moves on and the clock snaps to that start
+    // (the eclipse's in Act 4 are 0x744438's, but it snaps to 0x744480's).
+    // game.exe bug (bugs.md #9): phase 2 starts at 0°, so phase 1 moves on
+    // at its first frame and the day is 340° long.
     void step(int act = 0) {
-        const auto& phases = eclipse ? kEclipse : kDay;
-        time += eclipse || phases[std::size_t(phase)].type != 2 ? 1 : act == 2 ? 10 : 2;
+        ++time;
+        if (!eclipse) time += act == 3 ? 15 : kDay[std::size_t(phase)].type != 2 ? 0 : act == 2 ? 9 : 1;
         if (time >= 360 * kDayScale) time = 0;
-        const auto& next = phases[std::size_t((phase + 1) % 6)];
-        if (next.start * kDayScale < time) { phase = (phase + 1) % 6; time = next.start * kDayScale; }
+        const auto& starts = !eclipse ? kDay : act == 3 ? kAct4Eclipse : kEclipse;
+        const int next = (phase + 1) % 6;
+        if (starts[std::size_t(next)].start * kDayScale < time) { phase = next; time = (eclipse ? kEclipse : kDay)[std::size_t(next)].start * kDayScale; }
         if (eclipse) dim();
     }
     // S->C 0x53 (FUN_0061c240): the phase, the time (past a day: 0) and the

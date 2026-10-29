@@ -30,14 +30,14 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   | 4 | 180° | dusk | (194, 152, 193) |
   | 5 | 200° | night | (125, 144, 243) |
 
-  Act 4 uses 0x744438 and the eclipse 0x744480.
+  The eclipse steps by 0x744480 (Act 4: past 0x744438's starts, snapping to 0x744480's).
 - **A new game** starts in phase 2 at time 0, which is sunrise.
 - **The eclipse** (the Tainted Sun, quests-act2.md): S→C 0x53 sets
   phase, time and +0x30; the step then reads 0x744480's phases, and the
   intensity falls by 8 a frame to 32. d2d: `Day::set`.
 - **The step** (`FUN_0061bee0`, from the client frame `FUN_0044c790` via
   `FUN_0061bfc0`): time + 1 a frame. Night phases (type 2) add one more;
-  Act 4 adds 15 and Act 3 at night 8 more: 10 a frame (the +9 builds on
+  Act 4 (out of the eclipse) adds 15, and Act 3 at night 8 more: 10 a frame (the +9 builds on
   the time + 1, over the night's extra one; tools/emu: an Act 3 day is
   29 702 frames, night 1537). d2d: `Day::step(act)`. The time wraps at 360 × scale. When
   the time passes the next phase's start × scale, the phase moves on and

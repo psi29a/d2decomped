@@ -2,9 +2,11 @@
 // The day's clock and the light grid against game.exe's numbers.
 #include <light.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <utility>
 
 using namespace d2d::rules;
 
@@ -34,6 +36,24 @@ int main() {
     frames = 0;
     do { act3_day.step(2); ++frames; } while (!(act3_day.phase == 2 && act3_day.time == 0));
     assert(frames == 29702);
+    // Act 4's clock runs 16 frames a frame (FUN_0061bee0, ESI 3): 2726.
+    Day act4_day;
+    frames = 0;
+    do { act4_day.step(3); ++frames; } while (!(act4_day.phase == 2 && act4_day.time == 0));
+    assert(frames == 2726);
+    // The eclipse from sunrise, as game.exe has it after 10001, 30001 and
+    // 60000 frames: Act 1 by 0x744480, Act 4 past 0x744438's starts.
+    using Checks = std::array<std::array<int, 2>, 3>;
+    for (const auto& [act, checks] : { std::pair{ 1, Checks{ { { 2, 10001 }, { 4, 29999 }, { 3, 21593 } } } },
+                                       std::pair{ 3, Checks{ { { 2, 10001 }, { 3, 22320 }, { 2, 13914 } } } } }) {
+        Day dark;
+        dark.eclipse = true;
+        std::size_t check = 0;
+        for (int frame = 0; frame < 60000; ++frame) {
+            dark.step(act);
+            if (frame == 10000 || frame == 30000 || frame == 59999) { assert(dark.phase == checks[check][0] && dark.time == checks[check][1]); ++check; }
+        }
+    }
 
     // The player's light (radius 13 subtiles, 255) on a dark grid: full
     // where they stand, falling off linearly, nothing past the radius.
