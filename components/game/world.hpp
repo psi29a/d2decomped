@@ -256,8 +256,11 @@ struct World {
     // game.exe gives party and area credit quest by quest (quests-act*.md:
     // FUN_00540510's callbacks, the players in the level); one screen puts
     // every player in the level and the party, so it comes to this.
-    // ponytail: one rule for every quest; a quest whose callback asks more
+    // kOwnCredit's quests credit each player in their hooks, as game.exe
+    // does, and are left alone.
+    // ponytail: one rule for the other quests; a callback that asks more
     // (an act, a bit besides 0 and 1) isn't told apart.
+    static constexpr std::array<int, 7> kOwnCredit{ 1, 2, 3, 9, 13, 14, 0x16 };   // Den, Burial, Tools, Radament, Summoner, Tombs, Guardian
     template <class Step> void credit_party(Step&& step) {
         if (players.size() == 1) { step(); return; }
         Player& mover = *actor;
@@ -270,6 +273,7 @@ struct World {
             auto& theirs = other->character.header.quests[difficulty];
             for (std::size_t word = 0; word + 1 < theirs.size(); word += 2) {
                 const int quest = int(word / 2);
+                if (std::ranges::contains(kOwnCredit, quest)) continue;
                 if (d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) continue;
                 theirs[word] |= std::uint8_t(after[word] & ~before[word]);
                 theirs[word + 1] |= std::uint8_t(after[word + 1] & ~before[word + 1]);
@@ -689,6 +693,8 @@ struct World {
     void mephisto_bridge(std::uint32_t now_ms);
     void blood_raven_died(std::uint32_t now_ms);
     void radament_died(const Fight::Kill& kill, std::uint32_t now_ms);
+    // (x, y) in the room of (from_x, from_y) or one next to it (FUN_00463740).
+    [[nodiscard]] bool near_room(float from_x, float from_y, float x, float y) const;
     void transmute(std::uint32_t now_ms);
     void canyon_portal(std::uint32_t now_ms);
     void durielportal_open(std::uint32_t now_ms);

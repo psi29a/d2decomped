@@ -1345,6 +1345,7 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
         if (stand == d2d::rules::ToolsQuest::Stand::refuse) d2d::log::info("I can't use this yet.");
         if (stand == d2d::rules::ToolsQuest::Stand::drop || !tools.active) operated.try_emplace({ level, npc_index }, now_ms);
         if (stand != d2d::rules::ToolsQuest::Stand::drop) return;
+        each_player([&](Player&) { tools.mark(quests()); });   // every player's flags for state 4 (FUN_005537d0 -> 0x591340)
         const auto& area_levels = game_data->area_level;
         const int alvl = std::size_t(level->id) < area_levels.size() ? area_levels[std::size_t(level->id)][std::size_t(std::clamp(actor->character.header.active_difficulty(), 0, 2))] : 1;
         loot.put({ .code = "hdm" }, object.x, object.y, alvl, fight.spawning.game, now_ms);
@@ -1429,13 +1430,19 @@ auto World::mephisto_bridge(std::uint32_t now_ms) -> void {
         }
     }
 
-// Blood Raven's death hook (FUN_00590ec0).
-// ponytail: "near" is the player in the Burial Grounds, not the killer's
-// room or its neighbours (FUN_00590c40); quests: agent A's.
+// Blood Raven's death hook (FUN_00590ec0): each player near the killer
+// (FUN_00590c40: in its room or one next to it) takes part, the rest heard
+// of it (bit 14).
 auto World::blood_raven_died(std::uint32_t now_ms) -> void {
-        if (!burial.killed(quests(), level->id == d2d::rules::BurialQuest::kBurial)) return;
+        const float killer_x = actor->player.x, killer_y = actor->player.y;
+        bool any = false;
+        each_player([&](Player& player) {
+            if (!burial.killed(quests(), level->id == d2d::rules::BurialQuest::kBurial && near_room(killer_x, killer_y, player.player.x, player.player.y))) return;
+            class_cue("act1_complete_burial", now_ms);
+            any = true;
+        });
+        if (!any) return;
         music_cue("music_quest_bloodraven");
-        class_cue("act1_complete_burial", now_ms);
         d2d::log::info("Sisters' Burial Grounds: Blood Raven is dead, return to Kashya");
     }
 
@@ -1531,16 +1538,28 @@ auto World::canyon_portal(std::uint32_t now_ms) -> void {
         d2d::log::info("The Arcane Sanctuary: the way to the Canyon of the Magi");
     }
 
-// Radament's death hook (FUN_00599020): the books due drop at him
-// (FUN_00559a30).
-// ponytail: "near" is the player in his lair, not the killer's room or its
-// neighbours (FUN_00598e20).
+// Radament's death hook (FUN_00599020): each player near the killer
+// (FUN_00598e20: in its room or one next to it) takes part, the rest heard
+// of it; a book each for those due one without one drops at him
+// (LAB_00598fa0, FUN_00559a30).
 auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
-        const auto [books, took_part] = radament.killed(quests(), game_bits, level->id == d2d::rules::RadamentQuest::kLair, carries("ass"));
+        const float killer_x = actor->player.x, killer_y = actor->player.y;
+        int books = 0;
+        bool any = false;
+        each_player([&](Player& player) {
+            const auto result = radament.killed(quests(), game_bits, level->id == d2d::rules::RadamentQuest::kLair && near_room(killer_x, killer_y, player.player.x, player.player.y),
+                                                carries("ass"));
+            books += result.books;
+            if (result.took_part) { class_cue("act2_complete_radament", now_ms); any = true; }
+        });
         for (int i = 0; i < books; ++i) loot.put({ .code = "ass" }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
-        if (took_part) class_cue("act2_complete_radament", now_ms);
-        if (took_part) music_cue("music_quest_radament");
+        if (any) music_cue("music_quest_radament");
         if (radament.state == 4) d2d::log::info("Radament's Lair: Radament is dead, return to Atma");
+    }
+
+auto World::near_room(float from_x, float from_y, float x, float y) const -> bool {
+        const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
+        return room_near_holds(*level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
     }
 
 auto World::hire_list(int list_act) -> std::vector<d2d::rules::HireEntry>& {

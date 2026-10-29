@@ -143,13 +143,18 @@ auto World::act2_alert(int hc_idx) -> bool {
 
 auto World::act2_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (kill.type == d2d::rules::monster_ids::kRadament) radament_died(kill, now_ms);
-        if (kill.type == d2d::rules::SevenTombsQuest::kDuriel) {     // FUN_0059d050. N-player gap: "by him" is the player in the Lair.
-            tombs.duriel_died(quests(), level->id == d2d::rules::SevenTombsQuest::kLair);
+        if (kill.type == d2d::rules::SevenTombsQuest::kDuriel) {     // FUN_0059d050: each player in the Lair (FUN_0059cfb0)
+            each_player([&](Player&) { tombs.duriel_died(quests(), level->id == d2d::rules::SevenTombsQuest::kLair); });
             d2d::log::info("The Seven Tombs: Duriel is dead");
         }
-        // The Summoner (FUN_0059c150). N-player gap: "by him" is the player in the Sanctuary.
-        if (kill.type == d2d::rules::monster_ids::kSummoner && summoner.killed(quests(), level->id == d2d::rules::SummonerQuest::kSanctuary))
-            d2d::log::info("The Summoner: dead");
+        // The Summoner (FUN_0059c150): each player by him (his room or one next to it) takes part, the rest heard of it.
+        if (kill.type == d2d::rules::monster_ids::kSummoner) {
+            bool any = false;
+            each_player([&](Player& player) {
+                any |= summoner.killed(quests(), level->id == d2d::rules::SummonerQuest::kSanctuary && near_room(kill.x, kill.y, player.player.x, player.player.y));
+            });
+            if (any) d2d::log::info("The Summoner: dead");
+        }
     }
 
 auto World::act2_update() -> void {
