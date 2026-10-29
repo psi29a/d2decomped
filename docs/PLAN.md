@@ -47,10 +47,10 @@ Status as of 2026-10-25.
    the `Add patch binaries…` / `Fetch patch…` buttons extract them on
    demand from a Blizzard MPQ-appended installer.
 
-   **`bin/` is dev-only.** Nothing our engine ships against Blizzard's PEs;
-   they exist so contributors can open them in Ghidra. Once this phase is
-   done, the `bin/` import will be dropped from the launcher — redistributing
-   Blizzard's binaries is not permitted, so no release will include them.
+   **`bin/` holds the user's own PEs.** Contributors open them in Ghidra,
+   and `--join` reads the user's game.exe from there (`--game-exe`'s last
+   fallback). Redistributing Blizzard's binaries is not permitted, so no
+   release includes them.
 5. **Core loop**: main menu, character select, load act 1 rogue camp,
    render tiles. *Done for Acts 1–5:* frontend, the five towns, NPCs,
    panels, trade, hiring, waypoints across acts, all 39 + 35 + 28 + 6 + 28

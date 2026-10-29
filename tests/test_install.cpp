@@ -163,6 +163,11 @@ int run() {
     fs::create_directories(home / "Games" / "diablo-ii" / "drive_c");
     fs::create_directories(home / "Games" / "not-a-prefix");
     fs::create_directories(home / ".steam/steam/steamapps/compatdata/2536520/pfx/drive_c");
+    fs::create_directories(root / "lutris-d2" / "drive_c");
+    write(home / ".config/lutris/games/diablo-ii-1.yml", "game:\n  exe: Game.exe\n  prefix: " + (root / "lutris-d2").string() + "\n");
+    fs::create_directories(root / "library/steamapps/compatdata/7/pfx/drive_c");
+    write(home / ".steam/steam/steamapps/libraryfolders.vdf",
+          "\"libraryfolders\"\n{\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + (root / "library").string() + "\"\n\t}\n}\n");
     fs::create_directories(home / "Library/Containers/com.isaacmarovitz.Whisky/Bottles/B1/drive_c");
     fs::create_directories(root / "custom" / "drive_c");
 
@@ -217,6 +222,7 @@ int run() {
         "[Software\\\\Blizzard Entertainment\\\\Diablo II] 1700000000\n"
         "\"InstallPath\"=\"C:\\\\Games\\\\Caf\\xe9 \\\"D2\\\"\"\n"
         "\"Expand\"=str(2):\"%ProgramFiles%\\\\D2\"\n"
+        "\"Emoji\"=\"\\xd83d\\xde00 \\xd83d!\"\n"     // a pair, then a lone high surrogate
         "\"Number\"=dword:00000001\n"
         "[Software\\\\Blizzard Entertainment\\\\Diablo II\\\\VideoConfig] 1700000000\n"
         "[Software\\\\Blizzard Entertainment\\\\Starcraft] 1700000000\n"
@@ -224,6 +230,7 @@ int run() {
     assert(wine_reg_value(reg, R"(software\blizzard entertainment\diablo ii)", "installpath") == "C:\\Games\\Caf\xc3\xa9 \"D2\"");
     assert(wine_reg_value(reg, R"(Software\Blizzard Entertainment\Diablo II)", "Expand") == "%ProgramFiles%\\D2");
     assert(!wine_reg_value(reg, R"(Software\Blizzard Entertainment\Diablo II)", "Number"));
+    assert(wine_reg_value(reg, R"(Software\Blizzard Entertainment\Diablo II)", "Emoji") == "\xf0\x9f\x98\x80 \xed\xa0\xbd!");
     assert(!wine_reg_value(reg, R"(Software\Blizzard Entertainment\Diablo II)", "Missing"));
     assert(wine_reg_value(reg, R"(Software\Blizzard Entertainment\Starcraft)", "InstallPath") == "C:\\SC");
     assert((wine_reg_subkeys(reg, R"(Software\Blizzard Entertainment)") == std::vector<std::string>{ "Diablo II", "Starcraft" }));
@@ -291,10 +298,11 @@ int run() {
 
     // --- Wine prefix discovery ------------------------------------------------
     const auto found = wine_prefixes(home, (root / "custom").string(), false);
-    assert(found.size() == 4 && found[0] == root / "custom" && found[1] == prefix);
-    assert(found[2] == home / "Games" / "diablo-ii" && found[3] == home / ".steam/steam/steamapps/compatdata/2536520/pfx");
-    assert(wine_prefixes(home, (root / "custom").string(), true).size() == 5);   // + Whisky, on request only
-    assert(wine_prefixes(home, "", false).size() == 3);
+    assert(found.size() == 6 && found[0] == root / "custom" && found[1] == prefix);
+    assert(found[2] == home / "Games" / "diablo-ii" && found[3] == root / "lutris-d2");
+    assert(found[4] == home / ".steam/steam/steamapps/compatdata/2536520/pfx" && found[5] == root / "library/steamapps/compatdata/7/pfx");
+    assert(wine_prefixes(home, (root / "custom").string(), true).size() == 7);   // + Whisky, on request only
+    assert(wine_prefixes(home, "", false).size() == 5);
 
     // --- d2d's data dir: first hit wins, each a hard stop ---------------------
     const auto none = root / "empty";

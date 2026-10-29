@@ -14,6 +14,7 @@
 #include <functional>
 #include <ios>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
@@ -96,15 +97,20 @@ std::uint32_t le32(std::string_view bytes, std::size_t offset) {
 void append_utf8(std::string& out, std::uint32_t code) {
     if (code < 0x80) out += char(code);
     else if (code < 0x800) { out += char(0xC0 | code >> 6); out += char(0x80 | (code & 0x3F)); }
-    else { out += char(0xE0 | code >> 12); out += char(0x80 | (code >> 6 & 0x3F)); out += char(0x80 | (code & 0x3F)); }
+    else if (code < 0x10000) { out += char(0xE0 | code >> 12); out += char(0x80 | (code >> 6 & 0x3F)); out += char(0x80 | (code & 0x3F)); }
+    else {
+        out += char(0xF0 | code >> 18); out += char(0x80 | (code >> 12 & 0x3F));
+        out += char(0x80 | (code >> 6 & 0x3F)); out += char(0x80 | (code & 0x3F));
+    }
 }
 
-// Wine's string escapes: \\ \" \n \r \t \0 and \xH..HHHH (a UTF-16 unit).
-// ponytail: surrogate pairs come out as two 3-byte sequences (CESU-8); a
-// non-BMP path then won't exist and the default-folder probes cover it.
+// Wine's string escapes: \\ \" \n \r \t \0 and \xH..HHHH (a UTF-16 unit; a
+// surrogate pair joins into one code point).
 std::string unescape(std::string_view text) {
     std::string out;
+    std::uint32_t high = 0;   // a high surrogate waiting for its low half
     for (std::size_t i = 0; i < text.size(); ++i) {
+        if (high && !text.substr(i).starts_with("\\x")) { append_utf8(out, high); high = 0; }
         if (text[i] != '\\' || i + 1 == text.size()) { out += text[i]; continue; }
         const char next = text[++i];
         switch (next) {
@@ -120,12 +126,17 @@ std::string unescape(std::string_view text) {
                 code = code * 16 + std::uint32_t(digit <= '9' ? digit - '0' : digit - 'a' + 10);
                 ++digits;
             }
-            append_utf8(out, code);
+            if (high && code >= 0xDC00 && code < 0xE000) code = 0x10000 + ((high - 0xD800) << 10) + (code - 0xDC00);
+            else if (high) append_utf8(out, high);
+            high = 0;
+            if (code >= 0xD800 && code < 0xDC00) high = code;
+            else append_utf8(out, code);
             break;
         }
         default: out += next;   // \\ and \" and anything unknown
         }
     }
+    if (high) append_utf8(out, high);
     return out;
 }
 
@@ -311,9 +322,8 @@ auto find_file(const fs::path& dir, std::string_view name) -> std::optional<fs::
 }
 
 auto file_version(const fs::path& exe_path) -> std::optional<std::array<std::uint16_t, 4>> {
-    // ponytail: scans the whole file (Game.exe 1.14d is ~3.5 MB) for the
-    // VS_FIXEDFILEINFO signature instead of walking the resource tree;
-    // capped at 64 MB.
+    // Scans the whole file (Game.exe 1.14d is ~3.5 MB, capped at 64 MB) for
+    // the VS_FIXEDFILEINFO signature instead of walking the resource tree.
     const auto bytes = read_file(exe_path, 64u << 20);
     if (!bytes || bytes->size() < 64 || !bytes->starts_with("MZ")) return std::nullopt;
     const std::string_view data(*bytes);
@@ -439,8 +449,8 @@ auto classify(const fs::path& dir, std::string source, const fs::path& virtual_s
             if (auto hit = find_file(virtual_store, name)) return hit;
         return find_file(dir, name);
     };
-    // ponytail: bin/ is the launcher's dev-only binary import (PLAN.md
-    // phase 4 removes it); it goes when that does.
+    // bin/: where the launcher's import puts the user's own PEs (PLAN.md
+    // phase 4); --join reads game.exe from there too.
     auto exe = pick("Game.exe");
     if (!exe) exe = find_file(dir / "bin", "Game.exe");
     if (exe) {
@@ -507,13 +517,32 @@ auto wine_prefixes(const fs::path& home, std::string_view wineprefix, bool searc
     add(utf8_path(wineprefix));
     if (home.empty()) return out;
     add(home / ".wine");
-    // Linux. ponytail: Steam libraries outside ~/.steam (libraryfolders.vdf)
-    // and Lutris games outside ~/Games (pga.db, sqlite) aren't read.
-    each(home / "Games");                                                   // Lutris
+    // The quoted or bare value after `key` on each line of a text file.
+    auto values = [](const fs::path& file, std::string_view key, auto&& use) {
+        const auto text = read_file(file, 1u << 20);
+        if (!text) return;
+        for (const auto line_range : std::views::split(std::string_view(*text), '\n')) {
+            std::string_view line(line_range.begin(), line_range.end());
+            line.remove_prefix(std::min(line.find_first_not_of(" \t"), line.size()));
+            if (!line.starts_with(key)) continue;
+            line.remove_prefix(key.size());
+            line.remove_prefix(std::min(line.find_first_not_of(" \t\""), line.size()));
+            line = line.substr(0, line.find_last_not_of(" \t\r\"") + 1);
+            if (!line.empty()) use(utf8_path(line));
+        }
+    };
+    // Linux. Lutris: ~/Games, then each game's own `prefix:` (its YAML).
+    each(home / "Games");
+    for (const char* games : { ".config/lutris/games", ".local/share/lutris/games" })
+        for (const auto& entry : entries(home / games)) values(entry, "prefix:", add);
     each(home / ".local/share/bottles/bottles");                            // Bottles
     each(home / ".var/app/com.usebottles.bottles/data/bottles/bottles");    // Bottles (Flatpak)
-    each(home / ".steam/steam/steamapps/compatdata", "pfx");                // Proton
-    each(home / ".local/share/Steam/steamapps/compatdata", "pfx");
+    // Proton, in every Steam library (libraryfolders.vdf's "path" lines).
+    for (const char* steam : { ".steam/steam", ".local/share/Steam" }) {
+        each(home / steam / "steamapps/compatdata", "pfx");
+        values(home / steam / "steamapps/libraryfolders.vdf", "\"path\"",
+               [&](const fs::path& library) { each(library / "steamapps/compatdata", "pfx"); });
+    }
     // macOS wrappers.
     each(home / "Library/Application Support/CrossOver/Bottles");           // CrossOver
     each(home / "Applications", "Contents/SharedSupport/prefix");           // Porting Kit
@@ -525,23 +554,27 @@ auto wine_prefixes(const fs::path& home, std::string_view wineprefix, bool searc
 
 auto system_environment([[maybe_unused]] bool search_more) -> Environment {   // Windows has no containers to search
     Environment env;
-    auto var = [](const char* name) -> std::string {
-        const char* value = std::getenv(name);
-        return value ? value : "";
-    };
 #if defined(_WIN32)
-    // ponytail: getenv is the ANSI code page; a non-ASCII %ProgramFiles%
-    // or profile path needs _wgetenv.
-    env.home           = var("USERPROFILE");
-    env.program_data   = var("ProgramData");
-    env.local_app_data = var("LOCALAPPDATA");
-    for (const char* name : { "ProgramFiles(x86)", "ProgramFiles" })
+    // _wgetenv: getenv gives the ANSI code page, which mangles a non-ASCII
+    // profile or Program Files path.
+    auto var = [](const wchar_t* name) -> fs::path {
+        const wchar_t* value = _wgetenv(name);
+        return value ? fs::path(value) : fs::path{};
+    };
+    env.home           = var(L"USERPROFILE");
+    env.program_data   = var(L"ProgramData");
+    env.local_app_data = var(L"LOCALAPPDATA");
+    for (const wchar_t* name : { L"ProgramFiles(x86)", L"ProgramFiles" })
         if (const auto dir = var(name);
-            !dir.empty() && std::find(env.program_files.begin(), env.program_files.end(), fs::path(dir)) == env.program_files.end())
+            !dir.empty() && std::find(env.program_files.begin(), env.program_files.end(), dir) == env.program_files.end())
             env.program_files.emplace_back(dir);
     env.registry = windows_registry;
     env.subkeys  = windows_subkeys;
 #else
+    auto var = [](const char* name) -> std::string {
+        const char* value = std::getenv(name);
+        return value ? value : "";
+    };
     env.home = var("HOME");
 #  if defined(__APPLE__)
     env.program_data = "/Users/Shared";
