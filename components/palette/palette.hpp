@@ -120,6 +120,10 @@ public:
     static constexpr std::size_t kBaseOff         = 0;
     static constexpr std::size_t kAdditiveOff     = 210176;
     static constexpr std::size_t kBlend50Off      = 374016;
+    // The 13 text colours' index shifts (FUN_004fb1e0 copies PL2 +0x6b627
+    // to 0x7d5668 and hands it to the driver: a glyph's index i draws as
+    // shift[colour][i]); their RGBs at +0x6b600 (0x7d563c).
+    static constexpr std::size_t kTextShiftOff    = 0x6b627;
 
     Pl2() = default;
 
@@ -138,6 +142,15 @@ public:
             additive_[i] = std::uint8_t(bytes[kAdditiveOff + i]);
             blend50_[i]  = std::uint8_t(bytes[kBlend50Off  + i]);
         }
+        if (bytes.size() >= kTextShiftOff + 13u * 256u)
+            for (std::size_t i = 0; i < 13u * 256u; ++i) text_shift_[i] = std::uint8_t(bytes[kTextShiftOff + i]);
+    }
+    // `pal` as text colour `colour` (0..12) draws it: each index through its shift.
+    [[nodiscard]] Palette text_palette(const Palette& pal, int colour) const {
+        std::array<Rgba, 256> entries{};
+        for (std::size_t i = 0; i < 256; ++i) entries[i] = pal[text_shift_[std::size_t(colour % 13) * 256 + i]];
+        entries[0].a = 0;
+        return Palette(entries);
     }
 
     [[nodiscard]] const std::array<Rgba, 256>& base_palette() const noexcept {
@@ -157,6 +170,7 @@ private:
     std::array<Rgba, 256>            base_{};
     std::array<std::uint8_t, 65536>  additive_{};
     std::array<std::uint8_t, 65536>  blend50_{};
+    std::array<std::uint8_t, 13 * 256> text_shift_{};
 };
 
 }  // namespace d2d::palette

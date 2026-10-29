@@ -288,11 +288,11 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
     }
     if (select_ui.pick_difficulty) {
         blit_dc6_grid(framebuffer, scene.difficulty_levels, pal, 237, rec_top(400, 200), 2);
-        // ponytail: heading in font16 gold; game.exe passes colour 7 (FUN_004fc9b0), not yet mapped, and record 0xab's font.
-        const int heading_width = scene.font.measure(select_ui.difficulty_heading);
-        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 264 + (272 - heading_width) / 2,
-                               rec_top(260, 35) + (35 - scene.font.line_height()) / 2, select_ui.difficulty_heading,
-                               kTextGold[0], kTextGold[1], kTextGold[2]);
+        // Record 0xab: Font24 (its font pair at 0x7089bc: font 7), text
+        // colour 7 (FUN_004fc9b0) through the Sky PL2's shift (char-select's palette), centred (flags 2).
+        const int heading_width = scene.font24.measure(select_ui.difficulty_heading);
+        scene.font24.draw(framebuffer, kScreenWidth, kScreenHeight, scene.sky_pl2.text_palette(pal, 7), 264 + (272 - heading_width) / 2,
+                          rec_top(260, 35) + (35 - scene.font24.line_height()) / 2, select_ui.difficulty_heading);
         for (int index = 0; index < 3; ++index) {
             const Button& button = select_ui.difficulty_btn[std::size_t(index)];
             const std::string& label = select_ui.difficulty_label[std::size_t(index)];
