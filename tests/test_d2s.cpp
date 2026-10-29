@@ -138,6 +138,9 @@ int main() try {
         item_tables.stats[d2d::d2s::kQuestItemDifficulty].save_bits = 2;
         const auto items = d2d::d2s::parse_items(bytes, item_tables);
         assert(items.size() == 1 && items[0].code == "bks" && items[0].quest_difficulty == 2 && items[0].socketed_items.empty());
+        d2d::d2s::Item full_item;                                       // a full item keeps it in its props (stat 356)
+        full_item.props.push_back({ .stat = 356, .value = 1 });
+        assert(d2d::d2s::quest_difficulty_of(items[0]) == 2 && d2d::d2s::quest_difficulty_of(full_item) == 1 && d2d::d2s::quest_difficulty_of(d2d::d2s::Item{}) == -1);
         d2d::d2s::detail::BitWriter writer;
         d2d::d2s::detail::write_item(writer, items[0], item_tables);
         writer.align();

@@ -223,8 +223,8 @@ inline std::optional<CubeMatch> cube_match(const Tables& tables, const CubeRecip
             if ((input.flags & kBase) ? item.code != base.normcode : (input.flags & kExceptional) ? item.code != base.ubercode
                 : (input.flags & kElite) && item.code != base.ultracode) continue;
             if ((input.flags & kNoRuneword) && item.runeword) continue;
-            // N-player gap: op 28's quest item difficulty (stat 0x164) is taken as met.
-            (void)difficulty;
+            // Op 28 (0x5652c9): a questdiffcheck quest item made in this difficulty or later.
+            if (recipe.op == 28 && base.quest && base.quest_diff && std::max(d2d::d2s::quest_difficulty_of(item), 0) < difficulty) continue;
             const auto& first_out = recipe.outputs[0];
             if (slot == 0 && (first_out.kind == cube_out::kUseType || first_out.kind == cube_out::kUseItem) && (first_out.flags & cube_out::kSock)
                 && max_sockets(tables, item) == 0) continue;

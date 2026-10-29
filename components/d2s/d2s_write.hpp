@@ -103,7 +103,7 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
         if (item.simple) {                                    // as d2s_items.hpp reads a compact item
             if (item.version > 92 && item_tables.quest_difficulty.contains(item.code) && item_tables.stats.size() > kQuestItemDifficulty) {
                 const auto& stat = item_tables.stats[kQuestItemDifficulty];
-                writer.write(std::uint32_t(std::max(item.quest_difficulty, 0) + stat.save_add), stat.save_bits);
+                writer.write(std::uint32_t(std::max(quest_difficulty_of(item), 0) + stat.save_add), stat.save_bits);
             }
             if (item.version > 86) {
                 writer.write(!item.realm.empty(), 1);

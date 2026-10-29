@@ -1700,8 +1700,22 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
     }
 
 // FUN_00558110: the cursor's item, then all the player's items.
-// N-player gap: the quest item's difficulty (stat 0x164, questdiffcheck) isn't checked.
-auto World::carries(std::string_view code) const -> bool { return (actor->held && actor->held->code == code) || std::ranges::contains(actor->character.items, code, &d2d::d2s::Item::code); }
+// The acting player carries `code` (FUN_00558110): the item in hand, a
+// quest item (Items +0x12a) only if the game's difficulty is at most its
+// stat 0x164; else one in their items, a quest item with questdiffcheck
+// (+0x12b) on that condition. A held Cube ("box", no questdiffcheck, no
+// stat) so counts only in Normal, as in game.exe.
+auto World::carries(std::string_view code) const -> bool {
+        const int difficulty = actor->character.header.active_difficulty();
+        const auto counts = [&](const d2d::d2s::Item& item, bool held) {
+            if (item.code != code) return false;
+            const auto found = game_data->rules.item_base.find(item.code);
+            const bool quest = found != game_data->rules.item_base.end() && found->second.quest;
+            if (!quest || (!held && !found->second.quest_diff)) return true;
+            return difficulty <= std::max(d2d::d2s::quest_difficulty_of(item), 0);
+        };
+        return (actor->held && counts(*actor->held, true)) || std::ranges::any_of(actor->character.items, [&](const auto& item) { return counts(item, false); });
+    }
 // FUN_005466b0(code, ilvl, quality): an item made into the player's
 // inventory, left at their feet when there's no room.
 auto World::give_item(std::string_view code, std::uint32_t now_ms, int ilvl, int quality) -> void {

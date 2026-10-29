@@ -113,6 +113,15 @@ struct Item {
     std::vector<std::uint32_t> realm;
 };
 
+// An item's stat 0x164 (questitemdifficulty: the difficulty a questdiffcheck
+// quest item was made in, FUN_00557ab0): a compact item's field, else its
+// props'; -1 none.
+[[nodiscard]] inline int quest_difficulty_of(const Item& item) {
+    if (item.quest_difficulty >= 0) return item.quest_difficulty;
+    for (const auto& prop : item.props) if (prop.stat == 356) return prop.value;
+    return -1;
+}
+
 // What the parser needs from the excel tables.
 struct ItemTables {
     struct Stat { int save_bits = 0, save_add = 0, param_bits = 0, csv_bits = 0; };
