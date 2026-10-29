@@ -368,7 +368,7 @@ struct World {
     bool rite_died = false;                // the player's death on the Summit, taken (FUN_005be290)
     void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)
     std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
-    std::map<std::pair<const Level*, int>, int> cages_up;   // a5q2's cages (object 473) whose InitFn ran: their slot (-1 none)
+    std::size_t cages_seen = 0;               // a5q2's cages (Spawning::rescue_cages) come into the quest so far
     void rescue_update(std::uint32_t now_ms);             // the cages, the prisoners' asks (a5q2)
     void prison_update(std::uint32_t now_ms);             // frozen Anya, her thaw, Nihlathak's throne (a5q3)
     void act5_hide();                                     // who's gone: town Nihlathak, fana, drehyaiced (a5q3)

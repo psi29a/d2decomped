@@ -949,6 +949,9 @@ struct Spawning {
     std::vector<d2d::rules::Region> regions;               // by Levels.txt Id
     std::unordered_map<const Level*, LevelState> levels;
     std::bitset<128> superuniques;                         // spawned this game (game +0x1d30)
+    // a5q2's cages up so far (its record's data +0x86 / +0x8c, game-wide):
+    // level id, spot (level subtiles).
+    std::vector<std::array<int, 3>> rescue_cages;
     int tomb_symbols = 0;                                  // the Summoner's symbols handed out (FUN_0059d720: record 13 +0x3a)
     // The game's quest words (World::game_bits, a d2d::rules::QuestBits), as
     // the town markers' inits read them (FUN_00544760).

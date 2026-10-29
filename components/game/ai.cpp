@@ -135,6 +135,7 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
         const std::vector<d2d::rules::Components>* sets = nullptr;
         for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
             if (region.types[i].first == spawn.type) sets = &region.components[i];
+        monster.cage = spawn.cage;
         d2d::rules::Rng unit_seed{ spawn.seed };
         const auto look = d2d::rules::monster_look(sets, type_info.choices, unit_seed);
         monster.variant = d2d::rules::monster_variant(spawn.type, unit_seed);
@@ -1494,15 +1495,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         }
         case MonAct::seq:                                          // FUN_005de000: the skill's own sequence (the Greater Mummy's raise)
         case MonAct::skill: {                                      // its Sk mode's sequence (MonSeq) plays out
-            // Act 5's raw skill ids: the catapult spotter's strike (A1 at a point),
-            // the generic spawner's young (sequence 0xa7).
-            // ponytail: the hut's young isn't made (it stands).
+            // Act 5's raw skill ids: the catapult spotter's strike (A1 at a point);
+            // the generic spawner's young (FUN_005de000: 0xa7 Nest's sequence,
+            // seq_genericspawner) is its slot's, below.
             if (type_info.ai_name == "CatapultSpotter" && act.act == MonAct::skill) {
                 use("A1", act.n);
                 monster.skill_x = act.x; monster.skill_y = act.y; monster.at_point = true;
                 return true;
             }
-            if (type_info.ai_name == "GenericSpawner") { idle(0); return true; }
             // A skill neither plain nor in a sequence stands: none a placed
             // monster's think casts (every MonStats Skill1..8 checked; only the
             // diablo clone's Diablogeddon, and no level places it).

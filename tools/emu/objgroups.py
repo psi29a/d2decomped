@@ -131,7 +131,10 @@ def step(e, at, n):
 # The quest calls a bare game can't answer, as {address: stack args}: Lut
 # Gholein's Jerhyn markers' InitFns (18 / 19) make nothing, a quest flag
 # read (FUN_00544760, game +0x10f4: the docks' inits) is clear.
-QUEST_STUBS = {0x5448b0: 0, 0x5448e0: 0, 0x544760: 1}
+# game.exe address -> (stack args, answer). FUN_005444b0(game, quest): a
+# fresh game's quest records hold +9 = 1 (FUN_00545d80), so 1 (Act 5's
+# prison doors and the Bloody Foothills' swaps ask it).
+QUEST_STUBS = {0x5448b0: (0, 0), 0x5448e0: (0, 0), 0x544760: (1, 0), 0x5444b0: (2, 1)}
 
 
 def quest_stubbed(e, fn, *args):
@@ -139,7 +142,7 @@ def quest_stubbed(e, fn, *args):
     after, so a shared emulator (diff_drlg.py's other kinds) runs it again."""
     saved = {addr: bytes(e.mu.mem_read(addr, 5)) for addr in QUEST_STUBS}
     try:
-        for addr, argc in QUEST_STUBS.items(): e.hook(addr, lambda _e: 0, argc)
+        for addr, (argc, answer) in QUEST_STUBS.items(): e.hook(addr, lambda _e, answer=answer: answer, argc)
         return fn(e, *args)
     finally:
         for addr, code in saved.items():

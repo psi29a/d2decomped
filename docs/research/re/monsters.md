@@ -420,7 +420,7 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
 | 0x0a / 0x0b | place_tentacle_ns / _ew | FUN_0054da60: MonStats 0x105's chain by the level (act 3) |
 | 0x11, 0x12 | place_fallen, place_fallenshaman | one monster at the marker: base 0x13 (fallen1) / 0x3a (fallenshaman1) → the level's own (FUN_0063ec70) → FUN_0054e2a0 |
 | 0x16, 0x17, 0x19, 0x1b..0x20 | fetish, fetishshaman, imp, minion, bloodlord, deadminion / imp / barb, reanimateddead | the same with bases 0x8d, 0x116, 0x1c5, 0x211 / 0x1ec, 0x20a, 0x1b6 (other acts); 0x1d..0x20 (bases 0x1c5, 0x1ec — 0x211 in level 0x6e —, 0x20a, 0x1b6; 0x54e9a0..) try radius −1 then 4 in mode 12 (dead), unit +0xc4 \|= 0x2000000; 0x1b6 then rolls rand(50) on its own seed for a FUN_005417d0 event |
-| 0x18, 0x1a | place_impgroup, place_miniongroup | FUN_0054e090 (act 5, not traced) |
+| 0x18, 0x1a | place_impgroup, place_miniongroup | normal only: the level's imp (0x1ec, 0x211 in level 0x6e) / minion (0x1c5) by FUN_0063ec70, then FUN_0054e090: MinGrp..MaxGrp (+0x2f / +0x30) set, the leader through FUN_005b3040 (radius −1, flags 0: its party), then `rand(max − min + 1) + min − 1` on its seed more at radius 3 round it (FUN_005b2f70, flags 0) |
 | 0x00, 0x06, 0x07, 0x09, 0x0c..0x10, 0x13..0x15, 0x21..0x24 | nothing, the river monsters, amphibian, fallennest, fetishnest, talking / dumb guards, maggots, mosquitonest, **group25..group100** | **nothing** (the default; group ids 0x21..0x24 are past the table: `index − 2 > 0x1e`) |
 
 - **The level's own monster** (FUN_0063ec70(room, base)): the Levels.bin
@@ -428,6 +428,21 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
   whose family base (MonStats +2) is the base's wins. Else the family's
   chain (MonStats +4, next in class) is walked while the next one's level
   (MonStats +0xaa) stays within the level's +0x16 + 1.
+- **Preset swaps** (FUN_0054e600 on a MonStats row): in the Bloody
+  Foothills (0x6e) with quest 0x1f's record open (`FUN_005444b0`: +9, set
+  for every quest as the records are made, FUN_00545d80, and cleared only
+  by `FUN_00544410` at the first join for a quest the player has done)
+  0x1f2 / 0x205 become 0x1f3 / 0x206; past normal 0x1c5 / 0x211 there
+  aren't made. FUN_0054e490: the prison door (0x1b2) a subtile west, in
+  mode 12 once quest 0x20's record is shut; the barricade doors 0x1b0 /
+  0x1b1 (MonType bit 0x12) each make object 571 / 572 on their spot. An
+  evil hut leader (0x210, FUN_0054df80) makes object 562 (Dummy: a 5x5
+  block in mode 0) after its party. A cage (object 473, InitFn 62) makes
+  a5q2's five prisoners as it's made (monster-ai.md).
+- **A superunique's company** (FUN_005a49b0 by its hcIdx, each through
+  FUN_005b23c0 in its group): Radament (10), Shenk (0x2a: 20 minion1s
+  within 20), Nihlathak (0x3c: 20 of the level's minion within 10), Baal
+  Subject 2 (0x3e: 10 skmage_cold3s within 20).
 - **FUN_0054e2a0**: fallen1 in level 6 (Black Marsh) → 0x14 (fallen2); in
   7, 12, 16 (Tamoe Highland, the Pit) → 0x15 (fallen3). fallenshaman1 in
   6 / 7 → 0x3b; 12 / 16 → 0x3c.

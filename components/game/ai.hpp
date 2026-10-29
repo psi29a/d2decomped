@@ -200,6 +200,7 @@ struct Monster {
     // its kill (FUN_005a4ef0 skips FUN_0057e990), 0x20000 no drop
     // (FUN_005a6830 returns at once).
     bool no_exp = false, no_drop = false;
+    int cage = -1;                            // a5q2's prisoner: its cage's slot (Spawn::cage)
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;

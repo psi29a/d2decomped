@@ -123,6 +123,7 @@ struct Spawn {
     std::uint32_t seed = 0;
     std::vector<std::pair<int, int>> path;                    // its preset's map AI points (FUN_00555910), subtiles
     bool dead = false;                                        // made in mode 12 (FUN_0054e600's dead MonPlace codes)
+    int cage = -1;                                            // a5q2's prisoner: its cage's slot (FUN_00588600)
 };
 
 // A level's population so far (monster region +4 rooms done, +0xc rooms

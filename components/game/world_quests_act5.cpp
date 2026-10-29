@@ -26,7 +26,6 @@
 namespace d2d::game {
 
 namespace {
-constexpr int kCage = 473;                    // cagedwussie1 (InitFn 62)
 int subtile(float cells) { return int(std::floor(cells * 5)); }
 // FUN_00619790's list (room2 +8): the player's room is the dead one's or on
 // its near list.
@@ -64,7 +63,7 @@ auto World::act5_join() -> void {
         if (eve.join(quests())) open_act(5);                // FUN_00538680: the next difficulty
         tyrael_at = 0;
         ubers_dead = 0;
-        cages_up.clear();
+        cages_seen = 0;
         cage_portal = {};
         fana_at = thaw_at = 0;
         fana = { nullptr, -1 };
@@ -291,35 +290,27 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         }
     }
 
-// a5q2's cages and prisoners. A cage's InitFn (62, FUN_005886a0) as its
-// room comes up: its slot, its five prisoners (FUN_00588600, bound to
-// 0x20). Each prisoner's view for its think (ai.cpp's Wussie), then what
-// it asked: the log 5, its cage's portal (FUN_005888d0: at the broken
-// door's spot +2 subtiles east, FUN_00555230 object 189: theirs alone),
-// gone through it (FUN_00588880).
-// ponytail: the prisoners at free spots about the cage, not FUN_005b2f20's
-// draws on the room's seed; the portal's fallback spots (x - 2, then
-// FUN_00545340) are the nearest free one.
+// a5q2's cages and prisoners. A cage's InitFn (62, FUN_005886a0) runs as
+// its room populates (objgroups.cpp cage_prisoners: its slot, its five
+// prisoners, FUN_00588600, bound to 0x20); here each cage comes into the
+// quest in that order and each prisoner into its cage. Each prisoner's view
+// for its think (ai.cpp's Wussie), then what it asked: the log 5, its
+// cage's portal (FUN_005888d0: at the broken door's spot +2 subtiles east,
+// FUN_00555230 object 189: theirs alone), gone through it (FUN_00588880).
+// ponytail: the portal's fallback spots (x - 2, then FUN_00545340) are the
+// nearest free one.
 auto World::rescue_update(std::uint32_t now_ms) -> void {
-        const auto made_rooms = fight.spawning.levels.find(level);
-        const bool rooms_known = made_rooms != fight.spawning.levels.end();
-        for (int i = 0; i < int(level->npcs.size()); ++i) {
-            const auto& cage = level->npcs[std::size_t(i)];
-            if (cage.object_id != kCage || cages_up.contains({ level, i })) continue;
-            const int room = room_of(*level, cage.x, cage.y);
-            if (!rooms_known || room < 0 || !std::ranges::contains(made_rooms->second.order, std::size_t(room))) continue;
-            const int slot = rescue.cage(subtile(cage.x), subtile(cage.y));
-            cages_up[{ level, i }] = slot;
-            if (slot < 0) continue;
-            const int row = int(game_data->mon_bin[std::size_t(d2d::rules::RescueQuest::kPrisoner)]);
-            for (int which = 0; which < d2d::rules::RescueQuest::kPerCage; ++which) {
-                const int column = which % 3 - 1, row_down = which / 3;   // three to a row
-                const auto [at_x, at_y] = level->nearest_free(cage.x + float(column) * 0.6f, cage.y + float(row_down) * 0.6f);
-                fight.add_monster(make_monster(*game_data, row, at_x, at_y, fight.rng, actor->character.header.active_difficulty(), true, int(players.size())), level);
-                rescue.prisoner_made(slot, which, fight.monsters.back().id);
-            }
-            d2d::log::info("Rescue on Mount Arreat: cage {} up, {} prisoners", slot, d2d::rules::RescueQuest::kPerCage);
+        for (; cages_seen < fight.spawning.rescue_cages.size(); ++cages_seen) {
+            const auto& [cage_level, cage_x, cage_y] = fight.spawning.rescue_cages[cages_seen];
+            const int slot = rescue.cage(cage_x, cage_y);
+            d2d::log::info("Rescue on Mount Arreat: cage {} up (level {})", slot, cage_level);
         }
+        for (const auto& prisoner : fight.monsters)
+            if (prisoner.cage >= 0 && prisoner.cage < d2d::rules::RescueQuest::kCages && rescue.cage_of(prisoner.id) < 0) {
+                const auto& ids = rescue.cages[std::size_t(prisoner.cage)].ids;
+                const auto free_slot = std::ranges::find(ids, -1);
+                if (free_slot != ids.end()) rescue.prisoner_made(prisoner.cage, int(free_slot - ids.begin()), prisoner.id);
+            }
         const auto door_down = [&](float x, float y) {                  // FUN_00588e10: a dead prisondoor in the player's rooms
             const auto rooms = near_rooms(*game_data, *level, x, y);
             return std::ranges::any_of(fight.monsters, [&](const Monster& door) {

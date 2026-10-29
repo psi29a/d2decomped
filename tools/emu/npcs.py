@@ -47,7 +47,7 @@ def dump(e, seed, thinks=THINKS, lid=1):
     x0, y0 = e.s32(lvl + 0x1c) * 5, e.s32(lvl + 0x20) * 5
     # The game's quests, which this bare game hasn't (objgroups.QUEST_STUBS).
     stubs = {addr: bytes(e.mu.mem_read(addr, 5)) for addr in objgroups.QUEST_STUBS}
-    for addr, args in objgroups.QUEST_STUBS.items(): e.hook(addr, lambda _e: 0, args)
+    for addr, (args, answer) in objgroups.QUEST_STUBS.items(): e.hook(addr, lambda _e, answer=answer: answer, args)
     made = []
     def on_made(mu, addr, size, _):                         # FUN_00555910 after FUN_005557d0: EAX the unit
         made.append(mu.reg_read(UC_X86_REG_EAX))

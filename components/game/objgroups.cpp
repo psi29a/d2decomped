@@ -65,6 +65,7 @@ struct ObjectRooms {
     std::array<std::uint8_t, 96> game_quests{};         // Spawning's
     bool orb_smashed = false;                            // Spawning's
     std::bitset<128> superuniques;                      // made (game +0x1d30)
+    std::vector<std::array<int, 3>> rescue_cages;       // Spawning's
     int tomb_symbols = 0;                               // Spawning's
     int sands_objects = 0;                              // the Forgotten Sands' preset objects counted (game +0x1de4)
     d2d::rules::Region region;                          // the level's monster region: their looks
@@ -150,6 +151,7 @@ struct ObjectRooms {
             if (spawns) leader = int(spawns->size());
             monster(int(game_data.mon_bin[0x16e]), x, y, 0);
         }
+        if (obj(id, "InitFn") == 62) cage_prisoners(x, y);
         std::vector<std::array<int, 3>> souls;
         if (obj(id, "InitFn") == 46) souls = trapped_souls(x, y);
         if (obj(id, operated || broken ? "HasCollision2" : "HasCollision0")) stamp(x, y, obj(id, "SizeX"), obj(id, "SizeY"), bits);
@@ -164,6 +166,28 @@ struct ObjectRooms {
             for (const auto& [soul, soul_x, soul_y] : souls) out->made.push_back({ soul, soul_x, soul_y });   // as objgroups.py lists them
         }
         return level.npcs.size() > before ? level.npcs.back().shrine : 0;
+    }
+
+    // InitFn 62 (FUN_005886a0, a5q2's cage, object 473), run before its
+    // footprint: with the quest's record open (+9: not shut at the first
+    // join), a fourth cage or one on a spot already up makes none; else its
+    // slot is the next, and FUN_00588600 makes five act5pows (0x216) round it
+    // (FUN_005b2f20 radius 5, mode 1), at most 25 tries.
+    void cage_prisoners(int at_x, int at_y) {
+        if (d2d::rules::quest::bit(game_quests, 0x20, 15)) return;
+        const std::array<int, 3> spot{ level.id, at_x, at_y };
+        if (rescue_cages.size() >= 3 || std::ranges::contains(rescue_cages, spot)) return;
+        const int slot = int(rescue_cages.size());
+        rescue_cages.push_back(spot);
+        const int row = int(game_data.mon_bin[0x216]);
+        if (spawns) leader = int(spawns->size());                     // the cage's placement: one group
+        for (int tries = 0, made_count = 0; tries < 25 && made_count < 5; ++tries)
+            if (int put_x, put_y; put(row, at_x, at_y, 5, false, put_x, put_y)) {
+                const auto before = spawns ? spawns->size() : 0;
+                made(row, put_x, put_y);
+                if (spawns && spawns->size() > before) spawns->back().cage = slot;
+                ++made_count;
+            }
     }
 
     // InitFn 46 (FUN_005506d0, object 369, the trapped soul placeholder):
@@ -641,16 +665,28 @@ struct ObjectRooms {
             for (int count = own(sup->max_grp - sup->min_grp + 1) + sup->min_grp + more; count > 0; --count)   // FUN_005a0c00: a draw even when MinGrp == MaxGrp
                 if (int at_x, at_y; put(minion, spot_x, spot_y, 3, false, at_x, at_y)) { made(minion, at_x, at_y); tag(spawns->size() - 1, Boss::minion); }
             own.next();                                                 // FUN_005a0ce0: its name seed (data +0x14), unused for a superunique
-            // FUN_005a49b0 by its hcIdx: Radament's (10) company, each FUN_005b23c0
-            // at radius 4: rand(5) + 2 skeleton5s on his own seed, then a
-            // skeleton mage of each element (276, 382, 385, 389).
-            // ponytail: the other classes' cases (the Countess's AI, quest binds) aren't taken here.
+            // FUN_005a49b0 by its hcIdx, the units it makes (each FUN_005b23c0
+            // round it, in its group: FUN_005b24e0 count times): Radament's (10)
+            // rand(5) + 2 skeleton5s on his own seed, then a skeleton mage of each
+            // element (276, 382, 385, 389), radius 4; Shenk's (0x2a) 20 minion1s
+            // within 20; Nihlathak's (0x3c) 20 of the level's own minion
+            // (FUN_0063ec70) within 10; Baal Subject 2's (0x3e) 10 skmage_cold3s
+            // within 20. The other cases bind quests and states (the world's
+            // quests, ai.cpp's Countess).
+            std::vector<int> company;
+            int radius = 4;
             if (superunique == 10) {
-                std::vector<int> company(std::size_t(own(5) + 2), 4);
-                company.insert(company.end(), { 0x114, 0x17e, 0x181, 0x185 });
-                for (const int hc_idx : company)
-                    if (int at_x, at_y; put(int(game_data.mon_bin[std::size_t(hc_idx)]), spot_x, spot_y, 4, false, at_x, at_y)) made(int(game_data.mon_bin[std::size_t(hc_idx)]), at_x, at_y);
+                company.assign(std::size_t(own(5) + 2), int(game_data.mon_bin[4]));
+                for (const int hc_idx : { 0x114, 0x17e, 0x181, 0x185 }) company.push_back(int(game_data.mon_bin[std::size_t(hc_idx)]));
+            } else if (superunique == 0x2a) {
+                company.assign(20, int(game_data.mon_bin[0x1c5])); radius = 20;
+            } else if (superunique == 0x3c) {
+                company.assign(20, level_monster(game_data, level, int(game_data.mon_bin[0x1c5]))); radius = 10;
+            } else if (superunique == 0x3e) {
+                company.assign(10, int(game_data.mon_bin[0x17d])); radius = 20;
             }
+            for (const int company_row : company)
+                if (int at_x, at_y; put(company_row, spot_x, spot_y, radius, false, at_x, at_y)) made(company_row, at_x, at_y);
             return;
         }
         party(row, own, spot_x, spot_y);
@@ -742,8 +778,10 @@ struct ObjectRooms {
     // FUN_0054df80: MinGrp..MaxGrp (1..1 for Fallen and scarabs,
     // FUN_0054ec40), sparsePopulate on the game seed, a random spot of the
     // area, the leader and its party, then rand(max - min + 1) + min - 1
-    // more of its type at radius 3 in the area, each with its party.
-    // ponytail: the extra object for a leader of class 0x210 (evilhut, act 5) isn't made.
+    // more of its type at radius 3 in the area, each with its party. A
+    // leader of class 0x210 (the evil hut, its MonType bit 0x12 set) gets
+    // object 562 (Dummy, invisible: a 5x5 block in mode 0) on its spot
+    // after its party (FUN_00555230 type 2).
     void group(int row) {
         const auto* type = type_at(row);
         if (!type) return;
@@ -756,6 +794,7 @@ struct ObjectRooms {
         if (!spot(row, true, x, y) || !put(row, x, y, -1, true, x, y)) return;
         auto own = made(row, x, y);
         party(row, own, x, y);
+        if (row == int(game_data.mon_bin[0x210])) make(562, x, y, false);
         for (int extra = own(high - low + 1) + low - 1; extra > 0; --extra)
             if (int at_x, at_y; put(row, x, y, 3, true, at_x, at_y)) { auto next = made(row, at_x, at_y); party(row, next, at_x, at_y); }
     }
@@ -785,6 +824,14 @@ struct ObjectRooms {
         else if (act == 2) pick = level.id == d2d::rules::level_ids::kTravincal ? std::array{ 0x149, 0x14a, 0x14b, 0x14c }[low & 3] : std::array{ 0xb5, 0xb7 }[low & 1];
         else pick = std::array{ 5, 6, 0x8b, 0x8c, 0x8d, 0x90, 0xb0, 0xb1, 0xc6, 0xf0, 0xf1, 0xf2, 0xf3 }[low % 13];
         return id == 580 && level.id == d2d::rules::level_ids::kTowerCellarLevel5 ? 0x173 : pick;
+    }
+    // A spawn made in mode 12 (unit +0xc4 |= 0x2000000): a corpse, its collision gone.
+    void lay_dead(d2d::rules::Spawn& body) {
+        body.dead = true;
+        const auto* info = type_at(body.type);
+        const int shape = info && !info->footprint ? 0 : size_of(body.type) == 3 ? 3 : 2;
+        stamp_shape(body.x, body.y, shape, 0x100, true);
+        stamp_shape(body.x, body.y, shape - 1, 0x1000, true);
     }
     // MonStats `hc_idx` made at the unit's spot (else within `retry`); an
     // NPC (Flavie, the towns') stands where it was made and walks the unit's
@@ -874,10 +921,33 @@ struct ObjectRooms {
             if (level.unit_rooms[i] != int(room_at) || unit.type != d2d::rules::unit_type::kMonster || (unit.flags & 1) || unit.id < 0 || level.id == d2d::rules::level_ids::kUberTristram) continue;
             if (spawns) leader = int(spawns->size());                                                  // FUN_00555910: a placement of its own
             if (unit.id < nmon) {
+                // FUN_0054e600 on a MonStats row: in the Bloody Foothills with
+                // quest 0x1f still open (its record's +9, FUN_005444b0: off once
+                // a player joins with it done, bit 15) 0x1f2 / 0x205 come as
+                // 0x1f3 / 0x206; past normal 0x1c5 / 0x211 there aren't made.
+                int hc_idx = unit.id;
+                const bool foothills = level.id == d2d::rules::level_ids::kBloodyFoothills, siege_open = !d2d::rules::quest::bit(game_quests, 0x1f, 15);
+                if (foothills && siege_open && hc_idx == 0x1f2) hc_idx = 0x1f3;
+                else if (foothills && siege_open && hc_idx == 0x205) hc_idx = 0x206;
+                if (foothills && pop.difficulty > 0 && (hc_idx == 0x1c5 || hc_idx == 0x211)) continue;
                 // FUN_0054e490: a critter (MonStats2 flag 0xd: Harrogath's chickens) is never made.
-                if (const auto* info = type_at(int(game_data.mon_bin[std::size_t(unit.id)])); info && info->critter) continue;
-                const bool stay = unit.id == 0xe5 || (unit.id >= 0x11c && unit.id <= 0x120) || unit.id == 0x188 || unit.id == 0x189;   // FUN_0054e3a0
-                monster_or_npc(unit.id, unit, stay ? 0 : 4);
+                if (const auto* info = type_at(int(game_data.mon_bin[std::size_t(hc_idx)])); info && info->critter) continue;
+                const bool stay = hc_idx == 0xe5 || (hc_idx >= 0x11c && hc_idx <= 0x120) || hc_idx == 0x188 || hc_idx == 0x189;   // FUN_0054e3a0
+                // FUN_0054e490: the prison door (0x1b2) a subtile west, and
+                // dead (mode 12) once quest 0x20's record is shut (+9 off).
+                if (hc_idx == 0x1b2) {
+                    auto door = unit;
+                    --door.x;
+                    const auto before = spawns ? spawns->size() : 0;
+                    monster_or_npc(hc_idx, door, stay ? 0 : 4);
+                    if (d2d::rules::quest::bit(game_quests, 0x20, 15) && spawns && spawns->size() > before) lay_dead(spawns->back());
+                    continue;
+                }
+                last_made.reset();
+                monster_or_npc(hc_idx, unit, stay ? 0 : 4);
+                // FUN_0054e490, the barricade doors made (their MonType bit 0x12):
+                // 0x1b0 object 571, 0x1b1 object 572 on their spot (FUN_00555230, mode 0).
+                if (last_made && (hc_idx == 0x1b0 || hc_idx == 0x1b1)) make(hc_idx == 0x1b0 ? 571 : 572, last_spot.first, last_spot.second, false);
             } else if (const int code = unit.id - nmon - nsu; code == 0x11 || code == 0x12 || code == 0x16 || code == 0x17 || code == 0x05) {
                 // Fallen, shamans, fetishes, fetish shamans (FUN_0054e600's 0x54eb74: the level's of that base), Blood Raven
                 const int base = code == 0x11 ? 0x13 : code == 0x12 ? 0x3a : code == 0x16 ? 0x8d : 0x116;
@@ -900,14 +970,7 @@ struct ObjectRooms {
                 const int base = code == 0x1d ? 0x1c5 : code == 0x1e ? (level.id == d2d::rules::level_ids::kBloodyFoothills ? 0x211 : 0x1ec) : code == 0x1f ? 0x20a : 0x1b6;
                 const auto before = spawns ? spawns->size() : 0;
                 monster(own(base), unit.x, unit.y, 4);
-                if (spawns && spawns->size() > before) {                  // a corpse: its collision goes with mode 12
-                    auto& body = spawns->back();
-                    body.dead = true;
-                    const auto* info = type_at(body.type);
-                    const int shape = info && !info->footprint ? 0 : size_of(body.type) == 3 ? 3 : 2;
-                    stamp_shape(body.x, body.y, shape, 0x100, true);
-                    stamp_shape(body.x, body.y, shape - 1, 0x1000, true);
-                }
+                if (spawns && spawns->size() > before) lay_dead(spawns->back());
             }
             else if (code == 0x18 || code == 0x1a) {
                 // FUN_0054e090 (normal only): the level's imp (0x18) / minion (0x1a) at the
@@ -1061,6 +1124,7 @@ void ObjectRooms::load(Spawning& spawning, std::size_t room_index) {
     rgn = spawning.objects;
     game = spawning.game;
     superuniques = spawning.superuniques;
+    rescue_cages = spawning.rescue_cages;
     tomb_symbols = spawning.tomb_symbols;
     game_quests = spawning.game_quests;
     orb_smashed = spawning.orb_smashed;
@@ -1097,6 +1161,7 @@ void ObjectRooms::save(Spawning& spawning) const {
     spawning.objects = rgn;
     spawning.game = game;
     spawning.superuniques = superuniques;
+    spawning.rescue_cages = rescue_cages;
     spawning.tomb_symbols = tomb_symbols;
     if (std::size_t(level.id) < spawning.regions.size()) spawning.regions[std::size_t(level.id)] = region;
 }
