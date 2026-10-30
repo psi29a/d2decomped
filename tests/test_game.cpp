@@ -734,14 +734,18 @@ int main(int argc, char** argv) try {
         thrower.attack_mon = 0;
         thrower.attack_skill = skill;
         world.cues.due.clear();
-        assert(!world.fight.start_swing(throw_ms) && thrower.attack_mon == -1 && thrower.pmode == -1);
+        assert(Fight::spot_skill(*data->skills.get(skill)));                           // a held Throw goes engage -> cast_missile
+        assert(!world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms) && thrower.attack_mon == -1 && thrower.pmode == -1);
         static constexpr std::array<const char*, 7> kClass{ "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
         const auto voice = data->sound_index.find(std::format("{}_impossible_1", kClass[std::size_t(std::clamp(thrower.character.character_class, 0, 6))]));
         assert(voice != data->sound_index.end() && world.cues.due.size() == 1 && world.cues.due[0].sound == voice->second);
         thrower.attack_mon = 0;
-        assert(!world.fight.start_swing(throw_ms + 40) && world.cues.due.size() == 1);   // within 75 frames: not again
+        assert(!world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 40) && world.cues.due.size() == 1);   // within 75 frames: not again
         world.display_swing(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 80);   // the host's swing, for show: shown
         assert(thrower.pmode >= 0 && std::ranges::count(world.cues.due, voice->second, &Cues::Cue::sound) == 1);
+        thrower.pmode = -1;
+        thrower.character.items.push_back(javelins);                                   // javelins back: it throws
+        assert(world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 120) && thrower.pmode >= 0);
         thrower.pmode = -1;
         if (data->patched) assert(data->sound_index.at("amazon_impossible_1") == 0xb89);
         thrower.attack_skill = 0;

@@ -698,13 +698,6 @@ auto Fight::start_swing(std::uint32_t now_ms) -> bool {
         actor->swing_skill = 0;
         actor->kicks_left = 0;
         actor->item_charge = actor->attack_charge;            // the queued attack's entry (World::apply), if any
-        // A held Throw whose last one's gone. Not a swing for show (World::display_swing,
-        // attack_mon -1): the host took that one.
-        if (actor->attack_mon >= 0 && skill_refused(*game_data, actor->character, actor->attack_skill)) {
-            actor->attack_mon = -1;
-            impossible(now_ms);
-            return false;
-        }
         const auto* skill = game_data->skills.get(actor->attack_skill);
         if (skill && actor->attack_skill != 0) {
             if (!skill_built(*skill)) {
@@ -2652,6 +2645,9 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         using namespace d2d::d2s;
         const auto* skill_row = game_data->skills.get(skill);
         if (!skill_row || dead() || actor->pmode >= 0 || (!missile_skill(*skill_row) && !spot_skill(*skill_row))) return false;
+        // Throw is a spot skill: a held one (engage) whose last one's gone, or the weapons
+        // swapped since the command, stops here (FUN_004610c0's status 2).
+        if (skill_refused(*game_data, actor->character, skill)) { actor->attack_mon = -1; impossible(now_ms); return false; }
         const int lvl = cast_level(skill);
         const int cost = cost_of(*skill_row, lvl);
         if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);

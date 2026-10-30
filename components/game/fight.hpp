@@ -102,6 +102,8 @@ inline bool throwable(const GameData& game_data, const std::string& code) {
 // usable, not flag 0x100 broken / 0x4000: FUN_0062a4e0) is a throwable or
 // has stat 125 (item_throwable). A spent magic stack stays in hand broken
 // (Fight::out_of_ammo), so it can't throw. docs/research/re/throw.md.
+// No 1.14d item rolls stat 125 (stubs.md), so Fight::ammo_index and the
+// launch take only a throwable.
 // ponytail: a dual-wielder (FUN_006235a0: barbarian, assassin) with two
 // weapons: either counts here; game.exe takes the primary (FUN_0063bef0,
 // inventory +0x1c), else the other hand's (FUN_00643d60).
