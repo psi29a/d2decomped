@@ -38,7 +38,7 @@ inline void stow_held(const GameData& game_data, std::vector<d2d::d2s::Item>& it
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& item : items) if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&item);
     const auto [width, height] = d2d::rules::item_size(game_data.rules, held->code);
-    if (const auto [column, row] = d2d::rules::free_spot(game_data.rules, inv, 10, 4, width, height);
+    if (const auto [column, row] = d2d::rules::free_spot(game_data.rules, inv, 10, 4, width, height, true);
         column >= 0 && d2d::rules::put_in_grid(game_data.rules, items, held, d2d::d2s::item_panel::kInventory, 10, 4, column, row))
         return;
     held->location = d2d::d2s::item_location::kCursor;
@@ -61,9 +61,8 @@ inline int belt_index(const GameData& game_data, const std::vector<d2d::d2s::Ite
 // rules::store_fill): the asks on the proxy seed, each item made off the
 // game seed (rules::make_store_item), put on its type's page (ItemTypes
 // StorePage: FUN_0062e880; weapons spill onto page 2), one that has no page
-// or no room failing. The permanent items stay buyable.
-// ponytail: FUN_00560200's own spot search isn't traced; first fit by
-// column, as d2d's grid.
+// or no room failing (FUN_00560200's spot: rules::free_spot, a store's
+// first fit). The permanent items stay buyable.
 inline Store open_store(const GameData& game_data, const Level& level, int npc, int act, int difficulty, int clvl, bool expansion,
                         d2d::rules::Rng& proxy, d2d::rules::Rng& game, std::vector<bool>* found_uniques) {
     const auto& vendor = level.npcs[std::size_t(npc)];

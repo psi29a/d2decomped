@@ -1534,11 +1534,10 @@ auto World::blood_raven_died(std::uint32_t now_ms) -> void {
 
 // The Cube's Transmute (FUN_005665f0 / FUN_00565ab0, rules/cube.hpp): the
 // first recipe the Cube's items answer; what it makes; every item in the
-// Cube gone (FUN_00564f30); the new ones into the Cube (FUN_00560200),
-// else at the feet. The Horadric Staff made: its quest's bit 11
-// (FUN_0059e5c0).
-// ponytail: FUN_00560200's own spot search (first fit by column here);
-// the transmute's sound.
+// Cube gone (FUN_00564f30); the new ones into the Cube (FUN_00560200:
+// rules::free_spot, a player's best fit), else at the feet. The Horadric
+// Staff made: its quest's bit 11 (FUN_0059e5c0).
+// ponytail: the transmute's sound.
 auto World::transmute(std::uint32_t now_ms) -> void {
         using d2d::d2s::Item;
         std::vector<const Item*> cube;
@@ -1596,7 +1595,7 @@ auto World::transmute(std::uint32_t now_ms) -> void {
             const auto [width, height] = d2d::rules::item_size(game_data->rules, item.code);
             std::optional<Item> held_item = std::move(item);
             held_item->id = -1;
-            if (const auto [column, cell_row] = d2d::rules::free_spot(game_data->rules, placed, layout.cols, layout.rows, width, height);
+            if (const auto [column, cell_row] = d2d::rules::free_spot(game_data->rules, placed, layout.cols, layout.rows, width, height, true);
                 column < 0 || !d2d::rules::put_in_grid(game_data->rules, actor->character.items, held_item, d2d::d2s::item_panel::kCube, layout.cols, layout.rows, column, cell_row))
                 loot.place(std::move(*held_item), actor->player.x, actor->player.y, now_ms);
         }
@@ -2148,7 +2147,7 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
             std::vector<const Item*> inv;
             for (const auto& x : actor->character.items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
             const auto [width, height] = d2d::rules::item_size(game_data->rules, held_item->code);
-            if (const auto [column, row] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height); column >= 0
+            if (const auto [column, row] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height, true); column >= 0
                 && d2d::rules::put_in_grid(game_data->rules, actor->character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) { item_it = corpse.items.erase(item_it); continue; }
             ++item_it;
         }
