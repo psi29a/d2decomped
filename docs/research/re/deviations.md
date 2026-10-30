@@ -58,7 +58,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 13 | World sounds' pan, and a loop back in range | Pans by turning the far speaker down to (255 − pan) / 127 (`FUN_00515890`); a Tracking loop stopped past its far range waits, not freed, and starts again back in range (`FUN_004ba020`) | matched since this commit: each world sound is two sources, one per speaker (`AL_SOFT_direct_channels`, `Audio::start_split`); without the extension OpenAL pans a mono source by its angle | only without the extension | audio.hpp `apply_mix` |
 | 14 | Where a free-spot search may look (`FUN_0064e7b0` / `FUN_0064e810`) | Each spot's room found from the hint room's near list (`FUN_00463740`): a spot in a room past them counts as none, so the Vulture searches by its target's room, then its own | The whole level's grid (and its neighbours'), so one search; units are the Crowd's | hardly: only a search running past the rooms next to its start | ai.hpp `free_spot_near`, gamedata.hpp `nearest_spot` |
 
-437 smaller shortcuts are marked `ponytail:` in components/ and apps/
+425 smaller shortcuts are marked `ponytail:` in components/ and apps/
 (2026-10-30; `git grep -n ponytail: -- components apps | wc -l`); this table holds
 the ones a player could notice or a test could trip on.
 
