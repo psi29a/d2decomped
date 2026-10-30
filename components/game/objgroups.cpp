@@ -463,7 +463,8 @@ struct ObjectRooms {
         const auto* info = type_at(type);
         const int col = info ? info->spawn_col : 0;
         // FUN_005fd350: a nest's (by BaseId) laying spot clear for a plus too.
-        // ponytail: vilemother1's (298) check is off for population's calls; left out.
+        // Vilemother1's (298) is always free here: FUN_005b2a00 passes its
+        // flag 1 (push 1 at 0x5b2d8a), which skips it.
         const int base = info ? info->base : -1;
         if (const auto nest = [&](int dx, int dy, int mask) { return hit_shape(x + dx, y + dy, 2, mask); };
             (base == 206 && nest(0, 3, 0x3c01)) || (base == 228 && nest(0, 2, 0x3c01)) || (base == 334 && nest(-2, -2, 0x1c0)) || (base == 528 && nest(2, 4, 0x3c01)))
