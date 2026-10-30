@@ -261,7 +261,7 @@ struct World {
     // does, and are left alone.
     // ponytail: one rule for the other quests; a callback that asks more
     // (an act, a bit besides 0 and 1) isn't told apart.
-    static constexpr std::array<int, 21> kOwnCredit{ 1, 2, 3, 4, 5, 6, 9, 11, 12, 13, 14, 0x13, 0x15, 0x16, 0x19, 0x1a, 0x1b, 0x23, 0x26, 0x27, 0x28 };   // Den, Burial, Tools, Cain, Tower, Andariel, Radament, Tainted Sun, Arcane, Summoner, Tombs, Blade, Temple, Guardian, Izual, Terror's End, Hellforge, Siege, Betrayal, Rite, Eve
+    static constexpr std::array<int, 24> kOwnCredit{ 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 0x12, 0x13, 0x15, 0x16, 0x19, 0x1a, 0x1b, 0x23, 0x24, 0x26, 0x27, 0x28 };   // Den, Burial, Tools, Cain, Tower, Andariel, Radament, Staff, Tainted Sun, Arcane, Summoner, Tombs, Khalim, Blade, Temple, Guardian, Izual, Terror's End, Hellforge, Siege, Rescue, Betrayal, Rite, Eve
     // The party's share of a step (FUN_00540510; local co-op is one party):
     // each other player in the act (the quest's own act; Act 1's here),
     // neither done nor due, gets `bits`.

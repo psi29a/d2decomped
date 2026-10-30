@@ -363,6 +363,16 @@ auto World::rescue_update(std::uint32_t now_ms) -> void {
                 Player& was = *actor;
                 act_as(opener == players.end() ? lead() : **opener);
                 rescue.portal_opened(quests(), slot);
+                // All in: with 12 freed the opener's party in act 5 shares it
+                // (LAB_005887a0 -> FUN_00587e60), then the rest bit 14 (LAB_00587f60).
+                if (rescue.all_in()) {
+                    const bool shared = rescue.freed >= 12 && d2d::rules::quest::bit(quests(), d2d::rules::RescueQuest::kQuest, 13);
+                    const int opener_id = actor->id;
+                    each_player([&](Player& player) {
+                        if (shared && player.id != opener_id && act() == 4) rescue.party_share(quests());
+                        d2d::rules::RescueQuest::someone_else(quests());
+                    });
+                }
                 act_as(was);
                 d2d::log::info("Rescue on Mount Arreat: cage {}'s portal ({} freed, {} dead of {})", slot, rescue.freed, rescue.dead, rescue.made);
             }

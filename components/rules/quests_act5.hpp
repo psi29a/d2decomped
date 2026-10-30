@@ -366,6 +366,16 @@ private:
         log = 0xc; news = true; told_heard = false;
         someone_else(quest_bits);
     }
+public:
+    // Every cage up and each prisoner made dead or freed (the last portal's test).
+    [[nodiscard]] bool all_in() const { return made == dead + freed && std::ranges::all_of(cages, &Cage::up); }
+    // A party member's share of it, 12 or more freed (FUN_00587e60): in act 5,
+    // neither done nor due: bits 13, 1 and 5 / 6 / 7 by the count.
+    void party_share(QuestBits& quest_bits) const {
+        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return;
+        quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 1);
+        quest::set(quest_bits, kQuest, freed == 15 ? 5 : freed == 14 ? 6 : 7);
+    }
     static void someone_else(QuestBits& quest_bits) {
         if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 13)) quest::set(quest_bits, kQuest, 14);
     }

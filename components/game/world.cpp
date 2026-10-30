@@ -695,6 +695,20 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             if (!temple.hit_orb(quests())) { d2d::log::info("The Blackened Temple: the orb's hit"); return; }
             music_cue("music_quest_compelling");
             take_carried(d2d::rules::KhalimQuest::kWillCode);
+            // The party (FUN_005bb850): one done loses Khalim's pieces; one in act 3
+            // gets bits 0 and 13, the pieces gone, and with word 0x15 bit 4 its bit 0.
+            const int breaker = actor->id;
+            each_player([&](Player& player) {
+                namespace quest = d2d::rules::quest;
+                if (player.id == breaker) return;
+                auto& bits = quests();
+                const auto take_pieces = [&] { for (const char* code : { "qey", "qhr", "qbr", "qf1", "qf2" }) while (carries(code)) take_carried(code); };
+                if (quest::bit(bits, 0x12, 0)) { take_pieces(); return; }
+                if (act() != 2) return;
+                quest::set(bits, 0x12, 0); quest::set(bits, 0x12, 13);
+                take_pieces();
+                if (quest::bit(bits, 0x15, 4) && !quest::bit(bits, 0x15, 0)) quest::set(bits, 0x15, 0);
+            });
             for (auto& monster : fight.monsters) if (std::size_t(monster.type) < game_data->mon_bin.size() && monster.type == int(game_data->mon_bin[0x16e])) monster.gone = true;
             to_mode(1);
             doors[{ level, npc_index }] = Door{ 1, now_ms };
@@ -753,6 +767,14 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             operated[{ level, npc_index }] = now_ms;
             to_mode(1);
             tombs.staff_in(quests());
+            // The party in act 2 not done (FUN_0059dbd0): bits 0 and 13, their staff and parts gone.
+            const int placer = actor->id;
+            each_player([&](Player& player) {
+                auto& bits = quests();
+                if (player.id == placer || act() != 1 || d2d::rules::quest::bit(bits, 10, 0)) return;
+                d2d::rules::quest::set(bits, 10, 0); d2d::rules::quest::set(bits, 10, 13);
+                for (const char* code : { "hst", "vip", "msf" }) while (carries(code)) take_carried(code);
+            });
             d2d::log::info("The Horadric Staff: placed in the orifice");
             return;
         }
