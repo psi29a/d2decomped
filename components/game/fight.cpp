@@ -970,7 +970,7 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
             return;
         }
         if (!actor->seq.empty()) {
-            // The client runs the skill's do on each event 1..4 frame (FUN_004af4d0 ->
+            // The client runs the skill's do on each event 1..4 frame (LAB_004af4d0 ->
             // FUN_004c68f0); Jab's (cltdofunc 16, FUN_004f4590) plays dosound a on the
             // event-3 ones, before some of its thrusts.
             if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && skill->clt_do_func == 16)

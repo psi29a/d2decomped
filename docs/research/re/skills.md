@@ -511,7 +511,7 @@ lines (missile names aren't passed in). What it does:
   +0x7c right skill, +0x80 / +0x84 the weapon-swap pair. Erza: left Dragon
   Talon, right Death Sentry, swap Attack / Shadow Master.
 - The client's skill buttons are drawn by SkillsBar.cpp (FUN_004c83c0 ..
-  FUN_004c9280), the skill picker by SkillsPal.cpp (FUN_004c9b40); icons
+  LAB_004c9280), the skill picker by SkillsPal.cpp (FUN_004c9b40); icons
   are `Spells\<Cl>Skillicon` (already loaded for the tree).
 
 ### Item charges (traced 2026-10-28)
@@ -570,7 +570,7 @@ lines (missile names aren't passed in). What it does:
   damage / 2 crit): the **best** value of stat 342 / 343 / 344 over the
   layers whose item type the weapon is (FUN_00629bb0); a thrown weapon
   (FUN_00645720) reads 345 / 346 / 347 instead. Used by the attack rating
-  (FUN_0057da4c: joins stat 119), the damage % (FUN_0057b591: joins
+  (LAB_0057da4c: joins stat 119), the damage % (LAB_0057b591: joins
   stat 25) and FUN_0057b7d0, where the mastery crit rolls **first**, then
   critical strike (337), then deadly strike (141); any doubles.
 - Weapon Block, **FUN_0057dca0**: the best stat 348 over the layers either
@@ -1150,7 +1150,7 @@ and per-class base frames, not a table. What's stored:
   phase.
 - Which `FUN_` reads stat 105 into the SC animation's `frames_shown` (the
   formula and inputs above are traced; the exact call site isn't). A hunt
-  for `imul 0x78` (120) around PlrModes.cpp (FUN_0057eec0..FUN_00581050)
+  for `imul 0x78` (120) around PlrModes.cpp (FUN_0057eec0..LAB_00581050)
   would land it.
 - Per-class animation tables for FHR / FBR (same animdata.d2 file, GH /
   BL modes; the formula is the same as FCR).
@@ -1392,7 +1392,7 @@ in game.exe as expected. The mechanism is one of:
 
 Follow-on hunt: decompile the call chain from `set_pmode(kModeGH)` (client
 FUN_004a???? or server 0x0057???? PlrModes range) all the way to the
-frame-count assignment. `FUN_0057d28e` reads stat 0x66 (FBR) and does an
+frame-count assignment. `LAB_0057d28e` reads stat 0x66 (FBR) and does an
 arithmetic `(FBR + sign) >> 3` (FBR / 8), which is a hit-in-the-dark clue:
 the 8-way divide might index a packed byte per class.
 

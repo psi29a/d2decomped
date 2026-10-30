@@ -54,7 +54,7 @@ below it, so the call order is bottom to top. Top line first (d2d
 | Defense: N | `FUN_00485ee0` | 3461 | armor, total > 0; N blue when ≠ base |
 | Chance to Block: N% | `FUN_00485be0` | 11018, `"%d%%"` 0x6d9bec | shields: block column + stat 20 + class BlockFactor, cap 75; blue over the column |
 | Smite / Kick Damage: a to b | `FUN_00485d40` | 3468 / 21782, "to" 3464 | Paladin + shield (no other class's) / Assassin + boots; armor.txt mindam/maxdam |
-| Throw / One-Hand / Two-Hand Damage: a to b | `FUN_00485410`, `FUN_00485240` | 3467 / 3465 / 3466 | weapons: stats 21-24/159-160 (`FUN_0062d300`: low quality ×3/4 floor 1/2, ethereal ×3/2), min ×(100+18)%, max ×(100+17+219·clvl/8)% + 218·clvl/8; throw line for ItemTypes Throwable; Barbarian + 1-or-2-handed gets both; numbers blue when raised |
+| Throw / One-Hand / Two-Hand Damage: a to b | `FUN_00485410`, `FUN_00485240` | 3467 / 3465 / 3466 | weapons: stats 21-24/159-160 (`LAB_0062d300`: low quality ×3/4 floor 1/2, ethereal ×3/2), min ×(100+18)%, max ×(100+17+219·clvl/8)% + 218·clvl/8; throw line for ItemTypes Throwable; Barbarian + 1-or-2-handed gets both; numbers blue when raised |
 | Quantity: N | `FUN_00486100` | 3462 | identified, not socketed, stacks |
 | spelldesc | `FUN_00486370` | misc.txt spelldescstr | replaces quantity; mode 2 scales potions by class (`FUN_0062a5d0` life, `FUN_0062a620` mana: ×1.5 Ama/Pal/Asn, ×2 Barb life / Sor/Nec/Dru mana) |
 | Keep in Inventory to Gain Bonus | — | 20438 | charms |

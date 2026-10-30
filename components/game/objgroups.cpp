@@ -1085,7 +1085,7 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
     std::uint32_t warped = 0;
     for (const auto& warp : level.warps) if (warp.slot >= 0 && warp.slot < 8) warped |= 0x10u << warp.slot;
     slots &= ~shared | warped;
-    // FUN_00642480: the centres of rooms with a warp slot's wall (a walk-through exit has no warp).
+    // LAB_00642480: the centres of rooms with a warp slot's wall (a walk-through exit has no warp).
     for (std::size_t i = 0; i < level.rooms.size(); ++i)
         if (level.room_flags[i] & slots) pop.ways.push_back({ (level.rooms[i].x + level.rooms[i].width / 2) * 5, (level.rooms[i].y + level.rooms[i].height / 2) * 5 });
     auto centre = [&](int tile_x, int tile_y) {                                                    // the centre of the room holding a tile
@@ -1175,7 +1175,7 @@ void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, L
     ObjectRooms pop{ game_data, builder, level };
     level.room_flags.resize(level.rooms.size());
     level.unit_rooms.resize(level.units.size(), -1);
-    // 0x30000: a room with a waypoint (objects.txt SubClass 0x40, FUN_00667e30);
+    // 0x30000: a room with a waypoint (objects.txt SubClass 0x40, LAB_00667e30);
     for (std::size_t i = 0; i < level.units.size(); ++i)
         if (level.units[i].type == d2d::rules::unit_type::kObject && level.unit_rooms[i] >= 0 && (pop.obj(level.units[i].id, "SubClass") & d2d::rules::object_ids::kSubclassWaypoint))
             level.room_flags[std::size_t(level.unit_rooms[i])] |= 0x30000;

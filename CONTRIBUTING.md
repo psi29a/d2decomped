@@ -27,6 +27,9 @@ listed gap (todo, unverified, `ponytail:` notes, issues), and the
 `python3 tools/gaps.py`. Any agent that can read a URL can query its
 `gaps.json` and `functions.tsv`.
 
+When nothing's left, the map says `DONE`. What remains then is playing and
+reporting where d2d differs from the original.
+
 ## Our side
 
 We ask only for the three kinds of work above, and we promise:
@@ -64,9 +67,10 @@ We ask only for the three kinds of work above, and we promise:
 The same for every pull request, whoever or whatever wrote it:
 
 - `tools/pr_guard.py` runs on every pull request. It fails addresses that
-  can't be in game.exe and binary files. It also stops a change that touches
-  CI, downloads, networking, process launches or the agent instructions
-  until a maintainer has read it and added the `security-reviewed` label.
+  can't be in game.exe (a `FUN_` inside another function's body is one)
+  and binary files. It also stops a change that touches CI, downloads,
+  networking, process launches or the agent instructions until a
+  maintainer has read it and added the `security-reviewed` label.
   Run it yourself first: `python3 tools/pr_guard.py`.
 - A reviewer re-runs your evidence on their own copy before merging.
 - Changes to CI, the build, the tools, the launcher and the agent

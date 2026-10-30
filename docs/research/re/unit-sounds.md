@@ -117,7 +117,7 @@ weaponsnd.
   (FUN_004f4590, table 0x727ba8) plays dosound a on a player, dosound b on a
   monster, when the unit's frame event (+0x4e, set from the sequence or
   AnimData frame) is 3. The client runs the do on each event 1..4 frame
-  (FUN_004af4d0 → FUN_004c68f0 → FUN_004c6680; 1..3 only until the start
+  (LAB_004af4d0 → FUN_004c68f0 → FUN_004c6680; 1..3 only until the start
   call has run), so Jab's weapon_1ht / weapon_2ht plays on its sequence's
   event-3 frames: 3 with a javelin (1ht) or a spear (2ht), none bare-handed.
   Of the monsters with Jab only Duriel's MonSeq (seq_durieljab) has event-3

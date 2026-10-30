@@ -489,7 +489,7 @@ Findings along the way:
 - A unique pack's random spot (FUN_0054dc40, near flag set) skips a try
   within WarpDist of an entrance (FUN_0054db50). An entrance is a
   level+0x1e0 point, the centre of a room2 flagged 0x30000 (a waypoint)
-  or 0x10 << slot for a slot with a Warp (FUN_00642480). Beyond those, it
+  or 0x10 << slot for a slot with a Warp (LAB_00642480). Beyond those, it
   also skips the FUN_00619e50(…, 0xb) point. The slot bits come from the
   preset's DS1 (FUN_00667970): a wall of orientation 10/11, style < 8,
   sequence 0 or 4 or hidden. A walk-through exit (Jail 3 to the Inner

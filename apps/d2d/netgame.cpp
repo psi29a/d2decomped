@@ -434,7 +434,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             npc_quests.push_back(std::move(npc_quest));
         }
         break;
-    case 0x8a:   // NPC interaction: +1 type, +2 id (the host's NPC think, FUN_00544660: one of its quests has something for us)
+    case 0x8a:   // NPC interaction: +1 type, +2 id (the host's NPC think, LAB_00544660: one of its quests has something for us)
         if (size >= 6 && packet[1] == 1) npc_alerts.push_back(read_u32(packet, 2));
         break;
     case 0x7a:   // pet list: +1 add (else removed), +2 PetType row, +3 u16 MonStats class, +5 owner, +9 id

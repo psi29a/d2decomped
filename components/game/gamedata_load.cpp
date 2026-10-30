@@ -1199,7 +1199,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                              std::atoi(std::string(sounds_table.get(row, "Priority")).c_str()), index };
             game_data.sound_index.emplace(std::string(sounds_table.get(row, "Sound")), index);
         }
-    // A group's members point at its first row (record +0x60, set at load; FUN_004822d3 walks them).
+    // A group's members point at its first row (record +0x60, set at load; LAB_004822d3 walks them).
     for (std::size_t first = 0; first < game_data.sounds.size(); ++first)
         for (int k = 1; k < game_data.sounds[first].group && first + std::size_t(k) < game_data.sounds.size(); ++k)
             game_data.sounds[first + std::size_t(k)].group_base = int(first);

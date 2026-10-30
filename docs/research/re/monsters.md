@@ -204,7 +204,7 @@ once (FUN_00555230 → FUN_00552df0): the loop's start moves with them.
    shrunk one subtile at the top left (room seed), skipping any within
    WarpDist² (Levels.txt, 2025) of the level's entrances (FUN_0054db50),
    testing placement (FUN_005b2a00 with flag 1 = test only). The entrances
-   (FUN_00642480): rooms with flags & 0x30000 or a warp slot that placed a
+   (LAB_00642480): rooms with flags & 0x30000 or a warp slot that placed a
    warp, then the level's type 0xb tile: the waypoint's, or a Levels
    Position level's own tile (the Canyon of the Magi, WarpDist 3800; not
    its waypoint's too). d2d stands the waypoint's room in for the 0x30000

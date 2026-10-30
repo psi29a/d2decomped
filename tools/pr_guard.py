@@ -12,17 +12,19 @@ Usage: tools/pr_guard.py [BASE [HEAD]]   (default origin/main HEAD; reads the di
   FAIL  risky surface (network, downloads, process launches, workflows, the
         agent instructions, a long byte table) without the `security-reviewed`
         label, which only a maintainer adds after reading it
-  WARN  a FUN_ address that isn't a function entry in game-functions.tsv
-        (Ghidra misses code reached through tables: say how you know)
+  FAIL  a FUN_ address inside another function's body in game-functions.tsv:
+        made up, or a label (write LAB_ for code inside a function)
+  WARN  a FUN_ address in no function's body (Ghidra misses code reached
+        through tables: say how you know)
 
 Labels come from PR_LABELS (a JSON list; CI passes the PR's labels).
 A passing run proves the evidence is possible, not that it's right: a
 reviewer still re-runs it (AGENTS.md "Evidence").
 """
-import json, os, re, subprocess, sys
+import bisect, json, os, re, subprocess, sys
 
 TEXT = (0x401000, 0x6cb5a1)  # game.exe 1.14d .text, from its PE header
-IMAGE = ((0x401000, 0x6cb5a1), (0x6cc000, 0x704a10), (0x705000, 0x994ca4), (0x995000, 0x996988))
+IMAGE = ((0x400000, 0x401000), (0x401000, 0x6cb5a1), (0x6cc000, 0x704a10), (0x705000, 0x994ca4), (0x995000, 0x996988))
 BINARY_OK = ("assets/", "docs/screenshots/")
 LOCAL_ONLY = re.compile(r"(^|/)game-strings\.tsv$|\.decomp\.c$|\.c\.ghidra$|^docs/research/re/[^/]*\.c$"
                         r"|^tools/ghidra/project/|\.(gpr|rep|mpq|d2s|exe|dll)$", re.IGNORECASE)
@@ -94,7 +96,13 @@ def check_addresses(where, text, entries, fails, warns):
         if not in_ranges(address, (TEXT,)):
             fails.append(f"{where}: {kind}_{digits} is outside game.exe's code (.text)")
         elif kind == "FUN" and address not in entries:
-            warns.append(f"{where}: FUN_{digits} isn't a function entry in game-functions.tsv")
+            starts = sorted(entries)
+            holder = starts[bisect.bisect_right(starts, address) - 1] if address > starts[0] else None
+            if holder is not None and address < holder + entries[holder]:
+                fails.append(f"{where}: FUN_{digits} is inside FUN_{holder:08x}'s body: "
+                             f"not a function (LAB_{digits} if it's a label)")
+            else:
+                warns.append(f"{where}: FUN_{digits} isn't a function entry in game-functions.tsv")
     for digits in HEX.findall(text):
         address = int(digits, 16)
         if 0x400000 <= address < 0xa00000 and not in_ranges(address, IMAGE):
@@ -103,7 +111,8 @@ def check_addresses(where, text, entries, fails, warns):
 
 def function_entries():
     with open("docs/research/re/game-functions.tsv") as f:
-        return {int(line.split("\t", 1)[0], 16) for line in list(f)[1:]}
+        rows = [line.split("\t") for line in list(f)[1:]]
+    return {int(address, 16): int(size) for address, _, size, *_ in rows}  # entry: body size
 
 
 if __name__ == "__main__":

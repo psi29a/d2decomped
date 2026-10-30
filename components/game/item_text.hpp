@@ -405,7 +405,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     if ((is_type("shld") && cls == d2d::d2s::kPaladin && (class_code.empty() || class_code == "pal")) || (is_type("boot") && cls == d2d::d2s::kAssassin))
         out.push_back({ string_id(game_data, is_type("shld") ? 3468 : 21782) + space + std::to_string(item_base.mindam) + to_text + std::to_string(item_base.maxdam), kTxtWhite });
     // Damage: one-hand (21/22), two-hand (23/24) and throw (159/160) from
-    // the record (FUN_0062d300 sets them: low quality 3/4, ethereal 3/2),
+    // the record (LAB_0062d300 sets them: low quality 3/4, ethereal 3/2),
     // the +% (18 min, 17 max) on that base, then the flat adds.
     if (weapon) {
         auto base_damage = [&](std::size_t index) {

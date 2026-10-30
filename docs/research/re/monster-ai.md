@@ -285,7 +285,7 @@ at its spot, size 2, mask 0x40) → 16, else `rand(1000) > 0` → 4 (S4) /
 in melee and a line (FUN_00622c40): {0,0,40,70,0,40,24,40,15,…}; under 20 %
 life weight 2 = 50; state 0xb on zeroes 7 and 8; cold res (stat 0x29) above
 fire (0x27): 6 −10, else +10; no line (FUN_005dd290) zeroes 5 and 6; his
-leader in the Chaos Sanctuary within 85 (FUN_006417d0) → 15 = 10. Line
+leader in the Chaos Sanctuary within 85 (LAB_006417d0) → 15 = 10. Line
 but not melee: {0,0,0,0,0,25,25,0,15,20,10,0,20,…}; the target's distance
 (FUN_005dc380) past 25: 8 −5, 10 = 20, 5 = 0; res nudges 6 and 8; under 2
 players around (`param_5`) 6 −10, past 3 +5; past 60 frames (`param_4`) 9

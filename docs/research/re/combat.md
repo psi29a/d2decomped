@@ -221,7 +221,7 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
 - **Building it** (`FUN_0057b7d0`): [0xc] += stat 56 coldlength when cold
   damage > 0; [10] = roll(stat 57, 58), [0xb] += stat 59 (over stat 326 when
   above 1, or stat 101 instead). A monster's El per mode
-  (`FUN_005a502b` / `FUN_005a5245`): cold 54 / 55 = min / max, 56 = Dur;
+  (`LAB_005a502b` / `LAB_005a5245`): cold 54 / 55 = min / max, 56 = Dur;
   poison 57 / 58 = min × 10 / max × 10, 59 = Dur × 2; frze (12) has no
   case.
 - **Before resists** (`FUN_0057c140`): cold or freeze length: stat 153

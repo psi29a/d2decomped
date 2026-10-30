@@ -519,7 +519,7 @@ ids).
   (0x7bf206) and opens the speech box (`FUN_004a1320`, 0x145 wide at
   y 12; message 0x7f flags 0x7bf230). d2d: `ev::Speech`.
 - **0x8a NPC interaction** (6; `FUN_004b3380`): +1 type, +2 u32 id. The
-  host's NPC think sends it (`FUN_00544660`) when one of the act's quests
+  host's NPC think sends it (`LAB_00544660`) when one of the act's quests
   (+0xec) has something for the player: the client puts overlay 0x48
   (`npcalert`, the "!") on the NPC as a kind-3 loop (`FUN_00470390`,
   `FUN_00470c30`; LoopWaitTime is unused). d2d:

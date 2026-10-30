@@ -38,6 +38,11 @@ class GapsTests(unittest.TestCase):
         rows = [row for _, _, row in gaps.tables(lines)]
         self.assertEqual(rows, [{"Address": "`0x5fd200`", "What": "a"}, {"Address": "`0x543de0`", "What": "b"}])
 
+    def test_done_only_when_nothing_remains(self):
+        self.assertTrue(gaps.done_line(dict.fromkeys(("gaps", "frontier", "untouched", "cited"), 0)).startswith("DONE"))
+        self.assertEqual(gaps.done_line({"gaps": 2, "frontier": 0, "untouched": 0, "cited": 1}),
+                         "remaining: 2 gaps, 1 cited")
+
 
 if __name__ == "__main__":
     unittest.main()

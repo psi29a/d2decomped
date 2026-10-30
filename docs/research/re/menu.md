@@ -68,7 +68,7 @@ them times master/100.
   - The skull `OptSkull` (`0x7bc958`) at (knob, sy - (centred ? 0 : 1) - 1).
 - Pentspin (`CURSOR\pentspin`) by the selected row, y = sel_y + hdr3.
   Left: x = W/2 - widest - 0xf9, frame f ? 8-f : 0. Right: x = W/2+0xf9,
-  frame f. widest (`0x7bc95c`, `FUN_0047de80`) is the widest frame (52).
+  frame f. widest (`0x7bc95c`, `LAB_0047de80`) is the widest frame (52).
   Each frame draws at its DC6 offset (`FUN_004f6480` → the renderer):
   widths 51, 43, 27, 9, 23, 40, 50, 52 with ox −1, 3, 11, 21, 15, 7,
   1, −1 and oy 0, so it spins about x+25. f steps once a

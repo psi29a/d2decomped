@@ -1009,7 +1009,7 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
     // Warps: the slot's Levels.txt Vis / Warp, LvlWarp's ExitWalk, and the
     // tile unit's spot (FUN_0066e1c0: the slot's LvlWarp Offset).
     const auto slots = d2d::drlg::warp_slots(assets, level.id);
-    // 0x800000: a preset room its LvlPrest row doesn't populate (FUN_006666ec),
+    // 0x800000: a preset room its LvlPrest row doesn't populate (LAB_006666ec),
     // a room with a warp tile, lit or not (FUN_0066e360).
     level.room_flags.assign(made.size(), 0);
     for (std::size_t i = 0; i < made.size(); ++i)

@@ -384,7 +384,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
 // attack (at its chance) less resistance, fire / lightning / cold less
 // magic damage reduction. Cold chills for El Dur ticks (stat 56, added in
 // FUN_0057b7d0), see chill_length. Poison (stats 57/58 = El min/max x 10,
-// 59 = Dur x 2, FUN_005a502b) is life per tick in 256ths less poison
+// 59 = Dur x 2, LAB_005a502b) is life per tick in 256ths less poison
 // resist, for its ticks less poison length reduction (the resist table at
 // 0x732980 via FUN_0057bf80: value x (100 - res) / 100).
 // Chill on the player: FUN_0057c140 zeroes cold and freeze length for

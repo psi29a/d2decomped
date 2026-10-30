@@ -95,6 +95,11 @@ We promise:
 
    Search the issues for it (`gh issue list --search 00526700`) so two people
    don't take the same one. Opening or commenting on an issue claims it.
+
+   **Nothing fits? Say so and stop.** If `gaps.py` ends with `DONE`, or
+   nothing listed fits the kind they picked, tell them, and offer play and
+   report, which doesn't depend on the map. Don't invent a gap, a missing
+   feature or a function to fill the space.
 4. **Do it.**
    - Play and report: help them write the issue: steps, what d2d did, what
      the original does, the d2d version, `d2d.log` (after they've read it), a
@@ -121,6 +126,10 @@ The same bar for everyone, people and agents alike.
   Redivivus, community specs) can confirm a reading, never replace one.
   Anything taken on their word is tagged
   `// unverified (source: <where>): <what>` and listed in `unverified.md`.
+- **A gap names where game.exe shows it:** a function in
+  `game-functions.tsv`, a data table and row (`Skills.txt` row 54), an
+  assert string, an issue, or the doc section that does. Write `FUN_` only
+  for a function's entry; an address inside a function is `LAB_`.
 - **Evidence is something another person can re-check:** a function address,
   a call site, a table and its offset, an assert string. Strongest first:
   assert strings and source file names, then code that reads the field, then
@@ -132,9 +141,9 @@ The same bar for everyone, people and agents alike.
 - **A match with game.exe needs an oracle:** `tools/emu` runs game.exe's own
   code on the same inputs as d2d, then diffs the two. CI has no game.exe, so
   a maintainer runs it before merging.
-- `tools/pr_guard.py` fails impossible addresses, binary files and
-  unreviewed risky changes. Passing it means the evidence is possible, not
-  that it's right.
+- `tools/pr_guard.py` fails impossible addresses (a `FUN_` inside another
+  function's body is one), binary files and unreviewed risky changes.
+  Passing it means the evidence is possible, not that it's right.
 
 ## 6. Pull requests and credit
 
