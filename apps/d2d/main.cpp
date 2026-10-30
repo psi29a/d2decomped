@@ -691,7 +691,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
     town.world.characters = g_no_save ? nullptr : &characters;
     town.world.autoloot_gold = g_autoloot;
-    if (!g_no_save) town.cfg_file = g_user_dir / "d2d.cfg";
+    if (!g_no_save) {
+        town.cfg_file = g_user_dir / "d2d.cfg";
+        d2d::userdir::Config cfg;
+        d2d::userdir::load_cfg(town.cfg_file, cfg);
+        town.hireling_hint = cfg["popup_hireling"] != "1";   // FUN_004939b0 reads the registry's PopupHireling each game
+    }
     if (!g_no_save) town.key_dir = save_dir;                 // <name>.key and default.key beside the saves, as game.exe keeps them
     town.pad_controls_page = g_pad_controls;
     town.shot_dir = g_user_dir / "screenshots";

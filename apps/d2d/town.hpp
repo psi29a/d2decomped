@@ -328,6 +328,7 @@ struct Town {
     [[nodiscard]] bool pad_field_or_free() const;
     bool run_held = false;                        // Run's key made the player run
     bool portraits_hidden = false;
+    bool hireling_hint = false;                   // FUN_004939b0: armed at a game's start while d2d.cfg's popup_hireling isn't 1
     bool message_log = false;
     HelpScreen help;                              // UI 0x21
     HirelingPanel hireling;                       // UI 0x24

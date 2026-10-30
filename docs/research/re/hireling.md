@@ -38,6 +38,15 @@ At 800×600 the panel spot is x + 0x50, y + 0x3c (`0x7a2858`,
 - `FUN_0048dd90`: an item's hover text, with the merc's stats against
   its requirements.
 
+## The first hire's hint (PopupHireling)
+
+`FUN_004939b0` (each game's start, from `FUN_00453d90`) arms
+`DAT_007beee4` while the registry's `Diablo II\PopupHireling` is 0. The
+portraits (`FUN_00494020`), past their panel checks, then open UI 0x24
+once (`FUN_00455f20(0x24, 0)`, an expansion game) and write 1. With no merc
+the panel shuts itself on its first draw, the hint spent all the same.
+d2d: d2d.cfg's `popup_hireling`.
+
 ## Wearing (C→S 0x61, FUN_0054d430)
 
 A u16 slot. With nothing in hand, slot 1..10 takes that item off the

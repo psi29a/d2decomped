@@ -3690,9 +3690,13 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 // at y 0x48 and 0x52 by turns (FUN_00492fa0). None while a left panel is
 // open (FUN_0045ae90 2 / 3 (?)).
 // The bars are mode 5 (as is); Z (Show Portraits, DAT_007beecc) hides them.
-// ponytail: the first hire's PopupHireling hint (registry, FUN_004939b0)
-// isn't shown; a joined game's summons (the host's monsters, 0xac owner
-// ours) get no portrait, their PetType unread.
+// The first portraits of an expansion game, the hint armed (FUN_004939b0):
+// the Hireling screen opens once (UI 0x24; with no merc it shuts again, the
+// hint spent all the same) and d2d.cfg's popup_hireling (game.exe: the
+// registry's PopupHireling) is 1.
+// A joined game's summons are the host's: its pet list (0x7a), ours by owner.
+// ponytail: their life is the unit's (0x0c hits), not the list's +0x1c,
+// whose sender isn't traced.
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     merc_portrait_x = -1;                                             // none to hover or drop on until drawn
@@ -3755,10 +3759,24 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
         int count = 0;
         for (const auto& pet : view.pets)
             if (pet.pettype == type.type && !gone(pet.mode)) { if (!first) first = &pet; ++count; }
-        if (!first) continue;
+        int first_class = first ? first->npc.hc_idx : -1, first_life = first ? first->life : -1;
+        if (net_game) {
+            const auto row = int(&type - game_data.pet_types.data());
+            for (const auto& pet : net_game->pets) {
+                if (pet.owner != net_game->self_id || pet.pettype != row) continue;
+                const auto unit = net_game->units.find(std::uint64_t(1) << 32 | pet.id);
+                if (count++ == 0) { first_class = pet.cls; first_life = unit == net_game->units.end() ? 100 : unit->second.life * 100 / 128; }
+            }
+        }
+        if (count == 0) continue;
         auto name = lookup_string(*scene, std::string_view(type.name));
-        portrait(icon_of(type, first->npc.hc_idx), type.icon_type != 2 || (count == 1 && type.draw_life) ? first->life : -1,
+        portrait(icon_of(type, first_class), type.icon_type != 2 || (count == 1 && type.draw_life) ? first_life : -1,
                  name ? u16_to_latin1(*name) : std::string{}, type.icon_type == 2 ? count : 0);
+    }
+    if (hireling_hint && character.expansion && !hireling.open) {
+        hireling_hint = false;
+        hireling.open = true;
+        if (!cfg_file.empty() && !d2d::userdir::save_cfg(cfg_file, { { "popup_hireling", "1" } })) d2d::log::warn("d2d.cfg: popup_hireling not saved");
     }
     // The merc's hint (FUN_00494020's tail): 0x58a3 "Right-click to Open
     // Inventory (%s)" with the Hireling key (FUN_0046a530: action 0x36), 0xf9e

@@ -205,6 +205,13 @@ x, +3 u16 y, +5 u8 level (Levels.txt id). `FUN_0061a070` /
 `FUN_0061a0c0`: rooms of the act's map come into / leave play around
 (x, y); what the client builds and frees as the player moves.
 
+**0x7a pet list** (13; `0x45e860`): +1 add (0: removed, `FUN_00478c90`),
++2 PetType row (7 the merc: `FUN_00478ab0` drops the old one first), +3
+u16 MonStats class, +5 u32 owner, +9 u32 id. `FUN_00478b10` keeps a list
+at `DAT_007bb5bc` (0x34 bytes: +0 class, +4 PetType row, +8 id, +0xc
+owner, +0x1c life 100 at first, +0x30 next); the portraits
+(`FUN_00494020`) draw from it. d2d: `NetGame::pets`.
+
 **0x16** (variable; `0x45d2e0`): +1 u16 length, +3 u8 count (not 0),
 then count × 9 bytes `{u8 type, u32 id, u16 x, u16 y}`, each put through
 the position correction. A batch of unit positions.
@@ -718,7 +725,7 @@ The ids apps/d2proxy flagged in a real game.exe client's session (table
 0x12..0x14
 and 0x66 (no-op handlers), 0x45 and 0x54 (no-ops), 0x47 / 0x48
 relators, 0x53 darkness, 0x5d / 0x5e / 0x5f, 0x61, 0x78, 0x79,
-0x7a, 0x7c / 0x7d, 0x7e (loads `cmncof_aN.d2`), 0x91..0x93, 0x98, 0x9b,
+0x7c / 0x7d, 0x7e (loads `cmncof_aN.d2`), 0x91..0x93, 0x98, 0x9b,
 0xa3..0xa6: handlers are known (the table), fields not.
 
 ## Client → server: layouts and d2d's commands
