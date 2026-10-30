@@ -228,12 +228,14 @@ The host (`FUN_0053f100`, case 0x68; log "[JOIN 1] %d clientid - Begin") checks 
 - token ≠ 1, or game 1 doesn't exist → 6
 - version ≠ **0x0e** → 0x10
 - 8 players already (game +0x8c > 7) → 0xf
-- name empty, shorter than 2 or longer than 16 → error
+- fewer than 2 or more than 15 characters, or no NUL in the 16-byte field → error
 - the name is already in use in the game → 6
 
 A failure is sent as `[B4, u32 reason]` (5 bytes, `FUN_0053b260`), and then the client is dropped (`FUN_0052b4f0`).
 
-**Stage 2**: `FUN_0052c690` checks that the name is terminated and the class is < 7. For the name characters it calls `FUN_0052c5b0`: letters, plus at most one of `' - _`, which can't be first or last.
+**Stage 2**: `FUN_0052c690` checks that the name is terminated and the class is < 7. At `0052c726` it sets EDI to 0x10 for `FUN_0052c5b0`, which checks the name in EDX. The jump table at `0052c600` / `0052c610` accepts ASCII letters and apostrophe (`'`), hyphen (`-`) and underscore (`_`); spaces, digits and non-ASCII bytes are rejected. At `0052c5d9`..`0052c5e6`, a mark is rejected if another mark was seen, if it is first, or if the next byte is NUL.
+
+In isolation `FUN_0052c5b0` accepts 1..15 bytes: its NUL case at `0052c5f6` accepts whenever at least one character was seen. The `tools/emu` oracle confirms that it accepts `X`. A TCP join still requires 2..15 because stage 1's `FUN_0053eff0` rejects a NUL in either of the first two bytes before stage 2 runs. d2d's `valid_join_name` follows that combined TCP rule.
 
 **Stage 3**: `FUN_0052fa50` (SrvJoinGame). `FUN_00539a30` adds the client. That fails if the game already has 8 players, and the failure sends 1 byte and drops the client. It makes a 0x518-byte client record, sets its timeout to now + 180000, links it into game +0x88, and hashes it by client id into `DAT_008842a8` and by name into `DAT_00883ea8`.
 There is **no game password and no level limit check in the TCP path.** The 0x67 create

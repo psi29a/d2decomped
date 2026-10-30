@@ -35,6 +35,7 @@
 #include "window.hpp"
 #include "world_view.hpp"
 
+#include <character_name.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <sound_ids.hpp>
@@ -1432,23 +1433,16 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 character.appearance.reset();   // a new character wears starting gear
                 character.items.clear();
                 character.stats = {};
-                // Text input into the name buffer (15-char cap = D2's
-                // character-record name limit): letters, and one of ' - _
-                // not first, as a game.exe host takes a name (FUN_0052c5b0).
-                // unverified (source: the host's check): the create screen's
-                // own filter isn't traced.
+                // Text input into the 15-character name buffer, then the
+                // create screen's own OK-button gating (FUN_00430620).
                 for (const char letter : text_this_frame) {
-                    const bool alpha = (letter >= 'a' && letter <= 'z') || (letter >= 'A' && letter <= 'Z');
-                    const bool mark = (letter == '\'' || letter == '-' || letter == '_') && !character.name.empty()
-                                   && character.name.find_first_of("'-_") == std::string::npos;
-                    if ((alpha || mark) && character.name.size() < 15) character.name.push_back(letter);
+                    if (d2d::d2s::character_name_allows(character.name, letter) && character.name.size() < 15)
+                        character.name.push_back(letter);
                 }
                 if (backspace_this_frame && !character.name.empty())
                     character.name.pop_back();
 
-                // OK is only enabled once a class is picked and a name is
-                // entered — mirrors D2's OK-button gating.
-                character.ok_btn.do_switch = character.selected >= 0 && d2d::net::valid_join_name(character.name);
+                character.ok_btn.do_switch = character.selected >= 0 && d2d::d2s::valid_character_name(character.name);
                 update_button(character.cancel_btn, mouse, screen, quit);
                 update_button(character.ok_btn,     mouse, screen, quit);
                 if (!character.cancel_btn.hovered && !character.ok_btn.hovered && scene) {

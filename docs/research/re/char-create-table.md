@@ -133,6 +133,24 @@ that appears when the user commits or aborts an in-progress creation
 ("Are you sure you want to create <name> the <class>?"), separate from
 the always-visible bottom-bar buttons above.
 
+## Name input and OK gating
+
+Init sets the name field's capacity to 0x10 at `004356b7` and registers
+`FUN_00430590` as its input callback at `004356ce`. The callback accepts
+ASCII letters. At `004305ab`..`004305e7` it also accepts hyphen (`-`) or
+underscore (`_`), but only away from cursor position zero and only if the
+existing text contains neither mark. Apostrophes, spaces, digits and
+non-ASCII bytes are rejected.
+
+`FUN_00430620` updates OK's enabled state. At `00430651`..`0043069b` it
+requires 2..15 characters, fewer than two `-` / `_` marks, and no mark at
+either end. This callback alone does not reject spaces, apostrophes or
+digits; the input callback has already excluded them from normal entry.
+The `tools/emu` oracle confirms both stages, including `X` being rejected
+by OK, `A-B` being accepted, and apostrophes being rejected by input.
+d2d implements the combined rule in `components/d2s/character_name.hpp`.
+Unlike the TCP host check, character creation does not accept apostrophes.
+
 ## Preceding table (char-select, 0x70ac00..0x70ae40)
 
 The char-select records are outside the scope of this doc but were

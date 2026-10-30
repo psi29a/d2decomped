@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Parse a synthetic 1.14d .d2s header; reject malformed ones.
+#include <character_name.hpp>
 #include <compcode.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
@@ -56,6 +57,18 @@ bool throws(const std::vector<std::byte>& bytes) {
 }  // namespace
 
 int main() try {
+    assert(d2d::d2s::character_name_allows("", 'A') && !d2d::d2s::character_name_allows("", '-'));
+    assert(d2d::d2s::character_name_allows("A", '-') && d2d::d2s::character_name_allows("A", '_'));
+    assert(!d2d::d2s::character_name_allows("A-B", '_') && !d2d::d2s::character_name_allows("A", '\''));
+    assert(!d2d::d2s::character_name_allows("A", '1') && !d2d::d2s::character_name_allows("A", ' '));
+    assert(d2d::d2s::valid_character_name("Ab") && d2d::d2s::valid_character_name("A-B")
+           && d2d::d2s::valid_character_name("Mule_abcd") && d2d::d2s::valid_character_name("AAAAAAAAAAAAAAA"));
+    assert(!d2d::d2s::valid_character_name("") && !d2d::d2s::valid_character_name("X")
+           && !d2d::d2s::valid_character_name("AAAAAAAAAAAAAAAA") && !d2d::d2s::valid_character_name("_Mule")
+           && !d2d::d2s::valid_character_name("Mule_") && !d2d::d2s::valid_character_name("a-b-c")
+           && !d2d::d2s::valid_character_name("O'Neil") && !d2d::d2s::valid_character_name("Bob Bitchen")
+           && !d2d::d2s::valid_character_name("A1"));
+
     // A game.exe host's ground item (S->C 0x9c, live 2026-10-04): gold, the
     // net layout (no JM, x / y 16 bits on the ground, the amount 1 + 12 bits
     // right after the code: FUN_0062a970 reads no socket count for it).
