@@ -121,8 +121,10 @@ inline int skill_base_level(const GameData& game_data, const Character& characte
     if (id == 0) return 1;
     const auto* skill = game_data.skills.get(id);
     if (!skill) return 0;
-    // ponytail: Throw's level while no throwable is held stands in for the
-    // picker's weapon check (FUN_004d9fc0), unverified.
+    // ponytail: game.exe keeps Throw at level 1 (FUN_00647110) and gates the
+    // weapon apart (FUN_00647640, status 2 in FUN_00647960); here level 0
+    // without a throwable stands in for that gate. The picker, the dual-wield
+    // hand fallback and the cast path aren't checked yet (re/throw.md).
     if (skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow)
         return std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped
             && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && throwable(game_data, item.code); }) ? 1 : 0;
