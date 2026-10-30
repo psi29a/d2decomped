@@ -412,20 +412,33 @@ static Screen parse_screen(std::string_view text) {
     return Screen::Title;
 }
 
-// Frame pacer — hits target FPS via SDL_Delay for whatever's left of the
-// budget after render, then a mandatory 1ms floor. Matches D2's own
-// pattern (FUN_004f6190 in game.exe): compute time budget remaining,
-// Sleep 1..5ms if we're ahead. Without this, an unlucky vsync miss or a
+// Frame pacer — sleeps whatever's left of the frame's budget after render.
+// Matches D2's own pattern (FUN_004f6190 in game.exe): compute time budget
+// remaining, sleep if we're ahead. Without this, an unlucky vsync miss or a
 // windowed compositor that skips vsync sends us into a 100% CPU spin.
-constexpr std::uint32_t kFrameBudgetMs = 16;   // ~60 fps ceiling
-inline void pace_frame(std::uint32_t frame_start_ms) {
-    const std::uint32_t elapsed = std::uint32_t(SDL_GetTicks()) - frame_start_ms;
-    if (elapsed < kFrameBudgetMs) {
-        SDL_Delay(kFrameBudgetMs - elapsed);
+// The budget follows the window's display, a little under its refresh so
+// vsync, not the sleep, holds each frame to the display; 60 frames a second
+// where no refresh is known (headless). --fps-cap (d2d.cfg fps_cap) sets an
+// exact rate instead, slept precisely. The World still ticks at 25 Hz; the
+// frames between draw the units sliding (unit_slide.hpp).
+static int g_fps_cap = 0;   // frames a second, 0 = the display's refresh
+struct FrameBudget { std::uint64_t nanos; bool exact; };
+inline FrameBudget frame_budget(SDL_Window* window) {
+    if (g_fps_cap > 0) return { 1'000'000'000ull / std::uint64_t(g_fps_cap), true };
+    const SDL_DisplayMode* mode = window ? SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window)) : nullptr;
+    if (!mode || mode->refresh_rate < 30.f) return { 1'000'000'000ull / 60, false };
+    return { std::uint64_t(1e9 / (double(mode->refresh_rate) * 1.05)), false };
+}
+inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
+    const std::uint64_t elapsed = SDL_GetTicksNS() - frame_start_ns;
+    if (elapsed < budget.nanos) {
+        // SDL_DelayPrecise spins its last millisecond: only for a set cap.
+        if (budget.exact) SDL_DelayPrecise(budget.nanos - elapsed);
+        else SDL_DelayNS(budget.nanos - elapsed);
     } else {
-        // Even when we blew the budget, yield 1ms so we don't monopolise
-        // the scheduler.
-        SDL_Delay(1);
+        // Even when we blew the budget, yield a little so we don't
+        // monopolise the scheduler.
+        SDL_DelayNS(250'000);
     }
 }
 
@@ -757,7 +770,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         // d2d_sigint_handler is polled here; SDL_EVENT_QUIT and window
         // close still work through handle_sdl_events.
         if (g_sigint_quit) { quit = true; break; }
-        const std::uint32_t frame_start_ms = std::uint32_t(SDL_GetTicks());
+        const std::uint64_t frame_start_ns = SDL_GetTicksNS();
+        const std::uint32_t frame_start_ms = std::uint32_t(frame_start_ns / 1'000'000);
         // Toggled inside the `input` timing window, so any IME cost of the
         // switch itself shows up there.
         if (const bool want = screen == Screen::CharCreate || (screen == Screen::InGame && (town.chat_typing || town.coop_typing() || town.gold_box))
@@ -1359,6 +1373,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             if (const auto* here = town.world.level; here && net.self_x > 0) {
                                 town.hero.player.x = (net.self_x + 0.5f) / 5.f - float(here->world_x);
                                 town.hero.player.y = (net.self_y + 0.5f) / 5.f - float(here->world_y);
+                                town.slide_from.clear();
                                 town.publish();
                             }
                             town.net_game->set_running(town.view.running);   // the host starts us walking
@@ -1574,7 +1589,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         }
         current_phase.store(std::uint32_t(MainPhase::PaceDelay),
                             std::memory_order_relaxed);
-        pace_frame(frame_start_ms);
+        pace_frame(frame_start_ns, frame_budget(win.window));
     }
     if (screen == Screen::InGame) town.save();   // quitting from the game saves it
     if (town.net_game) { town.net_game->leave(); write_save_back(); }   // a joined game: leave the host (0x69), don't just drop it
@@ -1702,8 +1717,11 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, coop_lobby, light_grid); scalemode=pixelart|nearest|linear");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, coop_lobby, light_grid, unit_slide); scalemode=pixelart|nearest|linear");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
+    int fps_cap = cfg.contains("fps_cap") ? std::atoi(cfg["fps_cap"].c_str()) : 0;
+    app.add_option("--fps-cap", fps_cap, "Frames a second at most, 0 = the display's refresh (also `fps_cap =` in d2d.cfg)")
+        ->check(CLI::Range(0, 1000));
     std::string join_host, game_exe, log_level = "info";
     app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
     app.add_option("--join", join_host, "Join a game.exe TCP/IP game at this address (your own network only)");
@@ -1818,6 +1836,7 @@ int main(int argc, char** argv) {
             { "pad_controls", &g_pad_controls },   // Configure Controls' gamepad page
             { "coop_lobby", &g_coop_lobby },       // SINGLE PLAYER / COOP, partners pick their characters on character select
             { "light_grid", &g_light_grid },       // the light grid over the whole view, not game.exe's 48 x 48
+            { "unit_slide", &g_unit_slide },       // units slide between ticks, not step at 25 Hz
         };
         if (const auto mode = scale_mode_named(cfg["scalemode"])) g_scale_mode = *mode;
         std::string_view rest = toggles;
@@ -1834,7 +1853,7 @@ int main(int argc, char** argv) {
             }
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, coop_lobby, light_grid; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, coop_lobby, light_grid, unit_slide; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";
@@ -1855,6 +1874,7 @@ int main(int argc, char** argv) {
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked
+    g_fps_cap        = std::clamp(fps_cap, 0, 1000);
     g_fullscreen     = cfg["fullscreen"] == "1";
     g_widescreen     = cfg["widescreen"] == "1" || cli_widescreen || view_width > 0;
     g_forced_view_w  = std::clamp(view_width, 0, kMaxViewWidth);

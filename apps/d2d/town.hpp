@@ -20,6 +20,7 @@
 #include "skillbar.hpp"
 #include "store.hpp"
 #include "ui.hpp"
+#include "unit_slide.hpp"
 #include "world_view.hpp"
 
 #include <d2s_items.hpp>
@@ -229,6 +230,10 @@ struct Town {
     bool press_on_ui = false;              // the held left button was pressed on the UI
     std::uint32_t world_ms = 0;            // the World's clock: when it last ticked
     float prev_x = 0, prev_y = 0;          // the player a tick before: the camera slides between the two
+    // The other units a tick before (monsters, other players, the merc, pets,
+    // missiles), by slide key (unit_slide.hpp): drawn sliding between there
+    // and where the last tick put them, as the player.
+    SlideFrom slide_from;
     float cam_x = 0, cam_y = 0;            // where the camera is this frame
     float party_x = 0, party_y = 0;        // local co-op: the camera's eased point, toward the party's middle
     std::uint32_t party_ms = 0;            // when it last eased

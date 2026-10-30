@@ -34,7 +34,7 @@ Done (2026-09-27, docs/PLAN.md "Networking-shaped core"):
 
 | Was | Now |
 |---|---|
-| The simulation stepped on the frame clock (~60 fps, variable `dt`) | `World::tick` at 25 Hz (`kTickMs` 40); the camera slides between ticks; other units move at the tick rate, as in game.exe |
+| The simulation stepped on the frame clock (~60 fps, variable `dt`) | `World::tick` at 25 Hz (`kTickMs` 40); the camera and the units slide between ticks (deviations.md #13; game.exe draws them at the tick rate) |
 | `Town` mixed input, UI, simulation and drawing | `World` (world.hpp: levels, units, monsters, missiles, ground items, objects, rng) and `Town`, its client |
 | Monsters and ground items were vector indices | Unit ids (`Monster::id`, `GroundItem::id`, the character's items' runtime `Item::id`); objects and NPCs by their level index (the same list on every machine) |
 | Clicks called game code directly | `Command`s (protocol.hpp), applied in the tick; a busy player's movement and skills dropped, as game.exe's dispatcher does. Movement, skills, interact, pick-up, resurrect; stat / skill points, select skill, belt potions; the cursor (item moves); NPC deals (trade, gamble, buy, sell, repair, identify, hire) |

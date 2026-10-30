@@ -19,7 +19,8 @@ d2d copies.
 **Toggles:** an improvement that changes what a player sees can be turned
 off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 `light_grid` (improvement 1), `trans_roof` (improvement 4), `autoloot` (improvement 5),
-`autoparty` (improvement 7), `pad_controls` (improvement 11), `coop_lobby` (improvement 12).
+`autoparty` (improvement 7), `pad_controls` (improvement 11), `coop_lobby` (improvement 12),
+`unit_slide` (improvement 13).
 `--toggle scalemode=pixelart|nearest|linear` picks the upscale filter (Additions).
 
 ## Improvements
@@ -38,6 +39,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 10 | d2d's player far from the host's | Untraced (unverified: game.exe corrects by the host's 0x15 only) | 15+ subtiles apart for 2 s and d2d puts its player where the host has it. No toggle | d2d walked through doors only it had open and on floor the host's path won't take; the host is the truth | yes: a jump back | town.cpp `net_drift_ms` |
 | 11 | Configure Controls' buttons | Cancel, Default, Accept, each a third of the panel (FUN_004a5060) | A fourth, Gamepad / Keyboard, turns the list into the pad's page: its settings (left-handed sticks, swapped confirm, dead zone, cursor speed), two layouts, each action's two buttons; edits work as a key's do (a button leaves the action it clashed with), Accept keeps them in d2d.cfg `pad_*`. The four buttons take a quarter each. `--toggle pad_controls=off` turns it off | game.exe has no pad (#33) | yes | controls.cpp, gamepad_map.hpp `Bindings` |
 | 12 | The title's SINGLE PLAYER | Single player only; a joined game's players pick on their own machines | "SINGLE PLAYER / COOP": with two or more external pads character select is local co-op's lobby, where each pad past the first picks its character before player 1 (alone) starts. `--toggle coop_lobby=off` turns it off | Couch co-op without picking characters mid-game | yes | lobby.cpp, frontend.cpp `title_ui`, local-coop.md "The lobby" |
+| 13 | Frame rate and motion between ticks | Draws each unit where the last game tick put it (FUN_004f6190 paces the loop; unverified: its exact frame cap per video mode) | Draws at the display's refresh (`--fps-cap` / d2d.cfg `fps_cap` for a fixed rate); the World still ticks at 25 Hz. The player and camera slide between the last two ticks, and monsters, other players, the merc, town NPCs, pets and missiles too (a pet or missile by the nearest of its kind a tick before); a move further than 2 cells in a tick (4 for a missile), a new unit or a level change snaps. Critters still step on their own 40 ms clock. `--toggle unit_slide=off` keeps the others at the tick rate | Smooth motion on 60–144 Hz displays; game rules and timing unchanged | yes: smoother movement | main.cpp `frame_budget`, unit_slide.hpp `for_each_slide` |
 
 ## Approximations
 

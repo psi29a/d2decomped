@@ -22,6 +22,7 @@
 #include "speech_sound.hpp"
 #include "store.hpp"
 #include "ui.hpp"
+#include "unit_slide.hpp"
 #include "world_view.hpp"
 
 #include <combat.hpp>
@@ -443,6 +444,7 @@ auto Town::enter() -> void {
         focus = 0;
         skillbar.new_game();
         hand_items.clear();
+        slide_from.clear();                          // a new View, not the next tick: nothing slides into it
         publish();
         if (scene && level) rain_join();
         if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer, int(scene->automap_cels.frames_per_direction()));
@@ -2215,6 +2217,7 @@ auto Town::lead_leaves() -> int {
         pad = next->pad;
         coop.erase(next);
         view_enc.reset();                             // the next View whole: another player's
+        slide_from.clear();                          // a new View, not the next tick: nothing slides into it
         publish();
         return seat;
     }
@@ -2424,6 +2427,7 @@ auto Town::take_focus(int id) -> void {
         quest_log.sent_known = false;
         pad = {};
         view_enc.reset();                             // the next View whole: another player's
+        slide_from.clear();                          // a new View, not the next tick: nothing slides into it
         publish();
         d2d::log::info("co-op: the screen is {}'s", owner.character.name);
     }
@@ -2934,6 +2938,8 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             ticked = true;
         }
         if (!ticked && view.level == world.level) return;
+        if (ticked && view.level == world.level) remember_slides(view, slide_from);   // where the View had them: the slide's start
+        else slide_from.clear();
         publish();
         // What the World said, handled once the View it came in is here
         // (the hire list's offers come with it).
@@ -3306,11 +3312,16 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         std::vector<Unit> extra;
         // The camera (and the player's unit) between the World's last two
         // ticks; a jump (a warp, devctl) snaps.
-        // ponytail: the other units move at the tick rate, as game.exe draws them.
+        // ponytail: game.exe draws the other units at the tick rate; d2d
+        // slides them too (unit_slide.hpp), smooth past 25 frames a second.
         const float blend = std::clamp(float(frame_ms - world_ms) / float(kTickMs), 0.f, 1.f);
         const bool jump = std::hypot(unit.x - prev_x, unit.y - prev_y) > 2.f;
         const float hero_x = jump ? unit.x : prev_x + (unit.x - prev_x) * blend, hero_y = jump ? unit.y : prev_y + (unit.y - prev_y) * blend;
         cam_x = hero_x; cam_y = hero_y;
+        // The other units slide too, drawn at the blend (the party camera
+        // and the lights read them there) and put back as the frame ends;
+        // a jump (a teleport or level change) or an unmatched unit snaps.
+        const SlidGuard slid = g_unit_slide ? SlidGuard(slide_units(view, slide_from, blend)) : SlidGuard();
         if (!coop.empty()) {
             // Local co-op: the camera eases to the party's middle (one screen,
             // World::leash keeps it there); a jump (a level, a warp) snaps.

@@ -67,6 +67,8 @@ d2d_add_test(test_gamepad)   # the pad's action mapping: header-only, no SDL
 target_include_directories(test_gamepad PRIVATE ${PROJECT_SOURCE_DIR}/apps/d2d)
 d2d_add_test(test_keyconfig)   # game.exe's key bindings: header-only, no SDL
 target_include_directories(test_keyconfig PRIVATE ${PROJECT_SOURCE_DIR}/apps/d2d)
+d2d_add_test(test_unit_slide game)   # units sliding between ticks: header-only, no SDL
+target_include_directories(test_unit_slide PRIVATE ${PROJECT_SOURCE_DIR}/apps/d2d)
 d2d_add_test(test_switches switches CLI11::CLI11)   # game.exe's one-dash switches, before CLI11
 
 # End-to-end: headless d2d driven over devctl (SDL dummy driver).

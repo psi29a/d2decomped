@@ -41,6 +41,7 @@ inline bool g_roof_cutout = true;
 inline bool g_light_grid = true;
 inline bool g_autoparty = true;      // a joined game: invite the others, accept invites (deviations.md #7); off: --toggle autoparty=off
 inline bool g_autoloot = true;        // gold walked over is picked up (deviations.md #5); off: --toggle autoloot=off
+inline bool g_unit_slide = true;      // units drawn sliding between the World's ticks (deviations.md #13); off: --toggle unit_slide=off
 struct Hole {
     std::vector<std::pair<int, int>> at;            // screen centres (a player each: local co-op's several), pixels
     int radius = 0;
