@@ -1478,6 +1478,11 @@ struct CainQuest {
         if (!camp_cain) camp_due = true;
         state = 7; log = 5;
         rescued_flag = true;
+        missed_it(quest_bits, player);
+    }
+    // FUN_00592b10's pass: a player neither done nor due missed the rescue.
+    void missed_it(QuestBits& quest_bits, int player) {
+        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return;
         quest::set(quest_bits, kQuest, 14);
         missed.add(player);
     }
@@ -1659,21 +1664,25 @@ struct TowerQuest {
         if (due.has(player)) { due.remove(player); told.add(player); }
         return chain;
     }
-    // The player went from level `from` to `dest` (FUN_00595010).
-    void enter(QuestBits& quest_bits, int from, int dest, int player) {
+    // The player went from level `from` to `dest` (FUN_00595010). True: the
+    // state moved, every player's bits to mark ("mark all").
+    bool enter(const QuestBits& quest_bits, int from, int dest, int player) {
         if (dest == kTower) {
             if (state == 0) { state = 2; log = 3; }
             else if (state <= 3 && log == 1) log = 4;
-            else return;
-            mark(quest_bits);
-        } else if (dest == kCellar) {
-            if (state > 3 || log == 2) return;
+            else return false;
+            return true;
+        }
+        if (dest == kCellar) {
+            if (state > 3 || log == 2) return false;
             state = 3; log = 2;
-            mark(quest_bits);
-        } else if (from == 1) {                        // out of town
+            return true;
+        }
+        if (from == 1) {                               // out of town
             if (state == 2) { if (!quest::bit(quest_bits, kQuest, 0)) state = 3; }
             else if (state == 5) told.remove(player);        // FUN_00594740 (then rec+0xa = 0 once both lists are empty)
         }
+        return false;
     }
     // The Countess died (FUN_00595710, once: rec+0xc0 is cleared). True:
     // the player's kill for the quest (FUN_00594f10: in cellar 5 — bits 13

@@ -3757,8 +3757,9 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
         if (type.icon_type < 1 || type.icon_type > 3) continue;
         const View::Pet* first = nullptr;
         int count = 0;
-        for (const auto& pet : view.pets)
-            if (pet.pettype == type.type && !gone(pet.mode)) { if (!first) first = &pet; ++count; }
+        if (!net_game)                                                // a joined game's: the host's list only
+            for (const auto& pet : view.pets)
+                if (pet.pettype == type.type && !gone(pet.mode)) { if (!first) first = &pet; ++count; }
         int first_class = first ? first->npc.hc_idx : -1, first_life = first ? first->life : -1;
         if (net_game) {
             const auto row = int(&type - game_data.pet_types.data());

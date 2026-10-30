@@ -47,9 +47,11 @@ auto World::act1_join() -> void {
 auto World::act1_enter(const Level& from) -> void {
         andy.enter(quests(), from.id, level->id);
         burial.enter(quests(), from.id, level->id, actor->id);
-        tower.enter(quests(), from.id, level->id, actor->id);
+        if (tower.enter(quests(), from.id, level->id, actor->id)) each_player([&](Player&) { tower.mark(quests()); });
         tools.enter(quests(), from.id);
+        const bool cain_open = cain.state != 7;
         cain.enter(quests(), from.id, level->id, actor->id);
+        if (cain_open && cain.state == 7) each_player([&](Player& player) { cain.missed_it(quests(), player.id); });   // FUN_00592b10 over the players
     }
 
 auto World::act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh) -> void {

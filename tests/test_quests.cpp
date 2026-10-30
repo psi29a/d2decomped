@@ -144,14 +144,16 @@ int main() {
     tower.read_tome(tower_bits, 1);
     assert(tower.state == 2 && tower.log == 1 && tower.tome_early && quest::bit(tower_bits, 5, 2));
     assert(tower.talk(tower_bits, 150, 1)[0].string == 133 && !tower.talk(tower_bits, 150, 1)[0].greet);
-    tower.enter(tower_bits, 1, 3, 1);                                                   // out of town: state 3, no mark
+    assert(!tower.enter(tower_bits, 1, 3, 1));                                          // out of town: state 3, no mark
     assert(tower.state == 3 && !quest::bit(tower_bits, 5, 3) && tower.talk(tower_bits, 147, 1)[0].string == 139);
-    tower.enter(tower_bits, 6, TowerQuest::kTower, 1);
+    assert(tower.enter(tower_bits, 6, TowerQuest::kTower, 1));                          // every player's to mark
+    tower.mark(tower_bits);
     assert(tower.log == 4 && quest::bit(tower_bits, 5, 6));
     TowerQuest tower_again;
     tower_again.join(tower_bits);
     assert(tower_again.state == 3 && tower_again.log == 4);
-    tower.enter(tower_bits, 24, TowerQuest::kCellar, 1);
+    assert(tower.enter(tower_bits, 24, TowerQuest::kCellar, 1));
+    tower.mark(tower_bits);
     assert(tower.state == 3 && tower.log == 2 && quest::bit(tower_bits, 5, 4));
     assert(tower.killed(tower_bits, true, 1) && quest::bit(tower_bits, 5, 0) && quest::bit(tower_bits, 5, 13) && tower.state == 5);
     assert(!tower.killed(tower_bits, true, 1));                                         // once
@@ -168,7 +170,8 @@ int main() {
     // Not in cellar 5 at her death: bit 14, nothing to say.
     QuestBits away_bits{};
     TowerQuest away;
-    away.enter(away_bits, 6, TowerQuest::kTower, 1);
+    assert(away.enter(away_bits, 6, TowerQuest::kTower, 1));
+    away.mark(away_bits);
     assert(away.state == 2 && away.log == 3 && quest::bit(away_bits, 5, 2));
     assert(!away.killed(away_bits, false, 1) && quest::bit(away_bits, 5, 14) && !quest::bit(away_bits, 5, 0) && away.talk(away_bits, 150, 1).empty());
     // Tools of the Trade: the chain opens it; Charsi gives it; out of

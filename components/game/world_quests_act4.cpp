@@ -179,8 +179,9 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                 auto& bits = quests();
                 if (near_room(kill.x, kill.y, player.player.x, player.player.y)) {
                     const bool was_done = quest::bit(bits, kTerrorQuest, 0) || quest::bit(bits, kTerrorQuest, 1);
-                    terror.diablo_died(bits, expansion, player.id);
-                    if (!was_done && !expansion) open_act(4);
+                    const bool their_expansion = player.character.header.expansion();
+                    terror.diablo_died(bits, their_expansion, player.id);
+                    if (!was_done && !their_expansion) open_act(4);
                 } else if (!quest::bit(bits, kTerrorQuest, 0) && !quest::bit(bits, kTerrorQuest, 1)) quest::set(bits, kTerrorQuest, 14);
             });
             if (!terror.dead) { terror.dead = true; if (terror.open) { terror.log = 13; terror.news = true; } }   // no one by him: the record's death all the same
