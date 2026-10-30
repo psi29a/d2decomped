@@ -25,13 +25,13 @@ trust. `git grep -n "unverified (source"` lists them.
 | PL2 layout past the base palette | docs/research/formats/pl2.md | OpenDiablo2's d2pl2 | probing menu1/Pal.PL2 | the PL2 loader |
 | Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | handlers marked ✓ were read | names only; behaviour is from the handlers |
 | Charsi's Imbue pick: after the menu, the next item click takes the item up and imbues it | apps/d2d/town.cpp `imbue_with` | the identify pick's pattern | 0x4b35b0 opens the inventory in UI mode 7; the server imbues the cursor item (act1-end.md) | the panel's click path, 0x4c0620 / 0x4c01e0 |
-| Throw has level 1 only while a throwable is held (the picker offers it then) | components/game/fight.hpp `skill_base_level` | the D2 picker's look | every player has Throw (Skills.txt general); `FUN_004d9fc0` greys what the weapon can't use | `FUN_004d9fc0`, the start skills a new character gets |
 | A converted monster (align 2, no MonStats interact) gets no hover and no pick: the cursor walks there, a held attack drops it | components/game/ai.hpp `ally_not_interact`, apps/d2d/town.cpp `view_units`, components/game/world.cpp `apply` (UseSkill) | redivivus D2Client/UNIT/CUnit.cpp `HitTestScreen` / `CanInteractWith` (!IsAllyOf for a monster) | the server side is traced: FUN_00554200 makes a converted monster no foe (fight.cpp `land`) | game.exe's client hit test and the interact check it calls |
 
 ## Traced
 
 | What | Traced in | Doc |
 |---|---|---|
+| Throw's stored base level and weapon eligibility are separate. d2d's level-zero-without-a-throwable approximation remains to be corrected and tested. | `FUN_00647ee0` / `FUN_00647110` grant initial skills at level 1; `FUN_006442a0` reads the level; `FUN_00647640` checks equipment. 35 isolated original-code contexts passed with inventory/item helpers replaced; no C++ parity claim. | [throw.md](throw.md) |
 | TCP host join name: 2..15 bytes; ASCII letters and at most one ' - _, not first or last | `FUN_0053eff0` (length), `FUN_0052c5b0` (characters), EDI = 0x10 at `0052c726` | net-join.md "Stage 1" / "Stage 2" |
 | Character-create name: 2..15 characters; ASCII letters and at most one - _, not first or last; no apostrophes | `FUN_00430590` (input), `FUN_00430620` (OK state) | char-create-table.md "Name input and OK gating" |
 | MonStats AI Idle (the cow): stands, never chases | `FUN_005b0cd0` (MonAI row 1, search type 0): stand 200 in a room | monster-ai.md "Idle" |
