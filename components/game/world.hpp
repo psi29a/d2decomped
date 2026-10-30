@@ -258,13 +258,9 @@ struct World {
     // FUN_00540510's callbacks, the players in the level); one screen puts
     // every player in the level and the party, so it comes to this.
     // kOwnCredit's quests credit each player in their hooks, as game.exe
-    // does, and are left alone.
-    // ponytail: one rule for the other quests; a callback that asks more
-    // (an act, a bit besides 0 and 1) isn't told apart.
-    static constexpr std::array<int, 24> kOwnCredit{ 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 0x12, 0x13, 0x15, 0x16, 0x19, 0x1a, 0x1b, 0x23, 0x24, 0x26, 0x27, 0x28 };   // Den, Burial, Tools, Cain, Tower, Andariel, Radament, Staff, Tainted Sun, Arcane, Summoner, Tombs, Khalim, Blade, Temple, Guardian, Izual, Terror's End, Hellforge, Siege, Rescue, Betrayal, Rite, Eve
-    // The party's share of a step (FUN_00540510; local co-op is one party):
-    // each other player in the act (the quest's own act; Act 1's here),
-    // neither done nor due, gets `bits`.
+    // does, and are left alone; what's left is an act's travel (words 7,
+    // 0xf, 0x17, 0x1c), which the one screen takes everyone on.
+    static constexpr std::array<int, 30> kOwnCredit{ 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x18, 0x19, 0x1a, 0x1b, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28 };   // Act 1, the opening and Act 2, the opening and Act 3, the opening and Act 4, Act 5
     // Every player in the act neither done nor due gets `bits` (a party pass
     // with no one left out: the mover's own taken already).
     void party_bits_all(int quest, std::initializer_list<int> bits) {
@@ -275,6 +271,9 @@ struct World {
             for (const int bit : bits) d2d::rules::quest::set(theirs, quest, bit);
         });
     }
+    // The party's share of a step (FUN_00540510; local co-op is one party):
+    // each other player in the act (the quest's own act; Act 1's here),
+    // neither done nor due, gets `bits`.
     void party_bits(int quest, std::initializer_list<int> bits) {
         const int mover = actor->id, in_act = act();
         each_player([&](Player& player) {

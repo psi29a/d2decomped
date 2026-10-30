@@ -106,7 +106,10 @@ second scroll.
 - Fana: InitFn 74 log 2; OperateFn 67 without the potion she says 20131
   (state 4, log 3); with it: taken, state 5, Anya 1, bits 13 and 1, log 5,
   the thaw timer (`FUN_0058aab0`: tick 1 fana mode 2, tick 2 drehyaiced at
-  her spot, fana removed, the chain).
+  her spot, fana removed, the chain). Bits 13 and 1 are the pourer's
+  only; two passes (`FUN_005537d0`): `LAB_00589a50` resends a player
+  with bit 13 their quest state, `LAB_00589aa0` gives bit 14 to the rest
+  without 0, 1 or 13.
 - Malah: 20116 told; 20127 the potion ("ice ") if none out; 20132 with
   bit 1 the scroll ("tr2 ", bit 8; with bit 9 done), Anya home
   (drehyaiced goes, `FUN_005891d0`); again once if lost.

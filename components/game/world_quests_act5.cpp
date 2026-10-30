@@ -604,6 +604,12 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
         if (hosted_quests) return true;
         if (prison.thaw(quests(), carries(d2d::rules::PrisonQuest::kPotionCode))) {
             take_carried(d2d::rules::PrisonQuest::kPotionCode);
+            // LAB_00589aa0 (FUN_005537d0): the rest, bit 14.
+            each_player([&](Player&) {
+                auto& bits = quests();
+                constexpr int quest = d2d::rules::PrisonQuest::kQuest;
+                if (!d2d::rules::quest::bit(bits, quest, 0) && !d2d::rules::quest::bit(bits, quest, 1) && !d2d::rules::quest::bit(bits, quest, 13)) d2d::rules::quest::set(bits, quest, 14);
+            });
             thaw_at = now_ms + kTickMs;
             d2d::log::info("Prison of Ice: the potion poured");
         } else d2d::log::info("Prison of Ice: no potion (20131)");
