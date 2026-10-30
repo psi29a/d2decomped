@@ -47,9 +47,11 @@ def main() -> int:
     with open(os.path.join(build_dir, "compile_commands.json")) as source:
         entries = json.load(source)
     entries = [entry for entry in entries if "/_deps/" not in entry["file"] and "/build/" not in entry["file"]]
+    def output(entry) -> str:                   # relative to its directory (older CMake), or absolute
+        return os.path.realpath(os.path.join(entry["directory"], entry["output"]))
     # A new or incomplete Ninja dependency database cannot prove that an
     # edited header affects no TU. Fall back to the full project tidy list.
-    if any(path.endswith(".hpp") for path in changed) and any(os.path.realpath(entry["output"]) not in deps for entry in entries):
+    if any(path.endswith(".hpp") for path in changed) and any(output(entry) not in deps for entry in entries):
         for tu in sorted({entry["file"] for entry in entries}): print(tu)
         return 0
     picked: list[str] = []
@@ -58,7 +60,7 @@ def main() -> int:
         if os.path.realpath(tu) in changed:
             picked.append(tu)
             continue
-        headers = deps.get(os.path.realpath(entry["output"]))
+        headers = deps.get(output(entry))
         if headers and headers & changed: picked.append(tu)
     for tu in sorted(set(picked)): print(tu)
     return 0

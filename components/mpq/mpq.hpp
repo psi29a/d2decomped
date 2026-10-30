@@ -126,6 +126,8 @@ public:
 
     [[nodiscard]] bool is_installer() const noexcept { return !remap_.empty(); }
 
+    [[nodiscard]] bool installer_lists(std::string_view name) const { return remap_.contains(key(name)); }
+
     // Installer only: the entry for a game path, 24-byte header included.
     [[nodiscard]] std::optional<std::vector<std::byte>>
     installer_entry(std::string_view name) const {
@@ -182,7 +184,17 @@ private:
     read_raw(std::string_view name) const {
         const std::string namez(name);
         HANDLE file{};
-        if (!SFileOpenFileEx(handle_, namez.c_str(), 0, &file)) return std::nullopt;
+        if (!SFileOpenFileEx(handle_, namez.c_str(), 0, &file)) {
+            // StormLib 9.31 renamed its error accessor on every platform.
+            // An existence check cannot distinguish a corrupt entry from a
+            // missing one: it runs the same validation as the open.
+#if STORMLIB_VERSION >= 0x091F
+            if (SErrGetLastError() == ERROR_FILE_NOT_FOUND) return std::nullopt;
+#else
+            if (::GetLastError() == ERROR_FILE_NOT_FOUND) return std::nullopt;
+#endif
+            throw std::runtime_error("MPQ open failed: " + namez);
+        }
         const DWORD size = SFileGetFileSize(file, nullptr);
         std::vector<std::byte> buf(size);
         DWORD got = 0;
@@ -265,14 +277,15 @@ public:
 
     // First archive that has the file wins. An installer's delta entry is
     // applied to the file from the archives below it; when that base
-    // doesn't match (CRC/size), the lookup falls through to the base.
+    // doesn't match (CRC/size), the lookup falls through to the base unless
+    // strict_installer is set for patch generation.
     // A file that's there but won't read (a damaged MPQ) is logged once and
     // from then on is missing: no retry each time a sound or frame wants it.
     [[nodiscard]] std::optional<std::vector<std::byte>>
-    try_read(std::string_view name) const {
+    try_read(std::string_view name, bool strict_installer = false) const {
         if (failed_.contains(Archive::key(name))) return std::nullopt;
         try {
-            return find(name);
+            return find(name, strict_installer);
         } catch (const std::exception& error) {
             failed_.insert(Archive::key(name));
             d2d::log::warn("{}. A damaged MPQ? Run Verify files in the launcher. Not read again this run.", error.what());
@@ -292,18 +305,22 @@ public:
 
 private:
     [[nodiscard]] std::optional<std::vector<std::byte>>
-    find(std::string_view name) const {
+    find(std::string_view name, bool strict_installer) const {
         for (std::size_t i = 0; i < archives_.size(); ++i) {
             const auto& archive = archives_[i];
             if (auto data = archive.try_read(name)) return data;
             if (!archive.is_installer()) continue;
             const auto entry = archive.installer_entry(name);
-            if (!entry) continue;
+            if (!entry) {
+                if (strict_installer && archive.installer_lists(name)) throw std::runtime_error("installer entry missing: " + std::string(name));
+                continue;
+            }
             for (std::size_t j = i + 1; j < archives_.size(); ++j)
                 if (auto base = archives_[j].try_read(name)) {
                     if (auto out = bnpatch::apply(*entry, *base)) return out;
                     break;
                 }
+            if (strict_installer) throw std::runtime_error("installer delta failed: " + std::string(name));
         }
         return std::nullopt;
     }

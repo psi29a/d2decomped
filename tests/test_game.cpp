@@ -87,12 +87,20 @@ int main(int argc, char** argv) try {
     }
     {
         GameData empty_data;
+        empty_data.monsters.types.emplace_back();
         View sent;
         sent.level = &empty_data.town;
         sent.quest_log.back() = 9;
         sent.game_quests.back() = 0x8000;
         sent.events = { ev::Reassigned{}, ev::Lightning{} };
         sent.party_pets.push_back({ Npc{}, UnitState{}, "WL", "hireable", 100 });   // a partner's merc (local co-op)
+        Monster monster;
+        monster.id = 1;
+        monster.type = 0;
+        monster.anim_pct = 25;
+        monster.props.ias = 60;
+        monster.props.fcr = 40;
+        sent.monsters = { monster };
         ViewEncoder encoder;
         const auto bytes = encode_view(empty_data, sent, encoder);
         View received;
@@ -101,6 +109,40 @@ int main(int argc, char** argv) try {
         assert(received.game_quests == sent.game_quests);
         assert(received.events.size() == 2 && std::holds_alternative<ev::Reassigned>(received.events[0]) && std::holds_alternative<ev::Lightning>(received.events[1]));
         assert(received.pets.empty() && received.party_pets.size() == 1 && received.party_pets[0].pettype == "hireable" && received.party_pets[0].mode == "WL");
+        assert(received.monsters.size() == 1);
+        assert(received.monsters[0].anim_pct == 25 && received.monsters[0].props.ias == 60 && received.monsters[0].props.fcr == 40);
+        assert(anim_rate_pct(received.monsters[0], "A1") == 65 && anim_rate_pct(received.monsters[0], "SC") == 55);
+        sent.monsters[0].anim_pct = 30;
+        assert(apply_view(empty_data, encode_view(empty_data, sent, encoder), received));
+        assert(anim_rate_pct(received.monsters[0], "A1") == 70);
+    }
+    {
+        // Event 1's deadline is specific to the operate function: most
+        // container functions queue FrameCnt1 + 1, while the Gidbinn altar
+        // and Moldy Tome queue FrameCnt1. A shrine also queues +1.
+        Npc object;
+        object.op_frames = 10;
+        object.mode2 = true;
+        object.frames[1] = 10;
+        object.frame_delta[1] = 120;   // client reaches FrameCnt1 - 1 after 20 ticks
+        object.operate_fn = d2d::rules::operate_fn::kChest;
+        assert(object_op_ticks(object) == 11);
+        object.mode2 = false;
+        assert(object_op_ticks(object) == 20);  // callback 0x581490 requires Mode2
+        object.mode2 = true;
+        object.operate_fn = d2d::rules::operate_fn::kMoldyTome;
+        assert(object_op_ticks(object) == 10);
+        object.operate_fn = d2d::rules::operate_fn::kGidbinnAltar;
+        assert(object_op_ticks(object) == 10);
+        object.operate_fn = d2d::rules::operate_fn::kShrine;
+        assert(object_op_ticks(object) == 11);
+        object.frames[1] = 1;          // no client transition on a one-frame mode
+        assert(object_op_ticks(object) == 11);  // shrine's server event still transitions it
+        object.mode2 = false;
+        assert(object_op_ticks(object) == -1);
+        object.mode2 = true;
+        object.operate_fn = d2d::rules::operate_fn::kChest;
+        assert(object_op_ticks(object) == 11);  // server event still transitions it
     }
     {
         // MonProp's stats on a monster: IAS on A1 / A2, FCR on SC (120 x v /
@@ -958,10 +1000,12 @@ int main(int argc, char** argv) try {
     assert(std::ranges::count(world.cues.due, data->sound_index.at("shrine_recharge"), &Cues::Cue::sound) == 1);
     world.tick({}, 901 * kTickMs, 900 * kTickMs);
     assert(world.npc_states[std::size_t(shrine_index)].says == 3683 + shrine->shrine && world.view().boost_code == 14);
-    // OP from its use, then ON once its counter reaches FrameCnt1 - 1 (Start1 0 at FrameDelta1 a tick).
+    // OP from its use, then ON at the earlier client counter or shrine server event.
     assert(world.npc_states[std::size_t(shrine_index)].mode == "OP" && world.npc_states[std::size_t(shrine_index)].mode_ms == 900 * kTickMs);
     assert(shrine->loop_from[1] == 0 && shrine->frame_delta[1] > 0);
-    const std::uint32_t on_ms = (900 + std::uint32_t(((shrine->frames[1] - 1) * 256 + shrine->frame_delta[1] - 1) / shrine->frame_delta[1])) * kTickMs;
+    const int client_ticks = ((shrine->frames[1] - 1) * 256 + shrine->frame_delta[1] - 1) / shrine->frame_delta[1];
+    const int on_ticks = shrine->mode2 ? std::min(client_ticks, int(shrine->op_frames) + 1) : client_ticks;
+    const std::uint32_t on_ms = (900 + std::uint32_t(on_ticks)) * kTickMs;
     world.tick({}, on_ms - kTickMs, 901 * kTickMs);
     assert(world.npc_states[std::size_t(shrine_index)].mode == "OP");
     world.tick({}, on_ms, on_ms - kTickMs);
@@ -975,6 +1019,27 @@ int main(int argc, char** argv) try {
     world.tick({}, (902 + 3600) * kTickMs, (901 + 3600) * kTickMs);
     assert(world.actor->boost.shrine == 0 && world.actor->player_combat.res[0] == fire);
     std::printf("OK: shrines: stamina filled, one state at a time, resist fire for 3600 frames\n");
+    {
+        // A client-only one-frame OP has no transition deadline; it must stay
+        // OP rather than wrapping the -1 sentinel into a past uint32 time.
+        Level one_frame_moor = *moor;
+        auto& one_frame = one_frame_moor.npcs[std::size_t(shrine_index)];
+        one_frame.op_frames = 1;
+        one_frame.mode2 = false;
+        one_frame.frames[1] = 1;
+        one_frame.frame_delta[1] = 0;
+        world.level = &one_frame_moor;
+        world.swap_npcs(moor);
+        world.operate(shrine_index, 5000 * kTickMs, 14);
+        assert(object_op_ticks(one_frame) == -1);
+        world.tick({}, 5001 * kTickMs, 5000 * kTickMs);
+        // rooms_up at the end of tick may rebuild the level's NPC vector.
+        assert(world.npc_states[std::size_t(shrine_index)].mode == "OP");
+        world.level = moor;
+        world.swap_npcs(&one_frame_moor);
+        world.operated.erase({ &one_frame_moor, shrine_index });
+        world.other_npcs.erase(&one_frame_moor);
+    }
     {   // A converted monster is no target: game.exe's cursor drops a unit the player can't
         // interact with (HitTestScreen: CanInteractWith is !IsAllyOf), so an attack names it only
         // through devctl or the net; World turns that away too and the hero stays put.

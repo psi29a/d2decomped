@@ -20,6 +20,7 @@
 #include <ios>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -35,13 +36,25 @@ int main(int argc, char** argv) try {
     if (argc < (patch_out.empty() ? 3 : 2)) { std::fprintf(stderr, "usage: mpq-cat [-d <out dir> [-n <bytes>]] <mpq dir> <file>...\n"); return 2; }
     const std::filesystem::path dir = argv[1];
     d2d::mpq::Stack mpqs;
-    if (std::filesystem::exists(dir / "patch_d2.mpq")) mpqs.push(dir / "patch_d2.mpq");
-    else if (const char* patch = std::getenv("D2_PATCH_INSTALLER")) mpqs.push_installer(patch);
-    for (const char* name : { "d2exp.mpq", "d2data.mpq", "d2char.mpq", "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq", "d2xmusic.mpq", "d2music.mpq" })
-        if (std::filesystem::exists(dir / name)) mpqs.push(dir / name);
-    if (!patch_out.empty()) {
-        const char* installer = std::getenv("D2_PATCH_INSTALLER");
+    const char* installer = std::getenv("D2_PATCH_INSTALLER");
+    std::error_code filesystem_error;
+    if (!patch_out.empty()) {   // the installer's data, never the install's own patch_d2.mpq (maybe 1.13c's)
         if (!installer) { std::fprintf(stderr, "mpq-cat: -p needs $D2_PATCH_INSTALLER\n"); return 2; }
+        mpqs.push_installer(installer);
+    } else {
+        const auto patch = dir / "patch_d2.mpq";
+        const bool has_patch = std::filesystem::exists(patch, filesystem_error);
+        if (filesystem_error) { std::fprintf(stderr, "mpq-cat: cannot check %s: %s\n", patch.string().c_str(), filesystem_error.message().c_str()); return 1; }
+        if (has_patch) mpqs.push(patch);
+        else if (installer) mpqs.push_installer(installer);
+    }
+    for (const char* name : { "d2exp.mpq", "d2data.mpq", "d2char.mpq", "d2xtalk.mpq", "d2speech.mpq", "d2sfx.mpq", "d2xmusic.mpq", "d2music.mpq" }) {
+        const auto path = dir / name;
+        filesystem_error.clear();
+        if (std::filesystem::exists(path, filesystem_error)) mpqs.push(path);
+        else if (filesystem_error) { std::fprintf(stderr, "mpq-cat: cannot check %s: %s\n", path.string().c_str(), filesystem_error.message().c_str()); return 1; }
+    }
+    if (!patch_out.empty()) {
         const auto list = d2d::mpq::Archive(installer).read("patch.lst");
         std::string_view all(reinterpret_cast<const char*>(list.data()), list.size());
         std::vector<std::pair<std::string, std::vector<std::byte>>> files;
@@ -50,8 +63,8 @@ int main(int argc, char** argv) try {
             all.remove_prefix(std::min(all.size(), line.size() + 1));
             if (!line.starts_with("data\\") && !line.starts_with("Data\\")) continue;   // Game.exe and the DLLs go beside it, not in it
             std::string name(line.substr(0, line.find(';')));
-            auto bytes = mpqs.try_read(name);
-            if (!bytes) { std::fprintf(stderr, "mpq-cat: %s not readable from the installer\n", name.c_str()); return 1; }
+            auto bytes = mpqs.try_read(name, true);
+            if (!bytes) { std::fprintf(stderr, "mpq-cat: %s not readable from the installer or the MPQs below it\n", name.c_str()); return 1; }
             files.emplace_back(std::move(name), std::move(*bytes));
         }
         std::filesystem::remove(patch_out);
@@ -88,6 +101,7 @@ int main(int argc, char** argv) try {
             return 1;
         }
         const auto bytes = mpqs.try_read(argv[i]);
+        if (!bytes && mpqs.failed(argv[i])) { std::fprintf(stderr, "mpq-cat: %s is there but won't read\n", argv[i]); return 1; }   // not 3 or skipped: mpq_cache and the audit would take it as missing
         if (!bytes && !out_dir.empty()) continue;
         if (!bytes) { std::fprintf(stderr, "mpq-cat: %s not found\n", argv[i]); return 3; }
         if (out_dir.empty()) { std::fwrite(bytes->data(), 1, bytes->size(), stdout); continue; }

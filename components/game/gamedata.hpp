@@ -130,6 +130,7 @@ struct Npc {
     // 4 the gate guard; 0 = none.
     int palace = 0;
     int op_frames = 0;                   // objects.txt FrameCnt1 when it has an OP mode (Mode1)
+    bool mode2 = false;                  // objects.txt Mode2: event 1 can transition an operated object to ON
     int shrine = 0;                      // a shrine's Shrines.txt row (roll_shrine)
     int trap = 0;                        // a chest's trap type (roll_chest), 0 none
     bool locked = false;                 // a locked chest: takes a key

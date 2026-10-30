@@ -200,7 +200,8 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ monster.unit.x, monster.unit.y, &anim, monster.unit.dir, selectable ? &monster.npc.name : nullptr,
                         row ? now_ms - mpf * std::uint32_t(monster.seq_frame) - mpf / 2 : down && monster.mode != "S1" ? 0u : monster.unit.mode_ms, -10 - int(i) });
         out.back().reverse = down;
-        out.back().hold = !row && monster.mode == "DT";             // a death outlasting its frames (the host's 1500 ms) stays on the last, not back to the first
+        if (!row && !down) out.back().rate = float(100 + anim_rate_pct(monster, monster.mode)) / 100.f;   // as its mode's length (set_mode): auras, MonProp IAS / FCR
+        out.back().hold = !row && monster.mode == "DT";            // a death outlasting its frames (the host's 1500 ms) stays on the last, not back to the first
         out.back().overlay_class = monster.npc.overlay_class;
         out.back().cmap = scene.monster_map(monster.npc);
         out.back().ghostly = monster.alive() && std::ranges::find(monster.mods, d2d::rules::umod::ghostly) != monster.mods.end();
@@ -433,6 +434,11 @@ auto Town::enter() -> void {
         quest_log = {};                           // done animations play again in a new game
         alert_clocks.clear();                      // Town is reused when a second game starts on the same level
         alert_level = nullptr;
+        critters.clear();                         // a new game's map: its own critters
+        critters_level = -1;
+        critter_rooms.clear();
+        entry_level = 0;                          // its first level shows no "entering" art
+        entry_until = 0;
         mini = {};                                // open (FUN_004567f0; ponytail: not the "Mini Panel" registry value)
         game_menu.open = false;
         controls.open = false;
@@ -1062,8 +1068,7 @@ auto Town::automap_frame() -> void {
         automap.center = values[3] != 0;
         automap.party = values[4] != 0;
         automap.names = values[5] != 0;
-        const bool right_open = inv_open || tree_open, left_open = char_open || stash_open || cube_open || quest_log.open || waypoint.open || store.npc >= 0
-                                                                || party.open || hireling.open;   // FUN_00455f20: UI 0x16, 0x24 left too
+        const bool right_open = inv_open || tree_open, left_open = left_panel_open();
         automap.panel_side = right_open == left_open ? 0 : right_open ? 1 : 2;
         g_drawn.panel_side = automap.panel_side;
         automap.in_town = level && d2d::rules::level_ids::is_town(level->id);
@@ -1469,7 +1474,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             hud_click = true;
         } else {
             // The mini-panel's buttons (FUN_0047ec50) and the HUD's button for it.
-            const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+            const bool left_open = left_panel_open();
             int action = -1;
             hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, inv_open || tree_open, action);
             if (action == MiniPanel::kCharacter) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
@@ -2027,12 +2032,12 @@ auto Town::toggle_quest_log() -> void {
     }
 
 auto Town::quest_log_button_now() const -> QuestLogButton {
-        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        const bool left_open = left_panel_open();
         return quest_log_button(quest_log, left_open, inv_open || tree_open, char_open);
     }
 
 auto Town::level_buttons_now() const -> LevelButtons {
-        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        const bool left_open = left_panel_open();
         auto out = level_buttons(character.stats, left_open, inv_open || tree_open, char_open, tree_open, store.npc >= 0);
         out.stats_down = stats_down;
         out.skills_down = skills_down;
@@ -3278,7 +3283,7 @@ auto Town::open_menu(int npc) -> void {
 // and everything else into its centre 800x600, as it always did.
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
     const int screen_w = fb_width(framebuffer);
-    const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open;
+    const bool left_open = left_panel_open();
     if (screen_w == int(kScreenWidth)) {
         draw_view(framebuffer, nullptr, mouse, frame_ms);
         draw_coop_portraits(framebuffer, left_open);
@@ -3433,7 +3438,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open, view.stamina_blue }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
@@ -3483,9 +3488,9 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             draw_trade(framebuffer, *scene, trade.state, with.empty() ? std::string("Another player") : with, character.name, theirs, trade.ours, trade.their_gold,
                        trade.our_gold, nullptr, held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
         }
-        draw_portraits(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open);
+        draw_portraits(framebuffer, left_panel_open());
         if (gold_box) draw_gold_box(framebuffer, *scene, *gold_box, frame_ms);
-        draw_chat(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open);
+        draw_chat(framebuffer, left_panel_open(), inv_open || tree_open);
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;
             quest_log_close(quest_log, quest_bits(), quest_state());
@@ -3500,7 +3505,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
-        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        const bool left_open = left_panel_open();
         if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
         if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty())) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);

@@ -243,7 +243,7 @@ struct Scene : GameData {
     // "monsters FANUHTH", "missiles firebolt", ...) is appended to it, for
     // tools/anim_coverage.py. Nothing is written when it isn't set.
     static void note_drawn(std::string_view kind, std::string_view name);
-    std::vector<AutomapRule> automap_rules;
+    std::vector<AutomapRule> automap_rules;                // sorted by (level_type, orientation), AutoMap.txt's order within
 
 };
 

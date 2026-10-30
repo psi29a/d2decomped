@@ -131,8 +131,9 @@ the object's flag byte:
   (`FUN_00553380`, EDX 0xd; the client's `FUN_004cb9c0` has no sound for
   it). The trap only fires at the event.
 - Object events go through the table at 0x6e19b0 (event 1
-  `FUN_00581490`: mode 1 → 2, the footprint when Mode2's collision
-  differs; event 4 `FUN_005817a0`; event 7 `FUN_00581a10` →
+  `FUN_00581490`: only if the unit is still in mode 1 and has Mode2, then
+  mode 1 → 2 and the footprint changes when Mode2's collision differs;
+  event 4 `FUN_005817a0`; event 7 `FUN_00581a10` →
   `FUN_005449e0`, the quest objects). Event 4 reads the trap (the
   object's +0x14 → +4, & 0x7f) and the level of its room, and swaps:
   trap 8 past level 0x4a, trap 3 in act 1 (under level 0x28) but the
@@ -140,10 +141,15 @@ the object's flag byte:
   (0x732cf4, trap-firebolt); then it runs the table at 0x732cec. So act 1
   has no lightning or nova chest traps, and poison only in cellar 5.
   d2d: `rules::trap_on_level`, `World::arm_trap` / `spring_traps`.
-- Opening (operate fns 1, 3, 4, 5, 6, 14, 30, the waypoint) sets mode 1
-  and queues event 1 at FrameCnt1 + 1 frames (the tome: + 0): the OP → ON
-  step d2d's tick plays. Only Act 2's jugs (142, 143) change collision
-  between the two modes.
+- Opening (operate fns 1, 2, 3, 4, 5, 6, 14, 30, the waypoint) sets mode 1
+  and queues event 1 at FrameCnt1 + 1 frames. The Moldy Tome (fn 6) is an
+  exception at FrameCnt1, as is the Gidbinn altar (fn 31, object 252).
+  These server events only transition a unit still in mode 1 with Mode2;
+  the client can transition first when its counter reaches FrameCnt1 - 1.
+  The shrine (fn 2, `FUN_00583c70`) also queues +1. Corpse / crate (fn 14)
+  calls the event scheduler at 0x586800. Other event-1 callers remain to be
+  mapped to their operate functions; this list is not exhaustive.
+  Only Act 2's jugs (142, 143) change collision between the two modes.
 
 | Trap | Function | Does |
 |---|---|---|
@@ -553,8 +559,8 @@ and its footprint off (`FUN_00623830`) when HasCollision1 is set and
 HasCollision2 isn't. Object 0xbd steps 2 → 3 → 4 the same way.
 
 d2d: `Npc::frame_delta`, `object_elapsed` (world_view.cpp) runs the
-counter; `World`'s used shrines and chests go ON on the tick the client's
-would (`op_ticks`, world.cpp), with ON's footprint; the drawn unit takes
+counter; `World`'s operated objects go ON at the earlier applicable client
+counter or operate-function-specific server event (`object_op_ticks`, world.cpp), with ON's footprint; the drawn unit takes
 ON's selectable bit and light from its mode. Not ported: the rate's roll (no client unit seed), OrderFlag2
 and Parm7.
 

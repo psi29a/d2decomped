@@ -53,6 +53,10 @@ namespace d2d::game {
 // The waypoint (Levels.txt Waypoint) of level `level_id`, -1 none.
 int waypoint_index(const GameData& game_data, int level_id);
 
+// When an operated object changes from OP to ON, in simulation ticks.
+// -1 means its client-side animation does not reach the transition frame.
+int object_op_ticks(const Npc& npc);
+
 // What the server tells the client (the S -> C side, network.md).
 namespace ev {
 // The player's level changed (`from`): a crossing or warp (`keep_map`:

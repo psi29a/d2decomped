@@ -25,9 +25,8 @@ class SelectionTests(unittest.TestCase):
             for name in ("a.cpp", "b.cpp", "changed.hpp"):
                 (root / "src").mkdir(exist_ok=True)
                 (root / "src" / name).touch()
-            entries = [{"file": str(root / "src" / f"{name}.cpp"),
-                        "output": str(root / "build" / f"{name}.o")}
-                       for name in ("a", "b")]
+            entries = [{"directory": str(root / "build"), "file": str(root / "src" / "a.cpp"), "output": "a.o"},   # older CMake: relative
+                       {"directory": str(root / "build"), "file": str(root / "src" / "b.cpp"), "output": str(root / "build" / "b.o")}]
             (root / "build/compile_commands.json").write_text(json.dumps(entries))
             (root / "changed.txt").write_text("src/changed.hpp\n")
             (root / "ninja").write_text("#!/bin/sh\n" +

@@ -183,6 +183,8 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
                 if (const int cel = num(row, column); cel >= 0) rule.cels.push_back(cel);
             if (!rule.cels.empty()) scene.automap_rules.push_back(std::move(rule));
         }
+        // By level type and orientation, each's rows in the table's order (automap_cel's first match).
+        std::ranges::stable_sort(scene.automap_rules, {}, [](const Scene::AutomapRule& rule) { return std::pair(rule.level_type, rule.orientation); });
         if (auto bytes = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMap.dc6)")) scene.automap_cels = d2d::dc6::Sprite(*bytes);
         if (auto bytes = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMapS.dc6)")) scene.automap_cels_small = d2d::dc6::Sprite(*bytes);
     }

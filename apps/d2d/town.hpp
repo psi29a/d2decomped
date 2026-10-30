@@ -284,6 +284,10 @@ struct Town {
     // Local co-op with two players in or more: no HUD (orbs, belt, skills,
     // mini-panel), each player's portrait down the left edge instead (draw_coop_portraits).
     [[nodiscard]] bool coop_hud_hidden() const { return !net_game && world.players.size() > 1; }
+    // A panel on the screen's left (FUN_00455f20's UIs; Party 0x16 and Hireling 0x24 too).
+    [[nodiscard]] bool left_panel_open() const {
+        return char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open || hireling.open;
+    }
     // The keyboard's Enter on that name: the new character is made, as the pad's A.
     void coop_enter();
     // A seat's pad this frame: its field play, as that player's orders.

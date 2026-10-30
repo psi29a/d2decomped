@@ -681,8 +681,8 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
 }
 
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash) {
-    for (const auto& rule : scene.automap_rules) {
-        if (rule.level_type != level.type || rule.orientation != orientation) continue;
+    const auto key = [](const Scene::AutomapRule& rule) { return std::pair(rule.level_type, rule.orientation); };
+    for (const auto& rule : std::ranges::equal_range(scene.automap_rules, std::pair(level.type, orientation), {}, key)) {
         if (rule.main >= 0 && rule.main != main) continue;
         if (rule.sub0 >= 0 && (sub < rule.sub0 || sub > rule.sub1)) continue;
         return rule.cels[hash % rule.cels.size()];

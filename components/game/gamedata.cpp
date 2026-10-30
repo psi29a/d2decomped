@@ -551,6 +551,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     npc.root   = "objects";
     npc.code   = std::string(objects.get(row, "Token"));
     npc.operate_fn = std::atoi(std::string(objects.get(row, "OperateFn")).c_str());
+    npc.mode2 = objects.get(row, "Mode2") == "1";
     if (objects.get(row, "Mode1") == "1") npc.op_frames = std::atoi(std::string(objects.get(row, "FrameCnt1")).c_str());
     if (objects.get(row, "InitFn") == "1") {      // a shrine: which one (FUN_0054f9d0)
         npc.shrine = d2d::rules::roll_shrine(game_data.shrines, std::atoi(std::string(objects.get(row, "Parm0")).c_str()), into.id, rgn);
@@ -927,6 +928,7 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
         && (order == level.laid || (level.laid.empty() && std::ranges::is_sorted(order) && order.size() == count))) return;
     const auto start_ms = d2d::log::ms();
     std::vector<std::string> notes;
+    auto client_outside = client.empty() ? std::vector<d2d::drlg::BuiltRoom>{} : outside;   // the next door's rooms don't hang on this level's lay
     const auto built = lay_tiles(level, level.rooms, order, notes, std::move(outside), up_count);
     for (const auto& room : built)
         if (room.seed) {
@@ -949,7 +951,7 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
         auto server_picks = std::move(level.picks);
         auto server_patches = std::move(level.patches);
         std::vector<std::string> client_notes;
-        lay_tiles(level, level.rooms, client, client_notes, game_data ? camp_rooms(*game_data, *spawning, level) : std::vector<d2d::drlg::BuiltRoom>{}, up_count);
+        lay_tiles(level, level.rooms, client, client_notes, std::move(client_outside), up_count);
         level.drawn = std::exchange(level.picks, std::move(server_picks));
         level.patches = std::move(server_patches);
     }
