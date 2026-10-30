@@ -34,13 +34,13 @@ public class ExportCalls extends GhidraScript {
         println("wrote " + calls + " call rows, " + files + " source-file rows");
     }
 
-    private long dumpCalls(Path out) throws IOException {
+    private long dumpCalls(Path out) throws Exception {
         FunctionManager functions = currentProgram.getFunctionManager();
         ReferenceManager refs = currentProgram.getReferenceManager();
         // TreeSet: sorted and deduplicated, so a regeneration diffs cleanly.
         TreeSet<String> rows = new TreeSet<>();
         for (Function callee : functions.getFunctions(true)) {
-            if (monitor.isCancelled()) break;
+            monitor.checkCancelled();  // throws: never write a partial table
             for (Reference ref : refs.getReferencesTo(callee.getEntryPoint())) {
                 RefType type = ref.getReferenceType();
                 Function caller = functions.getFunctionContaining(ref.getFromAddress());
@@ -54,12 +54,12 @@ public class ExportCalls extends GhidraScript {
         return write(out, "caller\tcallee\tkind", rows);
     }
 
-    private long dumpSourceFiles(Path out) throws IOException {
+    private long dumpSourceFiles(Path out) throws Exception {
         FunctionManager functions = currentProgram.getFunctionManager();
         ReferenceManager refs = currentProgram.getReferenceManager();
         TreeSet<String> rows = new TreeSet<>();
         for (Data data : currentProgram.getListing().getDefinedData(true)) {
-            if (monitor.isCancelled()) break;
+            monitor.checkCancelled();  // throws: never write a partial table
             if (!data.hasStringValue()) continue;
             String value = StringDataInstance.getStringDataInstance(data).getStringValue();
             if (value == null || !SOURCE_FILE.matcher(value).matches()) continue;

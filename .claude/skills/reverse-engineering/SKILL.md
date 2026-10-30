@@ -12,7 +12,7 @@ Run one analyzeHeadless at a time (the project lock); chain several
 `-postScript` calls in one run instead:
 
 ```
-H=$(command -v ghidra-analyzeHeadless || find /opt/homebrew/Cellar/ghidra -name analyzeHeadless -type f | head -1)
+H=${GHIDRA_INSTALL_DIR:+$GHIDRA_INSTALL_DIR/support/analyzeHeadless}; H=${H:-$(command -v ghidra-analyzeHeadless || command -v analyzeHeadless || find /opt/homebrew/Cellar/ghidra -name analyzeHeadless -type f | head -1)}
 $H tools/ghidra/project D2Decomp -process game.exe -noanalysis -readOnly -scriptPath tools/ghidra/scripts \
   -postScript DecompileAt out.c 00675360 006750f0 \
   -postScript Disasm 00612280 006122f0 out.txt \

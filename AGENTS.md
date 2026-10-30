@@ -77,7 +77,9 @@ We promise:
    - Play and report: the latest release
      (https://github.com/psi29a/d2decomped/releases) and the launcher pointed
      at their install.
-   - Trace a claim: also Ghidra and [uv](https://docs.astral.sh/uv/), then
+   - Trace a claim: also Ghidra (`brew install ghidra`, or a download from
+     ghidra-sre.org with `GHIDRA_INSTALL_DIR` set to its folder) and
+     [uv](https://docs.astral.sh/uv/), then
      `tools/ghidra/import.sh /path/to/game.exe` (a few minutes) and
      `cd tools/emu && uv sync`.
    - Fix or port: also the build in README.md "Build and run".
@@ -105,8 +107,9 @@ We promise:
      disagrees with d2d, that's the better find: open an issue.
    - Fix or port: the change and a test in `tests/`, citing the game.exe
      address.
-5. **Send it.** Run `python3 tools/pr_guard.py`, then, with their go-ahead,
-   open the pull request (section 6).
+5. **Send it,** with their go-ahead. Play and report: open the issue from
+   step 4; no branch or pull request. Trace or fix: run
+   `python3 tools/pr_guard.py`, then open the pull request (section 6).
 
 ## 5. Evidence
 

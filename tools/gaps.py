@@ -93,7 +93,7 @@ def git(*args):
 
 
 def read_tsv(name):
-    with open(os.path.join(RE_DIR, name)) as f:
+    with open(os.path.join(RE_DIR, name), encoding="utf-8") as f:
         return [line.rstrip("\n").split("\t") for line in f][1:]
 
 
@@ -127,7 +127,9 @@ def build(with_issues):
 
     # Calls, and the source file an assert names.
     callers, callees = collections.defaultdict(set), collections.defaultdict(set)
-    for caller, callee, _ in read_tsv("game-calls.tsv"):
+    for caller, callee, kind in read_tsv("game-calls.tsv"):
+        if kind == "data":
+            continue  # an address taken (a table, a callback) is no call
         if not re.fullmatch(r"[0-9a-f]{8}", caller):
             continue  # the PE header's "Entry Point", an external
         a, b = int(caller, 16), int(callee, 16)
@@ -151,7 +153,7 @@ def build(with_issues):
     gaps = []
     for doc, (kind, is_gap, stop) in DOCS.items():
         path = os.path.join(RE_DIR, doc)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             for number, heading, row in tables(f.read().splitlines(), stop):
                 text = " | ".join(row.values())
                 title = row.get("What") or row.get("Where") or next(iter(row.values()), "")
@@ -179,7 +181,9 @@ def build(with_issues):
             gap["id"] += f"-{seen[gap['id']]}"
         for a in gap["functions"]:
             info[int(a, 16)]["gaps"].append(gap["id"])
-    dead = {int(a, 16) for g in gaps if g["kind"] == "stub" for a in g["functions"]}
+    # Only a stub row's own Address: its other cells name callers and kin.
+    dead = {h for g in gaps if g["kind"] == "stub"
+            for h in map(funcs.holding, addresses(g["row"].get("Address", ""))) if h}
 
     # Per function.
     records = []
@@ -238,11 +242,11 @@ def credits():
 
 def write(out, summary, records, frontier):
     os.makedirs(out, exist_ok=True)
-    with open(os.path.join(out, "gaps.json"), "w") as f:
+    with open(os.path.join(out, "gaps.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=1)
     columns = ("address", "size", "status", "module", "file", "callers", "callees", "ported_callers",
                "frontier", "library", "dead", "gaps", "refs")
-    with open(os.path.join(out, "functions.tsv"), "w") as f:
+    with open(os.path.join(out, "functions.tsv"), "w", encoding="utf-8") as f:
         f.write("\t".join(columns) + "\n")
         for r in sorted(records, key=lambda r: r["address"]):
             f.write("\t".join(" ".join(v) if isinstance(v, list) else str(v).lower() if isinstance(v, bool)
@@ -279,7 +283,7 @@ def write(out, summary, records, frontier):
            "| Name | Commits | Reported | Traced |", "|---|---|---|---|"]
     for p in summary["credits"]:
         md.append(f"| {p['name']} | {p['commits']} | {p['reported']} | {p['traced']} |")
-    with open(os.path.join(out, "index.md"), "w") as f:
+    with open(os.path.join(out, "index.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(md) + "\n")
 
 

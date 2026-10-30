@@ -34,13 +34,21 @@ if ! head -c 2 "$BIN" | grep -q "^MZ"; then
   exit 1
 fi
 
-# Locate analyzeHeadless (Homebrew ghidra layout).
-HEADLESS="$(command -v ghidra-analyzeHeadless || true)"
+# Locate analyzeHeadless: GHIDRA_INSTALL_DIR (a download from ghidra-sre.org),
+# then PATH, then Homebrew's layout.
+HEADLESS=""
+if [[ -n "${GHIDRA_INSTALL_DIR:-}" && -x "$GHIDRA_INSTALL_DIR/support/analyzeHeadless" ]]; then
+  HEADLESS="$GHIDRA_INSTALL_DIR/support/analyzeHeadless"
+fi
+if [[ -z "$HEADLESS" ]]; then
+  HEADLESS="$(command -v ghidra-analyzeHeadless || command -v analyzeHeadless || true)"
+fi
 if [[ -z "$HEADLESS" ]]; then
   HEADLESS="$(find /opt/homebrew/Cellar/ghidra -name analyzeHeadless -type f 2>/dev/null | head -1)"
 fi
 if [[ -z "$HEADLESS" ]]; then
-  echo "error: analyzeHeadless not found. brew install ghidra." >&2
+  echo "error: analyzeHeadless not found. brew install ghidra, or download it from" >&2
+  echo "       ghidra-sre.org and set GHIDRA_INSTALL_DIR to the unpacked folder." >&2
   exit 1
 fi
 
