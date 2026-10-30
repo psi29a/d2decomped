@@ -31,7 +31,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
-| Throw's stored base level and weapon eligibility are separate. d2d's level-zero-without-a-throwable approximation remains to be corrected and tested. | `FUN_00647ee0` / `FUN_00647110` grant initial skills at level 1; `FUN_006442a0` reads the level; `FUN_00647640` checks equipment. 35 isolated original-code contexts passed with inventory/item helpers replaced; no C++ parity claim. | [throw.md](throw.md) |
+| Throw's stored base level and weapon eligibility are separate. d2d keeps Throw at level 1 and gates the weapon apart (#125: `throw_ready`, `skill_refused`). | `FUN_00647ee0` / `FUN_00647110` grant initial skills at level 1; `FUN_006442a0` reads the level; `FUN_00647640` checks equipment. 35 isolated original-code contexts passed with inventory/item helpers replaced; no C++ parity claim. | [throw.md](throw.md) |
 | TCP host join name: 2..15 bytes; ASCII letters and at most one ' - _, not first or last | `FUN_0053eff0` (length), `FUN_0052c5b0` (characters), EDI = 0x10 at `0052c726` | net-join.md "Stage 1" / "Stage 2" |
 | Character-create name: 2..15 characters; ASCII letters and at most one - _, not first or last; no apostrophes | `FUN_00430590` (input), `FUN_00430620` (OK state) | char-create-table.md "Name input and OK gating" |
 | MonStats AI Idle (the cow): stands, never chases | `FUN_005b0cd0` (MonAI row 1, search type 0): stand 200 in a room | monster-ai.md "Idle" |

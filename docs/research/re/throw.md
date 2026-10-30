@@ -6,10 +6,10 @@ on 2026-10-30.
 ## Finding
 
 Throw (skill 2) has a stored base level independently of whether the
-character's current weapon permits throwing. Giving Throw level zero
-without a throwable, as `components/game/fight.hpp` currently does in
-`skill_base_level`, conflates the level with a separate usability check.
-This note documents the distinction; it does not change the implementation.
+character's current weapon permits throwing. d2d used to give Throw level
+zero without a throwable (`skill_base_level`), which conflated the level
+with a separate usability check; #125 split them (see "Follow-up
+implementation").
 
 ## Static evidence
 
@@ -133,7 +133,16 @@ with an isolated oracle check, not a claim of full d2d parity.
 
 ## Follow-up implementation
 
-Keep Throw's base level separate from the weapon/usability decision.
-Check the skill picker, selected-hand fallback and actual cast paths
-before replacing the current approximation. Leave the existing
-`ponytail` note in place until that code change and its tests are done.
+Done in #125. Throw stays at level 1 (`skill_base_level`), and the weapon
+is `throw_ready` (`components/game/fight.hpp`): the right hand's, else the
+left's, usable weapon (`FUN_0063c9b0`, `FUN_0062a4e0` flags 0x100 /
+0x4000) is Throwable or has stat 125. Without one the skill is refused
+(`skill_refused`): the picker still lists it and the buttons show it, both
+in text colour 1 (`FUN_004aa3a0`, `FUN_004a8d30`), and a cast stops with
+the class's `impossible_1` (`FUN_004610c0`). The picker, cast and voice
+paths are in skills.md "Item charges"; `test_game` covers the gate.
+
+Still open (`ponytail:` in `throw_ready` / `skill_refused`): a
+dual-wielder with two weapons uses the primary one (`FUN_0063bef0`), else
+the other hand (`FUN_00643d60`), where d2d takes either; and the other
+statuses of `FUN_00647960`.
