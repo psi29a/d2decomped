@@ -540,6 +540,17 @@ lines (missile names aren't passed in). What it does:
   join them there; the charges left on the icon and the button
   (SPELLSEL_DrawSkillLevel: x + 4, the icon's bottom - 1, colour 3).
   Hotkeys keep the entry's item. d2d: `SkillBar::Pick`, `UseSkill::item`.
+- A skill that can't be used now (FUN_004d9fc0 -> FUN_00647960, not 0):
+  the picker still lists it in draw colour 1, 4 for status 6
+  (FUN_004aa3a0's filters are the left flag, Skills +4 & 0x6ce278 and
+  FUN_006446a0 & 8, not the status); the buttons too (FUN_004a8d30). A
+  click picks it (FUN_004a9bd0 refuses only a charged entry at 0). The world click casts only at status 0 (FUN_00467880); the
+  client's check (FUN_004610c0) voices 0x711ddc[status] (0, 0x15, 0x13,
+  0x13, 0x13): 0x13 the class table's +8, `<class>_impossible_1`
+  (amazon 0xb89). After an item change FUN_004c1350 -> FUN_004c1200 puts
+  a remembered hand skill back unless its status is 2 or 7. d2d:
+  `skill_refused` (Throw's weapon gate only), `Fight::impossible`.
+  ponytail: the remembered hands (FUN_004c1200) aren't kept.
 - Tooltip: the button's and the picker's (FUN_004a8d50 -> FUN_004ef990:
   unit, skill, level, calc, draw mode, x, y) is the plain skill tooltip at
   the entry's level, "%d" its only number. No charges line: the charges

@@ -685,11 +685,24 @@ auto Fight::need_mana(std::uint32_t now_ms) -> void {
         cues.cue_on(unit_key(kSoundOnPlayer, actor->id), kNeedMana[std::size_t(std::clamp(actor->character.character_class, 0, 6))], now_ms, actor->player.x, actor->player.y);
     }
 
+auto Fight::impossible(std::uint32_t now_ms) -> void {
+        static constexpr std::array<const char*, 7> kImpossible{ "amazon_impossible_1", "sorceress_impossible_1", "necromancer_impossible_1",
+            "paladin_impossible_1", "barbarian_impossible_1", "druid_impossible_1", "assassin_impossible_1" };
+        if (now_ms < actor->impossible_until) return;
+        actor->impossible_until = now_ms + 75 * 40;
+        cues.cue_on(unit_key(kSoundOnPlayer, actor->id), kImpossible[std::size_t(std::clamp(actor->character.character_class, 0, 6))], now_ms, actor->player.x, actor->player.y);
+    }
+
 auto Fight::start_swing(std::uint32_t now_ms) -> bool {
         using namespace d2d::d2s;
         actor->swing_skill = 0;
         actor->kicks_left = 0;
         actor->item_charge = actor->attack_charge;            // the queued attack's entry (World::apply), if any
+        if (skill_refused(*game_data, actor->character, actor->attack_skill)) {   // a held Throw whose last one's gone
+            actor->attack_mon = -1;
+            impossible(now_ms);
+            return false;
+        }
         const auto* skill = game_data->skills.get(actor->attack_skill);
         if (skill && actor->attack_skill != 0) {
             if (!skill_built(*skill)) {

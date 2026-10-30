@@ -124,6 +124,8 @@ struct SkillBar {
     }
 
     // The picker's rows, bottom up, keyed on SkillDesc ListRow (0..4):
+    // every known skill, those it can't use now too (FUN_004aa3a0 lists
+    // them all, drawn in colour 1; FUN_004a9bd0 picks one all the same).
     // row 0 the general skills (Attack, Throw, Unsummon, Town Portal),
     // 1..3 the class's own, 4 the scrolls and tomes. Rows that have nothing
     // to offer collapse; the remainder stack immediately above the button.
@@ -233,6 +235,9 @@ struct SkillBar {
             draw_hover_text(framebuffer, *scene, lines, x, x + kIcon, y, y - kIcon);
         };
         const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+        // A skill it can't use now draws in text colour 1 (FUN_004aa3a0's and
+        // FUN_004a8d30's draw colour off FUN_004d9fc0: 0 usable, 4 status 6, else 1).
+        const auto& refused_pal = scene->act_text_red.entries().empty() ? pal : scene->act_text_red;
         auto icon = [&](Pick pick, int x, int y) {
             const int id = pick.skill;
             const auto prayer = scene->skills.by_name.find("Prayer");   // Resurrect wears Prayer's gold
@@ -243,7 +248,7 @@ struct SkillBar {
             const auto& spr = column >= 0 ? scene->skill_icons[std::size_t(column)] : scene->generic_skill_icons;
             if (skill->icon < 0 || spr.frames_per_direction() <= std::uint32_t(skill->icon)) return;
             const auto& frame = spr.frame(0, std::uint32_t(skill->icon));
-            blit_sprite(framebuffer, frame, pal, x, y - int(frame.height) + 1);
+            blit_sprite(framebuffer, frame, pick.item < 0 && skill_refused(*scene, character, id) ? refused_pal : pal, x, y - int(frame.height) + 1);
             if (const auto charged = entry(pick); charged && charged->left > 0) {   // SPELLSEL_DrawSkillLevel: the charges left
                 std::string count = std::to_string(charged->left);
                 while (scene->font_small.measure(count) > 0x28) count.pop_back();

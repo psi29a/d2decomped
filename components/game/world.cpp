@@ -2758,6 +2758,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         if (skill && !skill->in_town && !in_moor) {
             if (fight.sound_rng(2)) class_cue("not_in_town_1", now_ms);
             else class_cue("not_in_town_2", now_ms);
+        } else if (skill_refused(*game_data, actor->character, use_skill.skill)) {     // FUN_004610c0: status 2, the client sends nothing
+            actor->attack_mon = -1;
+            fight.impossible(now_ms);
         } else if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
             if (fight.cast(use_skill.skill, now_ms)) actor->player.walking = false;
         } else if (skill && skill->srvdofunc == ServerDoFunction::kWhirlwind && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)

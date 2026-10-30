@@ -486,6 +486,10 @@ auto Town::send(const Command& command) -> void {
         } else if (const auto* merc_item = std::get_if<cmd::MercItem>(&command)) {
             net_game->merc_item(std::uint16_t(merc_item->slot));
         } else if (const auto* use = std::get_if<cmd::UseSkill>(&command)) {
+            if (d2d::game::skill_refused(*scene, character, use->skill)) {   // game.exe's client checks first (FUN_004610c0): nothing sent
+                world.fight.impossible(world_ms);
+                return;
+            }
             const auto* skill = scene->skills.get(use->skill);
             const bool melee = skill && !self_cast(*skill) && !world.fight.missile_skill(*skill) && !Fight::spot_skill(*skill) && !world.fight.summon_skill(*skill);
             const auto target = use->unit >= 0 ? net_monsters.find(std::uint32_t(use->unit)) : net_monsters.end();

@@ -43,6 +43,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <format>
 #include <map>
 #include <span>
 #include <string>
@@ -695,6 +696,46 @@ int main(int argc, char** argv) try {
         assert(caster.item_charge.item == -1 && world.fight.skill_level(fire_bolt) == 0);
         assert(caster.attack_mon == -1 && caster.attack_charge.item == -1);
         caster.character.items = saved_items;
+    }
+
+    // Throw (docs/research/re/throw.md): every class keeps it at level 1
+    // (FUN_00647ee0 -> FUN_00647110); the weapon is a separate gate
+    // (FUN_00647640: a throwable in hand, or stat 125). Without it the skill
+    // is refused (status 2): no swing, the class's impossible_1 (0x711ddc
+    // reason 0x13, the class table's +8: amazon 0xb89), once per 75 frames.
+    if (const auto throw_id = data->skills.by_name.find("Throw"); throw_id != data->skills.by_name.end()) {
+        namespace loc = d2d::d2s::item_location;
+        namespace body = d2d::d2s::body_location;
+        auto& thrower = *world.actor;
+        const auto saved_items = thrower.character.items;
+        const int skill = throw_id->second;
+        std::erase_if(thrower.character.items, [](const d2d::d2s::Item& item) { return item.location == loc::kEquipped && (item.slot == body::kRightArm || item.slot == body::kLeftArm); });
+        assert(skill_base_level(*data, thrower.character, skill) == 1 && skill_refused(*data, thrower.character, skill));
+        d2d::d2s::Item axe;
+        axe.code = "hax"; axe.location = loc::kEquipped; axe.slot = body::kRightArm; axe.id = 9101;
+        thrower.character.items.push_back(axe);
+        assert(skill_refused(*data, thrower.character, skill));                        // a weapon, not a throwable
+        thrower.character.items.back().props = { { .stat = 125, .value = 1 } };
+        assert(!skill_refused(*data, thrower.character, skill));                       // stat 125 lets it throw
+        d2d::d2s::Item javelins;
+        javelins.code = "jav"; javelins.location = loc::kEquipped; javelins.slot = body::kLeftArm; javelins.id = 9102; javelins.quantity = 5;
+        thrower.character.items.back() = javelins;
+        assert(skill_base_level(*data, thrower.character, skill) == 1 && !skill_refused(*data, thrower.character, skill));
+        thrower.character.items.pop_back();                                            // the last one's gone: a held Throw stops
+        const std::uint32_t throw_ms = 30 * kTickMs;
+        thrower.pmode = -1;
+        thrower.attack_mon = 0;
+        thrower.attack_skill = skill;
+        world.cues.due.clear();
+        assert(!world.fight.start_swing(throw_ms) && thrower.attack_mon == -1 && thrower.pmode == -1);
+        static constexpr std::array<const char*, 7> kClass{ "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
+        const auto voice = data->sound_index.find(std::format("{}_impossible_1", kClass[std::size_t(std::clamp(thrower.character.character_class, 0, 6))]));
+        assert(voice != data->sound_index.end() && world.cues.due.size() == 1 && world.cues.due[0].sound == voice->second);
+        thrower.attack_mon = 0;
+        assert(!world.fight.start_swing(throw_ms + 40) && world.cues.due.size() == 1);   // within 75 frames: not again
+        if (data->patched) assert(data->sound_index.at("amazon_impossible_1") == 0xb89);
+        thrower.attack_skill = 0;
+        thrower.character.items = saved_items;
     }
 
     // A healer's / well's cure (FUN_00578d30 / FUN_00585720): poison and the

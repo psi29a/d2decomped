@@ -30,7 +30,6 @@ Ranked by Seen, then by how much play it touches.
 | 7 | The Council's S1 shot: its mode event isn't traced (fires MissS1 at once) | trace | maybe | quests-act3.md, PLAN.md "Checkpoint 2026-10-14" |
 | 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps" |
 | 9 | Unique monster mods still untraced: the thief, the act bosses' deaths | trace | maybe | PLAN.md phase 6, monster-ai.md |
-| 10 | Throw's level 1 only while a throwable is held | trace | no | unverified.md |
 | 11 | Charsi's Imbue pick: the click path after the menu | trace | no | unverified.md, act1-end.md |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. `ponytail: one player` in quests.hpp |
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
