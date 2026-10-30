@@ -721,6 +721,13 @@ int main(int argc, char** argv) try {
         javelins.code = "jav"; javelins.location = loc::kEquipped; javelins.slot = body::kLeftArm; javelins.id = 9102; javelins.quantity = 5;
         thrower.character.items.back() = javelins;
         assert(skill_base_level(*data, thrower.character, skill) == 1 && !skill_refused(*data, thrower.character, skill));
+        thrower.character.items.back().flags |= 0x100u;                                // a spent magic stack, broken in hand (FUN_0062a4e0)
+        assert(skill_refused(*data, thrower.character, skill));
+        d2d::d2s::Item shield;
+        shield.code = "buc"; shield.location = loc::kEquipped; shield.slot = body::kLeftArm; shield.id = 9103;
+        shield.props = { { .stat = 125, .value = 1 } };
+        thrower.character.items.back() = shield;
+        assert(skill_refused(*data, thrower.character, skill));                        // stat 125 on a non-weapon (FUN_0063c9b0 wants weap)
         thrower.character.items.pop_back();                                            // the last one's gone: a held Throw stops
         const std::uint32_t throw_ms = 30 * kTickMs;
         thrower.pmode = -1;
@@ -733,6 +740,9 @@ int main(int argc, char** argv) try {
         assert(voice != data->sound_index.end() && world.cues.due.size() == 1 && world.cues.due[0].sound == voice->second);
         thrower.attack_mon = 0;
         assert(!world.fight.start_swing(throw_ms + 40) && world.cues.due.size() == 1);   // within 75 frames: not again
+        world.display_swing(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 80);   // the host's swing, for show: shown
+        assert(thrower.pmode >= 0 && std::ranges::count(world.cues.due, voice->second, &Cues::Cue::sound) == 1);
+        thrower.pmode = -1;
         if (data->patched) assert(data->sound_index.at("amazon_impossible_1") == 0xb89);
         thrower.attack_skill = 0;
         thrower.character.items = saved_items;

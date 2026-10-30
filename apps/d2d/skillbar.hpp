@@ -124,8 +124,8 @@ struct SkillBar {
     }
 
     // The picker's rows, bottom up, keyed on SkillDesc ListRow (0..4):
-    // every known skill, those it can't use now too (FUN_004aa3a0 lists
-    // them all, drawn in colour 1; FUN_004a9bd0 picks one all the same).
+    // a known skill it can't use now too (FUN_004aa3a0 doesn't filter on the
+    // status: it draws it in colour 1, and FUN_004a9bd0 picks it).
     // row 0 the general skills (Attack, Throw, Unsummon, Town Portal),
     // 1..3 the class's own, 4 the scrolls and tomes. Rows that have nothing
     // to offer collapse; the remainder stack immediately above the button.

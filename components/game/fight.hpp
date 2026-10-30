@@ -97,14 +97,20 @@ inline bool throwable(const GameData& game_data, const std::string& code) {
     const auto found = game_data.rules.item_base.find(code);
     return game_data.thrown.contains(code) && found != game_data.rules.item_base.end() && found->second.stackable;
 }
-// Throw's weapon gate (FUN_00647640, skill 2): a weapon in hand that's a
-// throwable or has stat 125 (item_throwable). docs/research/re/throw.md.
-// ponytail: either hand counts; game.exe takes the selected weapon
-// (FUN_0063c9b0), a dual-wielder's other hand without one (FUN_00643d60).
+// Throw's weapon gate (FUN_00647640, skill 2): the weapon in hand
+// (FUN_0063c9b0: the right hand's, else the left's, of type weap 0x2d and
+// usable, not flag 0x100 broken / 0x4000: FUN_0062a4e0) is a throwable or
+// has stat 125 (item_throwable). A spent magic stack stays in hand broken
+// (Fight::out_of_ammo), so it can't throw. docs/research/re/throw.md.
+// ponytail: a dual-wielder (FUN_006235a0: barbarian, assassin) with two
+// weapons: either counts here; game.exe takes the primary (FUN_0063bef0,
+// inventory +0x1c), else the other hand's (FUN_00643d60).
 inline bool throw_ready(const GameData& game_data, const Character& character) {
     return std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) {
-        return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)
-            && (throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; }));
+        if (item.location != d2d::d2s::item_location::kEquipped || (item.slot != d2d::d2s::body_location::kRightArm && item.slot != d2d::d2s::body_location::kLeftArm)) return false;
+        const auto info = game_data.rules.item_info.find(item.code);
+        if (info == game_data.rules.item_info.end() || !d2d::rules::type_is(game_data.rules, info->second.type, "weap") || (item.flags & 0x4100u) != 0) return false;
+        return throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; });
     });
 }
 // A known skill the character can't use now (FUN_00647960 says 2): the

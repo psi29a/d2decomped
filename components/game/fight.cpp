@@ -698,7 +698,9 @@ auto Fight::start_swing(std::uint32_t now_ms) -> bool {
         actor->swing_skill = 0;
         actor->kicks_left = 0;
         actor->item_charge = actor->attack_charge;            // the queued attack's entry (World::apply), if any
-        if (skill_refused(*game_data, actor->character, actor->attack_skill)) {   // a held Throw whose last one's gone
+        // A held Throw whose last one's gone. Not a swing for show (World::display_swing,
+        // attack_mon -1): the host took that one.
+        if (actor->attack_mon >= 0 && skill_refused(*game_data, actor->character, actor->attack_skill)) {
             actor->attack_mon = -1;
             impossible(now_ms);
             return false;
