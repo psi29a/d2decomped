@@ -27,6 +27,7 @@
 #include <format>
 #include <initializer_list>
 #include <limits>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -312,6 +313,15 @@ bool spawn_spot(const GameData& game_data, const Level& level, const Crowd& crow
     }, out_x, out_y);
     rooms_in_play->room_seeds[index] = spawn_room.seed;
     return placed;
+}
+
+std::optional<std::pair<int, int>> free_spot_near(const Level& level, const Crowd& crowd, const UnitState* self, int x, int y, int size, std::uint16_t mask) {
+    if (size > 3) return std::nullopt;                      // FUN_0064d9b0's default: 0xffff
+    const UnitShape probe = size <= 1 ? UnitShape{ 0, std::uint8_t(size), mask } : size == 2 ? UnitShape{ 1, 2, mask } : UnitShape{ 2, 3, mask };
+    return nearest_spot(x, y, [&](int at_x, int at_y) {
+        const float cell_x = (float(at_x) + 0.5f) / 5, cell_y = (float(at_y) + 0.5f) / 5;
+        return !level.unit_blocked(cell_x, cell_y, probe) && !crowd.at(cell_x, cell_y, probe, self);
+    });
 }
 
 namespace {
@@ -946,8 +956,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // The Vulture's: the spots, the rooms, a weak unit within 11 (squared
     // 0x79) at most aip3 % life (FUN_005f30f0: a player or a monster, not
     // itself, alive, life <= max / 100 x aip3), its group, the free spot
-    // nearest its circling point.
-    // ponytail: one free-spot search (the level's nearest), not one per room.
+    // nearest its circling point (FUN_005f3170: FUN_0064e7b0 at its size,
+    // mask 0xffff, from the target's room then its own; none keeps the
+    // point). d2d's grid is the level's, so the two searches are one
+    // (deviations.md approximation 14).
     if (type_info.ai_name == "Vulture") {
         input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
         input.same_room = room_at(level, unit.x, unit.y) == room_at(level, target->x, target->y);
@@ -967,8 +979,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 input.victim = true;
         }
         if (monster.ai_state2 != 0 && monster.ai_state3 != 0) {
-            const auto [free_x, free_y] = level.nearest_free((float(monster.ai_state2) + 0.5f) / 5, (float(monster.ai_state3) + 0.5f) / 5);
-            input.free_spot[0] = std::pair{ subtile(free_x), subtile(free_y) };
+            input.free_spot[0] = free_spot_near(level, crowd, &unit, monster.ai_state2, monster.ai_state3, unit.shape.size, 0xffff);
+            if (!input.free_spot[0] && room_at(level, (float(monster.ai_state2) + 0.5f) / 5, (float(monster.ai_state3) + 0.5f) / 5) >= 0)
+                input.free_spot[0] = std::pair{ monster.ai_state2, monster.ai_state3 };   // keep 1: the point, in a room
         }
     }
     // Act 3's (rules::mon_think, monster-ai.md "Act 3's thinks"): the
@@ -1568,40 +1581,64 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             }
             if ((!seq && !plain) || ((name == "Resurrect" || name == "Resurrect2") && corpse < 0)) { idle(0); return true; }
             // MagottUp (srvstfunc 44, FUN_005cb170): it comes up at the free
-            // spot nearest (FUN_00554ea0 -> FUN_0064e7b0, mask 0x1c09), its
-            // flags 0xe back; MagottDown (45, FUN_005cb270) buries it.
-            // ponytail: the nearest free spot by the level's grid, not FUN_0064e7b0's search; up never fails.
+            // spot nearest (FUN_00554ea0 -> FUN_0064e7b0, its size, mask
+            // 0x1c09), its flags 0xe back; none: the start fails.
+            // MagottDown (45, FUN_005cb270) buries it.
             if (const auto* start = game_data.skills.get(id); start && start->srvstfunc == d2d::rules::ServerStartFunction::kMaggotUp && monster.buried) {
-                std::tie(unit.x, unit.y) = level.nearest_free(unit.x, unit.y);
+                const auto spot = free_spot_near(level, crowd, &unit, x, y, unit.shape.size, 0x1c09);
+                if (!spot) { idle(0); return true; }
+                unit.x = (float(spot->first) + 0.5f) / 5; unit.y = (float(spot->second) + 0.5f) / 5;
                 monster.buried = false;
             } else if (start && (start->srvstfunc == d2d::rules::ServerStartFunction::kMaggotDown || start->srvstfunc == d2d::rules::ServerStartFunction::kSubmerge)) {
                 monster.buried = true;
             } else if (start && start->srvstfunc == d2d::rules::ServerStartFunction::kEmerge) {
                 monster.buried = false;
             }
+            // Leap (srvstfunc 40, FUN_005d9d50): a monster lands at twice the
+            // target's spot less its own, on the free spot nearest
+            // (FUN_0064e7b0, its size, mask 0x3c01); none: the start fails.
+            // Leap Attack (srvstfunc 41, FUN_005da540; Korlic's
+            // seq_ancientleap): its spot by the target (FUN_00645ca0): two
+            // subtiles past it, over FUN_006417f0's distance (ai_distance);
+            // where its own test (mask 0x1c09) is blocked, the free spot
+            // nearest the target (FUN_0064e7b0); then a clear line to it
+            // (FUN_00645910 -> FUN_0064e260, mask 0x804) and not in town
+            // (FUN_00645c60). None: in reach a plain attack (FUN_0056e230).
+            std::optional<std::pair<int, int>> landing;
+            if (const auto* leap = game_data.skills.get(id); leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeap) {
+                landing = free_spot_near(level, crowd, &unit, 2 * target_x - x, 2 * target_y - y, unit.shape.size, 0x3c01);
+                if (!landing) { idle(0); return true; }
+            } else if (leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack && seq) {
+                if (const int span = d2d::rules::ai_distance(target_x - x, target_y - y); span != 0) {
+                    std::pair spot{ (target_x - x) * 2 / span + target_x, (target_y - y) * 2 / span + target_y };
+                    const float spot_cx = (float(spot.first) + 0.5f) / 5, spot_cy = (float(spot.second) + 0.5f) / 5;
+                    landing = spot;
+                    if (level.unit_blocked(spot_cx, spot_cy, unit.shape) || crowd.at(spot_cx, spot_cy, &unit))
+                        landing = free_spot_near(level, crowd, &unit, target_x, target_y, unit.shape.size, 0x1c09);
+                    const auto wall804 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
+                    if (landing && (d2d::rules::sight_blocked(x, y, 0, landing->first, landing->second, 0, wall804) || in_town(&level))) landing.reset();
+                }
+                if (!landing) {
+                    if (input.in_melee) { use("A1", -1); return true; }
+                    idle(0);
+                    return true;
+                }
+            }
             // Its rows' own modes are drawn row by row (Monster::seq_mode);
             // the first row's mode stands for it in the logic.
             const std::string_view played = seq ? std::string_view(seq->front().mode) : std::string_view(type_info.sk_mode[slot]);
             use(played, id);
             if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
-            // Leap (srvstfunc 40, FUN_005d9d50): it lands at twice the target's
-            // spot less its own, on the free spot nearest (mask 0x3c01).
-            // ponytail: the nearest free spot, not FUN_0064e7b0's search.
-            if (const auto* start = game_data.skills.get(id); start && start->srvstfunc == d2d::rules::ServerStartFunction::kLeap) {
-                const auto [land_x, land_y] = level.nearest_free((float(2 * target_x - x) + 0.5f) / 5, (float(2 * target_y - y) + 0.5f) / 5);
+            // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
+            // on the takeoff and landing events), the strike on the next
+            // (FUN_005da660).
+            // ponytail: the flight is a line, not the path FUN_0064ea90 lays.
+            if (landing) {
                 monster.leaping = true;
-                monster.leap_from_x = unit.x; monster.leap_from_y = unit.y; monster.leap_to_x = land_x; monster.leap_to_y = land_y;
+                monster.leap_from_x = unit.x; monster.leap_from_y = unit.y;
+                monster.leap_to_x = (float(landing->first) + 0.5f) / 5; monster.leap_to_y = (float(landing->second) + 0.5f) / 5;
             }
-            // Leap Attack (srvstfunc 41, FUN_005da540; Korlic's seq_ancientleap):
-            // a landing spot by the target (FUN_00645ca0), the flight there by
-            // row 11 (do 78 on the takeoff and landing events), the strike on
-            // the next (FUN_005da660). No spot: in reach a plain attack.
-            // ponytail: the nearest free spot to the target, not FUN_00645ca0's
-            // search; the flight is a line, not the path FUN_0064ea90 lays.
-            if (const auto* leap = game_data.skills.get(id); leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack && seq) {
-                const auto [land_x, land_y] = level.nearest_free(target->x, target->y);
-                monster.leaping = true;
-                monster.leap_from_x = unit.x; monster.leap_from_y = unit.y; monster.leap_to_x = land_x; monster.leap_to_y = land_y;
+            if (const auto* leap = game_data.skills.get(id); landing && leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack) {
                 monster.leap_until = unit.mode_ms + 11 * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
             }
             // Whirlwind (srvstfunc 38, FUN_005d8f50; Talic's seq_ancientwhirlwind):
@@ -2056,21 +2093,38 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
             } else if (done && done->srvdofunc == d2d::rules::ServerDoFunction::kHatch) {
                 // MaggotEgg (srvdofunc 84, FUN_005cafa0): calc1 of its MonStats
-                // spawn (FUN_0056e620), the first on its spot, the rest on rings
-                // out to 4 as spots fill (FUN_005b23c0, 2 x calc1 tries), each
-                // flag 0x4000000; then it dies (FUN_0057ccb0).
-                // ponytail: each larva at the nearest free spot to the egg, not
-                // FUN_005b23c0's ring search; the flag unread.
+                // spawn (FUN_0056e620), each made by FUN_005b23c0 ->
+                // FUN_005b2a00 (spawn_spot) round the egg in its room: the
+                // first at its spot alone (radius -1) in the spawn's mode
+                // (FUN_0063ea70: MonStats spawnmode), then while fewer than
+                // calc1, the radius under 5 and under 2 x calc1 tries, one in
+                // mode 8 (S1) at radius 1, the radius up one each time none
+                // fits; each flag 0x4000000 (no experience). Then it dies
+                // (FUN_0057ccb0).
                 const int lvl = skill_level(game_data, monster, monster.skill);
                 const int count = d2d::rules::eval_calc(game_data.skills, done->calc[0], {}, monster.skill, lvl);
-                if (const auto young = game_data.monsters.by_id.find(type_info.spawn); born && young != game_data.monsters.by_id.end())
-                    for (int made = 0; made < count; ++made) {
-                        const auto [free_x, free_y] = level.nearest_free(unit.x + float(made % 3 - 1) * 0.4f, unit.y + float(made / 3 % 3 - 1) * 0.4f);
-                        auto larva = make_monster(game_data, young->second, free_x, free_y, rng, monster.difficulty, true, players_in(foes));
-                        larva.aware = true;
+                if (const auto young = game_data.monsters.by_id.find(type_info.spawn); born && young != game_data.monsters.by_id.end() && count > 0) {
+                    const int egg_x = subtile(unit.x), egg_y = subtile(unit.y), egg_room = room_at(level, unit.x, unit.y);
+                    std::vector<Monster> larvae;
+                    larvae.reserve(std::size_t(count));
+                    Crowd with_larvae = crowd;
+                    auto hatch = [&](int radius, std::string_view larva_mode) {
+                        int put_x = 0, put_y = 0;
+                        if (!spawn_spot(game_data, level, with_larvae, rooms_in_play, young->second, egg_x, egg_y, radius, egg_room, put_x, put_y)) return false;
+                        auto& larva = larvae.emplace_back(make_monster(game_data, young->second, (float(put_x) + 0.5f) / 5, (float(put_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes)));
+                        larva.aware = true; larva.no_exp = true;
                         larva.seed = d2d::rules::Rng{ rng.next() };
-                        born->push_back(std::move(larva));
+                        if (larva_mode != "NU" && !larva_mode.empty()) set_mode(game_data, larva, larva_mode, now_ms);
+                        with_larvae.units.push_back(&larva.unit);
+                        return true;
+                    };
+                    int made = hatch(-1, type_info.spawn_mode) ? 1 : 0;
+                    for (int radius = 1, tries = 0; made < count && radius < 5 && tries < count * 2; ++tries) {
+                        if (hatch(radius, "S1")) ++made;
+                        else ++radius;
                     }
+                    for (auto& larva : larvae) born->push_back(std::move(larva));
+                }
                 monster.hit_points = 0;                                        // no loot, no experience
             } else if (done && done->srvdofunc == d2d::rules::ServerDoFunction::kMaggotDown) {
                 // MagottDown (srvdofunc 86, FUN_005cb300): calc1 % of its life back, once (flag 0x40).
@@ -2395,8 +2449,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size())
                         heal(pack[std::size_t(monster.skill_unit)], pack[std::size_t(monster.skill_unit)].stats.hit_points * pct / 100);
                 } else if (cast->srvdofunc == ServerDoFunction::kMonTeleport) {
-                    // FUN_005ccc80: to the free spot nearest its skill's point (FUN_00554ea0).
-                    std::tie(unit.x, unit.y) = level.nearest_free((float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5);
+                    // FUN_005ccc80: to the free spot nearest its skill's point
+                    // (FUN_00554ea0 -> FUN_0064e7b0, its size, mask 0x1c09); none: it stays.
+                    if (const auto spot = free_spot_near(level, crowd, &unit, monster.skill_x, monster.skill_y, unit.shape.size, 0x1c09))
+                        std::tie(unit.x, unit.y) = std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
                 } else if (cast->srvdofunc == ServerDoFunction::kImpTeleport) {
                     // FUN_005d1ab0. Riding: off at the free spot nearest its point
                     // (FUN_005d19d0: state 0x8f off, unbound; under 10 % life it dies
@@ -2404,11 +2460,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // (its mount, BaseId siegebeast1 / barricadetower, unbound, alive):
                     // onto its spot and up (FUN_005d18e0: state 0x8f, bound, flags 0xe
                     // off, special 16 and its init, rules::imp_ride_pick). Else MonTeleport.
-                    // ponytail: up onto the mount's spot exactly, not FUN_00554ea0's search.
+                    // Off: FUN_00554ea0's search (FUN_0064e7b0, its size, mask
+                    // 0x1c09; none: it stays, off all the same). Up: exactly onto
+                    // the mount's spot (FUN_00554ea0 with flag 1: no search).
                     auto* mount = monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size() ? &pack[std::size_t(monster.skill_unit)] : nullptr;
                     const int mount_base = mount ? game_data.monsters.types[std::size_t(mount->type)].base : -1;
                     if (monster.riding) {
-                        std::tie(unit.x, unit.y) = level.nearest_free((float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5);
+                        if (const auto spot = free_spot_near(level, crowd, &unit, monster.skill_x, monster.skill_y, unit.shape.size, 0x1c09))
+                            std::tie(unit.x, unit.y) = std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
                         if (monster.bound >= 0 && std::size_t(monster.bound) < pack.size()) pack[std::size_t(monster.bound)].bound = -1;
                         monster.bound = -1; monster.riding = false;
                         if (std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1) < 10) {

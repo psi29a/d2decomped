@@ -1021,41 +1021,70 @@ inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {
     return d2d::rules::Rng{ game.next() };
 }
 
-// Where a drop at subtile (x, y) lands (FUN_00555da0): from (x + 2, y + 3)
-// if that's in a room, else (x, y), the free subtile nearest it
-// (FUN_0064e810 -> FUN_0064dea0): `flags(x, y)` (FUN_0064ca50: 0x27 off the
-// rooms) has no 0x3e01 there and no 0x801 on expfield.d2's walk back to
-// (x, y) (FUN_0066a670). Rings 1..49 out, each side to side as the game
-// tests them; the first nearest (Manhattan) wins, none: the start.
+// FUN_0064dea0's search, as FUN_0064e7b0 / FUN_0064e810 call it (50
+// rings, a subtile a step): (x, y) itself if `clear`, else rings 1..49
+// out, each ring's columns x - r and x + r top to bottom (left then right
+// a row), then its rows y - r and y + r left to right (top then bottom a
+// column); the first clear spot nearest (Manhattan) in the first ring with
+// one wins. None: nullopt (the callers' "keep the room" flag then keeps
+// (x, y) or fails).
+template <class Clear>
+std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear) {
+    if (clear(x, y)) return std::pair{ x, y };
+    int best = -1, best_x = x, best_y = y;
+    for (int ring = 1; ring < 50 && best < 0; ++ring) {
+        auto test = [&](int test_x, int test_y) {
+            const int distance = std::abs(test_x - x) + std::abs(test_y - y);
+            if (clear(test_x, test_y) && (best < 0 || distance < best)) { best = distance; best_x = test_x; best_y = test_y; }
+        };
+        for (int ty = y - ring; ty <= y + ring; ++ty) { test(x - ring, ty); test(x + ring, ty); }
+        for (int tx = x - ring + 1; tx <= x + ring - 1; ++tx) { test(tx, y - ring); test(tx, y + ring); }
+    }
+    if (best < 0) return std::nullopt;
+    return std::pair{ best_x, best_y };
+}
+
+// FUN_0064e810 -> nearest_spot with expfield.d2 (`field`): the free
+// subtile nearest (x, y) where something `size` across (FUN_0064d9b0: 0 / 1
+// the subtile, 2 the plus, 3 the 3 x 3 box) meets no bit of `mask` in
+// `flags(x, y)` (FUN_0064ca50: 0x27 off the rooms), and the field's walk
+// from it back to (origin_x, origin_y) meets no bit of `walk_mask`
+// (FUN_0066a670).
 template <class Flags>
-std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
-    auto hit = [&](int at_x, int at_y, int mask) { const int cell_flags = flags(at_x, at_y); return cell_flags == 0x27 || (cell_flags & mask); };
+std::optional<std::pair<int, int>> field_spot(const std::vector<std::uint8_t>& field, int origin_x, int origin_y, int x, int y, int size, int mask, int walk_mask, Flags flags) {
+    auto hit = [&](int at_x, int at_y, int bits) { const int cell_flags = flags(at_x, at_y); return cell_flags == 0x27 || (cell_flags & bits); };
     auto walk = [&](int at_x, int at_y) {
         static constexpr int kStepX[9] = { 0, 1, 1, 1, 0, -1, -1, -1, 0 }, kStepY[9] = { -1, -1, 0, 1, 1, 1, 0, -1, 0 };
-        auto dir = [&] { return field[std::size_t((at_y - y + 128) * 256 + at_x - x + 128)]; };
+        auto dir = [&] { return field[std::size_t((at_y - origin_y + 128) * 256 + at_x - origin_x + 128)]; };
         if (field.empty()) return true;
-        if (hit(at_x, at_y, 0x801)) return false;
+        if (hit(at_x, at_y, walk_mask)) return false;
         for (;;) {
             const auto step = dir();
             at_x += kStepX[step]; at_y += kStepY[step];
             if (dir() == 8) return true;
-            if (hit(at_x, at_y, 0x801)) return false;
+            if (hit(at_x, at_y, walk_mask)) return false;
         }
     };
-    auto clear = [&](int at_x, int at_y) { return !hit(at_x, at_y, 0x3e01) && walk(at_x, at_y); };
+    auto fits = [&](int at_x, int at_y) {
+        if (size <= 1) return !hit(at_x, at_y, mask);
+        if (size == 2) return !hit(at_x, at_y, mask) && !hit(at_x - 1, at_y, mask) && !hit(at_x + 1, at_y, mask) && !hit(at_x, at_y - 1, mask) && !hit(at_x, at_y + 1, mask);
+        if (size > 3) return false;
+        for (int row = -1; row <= 1; ++row)
+            for (int column = -1; column <= 1; ++column)
+                if (hit(at_x + column, at_y + row, mask)) return false;
+        return true;
+    };
+    return nearest_spot(x, y, [&](int test_x, int test_y) { return fits(test_x, test_y) && walk(test_x, test_y); });
+}
+
+// Where a drop at subtile (x, y) lands (FUN_00555da0): from (x + 2, y + 3)
+// if that's in a room, else (x, y), field_spot's free subtile (size 1, mask
+// 0x3e01, walk 0x801). None: the start.
+template <class Flags>
+std::pair<int, int> drop_spot(const std::vector<std::uint8_t>& field, int x, int y, Flags flags) {
     int at_x = x + 2, at_y = y + 3;
     if (flags(at_x, at_y) == 0x27) { at_x = x; at_y = y; }
-    if (clear(at_x, at_y)) return { at_x, at_y };
-    int best = -1, best_x = at_x, best_y = at_y;
-    for (int ring = 1; ring < 50 && best < 0; ++ring) {
-        auto test = [&](int test_x, int test_y) {
-            const int distance = std::abs(test_x - at_x) + std::abs(test_y - at_y);
-            if (clear(test_x, test_y) && (best < 0 || distance < best)) { best = distance; best_x = test_x; best_y = test_y; }
-        };
-        for (int ty = at_y - ring; ty <= at_y + ring; ++ty) { test(at_x - ring, ty); test(at_x + ring, ty); }
-        for (int tx = at_x - ring + 1; tx <= at_x + ring - 1; ++tx) { test(tx, at_y - ring); test(tx, at_y + ring); }
-    }
-    return { best_x, best_y };
+    return field_spot(field, x, y, at_x, at_y, 1, 0x3e01, 0x801, flags).value_or(std::pair{ at_x, at_y });
 }
 
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,

@@ -2085,18 +2085,30 @@ auto move_route(const Level& level, const UnitState& unit, int from_x, int from_
         if (point != last) { route.emplace_back(centre(point.first), centre(point.second)); last = point; }
     return route;
 }
-// The nearest spot to (x, y) cells, a subtile at a time outward, the unit
-// can stand on clear of the crowd (a pet's teleport); else nearest_free.
-// ponytail: game.exe's teleport picks a random spot in the room (FUN_0054dc40).
-auto free_spot(const Level& level, const Crowd& crowd, const UnitState& unit, float x, float y) -> std::pair<float, float> {
-    for (int ring = 1; ring <= 15; ++ring)
-        for (int step_y = -ring; step_y <= ring; ++step_y)
-            for (int step_x = -ring; step_x <= ring; ++step_x) {
-                if (std::max(std::abs(step_x), std::abs(step_y)) != ring) continue;
-                const float spot_x = x + float(step_x) / 5, spot_y = y + float(step_y) / 5;
-                if (!level.unit_blocked(spot_x, spot_y, unit.shape) && !crowd.at(spot_x, spot_y, &unit)) return { spot_x, spot_y };
-            }
-    return level.nearest_free(x, y);
+// A unit put at the free spot nearest (x, y) cells (FUN_00554ea0 ->
+// FUN_0064e7b0, its size, mask 0x1c09); none: it stays.
+void put_near(const Level& level, const Crowd& crowd, UnitState& unit, float x, float y) {
+    if (const auto spot = free_spot_near(level, crowd, &unit, int(std::floor(x * 5)), int(std::floor(y * 5)), unit.shape.size, 0x1c09)) {
+        unit.x = (float(spot->first) + 0.5f) / 5; unit.y = (float(spot->second) + 0.5f) / 5;
+    }
+}
+// A pet's or the merc's think mode 3 (FUN_005e3930): a spot in the owner's
+// room (FUN_0054dc40: up to 20 tries inside its rect less a subtile each
+// side, on the room's seed, each where MonStats class 0x16b fits:
+// FUN_005b2f20 radius -1, test only, spawn_spot), then put_near it.
+// False when no try fits.
+bool room_teleport(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning& spawning, UnitState& unit) {
+    auto& in_play = spawning.levels[spawning.room_level];
+    if (spawning.room_level != &level || spawning.room < 0 || std::size_t(spawning.room) >= in_play.room_seeds.size() || std::size_t(spawning.room) >= level.rooms.size()) return false;
+    const auto& room = level.rooms[std::size_t(spawning.room)];
+    for (int tries = 0; tries < 20; ++tries) {
+        auto& seed = in_play.room_seeds[std::size_t(spawning.room)];
+        const int x = room.x * 5 + 1 + seed(room.width * 5 - 1), y = room.y * 5 + 1 + seed(room.height * 5 - 1);
+        if (int fit_x = 0, fit_y = 0; !spawn_spot(game_data, level, crowd, &in_play, 0x16b, x, y, -1, spawning.room, fit_x, fit_y)) continue;
+        put_near(level, crowd, unit, (float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
+        return true;
+    }
+    return false;
 }
 // A monster mode's number (MonMode: DT 0 .. RN 15); a MonSeq sequence
 // (seq_swtigerfist) or Skills.txt monanim xx plays SQ (14).
@@ -2281,22 +2293,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         } else if (act.kind == Kind::failed) {
             actor->merc->next_act = now_ms + std::uint32_t(aidel) * 40;
         } else if (act.kind == Kind::teleport) {
-            // FUN_005e3930 mode 3: a spot in the player's room (FUN_0054dc40:
-            // up to 20 tries inside its rect less a subtile each side, on
-            // its seed), then it stands 5.
-            // ponytail: FUN_005b2f20's fit for class 0x16b is the unit test here.
-            const Level* room_level = spawning.room_level;
-            auto& room_seeds = spawning.levels[room_level].room_seeds;
-            if (room_level == level && spawning.room >= 0 && std::size_t(spawning.room) < room_seeds.size() && std::size_t(spawning.room) < level->rooms.size()) {
-                const auto& room = level->rooms[std::size_t(spawning.room)];
-                auto& seed = room_seeds[std::size_t(spawning.room)];
-                for (int tries = 0; tries < 20; ++tries) {
-                    const int x = room.x * 5 + 1 + seed(room.width * 5 - 1), y = room.y * 5 + 1 + seed(room.height * 5 - 1);
-                    if (level->unit_blocked(centre(x), centre(y), unit.shape)) continue;
-                    unit.x = centre(x); unit.y = centre(y);
-                    break;
-                }
-            }
+            // FUN_005e3930 mode 3: room_teleport, then it stands 5.
+            room_teleport(*game_data, *level, crowd, spawning, unit);
             actor->merc->next_act = now_ms + 5 * 40;
         } else if (act.kind == Kind::attack && actor->merc_target >= 0 && type_info) {
             // The attack think (FUN_005e5050) and its skill pick (FUN_005e4d30).
@@ -3746,9 +3744,9 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
 // a threat of 2 or more first, else the rest, within 0x23), sight needed
 // in a preset room that isn't Outdoors, or once after a walk at a foe found
 // no path (flag 0x40); its melee is MeleeRng + 1, its line FUN_005dc640.
+// A teleport is room_teleport (mode 3).
 // ponytail: the owner's path spot (+0x10) is the player's next path point;
-// a teleport lands by the player (game.exe: a spot in its room,
-// FUN_0054dc40); the crowd counts by merc_gap from this pet's size
+// the crowd counts by merc_gap from this pet's size
 // (FUN_005e3900's order of units isn't read); a good monster's own room
 // order isn't kept (the search runs over the monsters in fight order).
 auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
@@ -3826,7 +3824,7 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
             set_mode(*game_data, monster, "A1", now_ms);
             monster.struck = false;
         } else if (act.kind == Kind::teleport) {
-            std::tie(unit.x, unit.y) = level->nearest_free(actor->player.x + 1, actor->player.y + 1);
+            room_teleport(*game_data, *level, crowd, spawning, unit);
             unit.path.clear(); unit.walking = false;
             set_mode(*game_data, monster, "NU", now_ms);
             monster.next_act = now_ms + 5 * 40;
@@ -3992,7 +3990,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             void give_hands() { give(); }
             [[nodiscard]] d2d::rules::PetAct followed() const { return last; }
         };
-        World world{ move_pet, view, monster.seed, area_under, [&] { std::tie(unit.x, unit.y) = free_spot(*level, crowd, unit, actor->player.x, actor->player.y); }, {} };
+        World world{ move_pet, view, monster.seed, area_under, [&] { room_teleport(*game_data, *level, crowd, spawning, unit); }, {} };
         const auto& ai_name = type_info.ai_name;
         // The Shadow Warrior: the owner's left / right skills (given when its
         // think gets that far, at FUN_005eaf00's level: give_hands), its
@@ -4214,8 +4212,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             monster.hit_points = 0;
             set_mode(*game_data, monster, "DT", now_ms);
             break;
-        case Kind::teleport:
-            std::tie(unit.x, unit.y) = free_spot(*level, crowd, unit, actor->player.x, actor->player.y);
+        case Kind::teleport:                                        // mode 3: room_teleport, stand 5
+            room_teleport(*game_data, *level, crowd, spawning, unit);
             unit.path.clear(); unit.walking = false;
             monster.next_act = now_ms + 5 * 40;
             break;
@@ -4327,7 +4325,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         if (skill->srvdofunc == ServerDoFunction::kDragonFlight && target >= 0) {   // do 52: beside the target, then the kick (as the owner's)
             if (in_town(level)) return;
             auto& unit = pet.monster.unit;
-            std::tie(unit.x, unit.y) = free_spot(*level, crowd, unit, foe.x, foe.y);
+            put_near(*level, crowd, unit, foe.x, foe.y);
             unit.path.clear(); unit.walking = false;
             auto fighter = actor->pf_kick;
             auto swing = skill_swing(*skill, lvl, calc_env(), false);
@@ -4362,7 +4360,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
         const int target = pet.target;
         const bool alive = target >= 0 && monsters[std::size_t(target)].alive();
         if (!skill) return;
-        if (skill->name.starts_with("Teleport")) { std::tie(monster.unit.x, monster.unit.y) = free_spot(*level, crowd, monster.unit, pet.cast_x, pet.cast_y); return; }   // "Teleport 2": a wolf to its owner
+        if (skill->name.starts_with("Teleport")) { put_near(*level, crowd, monster.unit, pet.cast_x, pet.cast_y); return; }   // "Teleport 2": a wolf to its owner
         if (pet.shot_skill >= 0 && alive && skill->srvdofunc != ServerDoFunction::kCorpseExplosion) { trap_fire(pet, std::size_t(target), now_ms); return; }
         if (pet.ranged >= 0 && alive) {
             const auto* missile_info = pet_missile(*game_data->skills.get(pet.ranged), pet.variant);
@@ -4651,13 +4649,19 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (const auto& side : sides)
                 if (foes[side.at].blessed) side.hero->wisp_blessing = { foes[side.at].blessed, now_ms + 0x1a5e00u * 40 };   // FUN_006251f0: 0x1a5e00 frames
             // Impregnate's state off at a death (FUN_005d21b0): the skill's summon
-            // (painworm1, else 0x227) in its summode at the dead one (FUN_005b2490).
-            // ponytail: at its spot, not FUN_005b2490's free-spot search.
+            // (painworm1, else 0x227) in its summode at the dead one
+            // (FUN_005b2490: the level's own of its family, level_monster, by
+            // FUN_005b23c0 -> FUN_005b2a00 radius 1 in the dead one's room,
+            // spawn_spot; none: no worm).
             for (auto& monster : monsters)
                 if (!monster.alive() && std::exchange(monster.impregnated, false))
                     if (const auto* impregnate = game_data->skills.get(game_data->skills.by_name.contains("Impregnate") ? game_data->skills.by_name.at("Impregnate") : -1)) {
                         const auto worm = game_data->monsters.by_id.find(impregnate->summon);
-                        auto young = make_monster(*game_data, worm != game_data->monsters.by_id.end() ? int(worm->second) : int(game_data->mon_bin[0x227]), monster.unit.x, monster.unit.y, rng, monster.difficulty, true, players_in(foes));
+                        const int worm_type = level_monster(*game_data, *level, worm != game_data->monsters.by_id.end() ? int(worm->second) : int(game_data->mon_bin[0x227]));
+                        int at_x = 0, at_y = 0;
+                        if (!spawn_spot(*game_data, *level, crowd, &spawning.levels[level], worm_type, int(std::floor(monster.unit.x * 5)), int(std::floor(monster.unit.y * 5)), 1,
+                                        room_of(*level, monster.unit.x, monster.unit.y), at_x, at_y)) continue;
+                        auto young = make_monster(*game_data, worm_type, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes));
                         young.aware = true;
                         young.seed = d2d::rules::Rng{ rng.next() };
                         set_mode(*game_data, young, impregnate->summode.empty() ? "NU" : impregnate->summode, now_ms);

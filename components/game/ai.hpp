@@ -70,7 +70,10 @@ struct Crowd {
     std::vector<const UnitState*> units;
     [[nodiscard]] bool at(float x, float y, const UnitState* self) const {
         static const UnitShape player;
-        const UnitShape& mover = self ? self->shape : player;
+        return at(x, y, self ? self->shape : player, self);
+    }
+    // As something of shape `mover` would stand there, `self` not counted.
+    [[nodiscard]] bool at(float x, float y, const UnitShape& mover, const UnitState* self) const {
         const int sub_x = int(std::floor(x * 5)), sub_y = int(std::floor(y * 5));
         const int half = mover.size / 2;
         auto covers = [&](int cell_x, int cell_y) {
@@ -932,6 +935,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
 // places nothing (game.exe has no room there, FUN_00463740).
 bool spawn_spot(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning::LevelState* rooms_in_play, int type, int x, int y, int radius,
                 int room, int& out_x, int& out_y);
+
+// FUN_0064e7b0: the subtile nearest (x, y) where something `size` across
+// (FUN_00620510: a player 2, a monster its MonStats2 SizeX) has no bit of
+// `mask` (FUN_0064d9b0 by size: 0 / 1 the subtile, 2 the plus, 3 the 3 x 3
+// box, more never), by nearest_spot's rings. The grid's bits are Level's,
+// the units' (0x1000 / 0x2000) the Crowd's, `self` not counted (its own
+// stamp is lifted or elsewhere when its callers search). None: nullopt.
+std::optional<std::pair<int, int>> free_spot_near(const Level& level, const Crowd& crowd, const UnitState* self, int x, int y, int size, std::uint16_t mask);
 
 // The merc's name: its hireling row's NameFirst key (merc01, merca201,
 // MercX101, ...) counted on by the save's name index.

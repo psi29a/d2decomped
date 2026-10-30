@@ -145,6 +145,22 @@ int main(int argc, char** argv) try {
         assert(crushing_blow(1000, 4, 0) == 250 && crushing_blow(1000, 4, 60) == 100 && crushing_blow(1000, 4, 150) == 0 && crushing_blow(1000, 4, -100) == 250);
         std::printf("OK: MonProp IAS / FCR rates, knock and crush rolls\n");
     }
+    {
+        // FUN_0064dea0's search (FUN_0064e7b0 / FUN_0064e810: 50 rings, step
+        // 1): the spot itself; else per ring its columns x - r, x + r top to
+        // bottom (left, right a row), then its rows y - r, y + r; the first
+        // nearest wins.
+        const auto clear_at = [](std::vector<std::pair<int, int>> clear_spots) {
+            return [clear_spots](int at_x, int at_y) { return std::ranges::contains(clear_spots, std::pair{ at_x, at_y }); };
+        };
+        assert(nearest_spot(10, 10, clear_at({ { 10, 10 } })) == std::pair(10, 10));
+        assert(nearest_spot(10, 10, clear_at({ { 9, 11 }, { 11, 9 } })) == std::pair(11, 9));             // corners: the top row's first
+        assert(nearest_spot(10, 10, clear_at({ { 11, 11 }, { 10, 9 } })) == std::pair(10, 9));           // the side's middle (1 off) beats a corner (2)
+        assert(nearest_spot(10, 10, clear_at({ { 12, 10 }, { 9, 9 } })) == std::pair(9, 9));             // ring 1 before ring 2
+        assert(nearest_spot(10, 10, clear_at({ { 10, 59 } })) == std::pair(10, 59));                     // ring 49, the last
+        assert(!nearest_spot(10, 10, clear_at({ { 10, 60 } })));                                         // ring 50: never
+        std::printf("OK: nearest_spot's rings (FUN_0064dea0)\n");
+    }
     if (!fs::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s (the checks above ran)\n", data_dir.string().c_str()); return D2D_TEST_SKIPPED; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
 
