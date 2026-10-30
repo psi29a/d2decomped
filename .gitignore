@@ -22,14 +22,20 @@ game-bins/
 #     docs/research/re/ — so future-us can build on them.
 #   * Raw decompiled C from Ghidra is NOT tracked (it's derived output;
 #     the .md notes are the authored artifact).
+#   * docs/research/re/game-*.tsv ARE tracked: addresses, sizes, imports,
+#     calls exported by tools/ghidra/import.sh (facts, not code). Not the
+#     strings: those are game.exe's own bytes (LEGAL.md).
 tools/ghidra/gdt/
 tools/ghidra/project/
 *.c.ghidra
 *.decomp.c
 docs/research/re/*.c
-docs/research/re/*.tsv
+docs/research/re/game-strings.tsv
 
 # Editors
 .idea/
 .vscode/
 .DS_Store
+
+# Python
+__pycache__/

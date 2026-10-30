@@ -34,6 +34,7 @@ First time ever? Do "One-time" and "Import" below first (~1 minute).
 | `FieldUses.java` | base, field | every use of a struct field |
 | `FindPattern.java` | hex bytes | where a byte pattern sits |
 | `DumpBytes.java` | range, file | raw bytes as hex |
+| `ExportCalls.java` | out dir | `game-calls.tsv` (every caller → callee) and `game-srcfiles.tsv` (the source file each function's asserts name), for `tools/gaps.py` |
 
 Each run takes ~2.5 s; batch several `-postScript` calls in one run.
 
@@ -63,13 +64,16 @@ tools/ghidra/import.sh
 ```
 
 Creates `tools/ghidra/project/` (gitignored), imports `game.exe`, runs
-default analysis, then runs `ExportOverview.java`, which drops:
+default analysis, then runs `ExportOverview.java` and `ExportCalls.java`,
+which drop:
 
 - `docs/research/re/game-overview.md`
-- `docs/research/re/game-{functions,strings,imports,exports}.tsv`
+- `docs/research/re/game-{functions,strings,imports,exports,calls,srcfiles}.tsv`
 
 Rerun any time — `-overwrite` replaces the imported program. TSVs are
-grep-friendly and check into git; the Ghidra project itself does not.
+grep-friendly and check into git, except `game-strings.tsv`: those are
+game.exe's own bytes (LEGAL.md), so it stays local. The Ghidra project
+itself never goes in.
 
 ### Interactive session
 
@@ -100,4 +104,5 @@ test can see it.
 
 - The Ghidra project directory (`project/`).
 - Any Blizzard-owned bytes (the imported program lives inside the
-  project — that's why the whole dir is gitignored).
+  project — that's why the whole dir is gitignored), including
+  `game-strings.tsv`.

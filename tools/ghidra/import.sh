@@ -51,4 +51,5 @@ echo "==> importing $(basename "$BIN") into $PROJECT_NAME"
   -import "$BIN" \
   -overwrite \
   -scriptPath "$SCRIPT_DIR" \
-  -postScript ExportOverview.java "$HERE/../../docs/research/re"
+  -postScript ExportOverview.java "$HERE/../../docs/research/re" \
+  -postScript ExportCalls.java "$HERE/../../docs/research/re"
