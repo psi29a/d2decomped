@@ -30,3 +30,8 @@ Fast act checks (need the MPQs and `D2_PATCH_INSTALLER`): the quests of
 Acts 1–5 played headless, an act per test, side by side:
 `ctest --test-dir build -R quests_act -j3`. Each act's levels against
 game.exe (~15 s for 2 seeds): `ACT=2 tools/emu/sweep.sh 1-2 tiles units monsters`.
+Without `D2_PATCH_INSTALLER` the quest checks SKIP, so a green run may not
+include them. A quest check that fails on a run left overnight is usually
+the machine sleeping: look for a time gap in its `$TMPDIR/d2d_quests_*/d2d.log`
+(kept after the run) before blaming the code. A `--devctl` socket path must
+be short (AF_UNIX limit), so put it in `/tmp`.
