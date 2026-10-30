@@ -94,7 +94,10 @@ auto World::act2_said(int hc_idx, int message_string) -> void {
         arcane.said(quests(), game_bits, hc_idx, message_string, room_of(*level, actor->player.x, actor->player.y), actor->id);
         summoner.said(quests(), game_bits, message_string, actor->id);
         if (const auto heard = tombs.said(quests(), game_bits, hc_idx, message_string, level->id == d2d::rules::SevenTombsQuest::kLair, actor->id); heard.town_portal) {
-            open_portal_at(actor->player.x, actor->player.y + 0.6f, now);              // Tyrael's (FUN_0056d130: object 59 to level 40)
+            // Tyrael's (FUN_0056d130: object 59 to level 40), searched from the
+            // free spot by the player (the caller's own spot isn't traced).
+            const auto [from_x, from_y] = level->nearest_free(actor->player.x, actor->player.y + 0.6f);
+            open_portal_at(from_x, from_y, now);
             if (heard.act3) open_act(2);                                  // Act 3 open
             d2d::log::info("The Seven Tombs: Tyrael's portal");
         } else if (heard.take_staff) {

@@ -818,12 +818,19 @@ struct World {
     // 5); the scroll's used up, the tome's quantity goes down.
     void read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms);
     // Town Portal's action frame: a portal by the player and its twin at the
-    // town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11),
-    // each at the nearest free spot; the old pair goes.
-    // ponytail: "by the player" is the nearest free spot 0.6 cells south;
-    // game.exe searches from the caster with collision 0x3e01, size 3.
+    // town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11);
+    // the old pair goes. By the player: portal_spot from the caster; none,
+    // no portal.
     void open_portal(std::uint32_t now_ms);
     void open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms);
+    // FUN_0056d130's spot (FUN_0064e810, field_spot): from (x, y) cells, a
+    // 3 x 3 box (size 3) clear of 0x3e01 and expfield.d2's walk back clear of
+    // 0xc01, over the grid, the items lying (0x200) and the units here (the
+    // Crowd's 0x1000 / 0x2000). None: nullopt.
+    [[nodiscard]] std::optional<std::pair<float, float>> portal_spot(const Level& where, float x, float y);
+    // Who's in whose way on the player's level now: the players, their
+    // mercs, the monsters and pets about (Fight::crowd).
+    [[nodiscard]] Crowd crowd_now();
     // Walking into one: out by the other (OperateFn 15, FUN_00584870).
     void use_portal(std::uint32_t now_ms);
 

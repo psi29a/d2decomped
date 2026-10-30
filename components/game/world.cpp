@@ -823,7 +823,12 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             actor->boost = { row, std::move(boost), now_ms + std::uint32_t(shrine.duration) * 40u };
         }
         if (const auto sound = d2d::rules::shrine_sound(shrine.code); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
-        if (shrine.code == 17) open_portal_at(actor->player.x + 1, actor->player.y + 1, now_ms);   // portal (FUN_00582a30): 5 subtiles on each axis
+        // Portal (FUN_00582a30): the free spot nearest the player for a size
+        // 3 (FUN_0064e7b0, mask 0x1c09), then the town portal from 5
+        // subtiles on each axis of it (FUN_0056d130's own search).
+        if (shrine.code == 17)
+            if (const auto spot = free_spot_near(*level, crowd_now(), &actor->player, int(std::floor(actor->player.x * 5)), int(std::floor(actor->player.y * 5)), 3, 0x1c09))
+                open_portal_at((float(spot->first + 5) + 0.5f) / 5, (float(spot->second + 5) + 0.5f) / 5, now_ms);
         if (shrine.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(game_data->rules, actor->character.items, rng); !code.empty())
                 loot.put({ .code = code }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
@@ -1538,9 +1543,15 @@ auto World::transmute(std::uint32_t now_ms) -> void {
                 d2d::log::info("transmute: {} refused", recipe.description);
                 return;
             }
+            // FUN_00594140: a spot by the player (FUN_00545340: size 3, mask
+            // 0x400, 100 rings, Level::free_area), then FUN_0056d130's own
+            // (portal_spot) from it; none: refused. Its twin at the farm's
+            // portal spot (FUN_0056cf40).
+            const auto by_player = level->free_area(int(std::floor(actor->player.x * 5)), int(std::floor(actor->player.y * 5)), 3, 0x400, 100);
+            const auto opened_at = by_player ? portal_spot(*level, (float(by_player->first) + 0.5f) / 5, (float(by_player->second) + 0.5f) / 5) : std::nullopt;
+            if (!opened_at) { d2d::log::info("transmute: {} refused (no room)", recipe.description); return; }
             cow_portal_opened = true;
-            // ponytail: FUN_00545340's spot search (3, mask 0x400, 4, 100) is the nearest free spot; its twin the farm's portal spot.
-            const auto [spot_x, spot_y] = level->nearest_free(actor->player.x, actor->player.y + 0.8f);
+            const auto [spot_x, spot_y] = *opened_at;
             portal[kCowPortal] = { level, spot_x, spot_y, now_ms };
             const auto [to_x, to_y] = farm->portal_spot.first >= 0 ? farm->nearest_free(farm->portal_spot.first, farm->portal_spot.second)
                                                                   : farm->nearest_free(float(farm->ds1.width()) / 2, float(farm->ds1.height()) / 2);
@@ -2139,13 +2150,41 @@ auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint3
         cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "player_townportal_cast", now_ms, actor->player.x, actor->player.y);
     }
 
-auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(actor->player.x, actor->player.y + 0.6f, now_ms); }
+auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(actor->player.x, actor->player.y, now_ms); }
+
+auto World::crowd_now() -> Crowd {
+        Crowd crowd;
+        for (const auto& player : players) {
+            crowd.units.push_back(&player->player);
+            if (player->merc) crowd.units.push_back(&player->merc->unit);
+        }
+        if (fight.mon_level == level) fight.crowd(crowd);
+        return crowd;
+    }
+
+auto World::portal_spot(const Level& where, float x, float y) -> std::optional<std::pair<float, float>> {
+        const int width = where.ds1.width() * 5, height = where.ds1.height() * 5;
+        if (where.walk.empty()) return std::pair{ x, y };
+        const Crowd crowd = &where == level ? crowd_now() : Crowd{};
+        static constexpr UnitShape kProbe{ 0, 1, 0x3000 };
+        const int from_x = int(std::floor(x * 5)), from_y = int(std::floor(y * 5));
+        const auto spot = field_spot(game_data->field, from_x, from_y, from_x, from_y, 3, 0x3e01, 0xc01, [&](int at_x, int at_y) {
+            if (at_x < 0 || at_y < 0 || at_x >= width || at_y >= height) return 0x27;
+            int flags = where.walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] | loot.items_at(&where, at_x, at_y);
+            if (crowd.at((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, kProbe, nullptr)) flags |= 0x1000;
+            return flags;
+        });
+        if (!spot) return std::nullopt;
+        return std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
+    }
 
 auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms) -> void {
         const Level* act_town = game_data->town_of(level->id);
         if (in_town(level) || !act_town || act_town->portal_spot.first < 0) return;
         const auto& town = *act_town;
-        const auto [spot_x, spot_y] = level->nearest_free(portal_x, portal_y);
+        const auto by_caster = portal_spot(*level, portal_x, portal_y);
+        if (!by_caster) { d2d::log::info("town portal: no room by ({:.1f}, {:.1f})", portal_x, portal_y); return; }
+        const auto [spot_x, spot_y] = *by_caster;
         const auto [town_x, town_y] = town.nearest_free(town.portal_spot.first, town.portal_spot.second);
         portal[actor->portal_pair] = { level, spot_x, spot_y, now_ms };
         portal[actor->portal_pair + 1] = { &town, town_x, town_y, now_ms };
