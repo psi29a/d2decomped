@@ -164,7 +164,7 @@ settings, starts d2d and closes the launcher.
 
 Come and talk on the [D2Decomp Discord](https://discord.gg/EJxctR2hqn): questions,
 playtests, bug reports, and what to work on next. New here? Start with
-[CONTRIBUTING.md](CONTRIBUTING.md): with Claude Code you can contribute
+[CONTRIBUTING.md](CONTRIBUTING.md): with any AI agent you can contribute
 without being a programmer.
 
 - **Report a bug** as a [GitHub issue](https://github.com/psi29a/d2decomped/issues):

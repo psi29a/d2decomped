@@ -1,0 +1,14 @@
+# The paths everything else trusts: CI, the build, the tools maintainers run,
+# the launcher's downloads, and the instructions every contributor's agent
+# reads. A change here needs a maintainer's review (with branch protection on).
+/.github/          @psi29a
+/cmake/            @psi29a
+CMakeLists.txt     @psi29a
+/Makefile          @psi29a
+/tools/            @psi29a
+/apps/launcher/    @psi29a
+/AGENTS.md         @psi29a
+/CLAUDE.md         @psi29a
+/.claude/          @psi29a
+/CONTRIBUTING.md   @psi29a
+/LEGAL.md          @psi29a

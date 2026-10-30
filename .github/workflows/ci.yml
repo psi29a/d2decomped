@@ -267,7 +267,7 @@ jobs:
       - name: Tooling regression tests
         if: runner.os != 'Windows'
         run: |
-          python3 -m unittest tools/test_tidy_pr_select.py tools/test_gaps.py
+          python3 -m unittest tools/test_tidy_pr_select.py tools/test_gaps.py tools/test_pr_guard.py
           (cd tools/emu && python3 -m unittest test_tooling.py)
 
       - name: Test (Linux/macOS)

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# tools/pr_guard.py on every pull request: impossible evidence, binaries, and
+# risky surface without a maintainer's `security-reviewed` label.
+name: PR guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # The base branch's guard, so a pull request can't loosen its own check.
+      - name: Check the pull request
+        env:
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          if git cat-file -e "$BASE:tools/pr_guard.py" 2>/dev/null; then
+            git show "$BASE:tools/pr_guard.py" > "$RUNNER_TEMP/pr_guard.py"
+          else
+            cp tools/pr_guard.py "$RUNNER_TEMP/pr_guard.py"
+          fi
+          python3 "$RUNNER_TEMP/pr_guard.py" "$BASE"
