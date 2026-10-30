@@ -730,7 +730,7 @@ inline int calc_operand(const SkillTables& skill_tables, const Skill& skill, con
 struct PassiveStat { int stat = -1, value = 0; std::string itype; };
 
 // Every skill with passive stats the player has a level in (env.level >
-// 0), its stats up to the first empty passivestat: the passives, and the
+// 0) but a summoner, its stats up to the first empty passivestat: the passives, and the
 // Paladin's auras — theirs sit in the passivestate while the aura is off
 // (the state at +0x80 holds FUN_00646d60 off) and in the aura's own state
 // while it's on (FUN_005cf3a0 fills it from +0x98), so they're always on.
@@ -738,6 +738,12 @@ inline std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, c
     std::vector<PassiveStat> out;
     for (const auto& skill : skill_tables.rows) {
         if (skill.id < 0 || skill.passive_stat[0] < 0 || !env.level) continue;
+        // A summoner's passive stats are its pet's (FUN_005c4470 puts
+        // them on the pet: Raise Skeleton's maxhp from Skeleton Mastery,
+        // the golems' speed, the spirits' resists), not the player's.
+        // ponytail: FUN_00646f20's own skip isn't traced; none of these
+        // has a passivestate, the field it walks by.
+        if (!skill.summon.empty() || skill.srvdofunc == ServerDoFunction::kRevive) continue;
         const int lvl = env.level(skill.id);
         if (lvl < 1) continue;
         for (std::size_t k = 0; k < 5 && skill.passive_stat[k] >= 0; ++k)

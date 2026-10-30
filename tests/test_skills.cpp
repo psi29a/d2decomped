@@ -171,6 +171,15 @@ int main() {
         passive_tables.rows.push_back(fire_aura);
         CalcEnv aura_env{ .level = [&](int skill_id) { return skill_id == fire_aura.id ? 2 : 0; } };
         assert(passive_stats(passive_tables, aura_env).size() == 2);
+        // A summoner's passive stats are its pet's (Raise Skeleton's maxhp
+        // from Skeleton Mastery, Revive's speed): none on the player.
+        Skill raise = fire_aura;
+        raise.id = int(passive_tables.rows.size()); raise.aura = false; raise.summon = "necroskeleton";
+        Skill revive = fire_aura;
+        revive.id = raise.id + 1; revive.aura = false; revive.srvdofunc = ServerDoFunction::kRevive;
+        passive_tables.rows.push_back(raise); passive_tables.rows.push_back(revive);
+        CalcEnv summoner_env{ .level = [&](int skill_id) { return skill_id == raise.id || skill_id == revive.id ? 5 : 0; } };
+        assert(passive_stats(passive_tables, summoner_env).empty());
     }
     // A skill-less missile row's own element (FUN_0064b100 ..): brackets,
     // HitShift, length brackets. Claws of Thunder's nova at level 9.
