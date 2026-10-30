@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The same checks on every pull request, whoever (or whatever agent) wrote it.
 
-Usage: tools/pr_guard.py [BASE]   (default origin/main; reads the diff BASE...HEAD)
+Usage: tools/pr_guard.py [BASE [HEAD]]   (default origin/main HEAD; reads the diff BASE...HEAD)
 
   FAIL  a FUN_/LAB_ address outside game.exe's code, or any address outside
         its image: evidence that can't be true
-  FAIL  a new binary file outside assets/ and docs/screenshots/
+  FAIL  a new binary file outside assets/ and docs/screenshots/, or a file that
+        must stay local (game-strings.tsv, decompiled C, the Ghidra project,
+        MPQs, saves)
   FAIL  risky surface (network, downloads, process launches, workflows, the
         agent instructions, a long byte table) without the `security-reviewed`
         label, which only a maintainer adds after reading it
@@ -22,13 +24,16 @@ import json, os, re, subprocess, sys
 TEXT = (0x401000, 0x6cb5a1)  # game.exe 1.14d .text, from its PE header
 IMAGE = ((0x401000, 0x6cb5a1), (0x6cc000, 0x704a10), (0x705000, 0x994ca4), (0x995000, 0x996988))
 BINARY_OK = ("assets/", "docs/screenshots/")
+LOCAL_ONLY = re.compile(r"(^|/)game-strings\.tsv$|\.decomp\.c$|\.c\.ghidra$|^docs/research/re/[^/]*\.c$"
+                        r"|^tools/ghidra/project/|\.(gpr|rep|mpq|d2s|exe|dll)$", re.IGNORECASE)
 REVIEW_LABEL = "security-reviewed"
 # Paths that steer CI or every contributor's agent.
 RISKY_PATHS = re.compile(r"^(\.github/|AGENTS\.md$|CLAUDE\.md$|\.claude/|CONTRIBUTING\.md$|LEGAL\.md$)")
 RISKY_CODE = [  # (what, pattern) on added lines outside .md files
     ("a URL", re.compile(r"https?://")),
     ("a download", re.compile(r"FetchContent_Declare|ExternalProject_Add|\bcurl\b|\bwget\b|Invoke-WebRequest|urlopen")),
-    ("networking", re.compile(r"\bsocket\s*\(|WinHttp|InternetOpen|QNetworkAccessManager|\bconnect\s*\(")),
+    ("networking", re.compile(r"\bsocket\s*\(|WinHttp|InternetOpen|QNetwork|\bconnect\s*\(|\brequests\.|\bhttpx\b"
+                              r"|\burllib|http\.client|aiohttp|\bfetch\s*\(|XMLHttpRequest|Net\.WebClient")),
     ("a process launch", re.compile(r"\bsystem\s*\(|\bpopen\s*\(|CreateProcess|ShellExecute|subprocess|os\.system|\bexecv|\beval\s*\(")),
     ("encoded data", re.compile(r"b64decode|base64")),
     ("a long byte table", re.compile(r"(0x[0-9a-fA-F]{2}\s*,\s*){16}")),
@@ -41,10 +46,10 @@ def git(*args):
     return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
 
 
-def added_lines(base):
+def added_lines(base, head):
     """(path, line number, text) for every line the branch adds."""
     path, number = None, 0
-    for line in git("diff", "--unified=0", "--no-color", f"{base}...HEAD").splitlines():
+    for line in git("diff", "--unified=0", "--no-color", f"{base}...{head}").splitlines():
         if line.startswith("+++ "):
             path = line[6:] if line.startswith("+++ b/") else None
         elif line.startswith("@@"):
@@ -58,15 +63,17 @@ def in_ranges(address, ranges):
     return any(low <= address < high for low, high in ranges)
 
 
-def check(base, labels, entries):
+def check(base, labels, entries, head="HEAD"):
     fails, warns, risky = [], [], []
-    for row in git("diff", "--numstat", f"{base}...HEAD").splitlines():
+    for row in git("diff", "--numstat", "--no-renames", "--diff-filter=d", f"{base}...{head}").splitlines():
         added, _, path = row.split("\t", 2)
-        if added == "-" and not path.startswith(BINARY_OK):
+        if LOCAL_ONLY.search(path):
+            fails.append(f"{path}: must stay local (game files and game.exe's bytes; LEGAL.md)")
+        elif added == "-" and not path.startswith(BINARY_OK):
             fails.append(f"{path}: a binary file (allowed only under {', '.join(BINARY_OK)})")
         if RISKY_PATHS.match(path):
             risky.append(f"{path}: steers CI or contributors' agents")
-    for path, number, text in added_lines(base):
+    for path, number, text in added_lines(base, head):
         where = f"{path}:{number}"
         if path.startswith("docs/research/re/game-"):
             continue  # the exported tables themselves
@@ -101,8 +108,9 @@ def function_entries():
 
 if __name__ == "__main__":
     base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
+    head = sys.argv[2] if len(sys.argv) > 2 else "HEAD"
     labels = json.loads(os.environ.get("PR_LABELS") or "[]")
-    fails, warns, risky = check(base, labels, function_entries())
+    fails, warns, risky = check(base, labels, function_entries(), head)
     for line in warns:
         print("WARN ", line)
     for line in fails:

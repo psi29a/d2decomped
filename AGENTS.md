@@ -155,8 +155,9 @@ The same bar for everyone, people and agents alike.
 - Research notes go in `docs/research/re/<subsystem>.md`: addresses,
   offsets, tables, and the algorithm in prose. Raw decompiled C never goes in
   git.
-- Bugs in the original go in `bugs.md` with a confidence level. Intentional
-  differences go in `deviations.md`, behind `--toggle name=on|off`. Stubs and
-  dead code go in `stubs.md`.
+- Bugs in the original go in `docs/research/re/bugs.md` with a confidence
+  level. Intentional differences go in `docs/research/re/deviations.md`,
+  behind `--toggle name=on|off`. Stubs and dead code go in
+  `docs/research/re/stubs.md`.
 - Before pushing: `python3 tools/presubmit.py --quick` (lint and review
   checks), then the full run if you built.

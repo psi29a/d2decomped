@@ -51,6 +51,15 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(len(fails), 1)
         self.assertIn("components/x.bin", fails[0])
 
+    def test_local_only_files_fail_even_as_text(self):
+        fails, _ = self.run_guard({"docs/research/re/game-strings.tsv": b"address\tlength\tvalue\n",
+                                   "docs/research/re/drlg.c": b"int x;\n"})
+        self.assertEqual(len(fails), 2)
+
+    def test_an_http_client_with_a_variable_url_needs_the_label(self):
+        fails, _ = self.run_guard({"tools/fetch.py": b'requests.get(os.environ["SOURCE_URL"])\n'})
+        self.assertEqual(len(fails), 1)
+
     def test_risky_code_needs_the_label(self):
         files = {"components/x.cpp": b'auto h = InternetOpen("x");\n', ".github/workflows/w.yml": b"on: push\n"}
         fails, _ = self.run_guard(files)

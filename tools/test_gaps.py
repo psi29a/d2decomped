@@ -33,6 +33,11 @@ class GapsTests(unittest.TestCase):
         rows = list(gaps.tables(lines, stop="## Traced"))
         self.assertEqual(rows, [(4, "Title", {"What": "a", "Where": "FUN_00401000"})])
 
+    def test_rows_after_prose_keep_their_header(self):
+        lines = ["| Address | What |", "|---|---|", "| `0x5fd200` | a |", "", "A note.", "| `0x543de0` | b |"]
+        rows = [row for _, _, row in gaps.tables(lines)]
+        self.assertEqual(rows, [{"Address": "`0x5fd200`", "What": "a"}, {"Address": "`0x543de0`", "What": "b"}])
+
 
 if __name__ == "__main__":
     unittest.main()

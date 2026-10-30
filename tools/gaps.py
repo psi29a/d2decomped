@@ -53,22 +53,23 @@ def level(path):
 
 def tables(lines, stop=None):
     """(line number, heading, {column: cell}) for each body row of each markdown table."""
+    def separator(line):
+        return line.startswith("|") and set(line.strip()) <= set("|-: ")
+
     heading, header = "", None
     for i, line in enumerate(lines):
         if stop and line.startswith(stop):
             return
         if line.startswith("#"):
-            heading = line.lstrip("#").strip()
-        if not line.startswith("|"):
-            header = None
+            heading, header = line.lstrip("#").strip(), None
+        if not line.startswith("|") or separator(line):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if set(line.strip()) <= set("|-: "):
-            continue
-        if header is None:
+        # The row above a separator is a header; rows after prose keep it.
+        if i + 1 < len(lines) and separator(lines[i + 1]):
             header = cells
-            continue
-        yield i + 1, heading, dict(zip(header, cells))
+        elif header:
+            yield i + 1, heading, dict(zip(header, cells))
 
 
 def gap_id(kind, *parts):

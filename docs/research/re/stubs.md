@@ -28,13 +28,13 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_005a30e0` mod 24 | thief (MonUMod 24) on a hit | unreachable | MonUMod disables it; `FUN_005a49b0` skips it for Lord De Seis | not ported | monsters.md |
 | `FUN_00587830` | InitFn 70 (table 0x731bc0) | stub (`return`) | nothing happens when the object's room comes up | nothing | quests-act5.md "InitFns 66..70" |
 | unit events 0x31, 0x35, 0x39..0x3f, 0x44..0x47, 0x49 | fourteen class quest lines: nine `find` lines (Act 2 radament, summoner, tomb_decoy / true; Act 3 beneath, blackened, drain, guardian, lamesen), two completions (act2_complete_tightspot, the Maggot Queen's; act3_complete_beneath) and act2_begin_tainted, act2_near_tightspot, act2_trigger_field | unreachable | the client maps them to Sounds rows, but no server call or client table makes those ids (the other find lines come from the client's level table 0x72a2c4) | not played | unit-sounds.md "Find lines" |
-
-Still reachable, though the content looks dead: the uber levels 133..136
-build and populate (`FUN_005559a0`'s uber cases, the Hellfire Torch hook
-`FUN_005e0070`, UberIzual's real think `FUN_005f8c80`). d2d ports them
-all, so they work once something takes a player there.
 | `FUN_0054f860` | InitFn 10: queues object event 8 (`FUN_00581250`, mode 0 by day, 1 at night) in level 1 (the Rogue Encampment), else mode 2 + event 0 | unreachable | no objects.txt row has InitFn 10; event 8 runs only for the fissures (399), which take its other branch | not ported | objects.md "Time of day (EnvEffect)" |
 | `FUN_0046d660` | a critter's think when MonStats `zoo` (flag 0x16) is set: stand 20, or 20 % each walk to / flee 8 from the player, else wander 8 | unreachable | no Levels.txt cmon names a zoo row (zoo is on ordinary monsters, which never take the critter think) | ported anyway (town.cpp, for mods) | critters.md |
 | `FUN_0046d450` | critter row 574 (Worldstone Effect): 5 %, a unit (`FUN_004cdb40`) up to 30 subtiles round it | unreachable | no Levels.txt cmon names row 574 | not ported | critters.md |
 | `FUN_0046d780` rows 157 / 158 / 227 / 320 | the birds', maggot's and fish's critter thinks | unreachable | no Levels.txt cmon names them (parrot 319 shares the birds' think and is reached) | ported (shared code) | critters.md |
 | `0x543de0` | the quest event 6 wrapper (record slot +0xb8) | orphan (no call, jump or pointer) | no +0xb8 callback runs: Tools of the Trade's reset when the last carrier loses the malus (`0x5918d0`), the Search for Cain's `FUN_00592e60` rewind | not ported | act1-end.md "Tools of the Trade" |
+
+Still reachable, though the content looks dead: the uber levels 133..136
+build and populate (`FUN_005559a0`'s uber cases, the Hellfire Torch hook
+`FUN_005e0070`, UberIzual's real think `FUN_005f8c80`). d2d ports them
+all, so they work once something takes a player there.

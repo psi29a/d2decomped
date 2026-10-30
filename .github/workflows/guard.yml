@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# tools/pr_guard.py on every pull request: impossible evidence, binaries, and
-# risky surface without a maintainer's `security-reviewed` label.
+# tools/pr_guard.py on every pull request: impossible evidence, binaries and
+# local-only files, and risky surface without a maintainer's
+# `security-reviewed` label.
+#
+# pull_request_target runs this file and the guard as they are on the base
+# branch, so a pull request can't edit or drop its own check. The PR's commits
+# are fetched only as data for `git diff`: nothing from them is executed, and
+# the token is read-only.
 name: PR guard
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
@@ -16,17 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
-      # The base branch's guard, so a pull request can't loosen its own check.
+      - name: Fetch the pull request's commits (data only)
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "+refs/pull/$PR/head:refs/remotes/pr/head"
+
       - name: Check the pull request
         env:
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
-          BASE: origin/${{ github.base_ref }}
-        run: |
-          if git cat-file -e "$BASE:tools/pr_guard.py" 2>/dev/null; then
-            git show "$BASE:tools/pr_guard.py" > "$RUNNER_TEMP/pr_guard.py"
-          else
-            cp tools/pr_guard.py "$RUNNER_TEMP/pr_guard.py"
-          fi
-          python3 "$RUNNER_TEMP/pr_guard.py" "$BASE"
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: python3 tools/pr_guard.py "$BASE" pr/head
