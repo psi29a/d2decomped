@@ -31,12 +31,23 @@ or commit game files.
 
 ## 3. Pick one task
 
+The gap map lists what's left. Build it with `python3 tools/gaps.py` (a
+second, needs only git; writes `build/gaps/`) or read the published one at
+https://psi29a.github.io/d2decomped/ (`gaps.json`, `functions.tsv`).
+
 - Play and report: an act they like, against the original game if they can
-  run it. A behaviour gap beats a crash hunt; both count.
-- Trace a claim: one row of `docs/research/re/unverified.md`, or an open
-  issue labelled `good first issue` (`gh issue list -l "good first issue"`).
-  Suggest two or three and let them choose.
-- Fix or port: a `good first issue`, or a row they traced.
+  run it. A behaviour gap beats a crash hunt; both count. `todo.md` gaps
+  marked "Seen" are good things to check.
+- Trace a claim: a `todo` or `unverified` gap in `gaps.json`, or a
+  frontier function (`frontier` true in `functions.tsv`): untouched code
+  that ported code calls. Prefer a small one in a module they care about.
+  Search the issues for its address (`gh issue list --search 00526700`) so
+  two people don't take the same one, and have them open or comment on an
+  issue to claim it.
+- Fix or port: a `ponytail` gap, an issue labelled `good first issue`, or
+  a row they traced.
+
+Suggest two or three and let them choose.
 
 ## 4. Do it
 
@@ -58,6 +69,10 @@ Behaviour alone isn't. If you aren't sure, say so in the PR; never guess.
 
 - Branch, commit with a short subject line, open the PR with `gh pr create`.
   The body says what was claimed, the evidence, and how to re-check it.
+- The commit is theirs (their name as git author), even when you typed it.
+  If someone else reported or traced it, add `Reported-by: Name` or
+  `Traced-by: Name` as the last line. Re-run `tools/gaps.py`: the function
+  they cited moves out of "untouched", and the credits count them.
 - Tell them CI and CodeRabbit will comment, and that answering a review is
   part of the job.
 - Point them at the Discord (README "Collaborate") for the next task.

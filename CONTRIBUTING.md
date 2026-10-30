@@ -16,8 +16,21 @@ fits and walks you through it to a bug report or a pull request.
 | **Trace a claim** | the above + Ghidra and [uv](https://docs.astral.sh/uv/) | a PR that moves one row of [unverified.md](docs/research/re/unverified.md) to "Traced", with the game.exe address as evidence |
 | **Fix or port** | the above + a build ([README](README.md#build-and-run)) | a PR with a test, citing where in game.exe the behaviour comes from |
 
-Open tasks are on the issue tracker under
-[`good first issue`](https://github.com/psi29a/d2decomped/labels/good%20first%20issue).
+What's left is on the **[gap map](https://psi29a.github.io/d2decomped/)**:
+every game.exe function marked untouched, cited, ported or verified, every
+listed gap (todo, unverified, `ponytail:` notes, issues), and the
+"frontier", untouched code that ported code calls. Build it yourself with
+`python3 tools/gaps.py`. Any AI that can read a URL can query its
+`gaps.json` and `functions.tsv`.
+
+## Credit
+
+Your work is credited in git, and the gap map's credits list counts it:
+
+- **Code and traces:** you're the git author of your commits, even when an
+  AI typed them. You chose the task, checked the evidence and answered review.
+- **Reports and playtests:** the fix carries `Reported-by: Your Name`.
+- **A trace someone else ports:** the port carries `Traced-by: Your Name`.
 
 ## Rules
 
