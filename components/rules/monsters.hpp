@@ -143,7 +143,7 @@ struct SpawnRoom { int x = 0, y = 0, width = 0, height = 0; Rng seed; std::vecto
 // groups per room"). Runs before the room's monsters (FUN_0054ec90), on
 // the room1 seed. Per slot i = 0..7: one seed step for the roll, and
 // (when ObjGrp[i] != 0 and roll <= ObjPrb[i]) a second step to pick the
-// objgroup entry. The picked object's placement (FUN_00731d00's
+// objgroup entry. The picked object's placement (the table at 0x731d00's
 // PopulateFns) draws the object seed instead, not the room seed — so
 // stepping the room seed here is what monster population needs.
 // `rooms_populated_before` and `rooms_total` are the objrgn per-level
