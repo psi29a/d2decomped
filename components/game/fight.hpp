@@ -356,6 +356,10 @@ struct Fight {
         // Potions working: life / mana (8.8 fixed) a millisecond, until when.
         struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; bool poison = false; };
         struct StaminaPot { int bonus = 0; std::uint32_t until = 0; } stamina_pot;   // the staminapot state
+        // The antidote / thawing states (pSpell 6, FUN_005beda0): their potion's
+        // stats until when; [0] antidote, [1] thawing.
+        struct PotionState { std::vector<std::pair<int, int>> stats; std::uint32_t until = 0; };
+        std::array<PotionState, 2> potion_states;
         std::vector<Regen> regen;
         // A shrine's boost (Shrines.txt booster: its stats, FUN_00583b30), one
         // at a time, until when.

@@ -166,6 +166,16 @@ int main(int argc, char** argv) try {
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1 && !data->town.walk.empty());
+    if (data->patched) {
+        // The antidote's and thawing's states (misc.txt pSpell 6, FUN_005beda0):
+        // +50 resist, +10 max, for len 750.
+        const auto& antidote = data->rules.potions.at("yps");
+        const auto& thawing = data->rules.potions.at("wms");
+        using StatValue = std::pair<int, int>;
+        assert(antidote.antidote && antidote.ticks == 750 && (antidote.state_stats == std::vector<StatValue>{ { 45, 50 }, { 46, 10 } }));
+        assert(thawing.thawing && thawing.ticks == 750 && (thawing.state_stats == std::vector<StatValue>{ { 43, 50 }, { 44, 10 } }));
+        std::printf("OK: the antidote's and thawing's state stats\n");
+    }
     {
         // MonProp knock and crush on a monster foe (FUN_005bf960, FUN_005bffc0):
         // MonStats2 small / large, a hireling's 10, a boss's or unique's 8, +50 % a player past one.

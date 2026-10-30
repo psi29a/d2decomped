@@ -307,8 +307,8 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   drink. Pets: `FUN_005856a0`.
 - **Antidote / thawing** (misc.txt pSpell 6): states antidote / thawing
   for len 750 (+50 poison / cold resist, +10 max), clearing cstate1 / 2
-  (poison; freeze, cold). Akara stocks both. The timed resist isn't
-  ported.
+  (poison; freeze, cold). Akara stocks both. The state (`FUN_005beda0`):
+  a second drink adds len to what's left; its stats set while it lasts.
 
 ## Death
 

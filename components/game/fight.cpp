@@ -149,6 +149,7 @@ auto Fight::new_game(int difficulty) -> void {
         actor->self_states.clear();
         actor->boost = {};
         actor->stamina_pot = {};
+        actor->potion_states = {};
         actor->pets.clear();
         actor->attack_mon = -1;
         actor->item_charge = actor->attack_charge = {};            // no cast from a charged entry carried in
@@ -188,6 +189,7 @@ auto Fight::revive(std::uint32_t now_ms) -> void {
         actor->character.stats.values[kLife] = actor->character.stats.values[kMaxLife];
         actor->regen.clear();
         actor->stamina_pot = {};
+        actor->potion_states = {};
         actor->charges.clear();
         actor->self_states.clear();
         actor->curses[0] = {}; actor->marks[0] = {};
@@ -241,10 +243,16 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         if (code.empty()) return;
         const auto& potion = game_data->rules.potions.at(code);
-        // Antidote / thawing (pSpell 6): poison / chill gone.
-        // ponytail: their states' +50 resist, +10 max for len (750) aren't kept.
+        // Antidote / thawing (pSpell 6, FUN_005bef90): poison / chill gone,
+        // then its own state (FUN_005beda0): its stats (+50 resist, +10 max),
+        // the length (len, 750) added to what's left of one already on.
         if (potion.antidote) std::erase_if(actor->regen, [](const Regen& regen_entry) { return regen_entry.poison; });
         if (potion.thawing) actor->chilled = 0;
+        if (potion.antidote || potion.thawing) {
+            auto& state = actor->potion_states[potion.antidote ? 0 : 1];
+            state.stats = potion.state_stats;
+            state.until = std::max(state.until, now_ms) + std::uint32_t(std::max(potion.ticks, 0)) * 40;
+        }
         if (potion.stamina) actor->stamina_pot = { potion.stamina, now_ms + std::uint32_t(std::max(potion.ticks, 1)) * 40 };
         if (potion.antidote || potion.thawing || potion.stamina) { cues.cue("item_potion_drink", now_ms, actor->player.x, actor->player.y); return; }
         if (potion.percent) {
@@ -625,6 +633,9 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
         }
         if (now_ms < actor->stamina_pot.until) st_sum[d2d::d2s::kStaminaRecoveryBonus] += actor->stamina_pot.bonus;
+        for (const auto& state : actor->potion_states)
+            if (now_ms < state.until)
+                for (const auto& [id, value] : state.stats) if (std::size_t(id) < st_sum.size()) st_sum[std::size_t(id)] += value;
         if (now_ms < actor->boost.until)
             for (const auto& [id, value] : actor->boost.stats) if (std::size_t(id) < st_sum.size()) st_sum[std::size_t(id)] += value;
         // Max life / mana % (item_maxhp_percent 76, item_maxmana_percent 77;
@@ -659,9 +670,12 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         actor->player_combat = player_fighter(&actor->pf_kick, &st_sum, &passives, &actor->psum);
         constexpr int kRes[4] = { kFireResist, kLightningResist, kColdResist, kPoisonResist };          // Fighter::res order: fire, lightning, cold, poison
         constexpr std::size_t kPanelRes[4] = { 0, 2, 1, 3 };  // PanelStats::res_cap order: fire, cold, lightning, poison
-        for (std::size_t k = 0; k < 4; ++k)                  // a resist aura's or shrine's on top of the panel's (Salvation, Resist Fire, ...), to its cap
-            if (const auto value = st_sum[std::size_t(kRes[k])]; value != 0)
-                actor->player_combat.res[k] = int(std::min<std::int64_t>(actor->player_combat.res[k] + value, actor->character.panel.res_cap[kPanelRes[k]]));
+        // A resist aura's, shrine's or potion's on top of the panel's (Salvation,
+        // Resist Fire, an antidote, ...), to its cap: 75 + every max resist (the
+        // stat after each), at most 95.
+        for (std::size_t k = 0; k < 4; ++k)
+            if (const auto value = st_sum[std::size_t(kRes[k])], more = st_sum[std::size_t(kRes[k] + 1)]; value != 0 || more != 0)
+                actor->player_combat.res[k] = int(std::min<std::int64_t>(actor->player_combat.res[k] + value, std::min<std::int64_t>(actor->character.panel.res_cap[kPanelRes[k]] + more, 95)));
         actor->player_combat.ias += int(st_sum[kAttackRate]);
         actor->player_combat.frw += int(st_sum[kVelocityPercent]);
         for (const auto& passive : passives) if (passive.stat == kVelocityPercent && passive.itype.empty()) actor->player_combat.frw += passive.value;   // Increased Speed

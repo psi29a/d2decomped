@@ -947,6 +947,9 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 }
             }
         // Potions (misc.txt stat1/calc1, stat2/calc2, len), autobelt.
+        std::unordered_map<std::string, int> isc_ids;
+        if (const auto isc = txt("ItemStatCost"); isc.size() > 0)
+            for (std::size_t row = 0; row < isc.size(); ++row) isc_ids.emplace(std::string(isc.get(row, "Stat")), std::atoi(std::string(isc.get(row, "ID")).c_str()));
         for (std::size_t row = 0; row < misc.size(); ++row) {
             auto number = [&](const std::string& column) { return std::atoi(std::string(misc.get(row, column)).c_str()); };
             if (number("autobelt")) if (const auto base = game_data.rules.item_base.find(std::string(misc.get(row, "code"))); base != game_data.rules.item_base.end()) base->second.autobelt = true;
@@ -956,9 +959,12 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             else if (stat1 == "manarecovery") potion.mana = number("calc1");
             else if (stat1 == "staminarecoverybonus") potion.stamina = number("calc1");
             else if (stat1 == "hitpoints" && stat2 == "mana") { potion.life = number("calc1"); potion.mana = number("calc2"); potion.percent = true; }
-            else if (misc.get(row, "pSpell") == "6") {             // antidote / thawing: the states they clear (cstate1/2)
+            else if (misc.get(row, "pSpell") == "6") {             // antidote / thawing: the states they clear (cstate1/2), their own's stats
                 potion.antidote = misc.get(row, "cstate1") == "poison";
                 potion.thawing = misc.get(row, "cstate2") == "cold";
+                for (const char* slot : { "1", "2", "3" })
+                    if (const auto found = isc_ids.find(std::string(misc.get(row, std::string("stat") + slot))); found != isc_ids.end())
+                        potion.state_stats.emplace_back(found->second, number(std::string("calc") + slot));
             }
             else continue;
             game_data.rules.potions.emplace(std::string(misc.get(row, "code")), potion);

@@ -232,7 +232,10 @@ struct Tables {
     // misc.txt potions: life / mana restored (hpregen / manarecovery: that
     // much over `ticks`; hitpoints / mana on a rejuvenation: percent, at once;
     // stamina: staminarecoverybonus % for `ticks`).
-    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false, antidote = false, thawing = false; int stamina = 0; };
+    // An antidote's / thawing's state (pSpell 6): its stats (ItemStatCost
+    // id, value) for `ticks` frames.
+    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false, antidote = false, thawing = false; int stamina = 0;
+                    std::vector<std::pair<int, int>> state_stats; };
     std::unordered_map<std::string, Potion> potions;
 };
 
