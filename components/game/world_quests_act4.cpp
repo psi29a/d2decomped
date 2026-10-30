@@ -263,9 +263,11 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
             const auto& area_levels = game_data->area_level;
             const int alvl = std::size_t(river->id) < area_levels.size() ? area_levels[std::size_t(river->id)][std::size_t(diff)] : 1;
             const auto& table = d2d::rules::HellforgeQuest::kGems[std::size_t(gem_rounds == 4 ? 2 : gem_rounds == 1 ? 0 : 1)];
-            const char* gem = table[std::size_t(fight.spawning.quests(7))];
-            loot.put({ .code = gem }, forge->x, forge->y, alvl, fight.spawning.game, now_ms, false, 0, river);
-            d2d::log::info("The Hellforge: round {}, {}", gem_rounds, gem);
+            for (int share = 0; share < std::max(gem_shares, 1); ++share) {   // +0x14: one each player it credited
+                const char* gem = table[std::size_t(fight.spawning.quests(7))];
+                loot.put({ .code = gem }, forge->x, forge->y, alvl, fight.spawning.game, now_ms, false, 0, river);
+                d2d::log::info("The Hellforge: round {}, {}", gem_rounds, gem);
+            }
             if (--gem_rounds > 0) gems_at = now_ms + d2d::rules::HellforgeQuest::kRoundFrames * kTickMs;
             else {
                 gems_at = 0;
@@ -338,6 +340,19 @@ auto World::act4_operate(int npc_index, std::uint32_t now_ms) -> bool {
             if (struck.takes_stone) { take_carried(d2d::rules::HellforgeQuest::kStone); doors[{ level, npc_index }] = Door{ 2, now_ms }; d2d::log::info("The Hellforge: the soulstone set"); }
             if (struck.done) {
                 take_carried(d2d::rules::HellforgeQuest::kHammer);
+                // Every other player in act 4 not done (FUN_005b5b00): their hammer
+                // and soulstone taken, bits 13 and 1; each a gem a round (+0x14).
+                gem_shares = 1;
+                const int striker = actor->id;
+                each_player([&](Player& player) {
+                    auto& bits = quests();
+                    constexpr int kForgeQuest = d2d::rules::HellforgeQuest::kQuest;
+                    if (player.id == striker || act() != 3 || d2d::rules::quest::bit(bits, kForgeQuest, 0) || d2d::rules::quest::bit(bits, kForgeQuest, 1)) return;
+                    while (carries(d2d::rules::HellforgeQuest::kHammer)) take_carried(d2d::rules::HellforgeQuest::kHammer);
+                    while (carries(d2d::rules::HellforgeQuest::kStone)) take_carried(d2d::rules::HellforgeQuest::kStone);
+                    d2d::rules::quest::set(bits, kForgeQuest, 13); d2d::rules::quest::set(bits, kForgeQuest, 1);
+                    ++gem_shares;
+                });
                 doors[{ level, npc_index }] = Door{ 3, now_ms };
                 gem_rounds = d2d::rules::HellforgeQuest::kRounds;
                 gems_at = now_ms + d2d::rules::HellforgeQuest::kStrikeFrames * kTickMs;

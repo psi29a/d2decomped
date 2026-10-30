@@ -261,7 +261,7 @@ struct World {
     // does, and are left alone.
     // ponytail: one rule for the other quests; a callback that asks more
     // (an act, a bit besides 0 and 1) isn't told apart.
-    static constexpr std::array<int, 19> kOwnCredit{ 1, 2, 3, 4, 5, 6, 9, 11, 12, 13, 14, 0x13, 0x15, 0x16, 0x19, 0x1a, 0x23, 0x26, 0x28 };   // Den, Burial, Tools, Cain, Tower, Andariel, Radament, Tainted Sun, Arcane, Summoner, Tombs, Blade, Temple, Guardian, Izual, Terror's End, Siege, Betrayal, Eve
+    static constexpr std::array<int, 21> kOwnCredit{ 1, 2, 3, 4, 5, 6, 9, 11, 12, 13, 14, 0x13, 0x15, 0x16, 0x19, 0x1a, 0x1b, 0x23, 0x26, 0x27, 0x28 };   // Den, Burial, Tools, Cain, Tower, Andariel, Radament, Tainted Sun, Arcane, Summoner, Tombs, Blade, Temple, Guardian, Izual, Terror's End, Hellforge, Siege, Betrayal, Rite, Eve
     // The party's share of a step (FUN_00540510; local co-op is one party):
     // each other player in the act (the quest's own act; Act 1's here),
     // neither done nor due, gets `bits`.
@@ -448,6 +448,7 @@ struct World {
     bool game_closed = false;              // classic, 95 s on (FUN_00530590), or 90 s without bit 13 (C->S 0x69)
     std::uint32_t gems_at = 0;             // the forge's event 7 (FUN_005b6710): the next round of gems
     int gem_rounds = 0;                    // its data +8: rounds left (4 perfect .. 1 plain)
+    int gem_shares = 1;                    // its data +0x14: the players the strike credited, a gem each a round
     bool forge_inited = false;             // the forge's InitFn ran (its room came up)
     // A seal's boss, due at its flash's event 7 (object 131, 27 frames on;
     // FUN_005b5750 -> FUN_00545c30) at the flash's spot, subtiles.
