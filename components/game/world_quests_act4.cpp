@@ -149,9 +149,8 @@ auto World::act4_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             // (LAB_005b3de0 -> sound event 0x4a), the rest bit 14 (LAB_005b3cd0).
             namespace quest = d2d::rules::quest;
             constexpr int kIzualQuest = d2d::rules::IzualQuest::kQuest;
-            const int killer = actor->id;
-            each_player([&](Player& player) {
-                if (player.id == killer || near_room(kill.x, kill.y, player.player.x, player.player.y)) izual.killed(quests(), kill.x, kill.y);
+            each_player([&](Player& player) {                  // kill.killer 0: no player's kill
+                if ((kill.killer != 0 && player.id == kill.killer) || near_room(kill.x, kill.y, player.player.x, player.player.y)) izual.killed(quests(), kill.x, kill.y);
             });
             each_player([&](Player&) {
                 auto& bits = quests();

@@ -164,12 +164,13 @@ int run() {
     fs::create_directories(home / "Games" / "not-a-prefix");
     fs::create_directories(home / ".steam/steam/steamapps/compatdata/2536520/pfx/drive_c");
     fs::create_directories(root / "lutris-d2" / "drive_c");
-    fs::create_directories(root / "lutris-caf\xc3\xa9" / "drive_c");            // a YAML-escaped "é" (PyYAML's \xe9)
-    write(home / ".config/lutris/games/diablo-ii-2.yml", "game:\n  prefix: \"" + (root / "lutris-caf").string() + "\\xe9\"\n");
+    const auto accented = root / fs::path(std::u8string(u8"lutris-caf\u00e9"));   // a YAML-escaped "é" (PyYAML's \xe9)
+    fs::create_directories(accented / "drive_c");
+    write(home / ".config/lutris/games/diablo-ii-2.yml", "game:\n  prefix: \"" + (root / "lutris-caf").generic_string() + "\\xe9\"\n");
     write(home / ".config/lutris/games/diablo-ii-1.yml", "game:\n  exe: Game.exe\n  prefix: " + (root / "lutris-d2").string() + "\n");
     fs::create_directories(root / "library/steamapps/compatdata/7/pfx/drive_c");
     write(home / ".steam/steam/steamapps/libraryfolders.vdf",
-          "\"libraryfolders\"\n{\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + (root / "library").string() + "\"\n\t}\n}\n");
+          "\"libraryfolders\"\n{\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + (root / "library").generic_string() + "\"\n\t}\n}\n");
     fs::create_directories(home / "Library/Containers/com.isaacmarovitz.Whisky/Bottles/B1/drive_c");
     fs::create_directories(root / "custom" / "drive_c");
 
@@ -301,7 +302,7 @@ int run() {
     // --- Wine prefix discovery ------------------------------------------------
     const auto found = wine_prefixes(home, (root / "custom").string(), false);
     assert(found.size() == 7 && found[0] == root / "custom" && found[1] == prefix);
-    assert(found[2] == home / "Games" / "diablo-ii" && found[3] == root / "lutris-d2" && found[4] == root / "lutris-caf\xc3\xa9");
+    assert(found[2] == home / "Games" / "diablo-ii" && found[3] == root / "lutris-d2" && found[4] == accented);
     assert(found[5] == home / ".steam/steam/steamapps/compatdata/2536520/pfx" && found[6] == root / "library/steamapps/compatdata/7/pfx");
     assert(wine_prefixes(home, (root / "custom").string(), true).size() == 8);   // + Whisky, on request only
     assert(wine_prefixes(home, "", false).size() == 6);

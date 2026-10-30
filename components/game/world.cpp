@@ -1378,7 +1378,8 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         namespace quest = d2d::rules::quest;
         constexpr int kQuest = d2d::rules::AndyQuest::kQuest;
-        const bool first = andy.killed(quests());      // the killer's (FUN_00596210)
+        const bool first = kill.killer != 0 && andy.killed(quests());   // the killer's (FUN_00596210); a monster's kill none
+        if (kill.killer == 0) { andy.state = 4; andy.after_kill = 1; }
         if (first) {
             open_act(1);
             for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
