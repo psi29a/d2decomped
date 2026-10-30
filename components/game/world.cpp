@@ -1019,22 +1019,37 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             d2d::log::info("trap {}: fire", trap);
             return;
         }
-        if (trap == 8) {                               // FUN_005822f0: 1 or 2 of the level's undead family
+        // Trap 8 (FUN_005822f0): (a step of the object seed, game +0x10f0,
+        // & 1) + 1 of the level's undead family; each (FUN_00582280) by
+        // FUN_005b2490: the level's own of the family (level_monster), mode
+        // 8 (S1), round the chest in its room (FUN_005b23c0 -> FUN_005b2a00,
+        // spawn_spot) at radius -1, else 1, else 3; none: not made. Its unit
+        // seed a step of the game seed (FUN_00552df0), its look, variant and
+        // props drawn on it (spawn_monsters).
+        if (trap == 8) {
             const int fam = d2d::rules::trap_undead(level->region[std::size_t(diff)], 0);
             if (fam < 0 || fight.mon_level != level) { d2d::log::info("trap 8: no undead here"); return; }
-            const int type = level_monster(*game_data, *level, fam);   // FUN_0063ec70: the level's own variant of the family
-            const int count = undead ? undead : int(rng.next() & 1) + 1;
+            const int count = undead ? undead : int(fight.spawning.objects.next() & 1) + 1;
+            const int type = level_monster(*game_data, *level, fam);
+            Crowd crowd = crowd_now();
+            const int chest_x = int(std::floor(x * 5)), chest_y = int(std::floor(y * 5)), room = room_of(*level, x, y);
+            const auto& region = std::size_t(level->id) < fight.spawning.regions.size() ? fight.spawning.regions[std::size_t(level->id)] : d2d::rules::Region{};
+            int made = 0;
+            std::vector<Monster> risen;
+            risen.reserve(std::size_t(count));
             for (int k = 0; k < count; ++k) {
-                const auto [free_x, free_y] = level->nearest_free(x + float(k) * 0.4f, y + 0.4f);
-                auto monster = make_monster(*game_data, type, free_x, free_y, rng, diff, true, int(players.size()));
-                // Its unit seed: a step of the game seed (FUN_00552df0), what its drops roll off.
-                // ponytail: its look doesn't draw on it first, as spawn_monsters' does
-                // (monster spawning: agent D's).
-                monster.seed = d2d::rules::Rng{ fight.spawning.game.next() };
+                int at_x = 0, at_y = 0;
+                auto& in_play = fight.spawning.levels[level];
+                if (!std::ranges::any_of(std::array{ -1, 1, 3 }, [&](int radius) { return spawn_spot(*game_data, *level, crowd, &in_play, type, chest_x, chest_y, radius, room, at_x, at_y); })) continue;
+                const d2d::rules::Spawn spawn{ .type = type, .x = at_x, .y = at_y, .seed = fight.spawning.game.next() };
+                auto monster = std::move(spawn_monsters(*game_data, std::span{ &spawn, 1 }, region, rng, diff, int(players.size())).front());
+                set_mode(*game_data, monster, "S1", now_ms);
                 monster.aware = true;
-                fight.add_monster(std::move(monster));
+                crowd.units.push_back(&risen.emplace_back(std::move(monster)).unit);
+                ++made;
             }
-            d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, count);
+            for (auto& monster : risen) fight.add_monster(std::move(monster));
+            d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, made);
             return;
         }
         const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";
@@ -1224,6 +1239,7 @@ auto World::new_game() -> void {
         doors.clear();
         fires.clear();
         afterglow_made = false;
+        afterglow_due = 0;
         traps.clear();
         treasure.clear();
         cain_walk = {};
@@ -2929,18 +2945,22 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         // FUN_005bd390, once a game: round where he went (0x741538's
         // (dx, dy), from index `quest seed & 1`: 7 or 8; index 7 repeats
         // index 2, bugs.md #20) object 131 at a free spot near each, mode 1,
-        // gone 27 frames on (InitFn 59).
-        // ponytail: made the tick he goes, not two on; the free spot is
-        // nearest_free's, not FUN_00545340's size 3 / mask 0x3f11 search.
+        // gone 27 frames on (InitFn 59), two ticks after he goes (the record's
+        // timer, FUN_005bd4a0), each at the spot FUN_00545340 finds round it
+        // (size 3, mask 0x3f11, 100 rings: Level::free_area); none, not made.
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
             !afterglow_made && wanderer != fight.monsters.end() && !game_data->afterglow.code.empty()) {
+            if (afterglow_due == 0) afterglow_due = now_ms + 2 * kTickMs;
+        }
+        if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
+            !afterglow_made && afterglow_due != 0 && now_ms >= afterglow_due && wanderer != fight.monsters.end()) {
             afterglow_made = true;
             cues.cue_on(unit_key(kSoundOnMonster, wanderer->id), "object_wanderer_fissure", now_ms, wanderer->unit.x, wanderer->unit.y);
             static constexpr std::array<std::pair<int, int>, 8> kAround{ { { -3, -3 }, { -3, 0 }, { -3, 3 }, { 0, -3 }, { 0, 3 }, { 3, -3 }, { 3, 0 }, { -3, 3 } } };
-            for (auto at = std::size_t(fight.spawning.quests.next() & 1); at < kAround.size(); ++at) {
-                const auto [x, y] = level->nearest_free(wanderer->unit.x + float(kAround[at].first) / 5, wanderer->unit.y + float(kAround[at].second) / 5);
-                fires.push_back({ level, &game_data->afterglow, x, y, now_ms, now_ms + 27 * kTickMs });
-            }
+            const int from_x = int(std::floor(wanderer->unit.x * 5)), from_y = int(std::floor(wanderer->unit.y * 5));
+            for (auto at = std::size_t(fight.spawning.quests.next() & 1); at < kAround.size(); ++at)
+                if (const auto spot = level->free_area(from_x + kAround[at].first, from_y + kAround[at].second, 3, 0x3f11, 100))
+                    fires.push_back({ level, &game_data->afterglow, (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5, now_ms, now_ms + 27 * kTickMs });
             d2d::log::info("the Dark Wanderer's afterglow: {}", std::ranges::count(fires, &game_data->afterglow, &Fire::npc));
         }
         std::erase_if(fires, [&](const Fire& fire) { return fire.gone && now_ms >= fire.gone; });
