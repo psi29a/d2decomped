@@ -94,6 +94,13 @@ int main() {
     tables.item_base["hlm"] = { .minac = 10, .maxac = 20, .cost = 1000 };
     Item helm = item("hlm"); helm.defense = 15;
     assert(item_price(tables, helm, "Charsi", false, header) == 750 && item_price(tables, helm, "Charsi", true, header) == 187);
+    // A class item (ItemTypes Class) sells for a quarter (FUN_0062c060); buying is the full price.
+    tables.types["wand"] = { .cls = "nec" };
+    tables.item_info["wnd"] = { .type = "wand", .kind = 2 };
+    tables.item_base["wnd"] = { .cost = 1000 };
+    assert(item_price(tables, item("wnd"), "Charsi", false, header) == 1000 && item_price(tables, item("wnd"), "Charsi", true, header) == 62);
+    Item eth_wand = item("wnd"); eth_wand.ethereal = true;
+    assert(item_price(tables, eth_wand, "Charsi", true, header) == 15);                // and ethereal: a sixteenth
 
     // Placement: column-first, weapons spill from tab 1 to 2, armour doesn't.
     Store store;
