@@ -459,8 +459,11 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
         const auto [mul, add] = costs[std::size_t(index)];
         return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
     };
+    // The quality extras count only once the item is identified (0062f182):
+    // an unidentified magic item sells as a normal one, a low quality one isn't halved.
+    // ponytail: the stats' own costs (FUN_00628e70) and staff mods (FUN_0062edd0) aren't added.
     int x = 0;
-    switch (item.quality) {
+    switch (item.identified ? item.quality : 0) {
         case 1: x = -(base / 2); break;
         case 4: x = extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); break;
         case 5: x = extra(tables.set_cost, item.set_id); break;
