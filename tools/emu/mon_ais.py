@@ -374,7 +374,7 @@ def install(e):
         elif cb == 0x5f7700:                                               # Mephisto's chooser: [3] the weakest, [5] a player nearest
             if s["weak"]: e.w32(ctx + 12, cur["units"]["foe2"])
             if s["near5"]: e.w32(ctx + 20, cur["units"]["kin"])
-        elif cb == 0x5e0430:                                               # the weakest ally under 76 % within 50 (squared): the council's
+        elif cb == 0x5e0430:                                               # the weakest ally under 75 % within 50 (squared): the council's
             if s["aid"] and S32(s["kin_d"]) <= S32(e.r32(ctx + 8)): e.w32(ctx, cur["units"]["aid"])
         elif cb == 0x5f7240:                                               # a hurt zakarum within aip6 (squared): the priest's
             if s["aid"] and S32(s["kin_d"]) <= S32(e.r32(ctx + 12)): e.w32(ctx, cur["units"]["aid"])

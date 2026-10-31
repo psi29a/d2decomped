@@ -241,7 +241,7 @@ Act 3's MonAIs (levels 75..102, same table). Search type in brackets where it is
 | ZakarumZealot | 48 | FUN_005f6e60 | spares (runs off 8, else wanders 6) a player, or a pet whose owner is one (FUN_0058f090), in act 3 (FUN_006427f0) with quest 0x15 bit 0 (FUN_0065c310); hit under aip3 % life runs off 8 once (state2 5); on 0x40 circles 4 / walks in; out of melee aip4 % runs in (mode RN, FUN_005ded20), else walks; in melee aip2 % A2 else A1, after a swing aip1 % on, else 80 % stands 10, 20 % circles 4. Pace Run / Velocity |
 | ZakarumPriest | 49 | FUN_005f72d0 | hit or in melee under 33 % life, Skill3 (teleport) every aip5 × 4 frames to a point past the target (×2, ×4 in melee); in melee aip1 % A1; Skill1 (heal) 25 % at the weakest zakarum (0xeb / 0xee) under 61 % within aip6 (FUN_005f7240); no line to the target (FUN_005dd290, mask 4): aip1 % then aip2 % Skill4 (cooldown aip5); a line: aip4 %, Skill4, then Skill2 aip3 % (cooldown 20); else 30 % circles 4, stands 20 |
 | Mephisto | 50 | FUN_005f78b0 | hurt = (100 - life %) / 5; a case kept in state3 (jump table 0x5f7ef0): 1 runs off 8 (in melee Skill3), 2 casts by his chooser (FUN_005f77c0; bugs.md #21) over the skills set in a row, past Normal Skill6 at a unit with no line or past 30, Skill5 within 15, else by thirds Skill4 / Skill2 / Skill1, every other one circling 3; 3 A1 / Skill3 / circles 3; 4 about the target 6 |
-| HighPriest | 85 | FUN_005e0490 | the Council: state 0 picks Skill2 at the weakest ally under 76 % within 50 (FUN_005e0430), Skill1 at a corner 5 off the target (FUN_00472210, 0x6e337c), S1 within MissS1's Missiles.txt Range - 2 (FUN_0046ace0 +0x96), else circles 3 / approaches 6; state 1 shoots, stands, wanders 12 or walks in |
+| HighPriest | 85 | FUN_005e0490 | the Council: state 0 picks Skill2 at the weakest ally (itself too) under 75 % within 50 (FUN_005e0430: <= 0x4b and under its best, which starts at 0x4b), Skill1 at a corner 5 off the target (FUN_00472210, 0x6e337c), S1 within MissS1's Missiles.txt Range - 2 (FUN_0046ace0 +0x96), else circles 3 / approaches 6; state 1 shoots, stands, wanders 12 or walks in |
 | Hydra | 86 [2] | FUN_005e9e60 | past its end frame (AI control +0x14) gone (FUN_005ddfc0); within 25, 60 % Skill1; else stands 10 |
 | FetishBlowgun | 96 | FUN_005e1250 | its group's command (1 A1 at the unit, 14 a walk to it, FUN_00552f60); past aip1 about the target 6; else aip2 % breaks off (state 2: backs off 14, or 20 % circles 4); shoots its second target rand(3) + 3 thinks (none: circles 4), then circles 6 |
 
@@ -417,7 +417,7 @@ Teleport too (MonTeleport for him). imp6..8's Inferno is seq_impinferno
 (SC rows, an event-4 row 12 running do 126), and probably never plays:
 only a riding imp casts Skill5, and imp6..8's levels have nothing to ride
 (stubs.md). `act5_search.py` checks the claim's mode-1 order and filters
-against game.exe; d2d uses `rules::first_room_unit`.
+against game.exe; d2d uses `rules::room_order`.
 
 ## Act 5's monster skills (traced 2026-10-24)
 

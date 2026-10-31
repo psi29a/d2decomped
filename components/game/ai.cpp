@@ -657,6 +657,21 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // ponytail: the word read now, not a moving path's cached +0x54.
     if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) { idle(5); return true; }
     const int x = subtile(unit.x), y = subtile(unit.y);
+    // The eligible pack units in FUN_005dd0b0 mode 1's order (FUN_005dce60,
+    // FUN_0065ac70): near rooms in order, each room's newest first.
+    const auto near_order = [&](auto eligible) {
+        std::vector<int> rooms;
+        for (const auto& [room_level, room] : near_rooms(game_data, level, unit.x, unit.y))
+            if (room_level == &level) rooms.push_back(room);
+        std::vector<d2d::rules::RoomUnit> units;
+        units.reserve(pack.size());
+        for (const auto& other : pack) units.push_back({ room_at(level, other.unit.x, other.unit.y), eligible(other) });
+        return d2d::rules::room_order(units, rooms);
+    };
+    const auto first_near = [&](auto eligible) {
+        const auto order = near_order(eligible);
+        return order.empty() ? -1 : order.front();
+    };
     auto [target, best, nearest] = search_target(game_data, level, monster, foes, seen);
     // A minion under Cry Help (AI command 1, FUN_0058f730): the unit it's sent
     // at, while that lives, is its target (the Minion think, command kind 1).
@@ -1045,20 +1060,24 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // The heals' searches: the priests' (FUN_005f7240) a zakarum (BaseId
         // zealot1 / cantor1) within aip6 (squared) under 61 % life, the last
         // found (its best is never kept, bugs.md #22); the Council's
-        // (FUN_005e0430) the weakest under 76 % within 50 (squared 2500).
-        // ponytail: the pack in its order, not the near rooms' units.
+        // (FUN_005e0430) the weakest under 75 % (its start, 0x4b) within 50
+        // (squared 2500), itself too, not under Confuse / Attract / Conversion
+        // (FUN_006259b0 0). Both friends (FUN_00650d70), live, in near order.
         const bool priest = type_info.ai_name == "ZakarumPriest", council = type_info.ai_name == "HighPriest";
-        int weakest = 76;
-        for (std::size_t i = 0; (priest || council) && i < pack.size(); ++i) {
-            const auto& other = pack[i];
-            if (&other == &monster || !other.alive()) continue;
-            const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
-            const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
-            const int base = game_data.monsters.types[std::size_t(other.type)].base;
-            if (priest && (base == 235 || base == 238) && squared <= input.aip[5] * input.aip[5] && life < 61) { aid = int(i); input.kin_dist = squared; }
-            if (council && squared <= 2500 && life < weakest) { aid = int(i); weakest = life; input.kin_dist = squared; }
+        if (priest || council) {
+            int weakest = 75;
+            for (const int i : near_order([&](const Monster& other) {
+                     return other.alive() && d2d::rules::friends(monster.align, other.align) && (priest ? &other != &monster && other.align != 2 : other.align == 0);
+                 })) {
+                const auto& other = pack[std::size_t(i)];
+                const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
+                const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
+                const int base = game_data.monsters.types[std::size_t(other.type)].base;
+                if (priest && (base == 235 || base == 238) && squared <= input.aip[5] * input.aip[5] && life < 61) { aid = i; input.kin_dist = squared; }
+                if (council && squared <= 2500 && life < weakest) { aid = i; weakest = life; input.kin_dist = squared; }
+            }
+            input.aid = aid >= 0;
         }
-        if (priest || council) input.aid = aid >= 0;
         // The wisps (FUN_0065a950 / FUN_0065ac70, radius 0x20): its room alone
         // when the square 32 round it lies inside it (FUN_0065a6b0), else its
         // near list; FUN_0065a710 lets every room of it through (bugs.md #23);
@@ -1230,17 +1249,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
             input.attacker = input.got_hit;
         }
-        // The first eligible unit in near-room then newest-unit order
-        // (FUN_0065ac70); `pack` is oldest first.
-        const auto first_near = [&](auto eligible) {
-            std::vector<int> rooms;
-            for (const auto& [room_level, room] : near_rooms(game_data, level, unit.x, unit.y))
-                if (room_level == &level) rooms.push_back(room);
-            std::vector<d2d::rules::RoomUnit> units;
-            units.reserve(pack.size());
-            for (const auto& other : pack) units.push_back({ room_at(level, other.unit.x, other.unit.y), eligible(other) });
-            return d2d::rules::first_room_unit(units, rooms);
-        };
         // Nihlathak's Corpse Explosion (FUN_0056e390): the first unused,
         // corpseSel DD corpse within 10, squared subtile distance <= 100.
         if (name == "Nihlathak") {

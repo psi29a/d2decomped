@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""FUN_005dd0b0 mode 1's Act 5 searches against rules::first_room_unit.
+"""FUN_005dd0b0 mode 1's Act 5 searches against rules::room_order (its first).
 
     uv run python act5_search.py [cases] [seed] [--dump]
 
