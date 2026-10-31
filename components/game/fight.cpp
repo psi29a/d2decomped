@@ -931,6 +931,10 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (const auto* curse = target.curse.skill >= 0 ? game_data->skills.get(target.curse.skill) : nullptr; by_player && curse && curse->auratarget == "lifetap")
             actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife]
                                          + ((std::int64_t(blow.damage) * calc(*curse, curse->calc[0], target.curse.level) / 100) << 8));
+        // ponytail: when soak (Bone Armor) takes part of the hit, blow.frac is
+        // dropped: the 256ths aren't applied to the monster's life then.
+        // game.exe's absorb (FUN_0057bf10) works on the fine value; that
+        // partial case isn't modelled.
         const int taken = soak(target, d2d::rules::resisted(blow.phys, target_of(monster_index).res[0]), blow.damage);
         if (hurt(*game_data, target, taken, now_ms, taken == blow.damage ? blow.frac : 0)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
