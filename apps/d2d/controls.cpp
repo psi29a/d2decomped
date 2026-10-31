@@ -91,6 +91,18 @@ std::uint16_t virtual_key(SDL_Keycode key) {
     }
 }
 
+int click_event(const SDL_Event& event, const keys::Clicks& clicks, bool& down) {
+    std::uint16_t key = keys::kNone;
+    if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) key = virtual_key(event.key.key);
+    else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        const auto button = event.button.button;
+        key = button == SDL_BUTTON_MIDDLE ? keys::kMouse3 : button == SDL_BUTTON_X1 ? keys::kMouse4 : button == SDL_BUTTON_X2 ? keys::kMouse5 : keys::kNone;
+    }
+    if (key == 0 || key == keys::kNone) return -1;
+    down = event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+    return keys::click_of(clicks, key);
+}
+
 bool key_held(std::uint16_t key) {
     if (key == keys::kNone) return false;
     if (key >= keys::kMouse3 && key <= keys::kMouse5) {
@@ -109,10 +121,17 @@ bool key_held(std::uint16_t key) {
     return false;
 }
 
-void ControlsUI::show(const keys::Table& keys_now, const pad::Config& pad_now, bool lod) {
+void ControlsUI::show(const keys::Table& keys_now, const pad::Config& pad_now, bool lod, const keys::Clicks& clicks_now) {
     open = true;
     expansion = lod;
     table = backup = keys_now;
+    clicks = clicks_backup = clicks_now;
+    // A click key still in the table (d2d.cfg's, or a .key game.exe wrote) is
+    // the click's in play (main takes it first), so it shows only there.
+    if (click_rows)
+        for (const auto& pair : clicks)
+            for (const auto key : pair)
+                for (auto& entry : table) if (key != keys::kNone && entry.key == key) entry.key = keys::kNone;
     pad = pad_backup = pad_now;
     editing = false;
     pad_page = false;
@@ -124,13 +143,14 @@ void ControlsUI::show(const keys::Table& keys_now, const pad::Config& pad_now, b
     press = kNone;
 }
 
-int ControlsUI::count() const { return pad_page ? kPadCount : int(keys::rows(expansion).size()); }
+int ControlsUI::count() const { return pad_page ? kPadCount : click_lead() + int(keys::rows(expansion).size()); }
 
 // The row's function, or kSeparator for a gap (the pad page: its index, or kSeparator).
 int ControlsUI::row_action(int row) const {
     if (row < 0 || row >= count()) return keys::kSeparator;
     if (pad_page) return kPadRows[row].kind == kGap ? int(keys::kSeparator) : row;
-    return keys::rows(expansion)[std::size_t(row)].action;
+    if (row < click_lead()) return row < keys::kClickCount ? keys::kClickBase + row : int(keys::kSeparator);   // d2d's click rows, then a gap
+    return keys::rows(expansion)[std::size_t(row - click_lead())].action;
 }
 
 // The list's last first row (FUN_004a44c0).
@@ -185,8 +205,11 @@ std::vector<std::pair<int, int>> ControlsUI::buttons(const Scene& scene) const {
 // the menu, Default (0x4a5010, FUN_00469a60) the defaults in, Accept
 // (0x4a5020) kept and back to the game.
 void ControlsUI::button(int which, Result& result) {
-    if (which == 0) { table = backup; pad = pad_backup; result = kCancel; }
-    else if (which == 1) { if (pad_page) pad = pad::Config{}; else table = keys::defaults(); }
+    if (which == 0) { table = backup; pad = pad_backup; clicks = clicks_backup; result = kCancel; }
+    else if (which == 1) {
+        if (pad_page) pad = pad::Config{};
+        else { table = keys::defaults(); if (click_rows) clicks = keys::kNoClicks; }
+    }
     else if (which == 2) {
         if (!pad::clashes(pad.bindings).empty()) { pad_message = "Two actions share a button"; message = 0; message_ms = now_; return; }
         result = kAccept;
@@ -246,6 +269,17 @@ void ControlsUI::pad_edit(pad::Button pressed, std::uint32_t now_ms) {
     editing = false;
 }
 
+// The edit's key into the table (FUN_00469c20), or into a click row; a key
+// the table takes leaves the clicks. True when it went in; `refused`: a
+// refusal's string id.
+bool ControlsUI::assign_key(std::uint16_t key, std::uint16_t& refused) {
+    const int action = row_action(sel);
+    if (action >= keys::kClickBase) return keys::assign_click(table, clicks, action - keys::kClickBase, column, key, refused);
+    if (!keys::assign(table, action, column, key, refused)) return false;
+    keys::release_click_key(clicks, key);
+    return true;
+}
+
 // A key (FUN_004a5a40..FUN_004a63b0): editing, it goes in (Esc stops);
 // else the arrows move, Delete clears, Enter edits, Esc cancels.
 void ControlsUI::key(std::uint16_t key, std::uint32_t now_ms, Result& result) {
@@ -253,7 +287,7 @@ void ControlsUI::key(std::uint16_t key, std::uint32_t now_ms, Result& result) {
         if (key == 0x1b) { editing = false; latch = false; return; }
         if (pad_page) return;                       // the pad page takes a pad's button
         std::uint16_t refused = 0;
-        if (keys::assign(table, row_action(sel), column, key, refused)) {
+        if (assign_key(key, refused)) {
             editing = false;
             latch = !(key == 0x0d || key == 0x2e || key == 0x08 || key == 0x20);
         } else {
@@ -277,7 +311,8 @@ void ControlsUI::key(std::uint16_t key, std::uint32_t now_ms, Result& result) {
         if (row_action(sel) == keys::kSeparator) return;
         if (key == 0x2e) {
             if (pad_page) { if (kPadRows[std::size_t(sel)].kind == kPadAction) pad.bindings[pad::Action(kPadRows[std::size_t(sel)].index)][column == 1 ? 0 : 1] = pad::Bindings::kNone; }
-            else keys::clear(table, row_action(sel), column);
+            else if (const int action = row_action(sel); action >= keys::kClickBase) clicks[std::size_t(action - keys::kClickBase)][std::size_t(column)] = keys::kNone;
+            else keys::clear(table, action, column);
             return;
         }
         editing = true;
@@ -348,7 +383,7 @@ void ControlsUI::mouse_frame(const Scene& scene, const Mouse& mouse, std::uint32
     if (mouse.wheel != 0) {                                    // FUN_004a59d0 / FUN_004a63b0
         if (editing && !pad_page) {
             std::uint16_t refused = 0;
-            if (keys::assign(table, row_action(sel), column, mouse.wheel > 0 ? keys::kWheelUp : keys::kWheelDown, refused)) editing = false;
+            if (assign_key(mouse.wheel > 0 ? keys::kWheelUp : keys::kWheelDown, refused)) editing = false;
             if (refused) refuse(refused, now_ms);
         } else if (!editing) {
             scroll_by(mouse.wheel > 0 ? -1 : 1);
@@ -434,7 +469,11 @@ void ControlsUI::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
             darken(kLeft + 0x12, baseline - 0x11, kColumn * 3, 0x12);
             name_colour = editing ? 3 : 0;
         }
-        text(pad_page ? std::string(kPadRows[std::size_t(row)].name) : string_id(scene, keys::rows(expansion)[std::size_t(row)].name), kLeft + 0x1e, baseline, name_colour);
+        static constexpr std::string_view kClickNames[] = { "Attack / Use", "Right-hand Skill" };   // d2d's rows: the pad page's names
+        const std::string name = pad_page                       ? std::string(kPadRows[std::size_t(row)].name)
+                               : action >= keys::kClickBase     ? std::string(kClickNames[std::size_t(action - keys::kClickBase)])
+                                                                : string_id(scene, keys::rows(expansion)[std::size_t(row - click_lead())].name);
+        text(name, kLeft + 0x1e, baseline, name_colour);
         for (const int slot : { 1, 0 }) {
             if (row == sel && blink_off && column == slot) continue;
             int colour;                                                     // FUN_004a4fa0
@@ -443,10 +482,12 @@ void ControlsUI::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
                 words = pad_text(row, slot);
                 colour = row == sel && (editing || slot == column) ? 3 : 4;
             } else {
-                const std::uint16_t key = keys::key_of(table, action, slot);
+                const bool click = action >= keys::kClickBase;
+                const auto key_at = [&](int which) { return click ? clicks[std::size_t(action - keys::kClickBase)][std::size_t(which)] : keys::key_of(table, action, which); };
+                const std::uint16_t key = key_at(slot);
                 words = key_text(key);
                 colour = row == sel && (editing || slot == column) ? 3
-                       : keys::key_of(table, action, 0) == keys::kNone && keys::key_of(table, action, 1) == keys::kNone ? 1
+                       : !click && key_at(0) == keys::kNone && key_at(1) == keys::kNone ? 1   // a click row has its own mouse button: never red
                        : key != keys::kNone ? 4 : 5;
             }
             text(words, kLeft + 0x1e + (slot == 1 ? kColumn : 2 * kColumn), baseline, colour);

@@ -88,6 +88,12 @@ auto Town::update_hotkey_names() -> void {
 auto Town::accept_controls() -> void {
         key_table = controls.table;
         save_keys(true);
+        if (controls.click_rows && controls.clicks != click_keys) {   // d2d's click keys: d2d.cfg, not the .key
+            click_keys = controls.clicks;
+            if (!cfg_file.empty() && !d2d::userdir::save_cfg(cfg_file, { { "click_attack", keys::click_text(click_keys[keys::kClickAttack]) },
+                                                                        { "click_skill", keys::click_text(click_keys[keys::kClickSkill]) } }))
+                d2d::log::warn("d2d.cfg: the click keys not saved");
+        }
         update_hotkey_names();
         if (!(controls.pad == pad_config)) {
             set_pad_config(controls.pad);

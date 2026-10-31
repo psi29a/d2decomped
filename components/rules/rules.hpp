@@ -56,6 +56,7 @@ struct ItemType {
     int rarity = 1;                    // Rarity: its bases' weight in those classes
     bool autostack = false;            // AutoStack: a pickup joins the inventory's stacks of it (keys)
     bool throwable = false;            // Throwable (the item's own type, FUN_0062ba80)
+    std::string shoots, quiver;        // Shoots / Quiver: a bow's ammunition, a quiver's bow (+0xc / +0xe, FUN_0062e6f0 / FUN_0062e740)
     std::array<int, 3> max_sock{};     // MaxSock1 / 25 / 40: by ilvl <= 25, <= 40, above
     int staff_mods = 7;                // StaffMods class (ama .. ass = 0 .. 6), 7 none
     int var_inv_gfx = 0;               // VarInvGfx: pictures to pick from
@@ -752,22 +753,26 @@ inline bool can_wear(const Tables& tables, const d2d::d2s::Item& item, int slot,
 }
 
 // A two-handed weapon fills both hands (a Barbarian swings 1or2handed
-// ones in one); only a quiver can join it.
+// ones in one, FUN_0062a1e0); only a bow's own quiver joins it (hands_ok).
 inline bool blocks_other_hand(const Tables& tables, const d2d::d2s::Item& item, const Wearer& wearer) {
     const auto* info = info_of(tables, item);
     return info && info->two_handed && !(wearer.cls == d2d::d2s::kBarbarian && info->one_or_two);
 }
 
-// Can a and b be held in the two hands together? Weapon + shield or
-// quiver; two weapons only for a Barbarian (or an Assassin's two claws);
-// a two-hander only with a quiver.
+// Can a and b be held in the two hands together (FUN_0063dbc0)? A bow or
+// crossbow with what its type Shoots (bowq / xboq); any other pair with a
+// quiver or a two-hander, never; two weapons only for a Barbarian (or an
+// Assassin's two claws); else a weapon with a shield.
 inline bool hands_ok(const Tables& tables, const d2d::d2s::Item& first, const d2d::d2s::Item& second, const Wearer& wearer) {
     const auto* first_info = info_of(tables, first);
     const auto* second_info = info_of(tables, second);
     if (!first_info || !second_info) return false;
-    const bool first_quiver = type_is(tables, first_info->type, "misl"), second_quiver = type_is(tables, second_info->type, "misl");
-    if (blocks_other_hand(tables, first, wearer)) return second_quiver;
-    if (blocks_other_hand(tables, second, wearer)) return first_quiver;
+    const auto first_type = tables.types.find(first_info->type), second_type = tables.types.find(second_info->type);
+    const ItemType* types[2] = { first_type != tables.types.end() ? &first_type->second : nullptr, second_type != tables.types.end() ? &second_type->second : nullptr };
+    if (types[0] && !types[0]->shoots.empty() && type_is(tables, second_info->type, types[0]->shoots)) return true;
+    if (types[1] && !types[1]->shoots.empty() && type_is(tables, first_info->type, types[1]->shoots)) return true;
+    if ((types[0] && !types[0]->quiver.empty()) || (types[1] && !types[1]->quiver.empty())) return false;
+    if (blocks_other_hand(tables, first, wearer) || blocks_other_hand(tables, second, wearer)) return false;
     const bool first_weapon = type_is(tables, first_info->type, "weap"), second_weapon = type_is(tables, second_info->type, "weap");
     if (first_weapon && second_weapon) return wearer.cls == d2d::d2s::kBarbarian || (wearer.cls == d2d::d2s::kAssassin && type_is(tables, first_info->type, "h2h") && type_is(tables, second_info->type, "h2h"));
     return first_weapon != second_weapon;

@@ -386,10 +386,27 @@ void advance_char_states(CharCreateUI& create_ui,
     }
 }
 
+// The class under the mouse, -1 none: hit inside its current animation's
+// first frame, drawn at the record's (x, y) (FUN_005003a0); the record's
+// w x h isn't used.
+static int class_under(const CharCreateUI& create_ui, const Scene& scene, const Mouse& mouse) {
+    for (int i = 0; i < 7; ++i) {
+        const auto position = kClassPos[i];
+        const auto& class_ui = create_ui.classes[std::size_t(i)];
+        const auto& anim = scene.class_anims[std::size_t(i)][class_ui.state == ClassState::Idle ? 0 : class_ui.state == ClassState::Selecting ? 2 : class_ui.state == ClassState::Selected ? 3 : 4];
+        if (anim.frames_per_direction() == 0) continue;
+        const auto& frame = anim.frame(0, 0);
+        const int left = position.x + frame.offset_x, bottom = position.y + frame.offset_y;
+        if (mouse.x >= left && mouse.x < left + int(frame.width) && mouse.y >= bottom - int(frame.height) && mouse.y < bottom) return i;
+    }
+    return -1;
+}
+
 void handle_charcreate_click(CharCreateUI& create_ui,
                              const Scene& scene,
                              const Mouse& mouse,
                              std::uint32_t elapsed_ms) {
+    create_ui.hovered = class_under(create_ui, scene, mouse);
     if (!mouse.release_this_frame) return;
     // The checkboxes toggle on their own 15 x 16 boxes only (FUN_00501090,
     // the type 6 control's mouse-down): the labels beside them, 0xBD
@@ -409,31 +426,19 @@ void handle_charcreate_click(CharCreateUI& create_ui,
         create_ui.hardcore = !create_ui.hardcore;
         return;
     }
-    // A class is hit inside its current animation's first frame, drawn at
-    // the record's (x, y) (FUN_005003a0); the record's w x h isn't used.
-    for (int i = 0; i < 7; ++i) {
-        const auto position = kClassPos[i];
-        const auto& class_ui = create_ui.classes[std::size_t(i)];
-        const auto& anim = scene.class_anims[std::size_t(i)][class_ui.state == ClassState::Idle ? 0 : class_ui.state == ClassState::Selecting ? 2 : class_ui.state == ClassState::Selected ? 3 : 4];
-        if (anim.frames_per_direction() == 0) continue;
-        const auto& frame = anim.frame(0, 0);
-        const int left = position.x + frame.offset_x, bottom = position.y + frame.offset_y;
-        if (mouse.x >= left && mouse.x < left + int(frame.width) && mouse.y >= bottom - int(frame.height) && mouse.y < bottom) {
-            if (create_ui.selected == i) return;   // clicked selected class → no-op
-            // Deselect old.
-            if (create_ui.selected >= 0) {
-                auto& prev = create_ui.classes[create_ui.selected];
-                prev.state = ClassState::Deselecting;
-                prev.state_start_ms = elapsed_ms;
-            }
-            auto& cur = create_ui.classes[i];
-            cur.state = ClassState::Selecting;
-            cur.state_start_ms = elapsed_ms;
-            create_ui.selected = i;
-            create_ui.expansion = true;   // each pick ticks it again (status |= 0x20)
-            return;
-        }
+    const int picked = create_ui.hovered;
+    if (picked < 0 || create_ui.selected == picked) return;   // clicked selected class → no-op
+    // Deselect old.
+    if (create_ui.selected >= 0) {
+        auto& prev = create_ui.classes[create_ui.selected];
+        prev.state = ClassState::Deselecting;
+        prev.state_start_ms = elapsed_ms;
     }
+    auto& cur = create_ui.classes[std::size_t(picked)];
+    cur.state = ClassState::Selecting;
+    cur.state_start_ms = elapsed_ms;
+    create_ui.selected = picked;
+    create_ui.expansion = true;   // each pick ticks it again (status |= 0x20)
 }
 
 void render_charcreate(std::vector<std::uint8_t>& framebuffer,
@@ -503,6 +508,44 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
         const int width = scene.font.measure(caption);
         scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth)/2 - width/2, 22, caption,
                            255, 208, 80);
+    }
+
+    // Before a class is picked, the one under the mouse shows its name and
+    // what it is (FUN_004307a0 from the classes' hover handlers, e.g.
+    // FUN_00430870): text boxes 0xc5 (0, 80, 800 x 100; font30 gold) and
+    // 0xc6 (250, 110, 300 x 100; font16 white), both centred, the second
+    // wrapped. Names 0xfa7.. / patchstring 0x2771..; descriptions string.tbl
+    // 0x1408.. / expansionstring 0x57f6 (Druid), 0x57f7 (Assassin).
+    // ponytail: the boxes' font / colour words (0x7089b4: 2, 0, 7, 0 and
+    // 0x7089c4: 1, 0, 0, 4) are read as font id and colour, not traced.
+    if (create_ui.selected < 0 && create_ui.hovered >= 0) {
+        static constexpr std::uint16_t kName[7] = { 0xfa7, 0xfa9, 0xfa8, 0xfab, 0xfaa, 0x2771, 0x2772 };   // BA NE PA AM SO DZ AS
+        static constexpr std::uint16_t kDesc[7] = { 0x140a, 0x1409, 0x140c, 0x1408, 0x140b, 0x57f6, 0x57f7 };
+        const auto hovered = std::size_t(create_ui.hovered);
+        const auto& name_font = scene.font30.line_height() > 0 ? scene.font30 : scene.font;
+        if (const auto name = lookup_string(scene, kName[hovered])) {
+            const auto text = u16_to_latin1(*name);
+            name_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - name_font.measure(text) / 2, 80, text, 199, 179, 119);
+        }
+        if (const auto desc = lookup_string(scene, kDesc[hovered])) {
+            const auto text = u16_to_latin1(*desc);
+            std::vector<std::string> lines(1);
+            std::size_t word_start = 0;
+            while (word_start < text.size()) {
+                const auto space = text.find(' ', word_start);
+                const auto word = text.substr(word_start, space == std::string::npos ? std::string::npos : space - word_start);
+                const auto joined = lines.back().empty() ? word : lines.back() + ' ' + word;
+                if (!lines.back().empty() && scene.font.measure(joined) > 300) lines.push_back(word);
+                else lines.back() = joined;
+                if (space == std::string::npos) break;
+                word_start = space + 1;
+            }
+            int line_y = 110;
+            for (const auto& line : lines) {
+                scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, 400 - scene.font.measure(line) / 2, line_y, line);
+                line_y += scene.font.line_height();
+            }
+        }
     }
 
     // Name-entry field — per RE record 0x70b290: (319, 519, 169, 26)

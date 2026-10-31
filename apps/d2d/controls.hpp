@@ -2,7 +2,8 @@
 // Configure Controls (UI 0xb, .\UI\KeyConfig: FUN_004a5270 draws,
 // FUN_004a4ad0 the mouse; docs/research/re/controls.md): the functions in
 // a scrolling list, each with two keys, and Cancel / Default / Accept.
-// d2d adds a page for the gamepad's buttons (the "pad_controls" toggle).
+// d2d adds a page for the gamepad's buttons (the "pad_controls" toggle)
+// and, on the keys' page, the two click keys (the "click_keys" toggle).
 #pragma once
 
 #include "gamepad_map.hpp"
@@ -22,6 +23,9 @@ namespace d2d::client {
 
 // SDL's key as the Windows virtual key game.exe binds (0: none).
 [[nodiscard]] std::uint16_t virtual_key(SDL_Keycode key);
+// A click key's event (keyconfig.hpp Clicks): a key or Mouse 3..5 going
+// down (`down`) or up; the click it's bound to, or -1.
+[[nodiscard]] int click_event(const SDL_Event& event, const keys::Clicks& clicks, bool& down);
 // Whether a bound key is held now (Show Items, Run, Stand Still).
 [[nodiscard]] bool key_held(std::uint16_t key);
 // The mouse's third / fourth / fifth button, as keys_this_frame carries them.
@@ -35,6 +39,8 @@ struct ControlsUI {
     bool pad_extra = true;                 // the "pad_controls" toggle: the page's button shows
     keys::Table table, backup;             // the keys being edited (0x7a6f90) and those to go back to (0x7a6b18)
     pad::Config pad, pad_backup;           // the same for the pad's page
+    keys::Clicks clicks = keys::kNoClicks, clicks_backup = keys::kNoClicks;   // d2d's click keys (keyconfig.hpp), the same
+    bool click_rows = true;                // the "click_keys" toggle: their rows head the keys' page
     pad::Family family = pad::Family::Xbox;
     int sel = 0, column = 1, scroll = 0;   // 0x7c02b0, 0x7246d4 (slot 1: the first column), 0x7c02ac
     bool editing = false;                  // 0x7c02b8: the next key goes in
@@ -47,7 +53,7 @@ struct ControlsUI {
     unsigned frame = 0;                    // 0x7c02d0: the edited key blinks by it
 
     // Opening (FUN_004a5200): the keys now kept to go back to.
-    void show(const keys::Table& keys_now, const pad::Config& pad_now, bool lod);
+    void show(const keys::Table& keys_now, const pad::Config& pad_now, bool lod, const keys::Clicks& clicks_now = keys::kNoClicks);
     // One frame: keys as virtual keys, the mouse, a pad button just pressed
     // (Button::Count: none) for the pad page's edit.
     Result input(const Scene& scene, const std::vector<std::uint16_t>& keys, const Mouse& mouse, pad::Button pad_press, std::uint32_t now_ms);
@@ -67,6 +73,8 @@ private:
     std::uint32_t repeat_ms = 0, now_ = 0;
     [[nodiscard]] int count() const;
     [[nodiscard]] int row_action(int row) const;
+    [[nodiscard]] int click_lead() const { return !pad_page && click_rows ? 3 : 0; }   // the click rows and a gap
+    bool assign_key(std::uint16_t key, std::uint16_t& refused);   // the selected row and column take `key`
     void move(int step);                   // FUN_004a45c0 (the selection)
     void scroll_by(int step);              // FUN_004a4500
     [[nodiscard]] int thumb_y() const;

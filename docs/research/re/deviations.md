@@ -20,7 +20,7 @@ d2d copies.
 off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 `light_grid` (improvement 1), `trans_roof` (improvement 4), `autoloot` (improvement 5),
 `autoparty` (improvement 7), `pad_controls` (improvement 11), `coop_lobby` (improvement 12),
-`splash_centre` (improvement 14).
+`splash_centre` (improvement 14), `click_keys` (improvement 15).
 `--toggle scalemode=pixelart|nearest|linear` picks the upscale filter (Additions).
 
 ## Improvements
@@ -41,6 +41,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 12 | The title's SINGLE PLAYER | Single player only; a joined game's players pick on their own machines | "SINGLE PLAYER / COOP": with two or more external pads character select is local co-op's lobby, where each pad past the first picks its character before player 1 (alone) starts. `--toggle coop_lobby=off` turns it off | Couch co-op without picking characters mid-game | yes | lobby.cpp, frontend.cpp `title_ui`, local-coop.md "The lobby" |
 | 13 | FHR of exactly -120 | `FUN_00621740` divides by zero, so there is no native animation rate | Leaves the stat unchanged as the effective FHR, then applies the same unsigned rate tail (normally the 0x7fff cap) | Avoids the crash and keeps a defined result | only at exactly -120 FHR | combat.hpp `get_hit_rate`, combat.md "Hit recovery" |
 | 14 | Rain splashes and mud bubbles across a water tile | The spot is the tile's top corner + rand(the row's width), never pulled back: up to half a tile right of the water (bugs.md #10) | The same draws, less half the row's width: inside the tile's diamond | They ripple on the water, not the bank or a dock | yes: ripples sit on the water; `--toggle splash_centre=off` for game.exe's | weather.hpp `Rain::floor`, world_view.cpp, weather.md |
+| 15 | Attack / Use and Right-hand Skill on other keys | Neither is in Configure Controls: its table has no function for them, and the left and right mouse buttons can't be given to anything (`FUN_00469ae0`); a mouse's third to fifth buttons only reach the 57 listed functions | Two rows head the keys' page, "Attack / Use" and "Right-hand Skill", each with two keys: Mouse 3..5 or a key game.exe lets you assign, never the wheel. Attack / Use clicks the left button where the cursor is and holds it while the key is held; Right-hand Skill clicks the right. A key is on one function at a time across both lists. They're kept in d2d.cfg `click_attack` / `click_skill` (decimal virtual keys), not the .key, so game.exe still reads the character's .key; a click key left in the .key is the click's in play and drops off its function when Configure Controls opens. None bound by default. Not while typing. `--toggle click_keys=off` turns it off | A mouse with more buttons can attack or cast from them; the pad page already has both (#139) | yes | keyconfig.hpp `Clicks`, controls.cpp, main.cpp `click_event` |
 
 ## Approximations
 

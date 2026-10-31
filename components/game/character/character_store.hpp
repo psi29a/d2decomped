@@ -39,8 +39,9 @@ struct CharacterStore {
     [[nodiscard]] std::filesystem::path path(const std::string& name) const { return dir / (name + ".d2s"); }
 
     // Writes the character; "" when it's done, else why not (nothing written).
+    // `merc`: what the merc wears (write_save's), nullptr to keep the file's.
     std::string save(const d2d::d2s::Header& header, const d2d::d2s::Stats& stats, const std::vector<d2d::d2s::Item>& items,
-                     const std::vector<d2d::d2s::Item>* corpse = nullptr) const {
+                     const std::vector<d2d::d2s::Item>* corpse = nullptr, const std::vector<d2d::d2s::Item>* merc = nullptr) const {
         namespace fs = std::filesystem;
         if (!tables) return "no item tables";
         if (header.name.empty() || header.name.find_first_of("/\\.") != std::string::npos) return "bad name";
@@ -49,13 +50,12 @@ struct CharacterStore {
         if (std::ifstream file_in(file, std::ios::binary); file_in) raw.assign(std::istreambuf_iterator<char>(file_in), {});
         std::vector<std::byte> out;
         try {
-            out = d2d::d2s::write_save(std::as_bytes(std::span(raw)), header, stats, items, *tables, corpse);
+            out = d2d::d2s::write_save(std::as_bytes(std::span(raw)), header, stats, items, *tables, corpse, merc);
             const auto back = d2d::d2s::parse_header(out);
             const auto bst = d2d::d2s::parse_stats(out, *tables);
             const auto bitems = d2d::d2s::parse_items(out, *tables);
             if (back.name != header.name || bst.get(d2d::d2s::kLevel) != stats.get(d2d::d2s::kLevel) || bitems.size() != items.size())
-                return "the written save didn't read back";
-        } catch (const std::exception& error) {
+                return "the written save didn't read back";        } catch (const std::exception& error) {
             return std::string("write failed: ") + error.what();
         }
         return replace(file, raw, out);

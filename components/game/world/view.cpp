@@ -200,7 +200,8 @@ auto World::save() -> std::string {
         // The corpse list holds one: the latest corpse's items (PlrSave2.cpp).
         // ponytail: game.exe's pick among several isn't traced.
         const std::vector<d2d::d2s::Item> no_corpse;
-        const auto err = characters->save(header, fight.own_stats(), actor->character.items, actor->corpses.empty() ? &no_corpse : &actor->corpses.back().items);
+        const auto err = characters->save(header, fight.own_stats(), actor->character.items, actor->corpses.empty() ? &no_corpse : &actor->corpses.back().items,
+                                          &actor->character.merc_items);
         if (err.empty()) actor->character.header.last_played = header.last_played;
         d2d::log::info("save {}: {}", header.name, err.empty() ? "written" : err);
         return err;

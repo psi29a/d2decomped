@@ -71,8 +71,9 @@ opt-in crash reports from the launcher (off by default; see
 [apps/README.md](apps/README.md)), and gamepad play.
 Small comforts, each switchable off with `--toggle`: gold is picked up by
 walking over it, roofs turn see-through around your character, lights reach
-the screen's edges at any resolution, and the world's sounds pause with the
-game menu.
+the screen's edges at any resolution, the world's sounds pause with the
+game menu, and Configure Controls can put Attack and the right-hand skill on
+a mouse's extra buttons.
 
 **Planned:** let d2d host multiplayer games and run a dedicated server, and
 support high-DPI displays. These features are not implemented yet.

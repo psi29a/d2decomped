@@ -29,6 +29,7 @@ Or use [the launcher](../launcher/README.md), which finds them for you.
 | Straight into a new character | `--start-screen charcreate --start-class 1 --start-name Test` (class 0..6: Amazon, Sorceress, Necromancer, Paladin, Barbarian, Druid, Assassin) |
 | Don't touch your saves | `--no-save` |
 | Turn a d2d extra off | `--toggle autoloot=off,trans_roof=off,autoparty=off` |
+| Attack or cast from a mouse's extra buttons | Configure Controls' first two rows, Attack / Use and Right-hand Skill (`--toggle click_keys=off` hides them) |
 | More log detail | `--log-level debug` |
 | Drive it from a script, no window | `--headless --devctl /tmp/d2d.sock` (verbs: [docs/control_channel.md](../../docs/control_channel.md)) |
 | Every switch | `d2d --help` |

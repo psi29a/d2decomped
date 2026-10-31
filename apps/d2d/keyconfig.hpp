@@ -12,6 +12,8 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -129,6 +131,70 @@ inline bool assign(Table& table, int action, int slot, std::uint16_t key, std::u
 // The Delete key's clear (FUN_00469d70).
 inline void clear(Table& table, int action, int slot) {
     for (auto& entry : table) if (entry.action == action && entry.slot == slot) entry.key = kNone;
+}
+
+// d2d's click keys (deviations.md improvement 15, the "click_keys" toggle):
+// the left button's Attack / Use and the right button's Right-hand Skill on
+// two more keys each, so a mouse's third to fifth buttons (or a key) can
+// click. game.exe has neither function (its list never takes the left or
+// right button), so they stay out of its table and its .key files; d2d.cfg
+// keeps them (`click_attack`, `click_skill`). A key is on one function at
+// a time across both: giving it to one takes it off any other.
+enum Click : int { kClickAttack, kClickSkill, kClickCount };
+inline constexpr int kClickBase = 0x40;   // a click's row in the list: kClickBase + Click
+using Clicks = std::array<std::array<std::uint16_t, 2>, kClickCount>;   // [click][slot]
+inline constexpr Clicks kNoClicks = { { { kNone, kNone }, { kNone, kNone } } };
+
+// The click `key` sets off, or -1.
+[[nodiscard]] inline int click_of(const Clicks& clicks, std::uint16_t key) {
+    if (key == kNone) return -1;
+    for (int click = 0; click < kClickCount; ++click)
+        for (const auto bound_key : clicks[std::size_t(click)]) if (bound_key == key) return click;
+    return -1;
+}
+// Give (click, slot) `key`: assign's rules, but the wheel is refused (the
+// left button is held, and a notch is no press to hold). It leaves the
+// table and the other clicks.
+inline bool assign_click(Table& table, Clicks& clicks, int click, int slot, std::uint16_t key, std::uint16_t& message) {
+    message = 0;
+    if (click < 0 || click >= kClickCount || slot < 0 || slot > 1) return false;
+    if (!assignable(key) || key == kPrintScreen) { message = kCannotKey; return false; }
+    if (key == kWheelUp || key == kWheelDown) { message = kCannotWheel; return false; }
+    for (auto& entry : table) if (entry.key == key) entry.key = kNone;
+    for (auto& pair : clicks) for (auto& bound_key : pair) if (bound_key == key) bound_key = kNone;
+    clicks[std::size_t(click)][std::size_t(slot)] = key;
+    return true;
+}
+// A key given to the table leaves the clicks.
+inline void release_click_key(Clicks& clicks, std::uint16_t key) {
+    for (auto& pair : clicks) for (auto& bound_key : pair) if (bound_key == key) bound_key = kNone;
+}
+// d2d.cfg's form: the two keys as decimal virtual keys, "none" for none
+// ("258,none": Mouse 5 and nothing). Anything else reads as none.
+[[nodiscard]] inline std::string click_text(const std::array<std::uint16_t, 2>& pair) {
+    std::string out;
+    for (std::size_t slot = 0; slot < 2; ++slot) out += (slot ? "," : "") + (pair[slot] == kNone ? std::string("none") : std::to_string(pair[slot]));
+    return out;
+}
+[[nodiscard]] inline std::array<std::uint16_t, 2> click_pair(std::string_view text) {
+    std::array<std::uint16_t, 2> pair{ kNone, kNone };
+    for (std::size_t slot = 0; slot < 2 && !text.empty(); ++slot) {
+        const auto comma = text.find(',');
+        const auto part = text.substr(0, comma);
+        unsigned value = 0;
+        const bool number = !part.empty() && std::ranges::all_of(part, [](char letter) { return letter >= '0' && letter <= '9'; }) && part.size() <= 5;
+        if (number) for (const char letter : part) value = value * 10 + unsigned(letter - '0');
+        if (number && value < kNone && assignable(std::uint16_t(value)) && value != kPrintScreen && value != kWheelUp && value != kWheelDown) pair[slot] = std::uint16_t(value);
+        text = comma == std::string_view::npos ? std::string_view{} : text.substr(comma + 1);
+    }
+    if (pair[0] == pair[1]) pair[1] = kNone;
+    return pair;
+}
+// Both d2d.cfg pairs, one function per key: a key in both stays on Attack / Use.
+[[nodiscard]] inline Clicks click_load(std::string_view attack_text, std::string_view skill_text) {
+    Clicks clicks{ click_pair(attack_text), click_pair(skill_text) };
+    for (auto& key : clicks[kClickSkill]) if (key != kNone && click_of(clicks, key) == kClickAttack) key = kNone;
+    return clicks;
 }
 
 // A character's <name>.key (0x476 bytes: version 0x25, then the table,
