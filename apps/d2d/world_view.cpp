@@ -9,6 +9,7 @@
 #include "watchdog.hpp"
 
 #include <cof.hpp>
+#include <combat.hpp>
 #include <dc6.hpp>
 #include <dt1.hpp>
 #include <palette.hpp>
@@ -45,6 +46,15 @@ std::uint32_t object_elapsed(const Unit& unit, std::uint32_t elapsed) {
         else if (counter < std::uint64_t(frames) * 256u) frame = counter / 256u;
         else frame = (start * 256u + (counter - start * 256u) % ((frames - start) * 256u)) / 256u;
     }
+    return std::uint32_t(frame) * std::max<std::uint32_t>(unit.anim->ms_per_frame(), 1);
+}
+
+// A get-hit's time into its mode, as the client steps its frame at the
+// get-hit rate (rules::get_hit_frame: once through, then held; a tick 40 ms).
+std::uint32_t get_hit_elapsed(const Unit& unit, std::uint32_t elapsed) {
+    if (!unit.get_hit_rate || !unit.anim) return elapsed;
+    const int frames = int(unit.anim->frames ? unit.anim->frames : unit.anim->cof_frames);
+    const int frame = d2d::rules::get_hit_frame(frames, int(unit.get_hit_rate), int(elapsed / 40u));
     return std::uint32_t(frame) * std::max<std::uint32_t>(unit.anim->ms_per_frame(), 1);
 }
 
@@ -349,6 +359,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
             if (unit.hold && !unit.frames) elapsed = std::min(elapsed, std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame());
             elapsed = object_elapsed(unit, elapsed);
+            elapsed = get_hit_elapsed(unit, elapsed);
             shadow_composite(framebuffer, *unit.anim, unit.dir, elapsed, anchor_x, anchor_y, mask, id);
         }
     }
@@ -442,6 +453,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 if (unit.hold && !unit.frames) elapsed = std::min(elapsed, last);
                 if (unit.reverse) elapsed = last - std::min(elapsed, last);
                 elapsed = object_elapsed(unit, elapsed);
+                elapsed = get_hit_elapsed(unit, elapsed);
                 // An object's FrameCnt past its COF's frames (the Act 3 magic shrine: 13 in a 1-frame COF):
                 // game.exe's frame runs on, its DCCs have no cell there (FUN_005feb80), nothing draws.
                 // ponytail: blank outright, not the COF priority game.exe reads past its table.

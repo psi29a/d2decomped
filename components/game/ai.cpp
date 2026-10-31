@@ -172,14 +172,6 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
     monster.unit.walking = mode == "WL" || mode == "RN";
     // ponytail: a monster's FHR is its MonProp's (props.fhr); stat 99 from
     // a state or aura (FUN_00625500 reads the unit's full stat) isn't kept.
-    // ponytail: the GH hold is now the server's (game.exe's length), but the
-    // renderer still plays the GH animation at the base rate and loops it, so
-    // a long hold (a Zombie's 17 ticks over 5 frames) replays it; game.exe's
-    // player client tick (FUN_00463390) steps the animation by the rate the
-    // length comes from (+0x4c) and draws one frame fewer than the hold; a
-    // monster's client tick is not
-    // read. Not modelled: the renderer spreading the animation over the hold.
-    // What the client shows after its last frame is U (not read).
     monster.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0
         : mode == "GH"                                                ? now_ms + get_hit_ms(game_data.npc_timing(monster.npc, mode), monster.props.fhr)
                                                                       : now_ms + game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, mode));

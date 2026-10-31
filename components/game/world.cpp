@@ -261,6 +261,7 @@ auto World::view() const -> View {
         if (actor->merc && actor->merc_npc) {
             view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode };
             const auto fighter = fight.merc_fighter();
+            view.merc->fhr = fighter.fhr;
             const auto gear = fight.merc_gear();
             const auto& stats = actor->merc_st;
             View::MercSheet sheet;

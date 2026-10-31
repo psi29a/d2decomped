@@ -158,7 +158,9 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ view.merc->unit.x, view.merc->unit.y, &scene.npc_anim(*view.merc->npc, view.merc->mode), view.merc->unit.dir,
                         view.merc->mode == "DT" ? nullptr : merc_label, view.merc->unit.mode_ms, -2 });
         out.back().hold = view.merc->mode == "DT";
+        if (view.merc->mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(out.back().anim->speed ? out.back().anim->speed : out.back().anim->cof_speed), view.merc->fhr));
     }
+    // ponytail: a party member's merc (party_pets, "hireable") in GH has no FHR here: its get-hit plays at the plain rate and loops.
     for (const auto* pets : { &view.pets, &view.party_pets })
         for (const auto& pet : *pets) {
             out.push_back({ pet.unit.x, pet.unit.y, &scene.npc_anim(pet.npc, pet.mode), pet.unit.dir, nullptr, pet.unit.mode_ms, -3 });
@@ -203,6 +205,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                         row ? now_ms - mpf * std::uint32_t(monster.seq_frame) - mpf / 2 : down && monster.mode != "S1" ? 0u : monster.unit.mode_ms, -10 - int(i) });
         out.back().reverse = down;
         out.back().hold = !row && monster.mode == "DT";             // a death outlasting its frames (the host's 1500 ms) stays on the last, not back to the first
+        if (!row && !down && monster.mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(anim.speed ? anim.speed : anim.cof_speed), monster.props.fhr));   // struck: its frame steps at the get-hit rate (rules::get_hit_frame)
         out.back().overlay_class = monster.npc.overlay_class;
         out.back().cmap = scene.monster_map(monster.npc);
         out.back().ghostly = monster.alive() && std::ranges::find(monster.mods, d2d::rules::umod::ghostly) != monster.mods.end();

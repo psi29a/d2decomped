@@ -375,6 +375,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto type = input.str();
             const auto mode = wire::intern(input.str());
             const auto unit = wire::unit(input);
+            // ponytail: the wire carries no FHR: a joined game's merc is drawn with 0 (its get-hit's frames).
             if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode };
         }
         view.merc_sheet.reset();

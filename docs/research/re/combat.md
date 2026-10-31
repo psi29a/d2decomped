@@ -252,6 +252,18 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
   `... game cases.tsv > game.tsv`, `<build>/tests/test_combat --get-hit-length < cases.tsv > after.tsv`,
   `... compare game.tsv after.tsv cases.tsv` (0 differ). `tools/emu/hit_len_harness.cpp`
   is the old d2d's lines, for the same `compare` (the before).
+- **Drawn frame** (the client): `FUN_004b1280` on the monster mode table's
+  get-hit row (0x7252e0 + 3 x 12, [0, 1, 2]; `FUN_004af400`) tests "over"
+  (`FUN_006217c0`: +0x44 + rate >= +0x48) and, not over, steps (`FUN_00623e00`:
+  +0x44 += rate); the draw shows +0x44 >> 8 (`FUN_00621810`, 0x4715ca). The
+  animation plays once at the get-hit rate and stands on its last stepped
+  frame; it never loops (a Zombie: 0 0 0 0 1 1 1 2 2 2 2 3 3 3 4 4 4 over its
+  17 ticks). A player's `FUN_00463390` (row 4 of 0x711e00, [0, 1, 2]) steps
+  the same way and, re-testing after the step, ends the mode a tick before
+  the server's event. Ported for monsters and the merc: `rules::get_hit_frame`
+  (`Unit::get_hit_rate` in the renderer), checked by the oracle `hit_render.py`
+  (the PR's; game.exe's step and draw run natively) against `test_combat --get-hit-frames`. Not ported: the player's own frames
+  (prate, a stretch over the hold); a joined game's merc has no FHR on the wire.
 
 ## Cold, freeze and poison lengths (SUnitDmg.cpp)
 

@@ -229,6 +229,20 @@ inline int get_hit_ticks(int frames, int speed, int fhr) {
     return std::max(held, 1) + 1;
 }
 
+// The frame game.exe's client draws `tick` ticks into a get-hit (tick 0 the
+// mode set): the client steps the unit's 8.8 frame position by its rate a
+// tick while position + rate stays under frames x 256 (FUN_004b1280 on the
+// monster mode table's get-hit row at 0x7252e0 + 3 x 12, [0, 1, 2]:
+// FUN_006217c0's "over", else FUN_00623e00's step; a player's FUN_00463390
+// at 0x463487 the same) and the draw shows position >> 8 (FUN_00621810), so
+// the animation plays once at the get-hit rate and stands on its last stepped
+// frame for the rest of the hold; it never loops. A rate of 0 stays on 0.
+inline int get_hit_frame(int frames, int rate, int tick) {
+    if (rate <= 0 || frames <= 0 || tick <= 0) return 0;
+    const int held = (frames * 256 - 1) / rate;
+    return std::min(tick, held) * rate / 256;
+}
+
 // A cast animation's speed, 1/256 frames a tick (FUN_00623f50's cast branch at
 // 0x623fcb: FUN_00621740 turns stat 105 into the effective FCR through the row
 // at 0x6e8e3c): AnimData speed x min(100 + effective FCR, 175) / 100, clamped

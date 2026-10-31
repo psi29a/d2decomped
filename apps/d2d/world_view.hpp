@@ -74,6 +74,7 @@ struct Unit {
     std::uint8_t frames = 0, loop_from = 0;   // an object's FrameCnt / Start in its mode (Npc::frames), 0: the COF's length
     std::uint16_t frame_delta = 0;            // ... and its FrameDelta: 256 a frame a tick
     bool reverse = false;                // plays once backwards and stays on its first frame (a maggot burrowing)
+    std::uint16_t get_hit_rate = 0;      // a get-hit (GH): its rate, 8.8 frames a tick (rules::get_hit_rate); rules::get_hit_frame picks the frame, once through and held
     const d2d::dcc::Sprite* overlay = nullptr;   // over it (Overlay.txt npcalert: the quest balloon)
     // Its states' look (Scene::StateInfo): the colour shift (256, before
     // the light) and overlays, each from when it started; `once` plays a

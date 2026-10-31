@@ -40,6 +40,21 @@ int main(int argc, char** argv) {
         }
         return 0;
     }
+    // `--get-hit-frames`: the frame drawn at each tick of a monster's (or the merc's) get-hit hold for
+    // the kind-1 cases on stdin (tools/emu/hit_render.py's, which runs game.exe's client step
+    // FUN_004b1280 and the draw's FUN_00621810 on them): `id rate ticks f0 f1 ...` a case.
+    if (argc > 1 && std::string_view(argv[1]) == "--get-hit-frames") {
+        long case_id, kind, speed, frames, fhr;
+        char line[512];
+        while (std::fgets(line, sizeof line, stdin)) {
+            if (line[0] == '#' || std::sscanf(line, "%ld %ld %ld %ld %ld", &case_id, &kind, &speed, &frames, &fhr) != 5 || kind != 1) continue;
+            const int rate = get_hit_rate(int(speed), int(fhr)), ticks = get_hit_ticks(int(frames), int(speed), int(fhr));
+            std::printf("%ld %d %d", case_id, rate, ticks);
+            for (int tick = 0; tick < ticks; ++tick) std::printf(" %d", get_hit_frame(int(frames), rate, tick));
+            std::printf("\n");
+        }
+        return 0;
+    }
     // `--cast-rates`: the cast speed and the ticks of a plain cast at every FCR 0..400, as
     // tools/emu/cast_rates.py prints game.exe's (`rate FCR SPEED RATE`, `ticks plain FRAMES SPEED FCR TICKS`).
     if (argc > 1 && std::string_view(argv[1]) == "--cast-rates") {
@@ -164,6 +179,14 @@ int main(int argc, char** argv) {
     assert(get_hit_ticks(8, 256, 20) == 12 && get_hit_ticks(8, 256, 30) == 11 && get_hit_ticks(8, 256, 42) == 10 && get_hit_ticks(8, 256, 60) == 9);
     assert(get_hit_ticks(8, 256, 86) == 8 && get_hit_ticks(8, 256, 142) == 7 && get_hit_ticks(8, 256, 280) == 6 && get_hit_ticks(8, 256, 1000) == 6);
     assert(get_hit_ticks(5, 152, 0) == 17 && get_hit_ticks(7, 256, 0) == 14 && get_hit_ticks(1, 512, 0) == 2 && get_hit_ticks(8, 1, 0) == 1);
+    // The drawn frame a tick at a time (FUN_004b1280 / FUN_00621810): a Zombie's 5 frames at 76 over its 17 ticks, once
+    // and held; a Sorceress at 0 FHR two ticks a frame; past the hold the last stepped frame stays; a rate of 0 stays on 0.
+    {
+        const std::array<int, 17> zombie{ 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4 };
+        for (int tick = 0; tick < 17; ++tick) assert(get_hit_frame(5, get_hit_rate(152, 0), tick) == zombie[std::size_t(tick)]);
+        for (int tick = 0; tick < 16; ++tick) assert(get_hit_frame(8, get_hit_rate(256, 0), tick) == tick / 2);
+        assert(get_hit_frame(8, 128, 40) == 7 && get_hit_frame(8, 512, 3) == 6 && get_hit_frame(8, 512, 9) == 6 && get_hit_frame(8, 0, 5) == 0);
+    }
     // Casts (game.exe's own code, tools/emu/cast_rates.py): a plain cast is a tick under
     // ceil(256 x frames / speed). Sorc SC, 14 frames: 13 at 0 FCR, then 12 / 11 / 10 / 9 / 8 / 7
     // from 9 / 20 / 37 / 63 / 105 / 200.

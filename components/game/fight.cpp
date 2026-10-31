@@ -459,8 +459,9 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             // ponytail: a cast that plays a sequence (Lightning) is timed as a plain one here.
             len = std::uint32_t(d2d::rules::cast_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), actor->player_combat.fcr)) * 40;
         } else if (mode == kModeGH && anim.frames) {
-            // ponytail: prate spreads the frames over the whole hold; game.exe's client (FUN_00463390, tested
-            // before and after its step) draws one frame fewer and stands the last tick.
+            // ponytail: the player's own frames follow prate (spread over the hold); game.exe's client steps
+            // them at the get-hit rate (rules::get_hit_frame, as monsters and the merc are drawn) and
+            // FUN_00463390, re-testing after its step, ends the mode a tick before the server.
             len = d2d::game::get_hit_ms(anim, actor->player_combat.fhr);
         } else if (mode == kModeBL && anim.frames) {
             const int shown = d2d::rules::speed_frames(int(anim.frames), actor->player_combat.fbr);

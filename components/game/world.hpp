@@ -105,7 +105,7 @@ struct View {
     std::uint32_t seq_frame_ms = 40;
     bool seq_loop = false;
     GameData::Appearance gfx{};               // what the character wears
-    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; };
+    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; int fhr = 0; };   // fhr: its faster hit recovery (merc_fighter), for its get-hit's drawn frame
     std::optional<Merc> merc;
     // The Hireling screen's numbers (FUN_0048a990): level, experience and the
     // next level's, strength, dexterity, damage, defense, the resistances
