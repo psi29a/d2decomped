@@ -118,7 +118,6 @@ cmd("debug wp 1")                                   # the Cold Plains' is on
 waypoint = [line.split("\t") for line in cmd("debug presets").splitlines() if line.endswith("\tWaypoint")][0]
 wp_x, wp_y = float(waypoint[2]), float(waypoint[3])
 cmd(f"debug warp {int(wp_x) + 2} {int(wp_y)}"); frames(10)
-time.sleep(10)                                      # game.exe's 10 s from arriving (pcdata+0x160)
 face(wp_x, wp_y)
 press("a"); frames(20)
 assert " waypoint=9 " in cmd("state"), cmd("state")[:400]

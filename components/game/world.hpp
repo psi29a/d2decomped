@@ -206,7 +206,6 @@ struct World {
         int take_corpse = -1;                  // the corpse the player is walking to
         int last_pmode = -1;                   // the player's mode at the last tick (death's stages)
         std::int64_t exp_lost = 0;             // what the last death took
-        std::uint32_t arrived_at = 0;          // when the player last changed level (pcdata+0x160)
         // The client's find lines (FUN_004dcaa0 → FUN_004cc270).
         int voice_level = 0;                   // the level it's in (0x7c89dc), since voice_level_at
         std::uint32_t voice_level_at = 0;
