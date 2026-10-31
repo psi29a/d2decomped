@@ -354,6 +354,7 @@ static pad::Config g_pad_config;          // d2d.cfg pad_* (gamepad_map.hpp load
 static std::array<int, 6> g_automap_options{ 0, 0, 1, 1, 1, 0 };   // d2d.cfg automap_mode/fade/center/party/names/left (game.exe's registry)
 static bool        g_pad_controls = true;
 static bool        g_click_keys = true;   // Configure Controls' Attack / Use and Right-hand Skill keys (deviations.md); off: --toggle click_keys=off
+static keys::Clicks g_click_bindings = keys::kNoClicks;   // d2d.cfg click_attack / click_skill
 static bool        g_coop_lobby = true;   // the title's "SINGLE PLAYER / COOP" and character select's co-op lobby; off: --toggle coop_lobby=off // Configure Controls' gamepad page (deviations.md); off: --toggle pad_controls=off
 static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
 static int         g_start_class = -1;   // none: char-create opens with no class picked
@@ -684,9 +685,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     // IMKCFRunLoopWakeUpReliable"). It was left on permanently as a
     // beachball suspect; that beachball was the pan-left float loop.
     bool text_active = false;
-    bool click_held = false;   // a click key holds the left button down (keyconfig.hpp Clicks)
     Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
     town.set_pad_config(g_pad_config);
+    // The left button is down while a source holds it: the physical button or an Attack / Use key.
+    const auto attack_key_held = [&] { return std::ranges::any_of(town.click_keys[keys::kClickAttack], key_held); };
     // A pad's seat; a new seat's player picks their character (Town::coop_seat's roster).
     const auto take_seat = [&](const Gamepads::Pad& pad) {
         if (const int seat = seats.connect(pad.key, int(pad.id)); seat > 0) town.coop_seat(seat, seats.colour(seat), gamepads.sample(pad.id));
@@ -701,8 +703,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         d2d::userdir::Config cfg;
         d2d::userdir::load_cfg(town.cfg_file, cfg);
         town.hireling_hint = cfg["popup_hireling"] != "1";   // FUN_004939b0 reads the registry's PopupHireling each game
-        if (g_click_keys) town.click_keys = { keys::click_pair(cfg["click_attack"]), keys::click_pair(cfg["click_skill"]) };
     }
+    if (g_click_keys) town.click_keys = g_click_bindings;
     if (!g_no_save) town.key_dir = save_dir;                 // <name>.key and default.key beside the saves, as game.exe keeps them
     town.pad_controls_page = g_pad_controls;
     town.click_keys_on = g_click_keys;
@@ -817,16 +819,20 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 if (const int click = click_event(event, town.click_keys, down); click >= 0) {
                     const bool live = !text_active && !town.controls.open;
                     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) { mouse.x = int(event.button.x); mouse.y = int(event.button.y); }
-                    if (click == keys::kClickAttack && !down && click_held) { click_held = false; mouse.down = false; mouse.release_this_frame = true; }
+                    if (click == keys::kClickAttack && !down && mouse.down && !attack_key_held()
+                        && !(SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_LMASK)) { mouse.down = false; mouse.release_this_frame = true; }
                     if (live && down && !(event.type == SDL_EVENT_KEY_DOWN && event.key.repeat)) {
-                        if (click == keys::kClickAttack) { click_held = true; mouse.down = true; mouse.press_this_frame = true; }
+                        if (click == keys::kClickAttack) { mouse.down = true; mouse.press_this_frame = true; }
                         else mouse.rpress_this_frame = true;
                     }
                     if (live || !down) continue;
                 }
             }
+            const bool keep_down = screen == Screen::InGame && town.click_keys_on && event.type == SDL_EVENT_MOUSE_BUTTON_UP
+                                && event.button.button == SDL_BUTTON_LEFT && attack_key_held();
             handle_sdl_events(event, mouse, screen, text_this_frame,
                               backspace_this_frame, keys_this_frame, quit);
+            if (keep_down) { mouse.down = true; mouse.release_this_frame = false; }   // an Attack / Use key still holds it
         }
         // A partner's roster name and the keyboard's Enter (Steam's keyboard
         // on a Deck): their character is made, and the Enter is theirs, not
@@ -1886,6 +1892,7 @@ int main(int argc, char** argv) {
     {
         std::vector<std::string> problems;
         g_pad_config = pad::load_config([&](const char* key) { const auto found = cfg.find(key); return found == cfg.end() ? nullptr : &found->second; }, problems);
+        g_click_bindings = keys::click_load(cfg["click_attack"], cfg["click_skill"]);
         for (const auto& problem : problems) d2d::log::warn("d2d.cfg: {}", problem);
     }
     {

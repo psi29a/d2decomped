@@ -60,5 +60,9 @@ int main() {
     assert(click_pair("1,27") == (std::array<std::uint16_t, 2>{ kNone, kNone }));     // the left button, Esc
     assert(click_pair("258,258") == (std::array<std::uint16_t, 2>{ kMouse5, kNone }));
     assert(click_pair("99999999,258") == (std::array<std::uint16_t, 2>{ kNone, kMouse5 }));
+    // Both pairs from d2d.cfg: a key in both stays on Attack / Use only.
+    const Clicks loaded = click_load("258,257", "257,81");
+    assert(loaded[kClickAttack] == (std::array<std::uint16_t, 2>{ kMouse5, kMouse4 }));
+    assert(loaded[kClickSkill] == (std::array<std::uint16_t, 2>{ kNone, 'Q' }));
     return 0;
 }

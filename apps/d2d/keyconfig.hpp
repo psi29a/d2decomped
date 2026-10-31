@@ -190,6 +190,12 @@ inline void release_click_key(Clicks& clicks, std::uint16_t key) {
     if (pair[0] == pair[1]) pair[1] = kNone;
     return pair;
 }
+// Both d2d.cfg pairs, one function per key: a key in both stays on Attack / Use.
+[[nodiscard]] inline Clicks click_load(std::string_view attack_text, std::string_view skill_text) {
+    Clicks clicks{ click_pair(attack_text), click_pair(skill_text) };
+    for (auto& key : clicks[kClickSkill]) if (key != kNone && click_of(clicks, key) == kClickAttack) key = kNone;
+    return clicks;
+}
 
 // A character's <name>.key (0x476 bytes: version 0x25, then the table,
 // FUN_00469780) and its check when a game starts (FUN_0046aae0): every
