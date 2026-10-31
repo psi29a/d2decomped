@@ -89,7 +89,10 @@ SrcDam (0 → 128), +0x1dc conversion element, +0x1e0 / +0x1e4 EMin / EMax,
   9..16, `Lev3` 17..22, `Lev4` 23..28, `Lev5` 29 up.
 - **Elemental damage** (FUN_00644d50 min, FUN_00644e40 max):
   `(EMin + brackets) << HitShift`, plus the synergy calc as a percent of
-  that, plus the elemental mastery (stats 0x14a..0x14c) when asked.
+  that (MulDiv, FUN_00483360), plus the elemental mastery (stats
+  0x149..0x14c, FUN_00644c90) when asked. The min adds its synergy only
+  when it's over one point (0x100) or the row has an EMinLev1 (0x644db3);
+  the max always: Lightning's 1-x stays 1 (emu-checked: `skill_damage.py`).
 - **Elemental length** (FUN_00644f20): `ELen + ELevLen1..3` over 2..8,
   9..16, 17 up, plus ELenSymPerCalc as a percent.
 - **To-hit** (FUN_006449f0): `ToHit + LevToHit × (lvl − 1)`, or ToHitCalc.

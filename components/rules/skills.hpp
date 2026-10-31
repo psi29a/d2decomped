@@ -540,12 +540,16 @@ inline int eval_calc(const SkillTables& skill_tables, const Calc& calc, const Ca
 // Elemental damage in 256ths (FUN_00644d50 / FUN_00644e40): (EMin + brackets)
 // << HitShift, plus EDmgSymPerCalc percent of that; with `mastery` (the
 // flag), plus the element's mastery % of the sum (FUN_00644c90: fire 329,
-// lightning 330, cold 331, poison 332; env.stat).
+// lightning 330, cold 331, poison 332; env.stat). The min takes its
+// synergy only above one point or with an EMinLev1 (FUN_00644d50 at
+// 0x644db3; the max always): a lightning skill's 1-x stays 1 whatever its
+// synergies.
 inline int elem_damage(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, bool max, int depth = 0,
                        bool mastery = false) {
     if (lvl < 1) return 0;
     int damage = ((max ? skill.emax : skill.emin) + level_bonus(max ? skill.emax_lev : skill.emin_lev, lvl)) << (skill.hitshift & 31);
-    if (!skill.edmg_sym.empty()) damage += damage * eval_calc(skill_tables, skill.edmg_sym, env, skill.id, lvl, depth + 1) / 100;
+    if (!skill.edmg_sym.empty() && (max || damage > 0x100 || skill.emin_lev[0] != 0))
+        damage += damage * eval_calc(skill_tables, skill.edmg_sym, env, skill.id, lvl, depth + 1) / 100;
     if (mastery && env.stat && skill.etype >= 0 && skill.etype <= 3) damage += int(std::int64_t(damage) * env.stat(d2d::d2s::kPassiveFireMastery + skill.etype) / 100);
     return damage;
 }
