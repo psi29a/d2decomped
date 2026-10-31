@@ -232,7 +232,7 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
     }
 
 auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms) -> void {
-        if (in_town(level) || fight.dead() || actor->pmode >= 0) return;
+        if (in_town(level) || fight.dead() || actor->held || actor->pmode >= 0) return;   // held: FUN_0055e170's FUN_0063c1e0
         const bool book = scroll->code == "tbk";
         if (book && scroll->quantity <= 0) return;
         if (!fight.cast_scroll(book ? 220 : 219, now_ms)) return;

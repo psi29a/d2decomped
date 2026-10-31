@@ -955,6 +955,19 @@ int main(int argc, char** argv) try {
     world.tick({}, (902 + 3600) * kTickMs, (901 + 3600) * kTickMs);
     assert(world.actor->boost.shrine == 0 && world.actor->player_combat.res[0] == fire);
     std::printf("OK: shrines: stamina filled, one state at a time, resist fire for 3600 frames\n");
+    {   // A Town Portal read from the pack with an item in hand (FUN_0055e170's
+        // FUN_0063c1e0): nothing, the charge kept (tools/emu/tome_use.py).
+        auto& reader = *world.actor;
+        d2d::d2s::Item tome{ .code = "tbk", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .quantity = 2 };
+        tome.id = 9100;
+        reader.character.items.push_back(tome);
+        reader.held = d2d::d2s::Item{ .code = "hp1" };
+        world.apply(cmd::UseItem{ 9100 }, 4600 * kTickMs);
+        assert(reader.pmode == -1 && std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity == 2);
+        reader.held.reset();
+        std::erase_if(reader.character.items, [](const d2d::d2s::Item& item) { return item.id == 9100; });
+        std::printf("OK: a Town Portal read with an item in hand does nothing\n");
+    }
     {   // A converted monster is no target: game.exe's cursor drops a unit the player can't
         // interact with (HitTestScreen: CanInteractWith is !IsAllyOf), so an attack names it only
         // through devctl or the net; World turns that away too and the hero stays put.

@@ -816,7 +816,8 @@ struct World {
 
     // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
     // item): Skills.txt 219 / 220 cast (srvdofunc 113), not in town (checkfunc
-    // 5); the scroll's used up, the tome's quantity goes down.
+    // 5), not with an item in hand; the scroll's used up, the tome's quantity
+    // goes down.
     void read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms);
     // Town Portal's action frame: a portal by the player and its twin at the
     // town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11);
