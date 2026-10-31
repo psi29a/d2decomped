@@ -120,6 +120,19 @@ leaves the missile flying.
 `fireexplode` (a fire bolt's, the firebolt trap's): 12 frames (Range,
 AnimLen), RandStart 5, Light 13, additive, one direction.
 
+## A nova's 64 — FUN_0056d400
+
+Nova, Frost Nova, war cries, charge releases (FUN_005d4db0), Arcane Tower
+and coldunique aim their 64 at
+{0x6e1288[k], 0x6e1388[k]} subtiles from the caster (int32 x 64 each): a
+circle of 30 rounded to whole subtiles, so the angles step 3.9, 5.9, 6.1 ...
+degrees, not 5.625. Frozen Orb's burst (FUN_005abb00: 0x6e2738 / 0x6e2638)
+and spin (0x6e2b78 / 0x6e2a78) hold the same rows. d2d: `rules::kNovaRing`.
+PrimePoisonNova (do 99, FUN_005ccd10) has its own 16 (0x6e31e8 / 0x6e31a8,
+`rules::kPoisonNova`): the even 8 at Param1 << 6, then every calc2th from
+the second at Param2 << 6. Re-check: `cd tools/emu && uv run python -c
+"import emu,struct; e=emu.Emu(); print(struct.unpack('<64i', e.read(0x6e1288, 256)))"`.
+
 ## Its frame direction — FUN_00620100 → FUN_006487f0, FUN_00600c90
 
 A missile faces the 64-step direction its path holds at +0x64 (FUN_0059fa30
@@ -166,7 +179,7 @@ fireball.dcc and firebolt.dcc have 16 directions.
 - tests/monsters/test_monsters.cpp `missile_flights`: 18 of game.exe's flights
   replayed (frame, end, position, a hash of every frame).
 - Not yet: stat 87's velocity %, Size 2/3 missiles, flag 0x400's distance
-  (FUN_006417f0), the nova tables (0x6e1288), Charged Strike's and
+  (FUN_006417f0), Charged Strike's and
   boss bolts' wiggle (their callback index), standing missiles
   (srvdofunc 1 never strikes at velocity 0; d2d's keep a 0.4-cell test),
   rooms not yet up (game.exe skips them).

@@ -9,6 +9,7 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
+#include <missiles.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
@@ -2058,9 +2059,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const int lvl = skill_level(game_data, monster, monster.skill);
                 if (const auto* tower = game_data.skills.get(monster.skill); tower && foe.alive)
                     for (int k = 0; k < 64; ++k) {
-                        const float angle = float(k) * 2 * 3.14159265f / 64;
+                        const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                         const std::size_t had = missiles.size();
-                        andariel_missile(game_data, monster, tower->srvmissilea, std::cos(angle), std::sin(angle), now_ms, missiles, lvl, tower);
+                        andariel_missile(game_data, monster, tower->srvmissilea, float(aim_x), float(aim_y), now_ms, missiles, lvl, tower);
                         if (missiles.size() > had) missiles.back().to.reset();
                     }
                 monster.seq_once = true;
@@ -2323,9 +2324,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const int reach = ring == game_data.missiles.end() ? 0
                         : ring->second.range + ring->second.lev_range * lvl + d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
                     for (int k = 0; k < 64; ++k) {
-                        const float angle = float(k) * 2 * 3.14159265f / 64;
+                        const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
                         const std::size_t had = missiles.size();
-                        andariel_missile(game_data, monster, cast->srvmissilea, std::cos(angle), std::sin(angle), now_ms, missiles, lvl, cast);
+                        andariel_missile(game_data, monster, cast->srvmissilea, float(aim_x), float(aim_y), now_ms, missiles, lvl, cast);
                         if (missiles.size() > had) { missiles.back().dies = now_ms + std::uint32_t(std::max(reach, 1)) * 40; missiles.back().to.reset(); }
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kMissileWall) {
@@ -2507,11 +2508,24 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         missiles.back().x += aim_x; missiles.back().y += aim_y;
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kMonPoisonNova) {
-                    // FUN_005ccd10: srvmissilea out 8 ways (0x6e31e8 / 0x6e31a8), and the 8 between with calc2 2.
-                    const int between = d2d::rules::eval_calc(game_data.skills, cast->calc[1], {}, monster.skill, lvl) > 1 ? 2 : 1;
-                    for (int way = 0; way < 8 * between; ++way) {
-                        const float angle = float(way) * 2 * 3.14159265f / float(8 * between);
-                        andariel_missile(game_data, monster, cast->srvmissilea, std::cos(angle), std::sin(angle), now_ms, missiles, lvl, cast);
+                    // FUN_005ccd10: srvmissilea toward the even 8 of rules::kPoisonNova at
+                    // Param1 << 6, then every calc2th from the second at Param2 << 6
+                    // (calc2 2: the 8 between; under 2: none), as the chest trap's.
+                    const auto ring = game_data.missiles.find(cast->srvmissilea);
+                    const int step = d2d::rules::eval_calc(game_data.skills, cast->calc[1], {}, monster.skill, lvl);
+                    auto shoot = [&](std::size_t way, int param) {
+                        const auto [off_x, off_y] = d2d::rules::kPoisonNova[way];
+                        const std::size_t had = missiles.size();
+                        andariel_missile(game_data, monster, cast->srvmissilea, float(off_x), float(off_y), now_ms, missiles, lvl, cast);
+                        if (missiles.size() == had) return;
+                        auto& shot = missiles.back();
+                        const float speed = missile_speed((param << 6) * 75 / 100), length = std::hypot(float(off_x), float(off_y));   // FUN_0059fa30's x 75 / 100
+                        shot.velocity_x = float(off_x) / length * speed; shot.velocity_y = float(off_y) / length * speed;
+                    };
+                    if (ring != game_data.missiles.end()) {
+                        for (std::size_t way = 0; way < 16; way += 2) shoot(way, ring->second.param1);
+                        if (step > 1)
+                            for (std::size_t way = 1; way < 16; way += std::size_t(step)) shoot(way, ring->second.param2);
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kBestow) {
                     // ZakarumHeal (do 96, FUN_005cc840): as Bestow (the sequence's, below).

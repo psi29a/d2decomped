@@ -11,6 +11,7 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -364,8 +365,9 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                 const float speed = missile_speed(*missile_info, lvl);
                 const int range = missile_info->range + missile_info->lev_range * lvl + d2d::rules::eval_calc(game_data->skills, skill.calc[0], env, skill.id, lvl);
                 for (int k = 0; k < 64; ++k) {
-                    const float angle = float(k) * 2 * 3.14159265f / 64;
-                    missiles[put(target_x, target_y, std::cos(angle) * speed, std::sin(angle) * speed, range)].struck = shared;
+                    const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                    const float length = std::hypot(float(aim_x), float(aim_y));
+                    missiles[put(target_x, target_y, float(aim_x) / length * speed, float(aim_y) / length * speed, range)].struck = shared;
                 }
             } else {
                 for (int k = 0; k < radius * radius; ++k) {

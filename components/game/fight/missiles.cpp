@@ -279,8 +279,8 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // A war cry (do 68, FUN_005d83e0): the nova of its missile (range
             // its row's), then its state on the caster (FUN_005d8290).
             for (int k = 0; k < 64; ++k) {
-                const float angle = float(k) * 2 * 3.14159265f / 64;
-                auto& shot = send(std::cos(angle), std::sin(angle), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1);
+                const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                auto& shot = send(float(aim_x), float(aim_y), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1);
                 shot.struck = shared; shot.to.reset();                              // a way, not a point
             }
             if (skill.srvdofunc == ServerDoFunction::kWarCry && !skill.aurastate.empty()) {
@@ -462,8 +462,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // toward direction `turn` of 64 (0x6e2b78 / 0x6e2a78), turning
             // Param2 on.
             if (missile_info.srv_do == 15 && sub != game_data->missiles.end() && age % std::max(missile_info.param1, 1) == 0) {
-                const float angle = float(missile.turn & 63) * 2 * 3.14159265f / 64;
-                launch(sub->second, *skill, missile.level, missile.x, missile.y, std::cos(angle), std::sin(angle), sub->second.range, now_ms);
+                const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(missile.turn & 63)];
+                launch(sub->second, *skill, missile.level, missile.x, missile.y, float(aim_x), float(aim_y), sub->second.range, now_ms);
                 missile.turn += missile_info.param2;
             }
             // 14 (Grim Ward's totem): every Param1 frames the monsters within
@@ -744,8 +744,8 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
             case 29:
                 if (sub)
                     for (int k = 0; k < 64; k += std::max(missile_info.hit_par1, 1)) {
-                        const float angle = float(k) * 2 * 3.14159265f / 64;
-                        sub_at(missile.x, missile.y, std::cos(angle), std::sin(angle));
+                        const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                        sub_at(missile.x, missile.y, float(aim_x), float(aim_y));
                     }
                 break;
             case 48: if (sub) sub_at(missile.x, missile.y, missile.target_x - missile.x, missile.target_y - missile.y); break;

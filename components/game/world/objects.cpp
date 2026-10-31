@@ -14,6 +14,7 @@
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <level_ids.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
@@ -719,8 +720,8 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             }
         } else if (trap == 4) {                        // Trap Nova (do 22): the nova's 64
             for (int k = 0; k < 64; ++k) {
-                const float angle = float(k) * 6.2831853f / 64;
-                shoot(std::cos(angle), std::sin(angle), float(missile_info.vel), ring);
+                const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                shoot(float(aim_x), float(aim_y), float(missile_info.vel), ring);
             }
         } else {
             shoot(actor->player.x - x, actor->player.y - y, float(missile_info.vel), std::make_shared<std::vector<int>>());

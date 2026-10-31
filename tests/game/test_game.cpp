@@ -21,6 +21,7 @@
 #include <inventory.hpp>
 #include <item_text.hpp>
 #include <level_ids.hpp>
+#include <missiles.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
@@ -1183,6 +1184,20 @@ int main(int argc, char** argv) try {
         const auto* conversion_row = data->skills.get(conversion);
         assert(conversion_row && conversion_row->auratarget == "conversion" && std::ranges::contains(data->state_names, std::string("conversion")));
         std::printf("OK: a converted monster isn't attacked\n");
+    }
+
+    // Nova's 64 go out along rules::kNovaRing (0x6e1288 / 0x6e1388, FUN_0056d400), not even angles.
+    {
+        world.fight.pending.clear();
+        world.fight.fire(*data->skills.get(data->skills.by_name.at("Nova")), 5000 * kTickMs, world.fight.player_caster(data->skills.by_name.at("Nova")));
+        assert(world.fight.pending.size() == 64);
+        for (std::size_t way = 0; way < 64; ++way) {
+            const auto [aim_x, aim_y] = d2d::rules::kNovaRing[way];
+            const auto& shot = world.fight.pending[way];
+            assert(std::abs(shot.velocity_x * float(aim_y) - shot.velocity_y * float(aim_x)) < 1e-4f && shot.velocity_x * float(aim_x) + shot.velocity_y * float(aim_y) > 0);
+        }
+        world.fight.pending.clear();
+        std::printf("OK: Nova aims at game.exe's ring\n");
     }
 
     // A row with no Skill (Meteor's fire): its EDmgSymPerCalc, skill('Inferno'.blvl) * 3, adds

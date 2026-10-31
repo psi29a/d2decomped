@@ -13,6 +13,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <merc.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -111,8 +112,8 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                     if (has(d2d::rules::umod::cold)) {
                         const auto ring = std::make_shared<std::vector<int>>();
                         for (int k = 0; k < 64; ++k) {
-                            const float angle = float(k) * 6.2831853f / 64;
-                            boss_missile(monster, "coldunique", std::cos(angle), std::sin(angle), ring, now_ms);
+                            const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                            boss_missile(monster, "coldunique", float(aim_x), float(aim_y), ring, now_ms);
                         }
                     }
                 }

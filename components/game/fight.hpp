@@ -888,8 +888,8 @@ struct Fight {
     // two makers out across the line from the caster, and srvmissileb on
     // it. Do 19 (FUN_005c8ca0, Inferno): a flame of calc1 ticks per frame
     // while the cast lasts.
-    // ponytail: the nova's 64 directions are even angles, not
-    // the tables at 0x6e1288 / 0x6e1388; Strafe's arrows go out on a timer
+    // The nova aims at rules::kNovaRing (0x6e1288 / 0x6e1388).
+    // ponytail: Strafe's arrows go out on a timer
     // (3 ticks apart), not a repeated attack animation; Inferno's channel
     // is its cast's animation (no held button, no mana per frame).
     void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) {   // the player's: its ammo spent first
