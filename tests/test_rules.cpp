@@ -87,6 +87,13 @@ int main() {
     d2d::d2s::Header quest = header;
     quest.quests[0][2] = 1;                                                  // quest 1, bit 0 (normal)
     assert(item_price(tables, item("hax"), "Charsi", false, quest) == 500);       // qbuy 512/1024
+    // An armor's base is cost x its defence / maxac (FUN_0062efb0 at 0062f0f2).
+    tables.types["armo"] = {};
+    tables.types["helm"] = { .equiv = { "armo", "" } };
+    tables.item_info["hlm"] = { .type = "helm", .kind = 1 };
+    tables.item_base["hlm"] = { .minac = 10, .maxac = 20, .cost = 1000 };
+    Item helm = item("hlm"); helm.defense = 15;
+    assert(item_price(tables, helm, "Charsi", false, header) == 750 && item_price(tables, helm, "Charsi", true, header) == 187);
 
     // Placement: column-first, weapons spill from tab 1 to 2, armour doesn't.
     Store store;
@@ -295,6 +302,8 @@ int main() {
     assert(max_durability(tough) == 50 && repair_cost(tables_copy, tough, "Charsi", header) == 1000 * 40 / 50 / 2);
     Item forever = worn; forever.props = { { .stat = 152, .value = 1 } };
     assert(repair_cost(tables_copy, forever, "Charsi", header) == 0);
+    Item dented = item("hlm"); dented.defense = 15; dented.max_durability = 40; dented.durability = 10;
+    assert(repair_cost(tables_copy, dented, "Charsi", header) == 750 * 30 / 40 / 2);   // the armor's scaled base
     Store smith; smith.npc_id = "Charsi";
     d2d::d2s::Stats wallet; wallet.values[kGold] = 100; wallet.values[kGoldBank] = 300;
     assert(store_repair(tables_copy, smith, worn, wallet) && worn.durability == 40 && wallet.get(kGold) == 0 && wallet.get(kGoldBank) == 25);

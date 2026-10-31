@@ -419,6 +419,19 @@ inline bool is_repair_vendor(int hc_idx) {
 }
 
 
+inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth = 0);
+
+// The price base of an armor (ItemTypes armo, FUN_0062efb0 at 0062f0f2):
+// cost x its own defence (stat 31, not the stat list's) / maxac, for buy,
+// sell and repair alike; any other item keeps its cost.
+inline int armor_scaled(const Tables& tables, const d2d::d2s::Item& item, int cost) {
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    if (base == tables.item_base.end() || info == tables.item_info.end() || !type_is(tables, info->second.type, "armo")) return cost;
+    if (base->second.maxac == 0 || base->second.maxac - base->second.minac + 1 == 0) return cost;
+    return int(std::int64_t(cost) * item.defense / base->second.maxac);
+}
+
 // Buy (sell = false) or sell price of an item at the NPC with MonStats Id
 // npc_id, for the player's header (difficulty, quest flags).
 inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, bool sell,
@@ -440,6 +453,7 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     } else if (type == "bowq" || type == "xboq") {
         base = int(std::int64_t(base) * count / 1024);
     }
+    base = armor_scaled(tables, item, base);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
@@ -546,7 +560,7 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
         const int charges = charges_repair_cost(tables, item);
         return charges > 0 ? int(price_reduced(charges, reduced)) : 0;
     }
-    const int base = found != tables.item_base.end() ? found->second.cost : 0;
+    const int base = armor_scaled(tables, item, found != tables.item_base.end() ? found->second.cost : 0);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
@@ -667,7 +681,7 @@ inline void store_sell(const Tables& tables, Store& store, std::size_t index, st
 }
 
 // Is type t (or one of its Equiv ancestors) the type want?
-inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth = 0) {
+inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth) {
     if (type.empty() || depth > 8) return false;
     if (type == want) return true;
     const auto found = tables.types.find(type);
