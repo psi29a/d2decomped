@@ -13,8 +13,8 @@
 
 namespace d2d::client {
 
-DebugVerbs::DebugVerbs(CharCreateUI& character, Town& town, std::optional<Scene>& scene)
-    : character(character), town(town), scene(scene) {
+DebugVerbs::DebugVerbs(CharCreateUI& character_ui, Town& in_game, std::optional<Scene>& loaded_scene)
+    : character(character_ui), town(in_game), scene(loaded_scene) {
     add_fight();
     add_hero();
     add_level();

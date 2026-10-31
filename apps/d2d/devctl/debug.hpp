@@ -27,7 +27,7 @@ public:
 
     // The references are main()'s loop locals; the channel that holds this
     // is pumped only inside that loop.
-    DebugVerbs(CharCreateUI& character, Town& town, std::optional<Scene>& scene);
+    DebugVerbs(CharCreateUI& character_ui, Town& in_game, std::optional<Scene>& loaded_scene);
     DebugVerbs(const DebugVerbs&) = delete;
     DebugVerbs& operator=(const DebugVerbs&) = delete;
     DebugVerbs(DebugVerbs&&) = delete;
