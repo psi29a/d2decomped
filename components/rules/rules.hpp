@@ -331,49 +331,49 @@ inline std::pair<int, int> free_spot(const Tables& tables, const std::vector<con
     std::vector<bool> used(std::size_t(cols * rows));
     for (const auto* placed_item : placed) {
         const auto [item_width, item_height] = item_size(tables, placed_item->code);
-        for (int y = placed_item->row; y < std::min(placed_item->row + item_height, rows); ++y)
-            for (int x = placed_item->column; x < std::min(placed_item->column + item_width, cols); ++x) used[std::size_t(y * cols + x)] = true;
+        for (int row = placed_item->row; row < std::min(placed_item->row + item_height, rows); ++row)
+            for (int column = placed_item->column; column < std::min(placed_item->column + item_width, cols); ++column) used[std::size_t(row * cols + column)] = true;
     }
-    const auto taken = [&](int x, int y) { return bool(used[std::size_t(y * cols + x)]); };
-    const auto fits = [&](int x, int y) {
-        if (taken(x, y) || x + width > cols || y + height > rows) return false;
-        for (int row = y; row < y + height; ++row)
-            for (int column = x; column < x + width; ++column)
+    const auto taken = [&](int column, int row) { return bool(used[std::size_t(row * cols + column)]); };
+    const auto fits = [&](int start_column, int start_row) {
+        if (taken(start_column, start_row) || start_column + width > cols || start_row + height > rows) return false;
+        for (int row = start_row; row < start_row + height; ++row)
+            for (int column = start_column; column < start_column + width; ++column)
                 if (taken(column, row)) return false;
         return true;
     };
-    const auto score = [&](int x, int y) {                     // FUN_0063b340
+    const auto score = [&](int start_column, int start_row) {                     // FUN_0063b340
         int touching = 0;
-        for (int row = y; row < y + height; ++row) {
-            touching += x < 1 ? 1 : taken(x - 1, row);
-            touching += x + width < cols ? taken(x + width, row) : 1;
+        for (int row = start_row; row < start_row + height; ++row) {
+            touching += start_column < 1 ? 1 : taken(start_column - 1, row);
+            touching += start_column + width < cols ? taken(start_column + width, row) : 1;
         }
-        for (int column = x; column < x + width; ++column) {
-            touching += y < 1 ? 1 : taken(column, y - 1);
-            touching += y + height < rows ? taken(column, y + height) : 1;
+        for (int column = start_column; column < start_column + width; ++column) {
+            touching += start_row < 1 ? 1 : taken(column, start_row - 1);
+            touching += start_row + height < rows ? taken(column, start_row + height) : 1;
         }
         return touching >= 2 * (width + height) ? 0xff : touching;
     };
     int best = 0;
     std::pair spot{ -1, -1 };
-    const auto consider = [&](int x, int y) {                  // true: stop
-        if (!fits(x, y)) return false;
-        if (!players) { spot = { x, y }; return true; }
-        if (const int fit = score(x, y); fit > best) { best = fit; spot = { x, y }; return fit == 0xff; }
+    const auto consider = [&](int start_column, int start_row) {    // true: stop
+        if (!fits(start_column, start_row)) return false;
+        if (!players) { spot = { start_column, start_row }; return true; }
+        if (const int fit = score(start_column, start_row); fit > best) { best = fit; spot = { start_column, start_row }; return fit == 0xff; }
         return false;
     };
     if (height == 1) {
-        for (int x = cols - 1; x >= 0; --x)
+        for (int column = cols - 1; column >= 0; --column)
             for (int step = 0; step < rows; ++step)
-                if (consider(x, players ? rows - 1 - step : step)) return spot;
+                if (consider(column, players ? rows - 1 - step : step)) return spot;
     } else if (players) {
-        for (int y = 0; y < rows; ++y)
-            for (int x = 0; x < cols; ++x)
-                if (consider(x, y)) return spot;
+        for (int row = 0; row < rows; ++row)
+            for (int column = 0; column < cols; ++column)
+                if (consider(column, row)) return spot;
     } else {
-        for (int x = 0; x < cols; ++x)
-            for (int y = 0; y < rows; ++y)
-                if (consider(x, y)) return spot;
+        for (int column = 0; column < cols; ++column)
+            for (int row = 0; row < rows; ++row)
+                if (consider(column, row)) return spot;
     }
     return spot;
 }
@@ -381,15 +381,15 @@ inline std::pair<int, int> free_spot(const Tables& tables, const std::vector<con
 // Puts an item into the store grid from tab on (weapons spill 1 -> 2).
 inline bool store_place(const Tables& tables, Store& store, int tab, d2d::d2s::Item item) {
     const auto [width, height] = item_size(tables, item.code);
-    for (int i = tab; i < 4; ++i) {
+    for (int page = tab; page < 4; ++page) {
         std::vector<const d2d::d2s::Item*> placed;
-        for (const auto& placed_item : store.tabs[std::size_t(i)]) placed.push_back(&placed_item);
+        for (const auto& placed_item : store.tabs[std::size_t(page)]) placed.push_back(&placed_item);
         if (const auto [column, row] = free_spot(tables, placed, 10, 10, width, height, false); column >= 0) {
             item.column = column; item.row = row; item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory;
-            store.tabs[std::size_t(i)].push_back(std::move(item));
+            store.tabs[std::size_t(page)].push_back(std::move(item));
             return true;
         }
-        if (i != 1) break;
+        if (page != 1) break;
     }
     return false;
 }

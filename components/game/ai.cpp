@@ -2100,7 +2100,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // calc1, the radius under 5 and under 2 x calc1 tries, one in
                 // mode 8 (S1) at radius 1, the radius up one each time none
                 // fits; each flag 0x4000000 (no experience). Then it dies
-                // (FUN_0057ccb0).
+                // (FUN_0057ccb0). The egg still stands in the crowd: FUN_005b23c0
+                // hands FUN_005b2a00 only its room and spot (0x5b2451), no unit
+                // to leave out, and it dies after.
                 const int lvl = skill_level(game_data, monster, monster.skill);
                 const int count = d2d::rules::eval_calc(game_data.skills, done->calc[0], {}, monster.skill, lvl);
                 if (const auto young = game_data.monsters.by_id.find(type_info.spawn); born && young != game_data.monsters.by_id.end() && count > 0) {

@@ -2172,6 +2172,9 @@ auto World::crowd_now() -> Crowd {
         for (const auto& player : players) {
             crowd.units.push_back(&player->player);
             if (player->merc) crowd.units.push_back(&player->merc->unit);
+            if (player.get() != actor)                                  // the actor's pets come with fight.crowd
+                for (const auto& pet : player->pets)
+                    if (pet.monster.alive() && pet.where == level) crowd.units.push_back(&pet.monster.unit);
         }
         if (fight.mon_level == level) fight.crowd(crowd);
         return crowd;
@@ -2958,8 +2961,8 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             static constexpr std::array<std::pair<int, int>, 8> kAround{ { { -3, -3 }, { -3, 0 }, { -3, 3 }, { 0, -3 }, { 0, 3 }, { 3, -3 }, { 3, 0 }, { -3, 3 } } };
             const int from_x = int(std::floor(wanderer->unit.x * 5)), from_y = int(std::floor(wanderer->unit.y * 5));
             for (auto at = std::size_t(fight.spawning.quests.next() & 1); at < kAround.size(); ++at)
-                if (const auto spot = level->free_area(from_x + kAround[at].first, from_y + kAround[at].second, 3, 0x3f11, 100))
-                    fires.push_back({ level, &game_data->afterglow, (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5, now_ms, now_ms + 27 * kTickMs });
+                if (const auto spot = fight.mon_level->free_area(from_x + kAround[at].first, from_y + kAround[at].second, 3, 0x3f11, 100))   // his level, though the player's left it
+                    fires.push_back({ fight.mon_level, &game_data->afterglow, (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5, now_ms, now_ms + 27 * kTickMs });
             d2d::log::info("the Dark Wanderer's afterglow: {}", std::ranges::count(fires, &game_data->afterglow, &Fire::npc));
         }
         std::erase_if(fires, [&](const Fire& fire) { return fire.gone && now_ms >= fire.gone; });

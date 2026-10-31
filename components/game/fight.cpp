@@ -2112,8 +2112,9 @@ void put_near(const Level& level, const Crowd& crowd, UnitState& unit, float x, 
 // FUN_005b2f20 radius -1, test only, spawn_spot), then put_near it.
 // False when no try fits.
 bool room_teleport(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning& spawning, UnitState& unit) {
+    if (spawning.room_level != &level) return false;
     auto& in_play = spawning.levels[spawning.room_level];
-    if (spawning.room_level != &level || spawning.room < 0 || std::size_t(spawning.room) >= in_play.room_seeds.size() || std::size_t(spawning.room) >= level.rooms.size()) return false;
+    if (spawning.room < 0 || std::size_t(spawning.room) >= in_play.room_seeds.size() || std::size_t(spawning.room) >= level.rooms.size()) return false;
     const auto& room = level.rooms[std::size_t(spawning.room)];
     for (int tries = 0; tries < 20; ++tries) {
         auto& seed = in_play.room_seeds[std::size_t(spawning.room)];
