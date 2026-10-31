@@ -789,7 +789,7 @@ Object events (table 0x6e19b0):
 Handler FUN_0054c5d0:
 ```
 if len != 9: return 3
-if GetTickCount() < pcdata+0x160 + 10000:     // 10 s since last level change
+if GetTickCount() < pcdata+0x160 + 10000:     // 10 s since the last hostile declaration (FUN_0055b720)
     FUN_00553380(player,?); FUN_00554190(player)   // clear interact: +0x64=-1,+0x68=6,+0x6c=0
     return 1
 err = FUN_00549570(game, level; EAX=objId, EDI=player):

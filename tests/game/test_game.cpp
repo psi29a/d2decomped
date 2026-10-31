@@ -1266,6 +1266,31 @@ int main(int argc, char** argv) try {
         assert(set_props(*data, worn).empty());
         std::printf("OK: Sets.txt partial and full bonuses\n");
     }
+    // A waypoint used right after a level change travels: game.exe's 10 s
+    // refusal (FUN_0054c5d0) counts from a hostile declaration, which a
+    // level change is not. To the current level or an inactive one it stays.
+    {
+        World traveller(&*data, -1, -1);
+        traveller.enter(character);
+        const Level* encampment = &data->town;
+        const Level* plains = data->level(d2d::rules::level_ids::kColdPlains);
+        const auto stone = std::ranges::find(encampment->npcs, d2d::rules::operate_fn::kWaypoint, &Npc::operate_fn);
+        assert(plains && plains->ds1.width() > 0 && stone != encampment->npcs.end());
+        const int npc = int(stone - encampment->npcs.begin());
+        int index = -1;
+        for (const auto& act_levels : data->waypoint_levels)
+            for (const auto& row : act_levels) if (row.level == d2d::rules::level_ids::kColdPlains) index = row.waypoint;
+        traveller.now = 50'000;
+        traveller.arrive(encampment, encampment->start.first, encampment->start.second, "a test");
+        traveller.apply(cmd::Waypoint{ npc, d2d::rules::level_ids::kColdPlains }, traveller.now);
+        assert(traveller.level == encampment);                              // not active yet
+        traveller.set_waypoint(index);
+        traveller.apply(cmd::Waypoint{ npc, d2d::rules::level_ids::kRogueEncampment }, traveller.now);
+        assert(traveller.level == encampment);                              // the level it's on
+        traveller.apply(cmd::Waypoint{ npc, d2d::rules::level_ids::kColdPlains }, traveller.now);
+        assert(traveller.level == plains);
+        std::printf("OK: a waypoint travels at once after a level change, not to its own level or an inactive one\n");
+    }
     // Local co-op (docs/design/local-coop.md): a second player joins beside
     // the first and moves on their own orders; each one's View shows the
     // other; a level change takes the party; the Blood Moor's monsters go at
