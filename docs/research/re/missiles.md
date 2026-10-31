@@ -162,8 +162,8 @@ fireball.dcc and firebolt.dcc have 16 directions.
   tools/missile-dir-dump prints d2d's: 0 of 4000 differ (seeds 1, 7), and
   the table matches row for row (`table`). Before, the 32-direction index
   modulo the sprite's count drew 684 of 2000 16-direction frames wrong.
-  tests/test_game.cpp checks the 8 and 16 rows and eight fired bolts.
-- tests/test_monsters.cpp `missile_flights`: 18 of game.exe's flights
+  tests/game/test_game_rules.cpp checks the 8 and 16 rows and eight fired bolts.
+- tests/monsters/test_monsters.cpp `missile_flights`: 18 of game.exe's flights
   replayed (frame, end, position, a hash of every frame).
 - Not yet: stat 87's velocity %, Size 2/3 missiles, flag 0x400's distance
   (FUN_006417f0), the nova tables (0x6e1288), Charged Strike's and

@@ -3,9 +3,9 @@
 Our port: `components/rules/monsters.hpp` (`player_life_pct`,
 `player_exp_pct`, `monster_stats`), `components/rules/combat.hpp`
 (`party_shares`), `components/rules/drops.hpp` (`roll_drops`' `nearby`),
-`components/game/fight.cpp` (`Fight::killed`, `drop_counts`),
+`components/game/fight/deaths.cpp` (`Fight::killed`, `drop_counts`),
 `components/game/loot.hpp` (`Loot::take`'s gold), `World::credit_party`.
-Tests: `tests/test_game.cpp` (two players). The first survey is in
+Tests: `tests/game/test_game.cpp` (two players). The first survey is in
 docs/design/net-host.md section 2; this file has the traced detail.
 
 ## The player count — FUN_00535790

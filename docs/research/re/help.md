@@ -2,7 +2,7 @@
 
 UI 0x21. The key config's Help Screen (`0x4689d0`, H by default)
 toggles it. It also sets the "Help Menu" registry flag the first time.
-d2d: `apps/d2d/help.{hpp,cpp}`, opened from `town.cpp`.
+d2d: `apps/d2d/help.{hpp,cpp}`, opened from `town/`.
 
 ## Drawing (FUN_00456ee0 → FUN_00494320, FUN_00494eb0, FUN_004966c0)
 

@@ -92,7 +92,7 @@ colour shift.
 
 d2d: `rules::act_boss` in `spawn_monsters` (Boss::unique without
 make_boss's stats). Their quests key off the kill's MonStats row
-(world.cpp). Checked: `monsters.py` prints the mods FUN_005b1cf0 adds and
+(world/). Checked: `monsters.py` prints the mods FUN_005b1cf0 adds and
 the stat 0x76 (`267!12.22h`, `156!22`, `402!22`), as `drlg-dump ... monsters` does.
 
 By FUN_005a0320's flag-8 guard each boss counts one unique, whatever its
@@ -113,7 +113,7 @@ FUN_005022f0.
 - Always 4 for MonStats rows 0xd3, 0xe5, 0xf2, 0xf3, 0x14d, 0x220, 0x23a
   and 0x2c0..0x2c5: duriel, radament, mephisto, diablo, the clones,
   baalcrab and the ubers. Andariel is not on the list.
-- d2d: `rules::bar_name_colour`, drawn by town.cpp's draw_monster_bar.
+- d2d: `rules::bar_name_colour`, drawn by town/view.cpp's draw_monster_bar.
 
 **The sound set** (FUN_004ca410, UnitSnd.cpp; record 0x94 bytes at
 DAT_0096c6b4):

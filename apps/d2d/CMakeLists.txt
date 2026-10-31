@@ -223,10 +223,50 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/build_info.hpp" CONTENT
     @ONLY ESCAPE_QUOTES)
 
 add_executable(d2d
-    main.cpp common.cpp controls.cpp cursor.cpp frontend.cpp gamemenu.cpp gamepad.cpp help.cpp hireling.cpp lobby.cpp party.cpp ingame.cpp items.cpp load.cpp panels.cpp
-    netgame.cpp roster.cpp scene.cpp skilltree.cpp store.cpp town.cpp tile_blit.cpp ui.cpp window.cpp world_view.cpp
+    # One a line, in name order: a new file goes where it sorts. A subsystem
+    # split over several files keeps them in its own directory (devctl/, town/).
+    common.cpp
+    controls.cpp
+    cursor.cpp
+    frontend.cpp
+    gamemenu.cpp
+    gamepad.cpp
+    help.cpp
+    hireling.cpp
+    ingame.cpp
+    items.cpp
+    load.cpp
+    lobby.cpp
+    main.cpp
+    netgame.cpp
+    panels.cpp
+    party.cpp
+    roster.cpp
+    scene.cpp
+    skilltree.cpp
+    store.cpp
+    tile_blit.cpp
+    ui.cpp
+    window.cpp
+    world_view.cpp
+    devctl/debug.cpp
+    devctl/debug_fight.cpp
+    devctl/debug_hero.cpp
+    devctl/debug_level.cpp
+    devctl/debug_net.cpp
+    town/ambient.cpp
+    town/controls.cpp
+    town/draw.cpp
+    town/input.cpp
+    town/net.cpp
+    town/setup.cpp
+    town/update.cpp
+    town/view.cpp
+    town/walk.cpp
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/assets/icon/d2d.rc>)
-target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+# The source dir too: a file in a subdirectory (devctl/, town/) includes
+# the client's headers by name, as the files here do.
+target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
 # The version reaches main.cpp through build_info.hpp, not a define: a
 # define changes every commit and misses ccache for all of d2d's sources.
 target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY)
@@ -242,7 +282,7 @@ if(TARGET crashpad_handler)
     add_custom_command(TARGET d2d POST_BUILD COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "$<TARGET_FILE:crashpad_handler>" "$<TARGET_FILE_DIR:d2d>")
 endif()
-d2d_check_headers(d2d_headers LINK
+d2d_check_headers(d2d_headers SUBDIRS devctl town LINK
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches
     SDL3::SDL3 CLI11::CLI11 ${OPENAL_LIBRARY})

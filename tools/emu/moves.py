@@ -23,7 +23,7 @@ components/rules/monsters.hpp toward_path / chase_check and ai.cpp.
    and without a unit to walk to. Hooks: the collision test only.
 
 Prints `ok` or each mismatch. `--dump` prints cases as C++ lines for
-tests/test_monsters.cpp; `--break` breaks the port (a re-path at 4 off, not
+tests/monsters/test_monster_ai.cpp; `--break` breaks the port (a re-path at 4 off, not
 5; no stop at a step back) to show the check bites.
 """
 import random

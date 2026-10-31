@@ -7,17 +7,17 @@
 //   g++ -O2 -std=c++20 -o hit_len_harness hit_len_harness.cpp
 //   ./hit_len_harness < cases.tsv > before.tsv
 //
-// - player (components/game/fight.cpp:457..460, set_pmode): shown =
+// - player (components/game/fight/setup.cpp set_pmode): shown =
 //   rules::speed_frames(frames, fhr) (combat.hpp:197: E = 120 v / (120 + v),
 //   ceil(frames x 256 / (256 + floor(256 E / 100)))); len = shown x
 //   ms_per_frame (gamedata.hpp:393: 40 x 256 / speed, integer); pmode_until =
 //   now + len; the player's frame ends the mode at the first tick with now >=
-//   pmode_until (fight.cpp:2395), ticks 40 ms (apps/d2d/town.cpp:2945).
+//   pmode_until (components/game/fight/), ticks 40 ms (apps/d2d/town/).
 // - monster (components/game/ai.cpp:172, set_mode): mode_until = now +
 //   length_ms x 100 / (100 + anim_rate_pct) with length_ms = ms_per_frame x
 //   frames (gamedata.hpp:396) and anim_rate_pct = anim_pct for GH (ai.hpp:379);
 //   ai.cpp:1723 ends it at the first tick with now >= mode_until. The merc
-//   (fight.cpp:2127, 4804) is the monster's rule with anim_pct 0.
+//   (components/game/fight/) is the monster's rule with anim_pct 0.
 #include <cstdio>
 
 static int effective_speed(int speed, int cap = 120) { return speed > 0 ? cap * speed / (cap + speed) : speed; }

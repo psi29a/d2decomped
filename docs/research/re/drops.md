@@ -4,9 +4,9 @@ Our port: `components/rules/drops.hpp` (`tc_upgrade`, `roll_drops`,
 `roll_quality`, `made_quality`, `stand_quality`, `chest_round`,
 `gold_amount`, `add_auto_treasure`), `components/rules/shrines.hpp`
 (`open_container`, `stand_item`), loaded in
-`components/game/gamedata_load.cpp`, used by `components/game/loot.hpp`
-(kills) and `world.cpp` (chests). Checked against game.exe by
-`tools/emu/drops.py` (see the end) and `tests/test_game.cpp`.
+`components/game/gamedata/gamedata_load.cpp`, used by `components/game/loot.hpp`
+(kills) and `world/` (chests). Checked against game.exe by
+`tools/emu/drops.py` (see the end) and `tests/game/test_game_tables.cpp`.
 
 ## Tables
 
@@ -314,7 +314,7 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
   (Annihilus, a unique entry).
 - `uv run python drops.py tables`: every class's entries against ours,
   1012 / 1012.
-- `drops.py act1` prints the Act 1 jobs `tests/test_game.cpp` hashes.
+- `drops.py act1` prints the Act 1 jobs `tests/game/test_game_tables.cpp` hashes.
 - `uv run python drops.py items 1-40000`: a fake item unit takes its
   seeds off a game seed through FUN_00552df0 / FUN_00552e90, FUN_00557ab0
   rolls it (FUN_00627260 hooked to record the stats), FUN_005566b0 /

@@ -99,7 +99,7 @@ Focused days, one developer or agent. Each lands alone, tree green.
 
 - Files: `components/net/tcp_transport`; `apps/d2d/main.cpp` (`--join`,
   `--game-exe`, `--net-log`), `frontend.cpp` (OTHER MULTIPLAYER → TCP/IP →
-  Join, address kept in d2d.cfg), `devctl_verbs.hpp` (`net`: state,
+  Join, address kept in d2d.cfg), `apps/d2d/devctl/verbs.hpp` (`net`: state,
   histogram, last B4); `test_net`.
 - A socket thread with bounded queues; the game thread drains it at each
   40 ms tick (rule 5). `--net-log` writes the decompressed stream to the
@@ -155,7 +155,7 @@ Focused days, one developer or agent. Each lands alone, tree green.
 
 ### M8. Own movement: prediction and 0x5f — 3 days
 
-- Files: `components/net/client_model`, `d2gs/c2s`, `apps/d2d/town.cpp`
+- Files: `components/net/client_model`, `d2gs/c2s`, `apps/d2d/town/`
   (a network `Command` sink beside `LocalTransport`).
 - Walk / run start locally, then 01 / 03 (u16 subtiles) and 53 / 54;
   repeats inside 200 ms are dropped. 0x95 / 0x96 / 0x18 carry the host's
@@ -169,7 +169,7 @@ Focused days, one developer or agent. Each lands alone, tree green.
 
 - Files: `d2gs/c2s`, `components/net/client_model`,
   `components/game/protocol.hpp` (targets as unit type + id),
-  `apps/d2d/town.cpp`, `store.cpp`, `panels.cpp`.
+  `apps/d2d/town/`, `store.cpp`, `panels.cpp`.
 - 0x13 interact and NPC menus (talk 0x2f / 0x30, trade, hire, waypoint),
   0x3c select skill then 05.. skills, 0x16 pick up, item moves (grid,
   body, belt, cursor, drop, use), 0x32 buy with item id and cost, sell,
@@ -181,7 +181,7 @@ Focused days, one developer or agent. Each lands alone, tree green.
 ### M10. Act 1 playable together — 4 days
 
 - Files: `components/net/client_model`; `apps/d2d/ingame.cpp`,
-  `panels.cpp`, `ui.cpp` (chat line, party screen), `town.cpp`.
+  `panels.cpp`, `ui.cpp` (chat line, party screen), `town/`.
 - Casts built on the client from 0x4c / 0x4d (Fight's missile rules for
   display only), life bytes (0xab), deaths and corpses (0x8e), other
   players (0x5b / 0x5c / 0x75 / 0x7f), chat and events (0x26 / 0x5a; send

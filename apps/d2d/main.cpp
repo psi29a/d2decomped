@@ -19,7 +19,7 @@
 #include "build_info.hpp"
 #include "common.hpp"
 #include "cursor.hpp"
-#include "devctl_verbs.hpp"
+#include "devctl/verbs.hpp"
 #include "frontend.hpp"
 #include "gamepad.hpp"
 #include "lobby.hpp"
@@ -749,7 +749,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         }
     });
 
-    // Input, debug and state verbs for scripted tests (devctl_verbs.hpp).
+    // Input, debug and state verbs for scripted tests (devctl/verbs.hpp).
     register_game_verbs(channel, win, screen, csu, character, town, scene, audio);
 
     while (!quit) {

@@ -478,7 +478,7 @@ struct World {
     std::array<bool, d2d::rules::kQuestFlagCount> closed_at_join{};  // quests the first join closed (the game's flag 15, FUN_00546270)
     // The quest flags of the difficulty played.
     d2d::rules::QuestBits& quests();
-    // Each act's quests at the World's quest hooks (world_quests_actN.cpp),
+    // Each act's quests at the World's quest hooks (world/quests/actN.cpp),
     // called act by act; a new act adds its file and a call at each hook.
     // The quest log's states (World::view).
     void act1_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBits& bits) const;

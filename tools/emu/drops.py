@@ -390,7 +390,7 @@ def main():
         for g, u in bad[:5]: print(f"game: {g}\nours: {u}")
         print(f"{len(game) - len(bad)}/{len(game)} classes match game.exe (not checked: {', '.join(sorted(KNOWN))})")
         sys.exit(1 if bad or len(game) != len(ours) else 0)
-    if sys.argv[1] == "act1":                        # tests/test_game.cpp's lines and their FNV-1a
+    if sys.argv[1] == "act1":                        # tests/game/test_game_tables.cpp's lines and their FNV-1a
         act1 = sorted(n for n in o.names if n.startswith(("Act 1 ", "Andariel", "Countess", "Cow")))
         text = "".join(o.roll(*j) + "\n" for j in jobs([""] + act1, 1, 3000))
         h = 0xcbf29ce484222325

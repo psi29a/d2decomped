@@ -1310,7 +1310,7 @@ Conditions those results hold under, so they aren't overstated:
 
 d2d: `components/drlg/outdoor.hpp` (`generate_outdoor`), data loading in
 `outdoor_data.hpp`, `tests/test_outdoor.cpp`; `build_outdoor`
-(components/game/gamedata.cpp) and `World::cross_level`.
+(components/game/gamedata/gamedata.cpp) and `World::cross_level`.
 
 ### Taking a warp (FUN_005550b0)
 

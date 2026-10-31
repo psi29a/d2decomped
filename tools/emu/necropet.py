@@ -166,7 +166,7 @@ def pet_think(s, seed, move):
 
 
 def dump_case(s, want):
-    """A C++ test row (tests/test_monsters.cpp) for a case, keyed by its shape; None to skip."""
+    """A C++ test row (tests/monsters/test_monster_ai.cpp) for a case, keyed by its shape; None to skip."""
     out, (lo, hi) = want
     if ("teleport",) in out[:-1]: return None                          # d2d's teleport always lands
     px, py = s["pet"]

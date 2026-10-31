@@ -207,7 +207,7 @@ The stand re-arms (mode 0), so the malus can be dropped again.
   - Place (`FUN_004bfa70`): state 1 → 2, the item's id (+0xc) to `0x7c5480`, its drop sound (`FUN_004c1d60`). The item stays the cursor item, which the server checks; `FUN_00468070` only draws it in the slot. A press on the slot in state 2 takes it back (state 1).
   - Release (`FUN_004c04e0` → `FUN_004c0450`): button 0 is `FUN_004bfaf0`, button 1 or the close box (`FUN_00489190`) is `FUN_004c02f0`, cancel.
   - Send (`FUN_004bfaf0`, state 2 only): a wait box (string 0xd19), state 3, then `FUN_004b2370` sends **C→S 0x38 {kind 0, npc `0x7c0d25`, item `0x7c5480`}** (`FUN_004786d0`, 13 bytes). Nothing is sent before the button.
-  - d2d: Imbue arms a pick and the next click on an item takes it up and sends at once (town.cpp `imbue_with`); no slot, no button, no identified or eligibility check on the client.
+  - d2d: Imbue arms a pick and the next click on an item takes it up and sends at once (town/ `imbue_with`); no slot, no button, no identified or eligibility check on the client.
 - **Server, C→S 0x38: `FUN_00579d60(game, player, kind, npcGuid, itemId)`**, kind 0, npc class 0x9a:
   ```
   result = 7 (fail)

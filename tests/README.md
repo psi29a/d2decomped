@@ -1,7 +1,8 @@
 # tests/
 
 One `test_<subject>.cpp` per subject, each an independent executable and
-one ctest entry. `CMakeLists.txt` picks up every `test_*.cpp` by itself; a
+one ctest entry; a subject with several (game/, monsters/) gets a
+directory. `CMakeLists.txt` picks up every `test_*.cpp` by itself; a
 new test names what it links on a `// test-links:` line under its SPDX line
 (and `// test-sources:` / `// test-includes:` if it needs them), so adding
 one touches no shared file. No fixtures, no
@@ -16,10 +17,9 @@ returns `D2D_TEST_SKIPPED` (77, defined in `CMakeLists.txt`; the .py tests
 ctest lists those as skipped, not passed, so a bare checkout stays green
 and its summary shows which data-backed tests didn't run. A test that
 skips only part of its checks (test_d2s's real saves, test_mpq's
-installer) prints a `SKIP` line for that part and still passes. The one
-exception is test_game: it runs its few data-free checks, then returns
-`D2D_TEST_SKIPPED` without d2data.mpq, since the rest of it runs on the game's
-data; `ctest -V` shows its "the checks above ran" line.
+installer) prints a `SKIP` line for that part and still passes.
+test_game and test_game_tables skip without d2data.mpq; the game's checks
+that need no data are in test_game_rules, which always runs.
 
 Run: `ctest --test-dir build --output-on-failure`.
 

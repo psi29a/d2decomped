@@ -31,17 +31,17 @@ Line numbers are for `act1-outdoors` at 1458f6f.
 | world.hpp:162-170 | corpses, last_pmode, exp_lost, arrived_at, `talking` | Per player. |
 | world.hpp:173-176 | held, store, hire_offers, `next_item_id` | Per player, except `next_item_id`, which is per game (see item ids below). |
 | world.hpp:177-185 | quest records (den/andy/burial/tower/tools/cain), den_left, den_log_at, closed_at_join | Records stay per game. game.exe keeps one record per game and quest flag bits per player (quests.md). |
-| world.hpp:187, world.cpp:48 | `quests()` reads the single character's bits | Takes a player argument. |
+| world.hpp:187, world/setup.cpp | `quests()` reads the single character's bits | Takes a player argument. |
 | world.hpp:338 | set_waypoint on the character | Per player. |
 | world.hpp:391 | `tick(cmds)`: commands carry no player | `tick(span<Tagged{player_id, Command}>)`. |
-| world.cpp:442-519 | `enter` / `new_game` reset game state on every enter (quest join, loot cleared) | Split into `create_game` (once) and `join(player)`, which runs the per-player quest join callback (+0xd4 in game.exe). |
-| world.cpp:532-560 | swap_npcs when the player changes level | Levels load and unload by refcount, not on swap. |
-| world.cpp:578-612 | cross_level moves the one player | Moves one `PlayerSession`. |
-| world.cpp:1382 | `in_moor = level != town` | Per level. Town levels skip combat. |
-| world.cpp:1395-1398 | player_modes / resurrect | Loops over players. |
-| world.cpp:1509 | `fight.world(in_moor, ...)` on one level | Runs once for every level in play. |
-| world.cpp:1519 | kills trigger quest hooks | The hook gets the killer and party (see party credit below). |
-| world.cpp:1525 | `fight.rooms_up(*level, player.x, player.y)` | Runs for each player. Rooms are refcounted. |
+| world/setup.cpp | `enter` / `new_game` reset game state on every enter (quest join, loot cleared) | Split into `create_game` (once) and `join(player)`, which runs the per-player quest join callback (+0xd4 in game.exe). |
+| world/setup.cpp | swap_npcs when the player changes level | Levels load and unload by refcount, not on swap. |
+| world/travel.cpp | cross_level moves the one player | Moves one `PlayerSession`. |
+| world/ | `in_moor = level != town` | Per level. Town levels skip combat. |
+| world/ | player_modes / resurrect | Loops over players. |
+| world/ | `fight.world(in_moor, ...)` on one level | Runs once for every level in play. |
+| world/ | kills trigger quest hooks | The hook gets the killer and party (see party credit below). |
+| world/ | `fight.rooms_up(*level, player.x, player.y)` | Runs for each player. Rooms are refcounted. |
 
 ### Fight, AI, loot, spawning (`components/game/`)
 
@@ -52,9 +52,9 @@ Line numbers are for `act1-outdoors` at 1458f6f.
 | fight.hpp:134 | `amplified` array<2> | Per player plus per merc. |
 | fight.hpp:139 | missiles on the current level only | Per level. |
 | fight.hpp:147-236 | pmode, player_combat, psum, pets, charges, self_states, absorb, bo, merc_*, regen, boost | All per player. This is the bulk of the split. |
-| fight.cpp:1132-1142 | `killed`: all kill exp goes to the one character, then `loot.drop` | Party exp split (see below). The merc takes its own share. |
-| fight.cpp:1148-1192 | merc_turn picks targets relative to `player` | Relative to the merc's owner. |
-| fight.cpp:2362-2470 | foes = {player, merc} at fixed indices 0 and 1, pets at 2+. Monsters update only within 30 cells of the player. | Foe list with owner ids. Update radius covers any player on the level. |
+| fight/deaths.cpp | `killed`: all kill exp goes to the one character, then `loot.drop` | Party exp split (see below). The merc takes its own share. |
+| fight/merc.cpp | merc_turn picks targets relative to `player` | Relative to the merc's owner. |
+| fight/ | foes = {player, merc} at fixed indices 0 and 1, pets at 2+. Monsters update only within 30 cells of the player. | Foe list with owner ids. Update radius covers any player on the level. |
 | ai.hpp:174-191, ai.cpp:502-510 | `Foe`. monster_update picks the nearest live foe. `aware` is a bool (ai.hpp:121). | Nearest-foe is already N-ready. `aware` stays a bool. Nothing is gained until an AI trace shows per-player awareness. |
 | loot.hpp:33-35 | bound to the single character/player/rng | Takes a player argument. |
 | loot.hpp:39,48 | GroundItem ids come from `next_id`, separate from `World::next_item_id` | One id space. Both are type-4 units on the wire, so ids must be unique across ground items and inventories. |
@@ -74,7 +74,7 @@ Line numbers are for `act1-outdoors` at 1458f6f.
 | protocol.hpp:231-242 | `LocalTransport`: a single client | Stays for single player. Network clients get a socket transport. |
 | world.hpp:62-120 | `View` is a one-player view (player, merc, own character) | Not used for network clients. See below. |
 | replication.hpp:110-142,305 | `ViewEncoder` / `encode_view` / `apply_view`: one encoder per client, d2d-private deltas | Stays for the in-process path only. |
-| apps/d2d/town.hpp:120-139, town.cpp:249-260,700-722 | `Town` owns `World`, `LocalTransport` and `ViewEncoder`, and drives the tick | The host owns a `GameSession`. `Town` becomes one client of it. |
+| apps/d2d/town.hpp:120-139, town/ | `Town` owns `World`, `LocalTransport` and `ViewEncoder`, and drives the tick | The host owns a `GameSession`. `Town` becomes one client of it. |
 | apps/d2d/main.cpp:12,714-732,827 | `--headless` needs `--devctl` and uses the SDL dummy driver | See section 4 (dedicated server). |
 
 ## 2. What game.exe does with several players
@@ -234,7 +234,7 @@ Sizes assume one focused developer (or agent) with the existing test harness.
 
 | # | Item | Size |
 |---|---|---|
-| 1 | `PlayerSession` / `GameSession` split. Move per-player Fight state (fight.hpp:147-236) and World targets/portals/corpses/held/store/talking into `PlayerSession`. Foe list with owners. Tagged commands. `quests(player)`. Split `create_game` from `join`. | 1.5-2 weeks. It touches most of world.cpp and fight.cpp (~160 `player.` / ~180 `character.` sites). |
+| 1 | `PlayerSession` / `GameSession` split. Move per-player Fight state (fight.hpp:147-236) and World targets/portals/corpses/held/store/talking into `PlayerSession`. Foe list with owners. Tagged commands. `quests(player)`. Split `create_game` from `join`. | 1.5-2 weeks. It touches most of world/setup.cpp and fight/tick.cpp (~160 `player.` / ~180 `character.` sites). |
 | 2 | Room activation for N: refcounted rooms from each player's `Spawning`, all occupied levels simulated, idle unload after about 4.8 s, per-level monsters and missiles (the `kept` freeze becomes cool-down). | 1 week |
 | 3 | Unify item ids (loot.hpp:48 and world.hpp:176) into one per-game unit id allocator shared with monsters, objects and missiles as game.exe numbers them (check against net-packets.md). | 2-3 days |
 | 4 | Player-count scaling: HP/exp tables, stat 100, NoDrop with near and players, `/players` for game types 1-3. Tests against the tables in section 2. | 2 days |

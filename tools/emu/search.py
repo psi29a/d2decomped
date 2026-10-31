@@ -18,7 +18,7 @@ FUN_005543b0, a table), size (FUN_00620510), the area at a spot
 (FUN_0061b130), and FUN_005dd510's pathfinder (FUN_00649970: a path is
 always found, as d2d has it). The MonStats rows (threat) are a fake table.
 Prints `ok` or each mismatch. `--dump` prints cases as C++ lines for
-tests/test_monsters.cpp; `--break` breaks the port (list 9 ignores sight,
+tests/monsters/test_monster_ai.cpp; `--break` breaks the port (list 9 ignores sight,
 threat 2 counts as low) to show the check bites.
 """
 import random

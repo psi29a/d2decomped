@@ -103,7 +103,7 @@ References:
   dialogs, trade, quest log, automap, and game menus, not only combat.
 
 Relevant code: [window event translation](../../apps/d2d/window.cpp),
-[Town input and actions](../../apps/d2d/town.cpp),
+[Town input and actions](../../apps/d2d/town/input.cpp),
 [game commands](../../components/game/protocol.hpp).
 
 ## Steam Deck installation and update path

@@ -14,13 +14,14 @@ endforeach()
 # lists it as skipped, so a green run says which data-backed checks ran.
 set(d2d_skip_code 77)
 
-# Every tests/test_*.cpp is a test: adding one needs no line here, so two
+# Every test_*.cpp here or in a subdirectory (tests/game/, tests/monsters/)
+# is a test, named by its file (names stay unique): adding one needs no line here, so two
 # pull requests that each add a test don't both edit this file. A test names
 # what it links in its own header, under the SPDX line:
 #   // test-links: rules mpq          (targets; none: an empty `test-links:`)
 #   // test-sources: apps/d2d/x.cpp   (extra sources, from the repo root)
 #   // test-includes: apps/d2d        (extra include dirs, from the repo root)
-file(GLOB d2d_test_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
+file(GLOB_RECURSE d2d_test_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 set(d2d_cpp_tests "")
 foreach(test_source ${d2d_test_sources})
     get_filename_component(name ${test_source} NAME_WE)
@@ -28,7 +29,12 @@ foreach(test_source ${d2d_test_sources})
     if (NOT directives MATCHES "test-links:")
         message(FATAL_ERROR "${name}.cpp: no `// test-links:` line under the SPDX line (tests/CMakeLists.txt)")
     endif()
-    add_executable(${name} ${name}.cpp)
+    if (TARGET ${name})
+        message(FATAL_ERROR "${test_source}: another test is already named ${name}")
+    endif()
+    add_executable(${name} ${test_source})
+    # tests/ itself too: a test in a subdirectory includes the shared *_cases.inc by name.
+    target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_definitions(${name} PRIVATE D2D_TEST_SKIPPED=${d2d_skip_code})
     foreach(directive ${directives})
         string(REGEX MATCH "^// test-([a-z]+):(.*)$" _ "${directive}")

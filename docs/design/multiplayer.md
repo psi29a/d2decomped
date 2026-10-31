@@ -26,7 +26,7 @@ What already helps:
   return results, with tests. They can run on a server unchanged.
 - **Levels come from seeds** (`--seed`, `act1_layout`, `generate_outdoor`):
   a client can build the same Blood Moor from a map seed, as D2's does.
-- **The devctl channel** (`devctl_verbs.hpp`) is already a text command
+- **The devctl channel** (`apps/d2d/devctl/verbs.hpp`) is already a text command
   interface into a running game; the scripted tests drive the game through
   it. It shows where a command boundary would sit.
 

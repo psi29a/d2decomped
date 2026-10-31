@@ -5,7 +5,7 @@ Conventions, flag helpers and the record layout are in `quests.md` /
 change (param[5] old level, [6] new), +0xc0 a bound unit dies, +0xc8 leaves,
 +0xcc heard, +0xd4 joins, +0xd8, +0xe8 log, +0xec "!", +0xf0 open / chain).
 Traced 2026-10-23..24 from the decompile; ported in `rules/quests_act5.hpp`,
-`game/world_quests_act5.cpp` (thinks in `game/ai.cpp`: Wussie, BaalThrone,
+`game/world/quests/act5.cpp` (thinks in `game/ai.cpp`: Wussie, BaalThrone,
 BaalToStairs), played by `tests/quests_d2d.py ... 5`.
 
 ## The records
@@ -293,7 +293,7 @@ client), not a cinematic. The client's 0x61 handler is `FUN_0045e660`
 
 ## In d2d
 
-- `World::act5_kill` (world_quests_act5.cpp): the death missile (visual
+- `World::act5_kill` (world/quests/act5.cpp): the death missile (visual
   only, `Missile::sub` the cloud), `RiteQuest::ancient_fell` /
   `statues_back`, `World::rite_update`'s timer; Baal's gold and
   `World::save_due`.

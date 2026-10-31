@@ -98,7 +98,7 @@ and sound.
 | Level layout, outdoor generator | `components/drlg` (`test_drlg`, `test_outdoor`) | `gamedata.hpp` (`build_level`, `build_outdoor`) | |
 | The game server: levels, units, commands, the 25 Hz tick | | `world.hpp` (`World`), `protocol.hpp` (`Command`), `replication.hpp` (`View`) | |
 | The client: input, panels, camera, drawing | | | `town.hpp` (`Town`), `world_view.hpp` (drawing the level and units) |
-| Scripted-test verbs | | | `devctl_verbs.hpp` (+ info/screenshot/quit in `main.cpp`) |
+| Scripted-test verbs | | | `devctl/verbs.hpp`, `debug`'s sub-verbs in `devctl/debug_*.cpp` (+ info/screenshot/quit in `main.cpp`) |
 | World sounds | | `cues.hpp` (`Cues`, queued by the World) | `audio.hpp` (`play_cues`) |
 
 **The game and the client.** The game is `components/game`, namespace
@@ -118,7 +118,7 @@ game. `common.hpp` is its base (game_api, screen size, blits),
 `scene.hpp` holds `Scene : GameData` (sprites, fonts, palettes).
 
 **Files.** A header declares; its bodies live in the `.cpp` of the same
-name (`fight.hpp` / `fight.cpp`). A file includes the headers whose names
+name (`fight.hpp` / `fight/`). A file includes the headers whose names
 it uses, not whatever happens to bring them in: every header compiles on
 its own (`d2d_check_headers`, cmake/HeaderCheck.cmake, built with the rest;
 `-DD2D_CHECK_HEADERS=OFF` skips it). A class's methods are defined out of
@@ -886,7 +886,7 @@ death; the end: classic 90 s on, the game ends; LoD Tyrael's portal (Act 5
 isn't built: it stops there). The hellgate opens the fortress.
 
 *Done (2026-10-16):* `rules/quests_act4.hpp` (Act4Opening, IzualQuest,
-HellforgeQuest, TerrorQuest), `world_quests_act4.cpp` at the World's hooks
+HellforgeQuest, TerrorQuest), `world/quests/act4.cpp` at the World's hooks
 and the quest objects (the forge, the five seals and their three
 superuniques, Diablo's release and spawn at object 255, Tyrael's last
 portal 566). `tests/quests_d2d.py ... 4` plays all four from a new
@@ -1238,13 +1238,13 @@ outdoor dispatch in `build_outdoor` (Act 3's jungle its own generator).
 Act 4 work: its layout (not traced yet), its levels in `kBuiltLevels`, the town,
 its quests and Diablo.
 
-Each act's quests now sit in their own file, `world_quests_actN.cpp`, at
+Each act's quests now sit in their own file, `world/quests/actN.cpp`, at
 ten World hooks (`actN_log`, `_join`, `_enter`, `_talk`, `_talk_closed`,
 `_said`, `_tick`, `_alert`, `_kill`, `_update`; world.hpp lists them). An
-act needs only the hooks it uses; Act 4 adds `world_quests_act4.cpp` and a
+act needs only the hooks it uses; Act 4 adds `world/quests/act4.cpp` and a
 call at each. Within an act the order is as before; across acts it now
 runs act by act (each quest reads and writes its own records). Still in
-world.cpp: the quest objects' operate hooks (the `operate_fn` cases) and
+world/objects.cpp: the quest objects' operate hooks (the `operate_fn` cases) and
 a few level-arrival bits (Tyrael gone, camp Cain, the cairn stones).
 The tools take every act too: `ACT=1..5 tools/emu/sweep.sh` (ranges
 from `drlg.TOWNS`).
