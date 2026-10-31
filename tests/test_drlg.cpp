@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: drlg
 // Acts 1 and 2's level layout: for many seeds, every level clear of the others
 // and touching its link, the town where game.exe allows it, reproducible.
 #include <drlg.hpp>

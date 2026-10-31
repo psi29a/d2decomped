@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game dt1 palette font dc6 dcc cof
+// test-includes: apps/d2d
 // draw_mode against game.exe's blend for each COF draw effect: the
 // composite draw (FUN_00470ec0) hands a transparent layer's effect to the
 // renderer as its draw mode, and FUN_006c8250 picks the table. Cases from

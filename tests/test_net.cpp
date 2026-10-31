@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: net
 // The D2GS codec and the join session against a scripted host, over a
 // synthetic Huffman table (no game.exe bytes): docs/design/net-join-plan.md
 // M1-M3.

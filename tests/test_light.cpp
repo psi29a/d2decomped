@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // The day's clock and the light grid against game.exe's numbers.
 #include <light.hpp>
 

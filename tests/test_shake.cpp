@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 #include <rules.hpp>
 #include <shake.hpp>
 

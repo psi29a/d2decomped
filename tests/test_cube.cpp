@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // The Cube's recipes (rules/cube.hpp): compiled, matched, made.
 #include <cube.hpp>
 #include <d2s_items.hpp>

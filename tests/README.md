@@ -1,14 +1,17 @@
 # tests/
 
 One `test_<subject>.cpp` per subject, each an independent executable and
-one ctest entry (see `d2d_add_test` in `CMakeLists.txt`). No fixtures, no
+one ctest entry. `CMakeLists.txt` picks up every `test_*.cpp` by itself; a
+new test names what it links on a `// test-links:` line under its SPDX line
+(and `// test-sources:` / `// test-includes:` if it needs them), so adding
+one touches no shared file. No fixtures, no
 framework — a `main()` that returns 0 on success, checking with plain
 `assert` (CMakeLists.txt keeps NDEBUG off for this directory, so asserts
 stay on in Release builds); nothing fancier is warranted yet.
 
 Tests that need real assets (D2 ISOs, extracted MPQs, game.exe) locate
 them at runtime; when they're absent the test prints a `SKIP:` line and
-returns `D2D_TEST_SKIPPED` (77, defined by `d2d_add_test`; the .py tests
+returns `D2D_TEST_SKIPPED` (77, defined in `CMakeLists.txt`; the .py tests
 `sys.exit(77)`).
 ctest lists those as skipped, not passed, so a bare checkout stays green
 and its summary shows which data-backed tests didn't run. A test that

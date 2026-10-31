@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // The rain's cycle and drops against game.exe's numbers.
 #include <rules.hpp>
 #include <weather.hpp>

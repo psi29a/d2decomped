@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: install_detect
 // Install detection over a synthetic machine in a temp dir: MPQ magic,
 // hand-made VS_FIXEDFILEINFO blobs, hand-written Wine .reg text and a
 // hand-encoded product.db. No Blizzard bytes. Also d2d's data-dir order.

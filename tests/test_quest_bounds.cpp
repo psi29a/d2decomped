@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game
 // Act III quest IDs must fit every quest-state representation.
 #include <gamedata.hpp>
 #include <level_ids.hpp>

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // Store rules over hand-made tables: prices, buy/sell gold, placement, stock.
 #include <d2s.hpp>
 #include <d2s_items.hpp>
