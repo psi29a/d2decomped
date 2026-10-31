@@ -438,9 +438,9 @@ int main(int argc, char** argv) {
             Target half_resisted;
             half_resisted.res = { 0, 0, 50, 100, 0, 0 };
             Rng mark_rng{ 3 };
-            const auto marked = [&](int etype, int fine, const Target& target) {
+            const auto marked = [&](int etype, int fine, const Target& foe) {
                 const MissileDamage record{ .etype = etype, .elo = fine, .ehi = fine, .elen = 25 };
-                return missile_blow(record, target, {}, mark_rng).elemental;
+                return missile_blow(record, foe, {}, mark_rng).elemental;
             };
             assert(marked(0, 128, Target{}) && marked(0, 1, Target{}) && marked(0, 256, Target{}) && marked(0, 0x10000, Target{}));   // under a point still marks
             assert(!marked(0, 0, Target{}) && !marked(4, 256, Target{}));                       // an empty record, magic
