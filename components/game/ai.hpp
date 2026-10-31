@@ -420,6 +420,7 @@ struct Foe {
     int hits = 0;                             // hits that landed this frame (each wears its armour)
     int hit_class = 0;                        // the last landed blow's this frame: a melee monster's MonStats2 HitClass, a missile's Missiles.txt one
     bool running = false;                     // the player in RN: always hit by a swing, block a third
+    bool neutral = true;                      // in mode 1 (NU): not walking, swinging, casting or struck (BaalTaunt's still)
     [[nodiscard]] d2d::rules::Motion motion() const { return running ? d2d::rules::Motion::running : moving ? d2d::rules::Motion::walking : d2d::rules::Motion::standing; }
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
     struct Cast { int skill = -1, level = 0; };
@@ -486,6 +487,7 @@ inline std::int64_t crushing_blow(std::int64_t life, int divisor, int damage_res
 // player, +50 % each after).
 inline void monster_foe_props(const GameData& game_data, const Monster& monster, Foe& foe) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
+    foe.neutral = monster.mode == "NU";
     foe.knock_under = type_info.large ? 0x20 : type_info.small ? 0x80 : 0x40;
     if (monster.type == 0x10f || monster.type == 0x152 || monster.type == 0x167 || monster.type == 0x230 || monster.type == 0x231) { foe.crush_divisor = 10; return; }
     const bool unique = monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique;

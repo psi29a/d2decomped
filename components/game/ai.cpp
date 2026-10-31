@@ -1282,15 +1282,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.self_size = type_info.size; input.target_size = target->size;
             input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
         }
-        // ponytail: a player swinging or casting counts as still (a Foe keeps
-        // no mode, only its walk or run).
         if (name == "BaalTaunt") {
-            input.target_still = target->of ? target->of->mode == "NU" : target->motion() == d2d::rules::Motion::standing;
+            input.target_still = target->neutral;
             input.target_x = target_x; input.target_y = target_y;
         }
-        // Baal's tentacles live on their master (FUN_00552fd0).
-        // ponytail: the master's taken as there.
-        if (name == "BaalTentacle") input.rider = true;
         // The putrid defiler's find (FUN_005dd0b0 mode 1 with FUN_005efa50):
         // the first monster Impregnate takes (FUN_005d2140) within 25
         // (FUN_005dc380), in near-room then newest-unit order; in reach
@@ -1306,8 +1301,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 input.reach = d2d::rules::unit_distance(subtile(host.unit.x) - x, subtile(host.unit.y) - y, type_info.size, game_data.monsters.types[std::size_t(host.type)].size) <= type_info.melee_rng + 1;
             }
         }
-        // Baal's Vile Effigy lives while he does (FUN_00552fd0: its master, FUN_005541b0).
-        if (name == "BaalCrabClone") input.rider = std::ranges::any_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrab"; });
+        // Baal's Vile Effigy and his tentacles (FUN_005ef820) live while he
+        // does (FUN_00552fd0: their master, FUN_005541b0); he's the one Baal,
+        // and the only caster of Festering Appendages (the clone's act 9 swings).
+        if (name == "BaalCrabClone" || name == "BaalTentacle") input.rider = std::ranges::any_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrab"; });
         // The Imp reads imp1..imp4's aips (MonStats 0x1ec..0x1ef). Its ride
         // word (+0x14) names the siege beast or tower that took it (FUN_005e17e0):
         // found (FUN_00552f60), dead (FUN_005541b0), ridden (FUN_00552fd0), its spot.
@@ -2252,16 +2249,17 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // (65), turns suicide minion (FUN_005d1e10: its summon, summode,
                     // special AI 15, umod 33); else Bloodlust (FUN_005d1d70: its
                     // auratargetstate for auralen frames, aurastats velocity,
-                    // attack rate, armor and damage %).
-                    // ponytail: the roll is the caster's seed (FUN_0045c390's isn't
-                    // read); the new minion stands where the old one was, aware.
+                    // attack rate, armor and damage %). The roll is the caster's seed
+                    // (+0x20), drawn for any live minion before the Bloodlust test.
+                    // ponytail: a new unit where the old one was, aware; game.exe
+                    // turns the minion itself (FUN_00574370, state 0x8e stat 0x163).
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                         auto& whipped = pack[std::size_t(monster.skill_unit)];
                         const bool minion = whipped.type >= 0 && game_data.monsters.types[std::size_t(whipped.type)].base == 0x1c5;
                         const bool lusted = whipped.cry.skill == monster.skill && now_ms < whipped.cry.until;
                         const int chance = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
                         const auto summon = game_data.monsters.by_id.find(cast->summon);
-                        if (whipped.alive() && minion && !lusted && chance <= monster.seed(100) && born && summon != game_data.monsters.by_id.end()) {
+                        if (whipped.alive() && minion && chance <= monster.seed(100) && !lusted && born && summon != game_data.monsters.by_id.end()) {
                             auto turned = make_monster(game_data, summon->second, whipped.unit.x, whipped.unit.y, rng, monster.difficulty, true, players_in(foes));
                             turned.aware = true;
                             turned.seed = d2d::rules::Rng{ rng.next() };
