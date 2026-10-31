@@ -66,19 +66,23 @@ static int dump_difficulty() { const char* value = std::getenv("DIFFICULTY"); re
 // every room after them is seeded two rooms late in Lut Gholein.
 static d2d::mpq::Stack open_mpqs(const fs::path& dir) {
     d2d::mpq::Stack mpqs;
-    auto push_patch = [&](const fs::path& path) {
-        std::string extension = path.extension().string();
-        for (auto& letter : extension) letter = char(std::tolower(static_cast<unsigned char>(letter)));
-        if (extension == ".mpq") mpqs.push(path);
-        else mpqs.push_installer(path);
+    bool patched = false;
+    auto push_patch = [&](const fs::path& path) {             // one that will not open is skipped for the next, as the game does
+        try {
+            std::string extension = path.extension().string();
+            for (auto& letter : extension) letter = char(std::tolower(static_cast<unsigned char>(letter)));
+            if (extension == ".mpq") mpqs.push(path);
+            else mpqs.push_installer(path);
+            patched = true;
+        }
+        catch (const std::exception& error) { std::fprintf(stderr, "drlg-dump: %s\n", error.what()); }
     };
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
-    const bool given = patch && *patch && fs::exists(patch);
-    if (patch && *patch && !given) std::fprintf(stderr, "drlg-dump: patch %s not found\n", patch);
-    if (given) push_patch(patch);
-    else if (const auto found = d2d::install::find_file(dir, "patch_d2.mpq")) push_patch(*found);
-    else if (const auto found = d2d::install::find_file(dir, "LODPatch_114d.exe")) push_patch(*found);
-    for (const char* name : { "d2exp.mpq", "d2data.mpq" }) if (fs::exists(dir / name)) mpqs.push(dir / name);
+    if (patch && *patch && fs::exists(patch)) push_patch(patch);
+    else if (patch && *patch) std::fprintf(stderr, "drlg-dump: patch %s not found\n", patch);
+    if (!patched) if (const auto found = d2d::install::find_file(dir, "patch_d2.mpq")) push_patch(*found);
+    if (!patched) if (const auto found = d2d::install::find_file(dir, "LODPatch_114d.exe")) push_patch(*found);
+    for (const char* name : { "d2exp.mpq", "d2data.mpq" }) if (const auto found = d2d::install::find_file(dir, name)) mpqs.push(*found);
     return mpqs;
 }
 static bool g_units = false;                            // print rooms' units instead of their tiles

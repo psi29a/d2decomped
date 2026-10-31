@@ -393,6 +393,7 @@ auto Town::publish() -> void {
             view_enc.reset();
             return;
         }
+        if (!net_game && out.merc && view.merc) view.merc->fhr = out.merc->fhr;   // the wire has none: a local game keeps what World::view() computed
         level = view.level;
         if (net_game) net_overlay();
         cues.due.insert(cues.due.end(), view.sounds.begin(), view.sounds.end());
