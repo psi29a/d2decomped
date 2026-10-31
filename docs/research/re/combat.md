@@ -194,8 +194,8 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
 - Crushing blow: a quarter of current life less physical resistance, with
   no boss or difficulty divisors.
 - Monster hit recovery: at an eighth of max life. Player: a twelfth.
-- FHR and FBR act as animation-rate bonuses, not the per-class breakpoint
-  tables.
+- FBR acts as an animation-rate bonus on the plain frame count, not the
+  block branch's (50 + FBR, 100 under state 0x65).
 - Damage reduced %: capped at 50, applied before the flat reduction, which
   can reach 0.
 - Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
@@ -212,6 +212,27 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
   counts pieces.
 - Not in yet: skills (skills.md), monster life regeneration (MonStats
   DamageRegen), the weapon swap, champions/uniques.
+
+## Hit recovery: the length (SUnit.cpp)
+
+- **Rate** (`FUN_00623f50`'s get-hit branch, 0x62409f..0x624385, a player's
+  mode 4 or a monster's mode 3): AnimData speed x (50 + `FUN_00621740(unit,
+  row 1)`: stat 99 through 120 v / (120 + v)) / 100, floored, 0..0x7fff, at
+  unit +0x4c. The branch reads no other stat: chill (stat 69) and an aura's
+  attackrate / other_animrate don't slow a get-hit.
+- **End** (`FUN_005539b0`, from the player's mode-4 handler `FUN_0057fe30`
+  and the monster's `FUN_005a7c20`): with the start frame 0 (`FUN_00623b10`)
+  and the end at frames x 256 (`FUN_005533d0`) it adds the rate a tick while
+  the frame stays under the end, n such ticks, and queues event 1 at the game
+  frame + max(n, 1) + 1 (`FUN_005417d0`; a rate of 0: the next frame).
+  `FUN_00581020` (event 1) plays the player's NU through `FUN_0057f020`; a
+  monster's mode table (0x6e2298) ends mode 3 with `FUN_005a8030` -> NU. So a
+  Sorceress (8 frames at 256) holds 16 ticks at 0 FHR, 15 / 14 / 13 / 12 / 11
+  / 10 / 9 / 8 / 7 / 6 at 5 / 9 / 14 / 20 / 30 / 42 / 60 / 86 / 142 / 280
+  (the client's animation, stepped by `FUN_00463390`, shows one frame fewer).
+- Ported: `rules::get_hit_rate` / `get_hit_ticks` (the player's `set_pmode`,
+  a monster's and the merc's GH), checked by `tools/emu/hit_len.py` (the two
+  pieces run natively) against `test_combat --get-hit-length`.
 
 ## Cold, freeze and poison lengths (SUnitDmg.cpp)
 

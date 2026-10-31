@@ -318,7 +318,7 @@ inline int player_exp_pct(int players) {
 //   the monster owns itself (FUN_0064b860 -> FUN_00644c90), and the
 //   Council and baalhighpriest fire only through their Hydra's heads
 //   (FUN_005ca910, the heads owning the missiles): kept, none of them acts.
-struct MonProps { int ias = 0, fcr = 0, crush = 0, knock = 0, thorns = 0, stupidity = 0, fire_mastery = 0, fade = 0; };
+struct MonProps { int ias = 0, fcr = 0, fhr = 0, crush = 0, knock = 0, thorns = 0, stupidity = 0, fire_mastery = 0, fade = 0; };
 inline MonProps monster_props(const Tables& tables, const MonType& type, int difficulty, Rng& unit_seed) {
     MonProps props;
     for (const auto& slot : type.props[std::size_t(std::clamp(difficulty, 0, 2))]) {
@@ -330,6 +330,7 @@ inline MonProps monster_props(const Tables& tables, const MonType& type, int dif
             switch (stat.stat) {
                 case kFasterAttackRate: props.ias += stat.value; break;
                 case kFasterCastRate: props.fcr += stat.value; break;
+                case kFasterGetHitRate: props.fhr += stat.value; break;
                 case kCrushingBlow: props.crush += stat.value; break;
                 case kKnockback: props.knock += stat.value; break;
                 case kAttackerTakesDamage: props.thorns += stat.value; break;

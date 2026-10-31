@@ -200,6 +200,35 @@ inline int speed_frames(int base_frames, int speed_stat) {
     return (base_frames * 256 + 256 + scaled - 1) / (256 + scaled);
 }
 
+// The get-hit's animation rate, 1/256 frames a tick (FUN_00623f50's get-hit
+// branch, 0x62409f..0x624385, a player's mode 4 or a monster's mode 3): the
+// AnimData speed x (50 + the effective FHR, FUN_00621740's 120 v / (120 + v)
+// of stat 99) / 100, floored, 0..0x7fff. Chill, attackrate and other_animrate
+// aren't read there.
+// ponytail: a negative FHR. FUN_00621740 divides 120 v / (120 + v) for any
+// v != 0 (toward zero; -120 divides by zero) and the tail multiplies
+// unsigned; effective_speed keeps v <= 0 as is and the clamp floors at 0.
+inline int get_hit_rate(int speed, int fhr) {
+    return std::clamp(speed * (50 + effective_speed(fhr)) / 100, 0, 0x7fff);
+}
+
+// How many server ticks the get-hit mode holds (FUN_005539b0, the mode's
+// events, from FUN_0057fe30 / FUN_005a7c20): from frame 0 it adds the rate
+// a tick while the frame stays under frames x 256, held such ticks, and queues
+// the mode end (event 1: FUN_00581020 plays NU, a monster's FUN_005a8030) at
+// the game frame + max(held, 1) + 1; a rate of 0 ends it the next frame.
+// Sorceress SOGHHTH (8 frames at 256): 16 / 15 / 14 / 13 / 12 / 11 / 10 / 9 /
+// 8 / 7 / 6 ticks at FHR 0 / 5 / 9 / 14 / 20 / 30 / 42 / 60 / 86 / 142 / 280.
+// ponytail: the record's own event frames (AnimData +0x10, read in the same
+// loop) only queue type-0 events, not the end; a get-hit record with one
+// isn't modelled.
+inline int get_hit_ticks(int frames, int speed, int fhr) {
+    const int rate = get_hit_rate(speed, fhr);
+    if (rate <= 0) return 1;
+    const int held = frames > 0 ? (frames * 256 - 1) / rate : 0;
+    return std::max(held, 1) + 1;
+}
+
 // A cast animation's speed, 1/256 frames a tick (FUN_00623f50's cast branch at
 // 0x623fcb: FUN_00621740 turns stat 105 into the effective FCR through the row
 // at 0x6e8e3c): AnimData speed x min(100 + effective FCR, 175) / 100, clamped

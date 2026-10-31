@@ -454,9 +454,12 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         } else if (mode == kModeSC && anim.frames) {
             // ponytail: a cast that plays a sequence (Lightning) is timed as a plain one here.
             len = std::uint32_t(d2d::rules::cast_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), actor->player_combat.fcr)) * 40;
-        } else if ((mode == kModeGH || mode == kModeBL) && anim.frames) {
-            const int stat = mode == kModeGH ? actor->player_combat.fhr : actor->player_combat.fbr;
-            const int shown = d2d::rules::speed_frames(int(anim.frames), stat);
+        } else if (mode == kModeGH && anim.frames) {
+            // ponytail: prate spreads the frames over the whole hold; game.exe's client (FUN_00463390, tested
+            // before and after its step) draws one frame fewer and stands the last tick.
+            len = d2d::game::get_hit_ms(anim, actor->player_combat.fhr);
+        } else if (mode == kModeBL && anim.frames) {
+            const int shown = d2d::rules::speed_frames(int(anim.frames), actor->player_combat.fbr);
             len = std::uint32_t(shown) * anim.ms_per_frame();
         }
         actor->prate = len ? float(anim.length_ms()) / float(len) : 1.f;
@@ -2124,7 +2127,10 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
             if (!unit.walking) unit.path.clear();
-            actor->merc->mode_until = mode == "NU" || unit.walking ? 0 : now_ms + game_data->npc_timing(*actor->merc_npc, mode).length_ms();
+            // ponytail: the merc's FHR is its items' (merc_fighter); a state's stat 99 isn't kept, as a monster's.
+            actor->merc->mode_until = mode == "NU" || unit.walking ? 0
+                : mode == "GH"                                  ? now_ms + d2d::game::get_hit_ms(game_data->npc_timing(*actor->merc_npc, mode), merc_fighter().fhr)
+                                                                : now_ms + game_data->npc_timing(*actor->merc_npc, mode).length_ms();
         };
         if (actor->merc->mode == "GH" || actor->merc->mode == "DT") actor->merc_seq = nullptr;   // struck or dying: the sequence is cut
         if (actor->merc_buff.skill >= 0 && now_ms >= actor->merc_buff.until) actor->merc_buff = {};
@@ -4801,7 +4807,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                                                                                                    : actor->merc->mode;
             if (mode != actor->merc->mode) {
                 actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = false; unit.path.clear();
-                actor->merc->mode_until = now_ms + game_data->npc_timing(actor->merc->npc, mode).length_ms();
+                actor->merc->mode_until = now_ms + (mode == "GH" ? d2d::game::get_hit_ms(game_data->npc_timing(actor->merc->npc, mode), merc_fighter().fhr) : game_data->npc_timing(actor->merc->npc, mode).length_ms());
             }
         }
         auto& foe = side[0];

@@ -27,6 +27,18 @@ int main(int argc, char** argv) {
             for (int percent = 0; percent <= 400; ++percent) std::printf("%d %d %d\n", mode, percent, moving_anim_rate(mode == 3, percent));
         return 0;
     }
+    // `--get-hit-length`: the ticks a get-hit mode holds for the cases on stdin (`id kind speed
+    // frames fhr ...`, as tools/emu/hit_len.py writes and runs game.exe's FUN_00623f50 branch and
+    // FUN_005539b0 on): `id rate ticks` a case, kind 0 a player and 1 a monster (the same rule).
+    if (argc > 1 && std::string_view(argv[1]) == "--get-hit-length") {
+        long case_id, kind, speed, frames, fhr;
+        char line[512];
+        while (std::fgets(line, sizeof line, stdin)) {
+            if (line[0] == '#' || std::sscanf(line, "%ld %ld %ld %ld %ld", &case_id, &kind, &speed, &frames, &fhr) != 5) continue;
+            std::printf("%ld %d %d\n", case_id, get_hit_rate(int(speed), int(fhr)), get_hit_ticks(int(frames), int(speed), int(fhr)));
+        }
+        return 0;
+    }
     // `--cast-rates`: the cast speed and the ticks of a plain cast at every FCR 0..400, as
     // tools/emu/cast_rates.py prints game.exe's (`rate FCR SPEED RATE`, `ticks plain FRAMES SPEED FCR TICKS`).
     if (argc > 1 && std::string_view(argv[1]) == "--cast-rates") {
@@ -136,6 +148,13 @@ int main(int argc, char** argv) {
     assert(speed_frames(14, 37) == 11 && speed_frames(14, 63) == 10);
     assert(speed_frames(14, 105) == 9 && speed_frames(14, 200) == 8);
     assert(speed_frames(0, 105) == 0 && speed_frames(-3, 105) == 0);   // no anim, no shortening
+    // The get-hit's rate and the ticks its mode holds (tools/emu/hit_len.py runs FUN_00623f50's
+    // branch and FUN_005539b0): the Sorceress's 8 frames at 256 by FHR, a Zombie's 5 at 152.
+    assert(get_hit_rate(256, 0) == 128 && get_hit_rate(256, 20) == 171 && get_hit_rate(256, 86) == 256 && get_hit_rate(152, 0) == 76);
+    assert(get_hit_ticks(8, 256, 0) == 16 && get_hit_ticks(8, 256, 5) == 15 && get_hit_ticks(8, 256, 9) == 14 && get_hit_ticks(8, 256, 14) == 13);
+    assert(get_hit_ticks(8, 256, 20) == 12 && get_hit_ticks(8, 256, 30) == 11 && get_hit_ticks(8, 256, 42) == 10 && get_hit_ticks(8, 256, 60) == 9);
+    assert(get_hit_ticks(8, 256, 86) == 8 && get_hit_ticks(8, 256, 142) == 7 && get_hit_ticks(8, 256, 280) == 6 && get_hit_ticks(8, 256, 1000) == 6);
+    assert(get_hit_ticks(5, 152, 0) == 17 && get_hit_ticks(7, 256, 0) == 14 && get_hit_ticks(1, 512, 0) == 2 && get_hit_ticks(8, 1, 0) == 1);
     // Casts (game.exe's own code, tools/emu/cast_rates.py): a plain cast is a tick under
     // ceil(256 x frames / speed). Sorc SC, 14 frames: 13 at 0 FCR, then 12 / 11 / 10 / 9 / 8 / 7
     // from 9 / 20 / 37 / 63 / 105 / 200.
