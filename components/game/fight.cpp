@@ -1164,18 +1164,18 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     const auto monster_index = std::size_t(caster.target);
                     auto blow = d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng);
                     blow.knockback = int(rng(100)) < calc(skill, skill.calc[0], lvl);
-                    land(monster_index, blow, true, now_ms, player_foe_id());
+                    land(monster_index, blow, true, now_ms, striker_of(caster));
                 }
                 break;
             case ServerDoFunction::kMindBlast:
-                within(caster.to_x, caster.to_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) { land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng), true, now_ms, player_foe_id()); });
+                within(caster.to_x, caster.to_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) { land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng), true, now_ms, striker_of(caster)); });
                 break;
             case ServerDoFunction::kStaticField: {
                 const int pct = calc(skill, skill.calc[0], lvl);
                 within(actor->player.x, actor->player.y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
                     d2d::rules::Blow blow{ .hit = true };
                     blow.damage = d2d::rules::resisted(monsters[monster_index].hit_points * pct / 100, target_of(monster_index).res[3]);
-                    land(monster_index, blow, true, now_ms, player_foe_id());
+                    land(monster_index, blow, true, now_ms, striker_of(caster));
                 });
                 break;
             }
@@ -1241,7 +1241,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {             // the kick, then its charges released, hit or not (FUN_005d5220)
                     const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), rng,
                                                               skill_swing(skill, lvl, env, true));
-                    if (land(std::size_t(tgt), kick, true, now_ms, player_foe_id())) player_thorns(std::size_t(tgt), kick);   // a melee blow like any kick
+                    if (land(std::size_t(tgt), kick, true, now_ms, striker_of(caster))) player_thorns(std::size_t(tgt), kick);   // a melee blow like any kick
                     release(std::size_t(tgt), now_ms);
                 }
                 break;
@@ -1250,7 +1250,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 if (actor->attack_mon >= 0 && monsters[std::size_t(actor->attack_mon)].alive()) {
                     auto blow = d2d::rules::missile_blow(damage, target_of(std::size_t(actor->attack_mon)), pierce(), rng);
                     blow.knockback = true;
-                    land(std::size_t(actor->attack_mon), blow, true, now_ms, player_foe_id());
+                    land(std::size_t(actor->attack_mon), blow, true, now_ms, striker_of(caster));
                 }
                 break;
             // Curses (do 30, FUN_005c37c0; 61 Confuse, FUN_005c3f20): the
@@ -1515,7 +1515,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         if (const auto* state = state_of("bladeshield"); state && now_ms >= actor->blade_next) {
             const auto* skill = game_data->skills.get(state->skill);
             actor->blade_next = now_ms + std::uint32_t(std::max(calc(*skill, skill->perdelay_calc, state->level), 1)) * 40;
-            blade_shield(*skill, state->level, actor->player.x, actor->player.y, actor->player_combat, true, now_ms);
+            blade_shield(*skill, state->level, actor->player.x, actor->player.y, actor->player_combat, true, player_foe_id(), now_ms);
         }
         actor->storm_frame = now_ms / 40;
         // Thunder Storm (do 29, FUN_005ca4d0): a periodic skill (stats 0x15e /
@@ -2693,7 +2693,7 @@ auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::
                     int range, std::uint32_t now_ms) -> Missile& {
         const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_facing(x, y, dx, dy), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
-        missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc;
+        missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc; missile.striker = casting_unit;
         pending.push_back(std::move(missile));
         return pending.back();
     }
@@ -2705,8 +2705,8 @@ auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_ro
 auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster) -> void {
         const auto& missile_info = *skill_missile(skill);
         const int lvl = caster.level;
-        casting_merc = caster.merc;
-        struct Reset { bool& flag; ~Reset() { flag = false; } } reset{ casting_merc };
+        casting_merc = caster.merc; casting_unit = caster.unit_id;
+        struct Reset { bool& flag; int& unit; ~Reset() { flag = false; unit = -1; } } reset{ casting_merc, casting_unit };
         const int calc1 = calc(skill, skill.calc[0], lvl);
         const auto shared = std::make_shared<std::vector<int>>();
         const float dx = caster.to_x - caster.x, dy = caster.to_y - caster.y;
@@ -3111,7 +3111,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         blow.hit_class = missile.info->hit_class | skill->hit_class;
         if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
         if (blow.hit && freeze > 0) blow.chill_ticks = std::max(blow.chill_ticks, freeze);
-        land(monster_index, blow, true, now_ms, missile.by_merc ? merc_foe_id() : player_foe_id());
+        land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
         // A freeze stands it as a stun does, without the stun's guards.
         if (blow.hit && freeze > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(freeze) * 40);
     }
@@ -3616,7 +3616,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             for (const auto& buff : pet.buffs)                              // a Shadow's Blade Shield, as the player's
                 if (const auto* skill = game_data->skills.get(buff.skill); skill && skill->srvdofunc == ServerDoFunction::kBladeShield && now_ms >= pet.blade_next) {
                     pet.blade_next = now_ms + std::uint32_t(std::max(calc(*skill, skill->perdelay_calc, buff.level), 1)) * 40;
-                    blade_shield(*skill, buff.level, unit.x, unit.y, actor->player_combat, false, now_ms);
+                    blade_shield(*skill, buff.level, unit.x, unit.y, actor->player_combat, false, monster.id, now_ms);
                 }
             if (pet.until && now_ms >= pet.until) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); continue; }
             if (monster.mode == "KB") { if (d2d::game::knock_slide(monster, now_ms)) continue; set_mode(*game_data, monster, "GH", now_ms); }   // knocked back, then its get-hit
@@ -4269,7 +4269,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
 // within aurarange of (x, y), a hit at the skill's to-hit (FUN_006449f0),
 // its own damage (FUN_0056e170, MinDam..MaxDam by level) and the weapon's
 // at SrcDam (FUN_0057b7d0, 32 / 128).
-auto Fight::blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, std::uint32_t now_ms) -> void {
+auto Fight::blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms) -> void {
         const auto env = calc_env();
         d2d::rules::Swing swing;
         swing.ar_pct = d2d::rules::skill_tohit(game_data->skills, skill, env, lvl);
@@ -4279,7 +4279,7 @@ auto Fight::blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float
         const int radius = std::max(calc(skill, skill.aurarange, lvl), 1);
         for (std::size_t j = 0; j < monsters.size(); ++j)
             if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(radius))
-                land(j, d2d::rules::player_blow(fighter, target_of(j), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, swing), by_player, now_ms, by_player ? player_foe_id() : merc_foe_id());
+                land(j, d2d::rules::player_blow(fighter, target_of(j), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, swing), by_player, now_ms, striker);
     }
 
 // What a Shadow's self states give it: their aurastats at their levels,
@@ -4328,7 +4328,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         const int lvl = std::max(listed == pet.skill_list.end() ? 1 : listed->level, 1);
         const int target = pet.target >= 0 && monsters[std::size_t(pet.target)].alive() ? pet.target : -1;
         const auto& foe = target >= 0 ? monsters[std::size_t(target)].unit : monster.unit;
-        const Caster caster{ monster.unit.x, monster.unit.y, lvl, target, foe.x, foe.y, false, true };
+        const Caster caster{ monster.unit.x, monster.unit.y, lvl, target, foe.x, foe.y, false, true, monster.id };
         // Its self states (do 18 Burst of Speed / Fade / Venom, 47 Cloak of
         // Shadows, 54 Blade Shield): auralen frames on it; Cloak blinds the
         // monsters within its aurarange (their cry, as the player's).

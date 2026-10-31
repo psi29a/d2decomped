@@ -639,9 +639,13 @@ struct Fight {
     // Who casts a skill: where from, at what level, at which monster (-1
     // none) and point, and whether it's the merc's (its missiles strike with
     // its damage, attack rating and level).
-    struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false, pet = false; };   // pet: a summon's cast
+    // pet: a summon's cast; unit_id its Monster::id, the striker its hits
+    // record (FUN_00621d50 keeps the summon's own unit).
+    struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false, pet = false; int unit_id = -1; };
+    [[nodiscard]] int striker_of(const Caster& caster) const { return caster.unit_id >= 0 ? caster.unit_id : caster.merc ? merc_foe_id() : player_foe_id(); }
     [[nodiscard]] Caster player_caster(int skill) const;
     bool casting_merc = false;             // launch() marks what's fired as the merc's
+    int casting_unit = -1;                 // ... and as a summon's (Missile::striker)
     void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms) { spot(skill, now_ms, player_caster(skill.id)); }
     void spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster);
     // The skill's own element on its hit (FUN_0056e0c0: EMin..EMax with
@@ -1025,7 +1029,7 @@ struct Fight {
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
     [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
     void pet_buffs(Pet& pet);
-    void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, std::uint32_t now_ms);
+    void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
     void summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);
     // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
     // aidel ticks, with a monster within aip4 subtiles, it shoots its skill

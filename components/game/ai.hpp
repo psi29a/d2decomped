@@ -514,6 +514,7 @@ struct Missile {
     bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
     int caster = 0;                           // a friendly one's player (Fight::Hero::id), whose credit, leech and skills it carries
     bool by_merc = false;                     // a merc's skill: its weapon damage, attack rating and level, no synergies
+    int striker = -1;                         // a summon's (a Shadow's): its Monster::id, whom its hits are struck by
     bool visual_only = false;                          // only a sight (a death blast's guts): hits nothing
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over

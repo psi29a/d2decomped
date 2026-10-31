@@ -1458,6 +1458,15 @@ int main(int argc, char** argv) try {
             coop.fight.actor->player.x = at_x; coop.fight.actor->player.y = at_y;
             coop.fight.actor->player_combat = combat; coop.fight.actor->pf_kick = kick;
             coop.fight.monsters[prey_index].props.thorns = 0;
+            // A summon's cast (a Shadow's Mind Blast) is struck by the summon,
+            // not its owner (FUN_00621d50 keeps the casting unit).
+            const auto* blast = data->skills.get(data->skills.by_name.at("Mind Blast"));
+            assert(blast && blast->srvdofunc == d2d::rules::ServerDoFunction::kMindBlast);
+            auto& prey_now = coop.fight.monsters[prey_index];
+            prey_now.hit_points = prey_now.stats.hit_points * 100;
+            coop.fight.spot(*blast, now_ms, { .x = prey_now.unit.x, .y = prey_now.unit.y, .level = 1, .target = int(prey_index),
+                                              .to_x = prey_now.unit.x, .to_y = prey_now.unit.y, .pet = true, .unit_id = 777 });
+            assert(prey_now.struck_by == 777);
         }
         coop.fight.monsters[prey_index].hit_points = 0;
         coop.fight.killed(prey_index, now_ms);
