@@ -245,7 +245,8 @@ struct Rain {
         if (mud && bubble_at + 25 < clock) { bubble_at = clock; bubble_pass = true; }
     }
     // A floor tile whose DT1 material flags have 2 drawn with its top
-    // corner at (x, y) (FUN_004de410): rand(1000), under the threshold a
+    // corner at (x, y), y where the tile is drawn (FUN_004de410 passes its
+    // draw point; a tile taller than 80 rises above its cell): rand(1000), under the threshold a
     // splash in it (FUN_00472da0), under 100 a bubble (FUN_00472ec0, 30
     // higher). game.exe bug (bugs.md #10): the spot runs from the top corner
     // rightward by the row's width, so they sit half a tile right.

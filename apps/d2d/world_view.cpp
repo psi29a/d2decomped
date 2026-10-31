@@ -281,9 +281,13 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (!cell_level) continue;
             const auto& cell_map = cell_level->ds1;
             // A floor drawn whose DT1 material flags have 2 may splash in
-            // the rain or bubble in the mud (FUN_004de410).
+            // the rain or bubble in the mud (FUN_004de410), from the y the
+            // tile is drawn at (a 128-high water tile: 48 above its cell's).
             auto splash = [&](const d2d::dt1::Tile& tile, bool drawn) {
-                if (rain && drawn && (tile.material_flags & 2)) { const auto [splash_x, splash_y] = iso(cell_x, cell_y); rain->floor(rain->rng, splash_x, splash_y); }
+                if (rain && drawn && (tile.material_flags & 2)) {
+                    const auto [splash_x, splash_y] = iso(cell_x, cell_y);
+                    rain->floor(rain->rng, splash_x, splash_y - (std::abs(tile.height) - kIsoH));
+                }
             };
             if (!cell_level->picks.empty()) {                   // the floors game.exe picked
                 for (const auto& pick : cell_level->shown()[off])

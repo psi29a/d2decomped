@@ -46,7 +46,9 @@ The client's weather, 0x472320..0x473fc3. d2d: `components/rules/weather.hpp`
 ## Splashes
 
 Drawing a floor tile whose DT1 material flags have 2 (water: River.dt1)
-rolls rand(1000) < density for a splash (`FUN_004de410` → `FUN_00472da0`):
+rolls rand(1000) < density for a splash (`FUN_004de410` → `FUN_00472da0`,
+given the point the tile is drawn at: Kurast's 128-high water tiles 48 px
+above their cell's top corner):
 Rain3 or Rain4 (UncompOverlays), a frame every 2 ticks, drawn additive after
 the floors. Its x runs from the tile's top corner rightward by the row's
 width (bugs.md #10).
