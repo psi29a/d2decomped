@@ -4793,11 +4793,28 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             }
         if (actor->merc && side[1].knocked_from && actor->merc->hit_points > side[1].damage && actor->merc->mode != "DT")
             knock_back(*actor->merc, side[1].knocked_from->first, side[1].knocked_from->second, now_ms);   // as a monster's, before its get-hit
+        // FUN_0057cb00's size test (rules::get_hit) once per landed blow, as game.exe tests one damage
+        // record at a time (FUN_0057c6c0 then FUN_0057cee0 per hit): the divisor by that blow's hit class
+        // (16 for every Act 1 melee class and any blow with an element), 37.5 % from that share of max
+        // life, 75 % from twice it, sure from four times; every blow rolls, a get-hit restarts.
+        // What the unit's states absorbed (Bone Armor, Cyclone Armor, Energy Shield: absorb) comes off the
+        // blows in landing order, as a pool empties record by record in game.exe (FUN_0057c1e0 sums a
+        // record's total after state event 0xb, before FUN_0057cee0 sees it).
+        // ponytail: Energy Shield's share is taken in that order too, not per record.
+        const auto struck_big = [](const Foe& foe, std::int64_t max_life, d2d::rules::Rng& seed, int absorbed) {
+            bool big = false;
+            for (const auto& blow : foe.blows) {
+                const int cut = std::min(absorbed, blow.damage);
+                absorbed -= cut;
+                if (blow.damage - cut > 0 && d2d::rules::get_hit(max_life, std::int64_t(blow.damage - cut) << 8, blow.hit_class, blow.marked, seed)) big = true;
+            }
+            return big;
+        };
         if (actor->merc && side[1].damage > 0 && actor->merc->mode != "DT") {
             actor->merc->hit_points -= side[1].damage;
             auto& unit = actor->merc->unit;
             const auto mode = actor->merc->hit_points <= 0                                     ? std::string_view("DT")
-                            : actor->merc->mode != "KB" && d2d::rules::get_hit(std::int64_t(merc_max_life()) << 8, std::int64_t(side[1].damage) << 8, side[1].hit_class, side[1].elemental > 0 || side[1].poison > 0, actor->merc->seed) ? std::string_view("GH")
+                            : actor->merc->mode != "KB" && struck_big(side[1], std::int64_t(merc_max_life()) << 8, actor->merc->seed, 0) ? std::string_view("GH")
                                                                                                    : actor->merc->mode;
             if (mode != actor->merc->mode) {
                 actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = false; unit.path.clear();
@@ -4878,7 +4895,9 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);
+        const int struck = foe.damage;
         foe.damage = absorb(foe, now_ms);
+        const int absorbed = struck - foe.damage;
         foe.damage += int(actor->self_hurt >> 8);
         actor->self_hurt &= 255;
         using namespace d2d::d2s;
@@ -4900,11 +4919,9 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // too-small test; result flag 4 is the hit landing, FUN_0057ec10,
         // before any damage). That's all a stun does to a player: no input
         // is refused.
-        // Else FUN_0057cb00's size test (rules::get_hit): the divisor by the blow's hit class
-        // (16 for every Act 1 melee class and any blow with an element), 37.5 % from that share
-        // of max life, 75 % from twice it, sure from four times.
-        // ponytail: the damage is this frame's whole points; the rolls take d2d's rng, not the player's own seed.
-        const bool big = foe.damage > 0 && d2d::rules::get_hit(actor->character.stats.get(kMaxLife), std::int64_t(foe.damage) << 8, foe.hit_class, foe.elemental > 0 || foe.poison > 0, rng);
+        // Else the size test per landed blow (struck_big above).
+        // ponytail: a blow's damage is its whole points; the rolls take d2d's rng, not the player's own seed.
+        const bool big = struck_big(foe, actor->character.stats.get(kMaxLife), rng, absorbed);
         if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && !attack_mode(actor->pmode) && actor->pmode != kModeBL) set_pmode(kModeGH, now_ms);
     }
 
@@ -4948,6 +4965,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                 if (foe.alive && in_range(foe.x, foe.y)) {
                     const int dealt = d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]);
                     foe.damage += dealt; foe.elemental += dealt;
+                    foe.blows.push_back({ dealt, 0, true });
                 }
         }
     }

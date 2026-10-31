@@ -404,6 +404,11 @@ struct Foe {
     int crush_divisor = 10;                   // MonProp crush's life divisor, before a missile's doubling (FUN_005bffc0)
     int hits = 0;                             // hits that landed this frame (each wears its armour)
     int hit_class = 0;                        // the last landed blow's this frame: a melee monster's MonStats2 HitClass, a missile's Missiles.txt one
+    // Each landed blow this frame with its own damage, hit class and element mark: game.exe tests the
+    // get-hit one damage record at a time (FUN_0057c6c0 then FUN_0057cee0 per hit: 0x56ba73, 0x5ad8c6).
+    struct Blow { int damage = 0, hit_class = 0; bool marked = false; };
+    std::vector<Blow> blows;
+    void struck_by(int blow_class) { hit_class = blow_class; if (!blows.empty()) blows.back().hit_class = blow_class; }
     bool running = false;                     // the player in RN: always hit by a swing, block a third
     [[nodiscard]] d2d::rules::Motion motion() const { return running ? d2d::rules::Motion::running : moving ? d2d::rules::Motion::walking : d2d::rules::Motion::standing; }
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
@@ -423,6 +428,7 @@ struct Foe {
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
         hits += taken.hit ? 1 : 0;
+        if (taken.hit) blows.push_back({ taken.damage, 0, taken.elemental > 0 || taken.poison > 0 });
         damage += taken.damage; physical += taken.physical; elemental += taken.elemental;
         if (taken.poison > 0 && taken.poison >= poison) { poison = taken.poison; poison_ticks = taken.poison_ticks; }   // the stronger (FUN_0057ac50)
         chill_ticks = std::max(chill_ticks, taken.chill_ticks);
@@ -755,6 +761,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 const int burn = std::max(d2d::rules::resisted(rng.range(row.elo, row.ehi), foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]) - foe.fighter.mdr * 256, 0);
                 const int dealt = (burn >> 8) + (int(rng(256)) < (burn & 255) ? 1 : 0);
                 foe.damage += dealt; foe.elemental += dealt;
+                foe.blows.push_back({ dealt, 0, true });   // its own record, for its get-hit
             }
             return false;
         }
@@ -766,7 +773,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, rng, true);
             foe.take(taken);
             if (taken.hit && missile.owner >= 0) foe.shot_by.push_back(missile.owner);
-            if (taken.hit && missile.info) foe.hit_class = missile.info->hit_class;
+            if (taken.hit && missile.info) foe.struck_by(missile.info->hit_class);
             if (missile.info && missile.info->hit_func == 19 && missile.skill >= 0) foe.marked = { missile.skill, missile.level };   // FUN_005ab110
             if (missile.info && missile.info->return_fire && missile.owner >= 0) foe.fired_by.push_back(missile.owner);
             return true;

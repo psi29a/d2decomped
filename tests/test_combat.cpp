@@ -36,21 +36,29 @@ int main(int argc, char** argv) {
             for (int fcr = 0; fcr <= 400; ++fcr) std::printf("ticks plain %d %d %d %d\n", frames, speed, fcr, cast_ticks(frames, speed, fcr));
         return 0;
     }
-    // `--get-hit`: FUN_0057cb00's decision for the cases on stdin (`id kind maxlife damage hc rec64
-    // fire ltng cold poison f2000 mgh stun frozen seedlo seedhi`, as tools/emu/hit_rule.py writes
-    // and runs game.exe's FUN_0057cee0 on): `id gh -1`. The stun, frozen, poison-only and GH-mode
-    // tests sit around rules::get_hit in game.exe too (FUN_0057cee0 / FUN_0057cb00's prologue).
+    // `--get-hit`: FUN_0057cb00's decision for the damage records on stdin (`id kind maxlife damage hc
+    // rec64 fire ltng cold poison f2000 mgh stun frozen seedlo seedhi next`, as tools/emu/hit_rule.py
+    // writes and runs game.exe's FUN_0057cee0 on): one line a frame, `id gh -1`. `next` 1 means the
+    // following record lands on the same unit in the same frame (its seed carries on; the frame is a
+    // get-hit if any record is, each one rolling, as Fight::hurt_side's blows). The stun, frozen,
+    // poison-only and GH-mode tests sit around rules::get_hit in game.exe too (FUN_0057cee0 /
+    // FUN_0057cb00's prologue).
     if (argc > 1 && std::string_view(argv[1]) == "--get-hit") {
-        long case_id, kind, maxlife, damage, hit_class, rec64, fire, ltng, cold, poison, f2000, mgh, stun, frozen;
+        long case_id, kind, maxlife, damage, hit_class, rec64, fire, ltng, cold, poison, f2000, mgh, stun, frozen, next;
         unsigned long seed_lo, seed_hi;
         char line[512];
+        Rng seed;
+        bool carry = false, frame_recovers = false;
+        long frame_id = 0;
         while (std::fgets(line, sizeof line, stdin)) {
-            if (line[0] == '#' || std::sscanf(line, "%ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %lu %lu", &case_id, &kind, &maxlife, &damage, &hit_class, &rec64,
-                                               &fire, &ltng, &cold, &poison, &f2000, &mgh, &stun, &frozen, &seed_lo, &seed_hi) != 16) continue;
-            Rng seed; seed.low = std::uint32_t(seed_lo); seed.high = std::uint32_t(seed_hi);
+            if (line[0] == '#' || std::sscanf(line, "%ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %lu %lu %ld", &case_id, &kind, &maxlife, &damage, &hit_class, &rec64,
+                                               &fire, &ltng, &cold, &poison, &f2000, &mgh, &stun, &frozen, &seed_lo, &seed_hi, &next) != 17) continue;
+            if (!carry) { seed = Rng{}; seed.low = std::uint32_t(seed_lo); seed.high = std::uint32_t(seed_hi); frame_id = case_id; frame_recovers = false; }
             const bool marked = rec64 == 0 && (fire > 0 || ltng > 0 || cold > 0 || poison > 0 || f2000 != 0);
             const bool recovers = stun != 0 || (frozen == 0 && !(poison != 0 && poison == damage) && (kind == 0 || mgh != 0) && get_hit(maxlife, damage, int(hit_class), marked, seed));
-            std::printf("%ld %d -1\n", case_id, recovers ? 1 : 0);
+            frame_recovers = frame_recovers || recovers;
+            carry = next != 0;
+            if (!carry) std::printf("%ld %d -1\n", frame_id, frame_recovers ? 1 : 0);
         }
         return 0;
     }
@@ -65,7 +73,7 @@ int main(int argc, char** argv) {
     {
         Rng seed{ 7u };
         int band[4] = {};
-        for (int i = 0; i < 4000; ++i) {
+        for (int sample = 0; sample < 4000; ++sample) {
             band[0] += get_hit(100 << 8, (100 << 8) / 16 - 1, 3, false, seed);
             band[1] += get_hit(100 << 8, (100 << 8) / 16, 3, false, seed);
             band[2] += get_hit(100 << 8, (100 << 8) / 8, 3, false, seed);
