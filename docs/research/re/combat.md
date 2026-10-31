@@ -232,7 +232,11 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
   (the client's animation, stepped by `FUN_00463390`, shows one frame fewer).
 - Ported: `rules::get_hit_rate` / `get_hit_ticks` (the player's `set_pmode`,
   a monster's and the merc's GH), checked by `tools/emu/hit_len.py` (the two
-  pieces run natively) against `test_combat --get-hit-length`.
+  pieces run natively; `tools/emu/README.md` for the setup) against
+  `test_combat --get-hit-length`: `uv run python hit_len.py gen 100000 7 > cases.tsv`,
+  `... game cases.tsv > game.tsv`, `<build>/tests/test_combat --get-hit-length < cases.tsv > after.tsv`,
+  `... compare game.tsv after.tsv cases.tsv` (0 differ). `tools/emu/hit_len_harness.cpp`
+  is the old d2d's lines, for the same `compare` (the before).
 
 ## Cold, freeze and poison lengths (SUnitDmg.cpp)
 
