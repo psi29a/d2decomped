@@ -2724,7 +2724,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     const float chill = now_ms < monster.chill_until ? float(100 + type_info.diff[std::size_t(monster.difficulty)].cold_effect) / 100.f : 1.f;
     const int pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
     const float walk = cells_per_sec(float(type_info.velocity)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed + pace, 10)) / 100;
-    const float run = cells_per_sec(float(type_info.run)) * elapsed * chill * float(std::max(100 + monster.speed_pct + monster.boss_speed + pace, 10)) / 100;
+    // A moving mode's path velocity is MonStats Velocity (FUN_00621360,
+    // +0x32) x the walk %, RN too (FUN_00623f50, 0x6241a9); Run only comes
+    // in through an AI's pace (Run x 100 / Velocity - 100) or a charge.
+    const float run = walk;
     if (think(game_data, level, monster, foes, rng, now_ms, walk, run, crowd, pack, seen, open_door, born, rooms_in_play)) return false;
     // AI Idle (MonAI row 1: the cow, chickens, rats, birds, the doors and
     // barricades; search type 0, no target looked for): FUN_005b0cd0 stands
