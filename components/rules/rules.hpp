@@ -554,14 +554,17 @@ inline bool recharge(d2d::d2s::Item& item) {
 // and the quest rep mults / 1024, then the missing charges'
 // (charges_repair_cost, after the mults); 0 when there's nothing to repair.
 // A stack that restocks pays for its missing quantity instead (its base
-// a unit's, its durability free). Ethereal items can't be repaired.
-// ponytail: no socket terms.
+// a unit's, its durability free). Ethereal and unidentified items can't
+// be repaired (FUN_0062e660 at 0062efee: price 0).
+// ponytail: no socket terms. A whole item stays 0 here (the original
+// prices it 1, its Repair All skips it), and the gate's ItemTypes Repair
+// and durability column checks (FUN_00629930) aren't made.
 inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, int reduced = 0) {
     const int max = max_durability(item);
     const bool restock = restocks(tables, item);
     const auto found = tables.item_base.find(item.code);
     const int max_stack = found != tables.item_base.end() ? std::max(found->second.max_stack, 1) : 1;
-    if (item.ethereal) return 0;
+    if (item.ethereal || !item.identified) return 0;
     if (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(item)) {
         const int charges = charges_repair_cost(tables, item);
         return charges > 0 ? int(price_reduced(charges, reduced)) : 0;

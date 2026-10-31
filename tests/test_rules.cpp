@@ -309,6 +309,8 @@ int main() {
     Item whole = worn; whole.durability = 40;
     Item ghost = worn; ghost.ethereal = true;
     assert(repair_cost(tables_copy, whole, "Charsi", header) == 0 && repair_cost(tables_copy, ghost, "Charsi", header) == 0);
+    Item unknown_worn = worn; unknown_worn.identified = false;
+    assert(repair_cost(tables_copy, unknown_worn, "Charsi", header) == 0);            // unidentified: no repair
     Item tough = worn; tough.props = { { .stat = 73, .value = 10 } };        // +10 max: 50
     assert(max_durability(tough) == 50 && repair_cost(tables_copy, tough, "Charsi", header) == 1000 * 40 / 50 / 2);
     Item forever = worn; forever.props = { { .stat = 152, .value = 1 } };
