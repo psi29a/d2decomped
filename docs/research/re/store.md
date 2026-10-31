@@ -123,7 +123,9 @@ The base y is 539 (= 60 + 255 + 224):
   stash (`FUN_00576d90`).
 - Prices (hover: "Cost: " 0xd01 in the store, "Sell value: " 0xd03 on
   your own items while it is open), per FUN_0062efb0:
-  1. base = the item's cost column (armor/weapons/misc.txt). Two kinds
+  1. base = the item's cost column (armor/weapons/misc.txt); an armor
+     (ItemTypes armo, `0062f0f2`) is cost x its own defence (stat 31)
+     / maxac, for buy, sell and repair alike. Two kinds
      read the quantity (stat 70, at least 1) here, before every
      multiplier: a tome (ItemTypes Book) is cost + books.txt
      CostPerCharge x quantity (Tome of Town Portal 250 + 50 each, Tome of
