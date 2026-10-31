@@ -19,6 +19,7 @@
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <install.hpp>
 #include <level_ids.hpp>
 #include <maze.hpp>
 #include <mpq.hpp>
@@ -34,6 +35,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -55,6 +57,30 @@ namespace fs = std::filesystem;
 using namespace d2d::drlg;
 
 static int dump_difficulty() { const char* value = std::getenv("DIFFICULTY"); return value ? std::atoi(value) : 0; }   // $DIFFICULTY 0..2
+
+// The MPQs as open_game_data opens them: the 1.14d patch layer first
+// ($D2_PATCH_INSTALLER, else the folder's patch_d2.mpq or LODPatch_114d.exe,
+// found case-insensitively), then d2exp and d2data. Without the patch there
+// is no monpreset.bin, so a DS1's monsters keep their file ids: none is one
+// that rolls to stay (FUN_00667620), the level seed misses those steps, and
+// every room after them is seeded two rooms late in Lut Gholein.
+static d2d::mpq::Stack open_mpqs(const fs::path& dir) {
+    d2d::mpq::Stack mpqs;
+    auto push_patch = [&](const fs::path& path) {
+        std::string extension = path.extension().string();
+        for (auto& letter : extension) letter = char(std::tolower(static_cast<unsigned char>(letter)));
+        if (extension == ".mpq") mpqs.push(path);
+        else mpqs.push_installer(path);
+    };
+    const char* patch = std::getenv("D2_PATCH_INSTALLER");
+    const bool given = patch && *patch && fs::exists(patch);
+    if (patch && *patch && !given) std::fprintf(stderr, "drlg-dump: patch %s not found\n", patch);
+    if (given) push_patch(patch);
+    else if (const auto found = d2d::install::find_file(dir, "patch_d2.mpq")) push_patch(*found);
+    else if (const auto found = d2d::install::find_file(dir, "LODPatch_114d.exe")) push_patch(*found);
+    for (const char* name : { "d2exp.mpq", "d2data.mpq" }) if (fs::exists(dir / name)) mpqs.push(dir / name);
+    return mpqs;
+}
 static bool g_units = false;                            // print rooms' units instead of their tiles
 static bool g_seeds = false;                            // print rooms' room1 seeds instead of their tiles
 // The units kind brings rooms up in $ORDER, as drlg.py bring_up: list
@@ -487,9 +513,7 @@ int main(int argc, char** argv) try {
     }
     if (argc > 4 && std::string(argv[argc - 1]) == "layout") {
         // Act 2's outdoor rectangles (act2_layout), as tools/emu drlg.layout_dump prints them.
-        d2d::mpq::Stack mpqs;
-        if (const char* patch = std::getenv("D2_PATCH_INSTALLER")) mpqs.push_installer(patch);
-        for (const char* name : { "d2exp.mpq", "d2data.mpq" }) if (fs::exists(dir / name)) mpqs.push(dir / name);
+        d2d::mpq::Stack mpqs = open_mpqs(dir);
         OutdoorAssets assets;
         load_outdoor_assets(assets, [&](const std::string& path) { return mpqs.try_read(path); });
         const auto defs = level_defs(assets.levels);
@@ -701,9 +725,7 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
-    d2d::mpq::Stack mpqs;
-    if (const char* patch = std::getenv("D2_PATCH_INSTALLER")) mpqs.push_installer(patch);
-    for (const char* name : { "d2exp.mpq", "d2data.mpq" }) if (fs::exists(dir / name)) mpqs.push(dir / name);
+    d2d::mpq::Stack mpqs = open_mpqs(dir);
     OutdoorAssets assets;                                    // not const: load_room_dt1s adds to it
     load_outdoor_assets(assets, [&](const std::string& path) { return mpqs.try_read(path); });
     g_units = argc > 4 && std::string(argv[argc - 1]) == "units";
