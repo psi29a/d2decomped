@@ -632,6 +632,16 @@ lines (missile names aren't passed in). What it does:
   bow / crossbow (ItemTypes 27 / 35) the ammo or throwable in hand 4,
   else hand 5; with any other weapon, the weapon itself. `FUN_0056c310`
   takes 1 off its quantity (stat 70); at 0 there's none.
+- **Out of ammo** (`FUN_00580310`, after a spend and when srvstfunc 4
+  refuses): for hand 4, then hand 5, a stackable (`FUN_006289f0`, ItemsTxt
+  +0x132), throwable or stat-125 item under 1 goes to `FUN_00580030`: a
+  magic or better weapon (type 0x2d, `FUN_0062a0f0`) breaks and stays
+  (`FUN_0055f850`); anything else leaves, and the inventory's first of its
+  code (`FUN_0063cd80`), not broken (0x100), takes the empty slot through
+  `FUN_00562a30`, which refuses one `FUN_0062eaf0` (requirements) won't
+  wear. Only that first one is tried. srvstfunc 4 also runs
+  `FUN_00580380` (a stackable weapon at 0 durability breaks; not ported).
+  d2d: `Fight::out_of_ammo`, `cast_missile`; test_game checks both.
 
 ### Missile skills (phase 4)
 - **FUN_0056f7f0** (a skill's do): runs srvdofunc (+0x2e), then, when the
@@ -688,7 +698,7 @@ lines (missile names aren't passed in). What it does:
   Built as `skill_missile` / `fire` (fight.hpp); a nova's missiles share
   their struck list, so a monster takes one hit from it. Not yet: the
   0x10000 flag's meaning (Charged Bolt's wander: missiles.md), the
-  direction tables (even angles), the ammo, the other do functions
+  other do functions
   (Guided Arrow 10, Strafe 12, Chain Lightning 26, Meteor / Blizzard 28,
   Fire Wall, Blaze, Inferno, Bone Spirit, Blessed Hammer, ...).
 

@@ -813,9 +813,9 @@ struct Fight {
     // Ammo (FUN_0056c4e0 has it, FUN_0056c3f0 spends one of its quantity,
     // stat 70): with a bow or crossbow (ItemTypes bow / xbow) the quiver or
     // throwable in either hand (right first), else the weapon itself when
-    // it's a throwable. Its index in the items with some left, or -1.
-    // ponytail: an empty quiver stays at 0 (FUN_00580310's part isn't
-    // traced).
+    // it's a throwable. Its index in the items with some left, or -1; at
+    // -1 the cast is refused and a spent stack in hand swapped out
+    // (FUN_005da8b0 -> FUN_00580310, cast_missile).
     [[nodiscard]] int ammo_index() const;
     // A bow's or crossbow's shot (FUN_00645f00): magicarrow with stat 157
     // (item_magicarrow), explodingarrow with 158, else arrow / bolt; null
@@ -829,8 +829,8 @@ struct Fight {
     void spend_ammo();
     // Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
     // (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
-    // the inventory's next of its code (not broken) takes its slot.
-    // ponytail: the slot takes it without FUN_00562a30's requirement check.
+    // the inventory's first of its code (not broken) takes its slot if it
+    // can be worn (FUN_00562a30 -> FUN_0062eaf0), else none does.
     void out_of_ammo(std::size_t index);
     // A landed hit's wear (FUN_0057d4f0 -> FUN_0057d3d0): the player's
     // weapon when the player hits, one worn armour when the player is hit —

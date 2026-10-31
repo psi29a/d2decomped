@@ -1198,6 +1198,31 @@ int main(int argc, char** argv) try {
         }
         world.fight.pending.clear();
         std::printf("OK: Nova aims at game.exe's ring\n");
+
+        // A spent stack's slot takes the inventory's next only if it can be worn (FUN_00562a30 -> FUN_0062eaf0):
+        // throwing knives need 21 dexterity, a new barbarian has 20.
+        auto& items = world.actor->character.items;
+        auto& dexterity = world.actor->character.stats.values[d2d::d2s::kDex];
+        const auto kept_items = items;
+        const auto kept_dexterity = dexterity;
+        for (const int dex : { 20, 21 }) {
+            items = kept_items; dexterity = dex;
+            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm; });
+            items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 1 });
+            items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .identified = true, .quantity = 9 });
+            world.fight.out_of_ammo(items.size() - 2);
+            assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "tkf" && item.location == d2d::d2s::item_location::kEquipped; }) == (dex >= 21 ? 1 : 0));
+        }
+        // An empty quiver in hand: the shot is refused and the inventory's quiver swapped in (FUN_005da8b0 -> FUN_00580310).
+        items = kept_items;
+        std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm); });
+        items.push_back({ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true });
+        items.push_back({ .code = "aqv", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 0 });
+        items.push_back({ .code = "aqv", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .identified = true, .quantity = 50 });
+        assert(!world.fight.cast_missile(0, world.actor->player.x + 3, world.actor->player.y, 5000 * kTickMs));
+        assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "aqv"; }) == 1 && world.fight.ammo_index() >= 0);
+        items = kept_items; dexterity = kept_dexterity;
+        std::printf("OK: a spent stack is swapped for a wearable next, on running out or a refused shot\n");
     }
 
     // A row with no Skill (Meteor's fire): its EDmgSymPerCalc, skill('Inferno'.blvl) * 3, adds

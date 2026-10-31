@@ -6,6 +6,8 @@
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
+#include "inventory.hpp"
+#include "item_text.hpp"
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
@@ -118,7 +120,11 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
         actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
         const auto next = std::ranges::find_if(actor->character.items, [&](const Item& other) {
             return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
-        if (next != actor->character.items.end()) { next->location = item_location::kEquipped; next->slot = slot; next->panel = 0; }
+        // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
+        if (next != actor->character.items.end()
+            && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next))) {
+            next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
+        }
     }
 
 auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
@@ -225,7 +231,22 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         const int lvl = cast_level(skill);
         const int cost = cost_of(*skill_row, lvl);
         if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);
-        if (lvl <= 0 || actor->character.stats.values[kMana] < cost || (needs_ammo(*skill_row) && ammo_index() < 0)) { actor->attack_mon = -1; return false; }
+        if (lvl <= 0 || actor->character.stats.values[kMana] < cost) { actor->attack_mon = -1; return false; }
+        if (needs_ammo(*skill_row) && ammo_index() < 0) {
+            // FUN_005da8b0 (srvstfunc 4): refused, and a spent stack in either hand (right first;
+            // stackable, FUN_006289f0) goes as one run out (FUN_00580310), so the next has ammo.
+            // ponytail: its FUN_00580380 (a stackable weapon at 0 durability breaks) isn't run.
+            for (const int slot : { body_location::kRightArm, body_location::kLeftArm }) {
+                const auto& items = actor->character.items;
+                const auto spent = std::ranges::find_if(items, [&](const Item& item) {
+                    const auto base = game_data->rules.item_base.find(item.code);
+                    return item.location == item_location::kEquipped && item.slot == slot && item.quantity < 1 && base != game_data->rules.item_base.end() && base->second.stackable;
+                });
+                if (spent != items.end() && !d2d::rules::broken(*spent)) out_of_ammo(std::size_t(spent - items.begin()));
+            }
+            actor->attack_mon = -1;
+            return false;
+        }
         pay(*skill_row, cost);
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;
