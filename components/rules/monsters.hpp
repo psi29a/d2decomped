@@ -945,6 +945,17 @@ inline int near_distance(int dx, int dy, int size) {
     return ai_distance(std::max(std::abs(dx) - size, 0), std::max(std::abs(dy) - size, 0));
 }
 
+// FUN_005dd0b0 mode 1 (FUN_005dce60): the eligible units in the near
+// rooms' order, each room's units newest first; `units` is oldest first.
+struct RoomUnit { int room = -1; bool eligible = false; };
+inline std::vector<int> room_order(std::span<const RoomUnit> units, std::span<const int> rooms) {
+    std::vector<int> order;
+    for (const int room : rooms)
+        for (std::size_t i = units.size(); i-- > 0;)
+            if (units[i].room == room && units[i].eligible) order.push_back(int(i));
+    return order;
+}
+
 // Confuse's skill-set target (FUN_005dd610 kind 3) searches as a random
 // alignment, one draw of the unit's seed: neutral turns good or evil, evil
 // and good swap on a 1.
@@ -1259,9 +1270,9 @@ struct ThinkIn {
     // (FUN_005541b0).
     bool lines_clear = true, rider = false, self_dead = false, state69 = false, imp_near = false, target_state20 = false, command_busy = false;
     int skill1_range = 0, target_max_life = 0, target_max_mana = 0, self_life_pct = 100, command_until = 0;
-    // The Overseer's: the one that last hit it (FUN_005de830: a player not
-    // dead, a monster a pet); its search (FUN_005e26d0): a minion within 24
-    // under 50 % life, one within 20 not under FUN_005a0180, how many
+    // The Overseer's: the one that last struck at it (FUN_005de830: not
+    // dying or dead, its enemy); its search (FUN_005e26d0): a minion within 24
+    // under 50 % life, one within 20 not special (FUN_005a0180 8), how many
     // minions (the MinionSpawner's FUN_005e2b70 count too: `young`).
     bool attacker = false, hurt_minion = false, free_minion = false;
     // The Imp's: MonStats imp1..imp4's aip1..8 (its think reads theirs).
@@ -2534,7 +2545,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     }
     // HighPriest (85, FUN_005e0490; the Council): state 0 picks. In melee,
     // aip1 % A1 (state 1), else backs off 6. Off cooldown (state2), aip2 %
-    // Skill2 at the weakest ally under 76 % life within 50 (FUN_005e0430;
+    // Skill2 at the weakest ally (itself too) under 75 % life within 50 (FUN_005e0430;
     // aip3 on); within aip8 aip4 % Skill1 at the target and one of the four
     // corners 5 off it (FUN_00472210, 0x6e337c; 100 on). With an S1
     // missile (MissS1) aip5 % within its Range - 2: S1. Else 80 % circles 3

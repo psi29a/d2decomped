@@ -184,6 +184,7 @@ struct Monster {
     std::uint32_t sound_ms = 0, neutral_ms = 0, step_ms = 0;   // its last sound, Neutral, footstep (unit +0x7c / +0x80 / +0x84)
     std::uint32_t sound_tick = 0;             // the tick its Neutral last rolled
     int hit_class = 0;                        // the last hit's (unit +0xb0): the impact its GH / KB / DT plays
+    int struck_by = -1;                       // the Foe::id that last struck at it, -1 none (unit +0xa0, FUN_00621d50 from FUN_0057c6c0)
     std::uint32_t mode_until = 0;             // ms: an attack / get-hit / death ends
     std::uint32_t next_act = 0;               // ms: may attack again (aidel)
     bool struck = false;                      // this attack's hit is resolved
@@ -426,6 +427,7 @@ struct Foe {
     std::vector<Blow> blows;
     void struck_by(int blow_class) { hit_class = blow_class; if (!blows.empty()) blows.back().hit_class = blow_class; }
     bool running = false;                     // the player in RN: always hit by a swing, block a third
+    bool neutral = true;                      // in mode 1 (NU): not walking, swinging, casting or struck (BaalTaunt's still)
     [[nodiscard]] d2d::rules::Motion motion() const { return running ? d2d::rules::Motion::running : moving ? d2d::rules::Motion::walking : d2d::rules::Motion::standing; }
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
     struct Cast { int skill = -1, level = 0; };
@@ -493,6 +495,7 @@ inline std::int64_t crushing_blow(std::int64_t life, int divisor, int damage_res
 // player, +50 % each after).
 inline void monster_foe_props(const GameData& game_data, const Monster& monster, Foe& foe) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
+    foe.neutral = monster.mode == "NU";
     foe.knock_under = type_info.large ? 0x20 : type_info.small ? 0x80 : 0x40;
     if (monster.type == 0x10f || monster.type == 0x152 || monster.type == 0x167 || monster.type == 0x230 || monster.type == 0x231) { foe.crush_divisor = 10; return; }
     const bool unique = monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique;
@@ -518,6 +521,7 @@ struct Missile {
     bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
     int caster = 0;                           // a friendly one's player (Fight::Hero::id), whose credit, leech and skills it carries
     bool by_merc = false;                     // a merc's skill: its weapon damage, attack rating and level, no synergies
+    int striker = -1;                         // a summon's (a Shadow's): its Monster::id, whom its hits are struck by
     bool visual_only = false;                          // only a sight (a death blast's guts): hits nothing
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over

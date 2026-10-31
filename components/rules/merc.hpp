@@ -200,8 +200,8 @@ std::array<int, 6> merc_skill_levels(const Hireling& row, const std::array<int, 
 }
 
 // The attack think's view: its class (hcIdx), level, MonStats aip1 for the
-// difficulty, its gap to the foe (merc_gap), the skill-0x29 distance
-// (FUN_006416d0), in melee (FUN_00622c40), its row and skills (ids, levels,
+// difficulty, its gap to the foe (merc_gap), the skill-0x29 distance (that gap
+// + 1), in melee (FUN_00622c40), its row and skills (ids, levels,
 // which are auras (Skills.txt flag 0x20), which run: Skills +0x230 1 with
 // its aurastate on the merc, Frozen Armor too), MonStats Skill1 / Sk1mode, and
 // the AI control's +0x14 (the skill chance's growth, kept across thinks).

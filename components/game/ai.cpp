@@ -657,6 +657,21 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // ponytail: the word read now, not a moving path's cached +0x54.
     if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) { idle(5); return true; }
     const int x = subtile(unit.x), y = subtile(unit.y);
+    // The eligible pack units in FUN_005dd0b0 mode 1's order (FUN_005dce60,
+    // FUN_0065ac70): near rooms in order, each room's newest first.
+    const auto near_order = [&](auto eligible) {
+        std::vector<int> rooms;
+        for (const auto& [room_level, room] : near_rooms(game_data, level, unit.x, unit.y))
+            if (room_level == &level) rooms.push_back(room);
+        std::vector<d2d::rules::RoomUnit> units;
+        units.reserve(pack.size());
+        for (const auto& other : pack) units.push_back({ room_at(level, other.unit.x, other.unit.y), eligible(other) });
+        return d2d::rules::room_order(units, rooms);
+    };
+    const auto first_near = [&](auto eligible) {
+        const auto order = near_order(eligible);
+        return order.empty() ? -1 : order.front();
+    };
     auto [target, best, nearest] = search_target(game_data, level, monster, foes, seen);
     // A minion under Cry Help (AI command 1, FUN_0058f730): the unit it's sent
     // at, while that lives, is its target (the Minion think, command kind 1).
@@ -1045,27 +1060,31 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // The heals' searches: the priests' (FUN_005f7240) a zakarum (BaseId
         // zealot1 / cantor1) within aip6 (squared) under 61 % life, the last
         // found (its best is never kept, bugs.md #22); the Council's
-        // (FUN_005e0430) the weakest under 76 % within 50 (squared 2500).
-        // ponytail: the pack in its order, not the near rooms' units.
+        // (FUN_005e0430) the weakest under 75 % (its start, 0x4b) within 50
+        // (squared 2500), itself too, not under Confuse / Attract / Conversion
+        // (FUN_006259b0 0). Both friends (FUN_00650d70), live, in near order.
         const bool priest = type_info.ai_name == "ZakarumPriest", council = type_info.ai_name == "HighPriest";
-        int weakest = 76;
-        for (std::size_t i = 0; (priest || council) && i < pack.size(); ++i) {
-            const auto& other = pack[i];
-            if (&other == &monster || !other.alive()) continue;
-            const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
-            const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
-            const int base = game_data.monsters.types[std::size_t(other.type)].base;
-            if (priest && (base == 235 || base == 238) && squared <= input.aip[5] * input.aip[5] && life < 61) { aid = int(i); input.kin_dist = squared; }
-            if (council && squared <= 2500 && life < weakest) { aid = int(i); weakest = life; input.kin_dist = squared; }
+        if (priest || council) {
+            int weakest = 75;
+            for (const int found : near_order([&](const Monster& other) {
+                     return other.alive() && d2d::rules::friends(monster.align, other.align) && (priest ? &other != &monster && other.align != 2 : other.align == 0);
+                 })) {
+                const auto& other = pack[std::size_t(found)];
+                const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
+                const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
+                const int base = game_data.monsters.types[std::size_t(other.type)].base;
+                if (priest && (base == 235 || base == 238) && squared <= input.aip[5] * input.aip[5] && life < 61) { aid = found; input.kin_dist = squared; }
+                if (council && squared <= 2500 && life < weakest) { aid = found; weakest = life; input.kin_dist = squared; }
+            }
+            input.aid = aid >= 0;
         }
-        if (priest || council) input.aid = aid >= 0;
         // The wisps (FUN_0065a950 / FUN_0065ac70, radius 0x20): its room alone
         // when the square 32 round it lies inside it (FUN_0065a6b0), else its
         // near list; FUN_0065a710 lets every room of it through (bugs.md #23);
         // each live (FUN_0063ea40: not DT / DD) unit of BaseId 0x76 in them
-        // (FUN_005f3960, FUN_00463860), itself too. The blessing's target a player.
-        // ponytail: a room's units in the pack's order (game.exe: its unit
-        // list); FUN_005541b0 taken as clear.
+        // (FUN_005f3960, FUN_00463860), itself too, each room's newest first
+        // (its unit list, +0x74 / +0xe8). The blessing's target a player not
+        // dying or dead (FUN_005541b0).
         if (type_info.ai_name == "WillOWisp") {
             auto rects = missile_rooms(game_data, level, unit.x, unit.y);
             if (!rects.empty()) {
@@ -1074,7 +1093,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 rects.erase(rects.begin());
                 if (inside) rects = { own };
                 for (const auto& rect : rects)
-                    for (std::size_t i = 0; i < pack.size(); ++i) {
+                    for (std::size_t i = pack.size(); i-- > 0;) {
                         const auto& other = pack[i];
                         const int other_x = subtile(other.unit.x), other_y = subtile(other.unit.y);
                         if (other_x < rect[0] || other_y < rect[1] || other_x >= rect[0] + rect[2] || other_y >= rect[1] + rect[3]) continue;
@@ -1084,7 +1103,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                     }
             }
             input.wisps = int(wisp_finds.size());
-            input.bless_ok = !target->pet && !target->of;
+            input.bless_ok = !target->pet && !target->of && target->alive;
         }
     }
     // Act 4's (monster-ai.md "Act 4's MonAIs"): the vile mother's young within
@@ -1207,34 +1226,53 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.command_until = monster.command_until;
         }
         input.reach = input.in_melee;
-        // The Overseer's search (FUN_005e26d0) and the spawner's (FUN_005e2b70): live
-        // minions (base 0x1c5; the spawner's suicide minions 0x1cd too), the first under
-        // half life within 24 (squared 0x240), the first within 20 (0x190); the count.
-        // ponytail: the pack stands for the near rooms' units; FUN_005a0180's test
-        // (the free one) and state 0x8d aren't kept; the one that last hit it is
-        // taken as the target, when it got hit.
+        // The Overseer's search (FUN_005e26d0; Nihlathak's too, FUN_005ee5d0) over
+        // the near order: friendly (FUN_00554200) live minions (base 0x1c5) not in
+        // Bloodlust (state 0x8d, the whip's), counted; the first under half life
+        // within 24 (squared 0x240; Nihlathak's 0), the first not special (data
+        // +0x16 & 8, FUN_005a0180) within 20 (0x190; his 25, 0x271). The
+        // spawner's (FUN_005e2b70) counts live minions and suicide minions (0x1cd)
+        // not under Confuse / Attract / Conversion (FUN_006259b0 0). The
+        // Overseer's warcry goes at the unit that last struck at it
+        // (FUN_005de830: unit +0xa0, not dying or dead, its enemy).
         const auto& name = type_info.ai_name;
-        if (name == "Overseer" || name == "MinionSpawner" || name == "Nihlathak") {
-            const int minion = int(game_data.mon_bin[0x1c5]), suicide = int(game_data.mon_bin[0x1cd]);
-            for (std::size_t i = 0; i < pack.size(); ++i) {
-                const auto& other = pack[i];
-                if (&other == &monster || !other.alive()) continue;
-                const int base = game_data.monsters.types[std::size_t(other.type)].base;
-                if (base != minion && !(name == "MinionSpawner" && base == suicide)) continue;
+        const int minion = int(game_data.mon_bin[0x1c5]), suicide = int(game_data.mon_bin[0x1cd]);
+        const auto base_of = [&](const Monster& other) { return game_data.monsters.types[std::size_t(other.type)].base; };
+        if (name == "MinionSpawner")
+            input.young = int(std::ranges::count_if(pack, [&](const Monster& other) {
+                return &other != &monster && other.alive() && (base_of(other) == minion || base_of(other) == suicide) && other.align == 0;
+            }));
+        if (name == "Overseer" || name == "Nihlathak") {
+            const auto lusted = [&](const Monster& other) {
+                const auto* lust = game_data.skills.get(other.cry.skill);
+                return lust && lust->srvdofunc == d2d::rules::ServerDoFunction::kOverseerWhip && now_ms < other.cry.until;
+            };
+            const int hurt_reach = name == "Nihlathak" ? 0 : 0x240, free_reach = name == "Nihlathak" ? 0x271 : 0x190;
+            for (const int found : near_order([&](const Monster& other) {
+                     return &other != &monster && base_of(other) == minion && other.alive() && d2d::rules::friends(monster.align, other.align) && !lusted(other);
+                 })) {
+                const auto& other = pack[std::size_t(found)];
                 ++input.young;
                 const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
                 const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
-                if (kin < 0 && squared <= 0x240 && life < 50) kin = int(i);
-                if (aid < 0 && squared <= (name == "Nihlathak" ? 0x271 : 0x190)) aid = int(i);
+                if (kin < 0 && squared <= hurt_reach && life < 50) kin = found;
+                if (aid < 0 && squared <= free_reach && (other.boss == d2d::rules::Boss::none || other.boss == d2d::rules::Boss::minion)) aid = found;
             }
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
-            input.attacker = input.got_hit;
+            const auto struck = std::ranges::find(foes, monster.struck_by, &Foe::id);
+            if (name == "Overseer" && monster.struck_by != -1 && struck != foes.end() && struck->alive && !d2d::rules::friends(monster.align, struck->of ? struck->of->align : 2)) {
+                input.attacker = true;
+                second = &*struck;
+            }
         }
-        // Nihlathak's Corpse Explosion (FUN_0056e390): a corpse (DD, not used) about.
-        // ponytail: the nearest in the pack, not FUN_0056e390's own search by its radius.
+        // Nihlathak's Corpse Explosion (FUN_0056e390): the first unused,
+        // corpseSel DD corpse within 10, squared subtile distance <= 100.
         if (name == "Nihlathak") {
-            for (std::size_t i = 0; i < pack.size() && corpse < 0; ++i)
-                if (!pack[i].alive() && pack[i].mode == "DD" && !pack[i].corpse_used) corpse = int(i);
+            corpse = first_near([&](const Monster& other) {
+                const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
+                return !other.alive() && other.mode == "DD" && !other.corpse_used
+                    && game_data.monsters.types[std::size_t(other.type)].corpse_sel && off_x * off_x + off_y * off_y <= 100;
+            });
             input.corpse = corpse >= 0;
             input.self_x = x; input.self_y = y;
         }
@@ -1248,35 +1286,29 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.self_size = type_info.size; input.target_size = target->size;
             input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
         }
-        // ponytail: a player swinging or casting counts as still (a Foe keeps
-        // no mode, only its walk or run).
         if (name == "BaalTaunt") {
-            input.target_still = target->of ? target->of->mode == "NU" : target->motion() == d2d::rules::Motion::standing;
+            input.target_still = target->neutral;
             input.target_x = target_x; input.target_y = target_y;
         }
-        // Baal's tentacles live on their master (FUN_00552fd0).
-        // ponytail: the master's taken as there.
-        if (name == "BaalTentacle") input.rider = true;
-        // The putrid defiler's find (FUN_005dd0b0 with FUN_005efa50): a monster
-        // Impregnate takes (FUN_005d2140) within 25 (FUN_005dc380); in reach
+        // The putrid defiler's find (FUN_005dd0b0 mode 1 with FUN_005efa50):
+        // the first monster Impregnate takes (FUN_005d2140) within 25
+        // (FUN_005dc380), in near-room then newest-unit order; in reach
         // (FUN_00622c40) it casts at it.
-        // ponytail: the nearest, not FUN_005dd0b0 mode 1's list order.
         if (name == "PutridDefiler") {
-            int nearest_host = 26;
-            for (std::size_t k = 0; k < pack.size(); ++k) {
-                const auto& host = pack[k];
-                if (&host == &monster || !impregnable(game_data, host)) continue;
-                const int apart = d2d::rules::ai_distance(subtile(host.unit.x) - x, subtile(host.unit.y) - y);
-                if (apart < nearest_host) { nearest_host = apart; kin = int(k); }
-            }
+            kin = first_near([&](const Monster& host) {
+                return &host != &monster && impregnable(game_data, host)
+                    && d2d::rules::near_distance(subtile(host.unit.x) - x, subtile(host.unit.y) - y, game_data.monsters.types[std::size_t(host.type)].size) <= 25;
+            });
             input.defile = kin >= 0;
             if (kin >= 0) {
                 const auto& host = pack[std::size_t(kin)];
                 input.reach = d2d::rules::unit_distance(subtile(host.unit.x) - x, subtile(host.unit.y) - y, type_info.size, game_data.monsters.types[std::size_t(host.type)].size) <= type_info.melee_rng + 1;
             }
         }
-        // Baal's Vile Effigy lives while he does (FUN_00552fd0: its master, FUN_005541b0).
-        if (name == "BaalCrabClone") input.rider = std::ranges::any_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrab"; });
+        // Baal's Vile Effigy and his tentacles (FUN_005ef820) live while he
+        // does (FUN_00552fd0: their master, FUN_005541b0); he's the one Baal,
+        // and the only caster of Festering Appendages (the clone's act 9 swings).
+        if (name == "BaalCrabClone" || name == "BaalTentacle") input.rider = std::ranges::any_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrab"; });
         // The Imp reads imp1..imp4's aips (MonStats 0x1ec..0x1ef). Its ride
         // word (+0x14) names the siege beast or tower that took it (FUN_005e17e0):
         // found (FUN_00552f60), dead (FUN_005541b0), ridden (FUN_00552fd0), its spot.
@@ -1300,22 +1332,19 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.riding = monster.riding;
         }
         // The siege beast's and the barricade tower's rider (FUN_00552fd0) and
-        // whether it's dead (FUN_005541b0); an imp to take on (FUN_005dd0b0
-        // with FUN_005e1720: alive, BaseId imp1, unbound, its ride word -1,
-        // within the beast's aip1 / the tower's 20).
-        // ponytail: the nearest such imp, its sight (FUN_00650d70) and pet test unread.
+        // whether it's dead (FUN_005541b0); the first imp to take on in mode
+        // 1's order (FUN_005e1720: alive, BaseId imp1, its evil friend, ride
+        // word -1, within the beast's aip1 / the tower's 20, squared <=).
         if (name == "SiegeBeast" || name == "SiegeTower") {
             const Monster* rider = monster.bound >= 0 && std::size_t(monster.bound) < pack.size() ? &pack[std::size_t(monster.bound)] : nullptr;
             input.rider = rider != nullptr;
             input.command_busy = rider && !rider->alive();
             const int reach = name == "SiegeTower" ? 20 : input.aip[0];
-            int found_squared = reach * reach + 1;
-            for (std::size_t i = 0; i < pack.size(); ++i) {
-                const auto& other = pack[i];
+            imp_found = first_near([&](const Monster& other) {
                 const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
-                if (&other != &monster && other.alive() && game_data.monsters.types[std::size_t(other.type)].base == 0x1ec && other.bound < 0 && other.ai_state == -1
-                    && off_x * off_x + off_y * off_y < found_squared) { imp_found = int(i); found_squared = off_x * off_x + off_y * off_y; }
-            }
+                return &other != &monster && other.alive() && game_data.monsters.types[std::size_t(other.type)].base == 0x1ec
+                    && other.align == 0 && other.ai_state == -1 && off_x * off_x + off_y * off_y <= reach * reach;
+            });
             input.imp_near = imp_found >= 0;
         }
     }
@@ -1463,8 +1492,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     const Monster* at_unit = act.unit == ThinkUnit::kin ? (kin >= 0 ? &pack[std::size_t(kin)] : corpse >= 0 ? &pack[std::size_t(corpse)] : nullptr)
                            : act.unit == ThinkUnit::aid && aid >= 0 ? &pack[std::size_t(aid)] : nullptr;
-    // FUN_005de0f0 / FUN_005de130: its next think n frames on (a wait after its mode).
-    // ponytail: a wait counts from now, not the mode's end.
+    // FUN_005de0f0 / FUN_005de130: its next think (unit event 2) n frames on.
+    // ponytail: d2d thinks at the later of that and the mode's end. game.exe
+    // counts from now and runs the think when it comes, mid-mode or not
+    // (FUN_005b1740 reads no mode; a busy start's retry is FUN_005a73e0);
+    // only WL / RN think at their end (FUN_005a8030, table 0x73c6d0).
     if (act.wait > 0 || act.event > 0) monster.next_act = std::max(monster.next_act, now_ms + std::uint32_t(std::max(act.wait, act.event)) * 40);
     // FUN_0058f730 / FUN_0058ef40: its leader's group, itself too. One made
     // outside a group (leader -1) has none to look up, so nothing is sent.
@@ -2224,16 +2256,17 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // (65), turns suicide minion (FUN_005d1e10: its summon, summode,
                     // special AI 15, umod 33); else Bloodlust (FUN_005d1d70: its
                     // auratargetstate for auralen frames, aurastats velocity,
-                    // attack rate, armor and damage %).
-                    // ponytail: the roll is the caster's seed (FUN_0045c390's isn't
-                    // read); the new minion stands where the old one was, aware.
+                    // attack rate, armor and damage %). The roll is the caster's seed
+                    // (+0x20), drawn for any live minion before the Bloodlust test.
+                    // ponytail: a new unit where the old one was, aware; game.exe
+                    // turns the minion itself (FUN_00574370, state 0x8e stat 0x163).
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                         auto& whipped = pack[std::size_t(monster.skill_unit)];
                         const bool minion = whipped.type >= 0 && game_data.monsters.types[std::size_t(whipped.type)].base == 0x1c5;
                         const bool lusted = whipped.cry.skill == monster.skill && now_ms < whipped.cry.until;
                         const int chance = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
                         const auto summon = game_data.monsters.by_id.find(cast->summon);
-                        if (whipped.alive() && minion && !lusted && chance <= monster.seed(100) && born && summon != game_data.monsters.by_id.end()) {
+                        if (whipped.alive() && minion && chance <= monster.seed(100) && !lusted && born && summon != game_data.monsters.by_id.end()) {
                             auto turned = make_monster(game_data, summon->second, whipped.unit.x, whipped.unit.y, rng, monster.difficulty, true, players_in(foes));
                             turned.aware = true;
                             turned.seed = d2d::rules::Rng{ rng.next() };

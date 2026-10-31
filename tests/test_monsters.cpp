@@ -1034,6 +1034,18 @@ int main() {
                     if (attack.kind == AttackKind::skill || attack.kind == AttackKind::aura) assert(attack.skill == entry.skill && attack.mode == entry.use_mode);
                 }
             }
+            // FUN_005dd0b0 mode 1 (act5_search.py): the near rooms in order,
+            // each room's units newest first, not the nearest eligible unit.
+            {
+                struct SearchCase { std::vector<RoomUnit> units; std::vector<int> rooms; int want; };
+                const std::vector<SearchCase> cases{
+#include "act5_search_cases.inc"
+                };
+                const auto first = [](const auto& order) { return order.empty() ? -1 : order.front(); };
+                for (const auto& entry : cases) assert(first(room_order(entry.units, entry.rooms)) == entry.want);
+                assert(room_order(std::vector<RoomUnit>{ { 0, true } }, std::vector<int>{ 1 }).empty());
+                assert((room_order(std::vector<RoomUnit>{ { 0, true }, { 1, true }, { 0, false }, { 0, true } }, std::vector<int>{ 0, 1 }) == std::vector<int>{ 3, 0, 1 }));
+            }
             // A merc's search, mode 6 (FUN_005ddc30; search.py checks it against
             // game.exe): the primary (threat 2+) over a nearer secondary, the
             // first at a tie, sight, 0x31 out.

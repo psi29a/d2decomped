@@ -8,6 +8,12 @@ are in monsters.md; the per-AI thinks are in `components/rules/monsters.hpp`
 
 Run whenever a monster's think event comes due (PTR 0x6e2498, called from
 the mode-end and timer handlers FUN_005a8030 / FUN_005a8330 / FUN_005a83e0).
+0x6e2498 is unit event 2's slot in the handler table 0x6e2490 (0 0x5a7ba0,
+1 0x5a7be0, 2 this, 3 0x5a6920, 5 0x56d790, 6 0x5a7f00, 7 0x5a4370). A
+wait (FUN_005de0f0: replace; FUN_005de130: only sooner) queues event 2 at
+the frame now + n; the driver reads no mode, so it can run mid-swing. At a
+mode's end (FUN_005a8030) only WL and RN (table 0x73c6d0) think at once;
+any other mode drops to NU (FUN_005a7c20) and waits for its event.
 It fills a params block (AI control at monster data +0x28, MonStats row)
 and goes, stopping at the first step that acts:
 
@@ -239,9 +245,9 @@ Act 3's MonAIs (levels 75..102, same table). Search type in brackets where it is
 | Tentacle / TentacleHead | 56 / 57 [2] | FUN_005f8f80 / FUN_005f9270 | Skill1 (Submerge) and Skill2 (Emerge, at itself) on frame timers (state2; state3 1 up, 2 under; aip3 / aip4 × 25 frames); a tentacle dies with its head (its group leader, FUN_0058f0d0) or 40 % once it's DD, Submerges 50 % when it's in S4; in melee aip1 % A1 (the head's at its second target) |
 | FetishShaman | 65 | FUN_005f9a80 | Inferno (Skill1) when the target's AI distance is under Skill1's *level* (FUN_006442a0) and state 0xc is off, its group told to attack (FUN_0058f730 command 1); a dead fetish (class 0x8d / 0x18c) within aip5 (squared): aip1 % its group sent there (command 14) and Resurrect's sequence (Skill3) when the squared distance is at most aip3 (unsquared in game.exe), else about it 10; else aip4 % circles 4. Other think FUN_005f9950: state 0xc off, toggled back |
 | ZakarumZealot | 48 | FUN_005f6e60 | spares (runs off 8, else wanders 6) a player, or a pet whose owner is one (FUN_0058f090), in act 3 (FUN_006427f0) with quest 0x15 bit 0 (FUN_0065c310); hit under aip3 % life runs off 8 once (state2 5); on 0x40 circles 4 / walks in; out of melee aip4 % runs in (mode RN, FUN_005ded20), else walks; in melee aip2 % A2 else A1, after a swing aip1 % on, else 80 % stands 10, 20 % circles 4. Pace Run / Velocity |
-| ZakarumPriest | 49 | FUN_005f72d0 | hit or in melee under 33 % life, Skill3 (teleport) every aip5 × 4 frames to a point past the target (×2, ×4 in melee); in melee aip1 % A1; Skill1 (heal) 25 % at the weakest zakarum (0xeb / 0xee) under 61 % within aip6 (FUN_005f7240); no line to the target (FUN_005dd290, mask 4): aip1 % then aip2 % Skill4 (cooldown aip5); a line: aip4 %, Skill4, then Skill2 aip3 % (cooldown 20); else 30 % circles 4, stands 20 |
+| ZakarumPriest | 49 | FUN_005f72d0 | hit or in melee under 33 % life, Skill3 (teleport) every aip5 × 4 frames to a point past the target (×2, ×4 in melee); in melee aip1 % A1; Skill1 (heal) 25 % at the last zakarum (0xeb / 0xee, friendly, not converted) under 61 % within aip6 in FUN_005dd0b0 mode 1 order (FUN_005f7240, bugs.md #22); no line to the target (FUN_005dd290, mask 4): aip1 % then aip2 % Skill4 (cooldown aip5); a line: aip4 %, Skill4, then Skill2 aip3 % (cooldown 20); else 30 % circles 4, stands 20 |
 | Mephisto | 50 | FUN_005f78b0 | hurt = (100 - life %) / 5; a case kept in state3 (jump table 0x5f7ef0): 1 runs off 8 (in melee Skill3), 2 casts by his chooser (FUN_005f77c0; bugs.md #21) over the skills set in a row, past Normal Skill6 at a unit with no line or past 30, Skill5 within 15, else by thirds Skill4 / Skill2 / Skill1, every other one circling 3; 3 A1 / Skill3 / circles 3; 4 about the target 6 |
-| HighPriest | 85 | FUN_005e0490 | the Council: state 0 picks Skill2 at the weakest ally under 76 % within 50 (FUN_005e0430), Skill1 at a corner 5 off the target (FUN_00472210, 0x6e337c), S1 within MissS1's Missiles.txt Range - 2 (FUN_0046ace0 +0x96), else circles 3 / approaches 6; state 1 shoots, stands, wanders 12 or walks in |
+| HighPriest | 85 | FUN_005e0490 | the Council: state 0 picks Skill2 at the weakest ally (itself too) under 75 % within 50 (FUN_005e0430: <= 0x4b and under its best, which starts at 0x4b), Skill1 at a corner 5 off the target (FUN_00472210, 0x6e337c), S1 within MissS1's Missiles.txt Range - 2 (FUN_0046ace0 +0x96), else circles 3 / approaches 6; state 1 shoots, stands, wanders 12 or walks in |
 | Hydra | 86 [2] | FUN_005e9e60 | past its end frame (AI control +0x14) gone (FUN_005ddfc0); within 25, 60 % Skill1; else stands 10 |
 | FetishBlowgun | 96 | FUN_005e1250 | its group's command (1 A1 at the unit, 14 a walk to it, FUN_00552f60); past aip1 about the target 6; else aip2 % breaks off (state 2: backs off 14, or 20 % circles 4); shoots its second target rand(3) + 3 thinks (none: circles 4), then circles 6 |
 
@@ -367,11 +373,12 @@ and Skill5 come from the ride.
 - **The claim.** A siege beast (MonAI 115, FUN_005e1900; within its aip1)
   or a barricade tower (MonAI 113, FUN_005e1860: unridden or its rider
   dead, with a target, within 20, then stands aip1) searches
-  (FUN_005dd0b0 with FUN_005e1720) for an imp: a monster, alive
-  (FUN_0063ea40), BaseId imp1, seen (FUN_00650d70), not a pet
-  (FUN_006259b0), unbound (FUN_00552fd0), its ride word (AI control
-  +0x14) -1, within the radius (squared, `<=`). FUN_005e17e0 writes the
-  mount's id into that word.
+  (FUN_005dd0b0 mode 1 with FUN_005e1720) for the first imp in near-room
+  order, each room's units newest first: a monster, alive
+  (FUN_0063ea40), BaseId imp1, its evil friend (FUN_00650d70, alignment
+  0, not line of sight), its ride word (AI control +0x14) -1, within the
+  radius (squared, `<=`). FUN_00552fd0 tests that the searcher is unbound.
+  FUN_005e17e0 writes the mount's id into that word.
 - **Getting on.** The Imp think walks to it past b1, else casts Skill1
   at it. Do 129 (FUN_005d1ab0) at a unit that's unbound and alive moves
   the imp onto its spot (FUN_00554ea0 flag 1) and mounts (FUN_005d18e0:
@@ -415,8 +422,8 @@ dismount in do 129, `rules::imp_ride_pick`. Nihlathak's Skill1 is Imp
 Teleport too (MonTeleport for him). imp6..8's Inferno is seq_impinferno
 (SC rows, an event-4 row 12 running do 126), and probably never plays:
 only a riding imp casts Skill5, and imp6..8's levels have nothing to ride
-(stubs.md). Not in d2d: the claim's
-sight and pet tests.
+(stubs.md). `act5_search.py` checks the claim's mode-1 order and filters
+against game.exe; d2d uses `rules::room_order`.
 
 ## Act 5's monster skills (traced 2026-10-24)
 
@@ -447,9 +454,10 @@ unit's death).
   painworms), not in state 0x6e, not a player's pet (`FUN_006259b0` 2).
   State 0x6e, no end, callback `FUN_005d21b0`: dead, one summon (painworm1,
   else 0x227) in summode (NU) at it (`FUN_005b2490`). The think's find
-  (`FUN_005efa90`): `FUN_005dd0b0` mode 1 within 25 with that test
-  (`FUN_005efa50`); in reach (`FUN_00622c40`) skill 300 at it, else
-  straight at it (`FUN_005deca0`).
+  (`FUN_005efa90`): `FUN_005dd0b0` mode 1 takes the first within 25 with
+  that test (`FUN_005efa50`), in near-room then newest-unit order; in reach
+  (`FUN_00622c40`) skill 300 at it, else straight at it (`FUN_005deca0`).
+  `act5_search.py` checks both callbacks and this order against game.exe.
 - **Siege Beast Stomp** (do 134, `FUN_005d2320`, A2): it returns 0 unless
   the record's +0x48 (srvmissilea) is at least 1. Row 301 has none
   (checked in tools/emu: -1), so the stomp is its A2 and the client's
@@ -695,7 +703,10 @@ think elsewhere. All are search type 1 (no target found: no think).
   bound is the family's count (MonStats +0x4a, `FUN_006510c0`), which the
   chain never outruns. d2d: `level_monster`.
 - **Corpse Explosion from a monster** (Nihlathak, do 55 `FUN_005c4df0`, the
-  Necromancer's own): at the corpse his think found, used (state 0x68);
+  Necromancer's own): at the corpse his think found (`FUN_0056e390`: the
+  first DD monster within 10, squared, with MonStats2 `corpseSel` (flags +4
+  bit 7) and not used, `FUN_00645680`; near-room then newest-unit order),
+  used (state 0x68);
   each foe within aurarange / 2 of it takes calc1..calc2 % of its life,
   half physical, half fire.
 - **Smite** (do 150, the Baal minions' A2) and **Power Strike** (start 6,

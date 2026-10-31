@@ -56,6 +56,7 @@ struct MonType {
     struct Prop { std::string code, param; int min = 0, max = 0, chance = 0; };
     std::array<std::vector<Prop>, 3> props;
     bool can_block = false;                     // MonStats2 mBL
+    bool corpse_sel = false;                    // MonStats2 corpseSel (flag 7): Nihlathak's Corpse Explosion can target it (FUN_00645680)
     bool critter = false;                       // MonStats2 critter (flags bit 13): struck, no impact sound (FUN_004ca560)
     bool small = false, large = false;          // MonStats2 small / large (flags bits 10 / 11): MonProp knock's chance (FUN_005bf960)
     int hit_class = 0;                          // MonStats2 HitClass (FUN_00623c20): the impact on what it strikes

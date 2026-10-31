@@ -270,6 +270,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // Row-major sweep so back rows render first. dy increases downward
     // in screen space, so we iterate low→high dy for back-to-front.
     if (rain) {
+        rain->centre = g_splash_centre;
         rain->floors(level.mud);                         // FUN_004de730: this pass's splash / bubble gates
         if (!level.rain) rain->splash_pass = false;      // outside a rain level the volume is 0 (FUN_00473f50 zeroes 0x7a89a0): no splash pass
     }
@@ -281,9 +282,13 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             if (!cell_level) continue;
             const auto& cell_map = cell_level->ds1;
             // A floor drawn whose DT1 material flags have 2 may splash in
-            // the rain or bubble in the mud (FUN_004de410).
+            // the rain or bubble in the mud (FUN_004de410), from the y the
+            // tile is drawn at (a 128-high water tile: 48 above its cell's).
             auto splash = [&](const d2d::dt1::Tile& tile, bool drawn) {
-                if (rain && drawn && (tile.material_flags & 2)) { const auto [splash_x, splash_y] = iso(cell_x, cell_y); rain->floor(rain->rng, splash_x, splash_y); }
+                if (rain && drawn && (tile.material_flags & 2)) {
+                    const auto [splash_x, splash_y] = iso(cell_x, cell_y);
+                    rain->floor(rain->rng, splash_x, splash_y - (std::abs(tile.height) - kIsoH));
+                }
             };
             if (!cell_level->picks.empty()) {                   // the floors game.exe picked
                 for (const auto& pick : cell_level->shown()[off])

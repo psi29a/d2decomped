@@ -166,8 +166,8 @@ int main(int argc, char** argv) try {
         // 1): the spot itself; else per ring its columns x - r, x + r top to
         // bottom (left, right a row), then its rows y - r, y + r; the first
         // nearest wins.
-        const auto clear_at = [](std::vector<std::pair<int, int>> clear_spots) {
-            return [clear_spots = std::move(clear_spots)](int at_x, int at_y) { return std::ranges::contains(clear_spots, std::pair{ at_x, at_y }); };
+        const auto clear_at = [](std::vector<std::pair<int, int>> spots) {
+            return [clear_spots = std::move(spots)](int at_x, int at_y) { return std::ranges::contains(clear_spots, std::pair{ at_x, at_y }); };
         };
         assert(nearest_spot(10, 10, clear_at({ { 10, 10 } })) == std::pair(10, 10));
         assert(nearest_spot(10, 10, clear_at({ { 9, 11 }, { 11, 9 } })) == std::pair(11, 9));             // corners: the top row's first
@@ -1454,8 +1454,13 @@ int main(int argc, char** argv) try {
             const int align = std::exchange(coop.fight.monsters[prey_index].align, 2);
             coop.fight.pet_strike(pet, prey_index, { .hit = true }, now_ms);
             assert(pet.monster.hit_points == std::max(life - d2d::rules::resisted(40, resist), 0));
-            assert(!coop.fight.land(prey_index, { .hit = true }, true, now_ms));
+            assert(!coop.fight.land(prey_index, { .hit = true }, true, now_ms, -1));
             coop.fight.monsters[prey_index].align = align;
+            // The striker is kept even when the blow misses (FUN_0057c6c0 →
+            // FUN_00621d50 before the result's flags); a pet's is its id.
+            assert(coop.fight.monsters[prey_index].alive() && coop.fight.monsters[prey_index].struck_by == pet.monster.id);
+            assert(!coop.fight.land(prey_index, { .hit = false }, true, now_ms, -4));
+            assert(coop.fight.monsters[prey_index].struck_by == -4);
             // And on the player's melee blow (the strike's and Dragon
             // Flight's kick), through damage reduction %, then flat: the
             // whole hero's, a weapon's DR too, even for a kick (pf_kick has
@@ -1492,6 +1497,15 @@ int main(int argc, char** argv) try {
             coop.fight.actor->player.x = at_x; coop.fight.actor->player.y = at_y;
             coop.fight.actor->player_combat = combat; coop.fight.actor->pf_kick = kick;
             coop.fight.monsters[prey_index].props.thorns = 0;
+            // A summon's cast (a Shadow's Mind Blast) is struck by the summon,
+            // not its owner (FUN_00621d50 keeps the casting unit).
+            const auto* blast = data->skills.get(data->skills.by_name.at("Mind Blast"));
+            assert(blast && blast->srvdofunc == d2d::rules::ServerDoFunction::kMindBlast);
+            auto& prey_now = coop.fight.monsters[prey_index];
+            prey_now.hit_points = prey_now.stats.hit_points * 100;
+            coop.fight.spot(*blast, now_ms, { .x = prey_now.unit.x, .y = prey_now.unit.y, .level = 1, .target = int(prey_index),
+                                              .to_x = prey_now.unit.x, .to_y = prey_now.unit.y, .pet = true, .unit_id = 777 });
+            assert(prey_now.struck_by == 777);
         }
         coop.fight.monsters[prey_index].hit_points = 0;
         coop.fight.killed(prey_index, now_ms);

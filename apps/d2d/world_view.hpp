@@ -35,6 +35,9 @@ inline bool g_roof_cutout = true;
 // --toggle light_grid: the light grid over the whole view (deviations.md
 // #1); off, game.exe's 48 x 48 round the player (bugs.md #11).
 inline bool g_light_grid = true;
+// --toggle splash_centre: rain splashes and mud bubbles across their tile's
+// row (deviations.md #14); off, game.exe's half a tile right (bugs.md #10).
+inline bool g_splash_centre = true;
 inline bool g_autoparty = true;      // a joined game: invite the others, accept invites (deviations.md #7); off: --toggle autoparty=off
 inline bool g_autoloot = true;        // gold walked over is picked up (deviations.md #5); off: --toggle autoloot=off
 

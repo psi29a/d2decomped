@@ -111,6 +111,9 @@ over, the first skill whose sum covers it — an aura (Skills.txt +4 & flag)
 starts (`FUN_005701b0`), else `FUN_005dead0(Mode, skill, foe)`. Under:
 roguehire fires MonStats Skill1 in Sk1mode; act2hire (and act3hire, the
 Act 5 mercs) swing A1 in melee (`FUN_005ddf90(4)`); else it stands 10.
+`FUN_005dead0` accepts any mode byte below 16 and passes it to the mode start
+without an animation lookup (0x5dead3..0x5deb33). d2d likewise uses the row's
+mode; its A1 substitution only supplies timing when that COF is absent.
 
 hireling.txt's columns: DefaultChance, Skill1..6, Mode1..6, Chance1..6,
 ChancePerLvl1..6, Level1..6, LvlPerLvl1..6 (Rogue Scout, Fire: 75; Inner
@@ -194,4 +197,3 @@ equal, 360 through the path test; the invis rule is read, not run).
   Freeze, Might) count as running for the pick but do nothing.
 - Vitality on its items gives no life (a hireling has no CharStats row;
   not traced further); d2d keeps no merc mana.
-- Skill 0x29's distance is the gap + 1, not FUN_006416d0.
