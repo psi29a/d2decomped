@@ -420,6 +420,8 @@ inline bool is_repair_vendor(int hc_idx) {
 
 
 inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth = 0);
+inline int max_durability(const d2d::d2s::Item& item);
+inline bool indestructible(const d2d::d2s::Item& item);
 
 // The price base of an armor (ItemTypes armo, FUN_0062efb0 at 0062f0f2):
 // cost x its own defence (stat 31, not the stat list's) / maxac, for buy,
@@ -479,6 +481,10 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     if (sell && item.ethereal) price /= 4;
     // A class's own item (its ItemTypes Class set, FUN_0062c060) sells for a quarter again (0062f99d).
     if (const auto own = tables.types.find(type); sell && own != tables.types.end() && !own->second.cls.empty()) price /= 4;
+    // An ethereal item with durability (FUN_00629930) worn down to 0 sells for nothing, so the minimum 1 (0062fa60).
+    if (sell && item.ethereal && found != tables.item_base.end() && !found->second.no_durability && found->second.durability > 0
+        && max_durability(item) != 0 && !indestructible(item) && item.durability <= 0)
+        price = 0;
     const auto price_row = tables.npc_prices.find(npc_id);
     const int diff = header.active_difficulty();
     if (price_row != tables.npc_prices.end()) {
@@ -680,7 +686,8 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
 
 // Sells inventory item i: gold up by the sell value (carried gold caps
 // at clvl x 10000), the item joins the stock.
-// ponytail: quest items aren't refused, no belt/equipped selling.
+// ponytail: quest items aren't refused, no belt/equipped selling; what the
+// original does with a sale over the purse cap isn't traced.
 inline void store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const int price = item_price(tables, items[index], store.npc_id, true, store.header);
     stats.values[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
