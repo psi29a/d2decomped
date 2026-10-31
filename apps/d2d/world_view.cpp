@@ -270,6 +270,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // Row-major sweep so back rows render first. dy increases downward
     // in screen space, so we iterate low→high dy for back-to-front.
     if (rain) {
+        rain->centre = g_splash_centre;
         rain->floors(level.mud);                         // FUN_004de730: this pass's splash / bubble gates
         if (!level.rain) rain->splash_pass = false;      // outside a rain level the volume is 0 (FUN_00473f50 zeroes 0x7a89a0): no splash pass
     }

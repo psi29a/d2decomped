@@ -41,6 +41,18 @@ int main() {
     for (int k = 0; k < 20; ++k) rain.floor(rng, 100, 100);
     assert(rain.splashes.size() == 20);
     for (const auto& splash : rain.splashes) assert(splash.x >= 100 && splash.x < 260 && splash.y >= 100 && splash.y < 180 && (splash.kind == 2 || splash.kind == 3));
+    // Centred (deviations.md #14): inside the diamond's row, |dx| within
+    // its half-width, top corner at (100, 100); the same draws otherwise.
+    auto centred = rain, plain = rain;
+    centred.centre = true;
+    auto centred_rng = rng, plain_rng = rng;
+    for (int k = 0; k < 200; ++k) { centred.floor(centred_rng, 100, 100); plain.floor(plain_rng, 100, 100); }
+    assert(centred.splashes.size() == plain.splashes.size() && centred_rng.next() == plain_rng.next());
+    for (std::size_t k = 20; k < centred.splashes.size(); ++k) {
+        const auto& splash = centred.splashes[k];
+        const int row = splash.y - 100, half_width = 80 - 2 * std::abs(row - 40);
+        assert(splash.x - 100 >= -half_width && splash.x - 100 < std::max(half_width, 1) && splash.x == plain.splashes[k].x - half_width);   // row 0: no width, its corner
+    }
     rain.density = 0;
     for (int tick = 0; tick < 13; ++tick) rain.tick(rng, 800, 600, 0, 0, 0);
     assert(rain.splashes.empty());

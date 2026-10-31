@@ -19,7 +19,8 @@ d2d copies.
 **Toggles:** an improvement that changes what a player sees can be turned
 off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 `light_grid` (improvement 1), `trans_roof` (improvement 4), `autoloot` (improvement 5),
-`autoparty` (improvement 7), `pad_controls` (improvement 11), `coop_lobby` (improvement 12).
+`autoparty` (improvement 7), `pad_controls` (improvement 11), `coop_lobby` (improvement 12),
+`splash_centre` (improvement 14).
 `--toggle scalemode=pixelart|nearest|linear` picks the upscale filter (Additions).
 
 ## Improvements
@@ -39,6 +40,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 11 | Configure Controls' buttons | Cancel, Default, Accept, each a third of the panel (FUN_004a5060) | A fourth, Gamepad / Keyboard, turns the list into the pad's page: its settings (left-handed sticks, swapped confirm, dead zone, cursor speed), two layouts, each action's two buttons; edits work as a key's do (a button leaves the action it clashed with), Accept keeps them in d2d.cfg `pad_*`. The four buttons take a quarter each. `--toggle pad_controls=off` turns it off | game.exe has no pad (#33) | yes | controls.cpp, gamepad_map.hpp `Bindings` |
 | 12 | The title's SINGLE PLAYER | Single player only; a joined game's players pick on their own machines | "SINGLE PLAYER / COOP": with two or more external pads character select is local co-op's lobby, where each pad past the first picks its character before player 1 (alone) starts. `--toggle coop_lobby=off` turns it off | Couch co-op without picking characters mid-game | yes | lobby.cpp, frontend.cpp `title_ui`, local-coop.md "The lobby" |
 | 13 | FHR of exactly -120 | `FUN_00621740` divides by zero, so there is no native animation rate | Leaves the stat unchanged as the effective FHR, then applies the same unsigned rate tail (normally the 0x7fff cap) | Avoids the crash and keeps a defined result | only at exactly -120 FHR | combat.hpp `get_hit_rate`, combat.md "Hit recovery" |
+| 14 | Rain splashes and mud bubbles across a water tile | The spot is the tile's top corner + rand(the row's width), never pulled back: up to half a tile right of the water (bugs.md #10) | The same draws, less half the row's width: inside the tile's diamond | They ripple on the water, not the bank or a dock | yes: ripples sit on the water; `--toggle splash_centre=off` for game.exe's | weather.hpp `Rain::floor`, world_view.cpp, weather.md |
 
 ## Approximations
 
