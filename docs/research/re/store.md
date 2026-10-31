@@ -132,7 +132,8 @@ The base y is 539 (= 60 + 255 + 224):
      Identify 200 + 40 each; the record is picked by the item's book id,
      BaseCost isn't used); an arrow or bolt quiver (ItemTypes Quiver set)
      is cost x quantity / 1024 (arrows cost 256: 350 of them 87);
-  2. plus quality extras: low quality −base/2; magic prefix + suffix,
+  2. plus quality extras, only when the item is identified (`0062f182`):
+     low quality −base/2; magic prefix + suffix,
      set, unique, rare/crafted affixes, each `mul·base/1024 + add`
      from the affix/set/unique cost columns;
   3. plus half of each socketed item's cost; ethereal sells for ¼, and a

@@ -64,6 +64,10 @@ int main() {
     assert(item_price(tables, item("hax", 1), "Charsi", false, header) == 500);        // low quality: half off
     Item magic = item("hax", 4); magic.prefix = 1;
     assert(item_price(tables, magic, "Charsi", false, header) == 2100);                // + 1024/1024 x base + 100
+    Item unknown = magic; unknown.identified = false;
+    assert(item_price(tables, unknown, "Charsi", false, header) == 1000);              // unidentified: no quality extras
+    Item cracked = item("hax", 1); cracked.identified = false;
+    assert(item_price(tables, cracked, "Charsi", true, header) == 250);                // nor the low quality half
     assert(item_price(tables, item("hax"), "Charsi", true, header) == 250);            // sell mult 256/1024
     Item eth = item("hax"); eth.ethereal = true;
     assert(item_price(tables, eth, "Charsi", true, header) == 62);                     // ethereal sells for a quarter
