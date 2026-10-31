@@ -1232,9 +1232,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // within 24 (squared 0x240; Nihlathak's 0), the first not special (data
         // +0x16 & 8, FUN_005a0180) within 20 (0x190; his 25, 0x271). The
         // spawner's (FUN_005e2b70) counts live minions and suicide minions (0x1cd)
-        // not under Confuse / Attract / Conversion (FUN_006259b0 0).
-        // ponytail: the one that last hit it (FUN_005de830) is taken as the
-        // target, when it got hit.
+        // not under Confuse / Attract / Conversion (FUN_006259b0 0). The
+        // Overseer's warcry goes at the unit that last struck at it
+        // (FUN_005de830: unit +0xa0, not dying or dead, its enemy).
         const auto& name = type_info.ai_name;
         const int minion = int(game_data.mon_bin[0x1c5]), suicide = int(game_data.mon_bin[0x1cd]);
         const auto base_of = [&](const Monster& other) { return game_data.monsters.types[std::size_t(other.type)].base; };
@@ -1259,7 +1259,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 if (aid < 0 && squared <= free_reach && (other.boss == d2d::rules::Boss::none || other.boss == d2d::rules::Boss::minion)) aid = i;
             }
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
-            input.attacker = input.got_hit;
+            const auto struck = std::ranges::find(foes, monster.struck_by, &Foe::id);
+            if (name == "Overseer" && monster.struck_by != -1 && struck != foes.end() && struck->alive && !d2d::rules::friends(monster.align, struck->of ? struck->of->align : 2)) {
+                input.attacker = true;
+                second = &*struck;
+            }
         }
         // Nihlathak's Corpse Explosion (FUN_0056e390): the first unused,
         // corpseSel DD corpse within 10, squared subtile distance <= 100.

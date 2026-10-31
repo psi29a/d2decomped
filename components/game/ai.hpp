@@ -184,6 +184,7 @@ struct Monster {
     std::uint32_t sound_ms = 0, neutral_ms = 0, step_ms = 0;   // its last sound, Neutral, footstep (unit +0x7c / +0x80 / +0x84)
     std::uint32_t sound_tick = 0;             // the tick its Neutral last rolled
     int hit_class = 0;                        // the last hit's (unit +0xb0): the impact its GH / KB / DT plays
+    int struck_by = -1;                       // the Foe::id that last struck at it, -1 none (unit +0xa0, FUN_00621d50 from FUN_0057c6c0)
     std::uint32_t mode_until = 0;             // ms: an attack / get-hit / death ends
     std::uint32_t next_act = 0;               // ms: may attack again (aidel)
     bool struck = false;                      // this attack's hit is resolved

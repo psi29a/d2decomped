@@ -589,7 +589,9 @@ struct Fight {
     // bleeding over time, a chill, a knockback. A kill counts. False when
     // nothing landed: a miss, a block, a target out of reach (under the sand,
     // aloft) or converted (FUN_00554200); no thorns come back then.
-    bool land(std::size_t monster_index, const d2d::rules::Blow& blow, bool by_player, std::uint32_t now_ms);
+    // `striker`: the Foe::id it came from (-1 none), kept even on a miss or
+    // a block (FUN_0057c6c0 → FUN_00621d50, before the result's flags).
+    bool land(std::size_t monster_index, const d2d::rules::Blow& blow, bool by_player, std::uint32_t now_ms, int striker);
     void player_thorns(std::size_t target, const d2d::rules::Blow& blow);   // a MonProp thorns monster's flat value back on the player's melee blow that landed, through the whole hero's DR
     void merc_strike(std::size_t target, const d2d::rules::Swing& swing, std::uint32_t now_ms);   // the merc's melee blow on a monster, and its thorns back
     void pet_strike(Pet& pet, std::size_t target, const d2d::rules::Blow& struck, std::uint32_t now_ms);   // a pet's melee blow, and its thorns back
@@ -1112,6 +1114,8 @@ struct Fight {
     // The acting player and their merc as the monsters see them this frame.
     [[nodiscard]] Foe player_foe(std::uint32_t now_ms);
     [[nodiscard]] Foe merc_foe(std::uint32_t now_ms);
+    [[nodiscard]] int player_foe_id() const { return -2 - 2 * actor->id; }   // below the monsters' ids (a guided missile finds it again)
+    [[nodiscard]] int merc_foe_id() const { return -3 - 2 * actor->id; }
     void on_foe_states(Foe& foe, std::size_t which, std::uint32_t now_ms) const;
     [[nodiscard]] bool zealots_spare() const;
     // Whether (x, y) is within 30 cells of a player (the rooms in play).

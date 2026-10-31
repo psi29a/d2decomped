@@ -1415,8 +1415,13 @@ int main(int argc, char** argv) try {
             const int align = std::exchange(coop.fight.monsters[prey_index].align, 2);
             coop.fight.pet_strike(pet, prey_index, { .hit = true }, now_ms);
             assert(pet.monster.hit_points == std::max(life - d2d::rules::resisted(40, resist), 0));
-            assert(!coop.fight.land(prey_index, { .hit = true }, true, now_ms));
+            assert(!coop.fight.land(prey_index, { .hit = true }, true, now_ms, -1));
             coop.fight.monsters[prey_index].align = align;
+            // The striker is kept even when the blow misses (FUN_0057c6c0 →
+            // FUN_00621d50 before the result's flags); a pet's is its id.
+            assert(coop.fight.monsters[prey_index].alive() && coop.fight.monsters[prey_index].struck_by == pet.monster.id);
+            assert(!coop.fight.land(prey_index, { .hit = false }, true, now_ms, -4));
+            assert(coop.fight.monsters[prey_index].struck_by == -4);
             // And on the player's melee blow (the strike's and Dragon
             // Flight's kick), through damage reduction %, then flat: the
             // whole hero's, a weapon's DR too, even for a kick (pf_kick has
