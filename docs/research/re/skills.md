@@ -940,7 +940,10 @@ lines (missile names aren't passed in). What it does:
   struck again at frame + NextDelay + 1 (Twister, Tornado, Shock Field, the
   war cries).
 - Skill dos: **11** (FUN_005db850, Charged Strike): calc1 of its missile
-  from the unit struck, away from the caster, wandering. **14**
+  from the unit struck, away from the caster, wandering: Charged Bolt's
+  setup (flags 0x21, FUN_005c9290 with each one's index) aimed at the
+  subtile twice the struck unit's less the caster's; none at calc1 < 1
+  (Fight::strike_bolts, test_game_missiles). **14**
   (FUN_005dbe50, Lightning Strike): from the unit struck at another within
   calc1 (FUN_0056bd10), calc2 hops. **73** (FUN_005d0040, Blessed Hammer):
   path type 14 (FUN_00648cf0), +50 % magic damage (stats 52 / 53) against

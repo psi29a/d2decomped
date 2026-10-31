@@ -611,12 +611,16 @@ auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_ind
         const auto found = game_data->missiles.find(skill.srvmissilea);
         if (found == game_data->missiles.end()) return;
         const int lvl = skill_level ? skill_level(skill.id) : 1;
-        const float x = monsters[monster_index].unit.x, y = monsters[monster_index].unit.y, dx = x - actor->player.x, dy = y - actor->player.y;
+        const float x = monsters[monster_index].unit.x, y = monsters[monster_index].unit.y;
         if (skill.srvdofunc == ServerDoFunction::kChargedStrike) {
-            for (int k = 0; k < std::max(calc(skill, skill.calc[0], lvl), 1); ++k) {
-                const float angle = (float(rng(81)) - 40) * 3.14159265f / 180;
-                launch(found->second, skill, lvl, x, y, dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle),
-                       found->second.range + found->second.lev_range * lvl, now_ms).struck->push_back(int(monster_index));
+            // Charged Bolt's (flags 0x21, FUN_005c9290 with each one's index) at the
+            // subtile twice the monster's less the player's.
+            const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+            const float to_x = (float(2 * subtile(x) - subtile(actor->player.x)) + 0.5f) / 5, to_y = (float(2 * subtile(y) - subtile(actor->player.y)) + 0.5f) / 5;
+            for (int k = 0; k < calc(skill, skill.calc[0], lvl); ++k) {
+                auto& bolt = launch(found->second, skill, lvl, x, y, to_x - x, to_y - y, found->second.range + found->second.lev_range * lvl, now_ms);
+                bolt.to = { to_x, to_y }; bolt.bolt = k;
+                bolt.struck->push_back(int(monster_index));
             }
             return;
         }

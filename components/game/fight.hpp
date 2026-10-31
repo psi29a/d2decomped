@@ -610,10 +610,9 @@ struct Fight {
 
     // Charged Strike (do 11, FUN_005db850): calc1 of its missile from the
     // monster struck, on away from the player (to twice its spot less the
-    // player's), each wandering (FUN_005c9290). Lightning Strike (do 14,
-    // FUN_005dbe50): from the monster struck at another within calc1
-    // subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
-    // ponytail: the wander is a ±40 degree spread, as Charged Bolt's.
+    // player's), each wandering as Charged Bolt's (FUN_005c9290). Lightning
+    // Strike (do 14, FUN_005dbe50): from the monster struck at another within
+    // calc1 subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
     void strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_index, std::uint32_t now_ms);
     // Corpse i goes up (Corpse Explosion, Death Sentry's 'mon death
     // sentry'): its max life x calc1..calc2 %, half fire and half physical,
@@ -722,13 +721,13 @@ struct Fight {
 
     // A unique's mods in the fight (uniques.hpp, monsters.md "Boss mods in
     // the fight"), each tick: Lightning Enchanted answers a drop in its life
-    // with 8 charged bolts (FUN_005a29a0: 4 ways, 2 each, level mlvl / 2) at
+    // with 8 charged bolts (FUN_005a29a0: 4 ways, 2 each, level mlvl / 2,
+    // wandering as Charged Bolt's) at
     // most every 10 frames; 4 frames after it dies (the event 7 its death
     // queues), Fire Enchanted's blast and Cold Enchanted's nova
     // (FUN_005a2bd0: coldunique, level mlvl / 2).
     // ponytail: a hit taken in GH waits 2 frames in game.exe, fires at once
-    // here; the bolts go straight (Charged Bolt's wander, FUN_005c9290, isn't
-    // built), each turned up to 25 degrees at random.
+    // here.
     void boss_events(std::span<Foe> foes, std::uint32_t now_ms);
     // A boss's missile from where it stands, at level mlvl / 2 (at least
     // 1), the row's own element (FUN_0064b100 ..).

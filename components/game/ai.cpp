@@ -2343,11 +2343,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 } else if (cast->srvdofunc == ServerDoFunction::kMissileWall) {
                     countess_firewall(game_data, monster, now_ms, missiles, cast->srvmissilea);
                 } else if (cast->srvdofunc == ServerDoFunction::kScatteredBolts) {
-                    // FUN_005c9300: calc1 of its srvmissilea (FUN_00646ca0) from it toward the target.
-                    // ponytail: each aimed off by up to a quarter turn on the game's seed, not FUN_005c9290's own steering.
-                    for (int bolts = std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl), 1); bolts > 0; --bolts) {
-                        const float turn = (float(int(rng.next() % 101) - 50) / 100.f) * 1.5707963f;
-                        andariel_missile(game_data, monster, cast->srvmissilea, dx * std::cos(turn) - dy * std::sin(turn), dx * std::sin(turn) + dy * std::cos(turn), now_ms, missiles, lvl, cast);
+                    // FUN_005c9300: calc1 of its srvmissilea (FUN_00646ca0) at the target, each
+                    // wandering by its index (FUN_005c9290), as the player's Charged Bolt.
+                    const int bolts = std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl), 1);
+                    for (int bolt = 0; bolt < bolts; ++bolt) {
+                        const std::size_t had = missiles.size();
+                        andariel_missile(game_data, monster, cast->srvmissilea, dx, dy, now_ms, missiles, lvl, cast);
+                        if (missiles.size() > had) missiles.back().bolt = bolt;
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kMonCurseCast) {
                     // FUN_005ce2b0: rand(5) on its seed picks 0x6e3228's curse (Amplify

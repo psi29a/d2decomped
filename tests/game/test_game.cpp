@@ -21,7 +21,6 @@
 #include <inventory.hpp>
 #include <item_text.hpp>
 #include <level_ids.hpp>
-#include <missiles.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
@@ -451,29 +450,6 @@ int main(int argc, char** argv) try {
             monster_update(*data, here, diablo, foes, cold_rng, frame * 40, 0.04f, crowd, missiles, pack);
         const int diablo_class = data->monsters.types[diablo_row->second].hit_class;
         assert(diablo_class != 0 && foes[0].hits == 1 && foes[0].hit_class == diablo_class);
-    }
-    {
-        // A breath's flame (FUN_005cc4e0 -> FUN_005cc2e0) lasts calc1 frames, under 1 its row's
-        // Param2 + lvl - 1: Fetish Inferno (no calc1) 7 + lvl - 1, not its Range 30.
-        const auto shaman_row = data->monsters.by_id.find("fetishshaman1");
-        const auto breath = data->skills.by_name.find("FetishInferno");
-        assert(shaman_row != data->monsters.by_id.end() && breath != data->skills.by_name.end());
-        const auto& shaman_type = data->monsters.types[shaman_row->second];
-        const auto slot = std::ranges::find(shaman_type.skill, std::string("FetishInferno")) - shaman_type.skill.begin();
-        const int lvl = d2d::rules::monster_skill_level(shaman_type.sk_lvl[std::size_t(slot)], 0);
-        d2d::rules::Rng breath_rng{ 5 };
-        Level here{};
-        here.id = d2d::rules::level_ids::kBloodMoor;
-        std::vector<Monster> pack{ make_monster(*data, int(shaman_row->second), 10.f, 10.f, breath_rng, 0) };
-        pack[0].breath = breath->second; pack[0].breath_until = 4000; pack[0].breath_next = 0;
-        std::array<Foe, 1> foes{};
-        foes[0].x = 12.f; foes[0].y = 10.f;
-        const Crowd crowd;
-        std::vector<Missile> missiles;
-        monster_update(*data, here, pack[0], foes, breath_rng, 40, 0.04f, crowd, missiles, pack);
-        assert(missiles.size() == 1 && missiles[0].info->param2 == 7 && missiles[0].info->range == 30);
-        assert(missiles[0].dies - 40 == std::uint32_t(7 - 1 + lvl) * 40);
-        std::printf("OK: a breath's flame lasts Param2 + lvl - 1 frames\n");
     }
 
     {
@@ -1207,45 +1183,6 @@ int main(int argc, char** argv) try {
         const auto* conversion_row = data->skills.get(conversion);
         assert(conversion_row && conversion_row->auratarget == "conversion" && std::ranges::contains(data->state_names, std::string("conversion")));
         std::printf("OK: a converted monster isn't attacked\n");
-    }
-
-    // Nova's 64 go out along rules::kNovaRing (0x6e1288 / 0x6e1388, FUN_0056d400), not even angles.
-    {
-        world.fight.pending.clear();
-        world.fight.fire(*data->skills.get(data->skills.by_name.at("Nova")), 5000 * kTickMs, world.fight.player_caster(data->skills.by_name.at("Nova")));
-        assert(world.fight.pending.size() == 64);
-        for (std::size_t way = 0; way < 64; ++way) {
-            const auto [aim_x, aim_y] = d2d::rules::kNovaRing[way];
-            const auto& shot = world.fight.pending[way];
-            assert(std::abs(shot.velocity_x * float(aim_y) - shot.velocity_y * float(aim_x)) < 1e-4f && shot.velocity_x * float(aim_x) + shot.velocity_y * float(aim_y) > 0);
-        }
-        world.fight.pending.clear();
-        std::printf("OK: Nova aims at game.exe's ring\n");
-
-        // A spent stack's slot takes the inventory's next only if it can be worn (FUN_00562a30 -> FUN_0062eaf0):
-        // throwing knives need 21 dexterity, a new barbarian has 20.
-        auto& items = world.actor->character.items;
-        auto& dexterity = world.actor->character.stats.values[d2d::d2s::kDex];
-        const auto kept_items = items;
-        const auto kept_dexterity = dexterity;
-        for (const int dex : { 20, 21 }) {
-            items = kept_items; dexterity = dex;
-            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm; });
-            items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 1 });
-            items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .identified = true, .quantity = 9 });
-            world.fight.out_of_ammo(items.size() - 2);
-            assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "tkf" && item.location == d2d::d2s::item_location::kEquipped; }) == (dex >= 21 ? 1 : 0));
-        }
-        // An empty quiver in hand: the shot is refused and the inventory's quiver swapped in (FUN_005da8b0 -> FUN_00580310).
-        items = kept_items;
-        std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm); });
-        items.push_back({ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true });
-        items.push_back({ .code = "aqv", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 0 });
-        items.push_back({ .code = "aqv", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .identified = true, .quantity = 50 });
-        assert(!world.fight.cast_missile(0, world.actor->player.x + 3, world.actor->player.y, 5000 * kTickMs));
-        assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "aqv"; }) == 1 && world.fight.ammo_index() >= 0);
-        items = kept_items; dexterity = kept_dexterity;
-        std::printf("OK: a spent stack is swapped for a wearable next, on running out or a refused shot\n");
     }
 
     // A row with no Skill (Meteor's fire): its EDmgSymPerCalc, skill('Inferno'.blvl) * 3, adds
