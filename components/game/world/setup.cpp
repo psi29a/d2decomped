@@ -360,7 +360,6 @@ auto World::spawn_merc() -> void {
     }
 
 auto World::swap_npcs(const Level* from) -> void {
-        actor->arrived_at = now;
         if (from && from != level)                           // each player's level change (event 3): the party moved too (bring_party)
             each_player([&](Player&) { act1_enter(*from); act2_enter(*from); act3_enter(*from); act4_enter(*from); act5_enter(*from); });
         if (from) other_npcs[from] = std::move(npc_states);
