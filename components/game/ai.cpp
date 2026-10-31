@@ -264,7 +264,6 @@ int subtile(float cells) { return int(std::floor(cells * 5)); }
 // Diablo's Bone Prison round (0x73d4f0): boneprison1..4 at the target's
 // diagonals, (1, 1) first.
 constexpr std::array<std::pair<int, int>, 4> kPrison{ { { 1, 1 }, { 1, -1 }, { -1, -1 }, { -1, 1 } } };
-int room_at(const Level& level, float x, float y);
 // FUN_005fd350 (ECX the caster's class, x, y, flag): where a nest's young
 // come out, by its MonStats BaseId: crownest (0xce) 3 below, sarcophagus
 // (0xe4) 2 below, vile mother (0x12a) the spot itself (with `flag`: always
@@ -283,7 +282,7 @@ bool nest_spot_free(const GameData& game_data, const Level& level, const Crowd& 
     else if (base == bin(0x14e)) { x -= 2; y -= 2; mask = 0x1c0; }
     else if (base == bin(0x210)) { x += 2; y += 4; }
     else return true;
-    if (room_at(level, (float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5) < 0) return false;
+    if (room_of(level, (float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5) < 0) return false;
     for (const auto& [off_x, off_y] : { std::pair{ 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }) {
         const float at_x = (float(x + off_x) + 0.5f) / 5, at_y = (float(y + off_y) + 0.5f) / 5;
         if (level.blocked(at_x, at_y, mask & 0x0fff) || ((mask & 0x1000) && crowd.at(at_x, at_y, nullptr))) return false;
@@ -459,15 +458,6 @@ const SeqRows* skill_seq(const GameData& game_data, const d2d::rules::MonType& t
     return nullptr;
 }
 
-// The level room holding (x, y) cells, -1 none.
-int room_at(const Level& level, float x, float y) {
-    for (std::size_t i = 0; i < level.rooms.size(); ++i) {
-        const auto& room = level.rooms[i];
-        if (x >= float(room.x) && y >= float(room.y) && x < float(room.x + room.width) && y < float(room.y + room.height)) return int(i);
-    }
-    return -1;
-}
-
 // The target search (FUN_005dd7f0): rules::search_pick over the player and
 // its pets, best under aidist (blank: 35) by the AI's distance. Line of
 // sight (sight_blocked, mask 4, each unit's size) counts only in a preset
@@ -498,7 +488,7 @@ int room_at(const Level& level, float x, float y) {
 // Mode 5's "in the searcher's area" compares area ids (FUN_0061b130,
 // area_id_at), which carry across rooms; the flag (+0x24) is the record's.
 int area_at(const Level& level, float x, float y) {
-    const int room = room_at(level, x, y);
+    const int room = room_of(level, x, y);
     if (room >= 0 && std::size_t(room) < level.room_areas.size())
         for (std::size_t i = 0; i < level.room_areas[std::size_t(room)].size(); ++i)
             if (const auto& area = level.room_areas[std::size_t(room)][i]; int(x) >= area.left && int(y) >= area.top && int(x) < area.right && int(y) < area.bottom)
@@ -510,10 +500,10 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const int aidist = type_info.diff[std::size_t(monster.difficulty)].aidist;
-    const int room = room_at(level, unit.x, unit.y);
+    const int room = room_of(level, unit.x, unit.y);
     if (monster.area == -2) monster.area = area_at(level, monster.home_x, monster.home_y);   // FUN_005b2a00 -> FUN_00552d60: where it was placed
     if (monster.area >= 0 && (monster.area >> 8 & 0xfff) != room) monster.area = -1;
-    const auto* in_room = room >= 0 ? &level.rooms[std::size_t(room)] : nullptr;
+    const auto* in_room = room >= 0 && std::size_t(room) < level.rooms.size() ? &level.rooms[std::size_t(room)] : nullptr;   // the camp has none (room_of: its 8x8 rooms)
     const bool indoor = in_room && in_room->kind == 2
         && !(std::size_t(in_room->def) < game_data.prest_outdoors.size() && game_data.prest_outdoors[std::size_t(in_room->def)]);
     const bool force = std::exchange(monster.force_sight, false);
@@ -666,7 +656,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (room_level == &level) rooms.push_back(room);
         std::vector<d2d::rules::RoomUnit> units;
         units.reserve(pack.size());
-        for (const auto& other : pack) units.push_back({ room_at(level, other.unit.x, other.unit.y), eligible(other) });
+        for (const auto& other : pack) units.push_back({ room_of(level, other.unit.x, other.unit.y), eligible(other) });
         return d2d::rules::room_order(units, rooms);
     };
     const auto first_near = [&](auto eligible) {
@@ -951,7 +941,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (room_level != &level) continue;
             for (std::size_t i = foes.size(); i-- > 0;) {
                 auto& foe = foes[i];
-                if (foe.of == &monster || room_at(level, foe.x, foe.y) != room) continue;
+                if (foe.of == &monster || room_of(level, foe.x, foe.y) != room) continue;
                 const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
                 auto& entry = sight_foes.emplace_back(d2d::rules::SightFoe{ d2d::rules::near_distance(foe_x - x, foe_y - y, foe.size), foe.threat,
                                                                             foe.alive && !town && !d2d::rules::friends(monster.align, foe.of ? foe.of->align : 2) });
@@ -1001,7 +991,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (deviations.md approximation 14).
     if (type_info.ai_name == "Vulture") {
         input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
-        input.same_room = room_at(level, unit.x, unit.y) == room_at(level, target->x, target->y);
+        input.same_room = room_of(level, unit.x, unit.y) == room_of(level, target->x, target->y);
         input.can_land = monster.aloft;                            // FUN_005f2fc0 fails on a landed one (pattern 1)
         // In a group: an owner (FUN_0058f0d0: AI control +0x28 / +0x2c, set by
         // FUN_0058f030 on a boss's minions, FUN_005a0c00; never on the boss),
@@ -1019,7 +1009,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         }
         if (monster.ai_state2 != 0 && monster.ai_state3 != 0) {
             input.free_spot[0] = free_spot_near(level, crowd, &unit, monster.ai_state2, monster.ai_state3, unit.shape.size, 0xffff);
-            if (!input.free_spot[0] && room_at(level, (float(monster.ai_state2) + 0.5f) / 5, (float(monster.ai_state3) + 0.5f) / 5) >= 0)
+            if (!input.free_spot[0] && room_of(level, (float(monster.ai_state2) + 0.5f) / 5, (float(monster.ai_state3) + 0.5f) / 5) >= 0)
                 input.free_spot[0] = std::pair{ monster.ai_state2, monster.ai_state3 };   // keep 1: the point, in a room
         }
     }
@@ -1198,7 +1188,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // FUN_005fd470(199): FUN_005b34c0's dry run (flag 1), every bone of
             // the round fits on its spot (each try three draws on the target's
             // room's seed); usable zeroes his Prison (act 9).
-            const int target_room = room_at(level, target->x, target->y);
+            const int target_room = room_of(level, target->x, target->y);
             input.usable = !d2d::rules::level_ids::is_town(level.id) && std::ranges::all_of(std::views::iota(0, 4), [&](int bone) {
                 int at_x = 0, at_y = 0;
                 return spawn_spot(game_data, level, crowd, rooms_in_play, 0x154 + bone, target_x + kPrison[std::size_t(bone)].first, target_y + kPrison[std::size_t(bone)].second,
@@ -1420,7 +1410,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     } else if (monster.special == 16) {                           // a riding imp (FUN_005e2d80)
         act = d2d::rules::mon_think("ImpRide", input, monster.seed, away);
     } else if (monster.special == 0xd) {                          // the Countess: rooms are the level's (FUN_0061b130)
-        auto room = [&](float at_x, float at_y) { return room_at(level, at_x, at_y); };
+        auto room = [&](float at_x, float at_y) { return room_of(level, at_x, at_y); };
         const int home = room(monster.home_x, monster.home_y);
         const d2d::rules::CountessIn where{ room(unit.x, unit.y) != home, room(target->x, target->y) != home,
                                             x == subtile(monster.home_x) && y == subtile(monster.home_y) };
@@ -1539,7 +1529,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // S1; FUN_005b2f20 within 2 of it (flags 0x42: no family mods, no
             // party), flag 0x4000000 (no experience); counted if made.
             if (const auto young = game_data.monsters.by_id.find(type_info.spawn); born && young != game_data.monsters.by_id.end()) {
-                const int room = room_at(level, (float(x + 8) + 0.5f) / 5, (float(y) + 0.5f) / 5);
+                const int room = room_of(level, (float(x + 8) + 0.5f) / 5, (float(y) + 0.5f) / 5);
                 if (int at_x = 0, at_y = 0; spawn_spot(game_data, level, crowd, rooms_in_play, young->second, x + 8, y, 2, room, at_x, at_y)) {
                     auto laid = make_monster(game_data, young->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes));
                     laid.aware = true; laid.no_exp = true;
@@ -2088,7 +2078,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             } else if (skill("Nest")) {                                       // srvdofunc 91 (FUN_005cbe00): its spawn at the skill's spot, in spawnmode
                 // Through FUN_005b2f20 within 1 of the spot, flags 0x4020000 (no
                 // experience, no drop); Skills +0xe6's overlay is none for Nest.
-                const int room = room_at(level, (float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5);
+                const int room = room_of(level, (float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5);
                 const auto young = game_data.monsters.by_id.find(type_info.spawn);
                 if (int at_x = 0, at_y = 0; born && young != game_data.monsters.by_id.end()
                     && spawn_spot(game_data, level, crowd, rooms_in_play, young->second, monster.skill_x, monster.skill_y, 1, room, at_x, at_y)) {
@@ -2158,7 +2148,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const int at_x = subtile(unit.x), at_y = subtile(unit.y);
                 const int ring = kRing[std::size_t(((d2d::rules::direction64(at_x, at_y, monster.skill_x, monster.skill_y) + 4) >> 3) & 7)];
                 const int egg_x = at_x + kStepX[std::size_t(ring)], egg_y = at_y + kStepY[std::size_t(ring)];
-                const int room = room_at(level, (float(egg_x) + 0.5f) / 5, (float(egg_y) + 0.5f) / 5);
+                const int room = room_of(level, (float(egg_x) + 0.5f) / 5, (float(egg_y) + 0.5f) / 5);
                 const auto young = game_data.monsters.by_id.find(type_info.spawn);
                 if (int put_x = 0, put_y = 0; born && young != game_data.monsters.by_id.end()
                     && spawn_spot(game_data, level, crowd, rooms_in_play, young->second, egg_x, egg_y, -1, room, put_x, put_y)) {
@@ -2183,7 +2173,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const int lvl = skill_level(game_data, monster, monster.skill);
                 const int count = d2d::rules::eval_calc(game_data.skills, done->calc[0], {}, monster.skill, lvl);
                 if (const auto young = game_data.monsters.by_id.find(type_info.spawn); born && young != game_data.monsters.by_id.end() && count > 0) {
-                    const int egg_x = subtile(unit.x), egg_y = subtile(unit.y), egg_room = room_at(level, unit.x, unit.y);
+                    const int egg_x = subtile(unit.x), egg_y = subtile(unit.y), egg_room = room_of(level, unit.x, unit.y);
                     std::vector<Monster> larvae;
                     larvae.reserve(std::size_t(count));
                     Crowd with_larvae = crowd;
@@ -2403,7 +2393,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const int young = spawn_row != game_data.monsters.by_id.end() ? spawn_row->second
                                     : type_info.ai_name == "Nihlathak" ? level_monster(game_data, level, int(game_data.mon_bin[0x1c5])) : -1;
                     const int at_x0 = subtile(unit.x) + (spawn_row != game_data.monsters.by_id.end() ? type_info.spawn_x : 0), at_y0 = subtile(unit.y) + (spawn_row != game_data.monsters.by_id.end() ? type_info.spawn_y : 0);
-                    const int room = room_at(level, (float(at_x0) + 0.5f) / 5, (float(at_y0) + 0.5f) / 5);
+                    const int room = room_of(level, (float(at_x0) + 0.5f) / 5, (float(at_y0) + 0.5f) / 5);
                     if (int at_x = 0, at_y = 0; born && young >= 0
                         && (spawn_spot(game_data, level, crowd, rooms_in_play, young, at_x0, at_y0, -1, room, at_x, at_y) || spawn_spot(game_data, level, crowd, rooms_in_play, young, at_x0, at_y0, 4, room, at_x, at_y))) {
                         auto made = make_monster(game_data, young, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes));
@@ -2439,7 +2429,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // class steps): boneprison1..4 (0x154..0x157) at the target's diagonals,
                     // (1, 1) first, the other three only once it stood; each on its spot
                     // exactly (FUN_005b3130 / FUN_005b31b0 at radius -1), none where it won't fit.
-                    const int foe_room = room_at(level, foe.x, foe.y);
+                    const int foe_room = room_of(level, foe.x, foe.y);
                     if (born && !d2d::rules::level_ids::is_town(level.id))
                         for (std::size_t k = 0; k < kPrison.size(); ++k) {
                             int at_x = 0, at_y = 0;
@@ -2631,11 +2621,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kHydra) {
                     // FUN_005ca910: three of its summon (hydra1) at the target, each gone Param1 frames on (AI control +0x14).
-                    // ponytail: side by side, not FUN_0056d2c0's spots.
+                    // Each through FUN_0056d940 -> FUN_005b2f20 at radius -1 (flags 0x42): the
+                    // target's subtile alone (three draws of the room's seed), else none.
+                    // hydra1 is SizeX 0, so the heads share it.
                     if (const auto summoned = game_data.monsters.by_id.find(cast->summon); born && summoned != game_data.monsters.by_id.end())
                         for (int head = 0; head < 3; ++head) {
-                            auto hydra = make_monster(game_data, summoned->second, foe.x + float(head - 1) * 0.6f, foe.y, rng, monster.difficulty, true, players_in(foes));
-                            std::tie(hydra.unit.x, hydra.unit.y) = level.nearest_free(hydra.unit.x, hydra.unit.y);
+                            int at_x = 0, at_y = 0;
+                            if (!spawn_spot(game_data, level, crowd, rooms_in_play, summoned->second, subtile(foe.x), subtile(foe.y), -1, room_of(level, foe.x, foe.y), at_x, at_y)) continue;
+                            auto hydra = make_monster(game_data, summoned->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes));
                             hydra.aware = true;
                             hydra.seed = d2d::rules::Rng{ rng.next() };
                             hydra.ai_state = int(now_ms / 40) + cast->par[0];

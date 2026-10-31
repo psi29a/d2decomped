@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -29,6 +30,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -138,6 +140,35 @@ int main() try {
     World world(&*data, -1, -1);
     world.enter(character);
     for (std::uint32_t tick = 1; tick <= 25; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
+
+    // A monster's Hydra (FUN_005ca910 -> FUN_0056d940 -> FUN_005b2f20, radius -1): three heads on
+    // the target's subtile; hydra1 is SizeX 0, so none blocks another.
+    {
+        Spawning::LevelState camp;
+        bool kept = false;
+        for (int tries = 0; tries < 200 && !(kept = keep_camp_seeds(*data, data->town, camp)); ++tries) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        assert(kept);
+        camp.up.assign(camp.room_seeds.size(), true);
+        const auto council_row = data->monsters.by_id.find("councilmember1");
+        const auto hydra_skill = data->skills.by_name.find("Hydra");
+        assert(council_row != data->monsters.by_id.end() && hydra_skill != data->skills.by_name.end());
+        const float foe_x = world.actor->player.x, foe_y = world.actor->player.y;
+        d2d::rules::Rng hydra_rng{ 11 };
+        std::vector<Monster> pack{ make_monster(*data, int(council_row->second), foe_x - 2, foe_y, hydra_rng, 0) };
+        pack[0].skill = hydra_skill->second;
+        set_mode(*data, pack[0], "S1", 0);                                // its Sk1mode
+        std::array<Foe, 1> foes{};
+        foes[0].x = foe_x; foes[0].y = foe_y;
+        const Crowd crowd;
+        std::vector<Missile> missiles;
+        std::vector<Monster> born;
+        for (std::uint32_t frame = 1; frame <= 100 && born.empty(); ++frame)
+            monster_update(*data, data->town, pack[0], foes, hydra_rng, frame * 40, 0.04f, crowd, missiles, pack, &born, nullptr, nullptr, &camp);
+        const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+        assert(born.size() == 3);
+        assert(std::ranges::all_of(born, [&](const Monster& head) { return subtile(head.unit.x) == subtile(foe_x) && subtile(head.unit.y) == subtile(foe_y); }));
+        std::printf("OK: a monster's three hydras stand on the target's subtile\n");
+    }
 
     // Nova's 64 go out along rules::kNovaRing (0x6e1288 / 0x6e1388, FUN_0056d400), not even angles.
     {
