@@ -60,7 +60,7 @@ class Oracle:
         self.e = e = emu.Emu()
         self.cur, self.out = {}, {}
         cur, out = self.cur, self.out
-        self.game = game = e.alloc(0x1000)
+        self.game = e.alloc(0x1000)
         self.player = player = e.alloc(0x200)
         inv, item, books, items_row = e.alloc(0x100), e.alloc(0x200), e.alloc(0x40), e.alloc(0x200)
         room, portal, client, path = e.alloc(0x100), e.alloc(0x100), e.alloc(0x100), e.alloc(0x100)
