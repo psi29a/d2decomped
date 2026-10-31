@@ -533,6 +533,9 @@ int main() {
     picked = ground_item("isc", -1);
     assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().location == 0 && carried.back().panel == 1   // no tome: not the belt
            && carried.back().column == 9 && carried.back().row == 3);                                                                     // a player's 1-high best fit (free_spot)
+    std::vector<d2d::d2s::Item> scroll_belt{ in_belt("isc", 3) };
+    picked = ground_item("isc", -1);
+    assert(pick_up(pick_tables, scroll_belt, picked, 10, 4, 8) == Pickup::kGone && scroll_belt.back().location == 2 && scroll_belt.back().column == 7);   // no tome: the scroll's column, a row up
     carried.push_back(stored("ibk", 1, 2, 0)); carried.back().quantity = 19;
     picked = ground_item("isc", -1);
     assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().quantity == 20);
