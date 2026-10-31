@@ -111,6 +111,26 @@ int main(int argc, char** argv) {
         assert(!get_hit(100 << 8, 255, 3, false, seed) && !get_hit(100 << 8, (100 << 8) / 8 - 1, 2, false, seed) && get_hit(100 << 8, (100 << 8) / 2, 2, false, seed));
         assert(!get_hit(100 << 8, (100 << 8) / 16 - 1, 2, true, seed) && get_hit(100 << 8, (100 << 8) / 4, 2, true, seed) && get_hit(100 << 8, (100 << 8) / 2, 5, false, seed));
     }
+    {   // An armor's pool per record in landing order, each blow losing its own part (state event 0xb in
+        // FUN_0057c1e0: Bone Armor FUN_005c6370 the physical, Cyclone Armor FUN_005c87a0 fire / cold / lightning).
+        // A sword's 32 then a fire blow's 32 on 64 life: Cyclone Armor takes the fire, the sword's blow stays sure.
+        std::vector<StruckBlow> blows{ { 32, 2, false, 32, 0 }, { 32, 0, true, 0, 32 } };
+        int pool = 100;
+        Rng seed{ 9u };
+        assert(absorb_blows(blows, pool, true) == 32 && pool == 68 && blows[0].damage == 32 && blows[1].damage == 0 && !blows[1].marked);
+        assert(struck_big(blows, 64 << 8, seed));
+        // Bone Armor, the mirror: a fire blow first keeps its 32; the pool empties inside the sword's blow.
+        blows = { { 32, 0, true, 0, 32 }, { 32, 2, false, 32, 0 } };
+        pool = 20;
+        assert(absorb_blows(blows, pool, false) == 20 && pool == 0 && blows[0].damage == 32 && blows[1].damage == 12 && blows[1].physical == 12);
+        // A fire blow with poison keeps its mark when the fire goes (FUN_0057ce30 reads the poison field too).
+        blows = { { 10, 2, true, 4, 6, true } };
+        pool = 6;
+        assert(absorb_blows(blows, pool, true) == 6 && blows[0].damage == 4 && blows[0].marked);
+        // Two class-2 blows of 6 on 64 life: each under max / 8, no get-hit (their sum of 12 would roll).
+        blows = { { 6, 2, false, 6, 0 }, { 6, 2, false, 6, 0 } };
+        for (int sample = 0; sample < 64; ++sample) assert(!struck_big(blows, 64 << 8, seed));
+    }
     // FUN_0057e2f0's 256ths (0x6e1668 / 0x6e1694), clvl / mlvl from level 25.
     assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 100 * 61 / 256 && kill_exp(100, 20, 1) == 100 * 13 / 256);
     assert(kill_exp(100, 1, 10) == 100 * 38 / 256 && kill_exp(1000, 30, 40) == 750 && kill_exp(100, 1, 6) == 100);

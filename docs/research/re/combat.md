@@ -228,7 +228,14 @@ in that table. Any of those
 puts the class past 12: a blow with an element divides by 16 whatever the
 weapon. d2d: `rules::get_hit` (`Blow::elemental`, `hurt`'s class, the player's
 and the merc's struck frame). tools/emu/hit_rule.py runs game.exe's
-`FUN_0057cee0` on 100,000 random cases and diffs them.
+`FUN_0057cee0` on 100,000 random cases and diffs them. An armor's pool
+works record by record too: `FUN_0057c1e0` raises state event 0xb
+(`FUN_005c0c30`, 0x57c2fc) on each record before its resistances and its
+total +0x4c, and Bone Armor (`FUN_005c6370`) takes from that record's
+physical field, Cyclone Armor (`FUN_005c87a0`) from its fire, cold, then
+lightning, the pool carrying to the next record; the get-hit then reads what
+is left, an element emptied no longer marks. d2d: `rules::absorb_blows`
+(tools/emu/hit_absorb.py runs game.exe's handlers on it).
 
 ## Approximations still in the port (marked `ponytail:` in code)
 

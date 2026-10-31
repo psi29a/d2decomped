@@ -234,6 +234,48 @@ inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, b
     return true;
 }
 
+// One landed blow on a unit this frame, as game.exe keeps one damage record a
+// hit: its damage (whole points), hit class and element mark (an element or
+// poison, Foe::take), and of the damage the physical part (record +0x08) and
+// the fire / lightning / cold part (+0x10, +0x1c, +0x24) an absorb reads.
+struct StruckBlow {
+    int damage = 0, hit_class = 0;
+    bool marked = false;
+    int physical = 0, elemental = 0;
+    bool poisoned = false;
+};
+
+// A state's absorb pool on the frame's blows: FUN_0057c1e0 raises state event
+// 0xb (FUN_005c0c30, 0x57c2fc) on each record before it sums the total +0x4c,
+// so the pool empties record by record in landing order and each blow loses
+// only its own part: Bone Armor (FUN_005c6370) from the physical field,
+// Cyclone Armor (FUN_005c87a0) from fire, cold, then lightning. A blow whose
+// fire / lightning / cold went keeps its mark only by its poison
+// (FUN_0057ce30 reads the fields after). Returns what the pool took.
+// tools/emu/hit_absorb.py runs game.exe's own code on it.
+// ponytail: game.exe absorbs before resistances and damage reduction (the loop at 0x57c378); d2d's blows are already resisted.
+inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) {
+    int taken = 0;
+    for (auto& blow : blows) {
+        int& part = elemental ? blow.elemental : blow.physical;
+        const int cut = std::min({ pool, part, blow.damage });
+        if (cut <= 0) continue;
+        part -= cut; blow.damage -= cut; pool -= cut; taken += cut;
+        if (elemental && blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
+    }
+    return taken;
+}
+
+// FUN_0057cb00 once per landed blow (FUN_0057c6c0 then FUN_0057cee0 per
+// record): each blow rolls on what is left of it, its own class and mark; a
+// get-hit if any is.
+inline bool struck_big(std::span<const StruckBlow> blows, std::int64_t max_life, Rng& seed) {
+    bool big = false;
+    for (const auto& blow : blows)
+        if (blow.damage > 0 && get_hit(max_life, std::int64_t(blow.damage) << 8, blow.hit_class, blow.marked, seed)) big = true;
+    return big;
+}
+
 // The get-hit's animation rate, 1/256 frames a tick (FUN_00623f50's get-hit
 // branch, 0x62409f..0x624385, a player's mode 4 or a monster's mode 3): the
 // AnimData speed x (50 + the effective FHR, FUN_00621740's 120 v / (120 + v)

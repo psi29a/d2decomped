@@ -1401,18 +1401,17 @@ auto Fight::state_of(std::string_view name) const -> const SelfState* {
         return nullptr;
     }
 
-auto Fight::absorb(const Foe& foe, std::uint32_t now_ms) -> int {
+auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
         using namespace d2d::d2s;
         int damage = foe.damage;
         if (damage <= 0) return 0;
         // Bone Armor (event 22, FUN_005c6370) takes from the physical part
         // (the hit's +8), Cyclone Armor (25, FUN_005c87a0) from fire,
-        // lightning and cold (+0x10, +0x1c, +0x24).
+        // lightning and cold (+0x10, +0x1c, +0x24), each blow's own, in
+        // landing order (rules::absorb_blows).
         if (actor->absorb_pool > 0 && std::ranges::contains(actor->self_states, actor->absorb_skill, &SelfState::skill)) {
             const auto* pool_skill = game_data->skills.get(actor->absorb_skill);
-            const int part = pool_skill && pool_skill->aurastate == "cyclonearmor" ? foe.elemental : foe.physical;
-            const int absorbed = std::min({ actor->absorb_pool, part, damage });
-            actor->absorb_pool -= absorbed; damage -= absorbed;
+            damage -= d2d::rules::absorb_blows(foe.blows, actor->absorb_pool, pool_skill && pool_skill->aurastate == "cyclonearmor");
             if (actor->absorb_pool <= 0) std::erase_if(actor->self_states, [&](const SelfState& state) { return state.skill == actor->absorb_skill; });
         }
         if (const auto* energy_shield = state_of("energyshield"); energy_shield && damage > 0) {
@@ -1422,6 +1421,8 @@ auto Fight::absorb(const Foe& foe, std::uint32_t now_ms) -> int {
             const int can = int(std::min<std::int64_t>(part, (actor->character.stats.values[kMana] >> 8) * 16 / per16));
             actor->character.stats.values[kMana] -= (std::int64_t(can) * per16 / 16) << 8;
             damage -= can;
+            // ponytail: Energy Shield's share is taken off the blows in landing order, not record by record.
+            for (int left = can; auto& blow : foe.blows) { const int cut = std::min(left, blow.damage); blow.damage -= cut; left -= cut; }
             if (can > 0 && actor->character.character_class == 1) {
                 static constexpr std::array<std::string_view, 5> kEnergyShieldHits = { "sorceress_energyshield_hit_1", "sorceress_energyshield_hit_2",
                     "sorceress_energyshield_hit_3", "sorceress_energyshield_hit_4", "sorceress_energyshield_hit_5" };
@@ -4866,24 +4867,13 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // record at a time (FUN_0057c6c0 then FUN_0057cee0 per hit): the divisor by that blow's hit class
         // (16 for every Act 1 melee class and any blow with an element), 37.5 % from that share of max
         // life, 75 % from twice it, sure from four times; every blow rolls, a get-hit restarts.
-        // What the unit's states absorbed (Bone Armor, Cyclone Armor, Energy Shield: absorb) comes off the
-        // blows in landing order, as a pool empties record by record in game.exe (FUN_0057c1e0 sums a
-        // record's total after state event 0xb, before FUN_0057cee0 sees it).
-        // ponytail: Energy Shield's share is taken in that order too, not per record.
-        const auto struck_big = [](const Foe& foe, std::int64_t max_life, d2d::rules::Rng& seed, int absorbed) {
-            bool big = false;
-            for (const auto& blow : foe.blows) {
-                const int cut = std::min(absorbed, blow.damage);
-                absorbed -= cut;
-                if (blow.damage - cut > 0 && d2d::rules::get_hit(max_life, std::int64_t(blow.damage - cut) << 8, blow.hit_class, blow.marked, seed)) big = true;
-            }
-            return big;
-        };
+        // What the unit's states absorbed (Bone Armor, Cyclone Armor, Energy Shield: absorb) is off the
+        // blows already: an armor's from each blow's own part (rules::absorb_blows).
         if (actor->merc && side[1].damage > 0 && actor->merc->mode != "DT") {
             actor->merc->hit_points -= side[1].damage;
             auto& unit = actor->merc->unit;
             const auto mode = actor->merc->hit_points <= 0                                     ? std::string_view("DT")
-                            : actor->merc->mode != "KB" && struck_big(side[1], std::int64_t(merc_max_life()) << 8, actor->merc->seed, 0) ? std::string_view("GH")
+                            : actor->merc->mode != "KB" && d2d::rules::struck_big(side[1].blows, std::int64_t(merc_max_life()) << 8, actor->merc->seed) ? std::string_view("GH")
                                                                                                    : actor->merc->mode;
             if (mode != actor->merc->mode) {
                 actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = false; unit.path.clear();
@@ -4964,9 +4954,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);
-        const int struck = foe.damage;
         foe.damage = absorb(foe, now_ms);
-        const int absorbed = struck - foe.damage;
         foe.damage += int(actor->self_hurt >> 8);
         actor->self_hurt &= 255;
         using namespace d2d::d2s;
@@ -4988,9 +4976,9 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // too-small test; result flag 4 is the hit landing, FUN_0057ec10,
         // before any damage). That's all a stun does to a player: no input
         // is refused.
-        // Else the size test per landed blow (struck_big above).
+        // Else the size test per landed blow (rules::struck_big).
         // ponytail: a blow's damage is its whole points; the rolls take d2d's rng, not the player's own seed.
-        const bool big = struck_big(foe, actor->character.stats.get(kMaxLife), rng, absorbed);
+        const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), rng);
         if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && !attack_mode(actor->pmode) && actor->pmode != kModeBL) set_pmode(kModeGH, now_ms);
     }
 
@@ -5034,7 +5022,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                 if (foe.alive && in_range(foe.x, foe.y)) {
                     const int dealt = d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]);
                     foe.damage += dealt; foe.elemental += dealt;
-                    foe.blows.push_back({ dealt, 0, true });
+                    foe.blows.push_back({ dealt, 0, true, 0, dealt });
                 }
         }
     }

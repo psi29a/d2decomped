@@ -664,7 +664,7 @@ struct Fight {
     // where the player walks; Thunder Storm strikes the monsters within
     // Param7 subtiles in turn, every perdelay frames.
     // Traced in skills.md "Aura event functions" and "Thunder Storm".
-    int absorb(const Foe& foe, std::uint32_t now_ms);
+    int absorb(Foe& foe, std::uint32_t now_ms);
     void buff_events(Foe& foe, std::uint32_t now_ms);
     // Chilling Armor's answer, after the frame's missiles have struck.
     void return_fire(const Foe& foe, std::uint32_t now_ms);
