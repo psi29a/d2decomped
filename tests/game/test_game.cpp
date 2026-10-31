@@ -185,6 +185,40 @@ int main(int argc, char** argv) try {
         std::fclose(cases);
         return 0;
     }
+    // `--auto-belt CASES`: a shift-click to the belt (C->S 0x63), the box
+    // rules::auto_belt picks or -1, as tools/emu/auto_belt.py prints
+    // game.exe's (FUN_0054d520's FUN_0062bad0 / FUN_00628250 / FUN_0063c600).
+    if (argc > 2 && std::string_view(argv[1]) == "--auto-belt") {
+        namespace loc = d2d::d2s::item_location;
+        std::ifstream cases(argv[2]);
+        std::string line;
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);
+            std::string id, belt, item;
+            int page = 0;
+            std::array<std::string, 16> boxes;
+            fields >> id >> page >> belt;
+            for (auto& box : boxes) fields >> box;
+            fields >> item;
+            if (!fields) continue;
+            std::vector<d2d::d2s::Item> items;
+            auto add = [&](const std::string& code, int location, int panel, int column, int slot) {
+                d2d::d2s::Item carried;
+                carried.code = code; carried.location = location; carried.panel = panel; carried.column = column; carried.slot = slot;
+                carried.id = int(items.size()) + 1;
+                items.push_back(carried);
+            };
+            if (belt != "-") add(belt, loc::kEquipped, 0, 0, d2d::d2s::body_location::kBelt);
+            for (int box = 0; box < 16; ++box) if (boxes[std::size_t(box)] != "-") add(boxes[std::size_t(box)], loc::kBelt, 0, box, 0);
+            add(item, loc::kStored, page == 0 ? d2d::d2s::item_panel::kInventory : page == 3 ? d2d::d2s::item_panel::kCube : d2d::d2s::item_panel::kStash, 0, 0);
+            const int clicked = items.back().id;
+            const int belt_boxes = data->belts[std::size_t(belt_index(*data, items))].boxes;
+            const bool moved = d2d::rules::auto_belt(data->rules, items, clicked, belt_boxes);
+            const auto found = std::ranges::find(items, clicked, &d2d::d2s::Item::id);
+            std::printf("%s %d\n", id.c_str(), moved ? found->column : -1);
+        }
+        return 0;
+    }
     // `--skill-tips N [difficulty]`: every SkillDesc line at levels 1..N with
     // no unit, as tools/emu/skill_tips.py prints game.exe's (FUN_004edea0).
     if (argc > 2 && std::string_view(argv[1]) == "--skill-tips") {
