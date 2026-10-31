@@ -182,8 +182,8 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             if (const auto value = st_sum[std::size_t(kRes[k])], more = st_sum[std::size_t(kRes[k] + 1)]; value != 0 || more != 0)
                 actor->player_combat.res[k] = int(std::min<std::int64_t>(actor->player_combat.res[k] + value, std::min<std::int64_t>(actor->character.panel.res_cap[kPanelRes[k]] + more, 95)));
         actor->player_combat.ias += int(st_sum[kAttackRate]);
-        actor->player_combat.frw += int(st_sum[kVelocityPercent]);
-        for (const auto& passive : passives) if (passive.stat == kVelocityPercent && passive.itype.empty()) actor->player_combat.frw += passive.value;   // Increased Speed
+        actor->player_combat.velocity_pct += int(st_sum[kVelocityPercent]);
+        for (const auto& passive : passives) if (passive.stat == kVelocityPercent && passive.itype.empty()) actor->player_combat.velocity_pct += passive.value;   // Increased Speed
         actor->player_combat.defense += int(actor->player_combat.defense * st_sum[kSkillArmorPercent] / 100);
         actor->player_combat.defense = std::max(int(actor->player_combat.defense + actor->player_combat.defense * st_sum[kArmorOverridePercent] / 100), 0);
         const std::uint32_t chosen[2] = { actor->character.header.left_skill, actor->character.header.right_skill };
