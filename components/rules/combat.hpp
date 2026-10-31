@@ -391,6 +391,25 @@ inline int resisted_fine(int fine, int res) {
     if (res == 0) return fine;
     return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
 }
+// Static Field's record on one unit (FUN_005c96a0), in 256ths before the
+// resistance, or -1 when it makes none. Life is the unit's in whole points
+// (stat 6 >> 8): nothing under 1, nothing at or under floor % of its max
+// life (DifficultyLevels StaticFieldMin, expansion games only), else pct %
+// of it (MulDiv) leaving at least 1 point, then at least `low` (calc2). A
+// negative lightning resistance is taken back out first (MulDiv(dmg, 100,
+// 100 - res)), so it adds nothing once FUN_0057bf80 applies it.
+// ponytail: life_fine and max_fine are the unit's 256ths; res is its raw
+// lightning resistance (stat 0x29), pierce not taken off.
+inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int floor_pct, int res) {
+    const int life = life_fine >> 8;
+    if (life < 1) return -1;
+    if (floor_pct != 0 && life <= mul_div(max_fine >> 8, floor_pct, 100)) return -1;
+    int dmg = mul_div(life, pct, 100);
+    if (life - dmg < 1) dmg = life - 1;
+    dmg = std::max(dmg << 8, low);
+    if (res < 0) dmg = mul_div(dmg, 100, 100 - res);
+    return dmg;
+}
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // the skill's physical and elemental damage (with synergies and the
