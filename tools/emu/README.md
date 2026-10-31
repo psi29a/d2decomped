@@ -36,6 +36,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | COF draw effects (which blend each is) | `uv run python cof_effects.py \| diff - ../../tests/cof_effect_cases.inc`; then `test_cof_effects` | no output; the test passes |
 | Screen shake and quest control frames | `uv run python shake.py > ../../tests/shake_cases.inc`; `uv run python shake.py --controls > ../../tests/quake_control_cases.inc` | `test_shake` matches both captured fixtures |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
+| Waypoint refusal window (C->S 0x49: refused or travels) | `uv run python wp_refuse.py gen 100000 7 --solo > cases.txt; uv run python wp_refuse.py game cases.txt > g.txt; ../../build/tests/test_game --waypoint-refuse cases.txt \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Missile frame directions | `uv run python missile_dirs.py 2000 > g.txt; cut -d: -f1 g.txt \| ../../build/tools/missile-dir-dump/missile-dir-dump \| diff g.txt -` (also `table`) | no output |
 | Walk / run animation rate | `uv run python walk_rates.py > g.txt; ../../build/tests/test_combat --walk-rates \| diff g.txt -` | no output |
 | Cast speed and cast length (FCR 0..400) | `uv run python cast_rates.py > g.txt; ../../build/tests/test_combat --cast-rates \| diff g.txt -` | no output |
