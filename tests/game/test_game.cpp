@@ -224,6 +224,66 @@ int main(int argc, char** argv) try {
     character.items = made.items;
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
 
+    // `--tome-use CASES`: a Town Portal read from the pack (cmd::UseItem, C->S
+    // 0x20) in the Blood Moor, the cases of tools/emu/tome_use.py (game.exe's
+    // FUN_0054d750 chain). Per case `id opened spent kept`: the tick after the
+    // use the player's new pair stood (0: the use's own, -1: none in 25 ticks),
+    // the charge or the scroll spent, the old pair still there. No free spot:
+    // a copy of the Blood Moor with every subtile a wall. A dead player is not
+    // ticked (its death would run).
+    if (argc > 2 && std::string_view(argv[1]) == "--tome-use") {
+        const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
+        assert(moor && !moor->walk.empty());
+        Level walled = *moor;
+        World world(&*data, -1, -1);
+        world.enter(character);
+        const World::Player start = *world.actor;
+        const auto [here_x, here_y] = moor->nearest_free(float(moor->ds1.width()) / 2, float(moor->ds1.height()) / 2);
+        const World::Portal old_field{ moor, here_x + 3, here_y, 1 }, old_town{ &data->town, 10, 10, 1 };
+        std::ifstream cases(argv[2]);
+        std::string line;
+        std::uint32_t now = 1000 * kTickMs;
+        for (const Level* warm : { moor, static_cast<const Level*>(&walled) }) {   // a level's first tick fills in its rooms' walk flags
+            world.level = warm;
+            std::tie(world.actor->player.x, world.actor->player.y) = std::pair{ here_x, here_y };
+            world.tick({}, now, now - kTickMs);
+            now += kTickMs;
+        }
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);
+            std::string code;
+            int id = 0, charges = 0, town = 0, held = 0, mode = 0, spot = 0;
+            if (!(fields >> id >> code >> charges >> town >> held >> mode >> spot)) continue;
+            *world.actor = start;
+            auto& player = *world.actor;
+            std::ranges::fill(walled.walk, std::uint16_t(1));
+            world.level = town ? &data->town : spot ? moor : &walled;
+            std::tie(player.player.x, player.player.y) = std::pair{ here_x, here_y };
+            d2d::d2s::Item read{ .code = code, .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .quantity = charges };
+            read.id = 9000;
+            player.character.items.push_back(read);
+            if (held) player.held = d2d::d2s::Item{ .code = "hp1" };
+            player.pmode = mode == kModeNU || mode == kModeWL || mode == kModeRN || mode == kModeTN || mode == kModeTW ? -1 : mode;   // d2d's walking modes are pmode -1
+            player.player.mode_ms = now;
+            world.portal[player.portal_pair] = old_field;
+            world.portal[player.portal_pair + 1] = old_town;
+            const auto opened = [&] { return world.portal[player.portal_pair].level && world.portal[player.portal_pair].born > 1; };
+            world.apply(cmd::UseItem{ 9000 }, now);
+            int opened_at = opened() ? 0 : -1;
+            for (int tick = 1; tick <= 25 && opened_at < 0 && !world.fight.dead(); ++tick) {
+                world.tick({}, now + std::uint32_t(tick) * kTickMs, now + std::uint32_t(tick - 1) * kTickMs);
+                if (opened()) opened_at = tick;
+            }
+            const auto left = std::ranges::find(player.character.items, 9000, &d2d::d2s::Item::id);
+            const bool spent = code == "tbk" ? left != player.character.items.end() && left->quantity == charges - 1 : left == player.character.items.end();
+            const bool kept = world.portal[player.portal_pair].level == old_field.level && world.portal[player.portal_pair].born == 1;
+            std::printf("%d %d %d %d\n", id, opened_at, int(spent), int(kept));
+            now += 100 * kTickMs;
+        }
+        return 0;
+    }
+
+
     {
         // A fallen shaman's rally goes to its leader's group only. One made
         // outside a group (leader -1) sends nothing, and doesn't reach others
