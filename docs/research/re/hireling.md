@@ -82,3 +82,20 @@ merc into the hand (`FUN_0054d130`). With an item in hand
   applied, as with the player's `can_wear`.
 - In a joined game d2d sends 0x61 to the host. The merc's items as the
   host has them (its item packets for the merc) aren't read back yet.
+
+## In the save (`FUN_005699a0`, PlrSave2.cpp)
+
+After the corpse list, an expansion game (`+0x70`) writes "jf", then,
+when the player has a hireling pet (`FUN_00574ec0(7, 1)`), its item list
+(`FUN_00531bb0`: "JM", u16 count, the items); then `FUN_00569a00` writes
+"kf" and the golem (`FUN_00574ec0(3, 1)`). The header's merc fields
+(+0xb1 dead, +0xb3 seed, +0xb7 name, +0xb9 Hireling.txt Id, +0xbb
+experience) are read back by `FUN_00533c70`, which wants the Id in
+Hireling.txt ("Unable to load merc.") and steps the level up from its
+experience.
+
+d2d wrote no merc list until issue #139: a character made in d2d kept
+the "jf" "kf" it was made with after a merc was hired, which game.exe
+refused. `d2s::write_save` now writes "jf" + "JM" whenever
+`header.merc_seed` is set (`World::save` passes `merc_items`), and a save
+saved again mends.

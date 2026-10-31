@@ -165,10 +165,13 @@ inline std::uint32_t save_checksum(std::span<const std::byte> bytes) {
 // The whole file. `original`: the save as read (empty for a character made
 // in d2d); its unknown header bytes and trailing lists are kept.
 // `corpse`: the corpse's items to write in the corpse list (an empty vector:
-// none), or nullptr to keep the original's.
+// none), or nullptr to keep the original's. `merc`: what the merc wears, for
+// an expansion character's merc list (FUN_005699a0: "jf", then "JM" and the
+// items while it has a merc, header.merc_seed), or nullptr to keep the
+// original's.
 inline std::vector<std::byte> write_save(std::span<const std::byte> original, const Header& header, const Stats& stats,
                                          const std::vector<Item>& items, const ItemTables& item_tables,
-                                         const std::vector<Item>* corpse = nullptr) {
+                                         const std::vector<Item>* corpse = nullptr, const std::vector<Item>* merc = nullptr) {
     constexpr std::size_t kGf = 0x2FD;
     std::vector<std::byte> bytes(kGf, std::byte{ 0 });
     const bool has_template = original.size() >= kGf;
@@ -253,21 +256,39 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
         for (const auto& item : *corpse) detail::write_item(corpse_writer, item, item_tables);
         bytes.insert(bytes.end(), corpse_writer.out.begin(), corpse_writer.out.end());
     };
-    if (tail < original.size() && corpse) {                 // the corpse list anew, the rest as it was
+    auto merc_list = [&] {                                   // "jf", then the merc's "JM" <count> and items
+        bytes.push_back(std::byte{ 'j' }); bytes.push_back(std::byte{ 'f' });
+        if (!header.merc_seed) return;
+        const std::size_t count = merc ? merc->size() : 0;
+        bytes.push_back(std::byte{ 'J' }); bytes.push_back(std::byte{ 'M' });
+        bytes.push_back(std::byte(count & 0xff)); bytes.push_back(std::byte(count >> 8));
+        detail::BitWriter merc_writer;
+        if (merc) for (const auto& item : *merc) detail::write_item(merc_writer, item, item_tables);
+        bytes.insert(bytes.end(), merc_writer.out.begin(), merc_writer.out.end());
+    };
+    if (tail < original.size()) {                            // the corpse and merc lists anew, the rest as it was
         std::size_t after = tail;
-        try {
-            const auto parsed_corpse = parse_corpse(original, item_tables);
-            after = parsed_corpse.end;
-        } catch (const std::runtime_error&) {}
-        corpse_list();
+        if (corpse) {
+            try { after = parse_corpse(original, item_tables).end; } catch (const std::runtime_error&) {}
+            corpse_list();
+        }
+        if (merc && header.expansion()) {
+            // A save made in d2d before this had no merc list after "jf"
+            // with a merc hired: game.exe then failed to load it (#139).
+            try {
+                if (const auto parsed_merc = parse_merc(original, item_tables); parsed_merc.has) {
+                    if (!corpse) bytes.insert(bytes.end(), original.begin() + std::ptrdiff_t(after), original.begin() + std::ptrdiff_t(parsed_merc.begin));
+                    after = parsed_merc.end;
+                    merc_list();
+                }
+            } catch (const std::runtime_error&) {}
+        }
         bytes.insert(bytes.end(), original.begin() + std::ptrdiff_t(after), original.end());
-    } else if (tail < original.size()) bytes.insert(bytes.end(), original.begin() + std::ptrdiff_t(tail), original.end());
-    else {                                                   // fresh: no merc items; no golem
+    } else {                                                 // fresh: no golem
         if (corpse) corpse_list();
         else for (const char letter : { 'J', 'M', '\0', '\0' }) bytes.push_back(std::byte(letter));
         if (header.expansion()) {
-            bytes.push_back(std::byte{ 'j' }); bytes.push_back(std::byte{ 'f' });
-            if (header.merc_seed) for (const char letter : { 'J', 'M', '\0', '\0' }) bytes.push_back(std::byte(letter));
+            merc_list();
             for (const char letter : { 'k', 'f', '\0' }) bytes.push_back(std::byte(letter));
         }
     }

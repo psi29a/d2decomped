@@ -297,6 +297,23 @@ int main() try {
                 assert(written[0x29] == std::byte{ 0x10 } && written[0x2A] == std::byte{ 0x1E });
                 const auto if_at = std::ranges::search(written, std::array{ std::byte{ 'i' }, std::byte{ 'f' } }).begin() - written.begin();
                 assert(written[std::size_t(if_at) + 2 + 0x1E] == std::byte{ 'J' } && written[std::size_t(if_at) + 3 + 0x1E] == std::byte{ 'M' });
+                // Then a merc hired and dressed (issue #139): written over that
+                // file, "jf" gets its "JM" list (FUN_005699a0), the golem's
+                // "kf" stays after it; with no merc list given, it's kept.
+                auto hired = fresh_header; hired.merc_seed = 0x5c096f0e; hired.merc_type = 8; hired.merc_name = 18;
+                d2d::d2s::Item cap; cap.code = "cap"; cap.location = 1; cap.slot = 1; cap.quality = 2; cap.ilvl = 1;
+                cap.identified = true; cap.defense = 3; cap.max_durability = cap.durability = 12;
+                const std::vector<d2d::d2s::Item> merc_worn{ cap };
+                const auto with_merc = d2d::d2s::write_save(written, hired, fresh_stats, { axe }, item_tables, nullptr, &merc_worn);
+                const auto merc_back = d2d::d2s::parse_merc(with_merc, item_tables);
+                assert(merc_back.has && merc_back.items.size() == 1 && merc_back.items[0].code == "cap" && merc_back.items[0].slot == 1);
+                assert(with_merc.size() == merc_back.end + 3 && with_merc[merc_back.end] == std::byte{ 'k' } && with_merc[merc_back.end + 1] == std::byte{ 'f' });
+                const auto kept = d2d::d2s::write_save(with_merc, hired, fresh_stats, { axe }, item_tables);
+                assert(d2d::d2s::parse_merc_items(kept, item_tables).size() == 1);
+                const std::vector<d2d::d2s::Item> no_corpse;
+                const auto undressed = d2d::d2s::write_save(with_merc, hired, fresh_stats, { axe }, item_tables, &no_corpse, &no_corpse);
+                const auto bare = d2d::d2s::parse_merc(undressed, item_tables);
+                assert(bare.has && bare.items.empty() && bare.end == bare.begin + 6 && undressed.size() == bare.end + 3);
             }
             std::printf("items: %d real saves parsed, %d merc items\n", saves, merc_gear);
             assert(saves > 0);

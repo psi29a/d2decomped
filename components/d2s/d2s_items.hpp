@@ -434,18 +434,30 @@ inline CorpseList parse_corpse(std::span<const std::byte> save, const ItemTables
     return corpse;
 }
 
-// The merc's items (LoD, after the corpse list; PlrSave2.cpp): "jf", then
-// with a hired merc "JM" <u16 count> and its items (what it wears: head,
-// torso, the hands). Empty without the section or a merc.
-inline std::vector<Item> parse_merc_items(std::span<const std::byte> save, const ItemTables& item_tables) {
-    std::vector<Item> items;
+// The merc's items (LoD, after the corpse list; PlrSave2.cpp, written by
+// FUN_005699a0): "jf", then with a hired merc (the player's hireling pet,
+// FUN_00574ec0(7)) "JM" <u16 count> and its items (what it wears: head,
+// torso, the hands). `has`: the "jf" is there; `end`: the byte after the
+// section (the golem's "kf").
+struct MercList { std::size_t begin = 0, end = 0; std::vector<Item> items; bool has = false; };
+inline MercList parse_merc(std::span<const std::byte> save, const ItemTables& item_tables) {
+    MercList merc;
     const std::size_t start = parse_corpse(save, item_tables).end;
-    if (start + 2 > save.size() || save[start] != std::byte{'j'} || save[start + 1] != std::byte{'f'}) return items;
-    if (start + 6 > save.size() || save[start + 2] != std::byte{'J'} || save[start + 3] != std::byte{'M'}) return items;
+    merc.begin = merc.end = start;
+    if (start + 2 > save.size() || save[start] != std::byte{'j'} || save[start + 1] != std::byte{'f'}) return merc;
+    merc.has = true;
+    merc.end = start + 2;
+    if (start + 6 > save.size() || save[start + 2] != std::byte{'J'} || save[start + 3] != std::byte{'M'}) return merc;
     const int count = int(std::uint8_t(save[start + 4])) | int(std::uint8_t(save[start + 5])) << 8;
     detail::Bits bits{ save, (start + 6) * 8 };
-    for (int i = 0; i < count; ++i) items.push_back(detail::item(bits, item_tables));
-    return items;
+    for (int i = 0; i < count; ++i) merc.items.push_back(detail::item(bits, item_tables));
+    merc.end = bits.pos / 8;
+    return merc;
+}
+
+// Its items alone; empty without the section or a merc.
+inline std::vector<Item> parse_merc_items(std::span<const std::byte> save, const ItemTables& item_tables) {
+    return parse_merc(save, item_tables).items;
 }
 
 }  // namespace d2d::d2s
