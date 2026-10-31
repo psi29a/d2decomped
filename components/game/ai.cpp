@@ -1835,7 +1835,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             for (auto& element : stats.elements) element.mode = "";
             const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng);
             foe.take(taken);
-            if (taken.hit) foe.hit_class = type_info.hit_class;
+            if (taken.hit) foe.struck_by(type_info.hit_class);
         };
         if (monster.diab_run == 1) {
             monster.seq_frame = std::min(frames, par[2]);
@@ -1896,7 +1896,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             auto& struck = const_cast<Foe&>(*next);
             const auto taken = d2d::rules::monster_blow(struck.fighter, struck.level, struck.motion(), skill_strike(game_data, monster, *spin, lvl), false, rng);
             struck.take(taken);
-            if (taken.hit) struck.hit_class = type_info.hit_class;
+            if (taken.hit) struck.struck_by(type_info.hit_class);
             if (taken.hit) monprop_hit(monster, struck, false);         // a melee blow: MonProp knock / crush, as the strike's
             struck.melee_by.push_back(monster.id);
         }
@@ -2075,7 +2075,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (foe.alive && dist <= kMeleeReach + 0.3f) {
                         const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), skill_strike(game_data, monster, *leap, skill_level(game_data, monster, monster.skill)), false, rng);
                         foe.take(taken);
-                        if (taken.hit) { foe.knocked_from = std::pair{ unit.x, unit.y }; foe.hit_class = type_info.hit_class; monprop_hit(monster, foe, false); }
+                        if (taken.hit) { foe.knocked_from = std::pair{ unit.x, unit.y }; foe.struck_by(type_info.hit_class); monprop_hit(monster, foe, false); }
                         d2d::log::info("{} lands its leap attack ({})", monster.npc.name, taken.hit ? "hit" : "missed");
                         foe.melee_by.push_back(monster.id);
                     }
@@ -2377,7 +2377,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (added.etype >= 0) stats.elements[0] = { added.etype, 100, added.elo >> 8, added.ehi >> 8, added.elen, "A1" };
                     const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng);
                     foe.take(taken);
-                    if (taken.hit) foe.hit_class = type_info.hit_class;
+                    if (taken.hit) foe.struck_by(type_info.hit_class);
                 } else if (cast->srvdofunc == ServerDoFunction::kFingerMageSpider || cast->srvdofunc == ServerDoFunction::kDoomKnightMissile
                            || cast->srvdofunc == ServerDoFunction::kGuidedMissile) {
                     // FUN_005ccfa0 / FUN_005cdfb0 / do 10: one srvmissilea at the target;
@@ -2641,7 +2641,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     monster.frenzy.until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, struck_with->auralen, {}, monster.skill, lvl), 1)) * 40;
                 }
                 foe.take(taken);
-                if (taken.hit) foe.hit_class = type_info.hit_class;
+                if (taken.hit) foe.struck_by(type_info.hit_class);
                 if (taken.hit) monprop_hit(monster, foe, false);
                 if (taken.hit && smite && (struck_with->result_flags & 8)) foe.knocked_from = std::pair{ unit.x, unit.y };
                 if (taken.hit && smite) foe.stun_ticks = std::max(foe.stun_ticks, d2d::rules::eval_calc(game_data.skills, struck_with->calc[1], {}, monster.skill, skill_level(game_data, monster, monster.skill)));
@@ -2953,8 +2953,11 @@ int soak(Monster& monster, int physical, int damage) {
     return damage - absorbed;
 }
 
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction) {
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction, int hit_class, bool marked) {
     if (!monster.targetable() || (damage <= 0 && fraction <= 0)) return false;
+    // This blow's own size in 256ths, for its get-hit, before the carried
+    // part of a point joins it.
+    const std::int64_t blow_fine = (std::int64_t(std::max(damage, 0)) << 8) + std::max(fraction, 0);
     // Life is in 256ths in game.exe (0057c852): carry the part of a point,
     // and a life under one point after a hit is dead (0057c865).
     monster.life_frac += std::max(fraction, 0);
@@ -2964,7 +2967,10 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
     if (monster.hit_points < 1 || (monster.hit_points == 1 && monster.life_frac > 0)) { monster.hit_points = 0; monster.life_frac = 0; }   // dead is 0 (0057c86c)
     monster.aware = true;
     if (!monster.alive()) set_mode(game_data, monster, "DT", now_ms);
-    else if (damage * 8 >= monster.stats.hit_points) set_mode(game_data, monster, "GH", now_ms);
+    // Its get-hit (FUN_0057cb00 from FUN_0057cee0's monster branch): the share of
+    // max life by the blow's hit class, rolled on its own seed (unit +0x20).
+    // ponytail: a stunned monster's sure get-hit and MonStats2's GH mode bit aren't tested here.
+    else if (d2d::rules::get_hit(std::int64_t(monster.stats.hit_points) << 8, blow_fine, hit_class, marked, monster.seed)) set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
 }
 

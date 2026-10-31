@@ -64,11 +64,73 @@ int main(int argc, char** argv) {
             for (int fcr = 0; fcr <= 400; ++fcr) std::printf("ticks plain %d %d %d %d\n", frames, speed, fcr, cast_ticks(frames, speed, fcr));
         return 0;
     }
+    // `--get-hit`: FUN_0057cb00's decision for the damage records on stdin (`id kind maxlife damage hc
+    // rec64 fire ltng cold poison f2000 mgh stun frozen seedlo seedhi next`, as tools/emu/hit_rule.py
+    // writes and runs game.exe's FUN_0057cee0 on): one line a frame, `id gh -1`. `next` 1 means the
+    // following record lands on the same unit in the same frame (its seed carries on; the frame is a
+    // get-hit if any record is, each one rolling, as Fight::hurt_side's blows). The stun, frozen,
+    // poison-only and GH-mode tests sit around rules::get_hit in game.exe too (FUN_0057cee0 /
+    // FUN_0057cb00's prologue).
+    if (argc > 1 && std::string_view(argv[1]) == "--get-hit") {
+        long case_id, kind, maxlife, damage, hit_class, rec64, fire, ltng, cold, poison, f2000, mgh, stun, frozen, next;
+        unsigned long seed_lo, seed_hi;
+        char line[512];
+        Rng seed;
+        bool carry = false, frame_recovers = false;
+        long frame_id = 0;
+        while (std::fgets(line, sizeof line, stdin)) {
+            if (line[0] == '#' || std::sscanf(line, "%ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %lu %lu %ld", &case_id, &kind, &maxlife, &damage, &hit_class, &rec64,
+                                               &fire, &ltng, &cold, &poison, &f2000, &mgh, &stun, &frozen, &seed_lo, &seed_hi, &next) != 17) continue;
+            if (!carry) { seed = Rng{}; seed.low = std::uint32_t(seed_lo); seed.high = std::uint32_t(seed_hi); frame_id = case_id; frame_recovers = false; }
+            const bool marked = rec64 == 0 && (fire > 0 || ltng > 0 || cold > 0 || poison > 0 || f2000 != 0);
+            const bool recovers = stun != 0 || (frozen == 0 && !(poison != 0 && poison == damage) && (kind == 0 || mgh != 0) && get_hit(maxlife, damage, int(hit_class), marked, seed));
+            frame_recovers = frame_recovers || recovers;
+            carry = next != 0;
+            if (!carry) std::printf("%ld %d -1\n", frame_id, frame_recovers ? 1 : 0);
+        }
+        return 0;
+    }
     // A walk's animation rate (FUN_00623f50): RN 0x65, WL / TW 0xd5, x the walk % (at least 25).
     assert(moving_anim_rate(false, 100) == 213 && moving_anim_rate(true, 150) == 151);
     assert(moving_anim_rate(false, 0) == 53 && moving_anim_rate(true, 400) == 404);
     assert(hit_chance(100, 100, 1, 1) == 50);
     assert(hit_chance(1000, 1, 5, 1) == 95 && hit_chance(10, 1000, 1, 1) == 5);
+    // FUN_0057cb00: the divisor by hit class (0x57cbf8) and the bands: none under max / d, 37.5 % from
+    // it, 75 % from 2 max / d, sure from 4 max / d; an element (marked) divides by 16; under a point none.
+    assert(get_hit_divisor(2) == 8 && get_hit_divisor(4) == 32 && get_hit_divisor(5) == 64 && get_hit_divisor(3) == 16 && get_hit_divisor(0) == 16 && get_hit_divisor(64) == 16);
+    {
+        Rng seed{ 7u };
+        int band[4] = {};
+        for (int sample = 0; sample < 4000; ++sample) {
+            band[0] += get_hit(100 << 8, (100 << 8) / 16 - 1, 3, false, seed);
+            band[1] += get_hit(100 << 8, (100 << 8) / 16, 3, false, seed);
+            band[2] += get_hit(100 << 8, (100 << 8) / 8, 3, false, seed);
+            band[3] += get_hit(100 << 8, (100 << 8) / 4, 3, false, seed);
+        }
+        assert(band[0] == 0 && band[1] > 1400 && band[1] < 1600 && band[2] > 2900 && band[2] < 3100 && band[3] == 4000);
+        assert(!get_hit(100 << 8, 255, 3, false, seed) && !get_hit(100 << 8, (100 << 8) / 8 - 1, 2, false, seed) && get_hit(100 << 8, (100 << 8) / 2, 2, false, seed));
+        assert(!get_hit(100 << 8, (100 << 8) / 16 - 1, 2, true, seed) && get_hit(100 << 8, (100 << 8) / 4, 2, true, seed) && get_hit(100 << 8, (100 << 8) / 2, 5, false, seed));
+    }
+    {   // An armor's pool per record in landing order, each blow losing its own part (state event 0xb in
+        // FUN_0057c1e0: Bone Armor FUN_005c6370 the physical, Cyclone Armor FUN_005c87a0 fire / cold / lightning).
+        // A sword's 32 then a fire blow's 32 on 64 life: Cyclone Armor takes the fire, the sword's blow stays sure.
+        std::vector<StruckBlow> blows{ { 32, 2, false, 32, 0 }, { 32, 0, true, 0, 32 } };
+        int pool = 100;
+        Rng seed{ 9u };
+        assert(absorb_blows(blows, pool, true) == 32 && pool == 68 && blows[0].damage == 32 && blows[1].damage == 0 && !blows[1].marked);
+        assert(struck_big(blows, 64 << 8, seed));
+        // Bone Armor, the mirror: a fire blow first keeps its 32; the pool empties inside the sword's blow.
+        blows = { { 32, 0, true, 0, 32 }, { 32, 2, false, 32, 0 } };
+        pool = 20;
+        assert(absorb_blows(blows, pool, false) == 20 && pool == 0 && blows[0].damage == 32 && blows[1].damage == 12 && blows[1].physical == 12);
+        // A fire blow with poison keeps its mark when the fire goes (FUN_0057ce30 reads the poison field too).
+        blows = { { 10, 2, true, 4, 6, true } };
+        pool = 6;
+        assert(absorb_blows(blows, pool, true) == 6 && blows[0].damage == 4 && blows[0].marked);
+        // Two class-2 blows of 6 on 64 life: each under max / 8, no get-hit (their sum of 12 would roll).
+        blows = { { 6, 2, false, 6, 0 }, { 6, 2, false, 6, 0 } };
+        for (int sample = 0; sample < 64; ++sample) assert(!struck_big(blows, 64 << 8, seed));
+    }
     // FUN_0057e2f0's 256ths (0x6e1668 / 0x6e1694), clvl / mlvl from level 25.
     assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 100 * 61 / 256 && kill_exp(100, 20, 1) == 100 * 13 / 256);
     assert(kill_exp(100, 1, 10) == 100 * 38 / 256 && kill_exp(1000, 30, 40) == 750 && kill_exp(100, 1, 6) == 100);
@@ -362,6 +424,21 @@ int main(int argc, char** argv) {
         damage.etype = 3;
         const auto plain_blow = missile_blow(damage, missile_target, {}, rng);
         assert(plain_blow.damage == 0 && plain_blow.poison == 100 * 25 && plain_blow.poison_ticks == 25);
+        {   // The get-hit's element mark: game.exe's FUN_0057ce30 reads the record's fire / lightning / cold / poison field
+            // after FUN_0057bf80 resisted it in place (256ths, over 0; magic is not in its table). Run on game.exe in tools/emu.
+            Target half_resisted;
+            half_resisted.res = { 0, 0, 50, 100, 0, 0 };
+            Rng mark_rng{ 3 };
+            const auto marked = [&](int etype, int fine, const Target& target) {
+                const MissileDamage record{ .etype = etype, .elo = fine, .ehi = fine, .elen = 25 };
+                return missile_blow(record, target, {}, mark_rng).elemental;
+            };
+            assert(marked(0, 128, Target{}) && marked(0, 1, Target{}) && marked(0, 256, Target{}) && marked(0, 0x10000, Target{}));   // under a point still marks
+            assert(!marked(0, 0, Target{}) && !marked(4, 256, Target{}));                       // an empty record, magic
+            assert(!marked(1, 256, half_resisted) && !marked(0, 1, half_resisted) && marked(0, 2, half_resisted));   // resisted to nothing, to 1/256 (fine 1 * 50 / 100 = 0)
+            assert(marked(3, 1, Target{}) && !marked(3, 0, Target{}));                           // poison: its per-tick field, though 1 * 25 >> 8 is 0 points
+            assert(missile_blow(MissileDamage{ .etype = 0, .elo = 128, .ehi = 128 }, Target{}, {}, mark_rng).damage == 0);   // the half point is kept in frac, not dropped
+        }
     }
     Fighter claws;                                                     // Weapon Block: standing only
     claws.weapon_block = 100;

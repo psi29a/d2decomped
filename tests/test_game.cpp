@@ -656,7 +656,10 @@ int main(int argc, char** argv) try {
         auto side = std::array{ world.fight.player_foe(hit_ms), world.fight.merc_foe(hit_ms) };
         side[0].hits = 1;
         side[0].hit_class = arrow;
-        side[0].damage = side[0].physical = std::max(int(hero.character.stats.fixed(d2d::d2s::kMaxLife) / 4), 1);
+        // Half of max life: a sure get-hit for any hit class (FUN_0057cb00: 4 x max / d, d at most 8 for an
+        // arrow's class); a quarter was only a 75 % band for class 10 / 11.
+        side[0].damage = side[0].physical = std::max(int(hero.character.stats.fixed(d2d::d2s::kMaxLife) / 2), 1);
+        side[0].blows.push_back({ side[0].damage, arrow, false, side[0].damage });
         hero.pmode = -1;
         world.fight.hurt_side(side, hit_ms);
         assert(hero.pmode == kModeGH && hero.shown_class == arrow && hero.struck_class == 0);
@@ -1410,6 +1413,15 @@ int main(int argc, char** argv) try {
                 assert(fine.hit_points == 5 && fine.life_frac == 128);
                 heal(fine, 1);
                 assert(fine.hit_points == 5 && fine.life_frac == 0);
+                // A pet or a monster takes its blows one record at a time (Fight::world): two class-2 blows of 6
+                // on 64 life are each under max / 8, no get-hit; the one blow of 32 is sure (FUN_0057cb00).
+                fine = pet.monster;
+                fine.stats.hit_points = fine.hit_points = 64;
+                const auto mode = fine.mode;
+                for (int blow = 0; blow < 2; ++blow) hurt(*data, fine, 6, now_ms, 0, 2, false);
+                assert(fine.hit_points == 52 && fine.mode == mode);
+                hurt(*data, fine, 32, now_ms, 0, 2, false);
+                assert(fine.mode == "GH");
             }
             // None from a converted monster: no blow lands on it (FUN_00554200).
             const int align = std::exchange(coop.fight.monsters[prey_index].align, 2);
