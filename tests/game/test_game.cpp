@@ -131,6 +131,54 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    // `--static-field SEED N`: Static Field's hit on one monster (life,
+    // resistance, pierce, floor, calc1, calc2), the cases of
+    // tools/emu/static_field.py (game.exe's FUN_005c96a0 -> FUN_0057c6c0):
+    // the life after (256ths), or `skip`, one line each, to diff.
+    if (argc > 3 && std::string_view(argv[1]) == "--static-field") {
+        std::uint32_t state = std::uint32_t(std::atoi(argv[2]));
+        if (state == 0) state = 1;
+        const auto next = [&state] { state ^= state << 13; state ^= state >> 17; state ^= state << 5; return state; };
+        d2d::rules::Rng rng{ 3 };
+        const auto fallen = data->monsters.by_id.find("fallen1");
+        assert(fallen != data->monsters.by_id.end());
+        const Monster made = make_monster(*data, fallen->second, 10, 10, rng, 0);
+        const auto run = [&](const std::string& tag, int max_hp, int life, int res, int pierce, int floor_pct, int pct, int low) {
+            Monster monster = made;
+            monster.stats.hit_points = max_hp;
+            monster.hit_points = (life + 255) >> 8;
+            monster.life_frac = monster.hit_points * 256 - life;
+            std::printf("%s %d %d %d %d %d %d %d ", tag.c_str(), max_hp, life, res, pierce, floor_pct, pct, low);
+            const int fine = d2d::rules::static_field_fine(life, max_hp << 8, pct, low, floor_pct, res);
+            if (fine < 0) { std::printf("skip\n"); return; }
+            const int got = d2d::rules::resisted_fine(fine, res < 100 ? std::max(res - pierce, -100) : res);
+            hurt(*data, monster, got >> 8, 0, got & 255);
+            std::printf("%d\n", monster.alive() ? monster.hit_points * 256 - monster.life_frac : 0);
+        };
+        int id = 0;
+        for (const int floor_pct : { 0, 33, 50 })
+            for (const int res : { -150, -100, -99, -50, -1, 0, 1, 33, 50, 99, 100, 101, 150 })
+                for (int max_hp = 1; max_hp <= 6; ++max_hp)
+                    for (int life = 1; life <= max_hp << 8; ++life) run("B" + std::to_string(id++), max_hp, life, res, 0, floor_pct, 25, 0);
+        for (int i = 0; i < std::atoi(argv[3]); ++i) {
+            const std::uint32_t wide = next(), which = next();
+            const int max_hp = 1 + int(wide % (which % 4 == 0 ? 3000u : 300u));
+            const int life = 1 + int(next() % std::uint32_t(max_hp << 8));
+            const std::uint32_t bucket = next() % 100;
+            int res;
+            if (bucket < 10) res = 100 + int(next() % 51);
+            else if (bucket < 30) res = -int(next() % 201);
+            else res = int(next() % 100);
+            const int pierce = res >= 100 || next() % 4 ? 0 : int(next() % 61);
+            const int any_floor = int(next() % 101);
+            const int floors[4] = { 0, 33, 50, any_floor };
+            const int floor_pct = floors[next() % 4];
+            const int pct = next() % 4 ? 25 : int(next() % 151);
+            const int low = next() % 4 ? 0 : int(next() % 0x2000);
+            run("R" + std::to_string(i), max_hp, life, res, pierce, floor_pct, pct, low);
+        }
+        return 0;
+    }
     // `--skill-damage CASES`: a skill's element damage and length at a level
     // for a unit's skill levels and masteries, as tools/emu/skill_damage.py
     // prints game.exe's (FUN_00644d50 / FUN_00644e40 / FUN_00644f20, flag 1).
