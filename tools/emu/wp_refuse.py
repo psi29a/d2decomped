@@ -16,7 +16,7 @@ recorded); FUN_00553380 (the voice: recorded); FUN_00554d00 / FUN_00552f60
 (the error path's unit lookups: 0, so it only returns); FUN_00410a80 (the
 dispatcher's timing log, off with game +0x1dc4 = 0).
 
-    uv run python wp_refuse.py gen 100000 7 > cases.txt          # --solo: no hostile declarations
+    uv run python wp_refuse.py gen 100000 7 --solo > cases.txt   # --solo: no hostile declarations
     uv run python wp_refuse.py game cases.txt > g.txt
     ../../build/tests/test_game --waypoint-refuse cases.txt | grep -E '^[0-9]+ ' | diff g.txt -
 
