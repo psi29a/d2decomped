@@ -441,6 +441,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             act_as(*hero);
             if (!in_moor) {                                      // pets follow the player about camp
                 const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
+                // ponytail: game.exe's walk rule for a pet in town isn't traced or claimed here; every pet follows at the
+                // owner's RunVelocity x 1.1 as it did, outside the MonStats Velocity claim.
                 for (auto& pet : actor->pets)
                     if (pet.where == level && pet.monster.alive()) {
                         pet_follow(*level, pet.monster.unit, actor->player.x, actor->player.y, cells_per_sec(float(game_data->run_velocity[save_class])) * 1.1f, now_ms, elapsed, crowd);
