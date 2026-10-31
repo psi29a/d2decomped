@@ -1082,9 +1082,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // when the square 32 round it lies inside it (FUN_0065a6b0), else its
         // near list; FUN_0065a710 lets every room of it through (bugs.md #23);
         // each live (FUN_0063ea40: not DT / DD) unit of BaseId 0x76 in them
-        // (FUN_005f3960, FUN_00463860), itself too. The blessing's target a player.
-        // ponytail: a room's units in the pack's order (game.exe: its unit
-        // list); FUN_005541b0 taken as clear.
+        // (FUN_005f3960, FUN_00463860), itself too, each room's newest first
+        // (its unit list, +0x74 / +0xe8). The blessing's target a player not
+        // dying or dead (FUN_005541b0).
         if (type_info.ai_name == "WillOWisp") {
             auto rects = missile_rooms(game_data, level, unit.x, unit.y);
             if (!rects.empty()) {
@@ -1093,7 +1093,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 rects.erase(rects.begin());
                 if (inside) rects = { own };
                 for (const auto& rect : rects)
-                    for (std::size_t i = 0; i < pack.size(); ++i) {
+                    for (std::size_t i = pack.size(); i-- > 0;) {
                         const auto& other = pack[i];
                         const int other_x = subtile(other.unit.x), other_y = subtile(other.unit.y);
                         if (other_x < rect[0] || other_y < rect[1] || other_x >= rect[0] + rect[2] || other_y >= rect[1] + rect[3]) continue;
@@ -1103,7 +1103,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                     }
             }
             input.wisps = int(wisp_finds.size());
-            input.bless_ok = !target->pet && !target->of;
+            input.bless_ok = !target->pet && !target->of && target->alive;
         }
     }
     // Act 4's (monster-ai.md "Act 4's MonAIs"): the vile mother's young within
@@ -1226,25 +1226,37 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.command_until = monster.command_until;
         }
         input.reach = input.in_melee;
-        // The Overseer's search (FUN_005e26d0) and the spawner's (FUN_005e2b70): live
-        // minions (base 0x1c5; the spawner's suicide minions 0x1cd too), the first under
-        // half life within 24 (squared 0x240), the first within 20 (0x190); the count.
-        // ponytail: the pack stands for the near rooms' units; FUN_005a0180's test
-        // (the free one) and state 0x8d aren't kept; the one that last hit it is
-        // taken as the target, when it got hit.
+        // The Overseer's search (FUN_005e26d0; Nihlathak's too, FUN_005ee5d0) over
+        // the near order: friendly (FUN_00554200) live minions (base 0x1c5) not in
+        // Bloodlust (state 0x8d, the whip's), counted; the first under half life
+        // within 24 (squared 0x240; Nihlathak's 0), the first not special (data
+        // +0x16 & 8, FUN_005a0180) within 20 (0x190; his 25, 0x271). The
+        // spawner's (FUN_005e2b70) counts live minions and suicide minions (0x1cd)
+        // not under Confuse / Attract / Conversion (FUN_006259b0 0).
+        // ponytail: the one that last hit it (FUN_005de830) is taken as the
+        // target, when it got hit.
         const auto& name = type_info.ai_name;
-        if (name == "Overseer" || name == "MinionSpawner" || name == "Nihlathak") {
-            const int minion = int(game_data.mon_bin[0x1c5]), suicide = int(game_data.mon_bin[0x1cd]);
-            for (std::size_t i = 0; i < pack.size(); ++i) {
-                const auto& other = pack[i];
-                if (&other == &monster || !other.alive()) continue;
-                const int base = game_data.monsters.types[std::size_t(other.type)].base;
-                if (base != minion && !(name == "MinionSpawner" && base == suicide)) continue;
+        const int minion = int(game_data.mon_bin[0x1c5]), suicide = int(game_data.mon_bin[0x1cd]);
+        const auto base_of = [&](const Monster& other) { return game_data.monsters.types[std::size_t(other.type)].base; };
+        if (name == "MinionSpawner")
+            input.young = int(std::ranges::count_if(pack, [&](const Monster& other) {
+                return &other != &monster && other.alive() && (base_of(other) == minion || base_of(other) == suicide) && other.align == 0;
+            }));
+        if (name == "Overseer" || name == "Nihlathak") {
+            const auto lusted = [&](const Monster& other) {
+                const auto* lust = game_data.skills.get(other.cry.skill);
+                return lust && lust->srvdofunc == d2d::rules::ServerDoFunction::kOverseerWhip && now_ms < other.cry.until;
+            };
+            const int hurt_reach = name == "Nihlathak" ? 0 : 0x240, free_reach = name == "Nihlathak" ? 0x271 : 0x190;
+            for (const int i : near_order([&](const Monster& other) {
+                     return &other != &monster && base_of(other) == minion && other.alive() && d2d::rules::friends(monster.align, other.align) && !lusted(other);
+                 })) {
+                const auto& other = pack[std::size_t(i)];
                 ++input.young;
                 const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
                 const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
-                if (kin < 0 && squared <= 0x240 && life < 50) kin = int(i);
-                if (aid < 0 && squared <= (name == "Nihlathak" ? 0x271 : 0x190)) aid = int(i);
+                if (kin < 0 && squared <= hurt_reach && life < 50) kin = i;
+                if (aid < 0 && squared <= free_reach && (other.boss == d2d::rules::Boss::none || other.boss == d2d::rules::Boss::minion)) aid = i;
             }
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
             input.attacker = input.got_hit;
