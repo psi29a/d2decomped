@@ -474,10 +474,13 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     for (const auto& socketed : item.socketed_items)
         if (const auto socketed_base = tables.item_base.find(socketed.code); socketed_base != tables.item_base.end()) price += socketed_base->second.cost / 2;
     if (sell && item.ethereal) price /= 4;
+    // A class's own item (its ItemTypes Class set, FUN_0062c060) sells for a quarter again (0062f99d).
+    if (const auto own = tables.types.find(type); sell && own != tables.types.end() && !own->second.cls.empty()) price /= 4;
     const auto price_row = tables.npc_prices.find(npc_id);
     const int diff = header.active_difficulty();
     if (price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
+        // ponytail: above 0xffff the original divides by 1024 before the mult (a few gold on dear items).
         price = price * (sell ? prices.sell : prices.buy) / 1024;
         for (int quest = 0; quest < 3; ++quest)
             if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
