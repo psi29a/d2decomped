@@ -367,11 +367,12 @@ and Skill5 come from the ride.
 - **The claim.** A siege beast (MonAI 115, FUN_005e1900; within its aip1)
   or a barricade tower (MonAI 113, FUN_005e1860: unridden or its rider
   dead, with a target, within 20, then stands aip1) searches
-  (FUN_005dd0b0 with FUN_005e1720) for an imp: a monster, alive
-  (FUN_0063ea40), BaseId imp1, seen (FUN_00650d70), not a pet
-  (FUN_006259b0), unbound (FUN_00552fd0), its ride word (AI control
-  +0x14) -1, within the radius (squared, `<=`). FUN_005e17e0 writes the
-  mount's id into that word.
+  (FUN_005dd0b0 mode 1 with FUN_005e1720) for the first imp in near-room
+  order, each room's units newest first: a monster, alive
+  (FUN_0063ea40), BaseId imp1, its evil friend (FUN_00650d70, alignment
+  0, not line of sight), its ride word (AI control +0x14) -1, within the
+  radius (squared, `<=`). FUN_00552fd0 tests that the searcher is unbound.
+  FUN_005e17e0 writes the mount's id into that word.
 - **Getting on.** The Imp think walks to it past b1, else casts Skill1
   at it. Do 129 (FUN_005d1ab0) at a unit that's unbound and alive moves
   the imp onto its spot (FUN_00554ea0 flag 1) and mounts (FUN_005d18e0:
@@ -415,8 +416,8 @@ dismount in do 129, `rules::imp_ride_pick`. Nihlathak's Skill1 is Imp
 Teleport too (MonTeleport for him). imp6..8's Inferno is seq_impinferno
 (SC rows, an event-4 row 12 running do 126), and probably never plays:
 only a riding imp casts Skill5, and imp6..8's levels have nothing to ride
-(stubs.md). Not in d2d: the claim's
-sight and pet tests.
+(stubs.md). `act5_search.py` checks the claim's mode-1 order and filters
+against game.exe; d2d uses `rules::first_room_unit`.
 
 ## Act 5's monster skills (traced 2026-10-24)
 
@@ -447,9 +448,10 @@ unit's death).
   painworms), not in state 0x6e, not a player's pet (`FUN_006259b0` 2).
   State 0x6e, no end, callback `FUN_005d21b0`: dead, one summon (painworm1,
   else 0x227) in summode (NU) at it (`FUN_005b2490`). The think's find
-  (`FUN_005efa90`): `FUN_005dd0b0` mode 1 within 25 with that test
-  (`FUN_005efa50`); in reach (`FUN_00622c40`) skill 300 at it, else
-  straight at it (`FUN_005deca0`).
+  (`FUN_005efa90`): `FUN_005dd0b0` mode 1 takes the first within 25 with
+  that test (`FUN_005efa50`), in near-room then newest-unit order; in reach
+  (`FUN_00622c40`) skill 300 at it, else straight at it (`FUN_005deca0`).
+  `act5_search.py` checks both callbacks and this order against game.exe.
 - **Siege Beast Stomp** (do 134, `FUN_005d2320`, A2): it returns 0 unless
   the record's +0x48 (srvmissilea) is at least 1. Row 301 has none
   (checked in tools/emu: -1), so the stomp is its A2 and the client's

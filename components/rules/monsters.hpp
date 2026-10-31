@@ -945,6 +945,16 @@ inline int near_distance(int dx, int dy, int size) {
     return ai_distance(std::max(std::abs(dx) - size, 0), std::max(std::abs(dy) - size, 0));
 }
 
+// FUN_005dd0b0 mode 1 (FUN_005dce60): the first eligible unit in the near
+// rooms' order, each room's units newest first; `units` is oldest first.
+struct RoomUnit { int room = -1; bool eligible = false; };
+inline int first_room_unit(std::span<const RoomUnit> units, std::span<const int> rooms) {
+    for (const int room : rooms)
+        for (std::size_t i = units.size(); i-- > 0;)
+            if (units[i].room == room && units[i].eligible) return int(i);
+    return -1;
+}
+
 // Confuse's skill-set target (FUN_005dd610 kind 3) searches as a random
 // alignment, one draw of the unit's seed: neutral turns good or evil, evil
 // and good swap on a 1.

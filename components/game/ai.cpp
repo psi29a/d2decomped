@@ -1257,18 +1257,24 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // Baal's tentacles live on their master (FUN_00552fd0).
         // ponytail: the master's taken as there.
         if (name == "BaalTentacle") input.rider = true;
-        // The putrid defiler's find (FUN_005dd0b0 with FUN_005efa50): a monster
-        // Impregnate takes (FUN_005d2140) within 25 (FUN_005dc380); in reach
+        // The putrid defiler's find (FUN_005dd0b0 mode 1 with FUN_005efa50):
+        // the first monster Impregnate takes (FUN_005d2140) within 25
+        // (FUN_005dc380), in near-room then newest-unit order; in reach
         // (FUN_00622c40) it casts at it.
-        // ponytail: the nearest, not FUN_005dd0b0 mode 1's list order.
+        const auto first_near = [&](auto eligible) {
+            std::vector<int> rooms;
+            for (const auto& [room_level, room] : near_rooms(game_data, level, unit.x, unit.y))
+                if (room_level == &level) rooms.push_back(room);
+            std::vector<d2d::rules::RoomUnit> units;
+            units.reserve(pack.size());
+            for (const auto& other : pack) units.push_back({ room_at(level, other.unit.x, other.unit.y), eligible(other) });
+            return d2d::rules::first_room_unit(units, rooms);
+        };
         if (name == "PutridDefiler") {
-            int nearest_host = 26;
-            for (std::size_t k = 0; k < pack.size(); ++k) {
-                const auto& host = pack[k];
-                if (&host == &monster || !impregnable(game_data, host)) continue;
-                const int apart = d2d::rules::ai_distance(subtile(host.unit.x) - x, subtile(host.unit.y) - y);
-                if (apart < nearest_host) { nearest_host = apart; kin = int(k); }
-            }
+            kin = first_near([&](const Monster& host) {
+                return &host != &monster && impregnable(game_data, host)
+                    && d2d::rules::near_distance(subtile(host.unit.x) - x, subtile(host.unit.y) - y, game_data.monsters.types[std::size_t(host.type)].size) <= 25;
+            });
             input.defile = kin >= 0;
             if (kin >= 0) {
                 const auto& host = pack[std::size_t(kin)];
@@ -1300,22 +1306,19 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.riding = monster.riding;
         }
         // The siege beast's and the barricade tower's rider (FUN_00552fd0) and
-        // whether it's dead (FUN_005541b0); an imp to take on (FUN_005dd0b0
-        // with FUN_005e1720: alive, BaseId imp1, unbound, its ride word -1,
-        // within the beast's aip1 / the tower's 20).
-        // ponytail: the nearest such imp, its sight (FUN_00650d70) and pet test unread.
+        // whether it's dead (FUN_005541b0); the first imp to take on in mode
+        // 1's order (FUN_005e1720: alive, BaseId imp1, its evil friend, ride
+        // word -1, within the beast's aip1 / the tower's 20, squared <=).
         if (name == "SiegeBeast" || name == "SiegeTower") {
             const Monster* rider = monster.bound >= 0 && std::size_t(monster.bound) < pack.size() ? &pack[std::size_t(monster.bound)] : nullptr;
             input.rider = rider != nullptr;
             input.command_busy = rider && !rider->alive();
             const int reach = name == "SiegeTower" ? 20 : input.aip[0];
-            int found_squared = reach * reach + 1;
-            for (std::size_t i = 0; i < pack.size(); ++i) {
-                const auto& other = pack[i];
+            imp_found = first_near([&](const Monster& other) {
                 const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
-                if (&other != &monster && other.alive() && game_data.monsters.types[std::size_t(other.type)].base == 0x1ec && other.bound < 0 && other.ai_state == -1
-                    && off_x * off_x + off_y * off_y < found_squared) { imp_found = int(i); found_squared = off_x * off_x + off_y * off_y; }
-            }
+                return &other != &monster && other.alive() && game_data.monsters.types[std::size_t(other.type)].base == 0x1ec
+                    && other.align == 0 && other.ai_state == -1 && off_x * off_x + off_y * off_y <= reach * reach;
+            });
             input.imp_near = imp_found >= 0;
         }
     }
