@@ -151,7 +151,13 @@ state comes on (FUN_004d9b20, S→C state packets), +0x28 offsound as it goes
 Per class (0x72a008 → 11 dwords): hit, death, impossible, needmana, needkey,
 cantcarry, cantuseyet, not_in_town, chat_a, the first quest line
 (act1_complete_andariel), the first footstep (light / medium / heavy walk
-dirt). FUN_004cc410 plays hit on GH / KB and death on DT, after the impact.
+dirt). FUN_004cc410 plays hit on GH / KB and death on DT, after the impact;
+the hit (modes 4 / 0x13) not while one of the player's speech lines plays
+(FUN_004b9e90 → FUN_004b9700: a playing instance, state 1, rows 0xb76..0x1230,
+the unit in its list +0x28). FUN_004cb9c0's 0x13..0x18 (below) take the same
+guard, then skip the line when it's the last one played (DAT_007c88c8) within
+75 client frames of it (DAT_007c88c4); the chat lines 0x19..0x20 only the
+guard. d2d: `Cues::Cue::hush`, `Fight::class_voice`.
 
 Unit sound events (server FUN_00553380(unit, id) → client FUN_004cb9c0):
 0x13 impossible, 0x14 cantuseyet, 0x15 needmana, 0x16 needkey, 0x17 cantcarry,
@@ -230,7 +236,9 @@ each at least ⅔ of a step after the last (+0x84). The row: the first
 1) + 24 running. Material (FUN_004cadb0): the floor tile under the unit, its
 DT1 material flags 0x20 → 1 dirt, 0x08 → 2 indoor stone, 0x10 → 3 outdoor
 stone, 0x40 → 4 sand, 0x400 → 5 snow, 0x80 → 6 wood; none, the level's
-SoundEnviron Material 1. A monster's FootstepLayer plays with it at FsPrb %.
+SoundEnviron Material 1. When several floor tiles share the cell,
+FUN_004cadb0 uses the first, and the level default when that tile's flags
+name none. A monster's FootstepLayer plays with it at FsPrb %.
 
 ## Monsters (MonSounds.txt, 0x96bc5c)
 

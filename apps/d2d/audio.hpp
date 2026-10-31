@@ -295,6 +295,15 @@ struct Audio {
         if (clash.other && clash.stop_other) stop(*on_channel[*clash.other]);
         return clash.play;
     }
+    // One of `unit`'s speech lines playing (FUN_004b9700 on it: rules::speech_row).
+    bool speaking(std::uint64_t unit) {
+        return unit != 0 && std::ranges::any_of(sfx, [&](const Channel& channel) {
+            if (!channel.src || channel.unit != unit || !d2d::rules::speech_row(channel.sound)) return false;
+            ALint state = AL_STOPPED;
+            alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
+            return state == AL_PLAYING || state == AL_PAUSED;
+        });
+    }
     void started(Channel& channel, const GameData& game_data, int index, std::uint64_t unit) {
         channel.group_base = game_data.sounds[std::size_t(index)].group_base;
         channel.unit = unit;
@@ -710,6 +719,7 @@ struct Audio {
 inline void play_cues(Cues& cues, Audio& audio, float listener_x, float listener_y, d2d::rules::Rng& rng, std::uint32_t now_ms) {
     std::erase_if(cues.due, [&](const Cues::Cue& cue) {
         if (now_ms < cue.when_ms) return false;
+        if (cue.hush && audio.speaking(cue.unit)) return true;
         audio.play_world(*cues.game_data, cue.sound, rng(16), cue.x, cue.y, listener_x, listener_y, cue.owner, cue.unit);
         return true;
     });

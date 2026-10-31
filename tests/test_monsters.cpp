@@ -669,6 +669,7 @@ int main() {
 #include "mon_ais_uber_cases.inc"
 #include "mon_ais_imp_ride_cases.inc"
 #include "mon_ais_late_cases.inc"
+#include "mon_ais_act1_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
                 // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's / the late ones' fields.
@@ -1161,14 +1162,16 @@ int main() {
         assert(mon_think("QuillRat", think_in, roll, no_away).act == MonAct::a2 && steps(9, roll) == 1);
         think_in.dist = 10; roll = Rng{ 9 };
         assert(mon_think("QuillRat", think_in, roll, no_away).act == MonAct::wander && steps(9, roll) == 4);
-        // CorruptArcher: close, a blocked run-off falls through to the shot rolls.
+        // CorruptArcher (by its second target's distance): close, a blocked
+        // run-off falls through to the shot rolls.
         think_in = { .aip = { 60, 100, 14, 100, 20, 0, 0, 12 }, .dist = 4, .state = &state };
-        roll = Rng{ 3 };
+        int archer_pace = 0;
+        think_in.pace = &archer_pace; think_in.second = true; think_in.second_dist = 4; roll = Rng{ 3 };
         assert(mon_think("CorruptArcher", think_in, roll, no_away).act == MonAct::a1 && steps(3, roll) == 2);
-        think_in.dist = 15; roll = Rng{ 3 };
+        think_in.second_dist = 15; roll = Rng{ 3 };
         const auto closer = mon_think("CorruptArcher", think_in, roll, no_away);
-        assert(closer.act == MonAct::approach && closer.n == 12 && steps(3, roll) == 1);
-        think_in.dist = 30; think_in.aip[0] = 0; roll = Rng{ 3 };
+        assert(closer.act == MonAct::approach && closer.n == 12 && closer.unit == ThinkUnit::second && steps(3, roll) == 1);
+        think_in.second_dist = 30; think_in.aip[0] = 0; roll = Rng{ 3 };
         assert(mon_think("CorruptArcher", think_in, roll, no_away).act == MonAct::run && steps(3, roll) == 1);
         // CorruptLancer: a run in past aip5 strikes on arrival without the aip2 roll.
         think_in = { .aip = { 60, 0, 9, 0, 15 }, .dist = 20, .state = &state };
@@ -1264,7 +1267,7 @@ int main() {
         }
         think_in.got_hit = false; think_in.in_melee = false; think_in.life_pct = 50; think_in.dist = 5; state = 2; pace = 0; roll = Rng{ 5 };
         assert(mon_think("Vampire", think_in, roll, ok_away).act == MonAct::none && pace == 50 && steps(5, roll) == 0);
-        state = 1; think_in.dist = 10; roll = Rng{ 5 };
+        state = 1; think_in.dist = 10; think_in.second = true; think_in.second_dist = 10; roll = Rng{ 5 };
         const auto shoot = mon_think("Vampire", think_in, roll, no_away).act;           // 25 % circles 4 first
         assert((shoot == MonAct::skill || shoot == MonAct::circle) && state == 1 && steps(5, roll) == 3);
         // Fallen: a scare backs off (and a scream roll) or falls through;
@@ -1347,14 +1350,15 @@ int main() {
         assert(hit.act == (about ? MonAct::around : MonAct::circle) && steps(5, roll) == (about ? 5 : 2));
         // SkeletonMage (aip 35 9 30 5 0 18 20 5, skmage_*1): within 18 aip1 %
         // shoots (aip5 0: the back-off draws but never goes); else circles 4
-        // (one more step) or stands 5; past 9 the close-in is rolled twice.
+        // (one more step) or stands 5; past 9 the close-in is rolled twice
+        // (the second target's distance, then the target's).
         think_in = { .aip = { 100, 9, 30, 5, 0, 18, 20, 5 }, .dist = 4, .state = &state };
-        roll = Rng{ 6 };
+        think_in.pace = &pace; think_in.second = true; think_in.second_dist = 4; roll = Rng{ 6 };
         assert(mon_think("SkeletonMage", think_in, roll, no_away).act == MonAct::a1 && steps(6, roll) == 2);
-        think_in.dist = 30; think_in.aip[2] = 100; roll = Rng{ 6 };
+        think_in.second_dist = 30; think_in.aip[2] = 100; roll = Rng{ 6 };
         const auto mage_in = mon_think("SkeletonMage", think_in, roll, no_away);
         assert(mage_in.act == MonAct::approach && mage_in.n == 9 && steps(6, roll) == 1);
-        think_in.dist = 20; think_in.aip[2] = 0; think_in.aip[6] = 100; roll = Rng{ 6 };
+        think_in.second_dist = 20; think_in.aip[2] = 0; think_in.aip[6] = 100; roll = Rng{ 6 };
         assert(mon_think("SkeletonMage", think_in, roll, no_away).act == MonAct::circle && steps(6, roll) == 4);
         // GargoyleTrap (aip 24 20 12 15): a shot's aip3 waits first; within
         // 5 of an axis and aip1 it rolls aip2 %; else stands aip4, no draw.

@@ -3,6 +3,7 @@
 #include <palette.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <iostream>
@@ -21,11 +22,13 @@ int main(int argc, char** argv) try {
     for (const char value : input) bytes.push_back(std::byte(value));
     const d2d::palette::Pl2 pl2(bytes);
     const bool additive = std::string_view(argv[1]) == "additive";
-    for (int index = 0; index < 256 * 256; ++index) {
-        const auto foreground = std::uint8_t(index / 256);
-        const auto background = std::uint8_t(index % 256);
-        const auto value = additive ? pl2.additive(foreground, background) : pl2.blend50(foreground, background);
-        std::printf("%04x %02x\n", index, value);
+    for (unsigned foreground = 0; foreground < 256; ++foreground) {
+        for (unsigned background = 0; background < 256; ++background) {
+            const auto fg_byte = std::uint8_t(foreground);
+            const auto bg_byte = std::uint8_t(background);
+            const auto value = additive ? pl2.additive(fg_byte, bg_byte) : pl2.blend50(fg_byte, bg_byte);
+            std::printf("%04x %02x\n", foreground * 256 + background, value);
+        }
     }
     return 0;
 } catch (const std::exception& error) {

@@ -58,3 +58,42 @@ too. `FUN_005fe990` loads it, and a file that isn't there is fatal
 (error 0x413). d2d tries `.dcc` then `.dc6` (the same files) and draws
 the other layers when neither is there.
 
+
+## Draw effects
+
+A COF layer record is 9 bytes from +0x1c: type, shadow, selectable,
+transparent, draw effect, weapon class. `FUN_00470ec0` reads transparent
+with `FUN_004db050` (byte +3); when it is set, the layer's draw mode is
+its draw effect (`FUN_004db140`, byte +4, 5 when the layer isn't there).
+Otherwise the mode is 5. The mode goes to the renderer's cel draw (slot
+0x84, `FUN_004f6480`), whose `FUN_006c8250` (GDI; `FUN_00511d70`
+DirectDraw) picks a blend table from the array `FUN_004fb010` builds out
+of the PL2 (`FUN_006c8000` keeps it at 0x98a040):
+
+| Effect | Table | PL2 | Blend |
+|---|---|---|---|
+| 0 | [2] 0x80e468 | +0x23500 | a quarter of the layer, three quarters of the screen |
+| 1 | [1] 0x7fe468 | +0x13500 | half and half |
+| 2 | [0] 0x7ee468 | +0x3500 | three quarters of the layer |
+| 3 | [0x41] 0x7de468 | +0x33500 | additive |
+| 4 | [0x42] 0x821b68 | +0x43500 | multiply |
+| 5 | none | — | opaque |
+| 6 | [0x43] 0x831b68 | +0x5b500 | max-component |
+
+The row writer (`FUN_00608110`, through `FUN_00608540`) reads
+`T[screen * 256 + sprite]`. Fitted against the installed act 1 palette,
+table 0's screen share is a quarter, table 1's a half, table 2's three
+quarters. The shares are from the data, not from `FUN_00605880`'s weights.
+
+In the 1,064 COFs of the listfile, transparent layers use effect 1
+(monster tokens LG and E9, layer 1), 3 (239 layers) and 6 (layer 8 of
+monster token EG's COFs and object token PY's). d2d's `draw_mode`
+(world_view.hpp) matches 0..5; it draws effect 6 opaque (deviations.md
+approximation 9).
+
+Re-check:
+
+```sh
+cd tools/emu && uv run python cof_effects.py | diff - ../../tests/cof_effect_cases.inc
+cmake --build build --target test_cof_effects && build/tests/test_cof_effects
+```

@@ -356,6 +356,10 @@ struct Fight {
         // Potions working: life / mana (8.8 fixed) a millisecond, until when.
         struct Regen { double life = 0, mana = 0; std::uint32_t until = 0; bool poison = false; };
         struct StaminaPot { int bonus = 0; std::uint32_t until = 0; } stamina_pot;   // the staminapot state
+        // The antidote / thawing states (pSpell 6, FUN_005beda0): their potion's
+        // stats until when; [0] antidote, [1] thawing.
+        struct PotionState { std::vector<std::pair<int, int>> stats; std::uint32_t until = 0; };
+        std::array<PotionState, 2> potion_states;
         std::vector<Regen> regen;
         // A shrine's boost (Shrines.txt booster: its stats, FUN_00583b30), one
         // at a time, until when.
@@ -365,8 +369,8 @@ struct Fight {
         double merc_poison_rate = 0, merc_poison_acc = 0;  // the merc's poison (FUN_0057ac50, as the player's): life per ms, its fraction
         std::uint32_t merc_poison_until = 0;
         double regen_acc_life = 0, regen_acc_mana = 0;
-        std::uint32_t need_mana_until = 0;
-        std::uint32_t impossible_until = 0;   // impossible_1's repeat guard, as need_mana_until's
+        std::string_view last_voice;          // the last class line (FUN_004cb9c0's DAT_007c88c8) and when (DAT_007c88c4)
+        std::uint32_t last_voice_ms = 0;
         bool portal_due = false;                       // Town Portal's action frame came
         // The wisps' dance's blessing on the player (FUN_005f39b0): stat 0x50
         // (magic find) for 0x1a5e00 frames, the last one's.
@@ -420,7 +424,7 @@ struct Fight {
     int missile_sounds = 0;                // the last Missile::sound handed out
     std::uint32_t neutral_ms = 0, neutral_gap = 0;   // any monster's last Neutral and the ticks till the next may (0x7c88b8 / 0x7c88c0)
     d2d::rules::Rng sound_rng{ 0x5d1u };   // the sounds' own rolls (game.exe's are the client's seed, FUN_004e40a0), apart from the game's
-    // The floor's material at (x, y) cells (FUN_004cadb0): its tile's DT1 flags, else the level's SoundEnviron Material 1.
+    // The floor's material at (x, y) cells (FUN_004cadb0): the first floor tile's DT1 flags, else the level's SoundEnviron Material 1.
     [[nodiscard]] int floor_material_at(float x, float y) const;
     std::vector<Missile> pending;          // made this frame, joining `missiles` after its update
     std::vector<std::pair<int, int>> burned;             // this frame's burns: monster, skill
@@ -529,13 +533,17 @@ struct Fight {
     // Short of mana for a skill (the client's FUN_00647960 reason 1:
     // FUN_00647540's cost, FUN_006440f0's minmana) the class says so: message
     // 0x15 (table 0x711ddc) -> FUN_004cb9c0, the class table's +0xc,
-    // <class>_needmana_1; the same voice again within 75 client frames
-    // (DAT_007a0498) is skipped.
-    // ponytail: FUN_004b9e90's guard (a voice already playing) isn't kept.
+    // <class>_needmana_1 (class_voice).
     void need_mana(std::uint32_t now_ms);
     // Reason 0x13 (status 2, skill_refused): the class table's +8,
-    // <class>_impossible_1 (amazon 0xb89), with need_mana's guard.
+    // <class>_impossible_1 (amazon 0xb89), as need_mana.
     void impossible(std::uint32_t now_ms);
+    // FUN_004cb9c0's messages 0x13..0x18: the class line on the player, none
+    // while one of its speech lines plays (FUN_004b9e90: Cue::hush); the
+    // last line again within 75 client frames of it is skipped.
+    // ponytail: a line the hush drops still counts as the last one (the
+    // client drops it, after Fight has moved the last on).
+    void class_voice(std::string_view name, std::uint32_t now_ms);
     // An SQ skill plays its sequence (FUN_00663310: seqnum's frames for
     // the weapon class) at the attack's speed; with no frames for the
     // weapon it swings once.
@@ -1077,17 +1085,22 @@ struct Fight {
     // up to the skill's, for auralencalc ticks; its aurastats (velocitypercent
     // dm34, attackrate dm56) are taken at that level.
     void frenzy(const d2d::rules::Skill& skill, std::uint32_t now_ms);
-    // Who the next strike of a chain goes for: the same monster while it
-    // lives; Zeal, else the nearest one in reach (FUN_0056bd10's search).
-    // ponytail: FUN_0056bd10's pick (it's handed the last target's id) isn't
-    // traced: nearest is assumed; Zeal doesn't change targets while one lives.
-    // Zeal's and Fend's next hit (do 13) goes round the enemies in reach;
-    // Talon's next kick stays on its monster while it lives.
+    // Who the next strike of a chain goes for: Zeal's and Fend's next hit
+    // (do 13) the next in reach by FUN_0056bd10's pick (other_target);
+    // the rest (Talon's next kick) stay on their monster while it lives.
     bool next_target();
-    // The monsters in reach, alive, by unit id (d2d's index), as
-    // FUN_0056b7e0 walks the rooms around the player.
-    // ponytail: the reach taken as melee reach (FUN_0056e510's range isn't read).
+    // The monsters in reach, by unit id (d2d's index), as FUN_0056b7e0
+    // walks the units in the rooms around the player with flags 0x2a783:
+    // within FUN_0056e510's radius (the weapon's range + 4, squared
+    // subtiles, FUN_006492a0), alive and targetable, hostile (0x8000), out
+    // of town (0x100 / 0x2000), in melee (0x20000, FUN_00622c40: within the
+    // range + 1 by FUN_00641530 and a clear line, mask 0x804; under 1 always;
+    // a tentacle or its head, classes 0x102 / 0x105, within the range + 8),
+    // the bare line to it clear of mask 4 (0x200, FUN_0064e260).
     [[nodiscard]] std::vector<int> in_reach() const;
+    // The range of the weapon in hand (FUN_00622870: FUN_0063c9b0's, the
+    // right hand's else the left's; its rangeadder), 0 with none.
+    [[nodiscard]] int weapon_range() const;
     // Closing in on the monster being attacked: in reach, swing; else the
     // point to walk to (nullopt: nothing to do).
     std::optional<std::pair<float, float>> engage(std::uint32_t now_ms);

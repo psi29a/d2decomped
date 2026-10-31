@@ -227,7 +227,9 @@ add_executable(d2d
     netgame.cpp roster.cpp scene.cpp skilltree.cpp store.cpp town.cpp tile_blit.cpp ui.cpp window.cpp world_view.cpp
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/assets/icon/d2d.rc>)
 target_include_directories(d2d PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY "D2D_APP_VERSION=\"${D2D_VERSION}\"")
+# The version reaches main.cpp through build_info.hpp, not a define: a
+# define changes every commit and misses ccache for all of d2d's sources.
+target_compile_definitions(d2d PRIVATE D2D_WITH_SENTRY)
 target_link_libraries(d2d PRIVATE
     ${ffmpeg_target}   # first: its headers before a system FFmpeg's in /opt/homebrew/include
     game net mpq d2s rules drlg txt userdir cof compcode dc6 dcc ds1 dt1 font palette tbl devctl screenshot switches

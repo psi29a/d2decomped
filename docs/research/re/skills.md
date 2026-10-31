@@ -408,8 +408,19 @@ lines (missile names aren't passed in). What it does:
 
 ### Target search, Fend, Impale, Holy Shield
 - **FUN_0056b7e0** walks the units in the rooms around the caster within
-  a radius (FUN_0056e510, the skill's range) that pass a filter (flags |
-  0xa783; skills pass 0x20003), calling a callback. **FUN_0056bc80** counts
+  a radius (squared subtiles, FUN_006492a0) that pass a filter
+  (FUN_0056b3e0, flags | 0xa783), calling a callback. The melee skills
+  pass 0x20003 and FUN_0056e510's radius: the weapon's range + 4
+  (FUN_00622870: the hand's weapon, weapons.txt rangeadder at item record
+  +0x104, checked for all 306 weapons in tools/emu); 0x20000 is in melee
+  (FUN_00622c40: FUN_00641530 within the range + 1 and a clear line, mask
+  0x804; under 1 always; classes 0x102 / 0x105 within the range + 8),
+  0x200 the bare line from the caster (FUN_0064e260, mask 4), 0x8000
+  hostile (FUN_00554200), 0x100 / 0x2000 out of town. Chain Lightning
+  (hit 12, FUN_005aa730) passes 0x88583 round the missile's spot, its
+  radius sHitPar1 (else the skill's), handed the struck unit's id; when the
+  pick is that unit it doesn't hop. d2d: `Fight::in_reach`,
+  `rules::ring_pick`. **FUN_0056bc80** counts
   them (callback 0x56bc70). **FUN_0056bd10** picks one (callback 0x56bcd0),
   handed the last target's unit id: the unit with the **next higher id**,
   else the **lowest id** (round the ring). So Zeal's and Fend's hits (do
@@ -963,8 +974,11 @@ lines (missile names aren't passed in). What it does:
   and the state on the caster (FUN_005d8290). Hit **18** (FUN_005ab0b0):
   the state on an ally it reaches. **21** (FUN_005ab500, Battle Cry): the
   auratargetstate on an enemy. **17** (FUN_005aafb0, Howl, do 22's nova):
-  a monster below the caster's level + FUN_004efc20 + the level runs
-  (FUN_005ddd00) for FUN_004cc7c0 frames.
+  a monster below the caster's level + Param2 (FUN_004efc20, skill
+  +0x14c) + the level runs (FUN_005ddd00) for Param5 + Param6 × (level −
+  1) frames (FUN_004efcb0, its 4th stack arg, the state block's +0x10);
+  FUN_004cc7c0's Param3 + Param4 × (level − 1), its 3rd, is never read
+  (bugs.md 41).
 - Do **69** (FUN_005d81c0, Find Potion) / **72** (FUN_005d8780, Find Item):
   a corpse without state 0x76 (then marked), at calc1 %: a potion
   (FUN_005d8100) / a treasure drop of a tier by Param1..4 (FUN_005a8000).
@@ -1459,7 +1473,7 @@ the Run sequence's numbers):
 | FingerMageSpider (196) | — | 101 FUN_005ccfa0 | one srvmissilea (type 3) from the caster to the target (or its path's end); calc +0x138 the missile's level |
 | DiabWall (197) | — | 102 FUN_005cd1c0 | calc +0x138 missiles (diabwallmaker, flags 0x21) from him at the target's spot (FUN_0056d2c0), each with FUN_005cd110 and its index: range capped at 77, its seed {target x + index, 666} (FUN_00650e40), one draw; at 20+ of 100 Charged Bolt's wiggle (path type 10, steps = range), else straight. d2d: Missile::wall_maker (2026-10-16) |
 | DiabPrison (199) | — | 104 FUN_005cd5d0 | at the point's unit (or the path's target unit, type 2): FUN_005b34c0 makes the bone prison round it when its room isn't a town (FUN_0061ab00): FUN_005b3270 with 0x73d4f0 {4 pieces; (1, 1) kind 1, (1, −1), (−1, −1), (−1, 1) kind 3: only after a piece stood}, class 0x154 boneprison1 (AI Idle), radius 8 |
-| RegurgitatorEat (214) | — | 108 FUN_005cdc10 | the target a monster corpse (mode 12): its corpse removed (FUN_0061a270, FUN_00555600); heals its life (stat 6) by a share of the corpse's max life (calc +0x138 %, FUN_00483360(100): the args are register-passed, read the asm), capped at its own max |
+| RegurgitatorEat (214) | — | 108 FUN_005cdc10 | the target a monster corpse (mode 12): its corpse removed (FUN_0061a270, FUN_00555600); heals its life (stat 6) by MulDiv(the corpse's max life, calc1 (+0x138), 100) (FUN_00483360: ECX, EDX, the 100 on the stack; 0x5cdcdc), in 256ths, capped at its own max, at least 1 |
 | MonCurseCast (212) | — | 112 FUN_005ce2b0 | `rand(5)` on the caster's unit seed picks a curse from 0x6e3228 {Amplify Damage, Weaken, Life Tap, Decrepify, Lower Resist}; its state's stat list built per pick (the decompile's case labels don't line up with the five rows: read the jump table when porting), cast through FUN_0056e780 / FUN_005c35c0 at the target's area (calc +0x64 radius, +0x60 length) |
 | DoomKnightMissile (335) | — | 148 FUN_005cdfb0 | srvmissilea + the caster's variant (unit +0x14 +0xe) when that row exists; FUN_0056ee90 when the skill's +4 flag (& 0x6ce26c), else FUN_0056ecb0 |
 

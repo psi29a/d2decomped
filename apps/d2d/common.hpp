@@ -85,13 +85,10 @@ void blit_sprite(std::vector<std::uint8_t>& framebuffer,
                  const d2d::palette::Palette& pal,
                  int dst_x, int dst_y, int shade = 256);
 
-// Blit a frame at anchor+(frame.offset_x, frame.offset_y - height + 1).
-// D2 convention is BOTTOM-LEFT origin.
-// unverified (source: OpenDiablo2 dcc_direction_frame.go, `box.top =
-// y_offset - height + 1`): the anchor; the data agrees — the fire
-// animation's oy=132 is constant across frames of varying height, so
-// anchoring the bottom keeps the fire's base planted while its flame
-// flickers.
+// Blit a frame at anchor+(frame.offset_x, frame.offset_y - height + 1):
+// the cel's last row is anchor y + offset_y, as game.exe's FUN_006014c0
+// (SRC/CelCmp.cpp) places every DC6 and DCC cel (docs/research/re/cels.md,
+// tests/test_cel_anchor.cpp).
 void blit_at_anchor(std::vector<std::uint8_t>& framebuffer,
                     const d2d::dc6::Frame& frame,
                     const d2d::palette::Palette& pal,

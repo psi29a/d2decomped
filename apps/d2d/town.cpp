@@ -158,7 +158,9 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ view.merc->unit.x, view.merc->unit.y, &scene.npc_anim(*view.merc->npc, view.merc->mode), view.merc->unit.dir,
                         view.merc->mode == "DT" ? nullptr : merc_label, view.merc->unit.mode_ms, -2 });
         out.back().hold = view.merc->mode == "DT";
+        if (view.merc->mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(out.back().anim->speed ? out.back().anim->speed : out.back().anim->cof_speed), view.merc->fhr));
     }
+    // ponytail: a party member's merc (party_pets, "hireable") in GH has no FHR here: its get-hit plays at the plain rate and loops.
     for (const auto* pets : { &view.pets, &view.party_pets })
         for (const auto& pet : *pets) {
             out.push_back({ pet.unit.x, pet.unit.y, &scene.npc_anim(pet.npc, pet.mode), pet.unit.dir, nullptr, pet.unit.mode_ms, -3 });
@@ -196,13 +198,14 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         const auto& anim = scene.npc_anim(monster.npc, down ? std::string_view("S1") : row ? monster.seq_mode : std::string_view(monster.mode));
         const auto mpf = anim.ms_per_frame();
         // No name, so no hover, for a converted one, and a click there walks.
-        // unverified (source: redivivus D2Client/UNIT/CUnit.cpp HitTestScreen): the cursor drops a unit
-        // CanInteractWith refuses (!IsAllyOf for a monster, an NPC let through); not found in 1.14d yet.
+        // game.exe's hit test (FUN_00466870) drops a unit FUN_00465c60 refuses: outside town a
+        // monster of the player's alignment (cursor-units.md).
         const bool selectable = monster.targetable() && !monster.ally_not_interact(scene);
         out.push_back({ monster.unit.x, monster.unit.y, &anim, monster.unit.dir, selectable ? &monster.npc.name : nullptr,
                         row ? now_ms - mpf * std::uint32_t(monster.seq_frame) - mpf / 2 : down && monster.mode != "S1" ? 0u : monster.unit.mode_ms, -10 - int(i) });
         out.back().reverse = down;
         out.back().hold = !row && monster.mode == "DT";             // a death outlasting its frames (the host's 1500 ms) stays on the last, not back to the first
+        if (!row && !down && monster.mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(anim.speed ? anim.speed : anim.cof_speed), monster.props.fhr));   // struck: its frame steps at the get-hit rate (rules::get_hit_frame)
         out.back().overlay_class = monster.npc.overlay_class;
         out.back().cmap = scene.monster_map(monster.npc);
         out.back().ghostly = monster.alive() && std::ranges::find(monster.mods, d2d::rules::umod::ghostly) != monster.mods.end();
@@ -390,6 +393,7 @@ auto Town::publish() -> void {
             view_enc.reset();
             return;
         }
+        if (!net_game && out.merc && view.merc) view.merc->fhr = out.merc->fhr;   // the wire has none: a local game keeps what World::view() computed
         level = view.level;
         if (net_game) net_overlay();
         cues.due.insert(cues.due.end(), view.sounds.begin(), view.sounds.end());
@@ -1848,12 +1852,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             } else if (action == NpcMenuState::kResurrectMerc) {
                 net.send(cmd::ResurrectMerc{ who });
             } else if (action == NpcMenuState::kImbue) {
-                // 0x4b35b0: the menu closes and the inventory opens (UI mode
-                // 7, 0x7c0c6b); the server imbues the item in hand (C->S
-                // 0x38 kind 0). An item already in hand goes at once.
-                // unverified (source: the identify pick's pattern): the
-                // next click on an item takes it up and imbues it; the
-                // panel's own click path (0x4c0620 / 0x4c01e0) isn't traced.
+                // 0x4b35b0: the menu closes and the inventory opens; the
+                // server imbues the item in hand (C->S 0x38 kind 0).
+                // ponytail: game.exe opens a one-slot item panel (0x4c0620):
+                // the item in hand goes in its slot, identified and
+                // imbuable only (FUN_004bfc50), and the panel's button sends
+                // (FUN_004bfaf0). Here an item in hand goes at once, else
+                // the next click on an item takes it up and sends
+                // (act1-end.md "Imbue").
                 if (held) net.send(cmd::Imbue{ who });
                 else { imbue_with = who; inv_open = true; char_open = stash_open = cube_open = quest_log.open = false; }
             } else if (action == NpcMenuState::kQuest) {
@@ -3826,7 +3832,7 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
         const std::string key_name = key == keys::kNone ? std::string{} : id ? string_id(*scene, id) : std::string(1, char(key & 0xff));
         auto open = string_id(*scene, 0x58a3);
         if (const auto spot = open.find("%s"); spot != std::string::npos) open.replace(spot, 2, key_name);
-        draw_hover_text(framebuffer, *scene, { { string_id(*scene, 0x58a2), kTxtWhite }, { open, kTxtWhite } }, merc_portrait_x, merc_portrait_x,
+        draw_hover_text(framebuffer, *scene, { { string_id(*scene, 0x58a2), kTxtWhite }, { std::move(open), kTxtWhite } }, merc_portrait_x, merc_portrait_x,
                         merc_portrait_y + 0x24, merc_portrait_y + 0x24);
     }
 }

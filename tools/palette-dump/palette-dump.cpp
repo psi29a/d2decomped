@@ -3,6 +3,7 @@
 #include <palette.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <iostream>

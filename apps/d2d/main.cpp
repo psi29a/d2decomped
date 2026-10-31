@@ -1732,7 +1732,7 @@ int main(int argc, char** argv) {
     else { d2d::log::error("--log-level {}: one of error, warning, info, debug, trace", log_level); return 2; }
     for (const std::string& line : switched.ignored) d2d::log::warn("{}", line);
     const auto crash_notes = crash_notes_from_environment();
-    SentrySession sentry(send_crash_reports, user_dir, D2D_APP_VERSION, crash_notes);
+    SentrySession sentry(send_crash_reports, user_dir, d2d::build::kVersion, crash_notes);
     if (enable_crash_test && !sentry.enabled()) {
         d2d::log::error("--enable-crash-test requires a successful Sentry initialization");
         return 2;

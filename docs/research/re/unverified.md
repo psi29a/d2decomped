@@ -13,20 +13,21 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Where in d2d | Source | Evidence so far | Trace in game.exe |
 |---|---|---|---|---|
-| DC6/DCC frame anchor: bottom-left, `top = y_offset - height + 1` | apps/d2d/common.hpp `blit_at_anchor` | OpenDiablo2 dcc_direction_frame.go | char-create fire.dc6 (oy=132, heights vary) lands on its logs with FUN_005005b0 subtracting frame 0's offsets; the camp fire RB sits in its ring | the DC6/DCC blitters (D2Gfx part) |
-| COF transparent layers: which alpha draw effects 0..2 are | apps/d2d/world_view.hpp `draw_mode` | OpenDiablo2's naming | none | the composite draw's blend switch (after `FUN_00470ec0`) |
 | DCC format as a whole | components/dcc/dcc.hpp | OpenDiablo2's reader, Necrolis' notes | every DCC in the MPQs decodes and draws as the game shows it | the DCC decoder (D2Cmp part) |
 | DS1 layer stream order | components/ds1/ds1.hpp | OpenDiablo2's reader | every DS1 parses to its exact size | the DS1 loader (`FUN_00665950` area) |
 | .d2s header layout | components/d2s/d2s.hpp | the Phrozen Keep d2s spec | 19 real 1.14d saves (test_d2s) | the save reader |
 | .d2s item bitstream layout | components/d2s/d2s_items.hpp | the community d2s spec | 19 real saves: every list ends on the next "JM" | the item (de)serializer |
 | Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | handlers marked ✓ were read | names only; behaviour is from the handlers |
-| Charsi's Imbue pick: after the menu, the next item click takes the item up and imbues it | apps/d2d/town.cpp `imbue_with` | the identify pick's pattern | 0x4b35b0 opens the inventory in UI mode 7; the server imbues the cursor item (act1-end.md) | the panel's click path, 0x4c0620 / 0x4c01e0 |
-| A converted monster (align 2, no MonStats interact) gets no hover and no pick: the cursor walks there, a held attack drops it | components/game/ai.hpp `ally_not_interact`, apps/d2d/town.cpp `view_units`, components/game/world.cpp `apply` (UseSkill) | redivivus D2Client/UNIT/CUnit.cpp `HitTestScreen` / `CanInteractWith` (!IsAllyOf for a monster) | the server side is traced: FUN_00554200 makes a converted monster no foe (fight.cpp `land`) | game.exe's client hit test and the interact check it calls |
+| A converted monster's pick: a click on it walks there, a held attack drops it | components/game/world.cpp `apply` (UseSkill) | d2d's own hover rule (cursor-units.md) | the hover is traced: outside town no monster of the player's alignment is under the cursor | the click path from the hovered unit (`FUN_00467a10`) |
 
 ## Traced
 
 | What | Traced in | Doc |
 |---|---|---|
+| DC6/DCC frame anchor: a cel's last row is y + offset_y, its first y + offset_y - height + 1 (the anchor only; when arguments 4 and 5 are zero, `FUN_006014c0` skips a cel whose left column is negative, which isn't traced: cels.md) | `FUN_006014c0` (SRC/CelCmp.cpp) from the renderer slots `FUN_006c84b0` / `FUN_00511fb0`; DCC frames reach the same header via `FUN_0060bff0`; oracle `tools/emu/cel_anchor.py`, 399 cases | [cels.md](cels.md) |
+| COF draw effects 0..2 are a quarter, half and three quarters of the layer over the screen | `FUN_00470ec0` passes the effect (`FUN_004db140`) as the draw mode; `FUN_006c8250` picks alpha tables 2, 1, 0 (`FUN_004fb010`); `FUN_00608110` reads T[screen][sprite]; oracle `tools/emu/cof_effects.py` | [cof-draw-order.md](cof-draw-order.md) |
+| Charsi's Imbue: game.exe opens a one-slot item panel; the cursor item goes in the slot (identified and imbuable only) and its button sends C→S 0x38 kind 0. d2d's pick (the next item click imbues at once) differs | `0x4b35b0` → `0x4c0620`; `FUN_004bfc50` (press), `FUN_004bfa70` (place), `FUN_004c0450` → `FUN_004bfaf0` (send) | act1-end.md "Imbue" |
+| A converted monster (alignment 2) isn't under the cursor outside town, unless MonStats2 alSel passes it (noSel refuses it either way); read from the code, no oracle | `FUN_00466870` → `FUN_00465c60`: MonStats2 alSel / noSel, else not friends (`FUN_00650d70`, state 105 stat 172); town levels by `FUN_006426a0` | [cursor-units.md](cursor-units.md) |
 | Throw's stored base level and weapon eligibility are separate. d2d keeps Throw at level 1 and gates the weapon apart (#125: `throw_ready`, `skill_refused`). | `FUN_00647ee0` / `FUN_00647110` grant initial skills at level 1; `FUN_006442a0` reads the level; `FUN_00647640` checks equipment. 35 isolated original-code contexts passed with inventory/item helpers replaced; no C++ parity claim. | [throw.md](throw.md) |
 | TCP host join name: 2..15 bytes; ASCII letters and at most one ' - _, not first or last | `FUN_0053eff0` (length), `FUN_0052c5b0` (characters), EDI = 0x10 at `0052c726` | net-join.md "Stage 1" / "Stage 2" |
 | Character-create name: 2..15 characters; ASCII letters and at most one - _, not first or last; no apostrophes | `FUN_00430590` (input), `FUN_00430620` (OK state) | char-create-table.md "Name input and OK gating" |

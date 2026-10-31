@@ -74,6 +74,7 @@ struct Unit {
     std::uint8_t frames = 0, loop_from = 0;   // an object's FrameCnt / Start in its mode (Npc::frames), 0: the COF's length
     std::uint16_t frame_delta = 0;            // ... and its FrameDelta: 256 a frame a tick
     bool reverse = false;                // plays once backwards and stays on its first frame (a maggot burrowing)
+    std::uint16_t get_hit_rate = 0;      // a get-hit (GH): its rate, 8.8 frames a tick (rules::get_hit_rate); rules::get_hit_frame picks the frame, once through and held
     const d2d::dcc::Sprite* overlay = nullptr;   // over it (Overlay.txt npcalert: the quest balloon)
     // Its states' look (Scene::StateInfo): the colour shift (256, before
     // the light) and overlays, each from when it started; `once` plays a
@@ -147,10 +148,13 @@ inline const d2d::cof::Layer* cof_layer(const Scene::PlayerAnim& anim, std::uint
     for (const auto& layer : anim.cof.layer_defs()) if (layer.type == type) return &layer;
     return nullptr;
 }
-// A transparent COF layer's draw effect as blit_dcc_frame's mode: the
-// driver's draw modes 0..2 (a quarter, half, three quarters of the layer),
-// 3 additive, 4 multiply (like Missiles.txt Trans 1 / 2), else opaque.
-// unverified (source: OpenDiablo2's naming): which alpha each of 0..2 is.
+// A transparent COF layer's draw effect as blit_dcc_frame's mode. The
+// composite draw (FUN_00470ec0) passes the effect as the draw mode, and
+// FUN_006c8250 picks the PL2 table: 0..2 alpha tables 2, 1, 0, a quarter,
+// half, three quarters of the layer over the screen; 3 additive, 4
+// multiply (like Missiles.txt Trans 1 / 2); 5 opaque (cof-draw-order.md
+// "Draw effects", tests/test_cof_effects.cpp).
+// ponytail: effect 6 (the max-component table, PL2 +0x5b500) draws opaque.
 inline int draw_mode(int effect) {
     switch (effect) { case 0: return 3; case 1: return 4; case 2: return 5; case 3: return 1; case 4: return 2; default: return 0; }
 }

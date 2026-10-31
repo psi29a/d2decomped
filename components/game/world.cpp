@@ -261,6 +261,7 @@ auto World::view() const -> View {
         if (actor->merc && actor->merc_npc) {
             view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode };
             const auto fighter = fight.merc_fighter();
+            view.merc->fhr = fighter.fhr;
             const auto gear = fight.merc_gear();
             const auto& stats = actor->merc_st;
             View::MercSheet sheet;
@@ -823,7 +824,12 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             actor->boost = { row, std::move(boost), now_ms + std::uint32_t(shrine.duration) * 40u };
         }
         if (const auto sound = d2d::rules::shrine_sound(shrine.code); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
-        if (shrine.code == 17) open_portal_at(actor->player.x + 1, actor->player.y + 1, now_ms);   // portal (FUN_00582a30): 5 subtiles on each axis
+        // Portal (FUN_00582a30): the free spot nearest the player for a size
+        // 3 (FUN_0064e7b0, mask 0x1c09), then the town portal from 5
+        // subtiles on each axis of it (FUN_0056d130's own search).
+        if (shrine.code == 17)
+            if (const auto spot = free_spot_near(*level, crowd_now(), &actor->player, int(std::floor(actor->player.x * 5)), int(std::floor(actor->player.y * 5)), 3, 0x1c09))
+                open_portal_at((float(spot->first + 5) + 0.5f) / 5, (float(spot->second + 5) + 0.5f) / 5, now_ms);
         if (shrine.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(game_data->rules, actor->character.items, rng); !code.empty())
                 loot.put({ .code = code }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
@@ -1014,22 +1020,37 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             d2d::log::info("trap {}: fire", trap);
             return;
         }
-        if (trap == 8) {                               // FUN_005822f0: 1 or 2 of the level's undead family
+        // Trap 8 (FUN_005822f0): (a step of the object seed, game +0x10f0,
+        // & 1) + 1 of the level's undead family; each (FUN_00582280) by
+        // FUN_005b2490: the level's own of the family (level_monster), mode
+        // 8 (S1), round the chest in its room (FUN_005b23c0 -> FUN_005b2a00,
+        // spawn_spot) at radius -1, else 1, else 3; none: not made. Its unit
+        // seed a step of the game seed (FUN_00552df0), its look, variant and
+        // props drawn on it (spawn_monsters).
+        if (trap == 8) {
             const int fam = d2d::rules::trap_undead(level->region[std::size_t(diff)], 0);
             if (fam < 0 || fight.mon_level != level) { d2d::log::info("trap 8: no undead here"); return; }
-            const int type = level_monster(*game_data, *level, fam);   // FUN_0063ec70: the level's own variant of the family
-            const int count = undead ? undead : int(rng.next() & 1) + 1;
+            const int count = undead ? undead : int(fight.spawning.objects.next() & 1) + 1;
+            const int type = level_monster(*game_data, *level, fam);
+            Crowd crowd = crowd_now();
+            const int chest_x = int(std::floor(x * 5)), chest_y = int(std::floor(y * 5)), room = room_of(*level, x, y);
+            const auto& region = std::size_t(level->id) < fight.spawning.regions.size() ? fight.spawning.regions[std::size_t(level->id)] : d2d::rules::Region{};
+            int made = 0;
+            std::vector<Monster> risen;
+            risen.reserve(std::size_t(count));
             for (int k = 0; k < count; ++k) {
-                const auto [free_x, free_y] = level->nearest_free(x + float(k) * 0.4f, y + 0.4f);
-                auto monster = make_monster(*game_data, type, free_x, free_y, rng, diff, true, int(players.size()));
-                // Its unit seed: a step of the game seed (FUN_00552df0), what its drops roll off.
-                // ponytail: its look doesn't draw on it first, as spawn_monsters' does
-                // (monster spawning: agent D's).
-                monster.seed = d2d::rules::Rng{ fight.spawning.game.next() };
+                int at_x = 0, at_y = 0;
+                auto& in_play = fight.spawning.levels[level];
+                if (!std::ranges::any_of(std::array{ -1, 1, 3 }, [&](int radius) { return spawn_spot(*game_data, *level, crowd, &in_play, type, chest_x, chest_y, radius, room, at_x, at_y); })) continue;
+                const d2d::rules::Spawn spawn{ .type = type, .x = at_x, .y = at_y, .seed = fight.spawning.game.next() };
+                auto monster = std::move(spawn_monsters(*game_data, std::span{ &spawn, 1 }, region, rng, diff, int(players.size())).front());
+                set_mode(*game_data, monster, "S1", now_ms);
                 monster.aware = true;
-                fight.add_monster(std::move(monster));
+                crowd.units.push_back(&risen.emplace_back(std::move(monster)).unit);
+                ++made;
             }
-            d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, count);
+            for (auto& monster : risen) fight.add_monster(std::move(monster));
+            d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, made);
             return;
         }
         const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";
@@ -1219,6 +1240,7 @@ auto World::new_game() -> void {
         doors.clear();
         fires.clear();
         afterglow_made = false;
+        afterglow_due = 0;
         traps.clear();
         treasure.clear();
         cain_walk = {};
@@ -1513,11 +1535,10 @@ auto World::blood_raven_died(std::uint32_t now_ms) -> void {
 
 // The Cube's Transmute (FUN_005665f0 / FUN_00565ab0, rules/cube.hpp): the
 // first recipe the Cube's items answer; what it makes; every item in the
-// Cube gone (FUN_00564f30); the new ones into the Cube (FUN_00560200),
-// else at the feet. The Horadric Staff made: its quest's bit 11
-// (FUN_0059e5c0).
-// ponytail: FUN_00560200's own spot search (first fit by column here);
-// the transmute's sound.
+// Cube gone (FUN_00564f30); the new ones into the Cube (FUN_00560200:
+// rules::free_spot, a player's best fit), else at the feet. The Horadric
+// Staff made: its quest's bit 11 (FUN_0059e5c0).
+// ponytail: the transmute's sound.
 auto World::transmute(std::uint32_t now_ms) -> void {
         using d2d::d2s::Item;
         std::vector<const Item*> cube;
@@ -1538,9 +1559,15 @@ auto World::transmute(std::uint32_t now_ms) -> void {
                 d2d::log::info("transmute: {} refused", recipe.description);
                 return;
             }
+            // FUN_00594140: a spot by the player (FUN_00545340: size 3, mask
+            // 0x400, 100 rings, Level::free_area), then FUN_0056d130's own
+            // (portal_spot) from it; none: refused. Its twin at the farm's
+            // portal spot (FUN_0056cf40).
+            const auto by_player = level->free_area(int(std::floor(actor->player.x * 5)), int(std::floor(actor->player.y * 5)), 3, 0x400, 100);
+            const auto opened_at = by_player ? portal_spot(*level, (float(by_player->first) + 0.5f) / 5, (float(by_player->second) + 0.5f) / 5) : std::nullopt;
+            if (!opened_at) { d2d::log::info("transmute: {} refused (no room)", recipe.description); return; }
             cow_portal_opened = true;
-            // ponytail: FUN_00545340's spot search (3, mask 0x400, 4, 100) is the nearest free spot; its twin the farm's portal spot.
-            const auto [spot_x, spot_y] = level->nearest_free(actor->player.x, actor->player.y + 0.8f);
+            const auto [spot_x, spot_y] = *opened_at;
             portal[kCowPortal] = { level, spot_x, spot_y, now_ms };
             const auto [to_x, to_y] = farm->portal_spot.first >= 0 ? farm->nearest_free(farm->portal_spot.first, farm->portal_spot.second)
                                                                   : farm->nearest_free(float(farm->ds1.width()) / 2, float(farm->ds1.height()) / 2);
@@ -1569,7 +1596,7 @@ auto World::transmute(std::uint32_t now_ms) -> void {
             const auto [width, height] = d2d::rules::item_size(game_data->rules, item.code);
             std::optional<Item> held_item = std::move(item);
             held_item->id = -1;
-            if (const auto [column, cell_row] = d2d::rules::free_spot(game_data->rules, placed, layout.cols, layout.rows, width, height);
+            if (const auto [column, cell_row] = d2d::rules::free_spot(game_data->rules, placed, layout.cols, layout.rows, width, height, true);
                 column < 0 || !d2d::rules::put_in_grid(game_data->rules, actor->character.items, held_item, d2d::d2s::item_panel::kCube, layout.cols, layout.rows, column, cell_row))
                 loot.place(std::move(*held_item), actor->player.x, actor->player.y, now_ms);
         }
@@ -2121,7 +2148,7 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
             std::vector<const Item*> inv;
             for (const auto& x : actor->character.items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
             const auto [width, height] = d2d::rules::item_size(game_data->rules, held_item->code);
-            if (const auto [column, row] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height); column >= 0
+            if (const auto [column, row] = d2d::rules::free_spot(game_data->rules, inv, layout.cols, layout.rows, width, height, true); column >= 0
                 && d2d::rules::put_in_grid(game_data->rules, actor->character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) { item_it = corpse.items.erase(item_it); continue; }
             ++item_it;
         }
@@ -2139,13 +2166,44 @@ auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint3
         cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "player_townportal_cast", now_ms, actor->player.x, actor->player.y);
     }
 
-auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(actor->player.x, actor->player.y + 0.6f, now_ms); }
+auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(actor->player.x, actor->player.y, now_ms); }
+
+auto World::crowd_now() -> Crowd {
+        Crowd crowd;
+        for (const auto& player : players) {
+            crowd.units.push_back(&player->player);
+            if (player->merc) crowd.units.push_back(&player->merc->unit);
+            if (player.get() != actor)                                  // the actor's pets come with fight.crowd
+                for (const auto& pet : player->pets)
+                    if (pet.monster.alive() && pet.where == level) crowd.units.push_back(&pet.monster.unit);
+        }
+        if (fight.mon_level == level) fight.crowd(crowd);
+        return crowd;
+    }
+
+auto World::portal_spot(const Level& where, float x, float y) -> std::optional<std::pair<float, float>> {
+        const int width = where.ds1.width() * 5, height = where.ds1.height() * 5;
+        if (where.walk.empty()) return std::pair{ x, y };
+        const Crowd crowd = &where == level ? crowd_now() : Crowd{};
+        static constexpr UnitShape kProbe{ 0, 1, 0x3000 };
+        const int from_x = int(std::floor(x * 5)), from_y = int(std::floor(y * 5));
+        const auto spot = field_spot(game_data->field, from_x, from_y, from_x, from_y, 3, 0x3e01, 0xc01, [&](int at_x, int at_y) {
+            if (at_x < 0 || at_y < 0 || at_x >= width || at_y >= height) return 0x27;
+            int flags = where.walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] | loot.items_at(&where, at_x, at_y);
+            if (crowd.at((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, kProbe, nullptr)) flags |= 0x1000;
+            return flags;
+        });
+        if (!spot) return std::nullopt;
+        return std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
+    }
 
 auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms) -> void {
         const Level* act_town = game_data->town_of(level->id);
         if (in_town(level) || !act_town || act_town->portal_spot.first < 0) return;
         const auto& town = *act_town;
-        const auto [spot_x, spot_y] = level->nearest_free(portal_x, portal_y);
+        const auto by_caster = portal_spot(*level, portal_x, portal_y);
+        if (!by_caster) { d2d::log::info("town portal: no room by ({:.1f}, {:.1f})", portal_x, portal_y); return; }
+        const auto [spot_x, spot_y] = *by_caster;
         const auto [town_x, town_y] = town.nearest_free(town.portal_spot.first, town.portal_spot.second);
         portal[actor->portal_pair] = { level, spot_x, spot_y, now_ms };
         portal[actor->portal_pair + 1] = { &town, town_x, town_y, now_ms };
@@ -2751,8 +2809,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         const auto* skill = game_data->skills.get(use_skill.skill);
         const int monster_index = fight.monster_index(use_skill.unit);
         // A converted monster is the player's side: the cursor never picks it, so no attack.
-        // unverified (source: redivivus D2Client/UNIT/CUnit.cpp HitTestScreen): it drops what
-        // CanInteractWith refuses, an ally by IsAllyOf; not found in 1.14d yet.
+        // unverified (source: d2d's hover rule, cursor-units.md): a click with no unit under the
+        // cursor walks, so a held attack drops it; the hover itself is FUN_00465c60's.
         const auto* target = monster_index >= 0 ? &fight.monsters[std::size_t(monster_index)] : nullptr;
         const bool live = target && target->targetable() && !target->ally_not_interact(*game_data);
         if (skill && !skill->in_town && !in_moor) {
@@ -2890,18 +2948,22 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         // FUN_005bd390, once a game: round where he went (0x741538's
         // (dx, dy), from index `quest seed & 1`: 7 or 8; index 7 repeats
         // index 2, bugs.md #20) object 131 at a free spot near each, mode 1,
-        // gone 27 frames on (InitFn 59).
-        // ponytail: made the tick he goes, not two on; the free spot is
-        // nearest_free's, not FUN_00545340's size 3 / mask 0x3f11 search.
+        // gone 27 frames on (InitFn 59), two ticks after he goes (the record's
+        // timer, FUN_005bd4a0), each at the spot FUN_00545340 finds round it
+        // (size 3, mask 0x3f11, 100 rings: Level::free_area); none, not made.
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
             !afterglow_made && wanderer != fight.monsters.end() && !game_data->afterglow.code.empty()) {
+            if (afterglow_due == 0) afterglow_due = now_ms + 2 * kTickMs;
+        }
+        if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
+            !afterglow_made && afterglow_due != 0 && now_ms >= afterglow_due && wanderer != fight.monsters.end()) {
             afterglow_made = true;
             cues.cue_on(unit_key(kSoundOnMonster, wanderer->id), "object_wanderer_fissure", now_ms, wanderer->unit.x, wanderer->unit.y);
             static constexpr std::array<std::pair<int, int>, 8> kAround{ { { -3, -3 }, { -3, 0 }, { -3, 3 }, { 0, -3 }, { 0, 3 }, { 3, -3 }, { 3, 0 }, { -3, 3 } } };
-            for (auto at = std::size_t(fight.spawning.quests.next() & 1); at < kAround.size(); ++at) {
-                const auto [x, y] = level->nearest_free(wanderer->unit.x + float(kAround[at].first) / 5, wanderer->unit.y + float(kAround[at].second) / 5);
-                fires.push_back({ level, &game_data->afterglow, x, y, now_ms, now_ms + 27 * kTickMs });
-            }
+            const int from_x = int(std::floor(wanderer->unit.x * 5)), from_y = int(std::floor(wanderer->unit.y * 5));
+            for (auto at = std::size_t(fight.spawning.quests.next() & 1); at < kAround.size(); ++at)
+                if (const auto spot = fight.mon_level->free_area(from_x + kAround[at].first, from_y + kAround[at].second, 3, 0x3f11, 100))   // his level, though the player's left it
+                    fires.push_back({ fight.mon_level, &game_data->afterglow, (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5, now_ms, now_ms + 27 * kTickMs });
             d2d::log::info("the Dark Wanderer's afterglow: {}", std::ranges::count(fires, &game_data->afterglow, &Fire::npc));
         }
         std::erase_if(fires, [&](const Fire& fire) { return fire.gone && now_ms >= fire.gone; });

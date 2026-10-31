@@ -10,7 +10,7 @@ AI distance, melee), the AI control's +0x14 / +0x18 / +0x1c, MonStats aip1..8,
 Skill1..5, Velocity / Run, the unit seed, the frame. Every helper it calls is
 hooked at its entry: the acts (FUN_005ddf90 a mode, FUN_005de080 stand,
 FUN_005de0f0 wait, FUN_005de130 event, FUN_005dead0 skill, FUN_005de000 its
-sequence, FUN_005dec80 walk, FUN_005ded40 run, FUN_005def80 approach,
+sequence, FUN_005dec80 walk, FUN_005ded40 / FUN_005defb0 run, FUN_005def80 approach,
 FUN_005defe0 back off, FUN_005df7d0 circle, FUN_005de200 wander,
 FUN_005df530 about the target, FUN_005de190 pace), the effects (states,
 overlays, stats set, the leader's command) and the answers the scene gives
@@ -71,6 +71,8 @@ AIS = {
     # The rest the levels place (monster-ai.md "Turrets, traps and the rest"): a scene of their own.
     "HellMeteor": 0x5f56d0, "Sarcophagus": 0x5f6a10, "Spirit": 0x5e3840, "ArcaneTower": 0x5e0f60,
     "Trap-RightArrow": 0x5fb6c0, "Trap-LeftArrow": 0x5fb7e0, "DesertTurret": 0x5e0980,
+    # Act 1's that take the second target (FUN_005ddc30), last: the late scene, its trap kind unread.
+    "Bighead": 0x5eff50, "CorruptArcher": 0x5f5a20, "SkeletonMage": 0x5f96c0, "Vampire": 0x5f4a70,
 }
 DIABLO_LIKE = ("Diablo", "DiabloOther", "BaalCrab", "BaalCrabClone")   # his pick, kept point, hands
 BAAL_SKILLS = {0x13b: 2, 0x13c: 0, 0x13d: 1, 0x13e: 3}                 # FUN_005fcb60's raw ids: Skill3, 1, 2, 4
@@ -111,6 +113,7 @@ def setup(rng, ai):
     s["aip"] = [rng.choice((0, 1, 2, rng.randint(0, 100), rng.randint(0, 20), 100)) for _ in range(8)]
     ids = rng.sample(range(400), 5)                                        # distinct: the act names its slot
     s["skills"] = [rng.choice((-1, ids[k])) for k in range(5)]
+    if ai == "Vampire": s["skills"][:4] = ids[:4]                         # every vampire row has Skill1..4; its think tests none
     s["modes"] = [rng.randint(0, 15) for _ in range(5)]
     s["velocity"], s["run"] = rng.choice((0, 3, 5, 6, 8)), rng.choice((0, 5, 6, 9, 12))
     s["aidel"] = rng.randint(0, 20)
@@ -301,6 +304,7 @@ def install(e):
     e.hook(0x5dec80, walk("walk"), 2)
     e.hook(0x5ded40, walk("run"), 2)
     e.hook(0x5def80, walk("approach"), 2)
+    e.hook(0x5defb0, walk("run"), 2)                                   # a run of n subtiles (FUN_005deb60 mode 0xf)
     def away(e):
         ok = moved()
         out("away", name(e.arg(0)), S32(e.arg(1)), e.arg(2), ok)
@@ -697,7 +701,7 @@ def outcome(s, out):
         elif k == "away":
             asks.append((item[2], item[4]))
             if item[4]: to("none")
-            elif not item[3] and s["ai"] == "Terror": to("idle", s["aidel"])   # flags 0: FUN_005a73e0's think aidel on
+            elif not item[3] and s["ai"] in ("Terror", "Vampire"): to("idle", s["aidel"])   # flags 0: FUN_005a73e0's think aidel on
         elif k == "circle":
             if s["ai"] in ACT3_AIS: asks.append((item[2], item[5]))
             to("circle", item[2], item[4], item[3], item[1])

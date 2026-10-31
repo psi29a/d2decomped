@@ -86,3 +86,7 @@
 { "Trap-RightArrow", false, false, false, false, true },
 { "Trap-LeftArrow", false, false, false, false, true },
 { "DesertTurret", false, false, false, false, true },
+{ "Bighead", false, false, false, false, true },
+{ "CorruptArcher", false, false, false, false, true },
+{ "SkeletonMage", false, false, false, false, true },
+{ "Vampire", false, false, false, false, true },

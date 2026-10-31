@@ -213,12 +213,15 @@ jobs:
           # compile that writes a shared .pdb ("Unsupported compiler option",
           # every call). The linker still writes the .pdb Sentry gets. The
           # policy default reaches Sentry/Crashpad's older-minimum CMake too.
+          # The header check (cmake/HeaderCheck.cmake) runs on Linux and macOS;
+          # here it was ~4 of the build's 14 minutes.
           cmake -S . -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_C_COMPILER_LAUNCHER=ccache `
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
             -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
             -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
+            -DD2D_CHECK_HEADERS=OFF `
             "-DCMAKE_PREFIX_PATH=$sdl\cmake;$z" `
             "-DSDL3_DIR=$sdl\cmake" `
             "-DOPENAL_INCLUDE_DIR=$al\include" `

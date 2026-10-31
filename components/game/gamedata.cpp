@@ -300,7 +300,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     // monsters, each the room's preset list, the DS1's order reversed)
     // each made (FUN_00555230 → FUN_00552df0) on a step of the game seed,
     // their unit seed. Proven: tools/emu diff_drlg.py game, $LEVELS from 1.
-    // ponytail: the camp's room1 seeds aren't kept; nothing in the camp rolls on them.
+    // Its room seeds come with the first roll on them (keep_camp_seeds).
     if (level.rooms.empty()) {
         if (state.up.empty()) state.up.assign(room_count(level), false);
         if (made_index >= state.up.size() || state.up[made_index]) return;
@@ -342,6 +342,28 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
 }  // namespace
 
 int room_of(const Level& level, float x, float y) { return room_holding(room_rects(level), level, x, y); }
+
+std::optional<d2d::drlg::Outdoor::RoomSeed> level_room(const Level& level, std::size_t index) {
+    const auto rects = room_rects(level);
+    if (index >= rects.size()) return std::nullopt;
+    const auto& rect = rects[index];
+    return d2d::drlg::Outdoor::RoomSeed{ .x = rect.x - level.world_x, .y = rect.y - level.world_y, .width = rect.width, .height = rect.height };
+}
+
+bool keep_camp_seeds(const GameData& game_data, const Level& level, Spawning::LevelState& state) {
+    if (!level.rooms.empty() || !state.room_seeds.empty()) return true;
+    const auto camp = camp_room_seeds(game_data);
+    if (!camp) return false;
+    // ponytail: the DRLG room's seed; game.exe's room1 seed is drawn after
+    // the room's tile picks (room_tiles.hpp room1_seed), which the camp
+    // doesn't lay, so a teleport's spot rolls differently.
+    const auto rects = room_rects(level);
+    state.room_seeds.assign(rects.size(), {});
+    for (const auto& room : *camp)
+        for (std::size_t index = 0; index < rects.size(); ++index)
+            if (rects[index].x - level.world_x == room.x && rects[index].y - level.world_y == room.y) state.room_seeds[index] = d2d::rules::Rng{ room.seed };
+    return true;
+}
 
 int level_monster(const GameData& game_data, const Level& level, int row) {
     const auto& types = game_data.monsters.types;

@@ -156,18 +156,18 @@ struct Loot {
         const Level* where = onto ? onto : level;
         const int width = where->ds1.width() * 5, height = where->ds1.height() * 5;
         if (where->walk.empty()) return { x, y };
-        const auto kept_floor = kept.find(where);
-        const auto& lying_items = where == ground_level ? ground : kept_floor != kept.end() ? kept_floor->second : ground;
-        const bool any_lying = where == ground_level || kept_floor != kept.end();
         const auto [spot_x, spot_y] = drop_spot(game_data->field, int(std::floor(x * 5)), int(std::floor(y * 5)), [&](int at_x, int at_y) {
             if (at_x < 0 || at_y < 0 || at_x >= width || at_y >= height) return 0x27;
-            int flags = where->walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] & 0x01;
-            if (any_lying)
-                for (const auto& lying : lying_items)
-                    if (int(std::floor(lying.x * 5)) == at_x && int(std::floor(lying.y * 5)) == at_y) flags |= 0x200;
-            return flags;
+            return (where->walk[std::size_t(at_y) * std::size_t(width) + std::size_t(at_x)] & 0x01) | items_at(where, at_x, at_y);
         });
         return { (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5 };
+    }
+    // 0x200 when an item lies on subtile (at_x, at_y) of `where`, else 0.
+    [[nodiscard]] int items_at(const Level* where, int at_x, int at_y) const {
+        const auto kept_floor = kept.find(where);
+        if (where != ground_level && kept_floor == kept.end()) return 0;
+        const auto& lying_items = where == ground_level ? ground : kept_floor->second;
+        return std::ranges::any_of(lying_items, [&](const GroundItem& lying) { return int(std::floor(lying.x * 5)) == at_x && int(std::floor(lying.y * 5)) == at_y; }) ? 0x200 : 0;
     }
     // An item the player drops (C→S 0x17, FUN_00563c00): at the nearest
     // free spot to (x, y) (FUN_00555da0), named as its tooltip names it.

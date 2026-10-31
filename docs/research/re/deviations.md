@@ -50,15 +50,16 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 5 | Static lights' shadows (type 2) | Cached from the collision map (`FUN_004750f0`) | Not built (no such light in the Blood Moor) | not yet | lighting.md |
 | 6 | Ambience at dusk and dawn | Cross-fades over 250 sound ticks (`FUN_004e42e0`) | matched since this commit (`Audio::crossfade_ambience`) | — | audio.hpp |
 | 7 | Rain's random rolls | The player unit's seed | A client seed of its own | no (same odds) | weather.hpp `Rain::rng` |
-| 8 | Where a town portal opens by its caster | Nearest free spot from the caster, collision 0x3e01, size 3 | Nearest free spot 0.6 cells south of the player | slightly | server.hpp `open_portal` |
-| 9 | COF draw effects 0..2 | Driver alpha modes (which of 25 / 50 / 75 % each is, untraced) | Read as a quarter, half, three quarters | only on layers that use them | world_view.hpp `layer_trans` |
+| 8 | Where a town portal opens by its caster | Nearest free spot from the caster, collision 0x3e01, size 3 | matched since this commit (`World::portal_spot`) | — | world.cpp `portal_spot` |
+| 9 | COF draw effect 6 | The PL2 max-component table (+0x5b500, `FUN_006c8250` mode 6) | Opaque: not ported yet, `blit_dcc_frame` has no max-component mode | on the layer 8 of monster token EG's COFs and object token PY's | world_view.hpp `draw_mode` |
 | 10 | JOIN GAME's address check | Connects once to test the host, and shows "Cannot Connect to Server" there (`FUN_00434790`) | Goes straight to char-select; picking a character finds out, with the same popup and OK back to TCP/IP | yes: the error comes one screen later | main.cpp `Screen::TcpIp`, tcpip-menu.md |
 | 11 | A host's refusal (B4) | Its message in Font42 over the game screen, since the join runs in the game loop (`FUN_0044cb60`) | The same message in the OK popup on char-select | yes | main.cpp `join_error_text`, tcpip-menu.md |
 | 12 | TCP/IP Options' own address | Read again every 5 s (record 0x10b) | Read once as the screen opens | only if the network changes while it's up | main.cpp `Screen::TcpIp` |
 | 13 | World sounds' pan, and a loop back in range | Pans by turning the far speaker down to (255 − pan) / 127 (`FUN_00515890`); a Tracking loop stopped past its far range waits, not freed, and starts again back in range (`FUN_004ba020`) | matched since this commit: each world sound is two sources, one per speaker (`AL_SOFT_direct_channels`, `Audio::start_split`); without the extension OpenAL pans a mono source by its angle | only without the extension | audio.hpp `apply_mix` |
+| 14 | Where a free-spot search may look (`FUN_0064e7b0` / `FUN_0064e810`) | Each spot's room found from the hint room's near list (`FUN_00463740`): a spot in a room past them counts as none, so the Vulture searches by its target's room, then its own | The whole level's grid (and its neighbours'), so one search; units are the Crowd's | hardly: only a search running past the rooms next to its start | ai.hpp `free_spot_near`, gamedata.hpp `nearest_spot` |
 
-437 smaller shortcuts are marked `ponytail:` in components/ and apps/
-(2026-10-30; `git grep -n ponytail: -- components apps | wc -l`); this table holds
+425 smaller shortcuts are marked `ponytail:` in components/ and apps/
+(2026-10-31; `git grep -n ponytail: -- components apps | wc -l`); this table holds
 the ones a player could notice or a test could trip on.
 
 ## Additions

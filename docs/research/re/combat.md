@@ -21,6 +21,21 @@ in this function, by int index:
 | 0x12 | (life-related, FUN_0057a980) | |
 | 0x13 | total damage (8.8 fixed) | subtracted from stat 6 (life) |
 
+Life (stat 6) and this total are both in 256ths, and the unit is dead when its
+life is under 0x100 after the hit (LAB_0057c865: set to 0). The elements get
+there through FUN_0057c1e0: each record field of the table at 0x732980
+(lightning +0x1c with resist stat 0x29, pierce 0x14e, absorb 0x90 / 0x91) goes
+through FUN_0057bf80: the resistance (FUN_0057be00: the attacker's pierce
+taken off, -100 at the least; a plain monster gets no difficulty penalty and no
+75 % cap, LAB_0057c242), 100 % or more is nothing, else MulDiv
+(FUN_00483360) of the fine value, then absorb (FUN_0057bf10). d2d keeps whole
+points in `Monster::hit_points` plus `life_frac` (256ths already taken off it);
+only a missile's element roll (FUN_005a89a0) carries a fraction (`Blow::frac`,
+`rules::resisted_fine`), a heal (FUN_0057a980, `heal`) is whole points capped
+at max life, and dead is life 0. Physical, poison, burning, thorns, pets and
+mercs still deal whole points (ponytail: not traced one by one).
+Oracle: `tools/emu/life_apply.py` against `test_game --life-apply`.
+
 Life after the hit below 0x100 (under 1 point) is set to 0: the unit is
 dead, and result flag 2 is set. FUN_0057aa60 / FUN_0057aaa0 do the same
 for mana (stat 8) and stamina (stat 10).
@@ -219,8 +234,8 @@ and the merc's struck frame). tools/emu/hit_rule.py runs game.exe's
 
 - Crushing blow: a quarter of current life less physical resistance, with
   no boss or difficulty divisors.
-- FHR and FBR act as animation-rate bonuses, not the per-class breakpoint
-  tables.
+- FBR acts as an animation-rate bonus on the plain frame count, not the
+  block branch's (50 + FBR, 100 under state 0x65).
 - Damage reduced %: capped at 50, applied before the flat reduction, which
   can reach 0.
 - Open wounds: 1.10's per-level table for 8 s. Leech: × MonStats Drain.
@@ -237,6 +252,43 @@ and the merc's struck frame). tools/emu/hit_rule.py runs game.exe's
   counts pieces.
 - Not in yet: skills (skills.md), monster life regeneration (MonStats
   DamageRegen), the weapon swap, champions/uniques.
+
+## Hit recovery: the length (SUnit.cpp)
+
+- **Rate** (`FUN_00623f50`'s get-hit branch, 0x62409f..0x624385, a player's
+  mode 4 or a monster's mode 3): AnimData speed x (50 + `FUN_00621740(unit,
+  row 1)`: stat 99 through 120 v / (120 + v)) / 100, floored, 0..0x7fff, at
+  unit +0x4c. The branch reads no other stat: chill (stat 69) and an aura's
+  attackrate / other_animrate don't slow a get-hit.
+- **End** (`FUN_005539b0`, from the player's mode-4 handler `FUN_0057fe30`
+  and the monster's `FUN_005a7c20`): with the start frame 0 (`FUN_00623b10`)
+  and the end at frames x 256 (`FUN_005533d0`) it adds the rate a tick while
+  the frame stays under the end, n such ticks, and queues event 1 at the game
+  frame + max(n, 1) + 1 (`FUN_005417d0`; a rate of 0: the next frame).
+  `FUN_00581020` (event 1) plays the player's NU through `FUN_0057f020`; a
+  monster's mode table (0x6e2298) ends mode 3 with `FUN_005a8030` -> NU. So a
+  Sorceress (8 frames at 256) holds 16 ticks at 0 FHR, 15 / 14 / 13 / 12 / 11
+  / 10 / 9 / 8 / 7 / 6 at 5 / 9 / 14 / 20 / 30 / 42 / 60 / 86 / 142 / 280
+  (the client's animation, stepped by `FUN_00463390`, shows one frame fewer).
+- Ported: `rules::get_hit_rate` / `get_hit_ticks` (the player's `set_pmode`,
+  a monster's and the merc's GH), checked by `tools/emu/hit_len.py` (the two
+  pieces run natively; `tools/emu/README.md` for the setup) against
+  `test_combat --get-hit-length`: `uv run python hit_len.py gen 100000 7 > cases.tsv`,
+  `... game cases.tsv > game.tsv`, `<build>/tests/test_combat --get-hit-length < cases.tsv > after.tsv`,
+  `... compare game.tsv after.tsv cases.tsv` (0 differ). `tools/emu/hit_len_harness.cpp`
+  is the old d2d's lines, for the same `compare` (the before).
+- **Drawn frame** (the client): `FUN_004b1280` on the monster mode table's
+  get-hit row (0x7252e0 + 3 x 12, [0, 1, 2]; `FUN_004af400`) tests "over"
+  (`FUN_006217c0`: +0x44 + rate >= +0x48) and, not over, steps (`FUN_00623e00`:
+  +0x44 += rate); the draw shows +0x44 >> 8 (`FUN_00621810`, 0x4715ca). The
+  animation plays once at the get-hit rate and stands on its last stepped
+  frame; it never loops (a Zombie: 0 0 0 0 1 1 1 2 2 2 2 3 3 3 4 4 4 over its
+  17 ticks). A player's `FUN_00463390` (row 4 of 0x711e00, [0, 1, 2]) steps
+  the same way and, re-testing after the step, ends the mode a tick before
+  the server's event. Ported for monsters and the merc: `rules::get_hit_frame`
+  (`Unit::get_hit_rate` in the renderer), checked by the oracle `hit_render.py`
+  (the PR's; game.exe's step and draw run natively) against `test_combat --get-hit-frames`. Not ported: the player's own frames
+  (prate, a stretch over the hold); a joined game's merc has no FHR on the wire.
 
 ## Cold, freeze and poison lengths (SUnitDmg.cpp)
 
@@ -292,8 +344,8 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   drink. Pets: `FUN_005856a0`.
 - **Antidote / thawing** (misc.txt pSpell 6): states antidote / thawing
   for len 750 (+50 poison / cold resist, +10 max), clearing cstate1 / 2
-  (poison; freeze, cold). Akara stocks both. The timed resist isn't
-  ported.
+  (poison; freeze, cold). Akara stocks both. The state (`FUN_005beda0`):
+  a second drink adds len to what's left; its stats set while it lasts.
 
 ## Death
 

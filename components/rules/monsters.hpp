@@ -318,7 +318,7 @@ inline int player_exp_pct(int players) {
 //   the monster owns itself (FUN_0064b860 -> FUN_00644c90), and the
 //   Council and baalhighpriest fire only through their Hydra's heads
 //   (FUN_005ca910, the heads owning the missiles): kept, none of them acts.
-struct MonProps { int ias = 0, fcr = 0, crush = 0, knock = 0, thorns = 0, stupidity = 0, fire_mastery = 0, fade = 0; };
+struct MonProps { int ias = 0, fcr = 0, fhr = 0, crush = 0, knock = 0, thorns = 0, stupidity = 0, fire_mastery = 0, fade = 0; };
 inline MonProps monster_props(const Tables& tables, const MonType& type, int difficulty, Rng& unit_seed) {
     MonProps props;
     for (const auto& slot : type.props[std::size_t(std::clamp(difficulty, 0, 2))]) {
@@ -330,6 +330,7 @@ inline MonProps monster_props(const Tables& tables, const MonType& type, int dif
             switch (stat.stat) {
                 case kFasterAttackRate: props.ias += stat.value; break;
                 case kFasterCastRate: props.fcr += stat.value; break;
+                case kFasterGetHitRate: props.fhr += stat.value; break;
                 case kCrushingBlow: props.crush += stat.value; break;
                 case kKnockback: props.knock += stat.value; break;
                 case kAttackerTakesDamage: props.thorns += stat.value; break;
@@ -1184,6 +1185,7 @@ struct ThinkIn {
     int regen = 0, target_fire_res = 0, target_cold_res = 0;
     bool second = false, kin = false, aid = false, usable = true, aura_on = true;
     int second_dist = 0x7fffffff, kin_dist = 0, in_reach = 0;
+    ThinkUnit* away_from = nullptr;             // whom `away` backs off from (the second target's back-offs)
     std::vector<ThinkEffect>* effects = nullptr;
     int* steps = nullptr;
     // The Vulture's: its spot and the target's (subtiles); the target in its
@@ -1377,6 +1379,14 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     auto roll = [&] { return rng(100); };
     auto a1_or_a2 = [&](int chance) { return Think{ roll() < chance ? MonAct::a1 : MonAct::a2 }; };
     const Think idle2{ MonAct::idle, aip[1] }, walk{ MonAct::walk, 7 };
+    // An act at the second target (FUN_005ddc30), a back-off from it.
+    auto at_second = [](Think out) { out.unit = ThinkUnit::second; return out; };
+    auto away_second = [&](int subtiles, bool running) {
+        if (input.away_from) *input.away_from = ThinkUnit::second;
+        const bool set_off = away(subtiles, running);
+        if (input.away_from) *input.away_from = ThinkUnit::target;
+        return set_off;
+    };
     // Skeleton (2, FUN_005efcf0; hellbovine too).
     if (ai_name == "Skeleton") {
         if (!input.in_melee) { if (roll() < aip[0]) return walk; }
@@ -1391,19 +1401,19 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         return { MonAct::run };
     }
     // Bighead (4, FUN_005eff50): above aip1 % life it closes in (aip3 % a
-    // shot within 15); below, it backs off under 3, walks in past 15, else
-    // aip4 % shoots, aip2 % circles, else stands 10.
-    // ponytail: the second target search (FUN_005ddc30) taken as its target.
+    // shot within 15); below, it backs off under 3 (pace 50), walks in past
+    // 15, else aip4 % shoots, aip2 % circles, else stands 10. A shot (at
+    // the target) needs a second target (FUN_005ddc30), its distance unread.
     if (ai_name == "Bighead") {
         if (!input.in_melee && input.got_hit) return { MonAct::a2 };
         if (input.life_pct >= aip[0]) {
             if (input.in_melee) return { MonAct::a1 };
-            if (input.dist < 15 && roll() < aip[2]) return { MonAct::a2 };
+            if (input.dist < 15 && input.second && roll() < aip[2]) return { MonAct::a2 };
             return walk;
         }
-        if (input.dist < 3) return away(5, false) ? Think{ MonAct::none } : Think{ MonAct::a2 };
+        if (input.dist < 3) { *input.pace = 50; return away(5, false) ? Think{ MonAct::none } : Think{ MonAct::a2 }; }
         if (input.dist > 15) return { MonAct::approach, 6 };
-        if (roll() < aip[3]) return { MonAct::a2 };
+        if (input.second && roll() < aip[3]) return { MonAct::a2 };
         if (roll() >= aip[1]) return { MonAct::idle, 10 };
         return think_circle(rng, 3);
     }
@@ -1460,20 +1470,22 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         }
         return { MonAct::a2 };
     }
-    // CorruptArcher (35, FUN_005f5a20): shoots a foe it's hit by; under 6,
-    // aip4 % runs 12 off; past aip8, aip1 % walks in; past aip5 runs in;
+    // CorruptArcher (35, FUN_005f5a20): at its second target (FUN_005ddc30,
+    // its distance); none, it circles 3 or (50 %) stands aip3. It shoots a
+    // foe it's hit by; under 6, aip4 % runs 12 off (pace 100); past aip8,
+    // aip1 % walks in to aip8 (pace 10); past aip5 runs in aip5 (pace 100);
     // else aip2 % a shot (Skill2 aip6 %, Skill3 aip7 %, else Skill1 or A1).
-    // ponytail: its target search (FUN_005ddc30) is the think's target; with
-    // none the driver doesn't call it, so the 50 % circle is left out.
     if (ai_name == "CorruptArcher") {
-        if (!input.in_melee && input.got_hit) return { MonAct::a1 };
-        if (input.dist < 6 && roll() < aip[3] && away(12, true)) return { MonAct::none };
-        if (aip[7] > 0 && aip[7] < input.dist && roll() < aip[0]) return { MonAct::approach, aip[7] };
-        if (aip[4] < input.dist) return { MonAct::run };
+        if (!input.second) return roll() > 49 ? Think{ MonAct::idle, aip[2] } : think_circle(rng, 3);
+        const int dist = input.second_dist;
+        if (!input.in_melee && input.got_hit) return at_second({ MonAct::a1 });
+        if (dist < 6 && roll() < aip[3]) { *input.pace = 100; if (away_second(12, true)) return { MonAct::none }; }
+        if (aip[7] > 0 && aip[7] < dist && roll() < aip[0]) { *input.pace = 10; return at_second({ MonAct::approach, aip[7] }); }
+        if (aip[4] < dist) { *input.pace = 100; return at_second({ MonAct::run, aip[4] }); }
         if (roll() >= aip[1]) return { MonAct::idle, aip[2] };
-        if (input.skill[1] && roll() < aip[5]) return { MonAct::skill, 1 };
-        if (input.skill[2] && roll() < aip[6]) return { MonAct::skill, 2 };
-        return input.skill[0] ? Think{ MonAct::skill, 0 } : Think{ MonAct::a1 };
+        if (input.skill[1] && roll() < aip[5]) return at_second({ MonAct::skill, 1 });
+        if (input.skill[2] && roll() < aip[6]) return at_second({ MonAct::skill, 2 });
+        return at_second(input.skill[0] ? Think{ MonAct::skill, 0 } : Think{ MonAct::a1 });
     }
     // CorruptLancer (36, FUN_005f5d50): runs in past aip5 (state 1: it
     // strikes on arrival); at range aip1 % closes in (aip4 % running);
@@ -1592,17 +1604,20 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (roll() < 30 && away(12 - input.dist, true)) return { MonAct::none };
         return { MonAct::a1 };
     }
-    // SkeletonMage (FUN_005f96c0): past aip2, aip3 % closes to aip2; within
-    // aip4, aip5 % backs off 5 (blocked: A1); within aip6, aip1 % shoots
-    // (A1, MissA1); past aip2 aip3 % again closes in; else aip7 % circles 4,
-    // else stands aip8.
-    // ponytail: its target search (FUN_005ddc30) is the think's target, so
-    // the first test comes round twice.
+    // SkeletonMage (FUN_005f96c0): with a second target (FUN_005ddc30) by
+    // its distance: past aip2, aip3 % closes to aip2 (pace 10); within
+    // aip4, aip5 % backs off 5 from it (pace 25; blocked: A1 at the
+    // target); within aip6, aip1 % shoots it (A1, MissA1). Then, the
+    // distance 0x7fffffff with none, past aip2 aip3 % closes in on the
+    // target; else aip7 % circles 4, else stands aip8.
     if (ai_name == "SkeletonMage") {
-        if (aip[1] < input.dist && roll() < aip[2]) return { MonAct::approach, aip[1] };
-        if (input.dist <= aip[3] && roll() < aip[4]) return away(5, false) ? Think{ MonAct::none } : Think{ MonAct::a1 };
-        if (input.dist < aip[5] && roll() < aip[0]) return { MonAct::a1 };
-        if (aip[1] < input.dist && roll() < aip[2]) return { MonAct::approach, aip[1] };
+        const int dist = input.second ? input.second_dist : 0x7fffffff;
+        if (input.second) {
+            if (aip[1] < dist && roll() < aip[2]) { *input.pace = 10; return at_second({ MonAct::approach, aip[1] }); }
+            if (dist <= aip[3] && roll() < aip[4]) { *input.pace = 25; return away_second(5, false) ? Think{ MonAct::none } : Think{ MonAct::a1 }; }
+            if (dist < aip[5] && roll() < aip[0]) return at_second({ MonAct::a1 });
+        }
+        if (aip[1] < dist && roll() < aip[2]) { *input.pace = 10; return { MonAct::approach, aip[1] }; }
         if (roll() >= aip[6]) return { MonAct::idle, aip[7] };
         return think_circle(rng, 4);
     }
@@ -1666,11 +1681,13 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // 70 %, else a shot), else 33 % circles 4, else stands 10; aip3 or more
     // off it walks in on, else stands 15; then aip2 % a cast or a shot (25
     // % circles 4 first) or walks in; else past 20 walks in, under 9 50 %
-    // backs off 8, else 50 % circles 4, else stands 10.
-    // ponytail: the second target search (FUN_005ddc30) taken as its target.
+    // backs off 8, else 50 % circles 4, else stands 10. A shot but the
+    // hit one in melee (at the target) needs a second target (FUN_005ddc30)
+    // and goes at it, by its distance; a back-off's pace stays when blocked.
     if (ai_name == "Vampire") {
-        const bool shoots = aip[4] & 1;
-        auto shot = [&] { return Think{ MonAct::skill, roll() < 50 ? 0 : 3 }; };
+        const bool shoots = aip[4] & 1, at_hand = shoots && input.second;
+        const int second_dist = input.second ? input.second_dist : 0x7fffffff;
+        auto shot = [&](ThinkUnit unit) { Think out{ MonAct::skill, roll() < 50 ? 0 : 3 }; out.unit = unit; return out; };
         auto cast = [&] {                                   // FUN_005dead0(Sk2mode / Sk3mode, at the target)
             for (const int skill : { 1, 2 })
                 if ((aip[4] & (skill << 1)) && *input.state3 < 1 && roll() < aip[3]) { *input.state3 = 11; return skill; }
@@ -1680,18 +1697,17 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (input.got_hit) {
             if (*input.state == 0) *input.state = 1;
             if (input.dist < 30 && *input.state2 < input.dist) *input.state2 = input.dist;
-            if (input.in_melee) return roll() > 30 || !shoots ? Think{ MonAct::a1 } : shot();
+            if (input.in_melee) return roll() > 30 || !shoots ? Think{ MonAct::a1 } : shot(ThinkUnit::target);
         }
         if (*input.state == 2) {
             if (input.life_pct > 74) { *input.state = 1; return walk; }
             if (input.dist < 14 || input.dist <= *input.state2) {
                 *input.pace = input.velocity > 0 ? std::clamp(input.run * 100 / input.velocity - 100, 0, 120) : 0;
                 if (away(8, false)) return { MonAct::none };       // flags 4: no aidel think when it can't
-                *input.pace = 0;
             }
             if (aip[2] <= input.dist || roll() >= aip[1]) return { MonAct::idle, 15 };
             if (const int skill = cast()) return { MonAct::skill, skill };
-            return !shoots || input.dist > 20 ? think_circle(rng, 4) : shot();
+            return !at_hand || second_dist > 20 ? think_circle(rng, 4) : shot(ThinkUnit::second);
         }
         if (input.life_pct < 33) {
             *input.state = 2;
@@ -1700,8 +1716,8 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         if (input.in_melee) {
             *input.state = 1;
             if (roll() < aip[0]) {
-                if (!shoots || roll() > 30) return { MonAct::a1 };
-                if (input.dist < 21) return shot();
+                if (!at_hand || roll() > 30) return { MonAct::a1 };
+                if (second_dist < 21) return shot(ThinkUnit::second);
             }
             return roll() < 33 ? think_circle(rng, 4) : Think{ MonAct::idle, 10 };
         }
@@ -1713,8 +1729,8 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             return roll() < 50 ? think_circle(rng, 4) : Think{ MonAct::idle, 10 };
         }
         if (const int skill = cast()) return { MonAct::skill, skill };
-        if (!shoots || input.dist > 20) return walk;
-        return roll() > 74 ? think_circle(rng, 4) : shot();
+        if (!at_hand || second_dist > 20) return walk;
+        return roll() > 74 ? think_circle(rng, 4) : shot(ThinkUnit::second);
     }
     // Fetish (30, FUN_005f53e0): at rest (state 0) in melee it squares up
     // (state 1); squared up, after aip3 thinks (state2) with its target

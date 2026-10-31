@@ -11,6 +11,7 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <string_view>
@@ -25,6 +26,33 @@ int main(int argc, char** argv) {
     if (argc > 1 && std::string_view(argv[1]) == "--walk-rates") {
         for (const int mode : { 2, 3, 6 })
             for (int percent = 0; percent <= 400; ++percent) std::printf("%d %d %d\n", mode, percent, moving_anim_rate(mode == 3, percent));
+        return 0;
+    }
+    // `--get-hit-length`: the ticks a get-hit mode holds for the cases on stdin (`id kind speed
+    // frames fhr ...`, as tools/emu/hit_len.py writes and runs game.exe's FUN_00623f50 branch and
+    // FUN_005539b0 on): `id rate ticks` a case, kind 0 a player and 1 a monster (the same rule).
+    if (argc > 1 && std::string_view(argv[1]) == "--get-hit-length") {
+        long case_id, kind, speed, frames, fhr;
+        char line[512];
+        while (std::fgets(line, sizeof line, stdin)) {
+            if (line[0] == '#' || std::sscanf(line, "%ld %ld %ld %ld %ld", &case_id, &kind, &speed, &frames, &fhr) != 5) continue;
+            std::printf("%ld %d %d\n", case_id, get_hit_rate(int(speed), int(fhr)), get_hit_ticks(int(frames), int(speed), int(fhr)));
+        }
+        return 0;
+    }
+    // `--get-hit-frames`: the frame drawn at each tick of a monster's (or the merc's) get-hit hold for
+    // the kind-1 cases on stdin (tools/emu/hit_render.py's, which runs game.exe's client step
+    // FUN_004b1280 and the draw's FUN_00621810 on them): `id rate ticks f0 f1 ...` a case.
+    if (argc > 1 && std::string_view(argv[1]) == "--get-hit-frames") {
+        long case_id, kind, speed, frames, fhr;
+        char line[512];
+        while (std::fgets(line, sizeof line, stdin)) {
+            if (line[0] == '#' || std::sscanf(line, "%ld %ld %ld %ld %ld", &case_id, &kind, &speed, &frames, &fhr) != 5 || kind != 1) continue;
+            const int rate = get_hit_rate(int(speed), int(fhr)), ticks = get_hit_ticks(int(frames), int(speed), int(fhr));
+            std::printf("%ld %d %d", case_id, rate, ticks);
+            for (int tick = 0; tick < ticks; ++tick) std::printf(" %d", get_hit_frame(int(frames), rate, tick));
+            std::printf("\n");
+        }
         return 0;
     }
     // `--cast-rates`: the cast speed and the ticks of a plain cast at every FCR 0..400, as
@@ -133,6 +161,14 @@ int main(int argc, char** argv) {
         assert(steps == 4 && snd::footfall(0, 256, 2048, 2, 0) && snd::footfall(1024, 256, 2048, 2, 0) && !snd::footfall(512, 256, 2048, 2, 0));
         assert(snd::footstep(2816, 1, false) == 2816 && snd::footstep(2816, 6, true) == 2816 + 20 + 24 && snd::footstep(0, 3, false) == 0);
         assert(snd::floor_material(0x20) == 1 && snd::floor_material(0x400) == 5 && snd::floor_material(0x80) == 6 && snd::floor_material(2) == 0);
+        // FUN_004cadb0: the first tile at the cell. A flagless one keeps the level default.
+        struct FloorTile { int x, y; unsigned material; };
+        const std::vector<std::vector<FloorTile>> sand_then_wood{ { { 1, 2, 0x40 }, { 1, 2, 0x80 } } };
+        const std::vector<std::vector<FloorTile>> blank_then_sand{ { { 1, 2, 0 }, { 1, 2, 0x40 } } };
+        const std::vector<std::vector<FloorTile>> other_cell{ { { 9, 9, 0x80 } } };
+        assert(snd::first_floor_material(sand_then_wood, 1, 2, 3) == 4);
+        assert(snd::first_floor_material(blank_then_sand, 1, 2, 3) == 3);
+        assert(snd::first_floor_material(other_cell, 1, 2, 3) == 3);
         tables.item_base["hax"].hit_class = 0;
     }
     sum[17] = sum[18] = 100;                                          // enhanced damage off the weapon: no effect (op 13)
@@ -178,6 +214,21 @@ int main(int argc, char** argv) {
     assert(speed_frames(14, 37) == 11 && speed_frames(14, 63) == 10);
     assert(speed_frames(14, 105) == 9 && speed_frames(14, 200) == 8);
     assert(speed_frames(0, 105) == 0 && speed_frames(-3, 105) == 0);   // no anim, no shortening
+    // The get-hit's rate and the ticks its mode holds (tools/emu/hit_len.py runs FUN_00623f50's
+    // branch and FUN_005539b0): the Sorceress's 8 frames at 256 by FHR, a Zombie's 5 at 152.
+    assert(get_hit_rate(256, 0) == 128 && get_hit_rate(256, 20) == 171 && get_hit_rate(256, 86) == 256 && get_hit_rate(152, 0) == 76);
+    assert(get_hit_ticks(8, 256, 0) == 16 && get_hit_ticks(8, 256, 5) == 15 && get_hit_ticks(8, 256, 9) == 14 && get_hit_ticks(8, 256, 14) == 13);
+    assert(get_hit_ticks(8, 256, 20) == 12 && get_hit_ticks(8, 256, 30) == 11 && get_hit_ticks(8, 256, 42) == 10 && get_hit_ticks(8, 256, 60) == 9);
+    assert(get_hit_ticks(8, 256, 86) == 8 && get_hit_ticks(8, 256, 142) == 7 && get_hit_ticks(8, 256, 280) == 6 && get_hit_ticks(8, 256, 1000) == 6);
+    assert(get_hit_ticks(5, 152, 0) == 17 && get_hit_ticks(7, 256, 0) == 14 && get_hit_ticks(1, 512, 0) == 2 && get_hit_ticks(8, 1, 0) == 1);
+    // The drawn frame a tick at a time (FUN_004b1280 / FUN_00621810): a Zombie's 5 frames at 76 over its 17 ticks, once
+    // and held; a Sorceress at 0 FHR two ticks a frame; past the hold the last stepped frame stays; a rate of 0 stays on 0.
+    {
+        const std::array<int, 17> zombie{ 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4 };
+        for (int tick = 0; tick < 17; ++tick) assert(get_hit_frame(5, get_hit_rate(152, 0), tick) == zombie[std::size_t(tick)]);
+        for (int tick = 0; tick < 16; ++tick) assert(get_hit_frame(8, get_hit_rate(256, 0), tick) == tick / 2);
+        assert(get_hit_frame(8, 128, 40) == 7 && get_hit_frame(8, 512, 3) == 6 && get_hit_frame(8, 512, 9) == 6 && get_hit_frame(8, 0, 5) == 0);
+    }
     // Casts (game.exe's own code, tools/emu/cast_rates.py): a plain cast is a tick under
     // ceil(256 x frames / speed). Sorc SC, 14 frames: 13 at 0 FCR, then 12 / 11 / 10 / 9 / 8 / 7
     // from 9 / 20 / 37 / 63 / 105 / 200.
@@ -329,6 +380,27 @@ int main(int argc, char** argv) {
         damage.etype = 2;
         const auto cold_kill = missile_blow(damage, missile_target, { 0, 0, 500, 0 }, rng);
         assert(cold_kill.damage == 200 && cold_kill.chill_ticks == 50);                    // -100 % at the least, the length too
+        // A Charged Bolt of 2-4 (FUN_005a89a0 rolls in 256ths and life takes them as is): the mean is 3.0, not 2.5.
+        MissileDamage bolt{ .etype = 1, .elo = 2 << 8, .ehi = 4 << 8, .elen = 25 };
+        Rng bolt_rng{ 7 };                                          // its own, so the seeded checks below keep their draws
+        std::int64_t dealt = 0;
+        constexpr int kBolts = 20000;
+        for (int i = 0; i < kBolts; ++i) {
+            const auto bolt_blow = missile_blow(bolt, Target{}, {}, bolt_rng);
+            assert(bolt_blow.frac >= 0 && bolt_blow.frac < 256);
+            dealt += std::int64_t(bolt_blow.damage) * 256 + bolt_blow.frac;
+        }
+        assert(std::abs(double(dealt) / kBolts / 256 - 3.0) < 0.03);
+        {   // MulDiv (FUN_00483360), cases run on game.exe in tools/emu: each branch, the wraps.
+            constexpr std::array<std::array<int, 4>, 11> kCases{ { { 25600, 40, 100, 10240 }, { 1280000, 37, 100, 473600 }, { 1048577, 3, 7, 449388 },
+                { 8388607, 99, 3, 276823998 }, { 1000, 65537, 9, 7281000 }, { 70000, 131072, 3, -1236667296 }, { 70000, 131072, 36864, 248888 },
+                { 1048576, 65536, 1, 0 }, { 5, 5, 0, 0 }, { -512, 30, 100, -153 }, { 2097152, 50, 196608, 533 } } };
+            for (const auto& [value, times, over, want] : kCases) assert(mul_div(value, times, over) == want);
+        }
+        // The resistance applies to the fine roll (FUN_0057bf80, MulDiv FUN_00483360).
+        assert(resisted_fine(767, 33) == 513 && resisted_fine(767, 0) == 767 && resisted_fine(767, 100) == 0 && resisted_fine(767, -100) == 1534);
+        assert(resisted_fine(0x100001, 50) == 524250 && resisted_fine(0x100000, 50) == 524288);   // over 0x100000 the quotient comes first
+        assert(resisted_fine(0, 50) == 0 && resisted_fine(-256, -100) == 0 && resisted_fine(0x7fffffff, -100) == 0);   // nothing at or under 0 (LAB_0057bf94); a 32-bit wrap deals nothing
         damage.etype = 3;
         const auto plain_blow = missile_blow(damage, missile_target, {}, rng);
         assert(plain_blow.damage == 0 && plain_blow.poison == 100 * 25 && plain_blow.poison_ticks == 25);

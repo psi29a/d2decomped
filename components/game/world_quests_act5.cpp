@@ -205,8 +205,9 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         // experience FUN_0058c5c0), the rest bit 14 (FUN_0058c780); the chain.
         // Each while they're up: its statue due back, and its death missile
         // (FUN_0058c8d0: "ancient death center", flags 0x420) from where it
-        // fell to its statue, its range the frames to get there (FUN_0056ee90).
-        // ponytail: the distance is the straight line; FUN_006417f0's isn't traced.
+        // fell to its statue, its range the frames to get there (flag 0x400,
+        // FUN_0059fa30: FUN_006417f0's subtile distance, at least 1, << 16 over
+        // velocity << 4).
         const auto ancient = std::ranges::find_if(d2d::rules::RiteQuest::kAncients, [&](int row) { return kill.type == int(game_data->mon_bin[std::size_t(row)]); });
         const int statue = ancient == d2d::rules::RiteQuest::kAncients.end() ? -1 : d2d::rules::RiteQuest::kStatueOf[std::size_t(ancient - d2d::rules::RiteQuest::kAncients.begin())];
         if (statue >= 0 && rite.ancient_fell(statue)) {
@@ -215,7 +216,8 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             if (statue_at != level->npcs.end() && center != game_data->missiles.end() && cloud != game_data->missiles.end()) {
                 const int velocity = d2d::rules::missile_velocity(center->second.vel, center->second.vel_lev, 1);
                 const float dx = statue_at->x - kill.x, dy = statue_at->y - kill.y, length = std::max(std::hypot(dx, dy), 0.01f), speed = missile_speed(velocity);
-                const auto frames = std::uint32_t((std::int64_t(length * 5) << 16) / (std::int64_t(velocity) << 4));
+                const int apart = std::max(d2d::rules::ai_distance(subtile(statue_at->x) - subtile(kill.x), subtile(statue_at->y) - subtile(kill.y)), 1);
+                const auto frames = velocity > 0 ? std::uint32_t((std::int64_t(apart) << 16) / (std::int64_t(velocity) << 4)) : 0u;
                 Missile missile{ &center->second, kill.x, kill.y, dx / length * speed, dy / length * speed, missile_facing(kill.x, kill.y, dx, dy), now_ms, now_ms + std::max(frames, 1u) * kTickMs, {} };
                 missile.visual_only = true; missile.owner = kill.id; missile.sub = &cloud->second;
                 missile.to = std::pair{ statue_at->x, statue_at->y };

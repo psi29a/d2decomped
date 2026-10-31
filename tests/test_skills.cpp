@@ -175,7 +175,7 @@ int main() {
         // from Skeleton Mastery, Revive's speed): none on the player.
         Skill raise = fire_aura;
         raise.id = int(passive_tables.rows.size()); raise.aura = false; raise.summon = "necroskeleton";
-        Skill revive = fire_aura;
+        Skill revive = std::move(fire_aura);
         revive.id = raise.id + 1; revive.aura = false; revive.srvdofunc = ServerDoFunction::kRevive;
         passive_tables.rows.push_back(raise); passive_tables.rows.push_back(revive);
         CalcEnv summoner_env{ .level = [&](int skill_id) { return skill_id == raise.id || skill_id == revive.id ? 5 : 0; } };

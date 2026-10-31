@@ -200,7 +200,14 @@ The stand re-arms (mode 0), so the malus can be dropped again.
   | 0x16f | 0x1c.0 | `0x4b6680` | |
 
   npc-menu.md's "Kashya hire not quest-gated" is only half the story: the entry also opens with quest 2 bit 0.
-- **`0x4b35b0` imbue:** closes the menu, sets UI mode `0x7c0c6b` = 7 and opens the item panel at `0x4c0620`. Closing it calls `0x4c02f0` from `FUN_004b3f10`. The panel's send path isn't traced; the server expects C→S 0x38 kind 0 with the cursor item.
+- **`0x4b35b0` imbue:** closes the menu, sets the NPC dialog state `0x7c0c6b` = 7 and jumps to `0x4c0620`, which sets the item panel's kind `0x7c5470` = 1 (an NPC service; 0 is the panel opened by packet, `FUN_004c0550`) and opens it (`FUN_004c0380`: state `0x7c5474` = 1, the inventory beside it). Closing it calls `0x4c02f0` from `FUN_004b3f10`.
+- **The item panel (`.\UI\UseItem.cpp`), one slot and two buttons:**
+  - Draw: `FUN_004c01e0` → `FUN_004bfdd0`, the panel at (0x69, 0x10e) and its buttons from the table at `0x7278fc` (0x28-byte records; the label of service button 0 is 0xfb1 for Charsi).
+  - Press (`FUN_004bfc50`, at most one every 400 ms): with an item on the cursor (`FUN_0063c1e0`) and the click in the slot, x 0x7b..0xd3, y 0x6a..0xdc, the item is placed only if it is identified (flag 0x10, `FUN_006280a0`) and the NPC's check passes: Charsi (0x9a) `FUN_0062c590`, the imbue rule, 0x1ff `FUN_0062c770`, 0x200 `FUN_0062c6a0`. Otherwise the press only plays the click (`FUN_004b9a00`).
+  - Place (`FUN_004bfa70`): state 1 → 2, the item's id (+0xc) to `0x7c5480`, its drop sound (`FUN_004c1d60`). The item stays the cursor item, which the server checks; `FUN_00468070` only draws it in the slot. A press on the slot in state 2 takes it back (state 1).
+  - Release (`FUN_004c04e0` → `FUN_004c0450`): button 0 is `FUN_004bfaf0`, button 1 or the close box (`FUN_00489190`) is `FUN_004c02f0`, cancel.
+  - Send (`FUN_004bfaf0`, state 2 only): a wait box (string 0xd19), state 3, then `FUN_004b2370` sends **C→S 0x38 {kind 0, npc `0x7c0d25`, item `0x7c5480`}** (`FUN_004786d0`, 13 bytes). Nothing is sent before the button.
+  - d2d: Imbue arms a pick and the next click on an item takes it up and sends at once (town.cpp `imbue_with`); no slot, no button, no identified or eligibility check on the client.
 - **Server, C→S 0x38: `FUN_00579d60(game, player, kind, npcGuid, itemId)`**, kind 0, npc class 0x9a:
   ```
   result = 7 (fail)
@@ -833,7 +840,6 @@ FUN_00547170(game, obj, ...)   // push {room, dest wp x, y} onto game+0x10f0->+0
 
 ## Not yet traced
 
-- **Imbue:** the client item panel's send path (`0x4c0620` / `0x4c01e0`) that emits C→S 0x38 kind 0.
 - **a1q6:** the log state on Catacombs levels 1–3 (the `0x596062` path).
 - **Act load:** the contents of the 10-byte act-load packet (`FUN_0053c900`).
 - **Waypoints:** `FUN_00548ef0`; the EDX of `FUN_00553380` in the 10-second refusal; the field layout of `FUN_0053b4b0`.

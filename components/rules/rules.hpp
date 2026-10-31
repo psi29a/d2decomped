@@ -18,6 +18,7 @@
 #include <functional>
 #include <optional>
 #include <queue>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -40,6 +41,7 @@ struct ItemInfo {
     std::string drop_sound;            // dropsound, played at flippy frame dropsfxframe
     int drop_frame = 0;
     std::string use_sound;             // usesound, played when the item is picked up, put down or worn
+    int range_adder = 0;               // weapons.txt rangeadder (the item record's +0x104 byte, FUN_006288d0)
 };
 // ItemTypes.txt by Code: the Equiv parents, the BodyLocs.txt slots the
 // type can be worn in (BodyLoc1/2, not inherited), its class (ama, sor,
@@ -232,7 +234,10 @@ struct Tables {
     // misc.txt potions: life / mana restored (hpregen / manarecovery: that
     // much over `ticks`; hitpoints / mana on a rejuvenation: percent, at once;
     // stamina: staminarecoverybonus % for `ticks`).
-    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false, antidote = false, thawing = false; int stamina = 0; };
+    // An antidote's / thawing's state (pSpell 6): its stats (ItemStatCost
+    // id, value) for `ticks` frames.
+    struct Potion { int life = 0, mana = 0, ticks = 0; bool percent = false, antidote = false, thawing = false; int stamina = 0;
+                    std::vector<std::pair<int, int>> state_stats; };
     std::unordered_map<std::string, Potion> potions;
 };
 
@@ -312,38 +317,81 @@ inline std::pair<int, int> item_size(const Tables& tables, const std::string& co
     return info != tables.item_info.end() ? std::pair{ info->second.width, info->second.height } : std::pair{ 1, 1 };
 }
 
-// First free w x h spot in a cols x rows grid of placed items, scanning
-// column by column (where D2 autoplaces pickups); {-1, -1} if full.
+// Where an inventory grid takes an item it's given (FUN_00560200 ->
+// FUN_0063b950 -> FUN_0063b850): a w x h spot in the cols x rows grid of
+// placed items, wholly free (FUN_0063a8a0). A player's grid (its owner unit
+// type 0: `players`) takes the best fit, the most edges and items touching
+// the spot's sides (FUN_0063b340; all of them, 2 x (w + h), stops the
+// search; none touching never wins), the first of a score in its order;
+// another's (a store's) the first fit. 1-high items search from the right
+// column, a player's from the bottom row up (FUN_0063b490), else from the
+// top (FUN_0063b540); the rest a player's row by row from the top left
+// (FUN_0063b620), else column by column from the left (FUN_0063b6e0).
+// {-1, -1} if none. tests/test_rules.cpp checks the orders.
 inline std::pair<int, int> free_spot(const Tables& tables, const std::vector<const d2d::d2s::Item*>& placed,
-                                     int cols, int rows, int width, int height) {
+                                     int cols, int rows, int width, int height, bool players) {
     std::vector<bool> used(std::size_t(cols * rows));
     for (const auto* placed_item : placed) {
         const auto [item_width, item_height] = item_size(tables, placed_item->code);
-        for (int y = placed_item->row; y < std::min(placed_item->row + item_height, rows); ++y)
-            for (int x = placed_item->column; x < std::min(placed_item->column + item_width, cols); ++x) used[std::size_t(y * cols + x)] = true;
+        for (int row = placed_item->row; row < std::min(placed_item->row + item_height, rows); ++row)
+            for (int column = placed_item->column; column < std::min(placed_item->column + item_width, cols); ++column) used[std::size_t(row * cols + column)] = true;
     }
-    for (int x = 0; x + width <= cols; ++x)
-        for (int y = 0; y + height <= rows; ++y) {
-            bool free = true;
-            for (int row = y; row < y + height && free; ++row)
-                for (int column = x; column < x + width && free; ++column) free = !used[std::size_t(row * cols + column)];
-            if (free) return { x, y };
+    const auto taken = [&](int column, int row) { return bool(used[std::size_t(row * cols + column)]); };
+    const auto fits = [&](int start_column, int start_row) {
+        if (taken(start_column, start_row) || start_column + width > cols || start_row + height > rows) return false;
+        for (int row = start_row; row < start_row + height; ++row)
+            for (int column = start_column; column < start_column + width; ++column)
+                if (taken(column, row)) return false;
+        return true;
+    };
+    const auto score = [&](int start_column, int start_row) {                     // FUN_0063b340
+        int touching = 0;
+        for (int row = start_row; row < start_row + height; ++row) {
+            touching += start_column < 1 ? 1 : taken(start_column - 1, row);
+            touching += start_column + width < cols ? taken(start_column + width, row) : 1;
         }
-    return { -1, -1 };
+        for (int column = start_column; column < start_column + width; ++column) {
+            touching += start_row < 1 ? 1 : taken(column, start_row - 1);
+            touching += start_row + height < rows ? taken(column, start_row + height) : 1;
+        }
+        return touching >= 2 * (width + height) ? 0xff : touching;
+    };
+    int best = 0;
+    std::pair spot{ -1, -1 };
+    const auto consider = [&](int start_column, int start_row) {    // true: stop
+        if (!fits(start_column, start_row)) return false;
+        if (!players) { spot = { start_column, start_row }; return true; }
+        if (const int fit = score(start_column, start_row); fit > best) { best = fit; spot = { start_column, start_row }; return fit == 0xff; }
+        return false;
+    };
+    if (height == 1) {
+        for (int column = cols - 1; column >= 0; --column)
+            for (int step = 0; step < rows; ++step)
+                if (consider(column, players ? rows - 1 - step : step)) return spot;
+    } else if (players) {
+        for (int row = 0; row < rows; ++row)
+            for (int column = 0; column < cols; ++column)
+                if (consider(column, row)) return spot;
+    } else {
+        for (int column = 0; column < cols; ++column)
+            for (int row = 0; row < rows; ++row)
+                if (consider(column, row)) return spot;
+    }
+    return spot;
 }
 
 // Puts an item into the store grid from tab on (weapons spill 1 -> 2).
 inline bool store_place(const Tables& tables, Store& store, int tab, d2d::d2s::Item item) {
     const auto [width, height] = item_size(tables, item.code);
-    for (int i = tab; i < 4; ++i) {
+    for (int page = tab; page < 4; ++page) {
         std::vector<const d2d::d2s::Item*> placed;
-        for (const auto& placed_item : store.tabs[std::size_t(i)]) placed.push_back(&placed_item);
-        if (const auto [column, row] = free_spot(tables, placed, 10, 10, width, height); column >= 0) {
+        for (const auto& placed_item : store.tabs[std::size_t(page)]) placed.push_back(&placed_item);
+        if (const auto [column, row] = free_spot(tables, placed, 10, 10, width, height, false); column >= 0) {
             item.column = column; item.row = row; item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory;
-            store.tabs[std::size_t(i)].push_back(std::move(item));
+            store.tabs[std::size_t(page)].push_back(std::move(item));
             return true;
         }
-        if (i != 1) break;
+        if (page != 1) break;
     }
     return false;
 }
@@ -590,7 +638,7 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
-    const auto [column, row] = book != items.end() ? std::pair{ 0, 0 } : free_spot(tables, inv, 10, 4, width, height);
+    const auto [column, row] = book != items.end() ? std::pair{ 0, 0 } : free_spot(tables, inv, 10, 4, width, height, true);
     if (column < 0) return false;
     if (book != items.end()) ++book->quantity;
     else {
@@ -1591,7 +1639,7 @@ inline bool store_gamble(const Tables& tables, Store& store, int index, std::vec
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
-    const auto [column, row] = free_spot(tables, inv, 10, 4, width, height);
+    const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
     if (column < 0) return false;
     item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = column; item.row = row;
     items.push_back(std::move(item));
@@ -1908,7 +1956,7 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     }
     std::vector<const Item*> inventory;
     for (const auto& carried : items) if (in_inventory(carried)) inventory.push_back(&carried);
-    const auto [column, row] = free_spot(tables, inventory, cols, rows, width, height);
+    const auto [column, row] = free_spot(tables, inventory, cols, rows, width, height, true);
     if (column < 0) return Pickup::kNoRoom;
     item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = column; item.row = row;
     items.push_back(std::move(item));
@@ -1930,6 +1978,19 @@ inline int identify_all(std::vector<d2d::d2s::Item>& items) {
             ++count;
         }
     return count;
+}
+
+// FUN_0056bd10's pick (its callback 0x56bcd0, unsigned ids) among the
+// units it found (`ids`, any order): the lowest id above `last`, else the
+// lowest one up to it (round the ring; `last` itself when it's the lowest).
+// -1 none.
+inline int ring_pick(std::span<const int> ids, int last) {
+    int above = -1, lowest = -1;
+    for (const int id : ids) {
+        if (std::uint32_t(id) > std::uint32_t(last)) { if (above < 0 || std::uint32_t(id) < std::uint32_t(above)) above = id; }
+        else if (lowest < 0 || std::uint32_t(id) <= std::uint32_t(lowest)) lowest = id;
+    }
+    return above >= 0 ? above : lowest;
 }
 
 }  // namespace d2d::rules

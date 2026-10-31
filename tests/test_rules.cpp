@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -29,6 +30,12 @@ static Item item(const char* code, int quality = 2) {
 }
 
 int main() {
+    {   // FUN_0056bd10's pick: the next id up, else the lowest up to the last (itself too).
+        const std::array ids{ 7, 3, 12, 5 };
+        assert(ring_pick(ids, 5) == 7 && ring_pick(ids, 7) == 12 && ring_pick(ids, 12) == 3 && ring_pick(ids, 2) == 3);
+        const std::array alone{ 4 };
+        assert(ring_pick(alone, 4) == 4 && ring_pick(std::span<const int>{}, 4) == -1);
+    }
     Tables tables;
     tables.item_info["hax"] = { .width = 2, .height = 3, .kind = 2 };   // weapon: store tab 1
     tables.item_info["cap"] = { .width = 2, .height = 2, .kind = 1 };   // armour: tab 0
@@ -91,6 +98,29 @@ int main() {
     assert(store_place(tables, full, 1, item("hax")) && full.tabs[2].size() == 1);
     assert(!store_place(tables, full, 0, item("cap")));
     assert(store_tab_for(tables, "cap") == 0 && store_tab_for(tables, "hax") == 1 && store_tab_for(tables, "gem") == 3);
+
+    // The spot a grid gives an item (FUN_0063b850): 1-high items from the
+    // right column, a store's first fit from the top (FUN_0063b540), a
+    // player's best fit from the bottom (FUN_0063b490, FUN_0063b340: the
+    // first of the most sides touching); the rest a player's row by row
+    // (FUN_0063b620), the most touching first.
+    {
+        const std::vector<const Item*> none;
+        assert(free_spot(tables, none, 10, 4, 1, 1, false) == std::pair(9, 0));
+        assert(free_spot(tables, none, 10, 4, 1, 1, true) == std::pair(9, 3));
+        Item corner = item("cap");
+        corner.column = 8; corner.row = 0;                        // 2 x 2 at the top right
+        const std::vector<const Item*> one{ &corner };
+        assert(free_spot(tables, one, 10, 4, 1, 1, true) == std::pair(9, 3));     // 2 touching: no better below the cap
+        assert(free_spot(tables, one, 10, 4, 2, 2, true) == std::pair(8, 2));     // under it: 6 of 8 sides
+        assert(free_spot(tables, one, 10, 4, 2, 2, false) == std::pair(0, 0));    // first fit: the left column
+        tables.item_info["post"] = { .width = 1, .height = 4 };
+        Item hole_left = item("post"), hole_right = item("post");
+        hole_left.column = 0; hole_left.row = 0;
+        hole_right.column = 2; hole_right.row = 0;
+        const std::vector<const Item*> slot{ &hole_left, &hole_right };
+        assert(free_spot(tables, slot, 10, 4, 1, 4, true) == std::pair(1, 0));    // between two posts: all 10 sides, 0xff
+    }
 
     // A stock (as rules::store_fill / game::open_store lay it): Charsi (hcIdx
     // 0x9a) is vendor 2; perm items stay after a buy. The store level caps in Normal.
@@ -501,7 +531,8 @@ int main() {
     picked = ground_item("hp2", -1);
     assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().column == 1);   // one row: hp's full, the first free column
     picked = ground_item("isc", -1);
-    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().location == 0 && carried.back().panel == 1);   // no tome: not the belt
+    assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().location == 0 && carried.back().panel == 1   // no tome: not the belt
+           && carried.back().column == 9 && carried.back().row == 3);                                                                     // a player's 1-high best fit (free_spot)
     carried.push_back(stored("ibk", 1, 2, 0)); carried.back().quantity = 19;
     picked = ground_item("isc", -1);
     assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().quantity == 20);
@@ -512,7 +543,8 @@ int main() {
     picked = ground_item("key", 5);
     assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried[carried.size() - 2].quantity == 12 && carried.back().quantity == 3);
     picked = ground_item("key", 10);
-    assert(pick_up(pick_tables, carried, picked, 1, 1, 4) == Pickup::kNoRoom && carried.back().quantity == 12 && picked.quantity == 1);   // the stack fills, the rest has no room
+    carried.push_back(stored("hp1", 1, 0, 0));                               // the 1 x 1 grid's one cell taken
+    assert(pick_up(pick_tables, carried, picked, 1, 1, 4) == Pickup::kNoRoom && carried[carried.size() - 2].quantity == 12 && picked.quantity == 1);   // the stack fills, the rest has no room
 
     std::puts("test_rules: ok");
 }
