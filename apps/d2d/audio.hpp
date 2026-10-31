@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 #include "platform.hpp"
+#include "sound_reads.hpp"
 
 #include <install.hpp>
 #include <log.hpp>
@@ -392,21 +393,21 @@ struct Audio {
         if (unplayable.contains(index)) return wav;
         // One there that won't read (a cut-short MPQ) goes unheard.
         try {
-            if (snd.music) wav = game_data.mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
-            if (snd.music && !wav) {
-                if (music_mpqs_dir != game_data.data_dir) {
-                    music_mpqs = {};
-                    music_mpqs_dir = game_data.data_dir;
-                    for (const char* name : { "d2xmusic.mpq", "d2music.mpq" })
-                        if (const auto mpq = d2d::install::find_file(music_mpqs_dir, name)) {
-                            try { music_mpqs.push(*mpq); }
-                            catch (const std::exception& error) { d2d::log::warn("music {}: {}", name, error.what()); }
-                        }
-                }
-                wav = music_mpqs.try_read(std::string(R"(data\global\music\)") + snd.file);
+            for (const auto& attempt : sound_reads(snd.file, snd.music)) {
+                if (wav) break;
+                if (attempt.from_music) {
+                    if (music_mpqs_dir != game_data.data_dir) {
+                        music_mpqs = {};
+                        music_mpqs_dir = game_data.data_dir;
+                        for (const char* name : { "d2xmusic.mpq", "d2music.mpq" })
+                            if (const auto mpq = d2d::install::find_file(music_mpqs_dir, name)) {
+                                try { music_mpqs.push(*mpq); }
+                                catch (const std::exception& error) { d2d::log::warn("music {}: {}", name, error.what()); }
+                            }
+                    }
+                    wav = music_mpqs.try_read(attempt.path);
+                } else wav = game_data.mpqs.try_read(attempt.path);
             }
-            for (const char* root : { R"(data\global\sfx\)", R"(data\local\sfx\)" })
-                if (!wav) wav = game_data.mpqs.try_read(std::string(root) + snd.file);
         } catch (const std::exception& error) {
             d2d::log::warn("sound {}: {}", index, error.what());
             unplayable.insert(index);
