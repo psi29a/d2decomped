@@ -156,6 +156,41 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    // `--price CASES`: rules::item_price (buy, sell) and rules::repair_cost of
+    // each case's item, as tools/emu/price_oracle.py prints game.exe's
+    // (FUN_0062efb0 modes 0, 1, 3). A case is `id code quality p0 s0 p1 s1
+    // p2 s2 uid identified ethereal dur maxdur qty ac npc diff`; the line is
+    // `id buy sell repair`. `--price-tables` prints the affix cost rows.
+    if (argc > 1 && std::string_view(argv[1]) == "--price-tables") {
+        for (const auto* costs : { &data->rules.prefix_cost, &data->rules.suffix_cost, &data->rules.unique_cost, &data->rules.set_cost }) {
+            for (const auto& [mul, add] : *costs) std::printf("%d,%d ", mul, add);
+            std::printf("\n");
+        }
+        return 0;
+    }
+    if (argc > 2 && std::string_view(argv[1]) == "--price") {
+        std::ifstream cases(argv[2]);
+        std::string line;
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);
+            std::string id, npc;
+            d2d::d2s::Item item;
+            int ident = 0, eth = 0, uid = -1, diff = 0, ac = 0;
+            fields >> id >> item.code >> item.quality;
+            for (int i = 0; i < 6; ++i) fields >> item.affixes[std::size_t(i)];
+            fields >> uid >> ident >> eth >> item.durability >> item.max_durability >> item.quantity >> ac >> npc >> diff;
+            if (!fields) continue;
+            item.prefix = item.affixes[0]; item.suffix = item.affixes[1];
+            if (item.quality == 5) item.set_id = uid;
+            if (item.quality == 7) item.unique_id = uid;
+            item.identified = ident != 0; item.ethereal = eth != 0; item.defense = ac;
+            d2d::d2s::Header header;
+            header.difficulty[std::size_t(diff)] |= 0x80;
+            std::printf("%s %d %d %d\n", id.c_str(), d2d::rules::item_price(data->rules, item, npc, false, header),
+                        d2d::rules::item_price(data->rules, item, npc, true, header), d2d::rules::repair_cost(data->rules, item, npc, header));
+        }
+        return 0;
+    }
     // `--belt-pickup CASES`: where rules::pick_up puts each case's item in the
     // belt, as tools/emu/belt_pickup.py prints game.exe's (FUN_0063c600):
     // `id box`, -1 when it doesn't go to the belt.
