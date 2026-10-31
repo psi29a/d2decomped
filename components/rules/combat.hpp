@@ -203,13 +203,14 @@ inline int speed_frames(int base_frames, int speed_stat) {
 // The get-hit's animation rate, 1/256 frames a tick (FUN_00623f50's get-hit
 // branch, 0x62409f..0x624385, a player's mode 4 or a monster's mode 3): the
 // AnimData speed x (50 + the effective FHR, FUN_00621740's 120 v / (120 + v)
-// of stat 99) / 100, floored, 0..0x7fff. Chill, attackrate and other_animrate
-// aren't read there.
-// ponytail: a negative FHR. FUN_00621740 divides 120 v / (120 + v) for any
-// v != 0 (toward zero; -120 divides by zero) and the tail multiplies
-// unsigned; effective_speed keeps v <= 0 as is and the clamp floors at 0.
+// of stat 99 for v != 0, truncated toward zero) / 100. Its multiply and divide
+// are unsigned (0x62435c..0x624368), so a negative factor wraps and normally
+// clamps to 0x7fff. Chill, attackrate and other_animrate aren't read there.
+// At v = -120 game.exe's IDIV divides by zero; d2d leaves that v unchanged.
 inline int get_hit_rate(int speed, int fhr) {
-    return std::clamp(speed * (50 + effective_speed(fhr)) / 100, 0, 0x7fff);
+    const int recovery = fhr != 0 && fhr != -120 ? 120 * fhr / (120 + fhr) : fhr;
+    const std::uint32_t product = std::uint32_t(speed) * std::uint32_t(50 + recovery);
+    return int(std::min(product / 100, std::uint32_t{ 0x7fff }));
 }
 
 // How many server ticks the get-hit mode holds (FUN_005539b0, the mode's

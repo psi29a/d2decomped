@@ -194,4 +194,3 @@ equal, 360 through the path test; the invis rule is read, not run).
   Freeze, Might) count as running for the pick but do nothing.
 - Vitality on its items gives no life (a hireling has no CharStats row;
   not traced further); d2d keeps no merc mana.
-- Skill 0x29's distance is the gap + 1, not FUN_006416d0.

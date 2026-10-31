@@ -175,6 +175,14 @@ int main(int argc, char** argv) {
     // The get-hit's rate and the ticks its mode holds (tools/emu/hit_len.py runs FUN_00623f50's
     // branch and FUN_005539b0): the Sorceress's 8 frames at 256 by FHR, a Zombie's 5 at 152.
     assert(get_hit_rate(256, 0) == 128 && get_hit_rate(256, 20) == 171 && get_hit_rate(256, 86) == 256 && get_hit_rate(152, 0) == 76);
+    // Negative FHR: signed effective speed, then game.exe's unsigned tail (native hit_len.py cases).
+    assert(get_hit_rate(256, -1) == 125 && get_hit_rate(256, -20) == 66 && get_hit_rate(152, -20) == 39);
+    assert(get_hit_rate(256, -35) == 2 && get_hit_rate(1, -35) == 0 && get_hit_rate(256, -36) == 0x7fff);
+    assert(get_hit_rate(256, -50) == 0x7fff && get_hit_rate(256, -119) == 0x7fff && get_hit_rate(256, -121) == 0x7fff);
+    assert(get_hit_rate(256, -200) == 896 && get_hit_rate(256, -240) == 742 && get_hit_rate(256, -1000) == 476);
+    assert(get_hit_ticks(8, 256, -1) == 17 && get_hit_ticks(8, 256, -20) == 32 && get_hit_ticks(8, 256, -35) == 1024);
+    assert(get_hit_ticks(8, 1, -35) == 1 && get_hit_ticks(8, 256, -36) == 2 && get_hit_ticks(8, 256, -200) == 3);
+    assert(get_hit_rate(256, -120) == 0x7fff);                        // d2d's defined fallback for game.exe's divide by zero
     assert(get_hit_ticks(8, 256, 0) == 16 && get_hit_ticks(8, 256, 5) == 15 && get_hit_ticks(8, 256, 9) == 14 && get_hit_ticks(8, 256, 14) == 13);
     assert(get_hit_ticks(8, 256, 20) == 12 && get_hit_ticks(8, 256, 30) == 11 && get_hit_ticks(8, 256, 42) == 10 && get_hit_ticks(8, 256, 60) == 9);
     assert(get_hit_ticks(8, 256, 86) == 8 && get_hit_ticks(8, 256, 142) == 7 && get_hit_ticks(8, 256, 280) == 6 && get_hit_ticks(8, 256, 1000) == 6);

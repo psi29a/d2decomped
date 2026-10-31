@@ -232,9 +232,14 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
 
 - **Rate** (`FUN_00623f50`'s get-hit branch, 0x62409f..0x624385, a player's
   mode 4 or a monster's mode 3): AnimData speed x (50 + `FUN_00621740(unit,
-  row 1)`: stat 99 through 120 v / (120 + v)) / 100, floored, 0..0x7fff, at
-  unit +0x4c. The branch reads no other stat: chill (stat 69) and an aura's
-  attackrate / other_animrate don't slow a get-hit.
+  row 1)`: stat 99 through 120 v / (120 + v) for v != 0, truncated toward zero)
+  / 100, 0..0x7fff, at unit +0x4c. The tail's multiply and divide are unsigned
+  (0x62435c..0x624368): once 50 + effective FHR is negative, the wrapped product
+  normally clamps the rate to 0x7fff. Native cases cross that threshold at FHR
+  -35 / -36 (rate 2 / 32767 at speed 256); FHR -200 gives 896. At exactly -120,
+  `FUN_00621740`'s IDIV divides by zero, so d2d leaves the stat unchanged as a
+  defined fallback (deviations.md #13). The branch reads no other stat: chill
+  (stat 69) and an aura's attackrate / other_animrate don't slow a get-hit.
 - **End** (`FUN_005539b0`, from the player's mode-4 handler `FUN_0057fe30`
   and the monster's `FUN_005a7c20`): with the start frame 0 (`FUN_00623b10`)
   and the end at frames x 256 (`FUN_005533d0`) it adds the rate a tick while

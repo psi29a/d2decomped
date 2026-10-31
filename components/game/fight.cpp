@@ -2316,8 +2316,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             actor->merc->next_act = now_ms + 5 * 40;
         } else if (act.kind == Kind::attack && actor->merc_target >= 0 && type_info) {
             // The attack think (FUN_005e5050) and its skill pick (FUN_005e4d30).
-            // ponytail: the 0x29 distance is the gap + 1, not FUN_006416d0;
-            // a skill's own mode token falls back to A1 without frames.
+            // ponytail: a skill's own mode token falls back to A1 without frames.
             const auto& target = monsters[std::size_t(actor->merc_target)];
             const int foe_x = sub(target.unit.x), foe_y = sub(target.unit.y), difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
             static constexpr std::array<std::string_view, 16> kModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };

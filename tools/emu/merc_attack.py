@@ -183,7 +183,7 @@ def main():
         mx, my = 5000, 5000
         # the foe `gap` off (FUN_005dc380 less the merc's size 1): along x
         tx, ty = mx + gap + 1, my
-        s["dist2"] = gap + 1                                              # FUN_006416d0 here: the plain axis gap (sizes 1)
+        s["dist2"] = gap + 1                                              # skill 0x29's distance is the gap + 1
         e.w32(merc_u, 1); e.w32(merc_u + 4, cls); e.w32(merc_u + 0xc, 77); e.w32(merc_u + 0x2c, mpath)
         e.w32(merc_u + 0x20, s["seed"][0]); e.w32(merc_u + 0x24, s["seed"][1])
         e.w32(mpath, mx << 16 | 0x8000); e.w32(mpath + 4, my << 16 | 0x8000); e.w32(mpath + 0x30, merc_u)
