@@ -1,8 +1,8 @@
 # Monsters — spawning (1.14d game.exe)
 
 Our port: `components/game/objgroups.cpp` (room population), `components/rules/monsters.hpp`
-(`monster_region`, `monster_stats`), loaded by `load_monsters` (components/game/gamedata_load.cpp), tested by
-`tests/test_monsters.cpp`. How they notice the player and when they think:
+(`monster_region`, `monster_stats`), loaded by `load_monsters` (components/game/gamedata/gamedata_load.cpp), tested by
+`tests/monsters/`. How they notice the player and when they think:
 monster-ai.md.
 
 ## Tables
@@ -172,7 +172,7 @@ distinct Ids (bugs.md #13).
   one-choice layer included. Checked in the emulator: 2000 seeds.
   FUN_00573cb0 then rolls the monster's life on the same seed.
 
-d2d: `Spawning` (components/game/gamedata.hpp, `start_spawning`,
+d2d: `Spawning` (components/game/gamedata/gamedata.hpp, `start_spawning`,
 `player_moved`), run by `Fight::rooms_up` every tick and on arrival. The
 camp's rooms are 8×8 splits row by row, the level's list newest first
 (town-start.md "The camp populating"), and closeness stands in for the
@@ -624,7 +624,7 @@ diff_drlg.py game`.
   near it (FUN_00545340, 0x3f11). The spot is where he went (his unit,
   FUN_00552f60 by the record's +0x10 id); the offsets (0x741538, index 7
   repeats index 2: bugs.md #20) start at the quest seed's next step & 1.
-  d2d: ai.cpp's DarkWanderer, `gone`; world.cpp's afterglow (`fires`,
+  d2d: ai.cpp's DarkWanderer, `gone`; world/tick.cpp's afterglow (`fires`,
   object 131 in OP, 27 ticks). `tests/quests_d2d.py` walks him off (map seed 3).
 - **Unkillable monsters** (MonStats killable 0: the Dark Wanderer, the
   compelling orb, chickens, bats, the camp's cow, traps) are made without

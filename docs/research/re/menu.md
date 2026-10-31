@@ -2,7 +2,7 @@
 
 Esc's in-game menu (UI 9) with its Options submenus, and the mini-panel
 (UI 0x15) with the HUD's button for it. d2d: `apps/d2d/gamemenu.{hpp,cpp}`,
-wired in `town.cpp`.
+wired in `town/`.
 
 ## UI flags and Esc
 

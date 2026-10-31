@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: iso9660
 // Smoke test for iso9660::Reader. Points at ~/Downloads/Diablo II + LoD/1.
 // INSTALL DISC.ISO when it exists; otherwise prints "SKIP: ..." and returns
 // D2D_TEST_SKIPPED.

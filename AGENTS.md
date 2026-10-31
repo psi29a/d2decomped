@@ -95,6 +95,15 @@ We promise:
 
    Search the issues for it (`gh issue list --search 00526700`) so two people
    don't take the same one. Opening or commenting on an issue claims it.
+   Then check the open pull requests for the files you expect to change:
+
+   ```sh
+   gh pr list --json number,title,files --jq '.[] | select(any(.files[]; .path == "components/game/fight/missiles.cpp")) | "#\(.number) \(.title)"'
+   ```
+
+   If one is already changing that code, tell them and suggest another task,
+   or waiting for that one to merge. Two pull requests in one function
+   means one of them gets rebased by hand.
 
    **Nothing fits? Say so and stop.** If `gaps.py` ends with `DONE`, or
    nothing listed fits the kind they picked, tell them, and offer play and
@@ -149,6 +158,13 @@ The same bar for everyone, people and agents alike.
 
 - A branch, and commits with a short subject line and at most three lines
   of body.
+- **Leave `docs/PLAN.md` alone.** The maintainer updates it after a merge;
+  put what changed in the pull request body. Every pull request that edits
+  it conflicts with every other one that does.
+- **Keep the branch current** with `git rebase origin/main` before asking
+  for review and after main moves. `.gitattributes` settles two rows added
+  at the end of the same research table (both stay); `tools/presubmit.py`
+  then flags a number two rows now share, and you renumber yours.
 - The pull request body follows
   [.github/pull_request_template.md](.github/pull_request_template.md)
   (`gh pr create` skips it, so fill it in with `--body-file`): what changes,
@@ -188,5 +204,17 @@ The same bar for everyone, people and agents alike.
   level. Intentional differences go in `docs/research/re/deviations.md`,
   behind `--toggle name=on|off`. Stubs and dead code go in
   `docs/research/re/stubs.md`.
+- **Add where it sorts, not at the end.** A new entry in a list that has
+  no order of its own (an include, a source list, a `debug` verb) goes in
+  its sorted place, so two pull requests touch different lines. In a
+  numbered table (`todo.md`, `bugs.md`, `deviations.md`) take the next
+  number; numbers are cited elsewhere, so never renumber the old rows.
+- **New code goes where its subsystem lives.** A subsystem split over
+  several files has its own directory beside its header
+  (`components/game/fight/`, `components/game/world/`, `apps/d2d/town/`,
+  `apps/d2d/devctl/`, `tests/game/`, `tests/monsters/`). Add to the file that
+  matches, or start a new one there; don't grow a file past about 1,500
+  lines. A new test is a new `test_*.cpp` with a `// test-links:` line
+  (tests/README.md); `tests/CMakeLists.txt` finds it.
 - Before pushing: `python3 tools/presubmit.py --quick` (lint and review
   checks), then the full run if you built.

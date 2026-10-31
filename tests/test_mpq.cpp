@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: mpq
 // Exercise the MPQ wrapper against real D2 archives if available.
 // Skips (D2D_TEST_SKIPPED) when D2_MPQ_DIR isn't set — the test can't fabricate a
 // real MPQ and we don't want CI without game data to fail.

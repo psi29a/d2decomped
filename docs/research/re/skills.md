@@ -1400,7 +1400,7 @@ the 005dxxxx SkillAss range).
 Same shape as FCR / IAS: an effective rate on the stat, then the animation
 plays that much faster. Formula in `components/rules/combat.hpp:164`
 (`effective_speed`, cap 120): `E = 120 * v / (120 + v)`. Applied at
-`components/game/fight.cpp:163` for kModeGH / kModeBL / kModeSC:
+`components/game/fight/` for kModeGH / kModeBL / kModeSC:
 `len = base_ms * 100 / (100 + E)`. Stats read at `combat.hpp:142` are 99
 (FHR), 102 (FBR), 105 (FCR).
 

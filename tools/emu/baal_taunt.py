@@ -7,7 +7,7 @@ A scene: the target's unit type and mode, the AI control's +0x14 count, the AI
 distance, aip1..3, the difficulty. The acts are hooked (FUN_005dead0 skill,
 FUN_00554ea0 warp, always made; FUN_005deca0 straight at it, FUN_005de080
 stand). A line: type mode count dist aip1 aip2 aip3 | act n count-after.
-tests/test_monsters.cpp runs rules::mon_think on each.
+tests/monsters/test_monster_thinks.cpp runs rules::mon_think on each.
 """
 import random
 import struct

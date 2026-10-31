@@ -22,7 +22,7 @@ made here as they make them.
 Each run comes to one act in d2d's terms (rules::Think: act, n, x, y, the
 unit it's at, wait, event), the pace, the effects, the AI control and seed
 after. --dump writes them as tests/mon_ais_cases.inc lines for
-tests/test_monsters.cpp, which runs rules::mon_think on each. Prints `ok`.
+tests/monsters/test_monster_ai.cpp, which runs rules::mon_think on each. Prints `ok`.
 """
 import os
 import random

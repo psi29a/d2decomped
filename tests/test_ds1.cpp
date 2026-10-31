@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: mpq ds1
 // Parse a real Rogue-Encampment DS1 and sanity-check the grid + file refs.
 #include <ds1.hpp>
 #include <mpq.hpp>

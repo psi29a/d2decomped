@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: mpq dt1
 // Parse a real DT1 from d2data.mpq and verify structure + decoded pixels.
 #include <dt1.hpp>
 #include <mpq.hpp>

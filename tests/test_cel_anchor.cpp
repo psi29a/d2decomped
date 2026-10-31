@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game dt1 palette font dc6
+// test-sources: apps/d2d/common.cpp
+// test-includes: apps/d2d
 // blit_at_anchor against game.exe's cel placement (FUN_006014c0,
 // SRC/CelCmp.cpp): a cel's last row sits at y + offset_y, its first at
 // y + offset_y - height + 1. Cases from tools/emu/cel_anchor.py.

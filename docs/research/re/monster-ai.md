@@ -738,7 +738,7 @@ Ported: `ai.cpp think` runs it first at each think (an untraced AI, at its searc
 
 - `Monster::align` (0 evil, 1 neutral while Confuse or Attract holds it) and `set_kind` / `set_id` / `set_until` (the skill-set target, SwitchAI monsters only; `MonType::switch_ai`, `threat`). With either about, every monster joins the foes after the player's side and is hit as the player is; experience only through the curse (`Fight::killed`'s credit).
 
-Approximated (`ponytail:` in ai.cpp, fight.cpp, monsters.hpp):
+Approximated (`ponytail:` in ai.cpp, fight/, monsters.hpp):
 
 - FUN_005dd510's path test always finds a path, so a list 9 monster is taken only when nothing else was.
 - Mode 5's candidates are every foe in foes order, not the near rooms' units room by room; its area is the room_areas rect at the unit. List 8 is empty (no good monsters) and kind 1 (a player by id) and 4 aren't set.

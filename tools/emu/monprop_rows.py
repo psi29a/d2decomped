@@ -7,7 +7,7 @@ One line a row: its index, id, the MonStats rows pointing at it (MonStats
 +0x1a), then per difficulty its {prop/par:min-max@chance} slots. The
 layout as FUN_00573cb0 reads it: +0 id, then per difficulty (+4 + 0x60 d)
 six {prop, par, min, max} ints, the chance bytes at +0x124 + 6 d + slot.
-tests/test_game.cpp's MonProp cases come from this.
+tests/game/test_game_tables.cpp's MonProp cases come from this.
 """
 import struct
 

@@ -6,7 +6,7 @@ of Destruction) and reads it in place, so the user doesn't have to browse
 for the MPQ folder. Diablo II: Resurrected is recognised and refused, with
 a reason.
 
-Sources: `components/game/gamedata_load.cpp` (`load_game_data`: what d2d
+Sources: `components/game/gamedata/gamedata_load.cpp` (`load_game_data`: what d2d
 needs), `apps/d2d/common.cpp` (`default_data_dir`), `apps/d2d/main.cpp`
 (d2d.cfg, save dir), `apps/launcher/main.cpp` (`game_dir_valid`,
 `pe_file_version`, QSettings `game/dataPath`), LEGAL.md, and the public

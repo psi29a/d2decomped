@@ -2,7 +2,7 @@
 // Act 5's quests (docs/research/re/quests-act5.md): Siege on Harrogath
 // (a5q1, Shenk), Rescue on Mount Arreat (a5q2, the prisoners), Prison of
 // Ice (a5q3, Anya), Betrayal of Harrogath (a5q4, Nihlathak). One player's
-// view of each record; World (world_quests_act5.cpp) runs them at its quest
+// view of each record; World (world/quests/act5.cpp) runs them at its quest
 // hooks. The log (+0xb) moves where the records call FUN_00544300; `news`
 // is its flag 1 (the log sent again).
 #pragma once

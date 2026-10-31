@@ -4,7 +4,7 @@ UI 0x24. The key config's Hireling Screen (`0x469170`, O by default)
 toggles it in an expansion game whose player has a merc
 (`FUN_00478f20(player, 7)`). It is a left-hand panel. d2d:
 `apps/d2d/hireling.{hpp,cpp}`; the World side is `cmd::MercItem` in
-`world.cpp`, `rules::merc_slot` in `merc.hpp`, and `View::MercSheet`.
+`world/`, `rules::merc_slot` in `merc.hpp`, and `View::MercSheet`.
 
 ## Drawing (FUN_004929f0)
 

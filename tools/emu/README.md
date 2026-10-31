@@ -158,7 +158,7 @@ fails, mismatches or reports fewer results than asked.
   `rules::chase_check`, and the modes that think at once (DAT_0073c6d0)
   against ai.cpp's. `uv run python moves.py` should print `ok` three times.
   `--break` breaks the copy and should print mismatches; `--dump` prints the
-  test_monsters.cpp cases.
+  test_monster_ai.cpp cases.
 - `collision` (drlg.py `collision_dump`): the level's rooms brought up out
   of list order ($ORDER shuffle, the default, reverse or list), then every
   room's collision grid (room1 +0x20), against `relevel`'s:

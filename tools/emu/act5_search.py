@@ -5,7 +5,8 @@
 
 The real mode-1 dispatcher and PutridDefiler / SiegeBeast callbacks run on
 random near-room unit lists. Only unit properties, distances, and the room
-topology are hooked. --dump prints C++ cases for tests/test_monsters.cpp.
+topology are hooked. --dump prints C++ cases for tests/act5_search_cases.inc
+(tests/monsters/test_monster_ai.cpp).
 """
 import random
 import sys

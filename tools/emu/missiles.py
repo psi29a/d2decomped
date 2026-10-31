@@ -16,7 +16,7 @@ only foe (FUN_00554200 hooked: hostile to that one). The hit
 flight. Each frame's 16.16 position, then how it ended, are compared.
 
 Prints `ok` or each mismatch. `--dump` prints cases that ran to their
-range or a foe as C++ lines for tests/test_monsters.cpp (missile_flights); `--break`
+range or a foe as C++ lines for tests/monsters/test_monsters.cpp (missile_flights); `--break`
 breaks the copy (no 75 / 100) to show the check bites. The rooms: a
 missile's room (path +0x1c) moves with it only when it was sent outside
 its first room (path flag 1, FUN_006492f0); a subtile off that room and

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // A world sound's volume and pan by its distance (rules/sound_mix.hpp) vs
 // game.exe's own FUN_00516830 (tools/emu/sound_falloff.py: dx, dy, volume, pan).
 #include <sound_mix.hpp>

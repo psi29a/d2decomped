@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: mpq palette
 // Load the Rogue Encampment (ACT1) palette and sanity-check the shape.
 #include <mpq.hpp>
 #include <palette.hpp>

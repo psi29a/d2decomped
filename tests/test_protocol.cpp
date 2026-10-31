@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game
 // The command codec (apps/d2d/protocol.hpp): every command survives its
 // wire form, and malformed messages are refused.
 #include <protocol.hpp>

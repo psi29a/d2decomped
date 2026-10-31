@@ -4,7 +4,7 @@ Our port: `components/rules/monsters.hpp` (`Fighter`, `make_fighter`,
 `player_blow`, `monster_blow`, `attack_ticks`, `open_wounds_per_sec`),
 applied in `apps/d2d/town.hpp` (`land`, `strike`, `monster_dots`,
 `apply_regen`) and `apps/d2d/ai.hpp` (`monster_update`, `missiles_update`).
-Tests: `tests/test_monsters.cpp`.
+Tests: `tests/monsters/test_monsters.cpp`.
 
 ## Applying damage — FUN_0057c6c0 (SUnitDmg.cpp)
 

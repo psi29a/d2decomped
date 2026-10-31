@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // The automap's scroll (rules/automap_scroll.hpp) vs game.exe's own
 // FUN_00459700 (tools/emu/automap_scroll.py), full and mini, both corners,
 // portraits, side panels.

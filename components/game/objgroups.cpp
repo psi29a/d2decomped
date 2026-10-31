@@ -902,7 +902,7 @@ struct ObjectRooms {
                 // at its spot, else within 5, till he's gone (record +0x88).
                 // ponytail: FUN_005459a0's FUN_00545340 free-spot pass and the records' "made"
                 // bytes aren't kept. InitFns 66 / 67 / 69 are Act 5's quests'
-                // (world_quests_act5.cpp); 70 (FUN_00587830, Larzuk Greeting) is empty.
+                // (world/quests/act5.cpp); 70 (FUN_00587830, Larzuk Greeting) is empty.
                 if (init == 71) monster_or_npc(0x1ff, unit, 5, false);
                 if (init == 68) monster_or_npc(0x202, unit, 5, false);
             }

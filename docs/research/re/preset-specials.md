@@ -487,13 +487,13 @@ Casket, urn and crate/corpse (1, 3, 14) all use `FUN_00585b90` for the drop and
 
 Implemented:
 
-- `components/game/gamedata.cpp` (~322-420) ports FUN_0054e600:
+- `components/game/gamedata/gamedata.cpp` (~322-420) ports FUN_0054e600:
   - MonStats rows and MonPlace 2/3/5/0x11/0x12
   - superunique spot then radius 5
   - Mod1..3 (`rules/uniques.hpp` superunique_mods)
   - minions MinGrp..MaxGrp + difficulty at radius 3
 - `add_object` (~477) reads OperateFn, InitFn 1 and 3, and PreOperate.
-- `World::operate` (components/game/world.cpp) handles op 2 and op 4. Interact
+- `World::operate` (components/game/world/objects.cpp) handles op 2 and op 4. Interact
   also accepts 23 (waypoint), 32 (stash) and 15 (portal).
 - `rules/quests.hpp` has DenQuest only.
 

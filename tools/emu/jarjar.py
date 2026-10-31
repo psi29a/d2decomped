@@ -11,7 +11,7 @@ itself), its reach (FUN_005dc380), the unit seed. Hooked: stand
 by it acts, the guard's MonStats interact always set), FUN_005df530 /
 FUN_005de200 with their seed draws; FUN_0059b8f0's spot is none (d2d keeps
 none, town_npcs.hpp). The unit seed draws (FUN_0045c390) run natively.
---dump writes `scene | outcome` lines for tests/test_monsters.cpp, which
+--dump writes `scene | outcome` lines for tests/monsters/test_monster_thinks.cpp, which
 runs rules::jarjar_think on each. Prints `ok`.
 """
 import random

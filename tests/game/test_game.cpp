@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game
 // The game runs on its own: components/game needs nothing from the client
 // (apps/d2d: SDL, sound, sprites, fonts), so a standalone server links
 // just this library. With the game's MPQs (D2_MPQ_DIR, as test_outdoor)
-// it loads GameData and plays a new character for a second.
+// it loads GameData and plays a new character: the world, the fight, co-op.
+// test_game_rules has the checks that need no data, test_game_tables the tables'.
+
 #include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
@@ -26,8 +29,8 @@
 #include <quests.hpp>
 #include <replication.hpp>
 #include <rules.hpp>
-#include <shake.hpp>
 #include <sequences.hpp>
+#include <shake.hpp>
 #include <skill_text.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
@@ -36,10 +39,9 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
-#include <chrono>
-#include <cstddef>
 #include <cassert>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -52,7 +54,6 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <tuple>
 #include <utility>
 #include <variant>
@@ -64,204 +65,11 @@ int main(int argc, char** argv) try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
-    {
-        // Skill tooltips: game.exe's string is built bottom line first, colour codes carrying on.
-        const auto lines = d2d::game::skill_text::to_lines("Mana Cost: 2\n\nFire: 3-6\n\xff" "c2Fire Bolt\n\n\xff" "c1Not learned");
-        assert(lines.size() == 6 && lines[0].text == "Not learned" && lines[0].rgb == d2d::game::kTxtRed);
-        assert(lines[2].text == "Fire Bolt" && lines[2].rgb == d2d::game::kTxtGreen && lines[1].text.empty());
-        assert(lines[3].text == "Fire: 3-6" && lines[4].text.empty() && lines[5].text == "Mana Cost: 2" && lines[5].rgb == d2d::game::kTxtWhite);
-        std::printf("OK: skill tooltip lines: bottom first, colour codes\n");
-    }
-    {
-        // The camp keeps no Level::rooms: level_room is its 8x8 grid, row by
-        // row, level tiles (the DS1's last column and row are its edge).
-        Level camp;
-        camp.ds1 = d2d::ds1::Map(21, 13, 1, 1);
-        camp.world_x = 100, camp.world_y = 200;
-        const auto edge = level_room(camp, 2), below = level_room(camp, 3);
-        assert(edge && edge->x == 16 && edge->y == 0 && edge->width == 4 && edge->height == 8);
-        assert(below && below->x == 0 && below->y == 8 && below->height == 4);
-        assert(!level_room(camp, 6) && room_of(camp, 17.5f, 9.5f) == 5);
-        std::printf("OK: the camp's rooms: an 8x8 grid\n");
-    }
-    {
-        // A missile's frame (tools/emu/missile_dirs.py): game.exe's table at 0x6e45a0
-        // for 16 and 8 directions, every 64-step facing, and Fire Bolts it fired
-        // ("dx dy: d8 d16 d32", subtiles from the shooter to the target).
-        constexpr std::array<int, 64> kGame16{ 4, 4, 8, 8, 8, 8, 0, 0, 0, 0, 9, 9, 9, 9, 5, 5, 5, 5, 10, 10, 10, 10, 1, 1, 1, 1, 11, 11, 11, 11, 6, 6,
-                                               6, 6, 12, 12, 12, 12, 2, 2, 2, 2, 13, 13, 13, 13, 7, 7, 7, 7, 14, 14, 14, 14, 3, 3, 3, 3, 15, 15, 15, 15, 4, 4 };
-        constexpr std::array<int, 64> kGame8{ 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1, 1, 1, 6, 6, 6, 6,
-                                              6, 6, 6, 6, 2, 2, 2, 2, 2, 2, 2, 2, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4 };
-        for (int dir64 = 0; dir64 < 64; ++dir64)
-            assert(missile_direction(dir64, 16) == kGame16[std::size_t(dir64)] && missile_direction(dir64, 8) == kGame8[std::size_t(dir64)]);
-        struct Fired { int dx, dy, d8, d16, d32; };
-        for (const auto& [dx, dy, d8, d16, d32] : { Fired{ -4, 2, 5, 10, 10 }, Fired{ 0, 8, 0, 0, 0 }, Fired{ -12, -2, 1, 1, 22 }, Fired{ 2, -2, 7, 7, 7 },
-                                                    Fired{ 19, 26, 4, 4, 16 }, Fired{ -10, 4, 1, 10, 10 }, Fired{ 1, -3, 2, 13, 13 }, Fired{ 2, 7, 0, 8, 17 } }) {
-            const int facing = missile_facing(0.1f, 0.1f, float(dx) / 5, float(dy) / 5);   // from subtile (0, 0)'s centre
-            assert(missile_direction(facing, 8) == d8 && missile_direction(facing, 16) == d16 && missile_direction(facing, 32) == d32);
-        }
-        std::printf("OK: a missile's frame direction, as game.exe's table and its Fire Bolts\n");
-    }
-    {
-        GameData empty_data;
-        View sent;
-        sent.level = &empty_data.town;
-        sent.quest_log.back() = 9;
-        sent.game_quests.back() = 0x8000;
-        sent.events = { ev::Reassigned{}, ev::Lightning{}, ev::QuestQuake{ d2d::rules::QuestQuake::diablo } };
-        sent.party_pets.push_back({ Npc{}, UnitState{}, "WL", "hireable", 100 });   // a partner's merc (local co-op)
-        ViewEncoder encoder;
-        const auto bytes = encode_view(empty_data, sent, encoder);
-        View received;
-        assert(apply_view(empty_data, bytes, received));
-        assert(received.quest_log == sent.quest_log);
-        assert(received.game_quests == sent.game_quests);
-        assert(received.events.size() == 3 && std::holds_alternative<ev::Reassigned>(received.events[0]) && std::holds_alternative<ev::Lightning>(received.events[1]));
-        assert(std::get<ev::QuestQuake>(received.events[2]).kind == d2d::rules::QuestQuake::diablo);
-        assert(received.pets.empty() && received.party_pets.size() == 1 && received.party_pets[0].pettype == "hireable" && received.party_pets[0].mode == "WL");
-        auto bad = bytes;
-        assert(bad[bad.size() - 4] == 7);   // final event, before the empty sound count
-        bad[bad.size() - 3] = 2;
-        assert(!apply_view(empty_data, bad, received));
-        assert(!apply_view(empty_data, std::span(bytes).first(bytes.size() - 3), received));
-    }
-    {
-        // MonProp's stats on a monster: IAS on A1 / A2, FCR on SC (120 x v /
-        // (120 + v)); knock and crush on its seed (FUN_005bf960, FUN_005bffc0).
-        Monster monster;
-        monster.props.ias = 30; monster.props.fcr = 15; monster.anim_pct = 10;
-        assert(anim_rate_pct(monster, "A1") == 34 && anim_rate_pct(monster, "A2") == 34);
-        assert(anim_rate_pct(monster, "SC") == 23 && anim_rate_pct(monster, "WL") == 10 && anim_rate_pct(monster, "S1") == 10);
-        monster.seed = d2d::rules::Rng(77);
-        monster.props.knock = 1;
-        for (int k = 0; k < 8; ++k) {
-            Foe foe;
-            auto expect = monster.seed;
-            monprop_hit(monster, foe, false);
-            assert(foe.knocked_from.has_value() == ((expect.next() & 0x7f) < 0x40) && foe.crushed.empty());
-        }
-        for (int k = 0; k < 8; ++k) {                          // a small monster always, a large one a quarter of the time
-            Foe small, large;
-            small.knock_under = 0x80; large.knock_under = 0x20;
-            monprop_hit(monster, small, false);
-            auto expect = monster.seed;
-            monprop_hit(monster, large, false);
-            assert(small.knocked_from && large.knocked_from.has_value() == ((expect.next() & 0x7f) < 0x20));
-        }
-        monster.props.knock = 0; monster.props.crush = 100;    // always
-        Foe player, confused;
-        confused.of = &monster; confused.crush_divisor = 4;    // monster_foe_props' for a plain monster
-        monprop_hit(monster, player, false); monprop_hit(monster, player, true); monprop_hit(monster, confused, false);
-        assert((player.crushed == std::vector{ 10, 20 }) && (confused.crushed == std::vector{ 4 }) && !player.knocked_from);
-        monster.props.crush = 0;
-        auto untouched = monster.seed;
-        monprop_hit(monster, player, false);
-        assert(monster.seed.low == untouched.low && player.crushed.size() == 2);   // no prop, no draw
-        // life / divisor, less the raw damageresist up to 100; none below 1 (FUN_005bffc0).
-        assert(crushing_blow(1000, 4, 0) == 250 && crushing_blow(1000, 4, 60) == 100 && crushing_blow(1000, 4, 150) == 0 && crushing_blow(1000, 4, -100) == 250);
-        std::printf("OK: MonProp IAS / FCR rates, knock and crush rolls\n");
-    }
-    {
-        // FUN_0064dea0's search (FUN_0064e7b0 / FUN_0064e810: 50 rings, step
-        // 1): the spot itself; else per ring its columns x - r, x + r top to
-        // bottom (left, right a row), then its rows y - r, y + r; the first
-        // nearest wins.
-        const auto clear_at = [](std::vector<std::pair<int, int>> spots) {
-            return [clear_spots = std::move(spots)](int at_x, int at_y) { return std::ranges::contains(clear_spots, std::pair{ at_x, at_y }); };
-        };
-        assert(nearest_spot(10, 10, clear_at({ { 10, 10 } })) == std::pair(10, 10));
-        assert(nearest_spot(10, 10, clear_at({ { 9, 11 }, { 11, 9 } })) == std::pair(11, 9));             // corners: the top row's first
-        assert(nearest_spot(10, 10, clear_at({ { 11, 11 }, { 10, 9 } })) == std::pair(10, 9));           // the side's middle (1 off) beats a corner (2)
-        assert(nearest_spot(10, 10, clear_at({ { 12, 10 }, { 9, 9 } })) == std::pair(9, 9));             // ring 1 before ring 2
-        assert(nearest_spot(10, 10, clear_at({ { 10, 59 } })) == std::pair(10, 59));                     // ring 49, the last
-        assert(!nearest_spot(10, 10, clear_at({ { 10, 60 } })));                                         // ring 50: never
-        std::printf("OK: nearest_spot's rings (FUN_0064dea0)\n");
-    }
     if (!fs::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s (the checks above ran)\n", data_dir.string().c_str()); return D2D_TEST_SKIPPED; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1 && !data->town.walk.empty());
-    {
-        // The camp's room seeds (a merc's teleport rolls on them, fight.cpp
-        // room_teleport): one per level_room, each a DRLG room's.
-        Spawning::LevelState camp;
-        bool kept = false;
-        for (int tries = 0; tries < 200 && !(kept = keep_camp_seeds(*data, data->town, camp)); ++tries) std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        assert(kept && !camp.room_seeds.empty() && level_room(data->town, camp.room_seeds.size() - 1) && !level_room(data->town, camp.room_seeds.size()));
-        assert(std::ranges::all_of(camp.room_seeds, [](const d2d::rules::Rng& seed) { return seed.low != 0; }));
-        std::printf("OK: the camp keeps %zu room seeds\n", camp.room_seeds.size());
-    }
-    if (data->patched) {
-        // The antidote's and thawing's states (misc.txt pSpell 6, FUN_005beda0):
-        // +50 resist, +10 max, for len 750.
-        const auto& antidote = data->rules.potions.at("yps");
-        const auto& thawing = data->rules.potions.at("wms");
-        using StatValue = std::pair<int, int>;
-        assert(antidote.antidote && antidote.ticks == 750 && (antidote.state_stats == std::vector<StatValue>{ { 45, 50 }, { 46, 10 } }));
-        assert(thawing.thawing && thawing.ticks == 750 && (thawing.state_stats == std::vector<StatValue>{ { 43, 50 }, { 44, 10 } }));
-        std::printf("OK: the antidote's and thawing's state stats\n");
-    }
-    {
-        // MonProp knock and crush on a monster foe (FUN_005bf960, FUN_005bffc0):
-        // MonStats2 small / large, a hireling's 10, a boss's or unique's 8, +50 % a player past one.
-        const auto row = [&](std::string_view id) { return int(data->monsters.by_id.at(std::string(id))); };
-        const auto props_of = [&](int type, d2d::rules::Boss boss, int players) {
-            Monster monster; monster.type = type; monster.boss = boss; monster.players = players;
-            Foe foe; monster_foe_props(*data, monster, foe);
-            return std::pair{ foe.knock_under, foe.crush_divisor };
-        };
-        const int zombie = row("zombie1"), quill = row("quillrat1");
-        assert(!data->monsters.types[std::size_t(zombie)].small && !data->monsters.types[std::size_t(zombie)].large);
-        assert(props_of(zombie, d2d::rules::Boss::none, 1) == std::pair(0x40, 4) && props_of(zombie, d2d::rules::Boss::champion, 1).second == 4);
-        assert(props_of(zombie, d2d::rules::Boss::unique, 1).second == 8 && props_of(zombie, d2d::rules::Boss::superunique, 3).second == 16);
-        assert(props_of(zombie, d2d::rules::Boss::none, 2).second == 6 && props_of(row("andariel"), d2d::rules::Boss::none, 1).second == 8);
-        assert(props_of(row("roguehire"), d2d::rules::Boss::none, 4).second == 10 && row("roguehire") == 0x10f);
-        assert(data->monsters.types[std::size_t(quill)].small == (props_of(quill, d2d::rules::Boss::none, 1).first == 0x80));
-        assert(std::ranges::any_of(data->monsters.types, &d2d::rules::MonType::large) && std::ranges::any_of(data->monsters.types, &d2d::rules::MonType::small));
-        std::printf("OK: MonProp knock and crush on monster foes\n");
-    }
-    if (data->patched) {                                          // the 1.14d tables (the CD's may differ)
-        // MonProp rows as game.exe compiled them (tools/emu/monprop_rows.py: the
-        // emulator's DataTables +0xc30), per MonStats row and difficulty;
-        // every other row has none.
-        struct Case { int row, difficulty; std::string_view code; int min, max; };
-        static constexpr Case kCases[] = {
-            { 295, 0, "fade", 1, 1 }, { 295, 1, "fade", 2, 2 }, { 295, 2, "fade", 2, 2 },
-            { 242, 1, "cast2", 15, 15 }, { 242, 1, "swing2", 15, 15 }, { 242, 2, "cast2", 30, 30 }, { 242, 2, "swing2", 30, 30 },
-            { 704, 1, "cast2", 15, 15 }, { 704, 1, "swing2", 15, 15 }, { 704, 2, "cast2", 30, 30 }, { 704, 2, "swing2", 30, 30 },
-            { 186, 1, "crush", 15, 15 }, { 186, 2, "crush", 25, 25 }, { 187, 1, "crush", 15, 15 }, { 187, 2, "crush", 25, 25 },
-            { 188, 1, "crush", 15, 15 }, { 188, 2, "crush", 25, 25 }, { 189, 1, "crush", 15, 15 }, { 189, 2, "crush", 25, 25 },
-            { 618, 1, "crush", 15, 15 }, { 618, 2, "crush", 25, 25 }, { 619, 1, "crush", 15, 15 }, { 619, 2, "crush", 25, 25 },
-            { 345, 1, "extra-fire", 40, 40 }, { 345, 2, "extra-fire", 100, 100 }, { 346, 1, "extra-fire", 40, 40 }, { 346, 2, "extra-fire", 100, 100 },
-            { 347, 1, "extra-fire", 40, 40 }, { 347, 2, "extra-fire", 100, 100 }, { 557, 1, "extra-fire", 60, 60 }, { 557, 2, "extra-fire", 120, 120 },
-            { 267, 2, "knock", 1, 1 },
-            { 605, 1, "thorns", 15, 20 }, { 605, 2, "thorns", 30, 40 }, { 606, 1, "thorns", 15, 20 }, { 606, 2, "thorns", 30, 40 },
-            { 607, 1, "thorns", 15, 20 }, { 607, 2, "thorns", 30, 40 },
-            { 419, 0, "stupidity", -1, -1 }, { 419, 1, "stupidity", -1, -1 }, { 419, 2, "stupidity", -1, -1 },
-        };
-        std::size_t slots = 0;
-        for (const auto& type : data->monsters.types)
-            for (const auto& per_difficulty : type.props) slots += per_difficulty.size();
-        assert(slots == std::size(kCases));
-        std::array<std::array<std::size_t, 3>, 800> seen{};
-        for (const auto& entry : kCases) {
-            const auto& slot = data->monsters.types.at(std::size_t(entry.row)).props[std::size_t(entry.difficulty)].at(seen[std::size_t(entry.row)][std::size_t(entry.difficulty)]++);
-            assert(slot.code == entry.code && slot.min == entry.min && slot.max == entry.max && slot.chance == 0);
-        }
-        // What they come to: Mephisto's Hell IAS and FCR, a Hell quill rat's
-        // thorns drawn on its seed, Blunderbore's crush.
-        d2d::rules::Rng seed(1234);
-        const auto mephisto = d2d::rules::monster_props(data->rules, data->monsters.types[242], 2, seed);
-        assert(mephisto.ias == 30 && mephisto.fcr == 30 && seed.low == 1234);       // min == max: no draw
-        auto drawn = seed;
-        const auto quill = d2d::rules::monster_props(data->rules, data->monsters.types[607], 2, seed);
-        assert(quill.thorns == drawn.range(30, 40) && quill.thorns >= 30 && quill.thorns <= 40);
-        assert(d2d::rules::monster_props(data->rules, data->monsters.types[189], 2, seed).crush == 25);
-        assert(d2d::rules::monster_props(data->rules, data->monsters.types[267], 1, seed).knock == 0);
-        assert(d2d::rules::monster_props(data->rules, data->monsters.types[267], 2, seed).knock == 1);
-        std::printf("OK: MonProp rows match game.exe's (%zu slots)\n", slots);
-    }
     // `--life-apply SEED N`: a lightning missile's rolls (256ths) and heals on a
     // monster's life, the cases of tools/emu/life_apply.py (game.exe's own
     // FUN_0057c6c0 / FUN_0057c1e0 / FUN_0057a980), one line each, to diff.
@@ -367,99 +175,6 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
-    // Skill and missile sounds (unit-sounds.md): Fire Bolt's cast, Bash's grunt (the
-    // Barbarian's own), its swing held back; the fire bolt's flight and impact.
-    if (const auto* fire_bolt = data->skills.get(36); fire_bolt && data->missiles.contains("firebolt")) {
-        assert(fire_bolt->st_sound == data->sound_index.at("sorceress_cast_fire"));
-        const auto* bash = data->skills.get(126);
-        assert(bash && bash->st_sound_class == data->sound_index.at("barbarian_grunt_small_1") && bash->st_sound_delay && bash->hit_class == 112);
-        const auto& bolt = data->missiles.at("firebolt");
-        // Missiles.txt HitClass is a number (FUN_00661b20: type 4, +0x94): an arrow's bow class
-        // is the struck player's impact_arrow, and a later block's block_arrow.
-        const int arrow = data->missiles.at("arrow").hit_class;
-        assert(arrow == 10 && data->missiles.at("javelin").hit_class == 6);
-        if (const auto spit = data->missiles.find("goospit1"); spit != data->missiles.end()) assert(spit->second.hit_class == 0xb0);
-        assert(d2d::rules::sound_ids::impact(arrow, false).impact == 347 && d2d::rules::sound_ids::block(arrow) == 401);
-        assert(std::ranges::any_of(data->monsters.types, [](const auto& type) { return type.id == "zombie1" && type.hit_class == 12; }));
-        const auto& zombie = data->mon_sounds.at("zombie");   // its Neutral every 300 ticks at most, two light steps a walk
-        assert(zombie.neutral == data->sound_index.at("zombie_neutral_1") && zombie.neutral_time == 300 && zombie.footstep == data->sound_index.at("light_walk_dirt_1") && zombie.fs_count == 2);
-        assert(data->states.at("amplifydamage").on_sound == data->sound_index.at("necromancer_amplifydamage") && data->states.at("wolf").off_sound > 0);
-        assert(bolt.travel_sound == data->sound_index.at("sorceress_firebolt_1") && bolt.hit_sound == data->sound_index.at("sorceress_firebolt_impact_1"));
-    }
-    // Collision shapes (FUN_006484e0): the Rogue merc stamps 0x2000 and
-    // opens doors, Akara 0x1000; a player walks through the merc, not back.
-    if (data->mon_npc.size() > 0x10f) {                  // MonStats: the patch's
-        const auto rogue = data->mon_npc[0x10f].shape, akara = data->mon_npc[std::size_t(d2d::rules::monster_ids::kAkara)].shape;
-        assert(rogue.bit() == 0x2000 && rogue.mask == 0x3401 && akara.bit() == 0x1000);
-        UnitState player{ .x = 10.1f, .y = 10.1f }, merc{ .x = 10.3f, .y = 10.1f, .shape = rogue };
-        const Crowd crowd{ { &player, &merc } };
-        assert(!crowd.at(player.x, player.y, &player) && crowd.at(merc.x, merc.y, &merc));
-        assert(!crowd.at(10.5f, 10.1f, &merc));          // two subtiles off: clear of the player's subtile
-        // SizeX 0 (the chicken): no footprint, its own subtile tested; a pet's 1 → 3.
-        const auto chicken_row = std::ranges::find(data->monsters.types, std::string("chicken"), &d2d::rules::MonType::id) - data->monsters.types.begin();
-        const auto chicken = data->mon_npc[std::size_t(chicken_row)].shape;
-        assert(chicken.pattern == 0 && !chicken.stamps() && akara.owned().bit() == 0x2000);
-        UnitState bird{ .x = 10.1f, .y = 10.3f, .shape = chicken };
-        const Crowd yard{ { &player, &bird } };
-        assert(!yard.at(player.x, player.y, &player) && yard.at(bird.x, 10.1f, &bird) && !yard.at(bird.x, bird.y, &bird));
-    }
-    // A server's GameData keeps the tiles' walk flags, not their pixels.
-    for (const auto& archive : data->town.dt1s)
-        for (const auto& tile : archive.tiles()) assert(tile.pixels.empty());
-
-    // Every level's monster region, as game.exe makes them at game start
-    // (tools/emu regions.py 0x1234 prints the same lines): seed 0x1234, normal.
-    std::string regions;
-    d2d::rules::Rng region_seed{ d2d::rules::Rng{ 0x1234 }.next() };
-    for (std::size_t id = 1; id < data->level_mon.size(); ++id) {
-        const auto region = d2d::rules::monster_region(data->monsters, data->level_mon[id], 0, region_seed);
-        if (region.types.empty()) continue;
-        regions += std::to_string(id);
-        for (std::size_t i = 0; i < region.types.size(); ++i) {
-            regions += " " + std::to_string(region.types[i].first) + ":";
-            for (std::size_t set = 0; set < region.components[i].size(); ++set) {
-                if (set) regions += "/";
-                for (const auto layer : region.components[i][set]) { char hex[3]; std::snprintf(hex, sizeof hex, "%02x", layer); regions += hex; }
-            }
-        }
-        regions += "\n";
-    }
-    std::uint64_t hash = 0xcbf29ce484222325;                      // FNV-1a of game.exe's lines
-    for (const char letter : regions) hash = (hash ^ std::uint8_t(letter)) * 0x100000001b3;
-    if (patch) {                                                  // the 1.14d tables (the CD's differ)
-        if (hash != 0x69b556c850c6632eull) std::printf("%s", regions.c_str());
-        assert(hash == 0x69b556c850c6632eull);
-    }
-
-    // Act 1's drops as game.exe rolls them (tools/emu drops.py act1 prints
-    // the same lines): its classes sorted, the jobs of drops.py jobs().
-    std::vector<std::string> act1;
-    for (const auto& [name, treasure] : data->rules.treasure)
-        if (name.starts_with("Act 1 ") || name.starts_with("Andariel") || name.starts_with("Countess") || name.starts_with("Cow")) act1.push_back(name);
-    std::sort(act1.begin(), act1.end());
-    std::string drops;
-    for (std::uint32_t job = 1; job <= 3000; ++job) {
-        const std::string& name = act1[job % act1.size()];
-        const int level = int(job * 37 % 100), ilvl = int(1 + job * 13 % 99), players = int(1 + job % 8);
-        const int magic_find = std::array{ 0, 0, 0, 50, 110, 250, 600, -100 }[job / 8 % 8];
-        d2d::rules::Rng seed{ job * 0x9E3779B1u };
-        const auto moved = d2d::rules::tc_upgrade(data->rules, name, level);
-        std::vector<d2d::rules::Drop> dropped;
-        d2d::rules::roll_drops(data->rules, moved, ilvl, seed, dropped, players, magic_find);
-        char text[128];
-        std::snprintf(text, sizeof text, "%08x %s@%d>%s i%d p%d m%d:", job * 0x9E3779B1u, name.c_str(), level, moved.c_str(), ilvl, players, magic_find);
-        drops += text;
-        for (const auto& drop : dropped) drops += " " + drop.code + ":" + std::to_string(drop.quality) + (drop.mul ? "*" + std::to_string(drop.mul) : "");
-        std::snprintf(text, sizeof text, " -> %08x\n", seed.low);
-        drops += text;
-    }
-    std::uint64_t drops_hash = 0xcbf29ce484222325;
-    for (const char letter : drops) drops_hash = (drops_hash ^ std::uint8_t(letter)) * 0x100000001b3;
-    if (patch) {
-        if (drops_hash != 0x86f78a5cf5373648ull) std::printf("%s%016llx\n", drops.c_str(), (unsigned long long)drops_hash);
-        assert(drops_hash == 0x86f78a5cf5373648ull);
-    }
-
     d2d::rules::Rng rng(7);
     constexpr int kBarbarian = 4;
     auto made = new_character(*data, kBarbarian, "Headless", false, true, rng);

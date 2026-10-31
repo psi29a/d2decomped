@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // Overlay timing against stock 1.14d's own update, including fractional
 // tick boundaries and loop/one-shot endings. No game data needed at runtime.
 #include <overlays.hpp>

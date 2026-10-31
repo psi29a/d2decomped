@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: switches CLI11::CLI11
 // game.exe's one-dash switches, before CLI11 sees them.
 #include <switches.hpp>
 #include <CLI/CLI.hpp>

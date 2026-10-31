@@ -7,7 +7,7 @@ The skill's point (FUN_0056d2c0), the turret's spot (FUN_0045adf0 /
 FUN_0045ae20) and calc1 (FUN_00646ca0) come from the case; each missile it
 makes (FUN_0059fa30) is caught: its start and its offset (flags 3). One line
 per case, `x y to_x to_y count | from_x from_y off_x off_y ; ...`, the form
-tests/test_monsters.cpp checks rules::turret_fan with.
+tests/monsters/test_monster_thinks.cpp checks rules::turret_fan with.
 """
 import random
 import sys
