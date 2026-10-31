@@ -1066,15 +1066,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         const bool priest = type_info.ai_name == "ZakarumPriest", council = type_info.ai_name == "HighPriest";
         if (priest || council) {
             int weakest = 75;
-            for (const int i : near_order([&](const Monster& other) {
+            for (const int found : near_order([&](const Monster& other) {
                      return other.alive() && d2d::rules::friends(monster.align, other.align) && (priest ? &other != &monster && other.align != 2 : other.align == 0);
                  })) {
-                const auto& other = pack[std::size_t(i)];
+                const auto& other = pack[std::size_t(found)];
                 const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
                 const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
                 const int base = game_data.monsters.types[std::size_t(other.type)].base;
-                if (priest && (base == 235 || base == 238) && squared <= input.aip[5] * input.aip[5] && life < 61) { aid = i; input.kin_dist = squared; }
-                if (council && squared <= 2500 && life < weakest) { aid = i; weakest = life; input.kin_dist = squared; }
+                if (priest && (base == 235 || base == 238) && squared <= input.aip[5] * input.aip[5] && life < 61) { aid = found; input.kin_dist = squared; }
+                if (council && squared <= 2500 && life < weakest) { aid = found; weakest = life; input.kin_dist = squared; }
             }
             input.aid = aid >= 0;
         }
@@ -1248,15 +1248,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 return lust && lust->srvdofunc == d2d::rules::ServerDoFunction::kOverseerWhip && now_ms < other.cry.until;
             };
             const int hurt_reach = name == "Nihlathak" ? 0 : 0x240, free_reach = name == "Nihlathak" ? 0x271 : 0x190;
-            for (const int i : near_order([&](const Monster& other) {
+            for (const int found : near_order([&](const Monster& other) {
                      return &other != &monster && base_of(other) == minion && other.alive() && d2d::rules::friends(monster.align, other.align) && !lusted(other);
                  })) {
-                const auto& other = pack[std::size_t(i)];
+                const auto& other = pack[std::size_t(found)];
                 ++input.young;
                 const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
                 const int life = int(std::int64_t(other.hit_points) * 100 / std::max(other.stats.hit_points, 1));
-                if (kin < 0 && squared <= hurt_reach && life < 50) kin = i;
-                if (aid < 0 && squared <= free_reach && (other.boss == d2d::rules::Boss::none || other.boss == d2d::rules::Boss::minion)) aid = i;
+                if (kin < 0 && squared <= hurt_reach && life < 50) kin = found;
+                if (aid < 0 && squared <= free_reach && (other.boss == d2d::rules::Boss::none || other.boss == d2d::rules::Boss::minion)) aid = found;
             }
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
             const auto struck = std::ranges::find(foes, monster.struck_by, &Foe::id);
