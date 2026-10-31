@@ -189,11 +189,36 @@ d2d matches both, and the one-poison-at-a-time rule.
    block; they're 0 until passive skills give them.
 Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
 
+## Hit recovery: the get-hit test (FUN_0057cb00)
+
+`FUN_0057cee0` (a unit takes damage) calls `FUN_0057cb00(unit, record, hit
+class)` on result flag 4 (the hit landed) unless the unit has state 21
+(stunned: a sure get-hit), for a player at 0x57d37a (mode 4 through
+`FUN_005809d0`) and a monster at 0x57d0c8 (mode 3 through `FUN_005a7e60`).
+It returns 1 (too small) for a frozen unit (state 1, `FUN_00639df0`), a
+record whose poison [10] equals its total [0x13], or a total under 0x100;
+else the divisor d comes from the hit class through the jump table at
+0x57cbf8 (8 for classes 2, 6, 10, 11; 32 for 4, 8; 64 for 5; 16 for 1, 3,
+7, 9, 12 and everything else): under max life / d (`FUN_00625d10`) too
+small; under 2 max / d a roll of 2 on the unit's seed (`FUN_00472210`, unit
++0x20) of 0 is too small; then under 4 max / d a roll of 4 of 0 is; else a
+get-hit, which a monster also needs MonStats2's GH mode for (`FUN_0046c140`
+bit 3). The hit class is the record's +0x60 after `FUN_0057ce30` (run at
+0x57cf54 when the record's +0x64 byte is 0 and the class has no 0xf0 bits):
+13 for none, OR-ed with the first of cold 0x30 / fire 0x20 / lightning 0x40
+/ poison 0x50 whose record field (0x24 / 0x10 / 0x1c / 0x28) is over 0,
+else 0x10 for record flag 0x2000 (0x57b929: a mastery crit, critical
+strike or deadly strike roll landed in `FUN_0057b7d0`). Magic (+0x20) is not
+in that table. Any of those
+puts the class past 12: a blow with an element divides by 16 whatever the
+weapon. d2d: `rules::get_hit` (`Blow::elemental`, `hurt`'s class, the player's
+and the merc's struck frame). tools/emu/hit_rule.py runs game.exe's
+`FUN_0057cee0` on 100,000 random cases and diffs them.
+
 ## Approximations still in the port (marked `ponytail:` in code)
 
 - Crushing blow: a quarter of current life less physical resistance, with
   no boss or difficulty divisors.
-- Monster hit recovery: at an eighth of max life. Player: a twelfth.
 - FHR and FBR act as animation-rate bonuses, not the per-class breakpoint
   tables.
 - Damage reduced %: capped at 50, applied before the flat reduction, which

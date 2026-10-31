@@ -36,11 +36,45 @@ int main(int argc, char** argv) {
             for (int fcr = 0; fcr <= 400; ++fcr) std::printf("ticks plain %d %d %d %d\n", frames, speed, fcr, cast_ticks(frames, speed, fcr));
         return 0;
     }
+    // `--get-hit`: FUN_0057cb00's decision for the cases on stdin (`id kind maxlife damage hc rec64
+    // fire ltng cold poison f2000 mgh stun frozen seedlo seedhi`, as tools/emu/hit_rule.py writes
+    // and runs game.exe's FUN_0057cee0 on): `id gh -1`. The stun, frozen, poison-only and GH-mode
+    // tests sit around rules::get_hit in game.exe too (FUN_0057cee0 / FUN_0057cb00's prologue).
+    if (argc > 1 && std::string_view(argv[1]) == "--get-hit") {
+        long case_id, kind, maxlife, damage, hit_class, rec64, fire, ltng, cold, poison, f2000, mgh, stun, frozen;
+        unsigned long seed_lo, seed_hi;
+        char line[512];
+        while (std::fgets(line, sizeof line, stdin)) {
+            if (line[0] == '#' || std::sscanf(line, "%ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld %lu %lu", &case_id, &kind, &maxlife, &damage, &hit_class, &rec64,
+                                               &fire, &ltng, &cold, &poison, &f2000, &mgh, &stun, &frozen, &seed_lo, &seed_hi) != 16) continue;
+            Rng seed; seed.low = std::uint32_t(seed_lo); seed.high = std::uint32_t(seed_hi);
+            const bool marked = rec64 == 0 && (fire > 0 || ltng > 0 || cold > 0 || poison > 0 || f2000 != 0);
+            const bool recovers = stun != 0 || (frozen == 0 && !(poison != 0 && poison == damage) && (kind == 0 || mgh != 0) && get_hit(maxlife, damage, int(hit_class), marked, seed));
+            std::printf("%ld %d -1\n", case_id, recovers ? 1 : 0);
+        }
+        return 0;
+    }
     // A walk's animation rate (FUN_00623f50): RN 0x65, WL / TW 0xd5, x the walk % (at least 25).
     assert(moving_anim_rate(false, 100) == 213 && moving_anim_rate(true, 150) == 151);
     assert(moving_anim_rate(false, 0) == 53 && moving_anim_rate(true, 400) == 404);
     assert(hit_chance(100, 100, 1, 1) == 50);
     assert(hit_chance(1000, 1, 5, 1) == 95 && hit_chance(10, 1000, 1, 1) == 5);
+    // FUN_0057cb00: the divisor by hit class (0x57cbf8) and the bands: none under max / d, 37.5 % from
+    // it, 75 % from 2 max / d, sure from 4 max / d; an element (marked) divides by 16; under a point none.
+    assert(get_hit_divisor(2) == 8 && get_hit_divisor(4) == 32 && get_hit_divisor(5) == 64 && get_hit_divisor(3) == 16 && get_hit_divisor(0) == 16 && get_hit_divisor(64) == 16);
+    {
+        Rng seed{ 7u };
+        int band[4] = {};
+        for (int i = 0; i < 4000; ++i) {
+            band[0] += get_hit(100 << 8, (100 << 8) / 16 - 1, 3, false, seed);
+            band[1] += get_hit(100 << 8, (100 << 8) / 16, 3, false, seed);
+            band[2] += get_hit(100 << 8, (100 << 8) / 8, 3, false, seed);
+            band[3] += get_hit(100 << 8, (100 << 8) / 4, 3, false, seed);
+        }
+        assert(band[0] == 0 && band[1] > 1400 && band[1] < 1600 && band[2] > 2900 && band[2] < 3100 && band[3] == 4000);
+        assert(!get_hit(100 << 8, 255, 3, false, seed) && !get_hit(100 << 8, (100 << 8) / 8 - 1, 2, false, seed) && get_hit(100 << 8, (100 << 8) / 2, 2, false, seed));
+        assert(!get_hit(100 << 8, (100 << 8) / 16 - 1, 2, true, seed) && get_hit(100 << 8, (100 << 8) / 4, 2, true, seed) && get_hit(100 << 8, (100 << 8) / 2, 5, false, seed));
+    }
     // FUN_0057e2f0's 256ths (0x6e1668 / 0x6e1694), clvl / mlvl from level 25.
     assert(kill_exp(100, 1, 1) == 100 && kill_exp(100, 10, 1) == 100 * 61 / 256 && kill_exp(100, 20, 1) == 100 * 13 / 256);
     assert(kill_exp(100, 1, 10) == 100 * 38 / 256 && kill_exp(1000, 30, 40) == 750 && kill_exp(100, 1, 6) == 100);

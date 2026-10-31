@@ -2845,12 +2845,15 @@ int soak(Monster& monster, int physical, int damage) {
     return damage - absorbed;
 }
 
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms) {
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int hit_class, bool marked) {
     if (!monster.targetable() || damage <= 0) return false;
     monster.hit_points -= damage;
     monster.aware = true;
     if (!monster.alive()) set_mode(game_data, monster, "DT", now_ms);
-    else if (damage * 8 >= monster.stats.hit_points) set_mode(game_data, monster, "GH", now_ms);
+    // Its get-hit (FUN_0057cb00 from FUN_0057cee0's monster branch): the share of
+    // max life by the blow's hit class, rolled on its own seed (unit +0x20).
+    // ponytail: a stunned monster's sure get-hit and MonStats2's GH mode bit aren't tested here.
+    else if (d2d::rules::get_hit(std::int64_t(monster.stats.hit_points) << 8, std::int64_t(damage) << 8, hit_class, marked, monster.seed)) set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
 }
 

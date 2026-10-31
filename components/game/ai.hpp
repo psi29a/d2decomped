@@ -865,7 +865,9 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
 // when the hit takes an eighth of its life or more; either way it notices.
 // True when this killed it.
 // ponytail: the eighth is the commonly given threshold, not traced.
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms);
+// `hit_class` and `marked` (an element or a doubled hit) are the blow's, for
+// its get-hit (rules::get_hit); a source without them (thorns, a blast) is class 0.
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int hit_class = 0, bool marked = false);
 // Bone Armor's absorb on a monster (event 22, FUN_005c6370): the pool takes
 // the hit's physical; at 0 the state goes. The damage left.
 int soak(Monster& monster, int physical, int damage);

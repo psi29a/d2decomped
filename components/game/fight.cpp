@@ -932,7 +932,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife]
                                          + ((std::int64_t(blow.damage) * calc(*curse, curse->calc[0], target.curse.level) / 100) << 8));
         const int taken = soak(target, d2d::rules::resisted(blow.phys, target_of(monster_index).res[0]), blow.damage);
-        if (hurt(*game_data, target, taken, now_ms)) { killed(monster_index, now_ms); return true; }
+        if (hurt(*game_data, target, taken, now_ms, blow.hit_class, blow.elemental || blow.deadly)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
         // (MonStats2, FUN_0046c140 bits 3 / 13; else it's a GH) goes into
         // KB (FUN_005a77d0): path type 8, 5 subtiles on from the attacker,
@@ -4797,7 +4797,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             actor->merc->hit_points -= side[1].damage;
             auto& unit = actor->merc->unit;
             const auto mode = actor->merc->hit_points <= 0                                     ? std::string_view("DT")
-                            : actor->merc->mode != "KB" && side[1].damage * 12 >= merc_max_life() ? std::string_view("GH")
+                            : actor->merc->mode != "KB" && d2d::rules::get_hit(std::int64_t(merc_max_life()) << 8, std::int64_t(side[1].damage) << 8, side[1].hit_class, side[1].elemental > 0 || side[1].poison > 0, actor->merc->seed) ? std::string_view("GH")
                                                                                                    : actor->merc->mode;
             if (mode != actor->merc->mode) {
                 actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = false; unit.path.clear();
@@ -4900,7 +4900,11 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // too-small test; result flag 4 is the hit landing, FUN_0057ec10,
         // before any damage). That's all a stun does to a player: no input
         // is refused.
-        const bool big = foe.damage > 0 && std::int64_t(foe.damage) * 12 >= actor->character.stats.fixed(kMaxLife);
+        // Else FUN_0057cb00's size test (rules::get_hit): the divisor by the blow's hit class
+        // (16 for every Act 1 melee class and any blow with an element), 37.5 % from that share
+        // of max life, 75 % from twice it, sure from four times.
+        // ponytail: the damage is this frame's whole points; the rolls take d2d's rng, not the player's own seed.
+        const bool big = foe.damage > 0 && d2d::rules::get_hit(actor->character.stats.get(kMaxLife), std::int64_t(foe.damage) << 8, foe.hit_class, foe.elemental > 0 || foe.poison > 0, rng);
         if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && !attack_mode(actor->pmode) && actor->pmode != kModeBL) set_pmode(kModeGH, now_ms);
     }
 

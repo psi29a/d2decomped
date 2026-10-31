@@ -545,7 +545,9 @@ int main(int argc, char** argv) try {
         auto side = std::array{ world.fight.player_foe(hit_ms), world.fight.merc_foe(hit_ms) };
         side[0].hits = 1;
         side[0].hit_class = arrow;
-        side[0].damage = side[0].physical = std::max(int(hero.character.stats.fixed(d2d::d2s::kMaxLife) / 4), 1);
+        // Half of max life: a sure get-hit for any hit class (FUN_0057cb00: 4 x max / d, d at most 8 for an
+        // arrow's class); a quarter was only a 75 % band for class 10 / 11.
+        side[0].damage = side[0].physical = std::max(int(hero.character.stats.fixed(d2d::d2s::kMaxLife) / 2), 1);
         hero.pmode = -1;
         world.fight.hurt_side(side, hit_ms);
         assert(hero.pmode == kModeGH && hero.shown_class == arrow && hero.struck_class == 0);

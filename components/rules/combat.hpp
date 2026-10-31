@@ -200,6 +200,40 @@ inline int speed_frames(int base_frames, int speed_stat) {
     return (base_frames * 256 + 256 + scaled - 1) / (256 + scaled);
 }
 
+// The get-hit test on a landed hit (FUN_0057cb00, called by FUN_0057cee0 on
+// result flag 4 unless the unit is stunned: the player branch at 0x57d37a,
+// the monster's at 0x57d0c8). No get-hit for a frozen unit (state 1), a hit
+// that is all poison (record [10] == [0x13]) or one under a point; else the
+// divisor by the record's hit class, the jump table at 0x57cbf8: 8 for
+// classes 2, 6, 10, 11; 32 for 4, 8; 64 for 5; 16 for 1, 3, 7, 9, 12 and any
+// other value. FUN_0057ce30 fixes the class up first: 13 for none, and an
+// element's bits (0x20 .. 0x50 when the record's fire, lightning, cold or
+// poison is over 0) or a doubled hit's 0x10 (record flag 0x2000, 0x57b929: the
+// mastery crit, critical strike or deadly strike roll of FUN_0057b7d0 landed)
+// OR-ed in, which puts it past 12: a blow that carries an element divides by
+// 16 whatever the weapon. Under max / d: none; under 2 max / d: a roll of 2 on
+// the unit's seed (FUN_00472210) of 0 is none; then under 4 max / d: a roll of
+// 4 of 0 is none; else a get-hit. So the bands: 37.5 % from max / d, 75 % from
+// 2 max / d, sure from 4 max / d. A monster also needs MonStats2's GH mode
+// (FUN_0046c140 bit 3). tools/emu/hit_rule.py runs game.exe's own code on it.
+// `max_life` and `damage` in 256ths; `marked`: an element or a doubled hit.
+inline int get_hit_divisor(int hit_class) {
+    switch (hit_class) {
+    case 2: case 6: case 10: case 11: return 8;
+    case 4: case 8: return 32;
+    case 5: return 64;
+    default: return 16;
+    }
+}
+inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, bool marked, Rng& rng) {
+    if (damage < 256) return false;
+    const int divisor = marked ? 16 : get_hit_divisor(hit_class);
+    if (damage < max_life / divisor) return false;
+    if (damage < max_life / (divisor / 2) && rng(2) == 0) return false;
+    if (damage < max_life / (divisor / 4) && rng(4) == 0) return false;
+    return true;
+}
+
 // A cast animation's speed, 1/256 frames a tick (FUN_00623f50's cast branch at
 // 0x623fcb: FUN_00621740 turns stat 105 into the effective FCR through the row
 // at 0x6e8e3c): AnimData speed x min(100 + effective FCR, 175) / 100, clamped
@@ -243,6 +277,7 @@ struct Blow {
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
     int stun_ticks = 0;
     int hit_class = 0;                   // what the struck unit's impact sound is (sound_ids::impact)
+    bool elemental = false;              // fire, lightning, cold or poison got through (not magic): the get-hit divides by 16 (get_hit)
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
 
@@ -278,10 +313,12 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     if (damage.etype == 3) {
         blow.poison += resisted(int(std::int64_t(roll) * std::max(damage.elen, 1) >> 8), res);
         blow.poison_ticks = std::max(blow.poison_ticks, std::max(damage.elen, 1));
+        blow.elemental = blow.elemental || blow.poison > 0;
         return blow;
     }
     const int resisted_damage = resisted(roll >> 8, res);
     blow.damage += resisted_damage;
+    blow.elemental = blow.elemental || (resisted_damage > 0 && damage.etype != 4);
     if (damage.etype == 2 && resisted_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(damage.elen, res));
     return blow;
 }
@@ -364,8 +401,10 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     blow.mana = phys * fighter.mana_steal * target.drain / 10000;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
     int elem = conv > 0 && swing.conv_type != 3 ? resisted(int(conv >> 8), target.res[std::size_t(kRes[swing.conv_type])]) : 0;
+    int marking = swing.conv_type != 4 ? elem : 0;                 // what FUN_0057ce30 sees: the record's fire / lightning / cold / poison, not magic (+0x20)
     elem += resisted(rolled * swing.fire_pct / 100, target.res[2]) + resisted(rolled * swing.ltng_pct / 100, target.res[3]);
-    if (const int cold = resisted(rolled * swing.cold_pct / 100, target.res[4]); cold > 0) { elem += cold; blow.chill_ticks = resisted(std::max(swing.cold_len, 1), target.res[4]); }
+    marking += resisted(rolled * swing.fire_pct / 100, target.res[2]) + resisted(rolled * swing.ltng_pct / 100, target.res[3]);
+    if (const int cold = resisted(rolled * swing.cold_pct / 100, target.res[4]); cold > 0) { elem += cold; marking += cold; blow.chill_ticks = resisted(std::max(swing.cold_len, 1), target.res[4]); }
     for (int element = 0; element < 5; ++element) {
         const auto [elo, ehi] = fighter.elem[std::size_t(element)];
         if (ehi <= 0) continue;
@@ -373,6 +412,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         if (element == 3) { blow.poison = element_damage; blow.poison_ticks = std::max(fighter.poison_len, 1); continue; }
         if (element == 2 && element_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(fighter.cold_len, target.res[4]));   // the length less cold resist too (FUN_0057c1e0)
         elem += element_damage;
+        if (element != 4) marking += element_damage;
     }
     if (conv > 0 && swing.conv_type == 3) {
         const int ticks = std::max(fighter.poison_len, 50);
@@ -387,6 +427,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     blow.knockback = fighter.knockback || swing.knockback;
     blow.stun_ticks = std::min(swing.stun_ticks, 250);
     blow.damage = phys + elem + crushing_blow;
+    blow.elemental = marking > 0 || blow.poison > 0;
     return blow;
 }
 
