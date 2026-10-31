@@ -311,7 +311,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (action == GameMenu::kControls) {          // CfgOptions (0x47f400): UI 0xb
                 controls.family = pad_family;
                 controls.pad_extra = pad_controls_page;
-                controls.show(key_table, pad_config, character.expansion);
+                controls.click_rows = click_keys_on;
+                controls.show(key_table, pad_config, character.expansion, click_keys);
             }
             // Save and Exit logs out whoever's pad has the menu. A partner leaves alone; the first
             // player alone ends the game, in local co-op the next player leads and it goes on.

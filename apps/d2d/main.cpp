@@ -18,10 +18,12 @@
 #include "audio.hpp"
 #include "build_info.hpp"
 #include "common.hpp"
+#include "controls.hpp"
 #include "cursor.hpp"
 #include "devctl/verbs.hpp"
 #include "frontend.hpp"
 #include "gamepad.hpp"
+#include "keyconfig.hpp"
 #include "lobby.hpp"
 #include "gamepad_map.hpp"
 #include "roster.hpp"
@@ -351,6 +353,7 @@ static fs::path    g_user_dir;
 static pad::Config g_pad_config;          // d2d.cfg pad_* (gamepad_map.hpp load_config)
 static std::array<int, 6> g_automap_options{ 0, 0, 1, 1, 1, 0 };   // d2d.cfg automap_mode/fade/center/party/names/left (game.exe's registry)
 static bool        g_pad_controls = true;
+static bool        g_click_keys = true;   // Configure Controls' Attack / Use and Right-hand Skill keys (deviations.md); off: --toggle click_keys=off
 static bool        g_coop_lobby = true;   // the title's "SINGLE PLAYER / COOP" and character select's co-op lobby; off: --toggle coop_lobby=off // Configure Controls' gamepad page (deviations.md); off: --toggle pad_controls=off
 static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
 static int         g_start_class = -1;   // none: char-create opens with no class picked
@@ -681,6 +684,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     // IMKCFRunLoopWakeUpReliable"). It was left on permanently as a
     // beachball suspect; that beachball was the pan-left float loop.
     bool text_active = false;
+    bool click_held = false;   // a click key holds the left button down (keyconfig.hpp Clicks)
     Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
     town.set_pad_config(g_pad_config);
     // A pad's seat; a new seat's player picks their character (Town::coop_seat's roster).
@@ -697,9 +701,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         d2d::userdir::Config cfg;
         d2d::userdir::load_cfg(town.cfg_file, cfg);
         town.hireling_hint = cfg["popup_hireling"] != "1";   // FUN_004939b0 reads the registry's PopupHireling each game
+        if (g_click_keys) town.click_keys = { keys::click_pair(cfg["click_attack"]), keys::click_pair(cfg["click_skill"]) };
     }
     if (!g_no_save) town.key_dir = save_dir;                 // <name>.key and default.key beside the saves, as game.exe keeps them
     town.pad_controls_page = g_pad_controls;
+    town.click_keys_on = g_click_keys;
     town.shot_dir = g_user_dir / "screenshots";
     for (int option = 0; option < 5; ++option) town.game_menu.value[4][std::size_t(option) + 1] = g_automap_options[std::size_t(option)];
     town.automap.left = g_automap_options[5] != 0;
@@ -804,6 +810,21 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
             gamepads.handle_event(event);
             if (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) { pad_in_use = false; mouse_took_over = true; }
+            // The click keys (deviations.md improvement 15): a key or mouse button bound to
+            // Attack / Use clicks the left button (held while it's held), Right-hand Skill
+            // the right; not while typing or in Configure Controls, where it's a key to bind.
+            if (bool down = false; screen == Screen::InGame && town.click_keys_on) {
+                if (const int click = click_event(event, town.click_keys, down); click >= 0) {
+                    const bool live = !text_active && !town.controls.open;
+                    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) { mouse.x = int(event.button.x); mouse.y = int(event.button.y); }
+                    if (click == keys::kClickAttack && !down && click_held) { click_held = false; mouse.down = false; mouse.release_this_frame = true; }
+                    if (live && down && !(event.type == SDL_EVENT_KEY_DOWN && event.key.repeat)) {
+                        if (click == keys::kClickAttack) { click_held = true; mouse.down = true; mouse.press_this_frame = true; }
+                        else mouse.rpress_this_frame = true;
+                    }
+                    if (live || !down) continue;
+                }
+            }
             handle_sdl_events(event, mouse, screen, text_this_frame,
                               backspace_this_frame, keys_this_frame, quit);
         }
@@ -1702,7 +1723,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, coop_lobby, light_grid, splash_centre); scalemode=pixelart|nearest|linear");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre); scalemode=pixelart|nearest|linear");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     std::string join_host, game_exe, log_level = "info";
     app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
@@ -1816,6 +1837,7 @@ int main(int argc, char** argv) {
             { "autoloot", &g_autoloot },        // gold walked over goes into the purse
             { "autoparty", &g_autoparty },      // a joined game: invite the others, accept their invites
             { "pad_controls", &g_pad_controls },   // Configure Controls' gamepad page
+            { "click_keys", &g_click_keys },       // Attack / Use and Right-hand Skill on more keys (Mouse 3..5)
             { "coop_lobby", &g_coop_lobby },       // SINGLE PLAYER / COOP, partners pick their characters on character select
             { "light_grid", &g_light_grid },       // the light grid over the whole view, not game.exe's 48 x 48
             { "splash_centre", &g_splash_centre }, // rain splashes and mud bubbles centred on their water
@@ -1835,7 +1857,7 @@ int main(int argc, char** argv) {
             }
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, coop_lobby, light_grid; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";
