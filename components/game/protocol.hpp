@@ -69,6 +69,9 @@ struct UseItem { int item = -1; };                 // right-click an item: a pot
 struct ToGrid { int panel = 1, col = 0, row = 0; };
 struct ToBody { int slot = 0; };
 struct ToBelt { int box = 0; };
+// 0x63 (FUN_0054d520): a shift + left click on inventory item `item`, the
+// hand empty: into the belt box a pickup would choose (rules::auto_belt).
+struct AutoBelt { int item = -1; };
 // 0x28 (FUN_0054b650 -> FUN_00562660): the held socket filler (a gem, rune
 // or jewel) into item `item`'s next free socket, the item stored or worn.
 struct Socket { int item = -1; };
@@ -122,7 +125,7 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt, cmd::Socket, cmd::ScrollToBook,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -209,6 +212,7 @@ inline constexpr std::uint8_t kRunOn = 0x53;
 inline constexpr std::uint8_t kRunOff = 0x54;
 inline constexpr std::uint8_t kSwapWeapons = 0x60;
 inline constexpr std::uint8_t kMercItem = 0x61;
+inline constexpr std::uint8_t kAutoBelt = 0x63;
 }  // namespace opcode
 
 // 0x38's first byte: which deal (d2d's numbering; game.exe tells Respec,
@@ -241,6 +245,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::ToGrid>) out.u8(opcode::kToGrid).i32(message.panel).i32(message.col).i32(message.row);
         else if constexpr (std::is_same_v<T, cmd::ToBody>) out.u8(opcode::kToBody).i32(message.slot);
         else if constexpr (std::is_same_v<T, cmd::ToBelt>) out.u8(opcode::kToBelt).i32(message.box);
+        else if constexpr (std::is_same_v<T, cmd::AutoBelt>) out.u8(opcode::kAutoBelt).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Socket>) out.u8(opcode::kSocket).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::ScrollToBook>) out.u8(opcode::kScrollToBook).i32(message.book);
         else if constexpr (std::is_same_v<T, cmd::OpenTrade>) out.u8(opcode::kNpcDeal).u8(message.gamble ? npc_deal::kGamble : npc_deal::kTrade).i32(message.npc);
@@ -299,6 +304,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kToGrid: { const int panel = i32(), col = i32(); command = cmd::ToGrid{ panel, col, i32() }; break; }
         case opcode::kToBody: command = cmd::ToBody{ i32() }; break;
         case opcode::kToBelt: command = cmd::ToBelt{ i32() }; break;
+        case opcode::kAutoBelt: command = cmd::AutoBelt{ i32() }; break;
         case opcode::kDropGold: command = cmd::DropGold{ i32() }; break;
         case opcode::kSocket: command = cmd::Socket{ i32() }; break;
         case opcode::kScrollToBook: command = cmd::ScrollToBook{ i32() }; break;

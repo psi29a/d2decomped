@@ -815,15 +815,19 @@ struct World {
     void take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms);
 
     // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
-    // item): Skills.txt 219 / 220 cast (srvdofunc 113), not in town (checkfunc
-    // 5); the scroll's used up, the tome's quantity goes down.
+    // item, FUN_0055e170 -> books.txt pSpell 2, FUN_005be290): the pair opens
+    // on this tick, no cast, whatever the player is doing; not dead, not in
+    // town, not with an item in hand. The old pair goes first; the scroll's
+    // used up, or the tome's quantity goes down, only when the new one
+    // opened. The skill bar's Town Portal (skill 220, srvdofunc 113) is the
+    // cast.
     void read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms);
     // Town Portal's action frame: a portal by the player and its twin at the
     // town's portal spot (FUN_0056d130 → FUN_0056cf40, spawn index 11);
     // the old pair goes. By the player: portal_spot from the caster; none,
-    // no portal.
+    // no portal (false).
     void open_portal(std::uint32_t now_ms);
-    void open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms);
+    bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms);
     // FUN_0056d130's spot (FUN_0064e810, field_spot): from (x, y) cells, a
     // 3 x 3 box (size 3) clear of 0x3e01 and expfield.d2's walk back clear of
     // 0xc01, over the grid, the items lying (0x200) and the units here (the

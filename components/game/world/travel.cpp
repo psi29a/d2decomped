@@ -232,10 +232,15 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
     }
 
 auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms) -> void {
-        if (in_town(level) || fight.dead() || actor->pmode >= 0) return;
+        if (in_town(level) || fight.dead() || actor->held) return;   // held: FUN_0055e170's FUN_0063c1e0
         const bool book = scroll->code == "tbk";
         if (book && scroll->quantity <= 0) return;
-        if (!fight.cast_scroll(book ? 220 : 219, now_ms)) return;
+        // ponytail: state 0x36 (FUN_0057eec0) and level 0x88 (FUN_005be290) refuse it too; d2d's player has no
+        // state 0x36, and Uber Tristram's refusal isn't compared (tools/emu/tome_use.py runs the Blood Moor).
+        // ponytail: a click on the old portal still pending (take_portal) is kept. FUN_00535430 only unlinks the pair and
+        // writes nothing to the player; the walk to a clicked portal is the client's, which the oracle doesn't have.
+        portal[actor->portal_pair] = portal[actor->portal_pair + 1] = {};   // FUN_00535430, before the new one
+        if (!open_portal_at(actor->player.x, actor->player.y, now_ms)) return;
         if (book) --scroll->quantity;
         else actor->character.items.erase(scroll);
         cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "player_townportal_cast", now_ms, actor->player.x, actor->player.y);
@@ -272,18 +277,19 @@ auto World::portal_spot(const Level& where, float x, float y) -> std::optional<s
         return std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
     }
 
-auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms) -> void {
+auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms) -> bool {
         const Level* act_town = game_data->town_of(level->id);
-        if (in_town(level) || !act_town || act_town->portal_spot.first < 0) return;
+        if (in_town(level) || !act_town || act_town->portal_spot.first < 0) return false;
         const auto& town = *act_town;
         const auto by_caster = portal_spot(*level, portal_x, portal_y);
-        if (!by_caster) { d2d::log::info("town portal: no room by ({:.1f}, {:.1f})", portal_x, portal_y); return; }
+        if (!by_caster) { d2d::log::info("town portal: no room by ({:.1f}, {:.1f})", portal_x, portal_y); return false; }
         const auto [spot_x, spot_y] = *by_caster;
         const auto [town_x, town_y] = town.nearest_free(town.portal_spot.first, town.portal_spot.second);
         portal[actor->portal_pair] = { level, spot_x, spot_y, now_ms };
         portal[actor->portal_pair + 1] = { &town, town_x, town_y, now_ms };
         cues.cue("object_townportal", now_ms, spot_x, spot_y);
         d2d::log::info("town portal: {} ({:.1f}, {:.1f}) <-> {} ({:.1f}, {:.1f})", level_name(*level), spot_x, spot_y, level_name(town), town_x, town_y);
+        return true;
     }
 
 auto World::use_portal(std::uint32_t now_ms) -> void {

@@ -187,6 +187,7 @@ auto Town::send(const Command& command) -> void {
             net_game->store_items.clear();
         } else if (std::holds_alternative<cmd::UseItem>(command) || std::holds_alternative<cmd::UseBelt>(command) || std::holds_alternative<cmd::ToCursor>(command)
                    || std::holds_alternative<cmd::ToGrid>(command) || std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToBelt>(command)
+                   || std::holds_alternative<cmd::AutoBelt>(command)
                    || std::holds_alternative<cmd::Drop>(command) || std::holds_alternative<cmd::Socket>(command) || std::holds_alternative<cmd::ScrollToBook>(command)) {
             if (!net_items(command)) return;                  // the host can't make it: nor does the local World
         } else if (const auto* interact = std::get_if<cmd::Interact>(&command); interact && interact->npc >= 0 && std::size_t(interact->npc) < level->npcs.size()) {
@@ -338,6 +339,10 @@ auto Town::net_items(const Command& command) -> bool {
             const bool swap = worn != hero.character.items.end();
             net_game->send_items({ c2s::equip(held_id, std::uint32_t(to_body->slot), swap) });
             net_cursor = swap ? net_game->host_item(*worn) : 0;
+        } else if (const auto* auto_belt = std::get_if<cmd::AutoBelt>(&command); auto_belt && !hero.held) {
+            const auto id = host(local(auto_belt->item));
+            if (!id) return false;
+            net_game->send_items({ c2s::auto_belt(id) });
         } else if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command); to_belt && held_id) {
             net_game->send_items({ c2s::cursor_to_belt(held_id, std::uint32_t(to_belt->box)) });
             net_cursor = 0;

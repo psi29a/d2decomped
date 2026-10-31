@@ -430,7 +430,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             const int speed = attack_mode(mode) ? d2d::rules::attack_speed(rate, actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms)) : rate;
             const int swing_ticks = (swing.frames * 256 + 128) / speed;
             const std::uint32_t start_at = now_ms + (skill->st_sound_delay ? std::uint32_t(std::max(swing_ticks - 3, 0)) * 40 : 0);
-            const bool item = (actor->item_cast || from_charges(skill->id)) && skill->item_cast_sound > 0;   // a scroll, or a charged entry (its owner's guid, FUN_004c6140)
+            const bool item = from_charges(skill->id) && skill->item_cast_sound > 0;   // a charged entry (its owner's guid, FUN_004c6140)
             cues.cue_on(unit_key(kSoundOnPlayer, actor->id), item ? skill->item_cast_sound : skill->st_sound, start_at, actor->player.x, actor->player.y);
             if (skill->weapon_sound) cues.cue_on(unit_key(kSoundOnPlayer, actor->id), swing.sound, now_ms + std::uint32_t(swing_ticks) * 40, actor->player.x, actor->player.y);
             const int cls = actor->character.character_class;

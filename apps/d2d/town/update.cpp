@@ -432,7 +432,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 item_click = true;
             } else {
                 const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                                    { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
+                                                    { inv_open, stash_open, cube_open, belt_open, character.expansion, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 },
+                                                    mouse.x, mouse.y);
                 if (click.cmd) net.send(*click.cmd);
                 item_click = click.consumed;
             }

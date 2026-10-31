@@ -1911,6 +1911,50 @@ inline int potion_rate(int old_rate, int left, int amount, int len) {
 enum class Pickup { kGone, kStays, kNoRoom };
 // The belt groups of FUN_00628a40, 3-char codes in game.exe order (0x744684 hp, 0x74466c mp, 0x744660 rv).
 inline constexpr std::array<std::string_view, 3> kGroups{ "hp1hp2hp3hp4hp5", "mp1mp2mp3mp4mp5", "rvlrvs" };
+// The item's own ItemTypes row is Beltable (FUN_0062bad0; no Equiv chain).
+inline bool beltable(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto* info = info_of(tables, item);
+    const auto type_row = info ? tables.types.find(info->type) : tables.types.end();
+    return type_row != tables.types.end() && type_row->second.beltable;
+}
+// The belt box `item` goes to (FUN_0063c600), -1 none: a 1x1 Beltable item
+// to the first column whose bottom item matches (the same code, or both
+// of hp1-5 / mp1-5 / rvs, rvl: FUN_00628a40), its lowest free box below
+// `boxes`; else, autobelt, the first free bottom box.
+inline int belt_box(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, int boxes) {
+    const auto [width, height] = item_size(tables, item.code);
+    if (!beltable(tables, item) || width != 1 || height != 1) return -1;
+    const auto base = tables.item_base.find(item.code);
+    const bool autobelt = base != tables.item_base.end() && base->second.autobelt;
+    std::array<const d2d::d2s::Item*, 16> box{};
+    for (const auto& carried : items) if (carried.location == d2d::d2s::item_location::kBelt && carried.column >= 0 && carried.column < 16) box[std::size_t(carried.column)] = &carried;
+    const auto group = [](const std::string& code) {
+        for (std::size_t i = 0; i < kGroups.size(); ++i)
+            for (std::size_t at = 0; code.size() == 3 && at < kGroups[i].size(); at += 3) if (kGroups[i].substr(at, 3) == code) return int(i);
+        return -1;
+    };
+    for (int col = 0; col < 4; ++col) {
+        const auto* bottom = box[std::size_t(col)];
+        if (!bottom || col >= boxes || (bottom->code != item.code && (group(item.code) < 0 || group(item.code) != group(bottom->code)))) continue;
+        for (int up = col; up < boxes && up < 16; up += 4) if (!box[std::size_t(up)]) return up;
+    }
+    for (int col = 0; col < 4 && autobelt; ++col) if (!box[std::size_t(col)]) return col;
+    return -1;
+}
+// Shift + left click on an inventory item (C->S 0x63, FUN_0054d520), the
+// hand empty: an item stored in the inventory (FUN_00628250 page 0; not
+// the stash, cube or belt) moves to belt_box's box. No box: it stays where
+// it is (not into the hand). No tome or stack step comes first, so a
+// scroll goes only to a column whose bottom is the same scroll.
+// ponytail: FUN_00535610's checks while trading aren't done.
+inline bool auto_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int id, int boxes) {
+    const auto found = std::ranges::find(items, id, &d2d::d2s::Item::id);
+    if (found == items.end() || found->location != d2d::d2s::item_location::kStored || found->panel != d2d::d2s::item_panel::kInventory) return false;
+    const int slot = belt_box(tables, items, *found, boxes);
+    if (slot < 0) return false;
+    found->location = d2d::d2s::item_location::kBelt; found->column = slot; found->row = 0; found->panel = 0; found->slot = 0;
+    return true;
+}
 inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes) {
     using d2d::d2s::Item;
     const auto in_inventory = [](const Item& carried) { return carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory; };
@@ -1938,31 +1982,14 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
             if (item.quantity <= 0) return Pickup::kGone;
         }
     }
-    const auto [width, height] = item_size(tables, item.code);
-    const bool autobelt = base != tables.item_base.end() && base->second.autobelt;
-    if (type_row != tables.types.end() && type_row->second.beltable && width == 1 && height == 1) {
-        std::array<const Item*, 16> box{};
-        for (const auto& carried : items) if (carried.location == d2d::d2s::item_location::kBelt && carried.column >= 0 && carried.column < 16) box[std::size_t(carried.column)] = &carried;
-        const auto group = [](const std::string& code) {
-            for (std::size_t i = 0; i < kGroups.size(); ++i)
-                for (std::size_t at = 0; code.size() == 3 && at < kGroups[i].size(); at += 3) if (kGroups[i].substr(at, 3) == code) return int(i);
-            return -1;
-        };
-        int slot = -1;
-        for (int col = 0; col < 4 && slot < 0; ++col) {
-            const auto* bottom = box[std::size_t(col)];
-            if (!bottom || col >= boxes || (bottom->code != item.code && (group(item.code) < 0 || group(item.code) != group(bottom->code)))) continue;
-            for (int up = col; up < boxes && up < 16 && slot < 0; up += 4) if (!box[std::size_t(up)]) slot = up;
-        }
-        for (int col = 0; col < 4 && slot < 0 && autobelt; ++col) if (!box[std::size_t(col)]) slot = col;
-        if (slot >= 0) {
-            item.location = d2d::d2s::item_location::kBelt; item.column = slot; item.row = 0; item.panel = 0; item.slot = 0;
-            items.push_back(std::move(item));
-            return Pickup::kGone;
-        }
+    if (const int slot = belt_box(tables, items, item, boxes); slot >= 0) {
+        item.location = d2d::d2s::item_location::kBelt; item.column = slot; item.row = 0; item.panel = 0; item.slot = 0;
+        items.push_back(std::move(item));
+        return Pickup::kGone;
     }
     std::vector<const Item*> inventory;
     for (const auto& carried : items) if (in_inventory(carried)) inventory.push_back(&carried);
+    const auto [width, height] = item_size(tables, item.code);
     const auto [column, row] = free_spot(tables, inventory, cols, rows, width, height, true);
     if (column < 0) return Pickup::kNoRoom;
     item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = column; item.row = row;

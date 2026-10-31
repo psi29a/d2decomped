@@ -42,6 +42,8 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Skill tooltip lines | `uv run python skill_tips.py 20 0 > g.txt; ../../build/tests/test_game --skill-tips 20 0 \| grep '^[0-9]' \| iconv -f latin1 -t utf-8 \| diff g.txt -` | no output |
 | Skill element damage and length (synergies, masteries) | `uv run python skill_damage.py gen 100000 1 > cases.tsv; uv run python skill_damage.py game cases.tsv > g.txt; ../../build/tests/test_game --skill-damage cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Belt step of a pickup (which box, or none) | `uv run python belt_pickup.py gen 100000 1 > cases.tsv; uv run python belt_pickup.py game cases.tsv > g.txt; ../../build/tests/test_game --belt-pickup cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
+| Town Portal read from the pack (C->S 0x20: opened, charge, old pair) | `uv run python tome_use.py gen 100000 7 > cases.tsv; uv run python tome_use.py game cases.tsv > g.txt; ../../build/tests/test_game --tome-use cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
+| Shift-click to the belt (C->S 0x63: Beltable, inventory page, the box) | `uv run python auto_belt.py gen 100000 1 > cases.tsv; uv run python auto_belt.py game cases.tsv > g.txt; ../../build/tests/test_game --auto-belt cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Key bindings (assign rules, key names) | `uv run python keys.py \| diff - <(../../build/tests/test_keyconfig --dump)` | no output |
 | Overlay frames, loop/one-shot endings, delayed-loop wait | `uv run python overlays.py > /tmp/overlay_cases.inc && diff ../../tests/overlay_cases.inc /tmp/overlay_cases.inc` | no diff; also checks kind 6's wait and duplicate clock |
 

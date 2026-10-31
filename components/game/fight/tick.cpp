@@ -55,17 +55,6 @@ d2d::rules::DiabloPick unit_pick(const GameData& game_data, std::array<int, 5> r
     return pick;
 }
 
-auto Fight::cast_scroll(int skill, std::uint32_t now_ms) -> bool {
-        if (dead() || actor->pmode >= 0) return false;
-        actor->swing_skill = skill;
-        actor->attack_mon = -1;
-        actor->item_cast = true;
-        set_pmode(kModeSC, now_ms);
-        actor->item_cast = false;
-        actor->pstruck = false;
-        return true;
-    }
-
 // A cast's cost (FUN_0056bfe0, after the skill's start or do function):
 // from a charged entry for that skill, one charge (FUN_0056bec0) and no
 // mana; else its mana.
