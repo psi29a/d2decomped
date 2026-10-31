@@ -238,6 +238,53 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    // `--waypoint-refuse CASES`: the camp's waypoint used to the Cold Plains
+    // (cmd::Waypoint, C->S 0x49), the cases of tools/emu/wp_refuse.py
+    // (game.exe's FUN_0054d750 -> FUN_0054c5d0). Each level change is an
+    // arrival in the camp at its time; the hostile declarations are not run
+    // (d2d has none). Per case `id refused` (1: no travel).
+    if (argc > 2 && std::string_view(argv[1]) == "--waypoint-refuse") {
+        d2d::rules::Rng made_rng(7);
+        auto made = new_character(*data, 4, "Headless", false, true, made_rng);
+        Character traveller;
+        traveller.character_class = 4;
+        traveller.name = "Headless";
+        traveller.header = made.header;
+        traveller.stats = made.stats;
+        traveller.items = made.items;
+        traveller.panel = panel_stats(*data, traveller.header, traveller.items, traveller.stats);
+        World world(&*data, -1, -1);
+        world.enter(traveller);
+        const Level* camp = &data->town;
+        const auto stone = std::ranges::find(camp->npcs, d2d::rules::operate_fn::kWaypoint, &Npc::operate_fn);
+        const Level* plains = data->level(d2d::rules::level_ids::kColdPlains);
+        assert(stone != camp->npcs.end() && plains && plains->ds1.width() > 0);
+        int index = -1;
+        for (const auto& act_levels : data->waypoint_levels)
+            for (const auto& row : act_levels) if (row.level == d2d::rules::level_ids::kColdPlains) index = row.waypoint;
+        assert(index >= 0);
+        const int npc = int(stone - camp->npcs.begin());
+        std::ifstream cases(argv[2]);
+        std::string line;
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);
+            long long id = 0, at = 0, count = 0;
+            int active = 0;
+            if (!(fields >> id >> at >> active >> count)) continue;
+            for (long long i = 0; i < count; ++i) {
+                long long arrived = 0;
+                fields >> arrived;
+                world.now = std::uint32_t(arrived);
+                world.arrive(camp, camp->start.first, camp->start.second, "a level change");
+            }
+            auto& bits = world.actor->character.header.waypoints[std::size_t(world.actor->character.header.active_difficulty())][std::size_t(index >> 3)];
+            bits = std::uint8_t(active ? bits | (1 << (index & 7)) : bits & ~(1 << (index & 7)));
+            world.now = std::uint32_t(at);
+            world.apply(cmd::Waypoint{ npc, d2d::rules::level_ids::kColdPlains }, std::uint32_t(at));
+            std::printf("%lld %d\n", id, world.level == plains ? 0 : 1);
+        }
+        return 0;
+    }
     d2d::rules::Rng rng(7);
     constexpr int kBarbarian = 4;
     auto made = new_character(*data, kBarbarian, "Headless", false, true, rng);
