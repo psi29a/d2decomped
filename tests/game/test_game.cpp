@@ -286,8 +286,8 @@ int main(int argc, char** argv) try {
         while (std::getline(cases, line)) {
             std::istringstream fields(line);
             std::string code;
-            int id = 0, charges = 0, town = 0, held = 0, mode = 0, spot = 0;
-            if (!(fields >> id >> code >> charges >> town >> held >> mode >> spot)) continue;
+            int case_id = 0, charges = 0, town = 0, held = 0, mode = 0, spot = 0;
+            if (!(fields >> case_id >> code >> charges >> town >> held >> mode >> spot)) continue;
             *world.actor = start;
             auto& player = *world.actor;
             std::ranges::fill(walled.walk, std::uint16_t(1));
@@ -311,7 +311,7 @@ int main(int argc, char** argv) try {
             const auto left = std::ranges::find(player.character.items, 9000, &d2d::d2s::Item::id);
             const bool spent = code == "tbk" ? left != player.character.items.end() && left->quantity == charges - 1 : left == player.character.items.end();
             const bool kept = world.portal[player.portal_pair].level == old_field.level && world.portal[player.portal_pair].born == 1;
-            std::printf("%d %d %d %d\n", id, opened_at, int(spent), int(kept));
+            std::printf("%d %d %d %d\n", case_id, opened_at, int(spent), int(kept));
             now += 100 * kTickMs;
         }
         return 0;
@@ -890,6 +890,60 @@ int main(int argc, char** argv) try {
     fight.potion("wms", 26 * kTickMs);
     assert(!poisoned() && fight.chill_rate(26 * kTickMs) == 0);
 
+    // The Town Portal reads run in their own world, in the Blood Moor, before the patch-only
+    // checks below: they need no D2_PATCH_INSTALLER and are not skipped without it.
+    {
+        const auto* field = data->level(d2d::rules::level_ids::kBloodMoor);
+        assert(field && !field->walk.empty());
+        World portal_world(&*data, -1, -1);
+        portal_world.enter(character);
+        const auto [here_x, here_y] = field->nearest_free(float(field->ds1.width()) / 2, float(field->ds1.height()) / 2);
+        portal_world.level = field;
+        std::tie(portal_world.actor->player.x, portal_world.actor->player.y) = std::pair{ here_x, here_y };
+        portal_world.tick({}, 4590 * kTickMs, 4589 * kTickMs);   // a level's first tick fills in its rooms' walk flags
+        {   // A Town Portal read from the pack with an item in hand (FUN_0055e170's
+            // FUN_0063c1e0): nothing, the charge kept (tools/emu/tome_use.py).
+            auto& reader = *portal_world.actor;
+            d2d::d2s::Item tome{ .code = "tbk", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .quantity = 2 };
+            tome.id = 9100;
+            reader.character.items.push_back(tome);
+            reader.held = d2d::d2s::Item{ .code = "hp1" };
+            portal_world.apply(cmd::UseItem{ 9100 }, 4600 * kTickMs);
+            assert(reader.pmode == -1 && std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity == 2);
+            reader.held.reset();
+            std::erase_if(reader.character.items, [](const d2d::d2s::Item& item) { return item.id == 9100; });
+            std::printf("OK: a Town Portal read with an item in hand does nothing\n");
+        }
+        {   // A Town Portal read from the pack (C->S 0x20: FUN_0055e170 -> FUN_005be290)
+            // opens on the use's tick, in a get-hit too, no cast; the next read
+            // replaces the pair; the charge goes only with a portal; an empty tome
+            // or a dead reader: nothing (tools/emu/tome_use.py for every case).
+            auto& reader = *portal_world.actor;
+            d2d::d2s::Item tome{ .code = "tbk", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .quantity = 2 };
+            tome.id = 9100;
+            reader.character.items.push_back(tome);
+            const auto charges = [&] { return std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity; };
+            const auto& pair = portal_world.portal[reader.portal_pair];
+            reader.pmode = kModeGH;
+            reader.player.mode_ms = 4600 * kTickMs;
+            portal_world.apply(cmd::UseItem{ 9100 }, 4600 * kTickMs);
+            assert(pair.level == field && pair.born == 4600 * kTickMs && portal_world.portal[reader.portal_pair + 1].level == &data->town);
+            assert(reader.pmode == kModeGH && charges() == 1);
+            reader.pmode = -1;
+            portal_world.apply(cmd::UseItem{ 9100 }, 4601 * kTickMs);
+            assert(pair.born == 4601 * kTickMs && charges() == 0 && reader.pmode == -1);
+            portal_world.apply(cmd::UseItem{ 9100 }, 4602 * kTickMs);
+            std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity = 1;
+            reader.pmode = kModeDT;
+            portal_world.apply(cmd::UseItem{ 9100 }, 4603 * kTickMs);
+            assert(pair.born == 4601 * kTickMs && charges() == 1);
+            reader.pmode = -1;
+            std::erase_if(reader.character.items, [](const d2d::d2s::Item& item) { return item.id == 9100; });
+            portal_world.portal[reader.portal_pair] = portal_world.portal[reader.portal_pair + 1] = {};
+            std::printf("OK: a Town Portal read from the pack opens at once, in a get-hit too\n");
+        }
+    }
+
     // Tristram Cain (FUN_00593290 -> FUN_005e7880): the Gibbet opened, he
     // comes out, walks off, opens his portal, walks back in: camp Cain due.
     // (The 1.14d tables: the CD's leave Tristram's presets unplaced.)
@@ -989,50 +1043,6 @@ int main(int argc, char** argv) try {
     world.tick({}, (902 + 3600) * kTickMs, (901 + 3600) * kTickMs);
     assert(world.actor->boost.shrine == 0 && world.actor->player_combat.res[0] == fire);
     std::printf("OK: shrines: stamina filled, one state at a time, resist fire for 3600 frames\n");
-    {   // A Town Portal read from the pack with an item in hand (FUN_0055e170's
-        // FUN_0063c1e0): nothing, the charge kept (tools/emu/tome_use.py).
-        auto& reader = *world.actor;
-        d2d::d2s::Item tome{ .code = "tbk", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .quantity = 2 };
-        tome.id = 9100;
-        reader.character.items.push_back(tome);
-        reader.held = d2d::d2s::Item{ .code = "hp1" };
-        world.apply(cmd::UseItem{ 9100 }, 4600 * kTickMs);
-        assert(reader.pmode == -1 && std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity == 2);
-        reader.held.reset();
-        std::erase_if(reader.character.items, [](const d2d::d2s::Item& item) { return item.id == 9100; });
-        std::printf("OK: a Town Portal read with an item in hand does nothing\n");
-    }
-    {   // A Town Portal read from the pack (C->S 0x20: FUN_0055e170 -> FUN_005be290)
-        // opens on the use's tick, in a get-hit too, no cast; the next read
-        // replaces the pair; the charge goes only with a portal; an empty tome
-        // or a dead reader: nothing (tools/emu/tome_use.py for every case).
-        auto& reader = *world.actor;
-        const auto was = std::pair{ reader.player.x, reader.player.y };
-        std::tie(reader.player.x, reader.player.y) = moor->nearest_free(shrine->x + 3, shrine->y);
-        d2d::d2s::Item tome{ .code = "tbk", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .quantity = 2 };
-        tome.id = 9100;
-        reader.character.items.push_back(tome);
-        const auto charges = [&] { return std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity; };
-        const auto& pair = world.portal[reader.portal_pair];
-        reader.pmode = kModeGH;
-        reader.player.mode_ms = 4600 * kTickMs;
-        world.apply(cmd::UseItem{ 9100 }, 4600 * kTickMs);
-        assert(pair.level == moor && pair.born == 4600 * kTickMs && world.portal[reader.portal_pair + 1].level == &data->town);
-        assert(reader.pmode == kModeGH && charges() == 1);
-        reader.pmode = -1;
-        world.apply(cmd::UseItem{ 9100 }, 4601 * kTickMs);
-        assert(pair.born == 4601 * kTickMs && charges() == 0 && reader.pmode == -1);
-        world.apply(cmd::UseItem{ 9100 }, 4602 * kTickMs);
-        std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity = 1;
-        reader.pmode = kModeDT;
-        world.apply(cmd::UseItem{ 9100 }, 4603 * kTickMs);
-        assert(pair.born == 4601 * kTickMs && charges() == 1);
-        reader.pmode = -1;
-        std::erase_if(reader.character.items, [](const d2d::d2s::Item& item) { return item.id == 9100; });
-        world.portal[reader.portal_pair] = world.portal[reader.portal_pair + 1] = {};
-        std::tie(reader.player.x, reader.player.y) = was;
-        std::printf("OK: a Town Portal read from the pack opens at once, in a get-hit too\n");
-    }
     {   // A converted monster is no target: game.exe's cursor drops a unit the player can't
         // interact with (HitTestScreen: CanInteractWith is !IsAllyOf), so an attack names it only
         // through devctl or the net; World turns that away too and the hero stays put.
