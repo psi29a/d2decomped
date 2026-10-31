@@ -46,8 +46,10 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <map>
 #include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -318,6 +320,31 @@ int main(int argc, char** argv) try {
                 events.emplace_back('h', std::max(roll, 1));
             }
             run("R" + std::to_string(i), max_hp, res, pierce, events);
+        }
+        return 0;
+    }
+    // `--skill-damage CASES`: a skill's element damage and length at a level
+    // for a unit's skill levels and masteries, as tools/emu/skill_damage.py
+    // prints game.exe's (FUN_00644d50 / FUN_00644e40 / FUN_00644f20, flag 1).
+    if (argc > 2 && std::string_view(argv[1]) == "--skill-damage") {
+        std::ifstream cases(argv[2]);
+        std::string line;
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);
+            int id = 0, skill_id = 0, lvl = 0, clvl = 0, count = 0;
+            std::array<int, 4> masteries{};
+            fields >> id >> skill_id >> lvl >> clvl >> masteries[0] >> masteries[1] >> masteries[2] >> masteries[3] >> count;
+            std::map<int, int> levels;
+            for (int k = 0; k < count; ++k) { int other = 0, level = 0; fields >> other >> level; levels[other] = level; }
+            levels[skill_id] = lvl;
+            d2d::rules::CalcEnv env;
+            env.clvl = clvl;
+            env.base_level = env.level = [&](int other) { const auto found = levels.find(other); return found == levels.end() ? 0 : found->second; };
+            env.stat = [&](int stat) { return stat >= d2d::d2s::kPassiveFireMastery && stat < d2d::d2s::kPassiveFireMastery + 4 ? masteries[std::size_t(stat - d2d::d2s::kPassiveFireMastery)] : 0; };
+            const auto* skill = data->skills.get(skill_id);
+            if (!skill) continue;
+            std::printf("%d %d %d %d\n", id, d2d::rules::elem_damage(data->skills, *skill, env, lvl, false, 0, true),
+                        d2d::rules::elem_damage(data->skills, *skill, env, lvl, true, 0, true), d2d::rules::elem_length(data->skills, *skill, env, lvl));
         }
         return 0;
     }
