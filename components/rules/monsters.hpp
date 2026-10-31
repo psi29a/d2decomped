@@ -1270,9 +1270,9 @@ struct ThinkIn {
     // (FUN_005541b0).
     bool lines_clear = true, rider = false, self_dead = false, state69 = false, imp_near = false, target_state20 = false, command_busy = false;
     int skill1_range = 0, target_max_life = 0, target_max_mana = 0, self_life_pct = 100, command_until = 0;
-    // The Overseer's: the one that last hit it (FUN_005de830: a player not
-    // dead, a monster a pet); its search (FUN_005e26d0): a minion within 24
-    // under 50 % life, one within 20 not under FUN_005a0180, how many
+    // The Overseer's: the one that last struck at it (FUN_005de830: not
+    // dying or dead, its enemy); its search (FUN_005e26d0): a minion within 24
+    // under 50 % life, one within 20 not special (FUN_005a0180 8), how many
     // minions (the MinionSpawner's FUN_005e2b70 count too: `young`).
     bool attacker = false, hurt_minion = false, free_minion = false;
     // The Imp's: MonStats imp1..imp4's aip1..8 (its think reads theirs).

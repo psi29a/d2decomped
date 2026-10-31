@@ -8,6 +8,12 @@ are in monsters.md; the per-AI thinks are in `components/rules/monsters.hpp`
 
 Run whenever a monster's think event comes due (PTR 0x6e2498, called from
 the mode-end and timer handlers FUN_005a8030 / FUN_005a8330 / FUN_005a83e0).
+0x6e2498 is unit event 2's slot in the handler table 0x6e2490 (0 0x5a7ba0,
+1 0x5a7be0, 2 this, 3 0x5a6920, 5 0x56d790, 6 0x5a7f00, 7 0x5a4370). A
+wait (FUN_005de0f0: replace; FUN_005de130: only sooner) queues event 2 at
+the frame now + n; the driver reads no mode, so it can run mid-swing. At a
+mode's end (FUN_005a8030) only WL and RN (table 0x73c6d0) think at once;
+any other mode drops to NU (FUN_005a7c20) and waits for its event.
 It fills a params block (AI control at monster data +0x28, MonStats row)
 and goes, stopping at the first step that acts:
 

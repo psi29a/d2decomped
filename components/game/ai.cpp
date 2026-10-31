@@ -1492,8 +1492,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     const Monster* at_unit = act.unit == ThinkUnit::kin ? (kin >= 0 ? &pack[std::size_t(kin)] : corpse >= 0 ? &pack[std::size_t(corpse)] : nullptr)
                            : act.unit == ThinkUnit::aid && aid >= 0 ? &pack[std::size_t(aid)] : nullptr;
-    // FUN_005de0f0 / FUN_005de130: its next think n frames on (a wait after its mode).
-    // ponytail: a wait counts from now, not the mode's end.
+    // FUN_005de0f0 / FUN_005de130: its next think (unit event 2) n frames on.
+    // ponytail: d2d thinks at the later of that and the mode's end. game.exe
+    // counts from now and runs the think when it comes, mid-mode or not
+    // (FUN_005b1740 reads no mode; a busy start's retry is FUN_005a73e0);
+    // only WL / RN think at their end (FUN_005a8030, table 0x73c6d0).
     if (act.wait > 0 || act.event > 0) monster.next_act = std::max(monster.next_act, now_ms + std::uint32_t(std::max(act.wait, act.event)) * 40);
     // FUN_0058f730 / FUN_0058ef40: its leader's group, itself too. One made
     // outside a group (leader -1) has none to look up, so nothing is sent.
