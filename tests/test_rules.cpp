@@ -570,6 +570,10 @@ int main() {
         assert(stack_cap(StackKind::Potion, true, StackGrid::Inventory, 0) == 1);
         const StackMerge room = merge_counts(StackKind::Potion, "hp1", 40, StackKind::Potion, "hp1", 20, 50);
         assert(room.merged && room.kept == 50 && room.left == 10);
+        const StackMerge capped = merge_counts(StackKind::Potion, "hp1", 40, StackKind::Potion, "hp1", 20, 80);
+        assert(capped.merged && capped.kept == 50 && capped.left == 10);
+        const StackMerge high = merge_counts(StackKind::Potion, "hp1", 10, StackKind::Potion, "hp1", 5, 80);
+        assert(high.merged && high.kept == 15 && high.left == 0);
         const StackMerge fit = merge_counts(StackKind::Gem, "gcv", 10, StackKind::Gem, "gcv", 5, 50);
         assert(fit.merged && fit.kept == 15 && fit.left == 0);
         const StackMerge kinds = merge_counts(StackKind::Potion, "hp1", 4, StackKind::Rune, "r01", 3, 50);
