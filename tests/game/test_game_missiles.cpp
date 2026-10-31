@@ -2,7 +2,8 @@
 // test-links: game
 // Missiles as game.exe makes them, with the game's MPQs (D2_MPQ_DIR; the
 // 1.14d ones with D2_PATCH_INSTALLER): a nova's ring, the breath's flames,
-// Charged Strike's bolts, and the ammo a shot takes.
+// Charged Strike's bolts, the ammo a shot takes, and what monsters cast
+// beside them (Baal's tentacles).
 
 #include <ai.hpp>
 #include <character.hpp>
@@ -89,6 +90,38 @@ int main() try {
         for (std::size_t k = 0; k < missiles.size(); ++k)
             assert(missiles[k].bolt == int(k) && missiles[k].to && std::abs(missiles[k].to->first - foes[0].x) < 0.01f && std::abs(missiles[k].to->second - foes[0].y) < 0.01f);
         std::printf("OK: a monster's charged bolts wander by their index\n");
+    }
+
+    {
+        // Baal's tentacles (FUN_005d2c20): one class a cast (FUN_0063efa0's base 0x220 case),
+        // rand(2) + the difficulty down the chain from baaltentacle1 (0x232).
+        const auto baal_row = data->monsters.by_id.find("baalcrab");
+        const auto tentacle_skill = data->skills.by_name.find("Baal Tentacle");
+        const auto first = data->monsters.by_id.find("baaltentacle1");
+        assert(baal_row != data->monsters.by_id.end() && tentacle_skill != data->skills.by_name.end() && first != data->monsters.by_id.end());
+        assert(baal_row->second == 0x220 && first->second == 0x232);
+        for (int difficulty = 0; difficulty < 3; ++difficulty)
+            for (std::uint32_t seed = 1; seed <= 8; ++seed) {
+                d2d::rules::Rng tentacle_rng{ seed };
+                Level here{};
+                here.id = d2d::rules::level_ids::kBloodMoor;
+                std::vector<Monster> pack{ make_monster(*data, int(baal_row->second), 10.f, 10.f, tentacle_rng, difficulty) };
+                pack[0].skill = tentacle_skill->second;
+                pack[0].seed = d2d::rules::Rng{ seed };
+                set_mode(*data, pack[0], "S2", 0);                       // its Sk3mode
+                std::array<Foe, 1> foes{};
+                foes[0].x = 14.f; foes[0].y = 10.f;
+                const Crowd crowd;
+                std::vector<Missile> missiles;
+                std::vector<Monster> born;
+                for (std::uint32_t frame = 1; frame <= 100 && born.empty(); ++frame)
+                    monster_update(*data, here, pack[0], foes, tentacle_rng, frame * 40, 0.04f, crowd, missiles, pack, &born);
+                assert(born.size() >= std::size_t(2 + difficulty) && born.size() <= std::size_t(4 + difficulty));
+                const int step = born[0].type - int(first->second);
+                assert(step == difficulty || step == difficulty + 1);
+                assert(std::ranges::all_of(born, [&](const Monster& tentacle) { return tentacle.type == born[0].type; }));
+            }
+        std::printf("OK: Baal's tentacles are one class a cast, rand(2) + the difficulty down the chain\n");
     }
 
     // A new barbarian in the camp (20 dexterity: the ammo checks lean on it).

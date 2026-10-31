@@ -550,8 +550,13 @@ BaalCrab,BaalCrabClone --dump tests/mon_ais_baal_cases.inc` (2026-10-24).
 - Skills: 139 (FUN_005d2940) srvmissilea `baal cold maker` at the target's
   spot, a maker (missile do 31) of `baal cold trail`; 140 (FUN_005d2c20)
   low % 3 + 2 + difficulty tentacles, each at the target + low % 18 − 9 per
-  axis, a step down the baaltentacle class chain (FUN_0063efa0 case 0x220),
-  made in A1.
+  axis, made in A1, all one class: FUN_0063efa0 case 0x220 (his BaseId),
+  once before them, on his seed (+0x20): rand(2) + the difficulty steps
+  down NextInClass from baaltentacle1 (0x232, FUN_0054da60), then two
+  rand(24) for a spot (x, y − 12) this caller doesn't use. Normal 1-2,
+  Nightmare 2-3, Hell 3-4. A class out-param already 0x23a (baalclone)
+  skips the pick; FUN_005d2c20's is an unset local. Re-check:
+  `tools/emu/disasm.py 0x63efa0 700`, the lines at 0x63f473..0x63f4c7.
 
 d2d: ai.cpp's Diablo blocks take Baal; the clone, the tentacles, the cold
 maker (ai.hpp do 31). ponytail: the tentacle class is rand(5) on his seed;

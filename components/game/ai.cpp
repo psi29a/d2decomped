@@ -2613,14 +2613,15 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kBaalTentacle) {
                     // FUN_005d2c20: 2 + rand(3) + the difficulty of them, each at the
-                    // target +- 9 (two draws of his seed), baaltentacle1..5 (FUN_0063efa0:
-                    // a step down the class chain), made in A1, bound to him.
-                    // ponytail: the chain's step is rand(5) on his seed.
+                    // target +- 9 (two draws of his seed), made in A1, bound to him. All
+                    // one class (FUN_0063efa0, his base 0x220, once): rand(2) + the
+                    // difficulty steps down the chain from baaltentacle1 (0x232,
+                    // FUN_0054da60), then two rand(24) for a spot this caller drops.
                     const int count = int(monster.seed.next() % 3) + 2 + monster.difficulty;
-                    for (int made = 0; born && made < count; ++made) {
+                    const auto kind = game_data.monsters.by_id.find("baaltentacle" + std::to_string(1 + monster.seed(2) + monster.difficulty));
+                    monster.seed(24); monster.seed(24);
+                    for (int made = 0; born && kind != game_data.monsters.by_id.end() && made < count; ++made) {
                         const int at_x = subtile(foe.x) + int(monster.seed.next() % 18) - 9, at_y = subtile(foe.y) + int(monster.seed.next() % 18) - 9;
-                        const auto kind = game_data.monsters.by_id.find("baaltentacle" + std::to_string(1 + monster.seed(5)));
-                        if (kind == game_data.monsters.by_id.end()) continue;
                         auto tentacle = make_monster(game_data, kind->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes));
                         std::tie(tentacle.unit.x, tentacle.unit.y) = level.nearest_free(tentacle.unit.x, tentacle.unit.y);
                         tentacle.aware = true;
