@@ -275,7 +275,6 @@ struct Fight {
         // this swing uses (Attack when it's not built or can't be paid for),
         // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
         int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
-        bool  item_cast = false;              // swing_skill is cast from an item (a scroll): its ItemCastSound
         ChargedSkill item_charge;             // the charged entry the cast came from (UseSkill::item; item -1 none): its level, a charge for its cost
         ChargedSkill attack_charge;           // the queued attack's (attack_skill's) entry, item_charge once its swing starts
         int   struck_class = 0;               // the last hit on the player's hit class (unit +0xb0): its impact on GH / DT
@@ -1072,9 +1071,6 @@ struct Fight {
     // ponytail: the aura events (+0x84) and the passive part
     // (FUN_005c6dc0) aren't read; a shield is assumed (itypea1 shie isn't
     // checked). A level 24 skill: past Act 1.
-    // Reading a scroll or a tome (Skills.txt 219 / 220): its skill cast,
-    // no mana, anywhere but in town (checkfunc 5).
-    bool cast_scroll(int skill, std::uint32_t now_ms);
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost (FUN_0056bfe0): a charged entry's (Hero::charge, for
     // that skill) is a charge and no mana, else the skill's mana.

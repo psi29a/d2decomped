@@ -968,6 +968,37 @@ int main(int argc, char** argv) try {
         std::erase_if(reader.character.items, [](const d2d::d2s::Item& item) { return item.id == 9100; });
         std::printf("OK: a Town Portal read with an item in hand does nothing\n");
     }
+    {   // A Town Portal read from the pack (C->S 0x20: FUN_0055e170 -> FUN_005be290)
+        // opens on the use's tick, in a get-hit too, no cast; the next read
+        // replaces the pair; the charge goes only with a portal; an empty tome
+        // or a dead reader: nothing (tools/emu/tome_use.py for every case).
+        auto& reader = *world.actor;
+        const auto was = std::pair{ reader.player.x, reader.player.y };
+        std::tie(reader.player.x, reader.player.y) = moor->nearest_free(shrine->x + 3, shrine->y);
+        d2d::d2s::Item tome{ .code = "tbk", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .quantity = 2 };
+        tome.id = 9100;
+        reader.character.items.push_back(tome);
+        const auto charges = [&] { return std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity; };
+        const auto& pair = world.portal[reader.portal_pair];
+        reader.pmode = kModeGH;
+        reader.player.mode_ms = 4600 * kTickMs;
+        world.apply(cmd::UseItem{ 9100 }, 4600 * kTickMs);
+        assert(pair.level == moor && pair.born == 4600 * kTickMs && world.portal[reader.portal_pair + 1].level == &data->town);
+        assert(reader.pmode == kModeGH && charges() == 1);
+        reader.pmode = -1;
+        world.apply(cmd::UseItem{ 9100 }, 4601 * kTickMs);
+        assert(pair.born == 4601 * kTickMs && charges() == 0 && reader.pmode == -1);
+        world.apply(cmd::UseItem{ 9100 }, 4602 * kTickMs);
+        std::ranges::find(reader.character.items, 9100, &d2d::d2s::Item::id)->quantity = 1;
+        reader.pmode = kModeDT;
+        world.apply(cmd::UseItem{ 9100 }, 4603 * kTickMs);
+        assert(pair.born == 4601 * kTickMs && charges() == 1);
+        reader.pmode = -1;
+        std::erase_if(reader.character.items, [](const d2d::d2s::Item& item) { return item.id == 9100; });
+        world.portal[reader.portal_pair] = world.portal[reader.portal_pair + 1] = {};
+        std::tie(reader.player.x, reader.player.y) = was;
+        std::printf("OK: a Town Portal read from the pack opens at once, in a get-hit too\n");
+    }
     {   // A converted monster is no target: game.exe's cursor drops a unit the player can't
         // interact with (HitTestScreen: CanInteractWith is !IsAllyOf), so an attack names it only
         // through devctl or the net; World turns that away too and the hero stays put.
