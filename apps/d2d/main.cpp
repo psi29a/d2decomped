@@ -353,7 +353,7 @@ static std::array<int, 6> g_automap_options{ 0, 0, 1, 1, 1, 0 };   // d2d.cfg au
 static bool        g_pad_controls = true;
 static bool        g_coop_lobby = true;   // the title's "SINGLE PLAYER / COOP" and character select's co-op lobby; off: --toggle coop_lobby=off // Configure Controls' gamepad page (deviations.md); off: --toggle pad_controls=off
 static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
-static int         g_start_class = 0;
+static int         g_start_class = -1;   // none: char-create opens with no class picked
 static std::string g_start_name;
 static bool        g_start_hardcore = false;
 static bool        g_start_classic = false;
@@ -1654,7 +1654,7 @@ int main(int argc, char** argv) {
     bool        send_crash_reports = false;
     bool        enable_crash_test = false;
     std::string start_screen;   // "title" | "credits" | "charcreate" | "ingame"
-    int         start_class = 0;
+    int         start_class = -1;
     std::string start_name;
     bool        start_hardcore = false;
     bool        start_classic = false;
@@ -1848,7 +1848,8 @@ int main(int argc, char** argv) {
     if (!game_exe.empty()) g_game_exe = game_exe;
     else if (const char* env = std::getenv("D2_GAME_EXE")) g_game_exe = env;
     else g_game_exe = fs::exists(data_dir / "game.exe") ? data_dir / "game.exe" : data_dir / "bin" / "game.exe";
-    g_start_class    = start_class;
+    // Straight into a game needs a class: the Barbarian unless one's given.
+    g_start_class    = start_class >= 0 ? start_class : g_start_screen == "ingame" ? 0 : -1;
     g_start_name     = start_name;
     g_start_hardcore = start_hardcore;
     g_start_classic  = start_classic;

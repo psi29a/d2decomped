@@ -276,3 +276,28 @@ The three checkbox handlers (`0x430730`, `0x430750`, `0x430770`) were
 disassembled by hand from the raw byte dump because Ghidra hadn't
 identified them as function entries — they're small stubs in a code
 gap between `FUN_004306c0` and `FUN_004307a0`.
+
+## The class under the mouse (`FUN_004307a0`)
+
+`FUN_004307a0(ECX on, EDX class, name id, description id)` (RET 8) runs
+only while no class is picked (`DAT_0070cb80 == -1`). On: it sets the text
+of two kind-4 boxes `FUN_00435580` registers, record 0xc5 (`0x7795d8`:
+0, bottom 180, 800 x 100) to the class name and 0xc6 (`0x7795dc`: 250,
+bottom 210, 300 x 100) to its description, both centred (+0x2c = 2), and
+remembers the class (`0x708d0c`). Off, for that class: both cleared. The
+style words at +0x28 point to `0x7089b4` (2, 0, 7, 0) and `0x7089c4`
+(1, 0, 0, 4), read as font30 tan and font16 white (not traced further).
+
+| Class | Name | Description |
+|---|---|---|
+| Amazon | 0xfab | 0x1408 |
+| Sorceress | 0xfaa | 0x140b |
+| Necromancer | 0xfa9 | 0x1409 |
+| Paladin | 0xfa8 | 0x140c |
+| Barbarian | 0xfa7 | 0x140a |
+| Druid | 0x2771 | 0x57f6 (`FUN_004308e0`, expansion only) |
+| Assassin | 0x2772 | 0x57f7 (`FUN_004308a0`, expansion only) |
+
+The click handler `FUN_00433bf0` calls it too before it records the pick.
+The screen opens with no class picked. d2d: `render_charcreate`
+(frontend.cpp), `CharCreateUI::hovered` (issue #139).

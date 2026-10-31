@@ -253,6 +253,7 @@ void draw_focus(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int 
 // character record; left/right arrows and non-printable keys are ignored.
 struct CharCreateUI : Character {
     int selected = -1;           // the class picked, in the screen's order (kSaveClassToUi), -1 none
+    int hovered = -1;            // the class under the mouse, same order, -1 none
     // Hardcore checkbox — the char-create master-table record at 0x70b0b0
     // (kind=6 button, x=319, y=560, w=15, h=16, handle=DAT_007797c0
     // (clickbox.dc6), on_click=FUN_00430730 which sets bit 0x04 of the
