@@ -2114,11 +2114,12 @@ void put_near(const Level& level, const Crowd& crowd, UnitState& unit, float x, 
 bool room_teleport(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning& spawning, UnitState& unit) {
     if (spawning.room_level != &level) return false;
     auto& in_play = spawning.levels[spawning.room_level];
-    if (spawning.room < 0 || std::size_t(spawning.room) >= in_play.room_seeds.size() || std::size_t(spawning.room) >= level.rooms.size()) return false;
-    const auto& room = level.rooms[std::size_t(spawning.room)];
+    if (!keep_camp_seeds(game_data, level, in_play)) return false;   // the builder's busy: the next think
+    const auto room = spawning.room < 0 ? std::nullopt : level_room(level, std::size_t(spawning.room));
+    if (!room || std::size_t(spawning.room) >= in_play.room_seeds.size()) return false;
     for (int tries = 0; tries < 20; ++tries) {
         auto& seed = in_play.room_seeds[std::size_t(spawning.room)];
-        const int x = room.x * 5 + 1 + seed(room.width * 5 - 1), y = room.y * 5 + 1 + seed(room.height * 5 - 1);
+        const int x = room->x * 5 + 1 + seed(room->width * 5 - 1), y = room->y * 5 + 1 + seed(room->height * 5 - 1);
         if (int fit_x = 0, fit_y = 0; !spawn_spot(game_data, level, crowd, &in_play, 0x16b, x, y, -1, spawning.room, fit_x, fit_y)) continue;
         put_near(level, crowd, unit, (float(x) + 0.5f) / 5, (float(y) + 0.5f) / 5);
         return true;

@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <chrono>
 #include <cstddef>
 #include <cassert>
 #include <cstdint>
@@ -49,6 +50,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <tuple>
 #include <utility>
 #include <variant>
@@ -67,6 +69,18 @@ int main(int argc, char** argv) try {
         assert(lines[2].text == "Fire Bolt" && lines[2].rgb == d2d::game::kTxtGreen && lines[1].text.empty());
         assert(lines[3].text == "Fire: 3-6" && lines[4].text.empty() && lines[5].text == "Mana Cost: 2" && lines[5].rgb == d2d::game::kTxtWhite);
         std::printf("OK: skill tooltip lines: bottom first, colour codes\n");
+    }
+    {
+        // The camp keeps no Level::rooms: level_room is its 8x8 grid, row by
+        // row, level tiles (the DS1's last column and row are its edge).
+        Level camp;
+        camp.ds1 = d2d::ds1::Map(21, 13, 1, 1);
+        camp.world_x = 100, camp.world_y = 200;
+        const auto edge = level_room(camp, 2), below = level_room(camp, 3);
+        assert(edge && edge->x == 16 && edge->y == 0 && edge->width == 4 && edge->height == 8);
+        assert(below && below->x == 0 && below->y == 8 && below->height == 4);
+        assert(!level_room(camp, 6) && room_of(camp, 17.5f, 9.5f) == 5);
+        std::printf("OK: the camp's rooms: an 8x8 grid\n");
     }
     {
         // A missile's frame (tools/emu/missile_dirs.py): game.exe's table at 0x6e45a0
@@ -166,6 +180,16 @@ int main(int argc, char** argv) try {
 
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1 && !data->town.walk.empty());
+    {
+        // The camp's room seeds (a merc's teleport rolls on them, fight.cpp
+        // room_teleport): one per level_room, each a DRLG room's.
+        Spawning::LevelState camp;
+        bool kept = false;
+        for (int tries = 0; tries < 200 && !(kept = keep_camp_seeds(*data, data->town, camp)); ++tries) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        assert(kept && !camp.room_seeds.empty() && level_room(data->town, camp.room_seeds.size() - 1) && !level_room(data->town, camp.room_seeds.size()));
+        assert(std::ranges::all_of(camp.room_seeds, [](const d2d::rules::Rng& seed) { return seed.low != 0; }));
+        std::printf("OK: the camp keeps %zu room seeds\n", camp.room_seeds.size());
+    }
     if (data->patched) {
         // The antidote's and thawing's states (misc.txt pSpell 6, FUN_005beda0):
         // +50 resist, +10 max, for len 750.

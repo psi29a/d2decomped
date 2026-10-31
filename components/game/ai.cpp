@@ -303,9 +303,9 @@ bool nest_spot_free(const GameData& game_data, const Level& level, const Crowd& 
 bool spawn_spot(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning::LevelState* rooms_in_play, int type, int x, int y, int radius,
                 int room, int& out_x, int& out_y) {
     const auto index = std::size_t(room);
-    if (room < 0 || index >= level.rooms.size() || !rooms_in_play || index >= rooms_in_play->up.size() || !rooms_in_play->up[index] || index >= rooms_in_play->room_seeds.size()) return false;
-    const auto& rect = level.rooms[index];
-    d2d::rules::SpawnRoom spawn_room{ rect.x * 5, rect.y * 5, rect.width * 5, rect.height * 5, rooms_in_play->room_seeds[index] };
+    const auto rect = room < 0 ? std::nullopt : level_room(level, index);
+    if (!rect || !rooms_in_play || index >= rooms_in_play->up.size() || !rooms_in_play->up[index] || index >= rooms_in_play->room_seeds.size()) return false;
+    d2d::rules::SpawnRoom spawn_room{ rect->x * 5, rect->y * 5, rect->width * 5, rect->height * 5, rooms_in_play->room_seeds[index] };
     const auto& shape = game_data.mon_npc[std::size_t(type)].shape;
     const bool placed = d2d::rules::monster_detail::place(spawn_room, x, y, radius, [&](int at_x, int at_y) {
         const UnitState probe{ .x = (float(at_x) + 0.5f) / 5, .y = (float(at_y) + 0.5f) / 5, .shape = shape };

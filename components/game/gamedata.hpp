@@ -1105,6 +1105,12 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
 std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, const Level& level, float x, float y);
 // The room holding (x, y) cells (its Level::rooms index), -1 none.
 int room_of(const Level& level, float x, float y);
+// Room `index`'s rect, level tiles: its Level::rooms entry, or the camp's
+// 8x8 room (room_of's); none past the last.
+std::optional<d2d::drlg::Outdoor::RoomSeed> level_room(const Level& level, std::size_t index);
+// The camp's room seeds kept in its LevelState (by level_room index), once;
+// false while the builder's busy. Any other level keeps them at population.
+bool keep_camp_seeds(const GameData& game_data, const Level& level, Spawning::LevelState& state);
 // The level's own monster of MonStats `row`'s family (FUN_0063ec70): the
 // first of the level's list (Levels.bin +0x33 / +0x36: Mon1..10) of that
 // BaseId; else up the family's chain (NextInClass, at most its count,
