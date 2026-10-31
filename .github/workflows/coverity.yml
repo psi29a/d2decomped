@@ -70,16 +70,30 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: tar czf d2decomped.tgz cov-int
 
+      # The direct form upload (POST /builds, file=@...) caps out near 500M and
+      # returned 413 at 712M (2026-10-31). Like OpenMW's --form url=, this hands
+      # Coverity the file out of band: init gives a presigned storage URL, we PUT
+      # the tarball there, then enqueue the build.
       - name: Upload to Coverity Scan
         if: github.ref == 'refs/heads/main'
         run: |
           ls -lh d2decomped.tgz
-          curl -sS --fail \
+          api="https://scan.coverity.com/projects/psi29a%2Fd2decomped/builds"
+          curl -sS --fail -o init.json \
             --form token="$COVERITY_TOKEN" \
             --form email="psi29a@gmail.com" \
-            --form file=@d2decomped.tgz \
+            --form file_name="d2decomped.tgz" \
             --form version="$GITHUB_SHA" \
             --form description="main build" \
-            "https://scan.coverity.com/builds?project=psi29a%2Fd2decomped"
+            "$api/init"
+          upload_url=$(jq -r '.url' init.json)
+          build_id=$(jq -r '.build_id' init.json)
+          curl -sS --fail -X PUT \
+            --header "Content-Type: application/json" \
+            --upload-file d2decomped.tgz \
+            "$upload_url"
+          curl -sS --fail -X PUT \
+            --form token="$COVERITY_TOKEN" \
+            "$api/$build_id/enqueue"
         env:
           COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
