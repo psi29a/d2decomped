@@ -71,6 +71,12 @@ int main() {
     assert(item_price(tables, item("hax"), "Charsi", true, header) == 250);            // sell mult 256/1024
     Item eth = item("hax"); eth.ethereal = true;
     assert(item_price(tables, eth, "Charsi", true, header) == 62);                     // ethereal sells for a quarter
+    tables.item_base["hax"].durability = 40;
+    eth.max_durability = 40;
+    assert(item_price(tables, eth, "Charsi", true, header) == 1);                      // worn to 0: nothing, the minimum 1
+    eth.durability = 1;
+    assert(item_price(tables, eth, "Charsi", true, header) == 62);
+    tables.item_base["hax"].durability = 0;
     assert(item_price(tables, item("big"), "Charsi", true, header) == 5000);           // capped at max_buy (normal)
     Item socketed = item("hax"); socketed.socketed_items = { item("gem") };
     assert(item_price(tables, socketed, "Charsi", false, header) == 1100);             // + half each socketed item

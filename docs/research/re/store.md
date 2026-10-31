@@ -137,7 +137,9 @@ The base y is 539 (= 60 + 255 + 224):
      set, unique, rare/crafted affixes, each `mul·base/1024 + add`
      from the affix/set/unique cost columns;
   3. plus half of each socketed item's cost; ethereal sells for ¼, and a
-     class item (ItemTypes Class, `FUN_0062c060`) for ¼ again;
+     class item (ItemTypes Class, `FUN_0062c060`) for ¼ again; an
+     ethereal item with durability worn to 0 sells for nothing (the
+     minimum 1, `0062fa60`);
   4. × npc.txt mult / 1024, then × the quest mult / 1024 for each quest
      flag done on the active difficulty. The columns are the vendor's
      side: a buy takes "sell mult" and "questsellmult", a sale "buy mult"
