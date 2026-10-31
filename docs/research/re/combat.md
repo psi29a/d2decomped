@@ -97,8 +97,9 @@ FUN_00563560:
    class, quality, flags, stats 0x15–0x18, 0x9f, 0xa0; max FUN_006295b0:
    maxstack + stat 254, ≤ 511), the rest placed on.
 4. FUN_0055d710: into a free body location it fits.
-5. the belt: FUN_0062bad0 (own type Beltable), FUN_00628ba0 (autobelt, or
-   a bottom match not isc / tsc: FUN_0063c560), FUN_0063c790 →
+5. the belt: FUN_0062bad0 (own type Beltable), FUN_00628ba0 (passes any
+   item with a record: its FUN_0063c560 test, a bottom match not isc /
+   tsc, returns 0 or 1 and is compared with -1), FUN_0063c790 →
    FUN_0063c600: 1×1; columns 0–3 whose bottom item matches (FUN_00628a40:
    the same code, or both in hp1–5 / mp1–5 / rvs, rvl, 0x744660–0x744698)
    take their lowest free box below the belt's boxes; else, autobelt, the

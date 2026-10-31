@@ -1895,7 +1895,9 @@ inline int potion_rate(int old_rate, int left, int amount, int len) {
 //   FUN_0062bad0) to the first column whose bottom item matches (the same
 //   code, or both of hp1-5 / mp1-5 / rvs, rvl: FUN_00628a40), its lowest
 //   free box below `boxes`; else, autobelt, the first free bottom box
-//   (FUN_0063c600). Without autobelt isc / tsc never go (FUN_0063c560);
+//   (FUN_0063c600). FUN_00628ba0 lets every item through: its bottom check
+//   FUN_0063c560 (no isc / tsc) returns 0 or 1 and the caller tests -1,
+//   so a scroll goes into a column whose bottom is the same scroll;
 // - else the inventory's first free spot (FUN_005600a0); no room leaves it
 //   on the ground (FUN_0055c9a0 message 0x17: the class's "can't carry").
 // ponytail: the auto-equip step before the belt (FUN_0055d710) isn't done;
@@ -1933,7 +1935,7 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     }
     const auto [width, height] = item_size(tables, item.code);
     const bool autobelt = base != tables.item_base.end() && base->second.autobelt;
-    if (type_row != tables.types.end() && type_row->second.beltable && width == 1 && height == 1 && (autobelt || (item.code != "isc" && item.code != "tsc"))) {
+    if (type_row != tables.types.end() && type_row->second.beltable && width == 1 && height == 1) {
         std::array<const Item*, 16> box{};
         for (const auto& carried : items) if (carried.location == d2d::d2s::item_location::kBelt && carried.column >= 0 && carried.column < 16) box[std::size_t(carried.column)] = &carried;
         const auto group = [](const std::string& code) {

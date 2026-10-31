@@ -523,7 +523,7 @@ int main() {
     pick_tables.types["hpot"].beltable = pick_tables.types["mpot"].beltable = pick_tables.types["scro"].beltable = true;
     pick_tables.types["key"].autostack = true;
     for (const char* code : { "hp1", "hp2", "mp1" }) { pick_tables.item_base[code].autobelt = true; pick_tables.item_info[code].type = code[0] == 'h' ? "hpot" : "mpot"; }
-    pick_tables.item_info["isc"].type = "scro"; pick_tables.item_info["ibk"].type = "book"; pick_tables.item_base["ibk"].max_stack = 20;
+    pick_tables.item_info["isc"].type = pick_tables.item_info["tsc"].type = "scro"; pick_tables.item_info["ibk"].type = "book"; pick_tables.item_base["ibk"].max_stack = 20;
     pick_tables.item_info["key"].type = "key"; pick_tables.item_base["key"].stackable = true; pick_tables.item_base["key"].max_stack = 12;
     auto ground_item = [](const char* code, int quantity) { d2d::d2s::Item picked; picked.code = code; picked.quantity = quantity; picked.location = 3; return picked; };
     std::vector<d2d::d2s::Item> carried{ in_belt("hp1", 2), in_belt("mp1", 0) };
@@ -534,6 +534,13 @@ int main() {
     picked = ground_item("isc", -1);
     assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().location == 0 && carried.back().panel == 1   // no tome: not the belt
            && carried.back().column == 9 && carried.back().row == 3);                                                                     // a player's 1-high best fit (free_spot)
+    std::vector<d2d::d2s::Item> scroll_belt{ in_belt("tsc", 0), in_belt("isc", 3) };
+    picked = ground_item("isc", -1);
+    assert(pick_up(pick_tables, scroll_belt, picked, 10, 4, 8) == Pickup::kGone && scroll_belt.back().location == 2 && scroll_belt.back().column == 7);   // no tome: the scroll's column, a row up
+    std::vector<d2d::d2s::Item> other_scroll_belt{ in_belt("tsc", 0) };
+    picked = ground_item("isc", -1);
+    assert(pick_up(pick_tables, other_scroll_belt, picked, 10, 4, 4) == Pickup::kGone
+           && other_scroll_belt.back().location == 0 && other_scroll_belt.back().panel == 1);   // only a tsc column: the isc falls back to the inventory
     carried.push_back(stored("ibk", 1, 2, 0)); carried.back().quantity = 19;
     picked = ground_item("isc", -1);
     assert(pick_up(pick_tables, carried, picked, 10, 4, 4) == Pickup::kGone && carried.back().quantity == 20);
