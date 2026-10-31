@@ -123,17 +123,23 @@ The base y is 539 (= 60 + 255 + 224):
   stash (`FUN_00576d90`).
 - Prices (hover: "Cost: " 0xd01 in the store, "Sell value: " 0xd03 on
   your own items while it is open), per FUN_0062efb0:
-  1. base = the item's cost column (armor/weapons/misc.txt). Two kinds
+  1. base = the item's cost column (armor/weapons/misc.txt); an armor
+     (ItemTypes armo, `0062f0f2`) is cost x its own defence (stat 31)
+     / maxac, for buy, sell and repair alike. Two kinds
      read the quantity (stat 70, at least 1) here, before every
      multiplier: a tome (ItemTypes Book) is cost + books.txt
      CostPerCharge x quantity (Tome of Town Portal 250 + 50 each, Tome of
      Identify 200 + 40 each; the record is picked by the item's book id,
      BaseCost isn't used); an arrow or bolt quiver (ItemTypes Quiver set)
      is cost x quantity / 1024 (arrows cost 256: 350 of them 87);
-  2. plus quality extras: low quality −base/2; magic prefix + suffix,
+  2. plus quality extras, only when the item is identified (`0062f182`):
+     low quality −base/2; magic prefix + suffix,
      set, unique, rare/crafted affixes, each `mul·base/1024 + add`
      from the affix/set/unique cost columns;
-  3. plus half of each socketed item's cost; ethereal sells for ¼;
+  3. plus half of each socketed item's cost; ethereal sells for ¼, and a
+     class item (ItemTypes Class, `FUN_0062c060`) for ¼ again; an
+     ethereal item with durability worn to 0 sells for nothing (the
+     minimum 1, `0062fa60`);
   4. × npc.txt mult / 1024, then × the quest mult / 1024 for each quest
      flag done on the active difficulty. The columns are the vendor's
      side: a buy takes "sell mult" and "questsellmult", a sale "buy mult"
@@ -181,8 +187,8 @@ The base y is 539 (= 60 + 255 + 224):
 The price function computes buy, sell and repair together. Repair:
 
 1. base = the buy base with its quality extras (no ethereal ¼);
-2. nothing for items with no durability, whole ones, ethereal ones
-   or indestructible ones; a throwable (FUN_0062ba80, ItemTypes
+2. nothing for items with no durability, whole ones, ethereal ones,
+   unidentified ones (`FUN_0062e660`) or indestructible ones; a throwable (FUN_0062ba80, ItemTypes
    Throwable) skips the durability term;
 3. × (max − current) / max, where max is the maxdurability stat (73)
    with item_maxdurability_percent (75) — the save stores the base max;

@@ -42,6 +42,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Skill tooltip lines | `uv run python skill_tips.py 20 0 > g.txt; ../../build/tests/test_game --skill-tips 20 0 \| grep '^[0-9]' \| iconv -f latin1 -t utf-8 \| diff g.txt -` | no output |
 | Skill element damage and length (synergies, masteries) | `uv run python skill_damage.py gen 100000 1 > cases.tsv; uv run python skill_damage.py game cases.tsv > g.txt; ../../build/tests/test_game --skill-damage cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Belt step of a pickup (which box, or none) | `uv run python belt_pickup.py gen 100000 1 > cases.tsv; uv run python belt_pickup.py game cases.tsv > g.txt; ../../build/tests/test_game --belt-pickup cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
+| Vendor buy / sell / repair price | `uv run python price_oracle.py gen 100000 7 > cases.tsv; uv run python price_oracle.py game cases.tsv > g.txt; ../../build/tests/test_game --price cases.tsv \| grep -E '^[0-9]+ ' > d.txt; uv run python price_terms.py cases.tsv g.txt d.txt` | last line `outside stacks, whole, bigmul, nodur: buy 0/…, sell 0/…, repair 0/… differ`; the terms d2d doesn't model yet are listed above it |
 | Key bindings (assign rules, key names) | `uv run python keys.py \| diff - <(../../build/tests/test_keyconfig --dump)` | no output |
 | Overlay frames, loop/one-shot endings, delayed-loop wait | `uv run python overlays.py > /tmp/overlay_cases.inc && diff ../../tests/overlay_cases.inc /tmp/overlay_cases.inc` | no diff; also checks kind 6's wait and duplicate clock |
 

@@ -64,9 +64,19 @@ int main() {
     assert(item_price(tables, item("hax", 1), "Charsi", false, header) == 500);        // low quality: half off
     Item magic = item("hax", 4); magic.prefix = 1;
     assert(item_price(tables, magic, "Charsi", false, header) == 2100);                // + 1024/1024 x base + 100
+    Item unknown = magic; unknown.identified = false;
+    assert(item_price(tables, unknown, "Charsi", false, header) == 1000);              // unidentified: no quality extras
+    Item cracked = item("hax", 1); cracked.identified = false;
+    assert(item_price(tables, cracked, "Charsi", true, header) == 250);                // nor the low quality half
     assert(item_price(tables, item("hax"), "Charsi", true, header) == 250);            // sell mult 256/1024
     Item eth = item("hax"); eth.ethereal = true;
     assert(item_price(tables, eth, "Charsi", true, header) == 62);                     // ethereal sells for a quarter
+    tables.item_base["hax"].durability = 40;
+    eth.max_durability = 40;
+    assert(item_price(tables, eth, "Charsi", true, header) == 1);                      // worn to 0: nothing, the minimum 1
+    eth.durability = 1;
+    assert(item_price(tables, eth, "Charsi", true, header) == 62);
+    tables.item_base["hax"].durability = 0;
     assert(item_price(tables, item("big"), "Charsi", true, header) == 5000);           // capped at max_buy (normal)
     Item socketed = item("hax"); socketed.socketed_items = { item("gem") };
     assert(item_price(tables, socketed, "Charsi", false, header) == 1100);             // + half each socketed item
@@ -87,6 +97,20 @@ int main() {
     d2d::d2s::Header quest = header;
     quest.quests[0][2] = 1;                                                  // quest 1, bit 0 (normal)
     assert(item_price(tables, item("hax"), "Charsi", false, quest) == 500);       // qbuy 512/1024
+    // An armor's base is cost x its defence / maxac (FUN_0062efb0 at 0062f0f2).
+    tables.types["armo"] = {};
+    tables.types["helm"] = { .equiv = { "armo", "" } };
+    tables.item_info["hlm"] = { .type = "helm", .kind = 1 };
+    tables.item_base["hlm"] = { .minac = 10, .maxac = 20, .cost = 1000 };
+    Item helm = item("hlm"); helm.defense = 15;
+    assert(item_price(tables, helm, "Charsi", false, header) == 750 && item_price(tables, helm, "Charsi", true, header) == 187);
+    // A class item (ItemTypes Class) sells for a quarter (FUN_0062c060); buying is the full price.
+    tables.types["wand"] = { .cls = "nec" };
+    tables.item_info["wnd"] = { .type = "wand", .kind = 2 };
+    tables.item_base["wnd"] = { .cost = 1000 };
+    assert(item_price(tables, item("wnd"), "Charsi", false, header) == 1000 && item_price(tables, item("wnd"), "Charsi", true, header) == 62);
+    Item eth_wand = item("wnd"); eth_wand.ethereal = true;
+    assert(item_price(tables, eth_wand, "Charsi", true, header) == 15);                // and ethereal: a sixteenth
 
     // Placement: column-first, weapons spill from tab 1 to 2, armour doesn't.
     Store store;
@@ -291,10 +315,14 @@ int main() {
     Item whole = worn; whole.durability = 40;
     Item ghost = worn; ghost.ethereal = true;
     assert(repair_cost(tables_copy, whole, "Charsi", header) == 0 && repair_cost(tables_copy, ghost, "Charsi", header) == 0);
+    Item unknown_worn = worn; unknown_worn.identified = false;
+    assert(repair_cost(tables_copy, unknown_worn, "Charsi", header) == 0);            // unidentified: no repair
     Item tough = worn; tough.props = { { .stat = 73, .value = 10 } };        // +10 max: 50
     assert(max_durability(tough) == 50 && repair_cost(tables_copy, tough, "Charsi", header) == 1000 * 40 / 50 / 2);
     Item forever = worn; forever.props = { { .stat = 152, .value = 1 } };
     assert(repair_cost(tables_copy, forever, "Charsi", header) == 0);
+    Item dented = item("hlm"); dented.defense = 15; dented.max_durability = 40; dented.durability = 10;
+    assert(repair_cost(tables_copy, dented, "Charsi", header) == 750 * 30 / 40 / 2);   // the armor's scaled base
     Store smith; smith.npc_id = "Charsi";
     d2d::d2s::Stats wallet; wallet.values[kGold] = 100; wallet.values[kGoldBank] = 300;
     assert(store_repair(tables_copy, smith, worn, wallet) && worn.durability == 40 && wallet.get(kGold) == 0 && wallet.get(kGoldBank) == 25);

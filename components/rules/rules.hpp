@@ -419,6 +419,21 @@ inline bool is_repair_vendor(int hc_idx) {
 }
 
 
+inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth = 0);
+inline int max_durability(const d2d::d2s::Item& item);
+inline bool indestructible(const d2d::d2s::Item& item);
+
+// The price base of an armor (ItemTypes armo, FUN_0062efb0 at 0062f0f2):
+// cost x its own defence (stat 31, not the stat list's) / maxac, for buy,
+// sell and repair alike; any other item keeps its cost.
+inline int armor_scaled(const Tables& tables, const d2d::d2s::Item& item, int cost) {
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    if (base == tables.item_base.end() || info == tables.item_info.end() || !type_is(tables, info->second.type, "armo")) return cost;
+    if (base->second.maxac == 0 || base->second.maxac - base->second.minac + 1 == 0) return cost;
+    return int(std::int64_t(cost) * item.defense / base->second.maxac);
+}
+
 // Buy (sell = false) or sell price of an item at the NPC with MonStats Id
 // npc_id, for the player's header (difficulty, quest flags).
 inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, bool sell,
@@ -440,13 +455,17 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     } else if (type == "bowq" || type == "xboq") {
         base = int(std::int64_t(base) * count / 1024);
     }
+    base = armor_scaled(tables, item, base);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
         return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
     };
+    // The quality extras count only once the item is identified (0062f182):
+    // an unidentified magic item sells as a normal one, a low quality one isn't halved.
+    // ponytail: the stats' own costs (FUN_00628e70) and staff mods (FUN_0062edd0) aren't added.
     int x = 0;
-    switch (item.quality) {
+    switch (item.identified ? item.quality : 0) {
         case 1: x = -(base / 2); break;
         case 4: x = extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); break;
         case 5: x = extra(tables.set_cost, item.set_id); break;
@@ -460,10 +479,17 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     for (const auto& socketed : item.socketed_items)
         if (const auto socketed_base = tables.item_base.find(socketed.code); socketed_base != tables.item_base.end()) price += socketed_base->second.cost / 2;
     if (sell && item.ethereal) price /= 4;
+    // A class's own item (its ItemTypes Class set, FUN_0062c060) sells for a quarter again (0062f99d).
+    if (const auto own = tables.types.find(type); sell && own != tables.types.end() && !own->second.cls.empty()) price /= 4;
+    // An ethereal item with durability (FUN_00629930) worn down to 0 sells for nothing, so the minimum 1 (0062fa60).
+    if (sell && item.ethereal && found != tables.item_base.end() && !found->second.no_durability && found->second.durability > 0
+        && max_durability(item) != 0 && !indestructible(item) && item.durability <= 0)
+        price = 0;
     const auto price_row = tables.npc_prices.find(npc_id);
     const int diff = header.active_difficulty();
     if (price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
+        // ponytail: above 0xffff the original divides by 1024 before the mult (a few gold on dear items).
         price = price * (sell ? prices.sell : prices.buy) / 1024;
         for (int quest = 0; quest < 3; ++quest)
             if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
@@ -534,19 +560,22 @@ inline bool recharge(d2d::d2s::Item& item) {
 // and the quest rep mults / 1024, then the missing charges'
 // (charges_repair_cost, after the mults); 0 when there's nothing to repair.
 // A stack that restocks pays for its missing quantity instead (its base
-// a unit's, its durability free). Ethereal items can't be repaired.
-// ponytail: no socket terms.
+// a unit's, its durability free). Ethereal and unidentified items can't
+// be repaired (FUN_0062e660 at 0062efee: price 0).
+// ponytail: no socket terms. A whole item stays 0 here (the original
+// prices it 1, its Repair All skips it), and the gate's ItemTypes Repair
+// and durability column checks (FUN_00629930) aren't made.
 inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, int reduced = 0) {
     const int max = max_durability(item);
     const bool restock = restocks(tables, item);
     const auto found = tables.item_base.find(item.code);
     const int max_stack = found != tables.item_base.end() ? std::max(found->second.max_stack, 1) : 1;
-    if (item.ethereal) return 0;
+    if (item.ethereal || !item.identified) return 0;
     if (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(item)) {
         const int charges = charges_repair_cost(tables, item);
         return charges > 0 ? int(price_reduced(charges, reduced)) : 0;
     }
-    const int base = found != tables.item_base.end() ? found->second.cost : 0;
+    const int base = armor_scaled(tables, item, found != tables.item_base.end() ? found->second.cost : 0);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
@@ -657,7 +686,8 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
 
 // Sells inventory item i: gold up by the sell value (carried gold caps
 // at clvl x 10000), the item joins the stock.
-// ponytail: quest items aren't refused, no belt/equipped selling.
+// ponytail: quest items aren't refused, no belt/equipped selling; what the
+// original does with a sale over the purse cap isn't traced.
 inline void store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const int price = item_price(tables, items[index], store.npc_id, true, store.header);
     stats.values[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
@@ -667,7 +697,7 @@ inline void store_sell(const Tables& tables, Store& store, std::size_t index, st
 }
 
 // Is type t (or one of its Equiv ancestors) the type want?
-inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth = 0) {
+inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth) {
     if (type.empty() || depth > 8) return false;
     if (type == want) return true;
     const auto found = tables.types.find(type);
