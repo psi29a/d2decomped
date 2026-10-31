@@ -1805,7 +1805,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // every calc3 frames (at least 1) at its foe till its end; the mode held.
     // Imp Inferno's (FUN_005d1350, event 1): every 3 frames, each flame's
     // range calc2 + its row's Param2 (FUN_0064a2b0 / FUN_0064a330).
-    // ponytail: the flame's range is its Missiles.txt row's (FUN_005cc2e0 sets calc1's when it has one).
+    // The others' (FUN_005cc4e0, DiabLight's FUN_005cc690 -> FUN_005cc2e0):
+    // calc1 frames, or under 1 its row's Param2 + lvl - 1; 1..255.
+    // ponytail: its animation rate (AnimLen << 8 / range, FUN_00621780) isn't kept.
     if (monster.breath >= 0) {
         if (now_ms >= monster.breath_until) monster.breath = -1;
         else if (now_ms >= monster.breath_next) {
@@ -1814,8 +1816,17 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const bool inferno = cast->srvdofunc == d2d::rules::ServerDoFunction::kImpInferno;
                 const std::size_t sent = missiles.size();
                 andariel_missile(game_data, monster, cast->srvmissilea, foe.x - unit.x, foe.y - unit.y, now_ms, missiles, lvl, cast);
-                if (inferno && missiles.size() > sent)
-                    missiles.back().dies = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[1], {}, monster.breath, lvl) + missiles.back().info->param2, 1)) * 40;
+                if (missiles.size() > sent) {
+                    auto& flame = missiles.back();
+                    int range = 0;
+                    if (inferno) range = std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[1], {}, monster.breath, lvl) + flame.info->param2, 1);
+                    else {
+                        range = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.breath, lvl);
+                        if (range < 1) range = flame.info->param2 - 1 + lvl;
+                        range = std::clamp(range, 1, 255);
+                    }
+                    flame.dies = now_ms + std::uint32_t(range) * 40;
+                }
                 monster.breath_next = now_ms + std::uint32_t(inferno ? 3 : std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[2], {}, monster.breath, lvl), 1)) * 40;
             }
             return false;

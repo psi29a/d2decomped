@@ -452,6 +452,29 @@ int main(int argc, char** argv) try {
         const int diablo_class = data->monsters.types[diablo_row->second].hit_class;
         assert(diablo_class != 0 && foes[0].hits == 1 && foes[0].hit_class == diablo_class);
     }
+    {
+        // A breath's flame (FUN_005cc4e0 -> FUN_005cc2e0) lasts calc1 frames, under 1 its row's
+        // Param2 + lvl - 1: Fetish Inferno (no calc1) 7 + lvl - 1, not its Range 30.
+        const auto shaman_row = data->monsters.by_id.find("fetishshaman1");
+        const auto breath = data->skills.by_name.find("FetishInferno");
+        assert(shaman_row != data->monsters.by_id.end() && breath != data->skills.by_name.end());
+        const auto& shaman_type = data->monsters.types[shaman_row->second];
+        const auto slot = std::ranges::find(shaman_type.skill, std::string("FetishInferno")) - shaman_type.skill.begin();
+        const int lvl = d2d::rules::monster_skill_level(shaman_type.sk_lvl[std::size_t(slot)], 0);
+        d2d::rules::Rng breath_rng{ 5 };
+        Level here{};
+        here.id = d2d::rules::level_ids::kBloodMoor;
+        std::vector<Monster> pack{ make_monster(*data, int(shaman_row->second), 10.f, 10.f, breath_rng, 0) };
+        pack[0].breath = breath->second; pack[0].breath_until = 4000; pack[0].breath_next = 0;
+        std::array<Foe, 1> foes{};
+        foes[0].x = 12.f; foes[0].y = 10.f;
+        const Crowd crowd;
+        std::vector<Missile> missiles;
+        monster_update(*data, here, pack[0], foes, breath_rng, 40, 0.04f, crowd, missiles, pack);
+        assert(missiles.size() == 1 && missiles[0].info->param2 == 7 && missiles[0].info->range == 30);
+        assert(missiles[0].dies - 40 == std::uint32_t(7 - 1 + lvl) * 40);
+        std::printf("OK: a breath's flame lasts Param2 + lvl - 1 frames\n");
+    }
 
     {
         // The Golden Bird binds to the first qualifying boss made in Act 3,
