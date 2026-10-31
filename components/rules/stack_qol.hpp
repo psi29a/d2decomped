@@ -33,12 +33,13 @@ struct StackMerge {
 };
 
 // Move `add_count` onto `have_count` while both are the same kind, the
-// item codes match, and the pile has room under `cap`. Different kinds
-// never join, and neither do two codes (a health potion and a mana
-// potion, or two gems). An empty pile, a cap of 1, or a full pile stays
-// as it was.
+// item codes match, and the pile has room under `cap`. A cap above 50 is
+// read as 50. Different kinds never join, and neither do two codes (a
+// health potion and a mana potion, or two gems). An empty pile, a cap of
+// 1, or a full pile stays as it was.
 [[nodiscard]] inline StackMerge merge_counts(StackKind have_kind, std::string_view have_code, int have_count,
                                              StackKind add_kind, std::string_view add_code, int add_count, int cap) {
+    if (cap > kStackMax) cap = kStackMax;
     StackMerge out{ have_count, add_count, false };
     if (have_kind != add_kind || have_code != add_code || have_kind == StackKind::None || have_count < 1 || add_count < 1 || cap < 2) return out;
     const int room = cap - have_count;
@@ -50,13 +51,13 @@ struct StackMerge {
     return out;
 }
 
-// One taken off a pile of two or more. A single item stays put.
 struct StackPeel {
     int kept = 0;
     int taken = 0;
     bool ok = false;
 };
 
+// Take one off a pile of two or more. A single item stays put.
 [[nodiscard]] inline StackPeel peel_one(int have_count) {
     if (have_count < 2) return { have_count > 0 ? have_count : 0, 0, false };
     return { have_count - 1, 1, true };
