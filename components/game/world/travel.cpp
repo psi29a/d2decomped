@@ -237,6 +237,8 @@ auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint3
         if (book && scroll->quantity <= 0) return;
         // ponytail: state 0x36 (FUN_0057eec0) and level 0x88 (FUN_005be290) refuse it too; d2d's player has no
         // state 0x36, and Uber Tristram's refusal isn't compared (tools/emu/tome_use.py runs the Blood Moor).
+        // ponytail: a click on the old portal still pending (take_portal) is kept. FUN_00535430 only unlinks the pair and
+        // writes nothing to the player; the walk to a clicked portal is the client's, which the oracle doesn't have.
         portal[actor->portal_pair] = portal[actor->portal_pair + 1] = {};   // FUN_00535430, before the new one
         if (!open_portal_at(actor->player.x, actor->player.y, now_ms)) return;
         if (book) --scroll->quantity;
