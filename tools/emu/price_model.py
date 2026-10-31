@@ -5,7 +5,7 @@
 
 Reads the tables through game.exe (items, ItemTypes, npc, unique / set
 rows) and prices each case of price_oracle.py the way docs/research/
-price-trace.md writes the formula down; a clean run is the proof that
+re/store.md writes the formula down; a clean run is the proof that
 the written formula is game.exe's for the oracle's case space (no stat
 list: no magic stats, staff mods, charges or sockets; no quests; no
 reduced prices).

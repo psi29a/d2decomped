@@ -173,20 +173,20 @@ int main(int argc, char** argv) try {
         std::string line;
         while (std::getline(cases, line)) {
             std::istringstream fields(line);
-            std::string id, npc;
+            std::string case_id, npc;
             d2d::d2s::Item item;
-            int ident = 0, eth = 0, uid = -1, diff = 0, ac = 0;
-            fields >> id >> item.code >> item.quality;
-            for (int i = 0; i < 6; ++i) fields >> item.affixes[std::size_t(i)];
-            fields >> uid >> ident >> eth >> item.durability >> item.max_durability >> item.quantity >> ac >> npc >> diff;
+            int ident = 0, eth = 0, uid = -1, diff = 0, defense = 0;
+            fields >> case_id >> item.code >> item.quality;
+            for (auto& affix : item.affixes) fields >> affix;
+            fields >> uid >> ident >> eth >> item.durability >> item.max_durability >> item.quantity >> defense >> npc >> diff;
             if (!fields) continue;
             item.prefix = item.affixes[0]; item.suffix = item.affixes[1];
             if (item.quality == 5) item.set_id = uid;
             if (item.quality == 7) item.unique_id = uid;
-            item.identified = ident != 0; item.ethereal = eth != 0; item.defense = ac;
+            item.identified = ident != 0; item.ethereal = eth != 0; item.defense = defense;
             d2d::d2s::Header header;
             header.difficulty[std::size_t(diff)] |= 0x80;
-            std::printf("%s %d %d %d\n", id.c_str(), d2d::rules::item_price(data->rules, item, npc, false, header),
+            std::printf("%s %d %d %d\n", case_id.c_str(), d2d::rules::item_price(data->rules, item, npc, false, header),
                         d2d::rules::item_price(data->rules, item, npc, true, header), d2d::rules::repair_cost(data->rules, item, npc, header));
         }
         return 0;
