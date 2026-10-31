@@ -348,6 +348,35 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    // `--belt-pickup CASES`: where rules::pick_up puts each case's item in the
+    // belt, as tools/emu/belt_pickup.py prints game.exe's (FUN_0063c600):
+    // `id box`, -1 when it doesn't go to the belt.
+    if (argc > 2 && std::string_view(argv[1]) == "--belt-pickup") {
+        std::FILE* cases = std::fopen(argv[2], "r");
+        if (!cases) return 1;
+        std::array<char, 32> word{};
+        const auto next = [&] { return std::fscanf(cases, "%31s", word.data()) == 1 ? std::string(word.data()) : std::string{}; };
+        for (std::string id = next(); !id.empty(); id = next()) {
+            const std::string belt = next();
+            std::vector<d2d::d2s::Item> items;
+            for (int box = 0; box < 16; ++box)
+                if (const std::string code = next(); code != "-") {
+                    d2d::d2s::Item carried;
+                    carried.code = code; carried.location = d2d::d2s::item_location::kBelt; carried.column = box;
+                    items.push_back(carried);
+                }
+            d2d::d2s::Item picked;
+            picked.code = next(); picked.quantity = 1;
+            int index = 2;
+            if (const auto found = data->rules.item_info.find(belt); found != data->rules.item_info.end() && found->second.belt >= 0 && found->second.belt < 7) index = found->second.belt;
+            const std::size_t before = items.size();
+            d2d::rules::pick_up(data->rules, items, picked, 10, 4, data->belts[std::size_t(index)].boxes);
+            const bool belted = items.size() > before && items.back().location == d2d::d2s::item_location::kBelt;
+            std::printf("%s %d\n", id.c_str(), belted ? items.back().column : -1);
+        }
+        std::fclose(cases);
+        return 0;
+    }
     // `--skill-tips N [difficulty]`: every SkillDesc line at levels 1..N with
     // no unit, as tools/emu/skill_tips.py prints game.exe's (FUN_004edea0).
     if (argc > 2 && std::string_view(argv[1]) == "--skill-tips") {
