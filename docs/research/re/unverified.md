@@ -18,7 +18,7 @@ trust. `git grep -n "unverified (source"` lists them.
 | .d2s header layout | components/d2s/d2s.hpp | the Phrozen Keep d2s spec | 19 real 1.14d saves (test_d2s) | the save reader |
 | .d2s item bitstream layout | components/d2s/d2s_items.hpp | the community d2s spec | 19 real saves: every list ends on the next "JM" | the item (de)serializer |
 | Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | handlers marked ✓ were read | names only; behaviour is from the handlers |
-| A converted monster's pick: a click on it walks there, a held attack drops it | components/game/world.cpp `apply` (UseSkill) | d2d's own hover rule (cursor-units.md) | the hover is traced: outside town no monster of the player's alignment is under the cursor | the click path from the hovered unit (`FUN_00467a10`) |
+| A converted monster's pick: a click on it walks there, a held attack drops it | components/game/world/commands.cpp `apply` (UseSkill) | d2d's own hover rule (cursor-units.md) | the hover is traced: outside town no monster of the player's alignment is under the cursor | the click path from the hovered unit (`FUN_00467a10`) |
 
 ## Traced
 

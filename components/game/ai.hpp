@@ -870,7 +870,7 @@ void poison_hit(const GameData& game_data, Monster& monster, int difficulty, boo
 bool swaps_ai(const GameData& game_data, const Monster& monster);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
-// A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight.cpp).
+// A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).
 bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot, Monster::SkillState next, std::uint32_t now_ms);
 void end_state(const GameData& game_data, Monster& monster, Monster::SkillState& slot);
 

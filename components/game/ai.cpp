@@ -598,7 +598,7 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
 // AI whose think isn't traced. A special AI (the Countess's) thinks in
 // place of its MonAI's (FUN_005b15d0). Thinks draw the unit's own seed.
 // ponytail: the seed as its look left it (FUN_00573cb0's draws and the
-// rest between aren't taken; world.cpp's spawns keep the default);
+// rest between aren't taken; the World's spawns (world/) keep the default);
 // first-sight speech (FUN_005b1140) left out; FUN_0064d910's 0x40 test on
 // the one subtile under it, not its collision pattern; in melee
 // skips the path test (FUN_00622aa0, mask 0x804); paths

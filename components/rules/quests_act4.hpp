@@ -2,7 +2,7 @@
 // Act 4's quests (docs/research/re/quests-act4.md): the opening (a4q0),
 // The Fallen Angel (a4q1, Izual), Terror's End (a4q2, the seals and
 // Diablo) and The Hellforge (a4q3). One player's view of each record;
-// World (world_quests_act4.cpp) runs them at its quest hooks. The log
+// World (world/quests/act4.cpp) runs them at its quest hooks. The log
 // (+0xb) moves where the records call FUN_00544300; `news` is its flag 1,
 // the log sent again to each player (FUN_005b3940 / 4e40 / 59c0: told()).
 #pragma once

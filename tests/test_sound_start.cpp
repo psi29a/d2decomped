@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // Whether a sound starts against the playing ones, and the ducks
 // (rules/sound_start.hpp; game.exe FUN_004b9a00 / FUN_004ba020).
 #include <sound_mix.hpp>

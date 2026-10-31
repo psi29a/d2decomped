@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // Drops over hand-made tables: auto weapN classes, gold (and its
 // multiplier), NoDrop odds and players, quality rolls (rings at least
 // magic, potions plain), the 6-item cap, TC upgrades.

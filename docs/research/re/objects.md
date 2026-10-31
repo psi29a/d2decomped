@@ -554,7 +554,7 @@ HasCollision2 isn't. Object 0xbd steps 2 → 3 → 4 the same way.
 
 d2d: `Npc::frame_delta`, `object_elapsed` (world_view.cpp) runs the
 counter; `World`'s used shrines and chests go ON on the tick the client's
-would (`op_ticks`, world.cpp), with ON's footprint; the drawn unit takes
+would (`op_ticks`, world/tick.cpp), with ON's footprint; the drawn unit takes
 ON's selectable bit and light from its mode. Not ported: the rate's roll (no client unit seed), OrderFlag2
 and Parm7.
 

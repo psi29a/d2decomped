@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: rules
 // Skills over hand-made rows: the calc compiler on expressions from
 // Skills.txt, ln / dm, the level brackets, elemental damage with a synergy,
 // mana cost, item skill bonuses.

@@ -28,6 +28,10 @@ Everything else is registered by the host binary via `Channel::on()`.
 
 ## `apps/d2d/` verbs (current)
 
+The verbs are in `apps/d2d/devctl/verbs.hpp`; `debug`'s sub-verbs are one
+handler each in `apps/d2d/devctl/debug_*.cpp` (fight, hero, level, net), in
+name order. A new sub-verb goes in its area's file where its name sorts.
+
 | verb                        | reply                  | notes                                                     |
 |-----------------------------|------------------------|-----------------------------------------------------------|
 | `screenshot <path>`         | `ok <bytes>`           | Writes current framebuffer to `<path>` as PNG. Relative paths land in `<user dir>/screenshots/` (e.g. `~/Library/Preferences/d2d/screenshots/`). |

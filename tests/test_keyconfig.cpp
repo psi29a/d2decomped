@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links:
+// test-includes: apps/d2d
 // game.exe's key bindings (apps/d2d/keyconfig.hpp): the defaults, the
 // assignment rules, the .key files and the key names. `--dump` prints
 // every assignment from the defaults and every key's name, as

@@ -119,7 +119,7 @@ the first clear one returns 1.
   (owner, path, footsteps, arrival, pets, crowding, levels, town, a foe in
   or out of melee, a clear line or not, which moves find a path): 20 000
   cases, all equal to the port, effects and seed; `--dump` gives
-  `tests/test_monsters.cpp`'s 40 cases.
+  `tests/monsters/test_monster_ai.cpp`'s 40 cases.
 - `tools/emu/pet_line.py` runs FUN_005dc640 on random walls: 1 500 cases,
   all equal.
 - Port: `components/rules/pets.hpp` (`necropet_think`, `pet_line_clear`),
@@ -227,7 +227,7 @@ Checked: `tools/emu/pet_ais.py` runs each in game.exe with the follow /
 decide answers, searches, gaps and skills from random setups and every
 move down to `FUN_005a7c20`: 1 500 cases each, all equal (log, AI control,
 seed). Its `--dump` writes `tests/pet_ais_cases.inc`, which
-`tests/test_monsters.cpp` replays through the C++ (up to 16 an AI: the
+`tests/monsters/test_monster_ai.cpp` replays through the C++ (up to 16 an AI: the
 literal stays under 64 KB). d2d runs
 them in `Fight::pet_think_turn` / `pet_cast`.
 

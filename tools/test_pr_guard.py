@@ -51,6 +51,11 @@ class GuardTests(unittest.TestCase):
         self.assertEqual((len(fails), len(warns)), (1, 0))
         self.assertIn("inside FUN_0045c3e0", fails[0])
 
+    def test_plan_edit_warns(self):
+        fails, warns = self.run_guard({"docs/PLAN.md": b"status\n"})
+        self.assertEqual((len(fails), len(warns)), (0, 1))
+        self.assertIn("PLAN.md", warns[0])
+
     def test_binary_outside_assets_fails(self):
         fails, _ = self.run_guard({"components/x.bin": b"\x00\x01\x02MZ", "assets/icon/i.png": b"\x89PNG\x00"})
         self.assertEqual(len(fails), 1)

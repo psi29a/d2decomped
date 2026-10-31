@@ -9,7 +9,7 @@ Port: `components/rules/merc.hpp` (`hireable_think`), run by
 `Fight::merc_turn`. Checked: `tools/emu/merc.py` runs FUN_005e52d0 natively
 on random setups against the port (30,000 cases: every move tried, stand,
 teleport, attack hand-off and the merc's seed after, all equal);
-`tests/test_monsters.cpp` replays 16 of them.
+`tests/monsters/test_monster_ai.cpp` replays 16 of them.
 
 ## The think (FUN_005e52d0)
 
@@ -86,7 +86,7 @@ the arrival.
 Port: `rules::merc_attack` (with the skill pick), checked by
 `tools/emu/merc_attack.py` (FUN_005e5050 and FUN_005e4d30 natively on
 game.exe's own tables: 15,000 cases equal, every outcome, +0x14 and the
-seed); `tests/test_monsters.cpp` replays 16.
+seed); `tests/monsters/test_monster_ai.cpp` replays 16.
 
 - The skill chance: 98 for the melee mercs (0x152, 0x230, 0x231); else the
   AI control's +0x14 + 40 + 2 × the merc's level, at most 95 (0x5f). A

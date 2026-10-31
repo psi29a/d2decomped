@@ -172,7 +172,7 @@ if "--audit" in sys.argv:
 
 # The player modes d2d can draw (gamedata.hpp kModeCode).
 player_modes = set(re.findall(r'"([A-Z0-9]{2})"', re.search(r"kModeCode\[\d+\] = \{([^}]*)\}",
-                                                            Path("components/game/gamedata.hpp").read_text()).group(1)))
+                                                            Path("components/game/gamedata/gamedata.hpp").read_text()).group(1)))
 
 drawn = set()
 for log in logs:

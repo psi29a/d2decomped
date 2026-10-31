@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: d2s mpq compcode
 // Parse a synthetic 1.14d .d2s header; reject malformed ones.
 #include <character_name.hpp>
 #include <compcode.hpp>

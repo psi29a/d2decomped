@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: steam_shortcuts
 // shortcuts.vdf: foreign entries survive byte for byte; adding D2Decomp
 // twice (or over a hand-made entry) leaves one entry with one appid.
 #include <steam_shortcuts.hpp>

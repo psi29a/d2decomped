@@ -16,6 +16,7 @@ Usage: tools/pr_guard.py [BASE [HEAD]]   (default origin/main HEAD; reads the di
         made up, or a label (write LAB_ for code inside a function)
   WARN  a FUN_ address in no function's body (Ghidra misses code reached
         through tables: say how you know)
+  WARN  docs/PLAN.md changed: the maintainer's, updated after a merge
 
 Labels come from PR_LABELS (a JSON list; CI passes the PR's labels).
 A passing run proves the evidence is possible, not that it's right: a
@@ -75,6 +76,9 @@ def check(base, labels, entries, head="HEAD"):
             fails.append(f"{path}: a binary file (allowed only under {', '.join(BINARY_OK)})")
         if RISKY_PATHS.match(path):
             risky.append(f"{path}: steers CI or contributors' agents")
+        if path == "docs/PLAN.md":
+            warns.append(f"{path}: the maintainer updates it after a merge; put the status in the PR body "
+                         "(every PR that edits it conflicts with the others)")
     for path, number, text in added_lines(base, head):
         where = f"{path}:{number}"
         if path.startswith("docs/research/re/game-"):

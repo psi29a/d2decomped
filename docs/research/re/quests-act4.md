@@ -5,7 +5,7 @@ Conventions, flag helpers and the record layout are in `quests.md` /
 change, +0xb0 item event, +0xc0 a bound unit dies, +0xc4 quest item on
 leave, +0xc8 leaves, +0xcc heard, +0xd4 joins, +0xd8, +0xec "!", +0xf0
 open / chain). Traced 2026-10-14 from the decompile; ported 2026-10-16:
-`rules/quests_act4.hpp`, `game/world_quests_act4.cpp`, played by
+`rules/quests_act4.hpp`, `game/world/quests/act4.cpp`, played by
 `tests/quests_d2d.py ... 4`. States from FUN_00544350's EDX: a4q1 1 open, 2
 told (0xd3), 3 the fortress after (0x23b), 4 Izual dead (0x201), 5 rewarded
 (0xde); a4q2 1 open (0x91), 2 told (0xe1), 3 the fortress / the sanctuary

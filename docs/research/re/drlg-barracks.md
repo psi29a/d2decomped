@@ -159,7 +159,7 @@ split rooms = 52 rooms.
    the two specials).
 4. tools/drlg-dump/drlg-dump.cpp prints Levels.txt's origin/size for 28
    (`-1,-1 size 200x200`); it must print the computed rect (game:
-   e.g. `level 28 at 2940,966 size 60x56`). components/game/gamedata.cpp
+   e.g. `level 28 at 2940,966 size 60x56`). components/game/gamedata/gamedata.cpp
    `build_maze` must pass level 27's file (`courtyard_file(...)`, already
    computed for 27) and rect (`level_origin` of 27 + its SizeX/SizeY) and
    use the returned origin for `world_x/world_y` instead of
