@@ -2075,8 +2075,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const int low = std::min(std::max(d2d::rules::eval_calc(game_data.skills, done->calc[0], {}, monster.skill, lvl), 0), high);
                 const int pct = monster.seed(high - low) + low;
                 if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
-                    auto& healed = pack[std::size_t(monster.skill_unit)];
-                    if (healed.alive()) healed.hit_points = std::clamp(healed.hit_points + healed.stats.hit_points * pct / 100, 1, healed.stats.hit_points);
+                    heal(pack[std::size_t(monster.skill_unit)], pack[std::size_t(monster.skill_unit)].stats.hit_points * pct / 100);
                 }
                 monster.seq_once = true;
             } else if (skill("Resurrect") || skill("Resurrect2")) {           // srvdofunc 97 (FUN_005ccb10 / FUN_005cc960): the corpse back at full life
@@ -2382,8 +2381,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const int low = std::min(std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl), 0), high);
                     const int pct = monster.seed(high - low) + low;
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size())
-                        if (auto& healed = pack[std::size_t(monster.skill_unit)]; healed.alive())
-                            healed.hit_points = std::clamp(healed.hit_points + healed.stats.hit_points * pct / 100, 1, healed.stats.hit_points);
+                        heal(pack[std::size_t(monster.skill_unit)], pack[std::size_t(monster.skill_unit)].stats.hit_points * pct / 100);
                 } else if (cast->srvdofunc == ServerDoFunction::kMonTeleport) {
                     // FUN_005ccc80: to the free spot nearest its skill's point (FUN_00554ea0).
                     std::tie(unit.x, unit.y) = level.nearest_free((float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5);
@@ -2845,13 +2843,26 @@ int soak(Monster& monster, int physical, int damage) {
     return damage - absorbed;
 }
 
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms) {
-    if (!monster.targetable() || damage <= 0) return false;
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction) {
+    if (!monster.targetable() || (damage <= 0 && fraction <= 0)) return false;
+    // Life is in 256ths in game.exe (0057c852): carry the part of a point,
+    // and a life under one point after a hit is dead (0057c865).
+    monster.life_frac += std::max(fraction, 0);
+    damage += monster.life_frac >> 8;
+    monster.life_frac &= 255;
     monster.hit_points -= damage;
+    if (monster.hit_points < 1 || (monster.hit_points == 1 && monster.life_frac > 0)) { monster.hit_points = 0; monster.life_frac = 0; }   // dead is 0 (0057c86c)
     monster.aware = true;
     if (!monster.alive()) set_mode(game_data, monster, "DT", now_ms);
     else if (damage * 8 >= monster.stats.hit_points) set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
+}
+
+void heal(Monster& monster, int points) {
+    if (points <= 0 || !monster.alive()) return;
+    const int healed = monster.hit_points + points;
+    if (healed > monster.stats.hit_points) { monster.hit_points = monster.stats.hit_points; monster.life_frac = 0; }
+    else monster.hit_points = healed;
 }
 
 bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd) {

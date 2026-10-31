@@ -210,6 +210,67 @@ int main(int argc, char** argv) try {
         assert(d2d::rules::monster_props(data->rules, data->monsters.types[267], 2, seed).knock == 1);
         std::printf("OK: MonProp rows match game.exe's (%zu slots)\n", slots);
     }
+    // `--life-apply SEED N`: a lightning missile's rolls (256ths) and heals on a
+    // monster's life, the cases of tools/emu/life_apply.py (game.exe's own
+    // FUN_0057c6c0 / FUN_0057c1e0 / FUN_0057a980), one line each, to diff.
+    if (argc > 3 && std::string_view(argv[1]) == "--life-apply") {
+        std::uint32_t state = std::uint32_t(std::atoi(argv[2]));
+        if (state == 0) state = 1;
+        const auto next = [&state] { state ^= state << 13; state ^= state >> 17; state ^= state << 5; return state; };
+        d2d::rules::Rng rng{ 3 };
+        const auto fallen = data->monsters.by_id.find("fallen1");
+        assert(fallen != data->monsters.by_id.end());
+        const Monster made = make_monster(*data, fallen->second, 10, 10, rng, 0);
+        const auto run = [&](const std::string& tag, int max_hp, int res, int pierce, const std::vector<std::pair<char, int>>& events) {
+            Monster monster = made;
+            monster.stats.hit_points = monster.hit_points = max_hp;
+            monster.life_frac = 0;
+            d2d::rules::Target target;
+            target.res[3] = res;
+            std::printf("%s %d %d %d:", tag.c_str(), max_hp, res, pierce);
+            for (const auto& [kind, value] : events) {
+                if (kind == 'h') {
+                    const auto blow = d2d::rules::missile_blow({ .etype = 1, .elo = value, .ehi = value, .elen = 25 }, target, { 0, pierce, 0, 0 }, rng);
+                    hurt(*data, monster, blow.damage, 0, blow.frac);
+                } else heal(monster, value);
+                const int life = monster.alive() ? monster.hit_points * 256 - monster.life_frac : 0;
+                std::printf(" %c%d=%d", kind, value, life);
+                if (life == 0) break;
+            }
+            std::printf("\n");
+        };
+        for (const int res : { -100, -99, -50, -1, 0, 1, 33, 50, 67, 99, 100, 101, 150 }) {
+            for (const int life : { 1, 2, 3, 4 })
+                for (int roll = 1; roll <= 1100; ++roll) run("B", life, res, 0, { { 'h', roll } });
+            for (const int roll : { 0x100000 - 1, 0x100000, 0x100000 + 1, 0x100000 + 99, 0x100000 + 100, 0x100000 + 101, 0x200000, 0x7fff00, 0, -1, -256, 0x7fffffff })
+                run("M", 0x7fffff >> 8, res, 0, { { 'h', roll } });
+        }
+        for (int i = 0; i < std::atoi(argv[3]); ++i) {
+            const int max_hp = 1 + int(next() % 300);
+            const std::uint32_t bucket = next() % 100;
+            int res;
+            if (bucket < 10) res = 100 + int(next() % 51);
+            else if (bucket < 20) res = -int(next() % 101);
+            else res = int(next() % 100);
+            const int pierce = res >= 100 || next() % 4 ? 0 : int(next() % 61);
+            std::vector<std::pair<char, int>> events;
+            const std::uint32_t count = 1 + next() % 12;
+            for (std::uint32_t step = 0; step < count; ++step) {
+                if (next() % 5 == 0) { events.emplace_back('+', int(next() % 40)); continue; }
+                const std::uint32_t kind = next() % 8;
+                int roll;
+                if (kind == 0) roll = 1 + int(next() % 0x400);
+                else if (kind == 1) {
+                    const int edges[12] = { 255, 256, 257, 511, 512, 513, (max_hp << 8) - 1, max_hp << 8, (max_hp << 8) + 1, (max_hp << 8) - 255, (max_hp << 8) - 256, (max_hp << 8) - 257 };
+                    roll = edges[next() % 12];
+                } else if (kind == 2) roll = 1 + int(next() % 0x300000);
+                else roll = 1 + int(next() % 0x2000);
+                events.emplace_back('h', std::max(roll, 1));
+            }
+            run("R" + std::to_string(i), max_hp, res, pierce, events);
+        }
+        return 0;
+    }
     // `--skill-tips N [difficulty]`: every SkillDesc line at levels 1..N with
     // no unit, as tools/emu/skill_tips.py prints game.exe's (FUN_004edea0).
     if (argc > 2 && std::string_view(argv[1]) == "--skill-tips") {
@@ -1278,11 +1339,32 @@ int main(int argc, char** argv) try {
             coop.fight.pet_strike(pet, prey_index, { .hit = false }, now_ms);
             assert(pet.monster.hit_points == life);
             coop.fight.pet_strike(pet, prey_index, { .hit = true }, now_ms);
-            assert(pet.monster.hit_points == life - d2d::rules::resisted(40, resist));
+            assert(pet.monster.hit_points == std::max(life - d2d::rules::resisted(40, resist), 0));   // dead is 0 (0057c86c)
+            // Life is kept in 256ths (0057c852): two half points are one, and
+            // a life under one point after a hit is dead (0057c865).
+            {
+                Monster fine = pet.monster;
+                fine.hit_points = 3;
+                fine.life_frac = 0;
+                assert(!hurt(*data, fine, 0, now_ms, 128) && fine.hit_points == 3 && fine.life_frac == 128);
+                assert(!hurt(*data, fine, 0, now_ms, 128) && fine.hit_points == 2 && fine.life_frac == 0);
+                assert(!hurt(*data, fine, 0, now_ms, 1) && fine.hit_points == 2 && fine.life_frac == 1);
+                assert(hurt(*data, fine, 1, now_ms, 0) && !fine.alive() && fine.hit_points == 0 && fine.life_frac == 0);   // dead is 0 (0057c86c)
+                // A heal (FUN_0057a980) adds whole points under the cap and keeps the
+                // 256ths taken off; one the cap cuts is full life.
+                fine = pet.monster;
+                fine.stats.hit_points = 5;
+                fine.hit_points = 5;
+                hurt(*data, fine, 1, now_ms, 128);
+                heal(fine, 1);
+                assert(fine.hit_points == 5 && fine.life_frac == 128);
+                heal(fine, 1);
+                assert(fine.hit_points == 5 && fine.life_frac == 0);
+            }
             // None from a converted monster: no blow lands on it (FUN_00554200).
             const int align = std::exchange(coop.fight.monsters[prey_index].align, 2);
             coop.fight.pet_strike(pet, prey_index, { .hit = true }, now_ms);
-            assert(pet.monster.hit_points == life - d2d::rules::resisted(40, resist));
+            assert(pet.monster.hit_points == std::max(life - d2d::rules::resisted(40, resist), 0));
             assert(!coop.fight.land(prey_index, { .hit = true }, true, now_ms));
             coop.fight.monsters[prey_index].align = align;
             // And on the player's melee blow (the strike's and Dragon

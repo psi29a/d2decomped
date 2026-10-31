@@ -241,10 +241,20 @@ struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
     int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
+    int frac = 0;                        // 256ths of a point a missile's element dealt beyond `damage` (game.exe keeps life in 256ths)
     int stun_ticks = 0;
     int hit_class = 0;                   // what the struck unit's impact sound is (sound_ids::impact)
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
+// A fine damage (256ths) through a resistance as FUN_0057bf80 does it: nothing
+// at or under 0 (LAB_0057bf94) or at 100 % or more, untouched at 0 %, else
+// MulDiv (FUN_00483360), which over 0x100000 divides first and multiplies in
+// 32 bits; a wrapped (negative) result deals nothing.
+inline int resisted_fine(int fine, int res) {
+    if (fine <= 0 || res >= 100) return 0;
+    if (res == 0) return fine;
+    return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
+}
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // the skill's physical and elemental damage (with synergies and the
@@ -280,8 +290,13 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
         blow.poison_ticks = std::max(blow.poison_ticks, std::max(damage.elen, 1));
         return blow;
     }
-    const int resisted_damage = resisted(roll >> 8, res);
+    // FUN_005a89a0 rolls the element in 256ths, the resistance applies to
+    // that fine value (FUN_0057bf80) and the life stat (6) takes it as is
+    // (0057c852): keep the part under one point in `frac`.
+    const int fine = resisted_fine(roll, res);
+    const int resisted_damage = fine >> 8;
     blow.damage += resisted_damage;
+    blow.frac += fine & 255;
     if (damage.etype == 2 && resisted_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(damage.elen, res));
     return blow;
 }

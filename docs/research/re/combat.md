@@ -21,6 +21,21 @@ in this function, by int index:
 | 0x12 | (life-related, FUN_0057a980) | |
 | 0x13 | total damage (8.8 fixed) | subtracted from stat 6 (life) |
 
+Life (stat 6) and this total are both in 256ths, and the unit is dead when its
+life is under 0x100 after the hit (LAB_0057c865: set to 0). The elements get
+there through FUN_0057c1e0: each record field of the table at 0x732980
+(lightning +0x1c with resist stat 0x29, pierce 0x14e, absorb 0x90 / 0x91) goes
+through FUN_0057bf80: the resistance (FUN_0057be00: the attacker's pierce
+taken off, -100 at the least; a plain monster gets no difficulty penalty and no
+75 % cap, LAB_0057c242), 100 % or more is nothing, else MulDiv
+(FUN_00483360) of the fine value, then absorb (FUN_0057bf10). d2d keeps whole
+points in `Monster::hit_points` plus `life_frac` (256ths already taken off it);
+only a missile's element roll (FUN_005a89a0) carries a fraction (`Blow::frac`,
+`rules::resisted_fine`), a heal (FUN_0057a980, `heal`) is whole points capped
+at max life, and dead is life 0. Physical, poison, burning, thorns, pets and
+mercs still deal whole points (ponytail: not traced one by one).
+Oracle: `tools/emu/life_apply.py` against `test_game --life-apply`.
+
 Life after the hit below 0x100 (under 1 point) is set to 0: the unit is
 dead, and result flag 2 is set. FUN_0057aa60 / FUN_0057aaa0 do the same
 for mana (stat 8) and stamina (stat 10).

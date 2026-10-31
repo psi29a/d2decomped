@@ -11,6 +11,7 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <string_view>
@@ -287,6 +288,21 @@ int main(int argc, char** argv) {
         damage.etype = 2;
         const auto cold_kill = missile_blow(damage, missile_target, { 0, 0, 500, 0 }, rng);
         assert(cold_kill.damage == 200 && cold_kill.chill_ticks == 50);                    // -100 % at the least, the length too
+        // A Charged Bolt of 2-4 (FUN_005a89a0 rolls in 256ths and life takes them as is): the mean is 3.0, not 2.5.
+        MissileDamage bolt{ .etype = 1, .elo = 2 << 8, .ehi = 4 << 8, .elen = 25 };
+        Rng bolt_rng{ 7 };                                          // its own, so the seeded checks below keep their draws
+        std::int64_t dealt = 0;
+        constexpr int kBolts = 20000;
+        for (int i = 0; i < kBolts; ++i) {
+            const auto bolt_blow = missile_blow(bolt, Target{}, {}, bolt_rng);
+            assert(bolt_blow.frac >= 0 && bolt_blow.frac < 256);
+            dealt += std::int64_t(bolt_blow.damage) * 256 + bolt_blow.frac;
+        }
+        assert(std::abs(double(dealt) / kBolts / 256 - 3.0) < 0.03);
+        // The resistance applies to the fine roll (FUN_0057bf80, MulDiv FUN_00483360).
+        assert(resisted_fine(767, 33) == 513 && resisted_fine(767, 0) == 767 && resisted_fine(767, 100) == 0 && resisted_fine(767, -100) == 1534);
+        assert(resisted_fine(0x100001, 50) == 524250 && resisted_fine(0x100000, 50) == 524288);   // over 0x100000 the quotient comes first
+        assert(resisted_fine(0, 50) == 0 && resisted_fine(-256, -100) == 0 && resisted_fine(0x7fffffff, -100) == 0);   // nothing at or under 0 (LAB_0057bf94); a 32-bit wrap deals nothing
         damage.etype = 3;
         const auto plain_blow = missile_blow(damage, missile_target, {}, rng);
         assert(plain_blow.damage == 0 && plain_blow.poison == 100 * 25 && plain_blow.poison_ticks == 25);

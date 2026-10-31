@@ -166,6 +166,7 @@ struct Monster {
     UnitState unit;
     d2d::rules::MonStats stats;
     int hit_points = 1;
+    int life_frac = 0;                        // 256ths of a point already taken off hit_points (life = hit_points x 256 - life_frac)
     int leader = -1;                          // index of its group's leader
     int difficulty = 0;
     float home_x = 0, home_y = 0;             // where it spawned: wandering stays near
@@ -865,7 +866,10 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
 // when the hit takes an eighth of its life or more; either way it notices.
 // True when this killed it.
 // ponytail: the eighth is the commonly given threshold, not traced.
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms);
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction = 0);
+// Life back (FUN_0057a980): `points` whole points, capped at max life; a heal
+// the cap cuts leaves it at full life, no 256ths taken off.
+void heal(Monster& monster, int points);
 // Bone Armor's absorb on a monster (event 22, FUN_005c6370): the pool takes
 // the hit's physical; at 0 the state goes. The damage left.
 int soak(Monster& monster, int physical, int damage);

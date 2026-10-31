@@ -932,7 +932,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife]
                                          + ((std::int64_t(blow.damage) * calc(*curse, curse->calc[0], target.curse.level) / 100) << 8));
         const int taken = soak(target, d2d::rules::resisted(blow.phys, target_of(monster_index).res[0]), blow.damage);
-        if (hurt(*game_data, target, taken, now_ms)) { killed(monster_index, now_ms); return true; }
+        if (hurt(*game_data, target, taken, now_ms, taken == blow.damage ? blow.frac : 0)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
         // (MonStats2, FUN_0046c140 bits 3 / 13; else it's a GH) goes into
         // KB (FUN_005a77d0): path type 8, 5 subtiles on from the attacker,
