@@ -14,7 +14,8 @@
 namespace d2d::client {
 
 // Which panels are open, for hit-testing.
-struct OpenPanels { bool inv = false, stash = false, cube = false, belt_popup = false, expansion = true; };
+// shift: held for the click (a Beltable inventory item goes to the belt).
+struct OpenPanels { bool inv = false, stash = false, cube = false, belt_popup = false, expansion = true, shift = false; };
 
 // A left click at (mx, my) with the panels in `open`: picks up or puts
 // down. Returns whether the click landed on an item spot (so it doesn't

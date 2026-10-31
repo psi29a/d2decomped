@@ -553,6 +553,17 @@ int main() {
     picked = ground_item("key", 10);
     carried.push_back(stored("hp1", 1, 0, 0));                               // the 1 x 1 grid's one cell taken
     assert(pick_up(pick_tables, carried, picked, 1, 1, 4) == Pickup::kNoRoom && carried[carried.size() - 2].quantity == 12 && picked.quantity == 1);   // the stack fills, the rest has no room
+    // Shift-click to the belt (FUN_0054d520): the pickup's box; a scroll
+    // onto its own column (no tome step); the stash refused; no box: it stays.
+    std::vector<d2d::d2s::Item> clicked{ in_belt("hp1", 0), in_belt("isc", 1), stored("hp2", 1, 0, 0), stored("isc", 1, 1, 0), stored("mp1", 5, 0, 0),
+                                         stored("mp1", 1, 2, 0), stored("hp2", 1, 3, 0), stored("hp2", 1, 4, 0) };
+    for (std::size_t i = 0; i < clicked.size(); ++i) clicked[i].id = int(i) + 1;
+    assert(auto_belt(pick_tables, clicked, 3, 8) && clicked[2].location == 2 && clicked[2].column == 4);   // hp1's column, a row up
+    assert(auto_belt(pick_tables, clicked, 4, 8) && clicked[3].column == 5);                               // the isc column
+    assert(!auto_belt(pick_tables, clicked, 5, 8) && clicked[4].panel == 5);                               // in the stash
+    assert(auto_belt(pick_tables, clicked, 6, 4) && clicked[5].column == 2);                               // one row: the first empty column
+    assert(auto_belt(pick_tables, clicked, 7, 4) && clicked[6].column == 3);
+    assert(!auto_belt(pick_tables, clicked, 8, 4) && clicked[7].location == 0 && clicked[7].panel == 1);   // no box: stays in the pack
 
     std::puts("test_rules: ok");
 }

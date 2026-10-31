@@ -285,6 +285,8 @@ inline auto cursor_to_belt(std::uint32_t id, std::uint32_t box) -> Bytes {
     put_u8(out, 0x23); put_u32(out, id); put_u32(out, box);
     return out;
 }
+// 0x63: an inventory item into the belt, the host picks the box (FUN_0054d520).
+inline auto auto_belt(std::uint32_t id) -> Bytes { return item_id_packet(0x63, id); }
 
 // NPCs (net-packets.md "NPC trade"). 0x2f / 0x30: start / end the chat
 // with a unit (type, id).

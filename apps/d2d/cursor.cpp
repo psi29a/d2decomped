@@ -48,7 +48,11 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
         for (const auto& item : items) {
             if (item.location != d2d::d2s::item_location::kStored || item.panel != panel) continue;
             const auto rect = grid_rect(scene, *layout, item);
-            if (inside(rect[0], rect[1], rect[2], rect[3])) return { true, cmd::ToCursor{ item.id } };
+            if (!inside(rect[0], rect[1], rect[2], rect[3])) continue;
+            // Shift: a Beltable inventory item to the belt, the host picks
+            // the box; nothing goes into the hand (FUN_0048ffe0, 0x49029d).
+            if (open.shift && panel == d2d::d2s::item_panel::kInventory && d2d::rules::beltable(tables, item)) return { true, cmd::AutoBelt{ item.id } };
+            return { true, cmd::ToCursor{ item.id } };
         }
         return { true, {} };
     }
