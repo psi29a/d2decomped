@@ -1230,11 +1230,25 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.hurt_minion = kin >= 0; input.free_minion = aid >= 0;
             input.attacker = input.got_hit;
         }
-        // Nihlathak's Corpse Explosion (FUN_0056e390): a corpse (DD, not used) about.
-        // ponytail: the nearest in the pack, not FUN_0056e390's own search by its radius.
+        // The first eligible unit in near-room then newest-unit order
+        // (FUN_0065ac70); `pack` is oldest first.
+        const auto first_near = [&](auto eligible) {
+            std::vector<int> rooms;
+            for (const auto& [room_level, room] : near_rooms(game_data, level, unit.x, unit.y))
+                if (room_level == &level) rooms.push_back(room);
+            std::vector<d2d::rules::RoomUnit> units;
+            units.reserve(pack.size());
+            for (const auto& other : pack) units.push_back({ room_at(level, other.unit.x, other.unit.y), eligible(other) });
+            return d2d::rules::first_room_unit(units, rooms);
+        };
+        // Nihlathak's Corpse Explosion (FUN_0056e390): the first unused,
+        // corpseSel DD corpse within 10, squared subtile distance <= 100.
         if (name == "Nihlathak") {
-            for (std::size_t i = 0; i < pack.size() && corpse < 0; ++i)
-                if (!pack[i].alive() && pack[i].mode == "DD" && !pack[i].corpse_used) corpse = int(i);
+            corpse = first_near([&](const Monster& other) {
+                const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
+                return !other.alive() && other.mode == "DD" && !other.corpse_used
+                    && game_data.monsters.types[std::size_t(other.type)].corpse_sel && off_x * off_x + off_y * off_y <= 100;
+            });
             input.corpse = corpse >= 0;
             input.self_x = x; input.self_y = y;
         }
@@ -1261,15 +1275,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // the first monster Impregnate takes (FUN_005d2140) within 25
         // (FUN_005dc380), in near-room then newest-unit order; in reach
         // (FUN_00622c40) it casts at it.
-        const auto first_near = [&](auto eligible) {
-            std::vector<int> rooms;
-            for (const auto& [room_level, room] : near_rooms(game_data, level, unit.x, unit.y))
-                if (room_level == &level) rooms.push_back(room);
-            std::vector<d2d::rules::RoomUnit> units;
-            units.reserve(pack.size());
-            for (const auto& other : pack) units.push_back({ room_at(level, other.unit.x, other.unit.y), eligible(other) });
-            return d2d::rules::first_room_unit(units, rooms);
-        };
         if (name == "PutridDefiler") {
             kin = first_near([&](const Monster& host) {
                 return &host != &monster && impregnable(game_data, host)

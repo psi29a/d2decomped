@@ -697,7 +697,10 @@ think elsewhere. All are search type 1 (no target found: no think).
   bound is the family's count (MonStats +0x4a, `FUN_006510c0`), which the
   chain never outruns. d2d: `level_monster`.
 - **Corpse Explosion from a monster** (Nihlathak, do 55 `FUN_005c4df0`, the
-  Necromancer's own): at the corpse his think found, used (state 0x68);
+  Necromancer's own): at the corpse his think found (`FUN_0056e390`: the
+  first DD monster within 10, squared, with MonStats2 `corpseSel` (flags +4
+  bit 7) and not used, `FUN_00645680`; near-room then newest-unit order),
+  used (state 0x68);
   each foe within aurarange / 2 of it takes calc1..calc2 % of its life,
   half physical, half fire.
 - **Smite** (do 150, the Baal minions' A2) and **Power Strike** (start 6,

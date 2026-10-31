@@ -240,6 +240,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1); type_info.footprint = num(ms2.get(monstats2_row, "SizeX")) > 0; type_info.melee_rng = num(ms2.get(monstats2_row, "MeleeRng"));
             type_info.base_w = ms2.get(monstats2_row, "BaseW");
             type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
+            type_info.corpse_sel = ms2.get(monstats2_row, "corpseSel") == "1";
             type_info.critter = ms2.get(monstats2_row, "critter") == "1";
             type_info.small = ms2.get(monstats2_row, "small") == "1"; type_info.large = ms2.get(monstats2_row, "large") == "1";
             type_info.hit_class = num(ms2.get(monstats2_row, "HitClass"));
