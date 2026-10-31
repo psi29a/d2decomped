@@ -23,6 +23,14 @@ class PresubmitTests(unittest.TestCase):
     def levels(self, check):
         return [level for level, name, _ in presubmit.results if name == check]
 
+    def test_table_clashes_after_a_union_merge(self):
+        table = ["## Bugs", "| # | What |", "|---|---|", "| 1 | one |", "| 2 | two |"]
+        self.assertEqual(presubmit.table_clashes(table), [])
+        self.assertEqual(len(presubmit.table_clashes(table + ["| 2 | another two |"])), 1)
+        self.assertEqual(len(presubmit.table_clashes(table + ["| 2 | two |"])), 2)   # repeated and renumbered
+        # Numbers restart in each section (deviations.md: Improvements 1.., Approximations 1..).
+        self.assertEqual(presubmit.table_clashes(table + ["## Approximations", "| # | What |", "|---|---|", "| 1 | x |"]), [])
+
     def test_short_names_as_clang_tidy(self):
         flagged = {"        const std::uint32_t at = 26 * kTickMs;": "at", "    auto c = foo();": "c",
                    "    const int n{3};": "n", "        std::vector<Channel*> of;": "of",

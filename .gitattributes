@@ -1,0 +1,10 @@
+# Research tables that grow a row at a time: when two branches each add a
+# row at the end, a local merge or rebase keeps both instead of stopping on
+# a conflict. tools/presubmit.py then flags a number the two rows share.
+# GitHub's merge button ignores merge drivers: rebase locally
+# (AGENTS.md section 6).
+docs/research/re/bugs.md        merge=union
+docs/research/re/deviations.md  merge=union
+docs/research/re/stubs.md       merge=union
+docs/research/re/todo.md        merge=union
+docs/research/re/unverified.md  merge=union

@@ -466,8 +466,43 @@ def check_review(tree, base, changed, texts):
     check_docs(tree, changed, texts)
 
 
+UNION_TABLES = ("docs/research/re/bugs.md", "docs/research/re/deviations.md", "docs/research/re/stubs.md",
+                "docs/research/re/todo.md", "docs/research/re/unverified.md")    # merge=union in .gitattributes
+
+
+def table_clashes(lines):
+    """A union merge keeps both sides' new rows: a `#` two rows share in one section, or a row twice."""
+    def separator(line):
+        return line.startswith("|") and set(line.strip()) <= set("|-: ")
+
+    clashes, heading, numbers, rows = [], "", {}, {}
+    for num, line in enumerate(lines, 1):
+        if line.startswith("#"):
+            heading, numbers = line.lstrip("#").strip(), {}
+        if not line.startswith("|") or separator(line) or (num < len(lines) and separator(lines[num])):
+            continue                                                          # prose, a separator, a header
+        if line in rows:
+            clashes.append(f"line {num} repeats line {rows[line]}")
+        rows.setdefault(line, num)
+        first = line.strip().strip("|").split("|")[0].strip()
+        if first.isdigit():
+            if first in numbers:
+                clashes.append(f"line {num}: #{first} is also line {numbers[first]} ({heading})")
+            numbers.setdefault(first, num)
+    return clashes
+
+
 def check_docs(tree, changed, texts):
     docs = [path for path in changed if path.endswith(".md")]
+    if "docs/PLAN.md" in changed:
+        report("WARN", "plan", "docs/PLAN.md changed: the maintainer updates it after a merge; "
+                               "put the status in the PR body (AGENTS.md section 6)")
+    for path in docs:
+        if path in UNION_TABLES:
+            clashes = table_clashes((tree / path).read_text(encoding="utf-8").splitlines())
+            if clashes:
+                report("FAIL", "table-rows", f"{path}: " + "; ".join(clashes[:6]) +
+                       ". Two branches' rows met: renumber or drop yours")
     for path in docs:
         missing = set()
         for num, text in texts.get(path, []):
