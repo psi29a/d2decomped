@@ -3575,8 +3575,8 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         return foe;
     }
 
-auto Fight::pet_hurt(Pet& pet, int damage, std::uint32_t now_ms) -> void {
-        if (damage > 0 && pet.monster.mode != "DT") (void)hurt(*game_data, pet.monster, damage, now_ms);
+auto Fight::pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class, bool marked) -> void {
+        if (damage > 0 && pet.monster.mode != "DT") (void)hurt(*game_data, pet.monster, damage, now_ms, 0, hit_class, marked);
     }
 
 auto Fight::pets_cross(const Level* from, const Level* destination, float dx, float dy) -> void {
@@ -4693,7 +4693,11 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 const auto monster_index = i - allies;
                 auto& struck = monsters[monster_index];
                 const bool was_alive = struck.alive();
-                bool dead = hurt(*game_data, struck, soak(struck, foes[i].physical, foes[i].damage), now_ms);
+                // One damage record a landed blow (FUN_0057c6c0 then FUN_0057cee0's monster branch, which a
+                // pet or a hireling takes too): its own armor pool, then its get-hit on its own class and mark.
+                bool dead = false;
+                for (const auto& blow : foes[i].blows)
+                    if (!dead) dead = hurt(*game_data, struck, soak(struck, blow.physical, blow.damage), now_ms, 0, blow.hit_class, blow.marked);
                 // Its Crushing Blows after the hits, less its own damageresist
                 // (FUN_005bffc0), and a knockback as the player's (knock_back).
                 for (const int divisor : foes[i].crushed)
@@ -4740,7 +4744,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 for (std::size_t k = 0; k < actor->pets.size(); ++k) {
                     auto& pet = actor->pets[k];
                     const auto& foe = foes[side.pets + k];
-                    pet_hurt(pet, foe.damage, now_ms);
+                    for (const auto& blow : foe.blows) pet_hurt(pet, blow.damage, now_ms, blow.hit_class, blow.marked);   // a record a blow, as the monsters'
                     for (const int divisor : foe.crushed)                // Crushing Blows, after the hits (FUN_005bffc0)
                         if (pet.monster.alive()) pet_hurt(pet, int(crushing_blow(pet.monster.hit_points, divisor, foe.pick.damage_resist)), now_ms);
                     if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);

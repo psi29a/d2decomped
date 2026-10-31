@@ -1038,7 +1038,7 @@ struct Fight {
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;
-    void pet_hurt(Pet& pet, int damage, std::uint32_t now_ms);
+    void pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class = 0, bool marked = false);
     // The player crossed from `from` to `to` (shifted by dx, dy): the pets
     // with them come along, traps stay where they were set.
     void pets_cross(const Level* from, const Level* destination, float dx, float dy);

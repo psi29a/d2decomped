@@ -1413,6 +1413,15 @@ int main(int argc, char** argv) try {
                 assert(fine.hit_points == 5 && fine.life_frac == 128);
                 heal(fine, 1);
                 assert(fine.hit_points == 5 && fine.life_frac == 0);
+                // A pet or a monster takes its blows one record at a time (Fight::world): two class-2 blows of 6
+                // on 64 life are each under max / 8, no get-hit; the one blow of 32 is sure (FUN_0057cb00).
+                fine = pet.monster;
+                fine.stats.hit_points = fine.hit_points = 64;
+                const auto mode = fine.mode;
+                for (int blow = 0; blow < 2; ++blow) hurt(*data, fine, 6, now_ms, 0, 2, false);
+                assert(fine.hit_points == 52 && fine.mode == mode);
+                hurt(*data, fine, 32, now_ms, 0, 2, false);
+                assert(fine.mode == "GH");
             }
             // None from a converted monster: no blow lands on it (FUN_00554200).
             const int align = std::exchange(coop.fight.monsters[prey_index].align, 2);
