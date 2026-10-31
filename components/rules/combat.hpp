@@ -381,7 +381,7 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     if (damage.etype == 3) {
         blow.poison += resisted(int(std::int64_t(roll) * std::max(damage.elen, 1) >> 8), res);
         blow.poison_ticks = std::max(blow.poison_ticks, std::max(damage.elen, 1));
-        blow.elemental = blow.elemental || blow.poison > 0;
+        blow.elemental = blow.elemental || resisted_fine(roll, res) > 0;   // the record's poison field (per tick, 256ths) is tested as the others are
         return blow;
     }
     // FUN_005a89a0 rolls the element in 256ths, the resistance applies to

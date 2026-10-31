@@ -404,6 +404,21 @@ int main(int argc, char** argv) {
         damage.etype = 3;
         const auto plain_blow = missile_blow(damage, missile_target, {}, rng);
         assert(plain_blow.damage == 0 && plain_blow.poison == 100 * 25 && plain_blow.poison_ticks == 25);
+        {   // The get-hit's element mark: game.exe's FUN_0057ce30 reads the record's fire / lightning / cold / poison field
+            // after FUN_0057bf80 resisted it in place (256ths, over 0; magic is not in its table). Run on game.exe in tools/emu.
+            Target half_resisted;
+            half_resisted.res = { 0, 0, 50, 100, 0, 0 };
+            Rng mark_rng{ 3 };
+            const auto marked = [&](int etype, int fine, const Target& target) {
+                const MissileDamage record{ .etype = etype, .elo = fine, .ehi = fine, .elen = 25 };
+                return missile_blow(record, target, {}, mark_rng).elemental;
+            };
+            assert(marked(0, 128, Target{}) && marked(0, 1, Target{}) && marked(0, 256, Target{}) && marked(0, 0x10000, Target{}));   // under a point still marks
+            assert(!marked(0, 0, Target{}) && !marked(4, 256, Target{}));                       // an empty record, magic
+            assert(!marked(1, 256, half_resisted) && !marked(0, 1, half_resisted) && marked(0, 2, half_resisted));   // resisted to nothing, to 1/256 (fine 1 * 50 / 100 = 0)
+            assert(marked(3, 1, Target{}) && !marked(3, 0, Target{}));                           // poison: its per-tick field, though 1 * 25 >> 8 is 0 points
+            assert(missile_blow(MissileDamage{ .etype = 0, .elo = 128, .ehi = 128 }, Target{}, {}, mark_rng).damage == 0);   // the half point is kept in frac, not dropped
+        }
     }
     Fighter claws;                                                     // Weapon Block: standing only
     claws.weapon_block = 100;
