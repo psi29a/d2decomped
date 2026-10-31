@@ -185,8 +185,8 @@ The base y is 539 (= 60 + 255 + 224):
 The price function computes buy, sell and repair together. Repair:
 
 1. base = the buy base with its quality extras (no ethereal ¼);
-2. nothing for items with no durability, whole ones, ethereal ones
-   or indestructible ones; a throwable (FUN_0062ba80, ItemTypes
+2. nothing for items with no durability, whole ones, ethereal ones,
+   unidentified ones (`FUN_0062e660`) or indestructible ones; a throwable (FUN_0062ba80, ItemTypes
    Throwable) skips the durability term;
 3. × (max − current) / max, where max is the maxdurability stat (73)
    with item_maxdurability_percent (75) — the save stores the base max;
