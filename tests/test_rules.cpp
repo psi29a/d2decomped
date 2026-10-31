@@ -164,11 +164,14 @@ int main() {
     cursor_tables.types["shld"] = {};
     cursor_tables.types["shie"] = { .equiv = { "shld", "" }, .body = { 4, 5 } };
     cursor_tables.types["misl"] = {};
-    cursor_tables.types["bowq"] = { .equiv = { "misl", "" }, .body = { 4, 5 } };
-    cursor_tables.types["bow"]  = { .equiv = { "weap", "" }, .body = { 4, 5 } };
+    cursor_tables.types["bowq"] = { .equiv = { "misl", "" }, .body = { 4, 5 }, .quiver = "bow" };
+    cursor_tables.types["xboq"] = { .equiv = { "misl", "" }, .body = { 4, 5 }, .quiver = "xbow" };
+    cursor_tables.types["bow"]  = { .equiv = { "weap", "" }, .body = { 4, 5 }, .shoots = "bowq" };
+    cursor_tables.types["xbow"] = { .equiv = { "weap", "" }, .body = { 4, 5 }, .shoots = "xboq" };
+    cursor_tables.types["staf"] = { .equiv = { "weap", "" }, .body = { 4, 5 } };
     cursor_tables.types["clas"] = {};
     cursor_tables.types["amaz"] = { .equiv = { "clas", "" }, .cls = "ama" };
-    cursor_tables.types["abow"] = { .equiv = { "bow", "amaz" }, .body = { 4, 5 } };
+    cursor_tables.types["abow"] = { .equiv = { "bow", "amaz" }, .body = { 4, 5 }, .shoots = "bowq" };
     cursor_tables.types["helm"] = { .body = { 1, 1 } };
     cursor_tables.types["poti"] = { .beltable = true };
     cursor_tables.types["hpot"] = { .equiv = { "poti", "" } };
@@ -177,6 +180,8 @@ int main() {
     cursor_tables.item_info["2ax"] = { .width = 2, .height = 3, .type = "axe", .kind = 2, .two_handed = true };
     cursor_tables.item_info["buc"] = { .width = 2, .height = 2, .type = "shie", .kind = 1 };
     cursor_tables.item_info["aqv"] = { .width = 1, .height = 3, .type = "bowq" };
+    cursor_tables.item_info["cqv"] = { .width = 1, .height = 3, .type = "xboq" };
+    cursor_tables.item_info["sst"] = { .width = 1, .height = 3, .type = "staf", .kind = 2, .two_handed = true };
     cursor_tables.item_info["sbw"] = { .width = 2, .height = 3, .type = "bow", .kind = 2, .two_handed = true };
     cursor_tables.item_info["am1"] = { .width = 2, .height = 4, .type = "abow", .kind = 2, .two_handed = true };
     cursor_tables.item_info["cap"] = { .width = 2, .height = 2, .type = "helm", .kind = 1, .req_lvl = 5 };
@@ -252,6 +257,22 @@ int main() {
     assert(equip(cursor_tables, archer, held, 4, sorc));
     held = item("aqv");
     assert(equip(cursor_tables, archer, held, 5, sorc) && !held);                        // a quiver goes with a bow
+    held = item("cqv");
+    assert(!equip(cursor_tables, archer, held, 5, sorc) && held);                         // bolts aren't a bow's: the arrows and the bow would both come off
+    // FUN_0063dbc0: a quiver joins only the bow it's for (issue #139: arrows
+    // beside a staff). Into the free hand it takes the other one's place.
+    std::vector<Item> staff;
+    held = item("sst");
+    assert(equip(cursor_tables, staff, held, 4, sorc));
+    held = item("aqv");
+    assert(equip(cursor_tables, staff, held, 5, sorc) && held && held->code == "sst" && item_at(staff, 1, 5) && !item_at(staff, 1, 4));
+    std::vector<Item> sword;
+    held = item("ssd");
+    assert(equip(cursor_tables, sword, held, 4, sorc));
+    held = item("aqv");
+    assert(equip(cursor_tables, sword, held, 5, sorc) && held && held->code == "ssd");  // not beside a one-hander either
+    held = item("am1");
+    assert(equip(cursor_tables, sword, held, 4, Wearer{ .cls = d2d::d2s::kAmazon, .str = 30, .dex = 30, .lvl = 10 }) && !held);   // an Amazon bow Shoots bowq
 
     // Belt: beltables only, swap in place.
     std::vector<Item> belt;

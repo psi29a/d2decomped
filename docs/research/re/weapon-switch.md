@@ -60,3 +60,30 @@ shows "Swap Weapons" and its key (untraced; d2d shows nothing).
 d2d: `item_cursor_command` (cursor.cpp).
 
 ponytail: another player's switch (0x9d action 0x17) isn't followed.
+
+## What two hands can hold (`FUN_0063dbc0`, from `FUN_0063dd90`)
+
+`FUN_0063de60(player, body loc, item, …)` asks of a hand slot (4, 5, or
+the switch's 11, 12) `FUN_0063dd90(other hand's item, new item, item in
+the slot)`: 1 the empty hand takes it, 2 it takes it but the other hand's
+item doesn't pair (it comes off), 5 a swap, 6 a stack, 7 a swap that
+also unseats the other hand, 0 never. The client's hand handlers
+`FUN_00490780` / `FUN_00490ba0` (body-loc table `0x721e58`) send codes
+1, 2, 5, 6, 7 on; the other slots' `FUN_00490fc0` only 1, 3, 5.
+
+The pairing, `FUN_0063dbc0` (ESI, EDI the two items, EBX the unit):
+
+1. Either hand empty: yes.
+2. One item's ItemTypes **Shoots** (`+0xc` of its own type's 0xe4-byte
+   record, `FUN_0062e6f0`: bow, xbow and abow have bowq / xboq) and the
+   other is of that type along the Equiv chain (`FUN_00629bb0`): yes.
+3. Either has a **Quiver** (`+0xe`, `FUN_0062e740`: bowq, xboq, mboq,
+   mxbq): no. So arrows go beside a bow and nothing else; bolts beside a
+   crossbow; neither beside a staff or a sword.
+4. Either is two-handed (`FUN_006289c0`) and not a Barbarian's 1or2handed
+   (`FUN_0062a1e0`, the base's `+0x13d`): no.
+5. Both weapons (type 0x2d): a Barbarian, or an Assassin with two claws
+   (0x43); else no. One weapon: yes. No weapon (two shields): no.
+
+d2d: `rules::hands_ok`, `ItemType::shoots` / `quiver`;
+`tests/test_rules.cpp` (issue #139: arrows beside a staff).
