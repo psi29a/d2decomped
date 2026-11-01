@@ -74,7 +74,8 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
 // partial bonuses 2a, 2b .. na, nb (at most pieces - 1's); all of them
 // worn, the full bonuses FCode1..8 too. Set item rows count as pieces
 // once each.
-// ponytail: a ranged bonus takes its min (every 1.14d row has min == max).
+// A row's min / max are its property's own: a damage range (Vidala's Rig
+// dmg-cold 15-20), gethit-skill's chance and level (Cow King's 25, 5).
 inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items) {
     std::vector<d2d::d2s::ItemProp> out;
     const auto& rules = game_data.rules;
@@ -92,12 +93,11 @@ inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, cons
         const int partial = std::min(count, bonus.pieces - 1) * 2 - 2;
         for (int index = 0; index < partial && std::size_t(index) < bonus.partial.size(); ++index)
             if (!bonus.partial[std::size_t(index)].code.empty()) {
-                auto mod = bonus.partial[std::size_t(index)]; mod.max = mod.min;
-                d2d::rules::apply_mod(rules, mod, out, rng);
+                d2d::rules::apply_mod(rules, bonus.partial[std::size_t(index)], out, rng);
             }
         if (count >= bonus.pieces)
-            for (auto mod : bonus.full)
-                if (!mod.code.empty()) { mod.max = mod.min; d2d::rules::apply_mod(rules, mod, out, rng); }
+            for (const auto& mod : bonus.full)
+                if (!mod.code.empty()) d2d::rules::apply_mod(rules, mod, out, rng);
     }
     return out;
 }
