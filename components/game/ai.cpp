@@ -2565,9 +2565,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const std::size_t had = missiles.size();
                         andariel_missile(game_data, monster, cast->srvmissilea, float(off_x), float(off_y), now_ms, missiles, lvl, cast);
                         if (missiles.size() == had) return;
-                        auto& shot = missiles.back();
+                        auto& ring_shot = missiles.back();
                         const float speed = missile_speed((param << 6) * 75 / 100), length = std::hypot(float(off_x), float(off_y));   // FUN_0059fa30's x 75 / 100
-                        shot.velocity_x = float(off_x) / length * speed; shot.velocity_y = float(off_y) / length * speed;
+                        ring_shot.velocity_x = float(off_x) / length * speed; ring_shot.velocity_y = float(off_y) / length * speed;
                     };
                     if (ring != game_data.missiles.end()) {
                         for (std::size_t way = 0; way < 16; way += 2) shoot(way, ring->second.param1);
