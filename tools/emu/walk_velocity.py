@@ -237,7 +237,11 @@ def compare(cases, a, b):
         print("  ", " ".join(rows[k]), "game", ga[k][1], "d2d", gb[k][1])
     from collections import Counter
     print("  skip reasons", Counter(" ".join(gb[k][1:]) for k in skipped).most_common(5))
-    return 1 if bad or velfail else 0
+    # a case d2d neither answered nor skipped would pass unseen (an empty d2d file compares nothing)
+    missing = [k for k in rows if not (k in gb and gb[k][1] == "skip") and (k not in ga or k not in gb)]
+    if missing:
+        print(f"  missing results for {len(missing)} cases, first: {missing[:5]}")
+    return 1 if bad or velfail or missing or compared == 0 else 0
 
 
 if __name__ == "__main__":
