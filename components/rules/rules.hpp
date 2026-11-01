@@ -1159,18 +1159,19 @@ inline void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s
     }
 }
 
-// Affix level for an item of level ilvl with base qlvl (the known D2
-// formula): ilvl - qlvl/2 below 99 - qlvl/2, else 2*ilvl - 99.
-// ponytail: no "magic lvl" (wands, staves, circlets).
-inline int affix_level(int ilvl, int qlvl) {
-    ilvl = std::clamp(std::max(ilvl, qlvl), 1, 99);
-    return ilvl < 99 - qlvl / 2 ? ilvl - qlvl / 2 : 2 * ilvl - 99;
+// Affix level for an item of level ilvl with base qlvl (FUN_005c1560):
+// max(ilvl, qlvl) plus the base's "magic lvl" (wands, staves, circlets),
+// or without one less qlvl/2 below 99 - qlvl/2, else 2*level - 99; 1..99.
+inline int affix_level(int ilvl, int qlvl, int magic_lvl) {
+    const int level = std::max(ilvl, qlvl);
+    return std::clamp(magic_lvl ? level + magic_lvl : level < 99 - qlvl / 2 ? level - qlvl / 2 : 2 * level - 99, 1, 99);
 }
 
 // A random affix row for an item of `type` at affix level alvl, weighted
-// by frequency; skips groups already taken. 0 = none fits.
+// by frequency (x the row's level with a magic lvl, FUN_005c1560); skips
+// groups already taken. 0 = none fits.
 inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, const std::string& type, int alvl, bool rare,
-                      const std::vector<int>& groups, Rng& rng) {
+                      const std::vector<int>& groups, Rng& rng, bool by_level = false) {
     std::vector<std::pair<int, int>> ok;                   // (row, frequency)
     int total = 0;
     for (std::size_t row = 1; row < list.size(); ++row) {
@@ -1180,8 +1181,9 @@ inline int pick_affix(const Tables& tables, const std::vector<Affix>& list, cons
         if (std::ranges::find(groups, affix.group) != groups.end()) continue;
         if (std::ranges::none_of(affix.itypes, [&](const auto& item_type) { return type_is(tables, type, item_type); })) continue;
         if (std::ranges::any_of(affix.etypes, [&](const auto& excluded_type) { return type_is(tables, type, excluded_type); })) continue;
-        ok.push_back({ int(row), affix.frequency });
-        total += affix.frequency;
+        const int weight = by_level ? affix.frequency * affix.level : affix.frequency;
+        ok.push_back({ int(row), weight });
+        total += weight;
     }
     if (ok.empty()) return 0;
     int roll = rng(total);
@@ -1307,8 +1309,7 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         static constexpr std::array kAuto{ 1, 2, 3, 4, 6, 8, 9 };
         if (base->auto_prefix != 0 && std::ranges::find(kAuto, item.quality) != kAuto.end()) {
             rng.next();                                    // FUN_005c1560's coin (forced on)
-            const int level = std::max(item.ilvl, qlvl);
-            const int alvl = std::clamp(base->magic_lvl ? level + base->magic_lvl : level < 99 - qlvl / 2 ? level - qlvl / 2 : 2 * level - 99, 1, 99);
+            const int alvl = affix_level(item.ilvl, qlvl, base->magic_lvl);
             std::vector<std::pair<int, int>> fits;         // (row, weight)
             int total = 0;
             for (std::size_t row = 0; row < tables.automagic.size(); ++row) {
@@ -1435,11 +1436,12 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         }
         quality = 6;
     }
-    const int alvl = affix_level(item.ilvl, qlvl);
+    const int magic_lvl = found != tables.item_base.end() ? found->second.magic_lvl : 0;
+    const int alvl = affix_level(item.ilvl, qlvl, magic_lvl);
     std::vector<int> groups;
     auto add = [&](bool prefix) {
         const auto& list = prefix ? tables.prefixes : tables.suffixes;
-        const int affix_row = pick_affix(tables, list, type, alvl, quality == 6, groups, rng);
+        const int affix_row = pick_affix(tables, list, type, alvl, quality == 6, groups, rng, magic_lvl != 0);
         if (affix_row <= 0) return 0;
         groups.push_back(list[std::size_t(affix_row)].group);
         for (const auto& mod : list[std::size_t(affix_row)].mods) apply_mod(tables, mod, item.props, rng);
@@ -1469,8 +1471,7 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
         item.quality = 4;
         static constexpr std::array<std::string_view, 7> kClass = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
         const int item_class = item_type ? int(std::ranges::find(kClass, std::string_view(item_type->cls)) - kClass.begin()) : 7;
-        const int level = std::max(item.ilvl, qlvl);
-        const int magic_alvl = std::clamp(base->magic_lvl ? level + base->magic_lvl : level < 99 - qlvl / 2 ? level - qlvl / 2 : 2 * level - 99, 1, 99);
+        const int magic_alvl = affix_level(item.ilvl, qlvl, base->magic_lvl);
         // FUN_0065e620: an affix whose first mod sets the sockets (stat 0xc2)
         // only on an item that can hold some (hasinv and a socket count).
         const int by_ilvl = item_type ? item_type->max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)] : 0;

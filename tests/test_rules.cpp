@@ -416,7 +416,8 @@ int main() {
     gamble_tables.rare_prefixes = 10; gamble_tables.rare_suffixes = 10;
     Rng roll{ 7 };
 
-    assert(affix_level(10, 1) == 10 && affix_level(99, 60) == 99 && affix_level(80, 60) == 61);
+    assert(affix_level(10, 1, 0) == 10 && affix_level(99, 60, 0) == 99 && affix_level(80, 60, 0) == 61);
+    assert(affix_level(30, 20, 1) == 31 && affix_level(98, 20, 3) == 99);   // magic lvl: added, clamped
     // Groups: after one group-1 prefix no other group-1 one fits; level 50 is too high.
     assert(pick_affix(gamble_tables, gamble_tables.prefixes, "helm", 10, false, { 1 }, roll) == 0);
     for (int i = 0; i < 20; ++i) {
