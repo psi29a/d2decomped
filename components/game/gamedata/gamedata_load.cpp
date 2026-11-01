@@ -894,7 +894,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (table != &misc) continue;
             desc.spell_desc = number("spelldesc");
             desc.spell_str = std::string(table->get(row, "spelldescstr"));
-            desc.spell_calc = number("spelldesccalc");          // ponytail: every 1.14d calc is a plain number
+            desc.spell_calc = number("spelldesccalc");          // a calc (type 0x19, +0xb8); every 1.14d row is a plain number (20..320)
             for (const auto& [name, id] : kSpellStat) if (table->get(row, "stat1") == name) desc.spell_stat = id;
         }
     {

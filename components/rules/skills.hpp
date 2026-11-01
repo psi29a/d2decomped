@@ -677,7 +677,8 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).
 // The missile operands (m1en.., 26..37, 43..48) go to env.desc_missile.
-// ponytail: skpt (+0x170, the skill points calc) reads 0; no calc uses it.
+// skpt (+0x170, the skill points calc) reads 0: no 1.14d calc (Skills.txt,
+// Missiles.txt) names it.
 inline int calc_operand(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int code, int depth) {
     const auto& params = skill.par;
     switch (code) {
