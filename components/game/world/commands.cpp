@@ -259,12 +259,16 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             actor->talking = { chat->npc, -1, -1 };
             return true;
         }
-        // FUN_0054c5d0 / FUN_00584f60: not within 10 s of the last level
-        // change, only to another active waypoint; arrival by its preset
+        // FUN_0054c5d0 / FUN_00584f60: only to another active waypoint; arrival by its preset
         // (tile + 3 subtiles, FUN_0066ad80), which lights up if it's dark.
+        // game.exe's 10 s refusal counts from the player's last hostile
+        // declaration (player data +0x160, written only by FUN_0055b720 from
+        // FUN_005a5e50), not from a level change: no hostility here, no wait.
+        // ponytail: hostile (PvP) declarations aren't modelled, so nothing
+        // refuses; an act change arrives at once (game.exe's load not traced).
         if (const auto* travel = std::get_if<cmd::Waypoint>(&command)) {
             const int index = waypoint_index(*game_data, travel->level);
-            if (now - actor->arrived_at < 10000 || std::size_t(travel->npc) >= level->npcs.size() || level->npcs[std::size_t(travel->npc)].operate_fn != d2d::rules::operate_fn::kWaypoint
+            if (std::size_t(travel->npc) >= level->npcs.size() || level->npcs[std::size_t(travel->npc)].operate_fn != d2d::rules::operate_fn::kWaypoint
                 || travel->level == level->id || !actor->character.header.waypoint(actor->character.header.active_difficulty(), index)) return true;
             if (host_warps) return true;                       // joined: the host's 0x49 moves us, its reassign brings us
             const Level* destination = game_data->level(travel->level);
