@@ -2029,17 +2029,19 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     return Pickup::kGone;
 }
 
-// Cain's "Identify Items": the carried and worn ones. Returns how many.
-// ponytail: the server's scope isn't traced (stash and cube are left).
-inline int unidentified(const std::vector<d2d::d2s::Item>& items) {
-    return int(std::ranges::count_if(items, [](const auto& item) {
-        return !item.identified && (item.location == d2d::d2s::item_location::kEquipped || item.location == d2d::d2s::item_location::kBelt || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory));
-    }));
+// Cain's "Identify Items" (FUN_0062a530 counts, FUN_00578460 identifies):
+// the unidentified ones worn (node 3) or stored in the inventory or the cube
+// (node 1, page 0 / 3); not the belt (node 2) or the stash.
+inline bool cain_identifies(const d2d::d2s::Item& item) {
+    using namespace d2d::d2s;
+    return !item.identified && (item.location == item_location::kEquipped
+        || (item.location == item_location::kStored && (item.panel == item_panel::kInventory || item.panel == item_panel::kCube)));
 }
+inline int unidentified(const std::vector<d2d::d2s::Item>& items) { return int(std::ranges::count_if(items, cain_identifies)); }
 inline int identify_all(std::vector<d2d::d2s::Item>& items) {
     int count = 0;
     for (auto& item : items)
-        if (!item.identified && (item.location == d2d::d2s::item_location::kEquipped || item.location == d2d::d2s::item_location::kBelt || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory))) {
+        if (cain_identifies(item)) {
             item.identified = true;
             ++count;
         }

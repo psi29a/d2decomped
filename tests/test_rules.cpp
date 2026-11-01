@@ -525,11 +525,12 @@ int main() {
     merc_header.merc_dead = true;
     assert(!resurrect_merc(5, merc_header, wallet2) && merc_header.merc_dead);       // 20 < 180
 
-    // Identify: carried, worn and belt items; not the stash.
-    std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap") };
+    // Identify (FUN_0062a530): inventory, cube and worn items; not the stash or the belt.
+    std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap"), stored("cap", 4, 0, 0), item("hp1") };
     unid[2].location = 1;
+    unid[4].location = 2;
     for (auto& unknown : unid) unknown.identified = false;
-    assert(unidentified(unid) == 2 && identify_all(unid) == 2 && unidentified(unid) == 0 && !unid[1].identified);
+    assert(unidentified(unid) == 3 && identify_all(unid) == 3 && unidentified(unid) == 0 && !unid[1].identified && !unid[4].identified);
 
     // D2's seed: low * 0x6AC690C5 + high, high starting at 666.
     Rng rng2{ 1 };

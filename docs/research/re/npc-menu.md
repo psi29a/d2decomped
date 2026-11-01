@@ -109,7 +109,7 @@ identical, the game seed after too.
 ## Identify (FUN_004b2020)
 
 Sends the request (FUN_00478680) and the server identifies the items.
-d2d identifies carried, worn and belt items (`rules::identify_all`).
+d2d identifies inventory, cube and worn items, as FUN_0062a530 counts them (`rules::identify_all`).
 Cain is cain5 (hcIdx 265 = 0x109, whose record has 0xfb4). a1q4.cpp spawns
 him in camp on the rescue where the player came back through the portal
 (FUN_00596de0 → FUN_00592960); where a game with the quest already done
