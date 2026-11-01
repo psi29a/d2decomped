@@ -27,7 +27,7 @@ Ranked by Seen, then by how much play it touches.
 | 1 | Nobody has played an act end to end by play: the quest tests set each quest up with debug verbs. A play bot (clicks only) would give the real gap list | check | yes | PLAN.md "Checkpoint 2026-10-14 (later)", `tests/play_d2d.py` (planned) |
 | 5 | MonEquip.txt is hardcoded to Blood Raven's bow; the Valkyrie's gear by skill level (rows by `level`) isn't rolled | build | maybe | objgroups.cpp:552; pets.hpp |
 | 6 | MonItemPercent.txt (TreasureClassPercent 20: a monster's own gear dropping) isn't read | check | maybe | Matters once #5 gives monsters gear |
-| 7 | The Council's S1 shot: its mode event isn't traced (fires MissS1 at once) | trace | maybe | quests-act3.md, PLAN.md "Checkpoint 2026-10-14" |
+| 7 | Council S1: compare built d2d timing, including speed modifiers. The original event is traced; the current source already waits for the action frame. | check | maybe | [council-s1.md](council-s1.md): stock original scheduler/dispatch checked; no built-d2d differential yet |
 | 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps" |
 | 9 | Unique monster mods still untraced: the thief, the act bosses' deaths | trace | maybe | PLAN.md phase 6, monster-ai.md |
 | 11 | Charsi's Imbue: game.exe's one-slot item panel and its button, not d2d's pick | build | yes | act1-end.md "Imbue", town/ `imbue_with` |

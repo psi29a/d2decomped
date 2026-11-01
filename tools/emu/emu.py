@@ -119,7 +119,7 @@ class Emu:
         mu.reg_write(UC_X86_REG_FS, 2 << 3)
         mu.hook_add(UC_HOOK_CODE, self._stub, begin=STUB, end=STUB + STUB_SIZE - 1)
         mu.hook_add(UC_HOOK_MEM_INVALID, self._bad)
-        self._mpq_cache = mpq_cache()
+        self._mpq_cache = None
         self.last_error = 0
 
     # ---- memory -------------------------------------------------------
@@ -220,6 +220,8 @@ class Emu:
     # ---- files --------------------------------------------------------
     def mpq_file(self, name):
         """A file from the game's MPQ stack (1.14d patch first), cached."""
+        if self._mpq_cache is None:
+            self._mpq_cache = mpq_cache()
         return self._mpq_cache.read(name)
 
     # ---- Win32 stubs: w_<name>(emu) -> (eax, stdcall arg count) ----------
