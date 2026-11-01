@@ -105,7 +105,7 @@ def cases(n, seed):
                 for roll in (128, 256):
                     for length in (50, 150):
                         yield (f"B{i}", roll, length, res, pierce, -50, difficulty, 0); i += 1
-    state = [seed or 1]
+    state = [(seed & 0xFFFFFFFF) or 1]
     effects = (-50, -50, -50, -33, -25, 0, 10, -100)
     for k in range(n):
         roll = 1 + xorshift(state) % (0x800 if xorshift(state) % 2 else 0x4000)

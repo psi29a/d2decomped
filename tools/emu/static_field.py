@@ -131,7 +131,7 @@ def cases(n, seed):
             for max_hp in range(1, 7):
                 for life in range(1, (max_hp << 8) + 1):
                     yield (f"B{i}", max_hp, life, res, 0, floor, 25, 0); i += 1
-    state = [seed or 1]
+    state = [(seed & 0xFFFFFFFF) or 1]
     for i in range(n):
         max_hp = 1 + xorshift(state) % (3000 if xorshift(state) % 4 == 0 else 300)
         life = 1 + xorshift(state) % (max_hp << 8)
