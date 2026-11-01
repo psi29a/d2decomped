@@ -41,6 +41,22 @@ inline constexpr std::array<std::array<int, 2>, 128> kMissileAim{ {
     { 2813, 2977 }, { 2825, 2965 }, { 2837, 2953 }, { 2849, 2942 }, { 2861, 2930 }, { 2873, 2919 }, { 2884, 2907 }, { 2896, 2896 },
 } };
 
+// A nova's 64 aims, {x, y} subtiles from the caster: the tables at
+// 0x6e1288 / 0x6e1388 (FUN_0056d400: Nova, Frost Nova, war cries, Arcane
+// Tower, coldunique), with the same rows at 0x6e2738 / 0x6e2638 (Frozen
+// Orb's burst, FUN_005abb00) and 0x6e2b78 / 0x6e2a78 (its spin). Rounded
+// points on a circle of 30, so not even angles (0, 3.9, 9.8, 15.9 ...).
+inline constexpr std::array<std::array<int, 2>, 64> kNovaRing{ {
+    { 30, 0 }, { 29, 2 }, { 29, 5 }, { 28, 8 }, { 27, 11 }, { 26, 14 }, { 24, 16 }, { 23, 19 },
+    { 21, 21 }, { 19, 23 }, { 16, 24 }, { 14, 26 }, { 11, 27 }, { 8, 28 }, { 5, 29 }, { 2, 29 },
+    { 0, 30 }, { -2, 29 }, { -5, 29 }, { -8, 28 }, { -11, 27 }, { -14, 26 }, { -16, 24 }, { -19, 23 },
+    { -21, 21 }, { -23, 19 }, { -24, 16 }, { -26, 14 }, { -27, 11 }, { -28, 8 }, { -29, 5 }, { -29, 2 },
+    { -30, 0 }, { -29, -2 }, { -29, -5 }, { -28, -8 }, { -27, -11 }, { -26, -14 }, { -24, -16 }, { -23, -19 },
+    { -21, -21 }, { -19, -23 }, { -16, -24 }, { -14, -26 }, { -11, -27 }, { -8, -28 }, { -5, -29 }, { -2, -29 },
+    { 0, -30 }, { 2, -29 }, { 5, -29 }, { 8, -28 }, { 11, -27 }, { 14, -26 }, { 16, -24 }, { 19, -23 },
+    { 21, -21 }, { 23, -19 }, { 24, -16 }, { 26, -14 }, { 27, -11 }, { 28, -8 }, { 29, -5 }, { 29, -2 },
+} };
+
 // The path velocity FUN_0059fa30 gives every missile it makes:
 // ((Vel + VelLev x lvl / 8) << 8) x 75 / 100. A frame moves it velocity /
 // 4096 subtiles (FUN_006502d0: x 0x400 >> 6, then x the unit vector >> 12).

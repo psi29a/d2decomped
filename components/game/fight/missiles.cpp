@@ -6,6 +6,8 @@
 #include "character.hpp"
 #include "cues.hpp"
 #include "gamedata.hpp"
+#include "inventory.hpp"
+#include "item_text.hpp"
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
@@ -118,7 +120,11 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
         actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
         const auto next = std::ranges::find_if(actor->character.items, [&](const Item& other) {
             return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
-        if (next != actor->character.items.end()) { next->location = item_location::kEquipped; next->slot = slot; next->panel = 0; }
+        // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
+        if (next != actor->character.items.end()
+            && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next))) {
+            next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
+        }
     }
 
 auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
@@ -225,7 +231,22 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         const int lvl = cast_level(skill);
         const int cost = cost_of(*skill_row, lvl);
         if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);
-        if (lvl <= 0 || actor->character.stats.values[kMana] < cost || (needs_ammo(*skill_row) && ammo_index() < 0)) { actor->attack_mon = -1; return false; }
+        if (lvl <= 0 || actor->character.stats.values[kMana] < cost) { actor->attack_mon = -1; return false; }
+        if (needs_ammo(*skill_row) && ammo_index() < 0) {
+            // FUN_005da8b0 (srvstfunc 4): refused, and a spent stack in either hand (right first;
+            // stackable, FUN_006289f0) goes as one run out (FUN_00580310), so the next has ammo.
+            // ponytail: its FUN_00580380 (a stackable weapon at 0 durability breaks) isn't run.
+            for (const int slot : { body_location::kRightArm, body_location::kLeftArm }) {
+                const auto& items = actor->character.items;
+                const auto spent = std::ranges::find_if(items, [&](const Item& item) {
+                    const auto base = game_data->rules.item_base.find(item.code);
+                    return item.location == item_location::kEquipped && item.slot == slot && item.quantity < 1 && base != game_data->rules.item_base.end() && base->second.stackable;
+                });
+                if (spent != items.end() && !d2d::rules::broken(*spent)) out_of_ammo(std::size_t(spent - items.begin()));
+            }
+            actor->attack_mon = -1;
+            return false;
+        }
         pay(*skill_row, cost);
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;
@@ -279,8 +300,8 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // A war cry (do 68, FUN_005d83e0): the nova of its missile (range
             // its row's), then its state on the caster (FUN_005d8290).
             for (int k = 0; k < 64; ++k) {
-                const float angle = float(k) * 2 * 3.14159265f / 64;
-                auto& shot = send(std::cos(angle), std::sin(angle), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1);
+                const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                auto& shot = send(float(aim_x), float(aim_y), skill.srvdofunc == ServerDoFunction::kWarCry ? missile_info.range : missile_info.range + calc1);
                 shot.struck = shared; shot.to.reset();                              // a way, not a point
             }
             if (skill.srvdofunc == ServerDoFunction::kWarCry && !skill.aurastate.empty()) {
@@ -462,8 +483,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             // toward direction `turn` of 64 (0x6e2b78 / 0x6e2a78), turning
             // Param2 on.
             if (missile_info.srv_do == 15 && sub != game_data->missiles.end() && age % std::max(missile_info.param1, 1) == 0) {
-                const float angle = float(missile.turn & 63) * 2 * 3.14159265f / 64;
-                launch(sub->second, *skill, missile.level, missile.x, missile.y, std::cos(angle), std::sin(angle), sub->second.range, now_ms);
+                const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(missile.turn & 63)];
+                launch(sub->second, *skill, missile.level, missile.x, missile.y, float(aim_x), float(aim_y), sub->second.range, now_ms);
                 missile.turn += missile_info.param2;
             }
             // 14 (Grim Ward's totem): every Param1 frames the monsters within
@@ -744,8 +765,8 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
             case 29:
                 if (sub)
                     for (int k = 0; k < 64; k += std::max(missile_info.hit_par1, 1)) {
-                        const float angle = float(k) * 2 * 3.14159265f / 64;
-                        sub_at(missile.x, missile.y, std::cos(angle), std::sin(angle));
+                        const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                        sub_at(missile.x, missile.y, float(aim_x), float(aim_y));
                     }
                 break;
             case 48: if (sub) sub_at(missile.x, missile.y, missile.target_x - missile.x, missile.target_y - missile.y); break;
@@ -794,9 +815,13 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
                                                    .ehi = d2d::rules::elem_damage(game_data->skills, *skill, env, lvl, true, 0, true),
                                                    .elen = d2d::rules::elem_length(game_data->skills, *skill, env, lvl) };
         const std::array<int, 4> pierce{ int(actor->psum[d2d::d2s::kPassiveFirePierce]), int(actor->psum[d2d::d2s::kPassiveLightningPierce]), int(actor->psum[d2d::d2s::kPassiveColdPierce]), int(actor->psum[d2d::d2s::kPassivePoisonPierce]) };
+        // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
+        // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (monsters[i].alive() && in_aura(monsters[i]))
+            if (monsters[i].alive() && in_aura(monsters[i])) {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, player_foe_id());
+                if (skill->srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
+            }
     }
 
 auto Fight::in_aura(const Monster& monster) -> bool {

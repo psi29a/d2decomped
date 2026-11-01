@@ -129,7 +129,6 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             if (const auto* skill = game_data->skills.get(pet.aura); skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura && pet.monster.alive() && pet.where == level
                 && std::hypot(pet.monster.unit.x - actor->player.x, pet.monster.unit.y - actor->player.y) * 5 <= float(calc(*skill, skill->aurarange, pet.aura_level)))
                 states.push_back({ pet.aura, pet.aura_level, ~0u });
-        if (now_ms < actor->curses[0].until) states.push_back({ actor->curses[0].skill, actor->curses[0].level, actor->curses[0].until });   // a monster's curse on the player
         if (now_ms < actor->marks[0].until) states.push_back({ actor->marks[0].skill, actor->marks[0].level, actor->marks[0].until });
         for (const auto& state : states) {
             const auto* skill = game_data->skills.get(state.skill);
@@ -137,6 +136,9 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
         }
+        if (now_ms < actor->curses[0].until)                    // a monster's curse on the player
+            for (const auto& [id, value] : curse_stats(actor->curses[0], env))
+                if (id != kLife && std::size_t(id) < st_sum.size()) st_sum[std::size_t(id)] += value;
         if (now_ms < actor->stamina_pot.until) st_sum[d2d::d2s::kStaminaRecoveryBonus] += actor->stamina_pot.bonus;
         for (const auto& state : actor->potion_states)
             if (now_ms < state.until)
@@ -428,20 +430,22 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         }
         // Chilled (state 11, FUN_0057af80): not at coldeffect 0, the length
         // over MonsterColdDivisor when it's negative, at least a tick, only
-        // ever lengthened.
-        // ponytail: the 20 % roll for state 107 isn't kept.
+        // ever lengthened. Then rand % 100 < 20 on the monster's seed puts state
+        // 107 (shatter) on, else off; never on a deadCol monster (MonStats2 flag 19).
+        // ponytail: the shattered death (state 107's client look) isn't drawn.
         if (const int cold_effect = target.type >= 0 ? game_data->monsters.types[std::size_t(target.type)].diff[std::size_t(target.difficulty)].cold_effect : 0; blow.chill_ticks > 0 && cold_effect != 0) {
             const int divisor = game_data->cold_divisor[std::size_t(target.difficulty)];
             const int ticks = std::max(cold_effect < 0 && divisor != 0 ? blow.chill_ticks / divisor : blow.chill_ticks, 1);
             target.chill_until = std::max(target.chill_until, now_ms + std::uint32_t(ticks) * 40);
+            target.shatter = target.seed.next() % 100 < 20 && !target.npc.dead_col;
         }
         // Stunned (state 21, FUN_0057aae0): it stands until the stun ends, a
         // new stun resetting the length. A special monster (champion, unique,
         // superunique: monster data +0x16 & 8, FUN_005a0180) shrugs it off
         // 90 % of the time (the attacker's seed); MonStats boss (+0xc & 0x40,
         // FUN_0063e9f0) or Velocity 0 (+0x32) can't be stunned; 250 frames at
-        // most (the hirelings' 13, FUN_0063ee90, is for mercs struck).
-        // ponytail: the item stun length (stat 66) isn't added.
+        // most (the hirelings' 13, FUN_0063ee90, is for mercs struck). The
+        // gear's stun length (stat 66) comes in the blow (rules::player_blow).
         if (const auto* stun_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr;
             blow.stun_ticks > 0 && (!stun_type || (!stun_type->boss_column && stun_type->velocity != 0))) {
             const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
@@ -611,12 +615,16 @@ auto Fight::strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_ind
         const auto found = game_data->missiles.find(skill.srvmissilea);
         if (found == game_data->missiles.end()) return;
         const int lvl = skill_level ? skill_level(skill.id) : 1;
-        const float x = monsters[monster_index].unit.x, y = monsters[monster_index].unit.y, dx = x - actor->player.x, dy = y - actor->player.y;
+        const float x = monsters[monster_index].unit.x, y = monsters[monster_index].unit.y;
         if (skill.srvdofunc == ServerDoFunction::kChargedStrike) {
-            for (int k = 0; k < std::max(calc(skill, skill.calc[0], lvl), 1); ++k) {
-                const float angle = (float(rng(81)) - 40) * 3.14159265f / 180;
-                launch(found->second, skill, lvl, x, y, dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle),
-                       found->second.range + found->second.lev_range * lvl, now_ms).struck->push_back(int(monster_index));
+            // Charged Bolt's (flags 0x21, FUN_005c9290 with each one's index) at the
+            // subtile twice the monster's less the player's.
+            const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+            const float to_x = (float(2 * subtile(x) - subtile(actor->player.x)) + 0.5f) / 5, to_y = (float(2 * subtile(y) - subtile(actor->player.y)) + 0.5f) / 5;
+            for (int k = 0; k < calc(skill, skill.calc[0], lvl); ++k) {
+                auto& bolt = launch(found->second, skill, lvl, x, y, to_x - x, to_y - y, found->second.range + found->second.lev_range * lvl, now_ms);
+                bolt.to = { to_x, to_y }; bolt.bolt = k;
+                bolt.struck->push_back(int(monster_index));
             }
             return;
         }
@@ -830,8 +838,10 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             }
             // Double Throw (do 74, FUN_005d88b0): each hand's throwing weapon
             // flies at the target as its missile (weapons.txt missiletype),
-            // with calc1 damage % (stat 25).
-            // ponytail: toht (stat 19) isn't added; no ammo is spent.
+            // with calc1 damage % (stat 25), spending one of it (FUN_0056ecb0's
+            // last argument 1 -> FUN_0056c3f0); none left, none flies.
+            // ponytail: toht (stat 19, FUN_006449f0) isn't added; both hands throw
+            // at once, not one an SQ event (FUN_00535bc0's hand).
             // Throw (do 3, FUN_0056f460): the throwable in hand flies as its
             // missile (weapons.txt missiletype) and one of it is spent.
             // ponytail: FUN_0056c600's to-hit / damage % from the skill aren't
@@ -846,19 +856,25 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                         }
                 break;
             case ServerDoFunction::kDoubleThrow:
-                for (const auto& item : actor->character.items)
-                    if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
-                        if (const auto found_thrown = game_data->thrown.find(item.code); found_thrown != game_data->thrown.end())
-                            if (const auto found = game_data->missiles.find(found_thrown->second); found != game_data->missiles.end())
-                                launch(found->second, skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y,
-                                       found->second.range + found->second.lev_range * lvl, now_ms).ed_pct = calc(skill, skill.calc[0], lvl);
+                for (const int slot : { d2d::d2s::body_location::kRightArm, d2d::d2s::body_location::kLeftArm }) {
+                    auto& items = actor->character.items;
+                    const auto hand = std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == slot; });
+                    if (hand == items.end() || hand->quantity < 1) continue;
+                    const auto found_thrown = game_data->thrown.find(hand->code);
+                    const auto found = found_thrown != game_data->thrown.end() ? game_data->missiles.find(found_thrown->second) : game_data->missiles.end();
+                    if (found == game_data->missiles.end()) continue;
+                    launch(found->second, skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y,
+                           found->second.range + found->second.lev_range * lvl, now_ms).ed_pct = calc(skill, skill.calc[0], lvl);
+                    const auto index = std::size_t(hand - items.begin());
+                    if (--items[index].quantity <= 0) out_of_ammo(index);
+                }
                 break;
             // Find Potion (do 69, FUN_005d81c0) / Find Item (72, FUN_005d8780):
             // a corpse not yet searched (state 0x76), at calc1 %: a potion
             // (FUN_005d8100), or the monster's treasure again (FUN_005a8000,
-            // a tier by Param1..4); the potion by the act and difficulty
+            // a tier by Param1..4, which FUN_005a8000 never reads: the monster's
+            // own class, bugs.md #44); the potion by the act and difficulty
             // (rules::find_potion).
-            // ponytail: Find Item rolls the monster's own class.
             case ServerDoFunction::kFindPotion: case ServerDoFunction::kFindItem: {
                 const int corpse_index = corpse_near(actor->cast_x, actor->cast_y);
                 if (corpse_index < 0) break;

@@ -68,8 +68,10 @@ inline std::string d2_format(std::string_view format, std::initializer_list<std:
 // attributes) collapse into one line when every member is present with
 // the same value; min/max damage pairs become "Adds X-Y ..." and 17/18
 // "+X% Enhanced Damage", as the game hard-codes them.
-// ponytail: no descfunc 17/18 (time-of-day), 22/23 (monster types);
-// charges/skill lines use the skill's string key.
+// No descfunc 17/18 (time-of-day) or 22 (monster types): no 1.14d item
+// rolls them (of Dawn / of Sunlight aren't spawnable; att-mon% / dmg-mon%
+// are on nothing).
+// ponytail: charges/skill lines use the skill's string key.
 inline std::vector<std::string> prop_lines(const GameData& game_data, std::vector<d2d::d2s::ItemProp> props, int clvl) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
@@ -198,6 +200,10 @@ inline std::vector<std::string> prop_lines(const GameData& game_data, std::vecto
             case 19: line_text = d2_format(first, { value }); break;
             case 20: line_text = place(std::to_string(-value) + "%"); break;
             case 21: line_text = place(std::to_string(-value)); break;
+            case 23:                                       // FUN_004e4d80 0x17: placed "<v>%" then " " and MonStats row param's NameStr
+                if (prop.param >= 0 && std::size_t(prop.param) < game_data.mon_npc.size())
+                    line_text = place(std::to_string(value) + "%") + " " + game_data.mon_npc[std::size_t(prop.param)].title;
+                break;
             case 24:                                       // descstr is just "(%d/%d Charges)"
                 line_text = "Level " + std::to_string(prop.param & 63) + " " + skill(prop.param >> 6) + " "
                   + d2_format(first, { value & 255, value >> 8 });

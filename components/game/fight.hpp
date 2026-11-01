@@ -198,7 +198,7 @@ struct Fight {
         // The player's / merc's curse from a monster (do 30, FUN_005c37c0: one
         // at a time, the newest): a Cursed boss's Amplify Damage, the
         // Summoner's Weaken. The player's aurastats join its self states'.
-        struct Curse { int skill = -1, level = 0; std::uint32_t until = 0; };
+        struct Curse { int skill = -1, level = 0; std::uint32_t until = 0; int pick = -1; };   // pick: as Foe::Cast's
         std::array<Curse, 2> curses{};
         // A missile hit's state on the player / merc (hit 19, FUN_005ab110: the
         // skill's auratargetstate for auralen frames, at least 5, with its
@@ -610,10 +610,9 @@ struct Fight {
 
     // Charged Strike (do 11, FUN_005db850): calc1 of its missile from the
     // monster struck, on away from the player (to twice its spot less the
-    // player's), each wandering (FUN_005c9290). Lightning Strike (do 14,
-    // FUN_005dbe50): from the monster struck at another within calc1
-    // subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
-    // ponytail: the wander is a ±40 degree spread, as Charged Bolt's.
+    // player's), each wandering as Charged Bolt's (FUN_005c9290). Lightning
+    // Strike (do 14, FUN_005dbe50): from the monster struck at another within
+    // calc1 subtiles (FUN_0056bd10), carrying calc2 hops (Chain Lightning's hit 12).
     void strike_bolts(const d2d::rules::Skill& skill, std::size_t monster_index, std::uint32_t now_ms);
     // Corpse i goes up (Corpse Explosion, Death Sentry's 'mon death
     // sentry'): its max life x calc1..calc2 %, half fire and half physical,
@@ -722,13 +721,13 @@ struct Fight {
 
     // A unique's mods in the fight (uniques.hpp, monsters.md "Boss mods in
     // the fight"), each tick: Lightning Enchanted answers a drop in its life
-    // with 8 charged bolts (FUN_005a29a0: 4 ways, 2 each, level mlvl / 2) at
+    // with 8 charged bolts (FUN_005a29a0: 4 ways, 2 each, level mlvl / 2,
+    // wandering as Charged Bolt's) at
     // most every 10 frames; 4 frames after it dies (the event 7 its death
     // queues), Fire Enchanted's blast and Cold Enchanted's nova
     // (FUN_005a2bd0: coldunique, level mlvl / 2).
     // ponytail: a hit taken in GH waits 2 frames in game.exe, fires at once
-    // here; the bolts go straight (Charged Bolt's wander, FUN_005c9290, isn't
-    // built), each turned up to 25 degrees at random.
+    // here.
     void boss_events(std::span<Foe> foes, std::uint32_t now_ms);
     // A boss's missile from where it stands, at level mlvl / 2 (at least
     // 1), the row's own element (FUN_0064b100 ..).
@@ -813,9 +812,9 @@ struct Fight {
     // Ammo (FUN_0056c4e0 has it, FUN_0056c3f0 spends one of its quantity,
     // stat 70): with a bow or crossbow (ItemTypes bow / xbow) the quiver or
     // throwable in either hand (right first), else the weapon itself when
-    // it's a throwable. Its index in the items with some left, or -1.
-    // ponytail: an empty quiver stays at 0 (FUN_00580310's part isn't
-    // traced).
+    // it's a throwable. Its index in the items with some left, or -1; at
+    // -1 the cast is refused and a spent stack in hand swapped out
+    // (FUN_005da8b0 -> FUN_00580310, cast_missile).
     [[nodiscard]] int ammo_index() const;
     // A bow's or crossbow's shot (FUN_00645f00): magicarrow with stat 157
     // (item_magicarrow), explodingarrow with 158, else arrow / bolt; null
@@ -829,8 +828,8 @@ struct Fight {
     void spend_ammo();
     // Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
     // (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
-    // the inventory's next of its code (not broken) takes its slot.
-    // ponytail: the slot takes it without FUN_00562a30's requirement check.
+    // the inventory's first of its code (not broken) takes its slot if it
+    // can be worn (FUN_00562a30 -> FUN_0062eaf0), else none does.
     void out_of_ammo(std::size_t index);
     // A landed hit's wear (FUN_0057d4f0 -> FUN_0057d3d0): the player's
     // weapon when the player hits, one worn armour when the player is hit —
@@ -888,8 +887,8 @@ struct Fight {
     // two makers out across the line from the caster, and srvmissileb on
     // it. Do 19 (FUN_005c8ca0, Inferno): a flame of calc1 ticks per frame
     // while the cast lasts.
-    // ponytail: the nova's 64 directions are even angles, not
-    // the tables at 0x6e1288 / 0x6e1388; Strafe's arrows go out on a timer
+    // The nova aims at rules::kNovaRing (0x6e1288 / 0x6e1388).
+    // ponytail: Strafe's arrows go out on a timer
     // (3 ticks apart), not a repeated attack animation; Inferno's channel
     // is its cast's animation (no held button, no mana per frame).
     void fire(const d2d::rules::Skill& skill, std::uint32_t now_ms) {   // the player's: its ammo spent first
@@ -1123,6 +1122,9 @@ struct Fight {
     [[nodiscard]] bool near_players(float x, float y) const;
     void hurt_side(std::span<Foe> side, std::uint32_t now_ms);
     [[nodiscard]] Hero::Curse monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms);
+    // The stats a monster's curse puts on the player's side: its skill's
+    // aurastats at its level, or a random curse's own by its pick.
+    [[nodiscard]] std::vector<std::pair<int, int>> curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env) const;
     // Bosses' auras (Aura Enchanted), each at its level within its
     // aurarange: Might, Blessed Aim, Fanaticism add their damage / to-hit %
     // to the monsters there; Conviction cuts the foes' resistances and

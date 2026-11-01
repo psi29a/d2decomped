@@ -289,6 +289,17 @@ int main(int argc, char** argv) {
     auto crushing = player_blow(crit, plain, 99, rng);
     for (int i = 0; i < 20 && !crushing.hit; ++i) crushing = player_blow(crit, plain, 99, rng);
     assert(crushing.hit && crushing.deadly && crushing.damage == 20);
+    // The gear's stun length (stat 66) stuns when the skill gives none, at the SrcDam share
+    // (FUN_0057b7d0: [0x11] += stat 66 x share >> 7 when 0); the skill's own wins.
+    Fighter stunner = simple_fighter(10, 10, 1000000);
+    stunner.stun_len = 40;
+    const auto landed = [&](const Swing& swing) {
+        auto stun_blow = player_blow(stunner, plain, 99, rng, swing);
+        for (int i = 0; i < 20 && !stun_blow.hit; ++i) stun_blow = player_blow(stunner, plain, 99, rng, swing);
+        assert(stun_blow.hit);
+        return stun_blow.stun_ticks;
+    };
+    assert(landed({}) == 40 && landed({ .srcdam = 64 }) == 20 && landed({ .stun_ticks = 7 }) == 7);
     // A skill's swing: its enhanced damage joins the gear's %, its flat
     // damage comes after (and isn't doubled), SrcDam scales the weapon part.
     Fighter sure_hit = simple_fighter(100, 100, 1000000);

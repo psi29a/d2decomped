@@ -213,9 +213,8 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
         // The merc's curse's damageresist (Amplify Damage's -100 %) for
         // Diablo's score; merc_fighter has all its aurastats.
         int curse_dr = 0;
-        if (const auto* skill = actor->curses[1].skill >= 0 ? game_data->skills.get(actor->curses[1].skill) : nullptr)
-            for (std::size_t i = 0; i < skill->aurastat.size(); ++i)
-                if (skill->aurastat[i] == d2d::d2s::kDamageResist) curse_dr += calc(*skill, skill->aura_calc[i], actor->curses[1].level);
+        for (const auto& [id, value] : curse_stats(actor->curses[1], calc_env()))
+            if (id == d2d::d2s::kDamageResist) curse_dr += value;
         if (actor->merc) {                                          // its stats for Diablo's score: base + gear + curse, raw (no penalty or cap)
             const auto sum = merc_gear().sum;
             const auto stat = [&](int id) { return int(sum[std::size_t(id)]); };
@@ -467,7 +466,19 @@ auto Fight::monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms) -> Hero
         int length = calc(*skill, skill->auralen, cursed.level);
         if (const int divisor = game_data->curse_divisor[std::size_t(std::clamp(game_difficulty, 0, 2))]; divisor != 0 && (skill->auratarget == "dimvision" || skill->auratarget == "terror"))
             length /= divisor;
-        return { skill->id, cursed.level, now_ms + std::uint32_t(std::max(length, 25)) * 40 };
+        return { skill->id, cursed.level, now_ms + std::uint32_t(std::max(length, 25)) * 40, cursed.pick };
+    }
+
+auto Fight::curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env) const -> std::vector<std::pair<int, int>> {
+        const auto* skill = curse.skill >= 0 ? game_data->skills.get(curse.skill) : nullptr;
+        if (!skill) return {};
+        // ponytail: picks 2 and 3 (Iron Maiden's / Life Tap's aura events) do nothing on
+        // the player's side; their event funcs aren't run there.
+        if (curse.pick >= 0) return d2d::rules::monster_curse_stats(curse.pick, skill->par[6]);
+        std::vector<std::pair<int, int>> stats;
+        for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
+            if (skill->aurastat[k] >= 0) stats.emplace_back(skill->aurastat[k], d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, curse.level));
+        return stats;
     }
 
 auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {

@@ -13,6 +13,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <merc.hpp>
+#include <missiles.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -71,6 +72,21 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             const bool suicide = std::ranges::contains(family, d2d::rules::umod::suicideminion) || std::ranges::contains(monster.mods, d2d::rules::umod::suicideminion);
             if (suicide && monster.alive() && monster.mode == "GH") { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); }
             const int mlvl = std::max(monster.stats.level, 1);
+            // Their 8 charged bolts (FUN_005a29a0 / FUN_005a2ee0): 2 at the subtile
+            // beside it each way (0x6e2188 / 0x6e2178), wandering as Charged
+            // Bolt's (flags 0x21, FUN_005c9290 with 0 and 1).
+            auto charged_bolts = [&](const char* name, int bolt_level) {
+                const auto ring = std::make_shared<std::vector<int>>();
+                for (const auto& [dir_x, dir_y] : kCompass)
+                    for (int k = 0; k < 2; ++k) {
+                        const std::size_t made = pending.size();
+                        boss_missile(monster, name, dir_x, dir_y, ring, now_ms, bolt_level);
+                        if (pending.size() == made) continue;
+                        auto& bolt = pending.back();
+                        bolt.to = { (std::floor(monster.unit.x * 5) + dir_x + 0.5f) / 5, (std::floor(monster.unit.y * 5) + dir_y + 0.5f) / 5 };
+                        bolt.bolt = k;
+                    }
+            };
             // Scarab (FUN_005a2eb0 / FUN_005a2ee0): into GH or DT, 2 frames on,
             // 8 buglightning (4 ways x 2) at its level, steered as lightning enchanted's.
             if (scarab && monster.mode != monster.fx_mode && (monster.mode == "GH" || monster.mode == "DT")) monster.scarab_due.push_back(now_ms + 2 * 40);
@@ -78,23 +94,13 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             while (!monster.scarab_due.empty() && now_ms >= monster.scarab_due.front()) {
                 monster.scarab_due.erase(monster.scarab_due.begin());
                 d2d::log::info("{} lets off its bugs' lightning", monster.npc.name);
-                const auto ring = std::make_shared<std::vector<int>>();
-                for (const auto& [dir_x, dir_y] : kCompass)
-                    for (int k = 0; k < 2; ++k) {
-                        const float angle = float(rng(51) - 25) * 3.14159265f / 180, cosine = std::cos(angle), sine = std::sin(angle);
-                        boss_missile(monster, "buglightning", dir_x * cosine - dir_y * sine, dir_x * sine + dir_y * cosine, ring, now_ms, mlvl);
-                    }
+                charged_bolts("buglightning", mlvl);
             }
             if (monster.alive()) {
                 if (has(d2d::rules::umod::lightning) && monster.hit_points < monster.last_hp && now_ms - monster.bolts_at >= 10 * 40) {
                     monster.bolts_at = now_ms;
                     d2d::log::info("{} lets off charged bolts", monster.npc.name);
-                    const auto ring = std::make_shared<std::vector<int>>();
-                    for (const auto& [dir_x, dir_y] : kCompass)
-                        for (int k = 0; k < 2; ++k) {
-                            const float angle = float(rng(51) - 25) * 3.14159265f / 180, cosine = std::cos(angle), sine = std::sin(angle);
-                            boss_missile(monster, "lightunique", dir_x * cosine - dir_y * sine, dir_x * sine + dir_y * cosine, ring, now_ms);
-                        }
+                    charged_bolts("lightunique", 0);
                 }
             } else if ((boss || mummy || suicide) && !monster.fx_done) {
                 if (!monster.fx_at) monster.fx_at = now_ms + 4 * 40;
@@ -111,8 +117,8 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                     if (has(d2d::rules::umod::cold)) {
                         const auto ring = std::make_shared<std::vector<int>>();
                         for (int k = 0; k < 64; ++k) {
-                            const float angle = float(k) * 6.2831853f / 64;
-                            boss_missile(monster, "coldunique", std::cos(angle), std::sin(angle), ring, now_ms);
+                            const auto [aim_x, aim_y] = d2d::rules::kNovaRing[std::size_t(k)];
+                            boss_missile(monster, "coldunique", float(aim_x), float(aim_y), ring, now_ms);
                         }
                     }
                 }

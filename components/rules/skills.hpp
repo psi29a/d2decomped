@@ -906,4 +906,21 @@ inline bool item_grants_skill(const Skill& skill, int cls, std::span<const d2d::
     return std::ranges::any_of(props, [&](const d2d::d2s::ItemProp& prop) { return prop.param == skill.id && prop.value > 0 && (prop.stat == 97 || (prop.stat == 107 && own)); });
 }
 
+// A monster's random curse (FUN_005ce2b0, do MonCurseCast): seed % 5 picks
+// 0x6e3228's skill (Amplify Damage, Weaken, Life Tap, Decrepify, Lower
+// Resist), whose state and length it takes, but the stats are the function's
+// own by the pick (jump table 0x5ce4dc), one curse along from the names after
+// the first two (bugs.md #43): 0 damageresist -100, 1 damagepercent -50, 2 and
+// 3 only aura events (Iron Maiden's, Life Tap's), 4 Decrepify's list, its
+// velocity and attack rate the picked row's Param7 (+0x160; Lower Resist's 0).
+inline constexpr std::array<int, 5> kMonsterCurses{ 66, 72, 82, 87, 91 };
+inline std::vector<std::pair<int, int>> monster_curse_stats(int pick, int param7) {
+    switch (pick) {
+        case 0: return { { 36, -100 } };
+        case 1: return { { 25, -50 } };
+        case 4: return { { 67, param7 }, { 25, -50 }, { 36, -50 }, { 68, param7 } };
+        default: return {};
+    }
+}
+
 }  // namespace d2d::rules

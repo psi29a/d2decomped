@@ -289,7 +289,8 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
             monster.last_mode = monster.mode;
             monster.sound_ms = now_ms;                  // a mode's sound (unit +0x7c: FUN_004cb6a0, FUN_004cc410, FUN_004cb890)
             // Struck (FUN_004cc410): the hit's impact and its element's layer, but a critter's.
-            // ponytail: state 0x92's skip isn't in.
+            // Its state 0x92 skip needs no test: only a gone Baal (FUN_005ef620) and
+            // the Ancients' statues (FUN_0063efa0 case 0x219, objects here) take it.
             if ((monster.mode == "GH" || monster.mode == "KB" || monster.mode == "DT") && monster.hit_class
                 && !(monster.type >= 0 && game_data->monsters.types[std::size_t(monster.type)].critter)) {
                 const auto impact = d2d::rules::sound_ids::impact(monster.hit_class, monster.mode == "DT");

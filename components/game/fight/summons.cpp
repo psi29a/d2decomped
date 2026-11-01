@@ -120,8 +120,17 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             for (std::size_t k = 0; k < 12; ++k) summon_one(skill, type, lvl, env, x + float(kRingX[k]) / 5, y + float(kRingY[k]) / 5, now_ms);
             return;
         }
-        // Hydra (do 144, FUN_005ca910): three at once.
-        for (int k = skill.srvdofunc == ServerDoFunction::kHydra ? 3 : 1; k > 0; --k) summon_one(skill, type, lvl, env, x + float(k - 1) * 0.6f, y, now_ms);
+        // Hydra (do 144, FUN_005ca910): three at once, each through FUN_0056d940 ->
+        // FUN_005b2f20 at radius -1: the cast's subtile alone, else that one isn't made.
+        if (skill.srvdofunc == ServerDoFunction::kHydra) {
+            Crowd others;
+            crowd(others);
+            for (int head = 0; head < 3; ++head)
+                if (int at_x = 0, at_y = 0; spawn_spot(*game_data, *level, others, &spawning.levels[level], type, int(std::floor(x * 5)), int(std::floor(y * 5)), -1, room_of(*level, x, y), at_x, at_y))
+                    summon_one(skill, type, lvl, env, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, now_ms);
+            return;
+        }
+        summon_one(skill, type, lvl, env, x, y, now_ms);
     }
 
 auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms) -> void {

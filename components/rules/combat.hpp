@@ -52,6 +52,7 @@ struct Fighter {
     int smite_lo = 0, smite_hi = 0, smite_pct = 0;  // the shield's (Smite, FUN_005ce9f0 -> FUN_0057b420 on the shield)
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
+    int stun_len = 0;                               // stat 66 (gear), ticks
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
     int mastery_crit = 0;                           // stat 344, the weapon's mastery (FUN_00645830)
     int weapon_block = 0;                           // stat 348, two claws only (FUN_0057dca0)
@@ -141,6 +142,7 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     fighter.elem = { { { scaled(stat(kFireMinDamage), kPassiveFireMastery), scaled(stat(kFireMaxDamage), kPassiveFireMastery) }, { scaled(stat(kLightningMinDamage), kPassiveLightningMastery), scaled(stat(kLightningMaxDamage), kPassiveLightningMastery) }, { scaled(stat(kColdMinDamage), kPassiveColdMastery), scaled(stat(kColdMaxDamage), kPassiveColdMastery) },
                  { scaled(stat(kPoisonMinDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery), scaled(stat(kPoisonMaxDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery) }, { scaled(stat(kMagicMinDamage), kPassiveMagicMastery), scaled(stat(kMagicMaxDamage), kPassiveMagicMastery) } } };
     fighter.cold_len = int(stat(kColdLength)); fighter.poison_len = int(stat(kPoisonLength));
+    fighter.stun_len = int(stat(kStunLength));
     fighter.crushing = int(stat(kCrushingBlow)); fighter.deadly = int(stat(kDeadlyStrike) + stat(kDeadlyStrikePerLevel) * clvl / 8); fighter.critical = int(stat(kPassiveCriticalStrike));
     fighter.mastery_crit = int(stat(kPassiveMasteryMeleeCritical)); fighter.weapon_block = int(stat(kPassiveWeaponBlock));
     fighter.open_wounds = int(stat(kOpenWounds));
@@ -530,10 +532,12 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     int phys = int(std::max<std::int64_t>(damage >> 8, swing.kick || conv ? 0 : 1)) + swing.flat;
     blow.phys = phys;
     phys = resisted(phys, target.res[0]);
+    // The stun: the skill's, else the gear's stat 66 x the share (FUN_0057b7d0: [0x11] when 0).
+    const int stun = swing.stun_ticks > 0 ? swing.stun_ticks : fighter.stun_len * swing.srcdam / 128;
     if (swing.smite) {
         blow.damage = phys;
         blow.knockback = swing.knockback;
-        blow.stun_ticks = std::min(swing.stun_ticks, 250);
+        blow.stun_ticks = std::min(stun, 250);
         return blow;
     }
     blow.life = phys * fighter.life_steal * target.drain / 10000;
@@ -564,7 +568,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     if (fighter.crushing > 0 && rng(100) < fighter.crushing) { blow.crushing = true; crushing_blow = resisted(target.hit_points / 4, target.res[0]); }
     blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
     blow.knockback = fighter.knockback || swing.knockback;
-    blow.stun_ticks = std::min(swing.stun_ticks, 250);
+    blow.stun_ticks = std::min(stun, 250);
     blow.damage = phys + elem + crushing_blow;
     blow.elemental = marking > 0 || blow.poison > 0;
     return blow;

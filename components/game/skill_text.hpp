@@ -415,7 +415,7 @@ inline bool desc_line(Builder& out, const d2d::rules::SkillTables& skill_tables,
             if (calc_a == 0 || calc_b < 1) return false;
             out.add(signed_number(calc_a, line.func == 72)); out.id(0xfa0); out.add(std::to_string(calc_b)); out.id(kSpace); out.add(text_a); out.newline();
             break;
-        default: return false;   // ponytail: 44..46, 64, 65, 69, 74, 75: no SkillDesc line uses them
+        default: return false;   // 44..46, 64, 65, 69, 74, 75: none of 1.14d SkillDesc's 17 line columns (desc / dsc2 / dsc3) uses them
     }
     return true;
 }

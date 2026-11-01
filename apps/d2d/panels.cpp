@@ -778,7 +778,8 @@ void automap_reveal(const Scene& scene, const Level& level, Automap& automap, st
 // waypoint 402 only in the Arcane Sanctuary. The view draws the units of
 // the player's room and its near rooms whose box meets the view's, those
 // in its unit grid (rules::room_in_view, rules::in_unit_grid).
-// ponytail: monsters' MonStats2 cels aren't added (no 1.14d row has one).
+// ponytail: a monster's MonStats2 automapCel (+0x118, FUN_00458dc0's unit
+// type 1 branch) isn't added: in 1.14d only barricadetower has one (1258).
 void automap_icons(const GameData& game_data, const Level& level, Automap& automap, float player_x, float player_y,
                    const std::vector<UnitState>& states) {
     constexpr int kWidth = int(kScreenWidth), kViewHeight = int(kScreenHeight) - 40;   // the view (FUN_00476000)

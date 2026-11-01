@@ -212,6 +212,7 @@ struct Monster {
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
+    bool shatter = false;                     // state 107 (FUN_0057af80's roll on a chill)
     std::uint32_t stun_until = 0;             // ms: stunned, it stands
     std::uint32_t just_hit_until = 0;         // ms: state 0x56 justhit (FUN_005adb00), NextHit missiles pass it by
     // Aura Enchanted (uniques.hpp boss_aura): its aura, level, next pulse;
@@ -431,7 +432,7 @@ struct Foe {
     bool neutral = true;                      // in mode 1 (NU): not walking, swinging, casting or struck (BaalTaunt's still)
     [[nodiscard]] d2d::rules::Motion motion() const { return running ? d2d::rules::Motion::running : moving ? d2d::rules::Motion::walking : d2d::rules::Motion::standing; }
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
-    struct Cast { int skill = -1, level = 0; };
+    struct Cast { int skill = -1, level = 0, pick = -1; };   // pick: a monster's random curse's (rules::monster_curse_stats), else -1
     Cast cursed;                              // a curse cast on it this frame (a Cursed boss's Amplify Damage, the Summoner's Weaken)
     Cast marked;                              // a missile's hit 19 state put on it this frame (the finger mage's spider)
     std::vector<std::string_view> states;     // the states on it a think reads (its curse's, its mark's: auratargetstate names)

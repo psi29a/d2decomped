@@ -632,6 +632,16 @@ lines (missile names aren't passed in). What it does:
   bow / crossbow (ItemTypes 27 / 35) the ammo or throwable in hand 4,
   else hand 5; with any other weapon, the weapon itself. `FUN_0056c310`
   takes 1 off its quantity (stat 70); at 0 there's none.
+- **Out of ammo** (`FUN_00580310`, after a spend and when srvstfunc 4
+  refuses): for hand 4, then hand 5, a stackable (`FUN_006289f0`, ItemsTxt
+  +0x132), throwable or stat-125 item under 1 goes to `FUN_00580030`: a
+  magic or better weapon (type 0x2d, `FUN_0062a0f0`) breaks and stays
+  (`FUN_0055f850`); anything else leaves, and the inventory's first of its
+  code (`FUN_0063cd80`), not broken (0x100), takes the empty slot through
+  `FUN_00562a30`, which refuses one `FUN_0062eaf0` (requirements) won't
+  wear. Only that first one is tried. srvstfunc 4 also runs
+  `FUN_00580380` (a stackable weapon at 0 durability breaks; not ported).
+  d2d: `Fight::out_of_ammo`, `cast_missile`; test_game checks both.
 
 ### Missile skills (phase 4)
 - **FUN_0056f7f0** (a skill's do): runs srvdofunc (+0x2e), then, when the
@@ -688,7 +698,7 @@ lines (missile names aren't passed in). What it does:
   Built as `skill_missile` / `fire` (fight.hpp); a nova's missiles share
   their struck list, so a monster takes one hit from it. Not yet: the
   0x10000 flag's meaning (Charged Bolt's wander: missiles.md), the
-  direction tables (even angles), the ammo, the other do functions
+  other do functions
   (Guided Arrow 10, Strafe 12, Chain Lightning 26, Meteor / Blizzard 28,
   Fire Wall, Blaze, Inferno, Bone Spirit, Blessed Hammer, ...).
 
@@ -752,7 +762,10 @@ lines (missile names aren't passed in). What it does:
   wolves, bear, spirits), 114 (Raven), 15 (Decoy), 44 / 45 (the
   Assassin's traps), 49 (Shadow Warrior / Master).
 - **FUN_0056d940** spawns the row at the target (FUN_005b2f20, flags
-  0x42), marks it a pet (+0xc4 |= 0x20000) and ties it to its owner.
+  0x42, radius -1: the target's subtile alone, three draws of the room's
+  seed, else none; the push at 0x56d9a3, the radius slot as FUN_005e0160's
+  `push 2`), marks it a pet (+0xc4 |= 0x20000) and ties it to its owner.
+  Hydra's three (hydra1..3 are SizeX 0) share the subtile.
 - **FUN_005c49e0**(skill, owner, pet, level, bonus): the pet's level
   (stat 12) = min(owner's level, owner's × 3 / 4 + bonus) — bonus calc2
   for 119 / 114, 0 else — then its defense (31) and attack rating (19)
@@ -930,7 +943,10 @@ lines (missile names aren't passed in). What it does:
   struck again at frame + NextDelay + 1 (Twister, Tornado, Shock Field, the
   war cries).
 - Skill dos: **11** (FUN_005db850, Charged Strike): calc1 of its missile
-  from the unit struck, away from the caster, wandering. **14**
+  from the unit struck, away from the caster, wandering: Charged Bolt's
+  setup (flags 0x21, FUN_005c9290 with each one's index) aimed at the
+  subtile twice the struck unit's less the caster's; none at calc1 < 1
+  (Fight::strike_bolts, test_game_missiles). **14**
   (FUN_005dbe50, Lightning Strike): from the unit struck at another within
   calc1 (FUN_0056bd10), calc2 hops. **73** (FUN_005d0040, Blessed Hammer):
   path type 14 (FUN_00648cf0), +50 % magic damage (stats 52 / 53) against
