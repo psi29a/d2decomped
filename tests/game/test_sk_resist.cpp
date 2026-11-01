@@ -75,6 +75,10 @@ int main(int argc, char** argv) try {
     static constexpr std::array<int, 6> kStat{ 36, 37, 39, 41, 43, 45 };       // -> aurastat (ItemStatCost ids)
     static constexpr std::array<int, 6> kEtype{ -1, 4, 0, 1, 2, 3 };          // -> Skill::etype order
     std::ifstream cases(argv[2]);
+    if (!cases) {
+        std::fprintf(stderr, "cannot open the case file %s\n", argv[2]);
+        return 1;
+    }
     std::string line;
     while (std::getline(cases, line)) {
         std::istringstream fields(line);

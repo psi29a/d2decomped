@@ -84,9 +84,13 @@ def gen(n, seed):
 
 
 def parse(path):
-    for line in open(path):
-        f = line.split()
-        if len(f) == 6:
+    with open(path) as fh:
+        for no, line in enumerate(fh, 1):
+            f = line.split()
+            if not f:
+                continue
+            if len(f) != 6:
+                raise ValueError(f"{path}:{no}: expected 6 fields, got {len(f)}")
             yield tuple(int(x) for x in f)
 
 
@@ -158,13 +162,17 @@ def cmp(cases, gpath, dpath):
     def rows(path):   # the d2d build also logs timestamped lines: keep `id adj effres dealt`
         return {int(f[0]): f[1:] for f in (l.split() for l in open(path)) if len(f) == 4 and f[0].isdigit()}
     g, d = rows(gpath), rows(dpath)
+    if not cs:
+        raise SystemExit("cmp: the case file holds no cases")
+    for name, got in (("game", g), ("d2d", d)):
+        missing = [cid for cid in cs if cid not in got]
+        if missing:
+            raise SystemExit(f"cmp: the {name} results lack {len(missing)} of {len(cs)} cases (first id {missing[0]})")
     cols = ("adj", "effres", "dealt")
     tot = {c: 0 for c in cols}
     cat = {}
     n = 0
     for cid, (_, elem, b, v, p, _roll) in cs.items():
-        if cid not in g or cid not in d:
-            continue
         n += 1
         for i, c in enumerate(cols):
             if d[cid][i] == "-" or g[cid][i] == d[cid][i]:
@@ -183,7 +191,7 @@ def tbl():
     e = emu.Emu()
     t = e.mpq_file("data\\global\\excel\\MonStats.txt").decode("latin-1").splitlines()
     h = t[0].split("\t")
-    rows = [dict(zip(h, ln.split("\t"))) for ln in t[1:]]
+    rows = [dict(zip(h, ln.split("\t"), strict=False)) for ln in t[1:]]
     print("difficulty column rows(non-empty) min max immune(>=100) negative")
     for suf, name in (("", "Normal"), ("(N)", "Nightmare"), ("(H)", "Hell")):
         for c in ("ResDm", "ResMa", "ResFi", "ResLi", "ResCo", "ResPo"):
