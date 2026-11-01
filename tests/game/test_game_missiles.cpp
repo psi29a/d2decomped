@@ -45,6 +45,7 @@ int main() try {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1);
+    if (!data->patched) { std::printf("SKIP: these checks are 1.14d's (set D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
 
     {
         // A breath's flame (FUN_005cc4e0 -> FUN_005cc2e0) lasts calc1 frames, under 1 its row's
