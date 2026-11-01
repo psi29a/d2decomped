@@ -129,7 +129,6 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             if (const auto* skill = game_data->skills.get(pet.aura); skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura && pet.monster.alive() && pet.where == level
                 && std::hypot(pet.monster.unit.x - actor->player.x, pet.monster.unit.y - actor->player.y) * 5 <= float(calc(*skill, skill->aurarange, pet.aura_level)))
                 states.push_back({ pet.aura, pet.aura_level, ~0u });
-        if (now_ms < actor->curses[0].until) states.push_back({ actor->curses[0].skill, actor->curses[0].level, actor->curses[0].until });   // a monster's curse on the player
         if (now_ms < actor->marks[0].until) states.push_back({ actor->marks[0].skill, actor->marks[0].level, actor->marks[0].until });
         for (const auto& state : states) {
             const auto* skill = game_data->skills.get(state.skill);
@@ -137,6 +136,9 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
         }
+        if (now_ms < actor->curses[0].until)                    // a monster's curse on the player
+            for (const auto& [id, value] : curse_stats(actor->curses[0], env))
+                if (id != kLife && std::size_t(id) < st_sum.size()) st_sum[std::size_t(id)] += value;
         if (now_ms < actor->stamina_pot.until) st_sum[d2d::d2s::kStaminaRecoveryBonus] += actor->stamina_pot.bonus;
         for (const auto& state : actor->potion_states)
             if (now_ms < state.until)

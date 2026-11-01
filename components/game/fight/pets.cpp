@@ -818,7 +818,7 @@ auto Fight::pet_buffs(Pet& pet) -> void {
                     if (skill->aurastat[k] >= 0) pet.buff_stats[skill->aurastat[k]] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, lvl);
         };
         for (const auto& buff : pet.buffs) add(buff.skill, buff.level);
-        if (pet.curse.skill >= 0) add(pet.curse.skill, pet.curse.level);
+        for (const auto& [id, value] : curse_stats(pet.curse, env)) if (id >= 0) pet.buff_stats[id] += value;
         // Battle Orders' maxhp percent on its life, as the player's (bo_life).
         auto& stats = pet.monster.stats;
         const int want = int(std::int64_t(stats.hit_points - pet.bo_life) * pet_buff_stat(pet, d2d::d2s::kMaxLifePercent) / 100);

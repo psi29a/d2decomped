@@ -432,7 +432,7 @@ struct Foe {
     bool neutral = true;                      // in mode 1 (NU): not walking, swinging, casting or struck (BaalTaunt's still)
     [[nodiscard]] d2d::rules::Motion motion() const { return running ? d2d::rules::Motion::running : moving ? d2d::rules::Motion::walking : d2d::rules::Motion::standing; }
     int mana_burn = 0;                        // mana it lost to Mana Burn this frame
-    struct Cast { int skill = -1, level = 0; };
+    struct Cast { int skill = -1, level = 0, pick = -1; };   // pick: a monster's random curse's (rules::monster_curse_stats), else -1
     Cast cursed;                              // a curse cast on it this frame (a Cursed boss's Amplify Damage, the Summoner's Weaken)
     Cast marked;                              // a missile's hit 19 state put on it this frame (the finger mage's spider)
     std::vector<std::string_view> states;     // the states on it a think reads (its curse's, its mark's: auratargetstate names)

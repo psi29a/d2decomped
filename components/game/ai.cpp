@@ -2387,18 +2387,16 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         if (missiles.size() > had) missiles.back().bolt = bolt;
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kMonCurseCast) {
-                    // FUN_005ce2b0: rand(5) on its seed picks 0x6e3228's curse (Amplify
-                    // Damage, Weaken, Life Tap, Decrepify, Lower Resist), cast at its level
-                    // round the target as do 30.
-                    // ponytail: the curse's own stat list (by the pick) is the curse skill's;
-                    // game.exe writes its own per pick, shifted (bugs.md #43).
-                    static constexpr std::array<int, 5> kCurses{ 66, 72, 82, 87, 91 };
-                    const int curse = kCurses[std::size_t(monster.seed(5))];
+                    // FUN_005ce2b0: seed % 5 picks 0x6e3228's curse (Amplify Damage,
+                    // Weaken, Life Tap, Decrepify, Lower Resist), cast at its level round the
+                    // target as do 30, with the pick's own stats (rules::monster_curse_stats).
+                    const int pick = monster.seed(5);
+                    const int curse = d2d::rules::kMonsterCurses[std::size_t(pick)];
                     const auto* cursed = game_data.skills.get(curse);
                     const int radius = cursed ? d2d::rules::eval_calc(game_data.skills, cursed->aurarange, {}, curse, lvl) : 0;
                     for (auto& near_foe : foes)
                         if (near_foe.alive && !near_foe.of && !foe.of && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
-                            near_foe.cursed = { curse, lvl };
+                            near_foe.cursed = { curse, lvl, pick };
                 } else if (cast->srvdofunc == ServerDoFunction::kCorpseExplosion) {
                     // do 55 (FUN_005c4df0, the Necromancer's too) at the corpse its
                     // think found (FUN_00553540: its path's unit; FUN_00645680 a

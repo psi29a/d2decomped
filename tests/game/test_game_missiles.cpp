@@ -251,6 +251,43 @@ int main() try {
         std::printf("OK: a chill rolls shatter on the monster's seed, Holy Freeze again after its hit\n");
     }
 
+    // A monster's random curse (FUN_005ce2b0, the Oblivion Knight's MonCurseCast in S2): seed % 5
+    // picks the skill, and the stats are the pick's own (bugs.md #43), not the skill's aurastats.
+    {
+        const auto knight_row = data->monsters.by_id.find("doomknight3");
+        const int curse_cast = data->skills.by_name.at("MonCurseCast");
+        assert(knight_row != data->monsters.by_id.end());
+        const auto stats_of = [&](int skill, int pick) {
+            auto stats = world.fight.curse_stats({ skill, 5, ~0u, pick }, world.fight.calc_env());
+            std::ranges::sort(stats);
+            return stats;
+        };
+        using StatList = std::vector<std::pair<int, int>>;
+        assert((stats_of(91, 4) == StatList{ { 25, -50 }, { 36, -50 }, { 67, 0 }, { 68, 0 } }));     // Lower Resist: Decrepify's list, Param7 0
+        assert(stats_of(87, 3).empty() && stats_of(82, 2).empty());                                // Decrepify, Life Tap: events only
+        assert((stats_of(66, 0) == StatList{ { 36, -100 } }) && (stats_of(72, 1) == StatList{ { 25, -50 } }));
+        assert(std::ranges::any_of(stats_of(91, -1), [](const auto& stat) { return stat.first == 39 && stat.second < 0; }));   // its own aurastats when not a pick
+        for (std::uint32_t seed = 1; seed <= 6; ++seed) {
+            d2d::rules::Rng knight_rng{ seed };
+            Level here{};
+            here.id = d2d::rules::level_ids::kBloodMoor;
+            std::vector<Monster> pack{ make_monster(*data, int(knight_row->second), 10.f, 10.f, knight_rng, 0) };
+            pack[0].skill = curse_cast;
+            pack[0].seed = d2d::rules::Rng{ seed };
+            set_mode(*data, pack[0], "S2", 0);                           // its Sk6mode
+            std::array<Foe, 1> foes{};
+            foes[0].x = 12.f; foes[0].y = 10.f;
+            const Crowd crowd;
+            std::vector<Missile> missiles;
+            for (std::uint32_t frame = 1; frame <= 100 && foes[0].cursed.skill < 0; ++frame)
+                monster_update(*data, here, pack[0], foes, knight_rng, frame * 40, 0.04f, crowd, missiles, pack);
+            d2d::rules::Rng expected{ seed };
+            const int pick = int(expected.next() % 5);
+            assert(foes[0].cursed.pick == pick && foes[0].cursed.skill == d2d::rules::kMonsterCurses[std::size_t(pick)]);
+        }
+        std::printf("OK: a monster's random curse takes its pick's own stats\n");
+    }
+
     // Nova's 64 go out along rules::kNovaRing (0x6e1288 / 0x6e1388, FUN_0056d400), not even angles.
     {
         world.fight.pending.clear();

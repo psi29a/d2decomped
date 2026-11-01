@@ -65,13 +65,12 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
             sum[kMaxDamage] += actor->merc_st.dmg_max;
         }
         sum[kToHit] += actor->merc_st.attack_rating;
-        // A monster's curse on it (Amplify Damage, Weaken): its aurastats
+        // A monster's curse on it (Amplify Damage, Weaken): its stats (curse_stats)
         // join its stats (merc_foe drops a spent one).
-        if (const auto* skill = actor->curses[1].skill >= 0 ? game_data->skills.get(actor->curses[1].skill) : nullptr) {
+        if (actor->curses[1].skill >= 0) {
             const d2d::rules::CalcEnv env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, actor->merc_st.level, nullptr };
-            for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
-                if (skill->aurastat[k] >= 0 && std::size_t(skill->aurastat[k]) < sum.size())
-                    sum[std::size_t(skill->aurastat[k])] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, actor->curses[1].level);
+            for (const auto& [id, value] : curse_stats(actor->curses[1], env))
+                if (id >= 0 && std::size_t(id) < sum.size()) sum[std::size_t(id)] += value;
         }
         Stats stats;
         stats.values[kLevel] = actor->merc_st.level;

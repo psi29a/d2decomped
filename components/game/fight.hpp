@@ -198,7 +198,7 @@ struct Fight {
         // The player's / merc's curse from a monster (do 30, FUN_005c37c0: one
         // at a time, the newest): a Cursed boss's Amplify Damage, the
         // Summoner's Weaken. The player's aurastats join its self states'.
-        struct Curse { int skill = -1, level = 0; std::uint32_t until = 0; };
+        struct Curse { int skill = -1, level = 0; std::uint32_t until = 0; int pick = -1; };   // pick: as Foe::Cast's
         std::array<Curse, 2> curses{};
         // A missile hit's state on the player / merc (hit 19, FUN_005ab110: the
         // skill's auratargetstate for auralen frames, at least 5, with its
@@ -1122,6 +1122,9 @@ struct Fight {
     [[nodiscard]] bool near_players(float x, float y) const;
     void hurt_side(std::span<Foe> side, std::uint32_t now_ms);
     [[nodiscard]] Hero::Curse monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms);
+    // The stats a monster's curse puts on the player's side: its skill's
+    // aurastats at its level, or a random curse's own by its pick.
+    [[nodiscard]] std::vector<std::pair<int, int>> curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env) const;
     // Bosses' auras (Aura Enchanted), each at its level within its
     // aurarange: Might, Blessed Aim, Fanaticism add their damage / to-hit %
     // to the monsters there; Conviction cuts the foes' resistances and
