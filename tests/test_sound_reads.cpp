@@ -5,7 +5,6 @@
 #include "sound_reads.hpp"
 
 #include <cassert>
-#include <string>
 
 int main() {
     using d2d::client::sound_reads;
