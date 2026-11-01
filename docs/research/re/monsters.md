@@ -263,7 +263,8 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   - the champion kinds (one of 16 / 36..39 by cpick, each weight 1):
     36 ghostly (FUN_005a1080): monster data +0x16 |= 0x40 (drawn
     see-through — see `### Ghostly blend (client flag 0x40)` below),
-    damageresist (stat 0x24) set to 80, FUN_005a0e80 with speed −33 %,
+    damageresist (stat 0x24) set to 80, FUN_005a0e80 with no speed change
+    (it returns at 0x5a0ff8 for mod 36: the −33 % at 0x5a1062 is dead code),
     then cold (stats 0x36 / 0x37 += MonLvl DM, L-DM in an expansion game,
     for its level × constants rows 22 / 25 + difficulty %; 0x38 length
     += 150);

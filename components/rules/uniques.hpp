@@ -222,8 +222,8 @@ inline std::uint16_t champion_word(const std::vector<int>& mods) {
 // and minions get theirs through `champion`). `boss` is the unique's /
 // champion's own kind; a minion takes the minion rows.
 struct BossStats {
-    int level_add = 0;                          // leveladd +3; champion -1 on top (net +2)
-    int exp_mult = 1;                           // unique x5, champion x3
+    int level_add = 0;                          // leveladd +3 (a minion too); champion -1 on top (net +2)
+    int exp_mult = 1;                           // unique and minion x5, champion x3
     int hp_pct = 0;                             // + life %
     int dmg_pct = 0, tohit_pct = 0;             // + damage %, + attack rating %
     int velocity_pct = 0;                       // + speed % (fast; champion +20)
@@ -251,23 +251,30 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
         stats.level_add += 3;
         stats.exp_mult = 5;
         stats.hp_pct = umods.constants[std::size_t(7 + difficulty_index)];
-    } else if (kind == Boss::minion) {
+    } else if (kind == Boss::minion) {                                   // the same inits on its minions, flag 0 (FUN_0058f380 -> FUN_005a2100)
+        stats.level_add += 3;                                            // FUN_005a0e40 tests no flag
+        stats.exp_mult = 5;
         stats.hp_pct = umods.constants[std::size_t(1 + difficulty_index)];
     }
     // A champion's kind: 16 champion, or 36 ghostly .. 39 berserker (one
     // cpick each). All but the berserker run FUN_005a0e80 (level, exp,
-    // damage and to-hit bonus, speed: ghostly -33, fanatic as `fast`,
+    // damage and to-hit bonus, speed: none for ghostly, fanatic as `fast`,
     // else +20, none without a MonStats Velocity).
     const auto has = [&](int id) { return std::ranges::find(mods, id) != mods.end(); };
     const bool berserk = has(umod::berserk);
     if (champion) stats.hp_pct = umods.constants[std::size_t(4 + difficulty_index)];   // FUN_005a0dc0, the champion rows
+    if (champion && berserk && !unique) {                                // FUN_005a1280 runs no FUN_005a0e80: the fixed leveladd alone
+        stats.level_add += 3;
+        stats.exp_mult = 5;
+    }
     if (champion && !berserk) {                                          // FUN_005a0e80
         stats.level_add += unique ? -1 : 2;
         stats.exp_mult = 3;
         stats.tohit_pct += umods.constants[10] * kBossBonus[std::size_t(difficulty_index)] / 100;
         stats.dmg_pct += umods.constants[11] * kBossBonus[std::size_t(difficulty_index)] / 100;
-        if (type.velocity > 0)
-            stats.velocity_pct += has(umod::ghostly) ? -33 : has(umod::fanatic) ? std::clamp(2048 / type.velocity - 128, 10, 100) : 20;
+        // Ghostly returns before the speed (0x5a0ff8): its -33 store at 0x5a1062 is never reached.
+        if (type.velocity > 0 && !has(umod::ghostly))
+            stats.velocity_pct += has(umod::fanatic) ? std::clamp(2048 / type.velocity - 128, 10, 100) : 20;
     }
     if (has(umod::ghostly)) {                                            // FUN_005a1080: DR 80, cold from the champion rows, length 150
         stats.phys_resist = 80;

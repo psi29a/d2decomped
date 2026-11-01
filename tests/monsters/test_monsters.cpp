@@ -191,6 +191,18 @@ int main() {
         assert(stats.hit_points >= 101 && stats.hit_points <= 181 && stats.armor_class == 84 && stats.exp == 111);
         assert(stats.to_hit == 101 && stats.a1_min == 51 && stats.a1_max == 151);
     }
+    // A boss's leveladd (FUN_005a0e40) raises the level after FUN_00573cb0
+    // read life, defence and experience at the MonStats level; to-hit and
+    // damage follow the raised level (FUN_005a4f50).
+    {
+        auto raised = monsters;
+        raised.lvl.resize(5);
+        raised.lvl[4] = { .armor_class = { 60, 0, 0 }, .to_hit = { 80, 0, 0 }, .hit_points = { 70, 0, 0 }, .damage = { 20, 0, 0 }, .experience = { 300, 0, 0 } };
+        Rng boss_rng{ 3 };
+        const auto stats = monster_stats(raised, 0, 0, boss_rng, 3);
+        assert(stats.level == 4 && stats.hit_points >= 7 && stats.hit_points <= 12 && stats.armor_class == 5 && stats.exp == 33);
+        assert(stats.to_hit == 80 && stats.a1_max > 3);
+    }
     // Champions and uniques (uniques.hpp) on a small MonUMod: champion
     // chance 20; hell uniques take 3 mods, never twice; the stat rules.
     {
@@ -215,16 +227,18 @@ int main() {
         assert(unique_stats.res_add[2] == 75 && unique_stats.res_add[0] == 50 && unique_stats.double_defense);
         const auto champion_stats = boss_stats(umods, type, Boss::champion, { 16 }, 1);
         assert(champion_stats.level_add == 2 && champion_stats.exp_mult == 3 && champion_stats.hp_pct == 150 && champion_stats.dmg_pct == 75 && champion_stats.tohit_pct == 56 && champion_stats.velocity_pct == 20);   // nightmare keeps 75 % (kBossBonus)
+        const auto minion_stats = boss_stats(umods, type, Boss::minion, {}, 0);     // a unique's minion: leveladd and its minion life row
+        assert(minion_stats.level_add == 3 && minion_stats.exp_mult == 5 && minion_stats.hp_pct == 100);
         const auto fast_stats = boss_stats(umods, type, Boss::unique, { 6 }, 0);       // fast: 2048 / 6 - 128 -> 100 max
         assert(fast_stats.velocity_pct == 100);
         // The champion kinds (FUN_005a1080 .. FUN_005a1280), nightmare.
         const auto ghostly = boss_stats(umods, type, Boss::champion, { 36 }, 1);
-        assert(ghostly.velocity_pct == -33 && ghostly.phys_resist == 80 && ghostly.elem == 2 && ghostly.elem_len == 150 && ghostly.level_add == 2);
+        assert(ghostly.velocity_pct == 0 && ghostly.phys_resist == 80 && ghostly.elem == 2 && ghostly.elem_len == 150 && ghostly.level_add == 2);
         const auto fanatic = boss_stats(umods, type, Boss::champion, { 37 }, 1);
         assert(fanatic.velocity_pct == 100 && fanatic.defense_pct == -70);
         assert(boss_stats(umods, type, Boss::champion, { 38 }, 1).life_after_pct == 100);
         const auto berserk = boss_stats(umods, type, Boss::champion, { 39 }, 1);
-        assert(berserk.life_after_pct == -75 && berserk.level_add == 0 && berserk.exp_mult == 1 && berserk.velocity_pct == 0
+        assert(berserk.life_after_pct == -75 && berserk.level_add == 3 && berserk.exp_mult == 5 && berserk.velocity_pct == 0
                && berserk.dmg_pct == 225 && berserk.tohit_pct == 225 && berserk.hp_pct == 150);
         // A champion's name word (FUN_004ac870): its champion mod's; the
         // fixed rndname alone falls through to the table's last.
