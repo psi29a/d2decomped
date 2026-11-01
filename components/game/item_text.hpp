@@ -71,7 +71,6 @@ inline std::string d2_format(std::string_view format, std::initializer_list<std:
 // No descfunc 17/18 (time-of-day) or 22 (monster types): no 1.14d item
 // rolls them (of Dawn / of Sunlight aren't spawnable; att-mon% / dmg-mon%
 // are on nothing).
-// ponytail: charges/skill lines use the skill's string key.
 inline std::vector<std::string> prop_lines(const GameData& game_data, std::vector<d2d::d2s::ItemProp> props, int clvl) {
     auto str = [&](std::string_view key) {
         if (key.empty()) return std::string{};
@@ -84,7 +83,9 @@ inline std::vector<std::string> prop_lines(const GameData& game_data, std::vecto
         return stat >= 0 && std::size_t(stat) < game_data.stat_desc.size() ? &game_data.stat_desc[std::size_t(stat)] : nullptr;
     };
     auto skill = [&](int id) {
-        return id >= 0 && std::size_t(id) < game_data.skill_name.size() ? str(game_data.skill_name[std::size_t(id)]) : std::string{};
+        // SkillDesc "str name" (FUN_004e6ce0, index 0); a skill without one 0x1506 "an evil force".
+        const bool named = id >= 0 && std::size_t(id) < game_data.skill_name.size() && !game_data.skill_name[std::size_t(id)].empty();
+        return named ? str(game_data.skill_name[std::size_t(id)]) : string_id(game_data, 0x1506);
     };
     // One stat list, like the unit's: repeats of a (stat, param) add up.
     {
