@@ -79,6 +79,14 @@ captured, then its one action is delivered manually to original
 lookup reach a captured missile request at level 1. The scheduler
 itself produces no immediate missile request.
 
+With explicit `--exe` and `--animdata`, this checker does not require
+`D2_MPQ_DIR` or a configured `d2d.cfg`: MPQ-cache initialization is deferred
+until `Emu.mpq_file` is first used. The checker was also re-run with MPQ
+configuration lookup forced to fail, and its 12 fixtures still passed.
+Regression checks for deferred initialization and the first-read path run
+with `uv run python -m unittest test_emu_cache` from `tools/emu`; they use
+synthetic metadata and require no game files.
+
 ### Limits
 
 - Fixtures supply synthetic MonStats/MonStats2 records for these three
