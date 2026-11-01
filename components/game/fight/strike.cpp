@@ -834,8 +834,10 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             }
             // Double Throw (do 74, FUN_005d88b0): each hand's throwing weapon
             // flies at the target as its missile (weapons.txt missiletype),
-            // with calc1 damage % (stat 25).
-            // ponytail: toht (stat 19) isn't added; no ammo is spent.
+            // with calc1 damage % (stat 25), spending one of it (FUN_0056ecb0's
+            // last argument 1 -> FUN_0056c3f0); none left, none flies.
+            // ponytail: toht (stat 19, FUN_006449f0) isn't added; both hands throw
+            // at once, not one an SQ event (FUN_00535bc0's hand).
             // Throw (do 3, FUN_0056f460): the throwable in hand flies as its
             // missile (weapons.txt missiletype) and one of it is spent.
             // ponytail: FUN_0056c600's to-hit / damage % from the skill aren't
@@ -850,12 +852,18 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                         }
                 break;
             case ServerDoFunction::kDoubleThrow:
-                for (const auto& item : actor->character.items)
-                    if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
-                        if (const auto found_thrown = game_data->thrown.find(item.code); found_thrown != game_data->thrown.end())
-                            if (const auto found = game_data->missiles.find(found_thrown->second); found != game_data->missiles.end())
-                                launch(found->second, skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y,
-                                       found->second.range + found->second.lev_range * lvl, now_ms).ed_pct = calc(skill, skill.calc[0], lvl);
+                for (const int slot : { d2d::d2s::body_location::kRightArm, d2d::d2s::body_location::kLeftArm }) {
+                    auto& items = actor->character.items;
+                    const auto hand = std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == slot; });
+                    if (hand == items.end() || hand->quantity < 1) continue;
+                    const auto found_thrown = game_data->thrown.find(hand->code);
+                    const auto found = found_thrown != game_data->thrown.end() ? game_data->missiles.find(found_thrown->second) : game_data->missiles.end();
+                    if (found == game_data->missiles.end()) continue;
+                    launch(found->second, skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y,
+                           found->second.range + found->second.lev_range * lvl, now_ms).ed_pct = calc(skill, skill.calc[0], lvl);
+                    const auto index = std::size_t(hand - items.begin());
+                    if (--items[index].quantity <= 0) out_of_ammo(index);
+                }
                 break;
             // Find Potion (do 69, FUN_005d81c0) / Find Item (72, FUN_005d8780):
             // a corpse not yet searched (state 0x76), at calc1 %: a potion

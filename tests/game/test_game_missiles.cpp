@@ -239,6 +239,20 @@ int main() try {
         items.push_back({ .code = "aqv", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .identified = true, .quantity = 50 });
         assert(!world.fight.cast_missile(0, world.actor->player.x + 3, world.actor->player.y, 5000 * kTickMs));
         assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "aqv"; }) == 1 && world.fight.ammo_index() >= 0);
+        // Double Throw (FUN_005d88b0 -> FUN_0056ecb0 last argument 1 -> FUN_0056c3f0): each hand's
+        // throw spends one; the hand that runs out is swapped as any spent stack.
+        items = kept_items;
+        std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm); });
+        items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 1 });
+        items.push_back({ .code = "tkf", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true, .quantity = 5 });
+        world.fight.pending.clear();
+        world.actor->cast_x = world.actor->player.x + 3; world.actor->cast_y = world.actor->player.y;
+        const int double_throw = data->skills.by_name.at("Double Throw");
+        world.fight.spot(*data->skills.get(double_throw), 5000 * kTickMs, world.fight.player_caster(double_throw));
+        assert(world.fight.pending.size() == 2);
+        assert(std::ranges::none_of(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm; }));
+        assert(std::ranges::any_of(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kLeftArm && item.quantity == 4; }));
+        world.fight.pending.clear();
         items = kept_items; dexterity = kept_dexterity;
         std::printf("OK: a spent stack is swapped for a wearable next, on running out or a refused shot\n");
     }
