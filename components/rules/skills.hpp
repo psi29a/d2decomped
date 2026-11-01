@@ -746,8 +746,8 @@ inline std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, c
         // A summoner's passive stats are its pet's (FUN_005c4470 puts
         // them on the pet: Raise Skeleton's maxhp from Skeleton Mastery,
         // the golems' speed, the spirits' resists), not the player's.
-        // ponytail: FUN_00646f20's own skip isn't traced; none of these
-        // has a passivestate, the field it walks by.
+        // FUN_00646f20 skips them too: it takes only a skill with a
+        // passivestate (+0x94 > 0), and none of these 17 or Revive has one.
         if (!skill.summon.empty() || skill.srvdofunc == ServerDoFunction::kRevive) continue;
         const int lvl = env.level(skill.id);
         if (lvl < 1) continue;
