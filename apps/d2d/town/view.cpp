@@ -172,7 +172,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         // No name, so no hover, for a converted one, and a click there walks.
         // game.exe's hit test (FUN_00466870) drops a unit FUN_00465c60 refuses: outside town a
         // monster of the player's alignment (cursor-units.md).
-        const bool selectable = monster.targetable() && !monster.ally_not_interact(scene);
+        const bool selectable = monster.targetable() && !monster.ally_not_interact(scene, view.level ? view.level->id : 0);
         out.push_back({ monster.unit.x, monster.unit.y, &anim, monster.unit.dir, selectable ? &monster.npc.name : nullptr,
                         row ? now_ms - mpf * std::uint32_t(monster.seq_frame) - mpf / 2 : down && monster.mode != "S1" ? 0u : monster.unit.mode_ms, -10 - int(i) });
         out.back().reverse = down;

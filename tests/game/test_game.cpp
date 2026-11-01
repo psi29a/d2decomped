@@ -1160,7 +1160,7 @@ int main(int argc, char** argv) try {
             ViewEncoder encoder;
             View received;
             assert(apply_view(*data, encode_view(*data, shown, encoder), received));
-            assert(received.monsters.size() == 1 && received.monsters[0].align == 2 && received.monsters[0].ally_not_interact(*data));
+            assert(received.monsters.size() == 1 && received.monsters[0].align == 2 && received.monsters[0].ally_not_interact(*data, world.level->id));
         }
         world.fight.monsters[std::size_t(index)].cry = {};    // the same monster, hostile: attacked
         world.fight.monsters[std::size_t(index)].align = 0;
@@ -1172,13 +1172,16 @@ int main(int argc, char** argv) try {
         world.tick({}, (4502 + 3) * kTickMs, (4502 + 2) * kTickMs);
         assert(attacker.attack_mon == -1 && attacker.pmode < 0);
         world.fight.monsters.pop_back();
-        // A town NPC is align 2 as well (MonStats Align 1) but interact: it stays clickable.
+        // A town NPC is align 2 as well (MonStats Align 1): in town nothing is refused for that;
+        // outside town only alSel (cain1) passes one of the player's side (FUN_00465c60).
         const auto akara = std::ranges::find(data->monsters.types, std::string_view("akara"), &MonType::id);
-        assert(akara != data->monsters.types.end() && akara->interact);
+        const auto cain = std::ranges::find(data->monsters.types, std::string_view("cain1"), &MonType::id);
+        assert(akara != data->monsters.types.end() && cain != data->monsters.types.end() && cain->al_sel);
         turned.type = int(akara - data->monsters.types.begin());
-        assert(turned.ally_not_interact(*data) == false);
-        turned.type = -1;                                      // no MonStats row: no interact either
-        assert(turned.ally_not_interact(*data));
+        assert(!turned.ally_not_interact(*data, d2d::rules::level_ids::kRogueEncampment));
+        assert(turned.ally_not_interact(*data, d2d::rules::level_ids::kBloodMoor));
+        turned.type = int(cain - data->monsters.types.begin());
+        assert(!turned.ally_not_interact(*data, d2d::rules::level_ids::kBloodMoor));
         // A joined game's host converts with its state (town.cpp net_overlay): Conversion's aura target.
         const auto* conversion_row = data->skills.get(conversion);
         assert(conversion_row && conversion_row->auratarget == "conversion" && std::ranges::contains(data->state_names, std::string("conversion")));

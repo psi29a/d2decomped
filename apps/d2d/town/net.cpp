@@ -499,7 +499,7 @@ auto Town::net_overlay() -> void {
         std::erase_if(net_ground, [&](const auto& entry) { return !net_game->ground.contains(entry.first); });
         // The host monster being attacked: held, the attack goes on (input); not once it's converted.
         const int attacked = net_attack >= 0 ? view.monster(net_attack) : -1;
-        if (attacked >= 0 && view.monsters[std::size_t(attacked)].alive() && !view.monsters[std::size_t(attacked)].ally_not_interact(*scene)) {
+        if (attacked >= 0 && view.monsters[std::size_t(attacked)].alive() && !view.monsters[std::size_t(attacked)].ally_not_interact(*scene, level ? level->id : 0)) {
             view.attack = net_attack;
             view.attack_skill = net_attack_skill;
         } else {

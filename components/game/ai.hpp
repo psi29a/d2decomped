@@ -357,12 +357,13 @@ struct Monster {
     int players = 1;                          // the players in the game as it was made (stat 0x64 monster_playercount)
     [[nodiscard]] bool alive() const { return hit_points > 0 && !gone; }
     [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
-    // On the player's side with nothing to talk about: a converted monster (align 2; a town NPC is
-    // align 2 too, but MonStats interact). The cursor drops it: outside town game.exe's hit test
-    // (FUN_00466870 -> FUN_00465c60) takes no monster of the player's alignment (cursor-units.md).
-    // ponytail: game.exe's rule is the town, MonStats2 alSel / noSel and the alignment, not interact.
-    [[nodiscard]] bool ally_not_interact(const GameData& game_data) const {
-        return align == 2 && !(type >= 0 && std::size_t(type) < game_data.monsters.types.size() && game_data.monsters.types[std::size_t(type)].interact);
+    // The cursor drops it (FUN_00466870 -> FUN_00465c60, cursor-units.md): in town
+    // nothing for alignment; elsewhere MonStats2 alSel passes, noSel refuses, else
+    // the player's alignment (2: a converted monster, FUN_00650d70) refuses.
+    [[nodiscard]] bool ally_not_interact(const GameData& game_data, int level_id) const {
+        if (d2d::rules::level_ids::is_town(level_id) || type < 0 || std::size_t(type) >= game_data.monsters.types.size()) return false;
+        const auto& type_info = game_data.monsters.types[std::size_t(type)];
+        return !type_info.al_sel && (type_info.no_sel || align == 2);
     }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const GameData& game_data) const {

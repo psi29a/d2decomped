@@ -51,15 +51,10 @@ catapult spotters, the injured barbarians, ...).
 
 ## d2d
 
-`Monster::ally_not_interact` (components/game/ai.hpp) drops a monster of
-alignment 2 without MonStats interact. For a converted monster outside
-town that reads as game.exe's answer; it is traced from the code, not
-compared against an oracle. It differs where game.exe's rule is other
-than alignment: in town `FUN_00465c60` refuses nothing for alignment;
-outside town it passes an `alSel` monster and refuses a `noSel` one
-before the alignment test (the hit test's selectable and pixel checks
-still follow); and outside town it refuses a good unit with MonStats
-interact unless it is `alSel`, where d2d keeps it.
+`Monster::ally_not_interact` (components/game/ai.hpp) is that rule for a
+monster: in town nothing; elsewhere `alSel` passes, `noSel` refuses, else
+alignment 2 (the player's) refuses. Traced from the code, not compared
+against an oracle; the hit test's selectable and pixel checks still follow.
 
 Not traced here: the click's own path. d2d's pick (a held attack drops
 the unit, the click walks) follows its hover.
