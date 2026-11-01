@@ -181,7 +181,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kMagicMinDamage = 52, kMagicMaxDamage = 53, kColdMinDamage = 54, kColdMaxDamage = 55, kColdLength = 56,
               kPoisonMinDamage = 57, kPoisonMaxDamage = 58, kPoisonLength = 59,
               kLifeDrainMinDamage = 60, kManaDrainMinDamage = 62,   // life / mana steal
-              kVelocityPercent = 67, kAttackRate = 68,
+              kStunLength = 66, kVelocityPercent = 67, kAttackRate = 68,
               kQuantity = 70, kDurability = 72, kMaxDurability = 73,
               kHitPointRegeneration = 74,           // hpregen: replenish life
               kMaxDurabilityPercent = 75, kMaxLifePercent = 76, kMaxManaPercent = 77,

@@ -440,8 +440,8 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // superunique: monster data +0x16 & 8, FUN_005a0180) shrugs it off
         // 90 % of the time (the attacker's seed); MonStats boss (+0xc & 0x40,
         // FUN_0063e9f0) or Velocity 0 (+0x32) can't be stunned; 250 frames at
-        // most (the hirelings' 13, FUN_0063ee90, is for mercs struck).
-        // ponytail: the item stun length (stat 66) isn't added.
+        // most (the hirelings' 13, FUN_0063ee90, is for mercs struck). The
+        // gear's stun length (stat 66) comes in the blow (rules::player_blow).
         if (const auto* stun_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr;
             blow.stun_ticks > 0 && (!stun_type || (!stun_type->boss_column && stun_type->velocity != 0))) {
             const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
