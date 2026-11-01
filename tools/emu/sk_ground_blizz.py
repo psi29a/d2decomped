@@ -24,7 +24,9 @@ no shard this frame). `cmp` checks every line against
            x = cell_x + rand(2r) - r, y = cell_y + rand(2r) - r (x drawn first);
            rand(n) = 0 for n < 1, else the seed step's low % n
   d2d:     Fight::missile_tick (components/game/fight/missiles.cpp, do 10 / 25):
-           offset = rng(2 radius - 1) - (radius - 1) on each axis, the fight's Rng.
+           reach = radius - 1; offset = rng(2 reach) - reach on each axis, the fight's Rng
+           (-(radius - 1)..(radius - 2); before the fix rng(2 radius - 1) - (radius - 1),
+           -(radius - 1)..(radius - 1)).
 d2d's draw is on another generator, so the d2d check is on the RANGE of the
 offsets only (values game.exe can never produce), not draw for draw.
 """
@@ -144,22 +146,23 @@ def cmp(cpath, gpath):
         if got and got[0]:
             made += 1
             dx, dy = got[1] - cell_x, got[2] - cell_y
-            lo, hi = -(radius - 1), radius - 1          # d2d: rng(2R-1) - (R-1)
+            lo, hi = -(radius - 1), max(radius - 2, 0)  # d2d: rng(2R-2) - (R-1); R = 1 draws nothing
             if not (lo <= dx <= hi and lo <= dy <= hi):
                 outside_d2d += 1
             s = seen_off.setdefault(radius, set())
             s.add(dx)
             s.add(dy)
     for radius, s in sorted(seen_off.items()):
-        d2d_vals = set(range(-(radius - 1), radius))
+        d2d_vals = set(range(-(radius - 1), max(radius - 1, 1)))
         d2d_only[radius] = sorted(d2d_vals - s)
         print("radius %d: game.exe offsets %d..%d (%d values); d2d %d..%d (%d values); d2d-only %s"
-              % (radius, min(s), max(s), len(s), -(radius - 1), radius - 1, len(d2d_vals), d2d_only[radius]))
+              % (radius, min(s), max(s), len(s), -(radius - 1), max(radius - 2, 0), len(d2d_vals), d2d_only[radius]))
     print("cases %d, shards made %d, reading differs %d, game offset outside d2d's range %d" % (n, made, bad, outside_d2d))
     for radius in (7,):
         if radius in seen_off:
             k = 2 * radius - 1
-            print("radius %d: share of d2d shards with an offset game.exe never makes: 1 - (%d/%d)^2 = %.4f"
+            print("radius %d: share of d2d shards with an offset game.exe never makes: 0 now; "
+                  "before the fix (offsets -(R-1)..(R-1)): 1 - (%d/%d)^2 = %.4f"
                   % (radius, k - 1, k, 1 - ((k - 1) / k) ** 2))
 
 
