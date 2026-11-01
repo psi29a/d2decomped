@@ -286,11 +286,11 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     if (has(umod::fanatic)) stats.defense_pct = -70;                     // FUN_005a11f0
     if (has(umod::possessed)) stats.life_after_pct = 100;                // FUN_005a1230
     if (berserk) {                                                       // FUN_005a1280: life -75 %, +300 % x the bonus to damage and to-hit
-        // ponytail: FUN_00463900 == 0x76 halves the damage part; that
-        // class test isn't mapped.
+        // A wisp (BaseId 0x76, willowisp1: FUN_00463860 / FUN_00463900) takes half the damage part.
+        const int bonus = 300 * kBossBonus[std::size_t(difficulty_index)] / 100;
         stats.life_after_pct = -75;
-        stats.dmg_pct += 300 * kBossBonus[std::size_t(difficulty_index)] / 100;
-        stats.tohit_pct += 300 * kBossBonus[std::size_t(difficulty_index)] / 100;
+        stats.dmg_pct += type.base == 0x76 ? bonus / 2 : bonus;
+        stats.tohit_pct += bonus;
     }
     auto resist = [&](int id) {                                          // FUN_005a1370
         auto& resist_add = stats.res_add;
