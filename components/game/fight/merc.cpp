@@ -299,7 +299,9 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         // each room's units newest first), not good, alive, out of town,
         // their MonStats threat; sight from them to it; FUN_005dd510's path
         // test a type 2 (toward) path to the primary.
-        // ponytail: no monster here is ever in state 0x92 (invis).
+        // Their state 0x92 (invis) skip needs no test: only Baal into the stairs
+        // (FUN_005ef620: gone, so not alive) and the Ancients' statues (FUN_0063efa0
+        // case 0x219: objects here) take it.
         std::vector<d2d::rules::SightFoe> sight_foes;
         std::vector<int> sight_index;
         const auto wall = [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x04); };

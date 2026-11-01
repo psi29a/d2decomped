@@ -972,7 +972,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // friends (FUN_005dc970), FUN_005dc380 distance, sight from them to it
     // always tested (mask 4); FUN_005dd510's path is always found, so the
     // primary when there's one.
-    // ponytail: no unit is ever in state 0x92 (invis).
+    // Its state 0x92 (invis) skip needs no test here: only FUN_005ef620 (Baal into
+    // the stairs: d2d's gone, so not alive) and FUN_0063efa0 case 0x219 (the
+    // Ancients' statues: objects in d2d) set it.
     Foe* second = nullptr;
     if (monster.set_kind != 0) { second = target; input.second_dist = best; }
     else {
