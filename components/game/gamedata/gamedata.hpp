@@ -95,6 +95,7 @@ struct Npc {
     float x = 0, y = 0;
     int size_x = 0, size_y = 0;          // collision footprint, subtiles
     std::string name;                    // hover label; "" = not selectable
+    std::string title;                   // a monster's MonStats NameStr text, selectable or not
     std::vector<std::pair<float, float>> path;   // DS1 patrol points, cells
     std::vector<int> actions;            // each path point's DS1 action (town_npcs.hpp)
     float velocity = 3;                  // MonStats Velocity

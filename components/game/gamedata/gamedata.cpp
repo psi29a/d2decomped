@@ -164,11 +164,13 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     // Hover name: MonStats' string key, only for units MonStats2 marks
     // selectable (isSel) — not the chicken or the camp's guard rogues,
     // whose name key "Dummy" reads "an evil force".
-    if (ms2.get(row2, "isSel") == "1") {
+    // `title` is that name whatever isSel says (an item's "Reanimate as:", FUN_004e4d80's 0x17).
+    {
         std::string key(monstats.get(row, "NameStr"));        // 1.14d; "namco" on the CD
         if (key.empty()) key = std::string(monstats.get(row, "namco"));
         auto name = lookup_string(game_data, key);
-        npc.name = name ? u16_to_latin1(*name) : std::move(key);
+        npc.title = name ? u16_to_latin1(*name) : std::move(key);
+        if (ms2.get(row2, "isSel") == "1") npc.name = npc.title;
     }
     if (npc.code.empty()) return npc;
     if (npc.base_w.empty()) npc.base_w = "hth";

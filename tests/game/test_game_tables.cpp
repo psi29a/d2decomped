@@ -7,6 +7,7 @@
 #include <ai.hpp>
 #include <drops.hpp>
 #include <gamedata.hpp>
+#include <item_text.hpp>
 #include <gamedata_load.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
@@ -219,6 +220,14 @@ int main() try {
         assert(drops_hash == 0x86f78a5cf5373648ull);
     }
 
+    {
+        // Tomb Reaver's reanimate (stat 155, descfunc 23, descval 1; FUN_004e4d80 case 0x17):
+        // the value, "%", " ", its descstr, " ", MonStats row param's NameStr.
+        const auto lines = prop_lines(*data, { { .stat = 155, .param = 1, .value = 10 } }, 1);
+        const auto& returned = data->mon_npc[1].title;
+        assert(!returned.empty() && lines.size() == 1 && lines[0] == "10% Reanimate as: " + returned);
+        std::printf("OK: %s\n", lines[0].c_str());
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
