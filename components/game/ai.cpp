@@ -2390,7 +2390,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // FUN_005ce2b0: rand(5) on its seed picks 0x6e3228's curse (Amplify
                     // Damage, Weaken, Life Tap, Decrepify, Lower Resist), cast at its level
                     // round the target as do 30.
-                    // ponytail: the curse's own stat list (by the pick) is the curse skill's.
+                    // ponytail: the curse's own stat list (by the pick) is the curse skill's;
+                    // game.exe writes its own per pick, shifted (bugs.md #43).
                     static constexpr std::array<int, 5> kCurses{ 66, 72, 82, 87, 91 };
                     const int curse = kCurses[std::size_t(monster.seed(5))];
                     const auto* cursed = game_data.skills.get(curse);
