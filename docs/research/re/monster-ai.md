@@ -25,6 +25,17 @@ and goes, stopping at the first step that acts:
 3. FUN_005b13e0: first-sight speech (FUN_005b1140, sets AI flag 0x10), the teleport mod (FUN_005b11f0), the leash. The teleport mod (with a target): under 40 on the unit's seed (% 100); then life under 30 %, or not isMelee (MonStats flag 1, FUN_00457490; BaseIds 10 bighead1, 0x159 councilmember1, 0x22d baalhighpriest count as melee) with the search's distance (+0x14) under 10; then rand(100) < 15 on its seed; then FUN_0054dc40 (20 tries: rand(width), rand(height) on the room's seed +0x6c inside its subtile rect less the first row and column, FUN_0054dac0; each tested by FUN_005b3040 → FUN_005b2a00 at radius −1); found, under 30 % life rand(100) < 25 heals its level (stat 12 << 8 into stat 6, to max) unless state 0x34; then AI command 4: skill 0xb8 (MonTeleport, S1) at the spot. d2d: `teleport_mod` (ai.cpp). If the target is farther than the level's byte +0x2f (FUN_0061db70), it searches again (FUN_005dc640 / FUN_005dd0b0 mode 0xb), else it wanders 4.
 4. The AI's think proper (MonAI entry +4).
 
+### Council S1 event timing
+
+The HighPriest's S1 choice (mode 8) reaches a scheduled animation event,
+not a direct missile call. For stock HPS1HTH at rate 200 and start frame
+zero, `FUN_005539b0` schedules marker 2 at start + 4 ticks;
+`FUN_005a7ba0` dispatches it through `FUN_005a7670` to the MissS1 request
+in `FUN_005a6d50`. See [council-s1.md](council-s1.md) for the addresses,
+12 isolated scheduler/dispatch checks and their limits. Current d2d
+source waits for an action deadline too; built-d2d timing parity,
+especially with speed modifiers, is not established by this trace.
+
 ## The target search — FUN_005dd7f0
 
 fastcall ECX game, EDX monster; stack: AI control, out distance, out in-melee.
