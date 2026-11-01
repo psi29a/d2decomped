@@ -717,7 +717,8 @@ struct GameData {
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
                          int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, hit_par2 = 0;
-                         bool next_hit = false; int next_delay = 0;   // NextHit: it strikes a unit again NextDelay frames on
+                         bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames
+                         bool last_collide = false;                   // LastCollide (+4 bit 0): it passes the unit it last struck by
                          std::string sub, sub2, hit_sub;
                          std::array<const MissileInfo*, 2> subs{}; const MissileInfo* hit_sub_info = nullptr;   // those rows, loaded
                          // ExplosionMissile (+0x16): played where it hits a unit or a wall,

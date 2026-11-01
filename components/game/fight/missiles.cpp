@@ -484,7 +484,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 std::swap(missile.target_x, missile.origin_x); std::swap(missile.target_y, missile.origin_y);
                 const float speed = std::hypot(missile.velocity_x, missile.velocity_y), dx = missile.target_x - missile.x, dy = missile.target_y - missile.y, distance = std::max(std::hypot(dx, dy), 0.01f);
                 missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
-                missile.hit_at.clear();
+                missile.last_hit = -1;
             }
             // 31 (Wake of Fire's maker): its fire where it goes.
             if (missile_info.srv_do == 31 && sub != game_data->missiles.end())
@@ -584,11 +584,20 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             return false;
         }
         if (missile_info.hit_func == 26) return false;                 // Grim Ward's start: it lands (burst)
-        // NextHit rows strike a monster again NextDelay frames on.
+        // A NextHit row's hit puts state 0x56 (justhit) on the monster
+        // (FUN_005adb00), and every NextHit missile, of any cast, passes a
+        // monster in it by (FUN_005a8730 / FUN_005adf10); a LastCollide row also
+        // the monster it struck last (FUN_0064a470). ponytail: justhit ends
+        // after the missiles of frame f + NextDelay: FUN_005414d0 runs the
+        // missile timers (group 2) before the monsters' (group 1), whose expiry
+        // is FUN_005a7f80 -> FUN_00627460 -> 0x5adaf0. Struck at f, blocked
+        // f+1..f+NextDelay, next hit at f+NextDelay+1.
         if (missile_info.next_hit) {
-            auto found = std::ranges::find(missile.hit_at, int(monster_index), &std::pair<int, std::uint32_t>::first);
-            if (found != missile.hit_at.end() && now_ms < found->second + std::uint32_t(std::max(missile_info.next_delay, 1)) * 40) return false;
-            if (found == missile.hit_at.end()) missile.hit_at.emplace_back(int(monster_index), now_ms); else found->second = now_ms;
+            auto& struck_unit = monsters[monster_index];
+            if (now_ms <= struck_unit.just_hit_until || (missile_info.last_collide && missile.last_hit == int(monster_index))) return false;
+            struck_unit.just_hit_until = now_ms + std::uint32_t(std::max(missile_info.next_delay, 1)) * 40;
+            missile.last_hit = int(monster_index);
+            missile.last_hit_ms = now_ms;
         }
         // 1 (FUN_005a9a70) and 13 (FUN_005aa8b0) go off here, the area taking in the unit.
         if (missile_info.hit_func == 1 || missile_info.hit_func == 13) { burst(missile, now_ms); return true; }
