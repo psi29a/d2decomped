@@ -1575,8 +1575,8 @@ struct CainQuest {
 // 13 took part, 14 not there.
 // The kill's passes over the players are World::countess_died's (the
 // cellar-5 list's pass, FUN_00594dd0, never fires: the first set bit 0).
-// ponytail: rec+9 (active) is taken as always set, so the tome never
-// starts read (InitFn 4, FUN_00595a00).
+// A record the first join closed (+9 clear: World::closed_at_join) has the
+// tome start in mode 3 (InitFn 4, FUN_00595a00: World::act1_enter).
 struct TowerQuest {
     static constexpr int kQuest = 5, kTower = level_ids::kForgottenTower, kCellar = level_ids::kTowerCellarLevel5, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
     // Her treasure's spawner (Missiles.txt towerchestspawner: Range,

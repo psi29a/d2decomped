@@ -48,6 +48,9 @@ auto World::act1_enter(const Level& from) -> void {
         andy.enter(quests(), from.id, level->id);
         burial.enter(quests(), from.id, level->id, actor->id);
         if (tower.enter(quests(), from.id, level->id, actor->id)) each_player([&](Player&) { tower.mark(quests()); });
+        if (closed_at_join[std::size_t(d2d::rules::TowerQuest::kQuest)])   // the Moldy Tome's InitFn 4 (FUN_00595a00): record +9 clear, mode 3 (not selectable)
+            for (std::size_t index = 0; index < level->npcs.size(); ++index)
+                if (level->npcs[index].operate_fn == d2d::rules::operate_fn::kMoldyTome) doors.try_emplace({ level, int(index) }, Door{ 3, now });
         tools.enter(quests(), from.id);
         const bool cain_open = cain.state != 7;
         cain.enter(quests(), from.id, level->id, actor->id);
