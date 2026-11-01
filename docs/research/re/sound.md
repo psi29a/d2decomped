@@ -7,9 +7,11 @@ from ../thirdeye). WAVs are decoded with SDL; headless runs use
 ## Sounds.txt
 
 Rows are keyed by `Index`. `FileName` is relative to:
-- `data\global\music\` when `Music Vol` is 1;
+- `data\global\music\` when `Music Vol` is 1, tried there first;
 - otherwise `data\global\sfx\`, or `data\local\sfx\` for speech
   (d2speech/d2xtalk).
+A name missing from those sfx folders is tried in the music archive
+too. The Den's jingle is Music Vol off and lives only in d2music.
 
 `Volume` runs 0..255, and `Loop` marks looping sounds.
 
