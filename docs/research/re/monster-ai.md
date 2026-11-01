@@ -22,7 +22,7 @@ and goes, stopping at the first step that acts:
    - type 1: FUN_005de890 (search; none found: stand or wander),
    - type 2: FUN_005dd7f0 (search only),
    - types 4 and 5: FUN_005de9d0.
-3. FUN_005b13e0: first-sight speech (FUN_005b1140, sets AI flag 0x10), the teleport mod (FUN_005b11f0), the leash. If the target is farther than the level's byte +0x2f (FUN_0061db70), it searches again (FUN_005dc640 / FUN_005dd0b0 mode 0xb), else it wanders 4.
+3. FUN_005b13e0: first-sight speech (FUN_005b1140, sets AI flag 0x10), the teleport mod (FUN_005b11f0), the leash. The teleport mod (with a target): under 40 on the unit's seed (% 100); then life under 30 %, or not isMelee (MonStats flag 1, FUN_00457490; BaseIds 10 bighead1, 0x159 councilmember1, 0x22d baalhighpriest count as melee) with the search's distance (+0x14) under 10; then rand(100) < 15 on its seed; then FUN_0054dc40 (20 tries: rand(width), rand(height) on the room's seed +0x6c inside its subtile rect less the first row and column, FUN_0054dac0; each tested by FUN_005b3040 → FUN_005b2a00 at radius −1); found, under 30 % life rand(100) < 25 heals its level (stat 12 << 8 into stat 6, to max) unless state 0x34; then AI command 4: skill 0xb8 (MonTeleport, S1) at the spot. d2d: `teleport_mod` (ai.cpp). If the target is farther than the level's byte +0x2f (FUN_0061db70), it searches again (FUN_005dc640 / FUN_005dd0b0 mode 0xb), else it wanders 4.
 4. The AI's think proper (MonAI entry +4).
 
 ## The target search — FUN_005dd7f0

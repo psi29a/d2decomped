@@ -576,6 +576,46 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
     attack_starts(game_data, monster, mode, rng);
 }
 
+// Teleportation (mod 26: MonTeleport, AI flag 0x20; FUN_005b11f0, the
+// driver's step 3, FUN_005b13e0, with a target): under 40 on its seed
+// (% 100), then - under 30 % life, or not isMelee (MonStats flag 1; BaseIds
+// 10, 0x159, 0x22d count as melee) with the search's distance (AI control
+// +0x14) under 10 - rand(100) < 15 on its seed: a spot in its room
+// (FUN_0054dc40: 20 tries, each rand(width) / rand(height) inside the room's
+// subtiles less its first row and column, on the room's seed, then
+// FUN_005b3040 there at radius -1). Found: under 30 % life, rand(100) < 25
+// heals its level in life; then it casts MonTeleport (0xb8) at the spot
+// (FUN_005dead0 command 4) and true.
+// ponytail: state 0x34 (no heal) isn't kept.
+bool teleport_mod(const GameData& game_data, const Level& level, Monster& monster, int distance, const Crowd& crowd, Spawning::LevelState* rooms_in_play, std::uint32_t now_ms) {
+    if ((monster.boss != d2d::rules::Boss::unique && monster.boss != d2d::rules::Boss::superunique) || !std::ranges::contains(monster.mods, d2d::rules::umod::teleport)
+        || monster.seed.next() % 100 >= 40) return false;
+    const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
+    const bool low = std::int64_t(monster.hit_points) * 100 < std::int64_t(monster.stats.hit_points) * 30;
+    const bool melee = type_info.melee || type_info.base == 10 || type_info.base == 0x159 || type_info.base == 0x22d;
+    if (!low && (melee || distance >= 10)) return false;
+    if (monster.seed(100) >= 15) return false;
+    const int teleport = skill_id(game_data, "MonTeleport");
+    const int room = room_of(level, monster.unit.x, monster.unit.y);
+    const auto rect = room < 0 ? std::nullopt : level_room(level, std::size_t(room));
+    if (teleport < 0 || !rect || !rooms_in_play || std::size_t(room) >= rooms_in_play->room_seeds.size()) return false;
+    const int left = rect->x * 5 + 1, top = rect->y * 5 + 1, width = (rect->x + rect->width) * 5 - left, height = (rect->y + rect->height) * 5 - top;
+    for (int tries = 0; tries < 20; ++tries) {
+        auto& room_seed = rooms_in_play->room_seeds[std::size_t(room)];
+        const int try_x = room_seed(width) + left, try_y = room_seed(height) + top;
+        int at_x = 0, at_y = 0;
+        if (!spawn_spot(game_data, level, crowd, rooms_in_play, monster.type, try_x, try_y, -1, room, at_x, at_y)) continue;
+        if (low && monster.seed(100) < 25) monster.hit_points = std::min(monster.stats.hit_points, monster.hit_points + monster.stats.level);
+        monster.skill = teleport;
+        monster.skill_x = at_x; monster.skill_y = at_y; monster.at_point = true;
+        monster.unit.walking = false;
+        set_mode(game_data, monster, "S1", now_ms);                              // MonTeleport's monanim
+        monster.struck = false;
+        return true;
+    }
+    return false;
+}
+
 // A traced MonAI's frame outside an attack (the driver FUN_005b1740:
 // target search FUN_005de890 / FUN_005dd7f0, then the AI's think; Andariel
 // MonAI 34 FUN_005f5830 -> rules::andariel_think, the rest
@@ -590,12 +630,12 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
 // place of its MonAI's (FUN_005b15d0). Thinks draw the unit's own seed.
 // ponytail: the seed as its look left it (FUN_00573cb0's draws and the
 // rest between aren't taken; the World's spawns (world/) keep the default);
-// first-sight speech (FUN_005b1140) left out; FUN_0064d910's 0x40 test on
+// FUN_0064d910's 0x40 test on
 // the one subtile under it, not its collision pattern; in melee
 // skips the path test (FUN_00622aa0, mask 0x804); paths
 // (FUN_005de190) as path_to's, a circle as a walk to the point n
 // subtiles to the side of the target; a back-off sets off when its end
-// and first step are open; no teleporting mod.
+// and first step are open.
 bool think(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
            float walk, float run, const Crowd& crowd, std::span<Monster> pack, AreaSeen* seen, const OpenDoor* open_door, std::vector<Monster>* born,
            Spawning::LevelState* rooms_in_play) {
@@ -826,6 +866,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         idle(nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25);
         return true;
     }
+    // The driver's step 3 (FUN_005b13e0): first-sight speech, then the teleport mod.
+    // ponytail: the speech (FUN_005b1140) and the leash (the level's +0x2f) aren't run.
+    if (teleport_mod(game_data, level, monster, best, crowd, rooms_in_play, now_ms)) return true;
     // MonAI 91, DarkWanderer (FUN_005ea130; a3q7's record 0x1c): his spot
     // (FUN_005bd0d0, from the marker's x + 7 he's made on) is 20 subtiles
     // north, else 11 north, 2 east or west of that, else 8 north, else 3
@@ -2780,29 +2823,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (!monster.aware) monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
     }
     if (foe.alive && monster.aware) {
-        // Teleportation (mod 26: MonTeleport, AI flag 0x20; FUN_005b11f0):
-        // at a think, 40 %, then — under 30 % life, or a shooter with the
-        // foe within 10 subtiles — 15 %: to a free spot in its room, and
-        // hurt, 1 in 4 to heal its level in life.
-        // ponytail: the room as its 8x8-cell block, the spot by 20 tries
-        // (game.exe: FUN_0054dc40); "within 10" read as the foe's distance;
-        // no teleport animation or skill cast.
-        if (now_ms >= monster.next_act && (monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique)
-            && std::ranges::contains(monster.mods, d2d::rules::umod::teleport) && rng(100) < 40) {
-            const bool low = std::int64_t(monster.hit_points) * 100 < std::int64_t(monster.stats.hit_points) * 30;
-            if ((low || (miss != game_data.missiles.end() && dist * 5 < 10)) && rng(100) < 15) {
-                const float region_x = std::floor(unit.x / 8) * 8, region_y = std::floor(unit.y / 8) * 8;
-                for (int tries = 0; tries < 20; ++tries) {
-                    const float next_x = region_x + float(rng(80)) / 10, next_y = region_y + float(rng(80)) / 10;
-                    if (level.unit_blocked(next_x, next_y, unit.shape)) continue;
-                    unit.x = next_x; unit.y = next_y; unit.walking = false;
-                    if (low && rng(100) < 25) monster.hit_points = std::min(monster.stats.hit_points, monster.hit_points + monster.stats.level);
-                    monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
-                    set_mode(game_data, monster, "NU", now_ms);
-                    return false;
-                }
-            }
-        }
+        // The teleport mod (teleport_mod) for an AI think() doesn't run.
+        if (now_ms >= monster.next_act && teleport_mod(game_data, level, monster, int(dist * 5), crowd, rooms_in_play, now_ms)) return false;
         if (dist <= kMeleeReach) {
             unit.dir = direction16(dx, dy);
             if (now_ms >= monster.next_act) { set_mode(game_data, monster, "A1", now_ms); monster.struck = false; attack_starts(game_data, monster, "A1", rng); }

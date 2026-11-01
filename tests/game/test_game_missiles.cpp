@@ -168,6 +168,40 @@ int main() try {
         assert(born.size() == 3);
         assert(std::ranges::all_of(born, [&](const Monster& head) { return subtile(head.unit.x) == subtile(foe_x) && subtile(head.unit.y) == subtile(foe_y); }));
         std::printf("OK: a monster's three hydras stand on the target's subtile\n");
+
+        // Teleportation (mod 26, FUN_005b11f0, the driver's step 3): under 30 % life it casts
+        // MonTeleport (S1) at a spot FUN_0054dc40 found in its room, and lands there (FUN_005ccc80).
+        // The Blood Moor with every room up (monsters take no target in town).
+        const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
+        assert(moor && !moor->rooms.empty());
+        Spawning::LevelState moor_rooms;
+        moor_rooms.up.assign(moor->rooms.size(), true);
+        for (std::size_t room = 0; room < moor->rooms.size(); ++room) moor_rooms.room_seeds.push_back(d2d::rules::Rng{ std::uint32_t(room + 1) });
+        const auto& middle = moor->rooms[moor->rooms.size() / 2];
+        const auto [zombie_x, zombie_y] = moor->nearest_free(float(middle.x) + float(middle.width) / 2, float(middle.y) + float(middle.height) / 2);
+        const auto zombie_row = data->monsters.by_id.find("zombie1");
+        assert(zombie_row != data->monsters.by_id.end());
+        std::array<Foe, 1> near_foe{};
+        near_foe[0].x = zombie_x + 3; near_foe[0].y = zombie_y;
+        bool cast = false, landed = false;
+        for (std::uint32_t seed = 1; seed <= 40 && !landed; ++seed) {
+            d2d::rules::Rng zombie_rng{ seed };
+            std::vector<Monster> zombies{ make_monster(*data, int(zombie_row->second), zombie_x, zombie_y, zombie_rng, 0) };
+            auto& zombie = zombies[0];
+            zombie.boss = d2d::rules::Boss::unique;
+            zombie.mods = { d2d::rules::umod::teleport };
+            zombie.seed = d2d::rules::Rng{ seed * 7 };
+            zombie.hit_points = std::max(zombie.stats.hit_points / 5, 1);
+            for (std::uint32_t frame = 1; frame <= 400 && !landed; ++frame) {
+                monster_update(*data, *moor, zombie, near_foe, zombie_rng, frame * 40, 0.04f, crowd, missiles, zombies, &born, nullptr, nullptr, &moor_rooms);
+                if (zombie.at_point && zombie.skill == data->skills.by_name.at("MonTeleport")) {
+                    cast = true;
+                    landed = std::abs(zombie.unit.x - (float(zombie.skill_x) + 0.5f) / 5) < 0.01f && std::abs(zombie.unit.y - (float(zombie.skill_y) + 0.5f) / 5) < 0.01f;
+                }
+            }
+        }
+        assert(cast && landed);
+        std::printf("OK: a teleporting unique casts MonTeleport at its room's spot and lands there\n");
     }
 
     // Nova's 64 go out along rules::kNovaRing (0x6e1288 / 0x6e1388, FUN_0056d400), not even angles.
