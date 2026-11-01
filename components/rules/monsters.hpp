@@ -364,15 +364,21 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;
     const auto& type_info = monsters.types[std::size_t(type)];
     const int difficulty_index = std::clamp(difficulty, 0, 2);
+    const int spawn_level = std::max(type_info.level[std::size_t(difficulty_index)], 1);
     stats.level = std::max(type_info.level[std::size_t(difficulty_index)] + level_add, 1);
     if (monsters.lvl.empty()) return stats;
+    // Life, defence and experience are read once, at the MonStats level
+    // (FUN_00573cb0); leveladd (FUN_005a0e40) raises only the level stat
+    // after it. To-hit and damage are read at the raised level, at the hit
+    // (FUN_005a4f50, stat 12).
+    const auto& spawn_row = monsters.lvl[std::min<std::size_t>(std::size_t(spawn_level), monsters.lvl.size() - 1)];
     const auto& level_row = monsters.lvl[std::min<std::size_t>(std::size_t(stats.level), monsters.lvl.size() - 1)];
     const auto& per_difficulty = type_info.diff[std::size_t(difficulty_index)];
     auto pct = [&](int base, int percent) { return type_info.no_ratio ? percent : base * percent / 100; };
-    const int hit_points = level_row.hit_points[std::size_t(difficulty_index)];
+    const int hit_points = spawn_row.hit_points[std::size_t(difficulty_index)];
     stats.hit_points  = std::max(rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp)), 1);
     stats.hit_points = int(std::min<std::int64_t>(stats.hit_points + std::int64_t(stats.hit_points) * player_life_pct(players) / 100, 0x7fffff));
-    stats.armor_class  = pct(level_row.armor_class[std::size_t(difficulty_index)], per_difficulty.armor_class);
+    stats.armor_class  = pct(spawn_row.armor_class[std::size_t(difficulty_index)], per_difficulty.armor_class);
     stats.to_hit  = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a1_th);
     stats.to_hit2 = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a2_th);
     stats.to_hit_s1 = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.s1_th);
@@ -382,7 +388,7 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     stats.a2_max = std::max(pct(level_row.damage[std::size_t(difficulty_index)], per_difficulty.a2_max), stats.a2_min);
     stats.s1_min = pct(level_row.damage[std::size_t(difficulty_index)], per_difficulty.s1_min);
     stats.s1_max = std::max(pct(level_row.damage[std::size_t(difficulty_index)], per_difficulty.s1_max), stats.s1_min);
-    stats.exp = pct(level_row.experience[std::size_t(difficulty_index)], per_difficulty.exp);
+    stats.exp = pct(spawn_row.experience[std::size_t(difficulty_index)], per_difficulty.exp);
     stats.exp += int(std::int64_t(stats.exp) * player_exp_pct(players) / 100);
     for (std::size_t element = 0; element < 3; ++element) {
         const auto& element_info = per_difficulty.elements[element];

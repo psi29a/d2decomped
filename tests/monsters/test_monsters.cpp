@@ -191,6 +191,18 @@ int main() {
         assert(stats.hit_points >= 101 && stats.hit_points <= 181 && stats.armor_class == 84 && stats.exp == 111);
         assert(stats.to_hit == 101 && stats.a1_min == 51 && stats.a1_max == 151);
     }
+    // A boss's leveladd (FUN_005a0e40) raises the level after FUN_00573cb0
+    // read life, defence and experience at the MonStats level; to-hit and
+    // damage follow the raised level (FUN_005a4f50).
+    {
+        auto raised = monsters;
+        raised.lvl.resize(5);
+        raised.lvl[4] = { .armor_class = { 60, 0, 0 }, .to_hit = { 80, 0, 0 }, .hit_points = { 70, 0, 0 }, .damage = { 20, 0, 0 }, .experience = { 300, 0, 0 } };
+        Rng boss_rng{ 3 };
+        const auto stats = monster_stats(raised, 0, 0, boss_rng, 3);
+        assert(stats.level == 4 && stats.hit_points >= 7 && stats.hit_points <= 12 && stats.armor_class == 5 && stats.exp == 33);
+        assert(stats.to_hit == 80 && stats.a1_max > 3);
+    }
     // Champions and uniques (uniques.hpp) on a small MonUMod: champion
     // chance 20; hell uniques take 3 mods, never twice; the stat rules.
     {
