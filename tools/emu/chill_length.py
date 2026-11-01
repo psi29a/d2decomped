@@ -2,7 +2,7 @@
 """A cold missile's chill on a monster, by game.exe's own code.
 
     uv run python chill_length.py [N] [SEED] > game.txt     (default 100000 random cases, seed 1)
-    ../../build/tests/test_game --cold-length SEED N | grep -E '^[BR][0-9]' | diff game.txt -
+    ../../build/tests/test_cold_length --cold-length SEED N | grep -E '^[BR][0-9]' | diff game.txt -
 
 Runs the real FUN_0057c6c0 (apply a damage record to a monster) on a record
 with cold damage (+0x24, 256ths) and its length (+0x30, ticks), as
@@ -87,7 +87,7 @@ class Game(life_apply.Game):
 
 
 def cases(n, seed):
-    """The same cases, in the same order, as test_game --cold-length SEED N."""
+    """The same cases, in the same order, as test_cold_length --cold-length SEED N."""
     i = 0
     for difficulty in range(3):
         for cold_effect in (-50, -1, 0, 25):

@@ -2,7 +2,7 @@
 """Static Field's hit on one monster, by game.exe's own code.
 
     uv run python static_field.py [N] [SEED] > game.txt     (default 100000 random cases, seed 1)
-    ../../build/tests/test_game --static-field SEED N | diff game.txt -
+    ../../build/tests/test_static_field --static-field SEED N | grep -E '^[BR][0-9]' | diff game.txt -
 
 Runs the real FUN_005c96a0 (Static Field's per-unit callback, handed to the
 area walk FUN_0056b7e0 by the skill's do function FUN_005c9800) on one
@@ -124,7 +124,7 @@ def new_d2d(max_hp, life, res, pierce, floor, pct, low):
 
 
 def cases(n, seed):
-    """The boundaries, exhaustive, then n random cases (test_game --static-field makes the same)."""
+    """The boundaries, exhaustive, then n random cases (test_static_field --static-field makes the same)."""
     i = 0
     for floor in (0, 33, 50):
         for res in (-150, -100, -99, -50, -1, 0, 1, 33, 50, 99, 100, 101, 150):
