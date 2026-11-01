@@ -2949,7 +2949,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
 bool swaps_ai(const GameData& game_data, const Monster& monster) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     using d2d::rules::Boss;
-    return game_data.npc_timing(monster.npc, "WL").directions > 0 && !type_info.boss_column && type_info.switch_ai
+    return type_info.can_walk && !type_info.boss_column && type_info.switch_ai && !(type_info.base == 0x1ec && monster.riding)
         && (monster.targetable() || !monster.alive()) && monster.boss != Boss::unique && monster.boss != Boss::superunique;
 }
 

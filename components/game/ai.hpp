@@ -865,11 +865,11 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
 // MonUMod poison hit's init (FUN_005a1e00): its own poison stats.
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->
-// FUN_005dd480; FUN_00623470, FUN_005b0da0): a WL mode (MonStats2), not
-// MonStats boss, SwitchAI, targetable (unit +0xc4 & 4) or dead, not a
-// unique or superunique (monster data +0x16 & 0xa).
-// ponytail: state 0x36 (uninterruptable) isn't d2d's; class 0x1ec's
-// state 0x8f test is Act 5's.
+// FUN_005dd480; FUN_00623470, FUN_005b0da0): MonStats2 mWL, not MonStats
+// boss, SwitchAI, targetable (unit +0xc4 & 4) or dead, not a unique or
+// superunique (monster data +0x16 & 0xa), not an imp (BaseId 0x1ec) riding
+// (state 0x8f). State 0x36 (uninterruptable) is never on a monster: only a
+// player's death sets it, and clears it at once (FUN_0054c0e0).
 bool swaps_ai(const GameData& game_data, const Monster& monster);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
