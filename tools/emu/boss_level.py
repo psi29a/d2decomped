@@ -186,9 +186,11 @@ def compare(cases_path, game_path, d2d_path):
     want = {l.split()[0]: l.split()[2:] for l in open(game_path)}
     bad, examples, total, differ, skipped = {}, {}, 0, 0, 0
     claims = {}
+    answered = set()
     for line in open(d2d_path):
         got = line.split()
         if not got or got[0] not in want: continue
+        answered.add(got[0])
         if got[2:] == ["no-type"]:
             skipped += 1
             continue
@@ -209,14 +211,17 @@ def compare(cases_path, game_path, d2d_path):
             claims[slice_] = claims.get(slice_, 0) + 1
             examples.setdefault(key, (case[1], case[3], a, b))
         differ += one
-    print(f"cases {total}, mismatching cases {differ}, not d2d's row {skipped}")
+    missing = len(want) - len(answered)
+    print(f"cases {total}, mismatching cases {differ}, not d2d's row {skipped}, no d2d answer {missing}")
     print(f"apart from life within 2 points: {sum(v for k, v in bad.items() if not k[0].endswith('~2'))} field mismatches")
     for name in ("D1", "D2", "D3", "B", "other", "life within 2 (256ths)", "life 0 in game.exe"):
         print(f"claim {name}: {claims.get(name, 0)} field mismatches")
     for key in sorted(bad, key=lambda k: -bad[k]):
         mon, diff, a, b = examples[key]
         print(f"{bad[key]:7d}  {key[0]:6s} kind {key[1]} mods {key[2]:6s}  e.g. {mon} diff {diff}: game {a} d2d {b}")
-    return 0
+    # Field mismatches stay in the report: the classified residuals (S1, H1)
+    # are expected, so only a case d2d did not answer fails the run.
+    return 1 if missing else 0
 
 
 def main():
