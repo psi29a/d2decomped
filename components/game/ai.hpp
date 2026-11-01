@@ -213,6 +213,7 @@ struct Monster {
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
     std::uint32_t stun_until = 0;             // ms: stunned, it stands
+    std::uint32_t just_hit_until = 0;         // ms: state 0x56 justhit (FUN_005adb00), NextHit missiles pass it by
     // Aura Enchanted (uniques.hpp boss_aura): its aura, level, next pulse;
     // and the damage / to-hit % it gets from bosses' auras this frame.
     int aura = 0, aura_lvl = 0;
@@ -541,7 +542,8 @@ struct Missile {
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
-    std::vector<std::pair<int, std::uint32_t>> hit_at;   // NextHit: when it last struck each monster
+    int last_hit = -1;                        // the monster it last struck (missile data +0x1c, FUN_0064a400), -1 none
+    std::uint32_t last_hit_ms = ~0u;          // when
     const GameData::MissileInfo* sub = nullptr;          // a monster's spawner's SubMissile1 (the Countess's firewall maker)
     // Its flight in act subtiles, 16.16 (rules::MissileFlight), from its
     // first step: toward `to` (cells, FUN_0059fa30's target point) when

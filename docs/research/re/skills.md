@@ -925,8 +925,10 @@ lines (missile names aren't passed in). What it does:
   within Param2 (else aurarange). **28** (FUN_005afb80, Volcano): every
   Param1 (else calc4) frames, between frames Param3 and Param4,
   SubMissile1 thrown within Param2 (else aurarange).
-- NextHit rows strike a unit again NextDelay frames on (Twister, Tornado,
-  Shock Field, the war cries).
+- NextHit rows put state 0x56 on the unit they struck (FUN_005adb00); every
+  NextHit missile passes it by until frame + NextDelay has run, so it is
+  struck again at frame + NextDelay + 1 (Twister, Tornado, Shock Field, the
+  war cries).
 - Skill dos: **11** (FUN_005db850, Charged Strike): calc1 of its missile
   from the unit struck, away from the caster, wandering. **14**
   (FUN_005dbe50, Lightning Strike): from the unit struck at another within
