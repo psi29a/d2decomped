@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <string>
 #include <string_view>
 
 namespace fs = std::filesystem;
@@ -76,6 +77,19 @@ int main() try {
         }
         std::printf("townE1: v%d, %d NPCs with paths\n", map.version(), walkers);
         assert(walkers == 5);
+    }
+
+    // Each Act 1 town has exactly one group-0 start tile (wall orientation
+    // 10/11, main index 30, sub 0..4), so find_spawn_spots' first match is
+    // the one FUN_0066ac40's random pick of the group would take.
+    for (const char* name : { "townN1", "townE1", "townS1", "townW1" }) {
+        const d2d::ds1::Map map(mpq.read(std::string(R"(data\global\tiles\ACT1\TOWN\)") + name + ".ds1"));
+        int starts = 0;
+        for (const auto& layer : map.walls())
+            for (const auto& tile : layer.cells)
+                if ((tile.wall_type == 10 || tile.wall_type == 11) && tile.style == 30 && tile.sequence <= 4) ++starts;
+        std::printf("%s: %d start tiles\n", name, starts);
+        assert(starts == 1);
     }
 
     std::printf("OK\n");
