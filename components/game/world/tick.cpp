@@ -96,21 +96,24 @@ auto World::footstep_frame(std::uint32_t tick_ms) -> void {
         cues.cue_on(unit_key(kSoundOnPlayer, actor->id), footstep(kPlayerVoice[std::size_t(cls)].step, fight.floor_material_at(actor->player.x, actor->player.y), run), tick_ms, actor->player.x, actor->player.y);
     }
 
-// FUN_00623f50's walk %: velocitypercent (100; running, run x 100 / walk),
-// faster run/walk's effective % (150 x v / (150 + v)) and chill's -50, at
-// least 25. It scales both the walk's velocity and its animation.
-auto World::walk_percent(const GameData& data, int save_class, bool run, int frw, bool chilled) -> int {
+// FUN_00623f50's walk %: velocitypercent (100; running, run x 100 / walk;
+// chill's -50; the auras' and skills' as they are) plus faster run/walk's
+// effective % (FUN_00621740: 150 x v / (150 + v) for any v but 0, a
+// negative one too), at least 25. It scales both the walk's velocity and
+// its animation.
+auto World::walk_percent(const GameData& data, int save_class, bool run, int frw, bool chilled, int velocity_pct) -> int {
         if (data.walk_velocity.empty() || data.run_velocity.size() < data.walk_velocity.size()) return 100;
         const auto row = std::size_t(std::clamp(save_class, 0, int(data.walk_velocity.size()) - 1));
         const int walk = std::max(data.walk_velocity[row], 1);
         const int base = run ? data.run_velocity[row] * 100 / walk : 100;
         const int chill = chilled ? -50 : 0;   // Fight::chill_rate, for any player
-        return std::max(base + d2d::rules::effective_speed(frw, 150) + chill, 25);
+        const int effective = frw != 0 && frw != -150 ? 150 * frw / (150 + frw) : 0;
+        return std::max(base + effective + velocity_pct + chill, 25);
     }
 
 auto World::walk_percent(const Player& player, std::uint32_t now_ms) const -> int {
         const bool run = player.running && player.character.stats.values[d2d::d2s::kStamina] > 0;
-        return walk_percent(*game_data, player.character.character_class, run, player.player_combat.frw, now_ms < player.chilled);
+        return walk_percent(*game_data, player.character.character_class, run, player.player_combat.frw, now_ms < player.chilled, player.player_combat.velocity_pct);
     }
 
 // A frame's stamina (FUN_00580c20 / FUN_00580810 event 3): a run outside

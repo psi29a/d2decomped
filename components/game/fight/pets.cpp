@@ -214,6 +214,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 }
             }
             const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+            // ponytail: this untraced pet's chase keeps max(Run, Velocity) and no floor; FUN_00623f50 uses Velocity and a 25 floor, not claimed here.
             const float speed = cells_per_sec(float(std::max(type_info.run, type_info.velocity))) * float(100 + pet.speed_pct) / 100;
             if (speed <= 0) {                                // a Hydra: it stands and shoots what comes in range
                 if (pet.target >= 0 && std::hypot(monsters[std::size_t(pet.target)].unit.x - unit.x, monsters[std::size_t(pet.target)].unit.y - unit.y) > 6.f) pet.target = -1;
@@ -242,6 +243,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     set_off(*level, unit, target.unit.x, target.unit.y, true, crowd);
                 if (!walk_on(*level, unit, speed * elapsed, crowd)) pet.target = -1;
             } else {
+                // ponytail: game.exe's walk rule for an untraced pet (no target, following) isn't traced or claimed here;
+                // the owner's RunVelocity x 1.1 stays as it was, outside the MonStats Velocity claim.
                 pet_follow(*level, unit, actor->player.x, actor->player.y, cells_per_sec(float(game_data->run_velocity[save_class])) * 1.1f, now_ms, elapsed, crowd);
             }
             const std::string_view want = unit.walking ? "WL" : "NU";
@@ -267,7 +270,8 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
             if (pet.chase && (pet.target < 0 || in_melee(monsters[std::size_t(pet.target)]))) {
                 unit.walking = false; unit.path.clear();
             } else {
-                int velocity = monster.mode == "RN" ? type_info.run : type_info.velocity;
+                // MonStats Velocity in WL and RN (FUN_00621360, +0x32) x the walk % (FUN_00623f50).
+                int velocity = type_info.velocity;
                 // In a state that looks like a player class (States gfxtype 2:
                 // the Shadows' "shadowwarrior", class 6) it moves as that class
                 // (FUN_00645270 -> FUN_00621360: CharStats WalkVelocity /
@@ -277,8 +281,10 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
                         const auto cls = std::size_t(std::clamp(state->second.gfx_class, 0, 6));
                         velocity = monster.mode == "RN" ? game_data->run_velocity[cls] : game_data->walk_velocity[cls];
                     }
-                const float pace = float(std::max(100 + monster.move_pct, 10)) * float(100 + pet.speed_pct + pet_buff_stat(pet, d2d::d2s::kVelocityPercent)) / 10000;   // Burst of Speed's on a Shadow
-                if (walk_on(*level, unit, cells_per_sec(float(velocity)) * pace * elapsed, crowd)) return true;
+                // ponytail: a Shadow's base (class WalkVelocity / RunVelocity above) is untraced: FUN_00621360 gives
+                // a player class WalkVelocity in any mode, and whether a Shadow's run gets the stat list on 0x43 is not read.
+                const int sum = 100 + monster.move_pct + pet.speed_pct + pet_buff_stat(pet, d2d::d2s::kVelocityPercent);   // Burst of Speed's on a Shadow
+                if (walk_on(*level, unit, cells_per_sec(float(velocity)) * float(std::max(sum, 25)) / 100 * elapsed, crowd)) return true;
             }
             pet.chase = false;
             set_mode(*game_data, monster, "NU", now_ms);
