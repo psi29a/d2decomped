@@ -2390,13 +2390,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // FUN_005ce2b0: seed % 5 picks 0x6e3228's curse (Amplify Damage,
                     // Weaken, Life Tap, Decrepify, Lower Resist), cast at its level round the
                     // target as do 30, with the pick's own stats (rules::monster_curse_stats).
-                    const int pick = monster.seed(5);
-                    const int curse = d2d::rules::kMonsterCurses[std::size_t(pick)];
+                    const int curse_index = monster.seed(5);
+                    const int curse = d2d::rules::kMonsterCurses[std::size_t(curse_index)];
                     const auto* cursed = game_data.skills.get(curse);
                     const int radius = cursed ? d2d::rules::eval_calc(game_data.skills, cursed->aurarange, {}, curse, lvl) : 0;
                     for (auto& near_foe : foes)
                         if (near_foe.alive && !near_foe.of && !foe.of && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
-                            near_foe.cursed = { curse, lvl, pick };
+                            near_foe.cursed = { curse, lvl, curse_index };
                 } else if (cast->srvdofunc == ServerDoFunction::kCorpseExplosion) {
                     // do 55 (FUN_005c4df0, the Necromancer's too) at the corpse its
                     // think found (FUN_00553540: its path's unit; FUN_00645680 a
