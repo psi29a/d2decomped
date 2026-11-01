@@ -235,7 +235,8 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         if (needs_ammo(*skill_row) && ammo_index() < 0) {
             // FUN_005da8b0 (srvstfunc 4): refused, and a spent stack in either hand (right first;
             // stackable, FUN_006289f0) goes as one run out (FUN_00580310), so the next has ammo.
-            // ponytail: its FUN_00580380 (a stackable weapon at 0 durability breaks) isn't run.
+            // Then FUN_00580380: a worn weapon (ItemTypes weap) with durability (FUN_00629930) worn
+            // to 0 and not broken yet breaks (FUN_0055f850).
             for (const int slot : { body_location::kRightArm, body_location::kLeftArm }) {
                 const auto& items = actor->character.items;
                 const auto spent = std::ranges::find_if(items, [&](const Item& item) {
@@ -243,6 +244,16 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
                     return item.location == item_location::kEquipped && item.slot == slot && item.quantity < 1 && base != game_data->rules.item_base.end() && base->second.stackable;
                 });
                 if (spent != items.end() && !d2d::rules::broken(*spent)) out_of_ammo(std::size_t(spent - items.begin()));
+            }
+            for (auto& item : actor->character.items) {
+                const auto base = game_data->rules.item_base.find(item.code);
+                const auto info = game_data->rules.item_info.find(item.code);
+                if (item.location != item_location::kEquipped || base == game_data->rules.item_base.end() || info == game_data->rules.item_info.end()
+                    || !d2d::rules::type_is(game_data->rules, info->second.type, "weap") || base->second.no_durability || base->second.durability <= 0
+                    || d2d::rules::max_durability(item) == 0 || d2d::rules::indestructible(item) || item.durability > 0 || d2d::rules::broken(item))
+                    continue;
+                item.flags |= 0x100u;
+                cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
             }
             actor->attack_mon = -1;
             return false;
