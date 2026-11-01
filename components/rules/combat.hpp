@@ -423,10 +423,13 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 // and max and less the monster's resistance; the element's resistance
 // less the attacker's pierce (333 fire, 334 lightning, 335 cold, 336
 // poison) unless the monster is immune (100 or more), to -100 at the
-// least. Cold chills for the
-// length less the same resist, poison runs its per-tick damage over it, stun stands it.
+// least. Cold chills for the length less the same resist whatever the
+// damage came to (FUN_0057c6c0 hands record +0x30 to FUN_0057af80 with no
+// test on the cold), poison runs its per-tick damage over it, stun stands it.
 // ponytail: pierce against immunity is the published rule; its code in
-// game.exe isn't traced.
+// game.exe isn't traced. Stats 0x99 / 0x76 (FUN_0057c140) aren't read: no
+// MonProp, MonUMod or state row gives them to a monster. player_blow's
+// cold still chills only on a whole point.
 inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
                          Blow blow = { .hit = true }) {
     if (damage.phys_hi > 0) {
@@ -454,7 +457,7 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     blow.damage += resisted_damage;
     blow.elemental = blow.elemental || (fine > 0 && damage.etype != 4);   // the record's element is in 256ths (over 0)
     blow.frac += fine & 255;
-    if (damage.etype == 2 && resisted_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(damage.elen, res));
+    if (damage.etype == 2) blow.chill_ticks = std::max(blow.chill_ticks, resisted(damage.elen, res));
     return blow;
 }
 
