@@ -3049,9 +3049,12 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
     monster.aware = true;
     if (!monster.alive()) set_mode(game_data, monster, "DT", now_ms);
     // Its get-hit (FUN_0057cb00 from FUN_0057cee0's monster branch): the share of
-    // max life by the blow's hit class, rolled on its own seed (unit +0x20).
-    // ponytail: a stunned monster's sure get-hit and MonStats2's GH mode bit aren't tested here.
-    else if (d2d::rules::get_hit(std::int64_t(monster.stats.hit_points) << 8, blow_fine, hit_class, marked, monster.seed)) set_mode(game_data, monster, "GH", now_ms);
+    // max life by the blow's hit class, rolled on its own seed (unit +0x20), with
+    // MonStats2's mGH; a stunned one (state 0x15) takes it without the roll (0057d0b9).
+    else if (now_ms < monster.stun_until
+             || (game_data.monsters.types[std::size_t(monster.type)].can_get_hit
+                 && d2d::rules::get_hit(std::int64_t(monster.stats.hit_points) << 8, blow_fine, hit_class, marked, monster.seed)))
+        set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
 }
 

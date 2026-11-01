@@ -892,9 +892,8 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
 
 // Damage to a monster: it dies (DT, then its corpse, DD), or recoils (GH)
-// when the hit takes an eighth of its life or more; either way it notices.
+// by rules::get_hit (FUN_0057cb00); either way it notices.
 // True when this killed it.
-// ponytail: the eighth is the commonly given threshold, not traced.
 // `hit_class` and `marked` (an element or a doubled hit) are the blow's, for
 // its get-hit (rules::get_hit); a source without them (thorns, a blast) is class 0.
 bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction = 0, int hit_class = 0, bool marked = false);

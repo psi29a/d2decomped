@@ -57,6 +57,7 @@ struct MonType {
     std::array<std::vector<Prop>, 3> props;
     bool can_block = false;                     // MonStats2 mBL
     bool can_walk = false, can_swing = false;   // MonStats2 mWL / mA1 (+0xf0 bits 2 / 4): fPick 3 / 1 (FUN_005a03e0)
+    bool can_get_hit = false;                   // MonStats2 mGH (bit 3): its get-hit roll (FUN_0057cb00)
     bool corpse_sel = false;                    // MonStats2 corpseSel (flag 7): Nihlathak's Corpse Explosion can target it (FUN_00645680)
     bool critter = false;                       // MonStats2 critter (flags bit 13): struck, no impact sound (FUN_004ca560)
     bool small = false, large = false;          // MonStats2 small / large (flags bits 10 / 11): MonProp knock's chance (FUN_005bf960)
