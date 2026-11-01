@@ -428,12 +428,14 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         }
         // Chilled (state 11, FUN_0057af80): not at coldeffect 0, the length
         // over MonsterColdDivisor when it's negative, at least a tick, only
-        // ever lengthened.
-        // ponytail: the 20 % roll for state 107 isn't kept.
+        // ever lengthened. Then rand % 100 < 20 on the monster's seed puts state
+        // 107 (shatter) on, else off; never on a deadCol monster (MonStats2 flag 19).
+        // ponytail: the shattered death (state 107's client look) isn't drawn.
         if (const int cold_effect = target.type >= 0 ? game_data->monsters.types[std::size_t(target.type)].diff[std::size_t(target.difficulty)].cold_effect : 0; blow.chill_ticks > 0 && cold_effect != 0) {
             const int divisor = game_data->cold_divisor[std::size_t(target.difficulty)];
             const int ticks = std::max(cold_effect < 0 && divisor != 0 ? blow.chill_ticks / divisor : blow.chill_ticks, 1);
             target.chill_until = std::max(target.chill_until, now_ms + std::uint32_t(ticks) * 40);
+            target.shatter = target.seed.next() % 100 < 20 && !target.npc.dead_col;
         }
         // Stunned (state 21, FUN_0057aae0): it stands until the stun ends, a
         // new stun resetting the length. A special monster (champion, unique,

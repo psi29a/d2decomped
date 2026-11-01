@@ -154,6 +154,7 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     npc.overlay_class = std::atoi(std::string(ms2.get(row2, "OverlayHeight")).c_str()) - 1;
     npc.trans_lvl = std::atoi(std::string(monstats.get(row, "TransLvl")).c_str());
     npc.no_unique_shift = ms2.get(row2, "noUniqueShift") == "1";
+    npc.dead_col = ms2.get(row2, "deadCol") == "1";
     npc.utrans = { std::atoi(std::string(ms2.get(row2, "Utrans")).c_str()), std::atoi(std::string(ms2.get(row2, "Utrans(N)")).c_str()),
                  std::atoi(std::string(ms2.get(row2, "Utrans(H)")).c_str()) };
     if (const auto velocity = monstats.get(row, "Velocity"); !velocity.empty()) npc.velocity = float(std::atoi(std::string(velocity).c_str()));

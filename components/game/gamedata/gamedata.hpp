@@ -144,6 +144,7 @@ struct Npc {
     int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
     int trans_lvl = 0;                   // MonStats TransLvl: its palshift.dat colour (Fallen 0, Carver 1 ...)
     bool no_unique_shift = false;        // MonStats2 noUniqueShift: a unique keeps its type's colour
+    bool dead_col = false;               // MonStats2 deadCol (flag 19): its corpse keeps collision, never shatters
     std::array<int, 3> utrans{};         // MonStats2 Utrans by difficulty (0: none)
     int colour = 0;                      // the colour it's drawn in (FUN_00466360; the client's Scene::monster_map), 0/1 none
     int overlay_class = 0;               // which Overlay.txt Height it takes: MonStats2 OverlayHeight - 1 (FUN_006223a0)

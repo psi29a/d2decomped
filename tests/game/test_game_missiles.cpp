@@ -204,6 +204,31 @@ int main() try {
         std::printf("OK: a teleporting unique casts MonTeleport at its room's spot and lands there\n");
     }
 
+    // A chill (FUN_0057af80) rolls state 107 (shatter) on the monster's own seed: under 20 of
+    // % 100 on, else off; one draw a chill.
+    {
+        const auto zombie_row = data->monsters.by_id.find("zombie1");
+        assert(zombie_row != data->monsters.by_id.end() && !data->mon_npc[zombie_row->second].dead_col);
+        int shattered = 0;
+        for (std::uint32_t seed = 1; seed <= 50; ++seed) {
+            d2d::rules::Rng make_rng{ seed };
+            Monster chilled = make_monster(*data, int(zombie_row->second), world.actor->player.x + 4, world.actor->player.y, make_rng, 0);
+            chilled.id = 0x7ffff2;
+            chilled.hit_points = 1000; chilled.stats.hit_points = 1000;
+            chilled.seed = d2d::rules::Rng{ seed };
+            world.fight.monsters.push_back(chilled);
+            d2d::rules::Rng expected{ seed };
+            const bool want = expected.next() % 100 < 20;
+            world.fight.land(world.fight.monsters.size() - 1, d2d::rules::Blow{ .hit = true, .damage = 1, .chill_ticks = 10 }, true, 5000 * kTickMs, -1);
+            const auto& after = world.fight.monsters.back();
+            assert(after.shatter == want && after.seed.low == expected.low);
+            shattered += want;
+            world.fight.monsters.pop_back();
+        }
+        assert(shattered > 0 && shattered < 50);
+        std::printf("OK: a chill rolls shatter on the monster's seed\n");
+    }
+
     // Nova's 64 go out along rules::kNovaRing (0x6e1288 / 0x6e1388, FUN_0056d400), not even angles.
     {
         world.fight.pending.clear();
