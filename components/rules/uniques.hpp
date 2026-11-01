@@ -58,14 +58,16 @@ inline constexpr int rndname = 1, hpmultiply = 2, light = 3, leveladd = 4, stron
 namespace unique_detail {
 
 // FUN_005a03e0: can monster `t` take mod `u`? Enabled; not an excluded
-// MonType; fPick 2 (multishot) not for melee monsters.
-// ponytail: fPick 1 / 3 (teleport, fast) test FUN_0046c140, not mapped —
-// allowed here; MonType exclusions match the type itself, not its parents.
+// MonType; fPick 2 (multishot) not for melee monsters; fPick 1 (teleport)
+// needs MonStats2 mA1 and fPick 3 (fast) mWL (FUN_0046c140 bits 4 / 2).
+// An exclusion matches the type or a parent (FUN_005a0070, MonType equiv);
+// the type alone is exact: the only one shipped, sandleaper, is no parent.
 inline bool can_take(const UMod& mod, const MonType& type) {
     if (!mod.enabled) return false;
     if (!mod.exclude1.empty() && mod.exclude1 == type.montype) return false;
     if (!mod.exclude2.empty() && mod.exclude2 == type.montype) return false;
     if (mod.fpick == 2 && type.melee) return false;
+    if ((mod.fpick == 1 && !type.can_swing) || (mod.fpick == 3 && !type.can_walk)) return false;
     return true;
 }
 
