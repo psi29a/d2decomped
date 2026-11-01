@@ -283,16 +283,30 @@ inline int required_level(const GameData& game_data, const d2d::d2s::Item& item)
 // picked up): misc / armor / weapons.txt's, then a unique's or set item's
 // own row instead. A row counts only when its dropsound is set, for the
 // usesound too.
-// ponytail: the flippy's sound (loot.hpp, FUN_004c16d0) doesn't take the
-// unique / set rows yet.
 inline std::string item_sound(const GameData& game_data, const d2d::d2s::Item& item, bool use) {
     std::string sound;
     if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end() && !info->second.drop_sound.empty())
         sound = use ? info->second.use_sound : info->second.drop_sound;
     const auto* rows = item.quality == 7 ? &game_data.unique_sounds : item.quality == 5 ? &game_data.set_sounds : nullptr;
     const int row = item.quality == 7 ? item.unique_id : item.set_id;
-    if (rows && row >= 0 && std::size_t(row) < rows->size() && !(*rows)[std::size_t(row)][0].empty()) sound = (*rows)[std::size_t(row)][use ? 1 : 0];
+    if (rows && row >= 0 && std::size_t(row) < rows->size() && !(*rows)[std::size_t(row)].drop.empty())
+        sound = use ? (*rows)[std::size_t(row)].use : (*rows)[std::size_t(row)].drop;
     return sound;
+}
+// The flippy's drop sound and the frame it plays at (FUN_004c16d0): the
+// same rows, each row's dropsfxframe where it's set (12 by default).
+inline std::pair<std::string, int> flippy_sound(const GameData& game_data, const d2d::d2s::Item& item) {
+    std::pair<std::string, int> out{ {}, 12 };
+    auto take = [&out](const std::string& sound, int frame) {
+        if (sound.empty()) return;
+        out.first = sound;
+        if (frame != 0) out.second = frame;
+    };
+    if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end()) take(info->second.drop_sound, info->second.drop_frame);
+    const auto* rows = item.quality == 7 ? &game_data.unique_sounds : item.quality == 5 ? &game_data.set_sounds : nullptr;
+    const int row = item.quality == 7 ? item.unique_id : item.set_id;
+    if (rows && row >= 0 && std::size_t(row) < rows->size()) take((*rows)[std::size_t(row)].drop, (*rows)[std::size_t(row)].drop_frame);
+    return out;
 }
 
 // An item's hover text as the client's FUN_0048dd90 (UI\inv.cpp) builds

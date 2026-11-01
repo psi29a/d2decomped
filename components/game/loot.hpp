@@ -188,8 +188,8 @@ struct Loot {
             info == game_data->rules.item_info.end() || info->second.flippy.empty()) return;   // nothing to show on the ground
         if (onto && onto != ground_level) { ground_item.id = next_id++; kept[onto].push_back(std::move(ground_item)); return; }
         cues.cue("item_flippy", now_ms, ground_item.x, ground_item.y);
-        if (const auto info = game_data->rules.item_info.find(ground_item.item.code); info != game_data->rules.item_info.end())
-            cues.cue(info->second.drop_sound, now_ms + std::uint32_t(info->second.drop_frame) * 40, ground_item.x, ground_item.y);
+        const auto [sound, frame] = flippy_sound(*game_data, ground_item.item);
+        cues.cue(sound, now_ms + std::uint32_t(frame) * 40, ground_item.x, ground_item.y);
         ground_item.id = next_id++;
         ground.push_back(std::move(ground_item));
     }

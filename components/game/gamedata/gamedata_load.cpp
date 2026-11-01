@@ -1246,7 +1246,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
                 const d2d::txt::Table table(*bytes, false);
                 for (std::size_t row = 0; row < table.size(); ++row)
-                    target->push_back({ std::string(table.get(row, "dropsound")), std::string(table.get(row, "usesound")) });
+                    target->push_back({ std::string(table.get(row, "dropsound")), std::string(table.get(row, "usesound")), std::atoi(std::string(table.get(row, "dropsfxframe")).c_str()) });
             }
         // Item generation (components/rules generate_item / gamble_item).
         auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };

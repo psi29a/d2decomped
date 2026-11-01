@@ -144,6 +144,23 @@ int main() try {
         assert(!nearest_spot(10, 10, clear_at({ { 10, 60 } })));                                         // ring 50: never
         std::printf("OK: nearest_spot's rings (FUN_0064dea0)\n");
     }
+    {
+        using Cue = std::pair<std::string, int>;
+        GameData sounds;
+        sounds.rules.item_info["rin"].drop_sound = "item_ring";
+        sounds.rules.item_info["amu"] = { .drop_sound = "item_amulet", .drop_frame = 5 };
+        sounds.unique_sounds = { {}, { "item_ring_unique", "", 0 }, { "item_amulet_unique", "", 9 } };
+        d2d::d2s::Item ring{ .code = "rin" };
+        assert(flippy_sound(sounds, ring) == Cue("item_ring", 12));          // no dropsfxframe: 12
+        ring.quality = 7;
+        ring.unique_id = 1;
+        assert(flippy_sound(sounds, ring) == Cue("item_ring_unique", 12));   // the unique's sound, the base's frame
+        d2d::d2s::Item amulet{ .code = "amu", .quality = 7, .unique_id = 2 };
+        assert(flippy_sound(sounds, amulet) == Cue("item_amulet_unique", 9));
+        amulet.unique_id = 0;
+        assert(flippy_sound(sounds, amulet) == Cue("item_amulet", 5));     // an empty row: the base's
+        std::printf("OK: the flippy's drop sound (FUN_004c16d0)\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
