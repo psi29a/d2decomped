@@ -1025,7 +1025,8 @@ lines (missile names aren't passed in). What it does:
   - **2** Frozen Armor (FUN_005cac50, damagedinmelee): a player or monster
     whose hit did damage (+8 over 0) gets a hit with flag 0x20 and calc1
     (+0x138) frames' freeze (+0x34; FUN_0057c6c0), the skill's overlay
-    (+0x110).
+    (+0x110): resisted by cold res less pierce, then FUN_0057b230 (a special
+    is chilled; others frozen at coldeffect < 0, / MonsterFreezeDivisor).
   - **3** Shiver Armor (FUN_005cad40, attackedinmelee): the skill's
     element (FUN_0056e0c0) as a hit (result 0x4021, flags 0xd;
     FUN_0057c6c0, FUN_0057cee0), the overlay.

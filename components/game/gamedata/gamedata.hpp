@@ -504,6 +504,7 @@ struct GameData {
     std::array<int, 3> curse_divisor{};          // DifficultyLevels AiCurseDivisor (+0x1c): Confuse / Attract / Dim Vision / Terror's length / it (FUN_005c37a0)
     std::array<int, 3> static_field_min{};       // DifficultyLevels StaticFieldMin (+0x40): no Static Field at or under this % of max life (FUN_005c9800, expansion)
     std::array<int, 3> cold_divisor{};           // DifficultyLevels MonsterColdDivisor (+0x18): a monster's chill length / it
+    std::array<int, 3> freeze_divisor{};         // DifficultyLevels MonsterFreezeDivisor (+0x14): a monster's freeze length / it
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
