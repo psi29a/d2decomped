@@ -3,10 +3,12 @@
 
     uv run python freeze_rules.py gen N SEED > cases.tsv
     uv run python freeze_rules.py game cases.tsv > game.tsv
-    ../../build/tests/test_freeze_rules --freeze-rules cases.tsv > d2d.tsv
-    uv run python freeze_rules.py compare cases.tsv game.tsv d2d.tsv
     uv run python freeze_rules.py flags > flags.tsv      # game side only: every flag byte
     uv run python freeze_rules.py state                  # FUN_00639db0(unit, 0x76, 1) natively
+
+This change adds no d2d-side test binary for these cases, so `compare` has no
+d2d.tsv to read here: armor_hit.py subclasses this Game runner and has its own
+d2d side (test_armor_hit --armor-hit).
 
 Runs the real FUN_0057c6c0 (apply a damage record to a monster) on a record
 with cold damage (+0x24, 256ths), no chill length (+0x30 = 0: Glacial Spike
