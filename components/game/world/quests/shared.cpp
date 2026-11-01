@@ -220,8 +220,8 @@ auto World::blood_raven_died(std::uint32_t now_ms) -> void {
 // first recipe the Cube's items answer; what it makes; every item in the
 // Cube gone (FUN_00564f30); the new ones into the Cube (FUN_00560200:
 // rules::free_spot, a player's best fit), else at the feet. The Horadric
-// Staff made: its quest's bit 11 (FUN_0059e5c0).
-// ponytail: the transmute's sound.
+// Staff made: its quest's bit 11 (FUN_0059e5c0). A recipe found plays
+// cursor_convert_ready, the items made cursor_convert_item (cube.md).
 auto World::transmute(std::uint32_t now_ms) -> void {
         using d2d::d2s::Item;
         std::vector<const Item*> cube;
