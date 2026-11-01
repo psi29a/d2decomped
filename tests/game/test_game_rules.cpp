@@ -4,6 +4,7 @@
 // missile's frame, the view codec, MonProp's stats on a monster, and the like.
 
 #include <ai.hpp>
+#include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <item_text.hpp>
 #include <monsters.hpp>

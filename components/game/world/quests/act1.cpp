@@ -8,9 +8,11 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <monster_ids.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <iterator>

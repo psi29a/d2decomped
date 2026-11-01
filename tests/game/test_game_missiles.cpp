@@ -7,6 +7,8 @@
 
 #include <ai.hpp>
 #include <character.hpp>
+#include <character_store.hpp>
+#include <combat.hpp>
 #include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
@@ -15,6 +17,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 
