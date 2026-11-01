@@ -870,9 +870,9 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // Find Potion (do 69, FUN_005d81c0) / Find Item (72, FUN_005d8780):
             // a corpse not yet searched (state 0x76), at calc1 %: a potion
             // (FUN_005d8100), or the monster's treasure again (FUN_005a8000,
-            // a tier by Param1..4); the potion by the act and difficulty
+            // a tier by Param1..4, which FUN_005a8000 never reads: the monster's
+            // own class, bugs.md #44); the potion by the act and difficulty
             // (rules::find_potion).
-            // ponytail: Find Item rolls the monster's own class.
             case ServerDoFunction::kFindPotion: case ServerDoFunction::kFindItem: {
                 const int corpse_index = corpse_near(actor->cast_x, actor->cast_y);
                 if (corpse_index < 0) break;
