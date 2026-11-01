@@ -258,7 +258,7 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     }
     // A champion's kind: 16 champion, or 36 ghostly .. 39 berserker (one
     // cpick each). All but the berserker run FUN_005a0e80 (level, exp,
-    // damage and to-hit bonus, speed: ghostly -33, fanatic as `fast`,
+    // damage and to-hit bonus, speed: none for ghostly, fanatic as `fast`,
     // else +20, none without a MonStats Velocity).
     const auto has = [&](int id) { return std::ranges::find(mods, id) != mods.end(); };
     const bool berserk = has(umod::berserk);
@@ -268,8 +268,9 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
         stats.exp_mult = 3;
         stats.tohit_pct += umods.constants[10] * kBossBonus[std::size_t(difficulty_index)] / 100;
         stats.dmg_pct += umods.constants[11] * kBossBonus[std::size_t(difficulty_index)] / 100;
-        if (type.velocity > 0)
-            stats.velocity_pct += has(umod::ghostly) ? -33 : has(umod::fanatic) ? std::clamp(2048 / type.velocity - 128, 10, 100) : 20;
+        // Ghostly returns before the speed (0x5a0ff8): its -33 store at 0x5a1062 is never reached.
+        if (type.velocity > 0 && !has(umod::ghostly))
+            stats.velocity_pct += has(umod::fanatic) ? std::clamp(2048 / type.velocity - 128, 10, 100) : 20;
     }
     if (has(umod::ghostly)) {                                            // FUN_005a1080: DR 80, cold from the champion rows, length 150
         stats.phys_resist = 80;

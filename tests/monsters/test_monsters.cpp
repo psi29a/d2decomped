@@ -233,7 +233,7 @@ int main() {
         assert(fast_stats.velocity_pct == 100);
         // The champion kinds (FUN_005a1080 .. FUN_005a1280), nightmare.
         const auto ghostly = boss_stats(umods, type, Boss::champion, { 36 }, 1);
-        assert(ghostly.velocity_pct == -33 && ghostly.phys_resist == 80 && ghostly.elem == 2 && ghostly.elem_len == 150 && ghostly.level_add == 2);
+        assert(ghostly.velocity_pct == 0 && ghostly.phys_resist == 80 && ghostly.elem == 2 && ghostly.elem_len == 150 && ghostly.level_add == 2);
         const auto fanatic = boss_stats(umods, type, Boss::champion, { 37 }, 1);
         assert(fanatic.velocity_pct == 100 && fanatic.defense_pct == -70);
         assert(boss_stats(umods, type, Boss::champion, { 38 }, 1).life_after_pct == 100);
