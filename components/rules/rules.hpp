@@ -979,15 +979,14 @@ inline bool learn_skill(const Tables& tables, int cls, int skill_index, std::arr
     return true;
 }
 
-// Healers restore life and mana when you talk to them: Akara, Fara,
-// Akara, Fara, Ormus, Jamella, Malah (MonStats hcIdx).
-// ponytail: the list is D2's known healers, not located in game.exe;
-// the cures are Fight::cure (FUN_00578d30). The save's max
+// Healers restore life and mana when you talk to them (FUN_00578e70's
+// hcIdx list): Akara, Atma, Fara, Ormus, Jamella, Malah.
+// The cures are Fight::cure (FUN_00578d30). The save's max
 // life/mana are base values without gear (current can be higher), so
 // healing only raises to them; the true max needs item stat totals.
 inline bool is_healer(int hc_idx) {
     using namespace monster_ids;
-    return hc_idx == kAkara || hc_idx == kFara || hc_idx == kOrmus || hc_idx == kJamella || hc_idx == kMalah;
+    return hc_idx == kAkara || hc_idx == kAtma || hc_idx == kFara || hc_idx == kOrmus || hc_idx == kJamella || hc_idx == kMalah;
 }
 inline void heal(d2d::d2s::Stats& stats) {
     using namespace d2d::d2s;

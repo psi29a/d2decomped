@@ -373,7 +373,7 @@ int main() {
     hurt.values[d2d::d2s::kMana] = 90 << 8; hurt.values[d2d::d2s::kMaxMana] = 60 << 8;
     heal(hurt);
     assert(hurt.fixed(d2d::d2s::kLife) == 50 && hurt.fixed(d2d::d2s::kMana) == 90);
-    assert(is_healer(148) && !is_healer(154));                             // Akara yes, Charsi no
+    assert(is_healer(148) && is_healer(176) && !is_healer(154));          // Akara and Atma yes, Charsi no
 
     // Skills: character level, prerequisites, max level, points.
     Tables skill_tables;
