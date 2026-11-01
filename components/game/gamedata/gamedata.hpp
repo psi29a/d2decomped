@@ -832,10 +832,11 @@ inline int direction16(float dx, float dy) {
 // A composite's direction for a 16-direction facing: 0..7 are the eight
 // compass points, 8..15 the ones between; an 8-direction composite (town
 // NPCs, mercs) takes the neighbouring point for those — clamping them
-// made NPCs walk backwards. ponytail: the neighbour counter-clockwise;
-// game.exe maps its 64 unit directions per direction count, not RE'd.
+// made NPCs walk backwards. The neighbour clockwise, as game.exe's 64-step
+// table rounds a unit's direction too (FUN_005ff760 -> FUN_00600c90, the
+// same as missile_direction: test_game_rules).
 inline std::uint8_t cof_direction(int dir16, int dirs) {
-    constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 4, 0, 5, 1, 6, 2, 7, 3 };
+    constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 0, 5, 1, 6, 2, 7, 3, 4 };
     const int dir = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
     return std::uint8_t(std::clamp(dir, 0, std::max(dirs - 1, 0)));
 }

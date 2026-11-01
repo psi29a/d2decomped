@@ -67,6 +67,8 @@ int main() try {
             const int facing = missile_facing(0.1f, 0.1f, float(dx) / 5, float(dy) / 5);   // from subtile (0, 0)'s centre
             assert(missile_direction(facing, 8) == d8 && missile_direction(facing, 16) == d16 && missile_direction(facing, 32) == d32);
         }
+        for (int dir64 = 0; dir64 < 64; dir64 += 4)   // a unit's 8-direction composite takes the same table (FUN_005ff760)
+            assert(cof_direction(missile_direction(dir64, 16), 8) == missile_direction(dir64, 8));
         std::printf("OK: a missile's frame direction, as game.exe's table and its Fire Bolts\n");
     }
     {
