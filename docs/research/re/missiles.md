@@ -179,7 +179,6 @@ fireball.dcc and firebolt.dcc have 16 directions.
 - tests/monsters/test_monsters.cpp `missile_flights`: 18 of game.exe's flights
   replayed (frame, end, position, a hash of every frame).
 - Not yet: stat 87's velocity %, Size 2/3 missiles, flag 0x400's distance
-  (FUN_006417f0), Charged Strike's and
-  boss bolts' wiggle (their callback index), standing missiles
+  (FUN_006417f0), standing missiles
   (srvdofunc 1 never strikes at velocity 0; d2d's keep a 0.4-cell test),
   rooms not yet up (game.exe skips them).
