@@ -471,7 +471,9 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             if ((missile_info.srv_do == 10 || missile_info.srv_do == 25) && sub != game_data->missiles.end()) {
                 const int every = std::max(calc(*skill, skill->calc[1], missile.level), 1), radius = std::max(calc(*skill, skill->calc[0], missile.level), 1);
                 if (age % every == 0) {
-                    const float offset_x = float(int(rng(2 * radius - 1)) - (radius - 1)) / 5, offset_y = float(int(rng(2 * radius - 1)) - (radius - 1)) / 5;
+                    // FUN_005a9820: rand(2r) - r with r = radius - 1 on each axis, x first: -r..r-1 subtiles.
+                    const int reach = radius - 1;
+                    const float offset_x = float(int(rng(2 * reach)) - reach) / 5, offset_y = float(int(rng(2 * reach)) - reach) / 5;
                     launch(sub->second, *skill, missile.level, missile.x + offset_x, missile.y + offset_y, 0, 0, sub->second.range, now_ms);
                 }
             }
