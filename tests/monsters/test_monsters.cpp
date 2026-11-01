@@ -227,6 +227,8 @@ int main() {
         assert(unique_stats.res_add[2] == 75 && unique_stats.res_add[0] == 50 && unique_stats.double_defense);
         const auto champion_stats = boss_stats(umods, type, Boss::champion, { 16 }, 1);
         assert(champion_stats.level_add == 2 && champion_stats.exp_mult == 3 && champion_stats.hp_pct == 150 && champion_stats.dmg_pct == 75 && champion_stats.tohit_pct == 56 && champion_stats.velocity_pct == 20);   // nightmare keeps 75 % (kBossBonus)
+        const auto minion_stats = boss_stats(umods, type, Boss::minion, {}, 0);     // a unique's minion: leveladd and its minion life row
+        assert(minion_stats.level_add == 3 && minion_stats.exp_mult == 5 && minion_stats.hp_pct == 100);
         const auto fast_stats = boss_stats(umods, type, Boss::unique, { 6 }, 0);       // fast: 2048 / 6 - 128 -> 100 max
         assert(fast_stats.velocity_pct == 100);
         // The champion kinds (FUN_005a1080 .. FUN_005a1280), nightmare.

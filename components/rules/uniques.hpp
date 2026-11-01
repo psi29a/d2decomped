@@ -222,8 +222,8 @@ inline std::uint16_t champion_word(const std::vector<int>& mods) {
 // and minions get theirs through `champion`). `boss` is the unique's /
 // champion's own kind; a minion takes the minion rows.
 struct BossStats {
-    int level_add = 0;                          // leveladd +3; champion -1 on top (net +2)
-    int exp_mult = 1;                           // unique x5, champion x3
+    int level_add = 0;                          // leveladd +3 (a minion too); champion -1 on top (net +2)
+    int exp_mult = 1;                           // unique and minion x5, champion x3
     int hp_pct = 0;                             // + life %
     int dmg_pct = 0, tohit_pct = 0;             // + damage %, + attack rating %
     int velocity_pct = 0;                       // + speed % (fast; champion +20)
@@ -251,7 +251,9 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
         stats.level_add += 3;
         stats.exp_mult = 5;
         stats.hp_pct = umods.constants[std::size_t(7 + difficulty_index)];
-    } else if (kind == Boss::minion) {
+    } else if (kind == Boss::minion) {                                   // the same inits on its minions, flag 0 (FUN_0058f380 -> FUN_005a2100)
+        stats.level_add += 3;                                            // FUN_005a0e40 tests no flag
+        stats.exp_mult = 5;
         stats.hp_pct = umods.constants[std::size_t(1 + difficulty_index)];
     }
     // A champion's kind: 16 champion, or 36 ghostly .. 39 berserker (one
