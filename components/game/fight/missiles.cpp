@@ -815,9 +815,13 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
                                                    .ehi = d2d::rules::elem_damage(game_data->skills, *skill, env, lvl, true, 0, true),
                                                    .elen = d2d::rules::elem_length(game_data->skills, *skill, env, lvl) };
         const std::array<int, 4> pierce{ int(actor->psum[d2d::d2s::kPassiveFirePierce]), int(actor->psum[d2d::d2s::kPassiveLightningPierce]), int(actor->psum[d2d::d2s::kPassiveColdPierce]), int(actor->psum[d2d::d2s::kPassivePoisonPierce]) };
+        // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
+        // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (monsters[i].alive() && in_aura(monsters[i]))
+            if (monsters[i].alive() && in_aura(monsters[i])) {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, player_foe_id());
+                if (skill->srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
+            }
     }
 
 auto Fight::in_aura(const Monster& monster) -> bool {

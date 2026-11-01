@@ -226,7 +226,28 @@ int main() try {
             world.fight.monsters.pop_back();
         }
         assert(shattered > 0 && shattered < 50);
-        std::printf("OK: a chill rolls shatter on the monster's seed\n");
+        // Holy Freeze's pulse (FUN_005d0920 -> FUN_005d07c0): after its hit, its own roll is the last word.
+        world.actor->aura = data->skills.by_name.at("Holy Freeze");
+        world.actor->aura_next = 0;
+        const auto kept_levels = world.fight.skill_level;
+        world.fight.skill_level = [](int) { return 5; };                   // a barbarian has none
+        d2d::rules::Rng make_rng{ 3 };
+        Monster frozen = make_monster(*data, int(zombie_row->second), world.actor->player.x + 1, world.actor->player.y, make_rng, 0);
+        frozen.id = 0x7ffff3;
+        frozen.hit_points = 100000; frozen.stats.hit_points = 100000;
+        frozen.seed = d2d::rules::Rng{ 77 };
+        world.fight.monsters.push_back(frozen);
+        const auto before = world.fight.monsters.back().seed;
+        world.fight.aura_pulse(5000 * kTickMs);
+        const auto& pulsed = world.fight.monsters.back();
+        auto replay = before;
+        std::uint32_t last = 0;
+        for (int draw = 0; draw < 8 && replay.low != pulsed.seed.low; ++draw) last = replay.next();
+        assert(replay.low == pulsed.seed.low && replay.low != before.low && pulsed.shatter == (last % 100 < 20));
+        world.fight.monsters.pop_back();
+        world.actor->aura = 0;
+        world.fight.skill_level = kept_levels;
+        std::printf("OK: a chill rolls shatter on the monster's seed, Holy Freeze again after its hit\n");
     }
 
     // Nova's 64 go out along rules::kNovaRing (0x6e1288 / 0x6e1388, FUN_0056d400), not even angles.
