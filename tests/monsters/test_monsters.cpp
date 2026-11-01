@@ -238,7 +238,7 @@ int main() {
         assert(fanatic.velocity_pct == 100 && fanatic.defense_pct == -70);
         assert(boss_stats(umods, type, Boss::champion, { 38 }, 1).life_after_pct == 100);
         const auto berserk = boss_stats(umods, type, Boss::champion, { 39 }, 1);
-        assert(berserk.life_after_pct == -75 && berserk.level_add == 0 && berserk.exp_mult == 1 && berserk.velocity_pct == 0
+        assert(berserk.life_after_pct == -75 && berserk.level_add == 3 && berserk.exp_mult == 5 && berserk.velocity_pct == 0
                && berserk.dmg_pct == 225 && berserk.tohit_pct == 225 && berserk.hp_pct == 150);
         // A champion's name word (FUN_004ac870): its champion mod's; the
         // fixed rndname alone falls through to the table's last.

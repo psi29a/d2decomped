@@ -263,6 +263,10 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     const auto has = [&](int id) { return std::ranges::find(mods, id) != mods.end(); };
     const bool berserk = has(umod::berserk);
     if (champion) stats.hp_pct = umods.constants[std::size_t(4 + difficulty_index)];   // FUN_005a0dc0, the champion rows
+    if (champion && berserk && !unique) {                                // FUN_005a1280 runs no FUN_005a0e80: the fixed leveladd alone
+        stats.level_add += 3;
+        stats.exp_mult = 5;
+    }
     if (champion && !berserk) {                                          // FUN_005a0e80
         stats.level_add += unique ? -1 : 2;
         stats.exp_mult = 3;
