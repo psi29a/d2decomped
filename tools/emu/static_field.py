@@ -29,7 +29,11 @@ Skills.txt 1.14d: calc1 = par4 = 25, calc2 = par3 = 0; StaticFieldMin
 0 / 33 / 50. The cases also vary calc1 and calc2 to reach the `life - 1`
 cap and the minimum.
 
-A case: `id max_hp life res pierce floor pct min` (life and min in 256ths).
+A case: `id max_hp life res pierce floor pct min` (life and min in 256ths), then
+three results (256ths): the monster's life after the cast, a second monster's
+(the previous case's max life, life and resistance, same caster), and the
+callback's own result or `skip`. test_static_field drives the real Fight::spot for
+the first two and the arithmetic alone for the third.
 To stderr: how many cases a line-for-line copy of d2d's old Static Field
 (components/game/fight/strike.cpp, `kStaticField` in Fight::spot, upstream
 72132b99: `resisted(hit_points * pct / 100, res)`, whole points, no floor,
@@ -152,12 +156,19 @@ def main():
     g = Game()
     bad = {"old": 0, "new": 0}
     total = 0
+    prev = None
     for case in cases(n, seed):
         got = g.static(*case[1:])
         total += 1
         bad["old"] += old_d2d(*case[1:]) != (str(case[2]) if got == "skip" else got)
         bad["new"] += new_d2d(*case[1:]) != got
-        print(" ".join(map(str, case)), got)
+        # Columns after the case: the first monster's life after the cast, the second monster's (the
+        # previous case's max life, life and resistance under this case's pierce, floor, calc1, calc2),
+        # then the callback's own result (`skip` when it makes no record).
+        max_hp, life, res = prev if prev else case[1:4]
+        other = g.static(max_hp, life, res, *case[4:])
+        print(" ".join(map(str, case)), str(case[2]) if got == "skip" else got, str(life) if other == "skip" else other, got)
+        prev = case[1:4]
     print(f"{total} cases: old d2d wrong on {bad['old']}, new d2d wrong on {bad['new']}", file=sys.stderr)
 
 

@@ -2,14 +2,26 @@
 // test-links: game
 // `--static-field SEED N`: Static Field's hit on one monster (life,
 // resistance, pierce, floor, calc1, calc2), the cases of
-// tools/emu/static_field.py (game.exe's FUN_005c96a0 -> FUN_0057c6c0):
-// the life after (256ths), or `skip`, one line each, to diff.
+// tools/emu/static_field.py (game.exe's FUN_005c96a0 -> FUN_0057c6c0), one
+// line each, to diff. Three results (life after, 256ths), as the oracle prints:
+//   spot   the monster's life after the REAL Fight::spot casts Static Field in
+//          a World (the caster's pierce, the difficulty and expansion floor,
+//          the skill's calc1 / calc2 in its loaded row);
+//   second a second monster in the same cast (the previous case's life, max
+//          life and resistance), the per-unit loop;
+//   inner  the arithmetic alone (static_field_fine + resisted_fine, or `skip`).
 
 #include <ai.hpp>
+#include <character.hpp>
+#include <character_store.hpp>
 #include <combat.hpp>
+#include <d2s_items.hpp>
+#include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
+#include <world.hpp>
 
 #include <cassert>
 #include <algorithm>
@@ -44,12 +56,60 @@ int main(int argc, char** argv) try {
     const auto fallen = data->monsters.by_id.find("fallen1");
     assert(fallen != data->monsters.by_id.end());
     const Monster made = make_monster(*data, fallen->second, 10, 10, rng, 0);
+    d2d::rules::Rng made_rng{ 7 };
+    auto made_character = new_character(*data, 4, "Headless", false, true, made_rng);
+    Character character;
+    character.character_class = 4;
+    character.name = "Headless";
+    character.header = made_character.header;
+    character.stats = made_character.stats;
+    character.items = made_character.items;
+    character.panel = panel_stats(*data, character.header, character.items, character.stats);
+    character.header.status |= 0x20;   // an expansion game: StaticFieldMin counts
+    World world(&*data, -1, -1);
+    world.enter(character);
+    const World::Player start = *world.actor;
+    const auto skill_row = data->skills.by_name.find("Static Field");
+    assert(skill_row != data->skills.by_name.end());
+    // Fight reads the skill's calc1 / calc2 from the loaded table, so the cases' values go into its row.
+    auto& skill = *std::ranges::find(data->skills.rows, skill_row->second, &d2d::rules::Skill::id);
+    int prev_hp = 0, prev_life = 0, prev_res = 0;
     const auto run = [&](const std::string& tag, int max_hp, int life, int res, int pierce, int floor_pct, int pct, int low) {
+        if (prev_hp == 0) { prev_hp = max_hp; prev_life = life; prev_res = res; }
+        *world.actor = start;
+        world.actor->psum[d2d::d2s::kPassiveLightningPierce] = pierce;
+        skill.par[3] = pct;
+        skill.par[2] = low;
+        data->static_field_min[0] = floor_pct;
+        world.fight.game_difficulty = 0;
+        world.fight.monsters.clear();
+        bool res_ok = true;
+        const auto place = [&](int life_max, int fine_life, int raw_res, float dx, float dy) {
+            Monster monster = made;
+            monster.unit.x = world.actor->player.x + dx;
+            monster.unit.y = world.actor->player.y + dy;
+            monster.stats.hit_points = life_max;
+            monster.hit_points = (fine_life + 255) >> 8;
+            monster.life_frac = monster.hit_points * 256 - fine_life;
+            monster.boss_res = {};
+            monster.boss_res[3] = raw_res - monster.target(*data).res[3];
+            world.fight.add_monster(monster);
+            res_ok = res_ok && world.fight.monsters.back().target(*data).res[3] == raw_res;
+        };
+        place(max_hp, life, res, 0.4F, 0);
+        place(prev_hp, prev_life, prev_res, 0, 0.4F);
+        const Fight::Caster caster{ world.actor->player.x, world.actor->player.y, 1 + int(life % 20), -1, 0, 0 };
+        world.fight.spot(skill, 1000 * kTickMs, caster);
+        const auto after = [&](std::size_t index) {
+            const auto& struck = world.fight.monsters[index];
+            return struck.alive() ? struck.hit_points * 256 - struck.life_frac : 0;
+        };
+        std::printf("%s %d %d %d %d %d %d %d %d %d%s ", tag.c_str(), max_hp, life, res, pierce, floor_pct, pct, low, after(0), after(1), res_ok ? "" : " RESFAIL");
+        prev_hp = max_hp; prev_life = life; prev_res = res;
         Monster monster = made;
         monster.stats.hit_points = max_hp;
         monster.hit_points = (life + 255) >> 8;
         monster.life_frac = monster.hit_points * 256 - life;
-        std::printf("%s %d %d %d %d %d %d %d ", tag.c_str(), max_hp, life, res, pierce, floor_pct, pct, low);
         const int fine = d2d::rules::static_field_fine(life, max_hp << 8, pct, low, floor_pct, res);
         if (fine < 0) { std::printf("skip\n"); return; }
         const int got = d2d::rules::resisted_fine(fine, res < 100 ? std::max(res - pierce, -100) : res);
