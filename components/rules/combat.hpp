@@ -391,6 +391,25 @@ inline int resisted_fine(int fine, int res) {
     if (res == 0) return fine;
     return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
 }
+// Static Field's record on one unit (FUN_005c96a0), in 256ths before the
+// resistance, or -1 when it makes none. Life is the unit's in whole points
+// (stat 6 >> 8): nothing under 1, nothing at or under floor % of its max
+// life (DifficultyLevels StaticFieldMin, expansion games only), else pct %
+// of it (MulDiv) leaving at least 1 point, then at least `low` (calc2). A
+// negative lightning resistance is taken back out first (MulDiv(dmg, 100,
+// 100 - res)), so it adds nothing once FUN_0057bf80 applies it.
+// ponytail: life_fine and max_fine are the unit's 256ths; res is its raw
+// lightning resistance (stat 0x29), pierce not taken off.
+inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int floor_pct, int res) {
+    const int life = life_fine >> 8;
+    if (life < 1) return -1;
+    if (floor_pct != 0 && life <= mul_div(max_fine >> 8, floor_pct, 100)) return -1;
+    int dmg = mul_div(life, pct, 100);
+    if (life - dmg < 1) dmg = life - 1;
+    dmg = std::max(dmg << 8, low);
+    if (res < 0) dmg = mul_div(dmg, 100, 100 - res);
+    return dmg;
+}
 
 // What a skill's missile carries (FUN_0064b860, the missile's Skill set):
 // the skill's physical and elemental damage (with synergies and the
@@ -404,10 +423,13 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 // and max and less the monster's resistance; the element's resistance
 // less the attacker's pierce (333 fire, 334 lightning, 335 cold, 336
 // poison) unless the monster is immune (100 or more), to -100 at the
-// least. Cold chills for the
-// length less the same resist, poison runs its per-tick damage over it, stun stands it.
+// least. Cold chills for the length less the same resist whatever the
+// damage came to (FUN_0057c6c0 hands record +0x30 to FUN_0057af80 with no
+// test on the cold), poison runs its per-tick damage over it, stun stands it.
 // ponytail: pierce against immunity is the published rule; its code in
-// game.exe isn't traced.
+// game.exe isn't traced. Stats 0x99 / 0x76 (FUN_0057c140) aren't read: no
+// MonProp, MonUMod or state row gives them to a monster. player_blow's
+// cold still chills only on a whole point.
 inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
                          Blow blow = { .hit = true }) {
     if (damage.phys_hi > 0) {
@@ -435,7 +457,7 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     blow.damage += resisted_damage;
     blow.elemental = blow.elemental || (fine > 0 && damage.etype != 4);   // the record's element is in 256ths (over 0)
     blow.frac += fine & 255;
-    if (damage.etype == 2 && resisted_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(damage.elen, res));
+    if (damage.etype == 2) blow.chill_ticks = std::max(blow.chill_ticks, resisted(damage.elen, res));
     return blow;
 }
 
