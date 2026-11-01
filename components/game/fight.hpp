@@ -1013,7 +1013,7 @@ struct Fight {
     // cut: Conviction, level 30, past Act 1) isn't applied, nor the other target stats (Holy Freeze's
     // slow: its cold chills instead).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
-    void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const d2d::rules::CalcEnv* env = nullptr);
+    void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const std::array<int, 6>& base, const d2d::rules::CalcEnv* env = nullptr);
     // A summoning skill d2d builds (the do spawns the `summon` row through
     // FUN_0056d940): Clay / Blood / Iron / Fire Golem (56, 57), Raise
     // Skeleton and Skeletal Mage (31, from a corpse), Valkyrie (16), the

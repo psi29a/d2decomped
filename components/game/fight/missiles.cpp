@@ -872,26 +872,30 @@ auto Fight::in_aura(const Monster& monster) -> bool {
 
 auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
         auto target = monsters[monster_index].target(*game_data);
+        const auto base = target.res;
         // Its curse and cry (Amplify Damage, Lower Resist, Decrepify, Battle
         // Cry, Inner Sight, Cloak of Shadows) and self state (Chilling
         // Armor's skill_armor_percent): their aurastats as the aura's.
         for (const auto* effect : { &monsters[monster_index].curse, &monsters[monster_index].cry, &monsters[monster_index].self_state })
             if (const auto* skill = effect->skill >= 0 ? game_data->skills.get(effect->skill) : nullptr)
-                apply_target_stats(*skill, effect->level, target);
+                apply_target_stats(*skill, effect->level, target, base);
         // The enemy auras over it (the player's, the merc's).
-        for (const auto& aura : enemy_auras(monsters[monster_index].unit.x, monsters[monster_index].unit.y)) apply_target_stats(*aura.skill, aura.level, target, &aura.env);
+        for (const auto& aura : enemy_auras(monsters[monster_index].unit.x, monsters[monster_index].unit.y)) apply_target_stats(*aura.skill, aura.level, target, base, &aura.env);
         return target;
     }
 
-auto Fight::apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const d2d::rules::CalcEnv* aura_env) -> void {
+auto Fight::apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const std::array<int, 6>& base, const d2d::rules::CalcEnv* aura_env) -> void {
         const auto* skill = &skill_row;
         const auto env = aura_env ? *aura_env : calc_env();
+        // FUN_005c3540: a lowering of a resistance whose base is 100 or more
+        // (before any curse) counts a fifth, truncated toward 0.
+        const auto lowered = [&base](std::size_t type, int value) { return value < 0 && base[type] >= 100 ? value / 5 : value; };
         for (std::size_t k = 0; k < skill->aurastat.size(); ++k) {
             const int value = d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, lvl);
             switch (skill->aurastat[k]) {
-                case 36: target.res[0] += value; break;  case 37: target.res[1] += value; break;
-                case 39: target.res[2] += value; break;  case 41: target.res[3] += value; break;
-                case 43: target.res[4] += value; break;  case 45: target.res[5] += value; break;
+                case 36: target.res[0] += lowered(0, value); break;  case 37: target.res[1] += lowered(1, value); break;
+                case 39: target.res[2] += lowered(2, value); break;  case 41: target.res[3] += lowered(3, value); break;
+                case 43: target.res[4] += lowered(4, value); break;  case 45: target.res[5] += lowered(5, value); break;
                 case 171: target.armor_class += target.armor_class * value / 100; break;
                 case 31: target.armor_class = std::max(target.armor_class + value, 0); break;   // Inner Sight's armorclass
                 default: break;

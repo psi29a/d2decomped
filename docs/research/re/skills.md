@@ -728,6 +728,9 @@ lines (missile names aren't passed in). What it does:
   (taken as ticks), aurafilter, the merc in the aura, Sanctuary /
   Redemption's callbacks, Holy Freeze's slow (its cold chills), mana
   (FUN_00644b10), the aura overlays.
+- A monster's curse or enemy-aura lowering of a resistance whose base is
+  100 or more counts a fifth, truncated toward 0 (FUN_005c3540, from the
+  callbacks of do 30, 65 and 66): `apply_target_stats` takes the base.
 
 ### Charge-up releases (phase 5, part 2)
 - **FUN_005d5220** (a finisher's hit): per charge state held, n = its
