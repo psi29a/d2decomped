@@ -442,20 +442,27 @@ struct PalaceSpots {
 // Act 2's opening (a2q0.cpp, the record at FUN_00598810): quest 8. Jerhyn
 // greets (253, FUN_005986b0) with his "!" (FUN_00598780) until the player
 // has bit 0; hearing it sets that and the game's bit 13 (LAB_00598640), as
-// a join with bit 0 does (LAB_005987d0).
-// ponytail: Cain's 125 (quest 4 bit 14, the rescue missed; FUN_005940a0)
-// isn't here.
+// a join with bit 0 does (LAB_005987d0). Cain greets a player who missed
+// his rescue (quest 4 bit 14) and isn't in the record's list with 125
+// (block 1), and drops them from quest 4's missed list (FUN_005940a0);
+// hearing it adds them to the list (LAB_00598640, FUN_00545200).
 struct ActTwoOpening {
-    static constexpr int kQuest = 8, kJerhyn = monster_ids::kJerhyn, kGreeting = 253;
+    static constexpr int kQuest = 8, kJerhyn = monster_ids::kJerhyn, kGreeting = 253, kCain = monster_ids::kCainAct2, kRescuedByRogues = 125;
+    quest::Players told;   // data +0: heard Cain's 125
     static void join(const QuestBits& quest_bits, QuestBits& game_bits) {
         if (quest::bit(quest_bits, kQuest, 0)) quest::set(game_bits, kQuest, 13);
     }
-    [[nodiscard]] static std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player, quest::Players& cain_missed) const {
         if (npc == kJerhyn && !quest::bit(quest_bits, kQuest, 0)) return { { kGreeting, true } };
+        if (npc == kCain && quest::bit(quest_bits, 4, 14) && !told.has(player)) {
+            cain_missed.remove(player);
+            return { { kRescuedByRogues, true } };
+        }
         return {};
     }
     [[nodiscard]] static bool alert(const QuestBits& quest_bits, int npc) { return npc == kJerhyn && !quest::bit(quest_bits, kQuest, 0); }
-    static void said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string) {
+    void said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, int player) {
+        if (npc == kCain && string == kRescuedByRogues) told.add(player);
         if (npc != kJerhyn || string != kGreeting) return;
         quest::set(quest_bits, kQuest, 0);
         quest::set(game_bits, kQuest, 13);

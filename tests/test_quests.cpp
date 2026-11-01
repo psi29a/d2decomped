@@ -429,9 +429,19 @@ int main() {
     // Act 2's opening: Jerhyn greets with his "!" until heard, which is
     // the player's bit 0 and the game's bit 13 (him into the palace).
     QuestBits opening{}, opening_game{};
-    assert(ActTwoOpening::alert(opening, ActTwoOpening::kJerhyn) && ActTwoOpening::talk(opening, ActTwoOpening::kJerhyn).size() == 1);
-    ActTwoOpening::said(opening, opening_game, ActTwoOpening::kJerhyn, ActTwoOpening::kGreeting);
+    ActTwoOpening act_two;
+    quest::Players cain_missed;
+    assert(ActTwoOpening::alert(opening, ActTwoOpening::kJerhyn) && act_two.talk(opening, ActTwoOpening::kJerhyn, 1, cain_missed).size() == 1);
+    act_two.said(opening, opening_game, ActTwoOpening::kJerhyn, ActTwoOpening::kGreeting, 1);
     assert(quest::bit(opening, 8, 0) && quest::bit(opening_game, 8, 13) && !ActTwoOpening::alert(opening, ActTwoOpening::kJerhyn));
+    // Cain's 125 for a player who missed his rescue, once (FUN_005986b0 / LAB_00598640).
+    assert(act_two.talk(opening, ActTwoOpening::kCain, 1, cain_missed).empty());
+    quest::set(opening, 4, 14);
+    cain_missed.add(1);
+    const auto rescued = act_two.talk(opening, ActTwoOpening::kCain, 1, cain_missed);
+    assert(rescued.size() == 1 && rescued[0].string == 125 && rescued[0].greet && !cain_missed.has(1));
+    act_two.said(opening, opening_game, ActTwoOpening::kCain, 125, 1);
+    assert(act_two.talk(opening, ActTwoOpening::kCain, 1, cain_missed).empty());
     assert(palace_spots(opening_game, true, 1).palace);
 
     // Radament's Lair: Atma's "!" from the start; her 304 heard (talk shut)

@@ -65,8 +65,9 @@ isn't ported); FUN_00545340's spot search is the nearest free spot.
 - +0xd4 `LAB_005987d0`: a join with bit 0 sets the game's bit 13.
 - +0xec `FUN_00598780`: Jerhyn's "!" while bit 0 is clear.
 
-d2d: `rules::ActTwoOpening`; the game's flags are `World::game_bits`.
-Ponytail: Cain's 125 (and `FUN_005940a0`) isn't here.
+d2d: `rules::ActTwoOpening` (Cain's 125 too: `told` is data+0, and the talk
+drops the player from quest 4's missed list as `FUN_005940a0`); the game's
+flags are `World::game_bits`.
 
 ## Radament's Lair (a2q1.cpp, record 8, quest 9)
 

@@ -404,6 +404,7 @@ struct World {
     d2d::rules::TowerQuest tower;          // and the Forgotten Tower
     d2d::rules::ToolsQuest tools;          // and Tools of the Trade
     d2d::rules::CainQuest cain;            // and The Search for Cain
+    d2d::rules::ActTwoOpening opening2;    // and Act 2's opening
     d2d::rules::RadamentQuest radament;    // and Radament's Lair
     d2d::rules::LamEsenQuest lam_esen;     // Act 3's (quests_act3.hpp)
     d2d::rules::GoldenBirdQuest golden_bird;
