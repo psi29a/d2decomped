@@ -156,6 +156,41 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    // `--price CASES`: rules::item_price (buy, sell) and rules::repair_cost of
+    // each case's item, as tools/emu/price_oracle.py prints game.exe's
+    // (FUN_0062efb0 modes 0, 1, 3). A case is `id code quality p0 s0 p1 s1
+    // p2 s2 uid identified ethereal dur maxdur qty ac npc diff`; the line is
+    // `id buy sell repair`. `--price-tables` prints the affix cost rows.
+    if (argc > 1 && std::string_view(argv[1]) == "--price-tables") {
+        for (const auto* costs : { &data->rules.prefix_cost, &data->rules.suffix_cost, &data->rules.unique_cost, &data->rules.set_cost }) {
+            for (const auto& [mul, add] : *costs) std::printf("%d,%d ", mul, add);
+            std::printf("\n");
+        }
+        return 0;
+    }
+    if (argc > 2 && std::string_view(argv[1]) == "--price") {
+        std::ifstream cases(argv[2]);
+        std::string line;
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);
+            std::string case_id, npc;
+            d2d::d2s::Item item;
+            int ident = 0, eth = 0, uid = -1, diff = 0, defense = 0;
+            fields >> case_id >> item.code >> item.quality;
+            for (auto& affix : item.affixes) fields >> affix;
+            fields >> uid >> ident >> eth >> item.durability >> item.max_durability >> item.quantity >> defense >> npc >> diff;
+            if (!fields) continue;
+            item.prefix = item.affixes[0]; item.suffix = item.affixes[1];
+            if (item.quality == 5) item.set_id = uid;
+            if (item.quality == 7) item.unique_id = uid;
+            item.identified = ident != 0; item.ethereal = eth != 0; item.defense = defense;
+            d2d::d2s::Header header;
+            header.difficulty[std::size_t(diff)] |= 0x80;
+            std::printf("%s %d %d %d\n", case_id.c_str(), d2d::rules::item_price(data->rules, item, npc, false, header),
+                        d2d::rules::item_price(data->rules, item, npc, true, header), d2d::rules::repair_cost(data->rules, item, npc, header));
+        }
+        return 0;
+    }
     // `--belt-pickup CASES`: where rules::pick_up puts each case's item in the
     // belt, as tools/emu/belt_pickup.py prints game.exe's (FUN_0063c600):
     // `id box`, -1 when it doesn't go to the belt.
@@ -235,6 +270,58 @@ int main(int argc, char** argv) try {
                     std::ranges::replace(out.text, '\n', '|');
                     if (wrote || !out.text.empty()) std::printf("%d %zu %d: %d %s\n", skill.id, line, level, wrote ? 1 : 0, out.text.c_str());
                 }
+        }
+        return 0;
+    }
+    // `--waypoint-refuse CASES`: the camp's waypoint used to the Cold Plains
+    // (cmd::Waypoint, C->S 0x49), the cases of tools/emu/wp_refuse.py
+    // (game.exe's FUN_0054d750 -> FUN_0054c5d0). Each level change is an
+    // arrival in the camp at its time (at least one per case, so no case
+    // starts from the previous case's level); the hostile declarations are not
+    // run (d2d has none). Per case `id refused` (1: no travel).
+    if (argc > 2 && std::string_view(argv[1]) == "--waypoint-refuse") {
+        d2d::rules::Rng made_rng(7);
+        auto made = new_character(*data, 4, "Headless", false, true, made_rng);
+        Character traveller;
+        traveller.character_class = 4;
+        traveller.name = "Headless";
+        traveller.header = made.header;
+        traveller.stats = made.stats;
+        traveller.items = made.items;
+        traveller.panel = panel_stats(*data, traveller.header, traveller.items, traveller.stats);
+        World world(&*data, -1, -1);
+        world.enter(traveller);
+        const Level* camp = &data->town;
+        const auto stone = std::ranges::find(camp->npcs, d2d::rules::operate_fn::kWaypoint, &Npc::operate_fn);
+        const Level* plains = data->level(d2d::rules::level_ids::kColdPlains);
+        assert(stone != camp->npcs.end() && plains && plains->ds1.width() > 0);
+        int index = -1;
+        for (const auto& act_levels : data->waypoint_levels)
+            for (const auto& row : act_levels) if (row.level == d2d::rules::level_ids::kColdPlains) index = row.waypoint;
+        assert(index >= 0);
+        const int npc = int(stone - camp->npcs.begin());
+        std::ifstream cases(argv[2]);
+        std::string line;
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);
+            long long case_id = 0, when = 0, count = 0;
+            int active = 0;
+            if (!(fields >> case_id >> when >> active >> count)) continue;
+            if (count < 1) {
+                std::fprintf(stderr, "case %lld: no level change before the waypoint\n", case_id);
+                return 1;
+            }
+            for (long long arrival_index = 0; arrival_index < count; ++arrival_index) {
+                long long arrived = 0;
+                fields >> arrived;
+                world.now = std::uint32_t(arrived);
+                world.arrive(camp, camp->start.first, camp->start.second, "a level change");
+            }
+            auto& bits = world.actor->character.header.waypoints[std::size_t(world.actor->character.header.active_difficulty())][std::size_t(index >> 3)];
+            bits = std::uint8_t(active ? bits | (1 << (index & 7)) : bits & ~(1 << (index & 7)));
+            world.now = std::uint32_t(when);
+            world.apply(cmd::Waypoint{ npc, d2d::rules::level_ids::kColdPlains }, std::uint32_t(when));
+            std::printf("%lld %d\n", case_id, world.level == plains ? 0 : 1);
         }
         return 0;
     }
@@ -1218,6 +1305,31 @@ int main(int argc, char** argv) try {
         worn.pop_back();
         assert(set_props(*data, worn).empty());
         std::printf("OK: Sets.txt partial and full bonuses\n");
+    }
+    // A waypoint used right after a level change travels: game.exe's 10 s
+    // refusal (FUN_0054c5d0) counts from a hostile declaration, which a
+    // level change is not. To the current level or an inactive one it stays.
+    {
+        World traveller(&*data, -1, -1);
+        traveller.enter(character);
+        const Level* encampment = &data->town;
+        const Level* plains = data->level(d2d::rules::level_ids::kColdPlains);
+        const auto stone = std::ranges::find(encampment->npcs, d2d::rules::operate_fn::kWaypoint, &Npc::operate_fn);
+        assert(plains && plains->ds1.width() > 0 && stone != encampment->npcs.end());
+        const int npc = int(stone - encampment->npcs.begin());
+        int index = -1;
+        for (const auto& act_levels : data->waypoint_levels)
+            for (const auto& row : act_levels) if (row.level == d2d::rules::level_ids::kColdPlains) index = row.waypoint;
+        traveller.now = 50'000;
+        traveller.arrive(encampment, encampment->start.first, encampment->start.second, "a test");
+        traveller.apply(cmd::Waypoint{ npc, d2d::rules::level_ids::kColdPlains }, traveller.now);
+        assert(traveller.level == encampment);                              // not active yet
+        traveller.set_waypoint(index);
+        traveller.apply(cmd::Waypoint{ npc, d2d::rules::level_ids::kRogueEncampment }, traveller.now);
+        assert(traveller.level == encampment);                              // the level it's on
+        traveller.apply(cmd::Waypoint{ npc, d2d::rules::level_ids::kColdPlains }, traveller.now);
+        assert(traveller.level == plains);
+        std::printf("OK: a waypoint travels at once after a level change, not to its own level or an inactive one\n");
     }
     // Local co-op (docs/design/local-coop.md): a second player joins beside
     // the first and moves on their own orders; each one's View shows the

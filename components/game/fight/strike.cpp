@@ -679,10 +679,22 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 within(caster.to_x, caster.to_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) { land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng), true, now_ms, striker_of(caster)); });
                 break;
             case ServerDoFunction::kStaticField: {
-                const int pct = calc(skill, skill.calc[0], lvl);
+                // FUN_005c9800: calc1 %, calc2 the least (256ths), the floor
+                // only in an expansion game; FUN_005c96a0 on each unit, its
+                // record through FUN_0057c6c0 with the attacker's pierce.
+                const int pct = calc(skill, skill.calc[0], lvl), low = calc(skill, skill.calc[1], lvl);
+                const int floor_pct = actor->character.header.expansion() ? game_data->static_field_min[std::size_t(std::clamp(game_difficulty, 0, 2))] : 0;
+                const int ltng_pierce = pierce()[1];
                 within(actor->player.x, actor->player.y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
+                    const auto& struck = monsters[monster_index];
+                    const int res = target_of(monster_index).res[3];
+                    const int fine = d2d::rules::static_field_fine(struck.hit_points * 256 - struck.life_frac, struck.stats.hit_points << 8, pct, low, floor_pct, res);
+                    if (fine < 0) return;
+                    const int got = d2d::rules::resisted_fine(fine, res < 100 ? std::max(res - ltng_pierce, -100) : res);
                     d2d::rules::Blow blow{ .hit = true };
-                    blow.damage = d2d::rules::resisted(monsters[monster_index].hit_points * pct / 100, target_of(monster_index).res[3]);
+                    blow.damage = got >> 8;
+                    blow.frac = got & 255;
+                    blow.elemental = got > 0;
                     land(monster_index, blow, true, now_ms, striker_of(caster));
                 });
                 break;
