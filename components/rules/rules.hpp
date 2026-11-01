@@ -490,11 +490,12 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     const int diff = header.active_difficulty();
     if (price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
-        // ponytail: above 0xffff the original divides by 1024 before the mult (a few gold on dear items).
-        price = price * (sell ? prices.sell : prices.buy) / 1024;
+        // Above 0xffff the price is divided by 1024 before the mult, as the quality extras (0062faaf).
+        auto scale = [&price](int mult) { price = price < 0x10000 || mult == 0 ? price * mult / 1024 : price / 1024 * mult; };
+        scale(sell ? prices.sell : prices.buy);
         for (int quest = 0; quest < 3; ++quest)
             if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
-                price = price * (sell ? prices.qsell[std::size_t(quest)] : prices.qbuy[std::size_t(quest)]) / 1024;
+                scale(sell ? prices.qsell[std::size_t(quest)] : prices.qbuy[std::size_t(quest)]);
     }
     if (item.quantity > 1 && !(found != tables.item_base.end() && found->second.stackable)) price *= item.quantity;
     if (sell && price_row != tables.npc_prices.end()) price = std::min<long long>(price, price_row->second.max_buy[std::size_t(diff)]);
