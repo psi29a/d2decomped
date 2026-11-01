@@ -14,6 +14,11 @@ wait (FUN_005de0f0: replace; FUN_005de130: only sooner) queues event 2 at
 the frame now + n; the driver reads no mode, so it can run mid-swing. At a
 mode's end (FUN_005a8030) only WL and RN (table 0x73c6d0) think at once;
 any other mode drops to NU (FUN_005a7c20) and waits for its event.
+Frozen (state 1), FUN_005a7f80 drops the unit's events of types 0, 1, 2,
+6, 7, 9 and 10 as they come due. The freeze's end (its callback
+0x57b170) removes its event 2s and files one at the end + aidel
+(MonStats +0x4f, plus the difficulty when game +0x6a or +0x74 is set;
+0: 15), so it thinks aidel frames after it thaws.
 It fills a params block (AI control at monster data +0x28, MonStats row)
 and goes, stopping at the first step that acts:
 
