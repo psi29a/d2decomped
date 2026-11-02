@@ -295,7 +295,7 @@ client), not a cinematic. The client's 0x61 handler is `FUN_0045e660`
   (+0xf8); fana not made: event 7 at 25 frames.
 - 69 (`FUN_0058a6c0`, 462 "Nihlathak Start Outside Town"): with +0x88 1
   and not made (+0x92), superunique 60 at its spot (`FUN_0054e600`).
-- 70 (`FUN_00587830`, 542 "Larzuk Greeting"): an empty function
+- 70 (`LAB_00587830`, 542 "Larzuk Greeting"): an empty function
   (stubs.md).
 
 ## In d2d

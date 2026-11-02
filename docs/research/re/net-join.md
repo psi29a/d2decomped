@@ -133,6 +133,55 @@ Every other remote type, 9 included, only starts the client (`FUN_0052a750(0, 0x
   = 1 or 2) the flush sends at most 3 nodes per client per pass. It runs every 40 ms or more (`FUN_0052fd90`).
   Three send failures in a row drop the client (`FUN_0052caf0`).
 
+## Client record accessors
+
+These small GAME functions define the corresponding parts of a server client
+record. The direct field accessors assert on a null client; the two flag-mask
+operations at `+0xa` and the room-membership test do not.
+
+| Function | Field and operation | Caller evidence |
+|---|---|---|
+| `FUN_005382b0` | byte `+0x1ac`: the client's current act | `FUN_005394a0` and `FUN_0053abe0` use it to index the game's per-act pointers at `game + 0xbc + act * 4` |
+| `FUN_00538590` | u32 `+0`: the client id | `FUN_0052caf0` reads it for the disconnect path |
+| `FUN_005385f0` | byte `+8`: the player class | `FUN_00532590` passes it as the class to `FUN_00555230`; `FUN_00538620` is its setter |
+| `FUN_00538650` | u16 `+0xa`: set mask `DX` when its stack argument is nonzero, else clear that mask | `FUN_0057fca0` and `FUN_00580ec0` set bit 0 |
+| `FUN_00538670` | return `u16 +0xa & DX` | `FUN_0052d350` tests bit 0 in its client-timeout check; other callers supply their own masks |
+| `FUN_00538700` | u32 `+0x484`: store the restored unit id in `EDX` | `FUN_0056ae50` stores the unit made from the save's `0x666b` subsection, or `-1` for a null unit; `FUN_005394a0` later resolves values other than 0 and `-1` |
+| `FUN_00538760` | u32 `+0x488`: store `EDX` | `FUN_0056a090` copies save header `+0x2c` here at `0056a1ca..0056a1cf`; `FUN_00538790` reads it back for the save written by `FUN_00568f20`. What those four save bytes mean is not traced |
+| `FUN_005387c0` | u32 `+0x1a8`: the player **unit id**, not a unit pointer | `0053c54b..0053c554` passes the result to `FUN_00552f60`, the id-to-unit lookup |
+| `FUN_005387f0` | test whether client `EDX` is in the room of unit `ECX` | `FUN_00620bb0` gets the unit's room1; the function scans its `+0x48` array of client pointers, count `+0x78`. Player and monster packet paths use a room-specific position only when this succeeds |
+| `FUN_00538830` | return `client + 0xd`, the character-name buffer | `FUN_0056a090` compares it with save header `+0x14`; packet builders also read the name through it |
+| `FUN_00538860` | set or clear client `+0x3d4` bit 2 from `EDX` | The first enable also calls `FUN_0053fc70(unit id at +0x1a8, client)`. No call, jump or pointer references this function; see stubs.md |
+| `FUN_005388c0` | return client `+0x3d4` bit 2 as 0 or 1 | `FUN_0053fc20` tests it before calling `FUN_0053fb90` |
+| `FUN_00538e00` | u32 `+0x17c`: the uploaded character-save buffer | `FUN_00534520` passes it with the size below to `FUN_00534330`; `FUN_00531eb0` compares it with the returning save |
+| `FUN_00538e30` | u32 `+0x180`: the uploaded save's byte count | The same two callers use it as the buffer size; a zero size makes `FUN_00534520` return `0xe` |
+
+### Client lookup tables
+
+Four helpers wrap the client tables in critical sections. The id table has
+256 buckets at `0x8842a8`, selected by `id & 0xff`, with the next pointer at
+client `+0x4ac`; it is guarded by `0x8846a8` and enabled by `0x8846d8`.
+
+- `FUN_00538930(id, state)` returns whether the id's record has that state.
+  `FUN_0052c550` uses state 1 and `FUN_0052c8e0` state 4. A disabled table
+  returns false.
+- `FUN_00538b70(id, destination)` returns 0 when found and 1 when absent or
+  disabled. A non-null destination receives the 16-byte name at client `+0xd`.
+
+The separate name table has 256 buckets at `0x883ea8`, selected by the low
+byte of `FUN_004112c0`'s case-insensitive name hash, with links at `+0x4b0`;
+its critical section is `0x8846c0`. Comparisons are `FUN_00413590`, a
+case-insensitive 16-byte `strnicmp`.
+
+- `FUN_00538bf0(name)` returns the matching client id, or 0 when absent.
+- `FUN_00538c60(name, destination)` returns 0 when found and 1 when absent.
+  A non-null destination receives the record's canonical 16-byte name.
+
+A 31-case original-code check under `tools/emu` covered the six record
+operations above and these four lookups, including hash-chain misses,
+case-insensitive names and the orphan's one-time callback. External room
+lookup, hashing and name comparison were hooked; no d2d parity claim is made.
+
 ## Compression (S->C only)
 
 The compression is canonical Huffman over bytes. Only the 256 code lengths are stored.
