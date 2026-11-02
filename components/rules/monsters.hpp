@@ -406,6 +406,13 @@ inline int ai_distance(int dx, int dy) {
     return dy < dx ? (dy + dx * 2) / 2 : (dx + dy * 2) / 2;
 }
 
+// A unique Fallen Shaman's corpse (FUN_005f1380, the callback of its room search FUN_005dd0b0): a dead monster of class 19 or 58, not
+// flagged champion (bit 4) or unique (bit 8: FUN_005a0180 mask 0xc), within its aip4 by the squared distance (the limit is aip4 squared,
+// 0x5f14c8..0x5f14d2). The corpse's own state (DD, the corpse bit, not raised) is the caller's.
+inline bool shaman_corpse_reach(int base, bool champion, bool unique, int off_x, int off_y, int aip4) {
+    return (base == 19 || base == 58) && !champion && !unique && off_x * off_x + off_y * off_y <= aip4 * aip4;
+}
+
 // A unit's distance to a point less `less` on each axis
 // (FUN_005dc480 / FUN_005dc380 / FUN_006417f0): (max x 2 + min) / 2.
 inline int point_apart(int dx, int dy, int less) {

@@ -928,7 +928,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (i != self && other.mode == "DT" && d2d::rules::ai_distance(off_x, off_y) < 15) input.dying = true;
         if (type_info.ai_name != "FallenShaman" || other.alive() || other.mode != "DD" || other.corpse_used) continue;
         const int base = game_data.monsters.types[std::size_t(other.type)].base;
-        if (unique(monster) ? (base == 19 || base == 58) && !unique(other) && d2d::rules::ai_distance(off_x, off_y) < 80
+        if (unique(monster) ? d2d::rules::shaman_corpse_reach(base, other.boss == Boss::champion, unique(other), off_x, off_y, input.aip[3])
                             : other.leader == int(self) && off_x * off_x + off_y * off_y <= input.aip[3] * input.aip[3])
             corpse = int(i);
     }
