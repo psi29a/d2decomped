@@ -72,6 +72,16 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
             for (const auto& [id, value] : curse_stats(actor->curses[1], env))
                 if (id >= 0 && std::size_t(id) < sum.size()) sum[std::size_t(id)] += value;
         }
+        for (const auto& state : actor->merc_potion_states)              // an antidote's / thawing's (merc_foe drops a spent one)
+            if (state.until != 0)
+                for (const auto& [id, value] : state.stats) if (id >= 0 && std::size_t(id) < sum.size()) sum[std::size_t(id)] += value;
+        // Friendly auras on it (FUN_005cf010): its own, the player's, a
+        // totem's; their aurastats join its stats (Prayer's life heals on a pulse).
+        if (actor->merc)
+            for (const auto& aura : friendly_auras(actor->merc->unit.x, actor->merc->unit.y))
+                for (std::size_t i = 0; i < aura.skill->aurastat.size(); ++i)
+                    if (const int id = aura.skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < sum.size())
+                        sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[i], aura.env, aura.skill->id, aura.level);
         Stats stats;
         stats.values[kLevel] = actor->merc_st.level;
         stats.values[kStr] = actor->merc_st.str + sum[kStr];
@@ -85,7 +95,7 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
                 if (skill->aurastat[k] == kSkillArmorPercent)
                     defense += defense * d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, actor->merc_buff.level) / 100;
         }
-        defense += defense * merc_cry_stat(kSkillArmorPercent) / 100;   // Shout's
+        defense += defense * (merc_cry_stat(kSkillArmorPercent) + sum[kSkillArmorPercent]) / 100;   // Shout's, Defiance's
         const int difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         const auto penalty = actor->character.header.expansion() ? game_data->resist_penalty[std::size_t(difficulty)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(difficulty)];
         std::array<int, 4> res{};

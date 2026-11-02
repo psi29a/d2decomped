@@ -844,13 +844,19 @@ inline int whirlwind_gap(int attack_frames) {
 //   Param1 + Param2 x (level - 1), at 0x5d3834);
 // 4 (Fists of Fire, Claws of Thunder, Blades of Ice, FUN_005d3970): the
 //   skill's elemental damage (FUN_0056e0c0).
+// Each new charge also adds its aurastat calc to the state's stat
+// (FUN_005d3320 -> FUN_00627030): progressive_tohit (325, Tiger Strike's
+// and Fists of Fire's par4) is the finisher's to-hit % (FUN_0056f070
+// hands stat 0x145 to FUN_0057ec10).
 // ponytail: prgdam 4's third-charge freeze (cold length / an untraced
 // divisor) and its calc1 physical-to-element share aren't applied.
-struct ChargeBonus { int ed_pct = 0, life_steal = 0, mana_steal = 0, etype = -1, elem_lo = 0, elem_hi = 0, elem_len = 0; };
+struct ChargeBonus { int ar_pct = 0, ed_pct = 0, life_steal = 0, mana_steal = 0, etype = -1, elem_lo = 0, elem_hi = 0, elem_len = 0; };
 inline ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int charges) {
     ChargeBonus bonus;
     if (lvl < 1 || charges < 1) return bonus;
     charges = std::min(charges, 3);
+    for (std::size_t k = 0; k < skill.aurastat.size(); ++k)
+        if (skill.aurastat[k] == 325) bonus.ar_pct += eval_calc(skill_tables, skill.aura_calc[k], env, skill.id, lvl) * charges;
     switch (skill.prgdam) {
         case 1: bonus.ed_pct = eval_calc(skill_tables, skill.calc[0], env, skill.id, lvl) * charges; break;
         case 2: {

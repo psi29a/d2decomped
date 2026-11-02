@@ -156,6 +156,18 @@ d2d matches both, and the one-poison-at-a-time rule.
 - `c = AR × 100 / (AR + DEF)`; `c = c × 2 × alvl / (alvl + dlvl)`, clamped
   5..95; hit when the attacker's seed % 100 < c. A swing at a player in
   mode 3 (RN) skips the roll and lands (FUN_0057ec10); a missile still rolls.
+- A missile's hit (FUN_005adf10) rolls FUN_0057d9b0 only when its row has
+  ToHit (+0x18b), with the owner's stat 0x13; ToHit 0 skips the roll, and
+  either way FUN_005ad730 then runs the defender's rolls (FUN_0057dfb0:
+  block, avoid). A Corpse Explosion's record goes straight to
+  FUN_0057c6c0 (FUN_005c4d10): no rolls at all. d2d: `MonStats::no_hit_roll`,
+  `monster_blow`'s `sure`.
+- A passed roll by a player (unit type 0) with stat 117 (Prevent Monster
+  Heal) puts state 0x34 (preventheal) on a monster, not the ubers (hcIdx
+  0x2c0..0x2c5): FUN_0057d810, a FUN_0056e970 block of 120 000 frames,
+  before the block roll, so a blocked hit still carries it. Read by the
+  teleport mod's heal (FUN_005b11f0) and regen (FUN_005a6920). d2d:
+  `Blow::prevent_heal`, `Monster::no_heal_until`.
 - Then the defender's rolls (FUN_0057dfb0 → FUN_0057dd60), each cancelling
   the hit: **block** (the defender's seed % 100 < chance, the chance a third
   while the player runs: FUN_00622d00's moving, modes 2 / 3 / 6, and not
@@ -258,8 +270,12 @@ is left, an element emptied no longer marks. d2d: `rules::absorb_blows`
   PCode2a, 2b .. na, nb, at most (pieces − 1)'s; with every piece worn the
   full FCode1..8 too (pieces: the Sets record's +0xc). An add func 1 list (keyed to another piece)
   counts pieces.
-- Not in yet: skills (skills.md), monster life regeneration (MonStats
-  DamageRegen), the weapon swap, champions/uniques.
+- Monster life regeneration: FUN_00573cb0 sets stat 0x4a = its rolled
+  life (256ths) x MonStats DamageRegen (+0x1a0) >> 12 (past 0x7fffffff /
+  DamageRegen the life shifts first); FUN_005a6920 (event 3, every frame)
+  adds stat 0x4a, the net of regen and poison, to life up to its max, a
+  gain held back under state 0x34. d2d: `MonStats::regen`, `monster_dots`.
+- Not in yet: skills (skills.md), the weapon swap, champions/uniques.
 
 ## Hit recovery: the length (SUnit.cpp)
 

@@ -213,6 +213,7 @@ struct Monster {
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
     bool shatter = false;                     // state 107 (FUN_0057af80's roll on a chill)
+    std::uint32_t no_heal_until = 0;          // ms: state 0x34 (preventheal, FUN_0057d810)
     std::uint32_t stun_until = 0;             // ms: stunned, it stands
     std::uint32_t just_hit_until = 0;         // ms: state 0x56 justhit (FUN_005adb00), NextHit missiles pass it by
     // Aura Enchanted (uniques.hpp boss_aura): its aura, level, next pulse;
@@ -220,7 +221,7 @@ struct Monster {
     int aura = 0, aura_lvl = 0;
     std::vector<std::string_view> host_states;   // a joined game's: the States.txt names the host has on it (0xa8 / 0xaa)
     std::uint32_t aura_next = 0;
-    int aura_dmg = 0, aura_th = 0;
+    int aura_dmg = 0, aura_th = 0, aura_rate = 0;   // a boss's aura over it: damagepercent, item_tohit_percent, attackrate (Fanaticism)
     // Skills' states on it (their auratargetstate): one curse at a time
     // (Amplify Damage .. Lower Resist, Confuse, Attract), one other
     // (Battle Cry, Taunt, Inner Sight, Cloak of Shadows' blindness).
@@ -231,6 +232,10 @@ struct Monster {
     // MonFrenzy's state (FUN_005d8c70: "monfrenzy", its charges stat 0xa9
     // as the level, up to the skill's own): its aurastats as curse's.
     SkillState frenzy;
+    // A self state (do 18 with an aurastate, not Bone Armor: UberIzual's
+    // Chilling Armor): its aurastats on it (skill_armor_percent) as a
+    // curse's; a ReturnFire missile striking it is answered (Fight::return_fire).
+    SkillState self_state;
     // What they do to it, as of this frame (Fight::monster_states): its
     // damage % and speed %, the share of its melee damage it takes back
     // (Iron Maiden), Terror's state (0x38) on it.
@@ -280,6 +285,10 @@ struct Monster {
     std::uint32_t diab_run_ms = 0;
     // Leap (srvstfunc 40) under way: where it rose and where it lands (cells).
     bool leaping = false;
+    // Nest's start (srvstfunc 49, FUN_005cbd10) till its lay (do 91, FUN_005cbe00).
+    bool nesting = false;
+    // State 0x36 (uninterruptable, FUN_005544b0): a whirl, leap or nest under way.
+    [[nodiscard]] bool uninterruptable() const { return whirl || leaping || nesting; }
     // A sand maggot down (MagottDown's start, FUN_005cb270: unit flags 0xe
     // off, its 0x1000 lifted): no one targets, hits or walks into it till
     // MagottUp (FUN_005cb170) brings it up at the nearest free spot.
@@ -319,7 +328,6 @@ struct Monster {
     // think, and its absorb pool (stat 132, the cast's aurastat calc / 256).
     bool has_point = false, armored = false;
     int armor_pool = 0;
-    std::uint32_t self_state_until = 0;       // a self state's end (do 18 with an aurastate, not Bone Armor: UberIzual's Chilling Armor)
     bool greeted = false;                     // Izual's first think (ThinkEffect::greet): a4q1's FUN_005b4390, the World's to take
     // A prisoner's (Wussie, a5q2) view, set by World::act5_update: its cage's
     // portal (FUN_00588d60, subtiles), one of its cage gone through it
@@ -393,7 +401,7 @@ inline std::uint32_t get_hit_ms(const GameData::AnimTiming& timing, int fhr) {
 }
 
 inline int anim_rate_pct(const Monster& monster, std::string_view mode) {
-    if (mode == "A1" || mode == "A2") return monster.anim_pct + d2d::rules::effective_speed(monster.props.ias);
+    if (mode == "A1" || mode == "A2") return monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias);
     if (mode == "SC") return monster.anim_pct + d2d::rules::effective_speed(monster.props.fcr);
     return monster.anim_pct;
 }
@@ -671,7 +679,7 @@ inline void put_missile_element(d2d::rules::MonStats& stats, const d2d::rules::M
 inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::rules::MissileDamage& element, int monster_level) {
     d2d::rules::MonStats stats;
     stats.level = monster_level;
-    stats.to_hit = 1 << 20;
+    stats.no_hit_roll = !info.to_hit;                                // a ToHit row rolls its owner's attack rating (the caller's)
     stats.a2_min = info.min >> 8; stats.a2_max = std::max(info.max >> 8, stats.a2_min);
     put_missile_element(stats, element);
     return stats;
@@ -705,6 +713,7 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     const auto phys = monster_shot_phys(info, src_min, src_max, cast, lvl);
     stats.a2_min = phys.low >> 8; stats.a2_max = phys.high >> 8;
     if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
+    stats.no_hit_roll = !info.to_hit;
     if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
         for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
     const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);
@@ -930,12 +939,23 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
 // MonUMod poison hit's init (FUN_005a1e00): its own poison stats.
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->
-// FUN_005dd480; FUN_00623470, FUN_005b0da0): MonStats2 mWL, not MonStats
+// FUN_005dd480; FUN_00623470, FUN_005b0da0): not state 0x36, MonStats2 mWL, not MonStats
 // boss, SwitchAI, targetable (unit +0xc4 & 4) or dead, not a unique or
 // superunique (monster data +0x16 & 0xa), not an imp (BaseId 0x1ec) riding
-// (state 0x8f). State 0x36 (uninterruptable) is never on a monster: only a
-// player's death sets it, and clears it at once (FUN_0054c0e0).
+// (state 0x8f). State 0x36 (uninterruptable, FUN_005544b0) comes on with a
+// skill's start: Whirlwind (FUN_005d8f50), Leap (FUN_005d9d50), Leap Attack
+// (FUN_005da540), Nest (FUN_005cbd10) and Jump (FUN_005cb730, no monster's),
+// each clearing it at its end (Monster::uninterruptable).
 bool swaps_ai(const GameData& game_data, const Monster& monster);
+// The Cursed umod's hit hook (FUN_005a2530), on a melee or missile hit that
+// lands: a unique's or superunique's 3 in 4 on its own seed (a draw's low 2
+// bits), Amplify Damage (skill 66) at level mlvl / 5 + 1 on every foe within
+// its aurarangecalc (1..40 subtiles) of the one struck (FUN_0056dbc0 round
+// FUN_0056d2c0's target; FUN_005a23d0, enemies only).
+void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes, const Foe& struck);
+// A monster's skill missile toward (dx, dy) cells (FUN_0059fa30, ai.cpp).
+void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
+                      std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
 // A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).

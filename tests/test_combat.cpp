@@ -289,6 +289,20 @@ int main(int argc, char** argv) {
     auto crushing = player_blow(crit, plain, 99, rng);
     for (int i = 0; i < 20 && !crushing.hit; ++i) crushing = player_blow(crit, plain, 99, rng);
     assert(crushing.hit && crushing.deadly && crushing.damage == 20);
+    // Prevent Monster Heal (stat 117) rides a passed to-hit roll, blocked or
+    // not (FUN_0057d810); a missed roll or a Smite (no roll) carries none.
+    Fighter no_heal = simple_fighter(10, 10, 1000000);
+    no_heal.prevent_heal = true;
+    Target blocker{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1, .block = 100 };
+    auto stopped = player_blow(no_heal, blocker, 99, rng);
+    for (int i = 0; i < 20 && !stopped.blocked; ++i) stopped = player_blow(no_heal, blocker, 99, rng);
+    assert(stopped.blocked && !stopped.hit && stopped.prevent_heal);
+    Fighter blind = no_heal; blind.ar_base = 1;
+    Target armored{ .hit_points = 400, .max_hp = 400, .armor_class = 1000000, .level = 99 };
+    auto missed = player_blow(blind, armored, 1, rng);
+    for (int i = 0; i < 20 && missed.prevent_heal; ++i) missed = player_blow(blind, armored, 1, rng);   // 5 % still hit
+    assert(!missed.hit && !missed.prevent_heal);
+    assert(!player_blow(no_heal, plain, 99, rng, Swing{ .smite = true }).prevent_heal);
     // The gear's stun length (stat 66) stuns when the skill gives none, at the SrcDam share
     // (FUN_0057b7d0: [0x11] += stat 66 x share >> 7 when 0); the skill's own wins.
     Fighter stunner = simple_fighter(10, 10, 1000000);
@@ -380,6 +394,31 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 20 && !taken.hit; ++i) taken = monster_blow(defender, 1, Motion::standing, mon, false, rng);
     assert(taken.hit && taken.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
     assert(taken.physical == 75 && taken.elemental == 8);                      // Bone Armor's part, Cyclone Armor's
+    {                                                                  // a sure hit (DiabRun, DiabCold, a monster's Charge): no FUN_0057ec10
+        Fighter guard = defender;
+        guard.block = 100; guard.dodge = 100; guard.defense = 1000000;
+        MonStats feeble = mon;
+        feeble.to_hit = 1;
+        for (int i = 0; i < 20; ++i) {
+            assert(!monster_blow(guard, 99, Motion::standing, feeble, false, rng).hit);
+            assert(monster_blow(guard, 99, Motion::standing, feeble, false, rng, false, true).damage == 75 + 8);
+        }
+        // A ToHit 0 missile (FUN_005adf10): no to-hit roll, but block and avoid still come (FUN_005ad730).
+        MonStats shot = feeble;
+        shot.no_hit_roll = true;
+        shot.a2_min = shot.a2_max = 100; shot.elements = {};
+        Fighter open = defender;
+        open.defense = 1000000;
+        for (int i = 0; i < 20; ++i) assert(monster_blow(open, 99, Motion::standing, shot, true, rng, true).hit);
+        Fighter shield = open;
+        shield.block = 100;
+        assert(monster_blow(shield, 99, Motion::standing, shot, true, rng, true).blocked);
+        shot.no_hit_roll = false;
+        int connected = 0;
+        for (int i = 0; i < 200; ++i) connected += monster_blow(open, 99, Motion::standing, shot, true, rng, true).hit;
+        assert(connected < 30);                                           // a ToHit row rolls: about 5 %
+
+    }
     {                                                                  // cold chills, poison runs per tick (FUN_0057b7d0, FUN_0057c1e0)
         MonStats cold_mon = mon;
         cold_mon.elements[0] = { 2, 100, 10, 10, 40, "A1" };

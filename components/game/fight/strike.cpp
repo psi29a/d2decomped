@@ -122,13 +122,6 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         const auto passives = d2d::rules::passive_stats(game_data->skills, env);
         actor->character.panel = panel_stats(*game_data, actor->character.header, actor->character.items, actor->character.stats, &passives);
         auto states = actor->self_states;
-        if (const auto* skill = game_data->skills.get(actor->aura); skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura) states.push_back({ actor->aura, skill_level ? skill_level(actor->aura) : 1, ~0u });
-        // A totem's aura (Oak Sage, Heart of Wolverine, Spirit of Barbs: do
-        // 65) while the player is within its aurarange of it.
-        for (const auto& pet : actor->pets)
-            if (const auto* skill = game_data->skills.get(pet.aura); skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura && pet.monster.alive() && pet.where == level
-                && std::hypot(pet.monster.unit.x - actor->player.x, pet.monster.unit.y - actor->player.y) * 5 <= float(calc(*skill, skill->aurarange, pet.aura_level)))
-                states.push_back({ pet.aura, pet.aura_level, ~0u });
         if (now_ms < actor->marks[0].until) states.push_back({ actor->marks[0].skill, actor->marks[0].level, actor->marks[0].until });
         for (const auto& state : states) {
             const auto* skill = game_data->skills.get(state.skill);
@@ -136,6 +129,22 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
         }
+        // A boss's enemy aura over the player (Aura Enchanted's Holy Freeze):
+        // its velocitypercent and attackrate as stats; resists and defense go
+        // on the foe (monster_auras).
+        for (const auto& aura_monster : monsters) {
+            const auto* skill = aura_monster.alive() && aura_monster.aura ? game_data->skills.get(aura_monster.aura) : nullptr;
+            if (!skill || (skill->srvdofunc != ServerDoFunction::kEnemyAura && skill->srvdofunc != ServerDoFunction::kHolyFreeze)) continue;
+            const d2d::rules::CalcEnv boss_env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, aura_monster.stats.level, nullptr };
+            if (std::hypot(aura_monster.unit.x - actor->player.x, aura_monster.unit.y - actor->player.y) * 5 > float(d2d::rules::eval_calc(game_data->skills, skill->aurarange, boss_env, skill->id, aura_monster.aura_lvl))) continue;
+            for (std::size_t i = 0; i < skill->aurastat.size(); ++i)
+                if (const int id = skill->aurastat[i]; id == kVelocityPercent || id == kAttackRate)
+                    st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], boss_env, skill->id, aura_monster.aura_lvl);
+        }
+        for (const auto& aura : friendly_auras(actor->player.x, actor->player.y))
+            for (std::size_t i = 0; i < aura.skill->aurastat.size(); ++i)
+                if (const int id = aura.skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
+                    st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[i], aura.env, aura.skill->id, aura.level);
         if (now_ms < actor->curses[0].until)                    // a monster's curse on the player
             for (const auto& [id, value] : curse_stats(actor->curses[0], env))
                 if (id != kLife && std::size_t(id) < st_sum.size()) st_sum[std::size_t(id)] += value;
@@ -198,6 +207,36 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
 auto Fight::calc_env() -> d2d::rules::CalcEnv {
         return { skill_base, skill_level, [this](int id) { return id >= 0 && std::size_t(id) < actor->psum.size() ? int(actor->psum[std::size_t(id)]) : 0; },
                  int(actor->character.stats.get(d2d::d2s::kLevel)), &rng };
+    }
+
+auto Fight::friendly_auras(float x, float y) const -> std::vector<AuraOn> { return auras_at(x, y, false); }
+auto Fight::enemy_auras(float x, float y) const -> std::vector<AuraOn> { return auras_at(x, y, true); }
+
+auto Fight::auras_at(float x, float y, bool enemy) const -> std::vector<AuraOn> {
+        using namespace d2d::d2s;
+        std::vector<AuraOn> out;
+        const auto add = [&](int skill_id, int lvl, d2d::rules::CalcEnv env, float from_x, float from_y) {
+            const auto* skill = game_data->skills.get(skill_id);
+            const bool kind = enemy ? skill && skill->aura && (skill->srvdofunc == ServerDoFunction::kEnemyAura || skill->srvdofunc == ServerDoFunction::kHolyFreeze)
+                                    : skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura;
+            if (!kind || lvl < 1) return;
+            if (std::hypot(from_x - x, from_y - y) * 5 > float(d2d::rules::eval_calc(game_data->skills, skill->aurarange, env, skill->id, lvl))) return;
+            out.push_back({ skill, lvl, std::move(env) });
+        };
+        const auto no_skills = [](int) { return 0; };
+        add(actor->aura, skill_level ? skill_level(actor->aura) : 1,
+            { skill_base, skill_level, [this](int id) { return id >= 0 && std::size_t(id) < actor->psum.size() ? int(actor->psum[std::size_t(id)]) : 0; }, int(actor->character.stats.get(kLevel)), nullptr },
+            actor->player.x, actor->player.y);
+        // The merc's (its AI's pick, merc_turn), at its level for that skill (mercs have no synergies).
+        if (actor->merc && actor->merc->alive() && actor->merc->mode != "DT")
+            for (std::size_t k = 0; k < actor->merc_ids.size(); ++k)
+                if (actor->merc_ids[k] == actor->merc_aura && actor->merc_aura > 0)
+                    add(actor->merc_aura, actor->merc_levels[k], { no_skills, no_skills, no_skills, actor->merc_st.level, nullptr }, actor->merc->unit.x, actor->merc->unit.y);
+        // A totem's (Oak Sage, Heart of Wolverine, Spirit of Barbs).
+        for (const auto& pet : actor->pets)
+            if (pet.monster.alive() && pet.where == level)
+                add(pet.aura, pet.aura_level, { skill_base, skill_level, no_skills, int(actor->character.stats.get(kLevel)), nullptr }, pet.monster.unit.x, pet.monster.unit.y);
+        return out;
     }
 
 auto Fight::merc_calc_env() -> d2d::rules::CalcEnv {
@@ -409,6 +448,10 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (!target.targetable()) return false;                     // under the sand, aloft: nothing reaches it
         if (target.align == 2) return false;                        // converted: no foe of the player's side (FUN_00554200)
         if (target.alive()) target.struck_by = striker;             // FUN_00621d50: not once it's dying (FUN_005541b0)
+        // Prevent Monster Heal (FUN_0057d810, run as the to-hit roll passes):
+        // a player's only, not on the ubers (hcIdx 704..709); state 0x34
+        // for 120 000 frames.
+        if (blow.prevent_heal && striker == player_foe_id() && (target.type < 704 || target.type > 709)) target.no_heal_until = now_ms + 120'000u * 40;
         if (blow.blocked) { block_anim(*game_data, target, now_ms); return false; }
         if (!blow.hit) return false;
         target.hit_class = blow.hit_class;
@@ -494,12 +537,17 @@ auto Fight::knock_back(Monster& target, float from_x, float from_y, std::uint32_
 auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
         for (std::size_t i = 0; i < monsters.size(); ++i) {
             auto& monster = monsters[i];
-            if (!monster.alive() || (now_ms >= monster.poison_until && now_ms >= monster.bleed_until)) continue;
-            monster.dot_acc += ((now_ms < monster.poison_until ? monster.poison_rate : 0) + (now_ms < monster.bleed_until ? monster.bleed_rate : 0)) * elapsed * 1000;
+            if (!monster.alive()) continue;
+            // Life's one rate (FUN_005a6920, every frame): its regen (stat 0x4a)
+            // less poison and bleeding; a gain held back under state 0x34 and at full life.
+            const double net = (now_ms < monster.poison_until ? monster.poison_rate : 0) + (now_ms < monster.bleed_until ? monster.bleed_rate : 0)
+                             - monster.stats.regen / (256.0 * 40);
+            if (net <= 0 && (now_ms < monster.no_heal_until || monster.hit_points >= monster.stats.hit_points)) { monster.dot_acc = 0; continue; }
+            monster.dot_acc += net * elapsed * 1000;
             const int whole = int(monster.dot_acc);
-            if (whole <= 0) continue;
+            if (whole == 0) continue;
             monster.dot_acc -= whole;
-            monster.hit_points -= whole;
+            monster.hit_points = std::min(monster.hit_points - whole, monster.stats.hit_points);
             if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(i, now_ms); }
         }
     }

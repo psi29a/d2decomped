@@ -394,6 +394,56 @@ int main() try {
         world.fight.monsters.pop_back();
         std::printf("OK: Lightning Enchanted's bolts wander as Charged Bolt's\n");
     }
+
+    // UberIzual's Chilling Armor (do 18): skill_armor_percent on its defense
+    // as a curse's aurastat, and a ReturnFire missile answered with
+    // chillingarmorbolt at the shooter (event 1, FUN_005cab40).
+    {
+        const int chilling = data->skills.by_name.at("Chilling Armor");
+        Monster izual;
+        izual.type = 0;
+        izual.id = 0x7ffff0;
+        izual.hit_points = 100;
+        izual.unit.x = world.actor->player.x + 3; izual.unit.y = world.actor->player.y;
+        world.fight.monsters.push_back(izual);
+        const std::size_t index = world.fight.monsters.size() - 1;
+        const auto bare = world.fight.target_of(index);
+        const auto arrow = std::ranges::find_if(data->missiles, [](const auto& row) { return row.second.return_fire; });
+        assert(arrow != data->missiles.end());
+        Missile shot;
+        shot.info = &arrow->second;
+        world.fight.pending.clear();
+        world.fight.monster_return_fire(index, shot, false, 5000 * kTickMs);
+        assert(world.fight.pending.empty());                    // no state, no answer
+        world.fight.monsters[index].self_state = { chilling, 10, ~0u };
+        assert(world.fight.target_of(index).armor_class == bare.armor_class + bare.armor_class * (45 + 5 * 9) / 100);   // ln12: 45 + 5 a level
+        world.fight.monster_return_fire(index, shot, false, 5000 * kTickMs);
+        assert(world.fight.pending.size() == 1 && world.fight.pending[0].info->name == "chillingarmorbolt" && world.fight.pending[0].velocity_x < 0 && !world.fight.pending[0].friendly);
+        world.fight.pending.clear();
+        world.fight.monsters.pop_back();
+        std::printf("OK: a monster's Chilling Armor raises its defense and answers ReturnFire\n");
+    }
+
+    // A monster's regen (stat 0x4a, FUN_00573cb0: life in 256ths x DamageRegen >> 12),
+    // its life's one rate each frame (FUN_005a6920); none under state 0x34.
+    {
+        const auto zombie_row = data->monsters.by_id.find("zombie1");
+        d2d::rules::Rng make_rng{ 9 };
+        Monster healing = make_monster(*data, int(zombie_row->second), world.actor->player.x + 6, world.actor->player.y, make_rng, 0);
+        const int rate = data->monsters.types[zombie_row->second].damage_regen;
+        assert(rate > 0 && healing.stats.regen == (healing.stats.hit_points << 8) * rate >> 12);
+        healing.hit_points = 1;
+        world.fight.monsters.push_back(healing);
+        auto& mended = world.fight.monsters.back();
+        for (std::uint32_t frame = 0; frame < 250; ++frame) world.fight.monster_dots(6000 + frame * kTickMs, 0.04f);
+        assert(mended.hit_points == std::min(1 + healing.stats.regen * 250 / 256, healing.stats.hit_points));
+        const int before = mended.hit_points;
+        mended.no_heal_until = ~0u;
+        for (std::uint32_t frame = 0; frame < 250; ++frame) world.fight.monster_dots(20000 + frame * kTickMs, 0.04f);
+        assert(mended.hit_points == before);
+        world.fight.monsters.pop_back();
+        std::printf("OK: a monster regenerates its DamageRegen, not under Prevent Monster Heal\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

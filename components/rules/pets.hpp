@@ -842,7 +842,7 @@ void shadow_warrior_think(PetBrain<World>& brain) {
     brain.ctrl[0] = skill.delay / 3 + 0x12 + scene.frame;
 }
 
-// FUN_005dc640: a clear line from the pet to its foe. Lines (sight_blocked
+// FUN_005dc640: a clear line from the pet (or an Act 5 monster) to its foe. Lines (sight_blocked
 // from the pet's size to a size-2 end, `blocked` the collision under mask
 // 0x805, FUN_006229f0) to the foe's spot, then to the spots beside it
 // across the line, 2..4 off by their gap (merc_gap: 2 under 3, 3 under 11,

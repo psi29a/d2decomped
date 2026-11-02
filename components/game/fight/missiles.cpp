@@ -693,12 +693,14 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
         } else if (missile.info->to_hit) {
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);
+            blow.prevent_heal = blow.hit && fighter.prevent_heal;
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
         blow.hit_class = missile.info->hit_class | skill->hit_class;
         if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
         if (blow.hit && freeze > 0) blow.chill_ticks = std::max(blow.chill_ticks, freeze);
         land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
+        if (missile.striker < 0) monster_return_fire(monster_index, missile, missile.by_merc, now_ms);
         // A freeze stands it as a stun does, without the stun's guards.
         if (blow.hit && freeze > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(freeze) * 40);
     }
@@ -785,7 +787,31 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
         }
     }
 
+auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y) -> void {
+        using namespace d2d::d2s;
+        const float reach = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
+        for (std::size_t i = 0; i < skill.aurastat.size(); ++i) {
+            if (skill.aurastat[i] != kLife) continue;
+            const std::int64_t heal = d2d::rules::eval_calc(game_data->skills, skill.aura_calc[i], env, skill.id, lvl);   // 256ths
+            if (std::hypot(actor->player.x - from_x, actor->player.y - from_y) * 5 <= reach)
+                actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + heal);
+            if (actor->merc && actor->merc->alive() && std::hypot(actor->merc->unit.x - from_x, actor->merc->unit.y - from_y) * 5 <= reach)
+                actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + int(heal >> 8));
+        }
+    }
+
 auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
+        // The merc's own (an Act 2 merc's Prayer), on its own clock.
+        if (const auto* merc_skill = actor->merc && actor->merc->alive() && actor->merc_aura > 0 ? game_data->skills.get(actor->merc_aura) : nullptr;
+            merc_skill && merc_skill->aura && now_ms >= actor->merc_aura_next) {
+            actor->merc_aura_next = now_ms + std::uint32_t(std::max(merc_skill->perdelay, 25)) * 40;
+            for (std::size_t k = 0; k < actor->merc_ids.size(); ++k)
+                if (actor->merc_ids[k] == actor->merc_aura && actor->merc_levels[k] > 0) {
+                    const auto merc_env = merc_calc_env();
+                    if (merc_skill->srvdofunc == ServerDoFunction::kFriendlyAura) prayer_pulse(*merc_skill, actor->merc_levels[k], merc_env, actor->merc->unit.x, actor->merc->unit.y);
+                    else enemy_pulse(*merc_skill, actor->merc_levels[k], merc_env, actor->merc->unit.x, actor->merc->unit.y, {}, merc_foe_id(), now_ms);   // its Holy Freeze
+                }
+        }
         const auto* skill = game_data->skills.get(actor->aura);
         if (!skill || !skill->aura || now_ms < actor->aura_next || dead()) return;
         const int lvl = skill_level ? skill_level(actor->aura) : 1;
@@ -793,12 +819,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         const auto env = calc_env();
         actor->aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
         if (skill->srvdofunc == ServerDoFunction::kFriendlyAura) {
-            for (std::size_t i = 0; i < skill->aurastat.size(); ++i)
-                if (skill->aurastat[i] == 6) {
-                    using namespace d2d::d2s;
-                    const auto heal = d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, lvl);
-                    actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + heal);
-                }
+            prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y);
             return;
         }
         // Redemption (do 82): a corpse within aurarange redeemed at calc1 %,
@@ -820,18 +841,23 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
                 }
             return;
         }
-        if ((skill->srvdofunc != ServerDoFunction::kEnemyAura && skill->srvdofunc != ServerDoFunction::kHolyFreeze) || skill->etype < 0 || skill->etype > 4) return;
-        const auto damage = d2d::rules::MissileDamage{ .etype = skill->etype,
-                                                   .elo = d2d::rules::elem_damage(game_data->skills, *skill, env, lvl, false, 0, true),
-                                                   .ehi = d2d::rules::elem_damage(game_data->skills, *skill, env, lvl, true, 0, true),
-                                                   .elen = d2d::rules::elem_length(game_data->skills, *skill, env, lvl) };
         const std::array<int, 4> pierce{ int(actor->psum[d2d::d2s::kPassiveFirePierce]), int(actor->psum[d2d::d2s::kPassiveLightningPierce]), int(actor->psum[d2d::d2s::kPassiveColdPierce]), int(actor->psum[d2d::d2s::kPassivePoisonPierce]) };
+        enemy_pulse(*skill, lvl, env, actor->player.x, actor->player.y, pierce, player_foe_id(), now_ms);
+    }
+
+auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float x, float y, const std::array<int, 4>& pierce, int striker, std::uint32_t now_ms) -> void {
+        if ((skill.srvdofunc != ServerDoFunction::kEnemyAura && skill.srvdofunc != ServerDoFunction::kHolyFreeze) || skill.etype < 0 || skill.etype > 4) return;
+        const auto damage = d2d::rules::MissileDamage{ .etype = skill.etype,
+                                                   .elo = d2d::rules::elem_damage(game_data->skills, skill, env, lvl, false, 0, true),
+                                                   .ehi = d2d::rules::elem_damage(game_data->skills, skill, env, lvl, true, 0, true),
+                                                   .elen = d2d::rules::elem_length(game_data->skills, skill, env, lvl) };
+        const float reach = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (monsters[i].alive() && in_aura(monsters[i])) {
-                land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, player_foe_id());
-                if (skill->srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
+            if (monsters[i].alive() && std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach) {
+                land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
+                if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
     }
 
@@ -845,19 +871,19 @@ auto Fight::in_aura(const Monster& monster) -> bool {
 auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
         auto target = monsters[monster_index].target(*game_data);
         // Its curse and cry (Amplify Damage, Lower Resist, Decrepify, Battle
-        // Cry, Inner Sight, Cloak of Shadows): their aurastats as the aura's.
-        for (const auto* effect : { &monsters[monster_index].curse, &monsters[monster_index].cry })
+        // Cry, Inner Sight, Cloak of Shadows) and self state (Chilling
+        // Armor's skill_armor_percent): their aurastats as the aura's.
+        for (const auto* effect : { &monsters[monster_index].curse, &monsters[monster_index].cry, &monsters[monster_index].self_state })
             if (const auto* skill = effect->skill >= 0 ? game_data->skills.get(effect->skill) : nullptr)
                 apply_target_stats(*skill, effect->level, target);
-        const auto* skill = game_data->skills.get(actor->aura);
-        if (!skill || (skill->srvdofunc != ServerDoFunction::kEnemyAura && skill->srvdofunc != ServerDoFunction::kHolyFreeze) || !in_aura(monsters[monster_index])) return target;
-        apply_target_stats(*skill, skill_level ? skill_level(actor->aura) : 1, target);
+        // The enemy auras over it (the player's, the merc's).
+        for (const auto& aura : enemy_auras(monsters[monster_index].unit.x, monsters[monster_index].unit.y)) apply_target_stats(*aura.skill, aura.level, target, &aura.env);
         return target;
     }
 
-auto Fight::apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target) -> void {
+auto Fight::apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const d2d::rules::CalcEnv* aura_env) -> void {
         const auto* skill = &skill_row;
-        const auto env = calc_env();
+        const auto env = aura_env ? *aura_env : calc_env();
         for (std::size_t k = 0; k < skill->aurastat.size(); ++k) {
             const int value = d2d::rules::eval_calc(game_data->skills, skill->aura_calc[k], env, skill->id, lvl);
             switch (skill->aurastat[k]) {

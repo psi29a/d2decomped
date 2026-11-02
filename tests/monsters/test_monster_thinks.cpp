@@ -405,5 +405,17 @@ int main() {
         }
         assert(talked.held == 35 && seed.low == before);
     }
+    {
+        // The bosses' other thinks (FUN_005fcf30, FUN_005e5280): Diablo's FUN_005e8480 code.
+        for (const char* name : { "BaalCrab", "BaalCrabClone", "UberBaal", "UberDiablo", "Nihlathak", "Hireable" }) {
+            std::vector<ThinkEffect> done;
+            ThinkIn other_in{ .effects = &done };
+            other_in.state_c = true;
+            assert(d2d::rules::has_other_think(name));
+            const auto act = d2d::rules::other_think(name, other_in);
+            assert(act.act == MonAct::idle && act.n == 1 && done.size() == 2 && done[0].kind == ThinkEffect::state && done[1].kind == ThinkEffect::toggle);
+        }
+        assert(!d2d::rules::has_other_think("Baal"));
+    }
     std::puts("ok");
 }

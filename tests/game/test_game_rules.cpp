@@ -14,6 +14,7 @@
 #include <rules.hpp>
 #include <shake.hpp>
 #include <skill_text.hpp>
+#include <uniques.hpp>
 #include <world.hpp>
 
 #include <algorithm>
@@ -185,6 +186,47 @@ int main() try {
         sets.rules.sets[0].add_func = 2;
         assert(set_bonus_props(sets, { ward, worn(2) }, ward).size() == 1 && set_bonus_props(sets, { ward, worn(2) }, ward)[0].stat == 1);   // 2 worn: list 0
         std::printf("OK: a set item's own lists by add func\n");
+    }
+    {
+        // State 0x36 (a whirl, leap or nest under way) keeps a curse's think
+        // off (FUN_005dd480), as it stands Talic (FUN_005eeb70).
+        GameData walkers;
+        walkers.monsters.types.resize(1);
+        walkers.monsters.types[0].can_walk = walkers.monsters.types[0].switch_ai = true;
+        Monster walker;
+        walker.type = 0; walker.hit_points = 10;
+        assert(swaps_ai(walkers, walker));
+        for (bool Monster::* busy : { &Monster::whirl, &Monster::leaping, &Monster::nesting }) {
+            auto held = walker;
+            held.*busy = true;
+            assert(held.uninterruptable() && !swaps_ai(walkers, held));
+        }
+        std::printf("OK: state 0x36 holds a monster's own think\n");
+    }
+    {
+        // The Cursed umod's hook (FUN_005a2530), shared by melee and missile
+        // hits: 3 in 4 on the boss's seed, Amplify Damage round the one struck.
+        GameData no_skills;                                   // no row 66: radius 1 subtile
+        Monster boss;
+        boss.boss = d2d::rules::Boss::unique; boss.mods = { d2d::rules::umod::curse };
+        boss.stats.level = 24; boss.seed = d2d::rules::Rng(3);
+        std::array<Foe, 3> foes{};
+        foes[1].x = 0.1f;                                     // half a subtile off
+        foes[2].x = 2;
+        for (int k = 0; k < 16; ++k) {
+            for (auto& foe : foes) foe.cursed = {};
+            auto expect = boss.seed;
+            const bool rolled = (expect.next() & 3) != 0;
+            cursed_hit(no_skills, boss, foes, foes[0]);
+            assert(boss.seed.next() == expect.next());          // one draw a hit
+            assert((foes[0].cursed.skill == 66) == rolled && (foes[1].cursed.skill == 66) == rolled && foes[2].cursed.skill != 66);
+            assert(!rolled || foes[0].cursed.level == 24 / 5 + 1);
+        }
+        boss.boss = d2d::rules::Boss::champion;
+        foes[0].cursed = {};
+        for (int k = 0; k < 8; ++k) cursed_hit(no_skills, boss, foes, foes[0]);
+        assert(foes[0].cursed.skill != 66);                   // a champion's never
+        std::printf("OK: the Cursed umod's hit hook\n");
     }
     return 0;
 } catch (const std::exception& error) {

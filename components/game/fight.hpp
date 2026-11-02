@@ -271,6 +271,7 @@ struct Fight {
         std::vector<PetSummon> pet_summons;
         std::vector<Pet> pets;
         std::uint32_t aura_next = 0;           // its next pulse
+        std::uint32_t merc_aura_next = 0;      // the merc's aura's next pulse
         // The skill the player attacks with (Skills.txt id; 0 Attack), the one
         // this swing uses (Attack when it's not built or can't be paid for),
         // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
@@ -367,6 +368,7 @@ struct Fight {
         std::uint32_t merc_heal_until = 0;
         double merc_poison_rate = 0, merc_poison_acc = 0;  // the merc's poison (FUN_0057ac50, as the player's): life per ms, its fraction
         std::uint32_t merc_poison_until = 0;
+        std::array<PotionState, 2> merc_potion_states;   // the merc's antidote / thawing states (merc_drinks)
         double regen_acc_life = 0, regen_acc_mana = 0;
         std::string_view last_voice;          // the last class line (FUN_004cb9c0's DAT_007c88c8) and when (DAT_007c88c4)
         std::uint32_t last_voice_ms = 0;
@@ -460,8 +462,10 @@ struct Fight {
     // flag: a live merc, ItemTypes hpot / apot / wpot only — rejuvenation
     // counts as hpot; anything else stays in the belt). A healing potion
     // heals it over its length, a rejuvenation its % at once.
-    // ponytail: no class bonus or doubling for it; antidote / thawing are
-    // spent and do nothing (the merc's poison and chill aren't kept).
+    // An antidote ends its poison; either puts its state (+50 resist, +10
+    // max) on it as on the player (FUN_005bef90, FUN_005beda0). d2d keeps
+    // no merc chill for thawing to end.
+    // ponytail: no class bonus or doubling for it.
     void feed_merc(int col, std::uint32_t now_ms);
     // A healing, antidote or thawing potion in hand given to the merc (0x61,
     // FUN_005bf240): true when it drank it.
@@ -509,8 +513,9 @@ struct Fight {
     // A friendly aura (srvdofunc 65, FUN_005cf010) puts its aurastate and
     // aurastats on the player (and allies within aurarangecalc subtiles)
     // the same way; its hitpoints (Prayer) heal on each pulse instead.
-    // ponytail: resist auras cap at 95, not the panel's max resist; the
-    // merc doesn't get them.
+    // The merc's (an Act 2 merc's Prayer, Defiance, Might, ...) does the
+    // same for the player and itself, and the player's and a totem's for the
+    // merc (friendly_auras); a resist aura's cap is the panel's max resist.
     // The self states' aurastats are stats on the player (FUN_005c6cc0):
     // they join the item stats, so toblock (20), damageresist (36) and
     // the rest go through make_fighter; defense % (171 skill_armor_percent,
@@ -673,6 +678,9 @@ struct Fight {
     void buff_events(Foe& foe, std::uint32_t now_ms);
     // Chilling Armor's answer, after the frame's missiles have struck.
     void return_fire(const Foe& foe, std::uint32_t now_ms);
+    // A monster's answer (its self state's srvmissilea) to the player's or
+    // merc's ReturnFire missile striking it.
+    void monster_return_fire(std::size_t monster_index, const Missile& missile, bool by_merc, std::uint32_t now_ms);
     void buff_tick(std::uint32_t now_ms);
     // The skill states on the monsters (their curse and cry slots): what
     // they add up to this frame. Aurastats damagepercent (25) and
@@ -687,8 +695,8 @@ struct Fight {
     void charge(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     void charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms);
     // What the charges add to a finishing blow (FUN_005d3ba0 / FUN_005d3ac0,
-    // at the higher of the stored level and today's).
-    // ponytail: aurastat2's progressive_tohit (par4) isn't given.
+    // at the higher of the stored level and today's), and progressive_tohit's
+    // par4 a charge as the swing's to-hit %.
     void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing) { add_charges(actor->charges, fighter, swing, true); }
     void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
     // A row with no Skill: its own element at level lvl with its synergy
@@ -758,6 +766,18 @@ struct Fight {
 
     // The merc as a fighter: its hireling damage, attack rating, defense.
     [[nodiscard]] d2d::rules::Fighter merc_fighter() const;
+    // The friendly auras (do 65) covering (x, y) cells: the player's, the
+    // merc's and a totem's, each while (x, y) is within its aurarangecalc
+    // subtiles of its holder, at the holder's level and calc env.
+    struct AuraOn { const d2d::rules::Skill* skill = nullptr; int level = 0; d2d::rules::CalcEnv env; };
+    [[nodiscard]] std::vector<AuraOn> friendly_auras(float x, float y) const;
+    // The enemy auras (do 66, Holy Freeze's 81) over (x, y) cells the same
+    // way: the player's and the merc's (an Act 2 merc's Holy Freeze).
+    [[nodiscard]] std::vector<AuraOn> enemy_auras(float x, float y) const;
+    [[nodiscard]] std::vector<AuraOn> auras_at(float x, float y, bool enemy) const;
+    // An enemy aura's pulse (do 66 / 81 with an EType): its element at every
+    // live monster within its aurarange of (x, y), struck by `striker`.
+    void enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float x, float y, const std::array<int, 4>& pierce, int striker, std::uint32_t now_ms);
     // What the merc wears (World::character.merc_items): its items' stats
     // summed (sockets, set bonuses), the weapon's own, its weapon and shield,
     // the items' own defence (after their enhanced defence), defence per level.
@@ -980,6 +1000,9 @@ struct Fight {
     // Redemption's own callbacks aren't built; no mana is drawn
     // (FUN_00644b10).
     void aura_pulse(std::uint32_t now_ms);
+    // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
+    // perdelay frames, on the player and the merc within its aurarange.
+    void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y);
     [[nodiscard]] bool in_aura(const Monster& monster);
     // Monster i as the player's blows see it: an enemy aura's aurastats
     // while it's in range (Conviction: resistances and defense down;
@@ -989,7 +1012,7 @@ struct Fight {
     // cut: Conviction, level 30, past Act 1) isn't applied, nor the other target stats (Holy Freeze's
     // slow: its cold chills instead).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
-    void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target);
+    void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const d2d::rules::CalcEnv* env = nullptr);
     // A summoning skill d2d builds (the do spawns the `summon` row through
     // FUN_0056d940): Clay / Blood / Iron / Fire Golem (56, 57), Raise
     // Skeleton and Skeletal Mage (31, from a corpse), Valkyrie (16), the
@@ -1128,9 +1151,10 @@ struct Fight {
     // Bosses' auras (Aura Enchanted), each at its level within its
     // aurarange: Might, Blessed Aim, Fanaticism add their damage / to-hit %
     // to the monsters there; Conviction cuts the foes' resistances and
-    // defense; Holy Fire, Shock and Freeze strike the foes every perdelay.
-    // ponytail: Fanaticism's attack rate and Holy Freeze's slow aren't
-    // applied; the elements' roll ignores the foes' magic damage reduction.
+    // defense; Holy Fire, Shock and Freeze strike the foes every perdelay,
+    // less magic damage reduction as a monster's element (monster_blow).
+    // Fanaticism's attackrate speeds their attacks (Monster::aura_rate);
+    // Holy Freeze's slow is the player's stats (update_fighters).
     void monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms);
     // A magic shrine's missiles from (x, y), at level clvl / 5 (1..8): the
     // Storm Shrine's 16 fireballs (FUN_00582da0, missile 62) toward x = +-5k

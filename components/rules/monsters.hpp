@@ -268,6 +268,10 @@ struct MonStats {
     int level = 1, hit_points = 1, armor_class = 0, to_hit = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
     int s1_min = 0, s1_max = 0;
     int to_hit2 = 0, to_hit_s1 = 0;            // A2TH's, S1TH's: the hit's mode's (FUN_005a4f50 flags 0x10 / 0x20)
+    // A missile whose row has ToHit 0 (Missiles.txt +0x18b): FUN_005adf10
+    // skips FUN_0057d9b0's roll; block and avoid still come (FUN_005ad730).
+    bool no_hit_roll = false;
+    int regen = 0;                            // stat 0x4a: life a frame, 256ths (DamageRegen, FUN_00573cb0)
     struct El { int type = -1, pct = 0, min = 0, max = 0, dur = 0; std::string_view mode; };
     std::array<El, 3> elements{};
     // Its own poison stats 57 / 58 / 59 (MonUMod poison hit, FUN_005a1e00),
@@ -378,6 +382,10 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     const int hit_points = spawn_row.hit_points[std::size_t(difficulty_index)];
     stats.hit_points  = std::max(rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp)), 1);
     stats.hit_points = int(std::min<std::int64_t>(stats.hit_points + std::int64_t(stats.hit_points) * player_life_pct(players) / 100, 0x7fffff));
+    // Stat 0x4a from that life in 256ths x DamageRegen / 4096, past
+    // 0x7fffffff / DamageRegen shifted first (a boss's mods come after).
+    if (const int life = stats.hit_points << 8, rate = type_info.damage_regen; rate > 0 && rate < 0x1000)
+        stats.regen = 0x7fffffff / rate < life ? (life >> 12) * rate : rate * life >> 12;
     stats.armor_class  = pct(spawn_row.armor_class[std::size_t(difficulty_index)], per_difficulty.armor_class);
     stats.to_hit  = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a1_th);
     stats.to_hit2 = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a2_th);
@@ -1266,7 +1274,7 @@ struct ThinkIn {
     int left_level = 0, right_level = 0;            // the hands' levels (FUN_006442a0, each its own)
     bool has_word = false, stuck = false, reach = false, target_state_b = false, target_player = false, in_chaos = false;
     int self_size = 2, target_size = 2;             // FUN_00620510: the units' sizes (the distances take them off)
-    // Act 5's: three lines to the target clear of 0x805 (FUN_005dc640);
+    // Act 5's: a line to the target clear of 0x805 (FUN_005dc640, any of three);
     // Skill1's Skills.txt +0x158 (FUN_004e6c70, its reach); the siege
     // beast's rider (FUN_00552fd0), it lies dead (FUN_0063ea40: mode 0 or
     // 12), its state 0x69 test (FUN_006259b0), an imp within aip1 to take on
@@ -3808,10 +3816,18 @@ inline int imp_ride_pick(Rng& rng, bool has_fireball, bool has_inferno) {
     return 0;
 }
 
-// MonAI rows with an other think (the fourth word) d2d has: 15 SandMaggot,
-// 29 BatDemon. ponytail: rows 51, 52, 61, 65, 128, 135, 140, 145, 147, 152
-// (Acts 3..5) have one too; not ported, so they stay on their own think.
-inline bool has_other_think(std::string_view ai_name) { return ai_name == "SandMaggot" || ai_name == "BatDemon" || ai_name == "FetishShaman" || ai_name == "FrogDemon" || ai_name == "Diablo"; }
+// MonAI rows with an other think (the fourth word, table 0x73ca18 + ai x
+// 16): 15 SandMaggot, 29 BatDemon, 51 Diablo, 52 FrogDemon, 65 FetishShaman;
+// Diablo's FUN_005e8480 also 147 UberDiablo's, the same code FUN_005fcf30
+// 135 BaalCrab's, 140 BaalCrabClone's and 145 UberBaal's, and FUN_005e5280
+// (that less the kept point's restore, which no toggle of d2d's drops) 61
+// Hireable's, 128 Nihlathak's and 152's. A boss reaches one when Cloak of
+// Shadows' callback toggles it (monster-ai.md "Curse thinks").
+inline bool is_diablo_other(std::string_view ai_name) {
+    return ai_name == "Diablo" || ai_name == "UberDiablo" || ai_name == "BaalCrab" || ai_name == "BaalCrabClone" || ai_name == "UberBaal"
+        || ai_name == "Hireable" || ai_name == "Nihlathak";
+}
+inline bool has_other_think(std::string_view ai_name) { return ai_name == "SandMaggot" || ai_name == "BatDemon" || ai_name == "FetishShaman" || ai_name == "FrogDemon" || is_diablo_other(ai_name); }
 
 // Dim Vision's and Cloak of Shadows' think (special AI 10, FUN_005e8020;
 // search type 1): in melee with a swing it swings (A1, mode 4); else 20 %
@@ -3864,7 +3880,7 @@ Think terror_think(const ThinkIn& input, Rng& rng, Away&& away) {
 inline Think other_think(std::string_view ai_name, const ThinkIn& input) {
     // Diablo's (FUN_005e8480): state 0xc (his lightning's) off, back to his
     // own think (FUN_005b0e00), stands 1; his kept point stays.
-    if (ai_name == "Diablo") {
+    if (is_diablo_other(ai_name)) {
         if (input.state_c) input.effects->push_back({ ThinkEffect::state, 0xc, 0 });
         input.effects->push_back({ ThinkEffect::toggle, 0, 0 });
         return { MonAct::idle, 1 };

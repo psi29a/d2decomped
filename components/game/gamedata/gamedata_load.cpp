@@ -200,7 +200,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         }
         type_info.sound = text("MonSound");
         type_info.usound = text("UMonSound");
-        type_info.threat = num(text("threat")); type_info.switch_ai = text("switchai") == "1"; type_info.interact = text("interact") == "1";
+        type_info.threat = num(text("threat")); type_info.switch_ai = text("switchai") == "1"; type_info.damage_regen = num(text("damageregen")); type_info.interact = text("interact") == "1";
         type_info.montype = text("MonType");
         if (const auto found = monprop_rows.find(std::string(text("MonProp"))); found != monprop_rows.end())
             for (int difficulty = 0; difficulty < 3; ++difficulty)
@@ -1463,6 +1463,31 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (key.starts_with("Runeword")) runewords.emplace_back(std::atoi(key.c_str() + 8), key);
         std::ranges::sort(runewords);
         for (auto& [number, key] : runewords) item_names.runeword.push_back(std::move(key));
+        if (auto bytes = mpqs.try_read(R"(data\global\excel\Runes.txt)")) {
+            const d2d::txt::Table table(*bytes);
+            for (std::size_t row = 0; row < table.size(); ++row) {
+                d2d::rules::Tables::Runeword runeword;
+                runeword.name = std::string(table.get(row, "Name"));
+                runeword.complete = table.get(row, "complete") == "1";
+                runeword.ladder = table.get(row, "server") == "1";
+                for (int i = 1; i <= 6; ++i)
+                    if (const auto code = table.get(row, "itype" + std::to_string(i)); !code.empty()) runeword.itypes.emplace_back(code);
+                for (int i = 1; i <= 3; ++i)
+                    if (const auto code = table.get(row, "etype" + std::to_string(i)); !code.empty()) runeword.etypes.emplace_back(code);
+                for (int i = 1; i <= 6; ++i)
+                    if (const auto code = table.get(row, "Rune" + std::to_string(i)); !code.empty()) runeword.runes.emplace_back(code);
+                for (int i = 1; i <= 7; ++i) {
+                    const auto mod = "T1Code" + std::to_string(i);
+                    if (const auto code = table.get(row, mod); !code.empty())
+                        runeword.mods.push_back({ std::string(code), std::string(table.get(row, "T1Param" + std::to_string(i))),
+                                                  std::atoi(std::string(table.get(row, "T1Min" + std::to_string(i))).c_str()),
+                                                  std::atoi(std::string(table.get(row, "T1Max" + std::to_string(i))).c_str()) });
+                }
+                const auto rank = std::ranges::find(item_names.runeword, runeword.name) - item_names.runeword.begin();
+                runeword.save_id = runeword.name == "Runeword22" ? 2718 : std::size_t(rank) < item_names.runeword.size() ? int(rank) + 27 : -1;
+                game_data.rules.runewords.push_back(std::move(runeword));
+            }
+        }
     }
     // inventory.txt "<Class>2" rows are the 800x600 layouts.
     const auto inv = txt("inventory");

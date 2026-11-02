@@ -184,6 +184,17 @@ auto Fight::return_fire(const Foe& foe, std::uint32_t now_ms) -> void {
             }
     }
 
+auto Fight::monster_return_fire(std::size_t monster_index, const Missile& missile, bool by_merc, std::uint32_t now_ms) -> void {
+        // The same event 1 (FUN_005cab40) on a monster in Chilling Armor
+        // (UberIzual's): the srvmissilea from it at the shooter, carrying
+        // the skill's element at its level.
+        const auto& monster = monsters[monster_index];
+        const auto* skill = monster.self_state.skill >= 0 ? game_data->skills.get(monster.self_state.skill) : nullptr;
+        if (!missile.info || !missile.info->return_fire || !monster.alive() || !skill || skill->aurastate != "chillingarmor") return;
+        const auto& shooter = by_merc && actor->merc ? actor->merc->unit : actor->player;
+        andariel_missile(*game_data, monster, skill->srvmissilea, shooter.x - monster.unit.x, shooter.y - monster.unit.y, now_ms, pending, monster.self_state.level, skill);
+    }
+
 auto Fight::merc_buff_events(Foe& foe, std::uint32_t now_ms) -> void {
         const auto* skill = actor->merc_buff.skill >= 0 && now_ms < actor->merc_buff.until ? game_data->skills.get(actor->merc_buff.skill) : nullptr;
         if (!skill || skill->aurastate != "frozenarmor") return;
@@ -262,7 +273,7 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
             monster.dmg_pct = monster.speed_pct = monster.reflect_pct = monster.anim_pct = 0;
             monster.align = 0;                                // Confuse's / Attract's end (FUN_005c3db0 / 0x5c3b00), or another curse in its place
             monster.afraid = false;
-            for (auto* effect : { &monster.curse, &monster.cry, &monster.frenzy }) {
+            for (auto* effect : { &monster.curse, &monster.cry, &monster.frenzy, &monster.self_state }) {
                 if (effect->skill < 0) continue;
                 if (now_ms >= effect->until) { end_state(*game_data, monster, *effect); continue; }
                 const auto* skill = game_data->skills.get(effect->skill);
@@ -279,6 +290,18 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                 if (targets == "conversion") monster.align = 2;
                 if (targets == "confuse" || targets == "attract") monster.align = 1;
             }
+            // The enemy auras over it (the player's, the merc's): Holy Freeze's
+            // velocitypercent and attackrate / other_animrate (one rate), -dm34.
+            if (monster.alive())
+                for (const auto& aura : enemy_auras(monster.unit.x, monster.unit.y)) {
+                    int rate = 0;
+                    for (std::size_t aura_stat = 0; aura_stat < aura.skill->aurastat.size(); ++aura_stat) {
+                        const int value = d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[aura_stat], aura.env, aura.skill->id, aura.level);
+                        if (aura.skill->aurastat[aura_stat] == 67) monster.speed_pct += value;
+                        if (aura.skill->aurastat[aura_stat] == 68 || aura.skill->aurastat[aura_stat] == 69) rate = value;
+                    }
+                    monster.anim_pct += rate;
+                }
             if (monster.set_kind && now_ms >= monster.set_until) monster.set_kind = 0;   // event 10 (0x5a7f70 -> FUN_00573120)
         }
     }
@@ -303,6 +326,7 @@ auto Fight::add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fi
             const int lvl = std::max(charge.level, player_levels && skill_level ? skill_level(charge.skill) : 0);
             const auto bonus = d2d::rules::charge_bonus(game_data->skills, *skill, env, lvl, charge.count);
             swing.ed_pct += bonus.ed_pct;
+            swing.ar_pct += bonus.ar_pct;
             fighter.life_steal += bonus.life_steal;
             fighter.mana_steal += bonus.mana_steal;
             if (bonus.etype >= 0 && bonus.etype < 5) {

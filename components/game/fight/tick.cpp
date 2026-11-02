@@ -199,6 +199,7 @@ auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
 
 auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
         if (now_ms >= actor->curses[1].until) actor->curses[1] = {};   // merc_fighter reads one still on
+        for (auto& state : actor->merc_potion_states) if (now_ms >= state.until) state = {};
         Foe foe{ actor->merc ? actor->merc->unit.x : 0, actor->merc ? actor->merc->unit.y : 0, actor->merc_st.level, actor->merc && actor->merc->mode != "DT",
                  actor->merc && actor->merc->unit.walking, merc_fighter() };
         foe.pet = true;                                  // the merc: its MonStats class's size
@@ -412,14 +413,18 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     auto blow = d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), target_of(i), missile.level, rng);
                     if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
                     land(i, blow, false, now_ms, merc_foe_id());   // a plain missile: the merc's arrow
+                    monster_return_fire(i, missile, true, now_ms);
                     return true;
                 }
                 return false;
             }, [&](int owner) { const int index = monster_index(owner); return index >= 0 && monsters[std::size_t(index)].alive(); });
             merc_blow = casting_merc = false;
-            for (auto& foe : foes)                               // the shooters' MonProp events (knock, crush)
+            for (auto& foe : foes)                               // the shooters' hit hooks: MonProp's events (knock, crush), Cursed
                 for (const int owner : foe.shot_by)
-                    if (const int shooter = monster_index(owner); shooter >= 0) monprop_hit(monsters[std::size_t(shooter)], foe, true);
+                    if (const int shooter = monster_index(owner); shooter >= 0) {
+                        monprop_hit(monsters[std::size_t(shooter)], foe, true);
+                        cursed_hit(*game_data, monsters[std::size_t(shooter)], foes, foe);
+                    }
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 return_fire(foes[side.at], now_ms);              // the missiles that reached the player just now
@@ -617,7 +622,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
     }
 
 auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void {
-        for (auto& monster : monsters) monster.aura_dmg = monster.aura_th = 0;
+        for (auto& monster : monsters) monster.aura_dmg = monster.aura_th = monster.aura_rate = 0;
         for (auto& aura_monster : monsters) {
             if (!aura_monster.alive() || !aura_monster.aura || !near_players(aura_monster.unit.x, aura_monster.unit.y)) continue;
             const auto* skill = game_data->skills.get(aura_monster.aura);
@@ -632,6 +637,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                         for (std::size_t i = 0; i < skill->aurastat.size(); ++i) {
                             if (skill->aurastat[i] == 25) monster.aura_dmg += val(skill->aura_calc[i]);     // damagepercent
                             if (skill->aurastat[i] == 119) monster.aura_th += val(skill->aura_calc[i]);     // item_tohit_percent
+                            if (skill->aurastat[i] == 68) monster.aura_rate += val(skill->aura_calc[i]);    // attackrate (Fanaticism)
                         }
                 continue;
             }
@@ -654,7 +660,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
             const int high = std::max(d2d::rules::elem_damage(game_data->skills, *skill, env, aura_monster.aura_lvl, true) >> 8, low);
             for (auto& foe : foes)
                 if (foe.alive && in_range(foe.x, foe.y)) {
-                    const int dealt = d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]);
+                    const int dealt = std::max(d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
                     foe.damage += dealt; foe.elemental += dealt;
                     foe.blows.push_back({ dealt, 0, true, 0, dealt });
                 }
