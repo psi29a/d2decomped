@@ -49,6 +49,12 @@ Its eight call sites are in `FUN_00533c70`, `FUN_005380d0`, `FUN_0054bd90`,
 
 `FUN_00622e90`'s whole body is `RET 8`, discarding two stack arguments.
 Its only call site is `0064bee7` in `FUN_0064b860`.
+| `FUN_0063be30` | Inventory.cpp callback | stub (`ret 8`) | 26 calls return without an Inventory action | not ported | "Inventory stub" below |
+
+### Inventory stub
+
+`FUN_0063be30`'s whole body is `RET 8`, discarding two stack arguments.
+Ghidra's `XrefsTo 0063be30` reports 26 direct call sites.
 
 Still reachable, though the content looks dead: the uber levels 133..136
 build and populate (`FUN_005559a0`'s uber cases, the Hellfire Torch hook
