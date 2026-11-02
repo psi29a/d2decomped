@@ -703,9 +703,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
         stats.level = alvl;
         stats.to_hit = missile_info.to_hit ? alvl * 10 : 1 << 20;       // ToHit 0: always hits
         stats.a2_min = missile_info.min; stats.a2_max = std::max(missile_info.max, missile_info.min);
-        // In 256ths a frame; poison's over its length.
-        auto pts = [&](int points) { const std::int64_t value = points; return int(damage.etype == 3 ? value * std::max(damage.elen, 1) >> 8 : value >> 8); };
-        if (damage.etype >= 0) stats.elements[0] = { damage.etype, 100, pts(damage.elo), pts(damage.ehi), damage.elen, "A2" };
+        put_missile_element(stats, damage);            // poison per frame for ELen frames (the record's), others in whole points
         auto shoot = [&](float dx, float dy, float vel, const std::shared_ptr<std::vector<int>>& struck) {
             const float speed = missile_speed(int(vel * 256) * 75 / 100), distance = std::max(std::hypot(dx, dy), 0.01f);   // FUN_0059fa30's x 75 / 100
             Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_heading(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
