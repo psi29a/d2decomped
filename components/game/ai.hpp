@@ -943,6 +943,12 @@ void poison_hit(const GameData& game_data, Monster& monster, int difficulty, boo
 // (FUN_005da540), Nest (FUN_005cbd10) and Jump (FUN_005cb730, no monster's),
 // each clearing it at its end (Monster::uninterruptable).
 bool swaps_ai(const GameData& game_data, const Monster& monster);
+// The Cursed umod's hit hook (FUN_005a2530), on a melee or missile hit that
+// lands: a unique's or superunique's 3 in 4 on its own seed (a draw's low 2
+// bits), Amplify Damage (skill 66) at level mlvl / 5 + 1 on every foe within
+// its aurarangecalc (1..40 subtiles) of the one struck (FUN_0056dbc0 round
+// FUN_0056d2c0's target; FUN_005a23d0, enemies only).
+void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes, const Foe& struck);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
 // A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).

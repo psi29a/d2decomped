@@ -2744,21 +2744,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 if (taken.hit && smite && (struck_with->result_flags & 8)) foe.knocked_from = std::pair{ unit.x, unit.y };
                 if (taken.hit && smite) foe.stun_ticks = std::max(foe.stun_ticks, d2d::rules::eval_calc(game_data.skills, struck_with->calc[1], {}, monster.skill, skill_level(game_data, monster, monster.skill)));
                 if (taken.hit && monster.mana_hi > 0) foe.mana_burn += rng.range(monster.mana_lo, monster.mana_hi);   // Mana Burn
-                // Cursed (FUN_005a2530, the hit hook): 3 in 4 on its own seed
-                // (a draw's low 2 bits), Amplify Damage (skill 66) at level
-                // mlvl / 5 + 1 on every foe within its aurarangecalc (1..40
-                // subtiles) of the one struck (FUN_0056dbc0 round
-                // FUN_0056d2c0's target; FUN_005a23d0, enemies only).
-                // ponytail: melee only (the hook runs on a missile's hit too).
-                if (taken.hit && (monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique)
-                    && std::ranges::contains(monster.mods, d2d::rules::umod::curse) && (monster.seed.next() & 3) != 0) {
-                    const int curse_level = std::max(monster.stats.level / 5 + 1, 1);
-                    const auto* amplify = game_data.skills.get(66);
-                    const int radius = std::clamp(amplify ? d2d::rules::eval_calc(game_data.skills, amplify->aurarange, {}, 66, curse_level) : 1, 1, 40);
-                    for (auto& near_foe : foes)
-                        if (near_foe.alive && !near_foe.of && std::hypot(near_foe.x - foe.x, near_foe.y - foe.y) * 5 <= float(radius))
-                            near_foe.cursed = { 66, curse_level };
-                }
+                if (taken.hit) cursed_hit(game_data, monster, foes, foe);
                 foe.melee_by.push_back(monster.id);
                 if (taken.damage > 0) foe.damaged_by.push_back(monster.id);
                 const auto& res = type_info.diff[std::size_t(monster.difficulty)].res;
@@ -2946,6 +2932,17 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
 // MonLvl damage x MonUMod constants rows 0x10 / 0x13 + difficulty, or
 // 0x1c / 0x1f with the hook's unique flag; poisonlength (59) = (mlvl x 5 +
 // 150) x 2.
+void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes, const Foe& struck) {
+    if ((monster.boss != d2d::rules::Boss::unique && monster.boss != d2d::rules::Boss::superunique)
+        || !std::ranges::contains(monster.mods, d2d::rules::umod::curse) || (monster.seed.next() & 3) == 0) return;
+    const int curse_level = std::max(monster.stats.level / 5 + 1, 1);
+    const auto* amplify = game_data.skills.get(66);
+    const int radius = std::clamp(amplify ? d2d::rules::eval_calc(game_data.skills, amplify->aurarange, {}, 66, curse_level) : 1, 1, 40);
+    for (auto& near_foe : foes)
+        if (near_foe.alive && !near_foe.of && std::hypot(near_foe.x - struck.x, near_foe.y - struck.y) * 5 <= float(radius))
+            near_foe.cursed = { 66, curse_level };
+}
+
 bool swaps_ai(const GameData& game_data, const Monster& monster) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     using d2d::rules::Boss;

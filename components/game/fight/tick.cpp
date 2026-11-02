@@ -417,9 +417,12 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 return false;
             }, [&](int owner) { const int index = monster_index(owner); return index >= 0 && monsters[std::size_t(index)].alive(); });
             merc_blow = casting_merc = false;
-            for (auto& foe : foes)                               // the shooters' MonProp events (knock, crush)
+            for (auto& foe : foes)                               // the shooters' hit hooks: MonProp's events (knock, crush), Cursed
                 for (const int owner : foe.shot_by)
-                    if (const int shooter = monster_index(owner); shooter >= 0) monprop_hit(monsters[std::size_t(shooter)], foe, true);
+                    if (const int shooter = monster_index(owner); shooter >= 0) {
+                        monprop_hit(monsters[std::size_t(shooter)], foe, true);
+                        cursed_hit(*game_data, monsters[std::size_t(shooter)], foes, foe);
+                    }
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 return_fire(foes[side.at], now_ms);              // the missiles that reached the player just now
