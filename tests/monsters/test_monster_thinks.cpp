@@ -157,20 +157,28 @@ int main() {
         const auto smith = mon_think("Smith", think_in, roll, no_away);
         assert(traced_ai("Smith") && smith.act == MonAct::walk && smith.n == 7 && pace == 30 && steps(2, roll) == 0);
         // Fetish: squares up in melee; after aip3 thinks, its target over
-        // aip4 % life, backs off at pace 50 (blocked: no pace, a think at
-        // once); out of melee walks in at pace 50.
+        // aip4 % life, backs off at pace 50 (blocked: the pace kept, a think
+        // at once); out of melee walks in at pace 50.
         think_in = { .aip = { 100, 7, 2, 50 }, .in_melee = true, .state = &state, .state2 = &state2, .pace = &pace, .target_life_pct = 90 };
         state = 0; pace = 0; roll = Rng{ 3 };
         assert(mon_think("Fetish", think_in, roll, no_away).act == MonAct::a1 && state == 1 && state2 == 0 && steps(3, roll) == 1);
         state2 = 2; roll = Rng{ 3 };
         assert(mon_think("Fetish", think_in, roll, ok_away).act == MonAct::none && state == 2 && state2 == 0 && pace == 50 && steps(3, roll) == 0);
         state = 1; state2 = 2; roll = Rng{ 3 };
-        assert(mon_think("Fetish", think_in, roll, no_away).act == MonAct::none && state == 2 && pace == 0);
+        assert(mon_think("Fetish", think_in, roll, no_away).act == MonAct::none && state == 2 && pace == 50);
         think_in.in_melee = false; state = 0; roll = Rng{ 3 };
         const auto fetish_walk = mon_think("Fetish", think_in, roll, no_away);
         assert(fetish_walk.act == MonAct::walk && fetish_walk.n == 7 && pace == 50 && steps(3, roll) == 0);
         think_in.dist = 20; state = 2; state2 = 1; roll = Rng{ 3 };
         assert(mon_think("Fetish", think_in, roll, no_away).act != MonAct::walk && state == 0 && state2 == 0);
+        // Its shaman's command (1, the unit alive): back to rest, a walk at it at pace 50, the command taken.
+        int fetish_command = 1;
+        std::vector<d2d::rules::ThinkEffect> fetish_effects;
+        think_in.command = &fetish_command; think_in.command_unit = true; think_in.effects = &fetish_effects; state = 2; state2 = 1; pace = 0;
+        const auto sent = mon_think("Fetish", think_in, roll, no_away);
+        assert(sent.act == MonAct::walk && sent.n == 0 && pace == 50 && state == 0 && state2 == 0);
+        assert(fetish_effects.size() == 1 && fetish_effects[0].kind == d2d::rules::ThinkEffect::command_done);
+        think_in.command = nullptr; think_in.effects = nullptr;
         // Arach: hurt, healed past 75 % it charges (aip3 %); hurt in melee
         // under aip5 % life it lays (Skill1), or laid, backs off 8 (blocked:
         // stands aidel).

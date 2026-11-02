@@ -750,6 +750,42 @@ In Act 1 the IsDoor objects are OperateFn 8 (MonsterOK on all but 47 and 75) and
 
 Ported: `ai.cpp think` runs it first at each think (an untraced AI, at its search), through `Fight::open_door` → `World::monster_door` (`rules::door_pick`, `rules::object_reach`, `operate_door`). The 0x800 test is a BlocksVis door's bit under its test shape (`on_door`; collision.md), read when it thinks, not what a moving path caches at +0x54. Ties go by the level's object order, not the near rooms' unit lists.
 
+## AI commands — FUN_0058ec90, FUN_0058f730 (traced 2026-11-02)
+
+A monster's AI control keeps a ring of commands at +0x20 (head) / +0x24
+(tail), 7 words each: next, prev, +8 kind, +0xc unit id, +0x10 / +0x14 /
++0x18 its own. FUN_0058ec90 pushes one, FUN_0058ef40 pushes a copy onto
+the sender itself, FUN_0058f730 a copy onto every member of the sender's
+group (its leader's +0x34 list, FUN_0058f100; the leader is control
++0x2c while +0x28 is set). FUN_0058ee80 reads the head, FUN_0058ed10 pops
+it, FUN_0058ede0 empties the ring. A group is a spawn's leader with its
+minion1 / minion2 and the rest of its kind (FUN_005b2830, FUN_005a0c00),
+or a summoner's summons.
+
+Group senders (FUN_0058f730) and what they send:
+
+| Sender | When | Kind, unit |
+|---|---|---|
+| Fallen (6) | leading itself, under 15, aip1 % | 1, the target (also to itself) |
+| FallenShaman (13) | aip1 % after its search | 1, the target |
+| Scarab (20) | aip5-gated (MonStats +0x6e) | 1 (also to itself) |
+| FetishShaman (65) | casting Inferno | 1, the target |
+| FetishShaman (65) | raising a corpse (aip1 %, usable) | 0xe, the corpse |
+| QuillMother (75) | hit (FUN_005dd2b0) | 1, the target |
+| Cry Help (do 128) | the overseer's Skill1 when hit | 1, its target, till frame + calc1 |
+
+Readers: Fallen takes 1 (a charge: walk at the target, then aip3 %
+swings) and drops any other; Fetish takes 1 and 0xe alike (its unit
+alive: state words 0, pace 50, FUN_005dec80(unit, 0), popped);
+FetishBlowgun 1 (A1 at it) and 0xe (walk at it); QuillRat any kind with
+a live unit (A2 at its target). QuillMother's broadcast reaches only
+quillbears, which never read the ring (it fills until they die); no
+group holding quillrats has a sender, so QuillRat's branch never runs
+(stubs.md). In d2d one command word stands for the ring (`ai_command`);
+a corpse command (0xe) is dropped, the corpse not kept.
+`tools/emu/mon_ais_act1.py` gives Fetish scenes a command (QuillRat's
+stay without).
+
 ## In d2d
 
 - `ai.cpp search_target` is the search for both the traced thinks and the AIs not traced (those used to notice within 8 cells and chase within 16, by eye).
