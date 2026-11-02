@@ -31,6 +31,7 @@ int main() try {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1);
+    if (!data->patched) { std::printf("SKIP: States.txt / Skills.txt as 1.14d has them: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
     // States.txt's flags as game.exe's loader (FUN_00618100) reads them.
     assert(data->states.at("frozenarmor").panel_blue == d2d::rules::kPanelDefense);
     assert(data->states.at("antidote").panel_blue == d2d::rules::kPanelPoison);

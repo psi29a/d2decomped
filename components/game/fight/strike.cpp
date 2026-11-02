@@ -208,20 +208,20 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         panel.defense = actor->player_combat.defense;
         for (const std::size_t attribute : { kStr, kEne, kDex, kVit }) panel.bonus[attribute] += st_sum[attribute];
         panel.bonus[kMaxLife] += actor->bo_life >> 8; panel.bonus[kMaxMana] += actor->bo_mana >> 8;
-        std::vector<std::string_view> on;
-        for (const auto& state : states) if (const auto* skill = game_data->skills.get(state.skill)) on.push_back(skill->aurastate);
-        for (const auto& aura : friendly_auras(actor->player.x, actor->player.y)) on.push_back(aura.skill->aurastate);
-        if (const auto* curse = game_data->skills.get(actor->curses[0].skill); curse && now_ms < actor->curses[0].until) on.push_back(curse->auratarget);
-        if (now_ms < actor->potion_states[0].until) on.push_back("antidote");
-        if (now_ms < actor->potion_states[1].until) on.push_back("thawing");
+        std::vector<std::string_view> active;
+        for (const auto& state : states) if (const auto* skill = game_data->skills.get(state.skill)) active.push_back(skill->aurastate);
+        for (const auto& aura : friendly_auras(actor->player.x, actor->player.y)) active.push_back(aura.skill->aurastate);
+        if (const auto* curse = game_data->skills.get(actor->curses[0].skill); curse && now_ms < actor->curses[0].until) active.push_back(curse->auratarget);
+        if (now_ms < actor->potion_states[0].until) active.push_back("antidote");
+        if (now_ms < actor->potion_states[1].until) active.push_back("thawing");
         if (const int row = actor->boost.shrine; now_ms < actor->boost.until && row > 0 && std::size_t(row) < game_data->shrines.size())
-            on.push_back(d2d::rules::shrine_state(game_data->shrines[std::size_t(row)].code));
-        for (const auto name : on)
+            active.push_back(d2d::rules::shrine_state(game_data->shrines[std::size_t(row)].code));
+        for (const auto name : active)
             if (const auto found = game_data->states.find(std::string(name)); found != game_data->states.end()) {
                 panel.blue |= found->second.panel_blue;
                 panel.red |= found->second.panel_red;
             }
-        if (std::ranges::contains(on, std::string_view("holyshield"))) panel.blue |= d2d::rules::kPanelDefense;   // FUN_004a7d00: state 0x65 with a shield
+        if (std::ranges::contains(active, std::string_view("holyshield"))) panel.blue |= d2d::rules::kPanelDefense;   // FUN_004a7d00: state 0x65 with a shield
         const std::uint32_t chosen[2] = { actor->character.header.left_skill, actor->character.header.right_skill };
         for (std::size_t k = 0; k < 2; ++k)
             if (const auto* skill = game_data->skills.get(int(chosen[k])))
