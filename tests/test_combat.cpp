@@ -394,6 +394,16 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 20 && !taken.hit; ++i) taken = monster_blow(defender, 1, Motion::standing, mon, false, rng);
     assert(taken.hit && taken.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
     assert(taken.physical == 75 && taken.elemental == 8);                      // Bone Armor's part, Cyclone Armor's
+    {                                                                  // a sure hit (DiabRun, DiabCold, a monster's Charge): no FUN_0057ec10
+        Fighter wall = defender;
+        wall.block = 100; wall.dodge = 100; wall.defense = 1000000;
+        MonStats blind = mon;
+        blind.to_hit = 1;
+        for (int i = 0; i < 20; ++i) {
+            assert(!monster_blow(wall, 99, Motion::standing, blind, false, rng).hit);
+            assert(monster_blow(wall, 99, Motion::standing, blind, false, rng, false, true).damage == 75 + 8);
+        }
+    }
     {                                                                  // cold chills, poison runs per tick (FUN_0057b7d0, FUN_0057c1e0)
         MonStats cold_mon = mon;
         cold_mon.elements[0] = { 2, 100, 10, 10, 40, "A1" };

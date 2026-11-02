@@ -1905,8 +1905,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // over (record flag 2: there, or blocked), rows Param2.. (14..21) play
     // out. Unit +0x4e is the frame's event (FUN_00623e.., the sequence's
     // event column): on an event-1 row (18) the hit lands when the target
-    // is in reach (FUN_00622c40): the skill's damage (FUN_0056e680, flags 0x20).
-    // ponytail: the hit is rolled as a swing (monster_blow).
+    // is in reach (FUN_00622c40): the skill's damage (FUN_0056e680, flags 0x20),
+    // a sure hit (ResultFlags 5 has bit 1: FUN_0057ec10 isn't run).
     if (monster.diab_run > 0) {
         const auto* run_skill = game_data.skills.get(monster.skill);
         const SeqRows* seq = skill_seq(game_data, type_info, monster.skill);
@@ -1925,7 +1925,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             stats.a1_min = d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, false) >> 8;
             stats.a1_max = std::max(d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, true) >> 8, stats.a1_min);
             for (auto& element : stats.elements) element.mode = "";
-            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng);
+            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, (run_skill->result_flags & 1) != 0);
             foe.take(taken);
             if (taken.hit) foe.struck_by(type_info.hit_class);
         };
@@ -2455,11 +2455,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // FUN_005cce80: one sure hit (hit flags | 1) of the skill's own damage at the unit (a live one).
                     auto stats = monster.stats;
                     stats.a1_min = stats.a1_max = 0;
-                    stats.to_hit = 1 << 20;
                     for (auto& element : stats.elements) element = {};
                     const auto added = d2d::rules::row_damage(cast->etype, cast->emin, cast->emax, cast->emin_lev, cast->emax_lev, cast->hitshift, cast->elen, cast->elen_lev, lvl);
                     if (added.etype >= 0) stats.elements[0] = { added.etype, 100, added.elo >> 8, added.ehi >> 8, added.elen, "A1" };
-                    const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng);
+                    const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, true);
                     foe.take(taken);
                     if (taken.hit) foe.struck_by(type_info.hit_class);
                 } else if (cast->srvdofunc == ServerDoFunction::kFingerMageSpider || cast->srvdofunc == ServerDoFunction::kDoomKnightMissile
@@ -2713,7 +2712,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     stats.a1_min = stats.a2_min; stats.a1_max = stats.a2_max; stats.to_hit = stats.to_hit2;
                     for (auto& element : stats.elements) element.mode = element.mode == "A2" ? "A1" : "";
                 }
-                // Charge's hit (FUN_005cf900): sure to hit (flags 9), calc1 % more
+                // Charge's hit (FUN_005cf900): sure to hit (flags 9, no FUN_0057ec10), calc1 % more
                 // damage, the skill's element at its level (FUN_0056e0c0). Jab's
                 // (do 7, FUN_005db2d0): the same on a hit it rolls.
                 // Power Strike's (start 6, FUN_005da940; MonPowerStrike / MonIceSpear):
@@ -2723,7 +2722,6 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const int lvl = skill_level(game_data, monster, monster.skill);
                     const int more = d2d::rules::eval_calc(game_data.skills, struck_with->calc[0], {}, monster.skill, lvl);
                     for (int* damage : { &stats.a1_min, &stats.a1_max }) *damage = std::max(*damage * (100 + more) / 100, 0);
-                    if (!jab && !power) stats.to_hit = 1 << 20;
                     const auto added = d2d::rules::row_damage(struck_with->etype, struck_with->emin, struck_with->emax, struck_with->emin_lev, struck_with->emax_lev,
                                                               struck_with->hitshift, struck_with->elen, struck_with->elen_lev, lvl);
                     if (added.etype >= 0)
@@ -2732,7 +2730,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
                 for (int* damage : { &stats.a1_min, &stats.a1_max }) *damage = std::max(*damage * (100 + monster.dmg_pct + monster.aura_dmg) / 100, 0);
                 stats.to_hit += stats.to_hit * monster.aura_th / 100;
-                const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng);
+                const bool charge = struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kCharge;
+                const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, charge);
                 // MonFrenzy's strike (do 109, FUN_005cdf10): a hit puts on its state
                 // (FUN_005d8c70) for ln12 frames, one more charge up to its level.
                 if (struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kMonFrenzy && taken.hit) {

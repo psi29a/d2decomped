@@ -594,7 +594,9 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
 // (FUN_0057dfb0 / FUN_0057dd60): block (a third while running, FUN_00622d00
 // and mode not 2: walking keeps it whole), Weapon Block standing (two claws:
 // weapon class HT2), then evade
-// while moving, else dodge a swing / avoid a missile; then physical damage
+// while moving, else dodge a swing / avoid a missile (`sure`: none of
+// these, the record's hit bit set without FUN_0057ec10: DiabRun's
+// ResultFlags 1, DiabCold's, a monster's Charge); then physical damage
 // less damage-reduced % then flat (it can reach 0), and each elemental
 // attack (at its chance) less resistance, fire / lightning / cold less
 // magic damage reduction. Cold chills for El Dur ticks (stat 56, added in
@@ -616,15 +618,17 @@ inline int chill_length(const Fighter& defender, int len) {
 struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0, physical = 0, elemental = 0; };
 enum class Motion : std::uint8_t { standing, walking, running };
 inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonStats& attacker, bool second_attack, Rng& rng,
-                          bool missile = false) {
+                          bool missile = false, bool sure = false) {
     Taken taken;
     const bool moving = motion != Motion::standing, running = motion == Motion::running;
-    if (!(running && !missile) && rng(100) >= hit_chance(attacker.to_hit, defender.defense + (missile ? defender.def_missile : defender.def_melee), attacker.level, dlvl))
-        return taken;
-    if (defender.block > 0 && rng(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
-    if (!moving && defender.weapon_block > 0 && rng(100) < defender.weapon_block) { taken.blocked = true; return taken; }
-    const int dodge = moving ? defender.evade : missile ? defender.avoid : defender.dodge;
-    if (dodge > 0 && rng(100) < dodge) { taken.dodged = true; return taken; }
+    if (!sure) {
+        if (!(running && !missile) && rng(100) >= hit_chance(attacker.to_hit, defender.defense + (missile ? defender.def_missile : defender.def_melee), attacker.level, dlvl))
+            return taken;
+        if (defender.block > 0 && rng(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
+        if (!moving && defender.weapon_block > 0 && rng(100) < defender.weapon_block) { taken.blocked = true; return taken; }
+        const int dodge = moving ? defender.evade : missile ? defender.avoid : defender.dodge;
+        if (dodge > 0 && rng(100) < dodge) { taken.dodged = true; return taken; }
+    }
     taken.hit = true;
     int phys = second_attack ? rng.range(attacker.a2_min, attacker.a2_max) : rng.range(attacker.a1_min, attacker.a1_max);
     phys = std::max(phys * (100 - defender.dr_pct) / 100 - defender.dr_flat, 0);
