@@ -327,6 +327,7 @@ auto Fight::skill_sequence() const -> std::span<const d2d::rules::SeqFrame> {
 auto Fight::start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         actor->smove = {};
         actor->seq_loop = false;
+        actor->whirl_next = 0;
         const auto cls = std::size_t(std::max(actor->character.character_class, 0));
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             actor->smove = { actor->move_x, actor->move_y, cells_per_sec(float(game_data->walk_velocity[cls])), true, false };

@@ -233,11 +233,12 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
     }
 
 auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint32_t now_ms) -> void {
-        if (in_town(level) || fight.dead() || actor->held) return;   // held: FUN_0055e170's FUN_0063c1e0
+        // FUN_005be290 opens none in town nor in Uber Tristram (level 0x88),
+        // FUN_0057eec0's mode gate none in state 0x36; held: FUN_0055e170's
+        // FUN_0063c1e0.
+        if (in_town(level) || (level && level->id == d2d::rules::level_ids::kUberTristram) || fight.dead() || fight.uninterruptable() || actor->held) return;
         const bool book = scroll->code == "tbk";
         if (book && scroll->quantity <= 0) return;
-        // ponytail: state 0x36 (FUN_0057eec0) and level 0x88 (FUN_005be290) refuse it too; d2d's player has no
-        // state 0x36, and Uber Tristram's refusal isn't compared (tools/emu/tome_use.py runs the Blood Moor).
         // ponytail: a click on the old portal still pending (take_portal) is kept. FUN_00535430 only unlinks the pair and
         // writes nothing to the player; the walk to a clicked portal is the client's, which the oracle doesn't have.
         portal[actor->portal_pair] = portal[actor->portal_pair + 1] = {};   // FUN_00535430, before the new one
