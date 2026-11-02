@@ -4,9 +4,23 @@ game	0x70	u32	expansion	the expansion flag, set by FUN_00555230	components/rules
 game	0xa8	u32	frame	frame counter, + 1 a frame (FUN_0052d870)	docs/research/re/network.md:19
 game	0xd0	u32	seed	the game seed: one step per unit made (FUN_00552df0)	docs/research/re/town-start.md:68
 game	0x10f8	u32	unit_lists	10 list heads of {unit, ?, next +8, prev +0xc} nodes	docs/research/re/monster-ai.md:57
+grid	0x00	u32	x	the room's first subtile column, as FUN_0061a010 returns the grid	tools/emu/sk_tele_spot.py:64
+grid	0x04	u32	y	its first subtile row	tools/emu/sk_tele_spot.py:64
+grid	0x08	u32	w	its width in subtiles	tools/emu/sk_tele_spot.py:64
+grid	0x0c	u32	h	its height in subtiles	tools/emu/sk_tele_spot.py:64
+grid	0x10	u32	x_copy	a second {x, y, w, h} (the oracle gives it the same values)	tools/emu/sk_tele_spot.py:65
+grid	0x14	u32	y_copy	see x_copy	tools/emu/sk_tele_spot.py:65
+grid	0x18	u32	w_copy	see x_copy	tools/emu/sk_tele_spot.py:65
+grid	0x1c	u32	h_copy	see x_copy	tools/emu/sk_tele_spot.py:65
+grid	0x20	ptr	cells	the u16 collision words, row-major (docs/research/re/collision.md)	docs/research/re/collision.md:20
+levels	0x04	u8	teleport	the Levels row's Teleport column (0 none, 1 and 2 allowed)	tools/emu/sk_tele_spot.py:124
 path	0x1c	ptr	room	the room the unit is in	docs/research/re/missiles.md:33
 path	0x50	u32	collide_mask	what it collides with: a player 0x1c09, a monster 0x3c01	docs/research/re/collision.md:51
 path	0x54	u32	collided	this frame's collision bits, masked	docs/research/re/missiles.md:54
+room	0x4c	u32	x	the room's first subtile column	docs/research/re/act1-end.md:737
+room	0x50	u32	y	its first subtile row	docs/research/re/act1-end.md:737
+room	0x54	u32	w	its width in subtiles	docs/research/re/act1-end.md:737
+room	0x58	u32	h	its height in subtiles	docs/research/re/act1-end.md:737
 skill	0x08	u8	flags	0x20: usemanaondo	tools/emu/sk_mana.py:88
 skill	0x2c	u16	srvst	the server start function id (srvstfunc)	tools/emu/sk_mana.py:87
 skill	0x2e	u16	srvdo	the server do function id (srvdofunc)	tools/emu/sk_mana.py:88

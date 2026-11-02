@@ -843,6 +843,13 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     break;
                 }
                 if (in_town(level) || level->unit_blocked(target_x, target_y) || level->teleport == 0 || (level->teleport == 2 && !clear_line(target_x, target_y))) break;
+                // Teleport (do 27, FUN_005ca360 -> FUN_00554ea0 -> FUN_00463740): only a point in the caster's room or its near list.
+                if (skill.srvdofunc == ServerDoFunction::kTeleport) {
+                    const int sub_x = level->world_x * 5 + int(std::floor(target_x * 5)), sub_y = level->world_y * 5 + int(std::floor(target_y * 5));
+                    const auto rects = missile_rooms(*game_data, *level, actor->player.x, actor->player.y);
+                    if (!std::ranges::any_of(rects, [&](const std::array<int, 4>& rect) {
+                            return sub_x >= rect[0] && sub_y >= rect[1] && sub_x < rect[0] + rect[2] && sub_y < rect[1] + rect[3]; })) break;
+                }
                 actor->player.x = target_x; actor->player.y = target_y;
                 actor->player.path.clear(); actor->player.walking = false;
                 actor->player.goal_x = target_x; actor->player.goal_y = target_y;
