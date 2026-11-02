@@ -198,6 +198,14 @@ int main() {
     assert(inv.size() == 1 && shop.tabs[1].size() == 2);
     const auto stocked_keys = shop.tabs[3].size();
     assert(store_sell(tables, shop, 0, inv, stats) >= 0 && inv.empty() && shop.tabs[3].size() == stocked_keys);   // the key: perm
+    // A vendor buys none with flag 0x1000, no quest item, nothing of type ques (FUN_0062a130).
+    assert(sellable(tables, item("hax")));
+    Item serviced = item("hax");
+    serviced.flags |= kItemNoService;
+    assert(!sellable(tables, serviced));
+    tables.item_base["leg"].quest = true;
+    tables.item_info["bks"].type = "ques";
+    assert(!sellable(tables, item("leg")) && !sellable(tables, item("bks")));
 
     // The item cursor.
     Tables cursor_tables;

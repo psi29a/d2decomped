@@ -576,7 +576,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             view.events.push_back(ev::QuestQuake{ d2d::rules::QuestQuake::Kind(kind) });
         } else if (kind_byte == 8) {
             const auto result = d2d::rules::Trade(byte());
-            if (result != d2d::rules::Trade::no_room && result != d2d::rules::Trade::no_gold) return false;
+            if (result != d2d::rules::Trade::refused && result != d2d::rules::Trade::no_room && result != d2d::rules::Trade::no_gold) return false;
             view.events.push_back(ev::TradeRefused{ result });
         } else {
             const auto kind = ev::OpenUI::Kind(byte());

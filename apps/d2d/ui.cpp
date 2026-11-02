@@ -108,7 +108,8 @@ NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int scr
 NpcMenuState open_trade_refused(const Scene& scene, int npc, d2d::rules::Trade result, int mouse_x, int mouse_y) {
     NpcMenuState menu;
     menu.npc = npc;
-    menu.lines.push_back({ string_id(scene, result == d2d::rules::Trade::no_room ? 0xd1c : 0xd22), 21, 0, 0, true, NpcMenuState::kClose, -1, true });
+    const int text = result == d2d::rules::Trade::refused ? 0xd21 : result == d2d::rules::Trade::no_room ? 0xd1c : 0xd22;
+    menu.lines.push_back({ string_id(scene, text), 21, 0, 0, true, NpcMenuState::kClose, -1, true });
     menu.lines.push_back({ string_id(scene, 0xd4b), 15 });
     layout_npc_menu(scene, menu, mouse_x, mouse_y + 150);   // at the mouse itself, not 150 up as an NPC's
     return menu;

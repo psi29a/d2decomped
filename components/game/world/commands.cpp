@@ -80,6 +80,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (actor->held && actor->held->id == sell->item) { actor->character.items.push_back(std::move(*actor->held)); actor->held.reset(); }
             const auto found = std::ranges::find(actor->character.items, sell->item, &d2d::d2s::Item::id);
             if (found == actor->character.items.end()) return true;
+            if (!d2d::rules::sellable(item_rules, *found)) { actor->events.push_back(ev::TradeRefused{ d2d::rules::Trade::refused }); return true; }
             if (const auto over = d2d::rules::store_sell(item_rules, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats); over > 0) {
                 loot.enter(level);
                 loot.put({ .code = "gld", .gold = int(over) }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);

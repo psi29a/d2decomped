@@ -778,10 +778,10 @@ inline bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const
     return !tome.empty() && book.code == tome && book.location == d2d::d2s::item_location::kStored && base != tables.item_base.end() && book.quantity < base->second.max_stack;
 }
 // A buy's NPC transaction result (S->C 0x2a +2, FUN_00577830 -> FUN_0053d740):
-// done, or the client's box (FUN_004b53f0: 10 string 0xd1c "You do not have
-// enough free space to do that.", 12 string 0xd22 "You do not have enough
-// gold for that.").
-enum class Trade : std::uint8_t { done = 0, no_room = 10, no_gold = 12 };
+// done, or the client's box (FUN_004b53f0: 9 string 0xd21 "I cannot complete
+// that request.", 10 string 0xd1c "You do not have enough free space to do
+// that.", 12 string 0xd22 "You do not have enough gold for that.").
+enum class Trade : std::uint8_t { done = 0, refused = 9, no_room = 10, no_gold = 12 };
 // Buys stock item i of the open tab into the inventory (10x4): gold
 // down by the price (more than carried + stash gold: no_gold), the item
 // leaves the stock unless it's a perm one (nowhere for it: no_room).
@@ -818,8 +818,8 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
 // (stats 72 / 70) unless it's Cracked (LowQualityItems row 1), broken
 // (0x100), unique, personalized, ethereal, a greater or super potion in an
 // expansion game, or one of the vendor's perm items (FUN_00576ed0).
-// ponytail: quest items aren't refused, no belt/equipped selling;
-// FUN_0055f590's test and the vendor proxy's +4 flag (FUN_00536cb0) aren't kept.
+// ponytail: no belt/equipped selling; FUN_0055f590's test and the vendor
+// proxy's +4 flag (FUN_00536cb0) aren't kept.
 inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const auto& sold = items[index];
     const int price = item_price(tables, sold, store.npc_id, true, store.header);
@@ -1671,6 +1671,15 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
 // Item flag 0x1000 (data +0x18, the save's flags too): no NPC service
 // takes the item (FUN_0062c590 / FUN_0062c770 / FUN_0062c6a0).
 inline constexpr std::uint32_t kItemNoService = 0x1000;
+// Whether a vendor buys `item` (FUN_00579510 -> FUN_0062a130, else result 9):
+// no flag 0x1000, not an Items.txt quest item (+0x12a) nor of type 0x27
+// (ques, the type itself: FUN_00629d40 reads +0x11e).
+inline bool sellable(const Tables& tables, const d2d::d2s::Item& item) {
+    if (item.flags & kItemNoService) return false;
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    return !(base != tables.item_base.end() && base->second.quest) && !(info != tables.item_info.end() && info->second.type == "ques");
+}
 
 // Whether Charsi's imbue takes `item` (FUN_0062c590): Items bitfield1
 // bit 0, not gold, no flag 0x1000, not socketed (flag 0x800) nor holding

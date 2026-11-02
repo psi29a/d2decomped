@@ -191,7 +191,7 @@ std::string resurrect_line(const Scene& scene, int merc_type, int name_index, in
 // The reset's confirmation (0x4b5ad0): its name (gold), "ok" (0xd49),
 // "cancel" (0xd48).
 NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int screen_y);
-// A refused store buy's box (FUN_004b53f0): the result's text, red, over
+// A refused store buy's or sale's box (FUN_004b53f0): the result's text, red, over
 // "Continue" (0xd4b), at the mouse.
 // ponytail: the store stays as it was under it; what game.exe's state 6
 // (FUN_00487d30: 0x7bcbf0 = 7) and Continue's FUN_004b9a00(1) (0x4b4cf0)
