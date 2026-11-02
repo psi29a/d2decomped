@@ -88,7 +88,7 @@ inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, cons
     std::vector<std::vector<int>> worn(rules.set_bonuses.size());
     for (const auto& item : items)
         if (item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast
-            && item.quality == 5 && item.set_id >= 0 && std::size_t(item.set_id) < rules.sets.size() && !d2d::rules::broken(item))
+            && item.quality == 5 && item.set_id >= 0 && std::size_t(item.set_id) < rules.sets.size() && (item.flags & 0x4100u) == 0)   // FUN_0062a370's members: flags 0x4000 / 0x100 out
             if (const int set = rules.sets[std::size_t(item.set_id)].set; set >= 0 && std::size_t(set) < worn.size() && !std::ranges::contains(worn[std::size_t(set)], item.set_id))
                 worn[std::size_t(set)].push_back(item.set_id);
     d2d::rules::Rng rng;
