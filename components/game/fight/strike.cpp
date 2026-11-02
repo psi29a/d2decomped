@@ -129,6 +129,18 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
         }
+        // A boss's enemy aura over the player (Aura Enchanted's Holy Freeze):
+        // its velocitypercent and attackrate as stats; resists and defense go
+        // on the foe (monster_auras).
+        for (const auto& aura_monster : monsters) {
+            const auto* skill = aura_monster.alive() && aura_monster.aura ? game_data->skills.get(aura_monster.aura) : nullptr;
+            if (!skill || (skill->srvdofunc != ServerDoFunction::kEnemyAura && skill->srvdofunc != ServerDoFunction::kHolyFreeze)) continue;
+            const d2d::rules::CalcEnv boss_env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, aura_monster.stats.level, nullptr };
+            if (std::hypot(aura_monster.unit.x - actor->player.x, aura_monster.unit.y - actor->player.y) * 5 > float(d2d::rules::eval_calc(game_data->skills, skill->aurarange, boss_env, skill->id, aura_monster.aura_lvl))) continue;
+            for (std::size_t i = 0; i < skill->aurastat.size(); ++i)
+                if (const int id = skill->aurastat[i]; id == kVelocityPercent || id == kAttackRate)
+                    st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], boss_env, skill->id, aura_monster.aura_lvl);
+        }
         for (const auto& aura : friendly_auras(actor->player.x, actor->player.y))
             for (std::size_t i = 0; i < aura.skill->aurastat.size(); ++i)
                 if (const int id = aura.skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())

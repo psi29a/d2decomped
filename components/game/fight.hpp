@@ -1148,9 +1148,10 @@ struct Fight {
     // Bosses' auras (Aura Enchanted), each at its level within its
     // aurarange: Might, Blessed Aim, Fanaticism add their damage / to-hit %
     // to the monsters there; Conviction cuts the foes' resistances and
-    // defense; Holy Fire, Shock and Freeze strike the foes every perdelay.
-    // ponytail: Fanaticism's attack rate and Holy Freeze's slow aren't
-    // applied; the elements' roll ignores the foes' magic damage reduction.
+    // defense; Holy Fire, Shock and Freeze strike the foes every perdelay,
+    // less magic damage reduction as a monster's element (monster_blow).
+    // Fanaticism's attackrate speeds their attacks (Monster::aura_rate);
+    // Holy Freeze's slow is the player's stats (update_fighters).
     void monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms);
     // A magic shrine's missiles from (x, y), at level clvl / 5 (1..8): the
     // Storm Shrine's 16 fireballs (FUN_00582da0, missile 62) toward x = +-5k

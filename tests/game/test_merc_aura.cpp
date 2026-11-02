@@ -114,6 +114,21 @@ int main() try {
     fight.monster_states(3000);
     assert(chilled.speed_pct == 0 && chilled.anim_pct == 0);
     std::printf("OK: the merc's Holy Freeze slows the monsters near it and its pulse hurts them\n");
+
+    // A boss's (Aura Enchanted): Holy Freeze slows the player near it, Fanaticism speeds the monsters' attacks.
+    actor.merc.reset();
+    fight.monsters.clear();
+    fight.update_fighters(4000);
+    const int pace = actor.player_combat.velocity_pct, rate = actor.player_combat.ias;
+    fight.monsters.push_back(make_monster(*data, int(zombie), actor.player.x + 1, actor.player.y, make_rng, 0));
+    fight.monsters.back().aura = holy_freeze; fight.monsters.back().aura_lvl = 6;
+    fight.update_fighters(4000);
+    assert(actor.player_combat.velocity_pct < pace && actor.player_combat.ias < rate);
+    fight.monsters.back().aura = data->skills.by_name.at("Fanaticism");
+    std::vector<Foe> foes(1);
+    fight.monster_auras(foes, 4000);
+    assert(fight.monsters.back().aura_rate > 0 && anim_rate_pct(fight.monsters.back(), "A1") > anim_rate_pct(fight.monsters.back(), "WL"));
+    std::printf("OK: a boss's Holy Freeze slows the player, its Fanaticism speeds the attacks\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

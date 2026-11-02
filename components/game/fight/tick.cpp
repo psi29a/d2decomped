@@ -621,7 +621,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
     }
 
 auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void {
-        for (auto& monster : monsters) monster.aura_dmg = monster.aura_th = 0;
+        for (auto& monster : monsters) monster.aura_dmg = monster.aura_th = monster.aura_rate = 0;
         for (auto& aura_monster : monsters) {
             if (!aura_monster.alive() || !aura_monster.aura || !near_players(aura_monster.unit.x, aura_monster.unit.y)) continue;
             const auto* skill = game_data->skills.get(aura_monster.aura);
@@ -636,6 +636,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
                         for (std::size_t i = 0; i < skill->aurastat.size(); ++i) {
                             if (skill->aurastat[i] == 25) monster.aura_dmg += val(skill->aura_calc[i]);     // damagepercent
                             if (skill->aurastat[i] == 119) monster.aura_th += val(skill->aura_calc[i]);     // item_tohit_percent
+                            if (skill->aurastat[i] == 68) monster.aura_rate += val(skill->aura_calc[i]);    // attackrate (Fanaticism)
                         }
                 continue;
             }
@@ -658,7 +659,7 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
             const int high = std::max(d2d::rules::elem_damage(game_data->skills, *skill, env, aura_monster.aura_lvl, true) >> 8, low);
             for (auto& foe : foes)
                 if (foe.alive && in_range(foe.x, foe.y)) {
-                    const int dealt = d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]);
+                    const int dealt = std::max(d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
                     foe.damage += dealt; foe.elemental += dealt;
                     foe.blows.push_back({ dealt, 0, true, 0, dealt });
                 }

@@ -221,7 +221,7 @@ struct Monster {
     int aura = 0, aura_lvl = 0;
     std::vector<std::string_view> host_states;   // a joined game's: the States.txt names the host has on it (0xa8 / 0xaa)
     std::uint32_t aura_next = 0;
-    int aura_dmg = 0, aura_th = 0;
+    int aura_dmg = 0, aura_th = 0, aura_rate = 0;   // a boss's aura over it: damagepercent, item_tohit_percent, attackrate (Fanaticism)
     // Skills' states on it (their auratargetstate): one curse at a time
     // (Amplify Damage .. Lower Resist, Confuse, Attract), one other
     // (Battle Cry, Taunt, Inner Sight, Cloak of Shadows' blindness).
@@ -401,7 +401,7 @@ inline std::uint32_t get_hit_ms(const GameData::AnimTiming& timing, int fhr) {
 }
 
 inline int anim_rate_pct(const Monster& monster, std::string_view mode) {
-    if (mode == "A1" || mode == "A2") return monster.anim_pct + d2d::rules::effective_speed(monster.props.ias);
+    if (mode == "A1" || mode == "A2") return monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias);
     if (mode == "SC") return monster.anim_pct + d2d::rules::effective_speed(monster.props.fcr);
     return monster.anim_pct;
 }
