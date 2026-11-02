@@ -140,6 +140,8 @@ struct Special {
     std::string index;                                     // its "index" name (cubemain's names, FUN_006bd3c0)
     std::vector<Mod> bonus;                                // a set's aprop1a..aprop5b, all 10 (unused: no code)
     bool bonus_apart = false;                              // add func: the bonuses go to their own lists (else the item's)
+    int add_func = 0;                                      // add func: 1 a list per other member worn, 2 by the count
+    int member = -1;                                       // its place in its set, in row order (+0x2e, FUN_00634dc0)
 };
 // Properties.txt: per code the funcs that turn a mod into stats.
 struct PropFunc { int func = 0, stat = -1, val = 0; };

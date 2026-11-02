@@ -1325,7 +1325,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                 special.bonus.push_back({ std::string(table.get(row, "aprop" + suffix)), std::string(table.get(row, "apar" + suffix)),
                                                      num(table.get(row, "amin" + suffix)), num(table.get(row, "amax" + suffix)) });
                             }
-                        special.bonus_apart = num(table.get(row, "add func")) != 0;
+                        special.add_func = num(table.get(row, "add func"));
+                        special.bonus_apart = special.add_func != 0;
                     }
                     special.ladder = table.get(row, "ladder") == "1";
                     special.index = std::string(table.get(row, "index"));
@@ -1339,6 +1340,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.uniques = specials("UniqueItems", "code", 12);
         game_data.rules.sets = specials("SetItems", "item", 9);
+        {
+            std::unordered_map<int, int> members;   // the loader's running count per set (at most 6)
+            for (auto& set_item : game_data.rules.sets)
+                if (set_item.set >= 0 && members[set_item.set] < 6) set_item.member = members[set_item.set]++;
+        }
         // The Cube's recipes (FUN_00669130's columns, cube.md).
         if (auto bytes = mpqs.try_read(R"(data\global\excel\cubemain.txt)")) {
             const d2d::txt::Table cube(*bytes);

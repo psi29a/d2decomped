@@ -4,6 +4,7 @@
 // missile's frame, the view codec, MonProp's stats on a monster, and the like.
 
 #include <ai.hpp>
+#include <character.hpp>
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <item_text.hpp>
@@ -163,6 +164,27 @@ int main() try {
         amulet.unique_id = 0;
         assert(flippy_sound(sounds, amulet) == Cue("item_amulet", 5));     // an empty row: the base's
         std::printf("OK: the flippy's drop sound (FUN_004c16d0)\n");
+    }
+    {
+        // A set item's lists (FUN_004e6560): add func 1 by which other member is worn, 2 by the count.
+        GameData sets;
+        sets.rules.sets.resize(3);
+        for (int member = 0; member < 3; ++member) { sets.rules.sets[std::size_t(member)].set = 0; sets.rules.sets[std::size_t(member)].member = member; }
+        sets.rules.sets[0].add_func = 1;
+        auto worn = [](int set_id) {
+            d2d::d2s::Item piece{ .code = "cap" };
+            piece.quality = 5; piece.set_id = set_id;
+            piece.location = d2d::d2s::item_location::kEquipped; piece.slot = d2d::d2s::body_location::kFirst;
+            return piece;
+        };
+        auto ward = worn(0);
+        ward.set_lists = 3; ward.set_list_sizes = { 1, 1 };
+        ward.set_props = { { .stat = 1, .value = 1 }, { .stat = 2, .value = 1 } };
+        const auto lists = set_bonus_props(sets, { ward, worn(2) }, ward);
+        assert(lists.size() == 1 && lists[0].stat == 2);                                       // place 2 is list 1 (its own place 0 skipped)
+        sets.rules.sets[0].add_func = 2;
+        assert(set_bonus_props(sets, { ward, worn(2) }, ward).size() == 1 && set_bonus_props(sets, { ward, worn(2) }, ward)[0].stat == 1);   // 2 worn: list 0
+        std::printf("OK: a set item's own lists by add func\n");
     }
     return 0;
 } catch (const std::exception& error) {
