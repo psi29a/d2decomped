@@ -335,7 +335,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         int at_x = 0, at_y = 0;
                         if (!spawn_spot(*game_data, *level, crowd, &spawning.levels[level], worm_type, int(std::floor(monster.unit.x * 5)), int(std::floor(monster.unit.y * 5)), 1,
                                         room_of(*level, monster.unit.x, monster.unit.y), at_x, at_y)) continue;
-                        auto young = make_monster(*game_data, worm_type, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes));
+                        auto young = make_monster(*game_data, worm_type, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes), level->id);
                         young.aware = true;
                         young.seed = d2d::rules::Rng{ rng.next() };
                         set_mode(*game_data, young, impregnate->summode.empty() ? "NU" : impregnate->summode, now_ms);
@@ -712,7 +712,7 @@ auto Fight::rooms_up(const Level& here, float x, float y, bool arrived) -> void 
             if (remote_monsters) continue;          // the rooms still come up (their objects); the host has the monsters
             const auto& spawns = spawning.levels[grown].spawns;
             const auto& region = std::size_t(grown->id) < spawning.regions.size() ? spawning.regions[std::size_t(grown->id)] : d2d::rules::Region{};
-            auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), region, rng, game_difficulty, int(heroes.size()));
+            auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), region, rng, game_difficulty, int(heroes.size()), grown->id);
             for (auto& monster : made) add_monster(std::move(monster), grown);
         }
     }

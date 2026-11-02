@@ -262,8 +262,7 @@ bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& spot_x, 
 // and experience grow by player_life_pct / player_exp_pct of the roll
 // (FUN_00483360: truncated), life capped at 0x7fffff (FUN_00573cb0).
 // ponytail: monster data +0x4c (unidentified) skips the bonus in game.exe;
-// d2d's pets never take it; Nightmare / Hell take the area's level (FUN_0061dca0) for a ratio row,
-// not Level(N) / Level(H), which waits for those difficulties.
+// d2d's pets never take it.
 struct MonStats {
     int level = 1, hit_points = 1, armor_class = 0, to_hit = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
     int s1_min = 0, s1_max = 0;
@@ -363,13 +362,26 @@ inline MonRanges monster_ranges(const Monsters& monsters, int type, int difficul
              pct(level_row.damage[index], per_difficulty.a1_min), pct(level_row.damage[index], per_difficulty.a1_max) };
 }
 
-inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add = 0, int players = 1) {
+// The level a spawned monster starts at (FUN_00573cb0 0x573e15..0x573e70):
+// its MonStats Level / Level(N) / Level(H); in an expansion game on
+// Nightmare or Hell the area's Levels.txt MonLvl2Ex / MonLvl3Ex instead
+// (FUN_0061a1b0 -> FUN_0061dca0), unless the row is noRatio (MonStats flag
+// +0xc & 4) or boss (+0xc & 0x40: masks 0x6ce270 / 0x6ce280), which keep
+// their own. `area_level` is that Levels.txt column of the area the unit is
+// made in, -1 when the area isn't known (the MonStats level, as before).
+inline int start_level(const MonType& type_info, int difficulty_index, int area_level) {
+    if (area_level < 0 || difficulty_index == 0 || type_info.no_ratio || type_info.boss_column) return type_info.level[std::size_t(difficulty_index)];
+    return area_level;
+}
+
+inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add = 0, int players = 1, int area_level = -1) {
     MonStats stats;
     if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;
     const auto& type_info = monsters.types[std::size_t(type)];
     const int difficulty_index = std::clamp(difficulty, 0, 2);
-    const int spawn_level = std::max(type_info.level[std::size_t(difficulty_index)], 1);
-    stats.level = std::max(type_info.level[std::size_t(difficulty_index)] + level_add, 1);
+    const int base_level = start_level(type_info, difficulty_index, area_level);
+    const int spawn_level = std::max(base_level, 1);
+    stats.level = std::max(base_level + level_add, 1);
     if (monsters.lvl.empty()) return stats;
     // Life, defence and experience are read once, at the MonStats level
     // (FUN_00573cb0); leveladd (FUN_005a0e40) raises only the level stat

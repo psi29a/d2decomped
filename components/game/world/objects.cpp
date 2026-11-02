@@ -677,7 +677,7 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
                 auto& in_play = fight.spawning.levels[level];
                 if (!std::ranges::any_of(std::array{ -1, 1, 3 }, [&](int radius) { return spawn_spot(*game_data, *level, crowd, &in_play, type, chest_x, chest_y, radius, room, at_x, at_y); })) continue;
                 const d2d::rules::Spawn spawn{ .type = type, .x = at_x, .y = at_y, .seed = fight.spawning.game.next() };
-                auto monster = std::move(spawn_monsters(*game_data, std::span{ &spawn, 1 }, region, rng, diff, int(players.size())).front());
+                auto monster = std::move(spawn_monsters(*game_data, std::span{ &spawn, 1 }, region, rng, diff, int(players.size()), level->id).front());
                 set_mode(*game_data, monster, "S1", now_ms);
                 monster.aware = true;
                 crowd.units.push_back(&risen.emplace_back(std::move(monster)).unit);
