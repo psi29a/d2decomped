@@ -237,6 +237,27 @@ int main() {
         Item stored_item = item(code); stored_item.location = 0; stored_item.panel = panel; stored_item.column = col; stored_item.row = row; return stored_item;
     };
 
+    {   // The pickup's auto-equip (FUN_0055d710): an empty slot it can go in, with what's in the other hand.
+        auto worn = [](const char* code, int slot) { Item worn_item = item(code); worn_item.location = 1; worn_item.slot = slot; return worn_item; };
+        auto ground = [](const char* code) { Item ground_item = item(code); ground_item.location = 3; return ground_item; };
+        std::vector<Item> body;
+        Item picked = ground("ssd");
+        assert(pick_up(cursor_tables, body, picked, 10, 4, 4, &sorc) == Pickup::kGone && body.back().location == 1 && body.back().slot == 4);   // both hands empty: BodyLoc1
+        picked = ground("buc");
+        assert(pick_up(cursor_tables, body, picked, 10, 4, 4, &sorc) == Pickup::kGone && body.back().slot == 5);       // a shield beside the sword
+        std::vector<Item> two_hands{ worn("2ax", 4) };
+        picked = ground("buc");
+        assert(auto_equip_slot(cursor_tables, two_hands, picked, sorc) == -1);                                          // not beside a two-hander
+        std::vector<Item> bow_hands{ worn("sbw", 4) };
+        assert(auto_equip_slot(cursor_tables, bow_hands, ground("aqv"), sorc) == 5 && auto_equip_slot(cursor_tables, bow_hands, ground("cqv"), sorc) == -1);
+        assert(auto_equip_slot(cursor_tables, {}, ground("aqv"), sorc) == -1);                                          // ammunition needs its bow
+        Item unknown = ground("cap"); unknown.identified = false;
+        assert(auto_equip_slot(cursor_tables, {}, ground("cap"), sorc) == 1 && auto_equip_slot(cursor_tables, {}, unknown, sorc) == -1);
+        const Wearer weak{ .cls = d2d::d2s::kSorceress, .str = 10, .dex = 30, .lvl = 10 };
+        assert(auto_equip_slot(cursor_tables, {}, ground("ssd"), weak) == -1);                                          // strength 25 needed
+        std::vector<Item> sword{ worn("ssd", 4) };
+        assert(auto_equip_slot(cursor_tables, sword, ground("ssd"), sorc) == -1 && auto_equip_slot(cursor_tables, sword, ground("ssd"), barb) == 5);
+    }
     // Grid: place, swap one, refuse two, stay in bounds, no cube in the cube.
     std::vector<Item> items = { stored("buc", 1, 0, 0), stored("buc", 1, 2, 0) };
     std::optional<Item> held;

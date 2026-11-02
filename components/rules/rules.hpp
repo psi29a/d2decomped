@@ -2157,10 +2157,48 @@ inline int potion_rate(int old_rate, int left, int amount, int len) {
 //   so a scroll goes into a column whose bottom is the same scroll;
 // - else the inventory's first free spot (FUN_005600a0); no room leaves it
 //   on the ground (FUN_0055c9a0 message 0x17: the class's "can't carry").
-// ponytail: the auto-equip step before the belt (FUN_0055d710) isn't done;
-// stacks match by code (FUN_0062c850 also compares quality and flags);
-// tomes by the Books.txt pairs tsc / tbk, isc / ibk.
+//   Before the belt, given a wearer, the auto-equip (auto_equip_slot).
+// ponytail: stacks match by code (FUN_0062c850 also compares quality and
+// flags); tomes by the Books.txt pairs tsc / tbk, isc / ibk.
 enum class Pickup { kGone, kStays, kNoRoom };
+
+// The body slot a pickup goes to (FUN_0055d710 mode 0), -1 none: an
+// identified item the wearer can use (FUN_0062eaf0), of a type with a body
+// slot (FUN_0062fdf0), not broken (0x100) nor flagged 0x4000 (FUN_0062a4e0),
+// not a throwing potion (ItemTypes row 0x26, tpot); ammunition (its type's
+// Quiver, FUN_00628480) only with a weapon in the hands that shoots it
+// (FUN_0062e6f0). One slot (BodyLoc1 == BodyLoc2) when it's empty; two
+// (rings, the hands) BodyLoc1 when both are empty, else the empty one when
+// what fills the other goes with it (FUN_0055d670: two rings, a bow and its
+// ammunition, a one-hander and a shield, two weapons a Barbarian or two
+// claws an Assassin holds: rules::hands_ok).
+inline int auto_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, const Wearer& wearer,
+                           int required_level = -1) {
+    const auto* info = info_of(tables, item);
+    const auto type = info ? tables.types.find(info->type) : tables.types.end();
+    if (!item.identified || broken(item) || (item.flags & 0x4000) || type == tables.types.end() || info->type == "tpot") return -1;
+    if (type->second.body[0] == 0 && type->second.body[1] == 0) return -1;
+    if (!meets_requirements(tables, item, wearer, required_level)) return -1;
+    const auto worn = [&](int slot) -> const d2d::d2s::Item* {
+        const auto found = std::ranges::find_if(items, [&](const auto& carried) { return carried.location == d2d::d2s::item_location::kEquipped && carried.slot == slot; });
+        return found != items.end() ? &*found : nullptr;
+    };
+    if (!type->second.quiver.empty()) {
+        const auto shoots = [&](const d2d::d2s::Item* weapon) {
+            const auto* weapon_info = weapon ? info_of(tables, *weapon) : nullptr;
+            const auto weapon_type = weapon_info ? tables.types.find(weapon_info->type) : tables.types.end();
+            return weapon_type != tables.types.end() && !weapon_type->second.shoots.empty() && type_is(tables, info->type, weapon_type->second.shoots);
+        };
+        if (!shoots(worn(d2d::d2s::body_location::kRightArm)) && !shoots(worn(d2d::d2s::body_location::kLeftArm))) return -1;
+    }
+    const int first = type->second.body[0], second = type->second.body[1];
+    const auto* first_worn = worn(first);
+    if (first == second) return first_worn ? -1 : first;
+    const auto* second_worn = worn(second);
+    const auto goes_with = [&](const d2d::d2s::Item& other) { return info->type == "ring" ? type_is(tables, info_of(tables, other) ? info_of(tables, other)->type : std::string{}, "ring") : hands_ok(tables, item, other, wearer); };
+    if (!first_worn) return !second_worn || goes_with(*second_worn) ? first : -1;
+    return !second_worn && goes_with(*first_worn) ? second : -1;
+}
 // The belt groups of FUN_00628a40, 3-char codes in game.exe order (0x744684 hp, 0x74466c mp, 0x744660 rv).
 inline constexpr std::array<std::string_view, 3> kGroups{ "hp1hp2hp3hp4hp5", "mp1mp2mp3mp4mp5", "rvlrvs" };
 // The item's own ItemTypes row is Beltable (FUN_0062bad0; no Equiv chain).
@@ -2207,7 +2245,8 @@ inline bool auto_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     found->location = d2d::d2s::item_location::kBelt; found->column = slot; found->row = 0; found->panel = 0; found->slot = 0;
     return true;
 }
-inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes) {
+inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes,
+                      const Wearer* wearer = nullptr, int required_level = -1) {
     using d2d::d2s::Item;
     const auto in_inventory = [](const Item& carried) { return carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory; };
     const auto max_stack = [&](const std::string& code) { const auto found = tables.item_base.find(code); return found != tables.item_base.end() ? found->second.max_stack : 0; };
@@ -2233,6 +2272,11 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
             stack.quantity += moved; item.quantity -= moved;
             if (item.quantity <= 0) return Pickup::kGone;
         }
+    }
+    if (const int slot = wearer ? auto_equip_slot(tables, items, item, *wearer, required_level) : -1; slot > 0) {
+        item.location = d2d::d2s::item_location::kEquipped; item.slot = slot; item.panel = 0; item.column = 0; item.row = 0;
+        items.push_back(std::move(item));
+        return Pickup::kGone;
     }
     if (const int slot = belt_box(tables, items, item, boxes); slot >= 0) {
         item.location = d2d::d2s::item_location::kBelt; item.column = slot; item.row = 0; item.panel = 0; item.slot = 0;
