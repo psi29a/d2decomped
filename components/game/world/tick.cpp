@@ -61,14 +61,16 @@ auto World::greet_sound(const Npc& npc, int kind) -> int {
         if (!greeting) return 0;
         auto& last = greeted_with[npc.hc_idx];
         int row = 0;
-        // ponytail: the member is a plain draw; FUN_00482680 also keeps from the group's last ones.
+        const auto roll = [&](int bound) { return int(fight.sound_rng(bound)); };
+        int first = 0;
         for (int tries = 0; tries < 20; ++tries) {
-            row = d2d::rules::sound_ids::greeting_row(*greeting, kind, day.phase, [&](int bound) { return int(fight.sound_rng(bound)); });
+            row = first = d2d::rules::sound_ids::greeting_row(*greeting, kind, day.phase, roll);
             if (row > 0 && std::size_t(row) < game_data->sounds.size())
-                if (const int group = game_data->sounds[std::size_t(row)].group; group > 1) row += int(fight.sound_rng(group));
+                row = d2d::rules::sound_ids::group_member(row, game_data->sounds[std::size_t(row)].group, group_last[row], roll);
             if (row != last) break;
         }
         last = row;
+        if (first > 0) d2d::rules::sound_ids::group_played(group_last[first], row);
         return row;
     }
 

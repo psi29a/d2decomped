@@ -93,6 +93,22 @@ template <class Roll> int greeting_row(const Greeting& npc, int kind, int phase,
     return row;
 }
 
+// A group's member (FUN_00482680): `first` + rand(group), drawn again while
+// it's one of the group's last `keep` plays (`last`, the first row's +0x64
+// newest and +0x68: FUN_004e01b0 shifts them as a play starts). `keep` is
+// group - 1 up to 2, one less a time in group + 1 for a group of 2 or 3.
+template <class Roll> int group_member(int first, int group, const std::array<int, 2>& last, Roll&& roll) {
+    if (group <= 1) return first;
+    int keep = std::min(group - 1, 2);
+    if (group <= 3 && roll(group + 1) == 0) --keep;
+    for (;;) {
+        const int pick = first + roll(group);
+        if (std::find(last.begin(), last.begin() + keep, pick) == last.begin() + keep) return pick;
+    }
+}
+// FUN_004e01b0's history step as `row` of the group starting at `first` plays.
+inline void group_played(std::array<int, 2>& last, int row) { last = { row, last[0] }; }
+
 // A footstep's row (FUN_004caeb0): its first, + 4 a floor material past dirt
 // (1 dirt, 2 indoor stone, 3 outdoor stone, 4 sand, 5 snow, 6 wood), + 24 running.
 inline int footstep(int first, int material, bool running) {

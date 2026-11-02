@@ -771,6 +771,7 @@ struct World {
     // one it said last (twenty draws), 0 none.
     int greet_sound(const Npc& npc, int kind);
     std::unordered_map<int, int> greeted_with;   // by MonStats class: its last greeting (the record's +0x10)
+    std::unordered_map<int, std::array<int, 2>> group_last;   // by a sound group's first row: its last two plays (+0x64 / +0x68)
     // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
     void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
     // Tools of the Trade: whether the player has the Horadric Malus

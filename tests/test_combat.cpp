@@ -157,6 +157,19 @@ int main(int argc, char** argv) {
     StatSum sum{}, wsum{};
     auto fighter = make_fighter(tables, &hax, nullptr, sum, wsum, stats, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
     assert(fighter.min == 3 && fighter.max == 7 && fighter.attack_rating == 80 && fighter.block == 0 && fighter.wsm == -10 && fighter.defense == 50 && fighter.res[3] == 4);
+    // A group's member (FUN_00482680): never one of its last `keep` plays.
+    {
+        namespace snd = d2d::rules::sound_ids;
+        std::array<int, 2> last{};
+        int next = 0;
+        const auto scripted = [&](int bound) { static constexpr int kDraws[] = { 1, 0, 0, 1, 4, 4, 0, 2 }; return kDraws[next++] % bound; };
+        assert(snd::group_member(100, 1, last, scripted) == 100 && next == 0);
+        snd::group_played(last, 100);
+        assert(snd::group_member(100, 3, last, scripted) == 101 && next == 4);       // keep 2: 100 twice redrawn
+        snd::group_played(last, 101);
+        assert(last == (std::array{ 101, 100 }));
+        assert(snd::group_member(100, 3, last, scripted) == 100 && next == 7);       // rand(4) 0: keep 1, only 101 redrawn
+    }
     // The hit class (unit sounds, FUN_004ca560 / the swing table 0x727ed8):
     // the weapon's, else hand to hand; the blow carries it with the skill's.
     {
