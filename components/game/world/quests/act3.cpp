@@ -15,7 +15,6 @@
 #include <uniques.hpp>
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -201,12 +200,17 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
             if (bird && !actor->had_bird) golden_bird.picked_up(quests(), true);
             actor->had_figurine = figurine; actor->had_bird = bird;
         }
-        // a3q3's timer (FUN_005b9a30): with the player by the altar, a unique
-        // fetish (fetish11) and its pack come (FUN_005b9930 -> FUN_005a43e0).
-        // ponytail: "in its room" is within 20 cells; it waits for the player.
+        // a3q3's timer (FUN_005b9a30): with a player in a room near the altar's
+        // (FUN_00619da0 at its spot, its near list FUN_00619790), a unique
+        // fetish (fetish11) and its pack come (FUN_005b9930 -> FUN_005a43e0);
+        // till then the timer asks again.
         if (gidbinn_timer && now_ms >= gidbinn_timer && !blade.spawned && gidbinn_altar >= 0 && std::size_t(gidbinn_altar) < level->npcs.size()) {
             const auto& altar = level->npcs[std::size_t(gidbinn_altar)];
-            if (std::hypot(actor->player.x - altar.x, actor->player.y - altar.y) < 20 && d2d::rules::BladeQuest::kGuardian < int(game_data->monsters.types.size())) {
+            const auto rooms = near_rooms(*game_data, *level, altar.x, altar.y);
+            const bool by_altar = std::ranges::any_of(players, [&](const auto& player) {
+                return std::ranges::contains(rooms, std::pair{ level, room_of(*level, player->player.x, player->player.y) });
+            });
+            if (by_altar && d2d::rules::BladeQuest::kGuardian < int(game_data->monsters.types.size())) {
                 const int diff = actor->character.header.active_difficulty();
                 auto fetish_lord = make_monster(*game_data, d2d::rules::BladeQuest::kGuardian, altar.x + 1, altar.y + 1, fight.rng, diff, true, int(players.size()), level->id);
                 make_boss(*game_data, fetish_lord, d2d::rules::Boss::unique, {}, -1, int(fight.rng.next() & 0xffff), diff, fight.rng, int(players.size()));
