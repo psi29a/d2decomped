@@ -292,6 +292,9 @@ On the host, `FUN_00530190` (SrvJoinAct) creates the player from the upload thro
   - byte +0x28 ≤ 7; `FUN_00538620` then stores that class byte at client +0x8
     (`MOV [ECX+8],DL`; the save byte is loaded at `0056a16f` and passed in
     EDX at `0056a17a`).
+  - client +0xa starts at 0; `FUN_00538630` later stores the low word of the
+    save flags at +0x24 there. If flag bit 0 was set, game.exe clears it in
+    both places and returns 2 (`0056a187`..`0056a1a8`).
   Parse errors are mapped to a client reason through `DAT_006e1208`.
 - `FUN_00539760` compares the character with the game:
   - a classic character in an expansion game → 0x17;
