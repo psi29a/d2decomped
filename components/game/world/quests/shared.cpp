@@ -81,13 +81,12 @@ auto World::holding_malus() const -> bool {
 
 // The malus stand (OperateFn 21, FUN_00591ac0): at clvl 8 the malus drops
 // from it (FUN_00559a30) and it's used (mode 2); too low, "I can't"
-// (FUN_00553380).
-// ponytail: the refusal's a log line, not the class's voice; the stand
-// starts NU where game.exe's InitFn 15 has it ON with the quest off.
+// (FUN_00553380, voice 0x13: impossible_1). With the quest off it starts in
+// mode 2 (InitFn 15, FUN_00544950: World::act1_enter).
 auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
         const auto& object = level->npcs[std::size_t(npc_index)];
         const auto stand = tools.operate(quests(), int(actor->character.stats.get(d2d::d2s::kLevel)));
-        if (stand == d2d::rules::ToolsQuest::Stand::refuse) d2d::log::info("I can't use this yet.");
+        if (stand == d2d::rules::ToolsQuest::Stand::refuse) class_cue("impossible_1", now_ms);
         if (stand == d2d::rules::ToolsQuest::Stand::drop || !tools.active) operated.try_emplace({ level, npc_index }, now_ms);
         if (stand != d2d::rules::ToolsQuest::Stand::drop) return;
         each_player([&](Player&) { tools.mark(quests()); });   // every player's flags for state 4 (FUN_005537d0 -> 0x591340)

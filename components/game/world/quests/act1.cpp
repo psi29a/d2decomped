@@ -53,6 +53,9 @@ auto World::act1_enter(const Level& from) -> void {
         if (closed_at_join[std::size_t(d2d::rules::TowerQuest::kQuest)])   // the Moldy Tome's InitFn 4 (FUN_00595a00): record +9 clear, mode 3 (not selectable)
             for (std::size_t index = 0; index < level->npcs.size(); ++index)
                 if (level->npcs[index].operate_fn == d2d::rules::operate_fn::kMoldyTome) doors.try_emplace({ level, int(index) }, Door{ 3, now });
+        if (!tools.active)   // the malus stand's InitFn 15 (FUN_00544950): record +9 clear, mode 2
+            for (std::size_t index = 0; index < level->npcs.size(); ++index)
+                if (level->npcs[index].operate_fn == d2d::rules::ToolsQuest::kStand) doors.try_emplace({ level, int(index) }, Door{ 2, now });
         tools.enter(quests(), from.id);
         const bool cain_open = cain.state != 7;
         cain.enter(quests(), from.id, level->id, actor->id);
