@@ -98,9 +98,8 @@ auto World::malus_stand(int npc_index, std::uint32_t now_ms) -> void {
 
 // Andariel's death hook (FUN_005965a0): the quest's bits; the player's
 // kill for it opens Act 2 (the save's progression, FUN_00538680) and
-// drops two chipped gems and a standard one (0x7361dc / 0x736444).
-// ponytail: loot's rng, not the game's quest rng (game+0x10f4); quests:
-// agent A's.
+// drops two chipped gems and a standard one (0x7361dc / 0x736444, each
+// a step of the game's quest rng % 7, FUN_005438b0).
 auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         namespace quest = d2d::rules::quest;
         constexpr int kQuest = d2d::rules::AndyQuest::kQuest;
@@ -109,7 +108,7 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         if (first) {
             open_act(1);
             for (const auto* codes : { d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kChipped, d2d::rules::AndyQuest::kStandard })
-                loot.put({ codes[loot.rng.next() % 7] }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
+                loot.put({ codes[fight.spawning.quests.next() % 7] }, kill.x, kill.y, kill.level, fight.spawning.game, now_ms);
         }
         // Every player (FUN_005965a0's passes): the news lists for those in her
         // lair (FUN_00596260); the killer's party in Act 1, neither done nor
@@ -597,9 +596,8 @@ auto World::take_carried(std::string_view code) -> void {
 // The tree (OperateFn 12) drops the scroll by it; the stones (9) light in
 // the deciphered scroll's order, the fifth opening the way to Tristram at
 // StoneLambda (x + 6, y - 3); the Gibbet (10) frees Cain.
-// ponytail: the world's rng stands in for the game's quest rng
-// (game+0x10f4); CairnStones' missile and the portal's red look aren't
-// drawn. Cain walks out (cain_step); with no room for him the portal
+// The order draws on the game's quest rng (game+0x10f4).
+// ponytail: CairnStones' missile and the portal's red look aren't drawn. Cain walks out (cain_step); with no room for him the portal
 // FUN_0056d130 opens at x + 6, y + 6 is the player's own pair. Quests:
 // agent A's.
 auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
@@ -643,7 +641,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
             return;
         }
         if (!cain.ordered) {
-            cain.stone_order(rng.low, rng.high);
+            cain.stone_order(fight.spawning.quests.low, fight.spawning.quests.high);
             d2d::log::info("Search for Cain: the stones' order {} {} {} {} {}", cain.order[0], cain.order[1], cain.order[2], cain.order[3], cain.order[4]);
         }
         const int voice_throttle = cain.throttle;
