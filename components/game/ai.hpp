@@ -701,12 +701,16 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     // only when SrcDamage != 0 (+0x12d; all 32 poison rows of Missiles.txt have 0, so the owner's
     // is dropped); then the rate pair (owner + row) is scaled by SrcDamage / 128 (truncated toward
     // 0) and the LENGTH (owner + row) is summed, unscaled. U: whether a cast (MissC) shot takes the same path.
+    // SrcDamage is read as an unsigned byte there (V read: movzx at 0x64b8ed), so a -1 row is 255; the
+    // other branch (a missile with a Skill, 0x64b9da) maps 0xff to 0, which this plain-shot path does not
+    // take. No monster Miss row has -1 (only player skill missiles do), so it is not reachable today.
+    const int src_damage = info.src_damage & 0xff;
     const bool row_poison = row.etype == 3 && (row.ehi > 0 || row.elo > 0);
-    if (info.src_damage == 0) stats.poison_min = stats.poison_max = stats.poison_len = 0;
+    if (src_damage == 0) stats.poison_min = stats.poison_max = stats.poison_len = 0;
     if (row_poison) { stats.poison_min += row.elo; stats.poison_max += row.ehi; stats.poison_len += row.elen; }
-    if (info.src_damage != 0) {
-        stats.poison_min = int(std::int64_t(stats.poison_min) * info.src_damage / 128);
-        stats.poison_max = int(std::int64_t(stats.poison_max) * info.src_damage / 128);
+    if (src_damage != 0) {
+        stats.poison_min = int(std::int64_t(stats.poison_min) * src_damage / 128);
+        stats.poison_max = int(std::int64_t(stats.poison_max) * src_damage / 128);
     }
     if (!row_poison && row.etype >= 0 && (row.ehi > 0 || row.elo > 0))
         if (const auto free_slot = std::ranges::find_if(stats.elements, [](const auto& element) { return element.type < 0 || element.mode.empty(); }); free_slot != stats.elements.end())
