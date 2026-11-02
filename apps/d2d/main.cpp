@@ -367,8 +367,8 @@ static int         g_start_cam_y = -1;
 // A game's map seed (FUN_0052c280): a fixed one if given, else the save's
 // own when it was last played on this difficulty (single player,
 // FUN_0056a090), else a new one — the random one this run started with.
-// ponytail: game.exe takes a saved 0 too; d2d's early saves hold 0, so 0
-// means none here.
+// A saved 0 means none here: d2d's early saves hold 0 (deviations.md
+// improvement 2; game.exe takes it as the seed).
 static std::string   g_join_host;           // the game.exe TCP/IP host char-select joins: --join, or TCP/IP's JOIN GAME
 static std::string   g_cli_join;            // --join's own, what SINGLE PLAYER goes back to
 static std::string   g_last_tcp_ip;         // d2d.cfg last_tcp_ip: the join box's start (game.exe's LastTcpIp)
