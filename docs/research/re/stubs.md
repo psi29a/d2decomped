@@ -43,6 +43,12 @@ the doc with the details. Add a row whenever a trace ends in one.
 `FUN_0055f4f0`'s whole body is `RET 4`, discarding one stack argument.
 Its eight call sites are in `FUN_00533c70`, `FUN_005380d0`, `FUN_0054bd90`,
 `FUN_0054ced0` (two), `FUN_0054d130`, `FUN_0056ac10` and `FUN_00597890`.
+| `FUN_00622e90` | Units.cpp callback | stub (`ret 8`) | the call returns without a Units action | not ported | "Units stub" below |
+
+### Units stub
+
+`FUN_00622e90`'s whole body is `RET 8`, discarding two stack arguments.
+Its only call site is `0064bee7` in `FUN_0064b860`.
 
 Still reachable, though the content looks dead: the uber levels 133..136
 build and populate (`FUN_005559a0`'s uber cases, the Hellfire Torch hook
