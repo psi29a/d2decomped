@@ -338,6 +338,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         else if (std::holds_alternative<ev::Reassigned>(event)) out.u8(5);
         else if (std::holds_alternative<ev::Lightning>(event)) out.u8(6);
         else if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) out.u8(7).u8(int(quake->kind));
+        else if (const auto* refused = std::get_if<ev::TradeRefused>(&event)) out.u8(8).u8(int(refused->result));
         else {
             const auto& open_ui = std::get<ev::OpenUI>(event);
             out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
@@ -573,6 +574,10 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto kind = byte();
             if (kind > d2d::rules::QuestQuake::diablo) return false;
             view.events.push_back(ev::QuestQuake{ d2d::rules::QuestQuake::Kind(kind) });
+        } else if (kind_byte == 8) {
+            const auto result = d2d::rules::Trade(byte());
+            if (result != d2d::rules::Trade::no_room && result != d2d::rules::Trade::no_gold) return false;
+            view.events.push_back(ev::TradeRefused{ result });
         } else {
             const auto kind = ev::OpenUI::Kind(byte());
             ev::OpenUI open_ui{ kind, i32() };

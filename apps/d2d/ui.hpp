@@ -152,7 +152,7 @@ struct NpcMenuState {
     int npc = -1;                            // Level::npcs index, -1 = closed
     // What choosing a line does.
     enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer, kQuest, kRespec, kRespecOk, kCaravan, kImbue, kResurrectMerc };
-    struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; };
+    struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; bool red = false; };
     std::vector<Line> lines;
     int x = 0, y = 0, box_width = 0, box_height = 0;
     int scroll = 0, scroll_max = 0;          // the hire list's first row shown, and its last first row (0: no scroll)
@@ -191,6 +191,12 @@ std::string resurrect_line(const Scene& scene, int merc_type, int name_index, in
 // The reset's confirmation (0x4b5ad0): its name (gold), "ok" (0xd49),
 // "cancel" (0xd48).
 NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int screen_y);
+// A refused store buy's box (FUN_004b53f0): the result's text, red, over
+// "Continue" (0xd4b), at the mouse.
+// ponytail: the store stays as it was under it; what game.exe's state 6
+// (FUN_00487d30: 0x7bcbf0 = 7) and Continue's FUN_004b9a00(1) (0x4b4cf0)
+// do to the store panel isn't traced.
+NpcMenuState open_trade_refused(const Scene& scene, int npc, d2d::rules::Trade result, int mouse_x, int mouse_y);
 
 // The talk submenu (FUN_004b5890): header "talk" (gold), "introduction"
 // unless the NPC's talk record says no_intro, "gossip", then "cancel"

@@ -105,6 +105,15 @@ NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int scr
     return menu;
 }
 
+NpcMenuState open_trade_refused(const Scene& scene, int npc, d2d::rules::Trade result, int mouse_x, int mouse_y) {
+    NpcMenuState menu;
+    menu.npc = npc;
+    menu.lines.push_back({ string_id(scene, result == d2d::rules::Trade::no_room ? 0xd1c : 0xd22), 21, 0, 0, true, NpcMenuState::kClose, -1, true });
+    menu.lines.push_back({ string_id(scene, 0xd4b), 15 });
+    layout_npc_menu(scene, menu, mouse_x, mouse_y + 150);   // at the mouse itself, not 150 up as an NPC's
+    return menu;
+}
+
 NpcMenuState open_talk_menu(const Scene& scene, const Level& level, int npc, int screen_x, int screen_y,
                             const std::vector<d2d::rules::QuestMsg>& quest) {
     NpcMenuState menu;
@@ -211,7 +220,8 @@ void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
         const auto& line = menu.lines[i];
         base += line.height;
         const int x = menu.x + line.x;
-        if (line.header) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 199, 179, 119);
+        if (line.header && line.red) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 255, 77, 77);
+        else if (line.header) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 199, 179, 119);
         else          scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text);
         if (int(i) == hover) draw_focus(framebuffer, scene, x, base, line.width, now_ms);
     }

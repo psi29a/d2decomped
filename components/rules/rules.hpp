@@ -777,22 +777,27 @@ inline bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const
     const auto base = tables.item_base.find(book.code);
     return !tome.empty() && book.code == tome && book.location == d2d::d2s::item_location::kStored && base != tables.item_base.end() && book.quantity < base->second.max_stack;
 }
+// A buy's NPC transaction result (S->C 0x2a +2, FUN_00577830 -> FUN_0053d740):
+// done, or the client's box (FUN_004b53f0: 10 string 0xd1c "You do not have
+// enough free space to do that.", 12 string 0xd22 "You do not have enough
+// gold for that.").
+enum class Trade : std::uint8_t { done = 0, no_room = 10, no_gold = 12 };
 // Buys stock item i of the open tab into the inventory (10x4): gold
-// down by the price, the item leaves the stock unless it's a perm one.
-// False if it doesn't fit or you can't afford it.
-// ponytail: no "not enough gold"/"no room" message, no stacks or quantity.
-inline bool store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+// down by the price (more than carried + stash gold: no_gold), the item
+// leaves the stock unless it's a perm one (nowhere for it: no_room).
+// ponytail: no stacks or quantity.
+inline Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     auto& tab = store.tabs[std::size_t(store.tab)];
     const auto& item = tab[std::size_t(index)];
     const int price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
-    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
+    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return Trade::no_gold;
     // A scroll goes into a carried tome with room (FUN_00577830 -> FUN_0055f640).
     const auto book = std::ranges::find_if(items, [&](const d2d::d2s::Item& carried) { return carried.panel == d2d::d2s::item_panel::kInventory && tome_takes(tables, item, carried); });
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
     const auto [column, row] = book != items.end() ? std::pair{ 0, 0 } : free_spot(tables, inv, 10, 4, width, height, true);
-    if (column < 0) return false;
+    if (column < 0) return Trade::no_room;
     if (book != items.end()) ++book->quantity;
     else {
         auto bought = item;
@@ -804,7 +809,7 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
     if (std::ranges::find(store.perm, item.code) == store.perm.end()) tab.erase(tab.begin() + index);
-    return true;
+    return Trade::done;
 }
 
 // Sells inventory item i (FUN_00579510): gold up by the sell value, what
@@ -1899,16 +1904,16 @@ inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int
 // (FUN_00629370 on its code; carried gold, then the stash) and takes it
 // into the inventory, identified (C->S 37 -> FUN_00578640). False if it
 // can't be paid for or doesn't fit.
-inline bool store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+inline Trade store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     auto& tab = store.tabs[std::size_t(store.tab)];
     auto item = tab[std::size_t(index)];
     const int price = gamble_price(tables, item.code, int(stats.get(d2d::d2s::kLevel)), store.reduced);
-    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
+    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return Trade::no_gold;
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
     const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
-    if (column < 0) return false;
+    if (column < 0) return Trade::no_room;
     item.identified = true;
     item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = column; item.row = row;
     items.push_back(std::move(item));
@@ -1916,7 +1921,7 @@ inline bool store_gamble(const Tables& tables, Store& store, int index, std::vec
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
-    return true;
+    return Trade::done;
 }
 
 // A mercenary for hire, as FUN_006637f0 rolls it for the hire list.
