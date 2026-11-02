@@ -84,7 +84,7 @@ void draw_sockets(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 // the used quest consumables' red (FUN_00483f80) aren't told apart.
 void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect) {
     static constexpr std::array<std::array<int, 3>, 3> kTints{ { { 144, 0, 0 }, { 140, 64, 64 }, { 24, 0, 104 } } };   // act 1's 0x08 / 0x4d / 0xea
-    const bool usable = d2d::rules::meets_requirements(scene.rules, item, wearer, d2d::game::required_level(scene, item)) && !(item.flags & 0x4100u);
+    const bool usable = d2d::rules::meets_requirements(scene.rules, item, wearer, d2d::game::required_level(scene, item, wearer.cls)) && !(item.flags & 0x4100u);
     const auto& tint = kTints[!usable ? 0 : !item.identified ? 1 : 2];
     const int screen_w = fb_width(framebuffer);
     for (int y_pos = std::max(rect[1], 0); y_pos < std::min(rect[1] + rect[3], int(kScreenHeight)); ++y_pos)

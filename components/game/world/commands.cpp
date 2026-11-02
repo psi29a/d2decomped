@@ -490,7 +490,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
             if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) {
                 const auto sound = item_sound(*game_data, *actor->held, false);
-                const int level_needed = required_level(*game_data, *actor->held);
+                const int level_needed = required_level(*game_data, *actor->held, cls);
                 if (d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed))
                     sound_cue(sound);
                 else if (const auto& put = *actor->held;                         // refused: equip left it in hand
