@@ -368,6 +368,7 @@ struct Fight {
         std::uint32_t merc_heal_until = 0;
         double merc_poison_rate = 0, merc_poison_acc = 0;  // the merc's poison (FUN_0057ac50, as the player's): life per ms, its fraction
         std::uint32_t merc_poison_until = 0;
+        std::array<PotionState, 2> merc_potion_states;   // the merc's antidote / thawing states (merc_drinks)
         double regen_acc_life = 0, regen_acc_mana = 0;
         std::string_view last_voice;          // the last class line (FUN_004cb9c0's DAT_007c88c8) and when (DAT_007c88c4)
         std::uint32_t last_voice_ms = 0;
@@ -461,8 +462,10 @@ struct Fight {
     // flag: a live merc, ItemTypes hpot / apot / wpot only — rejuvenation
     // counts as hpot; anything else stays in the belt). A healing potion
     // heals it over its length, a rejuvenation its % at once.
-    // ponytail: no class bonus or doubling for it; antidote / thawing are
-    // spent and do nothing (the merc's poison and chill aren't kept).
+    // An antidote ends its poison; either puts its state (+50 resist, +10
+    // max) on it as on the player (FUN_005bef90, FUN_005beda0). d2d keeps
+    // no merc chill for thawing to end.
+    // ponytail: no class bonus or doubling for it.
     void feed_merc(int col, std::uint32_t now_ms);
     // A healing, antidote or thawing potion in hand given to the merc (0x61,
     // FUN_005bf240): true when it drank it.

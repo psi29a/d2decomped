@@ -75,7 +75,7 @@ auto Fight::new_game(int difficulty) -> void {
         next_id = 1;
         missiles.clear();
         actor->regen.clear();
-        actor->merc_hurt = 0; actor->merc_poison_rate = actor->merc_poison_acc = 0; actor->merc_poison_until = 0; actor->merc_heal_rate = actor->merc_heal_acc = 0; actor->merc_heal_until = 0;
+        actor->merc_hurt = 0; actor->merc_poison_rate = actor->merc_poison_acc = 0; actor->merc_poison_until = 0; actor->merc_heal_rate = actor->merc_heal_acc = 0; actor->merc_heal_until = 0; actor->merc_potion_states = {};
         actor->charges.clear();
         actor->self_states.clear();
         actor->boost = {};
@@ -91,7 +91,7 @@ auto Fight::new_game(int difficulty) -> void {
 auto Fight::merc_joins() -> void {
         const auto& header = actor->character.header;
         actor->merc_target = -1; actor->merc_chase = false;
-        actor->merc_hurt = 0; actor->merc_poison_rate = actor->merc_poison_acc = 0; actor->merc_poison_until = 0; actor->merc_heal_rate = actor->merc_heal_acc = 0; actor->merc_heal_until = 0;
+        actor->merc_hurt = 0; actor->merc_poison_rate = actor->merc_poison_acc = 0; actor->merc_poison_until = 0; actor->merc_heal_rate = actor->merc_heal_acc = 0; actor->merc_heal_until = 0; actor->merc_potion_states = {};
         actor->merc_growth = 0; actor->merc_aura = -1; actor->merc_skill = -1; actor->merc_seq = nullptr; actor->merc_buff = {}; actor->merc_cry = {}; actor->leap.reset(); actor->knock.reset();
         merc_level_stats();
         if (!actor->merc) return;
@@ -156,6 +156,12 @@ auto Fight::feed_merc_item(const d2d::d2s::Item& item, std::uint32_t now_ms) -> 
 auto Fight::merc_drinks(const std::string& code, std::uint32_t now_ms) -> void {
         if (code.empty() || !actor->merc) return;
         const auto& potion = game_data->rules.potions.at(code);
+        if (potion.antidote) { actor->merc_poison_until = 0; actor->merc_poison_acc = 0; }
+        if (potion.antidote || potion.thawing) {
+            auto& state = actor->merc_potion_states[potion.antidote ? 0 : 1];
+            state.stats = potion.state_stats;
+            state.until = std::max(state.until, now_ms) + std::uint32_t(std::max(potion.ticks, 0)) * 40;
+        }
         if (potion.percent) actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + merc_max_life() * potion.life / 100);
         else if (potion.life > 0) {
             const int len = std::max(potion.ticks, 1);

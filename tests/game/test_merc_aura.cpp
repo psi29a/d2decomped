@@ -115,6 +115,13 @@ int main() try {
     assert(chilled.speed_pct == 0 && chilled.anim_pct == 0);
     std::printf("OK: the merc's Holy Freeze slows the monsters near it and its pulse hurts them\n");
 
+    // An antidote fed to the merc (FUN_005bef90 / FUN_005beda0): its poison gone, +50 poison resist on it.
+    actor.merc_poison_until = 999999;
+    const int poison_res = fight.merc_fighter().res[3];
+    fight.merc_drinks("yps", 3000);
+    assert(actor.merc_poison_until == 0 && fight.merc_fighter().res[3] > poison_res);
+    std::printf("OK: the merc's antidote ends its poison and raises its resist\n");
+
     // A boss's (Aura Enchanted): Holy Freeze slows the player near it, Fanaticism speeds the monsters' attacks.
     actor.merc.reset();
     fight.monsters.clear();

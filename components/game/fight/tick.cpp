@@ -199,6 +199,7 @@ auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
 
 auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
         if (now_ms >= actor->curses[1].until) actor->curses[1] = {};   // merc_fighter reads one still on
+        for (auto& state : actor->merc_potion_states) if (now_ms >= state.until) state = {};
         Foe foe{ actor->merc ? actor->merc->unit.x : 0, actor->merc ? actor->merc->unit.y : 0, actor->merc_st.level, actor->merc && actor->merc->mode != "DT",
                  actor->merc && actor->merc->unit.walking, merc_fighter() };
         foe.pet = true;                                  // the merc: its MonStats class's size

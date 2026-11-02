@@ -72,6 +72,9 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
             for (const auto& [id, value] : curse_stats(actor->curses[1], env))
                 if (id >= 0 && std::size_t(id) < sum.size()) sum[std::size_t(id)] += value;
         }
+        for (const auto& state : actor->merc_potion_states)              // an antidote's / thawing's (merc_foe drops a spent one)
+            if (state.until != 0)
+                for (const auto& [id, value] : state.stats) if (id >= 0 && std::size_t(id) < sum.size()) sum[std::size_t(id)] += value;
         // Friendly auras on it (FUN_005cf010): its own, the player's, a
         // totem's; their aurastats join its stats (Prayer's life heals on a pulse).
         if (actor->merc)
