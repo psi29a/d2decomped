@@ -1040,10 +1040,10 @@ struct Fight {
     // else 0 — with MonLvl's own defense and attack rating at it (stats 31
     // / 19), life + calc1 %.
     // Past petmax of its pettype the oldest goes.
-    // ponytail: the skill's aurastats / passive stats / sumskills / sumumod
-    // on the pet (FUN_005c4470), Skeleton and Golem Mastery (FUN_005d6b60),
-    // the skeletal mage's missile and the golems' specials aren't built;
-    // pets stay in the Blood Moor.
+    // The skill's passive stats, aurastats and sumskills land on it as
+    // summons.cpp has them (FUN_005c4470; the masteries come in that way).
+    // ponytail: sumumod and the golems' specials (Blood Golem's life link,
+    // Iron Golem's item) aren't built.
     // A skill by its name as the tables write it (Fire Golem's sumskill
     // says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
