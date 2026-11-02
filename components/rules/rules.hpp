@@ -2236,7 +2236,11 @@ inline int belt_box(const Tables& tables, const std::vector<d2d::d2s::Item>& ite
 // the stash, cube or belt) moves to belt_box's box. No box: it stays where
 // it is (not into the hand). No tome or stack step comes first, so a
 // scroll goes only to a column whose bottom is the same scroll.
-// ponytail: FUN_00535610's checks while trading aren't done.
+// FUN_00535610's trade gate passes for every d2d player: at an NPC
+// (interaction kind 1) FUN_00573140 holds while the NPC keeps the player's
+// interaction, and outside one FUN_00567620 wants the player trade state
+// (player data +0x50) under 5, which only a player-to-player trade (PlrTrade.cpp)
+// raises: d2d has none.
 inline bool auto_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int id, int boxes) {
     const auto found = std::ranges::find(items, id, &d2d::d2s::Item::id);
     if (found == items.end() || found->location != d2d::d2s::item_location::kStored || found->panel != d2d::d2s::item_panel::kInventory) return false;

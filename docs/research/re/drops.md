@@ -62,8 +62,9 @@ no draw, a power of two masks, else mod).
 2. NoDrop with players: n = near + (players - near) / 2, near = 1
    (the killer's nearby party, FUN_005408e0, 2..8, when there is one),
    players = FUN_00535790 (max of players in game and `/players`,
-   `DAT_00883d70`). Capped by the dropper's stat 100 only if
-   FUN_0044be50 == 1. For n > 1: p = nd / (nd + total), q = 1 - p^n,
+   `DAT_00883d70`). Capped by the dropper's stat 100
+   (monster_playercount, set at spawn by FUN_00573cb0, at least 1) when
+   it's a monster (FUN_0044be50: the unit type, 1). d2d: `Monster::players`. For n > 1: p = nd / (nd + total), q = 1 - p^n,
    nd = q == 0 ? 0 : trunc((1 - q) * total / q) (x87 at 53 bits, so
    doubles match).
 3. Each pick (picks >= 0): r = rand(nd + total); r < nd drops nothing;

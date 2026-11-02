@@ -111,7 +111,7 @@ struct Loot {
         if (now_ms < blessed_until) magic_find += blessed_find;   // the wisps' dance (Fight::wisp_blessing)
         constexpr int kMost = 6;
         std::vector<d2d::rules::Drop> drops;
-        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops, players, magic_find, kMost, 0, nearby);
+        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops, players, magic_find, kMost, 0, nearby, std::max(monster.players, 1));
         // FUN_0055a6d0 counts the drop before FUN_005589a0 (0x55af4c): the
         // one that fills the count leaves without gold find. A Hell Bovine's
         // drops are flagged 1 (FUN_0055a550): the Cow King set (29) drops.

@@ -64,6 +64,18 @@ int main() try {
         for (const auto& x : out) assert(x.code == "rin" ? x.quality >= 4 : x.quality == 2);   // rings magic+, potions plain
     }
     assert(dropped > 400 && dropped < 600 && magic > 0);
+    {   // A monster dropper caps the NoDrop players at its monster_playercount (stat 100).
+        int eight = 0, capped = 0, alone = 0;
+        Rng seed_a{ 5 }, seed_b{ 5 }, seed_c{ 5 };
+        for (int i = 0; i < 200; ++i) {
+            std::vector<Drop> out_a, out_b, out_c;
+            roll_drops(tables, "Half", 1, seed_a, out_a, 8, 0, 6, 0, 8);
+            roll_drops(tables, "Half", 1, seed_b, out_b, 8, 0, 6, 0, 8, 1);
+            roll_drops(tables, "Half", 1, seed_c, out_c);
+            eight += int(out_a.size()); capped += int(out_b.size()); alone += int(out_c.size());
+        }
+        assert(capped == alone && eight > alone);
+    }
     // Quality (FUN_00558640): one draw per step off the dropper's seed; a
     // 1024 modifier makes the odds 0, so that quality wins without a draw.
     {

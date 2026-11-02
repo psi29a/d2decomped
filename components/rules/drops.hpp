@@ -196,14 +196,17 @@ inline bool roll_class(const Tables& tables, const TreasureClass& treasure, std:
 // FUN_00555da0 finds no floor for, but Loot::drop_at always places one).
 // With `players` in the game and `nearby` of the killer's party on its
 // level (FUN_005408e0; a lone killer 1), NoDrop rolls for n = nearby +
-// (players - nearby) / 2 (drops.md "Rolling").
-// ponytail: the dropper's stat 100 cap (FUN_0044be50 == 1) isn't applied.
+// (players - nearby) / 2 (drops.md "Rolling"); a monster dropper (unit type
+// 1, FUN_0044be50) caps n at its monster_playercount (stat 100, at least 1):
+// `dropper_players`, 0 for none.
 inline void roll_drops(const Tables& tables, const std::string& treasure_class, int ilvl, Rng& rng, std::vector<Drop>& out,
-                       int players = 1, int magic_find = 0, int max = 6, int forced = 0, int nearby = 1) {
+                       int players = 1, int magic_find = 0, int max = 6, int forced = 0, int nearby = 1, int dropper_players = 0) {
     const auto found = tables.treasure.find(treasure_class);
     if (found == tables.treasure.end()) return;
     int count = 0;
-    detail::roll_class(tables, found->second, {}, ilvl, rng, out, count, max, nearby + (players - nearby) / 2, magic_find, 0, forced);
+    int rolls_for = nearby + (players - nearby) / 2;
+    if (dropper_players > 0) rolls_for = std::min(rolls_for, dropper_players);
+    detail::roll_class(tables, found->second, {}, ilvl, rng, out, count, max, rolls_for, magic_find, 0, forced);
 }
 
 // One chest round (FUN_00585b90): its class `tc` (chest_tc) off the
