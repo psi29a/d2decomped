@@ -96,6 +96,7 @@ struct ItemBase {
     bool autobelt = false;                             // misc.txt autobelt (Items +0x131): a pickup takes a free belt column
     int gem_sockets = 0, auto_prefix = 0, magic_lvl = 0;  // gemsockets (+0x138), auto prefix (+0xf8), magic lvl (+0x140)
     bool has_inv = false, no_durability = false;          // hasinv (+0x137), nodurability (+0x113)
+    bool useable = false;                                 // useable (+0x11d, FUN_00628c20): a right click uses it
     bool quest_diff = false;                              // questdiffcheck (+0x12b): stat 356 = the difficulty made in
     int max_1h = 0, max_2h = 0;                           // weapons.txt maxdam (+0xff) / 2handmaxdam (+0x103)
     std::string nightmare_upgrade, hell_upgrade;       // NightmareUpgrade / HellUpgrade ("xxx" none): a store's base in those difficulties

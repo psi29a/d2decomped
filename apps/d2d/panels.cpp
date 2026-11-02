@@ -660,7 +660,7 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state) {
 }
 
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup) {
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const auto& belt = scene.belts[std::size_t(belt_index(scene, items))];
     const int rows = belt.boxes / 4;
@@ -679,6 +679,11 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
             const auto& frame = spr->frame(0, 0);
             blit_sprite(framebuffer, frame, scene.item_pal(item, pal), box[0] + (box[1] - box[0] + 1 - int(frame.width)) / 2,
                         box[2] + (box[3] - box[2] + 1 - int(frame.height)) / 2);
+        }
+        if (const auto base = scene.rules.item_base.find(item.code); item.column < 4 && !keys[std::size_t(item.column)].empty() && base != scene.rules.item_base.end() && base->second.useable) {
+            auto name = keys[std::size_t(item.column)];
+            while (!name.empty() && scene.font.measure(name) > 0x1c) name.pop_back();
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, box[0] + 2, box[3] - 2 - int(scene.font.sheet().frame(0, 0).height) + 1, name, 199, 179, 119);
         }
         if (mouse_x >= box[0] && mouse_x <= box[1] && mouse_y >= box[2] && mouse_y <= box[3]) { hover = &item; hover_box = box; }
     }

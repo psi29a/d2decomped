@@ -946,6 +946,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 base.magic_lvl = table == &misc ? 0 : number("magic lvl");
                 base.has_inv = table->get(row, "hasinv") == "1";
                 base.no_durability = table->get(row, "nodurability") == "1";
+                base.useable = table->get(row, "useable") == "1";
                 base.quest_diff = table->get(row, "questdiffcheck") == "1";
                 base.max_1h = table == &weapons ? number("maxdam") : 0;
                 base.max_2h = table == &weapons ? number("2handmaxdam") : 0;

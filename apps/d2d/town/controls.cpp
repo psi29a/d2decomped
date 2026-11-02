@@ -82,6 +82,12 @@ auto Town::update_hotkey_names() -> void {
             const auto id = keys::name_id(key);
             skillbar.hotkey_names[std::size_t(slot)] = key == keys::kNone ? std::string{} : id ? string_id(*scene, id) : std::string(1, char(key & 0xff));
         }
+        for (int slot = 0; slot < 4; ++slot) {                     // the belt's (FUN_00499040)
+            auto key = keys::key_of(key_table, keys::kBelt1 + slot, 1);
+            if (key == keys::kNone) key = keys::key_of(key_table, keys::kBelt1 + slot, 0);
+            const auto id = keys::name_id(key);
+            belt_key_names[std::size_t(slot)] = key == keys::kNone ? std::string{} : id ? string_id(*scene, id) : std::string(1, char(key & 0xff));
+        }
     }
 
 // Accept (0x4a5020): the keys kept, the pad's settings to d2d.cfg, back to the game.

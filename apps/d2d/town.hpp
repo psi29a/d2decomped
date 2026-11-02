@@ -374,6 +374,7 @@ struct Town {
     // item bonuses, and the stats the World's calcs read (View::stat_sum:
     // gear, passives, masteries, states).
     [[nodiscard]] d2d::rules::CalcEnv tip_env() const;
+    std::array<std::string, 4> belt_key_names{};   // Use Belt 1..4's keys by name (update_hotkey_names)
     void pad_tab(int step);
     void pad_open_picker();
     std::unordered_map<int, Automap> other_automaps;   // other Layers' maps, while elsewhere

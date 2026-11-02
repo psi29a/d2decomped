@@ -115,7 +115,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // smoothing of the shown values (FUN_00496dd0), no stamina potion's blue
 // (state 0x18 / 0x88), no Show HP / MP Text toggles (a globe click,
 // DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
-struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false; };   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's
+struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;
+             std::array<std::string, 4> belt_keys{}; };   // the keys bound to Use Belt 1..4, by name (draw_belt)   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
 // The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by
@@ -145,7 +146,7 @@ void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& sce
 
 // The stash panel: art frames 0..3 as 2x2 at the left-panel spot, items
 // (location 0, panel 5) in the inventory.txt bank grid.
-// ponytail: no gold line, no "close" button; classic stash untested.
+// ponytail: no "close" button of its own; classic stash untested.
 // Rect {x, y, w, h} of a stored item in a grid layout.
 std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout, const d2d::d2s::Item& item);
 
@@ -177,10 +178,12 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state);
 // column field and sit centred in the belt's belts.txt boxes. Row 1 is the
 // HUD strip; with the popup open (0x499136) each further row gets a
 // ctrlpnl_popbelt frame 0, bottom-anchored at x W/2+21, bottom H-41-32i,
-// and its items. Hovering an item shows its hover text.
-// ponytail: no slot hotkey numbers.
+// and its items. Hovering an item shows its hover text. Over a first-row
+// useable item (Items +0x11d, FUN_00628c20) the key bound to that slot's
+// Use Belt (0x722404; primary, else secondary) in font 1, gold (4), cut to
+// 28 px, at its box's left + 2, baseline bottom - 2 (FUN_00499040).
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup);
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys = {});
 
 // The automap (UI\automap.cpp). Each revealed tile adds one cell
 // (FUN_00457cf0): its cel from AutoMap.txt (FUN_0061fff0) at the tile's
