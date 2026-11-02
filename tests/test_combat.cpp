@@ -448,6 +448,9 @@ int main(int argc, char** argv) {
             half.res[0] = 100;
             phys_hit = missile_blow(phys, half, {}, phys_rng);
             assert(phys_hit.damage == 0 && phys_hit.frac == 0);
+            half.res[0] = -150;   // floored at -100: x2, not x2.5
+            phys_hit = missile_blow(phys, half, {}, phys_rng);
+            assert(phys_hit.damage == 2 && phys_hit.frac == 88);
         }
         {   // MulDiv (FUN_00483360), cases run on game.exe in tools/emu: each branch, the wraps.
             constexpr std::array<std::array<int, 4>, 11> kCases{ { { 25600, 40, 100, 10240 }, { 1280000, 37, 100, 473600 }, { 1048577, 3, 7, 449388 },

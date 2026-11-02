@@ -441,7 +441,8 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
         // as the element below does.
         const int roll = rng.range(damage.phys_lo, damage.phys_hi);
         blow.phys += roll >> 8;
-        const int fine = resisted_fine(roll, target.res[0]);
+        // FUN_0057be00 floors a monster's resistance at -100 (no upper cap but the immunity at 100).
+        const int fine = resisted_fine(roll, std::max(target.res[0], -100));
         blow.damage += fine >> 8;
         blow.frac += fine & 255;
     }
