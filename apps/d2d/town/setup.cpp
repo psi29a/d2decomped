@@ -69,8 +69,7 @@ auto Town::publish() -> void {
             skillbar_set = int(view.header.weapon_set);
         }
         character.expansion = view.header.expansion();
-        character.panel = panel_stats(*scene, character.header, character.items, character.stats);
-        character.panel.attack = view.attack_lines;
+        character.panel = view.panel;
         // A quest's log state sent (S->C 0x5d, FUN_004a2cb0): the Quest Log
         // button, or the open log picks it.
         // ponytail: a change in the View's log state stands in for each send

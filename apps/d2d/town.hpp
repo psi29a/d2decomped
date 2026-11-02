@@ -371,9 +371,8 @@ struct Town {
     // or Cube is up (no key toggles them) and the cursor's on no item: true when it's taken.
     [[nodiscard]] bool pad_back(int mouse_x, int mouse_y) const;
     // The skill tooltips' calcs: the character's skill points and their
-    // item bonuses, the stats of their gear and passives.
-    // ponytail: no auras' or states' stats, no weapon masteries (the World's
-    // fight sums those; a joined game has none).
+    // item bonuses, and the stats the World's calcs read (View::stat_sum:
+    // gear, passives, masteries, states).
     [[nodiscard]] d2d::rules::CalcEnv tip_env() const;
     void pad_tab(int step);
     void pad_open_picker();

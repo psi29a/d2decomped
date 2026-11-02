@@ -439,6 +439,9 @@ struct GameData {
         const OverlayInfo* cast = nullptr;
         int gfx_type = 0, gfx_class = 0;   // gfxtype / gfxclass (+0x2d / +0x2e): 2 looks and moves as that player class (FUN_00645270)
         int on_sound = 0, off_sound = 0;   // onsound / offsound (+0x26 / +0x28): on the unit as it comes on (FUN_004d9b20) / goes (FUN_004d9c30)
+        // The char panel's colours (rules::PanelColour bits): armblue, rfblue,
+        // rcblue, rlblue, rpblue, attblue, damblue and their reds.
+        std::uint8_t panel_blue = 0, panel_red = 0;
     };
     std::unordered_map<std::string, StateInfo> states;
     std::vector<std::string> state_names;              // States.txt's names by row (a host's 0xa8 / 0xa9 state ids)

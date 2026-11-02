@@ -572,12 +572,9 @@ auto Town::tip_env() const -> d2d::rules::CalcEnv {
         d2d::rules::CalcEnv env{ [this](int id) { return d2d::game::skill_base_level(*scene, character, id); },
                                  [this](int id) { return skillbar.level(id); },   // with the skill shrine's +all skills
                                  {}, int(character.stats.get(d2d::d2s::kLevel)), nullptr };
-        // The stats the calcs and masteries read: the gear's and the passives' (no weapon-type ones).
         auto sum = std::make_shared<d2d::rules::StatSum>();
-        for (const auto& prop : d2d::game::gear_props(*scene, character.items))
-            if (prop.stat >= 0 && std::size_t(prop.stat) < sum->size()) (*sum)[std::size_t(prop.stat)] += prop.value;
-        for (const auto& passive : d2d::rules::passive_stats(scene->skills, env))
-            if (passive.itype.empty() && passive.stat >= 0 && std::size_t(passive.stat) < sum->size()) (*sum)[std::size_t(passive.stat)] += passive.value;
+        for (const auto& [stat, value] : view.stat_sum)
+            if (stat >= 0 && std::size_t(stat) < sum->size()) (*sum)[std::size_t(stat)] = value;
         env.stat = [stat_sum = std::move(sum)](int id) { return id >= 0 && std::size_t(id) < stat_sum->size() ? int((*stat_sum)[std::size_t(id)]) : 0; };
         return env;
     }

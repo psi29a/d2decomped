@@ -82,11 +82,16 @@ int main() try {
         sent.game_quests.back() = 0x8000;
         sent.events = { ev::Reassigned{}, ev::Lightning{}, ev::QuestQuake{ d2d::rules::QuestQuake::diablo } };
         sent.party_pets.push_back({ Npc{}, UnitState{}, "WL", "hireable", 100 });   // a partner's merc (local co-op)
+        sent.panel.next = 3'000'000'000; sent.panel.defense = 345; sent.panel.res = { 75, -100, 12, 40 }; sent.panel.bonus[3] = 7;
+        sent.panel.blue = d2d::rules::kPanelDefense; sent.panel.red = d2d::rules::kPanelFire | d2d::rules::kPanelPoison;
+        sent.stat_sum = { { 0, 25 }, { 329, 40 } };
         ViewEncoder encoder;
         const auto bytes = encode_view(empty_data, sent, encoder);
         View received;
         assert(apply_view(empty_data, bytes, received));
         assert(received.quest_log == sent.quest_log);
+        assert(received.panel.next == sent.panel.next && received.panel.defense == 345 && received.panel.res == sent.panel.res && received.panel.bonus[3] == 7);
+        assert(received.panel.blue == sent.panel.blue && received.panel.red == sent.panel.red && received.stat_sum == sent.stat_sum);
         assert(received.game_quests == sent.game_quests);
         assert(received.events.size() == 3 && std::holds_alternative<ev::Reassigned>(received.events[0]) && std::holds_alternative<ev::Lightning>(received.events[1]));
         assert(std::get<ev::QuestQuake>(received.events[2]).kind == d2d::rules::QuestQuake::diablo);

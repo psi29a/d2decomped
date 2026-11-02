@@ -796,6 +796,13 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
             state.gfx_class = std::atoi(std::string(states_table.get(row, "gfxclass")).c_str());
             state_sounds.push_back({ std::string(states_table.get(row, "state")), std::string(states_table.get(row, "onsound")), std::string(states_table.get(row, "offsound")) });
+            for (const auto& [bit, blue, red] : { std::tuple{ d2d::rules::kPanelDefense, "armblue", "armred" }, { d2d::rules::kPanelFire, "rfblue", "rfred" },
+                                                  { d2d::rules::kPanelCold, "rcblue", "rcred" }, { d2d::rules::kPanelLightning, "rlblue", "rlred" },
+                                                  { d2d::rules::kPanelPoison, "rpblue", "rpred" }, { d2d::rules::kPanelAttack, "attblue", "attred" },
+                                                  { d2d::rules::kPanelDamage, "damblue", "damred" } }) {
+                if (states_table.get(row, blue) == "1") state.panel_blue |= bit;
+                if (states_table.get(row, red) == "1") state.panel_red |= bit;
+            }
             state.item_type = std::string(states_table.get(row, "itemtype"));
             const std::string trans(states_table.get(row, "itemtrans"));
             for (std::size_t colour = 0; colour < game_data.item_colours.codes.size(); ++colour) if (!trans.empty() && game_data.item_colours.codes[colour] == trans) state.item_colour = int(colour);

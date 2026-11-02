@@ -40,9 +40,24 @@ baseline on row 8; font16 16 px, row 14), so the cell top is
 - **Name**: box 13..161, baseline 25; font16, font8 when the name is 12–13
   chars, font6 at 14+. **Class**: font16, box 193..311, baseline 25.
 - **Values**: font16. Life/mana/stamina/defence drop to font8 when > 999
-  or at least as wide as the box. Colour (`local_8`): 3 blue when the
-  current value beats the base, 1 red when below, 4 gold for a maxed
-  resistance.
+  or at least as wide as the box. Each value is the unit's full stat
+  (FUN_00625480: gear, passives and states), so an aura, curse, shrine or
+  potion shows. Colour (`local_8`): the attributes and the maxima 3 blue
+  when the full value beats the base (FUN_006253b0), 1 red when below.
+  Defense and the resistances take a state's States.txt colour: blue for
+  armblue / rfblue / rcblue / rlblue / rpblue, red for the reds (red wins);
+  defense is also blue with state 0x65 (holyshield) and an item in hand
+  (FUN_0063c8f0). A resistance at its cap is 4 gold unless blue; one below
+  0 is red.
+- **State colour lists**: the States.txt loader (FUN_00618100) maps each
+  flag to a bit: damblue 7, damred 8, attblue 9, attred 0xa, armblue 0x13,
+  rfblue 0x14, rcblue 0x15, rlblue 0x16, rpblue 0x17, stambarblue 0x18,
+  armred 0x19, rfred 0x1a, rcred 0x1b, rlred 0x1c, rpred 0x1d. Bit n's
+  states are a list at data tables +0xcc + 4n, and FUN_0063a130 (through
+  FUN_0063a380.. / FUN_0063a550..) asks whether any is on the unit. Each
+  panel read matches its name: defense +0x118 / +0x130, fire +0x11c /
+  +0x134, cold +0x120 / +0x138, lightning +0x124 / +0x13c, poison +0x128 /
+  +0x140, damage +0xe8 / +0xec, attack rating +0xf0 / +0xf4.
 - **Next level** (30): experience.txt row `<level>` (same for every
   class); blank at max level.
 - **Resistances**: stat + difficulty penalty (expansion: DifficultyLevels
@@ -118,9 +133,11 @@ d2d: `rules::attack_line` (components/rules/skills.hpp) computes the
 numbers on the server in `Fight::update_fighters` from the Fighter
 (`phys_lo/hi/pct`, `elem`, `ar_base/pct`), `skill_tohit`, `skill_phys`,
 `elem_damage`; they reach the client in the View
-(`View::attack_lines`, section 0) and `draw_char_panel` draws them.
-Not done: descdam 2..4, 6, 8..24, descatt 3 / 4, dual wield, the states'
-colours, stat 325, the usability gate, the K formats, barehanded strength,
+(`View::panel`, section 0, with the rest of the panel's numbers) and
+`draw_char_panel` draws them. The weapon damage takes damblue / damred
+(FUN_004e86f0, and again after the elements in FUN_004e89a0), the attack
+rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
+Not done: descdam 2..4, 6, 8..24, descatt 3 / 4, dual wield, stat 325, the usability gate, the K formats, barehanded strength,
 tooltips.
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)

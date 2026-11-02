@@ -211,10 +211,9 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     // mana/stamina); name font16/font8/font6 by length, class font16.
     // Colour (local_8 in FUN_004a7d00): strength .. max stamina blue when
     // their total is over the character's own, red when under (life, mana,
-    // stamina themselves stay white); a resistance gold at its cap, red
-    // below 0.
-    // ponytail: the states' part (Battle Orders' life, a curse's resistances
-    // blue / red, defense) isn't coloured: the panel sees items and passives.
+    // stamina themselves stay white). Defense and the resistances take
+    // their states' blue / red (red wins); a resistance at its cap is gold
+    // unless blue, one below 0 red.
     auto pick = [&](const d2d::font::Font& font) -> const d2d::font::Font& {
         return font.line_height() > 0 ? font : scene.font;
     };
@@ -252,14 +251,20 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
             if (value_def.id <= d2d::d2s::kVit) value += bonus;
             colour = bonus > 0 ? 3 : bonus < 0 ? 1 : 0;
         }
-        auto res = [&](int resist_index) { value = panel.res[std::size_t(resist_index)]; colour = value >= panel.res_cap[std::size_t(resist_index)] ? 4 : value < 0 ? 1 : 0; };
+        auto state_colour = [&](std::uint8_t bit) { return (panel.red & bit) ? 1 : (panel.blue & bit) ? 3 : 0; };
+        auto res = [&](int resist_index, std::uint8_t bit) {
+            value = panel.res[std::size_t(resist_index)];
+            colour = state_colour(bit);
+            if (value >= panel.res_cap[std::size_t(resist_index)]) colour = colour == 3 ? 3 : 4;
+            else if (value < 0) colour = 1;
+        };
         switch (value_def.id) {
             case d2d::d2s::kNextExperience: value = panel.next; break;
-            case d2d::d2s::kArmorClass: value = panel.defense; break;
-            case d2d::d2s::kFireResist: res(0); break;
-            case d2d::d2s::kColdResist: res(1); break;
-            case d2d::d2s::kLightningResist: res(2); break;
-            case d2d::d2s::kPoisonResist: res(3); break;
+            case d2d::d2s::kArmorClass: value = panel.defense; colour = state_colour(d2d::rules::kPanelDefense); break;
+            case d2d::d2s::kFireResist: res(0, d2d::rules::kPanelFire); break;
+            case d2d::d2s::kColdResist: res(1, d2d::rules::kPanelCold); break;
+            case d2d::d2s::kLightningResist: res(2, d2d::rules::kPanelLightning); break;
+            case d2d::d2s::kPoisonResist: res(3, d2d::rules::kPanelPoison); break;
             default: break;
         }
         if (value_def.id == d2d::d2s::kNextExperience && value < 0) continue;                // max level: blank
