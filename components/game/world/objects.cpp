@@ -368,7 +368,9 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // word 0x17 has bit 0, Khalim's Will closed if open (word 0x12 bits 0, 13;
         // his eye, heart, brain and the flails taken) and word 0x17 bits 0, 13.
         // Then the fortress's waypoint and its start (FUN_0053aec0(0x67)).
-        // ponytail: its sounds (0xca7, 0xb56) and FUN_0053d670(6)'s packet aren't sent.
+        // FUN_0053d670(6) only sends the quest words to the player's client
+        // (FUN_005531c0; Ghidra shows source lines 0xca7 / 0xb56 as its
+        // argument), which d2d's view reads directly.
         if (act4_operate(npc_index, now_ms)) return;
         if (act5_operate(npc_index, now_ms)) return;
         if (object.operate_fn == d2d::rules::operate_fn::kHellgate) {
