@@ -271,6 +271,7 @@ struct Fight {
         std::vector<PetSummon> pet_summons;
         std::vector<Pet> pets;
         std::uint32_t aura_next = 0;           // its next pulse
+        std::uint32_t merc_aura_next = 0;      // the merc's aura's next pulse
         // The skill the player attacks with (Skills.txt id; 0 Attack), the one
         // this swing uses (Attack when it's not built or can't be paid for),
         // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
@@ -509,8 +510,9 @@ struct Fight {
     // A friendly aura (srvdofunc 65, FUN_005cf010) puts its aurastate and
     // aurastats on the player (and allies within aurarangecalc subtiles)
     // the same way; its hitpoints (Prayer) heal on each pulse instead.
-    // ponytail: resist auras cap at 95, not the panel's max resist; the
-    // merc doesn't get them.
+    // The merc's (an Act 2 merc's Prayer, Defiance, Might, ...) does the
+    // same for the player and itself, and the player's and a totem's for the
+    // merc (friendly_auras); a resist aura's cap is the panel's max resist.
     // The self states' aurastats are stats on the player (FUN_005c6cc0):
     // they join the item stats, so toblock (20), damageresist (36) and
     // the rest go through make_fighter; defense % (171 skill_armor_percent,
@@ -761,6 +763,11 @@ struct Fight {
 
     // The merc as a fighter: its hireling damage, attack rating, defense.
     [[nodiscard]] d2d::rules::Fighter merc_fighter() const;
+    // The friendly auras (do 65) covering (x, y) cells: the player's, the
+    // merc's and a totem's, each while (x, y) is within its aurarangecalc
+    // subtiles of its holder, at the holder's level and calc env.
+    struct AuraOn { const d2d::rules::Skill* skill = nullptr; int level = 0; d2d::rules::CalcEnv env; };
+    [[nodiscard]] std::vector<AuraOn> friendly_auras(float x, float y) const;
     // What the merc wears (World::character.merc_items): its items' stats
     // summed (sockets, set bonuses), the weapon's own, its weapon and shield,
     // the items' own defence (after their enhanced defence), defence per level.
@@ -983,6 +990,9 @@ struct Fight {
     // Redemption's own callbacks aren't built; no mana is drawn
     // (FUN_00644b10).
     void aura_pulse(std::uint32_t now_ms);
+    // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
+    // perdelay frames, on the player and the merc within its aurarange.
+    void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y);
     [[nodiscard]] bool in_aura(const Monster& monster);
     // Monster i as the player's blows see it: an enemy aura's aurastats
     // while it's in range (Conviction: resistances and defense down;

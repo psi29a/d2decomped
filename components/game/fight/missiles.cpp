@@ -787,7 +787,28 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
         }
     }
 
+auto Fight::prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y) -> void {
+        using namespace d2d::d2s;
+        const float reach = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
+        for (std::size_t i = 0; i < skill.aurastat.size(); ++i) {
+            if (skill.aurastat[i] != kLife) continue;
+            const std::int64_t heal = d2d::rules::eval_calc(game_data->skills, skill.aura_calc[i], env, skill.id, lvl);   // 256ths
+            if (std::hypot(actor->player.x - from_x, actor->player.y - from_y) * 5 <= reach)
+                actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + heal);
+            if (actor->merc && actor->merc->alive() && std::hypot(actor->merc->unit.x - from_x, actor->merc->unit.y - from_y) * 5 <= reach)
+                actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + int(heal >> 8));
+        }
+    }
+
 auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
+        // The merc's own (an Act 2 merc's Prayer), on its own clock.
+        if (const auto* merc_skill = actor->merc && actor->merc->alive() && actor->merc_aura > 0 ? game_data->skills.get(actor->merc_aura) : nullptr;
+            merc_skill && merc_skill->srvdofunc == ServerDoFunction::kFriendlyAura && now_ms >= actor->merc_aura_next) {
+            actor->merc_aura_next = now_ms + std::uint32_t(std::max(merc_skill->perdelay, 25)) * 40;
+            for (std::size_t k = 0; k < actor->merc_ids.size(); ++k)
+                if (actor->merc_ids[k] == actor->merc_aura && actor->merc_levels[k] > 0)
+                    prayer_pulse(*merc_skill, actor->merc_levels[k], merc_calc_env(), actor->merc->unit.x, actor->merc->unit.y);
+        }
         const auto* skill = game_data->skills.get(actor->aura);
         if (!skill || !skill->aura || now_ms < actor->aura_next || dead()) return;
         const int lvl = skill_level ? skill_level(actor->aura) : 1;
@@ -795,12 +816,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         const auto env = calc_env();
         actor->aura_next = now_ms + std::uint32_t(std::max(skill->perdelay, 25)) * 40;
         if (skill->srvdofunc == ServerDoFunction::kFriendlyAura) {
-            for (std::size_t i = 0; i < skill->aurastat.size(); ++i)
-                if (skill->aurastat[i] == 6) {
-                    using namespace d2d::d2s;
-                    const auto heal = d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, lvl);
-                    actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + heal);
-                }
+            prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y);
             return;
         }
         // Redemption (do 82): a corpse within aurarange redeemed at calc1 %,

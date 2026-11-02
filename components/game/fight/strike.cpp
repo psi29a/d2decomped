@@ -122,13 +122,6 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         const auto passives = d2d::rules::passive_stats(game_data->skills, env);
         actor->character.panel = panel_stats(*game_data, actor->character.header, actor->character.items, actor->character.stats, &passives);
         auto states = actor->self_states;
-        if (const auto* skill = game_data->skills.get(actor->aura); skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura) states.push_back({ actor->aura, skill_level ? skill_level(actor->aura) : 1, ~0u });
-        // A totem's aura (Oak Sage, Heart of Wolverine, Spirit of Barbs: do
-        // 65) while the player is within its aurarange of it.
-        for (const auto& pet : actor->pets)
-            if (const auto* skill = game_data->skills.get(pet.aura); skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura && pet.monster.alive() && pet.where == level
-                && std::hypot(pet.monster.unit.x - actor->player.x, pet.monster.unit.y - actor->player.y) * 5 <= float(calc(*skill, skill->aurarange, pet.aura_level)))
-                states.push_back({ pet.aura, pet.aura_level, ~0u });
         if (now_ms < actor->marks[0].until) states.push_back({ actor->marks[0].skill, actor->marks[0].level, actor->marks[0].until });
         for (const auto& state : states) {
             const auto* skill = game_data->skills.get(state.skill);
@@ -136,6 +129,10 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                 if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
                     st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
         }
+        for (const auto& aura : friendly_auras(actor->player.x, actor->player.y))
+            for (std::size_t i = 0; i < aura.skill->aurastat.size(); ++i)
+                if (const int id = aura.skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
+                    st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[i], aura.env, aura.skill->id, aura.level);
         if (now_ms < actor->curses[0].until)                    // a monster's curse on the player
             for (const auto& [id, value] : curse_stats(actor->curses[0], env))
                 if (id != kLife && std::size_t(id) < st_sum.size()) st_sum[std::size_t(id)] += value;
@@ -198,6 +195,31 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
 auto Fight::calc_env() -> d2d::rules::CalcEnv {
         return { skill_base, skill_level, [this](int id) { return id >= 0 && std::size_t(id) < actor->psum.size() ? int(actor->psum[std::size_t(id)]) : 0; },
                  int(actor->character.stats.get(d2d::d2s::kLevel)), &rng };
+    }
+
+auto Fight::friendly_auras(float x, float y) const -> std::vector<AuraOn> {
+        using namespace d2d::d2s;
+        std::vector<AuraOn> out;
+        const auto add = [&](int skill_id, int lvl, d2d::rules::CalcEnv env, float from_x, float from_y) {
+            const auto* skill = game_data->skills.get(skill_id);
+            if (!skill || skill->srvdofunc != ServerDoFunction::kFriendlyAura || lvl < 1) return;
+            if (std::hypot(from_x - x, from_y - y) * 5 > float(d2d::rules::eval_calc(game_data->skills, skill->aurarange, env, skill->id, lvl))) return;
+            out.push_back({ skill, lvl, std::move(env) });
+        };
+        const auto no_skills = [](int) { return 0; };
+        add(actor->aura, skill_level ? skill_level(actor->aura) : 1,
+            { skill_base, skill_level, [this](int id) { return id >= 0 && std::size_t(id) < actor->psum.size() ? int(actor->psum[std::size_t(id)]) : 0; }, int(actor->character.stats.get(kLevel)), nullptr },
+            actor->player.x, actor->player.y);
+        // The merc's (its AI's pick, merc_turn), at its level for that skill (mercs have no synergies).
+        if (actor->merc && actor->merc->alive() && actor->merc->mode != "DT")
+            for (std::size_t k = 0; k < actor->merc_ids.size(); ++k)
+                if (actor->merc_ids[k] == actor->merc_aura && actor->merc_aura > 0)
+                    add(actor->merc_aura, actor->merc_levels[k], { no_skills, no_skills, no_skills, actor->merc_st.level, nullptr }, actor->merc->unit.x, actor->merc->unit.y);
+        // A totem's (Oak Sage, Heart of Wolverine, Spirit of Barbs).
+        for (const auto& pet : actor->pets)
+            if (pet.monster.alive() && pet.where == level)
+                add(pet.aura, pet.aura_level, { skill_base, skill_level, no_skills, int(actor->character.stats.get(kLevel)), nullptr }, pet.monster.unit.x, pet.monster.unit.y);
+        return out;
     }
 
 auto Fight::merc_calc_env() -> d2d::rules::CalcEnv {

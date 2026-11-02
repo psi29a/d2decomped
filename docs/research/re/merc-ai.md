@@ -191,9 +191,18 @@ monsters newest first. Checked by `tools/emu/search.py`'s mode 6 run
 (FUN_005ddc30 natively, the searcher's path count random: 30,000 cases
 equal, 360 through the path test; the invis rule is read, not run).
 
+## Its auras
+
+A friendly aura it starts (do 65, `FUN_005cf010`: Act 2's Prayer, Defiance,
+Blessed Aim, Thorns, Might) puts its aurastats on itself and on the player
+within its aurarangecalc subtiles of it, at its level for the skill; the
+player's friendly aura and a totem's go on the merc the same way. Prayer's
+hitpoints (edns, 256ths) heal the player and the merc in range every
+perdelay frames. d2d: `Fight::friendly_auras`, `prayer_pulse`.
+
 ## Not built yet
 
-- Auras the merc starts (Act 2: Prayer, Defiance, Blessed Aim, Thorns, Holy
-  Freeze, Might) count as running for the pick but do nothing.
+- The merc's Holy Freeze (an enemy aura, do 81) counts as running for the
+  pick but chills nothing yet.
 - Vitality on its items gives no life (a hireling has no CharStats row;
   not traced further); d2d keeps no merc mana.

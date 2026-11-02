@@ -1,0 +1,101 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// test-links: game
+// Friendly auras (do 65, FUN_005cf010) between the player and the merc, with
+// the game's MPQs (D2_MPQ_DIR; the 1.14d ones with D2_PATCH_INSTALLER): an
+// Act 2 merc's Defiance on itself and on the player within its aurarange,
+// the player's on the merc, Prayer's pulse healing both.
+
+#include <character.hpp>
+#include <character_store.hpp>
+#include <d2s_items.hpp>
+#include <fight.hpp>
+#include <gamedata.hpp>
+#include <gamedata_load.hpp>
+#include <rules.hpp>
+#include <world.hpp>
+
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include <exception>
+#include <filesystem>
+
+namespace fs = std::filesystem;
+using namespace d2d::game;
+
+int main() try {
+    const char* mpq_dir = std::getenv("D2_MPQ_DIR");
+    const char* home = std::getenv("HOME");
+    const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
+    if (!fs::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s\n", data_dir.string().c_str()); return D2D_TEST_SKIPPED; }
+    const char* patch = std::getenv("D2_PATCH_INSTALLER");
+    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
+    assert(data && data->town.id == 1);
+    if (!data->patched) { std::printf("SKIP: these checks are 1.14d's (set D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
+
+    d2d::rules::Rng rng(7);
+    constexpr int kPaladin = 3;
+    auto made = new_character(*data, kPaladin, "Headless", false, true, rng);
+    Character character;
+    character.character_class = kPaladin;
+    character.name = "Headless";
+    character.header = made.header;
+    character.stats = made.stats;
+    character.items = made.items;
+    character.panel = panel_stats(*data, character.header, character.items, character.stats);
+    World world(&*data, -1, -1);
+    world.enter(character);
+    auto& fight = world.fight;
+    auto& actor = *world.actor;
+
+    const int defiance = data->skills.by_name.at("Defiance"), prayer = data->skills.by_name.at("Prayer");
+    Monster merc;
+    merc.hit_points = 10;
+    merc.unit.x = actor.player.x + 1; merc.unit.y = actor.player.y;
+    actor.merc = merc;
+    actor.merc_st.level = 20;
+    actor.merc_ids = { defiance, prayer, 0, 0, 0, 0 }; actor.merc_levels = { 4, 4, 0, 0, 0, 0 };
+    actor.aura = -1;
+    const int bare_merc = fight.merc_fighter().defense;
+    fight.update_fighters(1000);
+    const int bare_player = actor.player_combat.defense;
+
+    // Its Defiance on itself and the player beside it; past its aurarange, the player has none.
+    actor.merc_aura = defiance;
+    const auto covering = fight.friendly_auras(actor.player.x, actor.player.y);
+    assert(covering.size() == 1 && covering[0].skill->id == defiance && covering[0].level == 4);
+    assert(fight.merc_fighter().defense > bare_merc);
+    fight.update_fighters(1000);
+    assert(actor.player_combat.defense > bare_player);
+    actor.merc->unit.x = actor.player.x + 40;
+    assert(fight.friendly_auras(actor.player.x, actor.player.y).empty() && fight.merc_fighter().defense > bare_merc);
+    fight.update_fighters(1000);
+    assert(actor.player_combat.defense == bare_player);
+    std::printf("OK: the merc's Defiance on itself and the player within its range\n");
+
+    // The player's Defiance on the merc beside it.
+    actor.merc_aura = -1;
+    actor.merc->unit.x = actor.player.x + 1;
+    actor.aura = defiance;
+    fight.skill_level = [&](int id) { return id == defiance ? 1 : 0; };
+    assert(fight.merc_fighter().defense > bare_merc);
+    std::printf("OK: the player's Defiance on the merc\n");
+
+    // The merc's Prayer heals both on its pulse.
+    actor.aura = -1;
+    actor.merc_aura = prayer;
+    actor.merc_aura_next = 0;
+    actor.merc->hit_points = 1;
+    auto& life = actor.character.stats.values[d2d::d2s::kLife];
+    life = 256;
+    fight.aura_pulse(2000);
+    assert(actor.merc->hit_points > 1 && life > 256);
+    const auto healed = life;
+    fight.aura_pulse(2040);                               // before perdelay: no second pulse
+    assert(life == healed);
+    std::printf("OK: the merc's Prayer heals the player and itself on its pulse\n");
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "%s\n", error.what());
+    return 1;
+}
