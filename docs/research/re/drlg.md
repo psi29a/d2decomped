@@ -1221,6 +1221,39 @@ room/dungeon records, including rectangle boundaries, null inputs, both flag
 states, and getter/setter values. The two room2 callees and the sort were
 hooked to check wrapper forwarding; no d2d parity claim is made.
 
+### Room lifecycle and LvlPrest accessors
+
+- `FUN_0061a1d0(room1, warp id)` returns 0 for a null room1. Otherwise it
+  forwards room2 `[room1+0x10]` in `ECX` and the warp id in `EDX` to
+  `FUN_0066bac0`, which resolves that room's warp link and returns the linked
+  level's id. Client callers pass a warp unit's class as the second argument.
+- `FUN_0061a4d0(room1)` returns room1 `+0x34 & 2`;
+  `FUN_0061a510(room1, enabled)` sets that bit when `enabled` is nonzero and
+  clears it otherwise, preserving every other flag. `FUN_0052d0f0` and
+  `FUN_0052d160` use the bit to avoid restoring a room's inactive units twice.
+  Both functions assert on a null room1.
+- `FUN_0061ac10(room1)` follows room1 `+0x10` to room2, room2 `+0x58` to the
+  level, and returns level `+0x1e0` through `FUN_00642380`. The caller
+  `FUN_0054db50` reads this record's light count at `+0x48` and coordinate
+  arrays at `+0` and `+0x24`. A null room1 asserts.
+- `FUN_0061acd0(room1, x, y, flag)` forwards room2 `[room1+0x10]` in `ECX`,
+  `x` in `EDX`, then `y` and `flag` on the stack to `FUN_006671e0`. The client
+  calls it when changing rooms and when refreshing object positions. A null
+  room1 asserts.
+- `FUN_0061dba0`, `FUN_0061dc20`, and `FUN_0061dbe0` respectively read the
+  `Animate`, `KillEdge`, and `FillBlanks` bytes at offsets `+5`, `+6`, and `+7`
+  of a LvlPrest row. The rows are `0x220` bytes at
+  `[0x744304]->+0xc58`, with count at `+0xc5c`. Ids outside the signed range
+  `1..count-1` produce `id & 0xffffff00`. A valid id returns
+  `((id * 0x220) & 0xffffff00) | row_byte`: the original `MOV AL` leaves the
+  upper 24 bits of the scaled id intact. The callers consume only `AL`.
+
+A combined 63-case original-code check under `tools/emu` exercised these eight
+functions and the two environment accessors in lighting.md "Environment
+accessors". It covered null links, flag preservation, wrapper argument order,
+signed LvlPrest bounds and full-register return values. External callees were
+hooked to check forwarding; no d2d parity claim is made.
+
 The room2 status (+0x44) is the shallowest depth at which a player's
 near-list walk holds it: 0 the player's room, 1 its near list, 2 and 3
 the lists of those lists, 4 none. Each depth has a u16 counter (+0xc + 2 ×

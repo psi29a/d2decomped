@@ -62,6 +62,24 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
 - **Ambient sound:** day while the phase index is 1..3 (`FUN_004e42e0`
   via `FUN_0061c220`), so 0° to 180°; else night.
 
+### Environment accessors
+
+`FUN_0061aa60(game)` returns the environment record at game `+4` and asserts
+on a null game. Two small wrappers consume it:
+
+- `FUN_0061c0b0(game, &r, &g, &b)` copies ambient RGB from environment
+  `+0x18..+0x1a`. With no environment record it leaves all three destinations
+  unchanged. `FUN_0044c990` forwards these bytes to the renderer's ambient
+  color setter, and `FUN_004ddef0` uses them for ambient-only light tables.
+- `FUN_0061c0e0(game)` returns environment `+0xc`, the current intensity, or 0
+  with no environment record. `FUN_004ddef0` fills each ambient-only table
+  entry with this intensity and the three bytes above.
+
+The combined 63-case original-code check described in drlg.md "Room lifecycle
+and LvlPrest accessors" covered both wrappers, including game forwarding,
+unchanged RGB destinations and zero intensity without an environment record.
+The environment lookup was hooked; no d2d parity claim is made.
+
 ## The light grid (client, 0x4744b0 .. 0x475b20)
 
 - **The grid:** 48 × 48 subtiles at 0x7b0e68, 8 bytes each: {u32 blocks
