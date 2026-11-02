@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// Lut Gholein's Jerhyn spots (FUN_0059f380 / FUN_0059ef70 -> FUN_00545340,
-// Level::free_area) with the game's MPQs (D2_MPQ_DIR; the 1.14d ones with
-// D2_PATCH_INSTALLER): each is the search's answer round the spot asked,
-// its square clear of 0x100.
+// Town quest spots with the game's MPQs (D2_MPQ_DIR; the 1.14d ones with
+// D2_PATCH_INSTALLER): Lut Gholein's Jerhyn (FUN_0059f380 / FUN_0059ef70 ->
+// FUN_00545340, Level::free_area) at the search's answer round the spot
+// asked; Harrogath's Nihlathak marker (object 461, FUN_005459a0) already
+// inside its room less the last row and column (bugs.md #47 unreached).
 
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
@@ -28,6 +29,7 @@ int main() try {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1);
+    if (!data->patched) { std::printf("SKIP: these checks are 1.14d's (set D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
     const auto* town = data->level(d2d::rules::level_ids::kLutGholein);
     assert(town);
     int checked = 0;
@@ -44,7 +46,19 @@ int main() try {
         }
     }
     assert(checked == 2);
-    std::puts("test_palace_spots: ok");
+    const auto* harrogath = data->level(d2d::rules::level_ids::kHarrogath);
+    assert(harrogath);
+    int markers = 0;
+    for (std::size_t i = 0; i < harrogath->units.size(); ++i) {
+        const auto& unit = harrogath->units[i];
+        if (unit.type != d2d::rules::unit_type::kObject || unit.id != 461) continue;
+        const auto& room = harrogath->rooms[std::size_t(harrogath->unit_rooms[i])];
+        const int left = room.x * 5, top = room.y * 5;
+        assert(unit.x >= left && unit.y >= top && unit.x < left + room.width * 5 - 1 && unit.y < top + room.height * 5 - 1);
+        ++markers;
+    }
+    assert(markers == 1);
+    std::puts("test_town_spots: ok");
 } catch (const std::exception& error) {
     std::printf("FAIL: %s\n", error.what());
     return 1;
