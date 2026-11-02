@@ -379,6 +379,7 @@ int main() {
 #include "mon_ais_imp_ride_cases.inc"
 #include "mon_ais_late_cases.inc"
 #include "mon_ais_act1_cases.inc"
+#include "mon_ais_pace_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
                 // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's / the late ones' fields.
@@ -408,17 +409,24 @@ int main() {
                     for (auto& value : input.skill) value = read() != 0;
                     for (auto& value : input.skill45) value = read() != 0;
                     input.velocity = read(); input.run = read(); input.aidel = read();
-                    input.regen = read(); (void)read(); (void)read(); (void)read();
+                    input.regen = read(); (void)read(); const int dying_word = read(); (void)read();   // the third unused stat word carries the Fallen's dying unit near (mon_ais_pace.py)
                     input.target_fire_res = read(); input.target_cold_res = read();
                     input.second = read() != 0; input.second_dist = read(); input.kin = read() != 0; input.kin_dist = read();
                     input.corpse = read() != 0; input.aid = read() != 0; (void)read(); input.in_reach = read();
                     input.usable = read() != 0; command = read(); input.leader = read() != 0; input.aura_on = read() != 0;
                     input.self_x = read(); input.self_y = read(); input.target_x = read(); input.target_y = read();
                     input.same_room = read() != 0; input.can_land = read() != 0; input.victim = read() != 0; input.grouped = read() != 0;
+                    input.off_x = input.target_x - input.self_x; input.off_y = input.target_y - input.self_y;   // ai.cpp's feed; the case line holds the spots
                     for (auto& spot : input.free_spot) {
                         const bool found = read() != 0;
                         const int spot_x = read(), spot_y = read();
                         if (found) spot = std::pair{ spot_x, spot_y };
+                    }
+                    input.dying = ai_of(which) == "Fallen" && dying_word != 0;
+                    if (ai_of(which) == "BloodRaven") {   // her home point rides in free spot 0 (none: her own spot); both distances are FUN_005dc480's, units of size 2
+                        const int home_x = input.free_spot[0] ? input.free_spot[0]->first : input.self_x, home_y = input.free_spot[0] ? input.free_spot[0]->second : input.self_y;
+                        input.home_dist = d2d::rules::point_apart(home_x - input.self_x, home_y - input.self_y, 2);
+                        input.target_home_dist = d2d::rules::point_apart(home_x - input.target_x, home_y - input.target_y, 2);
                     }
                     int cast_word = 0;
                     input.swings = read() != 0; input.runs = read() != 0; input.afraid = read() != 0; input.in_s4 = read() != 0; cast_word = read();
@@ -472,10 +480,14 @@ int main() {
                     };
                     const auto& think = kAis[std::size_t(which)];
                     const auto ai_name = think.name;
+                    if (ai_name == "BloodRaven") command = ctrl[2];                // her flag is AI control word 3 in game.exe, the command word here
                     const auto act = ai_name == "DimVision" ? d2d::rules::dim_vision_think(input, seed)
                                    : ai_name == "Terror" ? d2d::rules::terror_think(input, seed, away)
                                    : think.other ? d2d::rules::other_think(ai_name, input)
                                                  : d2d::rules::mon_think(ai_name, input, seed, away);
+                    if (ai_name == "BloodRaven") ctrl[2] = command;
+                    if (input.dying) effects.push_back(ThinkEffect{ ThinkEffect::command_done, 0, 0 });   // ai.cpp clears the leader's command on a flee (FUN_0058ed10)
+                    if (rally && ai_name == "Fallen") effects.push_back(ThinkEffect{ ThinkEffect::rally, 0, 0 });                  // the leader's rally, as game.exe's effect
                     if (asked != asks.size()) std::fprintf(stderr, "mon_ais %s: %s\n  asked %zu of %zu\n", std::string(ai_name).c_str(), line.c_str(), asked, asks.size());
                     assert(asked == asks.size());
                     for (const auto& effect : effects)                     // the toggle back clears the scratch words (FUN_005b0e00)
@@ -498,7 +510,11 @@ int main() {
                     std::array<long long, 16> want{};
                     for (auto& value : want) tail >> value;
                     const int y = act.spot ? 1 : act.y;
-                    const bool same = int(act.act) == want[0] && act.n == want[1] && act.x == want[2] && y == want[3] && int(act.unit) == want[4] && act.wait == want[5] && act.event == want[6]
+                    // Not claimed (the pace is): the Brute's move is game.exe's FUN_005ded40 (a mode-2 move, d2d: walk 7), and the Rogue's run
+                    // carries FUN_005defb0's flags 3, which ai.cpp does not read on a run.
+                    const bool brute_move = ai_name == "Brute" && act.act == MonAct::walk && want[0] == int(MonAct::run);
+                    const bool rogue_run = ai_name == "CorruptRogue" && act.act == MonAct::run && want[0] == int(MonAct::run);
+                    const bool same = (int(act.act) == want[0] || brute_move) && (act.n == want[1] || rogue_run) && act.x == want[2] && y == want[3] && int(act.unit) == want[4] && act.wait == want[5] && act.event == want[6]
                                    && pace == want[7] && steps == want[8] && ctrl[0] == want[9] && ctrl[1] == want[10] && ctrl[2] == want[11]
                                    && seed.low == std::uint32_t(want[12]) && seed.high == std::uint32_t(want[13]) && (which != 21 || cast_word == want[14]);
                     if (!same) std::fprintf(stderr, "mon_ais %s: %s\n  got %d %d %d %d %d %d %d | %d %d | %d %d %d | %u %u\n", std::string(ai_name).c_str(), line.c_str(),

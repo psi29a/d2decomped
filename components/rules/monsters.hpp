@@ -414,6 +414,13 @@ inline int ai_distance(int dx, int dy) {
     return dy < dx ? (dy + dx * 2) / 2 : (dx + dy * 2) / 2;
 }
 
+// A unique Fallen Shaman's corpse (FUN_005f1380, the callback of its room search FUN_005dd0b0): a dead monster of class 19 or 58, not
+// flagged champion (bit 4) or unique (bit 8: FUN_005a0180 mask 0xc), within its aip4 by the squared distance (the limit is aip4 squared,
+// 0x5f14c8..0x5f14d2). The corpse's own state (DD, the corpse bit, not raised) is the caller's.
+inline bool shaman_corpse_reach(int base, bool champion, bool unique, int off_x, int off_y, int aip4) {
+    return (base == 19 || base == 58) && !champion && !unique && off_x * off_x + off_y * off_y <= aip4 * aip4;
+}
+
 // A unit's distance to a point less `less` on each axis
 // (FUN_005dc480 / FUN_005dc380 / FUN_006417f0): (max x 2 + min) / 2.
 inline int point_apart(int dx, int dy, int less) {
@@ -1185,6 +1192,7 @@ struct ThinkIn {
     int* state2 = nullptr;
     bool spot_free = true;
     int home_dist = 0;                          // Blood Raven's: AI distance to her spawn point (FUN_005dc480)
+    int target_home_dist = 0;                   // the same from the target to it (her think's d_t)
     int off_x = 0, off_y = 0;                   // the target, subtiles off it
     // The velocity % its next mode gets (FUN_005de190 -> FUN_005a6260, set
     // when not 0: monster data +0x2c ctx +0x1c; FUN_005a63f0 takes and
@@ -1419,10 +1427,12 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         return idle2;
     }
     // Zombie (3, FUN_005efe20): runs at a foe it's hit by, or aip1 % one
-    // within aip2; else wanders 3, bar in the Burial Grounds.
+    // within aip2, at pace 100 (FUN_005de190, 0x5eff19); else wanders 3,
+    // bar in the Burial Grounds.
     if (ai_name == "Zombie") {
         if (input.in_melee) return a1_or_a2(aip[3]);
         if (!input.got_hit && !(input.dist < aip[1] && roll() < aip[0]) && input.level != level_ids::kBurialGrounds) return think_wander(rng, 3);
+        *input.pace = 100;
         return { MonAct::run };
     }
     // Bighead (4, FUN_005eff50): above aip1 % life it closes in (aip3 % a
@@ -1450,15 +1460,21 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         *input.state = 0;
         if (charged && input.in_melee) return { MonAct::a1 };
         if (!input.in_melee) {
-            if (roll() < aip[0]) { *input.state = 1; return { MonAct::walk, 0 }; }
-            if (input.dist > 3) return think_wander(rng, roll() < aip[1] ? 4 : 3);
+            if (roll() < aip[0]) { *input.state = 1; *input.pace = aip[4]; if (input.steps) *input.steps = input.dist; return { MonAct::walk, 0 }; }
+            if (input.dist > 3) {
+                const bool wide = roll() < aip[1];
+                if (wide) *input.pace = -50;
+                return think_wander(rng, wide ? 4 : 3);
+            }
         } else if (roll() < aip[2]) return { MonAct::a1 };
+        *input.pace = aip[3];
         return away(4, false) ? Think{ MonAct::none } : Think{ MonAct::a1 };
     }
-    // Brute (7, FUN_005efb80): walks in without a draw; in melee aip3 % a
+    // Brute (7, FUN_005efb80): walks in without a draw, at pace 100 less
+    // its life % (40 to 100 of it: 0 to 60, 0x5efcbf); in melee aip3 % a
     // swing (aip4 % A1), else aip3 % circles 4, else stands 15.
     if (ai_name == "Brute") {
-        if (!input.in_melee) return walk;
+        if (!input.in_melee) { *input.pace = 100 - std::clamp(input.life_pct, 40, 100); return walk; }
         if (roll() < aip[2]) return a1_or_a2(aip[3]);
         if (roll() < aip[2]) return think_circle(rng, 4);
         return { MonAct::idle, 15 };
@@ -1475,10 +1491,11 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // difficulty (FUN_00573930's difficulty); in melee aip3 % A1, else
     // aip1 % close in (aip5 % running).
     if (ai_name == "CorruptRogue") {
-        if (input.dist > 20 - 3 * input.difficulty) return { MonAct::run };
+        const auto run = [&] { *input.pace = aip[3]; return Think{ MonAct::run }; };     // FUN_005de190(aip4, 0) before each run
+        if (input.dist > 20 - 3 * input.difficulty) return run();
         if (input.in_melee) return roll() < aip[2] ? Think{ MonAct::a1 } : idle2;
         if (roll() >= aip[0]) return idle2;
-        return roll() < aip[4] ? Think{ MonAct::run } : walk;
+        return roll() < aip[4] ? run() : walk;
     }
     // QuillRat (14, FUN_005f1140): A1 in melee, spikes (A2) when hit;
     // wanders (aip4, at least 3) at aip1 or more; else aip2 % a back-off
@@ -1516,10 +1533,12 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // strikes on arrival); at range aip1 % closes in (aip4 % running);
     // in melee aip2 % (or on arrival) Skill1..3 at aip6..8 %, else A1.
     if (ai_name == "CorruptLancer") {
-        if (aip[4] < input.dist) { *input.state = 1; return { MonAct::run }; }
+        if (aip[4] < input.dist) { *input.state = 1; *input.pace = 100; return { MonAct::run }; }
         if (!input.in_melee) {
             if (roll() >= aip[0]) return { MonAct::idle, aip[2] };
-            return roll() >= aip[3] ? Think{ MonAct::approach, 3 } : Think{ MonAct::run };
+            if (roll() >= aip[3]) return { MonAct::approach, 3 };
+            *input.pace = 100;
+            return { MonAct::run };
         }
         if (*input.state == 0 && roll() >= aip[1]) return { MonAct::idle, aip[2] };
         *input.state = 0;
@@ -1548,7 +1567,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // mid-way, game.exe's at their end); commands other than 1 never come.
     if (ai_name == "Fallen") {
         if (input.dying) {
-            *input.state = 1; *input.command = 0;
+            *input.state = 1; *input.command = 0; *input.pace = 50;
             if (away(12, false)) { (void)rng.next(); return { MonAct::none }; }
         }
         if (*input.command == 1) {
@@ -1606,11 +1625,11 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // set off; the second target search (FUN_005ddc30) is the target.
     if (ai_name == "BloodRaven") {
         if (input.dist > 45) return { MonAct::idle, 5 };
-        if (input.home_dist >= 50) *input.command = 1;
-        if (*input.command && input.home_dist > 5) return { MonAct::home };
+        if (input.target_home_dist >= 50 || input.home_dist > 50) { *input.command = 1; *input.pace = 100; return { MonAct::home }; }
+        if (*input.command && input.home_dist > 5) { *input.pace = 100; return { MonAct::home }; }
         *input.command = 0;
         auto around = [&](int radius) { auto out = think_wander(rng, radius); out.act = MonAct::around; return out; };
-        if (input.dist > 20) return around(std::max(input.dist >> 1, 12));
+        if (input.dist > 20) { *input.pace = 100; return around(std::max(input.dist >> 1, 12)); }
         *input.state += 3;
         if (input.skill[0] && !input.in_melee && *input.state2 < input.difficulty * 2 + 8 && roll() < *input.state) {
             const int reach = rng(15) + 5;
@@ -1622,11 +1641,12 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             return { MonAct::skill, 0, x, y };
         }
         if (input.dist > 5) {
-            if (roll() < 5) return around(12);
+            if (roll() < 5) { *input.pace = 100; return around(12); }
             if (!input.got_hit && roll() < 80) return input.skill[1] && roll() < (input.difficulty + 4) * 10 ? Think{ MonAct::skill, 1 } : Think{ MonAct::a1 };
+            *input.pace = 50;
             return think_circle(rng, 4);             // FUN_005df7d0(4, 1): its walk flagged 4
         }
-        if (roll() < 30 && away(12 - input.dist, true)) return { MonAct::none };
+        if (roll() < 30) { *input.pace = 100; if (away(12 - input.dist, true)) return { MonAct::none }; }
         return { MonAct::a1 };
     }
     // SkeletonMage (FUN_005f96c0): with a second target (FUN_005ddc30) by

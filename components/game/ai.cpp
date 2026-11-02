@@ -934,7 +934,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (i != self && other.mode == "DT" && d2d::rules::ai_distance(off_x, off_y) < 15) input.dying = true;
         if (type_info.ai_name != "FallenShaman" || other.alive() || other.mode != "DD" || other.corpse_used) continue;
         const int base = game_data.monsters.types[std::size_t(other.type)].base;
-        if (unique(monster) ? (base == 19 || base == 58) && !unique(other) && d2d::rules::ai_distance(off_x, off_y) < 80
+        if (unique(monster) ? d2d::rules::shaman_corpse_reach(base, other.boss == Boss::champion, unique(other), off_x, off_y, input.aip[3])
                             : other.leader == int(self) && off_x * off_x + off_y * off_y <= input.aip[3] * input.aip[3])
             corpse = int(i);
     }
@@ -950,6 +950,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.frame = frame; input.state2 = &monster.ai_state2;
     input.spot_free = nest_spot_free(game_data, level, crowd, monster.type, x, y, false);
     input.home_dist = d2d::rules::ai_distance(subtile(monster.home_x) - x, subtile(monster.home_y) - y);
+    if (type_info.ai_name == "BloodRaven") {      // her think's two distances to home are FUN_005dc480's: each axis less half the unit's size + 1
+        input.home_dist = d2d::rules::point_apart(subtile(monster.home_x) - x, subtile(monster.home_y) - y, (type_info.size >> 1) + 1);
+        input.target_home_dist = d2d::rules::point_apart(subtile(monster.home_x) - target_x, subtile(monster.home_y) - target_y, (target->size >> 1) + 1);
+    }
     input.off_x = target_x - x; input.off_y = target_y - y;
     int pace = 0;
     input.pace = &pace; input.state3 = &monster.ai_state3;
