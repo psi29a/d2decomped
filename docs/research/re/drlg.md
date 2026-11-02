@@ -18,6 +18,12 @@ once; its low word is kept at act +0x470. A level's seed (+0x1c4) is
 (FUN_00642ae0) and set again just before it's generated (FUN_006424a0),
 so every level's contents depend only on the map seed and its id.
 
+A separate value accompanies that seed. On the server, FUN_0053ac70 passes
+game +0x1c as FUN_006194a0's sixth argument. FUN_006194a0 stores it at
+dungeon +0x5c; FUN_00619550 returns `[ECX+0x5c]`, and its sole caller
+FUN_00642da0 copies the result to act +0x478. This is not the map seed
+(game +0x7c); what game +0x1c means is not traced.
+
 ## The game's map seed
 
 - **A new game** (`FUN_0052c280`): the seed is random (QueryPerformanceCounter
@@ -565,7 +571,9 @@ The finish (FUN_006750f0) turns cells into rooms: a preset anchor
 (+0x2c 0x200 and +0x04 set) becomes a preset room (FUN_00666ed0 on the
 level seed, FUN_00667ed0: when the LvlPrest row has Scan or Pops,
 FUN_00667970 first rolls its DS1's units to stay (FUN_00667620) on the
-level seed, then the rooms are allocated), other preset cells nothing, 0x100 cells
+level seed, then the rooms are allocated). For that anchor, FUN_00666ec0
+sets the new room's +0x04 to `(cell +0x2c >> 16) & 0xf`
+(`006751ce`..`006751db`). Other preset cells become nothing, 0x100 cells
 nothing, the rest plain 8×8 rooms (FUN_0067d540 with +0x18, +0x2c,
 +0x40 and a LevelType word: 2 → 0x44103).
 
@@ -1151,6 +1159,12 @@ against d2d's `debug tiles`), Lut Gholein after a waypoint arrival:
   next level.
 
 ## A room's life on the server (2026-10-03)
+
+A room1's +0x10 points back to its room2. FUN_0061aae0 is the getter
+(`MOV EAX,[ECX+0x10]`). FUN_0066ab00 returns the room1 at room2 +0x30;
+FUN_0066bac0 then follows room1 +0x10 to the room2, room2 +0x58 to the
+level, and returns level +0x1d0 (its id). The other getter caller,
+FUN_00458f40, saves the result in EDI but never reads it: that call is dead.
 
 The room2 status (+0x44) is the shallowest depth at which a player's
 near-list walk holds it: 0 the player's room, 1 its near list, 2 and 3
