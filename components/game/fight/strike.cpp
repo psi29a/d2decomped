@@ -310,7 +310,7 @@ auto Fight::start_swing(std::uint32_t now_ms) -> bool {
                 const int lvl = cast_level(actor->attack_skill);
                 const int cost = cost_of(*skill, lvl);
                 if (lvl > 0 && actor->character.stats.values[kMana] >= cost) {
-                    pay(*skill, cost);
+                    pay(*skill, lvl);
                     actor->swing_skill = actor->attack_skill;
                     if (skill->srvstfunc == ServerStartFunction::kDragonTalon || skill->srvstfunc == ServerStartFunction::kRepeatedHit || skill->srvstfunc == ServerStartFunction::kFend) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
                         const auto env = calc_env();

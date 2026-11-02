@@ -71,11 +71,12 @@ auto Fight::cast_level(int skill) const -> int {
         return skill_level ? skill_level(skill) : 0;
     }
 
-auto Fight::cost_of(const d2d::rules::Skill& skill, int lvl) const -> int { return from_charges(skill.id) ? 0 : d2d::rules::mana_cost(skill, lvl); }
+auto Fight::cost_of(const d2d::rules::Skill& skill, int lvl) const -> int { return from_charges(skill.id) ? 0 : d2d::rules::mana_formula(skill, lvl); }
 
-auto Fight::pay(const d2d::rules::Skill& skill, int cost) -> void {
+auto Fight::pay(const d2d::rules::Skill& skill, int lvl) -> void {
+        auto& mana = actor->character.stats.values[d2d::d2s::kMana];
         if (from_charges(skill.id)) (void)use_charge(actor->character.items, actor->item_charge);
-        else actor->character.stats.values[d2d::d2s::kMana] -= cost;
+        else mana -= d2d::rules::mana_paid(skill, lvl, mana);
     }
 
 auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
@@ -86,7 +87,7 @@ auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
         const int cost = cost_of(*skill_row, lvl);
         if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);
         if (lvl <= 0 || actor->character.stats.values[kMana] < cost) return false;
-        pay(*skill_row, cost);
+        pay(*skill_row, lvl);
         actor->swing_skill = skill;
         actor->attack_mon = -1;
         set_pmode(kModeSC, now_ms);

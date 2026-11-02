@@ -1113,8 +1113,9 @@ struct Fight {
     // A cast's level where it's paid for: 0 (no cast) from an entry that
     // went between the command and the cast (used up, unequipped, swapped).
     [[nodiscard]] int cast_level(int skill) const;
+    // What the check asks (FUN_0056c160: no minmana floor); pay takes what FUN_0056bfe0 takes.
     [[nodiscard]] int cost_of(const d2d::rules::Skill& skill, int lvl) const;
-    void pay(const d2d::rules::Skill& skill, int cost);
+    void pay(const d2d::rules::Skill& skill, int lvl);
     // Frenzy's state (FUN_005d8c70): each hit that lands raises it a level,
     // up to the skill's, for auralencalc ticks; its aurastats (velocitypercent
     // dm34, attackrate dm56) are taken at that level.

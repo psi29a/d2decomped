@@ -100,6 +100,12 @@ int main() {
     Skill cheap = skill_tables.rows[0];
     cheap.mana = 0;
     assert(mana_cost(cheap, 3) == 256);                     // minmana 1
+    // The check has no floor, the payment takes the floor only from enough mana and nothing for a row with no mana and no lvlmana.
+    assert(mana_formula(cheap, 3) == 0 && mana_formula(fire_bolt, 5) == 9 << 7 && mana_formula(fire_bolt, 0) == 0);
+    assert(mana_paid(cheap, 3, 4096) == 0);                   // no mana, no lvlmana: nothing, whatever minmana says
+    Skill pays = fire_bolt;
+    pays.minmana = 4;
+    assert(mana_paid(pays, 1, 1024) == 1024 && mana_paid(pays, 1, 1023) == 0 && mana_paid(pays, 1, 5 << 7) == 0);
 
     // Item bonuses (FUN_00644180): all skills, class skills, the skill's tab, single skills.
     using P = d2d::d2s::ItemProp;

@@ -7,6 +7,14 @@ game	0x10f8	u32	unit_lists	10 list heads of {unit, ?, next +8, prev +0xc} nodes	
 path	0x1c	ptr	room	the room the unit is in	docs/research/re/missiles.md:33
 path	0x50	u32	collide_mask	what it collides with: a player 0x1c09, a monster 0x3c01	docs/research/re/collision.md:51
 path	0x54	u32	collided	this frame's collision bits, masked	docs/research/re/missiles.md:54
+skill	0x08	u8	flags	0x20: usemanaondo	tools/emu/sk_mana.py:88
+skill	0x2c	u16	srvst	the server start function id (srvstfunc)	tools/emu/sk_mana.py:87
+skill	0x2e	u16	srvdo	the server do function id (srvdofunc)	tools/emu/sk_mana.py:88
+skill	0x184	u16	startmana	Skills.txt startmana	tools/emu/sk_mana.py:86
+skill	0x186	u16	minmana	Skills.txt minmana (in points: the payment's floor is minmana x 256)	tools/emu/sk_mana.py:86
+skill	0x188	u8	manashift	Skills.txt manashift: the price is shifted left by it	tools/emu/sk_mana.py:86
+skill	0x18a	u16	mana	Skills.txt mana (the level 1 price)	tools/emu/sk_mana.py:87
+skill	0x18c	u16	lvlmana	Skills.txt lvlmana (added per level above 1)	tools/emu/sk_mana.py:87
 unit	0x00	u32	type	0 player, 1 monster, 2 object, 3 missile, 4 item, 5 warp	components/rules/object_ids.hpp:10
 unit	0x04	u32	class	its row: MonStats, objects.txt, Missiles, ...	tools/emu/life_apply.py:50
 unit	0x10	u32	mode	animation mode	components/rules/monsters.hpp:1253
