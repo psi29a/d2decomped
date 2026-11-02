@@ -176,7 +176,7 @@ def cmp(outdir, d2d_out):
     for g in gl:
         cid = int(g[0]); diff, mid, mode, mn, lvl, omin, omax, ownel = int(g[1]), g[2], g[3], g[4], int(g[5]), int(g[6]), int(g[7]), int(g[8])
         pmin, pmax = int(g[9]), int(g[10])
-        st = {s: int(v) for s, v in zip(ELEM, g[11:])}
+        st = {s: int(v) for s, v in zip(ELEM, g[11:], strict=False)}
         d = dl.get(cid)
         if d is None: missing += 1; continue
         dphys = (d[0], d[1])
@@ -217,13 +217,14 @@ def cmp(outdir, d2d_out):
     print(f"at the game's own missile level (1 / 4 / 8): {real[0]} cases, {real[1]} differ")
     print("rows with a difference: " + " ".join(f"{k}:{v}" for k, v in sorted(by_row.items())))
     print("\n".join(ex))
-    tab = os.environ.get("MMTAB", os.path.expanduser("~/mmtab"))
-    mis = {m["Missile"]: m for m in rows(tab, "missiles.txt")}
-    print("row data of the rows with a difference (D1 = MinLevDam / MaxLevDam, D2 = HitShift, D3 = EType): row | MinDamage MaxDamage | MinLevDam1 MaxLevDam1 | HitShift | SrcDamage | EType EMin Emax ELen")
-    for k in sorted(by_row):
-        r = mis[k]
-        print(f"  {k} | {r['MinDamage']} {r['MaxDamage']} | {r['MinLevDam1']} {r['MaxLevDam1']} | {r['HitShift']} | {r['SrcDamage']} | {r['EType']} {r['EMin']} {r['Emax']} {r['ELen']}")
-    return bad["any"]
+    if by_row:                                     # the table is only needed for the row data of a difference
+        tab = os.environ.get("MMTAB", os.path.expanduser("~/mmtab"))
+        mis = {m["Missile"]: m for m in rows(tab, "missiles.txt")}
+        print("row data of the rows with a difference (D1 = MinLevDam / MaxLevDam, D2 = HitShift, D3 = EType): row | MinDamage MaxDamage | MinLevDam1 MaxLevDam1 | HitShift | SrcDamage | EType EMin Emax ELen")
+        for k in sorted(by_row):
+            r = mis[k]
+            print(f"  {k} | {r['MinDamage']} {r['MaxDamage']} | {r['MinLevDam1']} {r['MaxLevDam1']} | {r['HitShift']} | {r['SrcDamage']} | {r['EType']} {r['EMin']} {r['Emax']} {r['ELen']}")
+    return bad["any"] + missing                    # a case without a d2d line is a failure, not a pass
 
 
 def main():
