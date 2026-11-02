@@ -1610,10 +1610,10 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     if (ai_name == "BloodRaven") {
         if (input.dist > 45) return { MonAct::idle, 5 };
         if (input.home_dist >= 50) *input.command = 1;
-        if (*input.command && input.home_dist > 5) return { MonAct::home };
+        if (*input.command && input.home_dist > 5) { *input.pace = 100; return { MonAct::home }; }
         *input.command = 0;
         auto around = [&](int radius) { auto out = think_wander(rng, radius); out.act = MonAct::around; return out; };
-        if (input.dist > 20) return around(std::max(input.dist >> 1, 12));
+        if (input.dist > 20) { *input.pace = 100; return around(std::max(input.dist >> 1, 12)); }
         *input.state += 3;
         if (input.skill[0] && !input.in_melee && *input.state2 < input.difficulty * 2 + 8 && roll() < *input.state) {
             const int reach = rng(15) + 5;
@@ -1625,11 +1625,12 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             return { MonAct::skill, 0, x, y };
         }
         if (input.dist > 5) {
-            if (roll() < 5) return around(12);
+            if (roll() < 5) { *input.pace = 100; return around(12); }
             if (!input.got_hit && roll() < 80) return input.skill[1] && roll() < (input.difficulty + 4) * 10 ? Think{ MonAct::skill, 1 } : Think{ MonAct::a1 };
+            *input.pace = 50;
             return think_circle(rng, 4);             // FUN_005df7d0(4, 1): its walk flagged 4
         }
-        if (roll() < 30 && away(12 - input.dist, true)) return { MonAct::none };
+        if (roll() < 30) { *input.pace = 100; if (away(12 - input.dist, true)) return { MonAct::none }; }
         return { MonAct::a1 };
     }
     // SkeletonMage (FUN_005f96c0): with a second target (FUN_005ddc30) by
