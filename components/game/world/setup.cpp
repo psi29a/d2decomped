@@ -243,7 +243,7 @@ auto World::leave(int id) -> std::string {
         act_as(**found);
         const auto why = save();
         d2d::log::info("{} leaves the game (player {})", actor->character.name, id);
-        portal[(*found)->portal_pair] = portal[(*found)->portal_pair + 1] = {};   // their town portal closes
+        close_portal_pair((*found)->portal_pair);   // their town portal closes
         if (found == players.begin()) {
             // The first player: the next one takes their place (slot [0], what
             // the client's `hero` is), the game goes on.

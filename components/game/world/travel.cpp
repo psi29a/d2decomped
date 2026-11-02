@@ -15,6 +15,7 @@
 #include <level_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 
 #include <algorithm>
@@ -241,14 +242,21 @@ auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint3
         if (book && scroll->quantity <= 0) return;
         // ponytail: a click on the old portal still pending (take_portal) is kept. FUN_00535430 only unlinks the pair and
         // writes nothing to the player; the walk to a clicked portal is the client's, which the oracle doesn't have.
-        portal[actor->portal_pair] = portal[actor->portal_pair + 1] = {};   // FUN_00535430, before the new one
+        close_portal_pair(std::size_t(actor->portal_pair));   // FUN_00535430, before the new one
         if (!open_portal_at(actor->player.x, actor->player.y, now_ms)) return;
+        if (level->id == d2d::rules::RiteQuest::kSummit && rite.portal_opened()) rite_put_back(now_ms);   // FUN_0058cf00
         if (book) --scroll->quantity;
         else actor->character.items.erase(scroll);
         cues.cue_on(unit_key(kSoundOnPlayer, actor->id), "player_townportal_cast", now_ms, actor->player.x, actor->player.y);
     }
 
 auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(actor->player.x, actor->player.y, now_ms); }
+
+auto World::close_portal_pair(std::size_t pair) -> void {
+        for (const std::size_t end : { pair, pair + 1 })
+            if (portal[end].level && portal[end].level->id == d2d::rules::RiteQuest::kSummit) rite.portal_closed();
+        portal[pair] = portal[pair + 1] = {};
+    }
 
 auto World::crowd_now() -> Crowd {
         Crowd crowd;
@@ -336,7 +344,7 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
         // Back at the end its owner cast it from (player data +0x48,
         // FUN_005353f0): the pair closes (FUN_00584870). Anyone else's trip
         // keeps it.
-        if (arrival == actor->portal_pair) portal[arrival] = portal[arrival + 1] = {};
+        if (arrival == actor->portal_pair) close_portal_pair(arrival);
         arrive(other_end.level, other_end.x, other_end.y + 0.6f, "a town portal");
     }
 

@@ -5,6 +5,7 @@
 #include <level_ids.hpp>
 #include <monster_ids.hpp>
 #include <quests.hpp>
+#include <quests_act5.hpp>
 
 #include <algorithm>
 #include <array>
@@ -552,5 +553,17 @@ int main() {
     assert(SummonerQuest::alert(summoning, 176) && summoner.talk(summoning, 176, 1)[0].string == 427 && summoner.talk(summoning, 176, 1)[0].greet);
     summoner.said(summoning, summoning_game, 427, 1);
     assert(summoner.state == 3 && summoner.log == 0xd && quest::bit(summoning, 13, 0) && !quest::bit(summoning, 13, 1));
+    {   // The Rite of Passage and the Summit's town portals (FUN_0058cf00 / FUN_0058cf50, data +0xc).
+        RiteQuest rite;
+        rite.heard = rite.awake = true; rite.made = rite.alive = 3;
+        assert(rite.portal_opened() && rite.portals == 1 && !rite.awake && rite.alive == 0);   // opened there: reset
+        rite.heard = rite.awake = true; rite.alive = 3;
+        assert(!rite.ancient_fell(0) && !rite.ancient_died() && rite.alive == 3);              // none counts with it open
+        rite.portal_closed();
+        assert(rite.portals == 0 && rite.awake && !rite.ancient_died() && rite.alive == 2);                 // counted, not the last
+        assert(!rite.died(true) && rite.alive == 2 && rite.died(false) && !rite.awake);        // a death resets with no one else there
+        rite.done = true;
+        assert(!rite.portal_opened() && rite.portals == 0);
+    }
     std::puts("ok");
 }
