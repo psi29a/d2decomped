@@ -29,5 +29,12 @@ int main() {
     assert(taken.hit && taken.poison >= 32 && taken.poison <= 64 && taken.poison_ticks == 800);   // up to 200 points, not 8,812
     const auto fire = missile_blow(info, d2d::rules::MissileDamage{ .etype = 0, .elo = 5 << 8, .ehi = 7 << 8, .elen = 0 }, 30);
     assert(fire.elements[0].type == 0 && fire.elements[0].min == 5 && fire.elements[0].max == 7 && fire.poison_max == 0);
+    // the map's trap missiles (objects.cpp) place their element the same way: trappoisonjavcloud
+    // (ELen 500, up to 64 a frame) was P x ELen >> 8 in an El row, x 39 too strong
+    d2d::rules::MonStats trap;
+    put_missile_element(trap, d2d::rules::MissileDamage{ .etype = 3, .elo = 64, .ehi = 64, .elen = 500 });
+    assert(trap.poison_min == 64 && trap.poison_max == 64 && trap.poison_len == 500 && trap.elements[0].type < 0);
+    put_missile_element(trap, d2d::rules::MissileDamage{ .etype = 1, .elo = 3 << 8, .ehi = 4 << 8, .elen = 0 });
+    assert(trap.elements[0].type == 1 && trap.elements[0].min == 3 && trap.elements[0].max == 4);
     return 0;
 }

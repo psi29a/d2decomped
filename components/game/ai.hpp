@@ -657,15 +657,21 @@ inline int missile_facing(float x, float y, float dx, float dy) {
 // the record's +0x34 / +0x38 / +0x3c, which monster_blow applies as it is (an
 // `elements` entry of type 3 is the MonStats El convention, roll x 10 a frame
 // for 2 x dur frames, up to 62x as much).
+// `element` onto a missile's stats: poison per frame / frames in MonStats::poison_*,
+// any other type as an A2 El row in whole points (shared by missile_blow and the
+// map's trap missiles).
+inline void put_missile_element(d2d::rules::MonStats& stats, const d2d::rules::MissileDamage& element) {
+    if (element.etype == 3) {
+        stats.poison_min = element.elo; stats.poison_max = element.ehi; stats.poison_len = element.elen;
+    } else if (element.etype >= 0)
+        stats.elements[0] = { element.etype, 100, element.elo >> 8, element.ehi >> 8, element.elen, "A2" };
+}
 inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::rules::MissileDamage& element, int monster_level) {
     d2d::rules::MonStats stats;
     stats.level = monster_level;
     stats.to_hit = 1 << 20;
     stats.a2_min = info.min >> 8; stats.a2_max = std::max(info.max >> 8, stats.a2_min);
-    if (element.etype == 3) {
-        stats.poison_min = element.elo; stats.poison_max = element.ehi; stats.poison_len = element.elen;
-    } else if (element.etype >= 0)
-        stats.elements[0] = { element.etype, 100, element.elo >> 8, element.ehi >> 8, element.elen, "A2" };
+    put_missile_element(stats, element);
     return stats;
 }
 // What a monster's MissA / MissS1 / MissC shot carries (Ai::tick, FUN_0059f900 ->
