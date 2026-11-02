@@ -233,14 +233,15 @@ def claim(field, kind, mods):
     return "other"
 
 
-def residual(field, name, a, b):
+def residual(field, name, a, b, kind="", mods=""):
     """The mismatches that are not the level: PR 157's named residuals. life within 2 points
-    (256ths against whole points); a row game.exe gives no life; S1 a unique's / champion's stone
-    skin, game.exe's defence twice d2d's; H1 the willowisp family's damage (FUN_00463900 halves the
-    champion / strong / berserker percent, d2d's ponytail)."""
+    (256ths against whole points); a row game.exe gives no life; S1 a unique's / superunique's
+    stone skin (mod 28 in the case's mods), game.exe's defence twice d2d's; H1 the willowisp
+    family's damage (FUN_00463900 halves the champion / strong / berserker percent, d2d's
+    ponytail)."""
     a, b = int(a), int(b)
     if field == "life": return "life 256ths" if abs(a - b) <= 2 else "life 0 in game.exe" if a == 0 else None
-    if field == "def" and abs(a - 2 * b) <= 2: return "S1 stone skin"
+    if field == "def" and kind in ("u", "s") and "28" in mods.split(".") and abs(a - 2 * b) <= 2: return "S1 stone skin"
     if field in ("dmg_lo", "dmg_hi") and name.startswith("willowisp"): return "H1 willowisp damage"
     return None
 
@@ -267,7 +268,7 @@ def compare(cases_path, game_path, d2d_path):
         for field, a, b in zip(FIELDS, want[got[0]], got[2:], strict=True):
             if a == b: continue
             one = True
-            cls = residual(field, case[1], a, b)
+            cls = residual(field, case[1], a, b, kind, mods)
             level_counts[0 if field == "lvl" else 1 if cls is None else 2] += 1
             if field != "lvl" and cls is None: unexplained.setdefault((field, case[3], kind), (case[1], a, b))
             if cls: named[cls] = named.get(cls, 0) + 1
@@ -288,7 +289,7 @@ def compare(cases_path, game_path, d2d_path):
         case = cases[got[0]]
         row = by.setdefault((case[3], case[4]), [0, 0])
         row[0] += 1
-        row[1] += any(a != b and (f == "lvl" or residual(f, case[1], a, b) is None) for f, a, b in zip(FIELDS, want[got[0]], got[2:], strict=True))
+        row[1] += any(a != b and (f == "lvl" or residual(f, case[1], a, b, case[4], case[5]) is None) for f, a, b in zip(FIELDS, want[got[0]], got[2:], strict=True))
     print(f"level field mismatches {level_counts[0]}; other fields not a named residual {level_counts[1]}; named residuals {level_counts[2]} {named}")
     for key, (mon, a, b) in sorted(unexplained.items())[:20]:
         print(f"  not named: {key[0]} difficulty {key[1]} kind {key[2]} e.g. {mon}: game {a} d2d {b}")
