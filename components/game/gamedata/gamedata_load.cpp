@@ -1037,6 +1037,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                     std::string(table.get(row, "descstr2")), std::string(table.get(row, "dgrpstrpos")),
                                     std::string(table.get(row, "dgrpstrneg")), std::string(table.get(row, "dgrpstr2")),
                                     num(row, "Send Bits"), num(row, "Send Param Bits") };
+            if (id >= game_data.rules.stat_cost.size()) game_data.rules.stat_cost.resize(id + 1);
+            game_data.rules.stat_cost[id] = { num(row, "Multiply"), num(row, "Add"), num(row, "Encode") };
         }
     }
     {

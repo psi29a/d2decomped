@@ -92,6 +92,22 @@ int main() {
     Item arrows = item("aqv");
     arrows.quantity = 350;
     assert(item_price(tables, arrows, "Nobody", false, header) == 87);                 // cost x quantity / 1024
+    {   // Stat and staff mod costs (FUN_00628e70, FUN_0062edd0; tools/emu/price_oracle.py).
+        tables.stat_cost.resize(108);
+        tables.stat_cost[0] = { .mul = 55, .add = 125 };                       // strength
+        tables.stat_cost[97] = { .mul = 327, .add = 181, .encode = 1 };       // a skill: Skills.txt's cost instead
+        tables.skill_costs.resize(6);
+        tables.skill_costs[5] = { 256, 100 };
+        Item superior = item("hax", 3); superior.props = { { 0, 0, 4 }, { 0, 0, 6 }, { 97, 5, 2 } };
+        assert(item_price(tables, superior, "Nobody", false, header) == 1000 + 662 + 600);    // strength 10 once: 55 x 1000 x 10 / 1024 + 125
+        assert(item_price(tables, superior, "Nobody", true, header) == 1000 + 662 + 225);     // a sale's skill term / 4096
+        Item plain = superior; plain.quality = 2;
+        assert(item_price(tables, plain, "Nobody", false, header) == 1000);                   // a normal item's stats cost nothing
+        Item staff = item("hax"); staff.props = { { 107, 5, 2 } };
+        assert(item_price(tables, staff, "Nobody", false, header) == 1000 + 3 * 350);         // (2 x 2 - 1) x (256 x 1000 / 1024 + 100)
+        assert(item_price(tables, staff, "Nobody", true, header) == 1000 + 3 * 162);
+        tables.stat_cost.clear(); tables.skill_costs.clear();
+    }
     assert(item_price(tables, item("nothing"), "Charsi", false, header) == 1);         // never below 1
     assert(item_price(tables, item("hax"), "Nobody", true, header) == 1000);           // no npc.txt row: unscaled
     d2d::d2s::Header quest = header;

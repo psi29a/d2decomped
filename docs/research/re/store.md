@@ -135,7 +135,20 @@ The base y is 539 (= 60 + 255 + 224):
   2. plus quality extras, only when the item is identified (`0062f182`):
      low quality −base/2; magic prefix + suffix,
      set, unique, rare/crafted affixes, each `mul·base/1024 + add`
-     from the affix/set/unique cost columns;
+     from the affix/set/unique cost columns; superior, magic, rare and
+     crafted also add each magic stat's cost (`FUN_00628e70`: the full
+     stat list less the base one, ItemStatCost Multiply·base·value/1024 +
+     Add; a skill stat, Encode 1 by its value or 2/3 by its level, takes
+     Skills.txt cost mult / cost add, a sale's / 4096; value 0 skipped).
+     Staff mods (`FUN_0062edd0`: each stat 107, (2·level − 1)·(skill cost
+     mult·price/1024 + cost add), a sale's / 4096) count on the base below
+     magic, identified or not, and on the price with its extras from magic
+     up when identified. Its ItemTypes StaffMods check (+0x1f != 7) never
+     fails: an empty column loads as 0xff, so every type pays. Above
+     0xffff each term divides the price first; the buy side's price picks
+     that branch for a sale and a repair too. `rules::item_price`,
+     `stat_costs`, `staff_mod_costs`; `tools/emu/price_oracle.py` cases
+     carry magic stats (20000 cases: buy and sell exact, stacks aside);
   3. plus half of each socketed item's cost; ethereal sells for ¼, and a
      class item (ItemTypes Class, `FUN_0062c060`) for ¼ again; an
      ethereal item with durability worn to 0 sells for nothing (the

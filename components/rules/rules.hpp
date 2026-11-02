@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <map>
 #include <optional>
 #include <queue>
 #include <span>
@@ -229,6 +230,9 @@ struct Tables {
     // books.txt CostPerCharge by BookSpellCode (tbk, ibk): what each scroll in a tome adds to its price (FUN_0062efb0).
     std::unordered_map<std::string, int> book_charge_cost;
     std::vector<std::pair<int, int>> skill_costs;          // Skills.txt cost mult, cost add by Id (+0x234 / +0x238: a charge's repair, FUN_00628d30)
+    // ItemStatCost Multiply, Add, Encode by ID (+0x10, +0x14, +0x30): what a magic stat adds to a price (FUN_00628e70).
+    struct StatCost { int mul = 0, add = 0, encode = 0; };
+    std::vector<StatCost> stat_cost;
     std::array<int, 7> class_first_skill{};                // per class its first skill Id (FUN_006460f0)
     std::vector<Special> uniques, sets;
     std::vector<std::string> item_order;                  // item codes in the Items table's order (weapons, armor, misc)
@@ -446,6 +450,63 @@ inline int armor_scaled(const Tables& tables, const d2d::d2s::Item& item, int co
     return int(std::int64_t(cost) * item.defense / base->second.maxac);
 }
 
+// game.exe's `mul * price * value / 1024 + add` in 32 bits: above 0xffff (and a
+// mul) the price * value is divided first. `limit` is the buy side's price *
+// value, which picks the branch for the sale and the repair too; `shift` is 10,
+// or 12 for a sale's skill terms.
+inline int price_term(int mul, int add, int price, int value, int limit, int shift) {
+    const auto wrap = [](long long number) { return std::int32_t(std::uint32_t(number)); };
+    const int scale = 1 << shift;
+    return limit < 0x10000 || mul == 0 ? wrap(wrap(wrap(1LL * mul * price) * value) / scale + add)
+                                       : wrap(wrap(1LL * price * value) / scale * 1LL * mul + add);
+}
+
+// What an item's magic stats add to a price (FUN_00628e70): each stat of the
+// item's full list less its base one, summed by stat and param, costs the
+// ItemStatCost Multiply / Add on `price` x value (a sale's too). A skill stat
+// takes the skill's Skills.txt cost mult / add instead: Encode 1 (the param is
+// the skill) by the value, Encode 2 / 3 (skill << 6 | level: on-hit, charges) by
+// the level, a sale by / 4096. Encode 4 (by time) is mult 0 and no add in 1.14d.
+// `buy` is the buy side's price, which picks the branch. The save's lists (the
+// main one, a runeword's after it) stand for the magic lists.
+// ponytail: a socketed item's own stats, if the full list holds them, aren't added.
+inline int stat_costs(const Tables& tables, const d2d::d2s::Item& item, int buy, int price, bool sell) {
+    std::map<std::pair<int, int>, int> stats;
+    for (const auto& prop : item.props) stats[{ prop.stat, prop.param }] += prop.value;
+    int total = 0;
+    for (const auto& [key, value] : stats) {
+        const auto [stat, param] = key;
+        if (value == 0 || stat < 0 || std::size_t(stat) >= tables.stat_cost.size()) continue;
+        const auto& cost = tables.stat_cost[std::size_t(stat)];
+        if (cost.encode >= 1 && cost.encode <= 3) {
+            const int skill = cost.encode == 1 ? param : param >> 6, level = cost.encode == 1 ? value : param & 63;
+            if (skill < 0 || std::size_t(skill) >= tables.skill_costs.size()) continue;
+            const auto [mul, add] = tables.skill_costs[std::size_t(skill)];
+            total += price_term(mul, add, price, level, buy * level, sell ? 12 : 10);
+        } else {
+            total += price_term(cost.mul, cost.add, price, value, buy * value, 10);
+        }
+    }
+    return total;
+}
+
+// What an item type's staff mods add (FUN_0062edd0): each item_singleskill
+// (stat 107) costs (2 x level - 1) x (the skill's cost mult x price / 1024 +
+// cost add), a sale's / 4096; above 0xffff the mult is divided, not the price.
+// `buy` picks the branch. Any item type: the check against ItemTypes StaffMods
+// (+0x1f != 7) never fails, as an empty StaffMods loads as 0xff (emu-read).
+inline int staff_mod_costs(const Tables& tables, const d2d::d2s::Item& item, int buy, int price, bool sell) {
+    int total = 0;
+    for (const auto& prop : item.props) {
+        if (prop.stat != 107 || prop.param < 0 || std::size_t(prop.param) >= tables.skill_costs.size()) continue;
+        const auto [mul, add] = tables.skill_costs[std::size_t(prop.param)];
+        const int scale = sell ? 4096 : 1024;
+        const int each = buy < 0x10000 || mul == 0 ? mul * price / scale + add : mul / scale * price + add;
+        total += each * (prop.value * 2 - 1);
+    }
+    return total;
+}
+
 // Buy (sell = false) or sell price of an item at the NPC with MonStats Id
 // npc_id, for the player's header (difficulty, quest flags).
 inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, bool sell,
@@ -468,26 +529,38 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
         base = int(std::int64_t(base) * count / 1024);
     }
     base = armor_scaled(tables, item, base);
+    // Staff mods count on the base below magic (FUN_0062a0f0: quality 4 .. 9),
+    // identified or not (0062f166), and on the price with its extras from magic up.
+    // The buy side's base picks every branch below, a sale's too.
+    const bool magic = item.quality >= 4;
+    const int buy_base = magic ? base : base + staff_mod_costs(tables, item, base, base, false);
+    if (!magic) base += staff_mod_costs(tables, item, base, base, sell);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
-        return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
+        return (buy_base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
     };
     // The quality extras count only once the item is identified (0062f182):
     // an unidentified magic item sells as a normal one, a low quality one isn't halved.
-    // ponytail: the stats' own costs (FUN_00628e70) and staff mods (FUN_0062edd0) aren't added.
-    int x = 0;
-    switch (item.identified ? item.quality : 0) {
-        case 1: x = -(base / 2); break;
-        case 4: x = extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); break;
-        case 5: x = extra(tables.set_cost, item.set_id); break;
-        case 7: x = extra(tables.unique_cost, item.unique_id); break;
-        case 6: case 8:
-            for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
-            break;
-        default: break;
-    }
-    long long price = base + x;
+    // Superior, magic, rare and crafted add their stats' costs (0062f814).
+    auto extras = [&](bool sale) {
+        int x = 0;
+        switch (item.identified ? item.quality : 0) {
+            case 1: x = -(base / 2); break;
+            case 3: x = stat_costs(tables, item, buy_base, base, sale); break;
+            case 4: x = extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix) + stat_costs(tables, item, buy_base, base, sale); break;
+            case 5: x = extra(tables.set_cost, item.set_id); break;
+            case 7: x = extra(tables.unique_cost, item.unique_id); break;
+            case 6: case 8:
+                for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
+                x += stat_costs(tables, item, buy_base, base, sale);
+                break;
+            default: break;
+        }
+        return x;
+    };
+    long long price = base + extras(sell);
+    if (magic && item.identified) price += staff_mod_costs(tables, item, base + extras(false), int(price), sell);
     for (const auto& socketed : item.socketed_items)
         if (const auto socketed_base = tables.item_base.find(socketed.code); socketed_base != tables.item_base.end()) price += socketed_base->second.cost / 2;
     if (sell && item.ethereal) price /= 4;
@@ -588,7 +661,8 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
         const int charges = charges_repair_cost(tables, item);
         return charges > 0 ? int(price_reduced(charges, reduced)) : 0;
     }
-    const int base = armor_scaled(tables, item, found != tables.item_base.end() ? found->second.cost : 0);
+    int base = armor_scaled(tables, item, found != tables.item_base.end() ? found->second.cost : 0);
+    if (item.quality < 4) base += staff_mod_costs(tables, item, base, base, false);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
@@ -597,22 +671,28 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
     long long x = base;
     switch (item.quality) {
         case 1: x -= base / 2; break;
-        case 4: x += extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); break;
+        case 3: x += stat_costs(tables, item, base, base, false); break;
+        case 4: x += extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix) + stat_costs(tables, item, base, base, false); break;
         case 5: x += extra(tables.set_cost, item.set_id); break;
         case 7: x += extra(tables.unique_cost, item.unique_id); break;
         case 6: case 8:
             for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
+            x += stat_costs(tables, item, base, base, false);
             break;
         default: break;
     }
-    long long cost = restock ? (max_stack - item.quantity) * x / max_stack : (max - item.durability) * x / max;
+    if (item.quality >= 4) x += staff_mod_costs(tables, item, int(x), int(x), false);
+    // The missing share's product is game.exe's 32 bits (0062fa35).
+    long long cost = restock ? (max_stack - item.quantity) * x / max_stack : std::int32_t(std::uint32_t((max - item.durability) * x)) / max;
     if (const auto price_row = tables.npc_prices.find(npc_id); price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
-        cost = cost * prices.rep / 1024;
+        // Above 0xffff the cost is divided by 1024 before the mult, as a price's (0062fb1d).
+        auto scale = [&cost](int mult) { cost = std::int32_t(std::uint32_t(cost < 0x10000 || mult == 0 ? cost * mult / 1024 : cost / 1024 * mult)); };
+        scale(prices.rep);
         const int diff = header.active_difficulty();
         for (int quest = 0; quest < 3; ++quest)
             if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
-                cost = cost * prices.qrep[std::size_t(quest)] / 1024;
+                scale(prices.qrep[std::size_t(quest)]);
     }
     return int(price_reduced(cost + charges_repair_cost(tables, item), reduced));
 }
