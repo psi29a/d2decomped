@@ -962,6 +962,16 @@ int main(int argc, char** argv) try {
         const auto& gains = data->class_gains[std::size_t(hero.character.header.cls % 7)];
         const std::int64_t energy = 10LL * gains.mana_per_energy / 4 * 256;
         assert(hero.character.stats.values[d2d::d2s::kMaxMana] == flat + flat * 50 / 100 + energy);
+        // The next game takes the saved (own) stats: the gear's share comes
+        // back, and the save after doesn't lose it.
+        {
+            auto next_game = hero.character;
+            next_game.stats = fight.own_stats();
+            world.take_character(next_game);
+            fight.update_fighters(26 * kTickMs);
+            assert(hero.character.stats.values[d2d::d2s::kMaxMana] == flat + flat * 50 / 100 + energy);
+            assert(fight.own_stats().values[d2d::d2s::kMaxMana] == own);
+        }
         // Battle Orders' % (a state's 77) adds to the items': one % of the
         // same raw maximum, mana up with it.
         const auto mana = hero.character.stats.values[d2d::d2s::kMana];

@@ -199,6 +199,10 @@ auto World::take_character(const Character& entering) -> void {
             { d2d::d2s::kLife, d2d::d2s::kMaxLife }, { d2d::d2s::kMana, d2d::d2s::kMaxMana }, { d2d::d2s::kStamina, d2d::d2s::kMaxStamina } };
         for (const auto& [cur, max] : kRefill)
             actor->character.stats.values[cur] = actor->character.stats.values[max];
+        // The save's maxima are its own (Fight::own_stats): the last game's
+        // gear and Battle Orders shares go, or the next refresh adds none and
+        // the next save takes them off again.
+        actor->item_max = {}; actor->bo_life = actor->bo_mana = 0;
         actor->held.reset();
         actor->store = {};
     }
