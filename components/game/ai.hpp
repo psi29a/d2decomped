@@ -281,6 +281,10 @@ struct Monster {
     std::uint32_t diab_run_ms = 0;
     // Leap (srvstfunc 40) under way: where it rose and where it lands (cells).
     bool leaping = false;
+    // Nest's start (srvstfunc 49, FUN_005cbd10) till its lay (do 91, FUN_005cbe00).
+    bool nesting = false;
+    // State 0x36 (uninterruptable, FUN_005544b0): a whirl, leap or nest under way.
+    [[nodiscard]] bool uninterruptable() const { return whirl || leaping || nesting; }
     // A sand maggot down (MagottDown's start, FUN_005cb270: unit flags 0xe
     // off, its 0x1000 lifted): no one targets, hits or walks into it till
     // MagottUp (FUN_005cb170) brings it up at the nearest free spot.
@@ -931,11 +935,13 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
 // MonUMod poison hit's init (FUN_005a1e00): its own poison stats.
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->
-// FUN_005dd480; FUN_00623470, FUN_005b0da0): MonStats2 mWL, not MonStats
+// FUN_005dd480; FUN_00623470, FUN_005b0da0): not state 0x36, MonStats2 mWL, not MonStats
 // boss, SwitchAI, targetable (unit +0xc4 & 4) or dead, not a unique or
 // superunique (monster data +0x16 & 0xa), not an imp (BaseId 0x1ec) riding
-// (state 0x8f). State 0x36 (uninterruptable) is never on a monster: only a
-// player's death sets it, and clears it at once (FUN_0054c0e0).
+// (state 0x8f). State 0x36 (uninterruptable, FUN_005544b0) comes on with a
+// skill's start: Whirlwind (FUN_005d8f50), Leap (FUN_005d9d50), Leap Attack
+// (FUN_005da540), Nest (FUN_005cbd10) and Jump (FUN_005cb730, no monster's),
+// each clearing it at its end (Monster::uninterruptable).
 bool swaps_ai(const GameData& game_data, const Monster& monster);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);

@@ -186,6 +186,22 @@ int main() try {
         assert(set_bonus_props(sets, { ward, worn(2) }, ward).size() == 1 && set_bonus_props(sets, { ward, worn(2) }, ward)[0].stat == 1);   // 2 worn: list 0
         std::printf("OK: a set item's own lists by add func\n");
     }
+    {
+        // State 0x36 (a whirl, leap or nest under way) keeps a curse's think
+        // off (FUN_005dd480), as it stands Talic (FUN_005eeb70).
+        GameData walkers;
+        walkers.monsters.types.resize(1);
+        walkers.monsters.types[0].can_walk = walkers.monsters.types[0].switch_ai = true;
+        Monster walker;
+        walker.type = 0; walker.hit_points = 10;
+        assert(swaps_ai(walkers, walker));
+        for (bool Monster::* busy : { &Monster::whirl, &Monster::leaping, &Monster::nesting }) {
+            auto held = walker;
+            held.*busy = true;
+            assert(held.uninterruptable() && !swaps_ai(walkers, held));
+        }
+        std::printf("OK: state 0x36 holds a monster's own think\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

@@ -1313,10 +1313,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.self_x = x; input.self_y = y;
         }
         // The Ancients: which by class, a foe picked (the target), awake
-        // (a5q5's record, set by World::act5_update).
-        // ponytail: Talic's state 0x36 isn't kept.
+        // (a5q5's record, set by World::act5_update); Talic's state 0x36.
         if (name == "Ancient") {
             input.asleep = monster.asleep;
+            input.state36 = monster.uninterruptable();
             input.ancient = type_info.id == "ancientbarb2" ? 1 : type_info.id == "ancientbarb3" ? 2 : 0;
             input.picked = true;
             input.self_size = type_info.size; input.target_size = target->size;
@@ -1574,6 +1574,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 use(played, lay);
                 if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
                 monster.skill_x = lay_x; monster.skill_y = lay_y;
+                monster.nesting = true;
                 return true;
             }
             if (act.n == 0) { set_mode(game_data, monster, "S1", now_ms); return true; }   // FUN_005de440: mode 8 where she stands
@@ -2125,6 +2126,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             } else if (skill("Nest")) {                                       // srvdofunc 91 (FUN_005cbe00): its spawn at the skill's spot, in spawnmode
                 // Through FUN_005b2f20 within 1 of the spot, flags 0x4020000 (no
                 // experience, no drop); Skills +0xe6's overlay is none for Nest.
+                monster.nesting = false;
                 const int room = room_of(level, (float(monster.skill_x) + 0.5f) / 5, (float(monster.skill_y) + 0.5f) / 5);
                 const auto young = game_data.monsters.by_id.find(type_info.spawn);
                 if (int at_x = 0, at_y = 0; born && young != game_data.monsters.by_id.end()
@@ -2947,7 +2949,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
 bool swaps_ai(const GameData& game_data, const Monster& monster) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     using d2d::rules::Boss;
-    return type_info.can_walk && !type_info.boss_column && type_info.switch_ai && !(type_info.base == 0x1ec && monster.riding)
+    return !monster.uninterruptable() && type_info.can_walk && !type_info.boss_column && type_info.switch_ai && !(type_info.base == 0x1ec && monster.riding)
         && (monster.targetable() || !monster.alive()) && monster.boss != Boss::unique && monster.boss != Boss::superunique;
 }
 
