@@ -587,21 +587,27 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
 // 0) IsDoor objects, the nearest under 9 subtiles squared (FUN_005dd0b0
 // mode 8, rules::door_pick); with MonsterOK, FUN_00584540 operates it
 // (OperateFn 8) when in reach (FUN_00623660, rules::object_reach). Found,
-// the monster stands 5 either way.
-// ponytail: the level's objects in list order, not the near rooms' unit
-// lists (a tie between two doors may go the other way); room unit lists
-// are agent D's.
+// the monster stands 5 either way. The doors come in the search's order:
+// the monster's near rooms, each room's units newest first (room_order).
 auto World::monster_door(const Monster& monster, std::uint32_t now_ms) -> bool {
         if (fight.mon_level != level) return false;
         const int x = int(std::floor(monster.unit.x * 5)), y = int(std::floor(monster.unit.y * 5));
-        std::vector<std::pair<int, int>> spots;
-        std::vector<int> door_indices;
+        std::vector<int> rooms;
+        for (const auto& [room_level, room] : near_rooms(*game_data, *level, monster.unit.x, monster.unit.y))
+            if (room_level == level) rooms.push_back(room);
+        std::vector<d2d::rules::RoomUnit> units;
+        units.reserve(level->npcs.size());
         for (std::size_t i = 0; i < level->npcs.size(); ++i) {
             const auto& door = level->npcs[i];
             const auto state = doors.find({ level, int(i) });
-            if (!door.door || (state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
+            units.push_back({ room_of(*level, door.x, door.y), door.door && (state != doors.end() ? state->second.mode : mode_index(door.mode)) == 0 });
+        }
+        std::vector<std::pair<int, int>> spots;
+        std::vector<int> door_indices;
+        for (const int index : d2d::rules::room_order(units, rooms)) {
+            const auto& door = level->npcs[std::size_t(index)];
             spots.emplace_back(int(door.x * 5) - x, int(door.y * 5) - y);
-            door_indices.push_back(int(i));
+            door_indices.push_back(index);
         }
         const int pick = d2d::rules::door_pick(spots);
         if (pick < 0 || !level->npcs[std::size_t(door_indices[std::size_t(pick)])].monster_ok) return false;
