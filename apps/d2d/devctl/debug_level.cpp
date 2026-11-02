@@ -229,7 +229,8 @@ void DebugVerbs::add_level() {
         if (args.size() < 4) return std::nullopt;
         town.player.x = town.target_x = std::strtof(args[2].c_str(), nullptr);
         town.player.y = town.target_y = std::strtof(args[3].c_str(), nullptr);
-        if (town.level) { std::tie(town.player.x, town.player.y) = town.level->nearest_free(town.player.x, town.player.y); town.target_x = town.player.x; town.target_y = town.player.y; }
+        const bool inside = town.level && town.player.x >= 0 && town.player.y >= 0 && town.player.x < float(town.level->ds1.width()) && town.player.y < float(town.level->ds1.height());
+        if (inside) { std::tie(town.player.x, town.player.y) = town.level->nearest_free(town.player.x, town.player.y); town.target_x = town.player.x; town.target_y = town.player.y; }
         town.player.walking = false;
         return std::string("ok\n");
     });

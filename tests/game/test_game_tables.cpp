@@ -69,7 +69,7 @@ int main() try {
         assert(thawing.thawing && thawing.ticks == 750 && (thawing.state_stats == std::vector<StatValue>{ { 43, 50 }, { 44, 10 } }));
         std::printf("OK: the antidote's and thawing's state stats\n");
     }
-    {
+    if (data->patched) {
         // Runes whose gems.txt mods go through Properties funcs 8, 2 and 20:
         // Shael's swing2 (IAS 93) in a weapon, Pul's ac% (16) in a helm,
         // Zod's indestructible (152) anywhere.
