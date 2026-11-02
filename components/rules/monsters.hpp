@@ -1177,6 +1177,7 @@ struct ThinkIn {
     int* state2 = nullptr;
     bool spot_free = true;
     int home_dist = 0;                          // Blood Raven's: AI distance to her spawn point (FUN_005dc480)
+    int target_home_dist = 0;                   // the same from the target to it (her think's d_t)
     int off_x = 0, off_y = 0;                   // the target, subtiles off it
     // The velocity % its next mode gets (FUN_005de190 -> FUN_005a6260, set
     // when not 0: monster data +0x2c ctx +0x1c; FUN_005a63f0 takes and
@@ -1609,7 +1610,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // set off; the second target search (FUN_005ddc30) is the target.
     if (ai_name == "BloodRaven") {
         if (input.dist > 45) return { MonAct::idle, 5 };
-        if (input.home_dist >= 50) *input.command = 1;
+        if (input.target_home_dist >= 50 || input.home_dist > 50) { *input.command = 1; *input.pace = 100; return { MonAct::home }; }
         if (*input.command && input.home_dist > 5) { *input.pace = 100; return { MonAct::home }; }
         *input.command = 0;
         auto around = [&](int radius) { auto out = think_wander(rng, radius); out.act = MonAct::around; return out; };
