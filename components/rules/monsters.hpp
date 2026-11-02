@@ -1266,7 +1266,7 @@ struct ThinkIn {
     int left_level = 0, right_level = 0;            // the hands' levels (FUN_006442a0, each its own)
     bool has_word = false, stuck = false, reach = false, target_state_b = false, target_player = false, in_chaos = false;
     int self_size = 2, target_size = 2;             // FUN_00620510: the units' sizes (the distances take them off)
-    // Act 5's: three lines to the target clear of 0x805 (FUN_005dc640);
+    // Act 5's: a line to the target clear of 0x805 (FUN_005dc640, any of three);
     // Skill1's Skills.txt +0x158 (FUN_004e6c70, its reach); the siege
     // beast's rider (FUN_00552fd0), it lies dead (FUN_0063ea40: mode 0 or
     // 12), its state 0x69 test (FUN_006259b0), an imp within aip1 to take on

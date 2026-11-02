@@ -12,6 +12,7 @@
 #include <missiles.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
+#include <pets.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
@@ -1244,17 +1245,17 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                                   -1, target_room, at_x, at_y); });
         }
     }
-    // Act 5's (monster-ai.md "Act 5's MonAIs"): three lines to the target
-    // clear of 0x805 (FUN_005dc640), Skill1's Param1 (its reach), the dead
+    // Act 5's (monster-ai.md "Act 5's MonAIs"): a line to the target clear
+    // of 0x805 (FUN_005dc640: rules::pet_line_clear, any of three), Skill1's Param1 (its reach), the dead
     // test (mode DT / DD), its own life %, the target a player, the command's
     // unit (the Minion's: in reach by melee).
-    // ponytail: one line stands for FUN_005dc640's three; the siege beast's
+    // ponytail: the siege beast's
     // rider, state 0x69 and imps to take on, the target's state 0x20 and its
     // FUN_00625d10 / 60 values aren't kept (no rider, state off, values 0);
     // a command's last frame is the frame after.
     {
         const auto wall805 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); };
-        input.lines_clear = !d2d::rules::sight_blocked(x, y, type_info.size, target_x, target_y, target->size, wall805);
+        input.lines_clear = d2d::rules::pet_line_clear(x, y, type_info.size, target_x, target_y, wall805);
         if (const auto* own = game_data.skills.get(skill_id(game_data, type_info.skill[0]))) input.skill1_range = own->par[0];
         input.self_dead = monster.mode == "DT" || monster.mode == "DD";
         input.self_life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));
