@@ -389,7 +389,8 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
         ? d2d::rules::row_damage(carried->etype, carried->emin, carried->emax, carried->emin_lev, carried->emax_lev, carried->hitshift, carried->elen, carried->elen_lev, lvl)
         : d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev,
                                  missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
-    const auto stats = missile_blow(missile_info, poison, monster.stats.level);
+    auto stats = missile_blow(missile_info, poison, monster.stats.level);
+    stats.to_hit = monster.stats.to_hit;                              // its stat 0x13, rolled when the row has ToHit
     const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
     missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
@@ -1813,6 +1814,7 @@ void countess_firewall(const GameData& game_data, const Monster& monster, std::u
     const float across_x = -(monster.unit.y - y), across_y = monster.unit.x - x, length = std::max(std::hypot(across_x, across_y), 0.01f);
     const float speed = missile_speed(maker->second, lvl);
     Missile burner{ &fire_info, x, y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(fire_info.range + fire_info.lev_range * lvl, 1)) * 40, monster.stats };
+    burner.src.no_hit_roll = !fire_info.to_hit;
     burner.level = lvl;
     burner.row = d2d::rules::row_damage(fire_info.etype, fire_info.emin, fire_info.emax, fire_info.emin_lev, fire_info.emax_lev, fire_info.hitshift, fire_info.elen,
                                         fire_info.elen_lev, lvl);
@@ -2417,12 +2419,11 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const int radius = std::max(d2d::rules::eval_calc(game_data.skills, cast->aurarange, {}, monster.skill, lvl) / 2, 1);
                         auto stats = monster.stats;
                         stats.a1_min = stats.a1_max = dmg / 2;
-                        stats.to_hit = 1 << 20;
                         for (auto& element : stats.elements) element = {};
                         stats.elements[0] = { 1, 100, dmg - dmg / 2, dmg - dmg / 2, 0, "A1" };   // fire
                         for (auto& near_foe : foes)
                             if (near_foe.alive && std::hypot(near_foe.x - corpse.unit.x, near_foe.y - corpse.unit.y) * 5 <= float(radius)) {
-                                const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, rng);
+                                const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, rng, false, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0
                                 near_foe.take(taken);
                             }
                         d2d::log::info("{} explodes a corpse ({} damage)", monster.npc.name, dmg);
@@ -2631,6 +2632,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (missiles.size() > sent) {
                         auto& imp_shot = missiles.back();
                         imp_shot.src = monster.stats;
+                        imp_shot.src.no_hit_roll = !imp_shot.info->to_hit;
                         imp_shot.src.a2_min = monster.stats.a1_min * imp_shot.info->src_damage / 128 + imp_shot.info->min;
                         imp_shot.src.a2_max = monster.stats.a1_max * imp_shot.info->src_damage / 128 + imp_shot.info->max;
                         for (auto& element : imp_shot.src.elements) element.mode = element.mode == "A1" ? "A2" : "";

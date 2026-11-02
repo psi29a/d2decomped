@@ -268,6 +268,9 @@ struct MonStats {
     int level = 1, hit_points = 1, armor_class = 0, to_hit = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
     int s1_min = 0, s1_max = 0;
     int to_hit2 = 0, to_hit_s1 = 0;            // A2TH's, S1TH's: the hit's mode's (FUN_005a4f50 flags 0x10 / 0x20)
+    // A missile whose row has ToHit 0 (Missiles.txt +0x18b): FUN_005adf10
+    // skips FUN_0057d9b0's roll; block and avoid still come (FUN_005ad730).
+    bool no_hit_roll = false;
     struct El { int type = -1, pct = 0, min = 0, max = 0, dur = 0; std::string_view mode; };
     std::array<El, 3> elements{};
     // Its own poison stats 57 / 58 / 59 (MonUMod poison hit, FUN_005a1e00),

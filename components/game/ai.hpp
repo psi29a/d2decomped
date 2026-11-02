@@ -679,7 +679,7 @@ inline void put_missile_element(d2d::rules::MonStats& stats, const d2d::rules::M
 inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::rules::MissileDamage& element, int monster_level) {
     d2d::rules::MonStats stats;
     stats.level = monster_level;
-    stats.to_hit = 1 << 20;
+    stats.no_hit_roll = !info.to_hit;                                // a ToHit row rolls its owner's attack rating (the caller's)
     stats.a2_min = info.min >> 8; stats.a2_max = std::max(info.max >> 8, stats.a2_min);
     put_missile_element(stats, element);
     return stats;
@@ -713,6 +713,7 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     const auto phys = monster_shot_phys(info, src_min, src_max, cast, lvl);
     stats.a2_min = phys.low >> 8; stats.a2_max = phys.high >> 8;
     if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
+    stats.no_hit_roll = !info.to_hit;
     if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
         for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
     const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);

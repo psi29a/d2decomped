@@ -701,7 +701,8 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
         }
         d2d::rules::MonStats stats;
         stats.level = alvl;
-        stats.to_hit = missile_info.to_hit ? alvl * 10 : 1 << 20;       // ToHit 0: always hits
+        stats.to_hit = alvl * 10;
+        stats.no_hit_roll = !missile_info.to_hit;                       // ToHit 0: no roll (FUN_005adf10)
         stats.a2_min = missile_info.min; stats.a2_max = std::max(missile_info.max, missile_info.min);
         put_missile_element(stats, damage);            // poison per frame for ELen frames (the record's), others in whole points
         auto shoot = [&](float dx, float dy, float vel, const std::shared_ptr<std::vector<int>>& struck) {

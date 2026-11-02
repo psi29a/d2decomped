@@ -156,6 +156,12 @@ d2d matches both, and the one-poison-at-a-time rule.
 - `c = AR × 100 / (AR + DEF)`; `c = c × 2 × alvl / (alvl + dlvl)`, clamped
   5..95; hit when the attacker's seed % 100 < c. A swing at a player in
   mode 3 (RN) skips the roll and lands (FUN_0057ec10); a missile still rolls.
+- A missile's hit (FUN_005adf10) rolls FUN_0057d9b0 only when its row has
+  ToHit (+0x18b), with the owner's stat 0x13; ToHit 0 skips the roll, and
+  either way FUN_005ad730 then runs the defender's rolls (FUN_0057dfb0:
+  block, avoid). A Corpse Explosion's record goes straight to
+  FUN_0057c6c0 (FUN_005c4d10): no rolls at all. d2d: `MonStats::no_hit_roll`,
+  `monster_blow`'s `sure`.
 - A passed roll by a player (unit type 0) with stat 117 (Prevent Monster
   Heal) puts state 0x34 (preventheal) on a monster, not the ubers (hcIdx
   0x2c0..0x2c5): FUN_0057d810, a FUN_0056e970 block of 120 000 frames,

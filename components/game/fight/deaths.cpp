@@ -135,7 +135,8 @@ auto Fight::boss_missile(const Monster& monster, const char* name, float dx, flo
         const auto damage = d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev, missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
         d2d::rules::MonStats stats;
         stats.level = monster.stats.level;
-        stats.to_hit = 1 << 20;                                     // ToHit 0: always hits
+        stats.to_hit = monster.stats.to_hit;
+        stats.no_hit_roll = !missile_info.to_hit;                   // ToHit 0: no roll (FUN_005adf10)
         // Poison (3) is kept as monster poison is: x 10 makes it 256ths a frame
         // (combat.hpp, FUN_005a4f50's stats 0x39 / 0x3a); the rest in points.
         if (damage.etype == 3) stats.elements[0] = { damage.etype, 100, damage.elo / 10, std::max(damage.ehi / 10, 1), damage.elen, "A2" };

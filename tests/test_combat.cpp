@@ -403,6 +403,21 @@ int main(int argc, char** argv) {
             assert(!monster_blow(wall, 99, Motion::standing, blind, false, rng).hit);
             assert(monster_blow(wall, 99, Motion::standing, blind, false, rng, false, true).damage == 75 + 8);
         }
+        // A ToHit 0 missile (FUN_005adf10): no to-hit roll, but block and avoid still come (FUN_005ad730).
+        MonStats shot = blind;
+        shot.no_hit_roll = true;
+        shot.a2_min = shot.a2_max = 100; shot.elements = {};
+        Fighter open = defender;
+        open.defense = 1000000;
+        for (int i = 0; i < 20; ++i) assert(monster_blow(open, 99, Motion::standing, shot, true, rng, true).hit);
+        Fighter shield = open;
+        shield.block = 100;
+        assert(monster_blow(shield, 99, Motion::standing, shot, true, rng, true).blocked);
+        shot.no_hit_roll = false;
+        int landed = 0;
+        for (int i = 0; i < 200; ++i) landed += monster_blow(open, 99, Motion::standing, shot, true, rng, true).hit;
+        assert(landed < 30);                                           // a ToHit row rolls: about 5 %
+
     }
     {                                                                  // cold chills, poison runs per tick (FUN_0057b7d0, FUN_0057c1e0)
         MonStats cold_mon = mon;
