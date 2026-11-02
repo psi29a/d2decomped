@@ -401,6 +401,47 @@ int main(int argc, char** argv) {
     int blocked = 0;
     for (int i = 0; i < 20; ++i) blocked += player_blow(hit, target, 99, rng).blocked;
     assert(blocked >= 15);                                            // every blow that connects
+    {   // The physical keeps its 256ths through the resistance (FUN_0057bf80 on the record's fine value; the life stat takes it as is, 0057c852).
+        const auto land_blow = [](const Fighter& attacker, const Target& defender, Rng& dice, Swing with = {}) {
+            auto struck = player_blow(attacker, defender, 99, dice, with);
+            for (int i = 0; i < 40 && !struck.hit; ++i) struck = player_blow(attacker, defender, 99, dice, with);   // 95 % to hit
+            assert(struck.hit);
+            return struck;
+        };
+        Rng fine_rng{ 21 };
+        Fighter fine = simple_fighter(1, 1, 1000000);
+        fine.phys_lo = fine.phys_hi = 300;                           // 1.17 points
+        Target exposed{ .hit_points = 1000, .max_hp = 1000, .armor_class = 1, .level = 1 };
+        auto fine_blow = land_blow(fine, exposed, fine_rng);
+        assert(fine_blow.phys == 1 && fine_blow.damage == 1 && fine_blow.frac == 44);
+        exposed.res[0] = 50;
+        fine_blow = land_blow(fine, exposed, fine_rng);
+        assert(fine_blow.phys == 1 && fine_blow.damage == 0 && fine_blow.frac == 150);   // half a point is not lost, not rounded up
+        exposed.res[0] = 100;
+        fine_blow = land_blow(fine, exposed, fine_rng);
+        assert(fine_blow.damage == 0 && fine_blow.frac == 0);
+        exposed.res[0] = -50;
+        fine_blow = land_blow(fine, exposed, fine_rng);
+        assert(fine_blow.damage == 1 && fine_blow.frac == 194);        // 450 / 256ths
+        Fighter whole = simple_fighter(10, 10, 1000000);              // whole points: the rest of a resistance still lands in `frac`
+        exposed.res[0] = 33;
+        fine_blow = land_blow(whole, exposed, fine_rng);
+        assert(fine_blow.phys == 10 && fine_blow.damage == 6 && fine_blow.frac == 179);   // 2560 x 67 / 100 = 1715 = 6 x 256 + 179
+        exposed.res[0] = 0;
+        assert(land_blow(whole, exposed, fine_rng).damage == 10 && land_blow(whole, exposed, fine_rng).frac == 0);
+        Fighter sliver = simple_fighter(1, 1, 1000000);                // no one-point floor: a tenth of a point stays a tenth
+        sliver.phys_lo = sliver.phys_hi = 256;
+        fine_blow = land_blow(sliver, exposed, fine_rng, Swing{ .srcdam = 32 });   // a quarter of the weapon (Blade Shield's share)
+        assert(fine_blow.phys == 0 && fine_blow.damage == 0 && fine_blow.frac == 64);
+        fine_blow = land_blow(whole, exposed, fine_rng, Swing{ .flat = 3 });       // a skill's added damage is whole points
+        assert(fine_blow.phys == 13 && fine_blow.damage == 13 && fine_blow.frac == 0);
+        // A skill missile with a weapon share (Fire Arrow style: player_blow with srcdam, then missile_blow on top): the
+        // share keeps its 256ths too, and the element adds its own; frac may pass 255 and the life stat takes it whole.
+        auto share = land_blow(sliver, exposed, fine_rng, Swing{ .srcdam = 64 });   // half the weapon: 128 / 256ths
+        assert(share.phys == 0 && share.damage == 0 && share.frac == 128);
+        share = missile_blow(MissileDamage{ .etype = 0, .elo = 200, .ehi = 201 }, exposed, {}, fine_rng, share);   // 200 / 256ths of fire
+        assert(share.damage == 0 && share.frac == 328);
+    }
     // Monster blows: block, damage reduced % then flat, elemental less resistance.
     MonStats mon;
     mon.level = 99; mon.to_hit = 1000000; mon.a1_min = mon.a1_max = 100;

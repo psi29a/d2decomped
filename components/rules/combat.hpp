@@ -368,7 +368,7 @@ struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
     int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
-    int frac = 0;                        // 256ths of a point a missile's element dealt beyond `damage` (game.exe keeps life in 256ths)
+    int frac = 0;                        // 256ths of a point the physical (a blow's fine value after resistance) and a missile's element dealt beyond `damage`; may pass 255 (game.exe keeps life in 256ths)
     int stun_ticks = 0;
     int hit_class = 0;                   // what the struck unit's impact sound is (sound_ids::impact)
     bool elemental = false;              // fire, lightning, cold or poison got through (not magic): the get-hit divides by 16 (get_hit)
@@ -544,9 +544,13 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     // it a tick (record [10], 256ths).
     const std::int64_t conv = swing.conv_type >= 0 && swing.conv_type < 5 ? damage * std::clamp(swing.conv_pct, 0, 100) / 100 : 0;
     damage -= conv;
-    int phys = int(std::max<std::int64_t>(damage >> 8, swing.kick || conv ? 0 : 1)) + swing.flat;
-    blow.phys = phys;
-    phys = resisted(phys, target.res[0]);
+    // The physical stays in 256ths through the resistance (FUN_0057bf80 on the record's fine value) and
+    // the life stat takes it as is (0057c852): the whole points go in `damage`, the part under a point in `frac`.
+    const std::int64_t rolled_fine = std::max<std::int64_t>(damage, 0) + std::int64_t(swing.flat) * 256;
+    blow.phys = int(rolled_fine >> 8);
+    const int fine = resisted_fine(int(rolled_fine), target.res[0]);
+    const int phys = fine >> 8;
+    blow.frac = fine & 255;
     // The stun: the skill's, else the gear's stat 66 x the share (FUN_0057b7d0: [0x11] when 0).
     const int stun = swing.stun_ticks > 0 ? swing.stun_ticks : fighter.stun_len * swing.srcdam / 128;
     if (swing.smite) {
