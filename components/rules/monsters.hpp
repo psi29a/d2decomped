@@ -3811,10 +3811,18 @@ inline int imp_ride_pick(Rng& rng, bool has_fireball, bool has_inferno) {
     return 0;
 }
 
-// MonAI rows with an other think (the fourth word) d2d has: 15 SandMaggot,
-// 29 BatDemon. ponytail: rows 51, 52, 61, 65, 128, 135, 140, 145, 147, 152
-// (Acts 3..5) have one too; not ported, so they stay on their own think.
-inline bool has_other_think(std::string_view ai_name) { return ai_name == "SandMaggot" || ai_name == "BatDemon" || ai_name == "FetishShaman" || ai_name == "FrogDemon" || ai_name == "Diablo"; }
+// MonAI rows with an other think (the fourth word, table 0x73ca18 + ai x
+// 16): 15 SandMaggot, 29 BatDemon, 51 Diablo, 52 FrogDemon, 65 FetishShaman;
+// Diablo's FUN_005e8480 also 147 UberDiablo's, the same code FUN_005fcf30
+// 135 BaalCrab's, 140 BaalCrabClone's and 145 UberBaal's, and FUN_005e5280
+// (that less the kept point's restore, which no toggle of d2d's drops) 61
+// Hireable's, 128 Nihlathak's and 152's. A boss reaches one when Cloak of
+// Shadows' callback toggles it (monster-ai.md "Curse thinks").
+inline bool is_diablo_other(std::string_view ai_name) {
+    return ai_name == "Diablo" || ai_name == "UberDiablo" || ai_name == "BaalCrab" || ai_name == "BaalCrabClone" || ai_name == "UberBaal"
+        || ai_name == "Hireable" || ai_name == "Nihlathak";
+}
+inline bool has_other_think(std::string_view ai_name) { return ai_name == "SandMaggot" || ai_name == "BatDemon" || ai_name == "FetishShaman" || ai_name == "FrogDemon" || is_diablo_other(ai_name); }
 
 // Dim Vision's and Cloak of Shadows' think (special AI 10, FUN_005e8020;
 // search type 1): in melee with a swing it swings (A1, mode 4); else 20 %
@@ -3867,7 +3875,7 @@ Think terror_think(const ThinkIn& input, Rng& rng, Away&& away) {
 inline Think other_think(std::string_view ai_name, const ThinkIn& input) {
     // Diablo's (FUN_005e8480): state 0xc (his lightning's) off, back to his
     // own think (FUN_005b0e00), stands 1; his kept point stays.
-    if (ai_name == "Diablo") {
+    if (is_diablo_other(ai_name)) {
         if (input.state_c) input.effects->push_back({ ThinkEffect::state, 0xc, 0 });
         input.effects->push_back({ ThinkEffect::toggle, 0, 0 });
         return { MonAct::idle, 1 };
