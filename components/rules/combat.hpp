@@ -436,13 +436,22 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
                          Blow blow = { .hit = true }) {
     if (damage.phys_hi > 0) {
-        const int physical = rng.range(damage.phys_lo, damage.phys_hi) >> 8;
-        blow.phys += physical;
-        blow.damage += resisted(physical, target.res[0]);
+        // FUN_005a89a0 rolls the physical in 256ths and FUN_0057bf80 resists that fine
+        // value, the life stat takes it as is: keep the part under a point in Blow::frac
+        // as the element below does.
+        const int roll = rng.range(damage.phys_lo, damage.phys_hi);
+        blow.phys += roll >> 8;
+        // FUN_0057be00 floors a monster's resistance at -100 (no upper cap but the immunity at 100).
+        const int fine = resisted_fine(roll, std::max(target.res[0], -100));
+        blow.damage += fine >> 8;
+        blow.frac += fine & 255;
     }
     if (damage.etype < 0 || damage.etype > 5 || damage.ehi <= 0) return blow;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
-    const int roll = rng.range(damage.elo, damage.ehi);
+    // FUN_005a8910: nothing unless both ends are over 0, then min + rand(max -
+    // min) on the missile's seed: the max itself is never rolled.
+    const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
+    const int roll = low > 0 ? low + rng(high - low) : 0;
     if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
     int res = target.res[std::size_t(kRes[damage.etype])];
     if (damage.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(damage.etype)], -100);

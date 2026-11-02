@@ -97,6 +97,23 @@ turned by low & 31 of a seed draw into {−1, 0, 1, −1, …, 31: +1}. The
 type-4 aim stays for the first frame, which snaps onto point 0 (the
 start) without moving.
 
+## The roll — FUN_005a89a0 → FUN_005a8910
+
+Each element of the hit record (fire +0x10, lightning +0x1c, cold +0x24,
+poison +0x28, magic +0x20) is 0 unless both the missile's min and max stats
+are over 0; else min + rand(max − min) on the missile's seed (+0x20,
+FUN_0045c3e0), the ends swapped when min > max: the max itself is never
+rolled. `rules::missile_blow` follows this for the elements, and
+tools/emu/missile_hit.py checks it with the skill's min / max and the hit
+(Sorceress elements only).
+
+The physical part (+0x08, inline) reads as the same rule in the decompile,
+but `rules::missile_blow` does not follow it: it rolls the physical with the
+inclusive `rng.range(phys_lo, phys_hi)` whenever `phys_hi > 0`, even with
+`phys_lo` 0. That difference is not examined here and the differential does
+not cover a physical missile, so this change does not validate the physical
+range.
+
 ## The client's hit and explosion — FUN_004d2d70 (ECX missile, EDX unit hit or 0, stack `ended`)
 
 Missiles.txt record (0x1a4 bytes, table at `PTR_DAT_00744304 + 0xb64`,
