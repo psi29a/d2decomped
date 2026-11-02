@@ -217,6 +217,7 @@ struct Monster {
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
     bool shatter = false;                     // state 107 (FUN_0057af80's roll on a chill)
     std::uint32_t no_heal_until = 0;          // ms: state 0x34 (preventheal, FUN_0057d810)
+    std::uint32_t stunned_until = 0;          // ms: a stun's end (state 21); a stand (below) ending at another time is a freeze's (state 1)
     std::uint32_t stun_until = 0;             // ms: stunned, it stands
     std::uint32_t just_hit_until = 0;         // ms: state 0x56 justhit (FUN_005adb00), NextHit missiles pass it by
     // Aura Enchanted (uniques.hpp boss_aura): its aura, level, next pulse;

@@ -15,6 +15,7 @@
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <uniques.hpp>
 
 #include <algorithm>
 #include <array>
@@ -148,18 +149,41 @@ auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
     }
 
 auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
-        // Frozen Armor (event 2, FUN_005cac50, damagedinmelee): calc1 frames'
-        // freeze on a striker whose blow did damage; Shiver Armor (3,
-        // FUN_005cad40, attackedinmelee): its element (FUN_0056e0c0) on any.
+        // Frozen Armor (event 2, FUN_005cac50, damagedinmelee): a striker whose
+        // blow did damage gets a hit carrying only calc1 as its freeze length
+        // (record +0x34) through FUN_0057c6c0. The length is cut by the cold
+        // resist less the wearer's cold pierce (none through immunity; row 6
+        // of the table at 0x732980). FUN_0057b230: a special (MonStats boss,
+        // monster data +0x16 & 8: champions, uniques, superuniques) is chilled
+        // for it (FUN_0057af80: not at coldeffect 0, / MonsterColdDivisor when
+        // negative, at least a tick); any other is frozen only at a negative
+        // coldeffect, for length / MonsterFreezeDivisor, and not chilled.
+        // Shiver Armor (3, FUN_005cad40, attackedinmelee): its element
+        // (FUN_0056e0c0) on any.
+        // ponytail: state 0x36 (no freeze), the 20 % state 0x6b roll of the
+        // chill and the freeze's AI event at its end + 1 (FUN_005417d0 2)
+        // aren't kept; a length / divisor of 0 (state 1 for no frame) isn't.
         for (const int striker : foe.melee_by) {
             const int found = this->monster_index(striker);
             if (found < 0 || !monsters[std::size_t(found)].alive()) continue;
             const auto monster_index = std::size_t(found);
-            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker)) {
+            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker) && monsters[monster_index].type >= 0) {
                 const auto* skill = game_data->skills.get(frozen_armor->skill);
-                const int frames = std::max(calc(*skill, skill->calc[0], frozen_armor->level), 1);
-                monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frames) * 40);
-                monsters[monster_index].chill_until = std::max(monsters[monster_index].chill_until, now_ms + std::uint32_t(frames) * 40);
+                auto& struck = monsters[monster_index];
+                const auto& struck_type = game_data->monsters.types[std::size_t(struck.type)];
+                const auto difficulty = std::size_t(struck.difficulty);
+                const int cold_effect = struck_type.diff[difficulty].cold_effect;
+                int res = target_of(monster_index).res[4];
+                if (res < 100) res = std::max(res - pierce()[2], -100);
+                const int length = d2d::rules::resisted(calc(*skill, skill->calc[0], frozen_armor->level), res);
+                const bool special = struck_type.boss_column || (struck.boss != d2d::rules::Boss::none && struck.boss != d2d::rules::Boss::minion);
+                if (length > 0 && special && cold_effect != 0) {
+                    const int divisor = game_data->cold_divisor[difficulty];
+                    const int ticks = std::max(cold_effect < 0 && divisor != 0 ? length / divisor : length, 1);
+                    struck.chill_until = std::max(struck.chill_until, now_ms + std::uint32_t(ticks) * 40);
+                } else if (const int divisor = game_data->freeze_divisor[difficulty]; length > 0 && !special && cold_effect < 0 && divisor != 0 && length / divisor > 0) {
+                    struck.stun_until = std::max(struck.stun_until, now_ms + std::uint32_t(length / divisor) * 40);
+                }
             }
             if (const auto* shiver_armor = state_of("shiverarmor")) {
                 const auto* skill = game_data->skills.get(shiver_armor->skill);

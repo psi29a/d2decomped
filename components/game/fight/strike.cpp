@@ -492,7 +492,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (const auto* stun_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr;
             blow.stun_ticks > 0 && (!stun_type || (!stun_type->boss_column && stun_type->velocity != 0))) {
             const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
-            if (!special || rng(100) >= 90) target.stun_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
+            if (!special || rng(100) >= 90) target.stun_until = target.stunned_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
         }
         if (blow.bleed) {
             target.bleed_rate = d2d::rules::open_wounds_per_sec(int(actor->character.stats.get(kLevel))) / 1000.0;
