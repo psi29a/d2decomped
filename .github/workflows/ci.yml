@@ -231,41 +231,6 @@ jobs:
         # -k 0: keep going past the first failure so one run shows every error.
         run: cmake --build build --config RelWithDebInfo -- -k 0
 
-      # Names say what they hold and files include what they use (docs/PLAN.md
-      # "Code style"): .clang-tidy's identifier-length and include-cleaner
-      # checks. A push to main sweeps everything (rot never lands); a PR
-      # narrows to the changed .cpp / .hpp so review is a couple of minutes,
-      # not ten. A header edit re-tidies every TU that includes it. The
-      # changed files come from the PR API so no extra git fetch is needed
-      # (`persist-credentials: false` above blocks git fetch anyway).
-      - name: Names and includes (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 -c "import json; print('\n'.join(sorted({e['file'] for e in json.load(open('build/compile_commands.json')) if '/_deps/' not in e['file'] and '/build/' not in e['file']})))" > tidy_files.txt
-          # A PR: its files; a push to main: the push's (a failed compare,
-          # e.g. after a force push, or a tag tidies everything).
-          changed=""
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            changed=$(gh pr view "${{ github.event.pull_request.number }}" --json files --jq '.files[].path') || exit 1
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            changed=$(gh api "repos/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}" \
-                --jq '.files[].filename') || changed=""
-          fi
-          # gh pr view lists 100 files at most, compare 300: a list that full
-          # may be cut short, so tidy everything.
-          if [ "$(grep -c . <<< "$changed")" -ge 100 ]; then changed=""; fi
-          if [ -n "$changed" ]; then
-            grep -E '\.(cpp|hpp)$' <<< "$changed" > changed.txt || true
-            python3 tools/tidy-pr-select.py > tidy_files.txt
-            if [ ! -s tidy_files.txt ]; then echo "Nothing to tidy" && exit 0; fi
-            echo "Changed-files mode: $(wc -l < tidy_files.txt) files to tidy"
-            cat tidy_files.txt
-          fi
-          xargs -P $(nproc) -n 1 clang-tidy -p build --quiet --extra-arg=-Wno-unknown-warning-option < tidy_files.txt
-
       # No game data on the runners: tests that need MPQs print SKIP and pass.
       - name: Tooling regression tests
         if: runner.os != 'Windows'
@@ -375,6 +340,94 @@ jobs:
             build/d2d-*.zip
           if-no-files-found: error
 
+  # clang-tidy reads compile_commands.json, not objects: it runs beside the
+  # build instead of after it (4-7 min off a full sweep). Only FFmpeg's
+  # headers (cached) and the launcher's main.moc need building first.
+  tidy:
+    name: Names and includes
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # The build job's cache and package list: a shorter list saved under
+      # the same key would leave the build job downloading the rest.
+      - name: Week for the apt cache key
+        id: apt-week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives
+          key: apt-ubuntu-26.04-${{ steps.apt-week.outputs.week }}
+          restore-keys: apt-ubuntu-26.04-
+
+      - name: Install dependencies
+        run: |
+          mkdir -p ~/apt-archives/partial
+          apt_opts=(-o Dir::Cache::Archives="$HOME/apt-archives" -o APT::Keep-Downloaded-Packages=true
+                    -o Acquire::Retries=3 -o Acquire::http::Timeout=30)
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get "${apt_opts[@]}" update -qq
+          sudo apt-get "${apt_opts[@]}" install -y cmake ninja-build build-essential pkg-config libcurl4-openssl-dev \
+            libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev qt6-base-dev libgl1-mesa-dev \
+            clang-tidy
+          sudo apt-get "${apt_opts[@]}" autoclean -qq
+          sudo chown -R "$USER" ~/apt-archives
+
+      - name: Cache FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: build/ffmpeg-*
+          key: ffmpeg-${{ runner.os }}-${{ hashFiles('apps/d2d/CMakeLists.txt') }}
+          restore-keys: ffmpeg-${{ runner.os }}-
+
+      # A cache miss leaves an ffmpeg_build target: build it for its headers.
+      - name: Configure and generate
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          targets=(d2d-launcher_autogen)
+          if ninja -C build -t targets all | grep -q '^ffmpeg_build:'; then targets+=(ffmpeg_build); fi
+          cmake --build build --target "${targets[@]}"
+
+      # Names say what they hold and files include what they use (docs/PLAN.md
+      # "Code style"): .clang-tidy's identifier-length and include-cleaner
+      # checks. A push to main sweeps everything (rot never lands); a PR
+      # narrows to the changed .cpp / .hpp so review is a couple of minutes,
+      # not ten. A header edit re-tidies every TU that includes it. The
+      # changed files come from the PR API so no extra git fetch is needed
+      # (`persist-credentials: false` above blocks git fetch anyway).
+      - name: Names and includes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -c "import json; print('\n'.join(sorted({e['file'] for e in json.load(open('build/compile_commands.json')) if '/_deps/' not in e['file'] and '/build/' not in e['file']})))" > tidy_files.txt
+          # A PR: its files; a push to main: the push's (a failed compare,
+          # e.g. after a force push, or a tag tidies everything).
+          changed=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            changed=$(gh pr view "${{ github.event.pull_request.number }}" --json files --jq '.files[].path') || exit 1
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            changed=$(gh api "repos/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}" \
+                --jq '.files[].filename') || changed=""
+          fi
+          # gh pr view lists 100 files at most, compare 300: a list that full
+          # may be cut short, so tidy everything.
+          if [ "$(grep -c . <<< "$changed")" -ge 100 ]; then changed=""; fi
+          if [ -n "$changed" ]; then
+            grep -E '\.(cpp|hpp)$' <<< "$changed" > changed.txt || true
+            python3 tools/tidy-pr-select.py > tidy_files.txt
+            if [ ! -s tidy_files.txt ]; then echo "Nothing to tidy" && exit 0; fi
+            echo "Changed-files mode: $(wc -l < tidy_files.txt) files to tidy"
+            cat tidy_files.txt
+          fi
+          xargs -P $(nproc) -n 1 clang-tidy -p build --quiet --extra-arg=-Wno-unknown-warning-option < tidy_files.txt
+
   flatpak:
     name: Flatpak (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
@@ -448,6 +501,7 @@ jobs:
     needs:
       - build
       - flatpak
+      - tidy
     runs-on: ubuntu-latest
     permissions:
       contents: write
