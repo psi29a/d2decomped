@@ -271,19 +271,20 @@ auto Fight::pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Cro
                 unit.walking = false; unit.path.clear();
             } else {
                 // MonStats Velocity in WL and RN (FUN_00621360, +0x32) x the walk % (FUN_00623f50).
-                int velocity = type_info.velocity;
+                int velocity = type_info.velocity, run_pct = 0;
                 // In a state that looks like a player class (States gfxtype 2:
                 // the Shadows' "shadowwarrior", class 6) it moves as that class
-                // (FUN_00645270 -> FUN_00621360: CharStats WalkVelocity /
-                // RunVelocity); a Shadow's MonStats Velocity is 0.
+                // (FUN_00645270 -> FUN_00621360: CharStats WalkVelocity, +0x40, in
+                // any mode); a Shadow's MonStats Velocity is 0. Its RN takes the
+                // player's run list as a player's does (FUN_00624390 ->
+                // FUN_00620e80): velocitypercent + RunVelocity x 100 / WalkVelocity - 100.
                 if (const auto* summoning = game_data->skills.get(pet.skill); summoning && !summoning->aurastate.empty())
                     if (const auto state = game_data->states.find(summoning->aurastate); state != game_data->states.end() && state->second.gfx_type == 2) {
                         const auto cls = std::size_t(std::clamp(state->second.gfx_class, 0, 6));
-                        velocity = monster.mode == "RN" ? game_data->run_velocity[cls] : game_data->walk_velocity[cls];
+                        velocity = game_data->walk_velocity[cls];
+                        if (monster.mode == "RN") run_pct = d2d::rules::run_percent(game_data->walk_velocity[cls], game_data->run_velocity[cls]);
                     }
-                // ponytail: a Shadow's base (class WalkVelocity / RunVelocity above) is untraced: FUN_00621360 gives
-                // a player class WalkVelocity in any mode, and whether a Shadow's run gets the stat list on 0x43 is not read.
-                const int sum = 100 + monster.move_pct + pet.speed_pct + pet_buff_stat(pet, d2d::d2s::kVelocityPercent);   // Burst of Speed's on a Shadow
+                const int sum = 100 + run_pct + monster.move_pct + pet.speed_pct + pet_buff_stat(pet, d2d::d2s::kVelocityPercent);   // Burst of Speed's on a Shadow
                 if (walk_on(*level, unit, cells_per_sec(float(velocity)) * float(std::max(sum, 25)) / 100 * elapsed, crowd)) return true;
             }
             pet.chase = false;

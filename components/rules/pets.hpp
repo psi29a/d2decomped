@@ -243,6 +243,12 @@ PetAct necropet_think(const PetView& view, Rng& seed, AreaAt&& area_at, TryMove&
     return brain.act;
 }
 
+// A player's run (FUN_00620e80, on RN): velocitypercent + RunVelocity x 100
+// / WalkVelocity - 100 over its WalkVelocity; 0 without a walk.
+inline int run_percent(int walk_velocity, int run_velocity) {
+    return walk_velocity > 0 ? run_velocity * 100 / walk_velocity - 100 : 0;
+}
+
 // The pet AIs whose thinks are traced (tools/emu/pet_ais.py) and that d2d
 // summons: rules::PetBrain runs them (NecroPet has necropet_think).
 inline bool traced_pet_ai(std::string_view ai_name) {
