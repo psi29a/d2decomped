@@ -78,7 +78,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           ls -lh d2decomped.tgz
-          api="https://scan.coverity.com/projects/psi29a%2Fd2decomped/builds"
+          # The project page's slug: owner%2Frepo (the old form post's) 404s here.
+          api="https://scan.coverity.com/projects/psi29a-d2decomped/builds"
           curl -sS --fail -o init.json \
             --form token="$COVERITY_TOKEN" \
             --form email="psi29a@gmail.com" \
