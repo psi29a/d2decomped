@@ -1517,10 +1517,12 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // strikes on arrival); at range aip1 % closes in (aip4 % running);
     // in melee aip2 % (or on arrival) Skill1..3 at aip6..8 %, else A1.
     if (ai_name == "CorruptLancer") {
-        if (aip[4] < input.dist) { *input.state = 1; return { MonAct::run }; }
+        if (aip[4] < input.dist) { *input.state = 1; *input.pace = 100; return { MonAct::run }; }
         if (!input.in_melee) {
             if (roll() >= aip[0]) return { MonAct::idle, aip[2] };
-            return roll() >= aip[3] ? Think{ MonAct::approach, 3 } : Think{ MonAct::run };
+            if (roll() >= aip[3]) return { MonAct::approach, 3 };
+            *input.pace = 100;
+            return { MonAct::run };
         }
         if (*input.state == 0 && roll() >= aip[1]) return { MonAct::idle, aip[2] };
         *input.state = 0;
