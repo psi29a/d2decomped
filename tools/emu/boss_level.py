@@ -6,9 +6,13 @@
     build/tests/test_boss_level --boss-level cases.tsv > d2d.tsv     # d2d's real make_boss on the same cases
     uv run python boss_level.py compare cases.tsv game.tsv d2d.tsv   # mismatches by field, kind and mods
 
-A case: `id monstats_id row difficulty kind mods seed`; kind c champion (mods
-holds its kind: 16, 36..39), u unique, s superunique, m minion; seed is the
-monster's unit seed (masked to 32 bits).
+A case: `id monstats_id row difficulty kind mods seed [level_id]`; kind c champion (mods
+holds its kind: 16, 36..39), u unique, s superunique, m minion, p plain; seed is the
+monster's unit seed (masked to 32 bits). With a level_id (the area case,
+`gen-area N [SEED]`) FUN_0061dca0 runs for real and FUN_0061a1b0 hands it that
+Levels.txt id: an expansion Nightmare / Hell unit starts at the area's
+MonLvl2Ex / MonLvl3Ex unless its row is noRatio or boss (FUN_00573cb0 0x573e18).
+Without one the area rule is hooked off (the case's MonStats level, as before).
 
 Game side, every table loaded by game.exe (drlg.boot), on a synthetic unit:
 1. FUN_00573cb0, the stat init: level (stat 12) from the MonStats row, life
@@ -23,7 +27,8 @@ Game side, every table loaded by game.exe (drlg.boot), on a synthetic unit:
 Hooked (none is the claim; stdcall pops from each function's `ret`):
 FUN_00573cb0's helpers FUN_005739d0, FUN_00573930 (player count 1, no
 bonus), FUN_0063ee90, FUN_0061a1b0 / FUN_0061dca0 (the area level of an
-expansion Nightmare / Hell game: the case's MonStats level instead),
+expansion Nightmare / Hell game: the case's MonStats level instead; in an area
+case FUN_0061a1b0 returns the case's level id and FUN_0061dca0 is not hooked),
 FUN_00626d40, FUN_0063eef0, FUN_006251f0, FUN_00626e10, FUN_00536b20,
 FUN_0063abd0, FUN_006438b0, the skills (FUN_0056deb0, FUN_006439f0,
 FUN_00644340, FUN_0063ebc0), MonProp (FUN_00573470: none), FUN_005d6b60;
@@ -68,13 +73,14 @@ def monstats_ids():
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, area=False):
         import drlg
         from unicorn.x86_const import UC_X86_REG_EDX
         e = self.e = drlg.boot()
         self.edx = UC_X86_REG_EDX
         self.stats, self.hit = {}, {}
         self.level_now = 0
+        self.area_now = 0
         self.game = e.alloc(0x200)
         e.w32(self.game + 0x70, 1); e.w32(self.game + 0x74, 1)     # expansion, L- columns
         self.unit, self.data, self.list = e.alloc(0x100), e.alloc(0x40), e.alloc(0x40)
@@ -88,10 +94,12 @@ class Game:
         e.hook(0x627150, lambda e: self.hit.__setitem__(e.arg(1), self.hit.get(e.arg(1), 0) + s32(e.arg(2))) or 0, 4)
         e.hook(0x625d10, lambda e: self.stats.get((e.arg(0), 7), 0) & 0xFFFFFFFF, 1)
         e.hook(0x573930, self.players, 2)
-        e.hook(0x61dca0, lambda e: self.level_now, 3)
+        if area: e.hook(0x61a1b0, lambda e: self.area_now, 1)
+        else: e.hook(0x61dca0, lambda e: self.level_now, 3)
+        if not area: e.hook(0x61a1b0, lambda e: 0, 1)
         e.hook(0x625760, lambda e: self.list, 2)
         e.hook(0x6259b0, lambda e: 1, 1)
-        for addr, n in ((0x5739d0, 0), (0x63ee90, 1), (0x61a1b0, 1), (0x626d40, 4), (0x63eef0, 3), (0x6251f0, 5), (0x626e10, 3),
+        for addr, n in ((0x5739d0, 0), (0x63ee90, 1), (0x626d40, 4), (0x63eef0, 3), (0x6251f0, 5), (0x626e10, 3),
                         (0x536b20, 0), (0x63abd0, 2), (0x6438b0, 1), (0x56deb0, 2), (0x6439f0, 0), (0x644340, 2), (0x63ebc0, 2),
                         (0x573470, 0), (0x5d6b60, 5), (0x58f380, 2), (0x5a1600, 1), (0x5a1650, 1), (0x5417d0, 3),
                         (0x56e050, 1), (0x627340, 1), (0x451f60, 0)):
@@ -106,7 +114,7 @@ class Game:
 
     def level(self, row, diff): return self.e.r16(self.rec(row) + 0xaa + 2 * diff)
 
-    def run(self, row, diff, kind, mods, seed):
+    def run(self, row, diff, kind, mods, seed, area=0):
         e, u = self.e, self.unit
         e.mu.mem_write(u, b"\0" * 0x100); e.mu.mem_write(self.data, b"\0" * 0x40)
         e.mu.mem_write(self.game + 0x6d, bytes([diff]))
@@ -115,11 +123,13 @@ class Game:
         e.w32(self.data, self.rec(row))
         self.stats.clear(); self.hit.clear()
         self.level_now = self.level(row, diff)
+        self.area_now = area
         e.call(0x573cb0, self.game, 0, 0, regs={"esi": u})
         velocity = self.stats.get((u, 0x43), 0)
-        flags = {"c": 0xd, "u": 0x9, "s": 0xb, "m": 0x11}[kind]
+        flags = {"c": 0xd, "u": 0x9, "s": 0xb, "m": 0x11, "p": 0}[kind]
         e.mu.mem_write(self.data + 0x16, flags.to_bytes(2, "little"))
-        if kind == "m":
+        if kind == "p": pass
+        elif kind == "m":
             for mod in (1, 2, 3, 4):
                 fn = e.r32(0x73c008 + 4 * mod)
                 if fn: e.call(fn, 0, ecx=u, edx=mod)
@@ -162,12 +172,54 @@ def gen(n, seed):
         print(i, ids[row], row, diff, kind, ".".join(map(str, mods)) or "-", unit_seed())
 
 
+def gen_area(n, seed):
+    """Plain monsters and every boss kind made in a level: every row x difficulty x kind
+    with two random Levels.txt ids that have a MonLvl (or are off the table: 0, count + 1), then n random cases."""
+    import drlg
+    e = drlg.boot()
+    ids = monstats_ids()
+    tables = e.r32(0x744304)
+    count = e.r32(tables + 0xa80)
+    levels = e.r32(tables + 0xc5c)
+    rows = [r for r in range(min(count, len(ids))) if r not in SKIP_ROWS]
+    rng = random.Random(seed & 0xFFFFFFFF)
+    unit_seed = lambda: rng.getrandbits(32) & 0xFFFFFFFF
+    out = []
+
+    base = e.r32(tables + 0xc58)
+    # a level with no MonLvl in that difficulty makes no monsters (the unit would be level 0); ids 0 and
+    # count + 1 are off the table (FUN_0061dca0 answers 1)
+    areas = [[lid for lid in range(1, levels) if e.r16(base + lid * 0x220 + 0x16 + 2 * d) > 0] + [0, levels + 1] for d in range(3)]
+
+    def make(row, diff, kind):
+        if kind == "c": mods = (rng.choice(CHAMP),)
+        elif kind in "pm": mods = ()
+        else: mods = tuple(rng.sample(UPICK, rng.randint(1, 1 + diff + (kind == "s") * 3)))
+        return (row, diff, kind, mods, rng.choice(areas[diff]))
+    level = lambda row, diff: e.r16(e.r32(tables + 0xa78) + row * 0x1a8 + 0xaa + 2 * diff)
+    live = [(r, d) for r in rows for d in range(3) if level(r, d) > 0]   # a row with no level in that difficulty is not made there
+    for row, diff in live:
+        for kind in "pcusm":
+            for _ in range(2): out.append(make(row, diff, kind))
+    for _ in range(n):
+        row, diff = rng.choice(live)
+        out.append(make(row, diff, rng.choice("pcusm")))
+    for i, (row, diff, kind, mods, area) in enumerate(out):
+        print(i, ids[row], row, diff, kind, ".".join(map(str, mods)) or "-", unit_seed(), area)
+
+
 def game(path):
-    g = Game()
-    for line in open(path):
-        i, _, row, diff, kind, mods, seed = line.split()
+    """One emulator a process (drlg.boot is one shared machine): the hooks differ between
+    the plain cases and the area cases, so a file holds one kind."""
+    lines = [line.split() for line in open(path)]
+    area = len(lines[0]) > 7 if lines else False
+    if any((len(f) > 7) != area for f in lines):
+        sys.exit("game: a cases file is all plain cases or all area cases")
+    g = Game(area=area)
+    for f in lines:
+        i, _, row, diff, kind, mods, seed = f[:7]
         mods = tuple(int(m) for m in mods.split(".")) if mods != "-" else ()
-        print(i, "|", *g.run(int(row), int(diff), kind, mods, int(seed) & 0xFFFFFFFF))
+        print(i, "|", *g.run(int(row), int(diff), kind, mods, int(seed) & 0xFFFFFFFF, int(f[7]) if area else 0))
 
 
 def claim(field, kind, mods):
@@ -181,12 +233,25 @@ def claim(field, kind, mods):
     return "other"
 
 
+def residual(field, name, a, b):
+    """The mismatches that are not the level: PR 157's named residuals. life within 2 points
+    (256ths against whole points); a row game.exe gives no life; S1 a unique's / champion's stone
+    skin, game.exe's defence twice d2d's; H1 the willowisp family's damage (FUN_00463900 halves the
+    champion / strong / berserker percent, d2d's ponytail)."""
+    a, b = int(a), int(b)
+    if field == "life": return "life 256ths" if abs(a - b) <= 2 else "life 0 in game.exe" if a == 0 else None
+    if field == "def" and abs(a - 2 * b) <= 2: return "S1 stone skin"
+    if field in ("dmg_lo", "dmg_hi") and name.startswith("willowisp"): return "H1 willowisp damage"
+    return None
+
+
 def compare(cases_path, game_path, d2d_path):
     cases = {l.split()[0]: l.split() for l in open(cases_path)}
     want = {l.split()[0]: l.split()[2:] for l in open(game_path)}
     bad, examples, total, differ, skipped = {}, {}, 0, 0, 0
     claims = {}
     answered = set()
+    level_counts, named, unexplained = [0, 0, 0], {}, {}
     for line in open(d2d_path):
         got = line.split()
         if not got or got[0] not in want: continue
@@ -202,6 +267,10 @@ def compare(cases_path, game_path, d2d_path):
         for field, a, b in zip(FIELDS, want[got[0]], got[2:], strict=True):
             if a == b: continue
             one = True
+            cls = residual(field, case[1], a, b)
+            level_counts[0 if field == "lvl" else 1 if cls is None else 2] += 1
+            if field != "lvl" and cls is None: unexplained.setdefault((field, case[3], kind), (case[1], a, b))
+            if cls: named[cls] = named.get(cls, 0) + 1
             # game.exe keeps life in 256ths through the percent inits (and over
             # 4096 points FUN_005a0d20 divides first); d2d in whole points.
             rounding = field == "life" and abs(int(a) - int(b)) <= 2
@@ -212,6 +281,19 @@ def compare(cases_path, game_path, d2d_path):
             examples.setdefault(key, (case[1], case[3], a, b))
         differ += one
     missing = len(want) - len(answered)
+    by = {}
+    for line in open(d2d_path):
+        got = line.split()
+        if not got or got[0] not in want or got[2:] == ["no-type"]: continue
+        case = cases[got[0]]
+        row = by.setdefault((case[3], case[4]), [0, 0])
+        row[0] += 1
+        row[1] += any(a != b and (f == "lvl" or residual(f, case[1], a, b) is None) for f, a, b in zip(FIELDS, want[got[0]], got[2:], strict=True))
+    print(f"level field mismatches {level_counts[0]}; other fields not a named residual {level_counts[1]}; named residuals {level_counts[2]} {named}")
+    for key, (mon, a, b) in sorted(unexplained.items())[:20]:
+        print(f"  not named: {key[0]} difficulty {key[1]} kind {key[2]} e.g. {mon}: game {a} d2d {b}")
+    for (diff, kind), (cnt, bad_cnt) in sorted(by.items()):
+        print(f"difficulty {diff} kind {kind}: {cnt} cases, {bad_cnt} differ (level or an unnamed field)")
     print(f"cases {total}, mismatching cases {differ}, not d2d's row {skipped}, no d2d answer {missing}")
     print(f"apart from life within 2 points: {sum(v for k, v in bad.items() if not k[0].endswith('~2'))} field mismatches")
     for name in ("D1", "D2", "D3", "B", "other", "life within 2 (256ths)", "life 0 in game.exe"):
@@ -228,6 +310,8 @@ def main():
     args = sys.argv[1:]
     if args[:1] == ["gen"]:
         gen(int(args[1]) if len(args) > 1 else 100000, int(args[2]) if len(args) > 2 else 20261101)
+    elif args[:1] == ["gen-area"]:
+        gen_area(int(args[1]) if len(args) > 1 else 100000, int(args[2]) if len(args) > 2 else 20261102)
     elif args[:1] == ["game"]:
         game(args[1])
     elif args[:1] == ["compare"]:

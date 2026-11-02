@@ -4,11 +4,14 @@
 // stats through the REAL make_boss (rules::boss_stats, rules::monster_stats),
 // the cases of tools/emu/boss_level.py (game.exe's FUN_00573cb0,
 // FUN_005a2120, FUN_005a4f50): `id | lvl life def exp ar dmg_lo dmg_hi vel`,
-// one line each, to diff.
+// one line each, to diff. An optional last field is the Levels.txt id the
+// unit is made in (Nightmare / Hell start at that level's MonLvl); kind p is a
+// plain monster, made by make_monster alone.
 
 #include <ai.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <monsters.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>
 
@@ -48,6 +51,8 @@ int main(int argc, char** argv) try {
         int row = 0, difficulty = 0;
         std::uint64_t seed = 0;
         if (!(fields >> id >> name >> row >> difficulty >> kind >> mod_list >> seed)) continue;
+        int level_id = -1;
+        fields >> level_id;
         // The MonStats row, if d2d's row of that index is the same Id (d2d keeps one of a duplicated Id).
         if (row < 0 || std::size_t(row) >= data->monsters.types.size() || data->monsters.types[std::size_t(row)].id != name) {
             std::printf("%s | no-type\n", id.c_str());
@@ -58,11 +63,21 @@ int main(int argc, char** argv) try {
             std::istringstream parts(mod_list);
             for (std::string part; std::getline(parts, part, '.');) mods.push_back(std::stoi(part));
         }
+        d2d::rules::Rng look_rng{ 1 };
+        d2d::rules::Rng rng{ std::uint32_t(seed & 0xffffffffU) };   // the unit seed: the life roll is its first draw
+        if (kind == "p") {
+            // make_monster rolls the unit's look first, so its life is not the unit seed's first draw: take the life from
+            // the same call on the seed, the rest from make_monster itself.
+            const Monster plain = make_monster(*data, row, 0, 0, look_rng, difficulty, true, 1, level_id);
+            const auto rolled = d2d::rules::monster_stats(data->monsters, row, difficulty, rng, 0, 1, area_monster_level(*data, level_id, difficulty));
+            const auto& stats = plain.stats;
+            std::printf("%s | %d %d %d %d %d %d %d %d\n", id.c_str(), stats.level, rolled.hit_points, stats.armor_class, stats.exp, stats.to_hit,
+                        stats.a1_min, stats.a1_max, 0);
+            continue;
+        }
         const auto boss = kind == "c" ? d2d::rules::Boss::champion : kind == "u" ? d2d::rules::Boss::unique
                         : kind == "s" ? d2d::rules::Boss::superunique : d2d::rules::Boss::minion;
-        d2d::rules::Rng look_rng{ 1 };
-        Monster monster = make_monster(*data, row, 0, 0, look_rng, difficulty, false);
-        d2d::rules::Rng rng{ std::uint32_t(seed & 0xffffffffU) };   // the unit seed: the life roll is its first draw
+        Monster monster = make_monster(*data, row, 0, 0, look_rng, difficulty, false, 1, level_id);
         make_boss(*data, monster, boss, mods, -1, 0, difficulty, rng);
         const auto& stats = monster.stats;
         std::printf("%s | %d %d %d %d %d %d %d %d\n", id.c_str(), stats.level, monster.hit_points, stats.armor_class, stats.exp, stats.to_hit,
