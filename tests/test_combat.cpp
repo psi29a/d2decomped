@@ -442,6 +442,69 @@ int main(int argc, char** argv) {
         share = missile_blow(MissileDamage{ .etype = 0, .elo = 200, .ehi = 201 }, exposed, {}, fine_rng, share);   // 200 / 256ths of fire
         assert(share.damage == 0 && share.frac == 328);
     }
+
+    {   // Against an undead monster a Blunt weapon adds 50 % and stat 122 its own to the enhanced damage, only
+        // when that sum is over 0 (FUN_0057b660, called from FUN_0057b7d0 for a player attacker).
+        const auto land_blow = [](const Fighter& attacker, const Target& defender, Rng& dice, Swing with = {}) {
+            auto struck = player_blow(attacker, defender, 99, dice, with);
+            for (int i = 0; i < 40 && !struck.hit; ++i) struck = player_blow(attacker, defender, 99, dice, with);
+            assert(struck.hit);
+            return struck;
+        };
+        Rng undead_rng{ 33 };
+        Fighter mace = simple_fighter(10, 10, 1000000);
+        Target living{ .hit_points = 1000, .max_hp = 1000, .armor_class = 1, .level = 1 };
+        Target skeleton = living;
+        skeleton.undead = true;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 10);                         // not Blunt, no stat: nothing
+        mace.blunt = true;
+        assert(land_blow(mace, living, undead_rng).damage == 10 && land_blow(mace, skeleton, undead_rng).damage == 15);
+        assert(land_blow(mace, skeleton, undead_rng, Swing{ .ed_pct = 50 }).damage == 20);  // it joins the skill's enhanced damage
+        mace.undead_pct = 30;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 18 && land_blow(mace, living, undead_rng).damage == 10);
+        mace.blunt = false;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 13);                         // stat 122 alone
+        mace.undead_pct = -60;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 10);                         // under 0: not added
+        mace.blunt = true;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 10);                         // 50 - 60 is under 0 too
+        mace.undead_pct = -20;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 13);                         // 50 - 20
+        Fighter foot = simple_fighter(10, 10, 1000000);
+        foot.blunt = true;
+        assert(land_blow(foot, skeleton, undead_rng, Swing{ .kick = true, .skill_lo = 10 << 8, .skill_hi = 10 << 8 }).damage == 10);   // a kick is not a weapon blow
+        // A skill missile's weapon share (player_blow with srcdam, as Fight::strike builds it) takes the same bonus against an
+        // undead: 1024 / 256ths is 4 points, +50 % (Blunt) +30 % (stat 122) is 7.
+        Fighter bow = simple_fighter(1, 1, 1000000);
+        bow.phys_lo = bow.phys_hi = 1024;
+        bow.blunt = true; bow.undead_pct = 30;
+        assert(land_blow(bow, skeleton, undead_rng, Swing{ .srcdam = 128 }).damage == 7);
+        assert(land_blow(bow, living, undead_rng, Swing{ .srcdam = 128 }).damage == 4);
+        // make_fighter: the weapon's Blunt type through the Equiv chain (ItemTypes mace -> blun), either of its types; stat 122 from the sums.
+        Tables types_tables;
+        types_tables.types["weap"] = {};
+        types_tables.types["blun"] = { .equiv = { "weap", "" } };
+        types_tables.types["mace"] = { .equiv = { "blun", "" } };
+        types_tables.types["swor"] = { .equiv = { "weap", "" } };
+        types_tables.item_base["mac"] = { .mindam = 3, .maxdam = 6 };
+        types_tables.item_info["mac"].type = "mace";
+        types_tables.item_base["ssd"] = { .mindam = 3, .maxdam = 6 };
+        types_tables.item_info["ssd"].type = "swor";
+        types_tables.item_base["bld"] = { .mindam = 3, .maxdam = 6, .type2 = "mace" };
+        types_tables.item_info["bld"].type = "swor";
+        d2d::d2s::Item weapon_mace, weapon_sword, weapon_both;
+        weapon_mace.code = "mac"; weapon_sword.code = "ssd"; weapon_both.code = "bld";
+        d2d::d2s::Stats owner;
+        owner.values[d2d::d2s::kStr] = 20; owner.values[d2d::d2s::kDex] = 20; owner.values[d2d::d2s::kLevel] = 1;
+        StatSum gear{}, weapon_gear{};
+        gear[d2d::d2s::kUndeadDamagePercent] = 25;
+        auto built = make_fighter(types_tables, &weapon_mace, nullptr, gear, weapon_gear, owner, {}, 0, {});
+        assert(built.blunt && built.undead_pct == 25);
+        assert(!make_fighter(types_tables, &weapon_sword, nullptr, gear, weapon_gear, owner, {}, 0, {}).blunt);
+        assert(make_fighter(types_tables, &weapon_both, nullptr, gear, weapon_gear, owner, {}, 0, {}).blunt);
+        built = make_fighter(types_tables, nullptr, nullptr, gear, weapon_gear, owner, {}, 0, {});
+        assert(!built.blunt && built.undead_pct == 25);                                   // barehanded: stat 122 still counts
+    }
     // Monster blows: block, damage reduced % then flat, elemental less resistance.
     MonStats mon;
     mon.level = 99; mon.to_hit = 1000000; mon.a1_min = mon.a1_max = 100;

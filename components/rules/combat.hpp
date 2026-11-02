@@ -50,6 +50,8 @@ struct Fighter {
     // the boots' StrBonus / DexBonus on strength / dexterity, + 25, + 17.
     int kick_lo = 0, kick_hi = 0, kick_pct = 0;
     int smite_lo = 0, smite_hi = 0, smite_pct = 0;  // the shield's (Smite, FUN_005ce9f0 -> FUN_0057b420 on the shield)
+    bool blunt = false;                             // the weapon is a Blunt type (ItemTypes Equiv chain: club, hammer, mace, scepter, wand, staff)
+    int undead_pct = 0;                             // stat 122 (item_undeaddamage_percent) over all the gear (the game reads the unit's own stat)
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
     int stun_len = 0;                               // stat 66 (gear), ticks
@@ -117,6 +119,11 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     high = std::max<std::int64_t>(high << 8, low + 256);
     const std::int64_t pct = std::max<std::int64_t>(stat(kDamagePercent) + stat(kPassiveMasteryMeleeDamage) + (weapon_base ? str * weapon_base->str_bonus / 100 + dex * weapon_base->dex_bonus / 100 : 0), -90);
     fighter.phys_lo = int(low); fighter.phys_hi = int(high); fighter.phys_pct = int(pct);
+    if (weapon_base) {
+        const auto info = tables.item_info.find(weapon->code);
+        fighter.blunt = (info != tables.item_info.end() && type_is(tables, info->second.type, "blun")) || (!weapon_base->type2.empty() && type_is(tables, weapon_base->type2, "blun"));
+    }
+    fighter.undead_pct = int(stat(kUndeadDamagePercent));
     fighter.min = int(std::max<std::int64_t>((low + low * pct / 100) >> 8, 1));
     fighter.max = int(std::max<std::int64_t>((high + high * pct / 100) >> 8, fighter.min));
     fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(kToHit) + stat(kToHitPerLevel) * clvl / 8);
@@ -360,6 +367,7 @@ struct Target {
     std::array<int, 6> res{};
     int drain = 100;
     int crush_divisor = 4;
+    bool undead = false;                            // MonStats lUndead or hUndead (FUN_0063e990)
 };
 // What one player hit does: the instant damage (physical after resistance,
 // fire / lightning / cold / magic, crushing blow), leeched life and mana,
@@ -523,7 +531,11 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         low = swing.skill_lo + std::int64_t(swing.skill_lo) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_lo) << 8) * (100 + kick_pct) / 100;
         high = swing.skill_hi + std::int64_t(swing.skill_hi) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_hi) << 8) * (100 + kick_pct) / 100;
     } else {
-        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct, -90);
+        // Against an undead monster FUN_0057b660 adds 50 with a Blunt weapon plus stat 122 to the
+        // record's enhanced damage, only when that sum is over 0. FUN_0057b7d0 asks for it when the attacker is
+        // a player unit or has alignment 2 (FUN_006259b0), so a merc or a Shadow is not excluded here.
+        const int undead_bonus = target.undead ? std::max((fighter.blunt ? 50 : 0) + fighter.undead_pct, 0) : 0;
+        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct + undead_bonus, -90);
         low = fighter.phys_lo + fighter.phys_lo * physical_pct / 100;
         high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
     }
