@@ -1842,7 +1842,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // range calc2 + its row's Param2 (FUN_0064a2b0 / FUN_0064a330).
     // The others' (FUN_005cc4e0, DiabLight's FUN_005cc690 -> FUN_005cc2e0):
     // calc1 frames, or under 1 its row's Param2 + lvl - 1; 1..255.
-    // ponytail: its animation rate (AnimLen << 8 / range, FUN_00621780) isn't kept.
+    // The others' animation rate is AnimLen << 8 / range (FUN_00621780).
     if (monster.breath >= 0) {
         if (now_ms >= monster.breath_until) monster.breath = -1;
         else if (now_ms >= monster.breath_next) {
@@ -1861,6 +1861,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         range = std::clamp(range, 1, 255);
                     }
                     flame.dies = now_ms + std::uint32_t(range) * 40;
+                    if (!inferno) flame.anim_rate = flame.info->anim_len * 256 / range;
                 }
                 monster.breath_next = now_ms + std::uint32_t(inferno ? 3 : std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[2], {}, monster.breath, lvl), 1)) * 40;
             }
@@ -2165,7 +2166,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // its srvmissilea at the target's spot (FUN_0056ede0: flag 1, none
                 // past 100), its range by the distance d (at least 1): d x Range / 12
                 // past 9, else d x Range / 24 + Range / 2; calc1 its anim rate.
-                // d is FUN_006417f0's (ai_distance on the subtiles). ponytail: the anim rate isn't kept.
+                // d is FUN_006417f0's (ai_distance on the subtiles).
                 const int lvl = skill_level(game_data, monster, monster.skill);
                 const int apart = std::max(d2d::rules::ai_distance(subtile(foe.x) - subtile(unit.x), subtile(foe.y) - subtile(unit.y)), 1);
                 const std::size_t had = missiles.size();
@@ -2177,6 +2178,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     erupt.x = (float(subtile(foe.x)) + 0.5f) / 5; erupt.y = (float(subtile(foe.y)) + 0.5f) / 5;
                     erupt.velocity_x = erupt.velocity_y = 0;
                     erupt.dies = now_ms + std::uint32_t(std::max(frames, 1)) * 40;
+                    erupt.anim_rate = std::max(d2d::rules::eval_calc(game_data.skills, maul->calc[0], {}, monster.skill, lvl), 0);   // calc1 (FUN_00621780)
                     d2d::log::info("{} mauls from below ({} frames)", monster.npc.name, frames);
                 }
                 monster.seq_once = true;

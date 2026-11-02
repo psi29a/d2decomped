@@ -541,6 +541,7 @@ struct Missile {
     // spawner or burner ran.
     int target = -1, hops = 0, ed_pct = 0, fixed = -1, frame = -1;
     int target_id = -1;                       // its target's Foe::id: the foes are rebuilt each frame, pets come and go
+    int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle

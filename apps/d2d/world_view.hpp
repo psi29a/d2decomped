@@ -73,6 +73,7 @@ struct Unit {
     // at AnimSpeed/16 a tick from mode_ms.
     const Scene::MissileInfo* missile = nullptr;
     float rate = 1.f;                    // animation speed (attack speed, FHR, FBR)
+    int missile_rate = 0;                // a missile's own, in 256ths of a frame a tick (unit +0x4c); 0: its AnimSpeed
     bool hold = false;                   // plays once and stays on its last frame (an opened chest)
     std::uint8_t frames = 0, loop_from = 0;   // an object's FrameCnt / Start in its mode (Npc::frames), 0: the COF's length
     std::uint16_t frame_delta = 0;            // ... and its FrameDelta: 256 a frame a tick

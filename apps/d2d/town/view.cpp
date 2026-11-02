@@ -157,6 +157,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
     auto shot = [&](const View::Shot& shot_state) {
         Unit unit{ shot_state.x, shot_state.y, nullptr, shot_state.dir, nullptr, shot_state.born, -1 };
         unit.missile = shot_state.info;
+        unit.missile_rate = shot_state.anim_rate;
         out.push_back(std::move(unit));
     };
     for (const auto& shot_state : view.missiles) shot(shot_state);
