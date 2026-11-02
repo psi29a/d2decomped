@@ -685,7 +685,8 @@ inline MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int 
 // 0064b1d0 / 0064b2a0 at the missile's level: Sand Maggot poison, the pots) in a
 // free slot; poison goes into MonStats::poison_min / poison_max / poison_len
 // instead (per frame in 256ths for ELen frames, what the record's +0x34 / +0x38 /
-// +0x3c hold and what monster_blow applies on every hit), added to the owner's own.
+// +0x3c hold and what monster_blow applies on every hit); the owner's own poison is
+// dropped on a SrcDamage-0 row and summed in otherwise (the rule below).
 inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::rules::MonStats stats, bool first, bool cast, bool s1_shot, int lvl) {
     const int src_min = first ? stats.a1_min : s1_shot ? stats.s1_min : stats.a2_min;
     const int src_max = first ? stats.a1_max : s1_shot ? stats.s1_max : stats.a2_max;
@@ -695,10 +696,19 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
         for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
     const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);
-    if (row.etype == 3 && (row.ehi > 0 || row.elo > 0)) {
-        stats.poison_min += row.elo; stats.poison_max += row.ehi;   // U: the owner's length is kept, not summed (FUN_0064a930 not traced for +0x3c)
-        stats.poison_len = std::max(stats.poison_len, row.elen);
-    } else if (row.etype >= 0 && (row.ehi > 0 || row.elo > 0))
+    // The owner's poison (game.exe, V read: FUN_0064b860 / FUN_0064a930 / FUN_0064aa60; V run: the
+    // re-verifier's vm_game2 oracle, goospit1 with owner poison 40 / 40 / 300, whole OP set): added
+    // only when SrcDamage != 0 (+0x12d; all 32 poison rows of Missiles.txt have 0, so the owner's
+    // is dropped); then the rate pair (owner + row) is scaled by SrcDamage / 128 (truncated toward
+    // 0) and the LENGTH (owner + row) is summed, unscaled. U: whether a cast (MissC) shot takes the same path.
+    const bool row_poison = row.etype == 3 && (row.ehi > 0 || row.elo > 0);
+    if (info.src_damage == 0) stats.poison_min = stats.poison_max = stats.poison_len = 0;
+    if (row_poison) { stats.poison_min += row.elo; stats.poison_max += row.ehi; stats.poison_len += row.elen; }
+    if (info.src_damage != 0) {
+        stats.poison_min = int(std::int64_t(stats.poison_min) * info.src_damage / 128);
+        stats.poison_max = int(std::int64_t(stats.poison_max) * info.src_damage / 128);
+    }
+    if (!row_poison && row.etype >= 0 && (row.ehi > 0 || row.elo > 0))
         if (const auto free_slot = std::ranges::find_if(stats.elements, [](const auto& element) { return element.type < 0 || element.mode.empty(); }); free_slot != stats.elements.end())
             *free_slot = { row.etype, 100, row.elo >> 8, row.ehi >> 8, row.elen, "A2" };
     return stats;

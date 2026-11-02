@@ -31,6 +31,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -80,10 +81,16 @@ int unit_test() {
         const auto shot = monster_shot_stats(goo, {}, false, false, false, 1);
         assert(shot.poison_min == 8 && shot.poison_max == 8 && shot.poison_len == 200);
         assert(std::ranges::none_of(shot.elements, [](const auto& element) { return element.type == 3; }));
-        d2d::rules::MonStats champion;                                // an owner's own poison hit stays and the row's is added
+        d2d::rules::MonStats champion;                                // an owner's own poison hit is dropped on a SrcDamage-0 row (all poison rows)
         champion.poison_min = champion.poison_max = 40; champion.poison_len = 300;
         const auto both = monster_shot_stats(goo, champion, false, false, false, 1);
-        assert(both.poison_min == 48 && both.poison_max == 48 && both.poison_len == 300);
+        assert(both.poison_min == 8 && both.poison_max == 8 && both.poison_len == 200);
+        // where SrcDamage != 0 (no real poison row; patched as the verifier's oracle did): (row + owner) x SrcDamage / 128, lengths summed
+        const auto with_src = [&](int src_damage) { auto row = goo; row.src_damage = src_damage; return monster_shot_stats(row, champion, false, false, false, 1); };
+        for (const auto [src_damage, rate] : { std::pair{128, 48}, std::pair{64, 24}, std::pair{255, 95} }) {
+            const auto shot = with_src(src_damage);
+            assert(shot.poison_min == rate && shot.poison_max == rate && shot.poison_len == 500);
+        }
     }
     return 0;
 }
