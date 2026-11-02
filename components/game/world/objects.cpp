@@ -485,14 +485,27 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if ((shrine.code == 19 || shrine.code == 21 || shrine.code == 22) && fight.mon_level == level)
             fight.shrine_missiles(shrine.code, object.x, object.y, int(actor->character.stats.get(kLevel)), now_ms);
         if (shrine.code == 20 && fight.mon_level == level) {   // warping (FUN_00583050): the nearest plain monster turns boss
-            // ponytail: FUN_00582750's filter read as alive, not a boss, not
-            // an NPC; FUN_0065a800's search range isn't traced.
-            int best = -1;
-            float best_distance = 1e9f;
-            for (std::size_t k = 0; k < fight.monsters.size(); ++k) {
-                const auto& monster = fight.monsters[k];
-                const float distance = std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y);
-                if (monster.alive() && monster.boss == d2d::rules::Boss::none && distance < best_distance) { best_distance = distance; best = int(k); }
+            // FUN_0065a800 over the player's near rooms, each room's units
+            // newest first, the first at the least ai_distance (subtiles).
+            // FUN_00582750 passes an evil monster in NU or WL, with mWL and a
+            // Height, neither boss nor primeevil (MonStats +0xc & 0xc0) and
+            // no champion, unique, superunique or minion (data +0x16 & 0x1f).
+            std::vector<int> rooms;
+            for (const auto& [room_level, room] : near_rooms(*game_data, *level, actor->player.x, actor->player.y))
+                if (room_level == level) rooms.push_back(room);
+            std::vector<d2d::rules::RoomUnit> units;
+            for (const auto& monster : fight.monsters) {
+                const auto& kind = game_data->monsters.types[std::size_t(monster.type)];
+                units.push_back({ room_of(*level, monster.unit.x, monster.unit.y),
+                                  monster.alive() && monster.align == 0 && (monster.mode == "NU" || monster.mode == "WL") && kind.can_walk && kind.height != 0 &&
+                                      !kind.boss_column && !kind.prime_evil && monster.boss == d2d::rules::Boss::none });
+            }
+            int best = -1, best_distance = 0xffff;
+            const int player_x = int(std::floor(actor->player.x * 5)), player_y = int(std::floor(actor->player.y * 5));
+            for (const int index : d2d::rules::room_order(units, rooms)) {
+                const auto& monster = fight.monsters[std::size_t(index)];
+                const int distance = d2d::rules::ai_distance(int(std::floor(monster.unit.x * 5)) - player_x, int(std::floor(monster.unit.y * 5)) - player_y);
+                if (distance < best_distance) { best_distance = distance; best = index; }
             }
             if (best >= 0) {                               // FUN_005a4940: FUN_005a0760 (champions allowed), FUN_005a2120
                 auto& monster = fight.monsters[std::size_t(best)];
