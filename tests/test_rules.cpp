@@ -380,6 +380,10 @@ int main() {
     // Repair: missing / max of the base, rep mult; ethereal and whole items don't.
     Tables tables_copy = std::move(tables);
     tables_copy.npc_prices["Charsi"].rep = 512;
+    tables_copy.item_info["hax"].type = "axe"; tables_copy.types["axe"].repair = true;     // ItemTypes Repair, a durability column
+    tables_copy.types["helm"].repair = true;
+    tables_copy.item_info["big"].type = "axe";
+    tables_copy.item_base["hax"].durability = tables_copy.item_base["hlm"].durability = tables_copy.item_base["big"].durability = 40;
     Item worn = item("hax"); worn.max_durability = 40; worn.durability = 10;
     assert(repair_cost(tables_copy, worn, "Charsi", header) == 1000 * 30 / 40 / 2);
     Item whole = worn; whole.durability = 40;
@@ -393,6 +397,17 @@ int main() {
     assert(repair_cost(tables_copy, forever, "Charsi", header) == 0);
     Item dented = item("hlm"); dented.defense = 15; dented.max_durability = 40; dented.durability = 10;
     assert(repair_cost(tables_copy, dented, "Charsi", header) == 750 * 30 / 40 / 2);   // the armor's scaled base
+    // No repair without ItemTypes Repair or a durability (FUN_0062e660, FUN_00629930): a type without Repair,
+    // a base with nodurability (vanilla bows, crossbows and throwing potions all have nodurability 1).
+    // 2 cases (bow: no Repair; crossbow: nodurability); evidence: the repair-gate row of the game.exe oracle,
+    // 7,908 gate cases over all 659 bases (0 differ on this change), and 3 more below with charges missing.
+    tables_copy.types["bow"] = {}; tables_copy.types["xbow"].repair = true;
+    tables_copy.item_info["sbw"] = { .type = "bow", .kind = 2 }; tables_copy.item_info["lxb"] = { .type = "xbow", .kind = 2 };
+    tables_copy.item_base["sbw"] = tables_copy.item_base["hax"]; tables_copy.item_base["lxb"] = tables_copy.item_base["hax"];
+    tables_copy.item_base["lxb"].no_durability = true;
+    Item worn_bow = worn; worn_bow.code = "sbw";
+    Item worn_crossbow = worn; worn_crossbow.code = "lxb";
+    assert(repair_cost(tables_copy, worn_bow, "Charsi", header) == 0 && repair_cost(tables_copy, worn_crossbow, "Charsi", header) == 0);
     Store smith; smith.npc_id = "Charsi";
     d2d::d2s::Stats wallet; wallet.values[kGold] = 100; wallet.values[kGoldBank] = 300;
     assert(store_repair(tables_copy, smith, worn, wallet) && worn.durability == 40 && wallet.get(kGold) == 0 && wallet.get(kGoldBank) == 25);
@@ -409,6 +424,15 @@ int main() {
     assert(charges_repair_cost(tables_copy, wand) == 5 * 27492 / 10 && repair_cost(tables_copy, wand, "Charsi", header) == 5 * 27492 / 10);
     Item worn_wand = std::move(worn); worn_wand.durability = 10; worn_wand.props = half_charged;
     assert(repair_cost(tables_copy, worn_wand, "Charsi", header) == 1000 * 30 / 40 / 2 + 5 * 27492 / 10);
+    // A bow (no Repair; durable, 10 of 40) and a crossbow (nodurability) with charges missing pass the gate on them
+    // and keep their base (0062f9e7): the bow its missing share, the crossbow all of it. Evidence: the base-part row
+    // of the game.exe oracle (FUN_0062efb0 mode 3, 0062f9b6..0062fa90).
+    Item charged_bow = worn_bow; charged_bow.props = half_charged;
+    Item charged_crossbow = worn_crossbow; charged_crossbow.props = half_charged;
+    assert(repair_cost(tables_copy, charged_bow, "Charsi", header) == 1000 * 30 / 40 / 2 + 5 * 27492 / 10);
+    assert(repair_cost(tables_copy, charged_crossbow, "Charsi", header) == 1000 / 2 + 5 * 27492 / 10);
+    charged_bow.durability = 40;
+    assert(repair_cost(tables_copy, charged_bow, "Charsi", header) == 5 * 27492 / 10);   // whole: the charges only
     Item ghost_wand = wand; ghost_wand.ethereal = true;
     assert(repair_cost(tables_copy, ghost_wand, "Charsi", header) == 0);
     // The repair refills them (FUN_0055fe80): left back to max.

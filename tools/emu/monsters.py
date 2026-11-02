@@ -57,7 +57,7 @@ def dump(e, seed, lid, difficulty=0):
     and its company (FUN_005a43e0 from FUN_0054ec90), or a trapped soul (FUN_005b2f20 from InitFn 46, alone). NPCs (MonStats npc: Flavie, Tyrael ...) are left out, as d2d's
     population leaves them to the level's NPCs.
     An act boss (FUN_005b1cf0 from FUN_005b2a00) adds `!<mods>` (the MonUMods it gave, `.`-joined) and `h`
-    for its stat 0x76 (half freeze)."""
+    for its FUN_00639db0(unit, 0x76, 1) (state 118 corpse_noselect, not stat 0x76 half freeze)."""
     npcs = {int(r["hcidx"]) for r in monstats.table("monstats") if r.get("npc") == "1" and r.get("hcidx", "").isdigit()}
     g = new_game(e, seed, difficulty)
     act = act_of(e, g, lid, drlg.act_of(lid))

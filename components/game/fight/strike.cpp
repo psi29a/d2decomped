@@ -453,7 +453,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // a player's only, not on the ubers (hcIdx 704..709); state 0x34
         // for 120 000 frames.
         if (blow.prevent_heal && striker == player_foe_id() && (target.type < 704 || target.type > 709)) target.no_heal_until = now_ms + 120'000u * 40;
-        if (blow.blocked) { block_anim(*game_data, target, now_ms); return false; }
+        if (blow.blocked && !blow.hit) { block_anim(*game_data, target, now_ms); return false; }
         if (!blow.hit) return false;
         target.hit_class = blow.hit_class;
         if (by_player) {

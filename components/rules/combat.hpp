@@ -50,6 +50,8 @@ struct Fighter {
     // the boots' StrBonus / DexBonus on strength / dexterity, + 25, + 17.
     int kick_lo = 0, kick_hi = 0, kick_pct = 0;
     int smite_lo = 0, smite_hi = 0, smite_pct = 0;  // the shield's (Smite, FUN_005ce9f0 -> FUN_0057b420 on the shield)
+    bool blunt = false;                             // the weapon is a Blunt type (ItemTypes Equiv chain: club, hammer, mace, scepter, wand, staff)
+    int undead_pct = 0;                             // stat 122 (item_undeaddamage_percent) over all the gear (the game reads the unit's own stat)
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
     int stun_len = 0;                               // stat 66 (gear), ticks
@@ -117,6 +119,11 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     high = std::max<std::int64_t>(high << 8, low + 256);
     const std::int64_t pct = std::max<std::int64_t>(stat(kDamagePercent) + stat(kPassiveMasteryMeleeDamage) + (weapon_base ? str * weapon_base->str_bonus / 100 + dex * weapon_base->dex_bonus / 100 : 0), -90);
     fighter.phys_lo = int(low); fighter.phys_hi = int(high); fighter.phys_pct = int(pct);
+    if (weapon_base) {
+        const auto info = tables.item_info.find(weapon->code);
+        fighter.blunt = (info != tables.item_info.end() && type_is(tables, info->second.type, "blun")) || (!weapon_base->type2.empty() && type_is(tables, weapon_base->type2, "blun"));
+    }
+    fighter.undead_pct = int(stat(kUndeadDamagePercent));
     fighter.min = int(std::max<std::int64_t>((low + low * pct / 100) >> 8, 1));
     fighter.max = int(std::max<std::int64_t>((high + high * pct / 100) >> 8, fighter.min));
     fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(kToHit) + stat(kToHitPerLevel) * clvl / 8);
@@ -360,6 +367,7 @@ struct Target {
     std::array<int, 6> res{};
     int drain = 100;
     int crush_divisor = 4;
+    bool undead = false;                            // MonStats lUndead or hUndead (FUN_0063e990)
 };
 // What one player hit does: the instant damage (physical after resistance,
 // fire / lightning / cold / magic, crushing blow), leeched life and mana,
@@ -368,7 +376,7 @@ struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
     int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
-    int frac = 0;                        // 256ths of a point a missile's element dealt beyond `damage` (game.exe keeps life in 256ths)
+    int frac = 0;                        // 256ths of a point the physical (a blow's fine value after resistance) and a missile's element dealt beyond `damage`; may pass 255 (game.exe keeps life in 256ths)
     int stun_ticks = 0;
     int hit_class = 0;                   // what the struck unit's impact sound is (sound_ids::impact)
     bool elemental = false;              // fire, lightning, cold or poison got through (not magic): the get-hit divides by 16 (get_hit)
@@ -426,6 +434,12 @@ inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int 
 // weapon's share (SrcDam as written, 128ths; 0 for spells).
 struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 0, elen = 0, srcdam = 0; };
 
+// A burst rolls its record once and hands a copy to every unit it takes in
+// (FUN_005a9a70 and FUN_005aa8b0 call FUN_005a8c70 once; each unit resists
+// its own copy): the physical and the element roll in 256ths, -1 until the
+// first unit's blow draws it.
+struct MissileRoll { int phys = -1, element = -1; };
+
 // A skill's missile striking `t` (on top of `b`, the weapon's share when
 // it has one): the physical and the element, each rolled between its min
 // and max and less the monster's resistance; the element's resistance
@@ -440,12 +454,13 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 // to a monster.
 // ponytail: player_blow's cold still chills only on a whole point.
 inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
-                         Blow blow = { .hit = true }) {
+                         Blow blow = { .hit = true }, MissileRoll* shared = nullptr) {
     if (damage.phys_hi > 0) {
         // FUN_005a89a0 rolls the physical in 256ths and FUN_0057bf80 resists that fine
         // value, the life stat takes it as is: keep the part under a point in Blow::frac
         // as the element below does.
-        const int roll = rng.range(damage.phys_lo, damage.phys_hi);
+        const int roll = shared && shared->phys >= 0 ? shared->phys : rng.range(damage.phys_lo, damage.phys_hi);
+        if (shared) shared->phys = roll;
         blow.phys += roll >> 8;
         // FUN_0057be00 floors a monster's resistance at -100 (no upper cap but the immunity at 100).
         const int fine = resisted_fine(roll, std::max(target.res[0], -100));
@@ -457,7 +472,8 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     // FUN_005a8910: nothing unless both ends are over 0, then min + rand(max -
     // min) on the missile's seed: the max itself is never rolled.
     const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
-    const int roll = low > 0 ? low + rng(high - low) : 0;
+    const int roll = shared && shared->element >= 0 ? shared->element : low > 0 ? low + rng(high - low) : 0;
+    if (shared) shared->element = roll;
     if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
     int res = target.res[std::size_t(kRes[damage.etype])];
     if (damage.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(damage.etype)], -100);
@@ -479,6 +495,26 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     return blow;
 }
 
+// A monster's freeze (FUN_0057b230): the length FUN_0057c1e0 left, which
+// is cut by the cold resist less pierce as the chill length is (record
+// +0x34, row 6 of the table at 0x732980, as row 5 is +0x30); nothing when
+// that is 0 or less. A special monster (MonStats boss, FUN_0063e9f0;
+// monster data +0x16 & 8, FUN_005a0180: champions, uniques, superuniques;
+// a hireling, FUN_0063ee90) is chilled for that length instead
+// (FUN_0057af80), never frozen. Any other is frozen only at a negative
+// coldeffect (FUN_0057af30), for the length / MonsterFreezeDivisor
+// (+0x14), and isn't chilled for it.
+struct Freeze { int freeze_ticks = 0, chill_ticks = 0; };
+inline Freeze monster_freeze(int length, const Target& target, int cold_pierce, bool special, int cold_effect, int divisor) {
+    int res = target.res[4];
+    if (res < 100) res = std::max(res - cold_pierce, -100);
+    const int resisted_length = resisted(length, res);
+    if (resisted_length <= 0) return {};
+    if (special) return { .chill_ticks = resisted_length };
+    if (cold_effect >= 0 || divisor == 0) return {};
+    return { .freeze_ticks = resisted_length / divisor };
+}
+
 // What a skill adds to a blow (docs/research/re/skills.md, "Melee skills"):
 // its attack-rating bonus % (toht) and enhanced damage % (calc1) joining
 // the gear's percentages, damage added after the build (calc2), the share
@@ -495,7 +531,7 @@ struct Swing {
     // Elemental damage as % of the physical rolled (Vengeance, FUN_005cfe10:
     // FUN_0057b420's physical x calc1 fire, calc2 cold, calc3 lightning).
     int fire_pct = 0, cold_pct = 0, ltng_pct = 0, cold_len = 0;
-    // Smite (FUN_005ce9f0): the shield's damage, sure to hit, and the record
+    // Smite (FUN_005ce9f0): the shield's damage, sure to hit (a block marks the blow but does not stop it), and the record
     // marked built (flags 2), so FUN_0057dbf0 skips FUN_0057b7d0: no crit,
     // gear elements, leech, crushing blow or open wounds.
     bool smite = false;
@@ -511,7 +547,10 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
     if (!swing.smite && rng(100) >= hit_chance(attack_rating, target.armor_class, clvl, target.level)) return blow;
     blow.prevent_heal = !swing.smite && fighter.prevent_heal;
-    if (target.block > 0 && rng(100) < target.block) { blow.blocked = true; return blow; }
+    if (target.block > 0 && rng(100) < target.block) {
+        blow.blocked = true;
+        if (!swing.smite) return blow;      // FUN_005ce9f0 sets the hit bit again after the block check (0x5cebb0): Smite lands
+    }
     blow.hit = true;
     std::int64_t low, high;                                  // 256ths
     if (swing.smite) {
@@ -523,7 +562,11 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         low = swing.skill_lo + std::int64_t(swing.skill_lo) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_lo) << 8) * (100 + kick_pct) / 100;
         high = swing.skill_hi + std::int64_t(swing.skill_hi) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_hi) << 8) * (100 + kick_pct) / 100;
     } else {
-        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct, -90);
+        // Against an undead monster FUN_0057b660 adds 50 with a Blunt weapon plus stat 122 to the
+        // record's enhanced damage, only when that sum is over 0. FUN_0057b7d0 asks for it when the attacker is
+        // a player unit or has alignment 2 (FUN_006259b0), so a merc or a Shadow is not excluded here.
+        const int undead_bonus = target.undead ? std::max((fighter.blunt ? 50 : 0) + fighter.undead_pct, 0) : 0;
+        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct + undead_bonus, -90);
         low = fighter.phys_lo + fighter.phys_lo * physical_pct / 100;
         high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
     }
@@ -544,9 +587,13 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     // it a tick (record [10], 256ths).
     const std::int64_t conv = swing.conv_type >= 0 && swing.conv_type < 5 ? damage * std::clamp(swing.conv_pct, 0, 100) / 100 : 0;
     damage -= conv;
-    int phys = int(std::max<std::int64_t>(damage >> 8, swing.kick || conv ? 0 : 1)) + swing.flat;
-    blow.phys = phys;
-    phys = resisted(phys, target.res[0]);
+    // The physical stays in 256ths through the resistance (FUN_0057bf80 on the record's fine value) and
+    // the life stat takes it as is (0057c852): the whole points go in `damage`, the part under a point in `frac`.
+    const std::int64_t rolled_fine = std::max<std::int64_t>(damage, 0) + std::int64_t(swing.flat) * 256;
+    blow.phys = int(rolled_fine >> 8);
+    const int fine = resisted_fine(int(rolled_fine), target.res[0]);
+    const int phys = fine >> 8;
+    blow.frac = fine & 255;
     // The stun: the skill's, else the gear's stat 66 x the share (FUN_0057b7d0: [0x11] when 0).
     const int stun = swing.stun_ticks > 0 ? swing.stun_ticks : fighter.stun_len * swing.srcdam / 128;
     if (swing.smite) {

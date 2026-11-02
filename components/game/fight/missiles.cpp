@@ -17,6 +17,7 @@
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
+#include <uniques.hpp>
 
 #include <algorithm>
 #include <array>
@@ -483,7 +484,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                                   : missile_info.skill.empty() ? row_damage(missile_info, missile.level, calc_env(), missile.skill)
                                                                : d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), missile.level);
                 for (std::size_t i = 0; i < monsters.size(); ++i)
-                    if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - missile.x, monsters[i].unit.y - missile.y) <= 0.5f
+                    if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)
                         && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
                         burned.emplace_back(int(i), missile.skill);
                         burn(i, damage, now_ms);
@@ -675,7 +676,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         return missile_info.collide_kill && !(missile_info.pierce && int(rng(100)) < int(actor->psum[d2d::d2s::kPierceIndex]));
     }
 
-auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze ) -> void {
+auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || !monsters[monster_index].alive()) return;
         const auto target = target_of(monster_index);
@@ -698,19 +699,29 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);
             blow.prevent_heal = blow.hit && fighter.prevent_heal;
         }
-        if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
+        if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow, roll);
         blow.hit_class = missile.info->hit_class | skill->hit_class;
-        if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
-        if (blow.hit && freeze > 0) blow.chill_ticks = std::max(blow.chill_ticks, freeze);
+        d2d::rules::Freeze frozen;
+        if (const auto& struck = monsters[monster_index]; blow.hit && freeze > 0 && struck.type >= 0) {
+            const auto& struck_type = game_data->monsters.types[std::size_t(struck.type)];
+            const bool special = struck_type.boss_column || (struck.boss != d2d::rules::Boss::none && struck.boss != d2d::rules::Boss::minion);
+            frozen = d2d::rules::monster_freeze(freeze, target, pierce()[2], special, struck_type.diff[std::size_t(struck.difficulty)].cold_effect,
+                                                game_data->freeze_divisor[std::size_t(struck.difficulty)]);
+            blow.chill_ticks = std::max(blow.chill_ticks, frozen.chill_ticks);
+        }
         land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
         if (missile.striker < 0) monster_return_fire(monster_index, missile, missile.by_merc, now_ms);
         // A freeze stands it as a stun does, without the stun's guards.
-        if (blow.hit && freeze > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(freeze) * 40);
+        // ponytail: state 0x36 (no freeze) and the freeze's own events
+        // (FUN_005417d0 0xc / 2) aren't kept; a length / divisor of 0 sets
+        // state 1 for no frame and isn't kept either.
+        if (frozen.freeze_ticks > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frozen.freeze_ticks) * 40);
     }
 
-auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze ) -> void {
+auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze, bool one_roll) -> void {
+        d2d::rules::MissileRoll roll;
         for (std::size_t j = 0; j < monsters.size(); ++j)
-            if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(std::max(radius, 1))) strike(missile, j, now_ms, freeze);
+            if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(std::max(radius, 1))) strike(missile, j, now_ms, freeze, one_roll ? &roll : nullptr);
     }
 
 auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
@@ -728,9 +739,9 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
         static constexpr int kSpreadX[18] = { 2, -2, 0, 0, -3, 0, 3, -1, 1, -1, 2, -4, -3, -1, 0, 1, 3, 4 };
         static constexpr int kSpreadY[18] = { -2, -2, 2, 5, 3, 3, 3, 2, 1, -1, -1, -2, -2, -3, -4, -3, -3, -2 };
         switch (missile_info.hit_func) {
-            case 1: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->calc[0]), now_ms); break;
+            case 1: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->calc[0]), now_ms, 0, true); break;
             case 3: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms); break;
-            case 13: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms, radius(missile_info.hit_par2, skill->auralen)); break;
+            case 13: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms, radius(missile_info.hit_par2, skill->auralen), true); break;
             case 2: case 4: case 26: case 36: case 51: if (sub) sub_at(missile.x, missile.y, 0, 0); break;
             case 9: {
                 // Immolation Arrow (FUN_005aa250 -> FUN_005a9530): its fire lasts SHitCalc1 frames.

@@ -358,7 +358,10 @@ struct Monster {
     // special AI (AI control [0], FUN_005b0e00: the Countess's 0xd, Dim
     // Vision's / Cloak's 10, Terror's / Howl's 11) or its MonAI row's other
     // think (`other`, rules::ai_toggle), its map AI's points (subtiles),
-    // half freeze durations (stat 0x76).
+    // `half_freeze`: the act boss / superunique FUN_00639db0(unit, 0x76, 1)
+    // call (Blood Raven, the Countess), which sets state 118
+    // (corpse_noselect, FUN_00625a70's state bits), not stat 0x76: nothing
+    // reads it for a freeze.
     d2d::rules::Rng seed;
     int special = 0;
     bool other = false;
@@ -385,7 +388,7 @@ struct Monster {
         auto res = per_difficulty.res;
         for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
         return { hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
-                 crush_divisor(game_data) };
+                 crush_divisor(game_data), type_info.undead };
     }
     // Crushing Blow's life divisor on it (FUN_005bffc0): 10 for a hireling
     // (FUN_0063ee90's classes 0x10f, 0x152, 0x167, 0x230, 0x231); else 4, 8
@@ -647,6 +650,18 @@ inline bool missile_struck(const Level& level, const Missile& missile, float x, 
     const int foe_x = level.world_x * 5 + int(std::floor(x * 5)), foe_y = level.world_y * 5 + int(std::floor(y * 5));
     const int missile_size = missile.info ? missile.info->size : 1;
     return std::ranges::any_of(missile.flight.crossed, [&](const auto& spot) { return d2d::rules::missile_touches(spot.first, spot.second, foe_x, foe_y, size, missile_size); });
+}
+
+// A standing missile (no velocity) strikes from its own subtile every frame
+// (FUN_005ae1f0, nothing crossed): a Size 2 shard takes a size 1 unit on its
+// own and the 4 neighbouring subtiles, a size 2 unit on 13, size 3 on 21; a
+// Size 1 Fire Wall flame 1 / 5 / 9. A row with no Size 1..3 keeps the half
+// cell it always had here.
+inline bool standing_struck(const Missile& missile, float x, float y, int size) {
+    const int missile_size = missile.info ? missile.info->size : 0;
+    if (missile_size < 1 || missile_size > 3) return std::hypot(x - missile.x, y - missile.y) <= 0.5f;
+    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+    return d2d::rules::missile_touches(subtile(missile.x), subtile(missile.y), subtile(x), subtile(y), size, missile_size);
 }
 
 // A missile's facing for a heading with no point to aim at (a velocity, a

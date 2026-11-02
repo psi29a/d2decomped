@@ -381,6 +381,31 @@ int main(int argc, char** argv) {
     const Target wall{ .hit_points = 400, .max_hp = 400, .armor_class = 1000000, .level = 99 };
     const auto smite = player_blow(smiter, wall, 1, rng, { .ed_pct = 30, .stun_ticks = 20, .smite = true });
     assert(smite.hit && !smite.deadly && smite.damage == 15 && smite.life == 0 && smite.stun_ticks == 20);
+    // A block does not stop Smite: FUN_005ce9f0 sets the hit bit again after the
+    // block check (0x5cebb0), so it still deals its damage and stun and keeps the
+    // knockback, and the blow stays marked blocked. Every other swing it stops.
+    Target smite_blocker = wall;
+    smite_blocker.block = 100;
+    const auto blocked_smite = player_blow(smiter, smite_blocker, 1, rng, { .ed_pct = 30, .knockback = true, .stun_ticks = 20, .smite = true });
+    assert(blocked_smite.blocked && blocked_smite.hit && blocked_smite.damage == 15 && blocked_smite.stun_ticks == 20 && blocked_smite.knockback);
+    Fighter swinger = simple_fighter(10, 10, 1000000);
+    const Target swing_blocker{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1, .block = 100 };
+    for (const auto& other : { Swing{}, Swing{ .ed_pct = 30, .stun_ticks = 20 }, Swing{ .srcdam = 128, .kick = true } }) {
+        int stopped_swings = 0;                                       // the to-hit roll (95 % at most) comes first
+        for (int i = 0; i < 40; ++i) {
+            const auto stopped_swing = player_blow(swinger, swing_blocker, 99, rng, other);
+            assert(!stopped_swing.hit && stopped_swing.damage == 0);
+            stopped_swings += stopped_swing.blocked;
+        }
+        assert(stopped_swings >= 30);
+    }
+    // Block chance 0 never marks a Smite blocked; at 100 it always does; neither changes the damage.
+    for (int chance : { 0, 100 }) {
+        Target defender = wall;
+        defender.block = chance;
+        const auto through = player_blow(smiter, defender, 1, rng, { .smite = true });
+        assert(through.hit && through.blocked == (chance == 100) && through.damage == 12);
+    }
     // With Holy Shield up its damage joins the shield's before the %.
     const auto holy_shield = player_blow(smiter, wall, 1, rng, { .ed_pct = 30, .skill_lo = 4 << 8, .skill_hi = 4 << 8, .smite = true });
     assert(holy_shield.hit && holy_shield.damage == (10 + 4) * 150 / 100);
@@ -401,6 +426,110 @@ int main(int argc, char** argv) {
     int blocked = 0;
     for (int i = 0; i < 20; ++i) blocked += player_blow(hit, target, 99, rng).blocked;
     assert(blocked >= 15);                                            // every blow that connects
+    {   // The physical keeps its 256ths through the resistance (FUN_0057bf80 on the record's fine value; the life stat takes it as is, 0057c852).
+        const auto land_blow = [](const Fighter& attacker, const Target& defender, Rng& dice, Swing with = {}) {
+            auto struck = player_blow(attacker, defender, 99, dice, with);
+            for (int i = 0; i < 40 && !struck.hit; ++i) struck = player_blow(attacker, defender, 99, dice, with);   // 95 % to hit
+            assert(struck.hit);
+            return struck;
+        };
+        Rng fine_rng{ 21 };
+        Fighter fine = simple_fighter(1, 1, 1000000);
+        fine.phys_lo = fine.phys_hi = 300;                           // 1.17 points
+        Target exposed{ .hit_points = 1000, .max_hp = 1000, .armor_class = 1, .level = 1 };
+        auto fine_blow = land_blow(fine, exposed, fine_rng);
+        assert(fine_blow.phys == 1 && fine_blow.damage == 1 && fine_blow.frac == 44);
+        exposed.res[0] = 50;
+        fine_blow = land_blow(fine, exposed, fine_rng);
+        assert(fine_blow.phys == 1 && fine_blow.damage == 0 && fine_blow.frac == 150);   // half a point is not lost, not rounded up
+        exposed.res[0] = 100;
+        fine_blow = land_blow(fine, exposed, fine_rng);
+        assert(fine_blow.damage == 0 && fine_blow.frac == 0);
+        exposed.res[0] = -50;
+        fine_blow = land_blow(fine, exposed, fine_rng);
+        assert(fine_blow.damage == 1 && fine_blow.frac == 194);        // 450 / 256ths
+        Fighter whole = simple_fighter(10, 10, 1000000);              // whole points: the rest of a resistance still lands in `frac`
+        exposed.res[0] = 33;
+        fine_blow = land_blow(whole, exposed, fine_rng);
+        assert(fine_blow.phys == 10 && fine_blow.damage == 6 && fine_blow.frac == 179);   // 2560 x 67 / 100 = 1715 = 6 x 256 + 179
+        exposed.res[0] = 0;
+        assert(land_blow(whole, exposed, fine_rng).damage == 10 && land_blow(whole, exposed, fine_rng).frac == 0);
+        Fighter sliver = simple_fighter(1, 1, 1000000);                // no one-point floor: a tenth of a point stays a tenth
+        sliver.phys_lo = sliver.phys_hi = 256;
+        fine_blow = land_blow(sliver, exposed, fine_rng, Swing{ .srcdam = 32 });   // a quarter of the weapon (Blade Shield's share)
+        assert(fine_blow.phys == 0 && fine_blow.damage == 0 && fine_blow.frac == 64);
+        fine_blow = land_blow(whole, exposed, fine_rng, Swing{ .flat = 3 });       // a skill's added damage is whole points
+        assert(fine_blow.phys == 13 && fine_blow.damage == 13 && fine_blow.frac == 0);
+        // A skill missile with a weapon share (Fire Arrow style: player_blow with srcdam, then missile_blow on top): the
+        // share keeps its 256ths too, and the element adds its own; frac may pass 255 and the life stat takes it whole.
+        auto share = land_blow(sliver, exposed, fine_rng, Swing{ .srcdam = 64 });   // half the weapon: 128 / 256ths
+        assert(share.phys == 0 && share.damage == 0 && share.frac == 128);
+        share = missile_blow(MissileDamage{ .etype = 0, .elo = 200, .ehi = 201 }, exposed, {}, fine_rng, share);   // 200 / 256ths of fire
+        assert(share.damage == 0 && share.frac == 328);
+    }
+
+    {   // Against an undead monster a Blunt weapon adds 50 % and stat 122 its own to the enhanced damage, only
+        // when that sum is over 0 (FUN_0057b660, called from FUN_0057b7d0 for a player attacker).
+        const auto land_blow = [](const Fighter& attacker, const Target& defender, Rng& dice, Swing with = {}) {
+            auto struck = player_blow(attacker, defender, 99, dice, with);
+            for (int i = 0; i < 40 && !struck.hit; ++i) struck = player_blow(attacker, defender, 99, dice, with);
+            assert(struck.hit);
+            return struck;
+        };
+        Rng undead_rng{ 33 };
+        Fighter mace = simple_fighter(10, 10, 1000000);
+        Target living{ .hit_points = 1000, .max_hp = 1000, .armor_class = 1, .level = 1 };
+        Target skeleton = living;
+        skeleton.undead = true;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 10);                         // not Blunt, no stat: nothing
+        mace.blunt = true;
+        assert(land_blow(mace, living, undead_rng).damage == 10 && land_blow(mace, skeleton, undead_rng).damage == 15);
+        assert(land_blow(mace, skeleton, undead_rng, Swing{ .ed_pct = 50 }).damage == 20);  // it joins the skill's enhanced damage
+        mace.undead_pct = 30;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 18 && land_blow(mace, living, undead_rng).damage == 10);
+        mace.blunt = false;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 13);                         // stat 122 alone
+        mace.undead_pct = -60;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 10);                         // under 0: not added
+        mace.blunt = true;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 10);                         // 50 - 60 is under 0 too
+        mace.undead_pct = -20;
+        assert(land_blow(mace, skeleton, undead_rng).damage == 13);                         // 50 - 20
+        Fighter foot = simple_fighter(10, 10, 1000000);
+        foot.blunt = true;
+        assert(land_blow(foot, skeleton, undead_rng, Swing{ .kick = true, .skill_lo = 10 << 8, .skill_hi = 10 << 8 }).damage == 10);   // a kick is not a weapon blow
+        // A skill missile's weapon share (player_blow with srcdam, as Fight::strike builds it) takes the same bonus against an
+        // undead: 1024 / 256ths is 4 points, +50 % (Blunt) +30 % (stat 122) is 7.
+        Fighter bow = simple_fighter(1, 1, 1000000);
+        bow.phys_lo = bow.phys_hi = 1024;
+        bow.blunt = true; bow.undead_pct = 30;
+        assert(land_blow(bow, skeleton, undead_rng, Swing{ .srcdam = 128 }).damage == 7);
+        assert(land_blow(bow, living, undead_rng, Swing{ .srcdam = 128 }).damage == 4);
+        // make_fighter: the weapon's Blunt type through the Equiv chain (ItemTypes mace -> blun), either of its types; stat 122 from the sums.
+        Tables types_tables;
+        types_tables.types["weap"] = {};
+        types_tables.types["blun"] = { .equiv = { "weap", "" } };
+        types_tables.types["mace"] = { .equiv = { "blun", "" } };
+        types_tables.types["swor"] = { .equiv = { "weap", "" } };
+        types_tables.item_base["mac"] = { .mindam = 3, .maxdam = 6 };
+        types_tables.item_info["mac"].type = "mace";
+        types_tables.item_base["ssd"] = { .mindam = 3, .maxdam = 6 };
+        types_tables.item_info["ssd"].type = "swor";
+        types_tables.item_base["bld"] = { .mindam = 3, .maxdam = 6, .type2 = "mace" };
+        types_tables.item_info["bld"].type = "swor";
+        d2d::d2s::Item weapon_mace, weapon_sword, weapon_both;
+        weapon_mace.code = "mac"; weapon_sword.code = "ssd"; weapon_both.code = "bld";
+        d2d::d2s::Stats owner;
+        owner.values[d2d::d2s::kStr] = 20; owner.values[d2d::d2s::kDex] = 20; owner.values[d2d::d2s::kLevel] = 1;
+        StatSum gear{}, weapon_gear{};
+        gear[d2d::d2s::kUndeadDamagePercent] = 25;
+        auto built = make_fighter(types_tables, &weapon_mace, nullptr, gear, weapon_gear, owner, {}, 0, {});
+        assert(built.blunt && built.undead_pct == 25);
+        assert(!make_fighter(types_tables, &weapon_sword, nullptr, gear, weapon_gear, owner, {}, 0, {}).blunt);
+        assert(make_fighter(types_tables, &weapon_both, nullptr, gear, weapon_gear, owner, {}, 0, {}).blunt);
+        built = make_fighter(types_tables, nullptr, nullptr, gear, weapon_gear, owner, {}, 0, {});
+        assert(!built.blunt && built.undead_pct == 25);                                   // barehanded: stat 122 still counts
+    }
     // Monster blows: block, damage reduced % then flat, elemental less resistance.
     MonStats mon;
     mon.level = 99; mon.to_hit = 1000000; mon.a1_min = mon.a1_max = 100;
@@ -507,6 +636,26 @@ int main(int argc, char** argv) {
             half.res[0] = -150;   // floored at -100: x2, not x2.5
             phys_hit = missile_blow(phys, half, {}, phys_rng);
             assert(phys_hit.damage == 2 && phys_hit.frac == 88);
+        }
+        {   // A burst rolls once (FUN_005a9a70 -> FUN_005a8c70): every blow on its record takes the first one's rolls, each resisting its own.
+            Rng burst_rng{ 17 };
+            const MissileDamage burst{ .phys_lo = 256, .phys_hi = 5000, .etype = 0, .elo = 1000, .ehi = 5000 };
+            Target fireproof;
+            fireproof.res[2] = 50;                                  // fire is Target::res[2]
+            int apart = 0;
+            for (int i = 0; i < 200; ++i) {
+                MissileRoll roll;
+                assert(roll.phys < 0 && roll.element < 0);
+                const auto first = missile_blow(burst, Target{}, {}, burst_rng, { .hit = true }, &roll);
+                assert(roll.phys >= 256 && roll.phys <= 5000 && roll.element >= 1000 && roll.element < 5000);
+                const auto again = missile_blow(burst, Target{}, {}, burst_rng, { .hit = true }, &roll);
+                const auto halved = missile_blow(burst, fireproof, {}, burst_rng, { .hit = true }, &roll);
+                assert(first.damage == again.damage && first.frac == again.frac && first.phys == again.phys);
+                assert(halved.phys == first.phys && halved.damage < first.damage);
+                const auto own = missile_blow(burst, Target{}, {}, burst_rng);
+                apart += own.damage != first.damage || own.frac != first.frac;
+            }
+            assert(apart > 150);                                    // with no shared record each blow draws its own
         }
         {   // MulDiv (FUN_00483360), cases run on game.exe in tools/emu: each branch, the wraps.
             constexpr std::array<std::array<int, 4>, 11> kCases{ { { 25600, 40, 100, 10240 }, { 1280000, 37, 100, 473600 }, { 1048577, 3, 7, 449388 },

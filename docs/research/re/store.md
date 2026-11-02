@@ -200,9 +200,21 @@ The base y is 539 (= 60 + 255 + 224):
 The price function computes buy, sell and repair together. Repair:
 
 1. base = the buy base with its quality extras (no ethereal ¼);
-2. nothing for items with no durability, whole ones, ethereal ones,
-   unidentified ones (`FUN_0062e660`) or indestructible ones; a throwable (FUN_0062ba80, ItemTypes
-   Throwable) skips the durability term;
+2. nothing for ethereal or unidentified items (`FUN_0062e660`), nor,
+   unless charges are missing, for an item whose ItemTypes row has no
+   Repair or that neither restocks nor has durability
+   (`FUN_00629930`: nodurability 0, a durability column, max != 0, not
+   indestructible). In vanilla data the 186 bases of the 66 types without
+   Repair (bows, throwing potions, potions, ...) all have nodurability 1,
+   as do crossbows, so the Repair test never decides alone there; it is
+   kept for fidelity (mods). Nothing for whole ones. With charges missing
+   the gate passes and the base is scaled by durability only when
+   `FUN_00629930` holds (`0062f9e7`): an item without durability pays its
+   whole base, a durable one its missing share. Confidence: high (the
+   gate and the scaling read in the disassembly; the gate against game.exe's own code
+   on 7,908 cases, the scaling on 3,000 more, 0 differ);
+   a throwable (FUN_0062ba80, ItemTypes Throwable) skips the durability
+   term;
 3. × (max − current) / max, where max is the maxdurability stat (73)
    with item_maxdurability_percent (75) — the save stores the base max;
    a stacking throwable (ItemsTxt +0x132 stackable, FUN_006289f0) pays

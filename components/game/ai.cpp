@@ -3033,7 +3033,7 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
         const auto aura = d2d::rules::boss_aura(monster.stats.level, name_seed, super);
         monster.aura = aura.skill; monster.aura_lvl = aura.level;
     }
-    if (super == 6) { monster.half_freeze = true; monster.special = 0xd; }   // FUN_005a49b0 case 6, the Countess: stat 0x76, FUN_005b0e00(0xd)
+    if (super == 6) { monster.half_freeze = true; monster.special = 0xd; }   // FUN_005a49b0 case 6, the Countess: FUN_00639db0(0x76) (state 118), FUN_005b0e00(0xd)
     monster.hit_points = monster.stats.hit_points;
     monster.last_hp = monster.hit_points;
     if (super >= 0 && std::size_t(super) < game_data.superuniques.size()) monster.npc.name = game_data.superuniques[std::size_t(super)].name;
