@@ -1167,7 +1167,7 @@ level, and returns level +0x1d0 (its id). The other getter caller,
 FUN_00458f40, saves the result in EDI but never reads it: that call is dead.
 
 `FUN_0061aaf0` is the level-id form of the town predicate: its assembly loads
-its one stack argument into ECX and calls `FUN_006426a0` (`0061aaf3..0061aafc`).
+its one stack argument into ECX and calls `FUN_006426a0` (`LAB_0061aaf3..LAB_0061aafc`).
 Thus it has the same five town ids listed below, not another room test. Its
 callers include the client UI (`FUN_004b8730`), object warps (`FUN_00584f60`)
 and the two-player town interaction (`FUN_00566e60`).

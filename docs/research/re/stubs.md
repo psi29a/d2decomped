@@ -42,7 +42,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_005347b0` | Player.cpp callback | stub (`ret 0xc`) | the call returns without a Player action | not ported | "Player stub 005347b0" below |
 | `FUN_005347c0` | Player.cpp callback | stub (`ret 0x10`) | six calls return without a Player action | not ported | "Player stub 005347c0" below |
 | `FUN_00458f40` | room2 result from `FUN_0061aae0` is saved in EDI and never read | dead | the computed room2 pointer is discarded | not ported | drlg.md "A room's life on the server" |
-| `FUN_00538860` | client `+0x3d4` bit 2 setter, with a first-enable `FUN_0053fc70` callback | orphan (no call, jump or pointer) | this setter and its callback never run | not ported | net-join.md "Client record accessors" |
+| `FUN_00538860` | client `+0x3d4` bit 2 setter, with a first-enable `FUN_0053fc70` callback | orphan (no call, jump or pointer) | this setter never runs; `FUN_0053fc70` also has a static caller, `0052c410` | not ported | net-join.md "Client record accessors" |
 
 ### ItemMode stub
 
