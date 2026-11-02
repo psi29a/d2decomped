@@ -701,11 +701,18 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
         blow.hit_class = missile.info->hit_class | skill->hit_class;
         if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
-        if (blow.hit && freeze > 0) blow.chill_ticks = std::max(blow.chill_ticks, freeze);
+        d2d::rules::Freeze frozen;
+        if (const auto& struck = monsters[monster_index]; blow.hit && freeze > 0 && struck.type >= 0) {
+            const int cold_effect = game_data->monsters.types[std::size_t(struck.type)].diff[std::size_t(struck.difficulty)].cold_effect;
+            frozen = d2d::rules::monster_freeze(freeze, target, pierce()[2], cold_effect, game_data->freeze_divisor[std::size_t(struck.difficulty)]);
+        }
         land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
         if (missile.striker < 0) monster_return_fire(monster_index, missile, missile.by_merc, now_ms);
         // A freeze stands it as a stun does, without the stun's guards.
-        if (blow.hit && freeze > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(freeze) * 40);
+        // ponytail: state 0x36 (no freeze) and the freeze's own events
+        // (FUN_005417d0 0xc / 2) aren't kept; a length / divisor of 0 sets
+        // state 1 for no frame and isn't kept either.
+        if (frozen.freeze_ticks > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frozen.freeze_ticks) * 40);
     }
 
 auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze ) -> void {

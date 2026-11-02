@@ -487,6 +487,21 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     return blow;
 }
 
+// A monster's freeze (FUN_0057b230): the length FUN_0057c1e0 left, which
+// is cut by the cold resist less pierce as the chill length is (record
+// +0x34, row 6 of the table at 0x732980, as row 5 is +0x30); nothing when
+// that is 0 or less. The monster is frozen only at a negative coldeffect
+// (FUN_0057af30), for the length / MonsterFreezeDivisor (+0x14), and isn't
+// chilled for it.
+struct Freeze { int freeze_ticks = 0, chill_ticks = 0; };
+inline Freeze monster_freeze(int length, const Target& target, int cold_pierce, int cold_effect, int divisor) {
+    int res = target.res[4];
+    if (res < 100) res = std::max(res - cold_pierce, -100);
+    const int resisted_length = resisted(length, res);
+    if (resisted_length <= 0 || cold_effect >= 0 || divisor == 0) return {};
+    return { .freeze_ticks = resisted_length / divisor };
+}
+
 // What a skill adds to a blow (docs/research/re/skills.md, "Melee skills"):
 // its attack-rating bonus % (toht) and enhanced damage % (calc1) joining
 // the gear's percentages, damage added after the build (calc2), the share
