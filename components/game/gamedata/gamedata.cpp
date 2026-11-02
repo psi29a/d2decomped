@@ -314,7 +314,8 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
                     it->seed = d2d::rules::Rng{ spawning.game.next() };
                     // Its init's two draws: the look (FUN_005739d0) and the life
                     // (FUN_00573cb0); what the Npc AI thinks on (town_npcs.hpp).
-                    // ponytail: the rogues' init draws (up to 11) aren't stepped; nothing rolls on them.
+                    // The guard rogues' init draws (up to 11) aren't stepped: AI Idle, they never read
+                    // their seed again (Idle only stands 200 frames: monster-ai.md), so none of it shows.
                     if (it->town_ai != TownAi::none) { it->seed.next(); it->seed.next(); }
                 }
         return;
