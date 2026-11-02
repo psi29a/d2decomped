@@ -431,6 +431,11 @@ int main(int argc, char** argv) {
             dealt += std::int64_t(bolt_blow.damage) * 256 + bolt_blow.frac;
         }
         assert(std::abs(double(dealt) / kBolts / 256 - 3.0) < 0.03);
+        // The top 256th is never rolled (FUN_005a8910: min + rand(max - min)), and nothing without a min over 0.
+        const MissileDamage edge{ .etype = 1, .elo = 256, .ehi = 257, .elen = 25 };
+        Rng edge_rng{ 11 };
+        for (int i = 0; i < 1000; ++i) assert(missile_blow(edge, Target{}, {}, edge_rng).frac == 0);
+        assert(missile_blow(MissileDamage{ .etype = 1, .elo = 0, .ehi = 512 }, Target{}, {}, edge_rng).damage == 0);
         {   // MulDiv (FUN_00483360), cases run on game.exe in tools/emu: each branch, the wraps.
             constexpr std::array<std::array<int, 4>, 11> kCases{ { { 25600, 40, 100, 10240 }, { 1280000, 37, 100, 473600 }, { 1048577, 3, 7, 449388 },
                 { 8388607, 99, 3, 276823998 }, { 1000, 65537, 9, 7281000 }, { 70000, 131072, 3, -1236667296 }, { 70000, 131072, 36864, 248888 },

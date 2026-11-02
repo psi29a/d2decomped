@@ -442,7 +442,10 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     }
     if (damage.etype < 0 || damage.etype > 5 || damage.ehi <= 0) return blow;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
-    const int roll = rng.range(damage.elo, damage.ehi);
+    // FUN_005a8910: nothing unless both ends are over 0, then min + rand(max -
+    // min) on the missile's seed: the max itself is never rolled.
+    const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
+    const int roll = low > 0 ? low + rng(high - low) : 0;
     if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
     int res = target.res[std::size_t(kRes[damage.etype])];
     if (damage.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(damage.etype)], -100);
