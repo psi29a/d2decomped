@@ -458,8 +458,8 @@ inline int armor_scaled(const Tables& tables, const d2d::d2s::Item& item, int co
 inline int price_term(int mul, int add, int price, int value, int limit, int shift) {
     const auto wrap = [](long long number) { return std::int32_t(std::uint32_t(number)); };
     const int scale = 1 << shift;
-    return limit < 0x10000 || mul == 0 ? wrap(wrap(wrap(1LL * mul * price) * value) / scale + add)
-                                       : wrap(wrap(1LL * price * value) / scale * 1LL * mul + add);
+    return limit < 0x10000 || mul == 0 ? wrap(1LL * wrap(1LL * wrap(1LL * mul * price) * value) / scale + add)
+                                       : wrap(1LL * wrap(1LL * price * value) / scale * mul + add);
 }
 
 // What an item's magic stats add to a price (FUN_00628e70): each stat of the
