@@ -778,18 +778,32 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
     return true;
 }
 
-// Sells inventory item i: gold up by the sell value (carried gold caps
-// at clvl x 10000), the item joins the stock.
-// ponytail: quest items aren't refused, no belt/equipped selling; what the
-// original does with a sale over the purse cap isn't traced; FUN_00579510
-// keeps no cracked, broken (0x100), unique, personalized or ethereal one
-// (nor what FUN_0055f590 / FUN_00575fa0 / FUN_00576ed0 refuse), d2d keeps all.
-inline void store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
-    const int price = item_price(tables, items[index], store.npc_id, true, store.header);
-    stats.values[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
-                                                       stats.get(d2d::d2s::kLevel) * 10000);
-    (void)store_place(tables, store, store_tab_for(tables, items[index].code), items[index]);   // no room: gone, sold all the same (FUN_00579510 frees it)
+// Sells inventory item i (FUN_00579510): gold up by the sell value, what
+// passes the carried cap (clvl x 10000) returned to drop at the player's
+// feet (FUN_0055b060). The vendor stocks a copy at full durability and stack
+// (stats 72 / 70) unless it's Cracked (LowQualityItems row 1), broken
+// (0x100), unique, personalized, ethereal, a greater or super potion in an
+// expansion game, or one of the vendor's perm items (FUN_00576ed0).
+// ponytail: quest items aren't refused, no belt/equipped selling;
+// FUN_0055f590's test and the vendor proxy's +4 flag (FUN_00536cb0) aren't kept.
+inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    const auto& sold = items[index];
+    const int price = item_price(tables, sold, store.npc_id, true, store.header);
+    const auto cap = stats.get(d2d::d2s::kLevel) * 10000, purse = stats.get(d2d::d2s::kGold);
+    const auto over = std::max<std::int64_t>(purse + price - std::max(cap, purse), 0);
+    stats.values[d2d::d2s::kGold] = purse + price - over;
+    static constexpr std::array<std::string_view, 4> kStrongPotions = { "hp4", "hp5", "mp4", "mp5" };
+    const bool kept = !(sold.quality == 1 && sold.qsub == 1) && !(sold.flags & 0x100u) && sold.quality != 7 && !sold.personalized && !sold.ethereal
+                      && !(store.header.expansion() && std::ranges::find(kStrongPotions, sold.code) != kStrongPotions.end())
+                      && std::ranges::find(store.perm, sold.code) == store.perm.end();
+    if (kept) {
+        auto copy = sold;
+        copy.durability = max_durability(copy);
+        if (const auto base = tables.item_base.find(copy.code); base != tables.item_base.end() && copy.quantity >= 0) copy.quantity = std::min(base->second.max_stack, 511);
+        (void)store_place(tables, store, store_tab_for(tables, copy.code), copy);   // no room: sold all the same
+    }
     items.erase(items.begin() + std::ptrdiff_t(index));
+    return over;
 }
 
 // Is type t (or one of its Equiv ancestors) the type want?

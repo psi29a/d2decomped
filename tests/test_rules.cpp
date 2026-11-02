@@ -189,11 +189,15 @@ int main() {
     stats.values[kGoldBank] = 100000;
     assert(!store_buy(tables, shop, 0, packed, stats) && stats.get(kGoldBank) == 100000);   // no room
 
-    // Selling: gold up, capped at clvl x 10000; the item joins the stock.
+    // Selling (FUN_00579510): gold up to clvl x 10000, the rest handed back to
+    // drop (FUN_0055b060); the item joins the stock, a perm one doesn't.
     stats.values[kGold] = 9900;
-    store_sell(tables, shop, 0, inv, stats);
+    const int axe_price = item_price(tables, inv[0], shop.npc_id, true, shop.header);
+    assert(store_sell(tables, shop, 0, inv, stats) == 9900 + axe_price - 10000);
     assert(stats.get(kGold) == 10000);
     assert(inv.size() == 1 && shop.tabs[1].size() == 2);
+    const auto stocked_keys = shop.tabs[3].size();
+    assert(store_sell(tables, shop, 0, inv, stats) >= 0 && inv.empty() && shop.tabs[3].size() == stocked_keys);   // the key: perm
 
     // The item cursor.
     Tables cursor_tables;
