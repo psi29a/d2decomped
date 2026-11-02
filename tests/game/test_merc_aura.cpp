@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <vector>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;

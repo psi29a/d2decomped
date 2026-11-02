@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <initializer_list>
 #include <string>
 
 namespace fs = std::filesystem;

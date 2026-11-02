@@ -395,16 +395,16 @@ int main(int argc, char** argv) {
     assert(taken.hit && taken.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
     assert(taken.physical == 75 && taken.elemental == 8);                      // Bone Armor's part, Cyclone Armor's
     {                                                                  // a sure hit (DiabRun, DiabCold, a monster's Charge): no FUN_0057ec10
-        Fighter wall = defender;
-        wall.block = 100; wall.dodge = 100; wall.defense = 1000000;
-        MonStats blind = mon;
-        blind.to_hit = 1;
+        Fighter guard = defender;
+        guard.block = 100; guard.dodge = 100; guard.defense = 1000000;
+        MonStats feeble = mon;
+        feeble.to_hit = 1;
         for (int i = 0; i < 20; ++i) {
-            assert(!monster_blow(wall, 99, Motion::standing, blind, false, rng).hit);
-            assert(monster_blow(wall, 99, Motion::standing, blind, false, rng, false, true).damage == 75 + 8);
+            assert(!monster_blow(guard, 99, Motion::standing, feeble, false, rng).hit);
+            assert(monster_blow(guard, 99, Motion::standing, feeble, false, rng, false, true).damage == 75 + 8);
         }
         // A ToHit 0 missile (FUN_005adf10): no to-hit roll, but block and avoid still come (FUN_005ad730).
-        MonStats shot = blind;
+        MonStats shot = feeble;
         shot.no_hit_roll = true;
         shot.a2_min = shot.a2_max = 100; shot.elements = {};
         Fighter open = defender;
@@ -414,9 +414,9 @@ int main(int argc, char** argv) {
         shield.block = 100;
         assert(monster_blow(shield, 99, Motion::standing, shot, true, rng, true).blocked);
         shot.no_hit_roll = false;
-        int landed = 0;
-        for (int i = 0; i < 200; ++i) landed += monster_blow(open, 99, Motion::standing, shot, true, rng, true).hit;
-        assert(landed < 30);                                           // a ToHit row rolls: about 5 %
+        int connected = 0;
+        for (int i = 0; i < 200; ++i) connected += monster_blow(open, 99, Motion::standing, shot, true, rng, true).hit;
+        assert(connected < 30);                                           // a ToHit row rolls: about 5 %
 
     }
     {                                                                  // cold chills, poison runs per tick (FUN_0057b7d0, FUN_0057c1e0)
