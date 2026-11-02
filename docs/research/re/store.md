@@ -135,7 +135,20 @@ The base y is 539 (= 60 + 255 + 224):
   2. plus quality extras, only when the item is identified (`0062f182`):
      low quality −base/2; magic prefix + suffix,
      set, unique, rare/crafted affixes, each `mul·base/1024 + add`
-     from the affix/set/unique cost columns;
+     from the affix/set/unique cost columns; superior, magic, rare and
+     crafted also add each magic stat's cost (`FUN_00628e70`: the full
+     stat list less the base one, ItemStatCost Multiply·base·value/1024 +
+     Add; a skill stat, Encode 1 by its value or 2/3 by its level, takes
+     Skills.txt cost mult / cost add, a sale's / 4096; value 0 skipped).
+     Staff mods (`FUN_0062edd0`: each stat 107, (2·level − 1)·(skill cost
+     mult·price/1024 + cost add), a sale's / 4096) count on the base below
+     magic, identified or not, and on the price with its extras from magic
+     up when identified. Its ItemTypes StaffMods check (+0x1f != 7) never
+     fails: an empty column loads as 0xff, so every type pays. Above
+     0xffff each term divides the price first; the buy side's price picks
+     that branch for a sale and a repair too. `rules::item_price`,
+     `stat_costs`, `staff_mod_costs`; `tools/emu/price_oracle.py` cases
+     carry magic stats (20000 cases: buy and sell exact, stacks aside);
   3. plus half of each socketed item's cost; ethereal sells for ¼, and a
      class item (ItemTypes Class, `FUN_0062c060`) for ¼ again; an
      ethereal item with durability worn to 0 sells for nothing (the
@@ -240,10 +253,30 @@ column. Everything else, with C = max(clvl, 5), qlvl the base's level:
 (ItemsTxt fields: +0xd4 gamble cost, +0xe0 cost, +0xe4/+0xe8 min/max
 stack, +0xfd level, +0x88/+0x8c uber/ultra codes.)
 
-d2d rolls the item with the same upgrade weights, level clvl−5..clvl+4,
-and DifficultyLevels GambleUnique / GambleSet / GambleRare per 100000,
-else magic (`gamble_item`); the server's own roll isn't traced. Stock:
-every gamble.txt base up to clvl (the game shows a random subset).
+Stock (`FUN_00578790`, from the trade open `FUN_00578b30` →
+`FUN_00578ae0`, once per player at the vendor): 14 items, all on the
+proxy seed (`FUN_00536b40`):
+
+- level = clvl − 5 + (seed % 10), under 6 → 5, over 98 → 99;
+- base = rand(count) of the gamble table (`FUN_00638cc0`: gamble.txt
+  sorted by Items +0xfd with game.exe's qsort, `FUN_00638ac0`, not
+  stable; count = the bases up to that level); a classic game skips an
+  expansion base (version ≥ 100) and rolls again;
+- the first two are a ring and an amulet instead ("rin " / "amu ");
+- upgrade (`FUN_005786a0`, expansion only): rand(10000) <
+  (level − ubercode's level) × GambleUber + 1 takes the ubercode, else
+  the same with the ultracode and GambleUltra; a weight under 1 rolls
+  nothing (and skips the ultracode);
+- quality: rand(100000) < rare + set + unique (DifficultyLevels +0x44,
+  +0x48, +0x4c): < unique 7, < unique + set 5, else 6; otherwise magic;
+- made as a drop (`FUN_00559ce0`), unidentified, put in the vendor's
+  grid; one that doesn't fit ends the roll.
+
+Buying one pays the gamble price of its code; the client's C->S 37
+names it and the server identifies it (`FUN_00578640`). d2d:
+`rules::open_gamble`, `gamble_upgrade_code`, `msvc_qsort` (the gamble
+table's order checked against the emulator's), `store_gamble`. d2d rolls
+a stock at every opening: what clears the per-player list isn't traced.
 
 ## Item generation (d2d, `components/rules` `generate_item`)
 

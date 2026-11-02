@@ -64,6 +64,18 @@ int main() try {
         for (const auto& x : out) assert(x.code == "rin" ? x.quality >= 4 : x.quality == 2);   // rings magic+, potions plain
     }
     assert(dropped > 400 && dropped < 600 && magic > 0);
+    {   // A monster dropper caps the NoDrop players at its monster_playercount (stat 100).
+        int eight = 0, capped = 0, alone = 0;
+        Rng seed_a{ 5 }, seed_b{ 5 }, seed_c{ 5 };
+        for (int i = 0; i < 200; ++i) {
+            std::vector<Drop> out_a, out_b, out_c;
+            roll_drops(tables, "Half", 1, seed_a, out_a, 8, 0, 6, 0, 8);
+            roll_drops(tables, "Half", 1, seed_b, out_b, 8, 0, 6, 0, 8, 1);
+            roll_drops(tables, "Half", 1, seed_c, out_c);
+            eight += int(out_a.size()); capped += int(out_b.size()); alone += int(out_c.size());
+        }
+        assert(capped == alone && eight > alone);
+    }
     // Quality (FUN_00558640): one draw per step off the dropper's seed; a
     // 1024 modifier makes the odds 0, so that quality wins without a draw.
     {
@@ -235,6 +247,28 @@ int main() try {
     assert(imbued.code == "hax" && imbued.quality == 6 && imbued.ilvl == 12 && !imbuable(tables, imbued));
     axe.quality = 4;
     assert(!imbuable(tables, axe));
+    // FUN_0062c590: flag 0x1000 refused; a throwable type only in a classic game.
+    axe.quality = 2;
+    axe.flags = kItemNoService;
+    assert(!imbuable(tables, axe));
+    axe.flags = 0;
+    tables.item_info["hax"].type = "taxe";
+    tables.types["taxe"].throwable = true;
+    assert(imbuable(tables, axe, true) && !imbuable(tables, axe, false));
+    tables.item_info["hax"].type.clear();
+    // FUN_0062c770 / FUN_0062c6a0: broken, flag 0x1000 or item_numsockets refuse.
+    tables.item_base["hax"].gem_sockets = 3;
+    tables.item_info["hax"].type = "axe";
+    tables.types["axe"].max_sock = { 3, 3, 3 };
+    tables.item_base["hax"].nameable = true;
+    assert(socketable(tables, axe) && nameable(tables, axe));
+    axe.flags = 0x100;
+    assert(!socketable(tables, axe) && !nameable(tables, axe));
+    axe.flags = kItemNoService;
+    assert(!socketable(tables, axe) && !nameable(tables, axe));
+    axe.flags = 0;
+    axe.props = { { 194, 0, 2 } };
+    assert(!socketable(tables, axe) && nameable(tables, axe));
     std::printf("half drops: %d of 1000, %d magic or better\n", dropped, magic);
     std::puts("ok");
 } catch (const std::exception& error) {

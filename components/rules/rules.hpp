@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <map>
 #include <optional>
 #include <queue>
 #include <span>
@@ -149,8 +150,9 @@ struct PropFunc { int func = 0, stat = -1, val = 0; };
 // when unused), its full bonuses FCode1..8, and how many SetItems rows
 // belong to it (the record's +0xc).
 struct SetBonus { std::vector<Mod> partial, full; int pieces = 0; };
-// DifficultyLevels gamble odds, per 100000 (rare/set/unique).
-struct GambleRates { int rare = 10000, set = 100, unique = 50; };
+// DifficultyLevels gamble odds: rare / set / unique per 100000 (+0x44 ..
+// +0x4c), the upgrades' weight per level over the upgrade's (of 10000).
+struct GambleRates { int rare = 10000, set = 100, unique = 50, uber = 0, ultra = 0; };   // + GambleUber / GambleUltra (+0x50 / +0x54)
 
 // D2's seed (FUN_0045c370 / FUN_0045c3e0): 64 bits as {low, high}; a
 // step is low * 0x6AC690C5 + high, split back into low and high. A roll
@@ -229,6 +231,9 @@ struct Tables {
     // books.txt CostPerCharge by BookSpellCode (tbk, ibk): what each scroll in a tome adds to its price (FUN_0062efb0).
     std::unordered_map<std::string, int> book_charge_cost;
     std::vector<std::pair<int, int>> skill_costs;          // Skills.txt cost mult, cost add by Id (+0x234 / +0x238: a charge's repair, FUN_00628d30)
+    // ItemStatCost Multiply, Add, Encode by ID (+0x10, +0x14, +0x30): what a magic stat adds to a price (FUN_00628e70).
+    struct StatCost { int mul = 0, add = 0, encode = 0; };
+    std::vector<StatCost> stat_cost;
     std::array<int, 7> class_first_skill{};                // per class its first skill Id (FUN_006460f0)
     std::vector<Special> uniques, sets;
     std::vector<std::string> item_order;                  // item codes in the Items table's order (weapons, armor, misc)
@@ -446,6 +451,63 @@ inline int armor_scaled(const Tables& tables, const d2d::d2s::Item& item, int co
     return int(std::int64_t(cost) * item.defense / base->second.maxac);
 }
 
+// game.exe's `mul * price * value / 1024 + add` in 32 bits: above 0xffff (and a
+// mul) the price * value is divided first. `limit` is the buy side's price *
+// value, which picks the branch for the sale and the repair too; `shift` is 10,
+// or 12 for a sale's skill terms.
+inline int price_term(int mul, int add, int price, int value, int limit, int shift) {
+    const auto wrap = [](long long number) { return std::int32_t(std::uint32_t(number)); };
+    const int scale = 1 << shift;
+    return limit < 0x10000 || mul == 0 ? wrap(1LL * wrap(1LL * wrap(1LL * mul * price) * value) / scale + add)
+                                       : wrap(1LL * wrap(1LL * price * value) / scale * mul + add);
+}
+
+// What an item's magic stats add to a price (FUN_00628e70): each stat of the
+// item's full list less its base one, summed by stat and param, costs the
+// ItemStatCost Multiply / Add on `price` x value (a sale's too). A skill stat
+// takes the skill's Skills.txt cost mult / add instead: Encode 1 (the param is
+// the skill) by the value, Encode 2 / 3 (skill << 6 | level: on-hit, charges) by
+// the level, a sale by / 4096. Encode 4 (by time) is mult 0 and no add in 1.14d.
+// `buy` is the buy side's price, which picks the branch. The save's lists (the
+// main one, a runeword's after it) stand for the magic lists.
+// ponytail: a socketed item's own stats, if the full list holds them, aren't added.
+inline int stat_costs(const Tables& tables, const d2d::d2s::Item& item, int buy, int price, bool sell) {
+    std::map<std::pair<int, int>, int> stats;
+    for (const auto& prop : item.props) stats[{ prop.stat, prop.param }] += prop.value;
+    int total = 0;
+    for (const auto& [key, value] : stats) {
+        const auto [stat, param] = key;
+        if (value == 0 || stat < 0 || std::size_t(stat) >= tables.stat_cost.size()) continue;
+        const auto& cost = tables.stat_cost[std::size_t(stat)];
+        if (cost.encode >= 1 && cost.encode <= 3) {
+            const int skill = cost.encode == 1 ? param : param >> 6, level = cost.encode == 1 ? value : param & 63;
+            if (skill < 0 || std::size_t(skill) >= tables.skill_costs.size()) continue;
+            const auto [mul, add] = tables.skill_costs[std::size_t(skill)];
+            total += price_term(mul, add, price, level, buy * level, sell ? 12 : 10);
+        } else {
+            total += price_term(cost.mul, cost.add, price, value, buy * value, 10);
+        }
+    }
+    return total;
+}
+
+// What an item type's staff mods add (FUN_0062edd0): each item_singleskill
+// (stat 107) costs (2 x level - 1) x (the skill's cost mult x price / 1024 +
+// cost add), a sale's / 4096; above 0xffff the mult is divided, not the price.
+// `buy` picks the branch. Any item type: the check against ItemTypes StaffMods
+// (+0x1f != 7) never fails, as an empty StaffMods loads as 0xff (emu-read).
+inline int staff_mod_costs(const Tables& tables, const d2d::d2s::Item& item, int buy, int price, bool sell) {
+    int total = 0;
+    for (const auto& prop : item.props) {
+        if (prop.stat != 107 || prop.param < 0 || std::size_t(prop.param) >= tables.skill_costs.size()) continue;
+        const auto [mul, add] = tables.skill_costs[std::size_t(prop.param)];
+        const int scale = sell ? 4096 : 1024;
+        const int each = buy < 0x10000 || mul == 0 ? mul * price / scale + add : mul / scale * price + add;
+        total += each * (prop.value * 2 - 1);
+    }
+    return total;
+}
+
 // Buy (sell = false) or sell price of an item at the NPC with MonStats Id
 // npc_id, for the player's header (difficulty, quest flags).
 inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, bool sell,
@@ -468,26 +530,38 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
         base = int(std::int64_t(base) * count / 1024);
     }
     base = armor_scaled(tables, item, base);
+    // Staff mods count on the base below magic (FUN_0062a0f0: quality 4 .. 9),
+    // identified or not (0062f166), and on the price with its extras from magic up.
+    // The buy side's base picks every branch below, a sale's too.
+    const bool magic = item.quality >= 4;
+    const int buy_base = magic ? base : base + staff_mod_costs(tables, item, base, base, false);
+    if (!magic) base += staff_mod_costs(tables, item, base, base, sell);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
-        return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
+        return (buy_base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
     };
     // The quality extras count only once the item is identified (0062f182):
     // an unidentified magic item sells as a normal one, a low quality one isn't halved.
-    // ponytail: the stats' own costs (FUN_00628e70) and staff mods (FUN_0062edd0) aren't added.
-    int x = 0;
-    switch (item.identified ? item.quality : 0) {
-        case 1: x = -(base / 2); break;
-        case 4: x = extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); break;
-        case 5: x = extra(tables.set_cost, item.set_id); break;
-        case 7: x = extra(tables.unique_cost, item.unique_id); break;
-        case 6: case 8:
-            for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
-            break;
-        default: break;
-    }
-    long long price = base + x;
+    // Superior, magic, rare and crafted add their stats' costs (0062f814).
+    auto extras = [&](bool sale) {
+        int x = 0;
+        switch (item.identified ? item.quality : 0) {
+            case 1: x = -(base / 2); break;
+            case 3: x = stat_costs(tables, item, buy_base, base, sale); break;
+            case 4: x = extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix) + stat_costs(tables, item, buy_base, base, sale); break;
+            case 5: x = extra(tables.set_cost, item.set_id); break;
+            case 7: x = extra(tables.unique_cost, item.unique_id); break;
+            case 6: case 8:
+                for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
+                x += stat_costs(tables, item, buy_base, base, sale);
+                break;
+            default: break;
+        }
+        return x;
+    };
+    long long price = base + extras(sell);
+    if (magic && item.identified) price += staff_mod_costs(tables, item, base + extras(false), int(price), sell);
     for (const auto& socketed : item.socketed_items)
         if (const auto socketed_base = tables.item_base.find(socketed.code); socketed_base != tables.item_base.end()) price += socketed_base->second.cost / 2;
     if (sell && item.ethereal) price /= 4;
@@ -588,7 +662,8 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
         const int charges = charges_repair_cost(tables, item);
         return charges > 0 ? int(price_reduced(charges, reduced)) : 0;
     }
-    const int base = armor_scaled(tables, item, found != tables.item_base.end() ? found->second.cost : 0);
+    int base = armor_scaled(tables, item, found != tables.item_base.end() ? found->second.cost : 0);
+    if (item.quality < 4) base += staff_mod_costs(tables, item, base, base, false);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
@@ -597,22 +672,28 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
     long long x = base;
     switch (item.quality) {
         case 1: x -= base / 2; break;
-        case 4: x += extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); break;
+        case 3: x += stat_costs(tables, item, base, base, false); break;
+        case 4: x += extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix) + stat_costs(tables, item, base, base, false); break;
         case 5: x += extra(tables.set_cost, item.set_id); break;
         case 7: x += extra(tables.unique_cost, item.unique_id); break;
         case 6: case 8:
             for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
+            x += stat_costs(tables, item, base, base, false);
             break;
         default: break;
     }
-    long long cost = restock ? (max_stack - item.quantity) * x / max_stack : (max - item.durability) * x / max;
+    if (item.quality >= 4) x += staff_mod_costs(tables, item, int(x), int(x), false);
+    // The missing share's product is game.exe's 32 bits (0062fa35).
+    long long cost = restock ? (max_stack - item.quantity) * x / max_stack : std::int32_t(std::uint32_t((max - item.durability) * x)) / max;
     if (const auto price_row = tables.npc_prices.find(npc_id); price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
-        cost = cost * prices.rep / 1024;
+        // Above 0xffff the cost is divided by 1024 before the mult, as a price's (0062fb1d).
+        auto scale = [&cost](int mult) { cost = std::int32_t(std::uint32_t(cost < 0x10000 || mult == 0 ? cost * mult / 1024 : cost / 1024 * mult)); };
+        scale(prices.rep);
         const int diff = header.active_difficulty();
         for (int quest = 0; quest < 3; ++quest)
             if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
-                cost = cost * prices.qrep[std::size_t(quest)] / 1024;
+                scale(prices.qrep[std::size_t(quest)]);
     }
     return int(price_reduced(cost + charges_repair_cost(tables, item), reduced));
 }
@@ -1532,14 +1613,24 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     return item;                                           // ponytail: without a unit seed magic isn't game.exe's
 }
 
+// Item flag 0x1000 (data +0x18, the save's flags too): no NPC service
+// takes the item (FUN_0062c590 / FUN_0062c770 / FUN_0062c6a0).
+inline constexpr std::uint32_t kItemNoService = 0x1000;
+
 // Whether Charsi's imbue takes `item` (FUN_0062c590): Items bitfield1
-// bit 0, not gold, not socketed, not a quest item but Wirt's leg,
-// quality low / normal / superior.
-// ponytail: throwables (FUN_0062ba80) and the unit flag 0x1000 aren't
-// checked.
-inline bool imbuable(const Tables& tables, const d2d::d2s::Item& item) {
+// bit 0, not gold, no flag 0x1000, not socketed (flag 0x800) nor holding
+// anything (FUN_0062a270), not a quest item but Wirt's leg, quality low /
+// normal / superior. A throwable type (FUN_0062ba80) is refused in a
+// classic game only: the unit's +0xc8 bit 0x2000000 is the game's
+// expansion flag (game +0x70, set by FUN_00555230).
+inline bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expansion = true) {
     const auto found = tables.item_base.find(item.code);
-    if (item.code == "gld" || found == tables.item_base.end() || !(found->second.bitfield1 & 1)) return false;
+    if (item.code == "gld" || (item.flags & kItemNoService) || found == tables.item_base.end() || !(found->second.bitfield1 & 1)) return false;
+    if (!expansion) {
+        const auto info = tables.item_info.find(item.code);
+        const auto type = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+        if (type != tables.types.end() && type->second.throwable) return false;
+    }
     if (found->second.quest && item.code != "leg") return false;
     return !item.socketed && item.socketed_items.empty() && item.quality >= 1 && item.quality <= 3;
 }
@@ -1580,14 +1671,16 @@ inline int most_sockets(const Tables& tables, const d2d::d2s::Item& item) {
     if (type == tables.types.end()) return 0;
     return std::min(base->second.gem_sockets, type->second.max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)]);
 }
-// Whether Larzuk's socketing takes `item` (FUN_0062c770): not gold, not a
-// quest item but Wirt's leg, no sockets yet and room for one.
-// ponytail: the unit flags 0x1000 / 0x100 and FUN_0062a270's stat-list
-// check aren't, as imbuable.
+// Whether Larzuk's socketing takes `item` (FUN_0062c770): not gold, no
+// flag 0x1000, not a quest item but Wirt's leg, not broken (flag 0x100),
+// holding nothing (FUN_0062a270), not socketed (flag 0x800), most_sockets
+// above 0 (FUN_0062bc20) and no item_numsockets (stat 194, FUN_006299b0).
 inline bool socketable(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_base.find(item.code);
-    if (item.code == "gld" || found == tables.item_base.end() || (found->second.quest && item.code != "leg")) return false;
-    return !item.socketed && item.sockets == 0 && most_sockets(tables, item) > 0;
+    if (item.code == "gld" || (item.flags & kItemNoService) || found == tables.item_base.end() || (found->second.quest && item.code != "leg")) return false;
+    if (broken(item) || !item.socketed_items.empty()) return false;
+    const bool numsockets = std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == 194 && prop.value != 0; });
+    return !item.socketed && item.sockets == 0 && !numsockets && most_sockets(tables, item) > 0;
 }
 // Larzuk's sockets (FUN_00579d60 at hcIdx 0x1ff): magic 1 + rand(the most,
 // at most 2) on the item's seed; set, rare, unique, crafted (5..9) 1;
@@ -1606,12 +1699,12 @@ inline d2d::d2s::Item socket_item(const Tables& tables, const d2d::d2s::Item& it
 }
 // Whether Anya's personalizing takes `item` (FUN_0062c6a0): not gold, a
 // quiver or an ear (types 5..7), not broken or personalized already, not a
-// compact-save item (Items +0x143) and nameable (+0x145).
-// ponytail: the unit flag 0x1000 and broken (0x100) aren't checked.
+// compact-save item (Items +0x143) and nameable (+0x145); no flag 0x1000,
+// not broken (0x100).
 inline bool nameable(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_base.find(item.code);
     const auto info = tables.item_info.find(item.code);
-    if (item.code == "gld" || item.code == "ear" || found == tables.item_base.end() || info == tables.item_info.end()) return false;
+    if (item.code == "gld" || item.code == "ear" || (item.flags & kItemNoService) || broken(item) || found == tables.item_base.end() || info == tables.item_info.end()) return false;
     if (info->second.type == "bowq" || info->second.type == "xboq") return false;
     return found->second.nameable && !item.personalized && !item.simple;
 }
@@ -1634,62 +1727,142 @@ inline int gamble_price(const Tables& tables, const std::string& code, int clvl,
     return int(price_reduced((lvl + mix) * ((level * 2 + 1) / 3 + 20) / 15, reduced));
 }
 
-// Gambles on `code`: the base may upgrade (exceptional / elite, by the
-// same odds the price uses), the level is clvl-5..clvl+4, the quality
-// unique / set / rare by DifficultyLevels odds per 100000, else magic.
-// ponytail: the server's gamble roll isn't traced; those are the table
-// odds and the price's upgrade weights.
-inline d2d::d2s::Item gamble_item(const Tables& tables, const std::string& code, int clvl, int diff, Rng& rng) {
-    std::string chosen_code = code;
-    if (const auto found = tables.item_base.find(code); found != tables.item_base.end()) {
-        const auto [exceptional_chance, elite_chance] = gamble_upgrade(tables, code, clvl);
-        const int roll = rng(10000);
-        if (roll < elite_chance) chosen_code = found->second.ultracode;
-        else if (roll < elite_chance + exceptional_chance) chosen_code = found->second.ubercode;
+// game.exe's qsort (MSVC CRT: median of three, a selection sort under 9,
+// the bigger half kept for later): not stable, so equal keys come out in its
+// own order. `less_than` stands for the comparator's < 0 (> 0 by swapping).
+template <class Value, class Less>
+void msvc_qsort(std::vector<Value>& values, Less less_than) {
+    if (values.size() < 2) return;
+    auto compare = [&](std::size_t left, std::size_t right) { return less_than(values[right], values[left]) ? 1 : less_than(values[left], values[right]) ? -1 : 0; };
+    std::vector<std::pair<std::size_t, std::size_t>> pending;
+    std::size_t low = 0, high = values.size() - 1;
+    for (;;) {
+        if (high - low + 1 <= 8) {
+            for (std::size_t last = high; last > low; --last) {
+                std::size_t most = low;
+                for (std::size_t at = low + 1; at <= last; ++at) if (compare(at, most) > 0) most = at;
+                std::swap(values[most], values[last]);
+            }
+        } else {
+            std::size_t mid = low + (high - low + 1) / 2;
+            if (compare(low, mid) > 0) std::swap(values[low], values[mid]);
+            if (compare(low, high) > 0) std::swap(values[low], values[high]);
+            if (compare(mid, high) > 0) std::swap(values[mid], values[high]);
+            std::size_t low_guy = low, high_guy = high;
+            for (;;) {
+                if (mid > low_guy) do ++low_guy; while (low_guy < mid && compare(low_guy, mid) <= 0);
+                if (mid <= low_guy) do ++low_guy; while (low_guy <= high && compare(low_guy, mid) <= 0);
+                do --high_guy; while (high_guy > mid && compare(high_guy, mid) > 0);
+                if (high_guy < low_guy) break;
+                std::swap(values[low_guy], values[high_guy]);
+                if (mid == high_guy) mid = low_guy;
+            }
+            ++high_guy;
+            if (mid < high_guy) do --high_guy; while (high_guy > mid && compare(high_guy, mid) == 0);
+            if (mid >= high_guy) do --high_guy; while (high_guy > low && compare(high_guy, mid) == 0);
+            if (high_guy - low >= high - low_guy) {
+                if (low < high_guy) pending.emplace_back(low, high_guy);
+                if (low_guy < high) { low = low_guy; continue; }
+            } else {
+                if (low_guy < high) pending.emplace_back(low_guy, high);
+                if (low < high_guy) { high = high_guy; continue; }
+            }
+        }
+        if (pending.empty()) return;
+        std::tie(low, high) = pending.back();
+        pending.pop_back();
     }
-    const auto& rates = tables.gamble_rates[std::size_t(std::clamp(diff, 0, 2))];
-    const int roll = rng(100000);
-    const int quality = roll < rates.unique ? 7 : roll < rates.unique + rates.set ? 5 : roll < rates.unique + rates.set + rates.rare ? 6 : 4;
-    return generate_item(tables, chosen_code, clvl - 5 + rng(10), quality, rng);
 }
 
-// Gheed's gamble screen: every gamble.txt base up to the character's
-// level, packed like a store (armour, weapons, misc).
-// ponytail: the game shows a random subset and refreshes it; this shows
-// them all and keeps them.
-inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl) {
+// The gamble table (FUN_00638cc0, built at load): gamble.txt's bases sorted
+// by level with game.exe's qsort (FUN_00638ac0 compares Items +0xfd).
+inline std::vector<std::string> gamble_by_level(const Tables& tables) {
+    std::vector<std::string> codes;
+    for (const auto& code : tables.gamble) if (tables.item_base.contains(code)) codes.push_back(code);
+    msvc_qsort(codes, [&](const std::string& left, const std::string& right) { return tables.item_base.at(left).level < tables.item_base.at(right).level; });
+    return codes;
+}
+
+// The gamble upgrade (FUN_005786a0, expansion games only): the ubercode at
+// (level - its level) x GambleUber + 1 of 10000 on the proxy seed, failing
+// that the ultracode at GambleUltra's; no roll when that weight is under 1
+// or the code is none (the ultracode isn't tried then either).
+inline std::string gamble_upgrade_code(const Tables& tables, const std::string& code, int level, const GambleRates& rates, Rng& proxy) {
+    const auto found = tables.item_base.find(code);
+    if (found == tables.item_base.end()) return code;
+    auto weight = [&](const std::string& upgrade, int per_level) {
+        const auto upgrade_base = tables.item_base.find(upgrade);
+        return upgrade_base == tables.item_base.end() ? 0 : (level - upgrade_base->second.level) * per_level + 1;
+    };
+    const int uber = weight(found->second.ubercode, rates.uber);
+    if (uber < 1) return code;
+    if (proxy(10000) < uber) return found->second.ubercode;
+    const int ultra = weight(found->second.ultracode, rates.ultra);
+    return ultra >= 1 && proxy(10000) < ultra ? found->second.ultracode : code;
+}
+
+// Gheed's gamble screen (FUN_00578790, rolled when it opens): 14 items on
+// the proxy seed, each a level clvl - 5 + rand(10) (5 .. 99), a base
+// rand(the bases up to that level) from gamble_by_level (a classic game
+// rolls again past expansion bases), the first two a ring and an amulet
+// instead, then the upgrade, then the quality: rand(100000) under rare +
+// set + unique is unique / set / rare by those odds, else magic. Each is
+// made as a drop (FUN_00559ce0: two game seed steps, generate_item),
+// unidentified, and put on its type's page; one that doesn't fit ends the
+// roll.
+// ponytail: game.exe keeps the list per player at the vendor (FUN_00578ae0)
+// until something clears it (not traced); d2d rolls one at every opening.
+inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int difficulty, bool expansion, Rng& proxy, Rng& game,
+                         std::vector<bool>* found_uniques = nullptr) {
     Store store;
     store.npc_id = std::move(npc_id);
     store.gamble = true;
-    for (const auto& code : tables.gamble) {
-        const auto found = tables.item_base.find(code);
-        if (found == tables.item_base.end() || found->second.level > clvl) continue;
-        d2d::d2s::Item item;
-        item.code = code;
-        item.identified = true;
-        store_place(tables, store, store_tab_for(tables, code), std::move(item));
+    const auto codes = gamble_by_level(tables);
+    const auto& rates = tables.gamble_rates[std::size_t(std::clamp(difficulty, 0, 2))];
+    for (int made = 0; made < 14 && !codes.empty();) {
+        int level = int(proxy.next() % 10) - 5 + clvl;
+        level = level < 6 ? 5 : level > 98 ? 99 : level;
+        const auto up_to = std::ranges::count_if(codes, [&](const std::string& code) { return tables.item_base.at(code).level <= level; });
+        std::string code = codes[std::size_t(proxy(int(up_to)))];
+        if (!expansion && tables.item_base.at(code).version >= 100) continue;
+        if (made < 2) code = made == 0 ? "rin" : "amu";
+        if (expansion) code = gamble_upgrade_code(tables, code, level, rates, proxy);
+        int quality = 4;
+        if (const int odds = rates.rare + rates.set + rates.unique; odds > 0) {
+            const int roll = int(proxy.next() % 100000);
+            if (roll < odds) quality = roll < rates.unique ? 7 : roll < rates.unique + rates.set ? 5 : 6;
+        }
+        ++made;
+        Rng unit_seed{ game.next() }, item_seed{ game.next() };
+        auto item = generate_item(tables, code, level, quality, item_seed, &unit_seed, found_uniques, false, difficulty);
+        item.identified = false;
+        const auto info = tables.item_info.find(item.code);
+        const auto type = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+        const int page = type != tables.types.end() ? type->second.store_page : -1;
+        if (page < 0 || !store_place(tables, store, page, std::move(item))) break;
     }
     store.first_tab();
     return store;
 }
 
-// Gambles on stock item i of the open tab: pays the gamble price (carried
-// gold, then the stash) and puts the rolled item in the inventory. The
-// stock stays. False if it can't be paid for or doesn't fit.
-inline bool store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items,
-                         d2d::d2s::Stats& stats, Rng& rng) {
-    const auto& code = store.tabs[std::size_t(store.tab)][std::size_t(index)].code;
-    const int clvl = int(stats.get(d2d::d2s::kLevel));
-    const int price = gamble_price(tables, code, clvl, store.reduced);
+// Gambles on stock item i of the open tab: pays its gamble price
+// (FUN_00629370 on its code; carried gold, then the stash) and takes it
+// into the inventory, identified (C->S 37 -> FUN_00578640). False if it
+// can't be paid for or doesn't fit.
+inline bool store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    auto& tab = store.tabs[std::size_t(store.tab)];
+    auto item = tab[std::size_t(index)];
+    const int price = gamble_price(tables, item.code, int(stats.get(d2d::d2s::kLevel)), store.reduced);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
-    auto item = gamble_item(tables, code, clvl, store.header.active_difficulty(), rng);
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
     const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
     if (column < 0) return false;
+    item.identified = true;
     item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = column; item.row = row;
     items.push_back(std::move(item));
+    tab.erase(tab.begin() + index);
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
@@ -1984,10 +2157,48 @@ inline int potion_rate(int old_rate, int left, int amount, int len) {
 //   so a scroll goes into a column whose bottom is the same scroll;
 // - else the inventory's first free spot (FUN_005600a0); no room leaves it
 //   on the ground (FUN_0055c9a0 message 0x17: the class's "can't carry").
-// ponytail: the auto-equip step before the belt (FUN_0055d710) isn't done;
-// stacks match by code (FUN_0062c850 also compares quality and flags);
-// tomes by the Books.txt pairs tsc / tbk, isc / ibk.
+//   Before the belt, given a wearer, the auto-equip (auto_equip_slot).
+// ponytail: stacks match by code (FUN_0062c850 also compares quality and
+// flags); tomes by the Books.txt pairs tsc / tbk, isc / ibk.
 enum class Pickup { kGone, kStays, kNoRoom };
+
+// The body slot a pickup goes to (FUN_0055d710 mode 0), -1 none: an
+// identified item the wearer can use (FUN_0062eaf0), of a type with a body
+// slot (FUN_0062fdf0), not broken (0x100) nor flagged 0x4000 (FUN_0062a4e0),
+// not a throwing potion (ItemTypes row 0x26, tpot); ammunition (its type's
+// Quiver, FUN_00628480) only with a weapon in the hands that shoots it
+// (FUN_0062e6f0). One slot (BodyLoc1 == BodyLoc2) when it's empty; two
+// (rings, the hands) BodyLoc1 when both are empty, else the empty one when
+// what fills the other goes with it (FUN_0055d670: two rings, a bow and its
+// ammunition, a one-hander and a shield, two weapons a Barbarian or two
+// claws an Assassin holds: rules::hands_ok).
+inline int auto_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, const Wearer& wearer,
+                           int required_level = -1) {
+    const auto* info = info_of(tables, item);
+    const auto type = info ? tables.types.find(info->type) : tables.types.end();
+    if (!item.identified || broken(item) || (item.flags & 0x4000) || type == tables.types.end() || info->type == "tpot") return -1;
+    if (type->second.body[0] == 0 && type->second.body[1] == 0) return -1;
+    if (!meets_requirements(tables, item, wearer, required_level)) return -1;
+    const auto worn = [&](int slot) -> const d2d::d2s::Item* {
+        const auto found = std::ranges::find_if(items, [&](const auto& carried) { return carried.location == d2d::d2s::item_location::kEquipped && carried.slot == slot; });
+        return found != items.end() ? &*found : nullptr;
+    };
+    if (!type->second.quiver.empty()) {
+        const auto shoots = [&](const d2d::d2s::Item* weapon) {
+            const auto* weapon_info = weapon ? info_of(tables, *weapon) : nullptr;
+            const auto weapon_type = weapon_info ? tables.types.find(weapon_info->type) : tables.types.end();
+            return weapon_type != tables.types.end() && !weapon_type->second.shoots.empty() && type_is(tables, info->type, weapon_type->second.shoots);
+        };
+        if (!shoots(worn(d2d::d2s::body_location::kRightArm)) && !shoots(worn(d2d::d2s::body_location::kLeftArm))) return -1;
+    }
+    const int first = type->second.body[0], second = type->second.body[1];
+    const auto* first_worn = worn(first);
+    if (first == second) return first_worn ? -1 : first;
+    const auto* second_worn = worn(second);
+    const auto goes_with = [&](const d2d::d2s::Item& other) { return info->type == "ring" ? type_is(tables, info_of(tables, other) ? info_of(tables, other)->type : std::string{}, "ring") : hands_ok(tables, item, other, wearer); };
+    if (!first_worn) return !second_worn || goes_with(*second_worn) ? first : -1;
+    return !second_worn && goes_with(*first_worn) ? second : -1;
+}
 // The belt groups of FUN_00628a40, 3-char codes in game.exe order (0x744684 hp, 0x74466c mp, 0x744660 rv).
 inline constexpr std::array<std::string_view, 3> kGroups{ "hp1hp2hp3hp4hp5", "mp1mp2mp3mp4mp5", "rvlrvs" };
 // The item's own ItemTypes row is Beltable (FUN_0062bad0; no Equiv chain).
@@ -2025,7 +2236,11 @@ inline int belt_box(const Tables& tables, const std::vector<d2d::d2s::Item>& ite
 // the stash, cube or belt) moves to belt_box's box. No box: it stays where
 // it is (not into the hand). No tome or stack step comes first, so a
 // scroll goes only to a column whose bottom is the same scroll.
-// ponytail: FUN_00535610's checks while trading aren't done.
+// FUN_00535610's trade gate passes for every d2d player: at an NPC
+// (interaction kind 1) FUN_00573140 holds while the NPC keeps the player's
+// interaction, and outside one FUN_00567620 wants the player trade state
+// (player data +0x50) under 5, which only a player-to-player trade (PlrTrade.cpp)
+// raises: d2d has none.
 inline bool auto_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int id, int boxes) {
     const auto found = std::ranges::find(items, id, &d2d::d2s::Item::id);
     if (found == items.end() || found->location != d2d::d2s::item_location::kStored || found->panel != d2d::d2s::item_panel::kInventory) return false;
@@ -2034,7 +2249,8 @@ inline bool auto_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     found->location = d2d::d2s::item_location::kBelt; found->column = slot; found->row = 0; found->panel = 0; found->slot = 0;
     return true;
 }
-inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes) {
+inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes,
+                      const Wearer* wearer = nullptr, int required_level = -1) {
     using d2d::d2s::Item;
     const auto in_inventory = [](const Item& carried) { return carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory; };
     const auto max_stack = [&](const std::string& code) { const auto found = tables.item_base.find(code); return found != tables.item_base.end() ? found->second.max_stack : 0; };
@@ -2060,6 +2276,11 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
             stack.quantity += moved; item.quantity -= moved;
             if (item.quantity <= 0) return Pickup::kGone;
         }
+    }
+    if (const int slot = wearer ? auto_equip_slot(tables, items, item, *wearer, required_level) : -1; slot > 0) {
+        item.location = d2d::d2s::item_location::kEquipped; item.slot = slot; item.panel = 0; item.column = 0; item.row = 0;
+        items.push_back(std::move(item));
+        return Pickup::kGone;
     }
     if (const int slot = belt_box(tables, items, item, boxes); slot >= 0) {
         item.location = d2d::d2s::item_location::kBelt; item.column = slot; item.row = 0; item.panel = 0; item.slot = 0;

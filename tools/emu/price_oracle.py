@@ -9,9 +9,10 @@
 FUN_0062efb0 and everything it calls run natively on the loaded 1.14d
 tables. Hooked: the stat getters (FUN_00625480 total, FUN_006253b0 base,
 FUN_00625e00 max durability, FUN_006261d0 one stat's layers, FUN_00625c30
-the whole list) answer from the case, so an item has no stat list beyond
-the case's durability / quantity / defence (no charges, no staff mods, no
-magic stats); FUN_0065c310 (quest flags) answers 0. The item is a fake unit
+the whole list, FUN_00625560 full less base) answer from the case: its
+durability / quantity / defence and its magic stats (`mods`, which stand
+for the full list less the base one; FUN_00628e70, staff mods FUN_0062edd0);
+FUN_0065c310 (quest flags) answers 0. The item is a fake unit
 {type 4, class, data +0x14, inventory +0x60 = 0 (no sockets)} with item data
 {+0 quality, +0x18 flags (0x10 identified, 0x400000 ethereal), +0x28
 unique / set row, +0x38 prefixes, +0x3e suffixes}. Affix ids: game.exe's
@@ -20,7 +21,9 @@ MagicSuffix rows (d2d's prefix_cost index p is game.exe's record
 prefixes + (p - 1) * 0x90: `map` and test_game --price-tables line them up).
 
 A case is `id code quality p0 s0 p1 s1 p2 s2 uid identified ethereal dur
-maxdur qty ac npc diff`; `game` prints `id buy sell repair`.
+maxdur qty ac npc diff mods`, mods `stat:param:value,...` or `-` (values as
+the save keeps them: game.exe's are << ItemStatCost ValShift); `game` prints
+`id buy sell repair`.
 """
 import random
 import struct
@@ -67,19 +70,31 @@ class Oracle:
         e.w32(self.item + 0x14, self.data)
         self.quests = e.alloc(0x100)
         self.pstats, self.istats = {}, {}
+        self.mods = {}                                     # (stat, layer) -> value, game.exe's scale
+        isc = e.r32(0x744304)
+        self.isc, self.nstats, self.nskills = e.r32(isc + 0xbcc), e.r32(isc + 0xbd4), e.r32(isc + 0xba0)
+
+        def stat_list(e, only=None):
+            out = [(layer, stat, value) for (stat, layer), value in sorted(self.mods.items()) if only is None or stat == only]
+            buf, room = (e.arg(1), e.arg(2)) if only is None else (e.arg(2), e.arg(3))
+            out = out[:room]
+            for i, (layer, stat, value) in enumerate(out):
+                e.mu.mem_write(buf + 8 * i, struct.pack("<HHi", layer, stat, value))
+            return len(out)
 
         def stats(u):
             return self.pstats if u == self.player else self.istats if u == self.item else {}
         e.hook(0x625480, lambda e: stats(e.arg(0)).get(e.arg(1), 0) & 0xFFFFFFFF, 3)
         e.hook(0x6253b0, lambda e: stats(e.arg(0)).get(e.arg(1), 0) & 0xFFFFFFFF, 3)
         e.hook(0x625e00, lambda e: stats(e.arg(0)).get(STAT_MAXDUR, 0), 1)
-        e.hook(0x6261d0, lambda e: 0, 4)
-        e.hook(0x625c30, lambda e: 0, 3)
+        e.hook(0x6261d0, lambda e: stat_list(e, e.arg(1)) if e.arg(0) == self.item else 0, 4)
+        e.hook(0x625c30, lambda e: stat_list(e) if e.arg(0) == self.item else 0, 3)
+        e.hook(0x625560, lambda e: self.mods.get((e.arg(1), e.arg(2)), 0) & 0xFFFFFFFF if e.arg(0) == self.item else 0, 3)
         e.hook(0x65c310, lambda e: 0, 3)
 
     def price(self, case, mode):
         e = self.e
-        (_, code, quality, p0, s0, p1, s1, p2, s2, uid, ident, eth, dur, maxdur, qty, ac, npc, diff) = case
+        (_, code, quality, p0, s0, p1, s1, p2, s2, uid, ident, eth, dur, maxdur, qty, ac, npc, diff, mods) = case
         mem = bytearray(0x100)
         struct.pack_into("<I", mem, 0, quality)
         struct.pack_into("<I", mem, 0x18, (0x10 if ident else 0) | (0x400000 if eth else 0))
@@ -91,11 +106,18 @@ class Oracle:
         e.w32(self.item + 4, self.cls[code])
         self.istats = {STAT_DUR: dur, STAT_MAXDUR: maxdur, STAT_QTY: qty, STAT_AC: ac}
         self.pstats = {STAT_CLVL: 1, STAT_REDUCED: 0}
+        self.mods = {}
+        for stat, layer, value in mods:
+            shift = e.read(self.isc + stat * 0x144 + 0x18, 1)[0]
+            self.mods[(stat, layer)] = self.mods.get((stat, layer), 0) + (value << shift)
         r = e.call(0x62efb0, diff, self.quests, self.hc[npc.lower()], mode, ecx=self.player, edx=self.item)
         return r - (1 << 32) if r & 0x80000000 else r   # signed
 
     def gen(self, n, seed):
         rnd = random.Random(seed)
+        # Stats with a cost (Multiply / Add) or a skill encoding, each with param 0 unless encoded.
+        self.priced = [s for s in range(self.nstats) if s not in (STAT_QTY, STAT_DUR, STAT_MAXDUR, STAT_AC, 75)   # 73 / 75 would change d2d's max durability
+                       and (self.e.s32(self.isc + s * 0x144 + 0x10) or self.e.s32(self.isc + s * 0x144 + 0x14) or self.e.read(self.isc + s * 0x144 + 0x30, 1)[0])]
         probe = self.e.alloc(0x20)
         self.e.w32(probe, 4)
         def body(code):                                   # ItemTypes 0x28 (body parts): the price reads the monster row in +0x28
@@ -126,14 +148,25 @@ class Oracle:
             lo, hi = e.s32(rec + 0xcc), e.s32(rec + 0xd0)
             ac = rnd.randint(min(lo, hi), max(lo, hi)) if hi > 0 else 0
             npc = rnd.choice(VENDORS).lower()   # npc.txt keys (d2d looks them up as written)
+            mods = []
+            for _ in range(rnd.choice([0, 0, 1, 2, 3, 5])):
+                stat = rnd.choice(self.priced)
+                enc = e.read(self.isc + stat * 0x144 + 0x30, 1)[0]
+                skill = rnd.randrange(1, self.nskills)
+                if enc == 1: mods.append((stat, skill, rnd.randint(1, 20)))
+                elif enc in (2, 3): mods.append((stat, skill << 6 | rnd.randint(1, 40), rnd.randint(1, 100)))
+                else: mods.append((stat, 0, rnd.randint(-20, 300) if rnd.random() < 0.1 else rnd.randint(1, 300)))
+            if rnd.random() < 0.2: mods.append((107, rnd.randrange(1, self.nskills), rnd.randint(1, 3)))
+            mod_text = ",".join(f"{s}:{p}:{v}" for s, p, v in mods) or "-"
             out.append(f"{i} {code} {quality} {' '.join(map(str, aff))} {uid} {rnd.randrange(2) if rnd.random() < 0.3 else 1} "
-                       f"{int(rnd.random() < 0.15)} {dur} {maxdur} {qty} {ac} {npc} {rnd.randrange(3)}")
+                       f"{int(rnd.random() < 0.15)} {dur} {maxdur} {qty} {ac} {npc} {rnd.randrange(3)} {mod_text}")
         return out
 
 
 def parse(line):
     f = line.split()
-    return [f[0], f[1]] + [int(x) for x in f[2:16]] + [f[16], int(f[17])]
+    mods = [tuple(int(x) for x in m.split(":")) for m in f[18].split(",")] if len(f) > 18 and f[18] != "-" else []
+    return [f[0], f[1]] + [int(x) for x in f[2:16]] + [f[16], int(f[17]), mods]
 
 
 def main():

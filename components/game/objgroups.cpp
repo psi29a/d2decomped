@@ -897,14 +897,32 @@ struct ObjectRooms {
                 // His walk: ai.cpp's DarkWanderer.
                 if (init == 43) { auto east = unit; east.x += 7; monster_or_npc(0x170, east, 0, false); }
                 // Harrogath's markers (a new game's quest records): InitFn 71 (FUN_00587840,
-                // object 543, record 0x1f) Larzuk (0x1ff) within 5 of it; InitFn 68
-                // (FUN_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202)
-                // at its spot, else within 5, till he's gone (record +0x88).
-                // ponytail: FUN_005459a0's FUN_00545340 free-spot pass and the records' "made"
-                // bytes aren't kept. InitFns 66 / 67 / 69 are Act 5's quests'
-                // (world/quests/act5.cpp); 70 (FUN_00587830, Larzuk Greeting) is empty.
-                if (init == 71) monster_or_npc(0x1ff, unit, 5, false);
-                if (init == 68) monster_or_npc(0x202, unit, 5, false);
+                // object 543, record 0x1f) Larzuk (0x1ff) within 5 of FUN_00545340's spot
+                // round it (size 2, mask 0x100, 100 rings; none: no Larzuk); InitFn 68
+                // (FUN_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202):
+                // up to 21 steps (+1, +1) from it till inside its room less the last row
+                // and column, FUN_00545340 there (the same; none: the marker), made at
+                // that spot, else within 5, till he's gone (record +0x88).
+                // ponytail: FUN_005459a0's 20 further tries (a step on, radius 10) and its
+                // last (radius 15) aren't, nor the records' "made" bytes. InitFns 66 / 67 / 69
+                // are Act 5's quests' (world/quests/act5.cpp); 70 (FUN_00587830, Larzuk Greeting) is empty.
+                if (init == 71)
+                    if (const auto spot = level.free_area(unit.x, unit.y, 2, 0x100, 100)) {
+                        auto marker = unit; marker.x = spot->first; marker.y = spot->second;
+                        monster_or_npc(0x1ff, marker, 5, false);
+                    }
+                if (init == 68) {
+                    const auto& marker_room = level.rooms[room_at];
+                    const int left = marker_room.x * 5, top = marker_room.y * 5;
+                    const int right = left + marker_room.width * 5 - 1, bottom = top + marker_room.height * 5 - 1;
+                    auto marker = unit;
+                    int step = 0;
+                    while (step < 21 && !(marker.x >= left && marker.y >= top && marker.x < right && marker.y < bottom)) { ++marker.x; ++marker.y; ++step; }
+                    if (step == 21) { marker.x = unit.y; marker.y = unit.y + 21; }               // none inside: x takes the marker's y (00545a0d, bugs.md #47)
+                    if (const auto spot = level.free_area(marker.x, marker.y, 2, 0x100, 100)) { marker.x = spot->first; marker.y = spot->second; }
+                    else { marker.x = unit.x; marker.y = unit.y; }
+                    monster_or_npc(0x202, marker, 5, false);
+                }
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made
         }

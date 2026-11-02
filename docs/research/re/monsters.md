@@ -287,7 +287,8 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
     resistant +40 cold, fire, lightning (each under 100); 9 / 18 / 17 / 23
     +75 fire / cold / lightning / poison; 25 mana burn +20 magic; 27
     spectral hit +20 cold, fire, lightning (each under 75); 28 stone skin
-    defence × 2, damage reduction + 50.
+    damage reduction + 50 (its defence × 2 comes before the two-immunity
+    check, so an immune monster doubles it too).
 - **Superuniques** (FUN_005a49b0): SuperUniques Mod1..3 (mod 24 skipped),
   then `difficulty` more unique mods (FUN_005a0600, none twice), then
   FUN_005a2120 as for any unique (mod 30 aura also runs FUN_005a1650).

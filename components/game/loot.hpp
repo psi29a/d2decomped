@@ -111,7 +111,7 @@ struct Loot {
         if (now_ms < blessed_until) magic_find += blessed_find;   // the wisps' dance (Fight::wisp_blessing)
         constexpr int kMost = 6;
         std::vector<d2d::rules::Drop> drops;
-        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops, players, magic_find, kMost, 0, nearby);
+        d2d::rules::roll_drops(game_data->rules, rolled, monster.stats.level, monster.seed, drops, players, magic_find, kMost, 0, nearby, std::max(monster.players, 1));
         // FUN_0055a6d0 counts the drop before FUN_005589a0 (0x55af4c): the
         // one that fills the count leaves without gold find. A Hell Bovine's
         // drops are flagged 1 (FUN_0055a550): the Cow King set (29) drops.
@@ -227,7 +227,9 @@ struct Loot {
         } else {
             const auto& lay = game_data->inv_layout[std::size_t(std::max(character->character_class, 0))];
             const int boxes = game_data->belts[std::size_t(belt_index(*game_data, character->items))].boxes;
-            const auto taken = d2d::rules::pick_up(game_data->rules, character->items, ground_item.item, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, boxes);
+            const auto worn_by = wearer(*game_data, character->header.cls, character->items, character->stats);
+            const auto taken = d2d::rules::pick_up(game_data->rules, character->items, ground_item.item, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, boxes,
+                                                   &worn_by, required_level(*game_data, ground_item.item));
             if (taken == d2d::rules::Pickup::kNoRoom) {
                 static constexpr std::array<const char*, 7> kCantCarry{ "amazon_cantcarry_1", "sorceress_cantcarry_1", "necromancer_cantcarry_1",
                     "paladin_cantcarry_1", "barbarian_cantcarry_1", "druid_cantcarry_1", "assassin_cant_carry" };

@@ -92,6 +92,22 @@ int main() {
     Item arrows = item("aqv");
     arrows.quantity = 350;
     assert(item_price(tables, arrows, "Nobody", false, header) == 87);                 // cost x quantity / 1024
+    {   // Stat and staff mod costs (FUN_00628e70, FUN_0062edd0; tools/emu/price_oracle.py).
+        tables.stat_cost.resize(108);
+        tables.stat_cost[0] = { .mul = 55, .add = 125 };                       // strength
+        tables.stat_cost[97] = { .mul = 327, .add = 181, .encode = 1 };       // a skill: Skills.txt's cost instead
+        tables.skill_costs.resize(6);
+        tables.skill_costs[5] = { 256, 100 };
+        Item superior = item("hax", 3); superior.props = { { 0, 0, 4 }, { 0, 0, 6 }, { 97, 5, 2 } };
+        assert(item_price(tables, superior, "Nobody", false, header) == 1000 + 662 + 600);    // strength 10 once: 55 x 1000 x 10 / 1024 + 125
+        assert(item_price(tables, superior, "Nobody", true, header) == 1000 + 662 + 225);     // a sale's skill term / 4096
+        Item plain = superior; plain.quality = 2;
+        assert(item_price(tables, plain, "Nobody", false, header) == 1000);                   // a normal item's stats cost nothing
+        Item staff = item("hax"); staff.props = { { 107, 5, 2 } };
+        assert(item_price(tables, staff, "Nobody", false, header) == 1000 + 3 * 350);         // (2 x 2 - 1) x (256 x 1000 / 1024 + 100)
+        assert(item_price(tables, staff, "Nobody", true, header) == 1000 + 3 * 162);
+        tables.stat_cost.clear(); tables.skill_costs.clear();
+    }
     assert(item_price(tables, item("nothing"), "Charsi", false, header) == 1);         // never below 1
     assert(item_price(tables, item("hax"), "Nobody", true, header) == 1000);           // no npc.txt row: unscaled
     d2d::d2s::Header quest = header;
@@ -221,6 +237,27 @@ int main() {
         Item stored_item = item(code); stored_item.location = 0; stored_item.panel = panel; stored_item.column = col; stored_item.row = row; return stored_item;
     };
 
+    {   // The pickup's auto-equip (FUN_0055d710): an empty slot it can go in, with what's in the other hand.
+        auto worn = [](const char* code, int slot) { Item worn_item = item(code); worn_item.location = 1; worn_item.slot = slot; return worn_item; };
+        auto ground = [](const char* code) { Item ground_item = item(code); ground_item.location = 3; return ground_item; };
+        std::vector<Item> body;
+        Item picked = ground("ssd");
+        assert(pick_up(cursor_tables, body, picked, 10, 4, 4, &sorc) == Pickup::kGone && body.back().location == 1 && body.back().slot == 4);   // both hands empty: BodyLoc1
+        picked = ground("buc");
+        assert(pick_up(cursor_tables, body, picked, 10, 4, 4, &sorc) == Pickup::kGone && body.back().slot == 5);       // a shield beside the sword
+        std::vector<Item> two_hands{ worn("2ax", 4) };
+        picked = ground("buc");
+        assert(auto_equip_slot(cursor_tables, two_hands, picked, sorc) == -1);                                          // not beside a two-hander
+        std::vector<Item> bow_hands{ worn("sbw", 4) };
+        assert(auto_equip_slot(cursor_tables, bow_hands, ground("aqv"), sorc) == 5 && auto_equip_slot(cursor_tables, bow_hands, ground("cqv"), sorc) == -1);
+        assert(auto_equip_slot(cursor_tables, {}, ground("aqv"), sorc) == -1);                                          // ammunition needs its bow
+        Item unknown = ground("cap"); unknown.identified = false;
+        assert(auto_equip_slot(cursor_tables, {}, ground("cap"), sorc) == 1 && auto_equip_slot(cursor_tables, {}, unknown, sorc) == -1);
+        const Wearer weak{ .cls = d2d::d2s::kSorceress, .str = 10, .dex = 30, .lvl = 10 };
+        assert(auto_equip_slot(cursor_tables, {}, ground("ssd"), weak) == -1);                                          // strength 25 needed
+        std::vector<Item> sword{ worn("ssd", 4) };
+        assert(auto_equip_slot(cursor_tables, sword, ground("ssd"), sorc) == -1 && auto_equip_slot(cursor_tables, sword, ground("ssd"), barb) == 5);
+    }
     // Grid: place, swap one, refuse two, stay in bounds, no cube in the cube.
     std::vector<Item> items = { stored("buc", 1, 0, 0), stored("buc", 1, 2, 0) };
     std::optional<Item> held;
@@ -467,24 +504,40 @@ int main() {
     assert(gamble_upgrade(gamble_tables, "cap", 10) == std::pair(0, 0));
     assert(gamble_upgrade(gamble_tables, "cap", 30) == std::pair(401, 0));             // (30-22)*100/2+1
     assert(gamble_price(gamble_tables, "cap", 1) == ((0 - 0 + 5) * 250 / 3 + 100) * (11 / 3 + 20) / 15);
-    for (int i = 0; i < 50; ++i) {
-        const auto gambled = gamble_item(gamble_tables, "cap", 30, 0, roll);
-        assert(gambled.quality >= 4 && gambled.quality <= 7 && (gambled.code == "cap" || gambled.code == "xap"));
+    {   // game.exe's qsort isn't stable: under 9 a selection sort swaps the first largest to the end.
+        std::vector<std::pair<int, char>> keyed{ { 1, 'a' }, { 1, 'b' }, { 0, 'c' } };
+        msvc_qsort(keyed, [](const auto& left, const auto& right) { return left.first < right.first; });
+        assert(keyed[0].second == 'c' && keyed[1].second == 'b' && keyed[2].second == 'a');
     }
+    // The upgrade (FUN_005786a0): (level - the upgrade's level) x GambleUber + 1 of 10000.
+    GambleRates rates{ .uber = 1000, .ultra = 0 };
+    Rng upgrade_seed{ 3 };
+    assert(gamble_upgrade_code(gamble_tables, "cap", 22 + 10, rates, upgrade_seed) == "xap");   // 10001 of 10000: always
+    const auto before = upgrade_seed.low;
+    assert(gamble_upgrade_code(gamble_tables, "cap", 5, rates, upgrade_seed) == "cap" && upgrade_seed.low == before);   // (5 - 22) x 1000 + 1 under 1: no roll
 
+    // The stock (FUN_00578790): 14 items, a ring and an amulet first, unidentified.
     gamble_tables.gamble = { "cap", "rin" };
     gamble_tables.item_base["rin"].level = 1;
     gamble_tables.item_info["rin"] = { .width = 1, .height = 1, .type = "ring" };
-    Store gam = open_gamble(gamble_tables, "Gheed", 10);
-    assert(gam.gamble && gam.tabs[0].size() == 1 && gam.tabs[3].size() == 1);
+    gamble_tables.item_base["amu"] = { .level = 1, .gamble_cost = 60000 };
+    gamble_tables.item_info["amu"] = { .width = 1, .height = 1, .type = "amul" };
+    gamble_tables.types["ring"].store_page = 3;
+    gamble_tables.types["amul"].store_page = 3;
+    gamble_tables.types["helm"].store_page = 0;
+    Rng proxy{ 11 }, game_seed{ 12 };
+    Store gam = open_gamble(gamble_tables, "Gheed", 10, 0, true, proxy, game_seed);
+    assert(gam.gamble && gam.tabs[0].size() + gam.tabs[3].size() == 14);
+    assert(gam.tabs[3][0].code == "rin" && gam.tabs[3][1].code == "amu" && !gam.tabs[3][0].identified);
+    for (const auto& stock : gam.tabs[0]) assert(stock.code == "cap" && stock.quality >= 4 && stock.quality <= 7 && stock.ilvl >= 5 && stock.ilvl <= 14);
     std::vector<Item> bag;
     d2d::d2s::Stats purse;
     purse.values[kLevel] = 10; purse.values[kGold] = 100; purse.values[kGoldBank] = 100000;
     gam.tab = 3;
-    assert(store_gamble(gamble_tables, gam, 0, bag, purse, roll) && bag.size() == 1 && bag[0].code == "rin");
-    assert(purse.get(kGold) == 0 && purse.get(kGoldBank) == 100000 - 49900 && gam.tabs[3].size() == 1);
-    assert(store_gamble(gamble_tables, gam, 0, bag, purse, roll) && purse.get(kGoldBank) == 100);   // 50100 pays once more
-    assert(!store_gamble(gamble_tables, gam, 0, bag, purse, roll) && bag.size() == 2);             // then it can't
+    const auto rings = gam.tabs[3].size();
+    assert(store_gamble(gamble_tables, gam, 0, bag, purse) && bag.size() == 1 && bag[0].code == "rin" && bag[0].identified);
+    assert(purse.get(kGold) == 0 && purse.get(kGoldBank) == 100000 - 49900 && gam.tabs[3].size() == rings - 1);   // the bought one leaves
+    assert(!store_gamble(gamble_tables, gam, 0, bag, purse) && bag.size() == 1);                                // the amulet: 60000, can't
     // Mercenaries: the hire list's offers and hiring.
     Tables merc_tables;
     merc_tables.hirelings = { { .version = 100, .id = 0, .act = 1, .difficulty = 1, .level = 3, .gold = 100, .exp_per_level = 100,

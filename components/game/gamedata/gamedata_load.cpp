@@ -1037,6 +1037,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                     std::string(table.get(row, "descstr2")), std::string(table.get(row, "dgrpstrpos")),
                                     std::string(table.get(row, "dgrpstrneg")), std::string(table.get(row, "dgrpstr2")),
                                     num(row, "Send Bits"), num(row, "Send Param Bits") };
+            if (id >= game_data.rules.stat_cost.size()) game_data.rules.stat_cost.resize(id + 1);
+            game_data.rules.stat_cost[id] = { num(row, "Multiply"), num(row, "Add"), num(row, "Encode") };
         }
     }
     {
@@ -1427,7 +1429,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         if (const auto difficulty_table = txt("DifficultyLevels"); difficulty_table.size() >= 3)
             for (std::size_t row = 0; row < 3; ++row)
                 game_data.rules.gamble_rates[row] = { num(difficulty_table.get(row, "GambleRare")), num(difficulty_table.get(row, "GambleSet")),
-                                                num(difficulty_table.get(row, "GambleUnique")) };
+                                                num(difficulty_table.get(row, "GambleUnique")), num(difficulty_table.get(row, "GambleUber")),
+                                                num(difficulty_table.get(row, "GambleUltra")) };
         if (auto bytes = mpqs.try_read(R"(data\global\excel\books.txt)")) {
             const d2d::txt::Table table(*bytes);
             for (std::size_t row = 0; row < table.size(); ++row)

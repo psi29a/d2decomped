@@ -50,7 +50,8 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
         if (const auto* trade = std::get_if<cmd::OpenTrade>(&command)) {
             if (std::size_t(trade->npc) >= level->npcs.size()) return true;
-            if (trade->gamble) actor->store = d2d::rules::open_gamble(item_rules, level->npcs[std::size_t(trade->npc)].id, clvl);
+            if (trade->gamble) actor->store = d2d::rules::open_gamble(item_rules, level->npcs[std::size_t(trade->npc)].id, clvl, actor->character.header.active_difficulty(),
+                                                                actor->character.expansion, fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
             else if (const auto kept = stocks.find(trade->npc); kept != stocks.end()) { actor->store = kept->second; actor->store.mode = 0; actor->store.first_tab(); actor->store.pressed = {}; }
             else actor->store = open_store(*game_data, *level, trade->npc, act(), actor->character.header.active_difficulty(), clvl, actor->character.expansion,
                                     fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
@@ -69,7 +70,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             actor->store.reduced = reduced_prices();
             if (buy->tab >= 0 && buy->tab < 4) actor->store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
             if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
-            if (actor->store.gamble) d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, rng);
+            if (actor->store.gamble) d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats);
             else d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats);
             return true;
         }
@@ -238,7 +239,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                 return true;
             }
             if (service_npc != d2d::rules::monster_ids::kCharsi
-                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(item_rules, *actor->held)) return true;
+                || !d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(item_rules, *actor->held, actor->character.expansion)) return true;
             auto made = d2d::rules::imbue_item(item_rules, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
             made.location = actor->held->location; made.panel = actor->held->panel; made.column = actor->held->column; made.row = actor->held->row;
             actor->held = std::move(made);

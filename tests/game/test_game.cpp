@@ -159,7 +159,8 @@ int main(int argc, char** argv) try {
     // `--price CASES`: rules::item_price (buy, sell) and rules::repair_cost of
     // each case's item, as tools/emu/price_oracle.py prints game.exe's
     // (FUN_0062efb0 modes 0, 1, 3). A case is `id code quality p0 s0 p1 s1
-    // p2 s2 uid identified ethereal dur maxdur qty ac npc diff`; the line is
+    // p2 s2 uid identified ethereal dur maxdur qty ac npc diff mods` (mods
+    // `stat:param:value,...` or `-`); the line is
     // `id buy sell repair`. `--price-tables` prints the affix cost rows.
     if (argc > 1 && std::string_view(argv[1]) == "--price-tables") {
         for (const auto* costs : { &data->rules.prefix_cost, &data->rules.suffix_cost, &data->rules.unique_cost, &data->rules.set_cost }) {
@@ -180,6 +181,11 @@ int main(int argc, char** argv) try {
             for (auto& affix : item.affixes) fields >> affix;
             fields >> uid >> ident >> eth >> item.durability >> item.max_durability >> item.quantity >> defense >> npc >> diff;
             if (!fields) continue;
+            if (std::string mods; fields >> mods && mods != "-")
+                for (std::istringstream list(mods); std::getline(list, mods, ',');) {
+                    d2d::d2s::ItemProp prop;
+                    if (std::sscanf(mods.c_str(), "%d:%d:%d", &prop.stat, &prop.param, &prop.value) == 3) item.props.push_back(prop);
+                }
             item.prefix = item.affixes[0]; item.suffix = item.affixes[1];
             if (item.quality == 5) item.set_id = uid;
             if (item.quality == 7) item.unique_id = uid;
