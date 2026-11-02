@@ -51,6 +51,7 @@ int main(int argc, char** argv) try {
     static constexpr std::array<std::size_t, 3> kRes{ 2, 3, 4 };       // fire, lightning, cold -> Target::res
 
     std::ifstream cases(argv[2]);
+    if (!cases) { std::fprintf(stderr, "test_missile_hit: cannot open %s\n", argv[2]); return 1; }
     std::string line;
     while (std::getline(cases, line)) {
         std::istringstream fields(line);
