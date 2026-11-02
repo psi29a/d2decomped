@@ -14,6 +14,7 @@
 #include <rules.hpp>
 #include <shake.hpp>
 #include <skill_text.hpp>
+#include <skills.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 

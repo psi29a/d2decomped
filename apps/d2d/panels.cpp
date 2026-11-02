@@ -18,6 +18,7 @@
 #include <quests.hpp>
 #include <automap_scroll.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 
 #include <algorithm>
 #include <array>

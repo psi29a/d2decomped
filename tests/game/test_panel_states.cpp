@@ -14,6 +14,7 @@
 #include <skills.hpp>
 #include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
