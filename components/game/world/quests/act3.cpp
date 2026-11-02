@@ -208,14 +208,14 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
             const auto& altar = level->npcs[std::size_t(gidbinn_altar)];
             if (std::hypot(actor->player.x - altar.x, actor->player.y - altar.y) < 20 && d2d::rules::BladeQuest::kGuardian < int(game_data->monsters.types.size())) {
                 const int diff = actor->character.header.active_difficulty();
-                auto fetish_lord = make_monster(*game_data, d2d::rules::BladeQuest::kGuardian, altar.x + 1, altar.y + 1, fight.rng, diff, true, int(players.size()));
+                auto fetish_lord = make_monster(*game_data, d2d::rules::BladeQuest::kGuardian, altar.x + 1, altar.y + 1, fight.rng, diff, true, int(players.size()), level->id);
                 make_boss(*game_data, fetish_lord, d2d::rules::Boss::unique, {}, -1, int(fight.rng.next() & 0xffff), diff, fight.rng, int(players.size()));
                 const int minion = game_data->monsters.types[std::size_t(d2d::rules::BladeQuest::kGuardian)].minion[0];
                 const int party = 2 + int(fight.rng.next() % 6);
                 fight.add_monster(std::move(fetish_lord));
                 blade.spawned = true; blade.guardian = fight.monsters.back().id;
                 for (int i = 0; minion >= 0 && i < party; ++i) {
-                    auto fetish = make_monster(*game_data, minion, altar.x + float(i % 3) - 1, altar.y + float(i / 3), fight.rng, diff, true, int(players.size()));
+                    auto fetish = make_monster(*game_data, minion, altar.x + float(i % 3) - 1, altar.y + float(i / 3), fight.rng, diff, true, int(players.size()), level->id);
                     fetish.boss = d2d::rules::Boss::minion;
                     fight.add_monster(std::move(fetish));
                 }

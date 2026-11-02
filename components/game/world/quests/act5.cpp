@@ -515,7 +515,7 @@ auto World::eve_update(std::uint32_t now_ms) -> void {
             }
             if (std::exchange(monster.baal_leaves, false)) {
                 born.push_back(make_monster(*game_data, int(game_data->mon_bin[std::size_t(d2d::rules::EveQuest::kBaalStairs)]), monster.unit.x, monster.unit.y, fight.rng,
-                                            actor->character.header.active_difficulty(), true, int(players.size())));
+                                            actor->character.header.active_difficulty(), true, int(players.size()), level->id));
                 monster.gone = true;
                 d2d::log::info("Eve of Destruction: Baal leaves his throne");
             }

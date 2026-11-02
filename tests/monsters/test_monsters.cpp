@@ -203,6 +203,64 @@ int main() {
         assert(stats.level == 4 && stats.hit_points >= 7 && stats.hit_points <= 12 && stats.armor_class == 5 && stats.exp == 33);
         assert(stats.to_hit == 80 && stats.a1_max > 3);
     }
+    // The level a monster starts at (FUN_00573cb0 0x573e15..0x573e70): its
+    // MonStats Level by difficulty; in Nightmare and Hell the area's MonLvl2Ex /
+    // MonLvl3Ex instead, unless the row is noRatio (flag 4) or boss (flag 0x40).
+    // Life, defence and experience are read at that level, to-hit and damage at
+    // it plus the mods' leveladd. Plain, champion, unique, superunique and minion,
+    // all three difficulties, from the rows below (no names).
+    {
+        Monsters area_test;
+        area_test.lvl.resize(101);
+        for (int level = 1; level <= 100; ++level) {
+            const int row = level * 10;
+            area_test.lvl[std::size_t(level)] = { .armor_class = { row, row, row }, .to_hit = { row + 1, row + 1, row + 1 }, .hit_points = { row + 2, row + 2, row + 2 },
+                                                  .damage = { row + 3, row + 3, row + 3 }, .experience = { row + 4, row + 4, row + 4 } };
+        }
+        MonType plain, no_ratio, boss;
+        plain.level = { 2, 30, 60 };
+        no_ratio.level = { 3, 31, 61 }; no_ratio.no_ratio = true;
+        boss.level = { 4, 32, 62 }; boss.boss_column = true;
+        for (auto* type : { &plain, &no_ratio, &boss })
+            for (auto& per_difficulty : type->diff) per_difficulty = { .min_hp = 100, .max_hp = 100, .armor_class = 100, .exp = 100, .a1_min = 100, .a1_max = 100, .a1_th = 100 };
+        area_test.types = { plain, no_ratio, boss };
+        const std::array<int, 3> area = { 5, 40, 70 };                    // MonLvl1Ex .. MonLvl3Ex of the area
+        // The level of each row by difficulty with the area known: the area's
+        // on Nightmare and Hell for the plain row, its own for the other two; and
+        // the MonStats level whatever the area when it isn't known (-1).
+        const int want_level[3][3] = { { 2, 40, 70 }, { 3, 31, 61 }, { 4, 32, 62 } };
+        const int own_level[3][3] = { { 2, 30, 60 }, { 3, 31, 61 }, { 4, 32, 62 } };
+        // leveladd: unique / superunique +3, champion +2 (-1 more on a unique champion), minion +3.
+        UMods umods;
+        umods.constants = { 20, 100, 75, 50, 200, 150, 100, 300, 200, 100, 75, 100, 50, 100, 75, 150, 0, 33, 33, 0, 50, 50, 33, 33, 33,
+                 50, 50, 50, 66, 66, 66, 100, 100, 100 };
+        const int adds[] = { 0, boss_stats(umods, plain, Boss::champion, { 16 }, 1).level_add, boss_stats(umods, plain, Boss::unique, {}, 1).level_add,
+                             boss_stats(umods, plain, Boss::superunique, {}, 1).level_add, boss_stats(umods, plain, Boss::minion, {}, 1).level_add };
+        assert(adds[0] == 0 && adds[1] == 2 && adds[2] == 3 && adds[3] == 3 && adds[4] == 3);
+        for (int row = 0; row < 3; ++row)
+            for (int difficulty = 0; difficulty < 3; ++difficulty)
+                for (const int add : adds) {
+                    Rng at_area{ 9 }, at_own{ 9 };
+                    const auto got = monster_stats(area_test, row, difficulty, at_area, add, 1, area[std::size_t(difficulty)]);
+                    const int base = want_level[row][difficulty], raised = base + add;
+                    // life, defence and experience at the starting level; to-hit and damage at the raised one
+                    assert(got.level == raised);
+                    if (row == 1) {                                  // noRatio: the MonStats values as written, whatever the level
+                        assert(got.hit_points == 100 && got.armor_class == 100 && got.exp == 100 && got.to_hit == 100 && got.a1_min == 100);
+                    } else {
+                        assert(got.hit_points == base * 10 + 2 && got.armor_class == base * 10 && got.exp == base * 10 + 4);
+                        assert(got.to_hit == raised * 10 + 1 && got.a1_min == raised * 10 + 3);
+                    }
+                    // an unknown area changes nothing: the MonStats level, as before the rule
+                    const auto own = monster_stats(area_test, row, difficulty, at_own, add);
+                    const int own_base = own_level[row][difficulty];
+                    assert(own.level == own_base + add && own.hit_points == (row == 1 ? 100 : own_base * 10 + 2) && own.exp == (row == 1 ? 100 : own_base * 10 + 4));
+                    // Normal never reads the area
+                    if (difficulty == 0) assert(got.level == own.level && got.hit_points == own.hit_points);
+                }
+        assert(start_level(plain, 1, 40) == 40 && start_level(plain, 2, 70) == 70 && start_level(plain, 0, 5) == 2 && start_level(plain, 1, -1) == 30);
+        assert(start_level(no_ratio, 2, 70) == 61 && start_level(boss, 1, 40) == 32);
+    }
     // Champions and uniques (uniques.hpp) on a small MonUMod: champion
     // chance 20; hell uniques take 3 mods, never twice; the stat rules.
     {

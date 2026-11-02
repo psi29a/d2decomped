@@ -363,13 +363,14 @@ struct Monster {
     int variant = -1;                         // the knights' rand(4) as made (d2d::rules::monster_variant), -1 none
     d2d::rules::MonProps props;               // its MonProp row's (d2d::rules::monster_props)
     int players = 1;                          // the players in the game as it was made (stat 0x64 monster_playercount)
+    int level_id = -1;                        // the Levels.txt id it was made in (-1: unknown): Nightmare / Hell start at that level's MonLvl (rules::start_level)
     [[nodiscard]] bool alive() const { return hit_points > 0 && !gone; }
     [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
     // The cursor drops it (FUN_00466870 -> FUN_00465c60, cursor-units.md): in town
     // nothing for alignment; elsewhere MonStats2 alSel passes, noSel refuses, else
     // the player's alignment (2: a converted monster, FUN_00650d70) refuses.
-    [[nodiscard]] bool ally_not_interact(const GameData& game_data, int level_id) const {
-        if (d2d::rules::level_ids::is_town(level_id) || type < 0 || std::size_t(type) >= game_data.monsters.types.size()) return false;
+    [[nodiscard]] bool ally_not_interact(const GameData& game_data, int in_level) const {
+        if (d2d::rules::level_ids::is_town(in_level) || type < 0 || std::size_t(type) >= game_data.monsters.types.size()) return false;
         const auto& type_info = game_data.monsters.types[std::size_t(type)];
         return !type_info.al_sel && (type_info.no_sel || align == 2);
     }
@@ -965,14 +966,23 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
 // A plain monster of MonStats row `type` at (x, y) cells: its components
 // and stats rolled (a boss's by make_boss instead: `stats` false), for
 // `players` in the game.
-Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true, int players = 1);
+// Levels.txt MonLvl1Ex / MonLvl2Ex / MonLvl3Ex of the level `level_id` for the
+// difficulty (what FUN_0061dca0 returns in an expansion game; 1 for an id off
+// the table or under 1, as it does); -1 when the level isn't known.
+[[nodiscard]] inline int area_monster_level(const GameData& game_data, int level_id, int difficulty) {
+    if (level_id < 0) return -1;
+    if (level_id == 0 || std::size_t(level_id) >= game_data.area_level.size()) return 1;
+    return game_data.area_level[std::size_t(level_id)][std::size_t(std::clamp(difficulty, 0, 2))];
+}
+
+Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true, int players = 1, int level_id = -1);
 // The players among the foes (not a pet, not a monster): the game's.
 [[nodiscard]] int players_in(std::span<const Foe> foes);
 
 // Spawns as monsters, each looking as its unit seed picks from `region`
 // (rules::monster_look).
 std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, const d2d::rules::Region& region,
-                                    d2d::rules::Rng& rng, int difficulty, int players = 1);
+                                    d2d::rules::Rng& rng, int difficulty, int players = 1, int level_id = -1);
 
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
 
