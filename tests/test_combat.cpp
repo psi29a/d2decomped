@@ -285,7 +285,7 @@ int main(int argc, char** argv) {
     assert(open_wounds_per_sec(1) == 3 && open_wounds_per_sec(81) == 227);
 
     // Player blows: sure hits (AR vastly over defense), crushing blow takes a
-    // quarter of what's left, resistances cut, leech per Drain.
+    // quarter of what the hit leaves (FUN_005bffc0), resistances cut, leech per Drain.
     Fighter hit = simple_fighter(100, 100, 1000000);
     hit.crushing = 100; hit.life_steal = 10;
     hit.elem[0] = { 10, 10 };
@@ -293,7 +293,11 @@ int main(int argc, char** argv) {
     Rng rng{ 5 };
     auto blow = player_blow(hit, target, 99, rng);
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng);   // 95 % to hit
-    assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 50);  // 100 phys at 50%, fire immune, CB 400/4 at 50%
+    assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 44);  // 100 phys at 50%, fire immune, CB (400 - 50)/4 = 87, less 50 %
+    target.crush_divisor = 8;                                        // a boss or unique; a missile doubles it
+    blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
+    for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
+    assert(blow.hit && blow.damage == 50 + 11);                       // 350 / 16 = 21, less 50 %
     assert(blow.life == 50 * 10 * 50 / 10000);
     // Critical strike doubles like deadly strike.
     Fighter crit = simple_fighter(10, 10, 1000000);

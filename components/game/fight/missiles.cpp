@@ -690,6 +690,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             d2d::rules::Swing swing;
             swing.srcdam = damage.srcdam;
             swing.ed_pct = missile.ed_pct;
+            swing.missile = true;
             blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
         } else if (missile.info->to_hit) {
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);

@@ -353,11 +353,13 @@ inline int open_wounds_per_sec(int clvl) {
 
 // A monster being struck: its life now and max, defense, level, block
 // chance (0 unless it can block), resistances (physical, magic, fire,
-// lightning, cold, poison %), Drain (the % of leech that works on it).
+// lightning, cold, poison %), Drain (the % of leech that works on it),
+// Crushing Blow's life divisor (FUN_005bffc0: Monster::crush_divisor).
 struct Target {
     int hit_points = 1, max_hp = 1, armor_class = 0, level = 1, block = 0;
     std::array<int, 6> res{};
     int drain = 100;
+    int crush_divisor = 4;
 };
 // What one player hit does: the instant damage (physical after resistance,
 // fire / lightning / cold / magic, crushing blow), leeched life and mana,
@@ -496,14 +498,13 @@ struct Swing {
     // marked built (flags 2), so FUN_0057dbf0 skips FUN_0057b7d0: no crit,
     // gear elements, leech, crushing blow or open wounds.
     bool smite = false;
+    bool missile = false;                 // a missile's blow: Crushing Blow's divisor doubled (event 6, FUN_005bffc0)
 };
 
 // The player's melee hit on `t` (hit chance, then the monster's block):
 // critical or deadly strike doubles the physical damage; physical resistance cuts it;
 // leech is the physical damage dealt x steal % x Drain %; crushing blow
-// takes a quarter of its current life (less physical resistance).
-// ponytail: crushing blow's boss / difficulty divisors aren't applied (its
-// code isn't located in game.exe yet).
+// takes the life left / the target's divisor (less physical resistance).
 inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}) {
     Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
     const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
@@ -577,8 +578,15 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     }
     if (conv > 0 && swing.conv_type == 2 && resisted(int(conv >> 8), target.res[4]) > 0)
         blow.chill_ticks = std::max(blow.chill_ticks, resisted(std::max(fighter.elem[2].second > 0 ? fighter.cold_len : 0, 50), target.res[4]));
+    // Crushing Blow (FUN_005bffc0): the life left after the hit / the
+    // divisor, less the raw damage resist's share (100 at most, none at 0
+    // or less: not resisted's).
     int crushing_blow = 0;
-    if (fighter.crushing > 0 && rng(100) < fighter.crushing) { blow.crushing = true; crushing_blow = resisted(target.hit_points / 4, target.res[0]); }
+    if (fighter.crushing > 0 && rng(100) < fighter.crushing) {
+        blow.crushing = true;
+        crushing_blow = std::max(target.hit_points - phys - elem, 0) / (target.crush_divisor * (swing.missile ? 2 : 1));
+        if (target.res[0] > 0) crushing_blow -= crushing_blow * std::min(target.res[0], 100) / 100;
+    }
     blow.bleed = fighter.open_wounds > 0 && rng(100) < fighter.open_wounds;
     blow.knockback = fighter.knockback || swing.knockback;
     blow.stun_ticks = std::min(stun, 250);
