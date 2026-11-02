@@ -270,8 +270,12 @@ is left, an element emptied no longer marks. d2d: `rules::absorb_blows`
   PCode2a, 2b .. na, nb, at most (pieces − 1)'s; with every piece worn the
   full FCode1..8 too (pieces: the Sets record's +0xc). An add func 1 list (keyed to another piece)
   counts pieces.
-- Not in yet: skills (skills.md), monster life regeneration (MonStats
-  DamageRegen), the weapon swap, champions/uniques.
+- Monster life regeneration: FUN_00573cb0 sets stat 0x4a = its rolled
+  life (256ths) x MonStats DamageRegen (+0x1a0) >> 12 (past 0x7fffffff /
+  DamageRegen the life shifts first); FUN_005a6920 (event 3, every frame)
+  adds stat 0x4a, the net of regen and poison, to life up to its max, a
+  gain held back under state 0x34. d2d: `MonStats::regen`, `monster_dots`.
+- Not in yet: skills (skills.md), the weapon swap, champions/uniques.
 
 ## Hit recovery: the length (SUnit.cpp)
 

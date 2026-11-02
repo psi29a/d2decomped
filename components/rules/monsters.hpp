@@ -271,6 +271,7 @@ struct MonStats {
     // A missile whose row has ToHit 0 (Missiles.txt +0x18b): FUN_005adf10
     // skips FUN_0057d9b0's roll; block and avoid still come (FUN_005ad730).
     bool no_hit_roll = false;
+    int regen = 0;                            // stat 0x4a: life a frame, 256ths (DamageRegen, FUN_00573cb0)
     struct El { int type = -1, pct = 0, min = 0, max = 0, dur = 0; std::string_view mode; };
     std::array<El, 3> elements{};
     // Its own poison stats 57 / 58 / 59 (MonUMod poison hit, FUN_005a1e00),
@@ -381,6 +382,10 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     const int hit_points = spawn_row.hit_points[std::size_t(difficulty_index)];
     stats.hit_points  = std::max(rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp)), 1);
     stats.hit_points = int(std::min<std::int64_t>(stats.hit_points + std::int64_t(stats.hit_points) * player_life_pct(players) / 100, 0x7fffff));
+    // Stat 0x4a from that life in 256ths x DamageRegen / 4096, past
+    // 0x7fffffff / DamageRegen shifted first (a boss's mods come after).
+    if (const int life = stats.hit_points << 8, rate = type_info.damage_regen; rate > 0 && rate < 0x1000)
+        stats.regen = 0x7fffffff / rate < life ? (life >> 12) * rate : rate * life >> 12;
     stats.armor_class  = pct(spawn_row.armor_class[std::size_t(difficulty_index)], per_difficulty.armor_class);
     stats.to_hit  = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a1_th);
     stats.to_hit2 = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a2_th);

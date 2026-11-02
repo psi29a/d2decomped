@@ -64,6 +64,7 @@ struct MonType {
     bool small = false, large = false;          // MonStats2 small / large (flags bits 10 / 11): MonProp knock's chance (FUN_005bf960)
     int hit_class = 0;                          // MonStats2 HitClass (FUN_00623c20): the impact on what it strikes
     int threat = 0;                             // threat (record +0x4e, FUN_005dc920): a mode 5 search's primary at 2 or more
+    int damage_regen = 0;                       // DamageRegen (+0x1a0): stat 0x4a's 4096ths of max life a frame (FUN_00573cb0)
     bool switch_ai = false;                     // SwitchAI (flags +0xe & 1, FUN_00573040): Confuse / Attract can set its target
     bool interact = false;                      // interact (flag 9, +0xd & 2): the curse thinks don't swing (FUN_00457490)
     // Percentages of the MonLvl row (1.10+ style), per difficulty.

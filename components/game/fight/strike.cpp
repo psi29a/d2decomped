@@ -537,12 +537,17 @@ auto Fight::knock_back(Monster& target, float from_x, float from_y, std::uint32_
 auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
         for (std::size_t i = 0; i < monsters.size(); ++i) {
             auto& monster = monsters[i];
-            if (!monster.alive() || (now_ms >= monster.poison_until && now_ms >= monster.bleed_until)) continue;
-            monster.dot_acc += ((now_ms < monster.poison_until ? monster.poison_rate : 0) + (now_ms < monster.bleed_until ? monster.bleed_rate : 0)) * elapsed * 1000;
+            if (!monster.alive()) continue;
+            // Life's one rate (FUN_005a6920, every frame): its regen (stat 0x4a)
+            // less poison and bleeding; a gain held back under state 0x34 and at full life.
+            const double net = (now_ms < monster.poison_until ? monster.poison_rate : 0) + (now_ms < monster.bleed_until ? monster.bleed_rate : 0)
+                             - monster.stats.regen / (256.0 * 40);
+            if (net <= 0 && (now_ms < monster.no_heal_until || monster.hit_points >= monster.stats.hit_points)) { monster.dot_acc = 0; continue; }
+            monster.dot_acc += net * elapsed * 1000;
             const int whole = int(monster.dot_acc);
-            if (whole <= 0) continue;
+            if (whole == 0) continue;
             monster.dot_acc -= whole;
-            monster.hit_points -= whole;
+            monster.hit_points = std::min(monster.hit_points - whole, monster.stats.hit_points);
             if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(i, now_ms); }
         }
     }

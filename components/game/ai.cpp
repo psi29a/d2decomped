@@ -967,8 +967,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // found; an lUndead (MonStats +0xd & 8) not a unique (FUN_005a0180, 8).
     // Radament's (FUN_005f2b10, class 0xe5): within aip5 + 10, uniques
     // too, on Normal any undead (FUN_0063e990).
-    // ponytail: regen (stat 0x4a) is 0, d2d's monsters having none; a
-    // skill is always usable (FUN_005fd470); the near rooms as 80 subtiles.
+    // ponytail: a skill is always usable (FUN_005fd470); the near rooms as 80 subtiles.
+    input.regen = monster.stats.regen;
     input.skill45 = { !type_info.skill[3].empty(), !type_info.skill[4].empty() };
     input.target_fire_res = target->fighter.res[0]; input.target_cold_res = target->fighter.res[2];
     // The second target (FUN_005ddc30): the skill-set one (FUN_005dd610)
@@ -1485,6 +1485,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (effect.kind == d2d::rules::ThinkEffect::command_done) monster.ai_command = 0;
         if (effect.kind == d2d::rules::ThinkEffect::unset) monster.set_kind = 0;   // FUN_00573120
         if (effect.kind == d2d::rules::ThinkEffect::state && effect.id == 0xc && !effect.value) monster.breath_state = false;   // FUN_00639db0(0xc, 0)
+        if (effect.kind == d2d::rules::ThinkEffect::stat && effect.id == 0x4a) monster.stats.regen = effect.value;              // BatDemon's regen aloft
         if (effect.kind == d2d::rules::ThinkEffect::toggle) {
             const int kept = monster.ai_state3;
             ai_toggle(game_data, monster, effect.id);
