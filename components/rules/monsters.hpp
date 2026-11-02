@@ -1551,7 +1551,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // mid-way, game.exe's at their end); commands other than 1 never come.
     if (ai_name == "Fallen") {
         if (input.dying) {
-            *input.state = 1; *input.command = 0;
+            *input.state = 1; *input.command = 0; *input.pace = 50;
             if (away(12, false)) { (void)rng.next(); return { MonAct::none }; }
         }
         if (*input.command == 1) {
