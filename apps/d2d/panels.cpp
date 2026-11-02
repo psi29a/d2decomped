@@ -439,8 +439,8 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         const auto top = stats.values[kMaxStamina] >> 8;
         const bool more = shown > top;
         if (more) shown = top;
-        // ponytail: game.exe's text is blue with shrine_stamina (state 0x88) on too.
-        hovers.push_back({ { width / 2 - 0x4c, height - 0x34 }, { game::d2_format(str(0x1044), { shown, top }), more ? kBlue : kWhite } });
+        // Blue past the most, or with shrine_stamina (state 0x88) on.
+        hovers.push_back({ { width / 2 - 0x4c, height - 0x34 }, { game::d2_format(str(0x1044), { shown, top }), more || hud.stamina_shrine ? kBlue : kWhite } });
     }
     for (const auto& [anchor, line] : hovers) draw_hover_text(framebuffer, scene, { line }, anchor[0], anchor[0], anchor[1], anchor[1]);
     // The globes' text (FUN_00498120): plain, centred, in the frame's font.
