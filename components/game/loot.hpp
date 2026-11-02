@@ -53,6 +53,7 @@ struct Loot {
         std::string label;
         std::array<std::uint8_t, 3> rgb{ 255, 255, 255 };
         int dropped_by = 0;                  // gold a player (Hero::id) just dropped: autoloot leaves it to them till they step off it
+        int owner = 0;                       // gold a player dropped (FUN_00535510 -> FUN_00621ce0): taken whole, not shared
     };
     std::vector<GroundItem> ground;        // ground_level's
     int next_id = 1;                       // the next ground item's unit id
@@ -205,13 +206,12 @@ struct Loot {
         auto& ground_item = ground[index];
         if (ground_item.item.code == "gld") {
             const auto room = [](const Character& who) { return std::max<std::int64_t>(who.stats.get(kLevel) * 10000 - who.stats.get(kGold), 0); };
-            // Shared (FUN_00540900): with the party alive on the level, each
-            // other member gets pile / members (to what their purse holds), the
-            // picker the rest; what the picker's purse can't hold stays.
-            // ponytail: game.exe shares only gold no player owns; a player's own
-            // dropped gold is shared here too.
+            // Shared (FUN_00540900) unless a player owns it (FUN_0055c850): with
+            // the party alive on the level, each other member gets pile /
+            // members (to what their purse holds), the picker the rest; what
+            // the picker's purse can't hold stays.
             std::int64_t pile = ground_item.gold;
-            if (const auto sharers = gold_sharers ? gold_sharers() : std::vector<Character*>{}; !sharers.empty()) {
+            if (const auto sharers = gold_sharers && ground_item.owner == 0 ? gold_sharers() : std::vector<Character*>{}; !sharers.empty()) {
                 const std::int64_t share = pile / std::int64_t(sharers.size() + 1);
                 for (Character* other : sharers) {
                     const auto given = std::min(share, room(*other));

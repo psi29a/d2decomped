@@ -371,7 +371,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 loot.enter(level);
                 const auto before = loot.ground.size();
                 loot.put({ .code = "gld", .gold = drop->amount }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
-                if (loot.ground.size() > before) loot.ground.back().dropped_by = actor->id;
+                if (loot.ground.size() > before) loot.ground.back().dropped_by = loot.ground.back().owner = actor->id;
             }
             return;
         }
