@@ -1010,8 +1010,13 @@ inline std::int64_t mana_per_frame(std::int64_t max_mana, int regen_seconds, int
 // energy, 2 dexterity, 3 vitality), as the char panel's buttons ask with
 // packet 0x3a (FUN_004a78c0). Vitality raises life and stamina, energy
 // mana, current and max (8.8 fixed: a quarter point is 64). Returns the
-// points spent.
-// ponytail: the server's handler isn't traced; gains are CharStats'.
+// points spent. The client sends a Shift-spend as packets of at most 32
+// (FUN_004a78c0), so `count` (d2d's command carries the total) is spent
+// whole; the server's handler (FUN_0054bd10) takes a stat under 16 and
+// 1..100 points a packet, one at a time while stat 4 lasts (FUN_00570d60:
+// strength and dexterity + 1; energy FUN_00570a80, vitality FUN_00570b60:
+// CharStats ManaPerMagic +0x48, LifePerVitality +0x46, StaminaPerVitality
+// +0x47, in quarters, to the current and max); a stat past 3 spends none.
 inline int spend_stat_points(d2d::d2s::Stats& stats, int stat, int count, const ClassGains& gains) {
     using namespace d2d::d2s;
     count = int(std::min<std::int64_t>(count, stats.get(kStatPts)));
