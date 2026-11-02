@@ -1158,6 +1158,12 @@ against d2d's `debug tiles`), Lut Gholein after a waypoint arrival:
 
 ## A room's life on the server (2026-10-03)
 
+A room1's +0x10 points back to its room2. FUN_0061aae0 is the getter
+(`MOV EAX,[ECX+0x10]`). FUN_0066ab00 returns the room1 at room2 +0x30;
+FUN_0066bac0 then follows room1 +0x10 to the room2, room2 +0x58 to the
+level, and returns level +0x1d0 (its id). The other getter caller,
+FUN_00458f40, saves the result in EDI but never reads it: that call is dead.
+
 The room2 status (+0x44) is the shallowest depth at which a player's
 near-list walk holds it: 0 the player's room, 1 its near list, 2 and 3
 the lists of those lists, 4 none. Each depth has a u16 counter (+0xc + 2 ×
