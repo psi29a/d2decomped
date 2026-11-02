@@ -165,9 +165,10 @@ auto Fight::merc_drinks(const std::string& code, std::uint32_t now_ms) -> void {
         if (potion.percent) actor->merc->hit_points = std::min(merc_max_life(), actor->merc->hit_points + merc_max_life() * potion.life / 100);
         else if (potion.life > 0) {
             const int len = std::max(potion.ticks, 1);
+            const double amount = d2d::rules::potion_amount(potion.life, -1, true, int(merc_gear().sum[d2d::d2s::kVit]), rng) / 256.0;   // FUN_0062a5d0: a non-player's x2
             const double left = actor->merc_heal_until > now_ms ? actor->merc_heal_rate * double(actor->merc_heal_until - now_ms) : 0;
             actor->merc_heal_until = std::max(actor->merc_heal_until, now_ms) + std::uint32_t(len) * 40;
-            actor->merc_heal_rate = (left + potion.life) / double(actor->merc_heal_until - now_ms);
+            actor->merc_heal_rate = (left + amount) / double(actor->merc_heal_until - now_ms);
         }
         cues.cue("item_potion_drink", now_ms, actor->merc->unit.x, actor->merc->unit.y);
     }

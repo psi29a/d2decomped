@@ -2129,9 +2129,11 @@ inline std::string find_potion(int level_id, int difficulty, int roll, int mana_
 // A healing / mana potion's amount in 256ths (FUN_005be3f0): calc1 << 8,
 // the class's bonus (life FUN_0062a5d0: Amazon, Paladin, Assassin x1.5,
 // Barbarian x2; mana FUN_0062a620: Amazon, Paladin, Assassin x1.5,
-// Sorceress, Necromancer, Druid x2), then doubled when rand(vitality /
-// energy) / 2 beats rand(100), the drinker's seed (unit +0x20).
+// Sorceress, Necromancer, Druid x2; `cls` -1, a non-player such as the
+// hireling: life x2, mana x1), then doubled when rand(vitality / energy) /
+// 2 beats rand(100), the drinker's seed (unit +0x20).
 template <class T> T potion_bonus(T amount, int cls, bool life) {
+    if (cls < 0) return life ? amount * 2 : amount;
     if (cls == d2d::d2s::kAmazon || cls == d2d::d2s::kPaladin || cls == d2d::d2s::kAssassin) return amount + (amount >> 1);
     return (life ? cls == d2d::d2s::kBarbarian : cls == d2d::d2s::kSorceress || cls == d2d::d2s::kNecromancer || cls == d2d::d2s::kDruid) ? amount * 2 : amount;
 }

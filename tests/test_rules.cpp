@@ -614,6 +614,7 @@ int main() {
     assert(potion_amount(30, 0, true, 0, potion_rng) == 11520 && potion_amount(30, 4, true, 0, potion_rng) == 15360);   // Amazon x1.5, Barbarian x2
     assert(potion_amount(30, 1, true, 0, potion_rng) == 7680 && potion_amount(20, 1, false, 0, potion_rng) == 10240);   // Sorceress: life x1, mana x2
     assert(potion_amount(20, 4, false, 0, potion_rng) == 5120 && potion_amount(20, 6, false, 0, potion_rng) == 7680);
+    assert(potion_amount(30, -1, true, 0, potion_rng) == 15360 && potion_amount(20, -1, false, 0, potion_rng) == 5120);   // a hireling: life x2, mana x1
     Rng roll_a{ 9 }, roll_b{ 9 };
     const int half = roll_b(50) >> 1;
     assert(potion_amount(30, 1, true, 50, roll_a) == (roll_b(100) < half ? 15360 : 7680));                        // rand(vit) / 2 > rand(100): doubled

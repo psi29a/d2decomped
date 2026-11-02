@@ -464,8 +464,8 @@ struct Fight {
     // heals it over its length, a rejuvenation its % at once.
     // An antidote ends its poison; either puts its state (+50 resist, +10
     // max) on it as on the player (FUN_005bef90, FUN_005beda0). d2d keeps
-    // no merc chill for thawing to end.
-    // ponytail: no class bonus or doubling for it.
+    // no merc chill for thawing to end. Healing as rules::potion_amount
+    // has it for a non-player (x2; doubled on its gear's vitality).
     void feed_merc(int col, std::uint32_t now_ms);
     // A healing, antidote or thawing potion in hand given to the merc (0x61,
     // FUN_005bf240): true when it drank it.
