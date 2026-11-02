@@ -381,6 +381,31 @@ int main(int argc, char** argv) {
     const Target wall{ .hit_points = 400, .max_hp = 400, .armor_class = 1000000, .level = 99 };
     const auto smite = player_blow(smiter, wall, 1, rng, { .ed_pct = 30, .stun_ticks = 20, .smite = true });
     assert(smite.hit && !smite.deadly && smite.damage == 15 && smite.life == 0 && smite.stun_ticks == 20);
+    // A block does not stop Smite: FUN_005ce9f0 sets the hit bit again after the
+    // block check (0x5cebb0), so it still deals its damage and stun and keeps the
+    // knockback, and the blow stays marked blocked. Every other swing it stops.
+    Target smite_blocker = wall;
+    smite_blocker.block = 100;
+    const auto blocked_smite = player_blow(smiter, smite_blocker, 1, rng, { .ed_pct = 30, .knockback = true, .stun_ticks = 20, .smite = true });
+    assert(blocked_smite.blocked && blocked_smite.hit && blocked_smite.damage == 15 && blocked_smite.stun_ticks == 20 && blocked_smite.knockback);
+    Fighter swinger = simple_fighter(10, 10, 1000000);
+    const Target swing_blocker{ .hit_points = 400, .max_hp = 400, .armor_class = 1, .level = 1, .block = 100 };
+    for (const auto& other : { Swing{}, Swing{ .ed_pct = 30, .stun_ticks = 20 }, Swing{ .srcdam = 128, .kick = true } }) {
+        int stopped_swings = 0;                                       // the to-hit roll (95 % at most) comes first
+        for (int i = 0; i < 40; ++i) {
+            const auto stopped_swing = player_blow(swinger, swing_blocker, 99, rng, other);
+            assert(!stopped_swing.hit && stopped_swing.damage == 0);
+            stopped_swings += stopped_swing.blocked;
+        }
+        assert(stopped_swings >= 30);
+    }
+    // Block chance 0 never marks a Smite blocked; at 100 it always does; neither changes the damage.
+    for (int chance : { 0, 100 }) {
+        Target defender = wall;
+        defender.block = chance;
+        const auto through = player_blow(smiter, defender, 1, rng, { .smite = true });
+        assert(through.hit && through.blocked == (chance == 100) && through.damage == 12);
+    }
     // With Holy Shield up its damage joins the shield's before the %.
     const auto holy_shield = player_blow(smiter, wall, 1, rng, { .ed_pct = 30, .skill_lo = 4 << 8, .skill_hi = 4 << 8, .smite = true });
     assert(holy_shield.hit && holy_shield.damage == (10 + 4) * 150 / 100);

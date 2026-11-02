@@ -531,7 +531,7 @@ struct Swing {
     // Elemental damage as % of the physical rolled (Vengeance, FUN_005cfe10:
     // FUN_0057b420's physical x calc1 fire, calc2 cold, calc3 lightning).
     int fire_pct = 0, cold_pct = 0, ltng_pct = 0, cold_len = 0;
-    // Smite (FUN_005ce9f0): the shield's damage, sure to hit, and the record
+    // Smite (FUN_005ce9f0): the shield's damage, sure to hit (a block marks the blow but does not stop it), and the record
     // marked built (flags 2), so FUN_0057dbf0 skips FUN_0057b7d0: no crit,
     // gear elements, leech, crushing blow or open wounds.
     bool smite = false;
@@ -547,7 +547,10 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
     if (!swing.smite && rng(100) >= hit_chance(attack_rating, target.armor_class, clvl, target.level)) return blow;
     blow.prevent_heal = !swing.smite && fighter.prevent_heal;
-    if (target.block > 0 && rng(100) < target.block) { blow.blocked = true; return blow; }
+    if (target.block > 0 && rng(100) < target.block) {
+        blow.blocked = true;
+        if (!swing.smite) return blow;      // FUN_005ce9f0 sets the hit bit again after the block check (0x5cebb0): Smite lands
+    }
     blow.hit = true;
     std::int64_t low, high;                                  // 256ths
     if (swing.smite) {
