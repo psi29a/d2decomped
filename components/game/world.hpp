@@ -614,7 +614,7 @@ struct World {
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
     // drops at the area level).
-    // ponytail: D2's operate range is 2 cells here.
+    // In reach as World::tick tests it (FUN_005b0f50: rules::object_reach).
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
     int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
     // The OperateFns `operate` handles; one-shot ones stay used (operated):

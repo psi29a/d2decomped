@@ -225,10 +225,11 @@ void DebugVerbs::add_level() {
         }
         return out + "\n";
     });
-    add("warp", [this](const Args& args) -> Reply {   // put the player at cell (x, y)
+    add("warp", [this](const Args& args) -> Reply {   // put the player at cell (x, y), or the nearest free spot
         if (args.size() < 4) return std::nullopt;
         town.player.x = town.target_x = std::strtof(args[2].c_str(), nullptr);
         town.player.y = town.target_y = std::strtof(args[3].c_str(), nullptr);
+        if (town.level) { std::tie(town.player.x, town.player.y) = town.level->nearest_free(town.player.x, town.player.y); town.target_x = town.player.x; town.target_y = town.player.y; }
         town.player.walking = false;
         return std::string("ok\n");
     });

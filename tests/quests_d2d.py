@@ -294,6 +294,8 @@ def act1():
     for stone in order[-1]:
         operate(stones[int(stone)], 3)
     until("the way to Tristram", lambda: any(l.startswith("2\t") for l in cmd("debug portals").splitlines()))
+    way = [l.split("\t") for l in cmd("debug portals").splitlines() if l.startswith("2\t")][0]
+    cmd(f"debug warp {float(way[2]) + 1} {way[3]}")  # out of the stones' ring: a long walk round them snags
     cmd("cmd interact -2002")
     until("Tristram", lambda: level() == 38, 30)
     cmd("debug kill")
