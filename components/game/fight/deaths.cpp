@@ -152,15 +152,13 @@ auto Fight::boss_missile(const Monster& monster, const char* name, float dx, flo
 // and, by its aip1 (MonStats +0x56), fire (1) or cold for aip1 frames (2
 // up); suicidecorpseexplode (426) on its spot (FUN_0056ecb0); everyone
 // within its aip4 (+0x68) subtiles (FUN_0057e090, flags 0x581).
-// ponytail: FUN_0057e090's own shape is the fire blast's circle.
 auto Fight::suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
         const auto& aip = game_data->monsters.types[std::size_t(monster.type)].diff[std::size_t(std::clamp(monster.difficulty, 0, 2))].aip;
         const int low = monster.stats.a1_min, high = monster.stats.a1_max;
         const int pts = high > low ? low + monster.seed(high - low) : low;
         const int element = aip[0];
-        const float radius = float(aip[3]) / 5;
         for (auto& foe : foes) {
-            if (!foe.alive || std::hypot(foe.x - monster.unit.x, foe.y - monster.unit.y) > radius) continue;
+            if (!blast_reaches(monster, foe, aip[3])) continue;
             d2d::rules::Taken taken;
             taken.hit = true;
             taken.damage = std::max(pts * (100 - foe.fighter.dr_pct) / 100 - foe.fighter.dr_flat, 0);
@@ -180,12 +178,24 @@ auto Fight::suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t n
         d2d::log::info("{} blows up ({} physical{})", monster.npc.name, pts, element == 1 ? " + fire" : element >= 2 ? " + cold" : "");
     }
 
+// FUN_0057e090's area: FUN_0065aa40 takes a unit whose subtile is within
+// `radius` (dx² + dy² <= r²), then FUN_00645950 the bare line from the
+// blast to it (FUN_0064e260) clear of mask 0x805.
+auto Fight::blast_reaches(const Monster& monster, const Foe& foe, int radius) const -> bool {
+        if (!foe.alive) return false;
+        const int from_x = int(std::floor(monster.unit.x * 5)), from_y = int(std::floor(monster.unit.y * 5));
+        const int to_x = int(std::floor(foe.x * 5)), to_y = int(std::floor(foe.y * 5));
+        if ((to_x - from_x) * (to_x - from_x) + (to_y - from_y) * (to_y - from_y) > radius * radius) return false;
+        return !mon_level || !d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, [&](int at_x, int at_y) {
+            return mon_level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805);
+        });
+    }
+
 auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
         const auto [low, high] = d2d::rules::fire_blast(monster.stats.hit_points, monster.difficulty);
         const int pts = (low + rng(std::max(high - low, 1))) * 64 / 256;
-        const float radius = float(monster.difficulty + 4) / 5;
         for (auto& foe : foes) {
-            if (!foe.alive || std::hypot(foe.x - monster.unit.x, foe.y - monster.unit.y) > radius) continue;
+            if (!blast_reaches(monster, foe, monster.difficulty + 4)) continue;
             d2d::rules::Taken taken;
             taken.hit = true;
             taken.damage = std::max(pts * (100 - foe.fighter.dr_pct) / 100 - foe.fighter.dr_flat, 0) + d2d::rules::resisted(pts, foe.fighter.res[0]);
