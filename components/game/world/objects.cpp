@@ -467,15 +467,30 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if (shrine.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(game_data->rules, actor->character.items, rng); !code.empty())
                 loot.put({ .code = code }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
-        // Storm (FUN_00582da0): everyone about loses Arg0 % of their life.
-        // ponytail: "about" as within 30 cells (game.exe's unit search
-        // over Arg1 isn't traced).
+        // Storm (FUN_00582da0): every live player and monster in the shrine's
+        // room, when the box Arg1 subtiles about it fits inside (FUN_0065a6b0),
+        // else in its near rooms (FUN_0065ac70: FUN_0065a710's room test
+        // passes every room, its compares never fail; the filter LAB_00582710
+        // has no distance), loses Arg0 % of its life's whole points.
         if (shrine.code == 19) {
-            stat_values[kLife] -= stat_values[kLife] * shrine.arg0 / 100;
-            actor->merc->hit_points -= actor->merc->hit_points * shrine.arg0 / 100;
+            const int at_x = int(std::floor(object.x * 5)), at_y = int(std::floor(object.y * 5)), radius = shrine.arg1;
+            const int own = room_of(*level, object.x, object.y);
+            std::vector<int> rooms;
+            if (const auto rect = own >= 0 ? level_room(*level, std::size_t(own)) : std::nullopt;
+                rect && rect->x * 5 < at_x - radius && rect->y * 5 < at_y - radius && at_x + radius < (rect->x + rect->width) * 5 && at_y + radius < (rect->y + rect->height) * 5)
+                rooms.push_back(own);
+            else
+                for (const auto& [room_level, room] : near_rooms(*game_data, *level, object.x, object.y))
+                    if (room_level == level) rooms.push_back(room);
+            const auto about = [&](float x, float y) { return std::ranges::contains(rooms, room_of(*level, x, y)); };
+            const auto storm = [&](auto life) { return life - life * shrine.arg0 / 100; };
+            for (const auto& player : players) {
+                if (auto& life = player->character.stats.values[kLife]; life > 0 && about(player->player.x, player->player.y)) life -= (life >> 8) * shrine.arg0 / 100 << 8;
+                if (player->merc && player->merc->hit_points > 0 && about(player->merc->unit.x, player->merc->unit.y)) player->merc->hit_points = storm(player->merc->hit_points);
+            }
             if (fight.mon_level == level)
                 for (auto& monster : fight.monsters)
-                    if (monster.alive() && std::abs(monster.unit.x - object.x) < 30 && std::abs(monster.unit.y - object.y) < 30) monster.hit_points -= monster.hit_points * shrine.arg0 / 100;
+                    if (monster.alive() && about(monster.unit.x, monster.unit.y)) monster.hit_points = storm(monster.hit_points);
         }
         // Exploding / Poison: Arg0 .. Arg1 - 1 exploding (opm) / choking gas
         // (gpm) potions at the player's feet (FUN_005830e0 / FUN_00583410).
