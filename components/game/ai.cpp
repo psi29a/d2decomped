@@ -585,8 +585,8 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
 // subtiles less its first row and column, on the room's seed, then
 // FUN_005b3040 there at radius -1). Found: under 30 % life, rand(100) < 25
 // heals its level in life; then it casts MonTeleport (0xb8) at the spot
-// (FUN_005dead0 command 4) and true.
-// ponytail: state 0x34 (no heal) isn't kept.
+// (FUN_005dead0 command 4) and true. No heal under state 0x34
+// (Prevent Monster Heal), its roll still drawn.
 bool teleport_mod(const GameData& game_data, const Level& level, Monster& monster, int distance, const Crowd& crowd, Spawning::LevelState* rooms_in_play, std::uint32_t now_ms) {
     if ((monster.boss != d2d::rules::Boss::unique && monster.boss != d2d::rules::Boss::superunique) || !std::ranges::contains(monster.mods, d2d::rules::umod::teleport)
         || monster.seed.next() % 100 >= 40) return false;
@@ -605,7 +605,7 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
         const int try_x = room_seed(width) + left, try_y = room_seed(height) + top;
         int at_x = 0, at_y = 0;
         if (!spawn_spot(game_data, level, crowd, rooms_in_play, monster.type, try_x, try_y, -1, room, at_x, at_y)) continue;
-        if (low && monster.seed(100) < 25) monster.hit_points = std::min(monster.stats.hit_points, monster.hit_points + monster.stats.level);
+        if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) monster.hit_points = std::min(monster.stats.hit_points, monster.hit_points + monster.stats.level);
         monster.skill = teleport;
         monster.skill_x = at_x; monster.skill_y = at_y; monster.at_point = true;
         monster.unit.walking = false;

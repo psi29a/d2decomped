@@ -693,6 +693,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
         } else if (missile.info->to_hit) {
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);
+            blow.prevent_heal = blow.hit && fighter.prevent_heal;
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
         blow.hit_class = missile.info->hit_class | skill->hit_class;

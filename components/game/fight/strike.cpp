@@ -409,6 +409,10 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (!target.targetable()) return false;                     // under the sand, aloft: nothing reaches it
         if (target.align == 2) return false;                        // converted: no foe of the player's side (FUN_00554200)
         if (target.alive()) target.struck_by = striker;             // FUN_00621d50: not once it's dying (FUN_005541b0)
+        // Prevent Monster Heal (FUN_0057d810, run as the to-hit roll passes):
+        // a player's only, not on the ubers (hcIdx 704..709); state 0x34
+        // for 120 000 frames.
+        if (blow.prevent_heal && striker == player_foe_id() && (target.type < 704 || target.type > 709)) target.no_heal_until = now_ms + 120'000u * 40;
         if (blow.blocked) { block_anim(*game_data, target, now_ms); return false; }
         if (!blow.hit) return false;
         target.hit_class = blow.hit_class;

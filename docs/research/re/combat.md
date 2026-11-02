@@ -156,6 +156,12 @@ d2d matches both, and the one-poison-at-a-time rule.
 - `c = AR × 100 / (AR + DEF)`; `c = c × 2 × alvl / (alvl + dlvl)`, clamped
   5..95; hit when the attacker's seed % 100 < c. A swing at a player in
   mode 3 (RN) skips the roll and lands (FUN_0057ec10); a missile still rolls.
+- A passed roll by a player (unit type 0) with stat 117 (Prevent Monster
+  Heal) puts state 0x34 (preventheal) on a monster, not the ubers (hcIdx
+  0x2c0..0x2c5): FUN_0057d810, a FUN_0056e970 block of 120 000 frames,
+  before the block roll, so a blocked hit still carries it. Read by the
+  teleport mod's heal (FUN_005b11f0) and regen (FUN_005a6920). d2d:
+  `Blow::prevent_heal`, `Monster::no_heal_until`.
 - Then the defender's rolls (FUN_0057dfb0 → FUN_0057dd60), each cancelling
   the hit: **block** (the defender's seed % 100 < chance, the chance a third
   while the player runs: FUN_00622d00's moving, modes 2 / 3 / 6, and not

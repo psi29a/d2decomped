@@ -57,6 +57,7 @@ struct Fighter {
     int mastery_crit = 0;                           // stat 344, the weapon's mastery (FUN_00645830)
     int weapon_block = 0;                           // stat 348, two claws only (FUN_0057dca0)
     bool knockback = false;
+    bool prevent_heal = false;                      // stat 117 (item_preventheal)
     int hit_class = 1;                              // the weapon's (Weapons.txt hit class; 1 hand to hand), FUN_00623c20
     int life_steal = 0, mana_steal = 0;             // %
     int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0, fcr = 0;
@@ -147,6 +148,7 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     fighter.mastery_crit = int(stat(kPassiveMasteryMeleeCritical)); fighter.weapon_block = int(stat(kPassiveWeaponBlock));
     fighter.open_wounds = int(stat(kOpenWounds));
     fighter.knockback = stat(kKnockback) > 0;
+    fighter.prevent_heal = stat(kPreventHeal) > 0;
     fighter.life_steal = int(stat(kLifeDrainMinDamage)); fighter.mana_steal = int(stat(kManaDrainMinDamage));
     fighter.ias = int(stat(kFasterAttackRate)); fighter.wsm = weapon_base ? weapon_base->speed : 0; fighter.frw = int(stat(kFasterMoveVelocity)); fighter.fhr = int(stat(kFasterGetHitRate)); fighter.fbr = int(stat(kFasterBlockRate)); fighter.fcr = int(stat(kFasterCastRate));
     fighter.defense = defense;
@@ -368,6 +370,7 @@ struct Blow {
     int stun_ticks = 0;
     int hit_class = 0;                   // what the struck unit's impact sound is (sound_ids::impact)
     bool elemental = false;              // fire, lightning, cold or poison got through (not magic): the get-hit divides by 16 (get_hit)
+    bool prevent_heal = false;           // the to-hit roll passed with stat 117 (FUN_0057d9b0 -> FUN_0057d810), blocked or not
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
 // game.exe's MulDiv (FUN_00483360): value x times / over, truncated, 0 over
@@ -505,6 +508,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
     const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
     if (!swing.smite && rng(100) >= hit_chance(attack_rating, target.armor_class, clvl, target.level)) return blow;
+    blow.prevent_heal = !swing.smite && fighter.prevent_heal;
     if (target.block > 0 && rng(100) < target.block) { blow.blocked = true; return blow; }
     blow.hit = true;
     std::int64_t low, high;                                  // 256ths
