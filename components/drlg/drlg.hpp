@@ -404,8 +404,8 @@ inline Act3Layout act3_layout(const LevelDefs& defs, d2d::rules::Rng act_seed) {
     const int width = def(level_ids::kSpiderForest).width, height = def(level_ids::kSpiderForest).height;
     const int cols = width / 32, rows = height / 32;
     if (cols < 2 || rows < 4) { out.failed = true; return out; }   // the ways in and out need 2 columns, 4 rows (Levels.txt row missing or short)
-    // ponytail: game.exe retries without end; 1000 is far past any seed's need (at most 7 over act seeds of map seeds 1..1e6:
-    // drlg-dump <data> 1-1000000 75 layout with $LAYOUT_STATS), it marks the layout failed
+    // game.exe retries without end; 1000 is far past any seed's need (at most 7 over act seeds of map seeds 1..1e6:
+    // drlg-dump <data> 1-1000000 75 layout with $LAYOUT_STATS), so the cap never decides; it marks the layout failed
     constexpr int kTries = 1000;
     struct Piece { int x = 0, y = 0, dir = 0; std::vector<int> children; int cell_x = 0, cell_y = 0; JungleCells cells; };
     std::array<Piece, 3> pieces;
@@ -557,8 +557,8 @@ inline Act3Layout act3_layout(const LevelDefs& defs, d2d::rules::Rng act_seed) {
         } else if (value < 16) {
             def_id += 529;
         } else {
-            // ponytail: a second branch indexes the table by a Def (game.exe reads past it); counted as failed. Never
-            // seen, nor a clearing without a Def: 0 failed layouts over map seeds 1..1e6 ($LAYOUT_STATS)
+            // A second branch indexes the table by a Def (game.exe reads past it: bugs.md 45); counted as failed.
+            // Never seen, nor a clearing without a Def: 0 failed layouts over map seeds 1..1e6 ($LAYOUT_STATS)
             for (int column = 0; column < 4; ++column)
                 if (value & (0x10 << column)) def_id = def_id < 15 ? kJungleBranches[std::size_t(def_id)][std::size_t(column)] : 0;
             if (def_id == 0) out.failed = true;
