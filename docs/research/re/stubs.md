@@ -36,6 +36,13 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_0046d450` | critter row 574 (Worldstone Effect): 5 %, a unit (`FUN_004cdb40`) up to 30 subtiles round it | unreachable | no Levels.txt cmon names row 574 | not ported | critters.md |
 | `FUN_0046d780` rows 157 / 158 / 227 / 320 | the birds', maggot's and fish's critter thinks | unreachable | no Levels.txt cmon names them (parrot 319 shares the birds' think and is reached) | ported (shared code) | critters.md |
 | `0x543de0` | the quest event 6 wrapper (record slot +0xb8) | orphan (no call, jump or pointer) | no +0xb8 callback runs: Tools of the Trade's reset when the last carrier loses the malus (`0x5918d0`), the Search for Cain's `FUN_00592e60` rewind | not ported | act1-end.md "Tools of the Trade" |
+| `FUN_0055f4f0` | ItemMode.cpp callback | stub (`ret 4`) | eight calls return without an item-mode action | not ported | "ItemMode stub" below |
+
+### ItemMode stub
+
+`FUN_0055f4f0`'s whole body is `RET 4`, discarding one stack argument.
+Its eight call sites are in `FUN_00533c70`, `FUN_005380d0`, `FUN_0054bd90`,
+`FUN_0054ced0` (two), `FUN_0054d130`, `FUN_0056ac10` and `FUN_00597890`.
 
 Still reachable, though the content looks dead: the uber levels 133..136
 build and populate (`FUN_005559a0`'s uber cases, the Hellfire Torch hook
