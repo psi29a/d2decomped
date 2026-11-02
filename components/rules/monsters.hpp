@@ -1475,10 +1475,11 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // difficulty (FUN_00573930's difficulty); in melee aip3 % A1, else
     // aip1 % close in (aip5 % running).
     if (ai_name == "CorruptRogue") {
-        if (input.dist > 20 - 3 * input.difficulty) return { MonAct::run };
+        const auto run = [&] { *input.pace = aip[3]; return Think{ MonAct::run }; };     // FUN_005de190(aip4, 0) before each run
+        if (input.dist > 20 - 3 * input.difficulty) return run();
         if (input.in_melee) return roll() < aip[2] ? Think{ MonAct::a1 } : idle2;
         if (roll() >= aip[0]) return idle2;
-        return roll() < aip[4] ? Think{ MonAct::run } : walk;
+        return roll() < aip[4] ? run() : walk;
     }
     // QuillRat (14, FUN_005f1140): A1 in melee, spikes (A2) when hit;
     // wanders (aip4, at least 3) at aip1 or more; else aip2 % a back-off
