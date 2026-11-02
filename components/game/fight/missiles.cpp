@@ -701,7 +701,6 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow);
         blow.hit_class = missile.info->hit_class | skill->hit_class;
-        if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
         d2d::rules::Freeze frozen;
         if (const auto& struck = monsters[monster_index]; blow.hit && freeze > 0 && struck.type >= 0) {
             const auto& struck_type = game_data->monsters.types[std::size_t(struck.type)];

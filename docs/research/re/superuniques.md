@@ -76,8 +76,9 @@ not set yet.
 - **0x9c Andariel**: mod 22 and quest 6. Class 0x2c3 (uberandariel) gets
   mods 23, 6 and 0x1d instead.
 - **0x10b Blood Raven**: mod 12 (bloodraven; it has no init or hook, only a
-  name handler in the client table 0x724d78), mod 22, quest 2, and stat
-  0x76 = 1 (half freeze).
+  name handler in the client table 0x724d78), mod 22, quest 2, and FUN_00639db0(unit, 0x76, 1):
+  state 118 (corpse_noselect), not stat 0x76 (half freeze). Confidence: high
+  (the call read in the disassembly; the dump below prints it as `h`).
 - **0x11c maggotqueen**: mods 23 and 22.
 - **0x192 the Smith** (Barracks): mod 22 only, no quest call. Found by the
   sweep: level 28 printed `402!22` in game.exe and `402` in d2d.
@@ -93,7 +94,7 @@ colour shift.
 d2d: `rules::act_boss` in `spawn_monsters` (Boss::unique without
 make_boss's stats). Their quests key off the kill's MonStats row
 (world/). Checked: `monsters.py` prints the mods FUN_005b1cf0 adds and
-the stat 0x76 (`267!12.22h`, `156!22`, `402!22`), as `drlg-dump ... monsters` does.
+the state-118 marker (`267!12.22h`, `156!22`, `402!22`), as `drlg-dump ... monsters` does.
 
 By FUN_005a0320's flag-8 guard each boss counts one unique, whatever its
 mods; objgroups.cpp counts 1 for Andariel, Blood Raven and the Maggot Queen.

@@ -358,7 +358,10 @@ struct Monster {
     // special AI (AI control [0], FUN_005b0e00: the Countess's 0xd, Dim
     // Vision's / Cloak's 10, Terror's / Howl's 11) or its MonAI row's other
     // think (`other`, rules::ai_toggle), its map AI's points (subtiles),
-    // half freeze durations (stat 0x76).
+    // `half_freeze`: the act boss / superunique FUN_00639db0(unit, 0x76, 1)
+    // call (Blood Raven, the Countess), which sets state 118
+    // (corpse_noselect, FUN_00625a70's state bits), not stat 0x76: nothing
+    // reads it for a freeze.
     d2d::rules::Rng seed;
     int special = 0;
     bool other = false;

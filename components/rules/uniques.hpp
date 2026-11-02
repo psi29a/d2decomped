@@ -134,7 +134,9 @@ inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type
 // BaseId; an uber by its own row): its mods, each FUN_005a4850(mod, 1),
 // whose FUN_005a0320 sets flag 8 (the gold name, the Demon / Undead label,
 // TreasureClass3). No mod has an init in 0x73c008, so no unique stats.
-// Blood Raven also gets stat 0x76 (half freeze). Most also bind a quest
+// Blood Raven also gets FUN_00639db0(unit, 0x76, 1): state 118
+// (corpse_noselect), not stat 0x76 (half freeze), so her freezes aren't
+// halved; `half_freeze` keeps that call. Most also bind a quest
 // (FUN_005436b0: Andariel 6, Blood Raven 2, Mephisto 0x14, Diablo 0x17,
 // Izual 0x16, Nihlathak 0x22, Baal 0x24, the orb 0x13), which d2d keys off
 // the kill (World::andariel_died, blood_raven_died). Travincal's compelling
