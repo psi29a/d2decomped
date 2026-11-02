@@ -1418,6 +1418,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.skill = skill; monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
         monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y; monster.at_point = false;
         attack_starts(game_data, monster, mode, rng);
+        // srvst 59 (FUN_005d1280, Imp Inferno): its end calc1 frames from the start (the roll on its seed now), state 0xc on.
+        if (const auto* fire = game_data.skills.get(skill); fire && fire->srvstfunc == d2d::rules::ServerStartFunction::kImpInferno) {
+            d2d::rules::CalcEnv env;
+            env.rng = &monster.seed;
+            monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, fire->calc[0], env, skill, skill_level(game_data, monster, skill)), 1)) * 40;
+            monster.breath_state = true;
+        }
     };
     // FUN_005defe0 / FUN_005df140: n subtiles on from the target (or the
     // second target), by axis.
@@ -2136,14 +2143,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
             } else if (const auto* fire = seq ? game_data.skills.get(monster.skill) : nullptr; fire && fire->srvdofunc == d2d::rules::ServerDoFunction::kImpInferno) {
                 // imp6..8's Inferno (seq_impinferno, its event-4 row 12): do 126 as the
-                // plain SC cast's, its end calc1 frames on (rand(par3, par4), its seed).
-                // ponytail: the end counts from the event, not the sequence's start (srvst 59).
-                const int lvl = skill_level(game_data, monster, monster.skill);
-                d2d::rules::CalcEnv env;
-                env.rng = &monster.seed;
+                // plain SC cast's, its end set as the sequence started (srvst 59, the use above).
                 monster.breath = monster.skill;
-                monster.breath_state = true;
-                monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, fire->calc[0], env, monster.skill, lvl), 1)) * 40;
                 monster.breath_next = now_ms;
                 monster.next_act = std::max(monster.next_act, monster.breath_until);
                 d2d::log::info("{} breathes its Inferno (sequence)", monster.npc.name);
@@ -2527,14 +2528,15 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // DiabLight: the same start (srvst 53) and its bolts while state 0xc's on (FUN_005cc690).
                     // FUN_005cc240 / FUN_005cc4e0: state 0xc, its end calc2 frames on; a
                     // flame now and every calc3 frames after (the breath below).
-                    // Imp Inferno (FUN_005d1280 / FUN_005d1350): its end calc1 frames
-                    // on (rand(par3, par4) on its seed), a flame every 3 frames.
+                    // Imp Inferno (FUN_005d1280 / FUN_005d1350): its end set at the
+                    // start (srvst 59, the think's use), a flame every 3 frames.
                     monster.breath = monster.skill;
                     monster.breath_state = true;
-                    d2d::rules::CalcEnv env;
-                    env.rng = &monster.seed;
-                    const auto& end_calc = cast->srvdofunc == ServerDoFunction::kImpInferno ? cast->calc[0] : cast->calc[1];
-                    monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, end_calc, env, monster.skill, lvl), 1)) * 40;
+                    if (cast->srvdofunc != ServerDoFunction::kImpInferno) {
+                        d2d::rules::CalcEnv env;
+                        env.rng = &monster.seed;
+                        monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[1], env, monster.skill, lvl), 1)) * 40;
+                    }
                     monster.breath_next = now_ms;
                     monster.next_act = std::max(monster.next_act, monster.breath_until);
                 } else if (cast->srvdofunc == ServerDoFunction::kMissileAtTarget) {
