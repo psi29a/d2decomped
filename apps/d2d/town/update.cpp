@@ -671,6 +671,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                       npc_menu.scroll - mouse.wheel);
         } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
             menu_click = true;                            // the click is the menu's, not a walk
+            menu_press = true;                            // ... and its release (a store button under it)
             const int line_index = npc_menu.line_at(mouse.x, mouse.y);
             const auto action = line_index >= 0 ? npc_menu.lines[std::size_t(line_index)].action : NpcMenuState::kClose;
             const int npc_menu_arg = line_index >= 0 ? npc_menu.lines[std::size_t(line_index)].arg : -1;
@@ -735,7 +736,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // Store: tabs (x 80+80i, y 60..90) switch; the buttons press;
         // close (button 4 at non-repair vendors) closes.
         store.pressed.fill(false);
-        if (store.npc >= 0) {
+        if (!mouse.down && !mouse.release_this_frame) menu_press = false;
+        // The refused buy's box (an npc_menu over the store) takes the click, press and release.
+        if (store.npc >= 0 && npc_menu.npc < 0 && !menu_press) {
             static constexpr int kBtnX[4] = { 116, 169, 221, 273 };
             for (int i = 0; i < 4; ++i) {
                 const int button_x = kCharPanelX - 1 + kBtnX[i], button_y = 476 - 32 + 1;
@@ -758,14 +761,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 store.tab = (mouse.x - kCharPanelX) / 80;
             // Right-click on stock buys; with Buy or Sell toggled on,
             // a left click buys the stock item / sells your item.
-            // The refused buy's box (an npc_menu over the store) takes the click.
-            const int store_index = store.npc >= 0 && npc_menu.npc < 0 && !menu_click ? store_item_at(*scene, store, mouse.x, mouse.y) : -1;
+            const int store_index = store_item_at(*scene, store, mouse.x, mouse.y);
             if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
             {
                 send(cmd::Buy{ store_index, store.tab });
             }
             // Sell: an inventory item; repair: that or a worn one.
-            if (store.npc >= 0 && npc_menu.npc < 0 && !menu_click && mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
+            if (mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
                 for (std::size_t i = 0; i < character.items.size(); ++i) {
                     const auto& item = character.items[i];
                     const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
