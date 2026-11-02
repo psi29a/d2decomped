@@ -16,6 +16,7 @@
 #include <d2s_items.hpp>
 #include <light.hpp>
 #include <monster_ids.hpp>
+#include <monsters.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
