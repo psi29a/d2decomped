@@ -2776,8 +2776,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     }
     // Chilled, coldeffect goes on velocitypercent (stat 0x43, FUN_0057af80)
     // with its think's pace, Spider Lay's -100 % and the rest; the walk % is
-    // their sum, at least 25 (FUN_00623f50, 0x62414e).
-    // ponytail: laid, it creeps at the 25 % floor, not rooted.
+    // their sum, at least 25 (FUN_00623f50, 0x62414e): laid (-100 %), it
+    // creeps at that floor in game.exe too.
     const int chill = now_ms < monster.chill_until ? type_info.diff[std::size_t(monster.difficulty)].cold_effect : 0;
     const int pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
     const float walk = cells_per_sec(float(type_info.velocity)) * elapsed * float(std::max(100 + monster.speed_pct + monster.boss_speed + pace + chill, 25)) / 100;
