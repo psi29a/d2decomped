@@ -769,8 +769,7 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
         bought.column = column; bought.row = row; bought.location = d2d::d2s::item_location::kStored; bought.panel = d2d::d2s::item_panel::kInventory;
         items.push_back(std::move(bought));
     }
-    // Carried gold first, then the stash (the store shows it for that).
-    // ponytail: that order is a guess; the server's buy isn't RE'd.
+    // Carried gold first, then the stash (FUN_00577830 -> FUN_00576d90).
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
