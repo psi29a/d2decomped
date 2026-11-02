@@ -247,7 +247,7 @@ int main(int argc, char** argv) try {
                 d2d::d2s::Item carried;
                 carried.code = code; carried.location = location; carried.panel = panel; carried.column = column; carried.slot = slot;
                 carried.id = int(items.size()) + 1;
-                items.push_back(carried);
+                items.push_back(std::move(carried));
             };
             if (belt != "-") add(belt, loc::kEquipped, 0, 0, d2d::d2s::body_location::kBelt);
             for (int box = 0; box < 16; ++box) if (boxes[std::size_t(box)] != "-") add(boxes[std::size_t(box)], loc::kBelt, 0, box, 0);

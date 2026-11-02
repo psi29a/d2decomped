@@ -33,6 +33,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -94,7 +95,7 @@ int main(int argc, char** argv) try {
         monster.boss_res[index] = base - monster.target(*data).res[index];
         monster.curse = { int(lower->second), 1, 0 };
         world.fight.monsters.clear();
-        world.fight.add_monster(monster);
+        world.fight.add_monster(std::move(monster));
         const auto target = world.fight.target_of(0);
         const int etype = kEtype[index];
         int res = target.res[index];

@@ -30,6 +30,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -101,7 +102,7 @@ int main(int argc, char** argv) try {
         monster.boss_res = {};
         monster.boss_res[4] = res - monster.target(*data).res[4];
         world.fight.monsters.clear();
-        world.fight.add_monster(monster);
+        world.fight.add_monster(std::move(monster));
         const auto target = world.fight.target_of(0);
         Foe foe;
         foe.melee_by.push_back(world.fight.monsters.back().id);

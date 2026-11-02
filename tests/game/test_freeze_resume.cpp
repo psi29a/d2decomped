@@ -33,6 +33,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -101,7 +102,7 @@ int main(int argc, char** argv) try {
         monster.stun_until = prior > 0 ? now + std::uint32_t(prior) * kTickMs : 0;
         world.fight.game_difficulty = difficulty;
         world.fight.monsters.clear();
-        world.fight.add_monster(monster);
+        world.fight.add_monster(std::move(monster));
         Missile missile;
         missile.info = &spike_info;
         missile.skill = int(spike->second);
