@@ -877,6 +877,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             types.get(row, "TreasureClass") == "1", std::atoi(std::string(types.get(row, "Rarity")).c_str()) };
         auto& item_type = game_data.rules.types[code];
         item_type.throwable = types.get(row, "Throwable") == "1";
+        item_type.repair = types.get(row, "Repair") == "1";
         item_type.shoots = std::string(types.get(row, "Shoots"));
         item_type.quiver = std::string(types.get(row, "Quiver"));
         const auto page = types.get(row, "StorePage");

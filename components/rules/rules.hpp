@@ -57,6 +57,7 @@ struct ItemType {
     int rarity = 1;                    // Rarity: its bases' weight in those classes
     bool autostack = false;            // AutoStack: a pickup joins the inventory's stacks of it (keys)
     bool throwable = false;            // Throwable (the item's own type, FUN_0062ba80)
+    bool repair = false;               // Repair (+0x08): a smith may repair it (FUN_0062e660)
     std::string shoots, quiver;        // Shoots / Quiver: a bow's ammunition, a quiver's bow (+0xc / +0xe, FUN_0062e6f0 / FUN_0062e740)
     std::array<int, 3> max_sock{};     // MaxSock1 / 25 / 40: by ilvl <= 25, <= 40, above
     int staff_mods = 7;                // StaffMods class (ama .. ass = 0 .. 6), 7 none
@@ -666,20 +667,29 @@ inline bool recharge(d2d::d2s::Item& item) {
 // (charges_repair_cost, after the mults); 0 when there's nothing to repair.
 // A stack that restocks pays for its missing quantity instead (its base
 // a unit's, its durability free). Ethereal and unidentified items can't
-// be repaired (FUN_0062e660 at 0062efee: price 0).
+// be repaired (FUN_0062e660 at 0062efee: price 0), nor can an item whose
+// ItemTypes row has no Repair, or that neither restocks nor has durability
+// (FUN_00629930: nodurability 0, a durability column, max != 0, not
+// indestructible), unless charges are missing. In vanilla data every base
+// of a type without Repair also has nodurability 1, so the Repair test is
+// redundant there and kept for fidelity (mods).
+// With charges missing the gate passes and the base is scaled by the
+// durability as FUN_0062efb0 does (0062f9e7): an item without durability
+// pays its whole base, a durable one its missing share (none when whole).
 // ponytail: no socket terms. A whole item stays 0 here (the original
-// prices it 1, its Repair All skips it), and the gate's ItemTypes Repair
-// and durability column checks (FUN_00629930) aren't made.
+// prices it 1, its Repair All skips it).
 inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, int reduced = 0) {
     const int max = max_durability(item);
     const bool restock = restocks(tables, item);
     const auto found = tables.item_base.find(item.code);
     const int max_stack = found != tables.item_base.end() ? std::max(found->second.max_stack, 1) : 1;
     if (item.ethereal || !item.identified) return 0;
-    if (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(tables, item)) {
-        const int charges = charges_repair_cost(tables, item);
-        return charges > 0 ? int(price_reduced(charges, reduced)) : 0;
-    }
+    const auto info = tables.item_info.find(item.code);
+    const auto kind = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+    const bool mends = kind != tables.types.end() && kind->second.repair;
+    const bool durable = found != tables.item_base.end() && !found->second.no_durability && found->second.durability > 0 && max != 0 && !indestructible(tables, item);
+    const int charges = charges_repair_cost(tables, item);
+    if (!(mends && (restock ? item.quantity < max_stack : durable && item.durability < max)) && charges <= 0) return 0;
     int base = armor_scaled(tables, item, found != tables.item_base.end() ? found->second.cost : 0);
     if (item.quality < 4) base += staff_mod_costs(tables, item, base, base, false);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
@@ -702,7 +712,9 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
     }
     if (item.quality >= 4) x += staff_mod_costs(tables, item, int(x), int(x), false);
     // The missing share's product is game.exe's 32 bits (0062fa35).
-    long long cost = restock ? (max_stack - item.quantity) * x / max_stack : std::int32_t(std::uint32_t((max - item.durability) * x)) / max;
+    long long cost = x;
+    if (restock) cost = item.quantity < max_stack ? (max_stack - item.quantity) * x / max_stack : 0;
+    else if (durable) cost = item.durability < max ? std::int32_t(std::uint32_t((max - item.durability) * x)) / max : 0;
     if (const auto price_row = tables.npc_prices.find(npc_id); price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
         // Above 0xffff the cost is divided by 1024 before the mult, as a price's (0062fb1d).
@@ -713,7 +725,7 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
             if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
                 scale(prices.qrep[std::size_t(quest)]);
     }
-    return int(price_reduced(cost + charges_repair_cost(tables, item), reduced));
+    return int(price_reduced(cost + charges, reduced));
 }
 
 // Paying (FUN_00576d90): the purse first, then the stash; nothing taken
