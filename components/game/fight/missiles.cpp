@@ -530,7 +530,8 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 area(missile, missile.x, missile.y, missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), now_ms);
             // 28 (FUN_005afb80, Volcano): every Param1 (else calc4) frames
             // SubMissile1 thrown at a point within Param2 (else aurarange),
-            // between frames Param3 and Param4 (FUN_0064a3b0, both out).
+            // between frames Param3 and Param4 (both out) of its age: FUN_0064a3b0 is its
+            // range (+0xe) less the frames left (+0x10, ticked down by FUN_005ae1f0).
             if (missile_info.srv_do == 28 && sub != game_data->missiles.end() && age > missile_info.param3 && age < missile_info.param4
                 && age % std::max(missile_info.param1 > 0 ? missile_info.param1 : calc(*skill, skill->calc[3], missile.level), 1) == 0) {
                 const int radius = std::max(missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), 1);
