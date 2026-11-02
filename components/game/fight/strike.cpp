@@ -48,9 +48,8 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             for (const auto& prop : props) if (prop.stat >= 0 && std::size_t(prop.stat) < into.size()) into[std::size_t(prop.stat)] += prop.value;
         };
         for (const auto& item : actor->character.items) {
-            const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
-            const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
-            if (!worn && !charm) continue;
+            if (!gear_active(item)) continue;
+            const bool worn = item.location == d2d::d2s::item_location::kEquipped;
             add(sum, item.props);
             for (const auto& socketed : item.socketed_items) add(sum, socket_props(*game_data, item, socketed));
             add(sum, set_bonus_props(*game_data, actor->character.items, item));
@@ -62,6 +61,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             if (info->second.kind == 2 && (!weapon || item.slot == d2d::d2s::body_location::kRightArm)) weapon = &item;
             if (info->second.kind == 1 && found->second.block > 0) shield = &item;
         }
+        add(sum, set_props(*game_data, actor->character.items));
         if (passives) {
             const auto type_of = [&](const d2d::d2s::Item& item) {
                 const auto found = game_data->rules.item_info.find(item.code);
