@@ -32,6 +32,9 @@
 
 namespace d2d::game {
 
+// A monster's velocitypercent (stat 0x43) as its stat initialiser sets it (FUN_00573cb0, SetStat(0x43, 0x4b) at 0x573f16).
+inline constexpr int kMonsterVelocityPct = 75;
+
 // Where each world NPC is right now (index-aligned with Level::npcs):
 // patrolling NPCs walk their DS1 path, pausing at each point.
 struct UnitState {

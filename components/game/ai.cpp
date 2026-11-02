@@ -2779,13 +2779,15 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         monster.skill = -1;
         monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
     }
-    // Chilled, coldeffect goes on velocitypercent (stat 0x43, FUN_0057af80)
-    // with its think's pace, Spider Lay's -100 % and the rest; the walk % is
-    // their sum, at least 25 (FUN_00623f50, 0x62414e): laid (-100 %), it
+    // A monster's velocitypercent (stat 0x43) starts at 75, not 100: its
+    // stat initialiser FUN_00573cb0 ends in SetStat(unit, 0x43, 0x4b)
+    // (0x573f16). Chilled, coldeffect goes on it (FUN_0057af80) with its
+    // think's pace, Spider Lay's -100 % and the rest; the walk % is their
+    // sum, at least 25 (FUN_00623f50, 0x62414e): laid (-100 %), it
     // creeps at that floor in game.exe too.
     const int chill = now_ms < monster.chill_until ? type_info.diff[std::size_t(monster.difficulty)].cold_effect : 0;
     const int pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
-    const float walk = cells_per_sec(float(type_info.velocity)) * elapsed * float(std::max(100 + monster.speed_pct + monster.boss_speed + pace + chill, 25)) / 100;
+    const float walk = cells_per_sec(float(type_info.velocity)) * elapsed * float(std::max(kMonsterVelocityPct + monster.speed_pct + monster.boss_speed + pace + chill, 25)) / 100;
     // A moving mode's path velocity is MonStats Velocity (FUN_00621360,
     // +0x32) x the walk %, RN too (FUN_00623f50, 0x6241a9); Run only comes
     // in through an AI's pace (Run x 100 / Velocity - 100) or a charge.
