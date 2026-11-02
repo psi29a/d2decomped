@@ -595,6 +595,7 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
             return true;
         }
         if (object.object_id == d2d::rules::RiteQuest::kStairs) {
+            if (hosted_quests) return true;                                    // the host opens them and moves us
             if (!rite.stairs_pass(quests())) { d2d::log::info("Rite of Passage: the stairs stay shut"); return true; }
             auto& door = doors[{ level, npc_index }];
             if (door.mode == 0) door = Door{ 1, now_ms };

@@ -50,13 +50,19 @@ static void take_blast(std::int64_t& life, int taken) {
     if (life < 256) life = 0;
 }
 
-// FUN_00622b50 (mask 0x804): rules::sight_blocked from the unit to the
-// object over the walk grid's missile barrier (0x04) and doors (0x800).
+auto World::wall_to(const Npc& object, int x, int y, int size) const -> bool {
+    const int to_x = int(std::floor(object.x * 5)), to_y = int(std::floor(object.y * 5));
+    const int left = to_x - object.size_x / 2, top = to_y - object.size_y / 2;   // its footprint (FUN_0064d7c0)
+    const auto wall = [&](int at_x, int at_y) {
+        const bool own = at_x >= left && at_x < left + object.size_x && at_y >= top && at_y < top + object.size_y;
+        return !own && level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804);
+    };
+    return d2d::rules::sight_blocked(x, y, size, to_x, to_y, object.size_x, wall);
+}
+
 auto World::blast(const Npc& object, float x, float y, int size, std::int64_t life, int unit_level, int dexterity, int defense) -> int {
     if (in_town(level)) return 0;
-    const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
-    const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
-    if (d2d::rules::sight_blocked(subtile(x), subtile(y), size, subtile(object.x), subtile(object.y), object.size_x, wall)) return 0;
+    if (wall_to(object, int(std::floor(x * 5)), int(std::floor(y * 5)), size)) return 0;
     return d2d::rules::object_blast(life, unit_level, dexterity, defense, object.seed);
 }
 

@@ -287,9 +287,8 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
                 const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
                 const int from_x = subtile(actor->player.x), from_y = subtile(actor->player.y), to_x = subtile(npc_x), to_y = subtile(npc_y);
-                const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
                 const bool in_reach = npc.root == "objects"
-                    ? d2d::rules::object_reach(from_x - to_x, from_y - to_y, 2, npc.size_x, npc.size_y) && !d2d::rules::sight_blocked(from_x, from_y, 2, to_x, to_y, npc.size_x, wall)
+                    ? d2d::rules::object_reach(from_x - to_x, from_y - to_y, 2, npc.size_x, npc.size_y) && !wall_to(npc, from_x, from_y, 2)
                     : d2d::rules::unit_distance(from_x - to_x, from_y - to_y, 2, npc.size_x) < 7;
                 if (in_reach) {
                     if (operable(npc.operate_fn) || npc.operate_fn == d2d::rules::operate_fn::kMoldyTome || npc.operate_fn == d2d::rules::ToolsQuest::kStand || quest_object(npc.operate_fn)) {

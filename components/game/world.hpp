@@ -656,6 +656,11 @@ struct World {
     // An object's blast on a unit at (x, y) of `size` (rules::object_blast
     // on the object's unit seed): none in town nor through a wall. 256ths.
     int blast(const Npc& object, float x, float y, int size, std::int64_t life, int unit_level, int dexterity, int defense);
+    // FUN_00622b50 (mask 0x804) from a unit of `size` at subtile (x, y) to
+    // `object`: rules::sight_blocked over the missile barrier (0x04) and
+    // doors (0x800), the object's own footprint lifted while it tests
+    // (FUN_00649560 / FUN_00649400).
+    [[nodiscard]] bool wall_to(const Npc& object, int x, int y, int size) const;
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its
