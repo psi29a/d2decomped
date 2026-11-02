@@ -508,9 +508,6 @@ struct GameData {
     // Items: parse tables (needs 1.14d ItemStatCost.txt), per-code
     // inventory graphic + size, and the 800x600 inventory panel/layouts.
     std::optional<d2d::d2s::ItemTables> item_tables;
-    // gems.txt socket bonuses by gem/rune code, per slot kind (weapon,
-    // helm/armour, shield), already resolved through Properties.txt.
-    std::unordered_map<std::string, std::array<std::vector<d2d::d2s::ItemProp>, 3>> gem_props;
     // String keys for item names, indexed the way the save's IDs are (see
     // item_lines): uniques/sets by row without separators, magic affixes by
     // raw row, rare names by raw row, runewords by RunewordN rank.

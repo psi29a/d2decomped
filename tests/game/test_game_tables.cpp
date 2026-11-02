@@ -70,6 +70,18 @@ int main() try {
         std::printf("OK: the antidote's and thawing's state stats\n");
     }
     {
+        // Runes whose gems.txt mods go through Properties funcs 8, 2 and 20:
+        // Shael's swing2 (IAS 93) in a weapon, Pul's ac% (16) in a helm,
+        // Zod's indestructible (152) anywhere.
+        using d2d::d2s::ItemProp;
+        const auto has = [&](const char* code, int slot, int stat, int value) {
+            const auto& props = data->rules.gem_props.at(code)[std::size_t(slot)];
+            return std::ranges::any_of(props, [&](const ItemProp& prop) { return prop.stat == stat && prop.value == value; });
+        };
+        assert(has("r13", 0, 93, 20) && has("r21", 1, d2d::d2s::kArmorPercent, 30) && has("r33", 2, d2d::d2s::kIndestructible, 1));
+        std::printf("OK: Shael, Pul and Zod's socket bonuses\n");
+    }
+    {
         // MonProp knock and crush on a monster foe (FUN_005bf960, FUN_005bffc0):
         // MonStats2 small / large, a hireling's 10, a boss's or unique's 8, +50 % a player past one.
         const auto row = [&](std::string_view id) { return int(data->monsters.by_id.at(std::string(id))); };

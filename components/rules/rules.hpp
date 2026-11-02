@@ -193,6 +193,9 @@ struct Hireling {
 
 struct Tables {
     std::unordered_map<std::string, ItemType> types;       // by type code
+    // gems.txt socket bonuses by gem/rune code, per slot kind (weapon,
+    // helm/armour, shield), already resolved through Properties.txt.
+    std::unordered_map<std::string, std::array<std::vector<d2d::d2s::ItemProp>, 3>> gem_props;
     std::unordered_map<std::string, ItemInfo> item_info;   // by item code
     std::unordered_map<std::string, ItemBase> item_base;   // by item code
     std::unordered_map<std::string, NpcPrice> npc_prices;  // by MonStats Id
@@ -438,7 +441,7 @@ inline bool is_repair_vendor(int hc_idx) {
 
 inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth = 0);
 inline int max_durability(const d2d::d2s::Item& item);
-inline bool indestructible(const d2d::d2s::Item& item);
+inline bool indestructible(const Tables& tables, const d2d::d2s::Item& item);
 
 // The price base of an armor (ItemTypes armo, FUN_0062efb0 at 0062f0f2):
 // cost x its own defence (stat 31, not the stat list's) / maxac, for buy,
@@ -569,7 +572,7 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     if (const auto own = tables.types.find(type); sell && own != tables.types.end() && !own->second.cls.empty()) price /= 4;
     // An ethereal item with durability (FUN_00629930) worn down to 0 sells for nothing, so the minimum 1 (0062fa60).
     if (sell && item.ethereal && found != tables.item_base.end() && !found->second.no_durability && found->second.durability > 0
-        && max_durability(item) != 0 && !indestructible(item) && item.durability <= 0)
+        && max_durability(item) != 0 && !indestructible(tables, item) && item.durability <= 0)
         price = 0;
     const auto price_row = tables.npc_prices.find(npc_id);
     const int diff = header.active_difficulty();
@@ -597,9 +600,24 @@ inline int max_durability(const d2d::d2s::Item& item) {
     }
     return (item.max_durability + flat) * (100 + pct) / 100;
 }
-// item_indesctructible (stat 152): never wears, never needs repair.
-inline bool indestructible(const d2d::d2s::Item& item) {
-    return std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == d2d::d2s::kIndestructible && prop.value; });
+// What a filled socket adds to `parent`: a jewel's own properties, or the
+// gem/rune's gems.txt bonus for the parent's kind (weapon, shield, else
+// helm/armour). game.exe hangs the socketed item's stat list on the
+// parent's (FUN_00626e10), so these count as the parent's own.
+inline std::vector<d2d::d2s::ItemProp> socket_props(const Tables& tables, const d2d::d2s::Item& parent, const d2d::d2s::Item& filled) {
+    auto out = filled.props;
+    const auto found = tables.gem_props.find(filled.code);
+    const auto info = tables.item_info.find(parent.code);
+    if (found == tables.gem_props.end() || info == tables.item_info.end()) return out;
+    const int slot_kind = info->second.kind == 2 ? 0 : type_is(tables, info->second.type, "shld") ? 2 : 1;
+    const auto& add = found->second[std::size_t(slot_kind)];
+    out.insert(out.end(), add.begin(), add.end());
+    return out;
+}
+// item_indesctructible (stat 152, Zod's too): never wears, never needs repair.
+inline bool indestructible(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto has = [](const std::vector<d2d::d2s::ItemProp>& props) { return std::ranges::any_of(props, [](const auto& prop) { return prop.stat == d2d::d2s::kIndestructible && prop.value; }); };
+    return has(item.props) || std::ranges::any_of(item.socketed_items, [&](const d2d::d2s::Item& filled) { return has(socket_props(tables, item, filled)); });
 }
 
 // A broken item (item flag 0x100, set by FUN_0055f850): its stats and
@@ -658,7 +676,7 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
     const auto found = tables.item_base.find(item.code);
     const int max_stack = found != tables.item_base.end() ? std::max(found->second.max_stack, 1) : 1;
     if (item.ethereal || !item.identified) return 0;
-    if (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(item)) {
+    if (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(tables, item)) {
         const int charges = charges_repair_cost(tables, item);
         return charges > 0 ? int(price_reduced(charges, reduced)) : 0;
     }

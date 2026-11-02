@@ -33,14 +33,7 @@ inline bool type_is(const GameData& game_data, const std::string& type, std::str
 // helm/armour).
 inline std::vector<d2d::d2s::ItemProp> socket_props(const GameData& game_data, const d2d::d2s::Item& parent,
                                              const d2d::d2s::Item& filled) {
-    auto out = filled.props;
-    const auto found = game_data.gem_props.find(filled.code);
-    const auto info = game_data.rules.item_info.find(parent.code);
-    if (found == game_data.gem_props.end() || info == game_data.rules.item_info.end()) return out;
-    const int slot_kind = info->second.kind == 2 ? 0 : type_is(game_data, info->second.type, "shld") ? 2 : 1;
-    const auto& add = found->second[std::size_t(slot_kind)];
-    out.insert(out.end(), add.begin(), add.end());
-    return out;
+    return d2d::rules::socket_props(game_data.rules, parent, filled);
 }
 
 // A worn set item's bonus lists that are on (FUN_004e6560 over FUN_0062a370's
@@ -230,7 +223,9 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
         add(bonus);
         for (const auto& prop : bonus) if (prop.stat == d2d::d2s::kArmorPerLevel) per_level += prop.value;
         std::int64_t enhanced_defense = 0;
-        for (const auto& prop : item.props) {
+        auto own = item.props;                            // its sockets' too (Pul's ac%)
+        for (const auto& socketed : item.socketed_items) for (const auto& prop : socket_props(game_data, item, socketed)) own.push_back(prop);
+        for (const auto& prop : own) {
             if (prop.stat == d2d::d2s::kArmorPercent) enhanced_defense += prop.value;            // item_armor_percent: this item's base
             if (prop.stat == d2d::d2s::kArmorPerLevel) per_level += prop.value;    // item_armor_perlevel, 1/8 per level
         }

@@ -122,7 +122,9 @@ auto Fight::merc_gear() const -> MercGear {
             for (const auto& socketed : item.socketed_items) add(gear.sum, socket_props(*game_data, item, socketed));
             add(gear.sum, set_bonus_props(*game_data, actor->character.merc_items, item));
             std::int64_t enhanced_defense = 0;
-            for (const auto& prop : item.props) {
+            auto own = item.props;                        // its sockets' too (Pul's ac%)
+            for (const auto& socketed : item.socketed_items) for (const auto& prop : socket_props(*game_data, item, socketed)) own.push_back(prop);
+            for (const auto& prop : own) {
                 if (prop.stat == kArmorPercent) enhanced_defense += prop.value;
                 if (prop.stat == kArmorPerLevel) gear.per_level += prop.value;
             }
