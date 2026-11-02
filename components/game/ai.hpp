@@ -232,6 +232,10 @@ struct Monster {
     // MonFrenzy's state (FUN_005d8c70: "monfrenzy", its charges stat 0xa9
     // as the level, up to the skill's own): its aurastats as curse's.
     SkillState frenzy;
+    // A self state (do 18 with an aurastate, not Bone Armor: UberIzual's
+    // Chilling Armor): its aurastats on it (skill_armor_percent) as a
+    // curse's; a ReturnFire missile striking it is answered (Fight::return_fire).
+    SkillState self_state;
     // What they do to it, as of this frame (Fight::monster_states): its
     // damage % and speed %, the share of its melee damage it takes back
     // (Iron Maiden), Terror's state (0x38) on it.
@@ -324,7 +328,6 @@ struct Monster {
     // think, and its absorb pool (stat 132, the cast's aurastat calc / 256).
     bool has_point = false, armored = false;
     int armor_pool = 0;
-    std::uint32_t self_state_until = 0;       // a self state's end (do 18 with an aurastate, not Bone Armor: UberIzual's Chilling Armor)
     bool greeted = false;                     // Izual's first think (ThinkEffect::greet): a4q1's FUN_005b4390, the World's to take
     // A prisoner's (Wussie, a5q2) view, set by World::act5_update: its cage's
     // portal (FUN_00588d60, subtiles), one of its cage gone through it
@@ -949,6 +952,9 @@ bool swaps_ai(const GameData& game_data, const Monster& monster);
 // its aurarangecalc (1..40 subtiles) of the one struck (FUN_0056dbc0 round
 // FUN_0056d2c0's target; FUN_005a23d0, enemies only).
 void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes, const Foe& struck);
+// A monster's skill missile toward (dx, dy) cells (FUN_0059fa30, ai.cpp).
+void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
+                      std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
 // A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).

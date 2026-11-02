@@ -394,6 +394,35 @@ int main() try {
         world.fight.monsters.pop_back();
         std::printf("OK: Lightning Enchanted's bolts wander as Charged Bolt's\n");
     }
+
+    // UberIzual's Chilling Armor (do 18): skill_armor_percent on its defense
+    // as a curse's aurastat, and a ReturnFire missile answered with
+    // chillingarmorbolt at the shooter (event 1, FUN_005cab40).
+    {
+        const int chilling = data->skills.by_name.at("Chilling Armor");
+        Monster izual;
+        izual.type = 0;
+        izual.id = 0x7ffff0;
+        izual.hit_points = 100;
+        izual.unit.x = world.actor->player.x + 3; izual.unit.y = world.actor->player.y;
+        world.fight.monsters.push_back(izual);
+        const std::size_t index = world.fight.monsters.size() - 1;
+        const auto bare = world.fight.target_of(index);
+        const auto arrow = std::ranges::find_if(data->missiles, [](const auto& row) { return row.second.return_fire; });
+        assert(arrow != data->missiles.end());
+        Missile shot;
+        shot.info = &arrow->second;
+        world.fight.pending.clear();
+        world.fight.monster_return_fire(index, shot, false, 5000 * kTickMs);
+        assert(world.fight.pending.empty());                    // no state, no answer
+        world.fight.monsters[index].self_state = { chilling, 10, ~0u };
+        assert(world.fight.target_of(index).armor_class == bare.armor_class + bare.armor_class * (45 + 5 * 9) / 100);   // ln12: 45 + 5 a level
+        world.fight.monster_return_fire(index, shot, false, 5000 * kTickMs);
+        assert(world.fight.pending.size() == 1 && world.fight.pending[0].info->name == "chillingarmorbolt" && world.fight.pending[0].velocity_x < 0 && !world.fight.pending[0].friendly);
+        world.fight.pending.clear();
+        world.fight.monsters.pop_back();
+        std::printf("OK: a monster's Chilling Armor raises its defense and answers ReturnFire\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

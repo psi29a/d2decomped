@@ -412,6 +412,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     auto blow = d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), target_of(i), missile.level, rng);
                     if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
                     land(i, blow, false, now_ms, merc_foe_id());   // a plain missile: the merc's arrow
+                    monster_return_fire(i, missile, true, now_ms);
                     return true;
                 }
                 return false;

@@ -700,6 +700,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
         if (blow.hit && freeze > 0) blow.chill_ticks = std::max(blow.chill_ticks, freeze);
         land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
+        if (missile.striker < 0) monster_return_fire(monster_index, missile, missile.by_merc, now_ms);
         // A freeze stands it as a stun does, without the stun's guards.
         if (blow.hit && freeze > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(freeze) * 40);
     }
@@ -846,8 +847,9 @@ auto Fight::in_aura(const Monster& monster) -> bool {
 auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
         auto target = monsters[monster_index].target(*game_data);
         // Its curse and cry (Amplify Damage, Lower Resist, Decrepify, Battle
-        // Cry, Inner Sight, Cloak of Shadows): their aurastats as the aura's.
-        for (const auto* effect : { &monsters[monster_index].curse, &monsters[monster_index].cry })
+        // Cry, Inner Sight, Cloak of Shadows) and self state (Chilling
+        // Armor's skill_armor_percent): their aurastats as the aura's.
+        for (const auto* effect : { &monsters[monster_index].curse, &monsters[monster_index].cry, &monsters[monster_index].self_state })
             if (const auto* skill = effect->skill >= 0 ? game_data->skills.get(effect->skill) : nullptr)
                 apply_target_stats(*skill, effect->level, target);
         const auto* skill = game_data->skills.get(actor->aura);

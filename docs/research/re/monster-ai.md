@@ -614,8 +614,10 @@ MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
   `mon_ais.py UberIzual,UberMephisto,UberDiablo,UberBaal 3000 7`
   (`tests/mon_ais_uber_cases.inc`); ai.cpp's line for UberIzual takes mask
   6 and its Chilling Armor state lasts the skill's auralen
-  (`Monster::self_state_until`). ponytail: the state's armor % and its
-  ReturnFire aren't put on the monster.
+  (`Monster::self_state`): its skill_armor_percent (ln12) on his defense
+  as a curse's aurastat (`Fight::target_of`), and a ReturnFire missile
+  from a player or merc striking him answered with chillingarmorbolt at
+  the shooter (event 1, `FUN_005cab40`; `Fight::monster_return_fire`).
 - UberIzual (`FUN_005f8c80`): Izual's shape (aip by difficulty at MonStats
   +0x56.., +0x18 / +0x1c counters) with three skill slots; not traced
   further yet.

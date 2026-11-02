@@ -673,6 +673,9 @@ struct Fight {
     void buff_events(Foe& foe, std::uint32_t now_ms);
     // Chilling Armor's answer, after the frame's missiles have struck.
     void return_fire(const Foe& foe, std::uint32_t now_ms);
+    // A monster's answer (its self state's srvmissilea) to the player's or
+    // merc's ReturnFire missile striking it.
+    void monster_return_fire(std::size_t monster_index, const Missile& missile, bool by_merc, std::uint32_t now_ms);
     void buff_tick(std::uint32_t now_ms);
     // The skill states on the monsters (their curse and cry slots): what
     // they add up to this frame. Aurastats damagepercent (25) and

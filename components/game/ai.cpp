@@ -368,6 +368,8 @@ bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool sp
     return false;
 }
 
+}  // namespace
+
 // One of Andariel's skill missiles (FUN_0059fa30, flags 0x20): from her
 // toward (dx, dy) cells, its Missiles.txt row's damage at skill level `lvl`
 // (rules::monster_skill_level): physical in 256ths (SrcDamage 0: none of hers), its
@@ -378,7 +380,7 @@ bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool sp
 // ponytail: a carried skill's physical damage (MinDam..) left out; the
 // Act 2 casters' skills have none.
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
-                      std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr) {
+                      std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried) {
     const auto found = game_data.missiles.find(name);
     if (found == game_data.missiles.end()) return;
     const auto& missile_info = found->second;
@@ -393,6 +395,8 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
     missiles.back().level = lvl; missiles.back().to = { monster.unit.x + dx, monster.unit.y + dy }; missiles.back().owner = monster.id;
     if (carried) missiles.back().skill = carried->id;
 }
+
+namespace {
 
 // A Skills.txt row by name, -1 none.
 int skill_id(const GameData& game_data, const std::string& name) {
@@ -1202,7 +1206,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             take(found, found_squared);
         }
         if (name == "AbyssKnight") input.skill_state = monster.armored;
-        if (name == "UberIzual") input.skill_state = now_ms < monster.self_state_until;
+        if (name == "UberIzual") input.skill_state = monster.self_state.skill >= 0 && now_ms < monster.self_state.until;
         if (name == "Ancient") input.skill_state = monster.cry.skill >= 0 && monster.cry.skill == skill_id(game_data, type_info.skill[0]) && now_ms < monster.cry.until;   // Madawc's Shout on him
         // The knight's curse (Skill4) and the finger mage's spider (Skill1):
         // their auratargetstate (skill +0x82) on the target (FUN_006256b0).
@@ -2504,9 +2508,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             monster.armored = monster.armor_pool > 0;
                         }
                     // Another's (UberIzual's Chilling Armor): its state for auralen frames.
-                    // ponytail: the state's stats (armor %) and its ReturnFire aren't put on the monster.
                     if (!cast->aurastate.empty() && !std::ranges::contains(cast->aurastat, d2d::d2s::kBoneArmor))
-                        monster.self_state_until = now_ms + std::uint32_t(std::max(0, d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl))) * 40;
+                        monster.self_state = { monster.skill, lvl, now_ms + std::uint32_t(std::max(0, d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl))) * 40 };
                 } else if (cast->srvdofunc == ServerDoFunction::kRegurgitatorEat) {
                     // FUN_005cdc10: a corpse (DD) it's at eaten (gone), its life (256ths)
                     // up by MulDiv(the corpse's max life, calc1, 100) (FUN_00483360: ECX,
