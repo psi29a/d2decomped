@@ -210,6 +210,15 @@ struct Tables {
     // Item generation.
     std::vector<Affix> prefixes, suffixes;                 // raw rows (row 0 blank), = save IDs
     std::vector<Affix> automagic;                          // AutoMagic rows: class_affix - 1
+    // Runes.txt rows (FUN_006394a0, 0x120 bytes each), in file order.
+    struct Runeword {
+        std::string name;                                  // "RunewordN"
+        bool complete = false, ladder = false;             // +0x80, +0x81 (the "server" column)
+        std::vector<std::string> itypes, etypes, runes;    // +0x86 itype1..6, +0x92 etype1..3, +0x98 Rune1..6 (item codes)
+        std::vector<Mod> mods;                             // +0xb0 T1Code1..7
+        int save_id = -1;                                  // the save's 12 bits (item_names.runeword's rank + 27; Delirium 2718)
+    };
+    std::vector<Runeword> runewords;
     // QualityItems rows (superior): which bases take it (armor, weapon,
     // shield, scepter, wand, staff, bow, boots, gloves, belt: the record's
     // flags, FUN_0065e7d0) and its mods.
@@ -1867,9 +1876,46 @@ inline std::string drink_at(const Tables& tables, std::vector<d2d::d2s::Item>& i
             for (auto& item : items) if (item.location == d2d::d2s::item_location::kBelt && item.column == box) item.column = box - 4;
     return code;
 }
+// The runeword `item`'s sockets spell (FUN_0062bed0), or null: not magic
+// .. tempered (quality 4..9) nor a quest item (Items +0x12a), every socket
+// filled, its fillers Rune1.. in order, a `complete` row, none of its
+// etypes, one of its itypes. A `ladder` row only in a ladder game
+// (FUN_00562660: game +0x74), which d2d's never are.
+inline const Tables::Runeword* runeword_row(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    if ((item.quality >= 4 && item.quality <= 9) || base == tables.item_base.end() || base->second.quest || info == tables.item_info.end()
+        || item.socketed_items.empty() || int(item.socketed_items.size()) != item.sockets)
+        return nullptr;
+    for (const auto& row : tables.runewords) {
+        if (!row.complete || row.ladder || row.runes.size() != item.socketed_items.size()) continue;
+        if (!std::ranges::equal(row.runes, item.socketed_items, {}, {}, &d2d::d2s::Item::code)) continue;
+        if (std::ranges::any_of(row.etypes, [&](const std::string& type) { return type_is(tables, info->second.type, type); })) continue;
+        if (std::ranges::any_of(row.itypes, [&](const std::string& type) { return type_is(tables, info->second.type, type); })) return &row;
+    }
+    return nullptr;
+}
+// The last filler in (FUN_00562660 -> FUN_006600a0): a runeword its
+// sockets spell, not one already, takes the runeword flag (0x4000000)
+// and its T1 mods as the runeword list (stat list 0xab / 0x40), each
+// through FUN_0065fd70 kind 6 on the item's seed.
+// ponytail: the seed is the item's fingerprint, not where its making left it.
+inline bool make_runeword(const Tables& tables, d2d::d2s::Item& item) {
+    const auto* row = item.runeword ? nullptr : runeword_row(tables, item);
+    if (!row) return false;
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    const auto type = tables.types.find(info->second.type);
+    item.runeword = true;
+    item.runeword_id = row->save_id;
+    item.main_props = item.props.size();
+    Rng rng{ item.uid };
+    const ModItem target{ &item, &base->second, info->second.kind, type != tables.types.end() && type->second.throwable, false };
+    for (const auto& mod : row->mods) apply_mod(tables, mod, item.props, rng, &target);
+    return true;
+}
 // FUN_00562660's checks: `filler` is a socket filler (item type "sock":
 // gems, runes, jewels) and `target` identified, socketed, with a socket free.
-// ponytail: no rune words (FUN_006600a0).
 inline bool takes_socket(const Tables& tables, const d2d::d2s::Item& filler, const d2d::d2s::Item& target) {
     const auto info = tables.item_info.find(filler.code);
     return info != tables.item_info.end() && type_is(tables, info->second.type, "sock") && filler.identified

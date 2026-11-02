@@ -77,8 +77,18 @@ line (`FUN_00486670`), Holy Shield's block and smite, time-of-day stats
 - Inserting (C→S 0x28, `FUN_0054b650` → `FUN_00562660`): the held item
   must be a socket filler (item type 53 `sock`: gems, runes, jewels) and
   identified; the target stored or worn, identified, socketed (0x800),
-  able to hold sockets (Items +0x137) and with a free one. d2d leaves
-  out rune words (`FUN_006600a0`).
+  able to hold sockets (Items +0x137) and with a free one.
+- Runewords: after the filler goes in, `FUN_0062bed0` looks up the Runes.txt
+  row (`FUN_006394a0`, 0x120 bytes: +0x80 complete, +0x81 server, +0x86
+  itype1..6, +0x92 etype1..3, +0x98 Rune1..6, +0xb0 T1Code/Param/Min/Max
+  x 7): not quality 4..9, not a quest base (Items +0x12a), every socket
+  filled (`FUN_006299b0`), the fillers' classes Rune1.. in order, none of
+  the etypes and one of the itypes (`FUN_00629bb0`). A `server` row needs a
+  ladder game (game +0x74, `FUN_00562660`). `FUN_006600a0` (unless the item
+  has stat list 0xab / 0x40) sets item flag 0x4000000 and puts each T1 mod
+  through `FUN_0065fd70` kind 6 into that list. d2d: `rules::runeword_row`,
+  `make_runeword` (the save id as item_text reads it; the seed is the
+  item's fingerprint).
 - The hover overlay (`FUN_00483e40`, a hovered identified socketed grid
   item, `Panel\GemSocket` = `0x7bef14`): per socket i a place in half
   cells from `0x6d91e8`, 48-byte records `[sockets-1][width-1][height-1]`
