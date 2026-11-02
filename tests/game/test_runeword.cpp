@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <initializer_list>
 #include <string>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -39,7 +40,7 @@ int main() try {
         for (const char* rune : runes) {
             d2d::d2s::Item filler{ .code = rune };
             filler.location = d2d::d2s::item_location::kSocketed;
-            item.socketed_items.push_back(filler);
+            item.socketed_items.push_back(std::move(filler));
         }
         return item;
     };

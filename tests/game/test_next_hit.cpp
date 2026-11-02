@@ -108,7 +108,7 @@ int main(int argc, char** argv) try {
             monster.stats.hit_points = monster.hit_points = 1000000;
             monster.life_frac = 0;
             monster.next_act = ~0u;
-            world.fight.add_monster(monster);
+            world.fight.add_monster(std::move(monster));
         }
         for (std::size_t i = 0; i < world.fight.monsters.size(); ++i) {
             auto& monster = world.fight.monsters[i];

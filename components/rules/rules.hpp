@@ -781,12 +781,14 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
 // Sells inventory item i: gold up by the sell value (carried gold caps
 // at clvl x 10000), the item joins the stock.
 // ponytail: quest items aren't refused, no belt/equipped selling; what the
-// original does with a sale over the purse cap isn't traced.
+// original does with a sale over the purse cap isn't traced; FUN_00579510
+// keeps no cracked, broken (0x100), unique, personalized or ethereal one
+// (nor what FUN_0055f590 / FUN_00575fa0 / FUN_00576ed0 refuse), d2d keeps all.
 inline void store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const int price = item_price(tables, items[index], store.npc_id, true, store.header);
     stats.values[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
                                                        stats.get(d2d::d2s::kLevel) * 10000);
-    store_place(tables, store, store_tab_for(tables, items[index].code), items[index]);
+    (void)store_place(tables, store, store_tab_for(tables, items[index].code), items[index]);   // no room: gone, sold all the same (FUN_00579510 frees it)
     items.erase(items.begin() + std::ptrdiff_t(index));
 }
 
@@ -2083,6 +2085,7 @@ inline bool make_runeword(const Tables& tables, d2d::d2s::Item& item) {
     if (!row) return false;
     const auto base = tables.item_base.find(item.code);
     const auto info = tables.item_info.find(item.code);
+    if (base == tables.item_base.end() || info == tables.item_info.end()) return false;
     const auto type = tables.types.find(info->second.type);
     item.runeword = true;
     item.runeword_id = row->save_id;
@@ -2179,7 +2182,8 @@ enum class Pickup { kGone, kStays, kNoRoom };
 inline int auto_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, const Wearer& wearer,
                            int required_level = -1) {
     const auto* info = info_of(tables, item);
-    const auto type = info ? tables.types.find(info->type) : tables.types.end();
+    if (!info) return -1;
+    const auto type = tables.types.find(info->type);
     if (!item.identified || broken(item) || (item.flags & 0x4000) || type == tables.types.end() || info->type == "tpot") return -1;
     if (type->second.body[0] == 0 && type->second.body[1] == 0) return -1;
     if (!meets_requirements(tables, item, wearer, required_level)) return -1;

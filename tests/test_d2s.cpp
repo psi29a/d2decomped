@@ -300,10 +300,10 @@ int main() try {
                 // Then a merc hired and dressed (issue #139): written over that
                 // file, "jf" gets its "JM" list (FUN_005699a0), the golem's
                 // "kf" stays after it; with no merc list given, it's kept.
-                auto hired = fresh_header; hired.merc_seed = 0x5c096f0e; hired.merc_type = 8; hired.merc_name = 18;
+                auto hired = std::move(fresh_header); hired.merc_seed = 0x5c096f0e; hired.merc_type = 8; hired.merc_name = 18;
                 d2d::d2s::Item cap; cap.code = "cap"; cap.location = 1; cap.slot = 1; cap.quality = 2; cap.ilvl = 1;
                 cap.identified = true; cap.defense = 3; cap.max_durability = cap.durability = 12;
-                const std::vector<d2d::d2s::Item> merc_worn{ cap };
+                const std::vector<d2d::d2s::Item> merc_worn{ std::move(cap) };
                 const auto with_merc = d2d::d2s::write_save(written, hired, fresh_stats, { axe }, item_tables, nullptr, &merc_worn);
                 const auto merc_back = d2d::d2s::parse_merc(with_merc, item_tables);
                 assert(merc_back.has && merc_back.items.size() == 1 && merc_back.items[0].code == "cap" && merc_back.items[0].slot == 1);

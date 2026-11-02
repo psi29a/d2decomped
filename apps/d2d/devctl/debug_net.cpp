@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <format>
 #include <optional>
+#include <utility>
 
 namespace d2d::client {
 
@@ -46,7 +47,7 @@ void DebugVerbs::add_net() {
             if (args[i].empty() || *end != '\0' || byte > 0xff) return std::string("err not a hex byte: ") + args[i] + "\n";
             packet.push_back(std::uint8_t(byte));
         }
-        town.net_game->send_items({ packet });
+        town.net_game->send_items({ std::move(packet) });
         return std::string("ok\n");
     });
     add("party", [this](const Args& args) -> Reply {   // the Party screen with three sample players (no joined game needed): `debug party on|off`

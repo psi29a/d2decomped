@@ -105,11 +105,13 @@ void DebugVerbs::add_fight() {
                                pet.ctrl[0], pet.ctrl[1], pet.ctrl[2], [&] {
                                    std::string held;
                                    for (const auto& charge : pet.charges) held += std::format("{}{}:{}", held.empty() ? "" : ",", charge.skill, charge.count);
-                                   return held.empty() ? std::string("-") : held;
+                                   if (held.empty()) held = "-";
+                                   return held;
                                }(), [&] {
                                    std::string active;
                                    for (const auto& buff : pet.buffs) active += std::format("{}{}", active.empty() ? "" : ",", buff.skill);
-                                   return active.empty() ? std::string("-") : active;
+                                   if (active.empty()) active = "-";
+                                   return active;
                                }());
         return out + "ok\n";
     });

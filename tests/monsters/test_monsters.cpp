@@ -161,7 +161,7 @@ int main() {
     fallen.minion = { 1, -1 };
     MonType off;
     off.id = "off"; off.rarity = 5;                               // not isSpawn: never in a region
-    monsters.types = { zombie, fallen, off };
+    monsters.types = { std::move(zombie), std::move(fallen), std::move(off) };
     for (std::size_t i = 0; i < monsters.types.size(); ++i) monsters.by_id[monsters.types[i].id] = int(i);
     monsters.lvl.resize(2);
     monsters.lvl[1] = { .armor_class = { 6, 0, 0 }, .to_hit = { 8, 0, 0 }, .hit_points = { 7, 0, 0 }, .damage = { 2, 0, 0 }, .experience = { 30, 0, 0 } };
@@ -195,7 +195,7 @@ int main() {
     // read life, defence and experience at the MonStats level; to-hit and
     // damage follow the raised level (FUN_005a4f50).
     {
-        auto raised = monsters;
+        auto raised = std::move(monsters);
         raised.lvl.resize(5);
         raised.lvl[4] = { .armor_class = { 60, 0, 0 }, .to_hit = { 80, 0, 0 }, .hit_points = { 70, 0, 0 }, .damage = { 20, 0, 0 }, .experience = { 300, 0, 0 } };
         Rng boss_rng{ 3 };
@@ -298,7 +298,7 @@ int main() {
         const auto berserk = boss_stats(umods, type, Boss::champion, { 39 }, 1);
         assert(berserk.life_after_pct == -75 && berserk.level_add == 3 && berserk.exp_mult == 5 && berserk.velocity_pct == 0
                && berserk.dmg_pct == 225 && berserk.tohit_pct == 225 && berserk.hp_pct == 150);
-        auto wisp = type;
+        auto wisp = std::move(type);
         wisp.base = 0x76;                                                           // willowisp1's family: half the damage part
         const auto wisp_berserk = boss_stats(umods, wisp, Boss::champion, { 39 }, 1);
         assert(wisp_berserk.dmg_pct == 112 && wisp_berserk.tohit_pct == 225);
@@ -382,7 +382,7 @@ int main() {
         // Throttle: past 75 % of the level's rooms, every roll's forced
         // to 100 (a guaranteed miss for any ObjPrb < 100); seed still
         // steps once per slot.
-        LevelMon rarer = slotted;
+        LevelMon rarer = std::move(slotted);
         rarer.obj_prob = { 99, 0, 99, 0, 0, 0, 0, 0 };
         Rng throttled_seed{ 7 }, throttled_mirror{ 7 };
         const auto throttled_picks = place_object_groups(rarer, groups, throttled_seed, 25, 30);
