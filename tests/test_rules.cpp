@@ -258,6 +258,14 @@ int main() {
         std::vector<Item> sword{ worn("ssd", 4) };
         assert(auto_equip_slot(cursor_tables, sword, ground("ssd"), sorc) == -1 && auto_equip_slot(cursor_tables, sword, ground("ssd"), barb) == 5);
     }
+    {   // Stacks (FUN_0062c850): same code, quality, ethereal; none magic or socketed.
+        Item knives = item("tkf"), other = item("tkf");
+        assert(stacks_with(knives, other));
+        other.ethereal = true; assert(!stacks_with(knives, other));
+        other = item("tkf"); other.quality = 4; knives.quality = 4; assert(!stacks_with(knives, other));
+        knives = item("tkf"); other = item("tkf"); other.quality = 3; assert(!stacks_with(knives, other));
+        other.quality = 2; other.sockets = 1; assert(!stacks_with(knives, other));
+    }
     // Grid: place, swap one, refuse two, stay in bounds, no cube in the cube.
     std::vector<Item> items = { stored("buc", 1, 0, 0), stored("buc", 1, 2, 0) };
     std::optional<Item> held;

@@ -2158,8 +2158,7 @@ inline int potion_rate(int old_rate, int left, int amount, int len) {
 // - else the inventory's first free spot (FUN_005600a0); no room leaves it
 //   on the ground (FUN_0055c9a0 message 0x17: the class's "can't carry").
 //   Before the belt, given a wearer, the auto-equip (auto_equip_slot).
-// ponytail: stacks match by code (FUN_0062c850 also compares quality and
-// flags); tomes by the Books.txt pairs tsc / tbk, isc / ibk.
+// Tomes by the Books.txt pairs tsc / tbk, isc / ibk.
 enum class Pickup { kGone, kStays, kNoRoom };
 
 // The body slot a pickup goes to (FUN_0055d710 mode 0), -1 none: an
@@ -2249,6 +2248,16 @@ inline bool auto_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     found->location = d2d::d2s::item_location::kBelt; found->column = slot; found->row = 0; found->panel = 0; found->slot = 0;
     return true;
 }
+// Two items stack (FUN_0062c850): the same class, quality and file index
+// (data +0x28: a low / superior row, qsub), both of a Stackable row
+// (+0x132), both ethereal or neither (0x400000), of no magic or better
+// quality (FUN_0062a2f0: 1..3 or past 9), with damage stats 21-24 and
+// 159 / 160 equal (the class's, for such items) and no sockets (stat 0xc2).
+inline bool stacks_with(const d2d::d2s::Item& one, const d2d::d2s::Item& other) {
+    const auto plain = [](int quality) { return quality != 0 && (quality < 4 || quality > 9); };
+    return one.code == other.code && one.quality == other.quality && one.qsub == other.qsub && one.ethereal == other.ethereal &&
+           plain(one.quality) && one.sockets == 0 && other.sockets == 0;
+}
 inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes,
                       const Wearer* wearer = nullptr, int required_level = -1) {
     using d2d::d2s::Item;
@@ -2271,7 +2280,7 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
         }
     } else if (base != tables.item_base.end() && base->second.stackable && type_row != tables.types.end() && type_row->second.autostack) {
         for (auto& stack : items) {
-            if (!in_inventory(stack) || stack.code != item.code || stack.quantity >= max_stack(stack.code)) continue;
+            if (!in_inventory(stack) || !stacks_with(stack, item) || stack.quantity >= max_stack(stack.code)) continue;
             const int moved = std::min(max_stack(stack.code) - stack.quantity, item.quantity);
             stack.quantity += moved; item.quantity -= moved;
             if (item.quantity <= 0) return Pickup::kGone;
