@@ -134,7 +134,8 @@ int main() {
     QuestBits far_bits{};
     BurialQuest reach;
     assert(!reach.killed(far_bits, false) && quest::bit(far_bits, 2, 14) && !quest::bit(far_bits, 2, 1) && reach.talk(far_bits, BurialQuest::kKashya, 1).empty());
-    assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0);
+    assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0xe8c);
+    assert(quest_name(164) == 0xe8c && quest_name(165) == 3716 && quest_name(305) == 923 && quest_name(20180) == 22641);   // 0x722678's split (bugs.md 46)
 
     // The Forgotten Tower: the tome read first (log 1); the Tower (log 4),
     // cellar 5 (log 2); the Countess's kill is the completion; the success

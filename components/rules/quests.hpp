@@ -1985,16 +1985,20 @@ struct QuestLogPick { int slot = -1, shown = 2; bool fresh = false; };
     if (!listed) return -1;
     return remembered >= 0 ? remembered : under_way;
 }
-// The quest a message is about, for the Talk submenu's label: its name's
-// string id (0x722678), 0 none.
+// The quest a message is about, for the Talk submenu's label (FUN_0049f900):
+// its name's string id from the {u16 message, u16 name} table at 0x722678
+// (0x20f rows, as runs here), else 0xe8c. A message up to row 100's (164) is
+// looked for in rows 0..99 only, so 164 itself falls to 0xe8c (bugs.md 46).
 [[nodiscard]] inline int quest_name(int message) {
-    if (message >= 64 && message <= 80) return 3714;       // Den of Evil
-    if (message >= 81 && message <= 96) return 3715;       // Sisters' Burial Grounds
-    if (message >= 97 && message <= 126) return 3717;      // The Search for Cain
-    if (message >= 127 && message <= 145) return 3718;     // The Forgotten Tower
-    if (message >= 146 && message <= 165) return 3716;     // Tools of the Trade
-    if (message >= 166 && message <= 184) return 3719;     // Sisters to the Slaughter
-    return 0;
+    struct Run { int first, last, name; };
+    static constexpr std::array<Run, 33> kRuns{ {
+        { 64, 80, 3714 }, { 81, 96, 3715 }, { 97, 126, 3717 }, { 127, 145, 3718 }, { 146, 163, 3716 }, { 165, 165, 3716 }, { 166, 184, 3719 },
+        { 304, 334, 923 }, { 335, 339, 924 }, { 340, 372, 925 }, { 373, 395, 926 }, { 397, 407, 926 }, { 408, 429, 927 }, { 430, 452, 928 },
+        { 527, 542, 933 }, { 543, 548, 931 }, { 549, 570, 930 }, { 571, 593, 932 }, { 594, 627, 934 }, { 628, 635, 935 }, { 637, 663, 935 },
+        { 670, 677, 937 }, { 678, 680, 939 }, { 681, 685, 938 }, { 20000, 20001, 938 }, { 20002, 20002, 22641 }, { 20077, 20095, 22618 },
+        { 20096, 20115, 22622 }, { 20116, 20136, 22627 }, { 20137, 20137, 22633 }, { 20139, 20152, 22633 }, { 20153, 20168, 22637 }, { 20169, 20180, 22641 } } };
+    const auto run = std::ranges::find_if(kRuns, [&](const Run& entry) { return message >= entry.first && message <= entry.last; });
+    return run != kRuns.end() ? run->name : 0xe8c;
 }
 
 // The class's "find" lines (the client's FUN_004cc270, rows at 0x72a2c4):
