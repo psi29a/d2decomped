@@ -21,12 +21,9 @@ The "reading" and "d2d" columns are line-for-line ports (Python), not the real d
 """
 import csv
 import os
-import struct
 import sys
 
 import drlg
-import emu
-import missiles
 import monsters
 
 PAIR = {"fire": 0x30, "ltng": 0x32, "mag": 0x34, "cold": 0x36}
@@ -130,7 +127,7 @@ def main():
             sc = "A1" if mode == "A1" else "A2" if mode == "A2" else "S1"
             mlvl = g.stat(u, 0xc)
             dm = num(monlvl[min(mlvl, 110)][("L-DM", "L-DM(N)", "L-DM(H)")[diff]])
-            def pct(v): return v if num(m.get("noRatio", "")) else dm * v // 100      # monsters.hpp pct(): base * percent / 100
+            def pct(v, m=m, dm=dm): return v if num(m.get("noRatio", "")) else dm * v // 100      # monsters.hpp pct(): base * percent / 100
             tmin = pct(num(m[f"{sc}MinD{sfx}"])); tmax = max(pct(num(m[f"{sc}MaxD{sfx}"])), tmin)
             p = e.alloc(0x60)
             for i, v in {0: 0x21, 1: u, 4: int(r["Id"]), 5: x, 6: y, 7: x + 8, 8: y + 3, 0xc: (0, 3, 7)[diff] + 1}.items(): e.w32(p + 4 * i, v)

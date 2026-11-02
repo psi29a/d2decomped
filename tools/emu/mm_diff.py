@@ -19,7 +19,6 @@ part only (elements: skipped, counted). A chance El (Pct 1..99) the same.
 import os
 import sys
 
-import mm_launch
 from mm_launch import G, MODE, num, rows
 
 M32 = 0xFFFFFFFF
@@ -108,7 +107,7 @@ def game(d, n_cases, seed, outdir):
         e = g.e
         sfx = ("", "(N)", "(H)")[diff]
         units = {}
-        for n, (mid, mode, src, mn) in enumerate(todo):
+        for n, (mid, mode, _src, _mn) in enumerate(todo):
             m = mons[mid]
             u, x, y = g.unit(int(m["hcIdx"]), n)
             if not u:
@@ -164,7 +163,9 @@ def cmp(outdir, d2d_out):
     dl = {}
     for l in open(d2d_out):
         f = l.split()
-        if len(f) >= 3 and f[0].isdigit(): dl[int(f[0])] = [int(v) for v in f[1:]]
+        if len(f) >= 3 and f[0].isdigit():
+            if "P" in f: dl[int(f[0])] = [int(v) for v in f[1:f.index("P")]] + ["P"] + [int(v) for v in f[f.index("P") + 1:]]
+            else: dl[int(f[0])] = [int(v) for v in f[1:]]
     tot = len(gl)
     bad = {"phys": 0, "elem": 0, "any": 0}
     elem_cmp = 0
@@ -180,7 +181,9 @@ def cmp(outdir, d2d_out):
         if d is None: missing += 1; continue
         dphys = (d[0], d[1])
         delems = {}
-        for i in range(2, len(d), 4): delems[d[i]] = tuple(d[i + 1:i + 4])
+        body = d[:d.index("P")] if "P" in d else d
+        for i in range(2, len(body), 4): delems[body[i]] = tuple(body[i + 1:i + 4])
+        if "P" in d: delems[3] = tuple(d[d.index("P") + 1:])          # poison: per frame in 256ths, frames (MonStats::poison_*)
         weapon = mid == "bloodraven"            # her record carries her weapon's random damage (D5 of the trace): not compared
         bad_phys = dphys != (pmin, pmax) and not weapon
         ownel = ownel or weapon
@@ -188,11 +191,11 @@ def cmp(outdir, d2d_out):
         if not ownel:
             elem_cmp += 1
             gel = {}
-            for lo, hi, et, ln in PAIRS:
-                vlo, vhi = st[lo], st[hi]
+            for slot_lo, slot_hi, et, ln in PAIRS:
+                vlo, vhi = st[slot_lo], st[slot_hi]
                 if not (vlo or vhi): continue
                 length = st[ln] if ln else 0
-                if et == 3: gel[et] = ((vlo * length) >> 8, (vhi * length) >> 8, length)
+                if et == 3: gel[et] = (vlo, vhi, length)
                 elif et == 2: gel[et] = (vlo >> 8, vhi >> 8, length)
                 else: gel[et] = (vlo >> 8, vhi >> 8, 0)
             dd = {k: (v[0], v[1], v[2] if k in (2, 3) else 0) for k, v in delems.items()}
