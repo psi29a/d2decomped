@@ -571,7 +571,9 @@ The finish (FUN_006750f0) turns cells into rooms: a preset anchor
 (+0x2c 0x200 and +0x04 set) becomes a preset room (FUN_00666ed0 on the
 level seed, FUN_00667ed0: when the LvlPrest row has Scan or Pops,
 FUN_00667970 first rolls its DS1's units to stay (FUN_00667620) on the
-level seed, then the rooms are allocated), other preset cells nothing, 0x100 cells
+level seed, then the rooms are allocated). For that anchor, FUN_00666ec0
+sets the new room's +0x04 to `(cell +0x2c >> 16) & 0xf`
+(`006751ce`..`006751db`). Other preset cells become nothing, 0x100 cells
 nothing, the rest plain 8×8 rooms (FUN_0067d540 with +0x18, +0x2c,
 +0x40 and a LevelType word: 2 → 0x44103).
 
