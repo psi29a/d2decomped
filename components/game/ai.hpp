@@ -651,12 +651,6 @@ inline int missile_facing(float x, float y, float dx, float dy) {
     return d2d::rules::direction64(subtile(x), subtile(y), subtile(x + dx), subtile(y + dy));
 }
 
-// A monster missile's blow (andariel_missile): its row's physical in
-// 256ths, `element` (its row's or a carried skill's at the level); it always
-// hits. Poison goes in MonStats::poison_*: per frame in 256ths for ELen frames,
-// the record's +0x34 / +0x38 / +0x3c, which monster_blow applies as it is (an
-// `elements` entry of type 3 is the MonStats El convention, roll x 10 a frame
-// for 2 x dur frames, up to 62x as much).
 // `element` onto a missile's stats: poison per frame / frames in MonStats::poison_*,
 // any other type as an A2 El row in whole points (shared by missile_blow and the
 // map's trap missiles).
@@ -666,6 +660,12 @@ inline void put_missile_element(d2d::rules::MonStats& stats, const d2d::rules::M
     } else if (element.etype >= 0)
         stats.elements[0] = { element.etype, 100, element.elo >> 8, element.ehi >> 8, element.elen, "A2" };
 }
+// A monster missile's blow (andariel_missile): its row's physical in
+// 256ths, `element` (its row's or a carried skill's at the level); it always
+// hits. Poison goes in MonStats::poison_*: per frame in 256ths for ELen frames,
+// the record's +0x34 / +0x38 / +0x3c, which monster_blow applies as it is (an
+// `elements` entry of type 3 is the MonStats El convention, roll x 10 a frame
+// for 2 x dur frames, up to 62x as much).
 inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::rules::MissileDamage& element, int monster_level) {
     d2d::rules::MonStats stats;
     stats.level = monster_level;

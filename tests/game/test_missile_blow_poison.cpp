@@ -29,8 +29,10 @@ int main() {
     assert(taken.hit && taken.poison >= 32 && taken.poison <= 64 && taken.poison_ticks == 800);   // up to 200 points, not 8,812
     const auto fire = missile_blow(info, d2d::rules::MissileDamage{ .etype = 0, .elo = 5 << 8, .ehi = 7 << 8, .elen = 0 }, 30);
     assert(fire.elements[0].type == 0 && fire.elements[0].min == 5 && fire.elements[0].max == 7 && fire.poison_max == 0);
-    // the map's trap missiles (objects.cpp) place their element the same way: trappoisonjavcloud
-    // (ELen 500, up to 64 a frame) was P x ELen >> 8 in an El row, x 39 too strong
+    // the map's trap missiles (objects.cpp) place their element the same way: the trap d2d fires
+    // is primepoisoncloud (kTrapMissile[3], ELen 300 / 360 / 440 at trap levels 1 / 4 / 8), whose poison
+    // was P x ELen >> 8 in an El row, x 23 / 28 / 34 too strong. This covers the helper with a
+    // trap-shaped element (64 x 500), not spring_trap, which no test runs.
     d2d::rules::MonStats trap;
     put_missile_element(trap, d2d::rules::MissileDamage{ .etype = 3, .elo = 64, .ehi = 64, .elen = 500 });
     assert(trap.poison_min == 64 && trap.poison_max == 64 && trap.poison_len == 500 && trap.elements[0].type < 0);
