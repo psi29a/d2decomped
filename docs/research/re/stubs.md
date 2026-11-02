@@ -37,31 +37,32 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_0046d780` rows 157 / 158 / 227 / 320 | the birds', maggot's and fish's critter thinks | unreachable | no Levels.txt cmon names them (parrot 319 shares the birds' think and is reached) | ported (shared code) | critters.md |
 | `0x543de0` | the quest event 6 wrapper (record slot +0xb8) | orphan (no call, jump or pointer) | no +0xb8 callback runs: Tools of the Trade's reset when the last carrier loses the malus (`0x5918d0`), the Search for Cain's `FUN_00592e60` rewind | not ported | act1-end.md "Tools of the Trade" |
 | `FUN_0055f4f0` | ItemMode.cpp callback | stub (`ret 4`) | eight calls return without an item-mode action | not ported | "ItemMode stub" below |
+| `FUN_00622e90` | Units.cpp callback | stub (`ret 8`) | the call returns without a Units action | not ported | "Units stub" below |
+| `FUN_0063be30` | Inventory.cpp callback | stub (`ret 8`) | 26 calls return without an Inventory action | not ported | "Inventory stub" below |
+| `FUN_005347b0` | Player.cpp callback | stub (`ret 0xc`) | the call returns without a Player action | not ported | "Player stub 005347b0" below |
+| `FUN_005347c0` | Player.cpp callback | stub (`ret 0x10`) | six calls return without a Player action | not ported | "Player stub 005347c0" below |
+| `FUN_00458f40` | room2 result from `FUN_0061aae0` is saved in EDI and never read | dead | the computed room2 pointer is discarded | not ported | drlg.md "A room's life on the server" |
 
 ### ItemMode stub
 
 `FUN_0055f4f0`'s whole body is `RET 4`, discarding one stack argument.
 Its eight call sites are in `FUN_00533c70`, `FUN_005380d0`, `FUN_0054bd90`,
 `FUN_0054ced0` (two), `FUN_0054d130`, `FUN_0056ac10` and `FUN_00597890`.
-| `FUN_00622e90` | Units.cpp callback | stub (`ret 8`) | the call returns without a Units action | not ported | "Units stub" below |
 
 ### Units stub
 
 `FUN_00622e90`'s whole body is `RET 8`, discarding two stack arguments.
 Its only call site is `0064bee7` in `FUN_0064b860`.
-| `FUN_0063be30` | Inventory.cpp callback | stub (`ret 8`) | 26 calls return without an Inventory action | not ported | "Inventory stub" below |
 
 ### Inventory stub
 
 `FUN_0063be30`'s whole body is `RET 8`, discarding two stack arguments.
 Ghidra's `XrefsTo 0063be30` reports 26 direct call sites.
-| `FUN_005347b0` | Player.cpp callback | stub (`ret 0xc`) | the call returns without a Player action | not ported | "Player stub 005347b0" below |
 
 ### Player stub 005347b0
 
 `FUN_005347b0`'s whole body is `RET 0xc`, discarding three stack arguments.
 Its only call site is `0057db72` in `FUN_0057d9b0`.
-| `FUN_005347c0` | Player.cpp callback | stub (`ret 0x10`) | six calls return without a Player action | not ported | "Player stub 005347c0" below |
 
 ### Player stub 005347c0
 
