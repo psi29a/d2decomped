@@ -18,6 +18,12 @@ once; its low word is kept at act +0x470. A level's seed (+0x1c4) is
 (FUN_00642ae0) and set again just before it's generated (FUN_006424a0),
 so every level's contents depend only on the map seed and its id.
 
+A separate value accompanies that seed. On the server, FUN_0053ac70 passes
+game +0x1c as FUN_006194a0's sixth argument. FUN_006194a0 stores it at
+dungeon +0x5c; FUN_00619550 returns `[ECX+0x5c]`, and its sole caller
+FUN_00642da0 copies the result to act +0x478. This is not the map seed
+(game +0x7c); what game +0x1c means is not traced.
+
 ## The game's map seed
 
 - **A new game** (`FUN_0052c280`): the seed is random (QueryPerformanceCounter
