@@ -477,7 +477,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     // kind, each kind's label before its top line (FUN_004e6410).
     if (is_type("sock")) {
         out.push_back({ string_id(game_data, 11080), kTxtWhite });                            // "Can be Inserted into Socketed Items"
-        if (const auto gem = game_data.gem_props.find(item.code); gem != game_data.gem_props.end() && (is_type("gem") || is_type("rune"))) {
+        if (const auto gem = game_data.rules.gem_props.find(item.code); gem != game_data.rules.gem_props.end() && (is_type("gem") || is_type("rune"))) {
             out.push_back({ std::string{}, kTxtWhite });
             static constexpr std::pair<int, std::size_t> kKinds[4] = { { 11075, 0 }, { 11076, 1 }, { 11073, 1 }, { 11074, 2 } };
             for (const auto& [label, kind] : kKinds) {
@@ -490,7 +490,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     }
     // Durability (FUN_00629930: a durability column, not nodurability, not
     // indestructible; not throwing weapons): blue max when 75 changed it.
-    if (item_base.durability && !desc.nodurability && item.max_durability > 0 && !d2d::rules::indestructible(item) && !throwable)
+    if (item_base.durability && !desc.nodurability && item.max_durability > 0 && !d2d::rules::indestructible(game_data.rules, item) && !throwable)
         out.push_back(line(string_id(game_data, 3457) + space + std::to_string(item.durability) + space + string_id(game_data, 3463) + space,
                            std::to_string(d2d::rules::max_durability(item)), has(75)));
     auto requirement = [&](std::string text, bool met) { out.push_back({ std::move(text), met ? kTxtWhite : kTxtRed }); };

@@ -193,6 +193,9 @@ struct Hireling {
 
 struct Tables {
     std::unordered_map<std::string, ItemType> types;       // by type code
+    // gems.txt socket bonuses by gem/rune code, per slot kind (weapon,
+    // helm/armour, shield), already resolved through Properties.txt.
+    std::unordered_map<std::string, std::array<std::vector<d2d::d2s::ItemProp>, 3>> gem_props;
     std::unordered_map<std::string, ItemInfo> item_info;   // by item code
     std::unordered_map<std::string, ItemBase> item_base;   // by item code
     std::unordered_map<std::string, NpcPrice> npc_prices;  // by MonStats Id
@@ -438,7 +441,7 @@ inline bool is_repair_vendor(int hc_idx) {
 
 inline bool type_is(const Tables& tables, const std::string& type, std::string_view want, int depth = 0);
 inline int max_durability(const d2d::d2s::Item& item);
-inline bool indestructible(const d2d::d2s::Item& item);
+inline bool indestructible(const Tables& tables, const d2d::d2s::Item& item);
 
 // The price base of an armor (ItemTypes armo, FUN_0062efb0 at 0062f0f2):
 // cost x its own defence (stat 31, not the stat list's) / maxac, for buy,
@@ -569,7 +572,7 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     if (const auto own = tables.types.find(type); sell && own != tables.types.end() && !own->second.cls.empty()) price /= 4;
     // An ethereal item with durability (FUN_00629930) worn down to 0 sells for nothing, so the minimum 1 (0062fa60).
     if (sell && item.ethereal && found != tables.item_base.end() && !found->second.no_durability && found->second.durability > 0
-        && max_durability(item) != 0 && !indestructible(item) && item.durability <= 0)
+        && max_durability(item) != 0 && !indestructible(tables, item) && item.durability <= 0)
         price = 0;
     const auto price_row = tables.npc_prices.find(npc_id);
     const int diff = header.active_difficulty();
@@ -597,9 +600,24 @@ inline int max_durability(const d2d::d2s::Item& item) {
     }
     return (item.max_durability + flat) * (100 + pct) / 100;
 }
-// item_indesctructible (stat 152): never wears, never needs repair.
-inline bool indestructible(const d2d::d2s::Item& item) {
-    return std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == d2d::d2s::kIndestructible && prop.value; });
+// What a filled socket adds to `parent`: a jewel's own properties, or the
+// gem/rune's gems.txt bonus for the parent's kind (weapon, shield, else
+// helm/armour). game.exe hangs the socketed item's stat list on the
+// parent's (FUN_00626e10), so these count as the parent's own.
+inline std::vector<d2d::d2s::ItemProp> socket_props(const Tables& tables, const d2d::d2s::Item& parent, const d2d::d2s::Item& filled) {
+    auto out = filled.props;
+    const auto found = tables.gem_props.find(filled.code);
+    const auto info = tables.item_info.find(parent.code);
+    if (found == tables.gem_props.end() || info == tables.item_info.end()) return out;
+    const int slot_kind = info->second.kind == 2 ? 0 : type_is(tables, info->second.type, "shld") ? 2 : 1;
+    const auto& add = found->second[std::size_t(slot_kind)];
+    out.insert(out.end(), add.begin(), add.end());
+    return out;
+}
+// item_indesctructible (stat 152, Zod's too): never wears, never needs repair.
+inline bool indestructible(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto has = [](const std::vector<d2d::d2s::ItemProp>& props) { return std::ranges::any_of(props, [](const auto& prop) { return prop.stat == d2d::d2s::kIndestructible && prop.value; }); };
+    return has(item.props) || std::ranges::any_of(item.socketed_items, [&](const d2d::d2s::Item& filled) { return has(socket_props(tables, item, filled)); });
 }
 
 // A broken item (item flag 0x100, set by FUN_0055f850): its stats and
@@ -658,7 +676,7 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
     const auto found = tables.item_base.find(item.code);
     const int max_stack = found != tables.item_base.end() ? std::max(found->second.max_stack, 1) : 1;
     if (item.ethereal || !item.identified) return 0;
-    if (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(item)) {
+    if (restock ? item.quantity >= max_stack : item.max_durability <= 0 || item.durability >= max || indestructible(tables, item)) {
         const int charges = charges_repair_cost(tables, item);
         return charges > 0 ? int(price_reduced(charges, reduced)) : 0;
     }
@@ -769,8 +787,7 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
         bought.column = column; bought.row = row; bought.location = d2d::d2s::item_location::kStored; bought.panel = d2d::d2s::item_panel::kInventory;
         items.push_back(std::move(bought));
     }
-    // Carried gold first, then the stash (the store shows it for that).
-    // ponytail: that order is a guess; the server's buy isn't RE'd.
+    // Carried gold first, then the stash (FUN_00577830 -> FUN_00576d90).
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
@@ -778,18 +795,32 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
     return true;
 }
 
-// Sells inventory item i: gold up by the sell value (carried gold caps
-// at clvl x 10000), the item joins the stock.
-// ponytail: quest items aren't refused, no belt/equipped selling; what the
-// original does with a sale over the purse cap isn't traced; FUN_00579510
-// keeps no cracked, broken (0x100), unique, personalized or ethereal one
-// (nor what FUN_0055f590 / FUN_00575fa0 / FUN_00576ed0 refuse), d2d keeps all.
-inline void store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
-    const int price = item_price(tables, items[index], store.npc_id, true, store.header);
-    stats.values[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
-                                                       stats.get(d2d::d2s::kLevel) * 10000);
-    (void)store_place(tables, store, store_tab_for(tables, items[index].code), items[index]);   // no room: gone, sold all the same (FUN_00579510 frees it)
+// Sells inventory item i (FUN_00579510): gold up by the sell value, what
+// passes the carried cap (clvl x 10000) returned to drop at the player's
+// feet (FUN_0055b060). The vendor stocks a copy at full durability and stack
+// (stats 72 / 70) unless it's Cracked (LowQualityItems row 1), broken
+// (0x100), unique, personalized, ethereal, a greater or super potion in an
+// expansion game, or one of the vendor's perm items (FUN_00576ed0).
+// ponytail: quest items aren't refused, no belt/equipped selling;
+// FUN_0055f590's test and the vendor proxy's +4 flag (FUN_00536cb0) aren't kept.
+inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    const auto& sold = items[index];
+    const int price = item_price(tables, sold, store.npc_id, true, store.header);
+    const auto cap = stats.get(d2d::d2s::kLevel) * 10000, purse = stats.get(d2d::d2s::kGold);
+    const auto over = std::max<std::int64_t>(purse + price - std::max(cap, purse), 0);
+    stats.values[d2d::d2s::kGold] = purse + price - over;
+    static constexpr std::array<std::string_view, 4> kStrongPotions = { "hp4", "hp5", "mp4", "mp5" };
+    const bool kept = !(sold.quality == 1 && sold.qsub == 1) && !(sold.flags & 0x100u) && sold.quality != 7 && !sold.personalized && !sold.ethereal
+                      && !(store.header.expansion() && std::ranges::find(kStrongPotions, sold.code) != kStrongPotions.end())
+                      && std::ranges::find(store.perm, sold.code) == store.perm.end();
+    if (kept) {
+        auto copy = sold;
+        copy.durability = max_durability(copy);
+        if (const auto base = tables.item_base.find(copy.code); base != tables.item_base.end() && copy.quantity >= 0) copy.quantity = std::min(base->second.max_stack, 511);
+        (void)store_place(tables, store, store_tab_for(tables, copy.code), copy);   // no room: sold all the same
+    }
     items.erase(items.begin() + std::ptrdiff_t(index));
+    return over;
 }
 
 // Is type t (or one of its Equiv ancestors) the type want?
@@ -2129,9 +2160,11 @@ inline std::string find_potion(int level_id, int difficulty, int roll, int mana_
 // A healing / mana potion's amount in 256ths (FUN_005be3f0): calc1 << 8,
 // the class's bonus (life FUN_0062a5d0: Amazon, Paladin, Assassin x1.5,
 // Barbarian x2; mana FUN_0062a620: Amazon, Paladin, Assassin x1.5,
-// Sorceress, Necromancer, Druid x2), then doubled when rand(vitality /
-// energy) / 2 beats rand(100), the drinker's seed (unit +0x20).
+// Sorceress, Necromancer, Druid x2; `cls` -1, a non-player such as the
+// hireling: life x2, mana x1), then doubled when rand(vitality / energy) /
+// 2 beats rand(100), the drinker's seed (unit +0x20).
 template <class T> T potion_bonus(T amount, int cls, bool life) {
+    if (cls < 0) return life ? amount * 2 : amount;
     if (cls == d2d::d2s::kAmazon || cls == d2d::d2s::kPaladin || cls == d2d::d2s::kAssassin) return amount + (amount >> 1);
     return (life ? cls == d2d::d2s::kBarbarian : cls == d2d::d2s::kSorceress || cls == d2d::d2s::kNecromancer || cls == d2d::d2s::kDruid) ? amount * 2 : amount;
 }

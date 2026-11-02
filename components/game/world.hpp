@@ -614,7 +614,7 @@ struct World {
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
     // drops at the area level).
-    // ponytail: D2's operate range is 2 cells here.
+    // In reach as World::tick tests it (FUN_005b0f50: rules::object_reach).
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
     int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
     // The OperateFns `operate` handles; one-shot ones stay used (operated):
@@ -656,6 +656,11 @@ struct World {
     // An object's blast on a unit at (x, y) of `size` (rules::object_blast
     // on the object's unit seed): none in town nor through a wall. 256ths.
     int blast(const Npc& object, float x, float y, int size, std::int64_t life, int unit_level, int dexterity, int defense);
+    // FUN_00622b50 (mask 0x804) from a unit of `size` at subtile (x, y) to
+    // `object`: rules::sight_blocked over the missile barrier (0x04) and
+    // doors (0x800), the object's own footprint lifted while it tests
+    // (FUN_00649560 / FUN_00649400).
+    [[nodiscard]] bool wall_to(const Npc& object, int x, int y, int size) const;
 
     // A chest's trap (the table at 0x732cec, docs/research/re/objects.md
     // "Trap monsters"). The trap monster acts once and is gone, so its
@@ -804,9 +809,9 @@ struct World {
     // - gold (FUN_005357d0): min(level, 20) % of carried and stashed gold,
     //   in single player at most what leaves level x 500, and only from the
     //   purse; the rest of the purse falls where the player dies
-    //   (FUN_00535510), the purse is emptied, goldlost (175) is set.
-    // ponytail: the pile isn't split into FUN_0055a090's piles; goldlost
-    // isn't kept.
+    //   (FUN_00535510: one pile, FUN_0055a090 splits only past 2,000,000,000;
+    //   the player owns it), the purse is emptied, goldlost (175) is set.
+    // ponytail: goldlost isn't kept.
     void death_penalty(std::uint32_t now_ms);
     // The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
     // corpse where the player lies with what they wore and held, and 75% of

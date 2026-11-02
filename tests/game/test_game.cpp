@@ -247,7 +247,7 @@ int main(int argc, char** argv) try {
                 d2d::d2s::Item carried;
                 carried.code = code; carried.location = location; carried.panel = panel; carried.column = column; carried.slot = slot;
                 carried.id = int(items.size()) + 1;
-                items.push_back(carried);
+                items.push_back(std::move(carried));
             };
             if (belt != "-") add(belt, loc::kEquipped, 0, 0, d2d::d2s::body_location::kBelt);
             for (int box = 0; box < 16; ++box) if (boxes[std::size_t(box)] != "-") add(boxes[std::size_t(box)], loc::kBelt, 0, box, 0);
@@ -1539,6 +1539,11 @@ int main(int argc, char** argv) try {
         coop.loot.ground.back().gold = 100;
         coop.loot.take(coop.loot.ground.size() - 1);
         assert(coop.lead().character.stats.get(d2d::d2s::kGold) == lead_gold + 50 && second.character.stats.get(d2d::d2s::kGold) == second_gold + 50);
+        // A player's own dropped gold isn't (FUN_0055c850: an owned pile goes whole to the picker).
+        coop.loot.put({ .code = "gld", .gold = 100 }, coop.lead().player.x, coop.lead().player.y, 1, coop.fight.spawning.game, now_ms);
+        coop.loot.ground.back().gold = 100; coop.loot.ground.back().owner = second.id;
+        coop.loot.take(coop.loot.ground.size() - 1);
+        assert(coop.lead().character.stats.get(d2d::d2s::kGold) == lead_gold + 150 && second.character.stats.get(d2d::d2s::kGold) == second_gold + 50);
         // A quest step's bits reach the partner who hasn't done that quest.
         {
             namespace quest = d2d::rules::quest;

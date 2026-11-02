@@ -294,6 +294,8 @@ def act1():
     for stone in order[-1]:
         operate(stones[int(stone)], 3)
     until("the way to Tristram", lambda: any(l.startswith("2\t") for l in cmd("debug portals").splitlines()))
+    way = [l.split("\t") for l in cmd("debug portals").splitlines() if l.startswith("2\t")][0]
+    cmd(f"debug warp {float(way[2]) + 1} {way[3]}")  # out of the stones' ring: a long walk round them snags
     cmd("cmd interact -2002")
     until("Tristram", lambda: level() == 38, 30)
     cmd("debug kill")
@@ -919,7 +921,8 @@ def act5():
     stairs = objects(66)
     assert stairs, "no stairs"
     cmd(f"debug warp {stairs[0][1]} {float(stairs[0][2]) + 1}"); time.sleep(0.5)
-    cmd(f"debug operate {stairs[0][0]}"); time.sleep(0.5); cmd(f"debug operate {stairs[0][0]}")
+    cmd(f"debug operate {stairs[0][0]}"); time.sleep(2.5)  # they open over FrameCnt1 (50 frames), then lead down
+    cmd(f"debug operate {stairs[0][0]}")
     until("in the Worldstone Keep", lambda: level() == 128, 30)
     print("OK: Rite of Passage (a5q5)")
     # a5q6: open from the Rite (state 2); the Throne of Destruction cleared,

@@ -50,13 +50,19 @@ static void take_blast(std::int64_t& life, int taken) {
     if (life < 256) life = 0;
 }
 
-// FUN_00622b50 (mask 0x804): rules::sight_blocked from the unit to the
-// object over the walk grid's missile barrier (0x04) and doors (0x800).
+auto World::wall_to(const Npc& object, int x, int y, int size) const -> bool {
+    const int to_x = int(std::floor(object.x * 5)), to_y = int(std::floor(object.y * 5));
+    const int left = to_x - object.size_x / 2, top = to_y - object.size_y / 2;   // its footprint (FUN_0064d7c0)
+    const auto wall = [&](int at_x, int at_y) {
+        const bool own = at_x >= left && at_x < left + object.size_x && at_y >= top && at_y < top + object.size_y;
+        return !own && level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804);
+    };
+    return d2d::rules::sight_blocked(x, y, size, to_x, to_y, object.size_x, wall);
+}
+
 auto World::blast(const Npc& object, float x, float y, int size, std::int64_t life, int unit_level, int dexterity, int defense) -> int {
     if (in_town(level)) return 0;
-    const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
-    const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
-    if (d2d::rules::sight_blocked(subtile(x), subtile(y), size, subtile(object.x), subtile(object.y), object.size_x, wall)) return 0;
+    if (wall_to(object, int(std::floor(x * 5)), int(std::floor(y * 5)), size)) return 0;
     return d2d::rules::object_blast(life, unit_level, dexterity, defense, object.seed);
 }
 
@@ -368,7 +374,9 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // word 0x17 has bit 0, Khalim's Will closed if open (word 0x12 bits 0, 13;
         // his eye, heart, brain and the flails taken) and word 0x17 bits 0, 13.
         // Then the fortress's waypoint and its start (FUN_0053aec0(0x67)).
-        // ponytail: its sounds (0xca7, 0xb56) and FUN_0053d670(6)'s packet aren't sent.
+        // FUN_0053d670(6) only sends the quest words to the player's client
+        // (FUN_005531c0; Ghidra shows source lines 0xca7 / 0xb56 as its
+        // argument), which d2d's view reads directly.
         if (act4_operate(npc_index, now_ms)) return;
         if (act5_operate(npc_index, now_ms)) return;
         if (object.operate_fn == d2d::rules::operate_fn::kHellgate) {

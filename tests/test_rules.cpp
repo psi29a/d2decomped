@@ -189,11 +189,15 @@ int main() {
     stats.values[kGoldBank] = 100000;
     assert(!store_buy(tables, shop, 0, packed, stats) && stats.get(kGoldBank) == 100000);   // no room
 
-    // Selling: gold up, capped at clvl x 10000; the item joins the stock.
+    // Selling (FUN_00579510): gold up to clvl x 10000, the rest handed back to
+    // drop (FUN_0055b060); the item joins the stock, a perm one doesn't.
     stats.values[kGold] = 9900;
-    store_sell(tables, shop, 0, inv, stats);
+    const int axe_price = item_price(tables, inv[0], shop.npc_id, true, shop.header);
+    assert(store_sell(tables, shop, 0, inv, stats) == 9900 + axe_price - 10000);
     assert(stats.get(kGold) == 10000);
     assert(inv.size() == 1 && shop.tabs[1].size() == 2);
+    const auto stocked_keys = shop.tabs[3].size();
+    assert(store_sell(tables, shop, 0, inv, stats) >= 0 && inv.empty() && shop.tabs[3].size() == stocked_keys);   // the key: perm
 
     // The item cursor.
     Tables cursor_tables;
@@ -614,6 +618,7 @@ int main() {
     assert(potion_amount(30, 0, true, 0, potion_rng) == 11520 && potion_amount(30, 4, true, 0, potion_rng) == 15360);   // Amazon x1.5, Barbarian x2
     assert(potion_amount(30, 1, true, 0, potion_rng) == 7680 && potion_amount(20, 1, false, 0, potion_rng) == 10240);   // Sorceress: life x1, mana x2
     assert(potion_amount(20, 4, false, 0, potion_rng) == 5120 && potion_amount(20, 6, false, 0, potion_rng) == 7680);
+    assert(potion_amount(30, -1, true, 0, potion_rng) == 15360 && potion_amount(20, -1, false, 0, potion_rng) == 5120);   // a hireling: life x2, mana x1
     Rng roll_a{ 9 }, roll_b{ 9 };
     const int half = roll_b(50) >> 1;
     assert(potion_amount(30, 1, true, 50, roll_a) == (roll_b(100) < half ? 15360 : 7680));                        // rand(vit) / 2 > rand(100): doubled

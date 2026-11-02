@@ -134,7 +134,7 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         const auto info = tables.item_info.find(item.code);
         if (info == tables.item_info.end()) return;
         const bool armor = d2d::rules::type_is(tables, info->second.type, "armo"), weapon = d2d::rules::type_is(tables, info->second.type, "weap");
-        if ((!armor && !weapon) || item.max_durability <= 0 || d2d::rules::indestructible(item) || d2d::rules::broken(item)) return;
+        if ((!armor && !weapon) || item.max_durability <= 0 || d2d::rules::indestructible(game_data->rules, item) || d2d::rules::broken(item)) return;
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
         if (int(rng(100)) >= chance) return;
         if (item.durability - 1 >= 1) { item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item)); return; }
@@ -188,7 +188,7 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
                 && game_data->rules.item_info.contains(item.code) && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
                 if (found != game_data->rules.item_base.end() && found->second.stackable) { if (--item.quantity <= 0) out_of_ammo(i); }
-                else if (item.max_durability > 0 && !d2d::rules::indestructible(item)) {
+                else if (item.max_durability > 0 && !d2d::rules::indestructible(game_data->rules, item)) {
                     item.durability -= d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl);
                     if (item.durability <= 0) {
                         item.durability = 0; item.flags |= 0x100u;             // FUN_0055f850: it breaks
@@ -250,7 +250,7 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
                 const auto info = game_data->rules.item_info.find(item.code);
                 if (item.location != item_location::kEquipped || base == game_data->rules.item_base.end() || info == game_data->rules.item_info.end()
                     || !d2d::rules::type_is(game_data->rules, info->second.type, "weap") || base->second.no_durability || base->second.durability <= 0
-                    || d2d::rules::max_durability(item) == 0 || d2d::rules::indestructible(item) || item.durability > 0 || d2d::rules::broken(item))
+                    || d2d::rules::max_durability(item) == 0 || d2d::rules::indestructible(game_data->rules, item) || item.durability > 0 || d2d::rules::broken(item))
                     continue;
                 item.flags |= 0x100u;
                 cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);

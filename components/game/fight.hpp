@@ -464,8 +464,8 @@ struct Fight {
     // heals it over its length, a rejuvenation its % at once.
     // An antidote ends its poison; either puts its state (+50 resist, +10
     // max) on it as on the player (FUN_005bef90, FUN_005beda0). d2d keeps
-    // no merc chill for thawing to end.
-    // ponytail: no class bonus or doubling for it.
+    // no merc chill for thawing to end. Healing as rules::potion_amount
+    // has it for a non-player (x2; doubled on its gear's vitality).
     void feed_merc(int col, std::uint32_t now_ms);
     // A healing, antidote or thawing potion in hand given to the merc (0x61,
     // FUN_005bf240): true when it drank it.
@@ -502,9 +502,9 @@ struct Fight {
     // the panel's defense and resistances; the passives' stats (`passives`):
     // those with no passiveitype join the sum, a mastery (342..344) only
     // when the weapon is its type, the best one (FUN_00645830), Weapon Block
-    // (348) with two claws when either hand is (FUN_0057dca0, class HT2).
-    // ponytail: set bonuses aren't counted; the throw
-    // masteries (345..347) wait for thrown weapons.
+    // (348) with two claws when either hand is (FUN_0057dca0, class HT2);
+    // the set bonuses (set_bonus_props, set_props); nothing from a broken item.
+    // ponytail: the throw masteries (345..347) wait for thrown weapons.
     [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
                                                      const d2d::rules::StatSum* states = nullptr,
                                                      const std::vector<d2d::rules::PassiveStat>* passives = nullptr,
@@ -1012,10 +1012,9 @@ struct Fight {
     // Monster i as the player's blows see it: an enemy aura's aurastats
     // while it's in range (Conviction: resistances and defense down;
     // resistances 36 physical, 37 magic, 39 fire, 41 lightning, 43 cold,
-    // 45 poison, 171 defense %).
-    // ponytail: the published rule for immune monsters (a fifth of the
-    // cut: Conviction, level 30, past Act 1) isn't applied, nor the other target stats (Holy Freeze's
-    // slow: its cold chills instead).
+    // 45 poison, 171 defense %). A cut to a resistance of 100 or more
+    // counts a fifth (FUN_005c3540, apply_target_stats); Holy Freeze's
+    // slow is the monster's (monster_states).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
     void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const std::array<int, 6>& base, const d2d::rules::CalcEnv* env = nullptr);
     // A summoning skill d2d builds (the do spawns the `summon` row through

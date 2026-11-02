@@ -66,9 +66,9 @@ def patch(e):
 
 def setup(rng, ai):
     s = M._setup(rng, ai)
-    # Leader commands: d2d's QuillRat / Fetish ports never receive one (ponytail notes in monsters.hpp), so their scenes carry none;
+    # Leader commands: no group that holds QuillRats sends one (stubs.md), so their scenes carry none;
     # MAI_COMMAND=none drops them for every AI (a run to tell the command paths from the rest).
-    if ai in ("QuillRat", "Fetish") or os.environ.get("MAI_COMMAND") == "none":
+    if ai == "QuillRat" or os.environ.get("MAI_COMMAND") == "none":
         s["command"] = None
     # d2d feeds the second target (FUN_005ddc30) as the primary: a monster's finds its target, at the same distance (monster-ai.md, ai.cpp).
     s["foe2"], s["foe2_dist"] = bool(s["target"]), s["dist"]

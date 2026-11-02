@@ -78,7 +78,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (actor->store.npc < 0) return true;
             if (actor->held && actor->held->id == sell->item) { actor->character.items.push_back(std::move(*actor->held)); actor->held.reset(); }
             const auto found = std::ranges::find(actor->character.items, sell->item, &d2d::d2s::Item::id);
-            if (found != actor->character.items.end()) d2d::rules::store_sell(item_rules, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats);
+            if (found == actor->character.items.end()) return true;
+            if (const auto over = d2d::rules::store_sell(item_rules, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats); over > 0) {
+                loot.enter(level);
+                loot.put({ .code = "gld", .gold = int(over) }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
+            }
             return true;
         }
         if (const auto* repair = std::get_if<cmd::Repair>(&command)) {
@@ -369,7 +373,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                 loot.enter(level);
                 const auto before = loot.ground.size();
                 loot.put({ .code = "gld", .gold = drop->amount }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
-                if (loot.ground.size() > before) loot.ground.back().dropped_by = actor->id;
+                if (loot.ground.size() > before) loot.ground.back().dropped_by = loot.ground.back().owner = actor->id;
             }
             return;
         }

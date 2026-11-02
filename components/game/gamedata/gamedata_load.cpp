@@ -1044,8 +1044,9 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     }
     {
         // Socket bonuses: gems.txt mods -> Properties.txt funcs -> stats.
-        // Property funcs used by gems: 1/3 value, 15/16 min/max, 17 param,
-        // 5/6/7 min/max/% damage. ponytail: other funcs dropped.
+        // The funcs gems and runes use: 1 / 2 / 3 / 8 value (Pul's ac%,
+        // Shael's swing2 / balance2 / block2), 15 / 16 min / max, 17 param,
+        // 5 / 6 / 7 min / max / % damage, 20 indestructible (Zod).
         std::unordered_map<std::string, int> stat_id;
         if (auto bytes = mpqs.try_read(R"(data\global\excel\ItemStatCost.txt)")) {
             const d2d::txt::Table table(*bytes);
@@ -1074,10 +1075,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                     if (found == prop.end()) continue;
                     auto num = [&](const char* column) { return std::atoi(std::string(gems_table.get(row, pre + column)).c_str()); };
                     const int par = num("Param"), minimum = num("Min"), maximum = num("Max");
-                    auto& out = game_data.gem_props[std::string(gems_table.get(row, "code"))][std::size_t(k)];
+                    auto& out = game_data.rules.gem_props[std::string(gems_table.get(row, "code"))][std::size_t(k)];
                     for (auto [func, stat] : found->second) {
                         switch (func) {
-                            case 1: case 3: if (stat >= 0) out.push_back({ stat, par, minimum }); break;
+                            case 1: case 2: case 3: case 8: if (stat >= 0) out.push_back({ stat, par, minimum }); break;
+                            case 20: out.push_back({ d2d::d2s::kIndestructible, 0, 1 }); break;
                             case 15: if (stat >= 0) out.push_back({ stat, 0, minimum }); break;
                             case 16: if (stat >= 0) out.push_back({ stat, 0, maximum }); break;
                             case 17: if (stat >= 0) out.push_back({ stat, 0, par }); break;

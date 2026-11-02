@@ -434,10 +434,11 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 // least. Cold chills for the length less the same resist whatever the
 // damage came to (FUN_0057c6c0 hands record +0x30 to FUN_0057af80 with no
 // test on the cold), poison runs its per-tick damage over it, stun stands it.
-// ponytail: pierce against immunity is the published rule; its code in
-// game.exe isn't traced. Stats 0x99 / 0x76 (FUN_0057c140) aren't read: no
-// MonProp, MonUMod or state row gives them to a monster. player_blow's
-// cold still chills only on a whole point.
+// The pierce test is FUN_0057be00's: a monster's resistance takes the
+// attacker's pierce stat only while under 100. Stats 0x99 / 0x76
+// (FUN_0057c140) aren't read: no MonProp, MonUMod or state row gives them
+// to a monster.
+// ponytail: player_blow's cold still chills only on a whole point.
 inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
                          Blow blow = { .hit = true }) {
     if (damage.phys_hi > 0) {

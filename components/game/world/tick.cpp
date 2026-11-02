@@ -16,6 +16,7 @@
 #include <d2s_items.hpp>
 #include <light.hpp>
 #include <monster_ids.hpp>
+#include <monsters.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -277,13 +278,19 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 if (actor->ghost && !std::holds_alternative<cmd::Move>(command) && !std::holds_alternative<cmd::Run>(command)) continue;   // a ghost only walks
                 apply(command, now_ms);
             }
-            // Close enough to the stash: open it with the inventory.
-            // ponytail: 2 cells, not D2's per-object operate range.
+            // In reach as the server's interact has it (FUN_005b0f50): an
+            // object by rules::object_reach (a player's size 2) with no wall
+            // between (FUN_00622b50, 0x804), an NPC under 7 (unit_distance).
             if (actor->interact_npc >= 0) {
                 const auto& npc = level->npcs[std::size_t(actor->interact_npc)];
                 const auto& state = npc_states[std::size_t(actor->interact_npc)];
                 const float npc_x = npc.path.empty() ? npc.x : state.x, npc_y = npc.path.empty() ? npc.y : state.y;
-                if (std::hypot(npc_x - actor->player.x, npc_y - actor->player.y) < 2.f) {
+                const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
+                const int from_x = subtile(actor->player.x), from_y = subtile(actor->player.y), to_x = subtile(npc_x), to_y = subtile(npc_y);
+                const bool in_reach = npc.root == "objects"
+                    ? d2d::rules::object_reach(from_x - to_x, from_y - to_y, 2, npc.size_x, npc.size_y) && !wall_to(npc, from_x, from_y, 2)
+                    : d2d::rules::unit_distance(from_x - to_x, from_y - to_y, 2, npc.size_x) < 7;
+                if (in_reach) {
                     if (operable(npc.operate_fn) || npc.operate_fn == d2d::rules::operate_fn::kMoldyTome || npc.operate_fn == d2d::rules::ToolsQuest::kStand || quest_object(npc.operate_fn)) {
                         credit_party([&] { operate(actor->interact_npc, now_ms); });
                     } else if (npc.operate_fn == d2d::rules::operate_fn::kStash) {
@@ -344,7 +351,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                         loot.take(i);
                     }
                 }
-            bool to_unit = actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size() && level->npcs[std::size_t(actor->interact_npc)].root == "monsters";
+            bool to_unit = (actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size()) || actor->take_portal >= 0;   // an NPC, object or portal: a path to the unit
             if (const auto target = fight.engage(now_ms)) { std::tie(actor->target_x, actor->target_y) = *target; actor->player.walking = true; to_unit = true; }
             if (actor->player.walking && (actor->pmode < 0 || actor->ghost)) {
                 // A route to the target (path type 7), re-planned when the

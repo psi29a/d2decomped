@@ -83,7 +83,7 @@ name order. A new sub-verb goes in its area's file where its name sorts.
 | `debug level`               | `ok <id> <x> <y> <w> <h> <wx> <wy>` | The player's level (1 town, 2 Blood Moor), position, level size and its act-tile origin. |
 | `debug blocked <x> <y>`     | `ok 0\|1`              | Whether a unit can't stand at (x, y) in the player's level (past its edge: the neighbour's collision). |
 | `debug grid [n]`           | a `.` / `#` row per row, `ok` | The level at n spots a cell (1..5, default 1; 5 is subtiles): `#` where a unit can't stand at the spot's middle (`debug blocked` for the whole level at once; route planning in probes). |
-| `debug warp <x> <y>`        | `ok`                   | Put the player at DS1 cell (x, y); past the edge next to another level, the next frame crosses into it. |
+| `debug warp <x> <y>`        | `ok`                   | Put the player at DS1 cell (x, y), or the nearest free spot when that's blocked; past the edge next to another level, the next frame crosses into it. |
 | `debug presets`            | `<i>\t<object id>\t<x>\t<y>\t<hidden>\t<name>` per object / NPC the level placed, `ok` | Hidden (quest-gated) ones too; `i` for `cmd interact`. |
 | `debug itemat <id>`        | `ok <x> <y>` / `err ...` | Carried item `id`'s box middle on screen, the inventory panel open (a click there picks it). |
 | `debug goto <level>`        | `ok <x> <y>` / `err no such level` | Arrive on Levels.txt id `level` at a free cell by its middle (quest tests). |

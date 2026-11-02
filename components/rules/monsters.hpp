@@ -1512,7 +1512,9 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // QuillRat (14, FUN_005f1140): A1 in melee, spikes (A2) when hit;
     // wanders (aip4, at least 3) at aip1 or more; else aip2 % a back-off
     // of aip4 first, then the spikes.
-    // ponytail: the leader's command (FUN_0058ee80) to shoot isn't sent.
+    // A pending command with a live unit would make it shoot first
+    // (FUN_0058ee80), but nothing sends one to a group holding quillrats
+    // (stubs.md; monster-ai.md "AI commands").
     if (ai_name == "QuillRat") {
         if (input.in_melee) return { MonAct::a1 };
         if (input.got_hit) return { MonAct::a2 };
@@ -1575,8 +1577,10 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // taunts (S2) and sets its group charging; aip2 or nearer it walks in,
     // else 30 % wanders 3; in melee aip3 % (or on a scare, state 1) swings,
     // else 30 % taunts, else stands 10.
+    // Its group's senders (Fallen, FallenShaman) only send 1 (monster-ai.md
+    // "AI commands"); any other would be dropped.
     // ponytail: the stand-10 outside NU is left out (our moves re-think
-    // mid-way, game.exe's at their end); commands other than 1 never come.
+    // mid-way, game.exe's at their end).
     if (ai_name == "Fallen") {
         if (input.dying) {
             *input.state = 1; *input.command = 0; *input.pace = 50;
@@ -1796,18 +1800,30 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // circling 4, else standing 10; within, it backs off again, or rests
     // and stands 10. Else it walks in. Its walks and back-offs go at pace
     // 50; a back-off (flags 4) that can't set off thinks again at once.
-    // ponytail: its leader's commands (FUN_0058ee80: 1 and 0xe walk it at
-    // a unit) never come, none of Act 1's thinks sending them; the pathers
-    // (2, 0xd) as path_to's.
+    // First its leader's command (FUN_0058ee80; the fetish shaman's 1 at its
+    // target, 0xe to a corpse it raises): with that unit alive, back to rest,
+    // a walk at it (FUN_005dec80(unit, 0)) at pace 50; taken either way. The
+    // shaman's target is taken as the fetish's own (one player, or its
+    // nearest: the same foe).
+    // ponytail: the pathers (2, 0xd) as path_to's.
     if (ai_name == "Fetish") {
+        if (input.command && *input.command) {
+            const bool sent = (*input.command == 1 || *input.command == 14) && input.command_unit;
+            if (input.effects) input.effects->push_back({ ThinkEffect::command_done, 0, 0 });   // FUN_0058ed10
+            if (sent) {
+                *input.state = *input.state2 = 0;
+                *input.pace = 50;
+                return { MonAct::walk, 0 };
+            }
+        }
         auto swing = [&] { return roll() >= aip[0] ? Think{ MonAct::idle, aip[1] } : Think{ MonAct::a1 }; };
         if (*input.state == 0) {
             if (input.in_melee) { *input.state2 = 0; *input.state = 1; return swing(); }
         } else if (*input.state == 1) {
             if (aip[2] < ++*input.state2 && aip[3] < input.target_life_pct) {
                 *input.state = 2; *input.state2 = 0;
-                *input.pace = 50;
-                if (!away(14, false)) *input.pace = 0;
+                *input.pace = 50;                                 // kept when it can't set off (FUN_005de190 stands)
+                (void)away(14, false);
                 return { MonAct::none };
             }
             if (input.in_melee) return swing();
@@ -1819,7 +1835,6 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
                 }
                 *input.pace = 50;
                 if (away(14, false)) return { MonAct::none };
-                *input.pace = 0;
                 *input.state = *input.state2 = 0;
             }
             return { MonAct::idle, 10 };
@@ -3410,7 +3425,8 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // teleports off (as below), its ride word -1. Within b2, b3 %: its pick
     // (Skill3 Fireball / Skill5 Inferno) at the target, a stand 20 when unset;
     // else 50 % S1 at it, else stands 20.
-    // ponytail: its +0x1c (two more draws) is never set: the pick table's 0s.
+    // Its +0x1c (two more draws when set) is the pick table's second word,
+    // 0 in both rows (0x6e34e0: {2, 0}, {4, 0}): never drawn.
     if (ai_name == "ImpRide") {
         if (!input.riding || !input.rider) { effect(ThinkEffect::toggle); return { MonAct::idle, 1 }; }
         if (input.dist > 24 || input.command_busy || input.state69 || *input.state2 == 0) { *input.state = -1; return imp_teleport(); }
