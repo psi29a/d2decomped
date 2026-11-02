@@ -1449,10 +1449,11 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         } else if (roll() < aip[2]) return { MonAct::a1 };
         return away(4, false) ? Think{ MonAct::none } : Think{ MonAct::a1 };
     }
-    // Brute (7, FUN_005efb80): walks in without a draw; in melee aip3 % a
+    // Brute (7, FUN_005efb80): walks in without a draw, at pace 100 less
+    // its life % (40 to 100 of it: 0 to 60, 0x5efcbf); in melee aip3 % a
     // swing (aip4 % A1), else aip3 % circles 4, else stands 15.
     if (ai_name == "Brute") {
-        if (!input.in_melee) return walk;
+        if (!input.in_melee) { *input.pace = 100 - std::clamp(input.life_pct, 40, 100); return walk; }
         if (roll() < aip[2]) return a1_or_a2(aip[3]);
         if (roll() < aip[2]) return think_circle(rng, 4);
         return { MonAct::idle, 15 };
