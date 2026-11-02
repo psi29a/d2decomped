@@ -839,8 +839,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         }
         // Redemption (do 82): a corpse within aurarange redeemed at calc1 %,
         // calc2 life and mana back.
-        // ponytail: its callback isn't traced; one corpse a pulse (Redemption,
-        // level 30: past Act 1).
+        // ponytail: its callback isn't traced; one corpse a pulse.
         if (skill->srvdofunc == ServerDoFunction::kRedemption) {
             using namespace d2d::d2s;
             const int radius = calc(*skill, skill->aurarange, lvl);

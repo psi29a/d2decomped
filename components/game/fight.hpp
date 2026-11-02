@@ -718,7 +718,7 @@ struct Fight {
     //      many subtiles, each a missile of the count's (fire, ice cubes).
     // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.
     // ponytail: 37 (Claws of Thunder's bolts, FUN_005d4150), 40 / 41 / 143
-    // (Royal Strike, level 30, past Act 1; Fists of Fire's first) are
+    // (Royal Strike; Fists of Fire's first) are
     // logged once; 39's points come from d2d's rng.
     void release(std::size_t monster_index, std::uint32_t now_ms) { release(actor->charges, monster_index, now_ms, true); }
     void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels);
@@ -1099,7 +1099,7 @@ struct Fight {
     // ticks, its aurastats (toblock dm56) on the player.
     // ponytail: the aura events (+0x84) and the passive part
     // (FUN_005c6dc0) aren't read; a shield is assumed (itypea1 shie isn't
-    // checked). A level 24 skill: past Act 1.
+    // checked).
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost (FUN_0056bfe0): a charged entry's (Hero::charge, for
     // that skill) is a charge and no mana, else the skill's mana.

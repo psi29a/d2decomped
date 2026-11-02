@@ -244,7 +244,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         // row (hit 56) on a spot within aurarange every 5 frames; Hurricane
         // strikes what's within aurarange with its cold once a second.
         // ponytail: the timer's period (FUN_004efc80) and the events aren't
-        // traced: the paces are by eye (level 24 / 30 skills: past Act 1).
+        // traced: the paces are by eye.
         // Blade Shield: blade_shield, every perdelay frames.
         if (const auto* armageddon = state_of("armageddon"); armageddon && (now_ms / 40) % 5 == 0 && now_ms / 40 != actor->storm_frame) {
             const auto* skill = game_data->skills.get(armageddon->skill);

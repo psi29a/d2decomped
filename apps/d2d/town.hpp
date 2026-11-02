@@ -266,8 +266,8 @@ struct Town {
     void pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out, int left_item = -1, int right_item = -1);   // the items: the hands' charged entries
     // Local co-op's other players at this screen (seats 1..3,
     // docs/design/local-coop.md): their World player (id 0 while their
-    // roster is up), pad and orders.
-    // ponytail: they play the field only; panels and menus wait for phase 5.
+    // roster is up), pad and orders. A panel or menu they open takes the
+    // screen (take_focus).
     struct CoopPlayer { int seat = 0, id = 0, colour = 0; PadPlayer pad; pad::Mapper mapper; std::vector<Command> orders; std::optional<Roster> roster; };
     std::vector<CoopPlayer> coop;
     int lead_colour = 0;                          // the first player's seat colour (pad::Seats::colour)
