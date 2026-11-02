@@ -235,7 +235,7 @@ The stand re-arms (mode 0), so the malus can be dropped again.
   - type 4 (gold, Items +0x11e);
   - flag 0x1000 or 0x800;
   - Items +0xdc bit 0 clear;
-  - throwable (ItemTypes +0x10, `FUN_0062ba80`) and unit+0xc8 bit 0x2000000 clear;
+  - throwable (ItemTypes +0x10, `FUN_0062ba80`) and unit+0xc8 bit 0x2000000 clear (that bit is the game's expansion flag, game +0x70, set in `FUN_00555230` / `FUN_00465fd0`: classic games refuse throwables);
   - a quest item other than 'leg ';
   - socketed children (`FUN_0062a270`);
   - quality 4..9.

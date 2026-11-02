@@ -195,14 +195,15 @@ the client's menu table 0x7253e0 adds the entry with handler 0x4b35b0 (the
 item panel) while the reward is due:
 
 - Larzuk (0x1ff, quest 0x23 bit 1; `0x4b3730`: slot 2 = 0x58dc "add
-  sockets"): `FUN_0062c770` (not gold, not a quest item but Wirt's leg, no
-  sockets, `FUN_0062bc20` > 0, stat 194 none) — sockets: normal / superior /
+  sockets"): `FUN_0062c770` (not gold, no item flag 0x1000, not a quest item
+  but Wirt's leg, not broken (0x100), no socket children (`FUN_0062a270`),
+  not socketed (0x800), `FUN_0062bc20` > 0, stat 194 none) — sockets: normal / superior /
   low the most (`FUN_0062bc20`: min(gemsockets, MaxSock1 / 25 / 40 by item
   level <= 25 / <= 40 / above)), magic 1 + rand(min(most, 2)) on the item's
   seed, set / rare / unique / crafted 1; `FUN_0062bcb0` caps at the grid
   and 6. `FUN_005877c0`: bit 0, bit 1 off.
 - Anya (0x200, quest 0x26 bit 1; `0x4b3760`: slot 3 = 0x58dd
-  "personalize"): `FUN_0062c6a0` (not gold, types 5..7 quivers and ears,
+  "personalize"): `FUN_0062c6a0` (not gold, no item flag 0x1000, types 5..7 quivers and ears,
   not broken or personalized, not compact-save (Items +0x143), nameable
   (+0x145)) — flag 0x1000000 and the player's name. `FUN_0058bc00`: bit 0,
   bit 1 off.

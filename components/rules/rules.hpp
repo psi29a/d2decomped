@@ -1612,14 +1612,24 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
     return item;                                           // ponytail: without a unit seed magic isn't game.exe's
 }
 
+// Item flag 0x1000 (data +0x18, the save's flags too): no NPC service
+// takes the item (FUN_0062c590 / FUN_0062c770 / FUN_0062c6a0).
+inline constexpr std::uint32_t kItemNoService = 0x1000;
+
 // Whether Charsi's imbue takes `item` (FUN_0062c590): Items bitfield1
-// bit 0, not gold, not socketed, not a quest item but Wirt's leg,
-// quality low / normal / superior.
-// ponytail: throwables (FUN_0062ba80) and the unit flag 0x1000 aren't
-// checked.
-inline bool imbuable(const Tables& tables, const d2d::d2s::Item& item) {
+// bit 0, not gold, no flag 0x1000, not socketed (flag 0x800) nor holding
+// anything (FUN_0062a270), not a quest item but Wirt's leg, quality low /
+// normal / superior. A throwable type (FUN_0062ba80) is refused in a
+// classic game only: the unit's +0xc8 bit 0x2000000 is the game's
+// expansion flag (game +0x70, set by FUN_00555230).
+inline bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expansion = true) {
     const auto found = tables.item_base.find(item.code);
-    if (item.code == "gld" || found == tables.item_base.end() || !(found->second.bitfield1 & 1)) return false;
+    if (item.code == "gld" || (item.flags & kItemNoService) || found == tables.item_base.end() || !(found->second.bitfield1 & 1)) return false;
+    if (!expansion) {
+        const auto info = tables.item_info.find(item.code);
+        const auto type = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+        if (type != tables.types.end() && type->second.throwable) return false;
+    }
     if (found->second.quest && item.code != "leg") return false;
     return !item.socketed && item.socketed_items.empty() && item.quality >= 1 && item.quality <= 3;
 }
@@ -1660,14 +1670,16 @@ inline int most_sockets(const Tables& tables, const d2d::d2s::Item& item) {
     if (type == tables.types.end()) return 0;
     return std::min(base->second.gem_sockets, type->second.max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)]);
 }
-// Whether Larzuk's socketing takes `item` (FUN_0062c770): not gold, not a
-// quest item but Wirt's leg, no sockets yet and room for one.
-// ponytail: the unit flags 0x1000 / 0x100 and FUN_0062a270's stat-list
-// check aren't, as imbuable.
+// Whether Larzuk's socketing takes `item` (FUN_0062c770): not gold, no
+// flag 0x1000, not a quest item but Wirt's leg, not broken (flag 0x100),
+// holding nothing (FUN_0062a270), not socketed (flag 0x800), most_sockets
+// above 0 (FUN_0062bc20) and no item_numsockets (stat 194, FUN_006299b0).
 inline bool socketable(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_base.find(item.code);
-    if (item.code == "gld" || found == tables.item_base.end() || (found->second.quest && item.code != "leg")) return false;
-    return !item.socketed && item.sockets == 0 && most_sockets(tables, item) > 0;
+    if (item.code == "gld" || (item.flags & kItemNoService) || found == tables.item_base.end() || (found->second.quest && item.code != "leg")) return false;
+    if (broken(item) || !item.socketed_items.empty()) return false;
+    const bool numsockets = std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == 194 && prop.value != 0; });
+    return !item.socketed && item.sockets == 0 && !numsockets && most_sockets(tables, item) > 0;
 }
 // Larzuk's sockets (FUN_00579d60 at hcIdx 0x1ff): magic 1 + rand(the most,
 // at most 2) on the item's seed; set, rare, unique, crafted (5..9) 1;
@@ -1686,12 +1698,12 @@ inline d2d::d2s::Item socket_item(const Tables& tables, const d2d::d2s::Item& it
 }
 // Whether Anya's personalizing takes `item` (FUN_0062c6a0): not gold, a
 // quiver or an ear (types 5..7), not broken or personalized already, not a
-// compact-save item (Items +0x143) and nameable (+0x145).
-// ponytail: the unit flag 0x1000 and broken (0x100) aren't checked.
+// compact-save item (Items +0x143) and nameable (+0x145); no flag 0x1000,
+// not broken (0x100).
 inline bool nameable(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_base.find(item.code);
     const auto info = tables.item_info.find(item.code);
-    if (item.code == "gld" || item.code == "ear" || found == tables.item_base.end() || info == tables.item_info.end()) return false;
+    if (item.code == "gld" || item.code == "ear" || (item.flags & kItemNoService) || broken(item) || found == tables.item_base.end() || info == tables.item_info.end()) return false;
     if (info->second.type == "bowq" || info->second.type == "xboq") return false;
     return found->second.nameable && !item.personalized && !item.simple;
 }
