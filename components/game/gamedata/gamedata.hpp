@@ -713,6 +713,7 @@ struct GameData {
                          // 0064b2a0 by level): Skill::etype order, frze as cold.
                          int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
                          std::array<int, 5> emin_lev{}, emax_lev{}; std::array<int, 3> elen_lev{};
+                         std::array<int, 5> min_lev{}, max_lev{};   // MinLevDam1..5 / MaxLevDam1..5: the physical part's level brackets (FUN_00644b70 via FUN_0064af20 / FUN_0064aff0)
                          std::string edmg_sym_text; d2d::rules::Calc edmg_sym;   // EDmgSymPerCalc (+0x118), compiled with the skills
                          std::string hit_calc_text; d2d::rules::Calc hit_calc;   // SHitCalc1 (+0x88): Immolation Arrow's fire length
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,

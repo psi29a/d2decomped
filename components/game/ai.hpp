@@ -665,16 +665,25 @@ inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, cons
     return stats;
 }
 // What a monster's MissA / MissS1 / MissC shot carries (Ai::tick, FUN_0059f900 ->
-// FUN_0064b860): the physical part in 256ths, `src x SrcDamage / 128` (the
-// owner's whole points; none for a cast, MissC) plus the row's MinDamage /
-// MaxDamage.
+// FUN_0064b860): the physical part in 256ths, as FUN_0064af20 / FUN_0064aff0 make
+// it: the owner's damage x SrcDamage / 128 (the stat is points, so x 256 first,
+// truncated; none for a cast, MissC, or a row with no SrcDamage), plus the row's
+// MinDamage / MaxDamage and its MinLevDam / MaxLevDam level brackets
+// (FUN_00644b70, `lvl` the missile's level), shifted left by HitShift.
 struct MonsterShotPhys { int lo = 0, hi = 0; };
-inline MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, bool cast, int /*lvl*/) {
-    return { ((cast ? 0 : src_min * info.src_damage / 128) + info.min) << 8, ((cast ? 0 : src_max * info.src_damage / 128) + info.max) << 8 };
+inline MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, bool cast, int lvl) {
+    const int shift = info.hitshift & 31;
+    const auto part = [&](int src, int row, const std::array<int, 5>& lev) {
+        const int owner = cast || info.src_damage <= 0 ? 0 : int(std::int64_t(src) * 256 * info.src_damage / 128);
+        return owner + ((row + d2d::rules::level_bonus(lev, lvl)) << shift);
+    };
+    return { part(src_min, info.min, info.min_lev), part(src_max, info.max, info.max_lev) };
 }
 // The owner's stats as the missile carries them (what monster_blow rolls on
 // impact): the physical as a2_min / a2_max whole points, the owner's own
-// El rows of the shot's mode as A2's.
+// El rows of the shot's mode as A2's, and the row's own element (FUN_0064b100 /
+// 0064b1d0 / 0064b2a0 at the missile's level: Sand Maggot poison, the pots) in a
+// free slot, poison as its total over ELen like missile_blow.
 inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::rules::MonStats stats, bool first, bool cast, bool s1_shot, int lvl) {
     const int src_min = first ? stats.a1_min : s1_shot ? stats.s1_min : stats.a2_min;
     const int src_max = first ? stats.a1_max : s1_shot ? stats.s1_max : stats.a2_max;
@@ -683,6 +692,12 @@ inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info
     if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
     if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
         for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
+    const auto row = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, lvl);
+    if (row.etype >= 0 && (row.ehi > 0 || row.elo > 0))
+        if (const auto free_slot = std::ranges::find_if(stats.elements, [](const auto& element) { return element.type < 0 || element.mode.empty(); }); free_slot != stats.elements.end()) {
+            const int frames = row.etype == 3 ? row.elen : 1;
+            *free_slot = { row.etype, 100, int(std::int64_t(row.elo) * frames >> 8), int(std::int64_t(row.ehi) * frames >> 8), row.elen, "A2" };
+        }
     return stats;
 }
 // `info` from (x, y) cells along (dx, dy), as `from`'s (its owner, level,
