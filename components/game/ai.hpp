@@ -664,6 +664,27 @@ inline d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, cons
         stats.elements[0] = { element.etype, 100, int(std::int64_t(element.elo) * frames >> 8), int(std::int64_t(element.ehi) * frames >> 8), element.elen, "A2" };
     return stats;
 }
+// What a monster's MissA / MissS1 / MissC shot carries (Ai::tick, FUN_0059f900 ->
+// FUN_0064b860): the physical part in 256ths, `src x SrcDamage / 128` (the
+// owner's whole points; none for a cast, MissC) plus the row's MinDamage /
+// MaxDamage.
+struct MonsterShotPhys { int lo = 0, hi = 0; };
+inline MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, bool cast, int /*lvl*/) {
+    return { ((cast ? 0 : src_min * info.src_damage / 128) + info.min) << 8, ((cast ? 0 : src_max * info.src_damage / 128) + info.max) << 8 };
+}
+// The owner's stats as the missile carries them (what monster_blow rolls on
+// impact): the physical as a2_min / a2_max whole points, the owner's own
+// El rows of the shot's mode as A2's.
+inline d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::rules::MonStats stats, bool first, bool cast, bool s1_shot, int lvl) {
+    const int src_min = first ? stats.a1_min : s1_shot ? stats.s1_min : stats.a2_min;
+    const int src_max = first ? stats.a1_max : s1_shot ? stats.s1_max : stats.a2_max;
+    const auto phys = monster_shot_phys(info, src_min, src_max, cast, lvl);
+    stats.a2_min = phys.lo >> 8; stats.a2_max = phys.hi >> 8;
+    if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
+    if (first || cast || s1_shot)                                   // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
+        for (auto& element : stats.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
+    return stats;
+}
 // `info` from (x, y) cells along (dx, dy), as `from`'s (its owner, level,
 // monster level), with its own row's blow.
 inline Missile missile_from(const Missile& from, const GameData::MissileInfo& info, float x, float y, float dx, float dy, std::uint32_t now_ms) {

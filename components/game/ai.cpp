@@ -2058,13 +2058,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
                 x.level = lvl; x.to = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id;
                 const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's S1's; SC's only its elements (El SC)
-                const int src_min = first ? monster.stats.a1_min : s1_shot ? monster.stats.s1_min : monster.stats.a2_min;
-                const int src_max = first ? monster.stats.a1_max : s1_shot ? monster.stats.s1_max : monster.stats.a2_max;
-                x.src.a2_min = (cast ? 0 : src_min * missile_info.src_damage / 128) + missile_info.min;
-                x.src.a2_max = (cast ? 0 : src_max * missile_info.src_damage / 128) + missile_info.max;
-                if (s1_shot) x.src.to_hit = monster.stats.to_hit_s1;           // S1TH (monster_blow rolls to_hit)
-                if (first || cast || s1_shot)                                  // and its elements (a Skeleton Mage's El1 A1): the blow rolls A2's
-                    for (auto& element : x.src.elements) element.mode = element.mode == (cast ? "SC" : s1_shot ? "S1" : "A1") ? "A2" : "";
+                x.src = monster_shot_stats(missile_info, monster.stats, first, cast, s1_shot, lvl);
                 missiles.push_back(x);
                 // Multishot (FUN_005a3610, the missile hook): two more, aimed a
                 // subtile to either side.
