@@ -384,7 +384,20 @@ struct Monster {
         const auto& per_difficulty = type_info.diff[std::size_t(difficulty)];
         auto res = per_difficulty.res;
         for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
-        return { hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain };
+        return { hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
+                 crush_divisor(game_data) };
+    }
+    // Crushing Blow's life divisor on it (FUN_005bffc0): 10 for a hireling
+    // (FUN_0063ee90's classes 0x10f, 0x152, 0x167, 0x230, 0x231); else 4, 8
+    // for a MonStats boss (+0xc & 0x40, FUN_0063e9f0) or a unique (data
+    // +0x16 & 2, FUN_005a0180), raised by its monster_playercount share
+    // (FUN_005738f0: 0 for one player, +50 % each after).
+    [[nodiscard]] int crush_divisor(const GameData& game_data) const {
+        if (type == 0x10f || type == 0x152 || type == 0x167 || type == 0x230 || type == 0x231) return 10;
+        const auto& type_info = game_data.monsters.types[std::size_t(type)];
+        const bool unique = boss == d2d::rules::Boss::unique || boss == d2d::rules::Boss::superunique;
+        const int divisor = type_info.boss_column || unique ? 8 : 4;
+        return divisor + divisor * d2d::rules::player_life_pct(std::max(players, 1)) / 100;
     }
 };
 
@@ -504,22 +517,12 @@ inline std::int64_t crushing_blow(std::int64_t life, int divisor, int damage_res
 // A monster unit (a pet, or a monster made a foe by Confuse or Attract) as
 // MonProp knock and crush see it. Knock: under 0x20 for a MonStats2 large
 // one, 0x80 (always) a small one (FUN_005bf960: MonStats2 +5 & 8 / & 4,
-// [0x6ce274] / [0x6ce270]). Crush: 10 for a hireling (FUN_0063ee90's
-// classes 0x10f, 0x152, 0x167, 0x230, 0x231); else 4, 8 for a MonStats boss
-// (+0xc & 0x40, FUN_0063e9f0) or a unique (data +0x16 & 2, FUN_005a0180),
-// raised by its monster_playercount share (FUN_005738f0: 0 for one
-// player, +50 % each after).
+// [0x6ce274] / [0x6ce270]). Crush: Monster::crush_divisor.
 inline void monster_foe_props(const GameData& game_data, const Monster& monster, Foe& foe) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     foe.neutral = monster.mode == "NU";
     foe.knock_under = type_info.large ? 0x20 : type_info.small ? 0x80 : 0x40;
-    if (monster.type == 0x10f || monster.type == 0x152 || monster.type == 0x167 || monster.type == 0x230 || monster.type == 0x231) { foe.crush_divisor = 10; return; }
-    const bool unique = monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique;
-    int divisor = type_info.boss_column || unique ? 8 : 4;
-    const int players = std::max(monster.players, 1);
-    if (const int share = players < 9 ? std::array{ 0, 0, 50, 100, 150, 200, 250, 300, 350 }[std::size_t(players)] : (players - 2) * 50; share != 0)
-        divisor += divisor * share / 100;
-    foe.crush_divisor = divisor;
+    foe.crush_divisor = monster.crush_divisor(game_data);
 }
 
 constexpr float kMeleeReach = 1.1f;           // cells between centres

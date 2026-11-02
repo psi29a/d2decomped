@@ -157,6 +157,19 @@ int main(int argc, char** argv) {
     StatSum sum{}, wsum{};
     auto fighter = make_fighter(tables, &hax, nullptr, sum, wsum, stats, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
     assert(fighter.min == 3 && fighter.max == 7 && fighter.attack_rating == 80 && fighter.block == 0 && fighter.wsm == -10 && fighter.defense == 50 && fighter.res[3] == 4);
+    // A group's member (FUN_00482680): never one of its last `keep` plays.
+    {
+        namespace snd = d2d::rules::sound_ids;
+        std::array<int, 2> last{};
+        int next = 0;
+        const auto scripted = [&](int bound) { static constexpr int kDraws[] = { 1, 0, 0, 1, 4, 4, 0, 2 }; return kDraws[next++] % bound; };
+        assert(snd::group_member(100, 1, last, scripted) == 100 && next == 0);
+        snd::group_played(last, 100);
+        assert(snd::group_member(100, 3, last, scripted) == 101 && next == 4);       // keep 2: 100 twice redrawn
+        snd::group_played(last, 101);
+        assert(last == (std::array{ 101, 100 }));
+        assert(snd::group_member(100, 3, last, scripted) == 100 && next == 7);       // rand(4) 0: keep 1, only 101 redrawn
+    }
     // The hit class (unit sounds, FUN_004ca560 / the swing table 0x727ed8):
     // the weapon's, else hand to hand; the blow carries it with the skill's.
     {
@@ -272,7 +285,7 @@ int main(int argc, char** argv) {
     assert(open_wounds_per_sec(1) == 3 && open_wounds_per_sec(81) == 227);
 
     // Player blows: sure hits (AR vastly over defense), crushing blow takes a
-    // quarter of what's left, resistances cut, leech per Drain.
+    // quarter of what the hit leaves (FUN_005bffc0), resistances cut, leech per Drain.
     Fighter hit = simple_fighter(100, 100, 1000000);
     hit.crushing = 100; hit.life_steal = 10;
     hit.elem[0] = { 10, 10 };
@@ -280,7 +293,11 @@ int main(int argc, char** argv) {
     Rng rng{ 5 };
     auto blow = player_blow(hit, target, 99, rng);
     for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng);   // 95 % to hit
-    assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 50);  // 100 phys at 50%, fire immune, CB 400/4 at 50%
+    assert(blow.hit && blow.crushing && blow.damage == 50 + 0 + 44);  // 100 phys at 50%, fire immune, CB (400 - 50)/4 = 87, less 50 %
+    target.crush_divisor = 8;                                        // a boss or unique; a missile doubles it
+    blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
+    for (int i = 0; i < 20 && !blow.hit; ++i) blow = player_blow(hit, target, 99, rng, Swing{ .missile = true });
+    assert(blow.hit && blow.damage == 50 + 11);                       // 350 / 16 = 21, less 50 %
     assert(blow.life == 50 * 10 * 50 / 10000);
     // Critical strike doubles like deadly strike.
     Fighter crit = simple_fighter(10, 10, 1000000);

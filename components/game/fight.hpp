@@ -491,6 +491,9 @@ struct Fight {
     void set_pmode(int mode, std::uint32_t now_ms);
     void do_sounds(std::uint32_t now_ms);           // the skill's do: its dosound, and tgtsound on its target
     [[nodiscard]] bool dead() const;
+    // State 0x36 (uninterruptable, FUN_005544b0) on the player: a Whirlwind,
+    // Leap or Leap Attack under way (their starts set it, their ends clear it).
+    [[nodiscard]] bool uninterruptable() const { return actor->leap || (actor->smove.active && (actor->smove.fly || actor->whirl_next != 0)); }
     // Life 0 and the death plays (DT, then DD).
     void die(std::uint32_t now_ms);
 
@@ -747,6 +750,7 @@ struct Fight {
     // Umod 33's (a suicide minion's) death blast: its A1 roll as physical
     // and its aip1's element, within its aip4 (fight/).
     void suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
+    [[nodiscard]] bool blast_reaches(const Monster& monster, const Foe& foe, int radius) const;
 
     // Monster i died (the player's or the merc's doing): the player gets the
     // experience, its pack may scatter, it drops its loot.

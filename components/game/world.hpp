@@ -428,8 +428,9 @@ struct World {
     void eve_update(std::uint32_t now_ms);   // Baal's waves, his flight, Tyrael (a5q6)
     std::uint32_t statues_at = 0;          // a5q5: the statues' event 7 (FUN_0058c0e0), 20 frames on
     std::uint32_t statues_back_at = 0;     // a5q5: the statues' return timer's next tick (FUN_0058bd50, every 2 frames)
-    bool rite_died = false;                // the player's death on the Summit, taken (FUN_005be290)
+    bool rite_died = false;                // the player's death on the Summit, taken (FUN_0058d560)
     void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)
+    void rite_put_back(std::uint32_t now_ms);
     std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
     std::size_t cages_seen = 0;               // a5q2's cages (Spawning::rescue_cages) come into the quest so far
     std::map<const Level*, std::size_t> objects_inited;   // init_new_objects: each level's npcs seen so far
@@ -613,8 +614,7 @@ struct World {
     // Operating a shrine (FUN_00583c70: its Shrines.txt effect) or a chest
     // (FUN_00585f60 / FUN_00585b90: it opens, its act's chest treasure class
     // drops at the area level).
-    // ponytail: D2's operate range is 2 cells here; storm's reach is 30
-    // cells.
+    // ponytail: D2's operate range is 2 cells here.
     void operate(int npc_index, std::uint32_t now_ms, int force = -1);
     int shrine_code(int row) const { return row > 0 && std::size_t(row) < game_data->shrines.size() ? game_data->shrines[std::size_t(row)].code : 0; }
     // The OperateFns `operate` handles; one-shot ones stay used (operated):
@@ -771,6 +771,7 @@ struct World {
     // one it said last (twenty draws), 0 none.
     int greet_sound(const Npc& npc, int kind);
     std::unordered_map<int, int> greeted_with;   // by MonStats class: its last greeting (the record's +0x10)
+    std::unordered_map<int, std::array<int, 2>> group_last;   // by a sound group's first row: its last two plays (+0x64 / +0x68)
     // The quest chain from `quest`'s +0xf0 (d2d::rules::chain).
     void chain(int quest) { d2d::rules::chain(quest, den, burial, cain, tower, tools, andy); }
     // Tools of the Trade: whether the player has the Horadric Malus
@@ -831,6 +832,9 @@ struct World {
     // the old pair goes. By the player: portal_spot from the caster; none,
     // no portal (false).
     void open_portal(std::uint32_t now_ms);
+    // A town portal pair `pair` closes (FUN_00535430 / FUN_00584870): an end
+    // on the Summit counts out of the Rite (RiteQuest::portal_closed).
+    void close_portal_pair(std::size_t pair);
     bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms);
     // FUN_0056d130's spot (FUN_0064e810, field_spot): from (x, y) cells, a
     // 3 x 3 box (size 3) clear of 0x3e01 and expfield.d2's walk back clear of

@@ -699,6 +699,7 @@ struct RiteQuest {
     bool done = false;             // data +0: the three dead
     bool told_heard = false;       // data +1
     bool heard = false, awake = false;   // data +0x10 / +0x11
+    int portals = 0;                     // data +0xc: the town portals open on the Summit
     std::array<int, 3> statue_mode{};    // data +0x30: 0, 3 waking, 4 an Ancient, 2 back
     std::array<bool, 3> statue_dead{};   // data +0x3c: its Ancient fell, its statue not back yet
     bool returning = false;              // data +4: the statues' return timer (FUN_0058bd50) runs
@@ -786,9 +787,9 @@ struct RiteQuest {
     // An Ancient fell while they're up (FUN_0058c9a0, before the count):
     // its statue's due back, the return timer on (FUN_00543f10, every 2
     // frames). True: its death missile goes to that statue.
-    // ponytail: the record's +0xc (deaths on the Summit) isn't kept; reset() covers it.
+    // None counts while a town portal is open there (data +0xc).
     bool ancient_fell(int statue) {
-        if (!heard || !awake) return false;
+        if (!heard || !awake || portals != 0) return false;
         returning = true;
         statue_dead[std::size_t(statue)] = true;
         return true;
@@ -806,7 +807,7 @@ struct RiteQuest {
     // An Ancient died (FUN_0058c9a0): true when it was the last, the Rite
     // won (state 5, the log 13, the chain); then each player's reward().
     bool ancient_died() {
-        if (!heard || !awake || alive <= 0) return false;
+        if (!heard || !awake || portals != 0 || alive <= 0) return false;
         if (--alive != 0) return false;
         done = true;
         if (!open) return false;
@@ -828,8 +829,8 @@ struct RiteQuest {
     }
     // FUN_0058c5c0: 1.4M / 20M / 40M, at most what the next level takes.
     static constexpr std::array<std::int64_t, 3> kExperience{ 1400000, 20000000, 40000000 };
-    // A player died on the Summit, the Rite not won (FUN_005be290): the
-    // Ancients go, the statues and the altar back to mode 0 (FUN_0058c000).
+    // The Rite not won, the Ancients go, the statues and the altar back to
+    // mode 0 (FUN_0058c000).
     bool reset() {
         if (done) return false;
         heard = awake = fighting = returning = false;
@@ -838,6 +839,24 @@ struct RiteQuest {
         made = alive = 0;
         altar_mode = 0;
         return true;
+    }
+    // A player died on the Summit (FUN_00580ec0 -> FUN_005350f0 ->
+    // FUN_0058d560): with them awake and no portal open, and no other
+    // player left there (`others`, LAB_0058d510's count), reset.
+    bool died(bool others) { return awake && portals == 0 && !others && reset(); }
+    // A town portal opened on the Summit (the Town Portal skill's
+    // FUN_005be290 -> FUN_0058cf00, each end): not won, one more open and
+    // reset. True when it reset.
+    bool portal_opened() {
+        if (done) return false;
+        ++portals;
+        return reset();
+    }
+    // One closed there (FUN_0058cf50: the pair unlinked by FUN_00535430, or
+    // its owner back through it, FUN_00584870): the last, heard again, wakes them.
+    void portal_closed() {
+        --portals;
+        if (portals == 0 && heard) awake = true;
     }
     // The stairs (OperateFn 66, FUN_0058d400): whether they let the player on.
     [[nodiscard]] bool stairs_pass(const QuestBits& quest_bits) const {

@@ -220,7 +220,7 @@ int main() try {
             chilled.id = 0x7ffff2;
             chilled.hit_points = 1000; chilled.stats.hit_points = 1000;
             chilled.seed = d2d::rules::Rng{ seed };
-            world.fight.monsters.push_back(chilled);
+            world.fight.monsters.push_back(std::move(chilled));
             d2d::rules::Rng expected{ seed };
             const bool want = expected.next() % 100 < 20;
             world.fight.land(world.fight.monsters.size() - 1, d2d::rules::Blow{ .hit = true, .damage = 1, .chill_ticks = 10 }, true, 5000 * kTickMs, -1);
@@ -233,14 +233,14 @@ int main() try {
         // Holy Freeze's pulse (FUN_005d0920 -> FUN_005d07c0): after its hit, its own roll is the last word.
         world.actor->aura = data->skills.by_name.at("Holy Freeze");
         world.actor->aura_next = 0;
-        const auto kept_levels = world.fight.skill_level;
+        const auto kept_levels = std::move(world.fight.skill_level);
         world.fight.skill_level = [](int) { return 5; };                   // a barbarian has none
         d2d::rules::Rng make_rng{ 3 };
         Monster frozen = make_monster(*data, int(zombie_row->second), world.actor->player.x + 1, world.actor->player.y, make_rng, 0);
         frozen.id = 0x7ffff3;
         frozen.hit_points = 100000; frozen.stats.hit_points = 100000;
         frozen.seed = d2d::rules::Rng{ 77 };
-        world.fight.monsters.push_back(frozen);
+        world.fight.monsters.push_back(std::move(frozen));
         const auto before = world.fight.monsters.back().seed;
         world.fight.aura_pulse(5000 * kTickMs);
         const auto& pulsed = world.fight.monsters.back();
@@ -378,7 +378,7 @@ int main() try {
         std::printf("OK: Charged Strike's bolts wander as Charged Bolt's\n");
 
         // Lightning Enchanted's (FUN_005a29a0): 2 at the subtile beside it each way (0x6e2188 / 0x6e2178), wandering too.
-        Monster enchanted = struck;
+        Monster enchanted = std::move(struck);
         enchanted.boss = d2d::rules::Boss::unique;
         enchanted.mods = { d2d::rules::umod::lightning };
         enchanted.last_hp = 100; enchanted.hit_points = 90;
@@ -405,7 +405,7 @@ int main() try {
         izual.id = 0x7ffff0;
         izual.hit_points = 100;
         izual.unit.x = world.actor->player.x + 3; izual.unit.y = world.actor->player.y;
-        world.fight.monsters.push_back(izual);
+        world.fight.monsters.push_back(std::move(izual));
         const std::size_t index = world.fight.monsters.size() - 1;
         const auto bare = world.fight.target_of(index);
         const auto arrow = std::ranges::find_if(data->missiles, [](const auto& row) { return row.second.return_fire; });

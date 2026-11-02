@@ -454,8 +454,8 @@ auto World::prison_update(std::uint32_t now_ms) -> void {
 
 // a5q5 on the Summit: the statues' event 7, 20 frames after the speech
 // (FUN_0058c0e0: each to mode 4, its Ancient at its spot, FUN_00545c30);
-// the Ancients asleep till then; a death there puts it back (FUN_0058c000:
-// the Ancients gone, statues and altar to mode 0).
+// the Ancients asleep till then; a death there (RiteQuest::died) or a town
+// portal opened there (RiteQuest::portal_opened) puts it back.
 // An Ancient fallen: the return timer every 2 frames (FUN_0058bd50), its
 // statue to mode 1, then mode 2 after FrameCnt1 (its event 1).
 // ponytail: one try per statue.
@@ -492,7 +492,14 @@ auto World::rite_update(std::uint32_t now_ms) -> void {
             if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return monster.type == int(game_data->mon_bin[std::size_t(ancient)]); }))
                 monster.asleep = !rite.awake;
         if (!fight.dead()) { rite_died = false; return; }
-        if (std::exchange(rite_died, true) || !rite.reset()) return;
+        if (std::exchange(rite_died, true)) return;
+        const bool others = std::ranges::any_of(players, [&](const auto& player) { return player.get() != actor && player->character.stats.get(d2d::d2s::kLife) > 0; });
+        if (rite.died(others)) rite_put_back(now_ms);
+    }
+
+// FUN_0058c000 in the world: the Ancients gone, the statues and the altar to mode 0.
+auto World::rite_put_back(std::uint32_t now_ms) -> void {
+        const auto object_index = [&](int object_id) { return int(std::ranges::find(level->npcs, object_id, &Npc::object_id) - level->npcs.begin()); };
         for (auto& monster : fight.monsters)
             if (std::ranges::any_of(d2d::rules::RiteQuest::kAncients, [&](int ancient) { return monster.type == int(game_data->mon_bin[std::size_t(ancient)]); })) monster.gone = true;
         for (const int object_id : { 474, 475, 476, d2d::rules::RiteQuest::kAltar })

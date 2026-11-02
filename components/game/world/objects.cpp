@@ -467,15 +467,30 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if (shrine.code == 18)                                  // gem: one up, or a chipped gem at the player's feet
             if (const auto code = d2d::rules::gem_shrine(game_data->rules, actor->character.items, rng); !code.empty())
                 loot.put({ .code = code }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
-        // Storm (FUN_00582da0): everyone about loses Arg0 % of their life.
-        // ponytail: "about" as within 30 cells (game.exe's unit search
-        // over Arg1 isn't traced).
+        // Storm (FUN_00582da0): every live player and monster in the shrine's
+        // room, when the box Arg1 subtiles about it fits inside (FUN_0065a6b0),
+        // else in its near rooms (FUN_0065ac70: FUN_0065a710's room test
+        // passes every room, its compares never fail; the filter LAB_00582710
+        // has no distance), loses Arg0 % of its life's whole points.
         if (shrine.code == 19) {
-            stat_values[kLife] -= stat_values[kLife] * shrine.arg0 / 100;
-            actor->merc->hit_points -= actor->merc->hit_points * shrine.arg0 / 100;
+            const int at_x = int(std::floor(object.x * 5)), at_y = int(std::floor(object.y * 5)), radius = shrine.arg1;
+            const int own = room_of(*level, object.x, object.y);
+            std::vector<int> rooms;
+            if (const auto rect = own >= 0 ? level_room(*level, std::size_t(own)) : std::nullopt;
+                rect && rect->x * 5 < at_x - radius && rect->y * 5 < at_y - radius && at_x + radius < (rect->x + rect->width) * 5 && at_y + radius < (rect->y + rect->height) * 5)
+                rooms.push_back(own);
+            else
+                for (const auto& [room_level, room] : near_rooms(*game_data, *level, object.x, object.y))
+                    if (room_level == level) rooms.push_back(room);
+            const auto about = [&](float x, float y) { return std::ranges::contains(rooms, room_of(*level, x, y)); };
+            const auto storm = [&](auto life) { return life - life * shrine.arg0 / 100; };
+            for (const auto& player : players) {
+                if (auto& life = player->character.stats.values[kLife]; life > 0 && about(player->player.x, player->player.y)) life -= (life >> 8) * shrine.arg0 / 100 << 8;
+                if (player->merc && player->merc->hit_points > 0 && about(player->merc->unit.x, player->merc->unit.y)) player->merc->hit_points = storm(player->merc->hit_points);
+            }
             if (fight.mon_level == level)
                 for (auto& monster : fight.monsters)
-                    if (monster.alive() && std::abs(monster.unit.x - object.x) < 30 && std::abs(monster.unit.y - object.y) < 30) monster.hit_points -= monster.hit_points * shrine.arg0 / 100;
+                    if (monster.alive() && about(monster.unit.x, monster.unit.y)) monster.hit_points = storm(monster.hit_points);
         }
         // Exploding / Poison: Arg0 .. Arg1 - 1 exploding (opm) / choking gas
         // (gpm) potions at the player's feet (FUN_005830e0 / FUN_00583410).
@@ -485,14 +500,27 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if ((shrine.code == 19 || shrine.code == 21 || shrine.code == 22) && fight.mon_level == level)
             fight.shrine_missiles(shrine.code, object.x, object.y, int(actor->character.stats.get(kLevel)), now_ms);
         if (shrine.code == 20 && fight.mon_level == level) {   // warping (FUN_00583050): the nearest plain monster turns boss
-            // ponytail: FUN_00582750's filter read as alive, not a boss, not
-            // an NPC; FUN_0065a800's search range isn't traced.
-            int best = -1;
-            float best_distance = 1e9f;
-            for (std::size_t k = 0; k < fight.monsters.size(); ++k) {
-                const auto& monster = fight.monsters[k];
-                const float distance = std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y);
-                if (monster.alive() && monster.boss == d2d::rules::Boss::none && distance < best_distance) { best_distance = distance; best = int(k); }
+            // FUN_0065a800 over the player's near rooms, each room's units
+            // newest first, the first at the least ai_distance (subtiles).
+            // FUN_00582750 passes an evil monster in NU or WL, with mWL and a
+            // Height, neither boss nor primeevil (MonStats +0xc & 0xc0) and
+            // no champion, unique, superunique or minion (data +0x16 & 0x1f).
+            std::vector<int> rooms;
+            for (const auto& [room_level, room] : near_rooms(*game_data, *level, actor->player.x, actor->player.y))
+                if (room_level == level) rooms.push_back(room);
+            std::vector<d2d::rules::RoomUnit> units;
+            for (const auto& monster : fight.monsters) {
+                const auto& kind = game_data->monsters.types[std::size_t(monster.type)];
+                units.push_back({ room_of(*level, monster.unit.x, monster.unit.y),
+                                  monster.alive() && monster.align == 0 && (monster.mode == "NU" || monster.mode == "WL") && kind.can_walk && kind.height != 0 &&
+                                      !kind.boss_column && !kind.prime_evil && monster.boss == d2d::rules::Boss::none });
+            }
+            int best = -1, best_distance = 0xffff;
+            const int player_x = int(std::floor(actor->player.x * 5)), player_y = int(std::floor(actor->player.y * 5));
+            for (const int index : d2d::rules::room_order(units, rooms)) {
+                const auto& monster = fight.monsters[std::size_t(index)];
+                const int distance = d2d::rules::ai_distance(int(std::floor(monster.unit.x * 5)) - player_x, int(std::floor(monster.unit.y * 5)) - player_y);
+                if (distance < best_distance) { best_distance = distance; best = index; }
             }
             if (best >= 0) {                               // FUN_005a4940: FUN_005a0760 (champions allowed), FUN_005a2120
                 auto& monster = fight.monsters[std::size_t(best)];
@@ -559,21 +587,27 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
 // 0) IsDoor objects, the nearest under 9 subtiles squared (FUN_005dd0b0
 // mode 8, rules::door_pick); with MonsterOK, FUN_00584540 operates it
 // (OperateFn 8) when in reach (FUN_00623660, rules::object_reach). Found,
-// the monster stands 5 either way.
-// ponytail: the level's objects in list order, not the near rooms' unit
-// lists (a tie between two doors may go the other way); room unit lists
-// are agent D's.
+// the monster stands 5 either way. The doors come in the search's order:
+// the monster's near rooms, each room's units newest first (room_order).
 auto World::monster_door(const Monster& monster, std::uint32_t now_ms) -> bool {
         if (fight.mon_level != level) return false;
         const int x = int(std::floor(monster.unit.x * 5)), y = int(std::floor(monster.unit.y * 5));
-        std::vector<std::pair<int, int>> spots;
-        std::vector<int> door_indices;
+        std::vector<int> rooms;
+        for (const auto& [room_level, room] : near_rooms(*game_data, *level, monster.unit.x, monster.unit.y))
+            if (room_level == level) rooms.push_back(room);
+        std::vector<d2d::rules::RoomUnit> units;
+        units.reserve(level->npcs.size());
         for (std::size_t i = 0; i < level->npcs.size(); ++i) {
             const auto& door = level->npcs[i];
             const auto state = doors.find({ level, int(i) });
-            if (!door.door || (state != doors.end() ? state->second.mode : mode_index(door.mode)) != 0) continue;
+            units.push_back({ room_of(*level, door.x, door.y), door.door && (state != doors.end() ? state->second.mode : mode_index(door.mode)) == 0 });
+        }
+        std::vector<std::pair<int, int>> spots;
+        std::vector<int> door_indices;
+        for (const int index : d2d::rules::room_order(units, rooms)) {
+            const auto& door = level->npcs[std::size_t(index)];
             spots.emplace_back(int(door.x * 5) - x, int(door.y * 5) - y);
-            door_indices.push_back(int(i));
+            door_indices.push_back(index);
         }
         const int pick = d2d::rules::door_pick(spots);
         if (pick < 0 || !level->npcs[std::size_t(door_indices[std::size_t(pick)])].monster_ok) return false;

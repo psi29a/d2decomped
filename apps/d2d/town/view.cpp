@@ -227,18 +227,17 @@ void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
     // 48 px apart: string 0x13e8 "Your deeds of valor..." (hardcore) or
     // 0x13e6 "Death takes its toll of %d Gold" (when goldlost > 0), and in
     // Nightmare / Hell (softcore) 0x13e7 "You have lost experience".
-    // ponytail: FUN_00502680's anchor taken as the cel's bottom, centred.
+    // FUN_00502680 (align 1) puts the first frame at x - 1 - (the frames'
+    // widths summed) / 2 and each next one 0x100 on, each at its own anchor
+    // (FUN_004f6480: offsets and all, as blit_at_anchor).
     if (view.pmode == kModeDD && (!view.ghost || view.all_dead)) {   // local co-op's ghost: no death screen while a partner lives
         const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
         int y = int(kScreenHeight) / 2 - 0x5e;
         for (const auto* spr : { &scene.you_died, &scene.you_died_inst }) {
-            int width = 0;                                   // its frames side by side (FUN_00502680)
-            for (std::uint32_t k = 0; k < spr->frames_per_direction(); ++k) width += int(spr->frame(0, k).width);
-            for (std::uint32_t k = 0, x = std::uint32_t(int(kScreenWidth) / 2 - width / 2); k < spr->frames_per_direction(); ++k) {
-                const auto& frame = spr->frame(0, k);
-                blit_sprite(framebuffer, frame, pal, int(x), y - int(frame.height) + 1);
-                x += frame.width;
-            }
+            unsigned width = 0;
+            for (std::uint32_t k = 0; k < spr->frames_per_direction(); ++k) width += spr->frame(0, k).width;
+            for (std::uint32_t k = 0; k < spr->frames_per_direction(); ++k)
+                blit_at_anchor(framebuffer, spr->frame(0, k), pal, int(kScreenWidth) / 2 - 1 - int(width >> 1) + int(k) * 0x100, y);
             y += 0x30;
         }
         const auto& f30 = scene.font30.line_height() > 0 ? scene.font30 : scene.font;

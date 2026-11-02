@@ -212,7 +212,7 @@ int main(int argc, char** argv) try {
                 if (const std::string code = next(); code != "-") {
                     d2d::d2s::Item carried;
                     carried.code = code; carried.location = d2d::d2s::item_location::kBelt; carried.column = box;
-                    items.push_back(carried);
+                    items.push_back(std::move(carried));
                 }
             d2d::d2s::Item picked;
             picked.code = next(); picked.quantity = 1;

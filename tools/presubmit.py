@@ -68,6 +68,28 @@ def added_lines(tree, base):
 
 # ---------------------------------------------------------------- hygiene
 
+# A co-author or AI attribution line in a commit message (AGENTS.md §6: the
+# commit is the contributor's; Reported-by / Traced-by credit the others).
+ATTRIBUTION = re.compile(r"^\s*co-authored-by:|generated (with|by) .*(claude|copilot|chatgpt|codex|cursor|gemini|\bai\b)|"
+                         r"noreply@anthropic\.com|\U0001F916", re.IGNORECASE | re.MULTILINE)
+
+
+def attribution_lines(message):
+    """The lines of a commit message that credit a co-author or an AI tool."""
+    return [line.strip() for line in message.splitlines() if ATTRIBUTION.search(line)]
+
+
+def check_commit_messages(tree, base):
+    log = git(tree, "log", "--format=%h%x00%B%x01", f"{base}..HEAD")
+    found = []
+    for entry in filter(str.strip, log.split("\x01")):
+        sha, _, message = entry.strip().partition("\x00")
+        found += [f"{sha}: {line}" for line in attribution_lines(message)]
+    report("FAIL" if found else "ok", "attribution",
+           f"{found[0]} (+{len(found) - 1} more): drop co-author / AI lines from the commit messages" if found else
+           "no co-author or AI lines in the commit messages")
+
+
 def check_hygiene(tree, base, changed):
     whitespace = subprocess.run(["git", "-C", str(tree), "diff", "--check", f"{base}...HEAD"],
                                 capture_output=True, text=True, check=False)
@@ -555,6 +577,7 @@ def main():
     changed = [path for path in git(tree, "diff", "--name-only", "--diff-filter=AMR", f"{args.base}...HEAD").split()]
     if not changed:
         sys.exit(f"presubmit: nothing changed against {args.base}")
+    check_commit_messages(tree, args.base)
     numbers, texts = added_lines(tree, args.base)
     check_hygiene(tree, args.base, changed)
     check_shell(tree, changed, numbers)

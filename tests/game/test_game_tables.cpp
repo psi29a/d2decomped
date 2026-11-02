@@ -239,7 +239,7 @@ int main() try {
                 d2d::d2s::Item piece{ .code = "cap" };
                 piece.quality = 5; piece.set_id = int(row);
                 piece.location = d2d::d2s::item_location::kEquipped; piece.slot = d2d::d2s::body_location::kFirst;
-                worn.push_back(piece);
+                worn.push_back(std::move(piece));
             }
         const auto bonus = set_props(*data, worn);
         auto value = [&](int stat) { const auto found = std::ranges::find(bonus, stat, &d2d::d2s::ItemProp::stat); return found != bonus.end() ? found->value : -1; };

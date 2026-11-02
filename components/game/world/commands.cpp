@@ -518,7 +518,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         }
         if (const auto* auto_belt = std::get_if<cmd::AutoBelt>(&command)) {   // FUN_0054d520: nothing in hand
             const auto& belt = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))];
-            if (!actor->held) d2d::rules::auto_belt(tables, actor->character.items, auto_belt->item, belt.boxes);
+            if (!actor->held) (void)d2d::rules::auto_belt(tables, actor->character.items, auto_belt->item, belt.boxes);
             return;
         }
         if (const auto* to_belt = std::get_if<cmd::ToBelt>(&command)) {

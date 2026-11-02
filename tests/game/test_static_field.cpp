@@ -32,6 +32,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -93,7 +94,7 @@ int main(int argc, char** argv) try {
             monster.life_frac = monster.hit_points * 256 - fine_life;
             monster.boss_res = {};
             monster.boss_res[3] = raw_res - monster.target(*data).res[3];
-            world.fight.add_monster(monster);
+            world.fight.add_monster(std::move(monster));
             res_ok = res_ok && world.fight.monsters.back().target(*data).res[3] == raw_res;
         };
         place(max_hp, life, res, 0.4F, 0);

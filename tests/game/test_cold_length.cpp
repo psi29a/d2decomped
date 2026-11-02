@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -77,7 +78,7 @@ int main(int argc, char** argv) try {
         monster.boss_res[4] = res - monster.target(*data).res[4];
         monster.chill_until = prior > 0 ? now + std::uint32_t(prior) * kTickMs : 0;
         world.fight.monsters.clear();
-        world.fight.add_monster(monster);
+        world.fight.add_monster(std::move(monster));
         const auto target = world.fight.target_of(0);
         const auto blow = d2d::rules::missile_blow({ .etype = 2, .elo = roll, .ehi = roll, .elen = length }, target, { 0, 0, pierce, 0 }, blow_rng);
         world.fight.land(0, blow, true, now, -1);

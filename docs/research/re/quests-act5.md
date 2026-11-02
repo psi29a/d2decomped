@@ -140,9 +140,15 @@ open, +0x4c altar mode.
   2, log 3, mode 1. Heard: statues to mode 3, event 7 20 frames on
   (`FUN_0058c0e0`: each its Ancient — 475 → 0x2b, 474 → 0x2d, 476 → 0x2c —
   via `FUN_00545c30`, statue mode 4); awake.
-- The Ancients sleep (their AI, `FUN_0058cf90`) till awake. A player's
-  death on the Summit (`FUN_005be290` → `FUN_0058cf00`) puts it back
-  (`FUN_0058c000`).
+- The Ancients sleep (their AI, `FUN_0058cf90`) till awake. A town
+  portal opened on the Summit (the Town Portal skill's `FUN_005be290` →
+  `FUN_0058cf00`, each end) counts in (data +0xc), turns heard and awake
+  off and puts it back (`FUN_0058c000`); one closing (`FUN_0058cf50`, from
+  `FUN_00535430` and `FUN_00584870`) counts out, the last waking them if
+  heard. No Ancient's death counts while one is open. A player's death
+  there (`FUN_00580ec0` → `FUN_005350f0` → `FUN_0058d560`), awake and no
+  portal open, puts it back when no other live player is on the Summit
+  (`LAB_0058d510`).
 - Each dead (`FUN_0058c9a0`); the last: won; killer and the Summit's
   players of the level bits 0 and 13 and experience (`FUN_0058c5c0`: 1.4M
   / 20M / 40M, at most the next level's span), the rest 14; state 5, log

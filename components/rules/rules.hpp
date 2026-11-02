@@ -781,12 +781,14 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
 // Sells inventory item i: gold up by the sell value (carried gold caps
 // at clvl x 10000), the item joins the stock.
 // ponytail: quest items aren't refused, no belt/equipped selling; what the
-// original does with a sale over the purse cap isn't traced.
+// original does with a sale over the purse cap isn't traced; FUN_00579510
+// keeps no cracked, broken (0x100), unique, personalized or ethereal one
+// (nor what FUN_0055f590 / FUN_00575fa0 / FUN_00576ed0 refuse), d2d keeps all.
 inline void store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const int price = item_price(tables, items[index], store.npc_id, true, store.header);
     stats.values[d2d::d2s::kGold] = std::min<std::int64_t>(stats.get(d2d::d2s::kGold) + price,
                                                        stats.get(d2d::d2s::kLevel) * 10000);
-    store_place(tables, store, store_tab_for(tables, items[index].code), items[index]);
+    (void)store_place(tables, store, store_tab_for(tables, items[index].code), items[index]);   // no room: gone, sold all the same (FUN_00579510 frees it)
     items.erase(items.begin() + std::ptrdiff_t(index));
 }
 
@@ -1010,8 +1012,13 @@ inline std::int64_t mana_per_frame(std::int64_t max_mana, int regen_seconds, int
 // energy, 2 dexterity, 3 vitality), as the char panel's buttons ask with
 // packet 0x3a (FUN_004a78c0). Vitality raises life and stamina, energy
 // mana, current and max (8.8 fixed: a quarter point is 64). Returns the
-// points spent.
-// ponytail: the server's handler isn't traced; gains are CharStats'.
+// points spent. The client sends a Shift-spend as packets of at most 32
+// (FUN_004a78c0), so `count` (d2d's command carries the total) is spent
+// whole; the server's handler (FUN_0054bd10) takes a stat under 16 and
+// 1..100 points a packet, one at a time while stat 4 lasts (FUN_00570d60:
+// strength and dexterity + 1; energy FUN_00570a80, vitality FUN_00570b60:
+// CharStats ManaPerMagic +0x48, LifePerVitality +0x46, StaminaPerVitality
+// +0x47, in quarters, to the current and max); a stat past 3 spends none.
 inline int spend_stat_points(d2d::d2s::Stats& stats, int stat, int count, const ClassGains& gains) {
     using namespace d2d::d2s;
     count = int(std::min<std::int64_t>(count, stats.get(kStatPts)));
@@ -2078,6 +2085,7 @@ inline bool make_runeword(const Tables& tables, d2d::d2s::Item& item) {
     if (!row) return false;
     const auto base = tables.item_base.find(item.code);
     const auto info = tables.item_info.find(item.code);
+    if (base == tables.item_base.end() || info == tables.item_info.end()) return false;
     const auto type = tables.types.find(info->second.type);
     item.runeword = true;
     item.runeword_id = row->save_id;
@@ -2158,8 +2166,7 @@ inline int potion_rate(int old_rate, int left, int amount, int len) {
 // - else the inventory's first free spot (FUN_005600a0); no room leaves it
 //   on the ground (FUN_0055c9a0 message 0x17: the class's "can't carry").
 //   Before the belt, given a wearer, the auto-equip (auto_equip_slot).
-// ponytail: stacks match by code (FUN_0062c850 also compares quality and
-// flags); tomes by the Books.txt pairs tsc / tbk, isc / ibk.
+// Tomes by the Books.txt pairs tsc / tbk, isc / ibk.
 enum class Pickup { kGone, kStays, kNoRoom };
 
 // The body slot a pickup goes to (FUN_0055d710 mode 0), -1 none: an
@@ -2175,7 +2182,8 @@ enum class Pickup { kGone, kStays, kNoRoom };
 inline int auto_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, const Wearer& wearer,
                            int required_level = -1) {
     const auto* info = info_of(tables, item);
-    const auto type = info ? tables.types.find(info->type) : tables.types.end();
+    if (!info) return -1;
+    const auto type = tables.types.find(info->type);
     if (!item.identified || broken(item) || (item.flags & 0x4000) || type == tables.types.end() || info->type == "tpot") return -1;
     if (type->second.body[0] == 0 && type->second.body[1] == 0) return -1;
     if (!meets_requirements(tables, item, wearer, required_level)) return -1;
@@ -2249,6 +2257,16 @@ inline bool auto_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     found->location = d2d::d2s::item_location::kBelt; found->column = slot; found->row = 0; found->panel = 0; found->slot = 0;
     return true;
 }
+// Two items stack (FUN_0062c850): the same class, quality and file index
+// (data +0x28: a low / superior row, qsub), both of a Stackable row
+// (+0x132), both ethereal or neither (0x400000), of no magic or better
+// quality (FUN_0062a2f0: 1..3 or past 9), with damage stats 21-24 and
+// 159 / 160 equal (the class's, for such items) and no sockets (stat 0xc2).
+inline bool stacks_with(const d2d::d2s::Item& one, const d2d::d2s::Item& other) {
+    const auto plain = [](int quality) { return quality != 0 && (quality < 4 || quality > 9); };
+    return one.code == other.code && one.quality == other.quality && one.qsub == other.qsub && one.ethereal == other.ethereal &&
+           plain(one.quality) && one.sockets == 0 && other.sockets == 0;
+}
 inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item, int cols, int rows, int boxes,
                       const Wearer* wearer = nullptr, int required_level = -1) {
     using d2d::d2s::Item;
@@ -2271,7 +2289,7 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
         }
     } else if (base != tables.item_base.end() && base->second.stackable && type_row != tables.types.end() && type_row->second.autostack) {
         for (auto& stack : items) {
-            if (!in_inventory(stack) || stack.code != item.code || stack.quantity >= max_stack(stack.code)) continue;
+            if (!in_inventory(stack) || !stacks_with(stack, item) || stack.quantity >= max_stack(stack.code)) continue;
             const int moved = std::min(max_stack(stack.code) - stack.quantity, item.quantity);
             stack.quantity += moved; item.quantity -= moved;
             if (item.quantity <= 0) return Pickup::kGone;
