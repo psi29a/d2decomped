@@ -61,6 +61,12 @@ Ghidra's `XrefsTo 0063be30` reports 26 direct call sites.
 
 `FUN_005347b0`'s whole body is `RET 0xc`, discarding three stack arguments.
 Its only call site is `0057db72` in `FUN_0057d9b0`.
+| `FUN_005347c0` | Player.cpp callback | stub (`ret 0x10`) | six calls return without a Player action | not ported | "Player stub 005347c0" below |
+
+### Player stub 005347c0
+
+`FUN_005347c0`'s whole body is `RET 0x10`, discarding four stack arguments.
+It has six call sites: five in `FUN_0057dd60` and one in `FUN_0057dfb0`.
 
 Still reachable, though the content looks dead: the uber levels 133..136
 build and populate (`FUN_005559a0`'s uber cases, the Hellfire Torch hook
