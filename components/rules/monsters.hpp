@@ -1444,9 +1444,14 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         *input.state = 0;
         if (charged && input.in_melee) return { MonAct::a1 };
         if (!input.in_melee) {
-            if (roll() < aip[0]) { *input.state = 1; return { MonAct::walk, 0 }; }
-            if (input.dist > 3) return think_wander(rng, roll() < aip[1] ? 4 : 3);
+            if (roll() < aip[0]) { *input.state = 1; *input.pace = aip[4]; if (input.steps) *input.steps = input.dist; return { MonAct::walk, 0 }; }
+            if (input.dist > 3) {
+                const bool wide = roll() < aip[1];
+                if (wide) *input.pace = -50;
+                return think_wander(rng, wide ? 4 : 3);
+            }
         } else if (roll() < aip[2]) return { MonAct::a1 };
+        *input.pace = aip[3];
         return away(4, false) ? Think{ MonAct::none } : Think{ MonAct::a1 };
     }
     // Brute (7, FUN_005efb80): walks in without a draw, at pace 100 less
