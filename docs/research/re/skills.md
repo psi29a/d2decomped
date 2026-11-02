@@ -665,7 +665,12 @@ lines (missile names aren't passed in). What it does:
   +0x4c.. sHitPar1..3 (FUN_0064b340's operand order).
 - Hit function 1 (**FUN_005a9a70**, Fire Ball): radius = sHitPar1, else
   the skill's calc1; FUN_0056bad0 → FUN_0056b7e0 hits every unit whose
-  squared subtile distance is within radius².
+  squared subtile distance is within radius². The record is rolled ONCE
+  (FUN_005a8c70) and a copy handed to each unit found; each resists its
+  own copy. Hit function 13 (Glacial Spike) the same. d2d: `MissileRoll`
+  (combat.hpp), filled by the first blow of `Fight::area`. Confidence: high
+  (game.exe's own code under the emulator: one record per burst in 400 of 400
+  trials for each skill; d2d 400 of 400 equal after this change, 2 of 400 before).
 - Built: `missile_skill` / `cast_missile` / `fire` / `skill_missile_hits`
   in fight.hpp, `rules::missile_damage` (skills.hpp),
   `rules::missile_blow` (combat.hpp). Magic Arrow, Fire Bolt, Ice Bolt,

@@ -967,10 +967,12 @@ struct Fight {
     // skill's SrcDam, or a row with no Skill its SrcDamage) the weapon's
     // blow at that share, attack rating rolled; else a sure hit (ToHit rows
     // roll the attack rating); then the skill's damage (missile_blow).
-    // `freeze`: a Glacial Spike's freeze, frames.
-    void strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze = 0);
-    // Every monster within r subtiles of (x, y) takes the missile's damage.
-    void area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze = 0);
+    // `freeze`: a Glacial Spike's freeze, frames. `roll`: the burst's one
+    // record, drawn by the first blow and resisted by each unit.
+    void strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze = 0, d2d::rules::MissileRoll* roll = nullptr);
+    // Every monster within r subtiles of (x, y) takes the missile's damage;
+    // `one_roll`: from one roll for all of them (hit functions 1 and 13).
+    void area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze = 0, bool one_roll = false);
     // A missile's hit function where it is — with the unit it struck, or
     // none where its Range ran out (FUN_005adf10 calls it either way), once:
     // 1 (FUN_005a9a70) the skill's damage within sHitPar1 (else calc1)

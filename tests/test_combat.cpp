@@ -612,6 +612,26 @@ int main(int argc, char** argv) {
             phys_hit = missile_blow(phys, half, {}, phys_rng);
             assert(phys_hit.damage == 2 && phys_hit.frac == 88);
         }
+        {   // A burst rolls once (FUN_005a9a70 -> FUN_005a8c70): every blow on its record takes the first one's rolls, each resisting its own.
+            Rng burst_rng{ 17 };
+            const MissileDamage burst{ .phys_lo = 256, .phys_hi = 5000, .etype = 0, .elo = 1000, .ehi = 5000 };
+            Target fireproof;
+            fireproof.res[2] = 50;                                  // fire is Target::res[2]
+            int apart = 0;
+            for (int i = 0; i < 200; ++i) {
+                MissileRoll roll;
+                assert(roll.phys < 0 && roll.element < 0);
+                const auto first = missile_blow(burst, Target{}, {}, burst_rng, { .hit = true }, &roll);
+                assert(roll.phys >= 256 && roll.phys <= 5000 && roll.element >= 1000 && roll.element < 5000);
+                const auto again = missile_blow(burst, Target{}, {}, burst_rng, { .hit = true }, &roll);
+                const auto halved = missile_blow(burst, fireproof, {}, burst_rng, { .hit = true }, &roll);
+                assert(first.damage == again.damage && first.frac == again.frac && first.phys == again.phys);
+                assert(halved.phys == first.phys && halved.damage < first.damage);
+                const auto own = missile_blow(burst, Target{}, {}, burst_rng);
+                apart += own.damage != first.damage || own.frac != first.frac;
+            }
+            assert(apart > 150);                                    // with no shared record each blow draws its own
+        }
         {   // MulDiv (FUN_00483360), cases run on game.exe in tools/emu: each branch, the wraps.
             constexpr std::array<std::array<int, 4>, 11> kCases{ { { 25600, 40, 100, 10240 }, { 1280000, 37, 100, 473600 }, { 1048577, 3, 7, 449388 },
                 { 8388607, 99, 3, 276823998 }, { 1000, 65537, 9, 7281000 }, { 70000, 131072, 3, -1236667296 }, { 70000, 131072, 36864, 248888 },

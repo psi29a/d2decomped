@@ -434,6 +434,12 @@ inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int 
 // weapon's share (SrcDam as written, 128ths; 0 for spells).
 struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 0, elen = 0, srcdam = 0; };
 
+// A burst rolls its record once and hands a copy to every unit it takes in
+// (FUN_005a9a70 and FUN_005aa8b0 call FUN_005a8c70 once; each unit resists
+// its own copy): the physical and the element roll in 256ths, -1 until the
+// first unit's blow draws it.
+struct MissileRoll { int phys = -1, element = -1; };
+
 // A skill's missile striking `t` (on top of `b`, the weapon's share when
 // it has one): the physical and the element, each rolled between its min
 // and max and less the monster's resistance; the element's resistance
@@ -448,12 +454,13 @@ struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 
 // to a monster.
 // ponytail: player_blow's cold still chills only on a whole point.
 inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
-                         Blow blow = { .hit = true }) {
+                         Blow blow = { .hit = true }, MissileRoll* shared = nullptr) {
     if (damage.phys_hi > 0) {
         // FUN_005a89a0 rolls the physical in 256ths and FUN_0057bf80 resists that fine
         // value, the life stat takes it as is: keep the part under a point in Blow::frac
         // as the element below does.
-        const int roll = rng.range(damage.phys_lo, damage.phys_hi);
+        const int roll = shared && shared->phys >= 0 ? shared->phys : rng.range(damage.phys_lo, damage.phys_hi);
+        if (shared) shared->phys = roll;
         blow.phys += roll >> 8;
         // FUN_0057be00 floors a monster's resistance at -100 (no upper cap but the immunity at 100).
         const int fine = resisted_fine(roll, std::max(target.res[0], -100));
@@ -465,7 +472,8 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     // FUN_005a8910: nothing unless both ends are over 0, then min + rand(max -
     // min) on the missile's seed: the max itself is never rolled.
     const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
-    const int roll = low > 0 ? low + rng(high - low) : 0;
+    const int roll = shared && shared->element >= 0 ? shared->element : low > 0 ? low + rng(high - low) : 0;
+    if (shared) shared->element = roll;
     if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
     int res = target.res[std::size_t(kRes[damage.etype])];
     if (damage.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(damage.etype)], -100);
