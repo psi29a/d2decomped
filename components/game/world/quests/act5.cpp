@@ -472,7 +472,8 @@ auto World::rite_update(std::uint32_t now_ms) -> void {
                     d2d::log::info("Rite of Passage: statue {} returns", which);
                 }
         }
-        for (const int object_id : d2d::rules::RiteQuest::kStatues)
+        // A statue coming back, the stairs opening (their event 1, FrameCnt1 frames on): OP, then ON.
+        for (const int object_id : { d2d::rules::RiteQuest::kStatues[0], d2d::rules::RiteQuest::kStatues[1], d2d::rules::RiteQuest::kStatues[2], d2d::rules::RiteQuest::kStairs })
             if (const int statue = object_index(object_id); statue < int(level->npcs.size()))
                 if (const auto state = doors.find({ level, statue }); state != doors.end() && state->second.mode == 1
                     && now_ms - state->second.when >= std::uint32_t(level->npcs[std::size_t(statue)].op_frames) * kTickMs)
@@ -546,9 +547,8 @@ auto World::eve_update(std::uint32_t now_ms) -> void {
 // Frozen Anya (OperateFn 67, FUN_0058abc0): the potion taken, her thaw.
 // The Summit's altar (65, FUN_0058d310): the Ancients speak, mode 1. Its
 // stairs (66, FUN_0058d400): shut till the Rite's won here (or done); then
-// mode 0 opens them, mode 2 leads to the Worldstone Keep (level 128, by its
-// way back up).
-// ponytail: the stairs open at once (mode 2), not after their event 1.
+// mode 0 opens them (mode 1; their event 1 makes it 2, rite_update), mode 2
+// leads to the Worldstone Keep (level 128, by its way back up).
 auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
         const auto& object = level->npcs[std::size_t(npc_index)];
         if (object.object_id == d2d::rules::RiteQuest::kAltar) {
@@ -597,7 +597,8 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
         if (object.object_id == d2d::rules::RiteQuest::kStairs) {
             if (!rite.stairs_pass(quests())) { d2d::log::info("Rite of Passage: the stairs stay shut"); return true; }
             auto& door = doors[{ level, npc_index }];
-            if (door.mode != 2) { door = Door{ 2, now_ms }; return true; }
+            if (door.mode == 0) door = Door{ 1, now_ms };
+            if (door.mode != 2) return true;
             const Level* keep = game_data->level(128);
             if (!keep || keep->ds1.width() == 0) { d2d::log::warn("The Worldstone Keep didn't build"); return true; }
             const auto back = std::ranges::find(keep->warps, d2d::rules::RiteQuest::kSummit, &Level::Warp::destination);
