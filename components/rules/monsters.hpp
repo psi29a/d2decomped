@@ -1411,10 +1411,12 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         return idle2;
     }
     // Zombie (3, FUN_005efe20): runs at a foe it's hit by, or aip1 % one
-    // within aip2; else wanders 3, bar in the Burial Grounds.
+    // within aip2, at pace 100 (FUN_005de190, 0x5eff19); else wanders 3,
+    // bar in the Burial Grounds.
     if (ai_name == "Zombie") {
         if (input.in_melee) return a1_or_a2(aip[3]);
         if (!input.got_hit && !(input.dist < aip[1] && roll() < aip[0]) && input.level != level_ids::kBurialGrounds) return think_wander(rng, 3);
+        *input.pace = 100;
         return { MonAct::run };
     }
     // Bighead (4, FUN_005eff50): above aip1 % life it closes in (aip3 % a
