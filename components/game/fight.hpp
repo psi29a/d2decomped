@@ -1012,10 +1012,9 @@ struct Fight {
     // Monster i as the player's blows see it: an enemy aura's aurastats
     // while it's in range (Conviction: resistances and defense down;
     // resistances 36 physical, 37 magic, 39 fire, 41 lightning, 43 cold,
-    // 45 poison, 171 defense %).
-    // ponytail: the published rule for immune monsters (a fifth of the
-    // cut: Conviction, level 30, past Act 1) isn't applied, nor the other target stats (Holy Freeze's
-    // slow: its cold chills instead).
+    // 45 poison, 171 defense %). A cut to a resistance of 100 or more
+    // counts a fifth (FUN_005c3540, apply_target_stats); Holy Freeze's
+    // slow is the monster's (monster_states).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
     void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const std::array<int, 6>& base, const d2d::rules::CalcEnv* env = nullptr);
     // A summoning skill d2d builds (the do spawns the `summon` row through
