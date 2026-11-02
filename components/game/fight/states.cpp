@@ -290,6 +290,18 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                 if (targets == "conversion") monster.align = 2;
                 if (targets == "confuse" || targets == "attract") monster.align = 1;
             }
+            // The enemy auras over it (the player's, the merc's): Holy Freeze's
+            // velocitypercent and attackrate / other_animrate (one rate), -dm34.
+            if (monster.alive())
+                for (const auto& aura : enemy_auras(monster.unit.x, monster.unit.y)) {
+                    int rate = 0;
+                    for (std::size_t aura_stat = 0; aura_stat < aura.skill->aurastat.size(); ++aura_stat) {
+                        const int value = d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[aura_stat], aura.env, aura.skill->id, aura.level);
+                        if (aura.skill->aurastat[aura_stat] == 67) monster.speed_pct += value;
+                        if (aura.skill->aurastat[aura_stat] == 68 || aura.skill->aurastat[aura_stat] == 69) rate = value;
+                    }
+                    monster.anim_pct += rate;
+                }
             if (monster.set_kind && now_ms >= monster.set_until) monster.set_kind = 0;   // event 10 (0x5a7f70 -> FUN_00573120)
         }
     }

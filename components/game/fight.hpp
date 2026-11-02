@@ -768,6 +768,13 @@ struct Fight {
     // subtiles of its holder, at the holder's level and calc env.
     struct AuraOn { const d2d::rules::Skill* skill = nullptr; int level = 0; d2d::rules::CalcEnv env; };
     [[nodiscard]] std::vector<AuraOn> friendly_auras(float x, float y) const;
+    // The enemy auras (do 66, Holy Freeze's 81) over (x, y) cells the same
+    // way: the player's and the merc's (an Act 2 merc's Holy Freeze).
+    [[nodiscard]] std::vector<AuraOn> enemy_auras(float x, float y) const;
+    [[nodiscard]] std::vector<AuraOn> auras_at(float x, float y, bool enemy) const;
+    // An enemy aura's pulse (do 66 / 81 with an EType): its element at every
+    // live monster within its aurarange of (x, y), struck by `striker`.
+    void enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float x, float y, const std::array<int, 4>& pierce, int striker, std::uint32_t now_ms);
     // What the merc wears (World::character.merc_items): its items' stats
     // summed (sockets, set bonuses), the weapon's own, its weapon and shield,
     // the items' own defence (after their enhanced defence), defence per level.
@@ -1002,7 +1009,7 @@ struct Fight {
     // cut: Conviction, level 30, past Act 1) isn't applied, nor the other target stats (Holy Freeze's
     // slow: its cold chills instead).
     [[nodiscard]] d2d::rules::Target target_of(std::size_t monster_index);
-    void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target);
+    void apply_target_stats(const d2d::rules::Skill& skill_row, int lvl, d2d::rules::Target& target, const d2d::rules::CalcEnv* env = nullptr);
     // A summoning skill d2d builds (the do spawns the `summon` row through
     // FUN_0056d940): Clay / Blood / Iron / Fire Golem (56, 57), Raise
     // Skeleton and Skeletal Mage (31, from a corpse), Valkyrie (16), the

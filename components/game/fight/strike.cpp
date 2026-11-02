@@ -197,12 +197,17 @@ auto Fight::calc_env() -> d2d::rules::CalcEnv {
                  int(actor->character.stats.get(d2d::d2s::kLevel)), &rng };
     }
 
-auto Fight::friendly_auras(float x, float y) const -> std::vector<AuraOn> {
+auto Fight::friendly_auras(float x, float y) const -> std::vector<AuraOn> { return auras_at(x, y, false); }
+auto Fight::enemy_auras(float x, float y) const -> std::vector<AuraOn> { return auras_at(x, y, true); }
+
+auto Fight::auras_at(float x, float y, bool enemy) const -> std::vector<AuraOn> {
         using namespace d2d::d2s;
         std::vector<AuraOn> out;
         const auto add = [&](int skill_id, int lvl, d2d::rules::CalcEnv env, float from_x, float from_y) {
             const auto* skill = game_data->skills.get(skill_id);
-            if (!skill || skill->srvdofunc != ServerDoFunction::kFriendlyAura || lvl < 1) return;
+            const bool kind = enemy ? skill && skill->aura && (skill->srvdofunc == ServerDoFunction::kEnemyAura || skill->srvdofunc == ServerDoFunction::kHolyFreeze)
+                                    : skill && skill->srvdofunc == ServerDoFunction::kFriendlyAura;
+            if (!kind || lvl < 1) return;
             if (std::hypot(from_x - x, from_y - y) * 5 > float(d2d::rules::eval_calc(game_data->skills, skill->aurarange, env, skill->id, lvl))) return;
             out.push_back({ skill, lvl, std::move(env) });
         };

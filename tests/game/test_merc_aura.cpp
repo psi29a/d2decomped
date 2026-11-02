@@ -5,6 +5,7 @@
 // Act 2 merc's Defiance on itself and on the player within its aurarange,
 // the player's on the merc, Prayer's pulse healing both.
 
+#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <d2s_items.hpp>
@@ -94,6 +95,25 @@ int main() try {
     fight.aura_pulse(2040);                               // before perdelay: no second pulse
     assert(life == healed);
     std::printf("OK: the merc's Prayer heals the player and itself on its pulse\n");
+
+    // Its Holy Freeze (do 81): -dm34 velocity and attack rate on a monster near it, its cold pulse.
+    const int holy_freeze = data->skills.by_name.at("Holy Freeze");
+    actor.merc_ids[0] = holy_freeze; actor.merc_levels[0] = 6;
+    actor.merc_aura = holy_freeze;
+    actor.merc_aura_next = 0;
+    const auto zombie = data->monsters.by_id.at("zombie1");
+    d2d::rules::Rng make_rng{ 3 };
+    fight.monsters.push_back(make_monster(*data, int(zombie), actor.merc->unit.x + 1, actor.merc->unit.y, make_rng, 0));
+    auto& chilled = fight.monsters.back();
+    chilled.hit_points = chilled.stats.hit_points = 100000;
+    fight.monster_states(3000);
+    assert(chilled.speed_pct < 0 && chilled.anim_pct < 0);
+    fight.aura_pulse(3000);
+    assert(chilled.hit_points < 100000);                    // its cold (no ELen: the slow is the aurastats')
+    chilled.unit.x = actor.merc->unit.x + 40;
+    fight.monster_states(3000);
+    assert(chilled.speed_pct == 0 && chilled.anim_pct == 0);
+    std::printf("OK: the merc's Holy Freeze slows the monsters near it and its pulse hurts them\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

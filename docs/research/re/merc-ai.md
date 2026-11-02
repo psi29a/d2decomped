@@ -198,11 +198,13 @@ Blessed Aim, Thorns, Might) puts its aurastats on itself and on the player
 within its aurarangecalc subtiles of it, at its level for the skill; the
 player's friendly aura and a totem's go on the merc the same way. Prayer's
 hitpoints (edns, 256ths) heal the player and the merc in range every
-perdelay frames. d2d: `Fight::friendly_auras`, `prayer_pulse`.
+perdelay frames. Its Holy Freeze (do 81) is an enemy aura as the
+player's: its aurastats (velocitypercent, attackrate / other_animrate at
+-dm34) on the monsters within its range, its cold on them each perdelay
+(struck by the merc). d2d: `Fight::friendly_auras`, `enemy_auras`,
+`prayer_pulse`, `enemy_pulse`.
 
 ## Not built yet
 
-- The merc's Holy Freeze (an enemy aura, do 81) counts as running for the
-  pick but chills nothing yet.
 - Vitality on its items gives no life (a hireling has no CharStats row;
   not traced further); d2d keeps no merc mana.
