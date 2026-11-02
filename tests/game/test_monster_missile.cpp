@@ -88,9 +88,9 @@ int unit_test() {
         // SrcDamage -1 is the byte 0xff = 255 in game.exe (movzx at 0x64b8ed): 95, not -1 / 128 of the pair (0)
         // where SrcDamage != 0 (no real poison row; patched as the verifier's oracle did): (row + owner) x SrcDamage / 128, lengths summed
         const auto with_src = [&](int src_damage) { auto row = goo; row.src_damage = src_damage; return monster_shot_stats(row, champion, false, false, false, 1); };
-        for (const auto [src_damage, rate] : { std::pair{128, 48}, std::pair{64, 24}, std::pair{255, 95}, std::pair{-1, 95} }) {
-            const auto shot = with_src(src_damage);
-            assert(shot.poison_min == rate && shot.poison_max == rate && shot.poison_len == 500);
+        for (const auto& [src_damage, rate] : { std::pair{128, 48}, std::pair{64, 24}, std::pair{255, 95}, std::pair{-1, 95} }) {
+            const auto scaled = with_src(src_damage);
+            assert(scaled.poison_min == rate && scaled.poison_max == rate && scaled.poison_len == 500);
         }
     }
     return 0;
