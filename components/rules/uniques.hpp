@@ -237,9 +237,10 @@ struct BossStats {
     int defense_pct = 0;                        // fanatic: item_armor_percent -70
     int phys_resist = -1;                       // ghostly: damageresist set to 80
 };
-// ponytail: resistance adds skip FUN_005a1370's "at most two immunities"
-// bookkeeping only as far as the monster's own base resists count (they
-// do).
+// FUN_005a1370's "at most two immunities" counts the monster's resists as
+// they stand: its MonStats ones plus the mods' adds so far (no 1.14d MonProp
+// row adds a resist: monsters.md "MonProp"). Stone skin's defence x 2 comes
+// before that gate, its damage reduction after it.
 // DifficultyLevels ChampionDamageBonus / UniqueDamageBonus (+0x34 / +0x30,
 // 90 / 75 / 66): the share of the champion and strong damage and to-hit
 // bonuses a difficulty keeps (FUN_005a0e80, FUN_005a17e0).
@@ -297,6 +298,7 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     auto resist = [&](int id) {                                          // FUN_005a1370
         auto& resist_add = stats.res_add;
         auto base = [&](int index) { return type.diff[std::size_t(difficulty_index)].res[std::size_t(index)] + resist_add[std::size_t(index)]; };
+        if (id == umod::stoneskin) stats.double_defense = true;
         int immune = 0;
         for (int i = 0; i < 6; ++i) immune += base(i) > 99;
         if (immune >= 2) return;
@@ -313,7 +315,7 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
         case 25: resist_add[1] += 20; break;                                      // mana burn: +20 magic resist
         case umod::spectralhit:                                          // +20 cold, fire, light under 75
             add(4, 20, 75); if (immune < 2) add(2, 20, 75); if (immune < 2) add(3, 20, 75); break;
-        case umod::stoneskin: stats.double_defense = true; resist_add[0] += 50; break;
+        case umod::stoneskin: resist_add[0] += 50; break;
         default: break;
         }
     };

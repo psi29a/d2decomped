@@ -250,8 +250,11 @@ inline void add_auto_treasure(Tables& tables, const std::vector<std::string>& ty
 // then the HellUpgrade wins. Made as a drop (FUN_00559ce0 -> FUN_00558d90:
 // two game seed steps, the type flags, generate_item); a "Cracked" low one
 // (LowQualityItems row 1) is thrown away and made again, five tries.
-// ponytail: FUN_00576330's other remake (the base came out another code) never
-// happens with these flags and isn't here.
+// FUN_00576330's other remake (the item came out another code: made again
+// normal, once) can't happen: only a unique changes the code, and an ask
+// (1 .. 4) turns unique only for a quest or unique-only base (made_quality),
+// which no 1.14d vendor stocks (Weapons / Armor / Misc <Vendor>Max and
+// MagicMax rows: none has quest or unique set).
 inline std::optional<d2d::d2s::Item> make_store_item(const Tables& tables, const StoreAsk& ask, int difficulty, int clvl, bool expansion,
                                                      Rng& proxy, Rng& game, std::vector<bool>* found_uniques) {
     std::string code = ask.code;
