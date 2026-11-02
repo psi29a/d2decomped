@@ -3410,7 +3410,8 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // teleports off (as below), its ride word -1. Within b2, b3 %: its pick
     // (Skill3 Fireball / Skill5 Inferno) at the target, a stand 20 when unset;
     // else 50 % S1 at it, else stands 20.
-    // ponytail: its +0x1c (two more draws) is never set: the pick table's 0s.
+    // Its +0x1c (two more draws when set) is the pick table's second word,
+    // 0 in both rows (0x6e34e0: {2, 0}, {4, 0}): never drawn.
     if (ai_name == "ImpRide") {
         if (!input.riding || !input.rider) { effect(ThinkEffect::toggle); return { MonAct::idle, 1 }; }
         if (input.dist > 24 || input.command_busy || input.state69 || *input.state2 == 0) { *input.state = -1; return imp_teleport(); }
