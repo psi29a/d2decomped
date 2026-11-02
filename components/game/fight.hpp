@@ -930,7 +930,7 @@ struct Fight {
     // Blizzard, Eruption) every calc2 frames drop SubMissile1 at a random
     // point -(calc1 - 1)..(calc1 - 2) subtiles from it on each axis; 5
     // (FUN_005ae520: the flames of Fire Wall, Meteor, Blaze) burns whoever
-    // stands in it every frame, CollideKill 0. Hit function 14 (FUN_005aabb0,
+    // stands in its footprint (standing_struck) every frame, CollideKill 0. Hit function 14 (FUN_005aabb0,
     // Meteor) goes off where the row's Range ends: the skill's damage on
     // everything within sHitPar1 (else aurarange) subtiles, then
     // HitSubMissile1 at the 18 offsets of 0x6e2550 / 0x6e2598 (every

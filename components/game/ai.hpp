@@ -652,6 +652,18 @@ inline bool missile_struck(const Level& level, const Missile& missile, float x, 
     return std::ranges::any_of(missile.flight.crossed, [&](const auto& spot) { return d2d::rules::missile_touches(spot.first, spot.second, foe_x, foe_y, size, missile_size); });
 }
 
+// A standing missile (no velocity) strikes from its own subtile every frame
+// (FUN_005ae1f0, nothing crossed): a Size 2 shard takes a size 1 unit on its
+// own and the 4 neighbouring subtiles, a size 2 unit on 13, size 3 on 21; a
+// Size 1 Fire Wall flame 1 / 5 / 9. A row with no Size 1..3 keeps the half
+// cell it always had here.
+inline bool standing_struck(const Missile& missile, float x, float y, int size) {
+    const int missile_size = missile.info ? missile.info->size : 0;
+    if (missile_size < 1 || missile_size > 3) return std::hypot(x - missile.x, y - missile.y) <= 0.5f;
+    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+    return d2d::rules::missile_touches(subtile(missile.x), subtile(missile.y), subtile(x), subtile(y), size, missile_size);
+}
+
 // A missile's facing for a heading with no point to aim at (a velocity, a
 // ring's or a burst's spoke): the 64-step direction of its angle, scaled
 // to 255 subtiles along (direction64's 32-bit sums wrap past 258).

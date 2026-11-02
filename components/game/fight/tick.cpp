@@ -395,8 +395,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& monster = monsters[i];
                     if (!monster.targetable()) continue;
-                    if (moving ? !missile_struck(*level, missile, monster.unit.x, monster.unit.y, game_data->monsters.types[std::size_t(monster.type)].size)
-                               : std::hypot(monster.unit.x - missile.x, monster.unit.y - missile.y) > 0.5f) continue;
+                    if (const int size = game_data->monsters.types[std::size_t(monster.type)].size;
+                        moving ? !missile_struck(*level, missile, monster.unit.x, monster.unit.y, size) : !standing_struck(missile, monster.unit.x, monster.unit.y, size)) continue;
                     if (missile.row) {                             // a shrine's potion: everyone in its burst
                         for (std::size_t j = 0; j < monsters.size(); ++j)
                             if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - missile.x, monsters[j].unit.y - missile.y) * 5 <= float(std::max(missile.burst, 1)))

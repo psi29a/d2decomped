@@ -671,6 +671,13 @@ lines (missile names aren't passed in). What it does:
   (combat.hpp), filled by the first blow of `Fight::area`. Confidence: high
   (game.exe's own code under the emulator: one record per burst in 400 of 400
   trials for each skill; d2d 400 of 400 equal after this change, 2 of 400 before).
+- A standing missile (no velocity, e.g. a Blizzard shard, Size 2, or a Fire
+  Wall flame, Size 1) strikes from its own subtile each frame (FUN_005ae1f0
+  -> FUN_00641cb0): the footprint of its Size against the unit's, 5 / 13 / 21
+  subtiles for a size 1 / 2 / 3 unit by a shard and 1 / 5 / 9 by a flame
+  (`standing_struck`, ai.hpp; `missile_touches` as a moving one). Confidence:
+  high for the footprints (game.exe's own hit test against d2d, 6 standing
+  rows, 3,726 class x offset cases: 0 differ after this change, 476 before).
 - Built: `missile_skill` / `cast_missile` / `fire` / `skill_missile_hits`
   in fight.hpp, `rules::missile_damage` (skills.hpp),
   `rules::missile_blow` (combat.hpp). Magic Arrow, Fire Bolt, Ice Bolt,

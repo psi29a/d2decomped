@@ -484,7 +484,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                                   : missile_info.skill.empty() ? row_damage(missile_info, missile.level, calc_env(), missile.skill)
                                                                : d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), missile.level);
                 for (std::size_t i = 0; i < monsters.size(); ++i)
-                    if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - missile.x, monsters[i].unit.y - missile.y) <= 0.5f
+                    if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)
                         && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
                         burned.emplace_back(int(i), missile.skill);
                         burn(i, damage, now_ms);
