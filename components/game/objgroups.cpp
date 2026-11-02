@@ -899,13 +899,13 @@ struct ObjectRooms {
                 // Harrogath's markers (a new game's quest records): InitFn 71 (FUN_00587840,
                 // object 543, record 0x1f) Larzuk (0x1ff) within 5 of FUN_00545340's spot
                 // round it (size 2, mask 0x100, 100 rings; none: no Larzuk); InitFn 68
-                // (FUN_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202):
+                // (LAB_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202):
                 // up to 21 steps (+1, +1) from it till inside its room less the last row
                 // and column, FUN_00545340 there (the same; none: the marker), made at
                 // that spot, else within 5, till he's gone (record +0x88).
                 // ponytail: FUN_005459a0's 20 further tries (a step on, radius 10) and its
                 // last (radius 15) aren't, nor the records' "made" bytes. InitFns 66 / 67 / 69
-                // are Act 5's quests' (world/quests/act5.cpp); 70 (FUN_00587830, Larzuk Greeting) is empty.
+                // are Act 5's quests' (world/quests/act5.cpp); 70 (LAB_00587830, Larzuk Greeting) is empty.
                 if (init == 71)
                     if (const auto spot = level.free_area(unit.x, unit.y, 2, 0x100, 100)) {
                         auto marker = unit; marker.x = spot->first; marker.y = spot->second;

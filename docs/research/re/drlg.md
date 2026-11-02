@@ -1166,6 +1166,61 @@ FUN_0066bac0 then follows room1 +0x10 to the room2, room2 +0x58 to the
 level, and returns level +0x1d0 (its id). The other getter caller,
 FUN_00458f40, saves the result in EDI but never reads it: that call is dead.
 
+`FUN_0061aaf0` is the level-id form of the town predicate: its assembly loads
+its one stack argument into ECX and calls `FUN_006426a0` (`0061aaf3..0061aafc`).
+Thus it has the same five town ids listed below, not another room test. Its
+callers include the client UI (`FUN_004b8730`), object warps (`FUN_00584f60`)
+and the two-player town interaction (`FUN_00566e60`).
+
+`FUN_0061ab60` returns `room1 +0x34 & 4`. Its only caller, `FUN_0064c040`,
+adds the unit to a dungeon list only when this bit and unit `+0xc4` bit
+`0x2000` are both clear; the meaning of room1 flag 4 is not otherwise traced.
+
+A 28-case original-code check under `tools/emu` exercised these two functions
+and the eight client accessors in net-join.md "Client record accessors". The
+town predicate was hooked to check the wrapper's level-id forwarding; no d2d
+parity claim is made.
+
+### Room and path accessors
+
+- `FUN_00619620(room1, unit)` forwards room2 `[room1+0x10]` and the unit to
+  `FUN_0066af80`. That searches room2 `+0x4c` (next `+4`) for a record whose
+  first dword is unit type `[unit+4] & 0xff` (null unit: `0xff`). A matching
+  entry with zero at `+8` returns null; otherwise the record at entry `+0x10`
+  is returned. `FUN_00463ee0` and `FUN_0045b1e0` read its rectangle origin
+  `+4/+8`, extents `+0xc/+0x10`, and drawing offset `+0x14/+0x18`.
+- `FUN_006196e0(room1, &count)` returns the third tile array, at
+  `[[room1+8]+0x10]`, and writes its count from `[[room1+8]+0x14]`. Its caller
+  `FUN_004dd7c0` iterates the result in `0x30`-byte strides.
+- `FUN_00619da0(dungeon, x, y)` searches the room1 list at dungeon `+0x10`
+  (next `+0x7c`). The rectangle is x `+0x4c`, y `+0x50`, width `+0x54`, height
+  `+0x58`, lower-inclusive and upper-exclusive. Null dungeon, an empty list,
+  and no containing room all return null.
+- `FUN_00619ea0(room1)` calls `FUN_0064c0c0` to sort the primary unit list at
+  room1 `+0x74` by `FUN_006206b0`'s y value (links `+0xe8`), then returns its
+  head.
+- `FUN_00619f20(room1)` is a null no-op; otherwise it asserts room1 `+0x28`
+  is positive and decrements it. `FUN_00619ee0` increments this counter and
+  `FUN_00619f00` reads it. Unit insertion/removal in `FUN_0064c2c0` and
+  `FUN_0064c370` maintains it for players and inactive monsters.
+- `FUN_00619f60(room1)` returns `room1+0x74`, the primary unit-list head's
+  address. `FUN_00619f90(room1, flag)` returns `room1+0x1c`, the secondary
+  list-head address; nonzero `flag` also writes 1 to `**(room1+0x2c)`. The
+  secondary list uses links `+0xe0` and unit `+0xc4` bit `0x2000`.
+- `FUN_00619fd0(room1)` calls `FUN_0066bfa0` on room2 `[room1+0x10]` to obtain
+  the preset-unit list at room2 `+0x5c` (next `+0xc`). With room2 `+0x28` bit
+  `0x40000` clear, an already-set bit `0x4000000` returns null; otherwise that
+  bit is set before the list is returned.
+- `FUN_0061a010(room1)` and `FUN_0061a040(room1, value)` get and set the
+  collision-record pointer at room1 `+0x20`. `FUN_0064cb30` reads that record's
+  grid pointer at `+0x20` and returns masked cell data, or `0x27` when the room,
+  record, or grid is absent.
+
+A 37-case original-code check exercised these ten functions with synthetic
+room/dungeon records, including rectangle boundaries, null inputs, both flag
+states, and getter/setter values. The two room2 callees and the sort were
+hooked to check wrapper forwarding; no d2d parity claim is made.
+
 The room2 status (+0x44) is the shallowest depth at which a player's
 near-list walk holds it: 0 the player's room, 1 its near list, 2 and 3
 the lists of those lists, 4 none. Each depth has a u16 counter (+0xc + 2 ×
