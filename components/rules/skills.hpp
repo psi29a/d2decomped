@@ -879,7 +879,10 @@ inline ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& sk
 // page - 1) and 97 oskill at most 3, another class's 97 in full; 126
 // +elemental skills (param = game.exe's EType: 1 fire, 2 lightning, 3
 // magic, 4 cold, 5 poison) and 107 +single skill (param = skill id).
-// ponytail: the skill's own +0x2c and FUN_00644150's share aren't kept.
+// Its other two terms: the skill record's +0x2c, which only the client fills
+// (the bonus the server sends: FUN_004c6140 / FUN_004d88a0 -> FUN_00647aa0),
+// and FUN_00644150's 2 under state 0x86 (the skill shrine), which d2d adds
+// as stat 127 (World's fight.skill_level, the client's skillbar.extra).
 inline int item_skill_bonus(const Skill& skill, int cls, std::span<const d2d::d2s::ItemProp> props) {
     static constexpr std::array<int, 5> kGameEType{ 1, 2, 4, 5, 3 };   // d2d's fire, lightning, cold, poison, magic
     const bool own = !skill.cls.empty() && skill.cls == kClassCode[std::size_t(cls)];
