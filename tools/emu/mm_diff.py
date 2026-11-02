@@ -160,6 +160,9 @@ def game(d, n_cases, seed, outdir):
 
 def cmp(outdir, d2d_out):
     gl = [l.rstrip("\n").split("\t") for l in open(os.path.join(outdir, "game.tsv"))]
+    if not gl:                                     # no game cases compares nothing: not a pass
+        print("no game cases in game.tsv")
+        return 1
     dl = {}
     for l in open(d2d_out):
         f = l.split()
