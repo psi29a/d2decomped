@@ -115,7 +115,7 @@ bool key_held(std::uint16_t key) {
     if (key == 0x12) return (mods & SDL_KMOD_ALT) != 0;
     int count = 0;
     const bool* state = SDL_GetKeyboardState(&count);
-    // ponytail: a scan over SDL's keys for the one with this virtual key; fine for a few held functions a frame
+    // A scan over SDL's keys, not one lookup: several give one virtual key (Return and keypad Enter: 0x0d).
     for (int scancode = 0; scancode < count; ++scancode)
         if (state[scancode] && virtual_key(SDL_GetKeyFromScancode(SDL_Scancode(scancode), SDL_KMOD_NONE, false)) == key) return true;
     return false;

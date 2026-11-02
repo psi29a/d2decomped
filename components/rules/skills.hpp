@@ -677,7 +677,8 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
 
 // One operand (FUN_00646460, codes in skillcalc.txt order).
 // The missile operands (m1en.., 26..37, 43..48) go to env.desc_missile.
-// ponytail: skpt (+0x170, the skill points calc) reads 0; no calc uses it.
+// skpt (+0x170, the skill points calc) reads 0: no 1.14d calc (Skills.txt,
+// Missiles.txt) names it.
 inline int calc_operand(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int code, int depth) {
     const auto& params = skill.par;
     switch (code) {
@@ -745,8 +746,8 @@ inline std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, c
         // A summoner's passive stats are its pet's (FUN_005c4470 puts
         // them on the pet: Raise Skeleton's maxhp from Skeleton Mastery,
         // the golems' speed, the spirits' resists), not the player's.
-        // ponytail: FUN_00646f20's own skip isn't traced; none of these
-        // has a passivestate, the field it walks by.
+        // FUN_00646f20 skips them too: it takes only a skill with a
+        // passivestate (+0x94 > 0), and none of these 17 or Revive has one.
         if (!skill.summon.empty() || skill.srvdofunc == ServerDoFunction::kRevive) continue;
         const int lvl = env.level(skill.id);
         if (lvl < 1) continue;
@@ -878,7 +879,10 @@ inline ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& sk
 // page - 1) and 97 oskill at most 3, another class's 97 in full; 126
 // +elemental skills (param = game.exe's EType: 1 fire, 2 lightning, 3
 // magic, 4 cold, 5 poison) and 107 +single skill (param = skill id).
-// ponytail: the skill's own +0x2c and FUN_00644150's share aren't kept.
+// Its other two terms: the skill record's +0x2c, which only the client fills
+// (the bonus the server sends: FUN_004c6140 / FUN_004d88a0 -> FUN_00647aa0),
+// and FUN_00644150's 2 under state 0x86 (the skill shrine), which d2d adds
+// as stat 127 (World's fight.skill_level, the client's skillbar.extra).
 inline int item_skill_bonus(const Skill& skill, int cls, std::span<const d2d::d2s::ItemProp> props) {
     static constexpr std::array<int, 5> kGameEType{ 1, 2, 4, 5, 3 };   // d2d's fire, lightning, cold, poison, magic
     const bool own = !skill.cls.empty() && skill.cls == kClassCode[std::size_t(cls)];

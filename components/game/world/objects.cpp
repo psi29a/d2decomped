@@ -239,7 +239,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         if (object.operate_fn == d2d::rules::operate_fn::kSunAltar) {
             if (hosted_quests) return;
             const auto use = tainted.use_altar(quests(), game_bits, carries("vip"), carries("hst"));
-            if (use.refused) { d2d::log::info("I can't use this yet."); return; }   // voice 0x13
+            if (use.refused) { class_cue("impossible_1", now_ms); return; }   // voice 0x13
             if (!use.used) return;
             operated.try_emplace({ level, npc_index }, now_ms);
             to_mode(1);

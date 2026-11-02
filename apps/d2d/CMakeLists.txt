@@ -186,8 +186,8 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/d2d_icon.hpp" CONTENT
 # one) and build date, restamped on each commit / checkout (the launcher's
 # CONFIGURE_DEPENDS on .git/logs/HEAD). A CI checkout is a detached HEAD:
 # the branch comes from GitHub's env then.
-# ponytail: the date is configure time (SOURCE_DATE_EPOCH honoured), not
-# each rebuild's; a build-time stamp would relink d2d every build.
+# The date is configure time (SOURCE_DATE_EPOCH honoured), not each
+# rebuild's: a build-time stamp would relink d2d every build.
 find_package(Git QUIET)
 set(D2D_GIT_HASH "unknown")
 set(D2D_GIT_BRANCH "unknown")

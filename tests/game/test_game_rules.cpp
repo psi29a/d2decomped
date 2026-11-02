@@ -4,6 +4,8 @@
 // missile's frame, the view codec, MonProp's stats on a monster, and the like.
 
 #include <ai.hpp>
+#include <character.hpp>
+#include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <item_text.hpp>
 #include <monsters.hpp>
@@ -67,6 +69,8 @@ int main() try {
             const int facing = missile_facing(0.1f, 0.1f, float(dx) / 5, float(dy) / 5);   // from subtile (0, 0)'s centre
             assert(missile_direction(facing, 8) == d8 && missile_direction(facing, 16) == d16 && missile_direction(facing, 32) == d32);
         }
+        for (int dir64 = 0; dir64 < 64; dir64 += 4)   // a unit's 8-direction composite takes the same table (FUN_005ff760)
+            assert(cof_direction(missile_direction(dir64, 16), 8) == missile_direction(dir64, 8));
         std::printf("OK: a missile's frame direction, as game.exe's table and its Fire Bolts\n");
     }
     {
@@ -143,6 +147,44 @@ int main() try {
         assert(nearest_spot(10, 10, clear_at({ { 10, 59 } })) == std::pair(10, 59));                     // ring 49, the last
         assert(!nearest_spot(10, 10, clear_at({ { 10, 60 } })));                                         // ring 50: never
         std::printf("OK: nearest_spot's rings (FUN_0064dea0)\n");
+    }
+    {
+        using Cue = std::pair<std::string, int>;
+        GameData sounds;
+        sounds.rules.item_info["rin"].drop_sound = "item_ring";
+        sounds.rules.item_info["amu"] = { .drop_sound = "item_amulet", .drop_frame = 5 };
+        sounds.unique_sounds = { {}, { "item_ring_unique", "", 0 }, { "item_amulet_unique", "", 9 } };
+        d2d::d2s::Item ring{ .code = "rin" };
+        assert(flippy_sound(sounds, ring) == Cue("item_ring", 12));          // no dropsfxframe: 12
+        ring.quality = 7;
+        ring.unique_id = 1;
+        assert(flippy_sound(sounds, ring) == Cue("item_ring_unique", 12));   // the unique's sound, the base's frame
+        d2d::d2s::Item amulet{ .code = "amu", .quality = 7, .unique_id = 2 };
+        assert(flippy_sound(sounds, amulet) == Cue("item_amulet_unique", 9));
+        amulet.unique_id = 0;
+        assert(flippy_sound(sounds, amulet) == Cue("item_amulet", 5));     // an empty row: the base's
+        std::printf("OK: the flippy's drop sound (FUN_004c16d0)\n");
+    }
+    {
+        // A set item's lists (FUN_004e6560): add func 1 by which other member is worn, 2 by the count.
+        GameData sets;
+        sets.rules.sets.resize(3);
+        for (int member = 0; member < 3; ++member) { sets.rules.sets[std::size_t(member)].set = 0; sets.rules.sets[std::size_t(member)].member = member; }
+        sets.rules.sets[0].add_func = 1;
+        auto worn = [](int set_id) {
+            d2d::d2s::Item piece{ .code = "cap" };
+            piece.quality = 5; piece.set_id = set_id;
+            piece.location = d2d::d2s::item_location::kEquipped; piece.slot = d2d::d2s::body_location::kFirst;
+            return piece;
+        };
+        auto ward = worn(0);
+        ward.set_lists = 3; ward.set_list_sizes = { 1, 1 };
+        ward.set_props = { { .stat = 1, .value = 1 }, { .stat = 2, .value = 1 } };
+        const auto lists = set_bonus_props(sets, { ward, worn(2) }, ward);
+        assert(lists.size() == 1 && lists[0].stat == 2);                                       // place 2 is list 1 (its own place 0 skipped)
+        sets.rules.sets[0].add_func = 2;
+        assert(set_bonus_props(sets, { ward, worn(2) }, ward).size() == 1 && set_bonus_props(sets, { ward, worn(2) }, ward)[0].stat == 1);   // 2 worn: list 0
+        std::printf("OK: a set item's own lists by add func\n");
     }
     return 0;
 } catch (const std::exception& error) {

@@ -118,7 +118,7 @@ auto World::view() const -> View {
                     view.monsters.push_back(monster);
                     view.monsters.back().npc.colour = monster_colour(monster);
                 }
-            for (const auto& missile : fight.missiles) if (missile.info) view.missiles.push_back({ missile.info, missile.x, missile.y, missile.dir, missile.born, missile.sound });
+            for (const auto& missile : fight.missiles) if (missile.info) view.missiles.push_back({ missile.info, missile.x, missile.y, missile.dir, missile.born, missile.sound, missile.anim_rate });
         }
         if (actor->attack_mon >= 0 && std::size_t(actor->attack_mon) < fight.monsters.size()) view.attack = fight.monsters[std::size_t(actor->attack_mon)].id;
         view.attack_skill = actor->attack_skill;

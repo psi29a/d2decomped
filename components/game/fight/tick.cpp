@@ -148,7 +148,7 @@ auto Fight::engage(std::uint32_t now_ms) -> std::optional<std::pair<float, float
         const auto& target = monsters[std::size_t(actor->attack_mon)];
         // Dead, or turned to the player's side while the button was held (Conversion): dropped, as
         // World::apply turns a fresh command on it away.
-        if (!target.alive() || target.ally_not_interact(*game_data)) { actor->attack_mon = -1; return std::nullopt; }
+        if (!target.alive() || target.ally_not_interact(*game_data, mon_level ? mon_level->id : 0)) { actor->attack_mon = -1; return std::nullopt; }
         const auto* skill = game_data->skills.get(actor->attack_skill);
         if (skill && (missile_skill(*skill) || spot_skill(*skill))) {   // from here, at it
             cast_missile(actor->attack_skill, target.unit.x, target.unit.y, now_ms);
@@ -518,7 +518,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // The client gets it on every landed hit, a get-hit or not: FUN_0057cee0 copies it with
         // result flag 1, and a hit too small for a GH sets unit flag 0x8000, so FUN_00597cf0 sends
         // it in S->C 0x0c. A later block plays its class.
-        // ponytail: state 0x36 (uninterruptable) drops result flag 4, so no 0x0c; d2d has no such state.
+        // State 0x36 (uninterruptable) would drop result flag 4 (no 0x0c), but it's never on a
+        // struck player: only the death sets it, and clears it at once (FUN_0054c0e0).
         if (foe.hits > 0) actor->struck_class = actor->shown_class = foe.hit_class;
         // Poison works on the player over its ticks (a negative potion).
         // One poison at a time: a new one at least as strong replaces it

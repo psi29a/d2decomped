@@ -121,7 +121,7 @@ struct View {
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Pet> party_pets;           // the other players' mercs ("hireable") and summons on it (local co-op; life unused)
     std::vector<Monster> monsters;         // the level's
-    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; };
+    struct Shot { const GameData::MissileInfo* info = nullptr; float x = 0, y = 0; int dir = 0; std::uint32_t born = 0; int sound = 0; int anim_rate = 0; };
     std::vector<Shot> missiles;
     int attack = -1, attack_skill = 0;     // the monster the player's attacking (unit id), with what
     std::vector<Loot::GroundItem> ground;  // the level's floor
@@ -404,6 +404,7 @@ struct World {
     d2d::rules::TowerQuest tower;          // and the Forgotten Tower
     d2d::rules::ToolsQuest tools;          // and Tools of the Trade
     d2d::rules::CainQuest cain;            // and The Search for Cain
+    d2d::rules::ActTwoOpening opening2;    // and Act 2's opening
     d2d::rules::RadamentQuest radament;    // and Radament's Lair
     d2d::rules::LamEsenQuest lam_esen;     // Act 3's (quests_act3.hpp)
     d2d::rules::GoldenBirdQuest golden_bird;
@@ -430,6 +431,7 @@ struct World {
     void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)
     std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
     std::size_t cages_seen = 0;               // a5q2's cages (Spawning::rescue_cages) come into the quest so far
+    std::map<const Level*, std::size_t> objects_inited;   // init_new_objects: each level's npcs seen so far
     void rescue_update(std::uint32_t now_ms);             // the cages, the prisoners' asks (a5q2)
     void prison_update(std::uint32_t now_ms);             // frozen Anya, her thaw, Nihlathak's throne (a5q3)
     void act5_hide();                                     // who's gone: town Nihlathak, fana, drehyaiced (a5q3)
@@ -534,6 +536,8 @@ struct World {
     void act2_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act3_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act3_bind_new_bosses();
+    // The quest objects' InitFns on the objects made since the last call (rooms_up adds them room by room).
+    void init_new_objects();
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.

@@ -213,7 +213,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
     {
         wire::Out chunk;
         chunk.u16(int(view.missiles.size()));
-        for (const auto& missile : view.missiles) chunk.str(missile.info->name).f32(missile.x).f32(missile.y).u8(missile.dir).u32(missile.born).i32(missile.sound);
+        for (const auto& missile : view.missiles) chunk.str(missile.info->name).f32(missile.x).f32(missile.y).u8(missile.dir).u32(missile.born).i32(missile.sound).i32(missile.anim_rate);
         wire::section(out, enc.section[2], std::move(chunk.bytes));
     }
     // 3: the ground, 4: fires.
@@ -439,8 +439,8 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const float x = f32(), y = f32();
             const int dir = byte();
             const auto born = u32();
-            const int sound = i32();
-            if (const auto found = game_data.missiles.find(name); found != game_data.missiles.end()) view.missiles.push_back({ &found->second, x, y, dir, born, sound });
+            const int sound = i32(), anim_rate = i32();
+            if (const auto found = game_data.missiles.find(name); found != game_data.missiles.end()) view.missiles.push_back({ &found->second, x, y, dir, born, sound, anim_rate });
         }
     });
     body([&] {

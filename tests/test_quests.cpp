@@ -134,7 +134,8 @@ int main() {
     QuestBits far_bits{};
     BurialQuest reach;
     assert(!reach.killed(far_bits, false) && quest::bit(far_bits, 2, 14) && !quest::bit(far_bits, 2, 1) && reach.talk(far_bits, BurialQuest::kKashya, 1).empty());
-    assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0);
+    assert(quest_name(183) == 3719 && quest_name(64) == 3714 && quest_name(185) == 0xe8c);
+    assert(quest_name(164) == 0xe8c && quest_name(165) == 3716 && quest_name(305) == 923 && quest_name(20180) == 22641);   // 0x722678's split (bugs.md 46)
 
     // The Forgotten Tower: the tome read first (log 1); the Tower (log 4),
     // cellar 5 (log 2); the Countess's kill is the completion; the success
@@ -429,9 +430,19 @@ int main() {
     // Act 2's opening: Jerhyn greets with his "!" until heard, which is
     // the player's bit 0 and the game's bit 13 (him into the palace).
     QuestBits opening{}, opening_game{};
-    assert(ActTwoOpening::alert(opening, ActTwoOpening::kJerhyn) && ActTwoOpening::talk(opening, ActTwoOpening::kJerhyn).size() == 1);
-    ActTwoOpening::said(opening, opening_game, ActTwoOpening::kJerhyn, ActTwoOpening::kGreeting);
+    ActTwoOpening act_two;
+    quest::Players cain_missed;
+    assert(ActTwoOpening::alert(opening, ActTwoOpening::kJerhyn) && act_two.talk(opening, ActTwoOpening::kJerhyn, 1, cain_missed).size() == 1);
+    act_two.said(opening, opening_game, ActTwoOpening::kJerhyn, ActTwoOpening::kGreeting, 1);
     assert(quest::bit(opening, 8, 0) && quest::bit(opening_game, 8, 13) && !ActTwoOpening::alert(opening, ActTwoOpening::kJerhyn));
+    // Cain's 125 for a player who missed his rescue, once (FUN_005986b0 / LAB_00598640).
+    assert(act_two.talk(opening, ActTwoOpening::kCain, 1, cain_missed).empty());
+    quest::set(opening, 4, 14);
+    cain_missed.add(1);
+    const auto rescued = act_two.talk(opening, ActTwoOpening::kCain, 1, cain_missed);
+    assert(rescued.size() == 1 && rescued[0].string == 125 && rescued[0].greet && !cain_missed.has(1));
+    act_two.said(opening, opening_game, ActTwoOpening::kCain, 125, 1);
+    assert(act_two.talk(opening, ActTwoOpening::kCain, 1, cain_missed).empty());
     assert(palace_spots(opening_game, true, 1).palace);
 
     // Radament's Lair: Atma's "!" from the start; her 304 heard (talk shut)

@@ -235,7 +235,8 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         if (needs_ammo(*skill_row) && ammo_index() < 0) {
             // FUN_005da8b0 (srvstfunc 4): refused, and a spent stack in either hand (right first;
             // stackable, FUN_006289f0) goes as one run out (FUN_00580310), so the next has ammo.
-            // ponytail: its FUN_00580380 (a stackable weapon at 0 durability breaks) isn't run.
+            // Then FUN_00580380: a worn weapon (ItemTypes weap) with durability (FUN_00629930) worn
+            // to 0 and not broken yet breaks (FUN_0055f850).
             for (const int slot : { body_location::kRightArm, body_location::kLeftArm }) {
                 const auto& items = actor->character.items;
                 const auto spent = std::ranges::find_if(items, [&](const Item& item) {
@@ -243,6 +244,16 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
                     return item.location == item_location::kEquipped && item.slot == slot && item.quantity < 1 && base != game_data->rules.item_base.end() && base->second.stackable;
                 });
                 if (spent != items.end() && !d2d::rules::broken(*spent)) out_of_ammo(std::size_t(spent - items.begin()));
+            }
+            for (auto& item : actor->character.items) {
+                const auto base = game_data->rules.item_base.find(item.code);
+                const auto info = game_data->rules.item_info.find(item.code);
+                if (item.location != item_location::kEquipped || base == game_data->rules.item_base.end() || info == game_data->rules.item_info.end()
+                    || !d2d::rules::type_is(game_data->rules, info->second.type, "weap") || base->second.no_durability || base->second.durability <= 0
+                    || d2d::rules::max_durability(item) == 0 || d2d::rules::indestructible(item) || item.durability > 0 || d2d::rules::broken(item))
+                    continue;
+                item.flags |= 0x100u;
+                cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
             }
             actor->attack_mon = -1;
             return false;
@@ -518,10 +529,10 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             if (missile_info.srv_do == 27 && age % std::max(missile_info.param1 > 0 ? missile_info.param1 : calc(*skill, skill->calc[3], missile.level), 1) == 0)
                 area(missile, missile.x, missile.y, missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), now_ms);
             // 28 (FUN_005afb80, Volcano): every Param1 (else calc4) frames
-            // SubMissile1 thrown at a point within Param2 (else aurarange).
-            // ponytail: its Param3 / Param4 frame window isn't applied (Volcano,
-            // level 24: past Act 1).
-            if (missile_info.srv_do == 28 && sub != game_data->missiles.end()
+            // SubMissile1 thrown at a point within Param2 (else aurarange),
+            // between frames Param3 and Param4 (both out) of its age: FUN_0064a3b0 is its
+            // range (+0xe) less the frames left (+0x10, ticked down by FUN_005ae1f0).
+            if (missile_info.srv_do == 28 && sub != game_data->missiles.end() && age > missile_info.param3 && age < missile_info.param4
                 && age % std::max(missile_info.param1 > 0 ? missile_info.param1 : calc(*skill, skill->calc[3], missile.level), 1) == 0) {
                 const int radius = std::max(missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), 1);
                 const float offset_x = float(int(rng(2 * radius + 1)) - radius) / 5, offset_y = float(int(rng(2 * radius + 1)) - radius) / 5;

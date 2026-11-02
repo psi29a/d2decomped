@@ -117,8 +117,8 @@ NpcMenuState open_talk_menu(const Scene& scene, const Level& level, int npc, int
         menu.lines.push_back({ string_id(scene, 0xd43), 15, 0, 0, false, NpcMenuState::kGossip });
     }
     for (const auto& message : quest)
-        if (const int name = d2d::rules::quest_name(message.string); !message.greet && name)
-            menu.lines.push_back({ string_id(scene, std::uint16_t(name)), 15, 0, 0, false, NpcMenuState::kQuest, message.string });
+        if (!message.greet)
+            menu.lines.push_back({ string_id(scene, std::uint16_t(d2d::rules::quest_name(message.string))), 15, 0, 0, false, NpcMenuState::kQuest, message.string });
     menu.lines.push_back({ string_id(scene, 0xd48), 15 });
     layout_npc_menu(scene, menu, screen_x, screen_y);
     return menu;

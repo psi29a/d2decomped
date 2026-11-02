@@ -357,12 +357,13 @@ struct Monster {
     int players = 1;                          // the players in the game as it was made (stat 0x64 monster_playercount)
     [[nodiscard]] bool alive() const { return hit_points > 0 && !gone; }
     [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
-    // On the player's side with nothing to talk about: a converted monster (align 2; a town NPC is
-    // align 2 too, but MonStats interact). The cursor drops it: outside town game.exe's hit test
-    // (FUN_00466870 -> FUN_00465c60) takes no monster of the player's alignment (cursor-units.md).
-    // ponytail: game.exe's rule is the town, MonStats2 alSel / noSel and the alignment, not interact.
-    [[nodiscard]] bool ally_not_interact(const GameData& game_data) const {
-        return align == 2 && !(type >= 0 && std::size_t(type) < game_data.monsters.types.size() && game_data.monsters.types[std::size_t(type)].interact);
+    // The cursor drops it (FUN_00466870 -> FUN_00465c60, cursor-units.md): in town
+    // nothing for alignment; elsewhere MonStats2 alSel passes, noSel refuses, else
+    // the player's alignment (2: a converted monster, FUN_00650d70) refuses.
+    [[nodiscard]] bool ally_not_interact(const GameData& game_data, int level_id) const {
+        if (d2d::rules::level_ids::is_town(level_id) || type < 0 || std::size_t(type) >= game_data.monsters.types.size()) return false;
+        const auto& type_info = game_data.monsters.types[std::size_t(type)];
+        return !type_info.al_sel && (type_info.no_sel || align == 2);
     }
     // As a target for the player's (or the merc's) hits.
     [[nodiscard]] d2d::rules::Target target(const GameData& game_data) const {
@@ -540,6 +541,7 @@ struct Missile {
     // spawner or burner ran.
     int target = -1, hops = 0, ed_pct = 0, fixed = -1, frame = -1;
     int target_id = -1;                       // its target's Foe::id: the foes are rebuilt each frame, pets come and go
+    int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
@@ -865,11 +867,11 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
 // MonUMod poison hit's init (FUN_005a1e00): its own poison stats.
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique);
 // Whether a skill may put the monster on a special think (FUN_0056e2f0 ->
-// FUN_005dd480; FUN_00623470, FUN_005b0da0): a WL mode (MonStats2), not
-// MonStats boss, SwitchAI, targetable (unit +0xc4 & 4) or dead, not a
-// unique or superunique (monster data +0x16 & 0xa).
-// ponytail: state 0x36 (uninterruptable) isn't d2d's; class 0x1ec's
-// state 0x8f test is Act 5's.
+// FUN_005dd480; FUN_00623470, FUN_005b0da0): MonStats2 mWL, not MonStats
+// boss, SwitchAI, targetable (unit +0xc4 & 4) or dead, not a unique or
+// superunique (monster data +0x16 & 0xa), not an imp (BaseId 0x1ec) riding
+// (state 0x8f). State 0x36 (uninterruptable) is never on a monster: only a
+// player's death sets it, and clears it at once (FUN_0054c0e0).
 bool swaps_ai(const GameData& game_data, const Monster& monster);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
@@ -892,9 +894,8 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
 
 // Damage to a monster: it dies (DT, then its corpse, DD), or recoils (GH)
-// when the hit takes an eighth of its life or more; either way it notices.
+// by rules::get_hit (FUN_0057cb00); either way it notices.
 // True when this killed it.
-// ponytail: the eighth is the commonly given threshold, not traced.
 // `hit_class` and `marked` (an element or a doubled hit) are the blow's, for
 // its get-hit (rules::get_hit); a source without them (thorns, a blast) is class 0.
 bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction = 0, int hit_class = 0, bool marked = false);

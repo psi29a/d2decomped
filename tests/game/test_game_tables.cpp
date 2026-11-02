@@ -5,6 +5,8 @@
 // collision shapes, every level's monster region, Act 1's drops.
 
 #include <ai.hpp>
+#include <character.hpp>
+#include <d2s_items.hpp>
 #include <drops.hpp>
 #include <gamedata.hpp>
 #include <item_text.hpp>
@@ -227,6 +229,22 @@ int main() try {
         const auto& returned = data->mon_npc[1].title;
         assert(!returned.empty() && lines.size() == 1 && lines[0] == "10% Reanimate as: " + returned);
         std::printf("OK: %s\n", lines[0].c_str());
+    }
+    {
+        // Sets.txt's min / max are the property's own (FUN_00660120 -> FUN_0065fe10): Vidala's
+        // Rig full set adds 15-20 cold damage, not 15-15.
+        std::vector<d2d::d2s::Item> worn;
+        for (std::size_t row = 0; row < data->rules.sets.size(); ++row)
+            if (data->rules.sets[row].set == 5) {
+                d2d::d2s::Item piece{ .code = "cap" };
+                piece.quality = 5; piece.set_id = int(row);
+                piece.location = d2d::d2s::item_location::kEquipped; piece.slot = d2d::d2s::body_location::kFirst;
+                worn.push_back(piece);
+            }
+        const auto bonus = set_props(*data, worn);
+        auto value = [&](int stat) { const auto found = std::ranges::find(bonus, stat, &d2d::d2s::ItemProp::stat); return found != bonus.end() ? found->value : -1; };
+        assert(worn.size() == 4 && value(d2d::d2s::kColdMinDamage) == 15 && value(d2d::d2s::kColdMaxDamage) == 20);
+        std::printf("OK: Vidala's Rig's full set, 15-20 cold\n");
     }
     return 0;
 } catch (const std::exception& error) {

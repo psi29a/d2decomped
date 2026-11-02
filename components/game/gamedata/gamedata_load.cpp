@@ -240,6 +240,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             type_info.size = std::max(num(ms2.get(monstats2_row, "SizeX")), 1); type_info.footprint = num(ms2.get(monstats2_row, "SizeX")) > 0; type_info.melee_rng = num(ms2.get(monstats2_row, "MeleeRng"));
             type_info.base_w = ms2.get(monstats2_row, "BaseW");
             type_info.can_block = ms2.get(monstats2_row, "mBL") == "1";
+            type_info.can_walk = ms2.get(monstats2_row, "mWL") == "1"; type_info.can_swing = ms2.get(monstats2_row, "mA1") == "1";
+            type_info.can_get_hit = ms2.get(monstats2_row, "mGH") == "1";
+            type_info.al_sel = ms2.get(monstats2_row, "alSel") == "1"; type_info.no_sel = ms2.get(monstats2_row, "noSel") == "1";
             type_info.corpse_sel = ms2.get(monstats2_row, "corpseSel") == "1";
             type_info.critter = ms2.get(monstats2_row, "critter") == "1";
             type_info.small = ms2.get(monstats2_row, "small") == "1"; type_info.large = ms2.get(monstats2_row, "large") == "1";
@@ -342,7 +345,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.anim_speed = std::max(number("AnimSpeed"), 1); missile_info.anim_len = std::max(number("AnimLen"), 1); missile_info.trans = number("Trans"); missile_info.light = number("Light");
         missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
         missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1; missile_info.return_fire = number("ReturnFire") == 1;
-        missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.hit_par2 = number("sHitPar2");
+        missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.param4 = number("Param4"); missile_info.hit_par2 = number("sHitPar2");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay"); missile_info.last_collide = number("LastCollide") == 1;
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.explosion_name = missiles_table.get(row_index, "ExplosionMissile"); missile_info.always_explode = number("AlwaysExplode") == 1;
@@ -894,7 +897,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (table != &misc) continue;
             desc.spell_desc = number("spelldesc");
             desc.spell_str = std::string(table->get(row, "spelldescstr"));
-            desc.spell_calc = number("spelldesccalc");          // ponytail: every 1.14d calc is a plain number
+            desc.spell_calc = number("spelldesccalc");          // a calc (type 0x19, +0xb8); every 1.14d row is a plain number (20..320)
             for (const auto& [name, id] : kSpellStat) if (table->get(row, "stat1") == name) desc.spell_stat = id;
         }
     {
@@ -1245,7 +1248,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
                 const d2d::txt::Table table(*bytes, false);
                 for (std::size_t row = 0; row < table.size(); ++row)
-                    target->push_back({ std::string(table.get(row, "dropsound")), std::string(table.get(row, "usesound")) });
+                    target->push_back({ std::string(table.get(row, "dropsound")), std::string(table.get(row, "usesound")), std::atoi(std::string(table.get(row, "dropsfxframe")).c_str()) });
             }
         // Item generation (components/rules generate_item / gamble_item).
         auto num = [](std::string_view text) { return std::atoi(std::string(text).c_str()); };
@@ -1322,7 +1325,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                 special.bonus.push_back({ std::string(table.get(row, "aprop" + suffix)), std::string(table.get(row, "apar" + suffix)),
                                                      num(table.get(row, "amin" + suffix)), num(table.get(row, "amax" + suffix)) });
                             }
-                        special.bonus_apart = num(table.get(row, "add func")) != 0;
+                        special.add_func = num(table.get(row, "add func"));
+                        special.bonus_apart = special.add_func != 0;
                     }
                     special.ladder = table.get(row, "ladder") == "1";
                     special.index = std::string(table.get(row, "index"));
@@ -1336,6 +1340,11 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.uniques = specials("UniqueItems", "code", 12);
         game_data.rules.sets = specials("SetItems", "item", 9);
+        {
+            std::unordered_map<int, int> members;   // the loader's running count per set (at most 6)
+            for (auto& set_item : game_data.rules.sets)
+                if (set_item.set >= 0 && members[set_item.set] < 6) set_item.member = members[set_item.set]++;
+        }
         // The Cube's recipes (FUN_00669130's columns, cube.md).
         if (auto bytes = mpqs.try_read(R"(data\global\excel\cubemain.txt)")) {
             const d2d::txt::Table cube(*bytes);

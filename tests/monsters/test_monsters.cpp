@@ -240,6 +240,10 @@ int main() {
         const auto berserk = boss_stats(umods, type, Boss::champion, { 39 }, 1);
         assert(berserk.life_after_pct == -75 && berserk.level_add == 3 && berserk.exp_mult == 5 && berserk.velocity_pct == 0
                && berserk.dmg_pct == 225 && berserk.tohit_pct == 225 && berserk.hp_pct == 150);
+        auto wisp = type;
+        wisp.base = 0x76;                                                           // willowisp1's family: half the damage part
+        const auto wisp_berserk = boss_stats(umods, wisp, Boss::champion, { 39 }, 1);
+        assert(wisp_berserk.dmg_pct == 112 && wisp_berserk.tohit_pct == 225);
         // A champion's name word (FUN_004ac870): its champion mod's; the
         // fixed rndname alone falls through to the table's last.
         assert(champion_word({ 16 }) == 0xc94 && champion_word({ 36 }) == 0x2b4c && champion_word({ 39 }) == 0x2b4f);

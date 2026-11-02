@@ -33,6 +33,7 @@ auto World::act2_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBit
     }
 
 auto World::act2_join() -> void {
+        opening2 = {};
         d2d::rules::ActTwoOpening::join(quests(), game_bits);
         radament = {};
         radament.join(quests(), game_bits, carries("ass"));
@@ -65,7 +66,7 @@ auto World::act2_enter(const Level& from) -> void {
     }
 
 auto World::act2_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool fresh) -> void {
-        std::ranges::copy(d2d::rules::ActTwoOpening::talk(quests(), hc_idx), std::back_inserter(out));
+        std::ranges::copy(opening2.talk(quests(), hc_idx, actor->id, cain.missed), std::back_inserter(out));
         std::ranges::copy(radament.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
         std::ranges::copy(tainted.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
         std::ranges::copy(staff.talk(quests(), hc_idx, staff_items(), actor->id), std::back_inserter(out));
@@ -84,7 +85,7 @@ auto World::act2_talk_closed(int hc_idx) -> void {
     }
 
 auto World::act2_said(int hc_idx, int message_string) -> void {
-        d2d::rules::ActTwoOpening::said(quests(), game_bits, hc_idx, message_string);
+        opening2.said(quests(), game_bits, hc_idx, message_string, actor->id);
         const int radament_was = radament.state;
         radament.said(quests(), game_bits, hc_idx, message_string, actor->id);
         if (radament_was != 5 && radament.state == 5) tombs.chain();        // Radament's +0xf0: on to record 13's

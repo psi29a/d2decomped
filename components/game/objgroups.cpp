@@ -374,7 +374,7 @@ struct ObjectRooms {
         const int size_x = obj(id, "SizeX"), size_y = obj(id, "SizeY");
         for (int tries = 8; tries > 0; --tries) {
             const int x = room.x + rgn(room.w - size_x - 1), y = room.y + rgn(room.h - size_y - 1);
-            if (fits_wide(x, y, 5, 5)) return;                                                     // ponytail: the layout's list is empty, nothing placed
+            if (fits_wide(x, y, 5, 5)) return;                                                     // its list (0x731eb4) is empty: nothing to place
         }
     }
     // FUN_00551580: the room seed's gate, then the first at_random that lands.

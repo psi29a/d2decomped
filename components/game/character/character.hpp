@@ -12,6 +12,7 @@
 #include <skills.hpp>
 
 #include <algorithm>
+#include <bit>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -42,10 +43,10 @@ inline std::vector<d2d::d2s::ItemProp> socket_props(const GameData& game_data, c
     return out;
 }
 
-// A worn set item's bonus lists that are on: list i (aprop(i+1)a / b,
-// FUN_0065fec0 kind 4) with i + 2 pieces of its set worn.
-// ponytail: add func 1 lists (by which other piece is worn) count pieces
-// too.
+// A worn set item's bonus lists that are on (FUN_004e6560 over FUN_0062a370's
+// mask of its set's worn members, not broken): add func 2, list i
+// (aprop(i+1)a / b, FUN_0065fec0 kind 4) with i + 2 pieces of its set worn;
+// add func 1, list i while the member in place i (its own skipped) is worn.
 inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items,
                                                 const d2d::d2s::Item& item) {
     std::vector<d2d::d2s::ItemProp> out;
@@ -55,15 +56,20 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
     };
     const int set = set_of(item);
     if (set < 0 || item.set_props.empty()) return out;
-    std::vector<int> pieces;
+    unsigned worn = 0;                                   // members worn, by place (flags 0x4000 / 0x100 left out)
     for (const auto& piece : items)
-        if (piece.location == d2d::d2s::item_location::kEquipped && piece.slot >= d2d::d2s::body_location::kFirst && piece.slot <= d2d::d2s::body_location::kLast && set_of(piece) == set && std::ranges::find(pieces, piece.set_id) == pieces.end())
-            pieces.push_back(piece.set_id);
+        if (piece.location == d2d::d2s::item_location::kEquipped && piece.slot >= d2d::d2s::body_location::kFirst && piece.slot <= d2d::d2s::body_location::kLast
+            && set_of(piece) == set && (piece.flags & 0x4100u) == 0 && sets[std::size_t(piece.set_id)].member >= 0)
+            worn |= 1u << sets[std::size_t(piece.set_id)].member;
+    const auto& row = sets[std::size_t(item.set_id)];
+    const unsigned others = row.member >= 0 ? worn & ~(1u << row.member) : worn;
     std::size_t offset = 0, list = 0;
     for (int bit = 0; bit < 5; ++bit) {
         if (!(item.set_lists >> bit & 1) || list >= item.set_list_sizes.size()) continue;
         const std::size_t size = std::min(item.set_list_sizes[list++], item.set_props.size() - offset);
-        if (int(pieces.size()) >= bit + 2) out.insert(out.end(), item.set_props.begin() + std::ptrdiff_t(offset), item.set_props.begin() + std::ptrdiff_t(offset + size));
+        const int place = bit < row.member ? bit : bit + 1;
+        const bool active = row.add_func == 1 ? (others >> place & 1) != 0 : row.add_func == 2 && std::popcount(worn) >= bit + 2;
+        if (active) out.insert(out.end(), item.set_props.begin() + std::ptrdiff_t(offset), item.set_props.begin() + std::ptrdiff_t(offset + size));
         offset += size;
     }
     return out;
@@ -74,14 +80,15 @@ inline std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data
 // partial bonuses 2a, 2b .. na, nb (at most pieces - 1's); all of them
 // worn, the full bonuses FCode1..8 too. Set item rows count as pieces
 // once each.
-// ponytail: a ranged bonus takes its min (every 1.14d row has min == max).
+// A row's min / max are its property's own: a damage range (Vidala's Rig
+// dmg-cold 15-20), gethit-skill's chance and level (Cow King's 25, 5).
 inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items) {
     std::vector<d2d::d2s::ItemProp> out;
     const auto& rules = game_data.rules;
     std::vector<std::vector<int>> worn(rules.set_bonuses.size());
     for (const auto& item : items)
         if (item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast
-            && item.quality == 5 && item.set_id >= 0 && std::size_t(item.set_id) < rules.sets.size() && !d2d::rules::broken(item))
+            && item.quality == 5 && item.set_id >= 0 && std::size_t(item.set_id) < rules.sets.size() && (item.flags & 0x4100u) == 0)   // FUN_0062a370's members: flags 0x4000 / 0x100 out
             if (const int set = rules.sets[std::size_t(item.set_id)].set; set >= 0 && std::size_t(set) < worn.size() && !std::ranges::contains(worn[std::size_t(set)], item.set_id))
                 worn[std::size_t(set)].push_back(item.set_id);
     d2d::rules::Rng rng;
@@ -92,12 +99,11 @@ inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, cons
         const int partial = std::min(count, bonus.pieces - 1) * 2 - 2;
         for (int index = 0; index < partial && std::size_t(index) < bonus.partial.size(); ++index)
             if (!bonus.partial[std::size_t(index)].code.empty()) {
-                auto mod = bonus.partial[std::size_t(index)]; mod.max = mod.min;
-                d2d::rules::apply_mod(rules, mod, out, rng);
+                d2d::rules::apply_mod(rules, bonus.partial[std::size_t(index)], out, rng);
             }
         if (count >= bonus.pieces)
-            for (auto mod : bonus.full)
-                if (!mod.code.empty()) { mod.max = mod.min; d2d::rules::apply_mod(rules, mod, out, rng); }
+            for (const auto& mod : bonus.full)
+                if (!mod.code.empty()) d2d::rules::apply_mod(rules, mod, out, rng);
     }
     return out;
 }

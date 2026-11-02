@@ -157,6 +157,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         fight.enter(level);
         fight.rooms_up(*level, actor->player.x, actor->player.y, true);
         act3_bind_new_bosses();
+        init_new_objects();
         reopen_doors();
         std::tie(actor->player.x, actor->player.y) = level->nearest_free(actor->player.x, actor->player.y);   // off what the room just made
         loot.enter(level);

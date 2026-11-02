@@ -331,6 +331,7 @@ auto World::new_game() -> void {
         npc_states.resize(std::min(npc_states.size(), level->npcs.size()));
         other_npcs.clear();
         doors.clear();
+        objects_inited.clear();
         fires.clear();
         afterglow_made = false;
         afterglow_due = 0;

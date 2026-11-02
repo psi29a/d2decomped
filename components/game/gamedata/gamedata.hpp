@@ -530,8 +530,9 @@ struct GameData {
     };
     std::unordered_map<std::string, ItemDesc> item_desc;
     std::vector<int> prefix_req, suffix_req, unique_req, set_req;
-    // UniqueItems / SetItems dropsound, usesound by row (item_sound).
-    std::vector<std::array<std::string, 2>> unique_sounds, set_sounds;
+    // UniqueItems / SetItems dropsound, usesound, dropsfxframe by row (item_sound, flippy_sound).
+    struct RowSound { std::string drop, use; int drop_frame = 0; };
+    std::vector<RowSound> unique_sounds, set_sounds;
     // ItemStatCost.txt description columns, by stat ID, and what the skill
     // descfuncs need: skill name keys by skill ID, CharStats strings by class.
     struct StatDesc {
@@ -718,7 +719,7 @@ struct GameData {
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
-                         int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, hit_par2 = 0;
+                         int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, param4 = 0, hit_par2 = 0;
                          bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames
                          bool last_collide = false;                   // LastCollide (+4 bit 0): it passes the unit it last struck by
                          std::string sub, sub2, hit_sub;
@@ -831,10 +832,11 @@ inline int direction16(float dx, float dy) {
 // A composite's direction for a 16-direction facing: 0..7 are the eight
 // compass points, 8..15 the ones between; an 8-direction composite (town
 // NPCs, mercs) takes the neighbouring point for those — clamping them
-// made NPCs walk backwards. ponytail: the neighbour counter-clockwise;
-// game.exe maps its 64 unit directions per direction count, not RE'd.
+// made NPCs walk backwards. The neighbour clockwise, as game.exe's 64-step
+// table rounds a unit's direction too (FUN_005ff760 -> FUN_00600c90, the
+// same as missile_direction: test_game_rules).
 inline std::uint8_t cof_direction(int dir16, int dirs) {
-    constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 4, 0, 5, 1, 6, 2, 7, 3 };
+    constexpr int k16to8[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 0, 5, 1, 6, 2, 7, 3, 4 };
     const int dir = dirs == 8 && dir16 >= 0 && dir16 < 16 ? k16to8[dir16] : dir16;
     return std::uint8_t(std::clamp(dir, 0, std::max(dirs - 1, 0)));
 }

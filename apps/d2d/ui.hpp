@@ -196,9 +196,7 @@ NpcMenuState open_respec_menu(const Scene& scene, int npc, int screen_x, int scr
 // unless the NPC's talk record says no_intro, "gossip", then "cancel"
 // (0xd48). The NPC's quest topics (the server's kind-2 messages,
 // FUN_0049f900) go after gossip, each under its quest's name (the table at
-// 0x722678: message -> name).
-// ponytail: the Den of Evil's names only (messages 64..80 -> 3714); no
-// Greiz/Cain extras.
+// 0x722678: message -> name, rules::quest_name).
 NpcMenuState open_talk_menu(const Scene& scene, const Level& level, int npc, int screen_x, int screen_y,
                             const std::vector<d2d::rules::QuestMsg>& quest = {});
 

@@ -115,7 +115,7 @@ auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool use
         const float hero_x = unit.x, hero_y = unit.y, face_x = player_pad.face_x, face_y = player_pad.face_y;
         std::vector<pad::Candidate> monsters;
         for (const auto& monster : view.monsters)
-            if (monster.alive() && !monster.ally_not_interact(*scene)) monsters.push_back({ monster.id, monster.unit.x, monster.unit.y });   // not a converted one, as the cursor
+            if (monster.alive() && !monster.ally_not_interact(*scene, level ? level->id : 0)) monsters.push_back({ monster.id, monster.unit.x, monster.unit.y });   // not a converted one, as the cursor
         if (const int hit = pad::pick_target(hero_x, hero_y, face_x, face_y, monsters, player_pad.target, aim); hit >= 0)
             return { PadPick::kMonster, monsters[std::size_t(hit)].id, monsters[std::size_t(hit)].x, monsters[std::size_t(hit)].y };
         if (!uses) return {};
@@ -170,7 +170,7 @@ auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool
         if (pick.kind == PadPick::kItem) { out(cmd::Pickup{ pick.id }); return; }
         if (pick.kind == PadPick::kThing) { out(cmd::Interact{ pick.id }); return; }
         // Nothing in reach: the left skill swings only with a monster about (in camp A never just walks); the right one always casts (buffs, teleport).
-        const bool foe_near = std::ranges::any_of(view.monsters, [&](const auto& foe) { return foe.alive() && !foe.ally_not_interact(*scene) && std::hypot(foe.unit.x - hero_x, foe.unit.y - hero_y) < 10.f; });
+        const bool foe_near = std::ranges::any_of(view.monsters, [&](const auto& foe) { return foe.alive() && !foe.ally_not_interact(*scene, level ? level->id : 0) && std::hypot(foe.unit.x - hero_x, foe.unit.y - hero_y) < 10.f; });
         if (move.alt || (move.attack && foe_near))
             out(cmd::UseSkill{ skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item });
     }

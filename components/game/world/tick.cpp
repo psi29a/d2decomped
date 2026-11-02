@@ -444,6 +444,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         each_player([&](Player&) { cross_level(); });
         for (const auto& player : players) fight.rooms_up(*level, player->player.x, player->player.y, false);
         act3_bind_new_bosses();
+        init_new_objects();
         reopen_doors();
         grow_states(npc_states, *level);
         stones_up();

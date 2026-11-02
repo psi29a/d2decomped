@@ -7,6 +7,8 @@
 
 #include <ai.hpp>
 #include <character.hpp>
+#include <character_store.hpp>
+#include <combat.hpp>
 #include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
@@ -15,6 +17,7 @@
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 #include <uniques.hpp>
 #include <world.hpp>
 
@@ -323,6 +326,16 @@ int main() try {
         items.push_back({ .code = "aqv", .location = d2d::d2s::item_location::kStored, .panel = d2d::d2s::item_panel::kInventory, .identified = true, .quantity = 50 });
         assert(!world.fight.cast_missile(0, world.actor->player.x + 3, world.actor->player.y, 5000 * kTickMs));
         assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "aqv"; }) == 1 && world.fight.ammo_index() >= 0);
+        // FUN_00580380 after it: a worn weapon with durability (the switch hand's sword) at 0 breaks; a bow has none.
+        items = kept_items;
+        std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm || item.slot == d2d::d2s::body_location::kRightArmSwitch); });
+        items.push_back({ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true });
+        items.push_back({ .code = "ssd", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArmSwitch, .identified = true });
+        items.back().max_durability = 20; items.back().durability = 0;
+        assert(!world.fight.cast_missile(0, world.actor->player.x + 3, world.actor->player.y, 5000 * kTickMs));
+        const auto sword = std::ranges::find(items, std::string("ssd"), &d2d::d2s::Item::code);
+        const auto bow = std::ranges::find(items, std::string("sbw"), &d2d::d2s::Item::code);
+        assert(sword != items.end() && d2d::rules::broken(*sword) && bow != items.end() && !d2d::rules::broken(*bow));
         // Double Throw (FUN_005d88b0 -> FUN_0056ecb0 last argument 1 -> FUN_0056c3f0): each hand's
         // throw spends one; the hand that runs out is swapped as any spent stack.
         items = kept_items;

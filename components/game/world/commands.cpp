@@ -609,7 +609,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // unverified (source: d2d's hover rule, cursor-units.md): a click with no unit under the
         // cursor walks, so a held attack drops it; the hover itself is FUN_00465c60's.
         const auto* target = monster_index >= 0 ? &fight.monsters[std::size_t(monster_index)] : nullptr;
-        const bool live = target && target->targetable() && !target->ally_not_interact(*game_data);
+        const bool live = target && target->targetable() && !target->ally_not_interact(*game_data, level->id);
         if (skill && !skill->in_town && !in_moor) {
             if (fight.sound_rng(2)) class_cue("not_in_town_1", now_ms);
             else class_cue("not_in_town_2", now_ms);

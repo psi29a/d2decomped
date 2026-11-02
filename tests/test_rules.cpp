@@ -373,7 +373,7 @@ int main() {
     hurt.values[d2d::d2s::kMana] = 90 << 8; hurt.values[d2d::d2s::kMaxMana] = 60 << 8;
     heal(hurt);
     assert(hurt.fixed(d2d::d2s::kLife) == 50 && hurt.fixed(d2d::d2s::kMana) == 90);
-    assert(is_healer(148) && !is_healer(154));                             // Akara yes, Charsi no
+    assert(is_healer(148) && is_healer(176) && !is_healer(154));          // Akara and Atma yes, Charsi no
 
     // Skills: character level, prerequisites, max level, points.
     Tables skill_tables;
@@ -416,7 +416,8 @@ int main() {
     gamble_tables.rare_prefixes = 10; gamble_tables.rare_suffixes = 10;
     Rng roll{ 7 };
 
-    assert(affix_level(10, 1) == 10 && affix_level(99, 60) == 99 && affix_level(80, 60) == 61);
+    assert(affix_level(10, 1, 0) == 10 && affix_level(99, 60, 0) == 99 && affix_level(80, 60, 0) == 61);
+    assert(affix_level(30, 20, 1) == 31 && affix_level(98, 20, 3) == 99);   // magic lvl: added, clamped
     // Groups: after one group-1 prefix no other group-1 one fits; level 50 is too high.
     assert(pick_affix(gamble_tables, gamble_tables.prefixes, "helm", 10, false, { 1 }, roll) == 0);
     for (int i = 0; i < 20; ++i) {
@@ -524,11 +525,12 @@ int main() {
     merc_header.merc_dead = true;
     assert(!resurrect_merc(5, merc_header, wallet2) && merc_header.merc_dead);       // 20 < 180
 
-    // Identify: carried, worn and belt items; not the stash.
-    std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap") };
+    // Identify (FUN_0062a530): inventory, cube and worn items; not the stash or the belt.
+    std::vector<Item> unid = { stored("cap", 1, 0, 0), stored("cap", 5, 0, 0), item("cap"), stored("cap", 4, 0, 0), item("hp1") };
     unid[2].location = 1;
+    unid[4].location = 2;
     for (auto& unknown : unid) unknown.identified = false;
-    assert(unidentified(unid) == 2 && identify_all(unid) == 2 && unidentified(unid) == 0 && !unid[1].identified);
+    assert(unidentified(unid) == 3 && identify_all(unid) == 3 && unidentified(unid) == 0 && !unid[1].identified && !unid[4].identified);
 
     // D2's seed: low * 0x6AC690C5 + high, high starting at 666.
     Rng rng2{ 1 };

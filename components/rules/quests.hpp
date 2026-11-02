@@ -442,20 +442,27 @@ struct PalaceSpots {
 // Act 2's opening (a2q0.cpp, the record at FUN_00598810): quest 8. Jerhyn
 // greets (253, FUN_005986b0) with his "!" (FUN_00598780) until the player
 // has bit 0; hearing it sets that and the game's bit 13 (LAB_00598640), as
-// a join with bit 0 does (LAB_005987d0).
-// ponytail: Cain's 125 (quest 4 bit 14, the rescue missed; FUN_005940a0)
-// isn't here.
+// a join with bit 0 does (LAB_005987d0). Cain greets a player who missed
+// his rescue (quest 4 bit 14) and isn't in the record's list with 125
+// (block 1), and drops them from quest 4's missed list (FUN_005940a0);
+// hearing it adds them to the list (LAB_00598640, FUN_00545200).
 struct ActTwoOpening {
-    static constexpr int kQuest = 8, kJerhyn = monster_ids::kJerhyn, kGreeting = 253;
+    static constexpr int kQuest = 8, kJerhyn = monster_ids::kJerhyn, kGreeting = 253, kCain = monster_ids::kCainAct2, kRescuedByRogues = 125;
+    quest::Players told;   // data +0: heard Cain's 125
     static void join(const QuestBits& quest_bits, QuestBits& game_bits) {
         if (quest::bit(quest_bits, kQuest, 0)) quest::set(game_bits, kQuest, 13);
     }
-    [[nodiscard]] static std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc) {
+    [[nodiscard]] std::vector<QuestMsg> talk(const QuestBits& quest_bits, int npc, int player, quest::Players& cain_missed) const {
         if (npc == kJerhyn && !quest::bit(quest_bits, kQuest, 0)) return { { kGreeting, true } };
+        if (npc == kCain && quest::bit(quest_bits, 4, 14) && !told.has(player)) {
+            cain_missed.remove(player);
+            return { { kRescuedByRogues, true } };
+        }
         return {};
     }
     [[nodiscard]] static bool alert(const QuestBits& quest_bits, int npc) { return npc == kJerhyn && !quest::bit(quest_bits, kQuest, 0); }
-    static void said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string) {
+    void said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, int player) {
+        if (npc == kCain && string == kRescuedByRogues) told.add(player);
         if (npc != kJerhyn || string != kGreeting) return;
         quest::set(quest_bits, kQuest, 0);
         quest::set(game_bits, kQuest, 13);
@@ -1568,8 +1575,8 @@ struct CainQuest {
 // 13 took part, 14 not there.
 // The kill's passes over the players are World::countess_died's (the
 // cellar-5 list's pass, FUN_00594dd0, never fires: the first set bit 0).
-// ponytail: rec+9 (active) is taken as always set, so the tome never
-// starts read (InitFn 4, FUN_00595a00).
+// A record the first join closed (+9 clear: World::closed_at_join) has the
+// tome start in mode 3 (InitFn 4, FUN_00595a00: World::act1_enter).
 struct TowerQuest {
     static constexpr int kQuest = 5, kTower = level_ids::kForgottenTower, kCellar = level_ids::kTowerCellarLevel5, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
     // Her treasure's spawner (Missiles.txt towerchestspawner: Range,
@@ -1978,16 +1985,20 @@ struct QuestLogPick { int slot = -1, shown = 2; bool fresh = false; };
     if (!listed) return -1;
     return remembered >= 0 ? remembered : under_way;
 }
-// The quest a message is about, for the Talk submenu's label: its name's
-// string id (0x722678), 0 none.
+// The quest a message is about, for the Talk submenu's label (FUN_0049f900):
+// its name's string id from the {u16 message, u16 name} table at 0x722678
+// (0x20f rows, as runs here), else 0xe8c. A message up to row 100's (164) is
+// looked for in rows 0..99 only, so 164 itself falls to 0xe8c (bugs.md 46).
 [[nodiscard]] inline int quest_name(int message) {
-    if (message >= 64 && message <= 80) return 3714;       // Den of Evil
-    if (message >= 81 && message <= 96) return 3715;       // Sisters' Burial Grounds
-    if (message >= 97 && message <= 126) return 3717;      // The Search for Cain
-    if (message >= 127 && message <= 145) return 3718;     // The Forgotten Tower
-    if (message >= 146 && message <= 165) return 3716;     // Tools of the Trade
-    if (message >= 166 && message <= 184) return 3719;     // Sisters to the Slaughter
-    return 0;
+    struct Run { int first, last, name; };
+    static constexpr std::array<Run, 33> kRuns{ {
+        { 64, 80, 3714 }, { 81, 96, 3715 }, { 97, 126, 3717 }, { 127, 145, 3718 }, { 146, 163, 3716 }, { 165, 165, 3716 }, { 166, 184, 3719 },
+        { 304, 334, 923 }, { 335, 339, 924 }, { 340, 372, 925 }, { 373, 395, 926 }, { 397, 407, 926 }, { 408, 429, 927 }, { 430, 452, 928 },
+        { 527, 542, 933 }, { 543, 548, 931 }, { 549, 570, 930 }, { 571, 593, 932 }, { 594, 627, 934 }, { 628, 635, 935 }, { 637, 663, 935 },
+        { 670, 677, 937 }, { 678, 680, 939 }, { 681, 685, 938 }, { 20000, 20001, 938 }, { 20002, 20002, 22641 }, { 20077, 20095, 22618 },
+        { 20096, 20115, 22622 }, { 20116, 20136, 22627 }, { 20137, 20137, 22633 }, { 20139, 20152, 22633 }, { 20153, 20168, 22637 }, { 20169, 20180, 22641 } } };
+    const auto run = std::ranges::find_if(kRuns, [&](const Run& entry) { return message >= entry.first && message <= entry.last; });
+    return run != kRuns.end() ? run->name : 0xe8c;
 }
 
 // The class's "find" lines (the client's FUN_004cc270, rows at 0x72a2c4):

@@ -314,7 +314,8 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
                     it->seed = d2d::rules::Rng{ spawning.game.next() };
                     // Its init's two draws: the look (FUN_005739d0) and the life
                     // (FUN_00573cb0); what the Npc AI thinks on (town_npcs.hpp).
-                    // ponytail: the rogues' init draws (up to 11) aren't stepped; nothing rolls on them.
+                    // The guard rogues' init draws (up to 11) aren't stepped: AI Idle, they never read
+                    // their seed again (Idle only stands 200 frames: monster-ai.md), so none of it shows.
                     if (it->town_ai != TownAi::none) { it->seed.next(); it->seed.next(); }
                 }
         return;
@@ -667,8 +668,8 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
 // 32 -> 10, 33 -> 11 (town-portal arrival)); a join asks for index 0,
 // which matches any of group 0 (indices 0..4) at random
 // (FUN_0066ac40), at subtile tile*5+3 (FUN_0061b060), then the nearest
-// free spot. ponytail: first match instead of a random one — each
-// Act 1 town DS1 has exactly one.
+// free spot. The first match is that pick: each Act 1 town DS1 has
+// exactly one (test_ds1).
 void find_spawn_spots(Level& level) {
     const auto& map = level.ds1;
     auto spot = [&](std::size_t cell) { return std::pair{ (float(cell % std::size_t(map.width())) * 5 + 3 + 0.5f) / 5,

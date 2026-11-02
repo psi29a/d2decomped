@@ -1418,6 +1418,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.skill = skill; monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
         monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y; monster.at_point = false;
         attack_starts(game_data, monster, mode, rng);
+        // srvst 59 (FUN_005d1280, Imp Inferno): its end calc1 frames from the start (the roll on its seed now), state 0xc on.
+        if (const auto* fire = game_data.skills.get(skill); fire && fire->srvstfunc == d2d::rules::ServerStartFunction::kImpInferno) {
+            d2d::rules::CalcEnv env;
+            env.rng = &monster.seed;
+            monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, fire->calc[0], env, skill, skill_level(game_data, monster, skill)), 1)) * 40;
+            monster.breath_state = true;
+        }
     };
     // FUN_005defe0 / FUN_005df140: n subtiles on from the target (or the
     // second target), by axis.
@@ -1842,7 +1849,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // range calc2 + its row's Param2 (FUN_0064a2b0 / FUN_0064a330).
     // The others' (FUN_005cc4e0, DiabLight's FUN_005cc690 -> FUN_005cc2e0):
     // calc1 frames, or under 1 its row's Param2 + lvl - 1; 1..255.
-    // ponytail: its animation rate (AnimLen << 8 / range, FUN_00621780) isn't kept.
+    // The others' animation rate is AnimLen << 8 / range (FUN_00621780).
     if (monster.breath >= 0) {
         if (now_ms >= monster.breath_until) monster.breath = -1;
         else if (now_ms >= monster.breath_next) {
@@ -1861,6 +1868,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         range = std::clamp(range, 1, 255);
                     }
                     flame.dies = now_ms + std::uint32_t(range) * 40;
+                    if (!inferno) flame.anim_rate = flame.info->anim_len * 256 / range;
                 }
                 monster.breath_next = now_ms + std::uint32_t(inferno ? 3 : std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[2], {}, monster.breath, lvl), 1)) * 40;
             }
@@ -2135,14 +2143,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
             } else if (const auto* fire = seq ? game_data.skills.get(monster.skill) : nullptr; fire && fire->srvdofunc == d2d::rules::ServerDoFunction::kImpInferno) {
                 // imp6..8's Inferno (seq_impinferno, its event-4 row 12): do 126 as the
-                // plain SC cast's, its end calc1 frames on (rand(par3, par4), its seed).
-                // ponytail: the end counts from the event, not the sequence's start (srvst 59).
-                const int lvl = skill_level(game_data, monster, monster.skill);
-                d2d::rules::CalcEnv env;
-                env.rng = &monster.seed;
+                // plain SC cast's, its end set as the sequence started (srvst 59, the use above).
                 monster.breath = monster.skill;
-                monster.breath_state = true;
-                monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, fire->calc[0], env, monster.skill, lvl), 1)) * 40;
                 monster.breath_next = now_ms;
                 monster.next_act = std::max(monster.next_act, monster.breath_until);
                 d2d::log::info("{} breathes its Inferno (sequence)", monster.npc.name);
@@ -2165,7 +2167,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // its srvmissilea at the target's spot (FUN_0056ede0: flag 1, none
                 // past 100), its range by the distance d (at least 1): d x Range / 12
                 // past 9, else d x Range / 24 + Range / 2; calc1 its anim rate.
-                // d is FUN_006417f0's (ai_distance on the subtiles). ponytail: the anim rate isn't kept.
+                // d is FUN_006417f0's (ai_distance on the subtiles).
                 const int lvl = skill_level(game_data, monster, monster.skill);
                 const int apart = std::max(d2d::rules::ai_distance(subtile(foe.x) - subtile(unit.x), subtile(foe.y) - subtile(unit.y)), 1);
                 const std::size_t had = missiles.size();
@@ -2177,6 +2179,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     erupt.x = (float(subtile(foe.x)) + 0.5f) / 5; erupt.y = (float(subtile(foe.y)) + 0.5f) / 5;
                     erupt.velocity_x = erupt.velocity_y = 0;
                     erupt.dies = now_ms + std::uint32_t(std::max(frames, 1)) * 40;
+                    erupt.anim_rate = std::max(d2d::rules::eval_calc(game_data.skills, maul->calc[0], {}, monster.skill, lvl), 0);   // calc1 (FUN_00621780)
                     d2d::log::info("{} mauls from below ({} frames)", monster.npc.name, frames);
                 }
                 monster.seq_once = true;
@@ -2525,14 +2528,15 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // DiabLight: the same start (srvst 53) and its bolts while state 0xc's on (FUN_005cc690).
                     // FUN_005cc240 / FUN_005cc4e0: state 0xc, its end calc2 frames on; a
                     // flame now and every calc3 frames after (the breath below).
-                    // Imp Inferno (FUN_005d1280 / FUN_005d1350): its end calc1 frames
-                    // on (rand(par3, par4) on its seed), a flame every 3 frames.
+                    // Imp Inferno (FUN_005d1280 / FUN_005d1350): its end set at the
+                    // start (srvst 59, the think's use), a flame every 3 frames.
                     monster.breath = monster.skill;
                     monster.breath_state = true;
-                    d2d::rules::CalcEnv env;
-                    env.rng = &monster.seed;
-                    const auto& end_calc = cast->srvdofunc == ServerDoFunction::kImpInferno ? cast->calc[0] : cast->calc[1];
-                    monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, end_calc, env, monster.skill, lvl), 1)) * 40;
+                    if (cast->srvdofunc != ServerDoFunction::kImpInferno) {
+                        d2d::rules::CalcEnv env;
+                        env.rng = &monster.seed;
+                        monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[1], env, monster.skill, lvl), 1)) * 40;
+                    }
                     monster.breath_next = now_ms;
                     monster.next_act = std::max(monster.next_act, monster.breath_until);
                 } else if (cast->srvdofunc == ServerDoFunction::kMissileAtTarget) {
@@ -2565,9 +2569,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         const std::size_t had = missiles.size();
                         andariel_missile(game_data, monster, cast->srvmissilea, float(off_x), float(off_y), now_ms, missiles, lvl, cast);
                         if (missiles.size() == had) return;
-                        auto& shot = missiles.back();
+                        auto& ring_shot = missiles.back();
                         const float speed = missile_speed((param << 6) * 75 / 100), length = std::hypot(float(off_x), float(off_y));   // FUN_0059fa30's x 75 / 100
-                        shot.velocity_x = float(off_x) / length * speed; shot.velocity_y = float(off_y) / length * speed;
+                        ring_shot.velocity_x = float(off_x) / length * speed; ring_shot.velocity_y = float(off_y) / length * speed;
                     };
                     if (ring != game_data.missiles.end()) {
                         for (std::size_t way = 0; way < 16; way += 2) shoot(way, ring->second.param1);
@@ -2949,7 +2953,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
 bool swaps_ai(const GameData& game_data, const Monster& monster) {
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     using d2d::rules::Boss;
-    return game_data.npc_timing(monster.npc, "WL").directions > 0 && !type_info.boss_column && type_info.switch_ai
+    return type_info.can_walk && !type_info.boss_column && type_info.switch_ai && !(type_info.base == 0x1ec && monster.riding)
         && (monster.targetable() || !monster.alive()) && monster.boss != Boss::unique && monster.boss != Boss::superunique;
 }
 
@@ -3049,9 +3053,12 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
     monster.aware = true;
     if (!monster.alive()) set_mode(game_data, monster, "DT", now_ms);
     // Its get-hit (FUN_0057cb00 from FUN_0057cee0's monster branch): the share of
-    // max life by the blow's hit class, rolled on its own seed (unit +0x20).
-    // ponytail: a stunned monster's sure get-hit and MonStats2's GH mode bit aren't tested here.
-    else if (d2d::rules::get_hit(std::int64_t(monster.stats.hit_points) << 8, blow_fine, hit_class, marked, monster.seed)) set_mode(game_data, monster, "GH", now_ms);
+    // max life by the blow's hit class, rolled on its own seed (unit +0x20), with
+    // MonStats2's mGH; a stunned one (state 0x15) takes it without the roll (0057d0b9).
+    else if (now_ms < monster.stun_until
+             || (game_data.monsters.types[std::size_t(monster.type)].can_get_hit
+                 && d2d::rules::get_hit(std::int64_t(monster.stats.hit_points) << 8, blow_fine, hit_class, marked, monster.seed)))
+        set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
 }
 
