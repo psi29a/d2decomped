@@ -326,6 +326,7 @@ auto Fight::add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fi
             const int lvl = std::max(charge.level, player_levels && skill_level ? skill_level(charge.skill) : 0);
             const auto bonus = d2d::rules::charge_bonus(game_data->skills, *skill, env, lvl, charge.count);
             swing.ed_pct += bonus.ed_pct;
+            swing.ar_pct += bonus.ar_pct;
             fighter.life_steal += bonus.life_steal;
             fighter.mana_steal += bonus.mana_steal;
             if (bonus.etype >= 0 && bonus.etype < 5) {

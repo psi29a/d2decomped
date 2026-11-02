@@ -695,8 +695,8 @@ struct Fight {
     void charge(const d2d::rules::Skill& skill, std::uint32_t now_ms);
     void charge(std::vector<Charge>& held, const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms);
     // What the charges add to a finishing blow (FUN_005d3ba0 / FUN_005d3ac0,
-    // at the higher of the stored level and today's).
-    // ponytail: aurastat2's progressive_tohit (par4) isn't given.
+    // at the higher of the stored level and today's), and progressive_tohit's
+    // par4 a charge as the swing's to-hit %.
     void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing) { add_charges(actor->charges, fighter, swing, true); }
     void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
     // A row with no Skill: its own element at level lvl with its synergy

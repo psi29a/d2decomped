@@ -124,6 +124,10 @@ int main() {
     skill_tables.rows.push_back(tiger);                                // calcs read their params by skill id
     assert(charge_bonus(skill_tables, tiger, env, 3, 2).ed_pct == 140 * 2);
     assert(charge_bonus(skill_tables, tiger, env, 3, 5).ed_pct == 140 * 3);        // at most 3
+    tiger.par = { 100, 20, 375, 50 };
+    tiger.aurastat[1] = 325; tiger.aura_calc[1] = compile("par4");
+    skill_tables.rows.back() = tiger;
+    assert(charge_bonus(skill_tables, tiger, env, 3, 2).ar_pct == 50 * 2);         // progressive_tohit: par4 a charge
     Skill cobra;
     cobra.prgdam = 2; cobra.par = { 40, 5 };
     const auto charge1 = charge_bonus(skill_tables, cobra, env, 1, 1), charge2 = charge_bonus(skill_tables, cobra, env, 1, 2), charge3 = charge_bonus(skill_tables, cobra, env, 1, 3);
