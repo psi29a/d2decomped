@@ -490,15 +490,20 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
 // A monster's freeze (FUN_0057b230): the length FUN_0057c1e0 left, which
 // is cut by the cold resist less pierce as the chill length is (record
 // +0x34, row 6 of the table at 0x732980, as row 5 is +0x30); nothing when
-// that is 0 or less. The monster is frozen only at a negative coldeffect
-// (FUN_0057af30), for the length / MonsterFreezeDivisor (+0x14), and isn't
-// chilled for it.
+// that is 0 or less. A special monster (MonStats boss, FUN_0063e9f0;
+// monster data +0x16 & 8, FUN_005a0180: champions, uniques, superuniques;
+// a hireling, FUN_0063ee90) is chilled for that length instead
+// (FUN_0057af80), never frozen. Any other is frozen only at a negative
+// coldeffect (FUN_0057af30), for the length / MonsterFreezeDivisor
+// (+0x14), and isn't chilled for it.
 struct Freeze { int freeze_ticks = 0, chill_ticks = 0; };
-inline Freeze monster_freeze(int length, const Target& target, int cold_pierce, int cold_effect, int divisor) {
+inline Freeze monster_freeze(int length, const Target& target, int cold_pierce, bool special, int cold_effect, int divisor) {
     int res = target.res[4];
     if (res < 100) res = std::max(res - cold_pierce, -100);
     const int resisted_length = resisted(length, res);
-    if (resisted_length <= 0 || cold_effect >= 0 || divisor == 0) return {};
+    if (resisted_length <= 0) return {};
+    if (special) return { .chill_ticks = resisted_length };
+    if (cold_effect >= 0 || divisor == 0) return {};
     return { .freeze_ticks = resisted_length / divisor };
 }
 

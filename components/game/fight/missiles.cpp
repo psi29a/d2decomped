@@ -17,6 +17,7 @@
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
+#include <uniques.hpp>
 
 #include <algorithm>
 #include <array>
@@ -703,8 +704,11 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         if (monsters[monster_index].half_freeze) freeze /= 2;          // stat 0x76 (the Countess)
         d2d::rules::Freeze frozen;
         if (const auto& struck = monsters[monster_index]; blow.hit && freeze > 0 && struck.type >= 0) {
-            const int cold_effect = game_data->monsters.types[std::size_t(struck.type)].diff[std::size_t(struck.difficulty)].cold_effect;
-            frozen = d2d::rules::monster_freeze(freeze, target, pierce()[2], cold_effect, game_data->freeze_divisor[std::size_t(struck.difficulty)]);
+            const auto& struck_type = game_data->monsters.types[std::size_t(struck.type)];
+            const bool special = struck_type.boss_column || (struck.boss != d2d::rules::Boss::none && struck.boss != d2d::rules::Boss::minion);
+            frozen = d2d::rules::monster_freeze(freeze, target, pierce()[2], special, struck_type.diff[std::size_t(struck.difficulty)].cold_effect,
+                                                game_data->freeze_divisor[std::size_t(struck.difficulty)]);
+            blow.chill_ticks = std::max(blow.chill_ticks, frozen.chill_ticks);
         }
         land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
         if (missile.striker < 0) monster_return_fire(monster_index, missile, missile.by_merc, now_ms);
