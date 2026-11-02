@@ -483,24 +483,40 @@ int main() {
     assert(gamble_upgrade(gamble_tables, "cap", 10) == std::pair(0, 0));
     assert(gamble_upgrade(gamble_tables, "cap", 30) == std::pair(401, 0));             // (30-22)*100/2+1
     assert(gamble_price(gamble_tables, "cap", 1) == ((0 - 0 + 5) * 250 / 3 + 100) * (11 / 3 + 20) / 15);
-    for (int i = 0; i < 50; ++i) {
-        const auto gambled = gamble_item(gamble_tables, "cap", 30, 0, roll);
-        assert(gambled.quality >= 4 && gambled.quality <= 7 && (gambled.code == "cap" || gambled.code == "xap"));
+    {   // game.exe's qsort isn't stable: under 9 a selection sort swaps the first largest to the end.
+        std::vector<std::pair<int, char>> keyed{ { 1, 'a' }, { 1, 'b' }, { 0, 'c' } };
+        msvc_qsort(keyed, [](const auto& left, const auto& right) { return left.first < right.first; });
+        assert(keyed[0].second == 'c' && keyed[1].second == 'b' && keyed[2].second == 'a');
     }
+    // The upgrade (FUN_005786a0): (level - the upgrade's level) x GambleUber + 1 of 10000.
+    GambleRates rates{ .uber = 1000, .ultra = 0 };
+    Rng upgrade_seed{ 3 };
+    assert(gamble_upgrade_code(gamble_tables, "cap", 22 + 10, rates, upgrade_seed) == "xap");   // 10001 of 10000: always
+    const auto before = upgrade_seed.low;
+    assert(gamble_upgrade_code(gamble_tables, "cap", 5, rates, upgrade_seed) == "cap" && upgrade_seed.low == before);   // (5 - 22) x 1000 + 1 under 1: no roll
 
+    // The stock (FUN_00578790): 14 items, a ring and an amulet first, unidentified.
     gamble_tables.gamble = { "cap", "rin" };
     gamble_tables.item_base["rin"].level = 1;
     gamble_tables.item_info["rin"] = { .width = 1, .height = 1, .type = "ring" };
-    Store gam = open_gamble(gamble_tables, "Gheed", 10);
-    assert(gam.gamble && gam.tabs[0].size() == 1 && gam.tabs[3].size() == 1);
+    gamble_tables.item_base["amu"] = { .level = 1, .gamble_cost = 60000 };
+    gamble_tables.item_info["amu"] = { .width = 1, .height = 1, .type = "amul" };
+    gamble_tables.types["ring"].store_page = 3;
+    gamble_tables.types["amul"].store_page = 3;
+    gamble_tables.types["helm"].store_page = 0;
+    Rng proxy{ 11 }, game_seed{ 12 };
+    Store gam = open_gamble(gamble_tables, "Gheed", 10, 0, true, proxy, game_seed);
+    assert(gam.gamble && gam.tabs[0].size() + gam.tabs[3].size() == 14);
+    assert(gam.tabs[3][0].code == "rin" && gam.tabs[3][1].code == "amu" && !gam.tabs[3][0].identified);
+    for (const auto& stock : gam.tabs[0]) assert(stock.code == "cap" && stock.quality >= 4 && stock.quality <= 7 && stock.ilvl >= 5 && stock.ilvl <= 14);
     std::vector<Item> bag;
     d2d::d2s::Stats purse;
     purse.values[kLevel] = 10; purse.values[kGold] = 100; purse.values[kGoldBank] = 100000;
     gam.tab = 3;
-    assert(store_gamble(gamble_tables, gam, 0, bag, purse, roll) && bag.size() == 1 && bag[0].code == "rin");
-    assert(purse.get(kGold) == 0 && purse.get(kGoldBank) == 100000 - 49900 && gam.tabs[3].size() == 1);
-    assert(store_gamble(gamble_tables, gam, 0, bag, purse, roll) && purse.get(kGoldBank) == 100);   // 50100 pays once more
-    assert(!store_gamble(gamble_tables, gam, 0, bag, purse, roll) && bag.size() == 2);             // then it can't
+    const auto rings = gam.tabs[3].size();
+    assert(store_gamble(gamble_tables, gam, 0, bag, purse) && bag.size() == 1 && bag[0].code == "rin" && bag[0].identified);
+    assert(purse.get(kGold) == 0 && purse.get(kGoldBank) == 100000 - 49900 && gam.tabs[3].size() == rings - 1);   // the bought one leaves
+    assert(!store_gamble(gamble_tables, gam, 0, bag, purse) && bag.size() == 1);                                // the amulet: 60000, can't
     // Mercenaries: the hire list's offers and hiring.
     Tables merc_tables;
     merc_tables.hirelings = { { .version = 100, .id = 0, .act = 1, .difficulty = 1, .level = 3, .gold = 100, .exp_per_level = 100,

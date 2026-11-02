@@ -150,8 +150,9 @@ struct PropFunc { int func = 0, stat = -1, val = 0; };
 // when unused), its full bonuses FCode1..8, and how many SetItems rows
 // belong to it (the record's +0xc).
 struct SetBonus { std::vector<Mod> partial, full; int pieces = 0; };
-// DifficultyLevels gamble odds, per 100000 (rare/set/unique).
-struct GambleRates { int rare = 10000, set = 100, unique = 50; };
+// DifficultyLevels gamble odds: rare / set / unique per 100000 (+0x44 ..
+// +0x4c), the upgrades' weight per level over the upgrade's (of 10000).
+struct GambleRates { int rare = 10000, set = 100, unique = 50, uber = 0, ultra = 0; };   // + GambleUber / GambleUltra (+0x50 / +0x54)
 
 // D2's seed (FUN_0045c370 / FUN_0045c3e0): 64 bits as {low, high}; a
 // step is low * 0x6AC690C5 + high, split back into low and high. A roll
@@ -1726,62 +1727,142 @@ inline int gamble_price(const Tables& tables, const std::string& code, int clvl,
     return int(price_reduced((lvl + mix) * ((level * 2 + 1) / 3 + 20) / 15, reduced));
 }
 
-// Gambles on `code`: the base may upgrade (exceptional / elite, by the
-// same odds the price uses), the level is clvl-5..clvl+4, the quality
-// unique / set / rare by DifficultyLevels odds per 100000, else magic.
-// ponytail: the server's gamble roll isn't traced; those are the table
-// odds and the price's upgrade weights.
-inline d2d::d2s::Item gamble_item(const Tables& tables, const std::string& code, int clvl, int diff, Rng& rng) {
-    std::string chosen_code = code;
-    if (const auto found = tables.item_base.find(code); found != tables.item_base.end()) {
-        const auto [exceptional_chance, elite_chance] = gamble_upgrade(tables, code, clvl);
-        const int roll = rng(10000);
-        if (roll < elite_chance) chosen_code = found->second.ultracode;
-        else if (roll < elite_chance + exceptional_chance) chosen_code = found->second.ubercode;
+// game.exe's qsort (MSVC CRT: median of three, a selection sort under 9,
+// the bigger half kept for later): not stable, so equal keys come out in its
+// own order. `less_than` stands for the comparator's < 0 (> 0 by swapping).
+template <class Value, class Less>
+void msvc_qsort(std::vector<Value>& values, Less less_than) {
+    if (values.size() < 2) return;
+    auto compare = [&](std::size_t left, std::size_t right) { return less_than(values[right], values[left]) ? 1 : less_than(values[left], values[right]) ? -1 : 0; };
+    std::vector<std::pair<std::size_t, std::size_t>> pending;
+    std::size_t low = 0, high = values.size() - 1;
+    for (;;) {
+        if (high - low + 1 <= 8) {
+            for (std::size_t last = high; last > low; --last) {
+                std::size_t most = low;
+                for (std::size_t at = low + 1; at <= last; ++at) if (compare(at, most) > 0) most = at;
+                std::swap(values[most], values[last]);
+            }
+        } else {
+            std::size_t mid = low + (high - low + 1) / 2;
+            if (compare(low, mid) > 0) std::swap(values[low], values[mid]);
+            if (compare(low, high) > 0) std::swap(values[low], values[high]);
+            if (compare(mid, high) > 0) std::swap(values[mid], values[high]);
+            std::size_t low_guy = low, high_guy = high;
+            for (;;) {
+                if (mid > low_guy) do ++low_guy; while (low_guy < mid && compare(low_guy, mid) <= 0);
+                if (mid <= low_guy) do ++low_guy; while (low_guy <= high && compare(low_guy, mid) <= 0);
+                do --high_guy; while (high_guy > mid && compare(high_guy, mid) > 0);
+                if (high_guy < low_guy) break;
+                std::swap(values[low_guy], values[high_guy]);
+                if (mid == high_guy) mid = low_guy;
+            }
+            ++high_guy;
+            if (mid < high_guy) do --high_guy; while (high_guy > mid && compare(high_guy, mid) == 0);
+            if (mid >= high_guy) do --high_guy; while (high_guy > low && compare(high_guy, mid) == 0);
+            if (high_guy - low >= high - low_guy) {
+                if (low < high_guy) pending.emplace_back(low, high_guy);
+                if (low_guy < high) { low = low_guy; continue; }
+            } else {
+                if (low_guy < high) pending.emplace_back(low_guy, high);
+                if (low < high_guy) { high = high_guy; continue; }
+            }
+        }
+        if (pending.empty()) return;
+        std::tie(low, high) = pending.back();
+        pending.pop_back();
     }
-    const auto& rates = tables.gamble_rates[std::size_t(std::clamp(diff, 0, 2))];
-    const int roll = rng(100000);
-    const int quality = roll < rates.unique ? 7 : roll < rates.unique + rates.set ? 5 : roll < rates.unique + rates.set + rates.rare ? 6 : 4;
-    return generate_item(tables, chosen_code, clvl - 5 + rng(10), quality, rng);
 }
 
-// Gheed's gamble screen: every gamble.txt base up to the character's
-// level, packed like a store (armour, weapons, misc).
-// ponytail: the game shows a random subset and refreshes it; this shows
-// them all and keeps them.
-inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl) {
+// The gamble table (FUN_00638cc0, built at load): gamble.txt's bases sorted
+// by level with game.exe's qsort (FUN_00638ac0 compares Items +0xfd).
+inline std::vector<std::string> gamble_by_level(const Tables& tables) {
+    std::vector<std::string> codes;
+    for (const auto& code : tables.gamble) if (tables.item_base.contains(code)) codes.push_back(code);
+    msvc_qsort(codes, [&](const std::string& left, const std::string& right) { return tables.item_base.at(left).level < tables.item_base.at(right).level; });
+    return codes;
+}
+
+// The gamble upgrade (FUN_005786a0, expansion games only): the ubercode at
+// (level - its level) x GambleUber + 1 of 10000 on the proxy seed, failing
+// that the ultracode at GambleUltra's; no roll when that weight is under 1
+// or the code is none (the ultracode isn't tried then either).
+inline std::string gamble_upgrade_code(const Tables& tables, const std::string& code, int level, const GambleRates& rates, Rng& proxy) {
+    const auto found = tables.item_base.find(code);
+    if (found == tables.item_base.end()) return code;
+    auto weight = [&](const std::string& upgrade, int per_level) {
+        const auto upgrade_base = tables.item_base.find(upgrade);
+        return upgrade_base == tables.item_base.end() ? 0 : (level - upgrade_base->second.level) * per_level + 1;
+    };
+    const int uber = weight(found->second.ubercode, rates.uber);
+    if (uber < 1) return code;
+    if (proxy(10000) < uber) return found->second.ubercode;
+    const int ultra = weight(found->second.ultracode, rates.ultra);
+    return ultra >= 1 && proxy(10000) < ultra ? found->second.ultracode : code;
+}
+
+// Gheed's gamble screen (FUN_00578790, rolled when it opens): 14 items on
+// the proxy seed, each a level clvl - 5 + rand(10) (5 .. 99), a base
+// rand(the bases up to that level) from gamble_by_level (a classic game
+// rolls again past expansion bases), the first two a ring and an amulet
+// instead, then the upgrade, then the quality: rand(100000) under rare +
+// set + unique is unique / set / rare by those odds, else magic. Each is
+// made as a drop (FUN_00559ce0: two game seed steps, generate_item),
+// unidentified, and put on its type's page; one that doesn't fit ends the
+// roll.
+// ponytail: game.exe keeps the list per player at the vendor (FUN_00578ae0)
+// until something clears it (not traced); d2d rolls one at every opening.
+inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int difficulty, bool expansion, Rng& proxy, Rng& game,
+                         std::vector<bool>* found_uniques = nullptr) {
     Store store;
     store.npc_id = std::move(npc_id);
     store.gamble = true;
-    for (const auto& code : tables.gamble) {
-        const auto found = tables.item_base.find(code);
-        if (found == tables.item_base.end() || found->second.level > clvl) continue;
-        d2d::d2s::Item item;
-        item.code = code;
-        item.identified = true;
-        store_place(tables, store, store_tab_for(tables, code), std::move(item));
+    const auto codes = gamble_by_level(tables);
+    const auto& rates = tables.gamble_rates[std::size_t(std::clamp(difficulty, 0, 2))];
+    for (int made = 0; made < 14 && !codes.empty();) {
+        int level = int(proxy.next() % 10) - 5 + clvl;
+        level = level < 6 ? 5 : level > 98 ? 99 : level;
+        const auto up_to = std::ranges::count_if(codes, [&](const std::string& code) { return tables.item_base.at(code).level <= level; });
+        std::string code = codes[std::size_t(proxy(int(up_to)))];
+        if (!expansion && tables.item_base.at(code).version >= 100) continue;
+        if (made < 2) code = made == 0 ? "rin" : "amu";
+        if (expansion) code = gamble_upgrade_code(tables, code, level, rates, proxy);
+        int quality = 4;
+        if (const int odds = rates.rare + rates.set + rates.unique; odds > 0) {
+            const int roll = int(proxy.next() % 100000);
+            if (roll < odds) quality = roll < rates.unique ? 7 : roll < rates.unique + rates.set ? 5 : 6;
+        }
+        ++made;
+        Rng unit_seed{ game.next() }, item_seed{ game.next() };
+        auto item = generate_item(tables, code, level, quality, item_seed, &unit_seed, found_uniques, false, difficulty);
+        item.identified = false;
+        const auto info = tables.item_info.find(item.code);
+        const auto type = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+        const int page = type != tables.types.end() ? type->second.store_page : -1;
+        if (page < 0 || !store_place(tables, store, page, std::move(item))) break;
     }
     store.first_tab();
     return store;
 }
 
-// Gambles on stock item i of the open tab: pays the gamble price (carried
-// gold, then the stash) and puts the rolled item in the inventory. The
-// stock stays. False if it can't be paid for or doesn't fit.
-inline bool store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items,
-                         d2d::d2s::Stats& stats, Rng& rng) {
-    const auto& code = store.tabs[std::size_t(store.tab)][std::size_t(index)].code;
-    const int clvl = int(stats.get(d2d::d2s::kLevel));
-    const int price = gamble_price(tables, code, clvl, store.reduced);
+// Gambles on stock item i of the open tab: pays its gamble price
+// (FUN_00629370 on its code; carried gold, then the stash) and takes it
+// into the inventory, identified (C->S 37 -> FUN_00578640). False if it
+// can't be paid for or doesn't fit.
+inline bool store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    auto& tab = store.tabs[std::size_t(store.tab)];
+    auto item = tab[std::size_t(index)];
+    const int price = gamble_price(tables, item.code, int(stats.get(d2d::d2s::kLevel)), store.reduced);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
-    auto item = gamble_item(tables, code, clvl, store.header.active_difficulty(), rng);
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
     const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
     if (column < 0) return false;
+    item.identified = true;
     item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = column; item.row = row;
     items.push_back(std::move(item));
+    tab.erase(tab.begin() + index);
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
