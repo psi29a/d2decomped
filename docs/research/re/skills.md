@@ -836,7 +836,7 @@ lines (missile names aren't passed in). What it does:
   srvmissilea standing at the target point (within 100). Blizzard's centre
   (missile do **10**, FUN_005aea60) and Eruption's (**25**, FUN_005af880)
   call FUN_005a9820: every calc2 frames SubMissile1 at a random point
-  within calc1 subtiles. Meteor's centre hits (**14**, FUN_005aabb0) when
+  rand(2r) - r on each axis, r = calc1 - 1 (-6..5 subtiles at calc1 7). Meteor's centre hits (**14**, FUN_005aabb0) when
   its Range runs out (FUN_005adf10 with no unit): the skill's damage within
   sHitPar1 (else aurarange) subtiles (FUN_0056bad0), then FUN_005aaa90
   puts HitSubMissile1 at 18 offsets (x 0x6e2550, y 0x6e2598; every
