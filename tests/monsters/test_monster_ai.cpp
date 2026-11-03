@@ -369,17 +369,17 @@ int main() {
             // what it comes to, its effects, the AI control and seed after.
             {
                 static const std::string_view kCases[] = {   // not constexpr: their lengths pass the step limit
-#include "mon_ais_cases.inc"
 #include "mon_ais3_cases.inc"
-#include "mon_ais_coldworm_cases.inc"
 #include "mon_ais4_cases.inc"
 #include "mon_ais5_cases.inc"
+#include "mon_ais_act1_cases.inc"
 #include "mon_ais_baal_cases.inc"
-#include "mon_ais_uber_cases.inc"
+#include "mon_ais_cases.inc"
+#include "mon_ais_coldworm_cases.inc"
 #include "mon_ais_imp_ride_cases.inc"
 #include "mon_ais_late_cases.inc"
-#include "mon_ais_act1_cases.inc"
 #include "mon_ais_pace_cases.inc"
+#include "mon_ais_uber_cases.inc"
                 };
                 // The AIs a case's first number indexes (mon_ais.py ORDER): its name,
                 // whether it's an other think, whether its scene has Act 3's / Act 4's / Act 5's / the late ones' fields.

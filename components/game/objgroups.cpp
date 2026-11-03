@@ -10,15 +10,15 @@
 #include "gamedata.hpp"
 #include <drlg.hpp>
 #include <level_ids.hpp>
-#include <outdoor_data.hpp>
-#include <quests.hpp>
-#include <units.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <object_ids.hpp>
+#include <outdoor_data.hpp>
+#include <quests.hpp>
 #include <rules.hpp>
 #include <txt.hpp>
 #include <uniques.hpp>
+#include <units.hpp>
 
 #include <algorithm>
 #include <array>

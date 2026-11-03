@@ -41,13 +41,16 @@ def xorshift(state):
 
 
 class Game:
-    def __init__(self):
-        e = self.e = emu.Emu()
+    def __init__(self, real=()):
+        e = self.e = emu.Emu(real=real)
         self.stats = {}
-        self.game = e.alloc(0x100); e.w32(self.game + 0x6c, 0x0100)             # byte +0x6d: difficulty 1; +0x70 expansion
-        e.w32(self.game + 0x70, 1)
+        self.game = e.alloc(0x100)
+        game = e.view("game", self.game)
+        game.difficulty, game.expansion = 1, 1
         self.attacker = e.alloc(0x100)                                        # type 0: a player
-        self.target = e.alloc(0x100); e.w32(self.target, 1); e.w32(self.target + 4, 60)   # a monster, class 60 (no hireling)
+        self.target = e.alloc(0x100)
+        target = e.view("unit", self.target)
+        target.type, target["class"] = 1, 60                                  # a monster, class 60 (no hireling)
         self.rec = e.alloc(0x80)
         self.diffrow = e.alloc(0x40)
         self.max_life = 0
@@ -55,12 +58,10 @@ class Game:
         e.hook(0x627260, lambda e: self.stats.__setitem__((e.arg(0), e.arg(1)), e.arg(2) - (1 << 32 if e.arg(2) >> 31 else 0)) or 0, 4)
         e.hook(0x625d10, lambda e: self.max_life, 1)
         e.hook(0x611d30, lambda e: self.diffrow, 1)
-        for addr, n in ((0x63ee90, 1), (0x63e990, 1), (0x63e940, 1), (0x63edc0, 1), (0x63e9f0, 2), (0x5c0c30, 3), (0x5347d0, 7),
-                        (0x5347e0, 3), (0x61ab00, 1), (0x5541b0, 0), (0x621d50, 2), (0x639df0, 2), (0x57aa60, 0), (0x57aaa0, 0),
-                        (0x57aae0, 2), (0x57af80, 2), (0x57b230, 2), (0x57ac50, 3), (0x57add0, 3), (0x5d6410, 0)):
-            e.hook(addr, lambda e: 0, n)
-        for addr, n in ((0x554200, 1), (0x620bb0, 1), (0x457490, 0)):
-            e.hook(addr, lambda e: 1, n)
+        e.stub(0, {0x63ee90: 1, 0x63e990: 1, 0x63e940: 1, 0x63edc0: 1, 0x63e9f0: 2, 0x5c0c30: 3, 0x5347d0: 7,
+                   0x5347e0: 3, 0x61ab00: 1, 0x5541b0: 0, 0x621d50: 2, 0x639df0: 2, 0x57aa60: 0, 0x57aaa0: 0,
+                   0x57aae0: 2, 0x57af80: 2, 0x57b230: 2, 0x57ac50: 3, 0x57add0: 3, 0x5d6410: 0})
+        e.stub(1, {0x554200: 1, 0x620bb0: 1, 0x457490: 0})
 
     def reset(self, max_hp, res, pierce):
         self.stats.clear()

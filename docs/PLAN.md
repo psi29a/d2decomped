@@ -14,8 +14,9 @@ reading ("Reference projects" below).
   ...), with game.exe's meaning and spelling (one dash). d2d's own
   options may add to them, never clash. Research: game.exe's switch table
   (the strings sit together in .rdata) and what each one sets.
-- Act 1, then the rest, playable from game.exe's own rules (Road to a
-  whole Act 1, below).
+- All five acts playable from game.exe's own rules (*done*, 2026-10-24),
+  then every rule and number proven against game.exe: the gap map
+  (`tools/gaps.py`, https://psi29a.github.io/d2decomped/) ends at `DONE`.
 
 ## Non-goals
 
@@ -26,7 +27,7 @@ reading ("Reference projects" below).
 
 ## Phases
 
-Status as of 2026-10-25.
+Status as of 2026-11-03.
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
@@ -39,8 +40,11 @@ Status as of 2026-10-25.
    assets (`components/`, `tests/`). *Done;* extended as game code needs.
 4. **Ghidra pass** — 1.14d `game.exe`, the Blizzard-provided static PE
    (the old D2Common/D2Game/D2Client/… DLLs are linked into it; no CD
-   checks; most modding work targets it). *Ongoing, driven by phase 5:*
-   notes per subsystem under `docs/research/re/`.
+   checks; most modding work targets it). *Ongoing,* notes per subsystem
+   under `docs/research/re/`. The gap map counts it: of game.exe's 13,048
+   functions (748 library, 25 dead left out), 1,020 verified, 1,984 ported,
+   1,382 cited, 7,889 untouched; 1,697 of those are frontier (ported code
+   calls them). Workflow: "Ghidra workflow" below.
 
    The launcher's install step drops the PEs into `<dest>/bin/` when it
    sees them in a source (GOG install → v1.14d; disc `crack/` → v1.00), and
@@ -66,8 +70,8 @@ Status as of 2026-10-25.
    included. Left: the unique mods still untraced (thief, the act
    bosses' deaths), the gaps each skill section lists.
 7. **Cross-platform polish** — Linux/macOS/Windows CI, controller and
-   rebindable keys and pad (game.exe's Configure Controls) done; left:
-   high-DPI.
+   rebindable keys and pad (game.exe's Configure Controls), the Steam Deck,
+   the pixel-art scaler (#112) done; left: high-DPI.
 
 ## Directory layout
 
@@ -190,13 +194,24 @@ used and listed in `docs/research/re/unverified.md` until it is.
 
 ## Ghidra workflow
 
-1. Extract 1.14d PEs (Game.exe + D2*.dll) into a work dir outside the repo.
-2. Ghidra project shared under `tools/ghidra/` as scripts + `.gpr` metadata
-   (never the raw binaries).
-3. Symbol names, structs, enums live in Ghidra Data Type archives (`.gdt`)
-   committed under `tools/ghidra/gdt/`.
-4. One markdown per function group in `docs/research/re/` with:
-   address, signature, callers/callees, prose walkthrough, our C++ port.
+As of 2026-11-03 (the RE skill, `.claude/skills/reverse-engineering/SKILL.md`,
+has the commands):
+
+1. `tools/ghidra/import.sh` imports the user's own game.exe (the launcher
+   puts it in `<data>/bin/`) into `tools/ghidra/project/` (gitignored) and
+   exports the facts we commit: `docs/research/re/game-*.tsv`, but for
+   `game-strings.tsv` (game.exe's bytes, kept local).
+2. `tools/ghidra/decompile.sh` puts d2d's names and citations on the
+   functions (from `tools/gaps.py`'s `symbols.tsv`) and decompiles all of
+   game.exe into `tools/ghidra/project/game_all.c`; `tools/ghidra/fn.py`
+   reads a function from it. Decompiled C never goes in git.
+3. Struct fields: `docs/research/re/structs.tsv`, one row per field with
+   the line that shows it; `tools/emu` reads them (`e.view("unit", u)`).
+   Ghidra struct types wait for typed signatures.
+4. Proof: `tools/emu` runs game.exe's own code; its answers are frozen in
+   `tests/*_cases.inc`, so CI checks d2d against them without game.exe.
+5. Findings in `docs/research/re/<subsystem>.md`: addresses, offsets,
+   tables, the algorithm in prose; the port cites the address.
 
 ## Milestone: "camera pans the rogue camp"
 
@@ -894,6 +909,73 @@ character. Left as notes: the quest log's +0xb values (inferred), the
 classic ending (90 s, the credits), the seal flash's event (the boss comes
 at once), the gems at once on loot's rng, the burning souls' chest drop,
 Act 5 past the portal.
+
+## Checkpoint 2026-11-03: fidelity, the gap map, contributors
+
+About 95 pull requests since 2026-10-24 (#62..#178), releases up
+to v0.8.3 (2026-11-02). The game stayed playable end to end; the work moved
+from "it plays" to "it is game.exe", and to letting others help.
+
+- **Contributors** (#121 → #122, #132, #148): AGENTS.md (the promises
+  first, the same for every agent), CONTRIBUTING.md, the gap map
+  (`tools/gaps.py` → GitHub Pages: `gaps.json`, `functions.tsv`, a `DONE`
+  end state), `tools/pr_guard.py` (impossible `FUN_` addresses, binaries,
+  risky changes need `security-reviewed`), CODEOWNERS, union-merged research
+  tables and a directory per subsystem, so parallel PRs rarely conflict.
+- **Checks before CI** (#101, #106, #91): `tools/presubmit.py` and
+  `tools/review-checklist.md` (the review classes of PRs #15..#97); a test
+  with no data is reported skipped, not passed; tool failures reach the
+  exit status.
+- **Differential proofs against game.exe** (tools/emu, frozen in
+  `tests/*_cases.inc`): Static Field and the cold chill (#155), Velocity
+  and coldeffect (#156), boss and minion stats (#157), NextHit (#158), the
+  freeze rule (#159, #177), curses at resistance 100+ (#160), Blizzard and
+  Eruption shards (#163), monster missile records and poison (#164), the
+  element and physical rolls (#166, #135), Act 1 thinks' pace (#167), MonLvl
+  and the 75 % start velocity (#170, #171), get-hit by hit class, length
+  and frames (#134, #136, #143), cast speed (#128), vendor prices (#127,
+  #152), waypoint arrival (#153), synergies (#146), item charges (#113).
+- **The ponytail sweep** (#116, #117, #133, #141, #145, #161, #165, #169,
+  #172, #174, #176, #178): 517 `ponytail:` notes on 2026-10-28, 341 now;
+  each traced and ported, or shown exact / unreachable. Groups 7..2 done;
+  group 1 (untraced game.exe functions) in batches of ~30-40.
+- **Look and sound** (#81, #82, #88, #96, #99, #131, #142): objects at
+  FrameCnt, per-layer DCC directions, Lut Gholein's tile shadows, wall
+  fades and light grid as game.exe draws them (94.8 % pixel-exact vs
+  live), DT1 fast paths; sounds start, duck and stop as game.exe (#114),
+  MonSounds in joined games (#110), the player's block and kick (#93),
+  quest jingles (#154), screen shake (#120); the sounds stock 1.14d never
+  plays are written down (#102, #109).
+- **Players' reports** (#76 → #77, #139 → #151, #95, #149, #147): portraits,
+  automap, Cairn portal, town portal, belt and quiver handling, the merc's
+  save list, char-create.
+- **Launcher and platforms**: Verify files (#104), one version stamp (#78),
+  SDL pixel-art scaling (#112), game.exe under Wine for local checks (#95,
+  #96), the command-line switch table (#62).
+- **Coverity**: every scan's issues fixed or triaged as they came (#140,
+  #174, #176). The upload is ~850 MB and the Scan's daily quota allows one
+  build: two merges within hours scan only the first.
+
+Tracing tools, branch `re-pipeline` (2026-11-03): d2d's names and
+citations in the decompiled C (`tools/ghidra/decompile.sh`, `fn.py`), the
+gap map's Blocking list (functions the most gaps name), struct fields by
+name (`docs/research/re/structs.tsv`, `e.view`), harness helpers
+(`Emu(real=)`, `e.stub`), and `presubmit --quick` running GCC and
+clang-tidy on the changed files (most fix-up commits were those two).
+
+Where it stands: 372 listed gaps (341 ponytail notes, 25 todo.md rows, 6
+unverified.md), 1,697 frontier functions, 7,889 untouched. Open PRs: #119
+(fork PR #6's fixes), #130 (units slide between ticks), #150 (stack count
+helpers), each waiting on a rebase or a decision.
+
+Next:
+
+1. The ponytail sweep's group 1 down to zero, Blocking list first.
+2. The uber levels' monsters and object groups (phase 5's last gap).
+3. Live checks against the game.exe host: Act 5, the Cow Portal, co-op on
+   the Deck (`docs/design/net-host.md`).
+4. Separating engine from content, small boundary-proving steps first (a
+   plan drafted 2026-11-03, not started).
 
 ## Checkpoint 2026-10-24: Act 5 (Lord of Destruction)
 

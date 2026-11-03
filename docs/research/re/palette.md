@@ -9,9 +9,9 @@ Acts 1–5.
 
 | Address | Role |
 |---|---|
+| `FUN_004fb1e0` | Load both files, install the PL2 tables, and build the derived palette lookups. Its source string is `.\Src\D2WinPalette.cpp` at `0x006dc828`. |
 | `FUN_004fb480` | Select an act palette: `CL + 1`, clamped to 1–5; build the DAT and PL2 paths and call `FUN_004fb1e0`. |
 | `FUN_004fb500` | Load explicit DAT/PL2 paths, defaulting to Act 1 when the DAT path is null. |
-| `FUN_004fb1e0` | Load both files, install the PL2 tables, and build the derived palette lookups. Its source string is `.\Src\D2WinPalette.cpp` at `0x006dc828`. |
 | `FUN_00517079` | Archive file reader: `ECX` is the archive selector (zero here), `EDX` the path; it returns an allocated file buffer and cleans three stack arguments. |
 | `FUN_00605210` | Find the nearest palette entry to an R, G, B triple, with the first entry winning a tie. |
 

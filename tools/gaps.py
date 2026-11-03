@@ -8,6 +8,7 @@ Writes, from the repo alone (no game files, no Ghidra):
   gaps.json      totals, per-module counts, every listed gap, the frontier, credits
   functions.tsv  one row per game.exe function: status, module, callers ported, ...
   index.md       the summary page (published with GitHub Pages)
+  symbols.tsv    d2d's names and citations, for tools/ghidra/decompile.sh to put in Ghidra
 
 A function's status comes from where its address is written (FUN_xxxxxxxx,
 LAB_xxxxxxxx, 0x4b35b0 or a bare 00xxxxxx, mapped to the function holding it):
@@ -17,7 +18,9 @@ LAB_xxxxxxxx, 0x4b35b0 or a bare 00xxxxxx, mapped to the function holding it):
   untouched nowhere
 Library code Ghidra named by its signature (the CRT) and the stubs/orphans in
 stubs.md are kept out of the totals. The frontier is every untouched function
-that a ported or verified one calls: the best next things to read.
+that a ported or verified one calls: the best next things to read. Blocking
+is every function not verified yet that listed gaps name, the most first.
+An address inside a ponytail: note counts as cited, not ported.
 
 Listed gaps come from todo.md, unverified.md (above "Traced"), the ponytail:
 notes in components/ and apps/, and with --issues the open GitHub issues (gh).
@@ -75,6 +78,44 @@ def tables(lines, stop=None):
             yield i + 1, heading, dict(zip(header, cells))
 
 
+def note_spans(lines):
+    """(first line, last line, text) for each ponytail: note; a note on its own comment
+    line runs on through the comment lines under it, up to the next note or a blank one."""
+    for i, line in enumerate(lines):
+        if "ponytail:" not in line:
+            continue
+        text, last = line.split("ponytail:", 1)[1].strip(), i
+        if line.lstrip().startswith("//"):
+            while last + 1 < len(lines):
+                more = lines[last + 1].strip()
+                if not more.startswith("//") or "ponytail:" in more or not more.lstrip("/ "):
+                    break
+                text += " " + more.lstrip("/ ")
+                last += 1
+        yield i + 1, last + 1, text
+
+
+DEFINITION = re.compile(r"^(?:[\w:<>,*&\[\]]+\s+)+?[*&]?(\w+)\s*\([^;]*$")
+NOT_NAMES = {"if", "for", "while", "switch", "return", "sizeof", "catch"}
+
+
+def cpp_names(path, lines):
+    """{address: d2d name} for each C++ function whose comment block above cites exactly one FUN_."""
+    found = {}
+    stem = os.path.splitext(os.path.basename(path))[0]
+    for i, line in enumerate(lines):
+        match = DEFINITION.match(line)
+        if not match or match.group(1) in NOT_NAMES:
+            continue
+        above = i - 1
+        while above >= 0 and lines[above].lstrip().startswith("//"):
+            above -= 1
+        cited = {int(a, 16) for a in re.findall(r"FUN_00([4-7][0-9a-f]{5})", " ".join(lines[above + 1:i]))}
+        if len(cited) == 1:
+            found[cited.pop()] = f"d2d_{stem}_{match.group(1)}"
+    return found
+
+
 def gap_id(kind, *parts):
     return kind + ":" + hashlib.sha1("\0".join(parts).encode()).hexdigest()[:8]
 
@@ -108,7 +149,7 @@ def module_of(path):
 
 def build(with_issues):
     funcs = Functions((int(a, 16), n, int(s)) for a, n, s, _ in read_tsv("game-functions.tsv"))
-    info = {a: {"name": n, "size": s, "level": 0, "refs": [], "gaps": []} for a, n, s in funcs.rows}
+    info = {a: {"name": n, "size": s, "level": 0, "refs": [], "gaps": [], "d2d": set()} for a, n, s in funcs.rows}
 
     # Who cites what.
     for path in git("ls-files").splitlines():
@@ -119,13 +160,23 @@ def build(with_issues):
                 text = f.read()
         except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):
             continue
-        for number, line in enumerate(text.splitlines(), 1):
+        lines = text.splitlines()
+        # An address in a ponytail: note names what's missing: cited, not ported.
+        in_note = set()
+        if level(path) == 2:
+            for first, last, _ in note_spans(lines):
+                in_note.update(range(first, last + 1))
+        if level(path) == 2 and path.endswith((".cpp", ".hpp")):
+            for address, name in cpp_names(path, lines).items():
+                if address in info:
+                    info[address]["d2d"].add(name)
+        for number, line in enumerate(lines, 1):
             for address in addresses(line):
                 held = funcs.holding(address)
                 if held is None:
                     continue
                 entry = info[held]
-                entry["level"] = max(entry["level"], level(path))
+                entry["level"] = max(entry["level"], 1 if number in in_note else level(path))
                 if len(entry["refs"]) < 5:
                     entry["refs"].append(f"{path}:{number}")
 
@@ -164,12 +215,12 @@ def build(with_issues):
                 gaps.append({"id": gap_id(kind, title, heading), "kind": kind, "gap": is_gap,
                              "title": title, "section": heading, "source": f"{path}:{number}", "row": row,
                              "functions": sorted({f"{h:08x}" for h in map(funcs.holding, addresses(text)) if h})})
-    for hit in git("grep", "-n", "ponytail:", "--", "components", "apps").splitlines():
-        path, number, text = hit.split(":", 2)
-        note = text.split("ponytail:", 1)[1].strip()
-        gaps.append({"id": gap_id("ponytail", path, note), "kind": "ponytail", "gap": True,
-                     "title": note, "section": path, "source": f"{path}:{number}",
-                     "functions": sorted({f"{h:08x}" for h in map(funcs.holding, addresses(note)) if h})})
+    for path in git("grep", "-l", "ponytail:", "--", "components", "apps").splitlines():
+        with open(path, encoding="utf-8") as f:
+            for number, _, note in note_spans(f.read().splitlines()):
+                gaps.append({"id": gap_id("ponytail", path, note), "kind": "ponytail", "gap": True,
+                             "title": note, "section": path, "source": f"{path}:{number}",
+                             "functions": sorted({f"{h:08x}" for h in map(funcs.holding, addresses(note)) if h})})
     if with_issues:
         issues = json.loads(subprocess.run(
             ["gh", "issue", "list", "--state", "open", "--limit", "1000", "--json", "number,title,labels,url"],
@@ -193,7 +244,7 @@ def build(with_issues):
     records = []
     for a, entry in info.items():
         name = entry["name"]
-        library = not name.startswith(("FUN_", "thunk_FUN_"))
+        library = not name.startswith(("FUN_", "thunk_FUN_", "d2d_"))  # d2d_: tools/ghidra/ApplySymbols ran
         status = LEVELS[entry["level"]]
         path = files.get(a) or inferred.get(a, "")
         ported_callers = sum(1 for c in callers[a] if info[c]["level"] >= 2)
@@ -204,6 +255,8 @@ def build(with_issues):
             "callers": len(callers[a]), "callees": len(callees[a]), "ported_callers": ported_callers,
             "frontier": status == "untouched" and not library and a not in dead and ported_callers > 0,
             "refs": entry["refs"], "gaps": entry["gaps"],
+            # Two d2d functions citing one address: neither name is the whole of it.
+            "d2d_name": next(iter(entry["d2d"])) if len(entry["d2d"]) == 1 else "",
         })
 
     counted = [r for r in records if not r["library"] and not r["dead"]]
@@ -214,7 +267,11 @@ def build(with_issues):
     modules = collections.defaultdict(lambda: dict.fromkeys(LEVELS, 0))
     for r in counted:
         modules[r["module"] or "?"][r["status"]] += 1
-    frontier = sorted((r for r in records if r["frontier"]), key=lambda r: (-r["ported_callers"], r["size"]))
+    # Most-blocking first: the gaps that name it, then the ported code that calls it, then the smallest.
+    frontier = sorted((r for r in records if r["frontier"]), key=lambda r: (-len(r["gaps"]), -r["ported_callers"], r["size"]))
+    # Any function a listed gap names that isn't verified yet: one trace there settles them all.
+    blocking = sorted((r for r in records if r["gaps"] and r["status"] != "verified" and not r["library"] and not r["dead"]),
+                      key=lambda r: (-len(r["gaps"]), -r["ported_callers"], r["size"]))
     # ponytail: code d2d replaces on purpose (the renderers, Storm, Battle.net) counts as untouched;
     # give it its own kind, out of the totals like stubs.md, before this can reach zero.
     remaining = {"gaps": sum(g["gap"] for g in gaps), "frontier": len(frontier),
@@ -227,6 +284,7 @@ def build(with_issues):
         "totals": totals, "modules": dict(sorted(modules.items())),
         "remaining": remaining, "done": not any(remaining.values()),
         "frontier": [r["address"] for r in frontier],
+        "blocking": [{"address": r["address"], "gaps": len(r["gaps"]), "status": r["status"]} for r in blocking],
         "gaps": gaps, "credits": credits(),
     }, records, frontier
 
@@ -255,6 +313,15 @@ def write(out, summary, records, frontier):
         json.dump(summary, f, indent=1)
     columns = ("address", "size", "status", "module", "file", "callers", "callees", "ported_callers",
                "frontier", "library", "dead", "gaps", "refs")
+    # For tools/ghidra/scripts/ApplySymbols.java: a name where d2d has one, a comment where d2d cites it.
+    taken = collections.Counter(r["d2d_name"] for r in records if r["d2d_name"])
+    with open(os.path.join(out, "symbols.tsv"), "w", encoding="utf-8") as f:
+        f.write("address\tname\tstatus\trefs\n")
+        for r in sorted(records, key=lambda r: r["address"]):
+            if r["library"] or r["status"] == "untouched":
+                continue
+            name = r["d2d_name"] + (f"_{r['address']}" if taken[r["d2d_name"]] > 1 else "") if r["d2d_name"] else ""
+            f.write(f"{r['address']}\t{name}\t{r['status']}\t{' '.join(r['refs'])}\n")
     with open(os.path.join(out, "functions.tsv"), "w", encoding="utf-8") as f:
         f.write("\t".join(columns) + "\n")
         for r in sorted(records, key=lambda r: r["address"]):
@@ -282,9 +349,13 @@ def write(out, summary, records, frontier):
     for name, counts in sorted(summary["modules"].items(), key=lambda m: -sum(m[1].values())):
         md.append(f"| {name} | {counts['verified']} | {counts['ported']} | {counts['cited']} | {counts['untouched']} |")
     md += ["\n## Frontier\n", f"{len(frontier):,} untouched functions that ported code calls. "
-           "The top 40, most-called first:\n", "| Address | Size | Module | Ported callers |", "|---|---|---|---|"]
+           "The top 40, the most gaps and callers first:\n", "| Address | Size | Module | Ported callers |", "|---|---|---|---|"]
     for r in frontier[:40]:
         md.append(f"| `{r['address']}` | {r['size']} | {r['module'] or '?'} | {r['ported_callers']} |")
+    md += ["\n## Blocking\n", "Functions not verified yet that the most listed gaps name: trace one, settle several. "
+           "The top 20:\n", "| Address | Gaps | Status |", "|---|---|---|"]
+    for b in summary["blocking"][:20]:
+        md.append(f"| `{b['address']}` | {b['gaps']} | {b['status']} |")
     kinds = collections.Counter((g["kind"], g["gap"]) for g in summary["gaps"])
     md += ["\n## Listed gaps\n", "| Kind | Rows | A gap? |", "|---|---|---|"]
     for (kind, is_gap), n in sorted(kinds.items(), key=lambda k: (not k[0][1], k[0][0])):

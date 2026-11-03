@@ -14,7 +14,7 @@ Each topic is 15 bytes:
 
     u16 string.tbl id | u8 quest_gated | u32 quest_state | u32 quest | u32 class (7 = any)
 
-`FUN_004b1d70` finds the NPC's record. Dumped into `apps/d2d/npc_talk.hpp`.
+`FUN_004b1d70` finds the NPC's record. Dumped into `components/game/npc/npc_talk.hpp`.
 
 Akara's 13 topics are string IDs 11..23: `AkaraIntroGossip1`,
 `AkaraIntroSorGossip1`, `AkaraGossip1..11`.

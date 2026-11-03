@@ -10,7 +10,7 @@ Clicking a town NPC opens their menu ("talk", "trade", …, "cancel").
 
 `FUN_004b2e30` looks an NPC up by `unit+4` (its class, i.e. hcIdx), and
 `FUN_004b4830` builds the menu from the record. Dumped verbatim into
-`apps/d2d/npc_menu.hpp`.
+`components/game/npc/npc_menu.hpp`.
 
 String IDs:
 

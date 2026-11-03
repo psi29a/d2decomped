@@ -87,8 +87,12 @@ jobs:
             --form version="$GITHUB_SHA" \
             --form description="main build" \
             "$api/init"
-          # A refused build (the daily quota) answers 200 with a text reason.
-          jq -e .url init.json > /dev/null || { cat init.json; exit 1; }
+          # A refused build answers 200 with a text reason. The daily quota is
+          # no failure of the commit: the next merge's scan covers it.
+          if ! jq -e .url init.json > /dev/null 2>&1; then
+            if grep -q "quota" init.json; then echo "::warning::$(cat init.json)"; exit 0; fi
+            cat init.json; exit 1
+          fi
           upload_url=$(jq -r '.url' init.json)
           build_id=$(jq -r '.build_id' init.json)
           curl -sS --fail -X PUT \

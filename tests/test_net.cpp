@@ -3,6 +3,7 @@
 // The D2GS codec and the join session against a scripted host, over a
 // synthetic Huffman table (no game.exe bytes): docs/design/net-join-plan.md
 // M1-M3.
+#include <allow.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2gs/exe_tables.hpp>
 #include <d2gs/frame.hpp>
@@ -10,9 +11,8 @@
 #include <d2gs/s2c.hpp>
 #include <d2gs/s2c_names.hpp>
 #include <d2gs/split.hpp>
-#include <allow.hpp>
-#include <join.hpp>
 #include <d2gs/wire.hpp>
+#include <join.hpp>
 
 #include <array>
 #include <cassert>

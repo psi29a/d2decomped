@@ -7,13 +7,13 @@
 #include "game.hpp"
 
 #include <cof.hpp>
-#include <cube.hpp>
 #include <compcode.hpp>
+#include <cube.hpp>
 #include <d2s_items.hpp>
 #include <drlg.hpp>
 #include <ds1.hpp>
-#include <level_ids.hpp>
 #include <dt1.hpp>
+#include <level_ids.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <mpq.hpp>

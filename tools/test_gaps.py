@@ -38,6 +38,12 @@ class GapsTests(unittest.TestCase):
         rows = [row for _, _, row in gaps.tables(lines)]
         self.assertEqual(rows, [{"Address": "`0x5fd200`", "What": "a"}, {"Address": "`0x543de0`", "What": "b"}])
 
+    def test_a_note_runs_on_through_its_comment_lines(self):
+        lines = ["    // ponytail: a point given twice", "    // is dropped (FUN_00650090).", "    code();",
+                 "x();  // ponytail: trailing", "// next line", "// ponytail: one", "// ponytail: two", "//", "// after"]
+        self.assertEqual(list(gaps.note_spans(lines)), [
+            (1, 2, "a point given twice is dropped (FUN_00650090)."), (4, 4, "trailing"), (6, 6, "one"), (7, 7, "two")])
+
     def test_done_only_when_nothing_remains(self):
         self.assertTrue(gaps.done_line(dict.fromkeys(("gaps", "frontier", "untouched", "cited"), 0)).startswith("DONE"))
         self.assertEqual(gaps.done_line({"gaps": 2, "frontier": 0, "untouched": 0, "cited": 1}),

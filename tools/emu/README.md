@@ -83,7 +83,13 @@ The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
 - `emu.py`: the core `Emu` class.
   - `call(addr, *stack_args, ecx=, edx=)` calls a function. It covers
     stdcall, fastcall and cdecl (the caller pops nothing). It returns EAX.
-  - `hook(addr, fn, nstack)` replaces a game.exe function with Python.
+  - `hook(addr, fn, nstack)` replaces a game.exe function with Python;
+    `stub(value, {addr: nstack, ...})` hooks many to return one value.
+    `Emu(real={addr, ...})` keeps those game.exe's: a harness that hooks
+    them (`life_apply.Game(real=...)`) runs them for real instead.
+  - `view(kind, addr)` names a struct's fields from
+    `docs/research/re/structs.tsv`: `e.view("unit", u).mode = 3`. A field
+    not there is a KeyError: add its row, with the line that shows it.
   - `alloc`/`put`/`r32`/`s32`/`w32`/`read`/`cstr` handle memory. The heap
     is a bump allocator that never frees.
   - `crt_init()` runs the static CRT's heap and thread-data startup. It
@@ -211,7 +217,9 @@ game.exe as `emu.py` does (`--exe PATH` for another).
    `Disasm.java` shows the register args the decompiler drops (see
    `tools/ghidra/README.md`).
 2. Call it with `boot()`-style setup, then read the result structs back
-   (offsets go in the RE doc).
+   with `e.view` (a new field gets a row in `docs/research/re/structs.tsv`).
+   Start from a harness that already hooks the neighbourhood (`life_apply.Game`
+   for damage and stats) and pass `real=` for what your claim runs.
 3. When it faults, the message names the eip and the stack. Stub the
    import, or `hook` the function if it reaches outside what you're testing
    (UI, network, sound).

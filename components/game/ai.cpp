@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <array>
-#include <ranges>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -30,6 +29,7 @@
 #include <initializer_list>
 #include <limits>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>

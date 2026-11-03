@@ -10,13 +10,13 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <optional>
 #include <span>
 #include <string>
-#include <vector>
-#include <ios>
 #include <utility>
+#include <vector>
 
 namespace d2d::net::d2gs {
 

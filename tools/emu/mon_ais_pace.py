@@ -18,8 +18,8 @@ import os
 import random
 import sys
 
-import mon_ais_act1 as A
 import mon_ais as M
+import mon_ais_act1 as A
 
 SET = ("Fallen", "FallenShaman", "GargoyleTrap", "FoulCrowNest", "BloodRaven", "Wraith", "SkeletonBow")
 

@@ -62,7 +62,9 @@ We promise:
 |---|---|---|---|
 | `python3 tools/gaps.py` | git | `build/gaps/` | nothing; GitHub with `--issues` |
 | `python3 tools/pr_guard.py` | git | nothing | nothing |
+| `.githooks/pre-push`, once they run `git config core.hooksPath .githooks` | `tools/pr_guard.py --sorted` | nothing | nothing |
 | `tools/ghidra/import.sh` | Ghidra on their `game.exe` | `tools/ghidra/project/`, `docs/research/re/game-*.tsv` | nothing |
+| `tools/ghidra/decompile.sh` | `tools/gaps.py`, Ghidra on their `game.exe` | `build/gaps/`, `tools/ghidra/project/` | nothing |
 | `tools/emu`: `uv sync`, then `uv run` | Unicorn on their `game.exe` | `tools/emu/.venv`, `tools/emu/.cache` | PyPI, during `uv sync` |
 | The build (README "Build and run") | CMake, the compiler | `build/` | GitHub (CLI11, sentry-native, StormLib), ffmpeg.org (FFmpeg's source) |
 | d2d and the launcher | the game | the settings and saves folder (apps/d2d/README.md) | only what they choose: `--join` to a LAN host, crash reports if they turn them on |
@@ -80,9 +82,12 @@ We promise:
    - Trace a claim: also Ghidra (`brew install ghidra`, or a download from
      ghidra-sre.org with `GHIDRA_INSTALL_DIR` set to its folder) and
      [uv](https://docs.astral.sh/uv/), then
-     `tools/ghidra/import.sh /path/to/game.exe` (a few minutes) and
+     `tools/ghidra/import.sh /path/to/game.exe` (a few minutes),
+     `tools/ghidra/decompile.sh` (a minute: d2d's names in the C) and
      `cd tools/emu && uv sync`.
    - Fix or port: also the build in README.md "Build and run".
+   - Trace or fix: once per clone, `git config core.hooksPath .githooks`,
+     so git checks the order rules (section 7) before each push.
 3. **Pick one task from the gap map.** Build it with `python3 tools/gaps.py`
    (a second) or read https://psi29a.github.io/d2decomped/ (`gaps.json`,
    `functions.tsv`). Suggest two or three; they choose.
@@ -147,6 +152,15 @@ The same bar for everyone, people and agents alike.
 - **One claim per pull request**, with the commands that re-check it in the
   body. The reviewer re-runs them on their own copy before merging. A claim
   nobody can re-run is noted as cited, not proven.
+- **Claims may come as a batch:** several traced claims or code changes in
+  one pull request, so a run of them doesn't become a run of pull requests
+  that conflict with each other. Batch from one subsystem (one research doc
+  and the code it covers), **one claim or one code change per commit**: a
+  code change's commit carries its test and cites its game.exe address. A
+  row per commit in the body: what it says, its evidence, the command that
+  re-checks it. Each commit stands alone, so a reviewer can drop one and
+  merge the rest. Keep one batch open at a time; add to it rather than
+  opening another.
 - **A match with game.exe needs an oracle:** `tools/emu` runs game.exe's own
   code on the same inputs as d2d, then diffs the two. CI has no game.exe, so
   a maintainer runs it before merging.
@@ -208,7 +222,13 @@ The same bar for everyone, people and agents alike.
   no order of its own (an include, a source list, a `debug` verb) goes in
   its sorted place, so two pull requests touch different lines. In a
   numbered table (`todo.md`, `bugs.md`, `deviations.md`) take the next
-  number; numbers are cited elsewhere, so never renumber the old rows.
+  number; numbers are cited elsewhere, so never renumber the old rows. A
+  research table keyed by address runs in address order; one that follows
+  a call chain or a walk says so above it ("in call order").
+  `tools/pr_guard.py` (CI, on every pull request) fails an include block,
+  Python imports, a CMake source list or an address table out of order in
+  any file you touch; `git config core.hooksPath .githooks` runs that
+  check before each push (`python3 tools/pr_guard.py --sorted`).
 - **New code goes where its subsystem lives.** A subsystem split over
   several files has its own directory beside its header
   (`components/game/fight/`, `components/game/world/`, `apps/d2d/town/`,
@@ -216,5 +236,6 @@ The same bar for everyone, people and agents alike.
   matches, or start a new one there; don't grow a file past about 1,500
   lines. A new test is a new `test_*.cpp` with a `// test-links:` line
   (tests/README.md); `tests/CMakeLists.txt` finds it.
-- Before pushing: `python3 tools/presubmit.py --quick` (lint and review
-  checks), then the full run if you built.
+- Before pushing: `python3 tools/presubmit.py --quick` (lint, review
+  checks, and GCC + clang-tidy on the changed files once a build exists),
+  then the full run if you built.

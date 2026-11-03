@@ -9,12 +9,12 @@
 #include "ui.hpp"
 
 #include <d2s_items.hpp>
-#include <rules.hpp>
 #include <dc6.hpp>
 #include <font.hpp>
 #include <item_text.hpp>
 #include <merc.hpp>
 #include <palette.hpp>
+#include <rules.hpp>
 
 #include <algorithm>
 #include <array>

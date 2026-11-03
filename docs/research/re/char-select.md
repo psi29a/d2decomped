@@ -8,12 +8,12 @@ characters. Companion to [[char-create-table]] and [[frontend-menu-table]]
 
 | Addr          | Meaning                                                    |
 |---------------|------------------------------------------------------------|
-| `0x0070cc0c`  | Visible slot count. 8 on LoD (`FUN_0043ae30`); 4/5 on the classic one-column layouts (`FUN_0043b080`). Static init 5. |
-| `0x00779dc4`  | Total characters in the list.                              |
-| `0x00779dc8`  | Scroll offset = index of the character in slot 0.          |
 | `0x0070cc00`  | Selected character index (static init -1).                 |
+| `0x0070cc0c`  | Visible slot count. 8 on LoD (`FUN_0043ae30`); 4/5 on the classic one-column layouts (`FUN_0043b080`). Static init 5. |
 | `0x007799fc`  | `int[8]` slot top-y table, filled at init.                 |
 | `0x00779c84`  | Scrollbar widget (record `0xa7`).                          |
+| `0x00779dc4`  | Total characters in the list.                              |
+| `0x00779dc8`  | Scroll offset = index of the character in slot 0.          |
 | `0x00779dcc`  | Scrollbar position last applied (for delta).               |
 
 `FUN_00408f20` = "is LoD installed" (probes `d2exp.mpq`); the drawer

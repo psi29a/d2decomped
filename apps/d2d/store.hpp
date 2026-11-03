@@ -9,8 +9,8 @@
 #include <rules.hpp>
 
 #include <array>
-#include <string>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace d2d::client {

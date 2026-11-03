@@ -402,7 +402,7 @@ up the rejoin before the stones existed, and a save with the stones lit
    - LAB_005931c0: players with bits 0 and 1 clear get bit 14, and FUN_00545920(player, 4, 0) sends packet 0xd82.
 6. Log 6 (bool 1).
 
-**Tristram Cain AI** (FUN_005e7130 / 5e77a0 / 5e7880) walks Cain to a portal:
+**Tristram Cain AI** (FUN_005e7130 / 5e77a0 / 5e7880) walks Cain to a portal, in the order of the walk:
 
 | fn | role |
 |---|---|

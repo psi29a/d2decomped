@@ -5,13 +5,13 @@
 #include "common.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
+#include "tile_blit.hpp"
 #include "ui.hpp"
 #include "world_view.hpp"
-#include "tile_blit.hpp"
 
 #include <d2s_items.hpp>
-#include <weather.hpp>
 #include <overlays.hpp>
+#include <weather.hpp>
 
 #include <cstdint>
 #include <span>

@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Act 1's quests at the World's quest hooks (world.hpp: World::actN_*).
 // A new act adds its own file like this one and a call at each hook.
-#include "world.hpp"
 #include "fight.hpp"
 #include "gamedata.hpp"
 #include "log.hpp"
-#include <d2s_items.hpp>
-#include <level_ids.hpp>
-#include <monster_ids.hpp>
-#include <object_ids.hpp>
-#include <quests.hpp>
+#include "world.hpp"
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <d2s_items.hpp>
 #include <format>
 #include <iterator>
+#include <level_ids.hpp>
+#include <monster_ids.hpp>
+#include <object_ids.hpp>
+#include <quests.hpp>
 #include <string>
 #include <vector>
 

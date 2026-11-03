@@ -21,6 +21,10 @@ public class DecompileAll extends GhidraScript {
         if (out.getParentFile() != null) out.getParentFile().mkdirs();
 
         DecompInterface decomp = new DecompInterface();
+        DecompileOptions options = new DecompileOptions();
+        options.grabFromProgram(currentProgram);  // its calling conventions; the bare defaults drop fastcall args
+        options.setHeadCommentIncluded(true);  // ApplySymbols' "d2d ported: ..." notes
+        decomp.setOptions(options);
         decomp.openProgram(currentProgram);
 
         try (PrintWriter w = new PrintWriter(new BufferedWriter(new FileWriter(out)))) {

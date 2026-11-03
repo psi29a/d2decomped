@@ -16,6 +16,12 @@ cat /tmp/f.c
 
 First time ever? Do "One-time" and "Import" below first (~1 minute).
 
+Reading many functions? `tools/ghidra/decompile.sh` (a minute) decompiles
+all of game.exe into `tools/ghidra/project/game_all.c` with d2d's names
+on the functions it ports and a `/* d2d ported: file:line */` note on
+each one d2d cites; then `tools/ghidra/fn.py 00584870 FUN_0057af80` prints
+them. Rerun it after porting: the names come from the code.
+
 ## Why it exists
 
 - game.exe is the ground truth. Every rule in d2d cites the game.exe
@@ -34,6 +40,8 @@ First time ever? Do "One-time" and "Import" below first (~1 minute).
 | `FieldUses.java` | base, field | every use of a struct field |
 | `FindPattern.java` | hex bytes | where a byte pattern sits |
 | `DumpBytes.java` | range, file | raw bytes as hex |
+| `ApplySymbols.java` | `symbols.tsv` | d2d's names and citations on the functions (`decompile.sh` runs it) |
+| `DecompileAll.java` | `<out.c>` | C for every function, with those notes |
 | `ExportCalls.java` | out dir | `game-calls.tsv` (every caller → callee) and `game-srcfiles.tsv` (the source file each function's asserts name), for `tools/gaps.py` |
 
 Each run takes ~2.5 s; batch several `-postScript` calls in one run.

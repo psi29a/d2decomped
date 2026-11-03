@@ -12,8 +12,8 @@
 #include <combat.hpp>
 #include <dc6.hpp>
 #include <dt1.hpp>
-#include <palette.hpp>
 #include <overlays.hpp>
+#include <palette.hpp>
 #include <room_tiles.hpp>
 #include <weather.hpp>
 

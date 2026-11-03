@@ -17,8 +17,8 @@ people too.
 | Kind | You need | You give |
 |---|---|---|
 | **Play and report** | a [release](https://github.com/psi29a/d2decomped/releases) and your own D2 1.14d install | an issue: what you did, what the original game does, `d2d.log`, a screenshot |
-| **Trace a claim** | the above + Ghidra and [uv](https://docs.astral.sh/uv/) | a pull request with one claim about game.exe, and the address that proves it |
-| **Fix or port** | the above + a build ([README](README.md#build-and-run)) | a pull request with a test, citing where in game.exe the behaviour comes from |
+| **Trace a claim** | the above + Ghidra and [uv](https://docs.astral.sh/uv/) | a pull request with one claim about game.exe and the address that proves it, or a batch of them from one subsystem |
+| **Fix or port** | the above + a build ([README](README.md#build-and-run)) | a pull request with a test, citing where in game.exe the behaviour comes from; or a batch from one subsystem, one change and its test per commit |
 
 What's left is on the **[gap map](https://psi29a.github.io/d2decomped/)**:
 every game.exe function marked untouched, cited, ported or verified, every
@@ -57,7 +57,10 @@ We ask only for the three kinds of work above, and we promise:
   MPQ data, the installer, `game.exe`, the Ghidra project, decompiled C or
   `game-strings.tsv` ([LEGAL.md](LEGAL.md)).
 - **One claim per pull request or issue**, with the commands that re-check
-  it. Small and checkable beats big and vague.
+  it. Small and checkable beats big and vague. Traced claims and code changes
+  can come as one batch from one subsystem instead, one claim or one change
+  per commit, a row each (AGENTS.md "Evidence"), so they don't arrive as a
+  pile of pull requests that conflict.
 - **Say which agent helped** (`Agent: <name>` or `Agent: none`). Any agent is
   welcome, and the checks are the same either way. Read what it wrote before
   you send it: it's your name on it.
@@ -68,10 +71,13 @@ The same for every pull request, whoever or whatever wrote it:
 
 - `tools/pr_guard.py` runs on every pull request. It fails addresses that
   can't be in game.exe (a `FUN_` inside another function's body is one)
-  and binary files. It also stops a change that touches CI, downloads,
+  and binary files, and lists that should sort and don't (includes,
+  imports, CMake sources, address tables: add where it sorts, not at the
+  end). It also stops a change that touches CI, downloads,
   networking, process launches or the agent instructions until a
   maintainer has read it and added the `security-reviewed` label.
-  Run it yourself first: `python3 tools/pr_guard.py`.
+  Run it yourself first: `python3 tools/pr_guard.py`, or have git run the
+  order check before each push: `git config core.hooksPath .githooks`.
 - A reviewer re-runs your evidence on their own copy before merging.
 - Changes to CI, the build, the tools, the launcher and the agent
   instructions need a maintainer's review (`.github/CODEOWNERS`).

@@ -7,28 +7,28 @@
 #include "audio.hpp"
 #include "common.hpp"
 #include "controls.hpp"
-#include "help.hpp"
-#include "hireling.hpp"
-#include "party.hpp"
 #include "gamemenu.hpp"
 #include "gamepad_map.hpp"
+#include "help.hpp"
+#include "hireling.hpp"
 #include "netgame.hpp"
 #include "panels.hpp"
+#include "party.hpp"
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
 #include "skillbar.hpp"
 #include "store.hpp"
+#include "tile_blit.hpp"
 #include "ui.hpp"
 #include "world_view.hpp"
-#include "tile_blit.hpp"
 
 #include <d2s_items.hpp>
-#include <quests.hpp>
 #include <overlays.hpp>
+#include <quests.hpp>
 #include <rules.hpp>
-#include <shrines.hpp>
 #include <shake.hpp>
+#include <shrines.hpp>
 #include <skills.hpp>
 #include <weather.hpp>
 

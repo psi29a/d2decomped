@@ -4,8 +4,8 @@
 
 #include "controls.hpp"
 
-#include "platform.hpp"
 #include "d2d_icon.hpp"
+#include "platform.hpp"
 #include "ui.hpp"
 
 #include <log.hpp>

@@ -3,17 +3,17 @@
 
 #include "game_api.hpp"
 
-#include <shake.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2gs/c2s_names.hpp>
 #include <d2gs/exe_tables.hpp>
 #include <d2gs/s2c.hpp>
 #include <d2gs/s2c_names.hpp>
 #include <d2gs/wire.hpp>
-#include <log.hpp>
-#include <monster_ids.hpp>
 #include <d2s_items.hpp>
 #include <join.hpp>
+#include <log.hpp>
+#include <monster_ids.hpp>
+#include <shake.hpp>
 #include <tcp.hpp>
 
 #include <algorithm>
@@ -21,17 +21,17 @@
 #include <bitset>
 #include <chrono>
 #include <cmath>
-#include <format>
-#include <string_view>
-#include <utility>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <expected>
 #include <filesystem>
+#include <format>
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {

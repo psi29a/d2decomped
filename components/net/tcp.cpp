@@ -10,19 +10,19 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #else
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <netinet/tcp.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <unistd.h>
 #include <cerrno>
 #include <cstdint>
 #include <expected>
+#include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <optional>
+#include <poll.h>
 #include <span>
+#include <sys/socket.h>
+#include <unistd.h>
 #endif
 
 namespace d2d::net {
