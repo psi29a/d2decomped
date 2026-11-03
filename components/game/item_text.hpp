@@ -255,27 +255,41 @@ inline constexpr std::uint8_t kSpeedColumn[7][2] = { { 0, 2 }, { 1, 4 }, { 1, 4 
 // An item's required level (FUN_0062b5b0): its affixes' / set item's /
 // unique's levelreq (crafted: the highest affix + 10 + 3 per affix, at
 // most 98), at least the base's and each socketed item's, plus
-// item_levelreq (stat 92); never below 0.
-// ponytail: no classlevelreq, automagic affix or the charged / oskill
-// skills' levels (stats 97, 107).
-inline int required_level(const GameData& game_data, const d2d::d2s::Item& item) {
+// item_levelreq (stat 92); never below 0. An affix of the wearer's class
+// (`cls`, a player's; -1 none) takes its classlevelreq. A +skill (stat 107)
+// needs that skill's reqlevel (Skills +0x174), an other class's skill
+// (stat 97, item_nonclassskill) its reqlevel + 6 unless it's the wearer's
+// class's.
+// ponytail: no automagic affix.
+inline int required_level(const GameData& game_data, const d2d::d2s::Item& item, int cls = -1) {
     auto level_at = [](const std::vector<int>& levels, int index) { return index >= 0 && std::size_t(index) < levels.size() ? levels[std::size_t(index)] : 0; };
+    auto affix_level = [&](bool prefix, int index) {
+        const auto& class_req = prefix ? game_data.prefix_class_req : game_data.suffix_class_req;
+        if (cls >= 0 && index >= 0 && std::size_t(index) < class_req.size() && class_req[std::size_t(index)].first == cls) return class_req[std::size_t(index)].second;
+        return level_at(prefix ? game_data.prefix_req : game_data.suffix_req, index);
+    };
     int level = 0;
     switch (item.quality) {
-        case 4: level = std::max(level_at(game_data.prefix_req, item.prefix), level_at(game_data.suffix_req, item.suffix)); break;
+        case 4: level = std::max(affix_level(true, item.prefix), affix_level(false, item.suffix)); break;
         case 5: level = level_at(game_data.set_req, item.set_id); break;
         case 7: level = level_at(game_data.unique_req, item.unique_id); break;
         case 6: case 8: {
             int count = 0;
             for (std::size_t i = 0; i < 6; ++i)
-                if (item.affixes[i] > 0) { level = std::max(level, level_at(i % 2 == 0 ? game_data.prefix_req : game_data.suffix_req, item.affixes[i])); ++count; }
+                if (item.affixes[i] > 0) { level = std::max(level, affix_level(i % 2 == 0, item.affixes[i])); ++count; }
             if (item.quality == 8) level = std::min(level + 10 + 3 * count, 98);
             break;
         }
         default: break;
     }
     if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end()) level = std::max(level, info->second.req_lvl);
-    for (const auto& socketed : item.socketed_items) level = std::max(level, required_level(game_data, socketed));
+    for (const auto& socketed : item.socketed_items) level = std::max(level, required_level(game_data, socketed, cls));
+    static constexpr std::array<std::string_view, 7> kClassCodes = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
+    for (const auto& prop : item.props)
+        if (const auto* skill = prop.stat == d2d::d2s::kSingleSkill || prop.stat == 97 ? game_data.skills.get(prop.param) : nullptr) {
+            const bool own = cls >= 0 && cls < 7 && skill->cls == kClassCodes[std::size_t(cls)];
+            level = std::max(level, skill->reqlevel + (prop.stat == 97 && !own ? 6 : 0));
+        }
     for (const auto& prop : item.props) if (prop.stat == d2d::d2s::kLevelRequirement) level += int(prop.value);
     return std::max(level, 0);
 }
@@ -504,7 +518,7 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
         if (info->second.req_dex && dex > 0) requirement(string_id(game_data, 3459) + space + std::to_string(dex), !wearer || (wearer->dex > 0 && wearer->dex >= dex));
         if (info->second.req_str && strength > 0) requirement(string_id(game_data, 3458) + space + std::to_string(strength), !wearer || (wearer->str > 0 && wearer->str >= strength));
     }
-    if (const int level = required_level(game_data, item); item.identified && level > 1)
+    if (const int level = required_level(game_data, item, cls); item.identified && level > 1)
         requirement(string_id(game_data, 3469) + space + std::to_string(level), !wearer || wearer->lvl >= level);
     // Weapon speed (FUN_0062a710): the class's A1 frames << 8 over the
     // animation speed x (100 + IAS (93) - WSM) / 100, banded; class name first.

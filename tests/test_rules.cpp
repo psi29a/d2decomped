@@ -176,18 +176,18 @@ int main() {
     std::vector<Item> inv;
     d2d::d2s::Stats stats;
     stats.values[kGold] = 300; stats.values[kGoldBank] = 1000; stats.values[kLevel] = 1;
-    assert(store_buy(tables, shop, 0, inv, stats));
+    assert(store_buy(tables, shop, 0, inv, stats) == Trade::done);
     assert(stats.get(kGold) == 0 && stats.get(kGoldBank) == 300);
     assert(inv.size() == 1 && inv[0].panel == 1 && shop.tabs[1].size() == 1);
-    assert(!store_buy(tables, shop, 0, inv, stats));                              // can't afford: nothing changes
+    assert(store_buy(tables, shop, 0, inv, stats) == Trade::no_gold);              // can't afford: nothing changes
     assert(stats.get(kGoldBank) == 300 && inv.size() == 1);
     shop.tab = 3;
-    assert(store_buy(tables, shop, 0, inv, stats) && shop.tabs[3].size() == 1);   // perm: still stocked
+    assert(store_buy(tables, shop, 0, inv, stats) == Trade::done && shop.tabs[3].size() == 1);   // perm: still stocked
     std::vector<Item> packed = { item("inv") };
     packed[0].panel = 1;
     shop.tab = 1;
     stats.values[kGoldBank] = 100000;
-    assert(!store_buy(tables, shop, 0, packed, stats) && stats.get(kGoldBank) == 100000);   // no room
+    assert(store_buy(tables, shop, 0, packed, stats) == Trade::no_room && stats.get(kGoldBank) == 100000);   // no room
 
     // Selling (FUN_00579510): gold up to clvl x 10000, the rest handed back to
     // drop (FUN_0055b060); the item joins the stock, a perm one doesn't.
@@ -198,6 +198,14 @@ int main() {
     assert(inv.size() == 1 && shop.tabs[1].size() == 2);
     const auto stocked_keys = shop.tabs[3].size();
     assert(store_sell(tables, shop, 0, inv, stats) >= 0 && inv.empty() && shop.tabs[3].size() == stocked_keys);   // the key: perm
+    // A vendor buys none with flag 0x1000, no quest item, nothing of type ques (FUN_0062a130).
+    assert(sellable(tables, item("hax")));
+    Item serviced = item("hax");
+    serviced.flags |= kItemNoService;
+    assert(!sellable(tables, serviced));
+    tables.item_base["leg"].quest = true;
+    tables.item_info["bks"].type = "ques";
+    assert(!sellable(tables, item("leg")) && !sellable(tables, item("bks")));
 
     // The item cursor.
     Tables cursor_tables;
@@ -571,9 +579,9 @@ int main() {
     purse.values[kLevel] = 10; purse.values[kGold] = 100; purse.values[kGoldBank] = 100000;
     gam.tab = 3;
     const auto rings = gam.tabs[3].size();
-    assert(store_gamble(gamble_tables, gam, 0, bag, purse) && bag.size() == 1 && bag[0].code == "rin" && bag[0].identified);
+    assert(store_gamble(gamble_tables, gam, 0, bag, purse) == Trade::done && bag.size() == 1 && bag[0].code == "rin" && bag[0].identified);
     assert(purse.get(kGold) == 0 && purse.get(kGoldBank) == 100000 - 49900 && gam.tabs[3].size() == rings - 1);   // the bought one leaves
-    assert(!store_gamble(gamble_tables, gam, 0, bag, purse) && bag.size() == 1);                                // the amulet: 60000, can't
+    assert(store_gamble(gamble_tables, gam, 0, bag, purse) == Trade::no_gold && bag.size() == 1);                                // the amulet: 60000, can't
     // Mercenaries: the hire list's offers and hiring.
     Tables merc_tables;
     merc_tables.hirelings = { { .version = 100, .id = 0, .act = 1, .difficulty = 1, .level = 3, .gold = 100, .exp_per_level = 100,

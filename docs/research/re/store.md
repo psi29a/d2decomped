@@ -192,8 +192,21 @@ The base y is 539 (= 60 + 255 + 224):
   `rules::make_store_item` (the upgrades, the item off the game seed as a
   drop, magic affixes as drops.md "Magic", the Cracked retry), on its
   type's StorePage. Not yet: FUN_00560200's own spot search (first fit by
-  column), the 4-minute restock (FUN_00537230: the stock lasts the game),
-  quest-item refusal, messages.
+  column), the 4-minute restock (FUN_00537230: the stock lasts the game).
+
+## Refusals (S->C 0x2a results)
+
+- A buy (FUN_00577830, gamble included): price over carried + stash gold
+  sends 12, no spot for it 10, a cursor item 7, a failed copy 9.
+- A sale (FUN_00579510): FUN_0062a130 refuses flag 0x1000, an Items.txt
+  quest item (+0x12a: Wirt's leg too) and type 0x27 (ques) with 9.
+- The client (FUN_004b6390 -> FUN_004b53f0) answers 7..0x10 with an
+  NPC-menu box at the mouse (FUN_00468730 / 40): the text in colour 1
+  (red), line height 0x15, over "Continue" (0xd4b, height 0xf, handler
+  0x4b4cf0). Texts: 7 / 8 0xd1e, 9 / 0xd / 0xe 0xd21, 10 0xd1c, 11 0xd20,
+  12 0xd22, 15 0xd23, 16 0xd1d (string.tbl "TransactionResults4".."11").
+- d2d: `rules::Trade`, `rules::sellable`, `ev::TradeRefused`,
+  `open_trade_refused`.
 
 ## Repair (FUN_0062efb0 mode 3)
 

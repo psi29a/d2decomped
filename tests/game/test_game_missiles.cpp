@@ -345,8 +345,12 @@ int main() try {
         world.fight.pending.clear();
         world.actor->cast_x = world.actor->player.x + 3; world.actor->cast_y = world.actor->player.y;
         const int double_throw = data->skills.by_name.at("Double Throw");
-        world.fight.spot(*data->skills.get(double_throw), 5000 * kTickMs, world.fight.player_caster(double_throw));
+        auto thrower = world.fight.player_caster(double_throw);
+        thrower.level = 3;
+        world.fight.spot(*data->skills.get(double_throw), 5000 * kTickMs, thrower);
         assert(world.fight.pending.size() == 2);
+        // ... each at the skill's toht (stat 19, FUN_006449f0): ToHit 20 + LevToHit 10 a level past 1.
+        assert(std::ranges::all_of(world.fight.pending, [](const Missile& thrown) { return thrown.ar_pct == 20 + 10 * 2; }));
         assert(std::ranges::none_of(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm; }));
         assert(std::ranges::any_of(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kLeftArm && item.quantity == 4; }));
         world.fight.pending.clear();

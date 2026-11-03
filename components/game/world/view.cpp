@@ -175,7 +175,9 @@ auto World::view() const -> View {
             d2d::rules::StatSum sum{};
             (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);
             view.light_bonus = sum.size() > d2d::d2s::kLightRadius ? int(sum[d2d::d2s::kLightRadius]) : 0;
-            view.attack_lines = actor->character.panel.attack;
+            view.panel = actor->character.panel;
+            view.stat_sum.clear();
+            for (std::size_t stat = 0; stat < actor->psum.size(); ++stat) if (actor->psum[stat] != 0) view.stat_sum.emplace_back(int(stat), int(actor->psum[stat]));
             if (actor->store.npc >= 0) {
                 view.store = actor->store;
                 view.store->reduced = int(sum[d2d::d2s::kReducedPrices]);   // the player's gear: off what the store charges

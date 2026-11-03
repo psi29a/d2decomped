@@ -266,8 +266,8 @@ struct Town {
     void pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out, int left_item = -1, int right_item = -1);   // the items: the hands' charged entries
     // Local co-op's other players at this screen (seats 1..3,
     // docs/design/local-coop.md): their World player (id 0 while their
-    // roster is up), pad and orders.
-    // ponytail: they play the field only; panels and menus wait for phase 5.
+    // roster is up), pad and orders. A panel or menu they open takes the
+    // screen (take_focus).
     struct CoopPlayer { int seat = 0, id = 0, colour = 0; PadPlayer pad; pad::Mapper mapper; std::vector<Command> orders; std::optional<Roster> roster; };
     std::vector<CoopPlayer> coop;
     int lead_colour = 0;                          // the first player's seat colour (pad::Seats::colour)
@@ -371,10 +371,11 @@ struct Town {
     // or Cube is up (no key toggles them) and the cursor's on no item: true when it's taken.
     [[nodiscard]] bool pad_back(int mouse_x, int mouse_y) const;
     // The skill tooltips' calcs: the character's skill points and their
-    // item bonuses, the stats of their gear and passives.
-    // ponytail: no auras' or states' stats, no weapon masteries (the World's
-    // fight sums those; a joined game has none).
+    // item bonuses, and the stats the World's calcs read (View::stat_sum:
+    // gear, passives, masteries, states).
     [[nodiscard]] d2d::rules::CalcEnv tip_env() const;
+    std::array<std::string, 4> belt_key_names{};
+    bool menu_press = false;                       // an NPC menu took this press: the store ignores it till it's let go   // Use Belt 1..4's keys by name (update_hotkey_names)
     void pad_tab(int step);
     void pad_open_picker();
     std::unordered_map<int, Automap> other_automaps;   // other Layers' maps, while elsewhere

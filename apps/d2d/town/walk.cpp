@@ -386,7 +386,10 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         publish();
         // What the World said, handled once the View it came in is here
         // (the hire list's offers come with it).
-        for (const auto& event : view.events) handle(event, audio, frame_ms);
+        for (const auto& event : view.events) {
+            if (const auto* refused = std::get_if<ev::TradeRefused>(&event); refused && store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, refused->result, mouse.x, mouse.y);
+            handle(event, audio, frame_ms);
+        }
         // A partner's: a window to open (an NPC talked to, the stash) takes
         // the screen when it's free; the rest is the screen's business only.
         for (auto& other : world.players) {
@@ -433,6 +436,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
         if (std::holds_alternative<ev::Reassigned>(event)) { rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id)); return; }
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.play_sfx(*scene, music->sound, float(audio.music_volume) / 100.f, 0); return; }
+        if (std::holds_alternative<ev::TradeRefused>(event)) return;   // walk() opens its box, at the mouse
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once
             speech = start_speech(*scene, object_speech->npc, std::uint16_t(object_speech->string), frame_ms);
             send(cmd::QuestMessage{ object_speech->npc, object_speech->string });

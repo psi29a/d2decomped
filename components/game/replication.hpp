@@ -177,8 +177,16 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         for (const auto quest : view.quest_log) chunk.u8(quest);
         for (const auto quest : view.game_quests) chunk.u16(quest);
         chunk.i32(view.den_left);
-        for (const auto& line : view.attack_lines)
+        const auto& panel = view.panel;
+        for (const std::int64_t number : { panel.next, panel.defense }) chunk.u32(std::uint32_t(number)).u32(std::uint32_t(std::uint64_t(number) >> 32));
+        for (const auto* numbers : { &panel.res, &panel.res_cap }) for (const auto number : *numbers) chunk.i32(int(number));
+        for (const auto number : panel.bonus) chunk.i32(int(number));
+        for (const auto* numbers : { &panel.max_percent, &panel.max_flat }) for (const auto number : *numbers) chunk.i32(int(number));
+        for (const auto& line : panel.attack)
             chunk.i32(line.skill).u8(line.damage).i32(line.min).i32(line.max).u8(line.damage_colour).i32(line.attack_rating).u8(line.ar_colour);
+        chunk.u8(panel.blue).u8(panel.red);
+        chunk.u16(int(view.stat_sum.size()));
+        for (const auto& [stat, val] : view.stat_sum) chunk.u16(stat).i32(val);
         chunk.u16(int(view.boost.size()));
         for (const auto& [stat, val] : view.boost) chunk.i32(stat).i32(val);
         chunk.u8(view.boost_code);
@@ -330,6 +338,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         else if (std::holds_alternative<ev::Reassigned>(event)) out.u8(5);
         else if (std::holds_alternative<ev::Lightning>(event)) out.u8(6);
         else if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) out.u8(7).u8(int(quake->kind));
+        else if (const auto* refused = std::get_if<ev::TradeRefused>(&event)) out.u8(8).u8(int(refused->result));
         else {
             const auto& open_ui = std::get<ev::OpenUI>(event);
             out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
@@ -391,10 +400,18 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         for (auto& quest : view.quest_log) quest = std::uint8_t(byte());
         for (auto& quest : view.game_quests) quest = std::uint16_t(u16());
         view.den_left = i32();
-        for (auto& line : view.attack_lines) {
+        auto& panel = view.panel;
+        for (auto* number : { &panel.next, &panel.defense }) { const std::uint64_t low = u32(), high = u32(); *number = std::int64_t(low | high << 32); }
+        for (auto* numbers : { &panel.res, &panel.res_cap }) for (auto& number : *numbers) number = i32();
+        for (auto& number : panel.bonus) number = i32();
+        for (auto* numbers : { &panel.max_percent, &panel.max_flat }) for (auto& number : *numbers) number = i32();
+        for (auto& line : panel.attack) {
             line.skill = i32(); line.damage = byte() != 0; line.min = i32(); line.max = i32(); line.damage_colour = byte();
             line.attack_rating = i32(); line.ar_colour = byte();
         }
+        panel.blue = std::uint8_t(byte()); panel.red = std::uint8_t(byte());
+        view.stat_sum.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) { const int stat = u16(); view.stat_sum.emplace_back(stat, i32()); }
         view.boost.clear();
         for (int count = u16(); count > 0 && input.ok; --count) { const int stat = i32(); view.boost.emplace_back(stat, i32()); }
         view.boost_code = byte();
@@ -557,6 +574,10 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             const auto kind = byte();
             if (kind > d2d::rules::QuestQuake::diablo) return false;
             view.events.push_back(ev::QuestQuake{ d2d::rules::QuestQuake::Kind(kind) });
+        } else if (kind_byte == 8) {
+            const auto result = d2d::rules::Trade(byte());
+            if (result != d2d::rules::Trade::refused && result != d2d::rules::Trade::no_room && result != d2d::rules::Trade::no_gold) return false;
+            view.events.push_back(ev::TradeRefused{ result });
         } else {
             const auto kind = ev::OpenUI::Kind(byte());
             ev::OpenUI open_ui{ kind, i32() };

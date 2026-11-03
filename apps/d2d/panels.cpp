@@ -18,6 +18,7 @@
 #include <quests.hpp>
 #include <automap_scroll.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 
 #include <algorithm>
 #include <array>
@@ -84,7 +85,7 @@ void draw_sockets(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 // the used quest consumables' red (FUN_00483f80) aren't told apart.
 void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect) {
     static constexpr std::array<std::array<int, 3>, 3> kTints{ { { 144, 0, 0 }, { 140, 64, 64 }, { 24, 0, 104 } } };   // act 1's 0x08 / 0x4d / 0xea
-    const bool usable = d2d::rules::meets_requirements(scene.rules, item, wearer, d2d::game::required_level(scene, item)) && !(item.flags & 0x4100u);
+    const bool usable = d2d::rules::meets_requirements(scene.rules, item, wearer, d2d::game::required_level(scene, item, wearer.cls)) && !(item.flags & 0x4100u);
     const auto& tint = kTints[!usable ? 0 : !item.identified ? 1 : 2];
     const int screen_w = fb_width(framebuffer);
     for (int y_pos = std::max(rect[1], 0); y_pos < std::min(rect[1] + rect[3], int(kScreenHeight)); ++y_pos)
@@ -211,10 +212,9 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     // mana/stamina); name font16/font8/font6 by length, class font16.
     // Colour (local_8 in FUN_004a7d00): strength .. max stamina blue when
     // their total is over the character's own, red when under (life, mana,
-    // stamina themselves stay white); a resistance gold at its cap, red
-    // below 0.
-    // ponytail: the states' part (Battle Orders' life, a curse's resistances
-    // blue / red, defense) isn't coloured: the panel sees items and passives.
+    // stamina themselves stay white). Defense and the resistances take
+    // their states' blue / red (red wins); a resistance at its cap is gold
+    // unless blue, one below 0 red.
     auto pick = [&](const d2d::font::Font& font) -> const d2d::font::Font& {
         return font.line_height() > 0 ? font : scene.font;
     };
@@ -252,14 +252,20 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
             if (value_def.id <= d2d::d2s::kVit) value += bonus;
             colour = bonus > 0 ? 3 : bonus < 0 ? 1 : 0;
         }
-        auto res = [&](int resist_index) { value = panel.res[std::size_t(resist_index)]; colour = value >= panel.res_cap[std::size_t(resist_index)] ? 4 : value < 0 ? 1 : 0; };
+        auto state_colour = [&](std::uint8_t bit) { return (panel.red & bit) ? 1 : (panel.blue & bit) ? 3 : 0; };
+        auto res = [&](int resist_index, std::uint8_t bit) {
+            value = panel.res[std::size_t(resist_index)];
+            colour = state_colour(bit);
+            if (value >= panel.res_cap[std::size_t(resist_index)]) colour = colour == 3 ? 3 : 4;
+            else if (value < 0) colour = 1;
+        };
         switch (value_def.id) {
             case d2d::d2s::kNextExperience: value = panel.next; break;
-            case d2d::d2s::kArmorClass: value = panel.defense; break;
-            case d2d::d2s::kFireResist: res(0); break;
-            case d2d::d2s::kColdResist: res(1); break;
-            case d2d::d2s::kLightningResist: res(2); break;
-            case d2d::d2s::kPoisonResist: res(3); break;
+            case d2d::d2s::kArmorClass: value = panel.defense; colour = state_colour(d2d::rules::kPanelDefense); break;
+            case d2d::d2s::kFireResist: res(0, d2d::rules::kPanelFire); break;
+            case d2d::d2s::kColdResist: res(1, d2d::rules::kPanelCold); break;
+            case d2d::d2s::kLightningResist: res(2, d2d::rules::kPanelLightning); break;
+            case d2d::d2s::kPoisonResist: res(3, d2d::rules::kPanelPoison); break;
             default: break;
         }
         if (value_def.id == d2d::d2s::kNextExperience && value < 0) continue;                // max level: blank
@@ -655,7 +661,7 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state) {
 }
 
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup) {
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const auto& belt = scene.belts[std::size_t(belt_index(scene, items))];
     const int rows = belt.boxes / 4;
@@ -674,6 +680,11 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
             const auto& frame = spr->frame(0, 0);
             blit_sprite(framebuffer, frame, scene.item_pal(item, pal), box[0] + (box[1] - box[0] + 1 - int(frame.width)) / 2,
                         box[2] + (box[3] - box[2] + 1 - int(frame.height)) / 2);
+        }
+        if (const auto base = scene.rules.item_base.find(item.code); item.column < 4 && !keys[std::size_t(item.column)].empty() && base != scene.rules.item_base.end() && base->second.useable) {
+            auto name = keys[std::size_t(item.column)];
+            while (!name.empty() && scene.font.measure(name) > 0x1c) name.pop_back();
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, box[0] + 2, box[3] - 2 - int(scene.font.sheet().frame(0, 0).height) + 1, name, 199, 179, 119);
         }
         if (mouse_x >= box[0] && mouse_x <= box[1] && mouse_y >= box[2] && mouse_y <= box[3]) { hover = &item; hover_box = box; }
     }

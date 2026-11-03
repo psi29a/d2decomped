@@ -225,7 +225,7 @@ struct Fight {
         float prate = 1.f;                     // the mode's animation rate (attack speed, FHR, FBR)
         d2d::rules::Fighter player_combat;                // the player in a fight, as of this frame
         d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)
-        d2d::rules::StatSum psum{};            // the player's stats (gear, passives) as of this frame
+        d2d::rules::StatSum psum{};            // the player's stats (gear, passives, masteries, states) as of this frame
         float cast_x = 0, cast_y = 0;          // where a missile skill was sent
         int aura = 0;                          // the aura on (Town: the right skill when it's one)
         // The player's summons (skills.md "Summons"): a Monster of the skill's
@@ -718,7 +718,7 @@ struct Fight {
     //      many subtiles, each a missile of the count's (fire, ice cubes).
     // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.
     // ponytail: 37 (Claws of Thunder's bolts, FUN_005d4150), 40 / 41 / 143
-    // (Royal Strike, level 30, past Act 1; Fists of Fire's first) are
+    // (Royal Strike; Fists of Fire's first) are
     // logged once; 39's points come from d2d's rng.
     void release(std::size_t monster_index, std::uint32_t now_ms) { release(actor->charges, monster_index, now_ms, true); }
     void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels);
@@ -1040,10 +1040,10 @@ struct Fight {
     // else 0 — with MonLvl's own defense and attack rating at it (stats 31
     // / 19), life + calc1 %.
     // Past petmax of its pettype the oldest goes.
-    // ponytail: the skill's aurastats / passive stats / sumskills / sumumod
-    // on the pet (FUN_005c4470), Skeleton and Golem Mastery (FUN_005d6b60),
-    // the skeletal mage's missile and the golems' specials aren't built;
-    // pets stay in the Blood Moor.
+    // The skill's passive stats, aurastats and sumskills land on it as
+    // summons.cpp has them (FUN_005c4470; the masteries come in that way).
+    // ponytail: sumumod and the golems' specials (Blood Golem's life link,
+    // Iron Golem's item) aren't built.
     // A skill by its name as the tables write it (Fire Golem's sumskill
     // says 'holy fire').
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
@@ -1099,7 +1099,7 @@ struct Fight {
     // ticks, its aurastats (toblock dm56) on the player.
     // ponytail: the aura events (+0x84) and the passive part
     // (FUN_005c6dc0) aren't read; a shield is assumed (itypea1 shie isn't
-    // checked). A level 24 skill: past Act 1.
+    // checked).
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost (FUN_0056bfe0): a charged entry's (Hero::charge, for
     // that skill) is a charge and no mana, else the skill's mana.

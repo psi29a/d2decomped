@@ -79,8 +79,14 @@ auto Town::update_hotkey_names() -> void {
             const int action = slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8;
             auto key = keys::key_of(key_table, action, 1);
             if (key == keys::kNone) key = keys::key_of(key_table, action, 0);
-            const auto id = keys::name_id(key);
-            skillbar.hotkey_names[std::size_t(slot)] = key == keys::kNone ? std::string{} : id ? string_id(*scene, id) : std::string(1, char(key & 0xff));
+            const auto key_name_id = keys::name_id(key);
+            skillbar.hotkey_names[std::size_t(slot)] = key == keys::kNone ? std::string{} : key_name_id ? string_id(*scene, key_name_id) : std::string(1, char(key & 0xff));
+        }
+        for (int slot = 0; slot < 4; ++slot) {                     // the belt's (FUN_00499040)
+            auto key = keys::key_of(key_table, keys::kBelt1 + slot, 1);
+            if (key == keys::kNone) key = keys::key_of(key_table, keys::kBelt1 + slot, 0);
+            const auto key_name_id = keys::name_id(key);
+            belt_key_names[std::size_t(slot)] = key == keys::kNone ? std::string{} : key_name_id ? string_id(*scene, key_name_id) : std::string(1, char(key & 0xff));
         }
     }
 

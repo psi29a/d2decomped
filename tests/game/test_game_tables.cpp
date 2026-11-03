@@ -258,6 +258,22 @@ int main() try {
         assert(worn.size() == 4 && value(d2d::d2s::kColdMinDamage) == 15 && value(d2d::d2s::kColdMaxDamage) == 20);
         std::printf("OK: Vidala's Rig's full set, 15-20 cold\n");
     }
+    {
+        // FUN_0062b5b0: an affix of the wearer's class takes its classlevelreq
+        // (MagicSuffix "of Lightning": 18, a Sorceress 9); an other class's
+        // skill (stat 97) needs its reqlevel + 6, the wearer's own class's not.
+        d2d::d2s::Item wand{ .code = "wnd", .identified = true };
+        wand.quality = 4; wand.suffix = 438;
+        assert(data->suffix_class_req.at(438) == std::pair(1, 9));
+        assert(d2d::game::required_level(*data, wand) == 18 && d2d::game::required_level(*data, wand, 1) == 9 && d2d::game::required_level(*data, wand, 0) == 18);
+        const int blizzard = int(data->skills.by_name.at("Blizzard"));
+        d2d::d2s::Item amulet{ .code = "amu", .identified = true };
+        amulet.props = { { .stat = 97, .param = blizzard, .value = 1 } };
+        assert(d2d::game::required_level(*data, amulet, 1) == 24 && d2d::game::required_level(*data, amulet, 0) == 30 && d2d::game::required_level(*data, amulet) == 30);
+        amulet.props = { { .stat = d2d::d2s::kSingleSkill, .param = blizzard, .value = 1 } };
+        assert(d2d::game::required_level(*data, amulet, 0) == 24);
+        std::printf("OK: classlevelreq and the +skill stats' reqlevel in the required level\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

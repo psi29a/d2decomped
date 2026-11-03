@@ -185,7 +185,7 @@ inline bool use_charge(std::vector<d2d::d2s::Item>& items, const ChargedSkill& e
 // into 4 / 5, weapon-switch.md).
 // Worn items, what's socketed in them, their set bonuses, charms and the
 // passives with no weapon type (Iron Skin's defense %, Natural Resistance).
-// ponytail: no auras.
+// Fight::update_fighters adds the states' part (auras, curses, shrines).
 struct PanelStats {
     std::int64_t next = -1, defense = 0;
     std::array<std::int64_t, 4> res{};           // fire, cold, lightning, poison
@@ -199,6 +199,7 @@ struct PanelStats {
     // the attributes' (op 8) share. Fight::update_fighters adds it.
     std::array<std::int64_t, 2> max_percent{}, max_flat{};
     std::array<d2d::rules::AttackLine, 2> attack{};   // the left / right skill's block, as the server sends it
+    std::uint8_t blue = 0, red = 0;              // the states' colours (rules::PanelColour bits)
 };
 
 inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header& header,

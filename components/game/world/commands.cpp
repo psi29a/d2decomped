@@ -70,8 +70,9 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             actor->store.reduced = reduced_prices();
             if (buy->tab >= 0 && buy->tab < 4) actor->store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
             if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
-            if (actor->store.gamble) d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats);
-            else d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats);
+            const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats)
+                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats);
+            if (result != d2d::rules::Trade::done) actor->events.push_back(ev::TradeRefused{ result });   // a gamble's buy is a buy (C->S 0x32, FUN_00577830)
             return true;
         }
         if (const auto* sell = std::get_if<cmd::Sell>(&command)) {
@@ -79,6 +80,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (actor->held && actor->held->id == sell->item) { actor->character.items.push_back(std::move(*actor->held)); actor->held.reset(); }
             const auto found = std::ranges::find(actor->character.items, sell->item, &d2d::d2s::Item::id);
             if (found == actor->character.items.end()) return true;
+            if (!d2d::rules::sellable(item_rules, *found)) { actor->events.push_back(ev::TradeRefused{ d2d::rules::Trade::refused }); return true; }
             if (const auto over = d2d::rules::store_sell(item_rules, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats); over > 0) {
                 loot.enter(level);
                 loot.put({ .code = "gld", .gold = int(over) }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
@@ -488,7 +490,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
             if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) {
                 const auto sound = item_sound(*game_data, *actor->held, false);
-                const int level_needed = required_level(*game_data, *actor->held);
+                const int level_needed = required_level(*game_data, *actor->held, cls);
                 if (d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed))
                     sound_cue(sound);
                 else if (const auto& put = *actor->held;                         // refused: equip left it in hand

@@ -623,10 +623,22 @@ inline int skill_tohit(const SkillTables& skill_tables, const Skill& skill, cons
 //   attack rating, descatt 1 / 5 (FUN_004e9040): (dex - 7) x 5 + ToHitFactor
 //     + 19, x (1 + (119 + the skill's ToHit) %); descatt 2 (FUN_004e8ec0)
 //     adds the weapon mastery (342) to the %. No floor at 1.
+//   A state on the unit turns the weapon damage blue / red (damblue /
+//     damred: FUN_004e86f0, then again after the elements in FUN_004e89a0)
+//     and the attack rating (attblue / attred, FUN_004e9040 / FUN_004e8ec0);
+//     red wins.
 // ponytail: descdam 2..4, 6, 8..24 and descatt 3 / 4 (kicks, throws,
-// dual wield: the second value, FUN_004e93a0) show no line; the states'
-// red / blue (FUN_0063a380..) and stat 325, the usability check
-// (FUN_004d9fc0) and barehanded strength % (FUN_004e86f0) are left out.
+// dual wield: the second value, FUN_004e93a0) show no line; stat 325, the
+// usability check (FUN_004d9fc0) and barehanded strength % (FUN_004e86f0)
+// are left out.
+// The char panel's state colour bits (States.txt's flags, FUN_00618100:
+// bit n's states listed at data tables +0xcc + 4n, read by FUN_0063a130):
+// armblue 0x13 / armred 0x19, rfblue 0x14 / rfred 0x1a, rcblue 0x15 /
+// rcred 0x1b, rlblue 0x16 / rlred 0x1c, rpblue 0x17 / rpred 0x1d, damblue
+// 7 / damred 8, attblue 9 / attred 0xa.
+enum PanelColour : std::uint8_t {
+    kPanelDefense = 1, kPanelFire = 2, kPanelCold = 4, kPanelLightning = 8, kPanelPoison = 16, kPanelAttack = 32, kPanelDamage = 64,
+};
 struct AttackLine {
     int skill = -1;
     bool damage = false;
@@ -634,7 +646,7 @@ struct AttackLine {
     int attack_rating = 0, ar_colour = 0;
 };
 inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
-                              const Fighter& fighter, int mastery_tohit) {
+                              const Fighter& fighter, int mastery_tohit, std::uint8_t blue = 0, std::uint8_t red = 0) {
     AttackLine line;
     line.skill = skill.id;
     constexpr int kElemColour[5] = { 1, 9, 3, 2, 3 };    // Fighter::elem order: fire, lightning, cold, poison, magic
@@ -650,10 +662,12 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
         }
         if (line.max > 0) { line.min = std::max(line.min, 1); line.max = std::max(line.max, line.min + 1); }
     };
+    const auto state_colour = [&](PanelColour bit, int colour) { return (red & bit) ? 1 : (blue & bit) ? 3 : colour; };
     const int poison_len = skill.etype == 3 ? std::max(elem_length(skill_tables, skill, env, lvl), 1) : 1;
     if (skill.descdam == 1 || skill.descdam == 7) {
         line.damage = true;
         weapon(calc_of(skill.ddam_calc1), calc_of(skill.ddam_calc2));
+        line.damage_colour = state_colour(kPanelDamage, line.damage_colour);
     } else if (skill.descdam == 5) {
         line.damage = true;
         if (skill.srcdam_raw != 0) {
@@ -671,6 +685,7 @@ inline AttackLine attack_line(const SkillTables& skill_tables, const Skill& skil
     if (skill.descatt == 1 || skill.descatt == 2 || skill.descatt == 5) {
         const int pct = fighter.ar_pct - (skill.descatt == 2 ? 0 : mastery_tohit) + skill_tohit(skill_tables, skill, env, lvl);
         line.attack_rating = int(std::int64_t(fighter.ar_base) * pct / 100 + fighter.ar_base);
+        line.ar_colour = state_colour(kPanelAttack, line.ar_colour);
     }
     return line;
 }

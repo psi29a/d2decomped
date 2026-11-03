@@ -123,7 +123,7 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
             return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
         // Only the first is tried, and only if it can be worn (FUN_00562a30 -> FUN_0062eaf0).
         if (next != actor->character.items.end()
-            && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next))) {
+            && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next, actor->character.header.cls))) {
             next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
         }
     }
@@ -693,6 +693,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             d2d::rules::Swing swing;
             swing.srcdam = damage.srcdam;
             swing.ed_pct = missile.ed_pct;
+            swing.ar_pct = missile.ar_pct;
             swing.missile = true;
             blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
         } else if (missile.info->to_hit) {
@@ -838,8 +839,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
         }
         // Redemption (do 82): a corpse within aurarange redeemed at calc1 %,
         // calc2 life and mana back.
-        // ponytail: its callback isn't traced; one corpse a pulse (Redemption,
-        // level 30: past Act 1).
+        // ponytail: its callback isn't traced; one corpse a pulse.
         if (skill->srvdofunc == ServerDoFunction::kRedemption) {
             using namespace d2d::d2s;
             const int radius = calc(*skill, skill->aurarange, lvl);

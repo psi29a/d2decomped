@@ -796,6 +796,13 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
             state.gfx_class = std::atoi(std::string(states_table.get(row, "gfxclass")).c_str());
             state_sounds.push_back({ std::string(states_table.get(row, "state")), std::string(states_table.get(row, "onsound")), std::string(states_table.get(row, "offsound")) });
+            for (const auto& [bit, blue, red] : { std::tuple{ d2d::rules::kPanelDefense, "armblue", "armred" }, { d2d::rules::kPanelFire, "rfblue", "rfred" },
+                                                  { d2d::rules::kPanelCold, "rcblue", "rcred" }, { d2d::rules::kPanelLightning, "rlblue", "rlred" },
+                                                  { d2d::rules::kPanelPoison, "rpblue", "rpred" }, { d2d::rules::kPanelAttack, "attblue", "attred" },
+                                                  { d2d::rules::kPanelDamage, "damblue", "damred" } }) {
+                if (states_table.get(row, blue) == "1") state.panel_blue |= bit;
+                if (states_table.get(row, red) == "1") state.panel_red |= bit;
+            }
             state.item_type = std::string(states_table.get(row, "itemtype"));
             const std::string trans(states_table.get(row, "itemtrans"));
             for (std::size_t colour = 0; colour < game_data.item_colours.codes.size(); ++colour) if (!trans.empty() && game_data.item_colours.codes[colour] == trans) state.item_colour = int(colour);
@@ -939,6 +946,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 base.magic_lvl = table == &misc ? 0 : number("magic lvl");
                 base.has_inv = table->get(row, "hasinv") == "1";
                 base.no_durability = table->get(row, "nodurability") == "1";
+                base.useable = table->get(row, "useable") == "1";
                 base.quest_diff = table->get(row, "questdiffcheck") == "1";
                 base.max_1h = table == &weapons ? number("maxdam") : 0;
                 base.max_2h = table == &weapons ? number("2handmaxdam") : 0;
@@ -1252,6 +1260,15 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                                           { &game_data.unique_req, "UniqueItems", "lvl req", false },
                                                           { &game_data.set_req, "SetItems", "lvl req", false } })
             for (const auto& level : pairs(file_name, column, column, all)) target->push_back(level.first);
+        for (const auto& [target, file_name] : { std::pair{ &game_data.prefix_class_req, "MagicPrefix" }, { &game_data.suffix_class_req, "MagicSuffix" } })
+            if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
+                static constexpr std::array<std::string_view, 7> kClassCodes = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
+                const d2d::txt::Table table(*bytes, true);
+                for (std::size_t row = 0; row < table.size(); ++row) {
+                    const auto found = std::ranges::find(kClassCodes, table.get(row, "class"));
+                    target->emplace_back(found == kClassCodes.end() ? -1 : int(found - kClassCodes.begin()), std::atoi(std::string(table.get(row, "classlevelreq")).c_str()));
+                }
+            }
         for (const auto& [target, file_name] : { std::pair{ &game_data.unique_sounds, "UniqueItems" }, { &game_data.set_sounds, "SetItems" } })
             if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
                 const d2d::txt::Table table(*bytes, false);

@@ -96,6 +96,7 @@ struct ItemBase {
     bool autobelt = false;                             // misc.txt autobelt (Items +0x131): a pickup takes a free belt column
     int gem_sockets = 0, auto_prefix = 0, magic_lvl = 0;  // gemsockets (+0x138), auto prefix (+0xf8), magic lvl (+0x140)
     bool has_inv = false, no_durability = false;          // hasinv (+0x137), nodurability (+0x113)
+    bool useable = false;                                 // useable (+0x11d, FUN_00628c20): a right click uses it
     bool quest_diff = false;                              // questdiffcheck (+0x12b): stat 356 = the difficulty made in
     int max_1h = 0, max_2h = 0;                           // weapons.txt maxdam (+0xff) / 2handmaxdam (+0x103)
     std::string nightmare_upgrade, hell_upgrade;       // NightmareUpgrade / HellUpgrade ("xxx" none): a store's base in those difficulties
@@ -777,22 +778,27 @@ inline bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const
     const auto base = tables.item_base.find(book.code);
     return !tome.empty() && book.code == tome && book.location == d2d::d2s::item_location::kStored && base != tables.item_base.end() && book.quantity < base->second.max_stack;
 }
+// A buy's NPC transaction result (S->C 0x2a +2, FUN_00577830 -> FUN_0053d740):
+// done, or the client's box (FUN_004b53f0: 9 string 0xd21 "I cannot complete
+// that request.", 10 string 0xd1c "You do not have enough free space to do
+// that.", 12 string 0xd22 "You do not have enough gold for that.").
+enum class Trade : std::uint8_t { done = 0, refused = 9, no_room = 10, no_gold = 12 };
 // Buys stock item i of the open tab into the inventory (10x4): gold
-// down by the price, the item leaves the stock unless it's a perm one.
-// False if it doesn't fit or you can't afford it.
-// ponytail: no "not enough gold"/"no room" message, no stacks or quantity.
-inline bool store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+// down by the price (more than carried + stash gold: no_gold), the item
+// leaves the stock unless it's a perm one (nowhere for it: no_room).
+// ponytail: no stacks or quantity.
+inline Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     auto& tab = store.tabs[std::size_t(store.tab)];
     const auto& item = tab[std::size_t(index)];
     const int price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
-    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
+    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return Trade::no_gold;
     // A scroll goes into a carried tome with room (FUN_00577830 -> FUN_0055f640).
     const auto book = std::ranges::find_if(items, [&](const d2d::d2s::Item& carried) { return carried.panel == d2d::d2s::item_panel::kInventory && tome_takes(tables, item, carried); });
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
     const auto [column, row] = book != items.end() ? std::pair{ 0, 0 } : free_spot(tables, inv, 10, 4, width, height, true);
-    if (column < 0) return false;
+    if (column < 0) return Trade::no_room;
     if (book != items.end()) ++book->quantity;
     else {
         auto bought = item;
@@ -804,7 +810,7 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
     if (std::ranges::find(store.perm, item.code) == store.perm.end()) tab.erase(tab.begin() + index);
-    return true;
+    return Trade::done;
 }
 
 // Sells inventory item i (FUN_00579510): gold up by the sell value, what
@@ -813,8 +819,8 @@ inline bool store_buy(const Tables& tables, Store& store, int index, std::vector
 // (stats 72 / 70) unless it's Cracked (LowQualityItems row 1), broken
 // (0x100), unique, personalized, ethereal, a greater or super potion in an
 // expansion game, or one of the vendor's perm items (FUN_00576ed0).
-// ponytail: quest items aren't refused, no belt/equipped selling;
-// FUN_0055f590's test and the vendor proxy's +4 flag (FUN_00536cb0) aren't kept.
+// ponytail: no belt/equipped selling; FUN_0055f590's test and the vendor
+// proxy's +4 flag (FUN_00536cb0) aren't kept.
 inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const auto& sold = items[index];
     const int price = item_price(tables, sold, store.npc_id, true, store.header);
@@ -1666,6 +1672,15 @@ inline d2d::d2s::Item generate_item(const Tables& tables, const std::string& cod
 // Item flag 0x1000 (data +0x18, the save's flags too): no NPC service
 // takes the item (FUN_0062c590 / FUN_0062c770 / FUN_0062c6a0).
 inline constexpr std::uint32_t kItemNoService = 0x1000;
+// Whether a vendor buys `item` (FUN_00579510 -> FUN_0062a130, else result 9):
+// no flag 0x1000, not an Items.txt quest item (+0x12a) nor of type 0x27
+// (ques, the type itself: FUN_00629d40 reads +0x11e).
+inline bool sellable(const Tables& tables, const d2d::d2s::Item& item) {
+    if (item.flags & kItemNoService) return false;
+    const auto base = tables.item_base.find(item.code);
+    const auto info = tables.item_info.find(item.code);
+    return !(base != tables.item_base.end() && base->second.quest) && !(info != tables.item_info.end() && info->second.type == "ques");
+}
 
 // Whether Charsi's imbue takes `item` (FUN_0062c590): Items bitfield1
 // bit 0, not gold, no flag 0x1000, not socketed (flag 0x800) nor holding
@@ -1899,16 +1914,16 @@ inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int
 // (FUN_00629370 on its code; carried gold, then the stash) and takes it
 // into the inventory, identified (C->S 37 -> FUN_00578640). False if it
 // can't be paid for or doesn't fit.
-inline bool store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+inline Trade store_gamble(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     auto& tab = store.tabs[std::size_t(store.tab)];
     auto item = tab[std::size_t(index)];
     const int price = gamble_price(tables, item.code, int(stats.get(d2d::d2s::kLevel)), store.reduced);
-    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return false;
+    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return Trade::no_gold;
     std::vector<const d2d::d2s::Item*> inv;
     for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
     const auto [width, height] = item_size(tables, item.code);
     const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
-    if (column < 0) return false;
+    if (column < 0) return Trade::no_room;
     item.identified = true;
     item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = column; item.row = row;
     items.push_back(std::move(item));
@@ -1916,7 +1931,7 @@ inline bool store_gamble(const Tables& tables, Store& store, int index, std::vec
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
-    return true;
+    return Trade::done;
 }
 
 // A mercenary for hire, as FUN_006637f0 rolls it for the hire list.

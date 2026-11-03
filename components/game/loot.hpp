@@ -229,7 +229,7 @@ struct Loot {
             const int boxes = game_data->belts[std::size_t(belt_index(*game_data, character->items))].boxes;
             const auto worn_by = wearer(*game_data, character->header.cls, character->items, character->stats);
             const auto taken = d2d::rules::pick_up(game_data->rules, character->items, ground_item.item, lay.cols ? lay.cols : 10, lay.rows ? lay.rows : 4, boxes,
-                                                   &worn_by, required_level(*game_data, ground_item.item));
+                                                   &worn_by, required_level(*game_data, ground_item.item, worn_by.cls));
             if (taken == d2d::rules::Pickup::kNoRoom) {
                 static constexpr std::array<const char*, 7> kCantCarry{ "amazon_cantcarry_1", "sorceress_cantcarry_1", "necromancer_cantcarry_1",
                     "paladin_cantcarry_1", "barbarian_cantcarry_1", "druid_cantcarry_1", "assassin_cant_carry" };
