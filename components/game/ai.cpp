@@ -971,9 +971,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // FUN_005dc380). Either way in DD, not yet gone. A unique's (FUN_005f1440) walks the
     // near rooms (FUN_005dd0b0 mode 1: near_order), the rest its group
     // (mode 9: FUN_005dd050 -> FUN_0058f380 on FUN_005dcda0).
-    // ponytail: the group in pack order (its list's own order isn't traced);
-    // the corpse flag (+0xc4 bit 1) and FUN_0063a770 as corpse_used; units
-    // are monsters.
+    // The group list runs newest first (FUN_0058f100 adds at its head, as
+    // each member is made), so its last match is the first in pack order.
+    // ponytail: the corpse flag (+0xc4 bit 1) and FUN_0063a770 as corpse_used.
     const auto self = pack.empty() ? pack.size() : std::size_t(&monster - pack.data());
     bool rally = false;
     int corpse = -1;
@@ -991,7 +991,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     for (std::size_t i = 0; i < pack.size(); ++i) {
         const auto& other = pack[i];
         if (i != self && other.mode == "DT" && d2d::rules::ai_distance(subtile(other.unit.x) - x, subtile(other.unit.y) - y) < 15) input.dying = true;
-        if (!unique(monster) && corpse_for(other)) corpse = int(i);
+        if (!unique(monster) && corpse < 0 && corpse_for(other)) corpse = int(i);
     }
     if (unique(monster) && type_info.ai_name == "FallenShaman")
         if (const auto order = near_order(corpse_for); !order.empty()) corpse = order.back();
