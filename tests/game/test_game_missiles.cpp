@@ -553,6 +553,23 @@ int main() try {
         world.fight.missiles.clear();
         std::printf("OK: Armageddon / Hurricane strike every Param4 frames, not in town\n");
     }
+
+    // A Shadow's Attack (range both) is ranged with its owner's bow (FUN_00645460 ->
+    // FUN_0064f460: weapon class 1 / 7), melee otherwise.
+    {
+        const auto look = world.actor->character.appearance;
+        Fight::Pet shadow;
+        world.fight.shadow_give(shadow, 0, 1);
+        d2d::d2s::Item bow{ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm };
+        world.actor->character.appearance = data->look_of({ bow });
+        world.fight.shadow_give(shadow, 1, 1);                          // Kick (h2h) stays melee
+        Fight::Pet archer;
+        world.fight.shadow_give(archer, 0, 1);
+        world.actor->character.appearance = look;
+        assert(shadow.skill_list.size() == 2 && shadow.skill_list[0].kind == 1 && shadow.skill_list[1].kind == 1);
+        assert(archer.skill_list.size() == 1 && archer.skill_list[0].kind == 2);
+        std::printf("OK: a Shadow's Attack is ranged with a bow\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

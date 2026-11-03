@@ -9,6 +9,7 @@
 #include "montypes.hpp"
 
 #include <combat.hpp>
+#include <compcode.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
@@ -49,9 +50,18 @@ int monster_mode(std::string_view token) {
 namespace {
 
 // FUN_00645460: a skill's kind, Skills.txt range — none 0, h2h 1, rng 2,
-// both 1 (2 with a missile weapon).
-// ponytail: a Shadow with its owner's bow would count both as 2.
-int skill_kind(const d2d::rules::Skill& skill) { return skill.range == "h2h" || skill.range == "both" ? 1 : skill.range == "rng" ? 2 : 0; }
+// both 1, 2 when the unit's composite holds a bow or crossbow
+// (FUN_0064f460: weapon class 1 / 7). A Shadow wears its owner's gear
+// (FUN_005d6e70), so its class is the Assassin's on the owner's look.
+int skill_kind(const d2d::rules::Skill& skill, bool missile_weapon) {
+    if (skill.range == "both") return missile_weapon ? 2 : 1;
+    return skill.range == "h2h" ? 1 : skill.range == "rng" ? 2 : 0;
+}
+bool missile_weapon(const GameData& game_data, const GameData::Appearance& look) {
+    constexpr int kAssassin = 6;
+    const auto weapon = game_data.comp.empty() ? std::string_view{} : d2d::compcode::weapon_class(kAssassin, game_data.comp, look[5], look[6], look[7]);
+    return weapon == "bow" || weapon == "xbw";
+}
 
 // Skills.txt charclass as FUN_00645040's class (7: none).
 int skill_class(const d2d::rules::Skill& skill) {
@@ -590,7 +600,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 entry.ai_ok = d2d::rules::shadow_ai_may_use(shadow_may_have(row, type_info, *game_data->skills.get(pet.skill)), row->aitype, scene.driver_melee, scene.driver,
                                                             charged, target_in, row->progressive, held != pet.charges.end() ? std::optional<int>(held->count) : std::nullopt);
                 entry.mana = std::max(((row->mana + row->lvlmana * (lvl - 1)) << (row->manashift & 31)) >> 8, 0);   // FUN_006459f0
-                entry.kind = listed != pet.skill_list.end() ? listed->kind : skill_kind(*row);
+                entry.kind = listed != pet.skill_list.end() ? listed->kind : skill_kind(*row, missile_weapon(*game_data, gfx()));
                 entry.mode = listed != pet.skill_list.end() ? listed->mode : monster_mode(row->monanim);
                 entry.delay = d2d::rules::eval_calc(game_data->skills, row->delay, calc_env(), row->id, lvl);
             }
@@ -846,7 +856,7 @@ auto Fight::shadow_give(Pet& pet, int skill, int lvl) const -> void {
         const auto* row = game_data->skills.get(skill);
         if (!row) return;
         if (const auto found = std::ranges::find(pet.skill_list, skill, &d2d::rules::ShadowListed::id); found != pet.skill_list.end()) { found->level = lvl; return; }
-        pet.skill_list.push_back({ .id = skill, .level = lvl, .kind = skill_kind(*row), .mode = monster_mode(row->monanim) });
+        pet.skill_list.push_back({ .id = skill, .level = lvl, .kind = skill_kind(*row, missile_weapon(*game_data, gfx())), .mode = monster_mode(row->monanim) });
     }
 
 // A Shadow's skill on its action frame, at its level on the Shadow: Attack
@@ -903,7 +913,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
             release(pet.charges, std::size_t(target), now_ms, false);
             return;
         }
-        if (target < 0 || (skill->id != 0 && skill_kind(*skill) != 1)) return;
+        if (target < 0 || (skill->id != 0 && skill_kind(*skill, missile_weapon(*game_data, gfx())) != 1)) return;
         if (std::hypot(foe.x - monster.unit.x, foe.y - monster.unit.y) > kMeleeReach + 0.3f) return;
         // As the player's hit: a charge-up's hit adds a charge, a finisher
         // takes the charges' bonus and releases them on a hit.
