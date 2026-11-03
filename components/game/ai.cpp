@@ -388,9 +388,8 @@ bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool sp
 // poison per frame over ELen as the total, another element in 256ths.
 // ToHit 0: it always hits. A Fallen Shaman's fire bolts too. A row naming a
 // Skill (`carried`: the Summoner's Fire Ball, Glacial Spike, Frost Nova)
-// carries that skill's element at the level instead (FUN_0064b860).
-// ponytail: a carried skill's physical damage (MinDam..) left out; the
-// Act 2 casters' skills have none.
+// carries that skill's element at the level instead (FUN_0064b860), and its
+// physical in place of the row's (FUN_00647bc0 / FUN_00647d00: skill_phys).
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried) {
     const auto found = game_data.missiles.find(name);
@@ -401,6 +400,10 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
         : d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev,
                                  missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
     auto stats = missile_blow(missile_info, poison, monster.stats.level);
+    if (carried && !missile_info.skill.empty()) {
+        stats.a2_min = d2d::rules::skill_phys(game_data.skills, *carried, {}, lvl, false) >> 8;
+        stats.a2_max = std::max(d2d::rules::skill_phys(game_data.skills, *carried, {}, lvl, true) >> 8, stats.a2_min);
+    }
     stats.to_hit = monster.stats.to_hit;                              // its stat 0x13, rolled when the row has ToHit
     const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
     missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
