@@ -376,7 +376,7 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
     const int x = left_open && !right_open ? int(kScreenWidth) / 2 + 15 : 15;
-    int baseline = portraits_shown ? 0x5f : 20;   // ponytail: taken as below the portraits (UI flag 0x13 (?))
+    int baseline = portraits_shown ? 0x5f : 20;   // below the portraits while UI 0x13 is up (FUN_004538d0(0x13), 0x49dc69)
     static constexpr std::array<std::array<std::uint8_t, 3>, 10> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 },
                                                                           { 105, 105, 105 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 168, 0 }, { 255, 255, 100 } } };
     auto darken = [&](int left, int top, int width, int height) {   // FUN_0046efd0 colour 0, mode 1
@@ -531,13 +531,19 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     merc_portrait_x = -1;                                             // none to hover or drop on until drawn
-    if (left_open || portraits_hidden || coop_hud_hidden()) { merc_hovered = false; merc_hover_at = 0; return; }   // local co-op's: draw_coop_portraits
+    if (portraits_hidden || coop_hud_hidden()) { merc_hovered = false; merc_hover_at = 0; return; }   // local co-op's: draw_coop_portraits
+    // Under a left panel (FUN_0045ae90 2 / 3) FUN_00494020 draws none, but
+    // UI 0x13 stays up (FUN_00493340: any portrait to show), so the chat
+    // still sits below them (portraits_shown).
+    if (left_open) { merc_hovered = false; merc_hover_at = 0; }
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
     const auto& font = scene->font_tiny.line_height() > 0 ? scene->font_tiny : scene->font;
     int x = 15, name_y = 0x48;
     // Each icon at draw mode 1 (FUN_004f6480: half over what's there); the
     // merc's at mode 7 while hovered (its table untraced, lighting.md: drawn as is).
     const auto portrait = [&](const d2d::dc6::Sprite* icon, int life, std::string name, int count, bool lit = false) {
+        portraits_shown = true;
+        if (left_open) return;
         if (icon && icon->total_frames() > 0) {
             const auto& frame = icon->frame(0, 0);
             const int top = 0x3c - int(frame.height) + 1, frame_w = fb_width(framebuffer);
@@ -563,7 +569,6 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
         font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, std::max(x + 0x16 - font.measure(name) / 2, 0), name_y - font.line_height() + 1, name);
         name_y = name_y == 0x48 ? 0x52 : 0x48;
         x += 0x38;
-        portraits_shown = true;
     };
     if (net_game)
         if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end() && self->second.party != 0xffff)
@@ -580,7 +585,7 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
     const auto gone = [](std::string_view mode) { return mode == "DT" || mode == "DD"; };
     if (view.merc && !gone(view.merc->mode))
         if (const auto* type = game_data.pet_type("hireable")) {
-            merc_portrait_x = x; merc_portrait_y = name_y;
+            if (!left_open) { merc_portrait_x = x; merc_portrait_y = name_y; }
             portrait(icon_of(*type, view.merc_sheet ? view.merc_sheet->cls : -1),
                      view.merc_sheet ? int(std::int64_t(view.merc_sheet->life) * 100 / std::max(view.merc_sheet->max_life, 1)) : -1, merc_label, 0, merc_hovered);
         }
