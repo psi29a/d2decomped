@@ -1155,7 +1155,7 @@ bool draw_quest_log(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     auto line = [&](const std::string& text, int x, int y) { font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, panel_x + x, panel_y + y - font.line_height(), text); };
     const auto name = string_id(scene, std::uint16_t(sel->name));
     line(name, 0xa0 - font.measure(name) / 2, 248);
-    if (picked.string) {
+    if (picked.string && !quest_log.replayed) {
         std::string text = string_id(scene, std::uint16_t(picked.string)), row;
         if (picked.count >= 0) text += std::to_string(picked.count);
         int y = 270;

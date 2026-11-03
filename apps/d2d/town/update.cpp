@@ -458,12 +458,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // on the press; an icon with something to say, close and questlast
         // hold with a click (Sounds.txt 4); let go on the same icon picks it,
         // over close shuts the log, over questlast plays the picked quest's
-        // message again (FUN_004a27d0).
-        // ponytail: the description isn't hidden while that message plays (0x7bf2b3).
+        // message again (FUN_004a27d0: none for 0xe8c / 0xe8d), which leaves
+        // the log deaf till it shuts (QuestLog::replayed).
+        if (!quest_log.open) quest_log.replayed = false;
         if (quest_log.open) {
             const int button = quest_button_at(mouse.x, mouse.y);
             const int slot = quest_slot_at(mouse.x, mouse.y);
-            if (mouse.press_this_frame) {
+            if (mouse.press_this_frame && !quest_log.replayed) {
                 if (const int act = quest_tab_at(mouse.x, mouse.y, character.expansion); act >= 0) quest_log_tab(quest_log, quest_bits(), quest_state(), act, character.expansion);
                 else if (slot >= 0) {
                     for (const auto& entry : kQuestLog)
@@ -483,7 +484,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 } else if (quest_log.last_down && button == 2 && quest_log.slot >= 0) {
                     for (const auto& entry : kQuestLog)
                         if (entry.act == quest_log.act && entry.slot == quest_log.slot)
-                            if (const auto text = quest_text(quest_bits(), entry.quest, quest_state()); text.speech) replay_speech = text.speech;
+                            if (const auto text = quest_text(quest_bits(), entry.quest, quest_state()); text.speech && text.speech != 0xe8c && text.speech != 0xe8d) {
+                                replay_speech = text.speech;
+                                quest_log.replayed = true;
+                            }
                 }
                 quest_log.pressed = -1;
                 quest_log.close_down = quest_log.last_down = false;
