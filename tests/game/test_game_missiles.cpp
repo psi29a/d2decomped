@@ -489,6 +489,30 @@ int main() try {
         world.fight.monsters.pop_back();
         std::printf("OK: a monster regenerates its DamageRegen, not under Prevent Monster Heal\n");
     }
+
+    // State 0x36 (a whirl, leap or nest) takes no freeze (FUN_0057b230's first test).
+    {
+        const auto fallen_row = data->monsters.by_id.find("fallen1");
+        const auto spike = data->skills.by_name.find("Glacial Spike");
+        d2d::rules::Rng make_rng{ 5 };
+        GameData::MissileInfo spike_info;
+        spike_info.name = "freezewhirl";
+        spike_info.etype = 2;
+        Missile missile;
+        missile.info = &spike_info;
+        missile.skill = int(spike->second);
+        missile.friendly = true;
+        for (const bool whirling : { false, true }) {
+            Monster frozen = make_monster(*data, int(fallen_row->second), world.actor->player.x + 6, world.actor->player.y, make_rng, 0);
+            frozen.stats.hit_points = frozen.hit_points = 1000000;
+            frozen.whirl = whirling;
+            world.fight.monsters.push_back(frozen);
+            world.fight.strike(missile, world.fight.monsters.size() - 1, 6000, 100);
+            assert((world.fight.monsters.back().stun_until > 6000) == !whirling);
+            world.fight.monsters.pop_back();
+        }
+        std::printf("OK: a whirling monster isn't frozen\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

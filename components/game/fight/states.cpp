@@ -160,14 +160,14 @@ auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
         // coldeffect, for length / MonsterFreezeDivisor, and not chilled.
         // Shiver Armor (3, FUN_005cad40, attackedinmelee): its element
         // (FUN_0056e0c0) on any.
-        // ponytail: state 0x36 (no freeze), the 20 % state 0x6b roll of the
-        // chill and the freeze's AI event at its end + 1 (FUN_005417d0 2)
-        // aren't kept; a length / divisor of 0 (state 1 for no frame) isn't.
+        // Not on state 0x36 (uninterruptable). The chill rolls shatter (state
+        // 0x6b) as a blow's does; a length / divisor of 0 is state 1 for no frame.
+        // The freeze's think at its end + 1 gives way to the thaw's (mon_think).
         for (const int striker : foe.melee_by) {
             const int found = this->monster_index(striker);
             if (found < 0 || !monsters[std::size_t(found)].alive()) continue;
             const auto monster_index = std::size_t(found);
-            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker) && monsters[monster_index].type >= 0) {
+            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker) && monsters[monster_index].type >= 0 && !monsters[monster_index].uninterruptable()) {
                 const auto* skill = game_data->skills.get(frozen_armor->skill);
                 auto& struck = monsters[monster_index];
                 const auto& struck_type = game_data->monsters.types[std::size_t(struck.type)];
@@ -181,6 +181,7 @@ auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
                     const int divisor = game_data->cold_divisor[difficulty];
                     const int ticks = std::max(cold_effect < 0 && divisor != 0 ? length / divisor : length, 1);
                     struck.chill_until = std::max(struck.chill_until, now_ms + std::uint32_t(ticks) * 40);
+                    struck.shatter = struck.seed.next() % 100 < 20 && !struck.npc.dead_col;
                 } else if (const int divisor = game_data->freeze_divisor[difficulty]; length > 0 && !special && cold_effect < 0 && divisor != 0 && length / divisor > 0) {
                     struck.stun_until = std::max(struck.stun_until, now_ms + std::uint32_t(length / divisor) * 40);
                 }
