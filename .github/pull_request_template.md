@@ -1,6 +1,7 @@
 <!--
-AGENTS.md §6. One claim per pull request. Fill in each section and delete
-the ones that don't apply. Comments like this one don't show on GitHub.
+AGENTS.md §6. One claim per pull request, or a research batch from one
+subsystem (AGENTS.md §5): then fill in "Claims", a row each. Fill in each
+section and delete the ones that don't apply. Comments like this one don't show on GitHub.
 -->
 
 ## What changes
@@ -16,6 +17,15 @@ the field, then the data it uses. One row per address. -->
 | Address | What it shows |
 |---|---|
 | `00000000` | |
+
+## Claims (a research batch only)
+
+<!-- One row per claim, one commit each; a reviewer can drop a row and merge
+the rest. -->
+
+| Claim | Evidence | Re-check |
+|---|---|---|
+| | `00000000` | |
 
 ## How to re-check
 

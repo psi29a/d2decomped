@@ -17,7 +17,7 @@ people too.
 | Kind | You need | You give |
 |---|---|---|
 | **Play and report** | a [release](https://github.com/psi29a/d2decomped/releases) and your own D2 1.14d install | an issue: what you did, what the original game does, `d2d.log`, a screenshot |
-| **Trace a claim** | the above + Ghidra and [uv](https://docs.astral.sh/uv/) | a pull request with one claim about game.exe, and the address that proves it |
+| **Trace a claim** | the above + Ghidra and [uv](https://docs.astral.sh/uv/) | a pull request with one claim about game.exe and the address that proves it, or a batch of them from one subsystem |
 | **Fix or port** | the above + a build ([README](README.md#build-and-run)) | a pull request with a test, citing where in game.exe the behaviour comes from |
 
 What's left is on the **[gap map](https://psi29a.github.io/d2decomped/)**:
@@ -57,7 +57,10 @@ We ask only for the three kinds of work above, and we promise:
   MPQ data, the installer, `game.exe`, the Ghidra project, decompiled C or
   `game-strings.tsv` ([LEGAL.md](LEGAL.md)).
 - **One claim per pull request or issue**, with the commands that re-check
-  it. Small and checkable beats big and vague.
+  it. Small and checkable beats big and vague. Traced research can come as
+  one batch from one subsystem instead, a commit and a row per claim
+  (AGENTS.md "Evidence"), so findings don't arrive as a pile of pull
+  requests that conflict.
 - **Say which agent helped** (`Agent: <name>` or `Agent: none`). Any agent is
   welcome, and the checks are the same either way. Read what it wrote before
   you send it: it's your name on it.
