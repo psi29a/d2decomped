@@ -4,7 +4,8 @@
 hit on PRs #15-#97, and the patterns behind most of their review comments.
 
     tools/presubmit.py                  # everything: lint, strict build, clang-tidy, ctest
-    tools/presubmit.py --quick          # lint and review checks only: no build, tidy or ctest
+    tools/presubmit.py --quick          # lint, review checks, and GCC + clang-tidy on the changed
+                                        # files when an earlier build left compile_commands.json
     tools/presubmit.py --docker         # CI's tools/validate-linux.sh in place of the local build
     tools/presubmit.py --base REF       # diff base (default: upstream/main, else origin/main)
     tools/presubmit.py --build DIR      # build dir (default: build-presubmit)
@@ -309,10 +310,99 @@ def build_volume(tree):
         hashlib.sha1(path.encode()).hexdigest()[:8]
 
 
+def find_tool(name):
+    """On PATH, or Homebrew's llvm (keg-only: brew install llvm doesn't link clang-tidy)."""
+    return shutil.which(name) or next((str(path) for path in (Path("/opt/homebrew/opt/llvm/bin") / name,
+                                                              Path("/usr/local/opt/llvm/bin") / name) if path.is_file()), None)
+
+
+def find_gcc():
+    """A real GCC, as CI builds with: Homebrew's g++-NN first (macOS's g++ is clang)."""
+    versioned = sorted({Path(found).name for folder in os.environ.get("PATH", "").split(os.pathsep) if os.path.isdir(folder)
+                        for found in Path(folder).glob("g++-[0-9]*")}, key=lambda name: int(name.split("-")[1]))
+    for name in reversed(versioned):
+        return shutil.which(name)
+    gxx = shutil.which("g++")
+    if gxx and "Free Software Foundation" in subprocess.run([gxx, "--version"], capture_output=True, text=True, check=False).stdout:
+        return gxx
+    return None
+
+
+def select_units(tree, build, sources):
+    """The translation units that compile the changed files (tools/tidy-pr-select.py)."""
+    # tidy-pr-select reads changed.txt from its cwd: run it in the build dir, not the worktree
+    (build / "changed.txt").write_text("".join(f"{tree / path}\n" for path in sources))
+    select = subprocess.run([sys.executable, str(tree / "tools/tidy-pr-select.py")], cwd=build, capture_output=True,
+                            text=True, env={**os.environ, "BUILD_DIR": str(build)}, check=False)
+    return select.stdout.split() if select.returncode == 0 and select.stdout.strip() else \
+        [str(tree / path) for path in sources if path.endswith(".cpp")]
+
+
+def check_gcc(build, units):
+    """GCC's -Wshadow / -Wconversion on each unit, -fsyntax-only: what CI's Linux build fails on
+    and Apple clang lets by (most of the fix-up commits after #150)."""
+    gcc = find_gcc()
+    if not gcc:
+        report("WARN", "gcc", "no GCC (brew install gcc): CI's -Wshadow / -Wconversion errors show only there")
+        return
+    entries = {entry["file"]: entry for entry in json.loads((build / "compile_commands.json").read_text())}
+
+    def compile_one(unit):
+        entry = entries.get(unit)
+        if not entry:
+            return ""
+        args, flags, skip = entry.get("arguments") or shlex.split(entry["command"]), [], False
+        for arg in args[1:]:
+            if skip:
+                skip = False
+            elif arg in ("-o", "-arch"):            # -arch is Apple clang's alone
+                skip = True
+            elif arg != "-c":
+                flags.append(arg)
+        return subprocess.run([gcc, "-fsyntax-only", "-Wno-psabi", *CI_FLAGS.split(), *flags], cwd=entry["directory"],
+                              capture_output=True, text=True, check=False).stderr
+    with concurrent.futures.ThreadPoolExecutor(build_jobs()) as pool:
+        outputs = list(pool.map(compile_one, units))
+    errors = sorted({hit for output in outputs for hit in re.findall(r"^\S+:\d+:\d+: (?:fatal )?error: .*$", output, re.M)})
+    report("FAIL" if errors else "ok", "gcc", "\n      ".join(errors[:15]) if errors else
+           f"{len(units)} TUs, {Path(gcc).name} {CI_FLAGS}")
+
+
+def check_tidy(tree, build, units, numbers):
+    clang_tidy = find_tool("clang-tidy")
+    if not clang_tidy:
+        report("WARN", "clang-tidy", "not installed (brew install llvm)")
+        return
+    def tidy(unit):
+        return subprocess.run([clang_tidy, "-p", str(build), "--quiet", "--extra-arg=-Wno-unknown-warning-option", unit],
+                              capture_output=True, text=True, check=False).stdout
+    mine, elsewhere = [], 0
+    with concurrent.futures.ThreadPoolExecutor(build_jobs()) as pool:   # CI: xargs -P 4; capped by memory
+        outputs = list(pool.map(tidy, units))
+    for output in outputs:
+        for hit in re.finditer(r"^(\S+?):(\d+):\d+: (?:warning|error): (.*)$", output, re.M):
+            path = os.path.relpath(hit.group(1), tree)
+            if int(hit.group(2)) in numbers.get(path, set()):
+                mine.append(f"{path}:{hit.group(2)}: {hit.group(3)}")
+            else:
+                elsewhere += 1
+    mine = sorted(set(mine))
+    report("FAIL" if mine else "ok", "clang-tidy", "\n      ".join(mine[:20]) if mine else
+           f"{len(units)} TUs ({elsewhere} findings on lines this branch didn't add; CI's older tidy may not flag them)")
+
+
 def check_cpp(tree, changed, numbers, build, quick, docker):
     sources = [path for path in changed if path.endswith((".cpp", ".hpp")) and (tree / path).is_file()]
     if quick:
-        report("WARN", "build", "skipped (--quick): no build, tidy or ctest")
+        report("WARN", "build", "skipped (--quick): no build or ctest")
+        # an earlier build's compile commands are enough for GCC and tidy on the changed files
+        known = next((folder for folder in (build, tree / "build") if (folder / "compile_commands.json").is_file()), None)
+        if sources and known:
+            units = select_units(tree, known, sources)
+            check_gcc(known, units)
+            check_tidy(tree, known, units, numbers)
+        elif sources:
+            report("WARN", "gcc", "no compile_commands.json yet: one full tools/presubmit.py run makes it")
         return False
     wait_for_other_builds()
     if docker:
@@ -361,31 +451,9 @@ def check_cpp(tree, changed, numbers, build, quick, docker):
     report("ok", "strict-build", CI_FLAGS)
     if not sources:
         return True
-    if not shutil.which("clang-tidy"):
-        report("WARN", "clang-tidy", "not installed")
-        return True
-    # tidy-pr-select reads changed.txt from its cwd: run it in the build dir, not the worktree
-    (build / "changed.txt").write_text("".join(f"{tree / path}\n" for path in sources))
-    select = subprocess.run([sys.executable, str(tree / "tools/tidy-pr-select.py")], cwd=build, capture_output=True,
-                            text=True, env={**os.environ, "BUILD_DIR": str(build)}, check=False)
-    units = select.stdout.split() if select.returncode == 0 and select.stdout.strip() else \
-        [str(tree / path) for path in sources if path.endswith(".cpp")]
-    def tidy(unit):
-        return subprocess.run(["clang-tidy", "-p", str(build), "--quiet", "--extra-arg=-Wno-unknown-warning-option", unit],
-                              capture_output=True, text=True, check=False).stdout
-    mine, elsewhere = [], 0
-    with concurrent.futures.ThreadPoolExecutor(build_jobs()) as pool:   # CI: xargs -P 4; capped by memory
-        outputs = list(pool.map(tidy, units))
-    for output in outputs:
-        for hit in re.finditer(r"^(\S+?):(\d+):\d+: (?:warning|error): (.*)$", output, re.M):
-            path = os.path.relpath(hit.group(1), tree)
-            if int(hit.group(2)) in numbers.get(path, set()):
-                mine.append(f"{path}:{hit.group(2)}: {hit.group(3)}")
-            else:
-                elsewhere += 1
-    mine = sorted(set(mine))
-    report("FAIL" if mine else "ok", "clang-tidy", "\n      ".join(mine[:20]) if mine else
-           f"{len(units)} TUs ({elsewhere} findings on lines this branch didn't add; CI's older tidy may not flag them)")
+    units = select_units(tree, build, sources)
+    check_gcc(build, units)
+    check_tidy(tree, build, units, numbers)
     return True
 
 
