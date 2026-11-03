@@ -31,7 +31,8 @@ a reviewer can drop a row and merge the rest. -->
 ## How to re-check
 
 <!-- Commands a reviewer can paste as-is on their own copy. For an oracle,
-the exact tools/emu call and its inputs, not "run the oracle". -->
+the exact tools/emu call and its inputs, not "run the oracle"; the oracle
+script itself is in this pull request (or already in tools/emu). -->
 
 ```sh
 python3 tools/pr_guard.py

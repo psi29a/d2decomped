@@ -302,8 +302,44 @@ def build(with_issues):
         "remaining": remaining, "done": not any(remaining.values()),
         "frontier": [r["address"] for r in frontier],
         "blocking": [{"address": r["address"], "gaps": len(r["gaps"]), "status": r["status"]} for r in blocking],
-        "gaps": gaps, "credits": credits(),
+        "gaps": gaps, "credits": credits(), "oracles": oracles(funcs),
     }, records, frontier
+
+
+# tools/emu scripts that are tools, not oracles: the emulator, readers, finders, a live join test.
+HELPERS = {"emu.py", "disasm.py", "mpq_cache.py", "structs.py", "scan_writes.py", "txt_fields.py", "join_live.py",
+           "libd2_crc.py", "price_terms.py"}
+
+
+def oracles(funcs):
+    """tools/emu's scripts that run game.exe's own code, where the repo cites them, and any cited but missing."""
+    scripts = [p for p in git("ls-files", "tools/emu/*.py").splitlines() if not os.path.basename(p).startswith(("_", "test_"))]
+    present = {os.path.basename(p) for p in git("ls-files", "tools").splitlines()}
+    cited, missing = collections.Counter(), collections.defaultdict(set)
+    mention = re.compile(r"\b(\w+\.py)\b")
+    for path in git("ls-files", "components", "apps", "docs", "tests").splitlines():
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):
+            continue
+        for number, line in enumerate(lines, 1):
+            for name in set(mention.findall(line)):
+                if name in present:
+                    cited[name] += 1
+                elif "oracle" in line.lower() or "tools/emu/" in line:
+                    missing[name].add(f"{path}:{number}")
+    rows = []
+    for path in scripts:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        if os.path.basename(path) in HELPERS:
+            continue
+        doc = re.search(r'"""(.*?)(?:\n|""")', text, re.S)
+        runs = list(dict.fromkeys(f"{h:08x}" for h in map(funcs.holding, addresses(text)) if h))   # as the script names them
+        name = os.path.basename(path)
+        rows.append({"script": path, "what": doc.group(1).strip() if doc else "", "runs": runs, "cited": cited[name]})
+    return {"scripts": rows, "missing": {name: sorted(where) for name, where in sorted(missing.items())}}
 
 
 def credits():
@@ -394,6 +430,20 @@ def write(out, summary, records, frontier):
            "| Note | Functions | Bytes |", "|---|---|---|"]
     for g in cheap[:20]:
         md.append(f"| `{g['source']}` | {' '.join(f'`{a}`' for a in g['functions'][:3])} | {g['size']} |")
+    o = summary["oracles"]
+    md += ["\n## Oracles\n", "Scripts in `tools/emu` that run game.exe's own code on the same inputs as d2d and diff the "
+           "two (AGENTS.md \"Evidence\"). They need your own game.exe; run them from `tools/emu` with `uv run python`. "
+           "Cited: lines in the code and docs that name the script.\n",
+           "| Oracle | What it checks | Runs | Cited |", "|---|---|---|---|"]
+    for r in sorted(o["scripts"], key=lambda r: -r["cited"]):
+        what = r["what"].replace("|", "\\|")
+        md.append(f"| [{os.path.basename(r['script'])}]({repo}{r['script']}) | {what} | "
+                  f"{' '.join(f'`{a}`' for a in r['runs'][:3])}{' …' if len(r['runs']) > 3 else ''} | {r['cited']} |")
+    if o["missing"]:
+        md += ["\nCited as an oracle but not in the repo, so the claims that lean on them can't be re-checked:\n",
+               "| Script | Cited at |", "|---|---|"]
+        for name, where in o["missing"].items():
+            md.append(f"| {name} | {', '.join(f'`{w}`' for w in where[:3])} |")
     md += ["\n## Listed gaps\n", "| Kind | Rows | A gap? |", "|---|---|---|"]
     for (kind, is_gap), n in sorted(kinds.items(), key=lambda k: (not k[0][1], k[0][0])):
         md.append(f"| {kind} | {n} | {'yes' if is_gap else 'context'} |")
