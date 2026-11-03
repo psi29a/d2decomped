@@ -5,6 +5,7 @@
 // points. Fire Hit's row: ToHit 20, LevToHit 10.
 
 #include <ai.hpp>
+#include <monsters.hpp>
 #include <skills.hpp>
 
 #include <cassert>
