@@ -260,9 +260,8 @@ bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& spot_x, 
 // every row and difficulty against game.exe.
 // With `players` in the game (FUN_00535790's count, FUN_00573930) life
 // and experience grow by player_life_pct / player_exp_pct of the roll
-// (FUN_00483360: truncated), life capped at 0x7fffff (FUN_00573cb0).
-// ponytail: monster data +0x4c (unidentified) skips the bonus in game.exe;
-// d2d's pets never take it.
+// (FUN_00483360: truncated), life capped at 0x7fffff (FUN_00573cb0); not
+// for a MonStats row with an Align (+0x4c: FUN_00573930 skips the bonus).
 struct MonStats {
     int level = 1, hit_points = 1, armor_class = 0, to_hit = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
     int s1_min = 0, s1_max = 0;
@@ -378,6 +377,7 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     MonStats stats;
     if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;
     const auto& type_info = monsters.types[std::size_t(type)];
+    if (type_info.align != 0) players = 1;
     const int difficulty_index = std::clamp(difficulty, 0, 2);
     const int base_level = start_level(type_info, difficulty_index, area_level);
     const int spawn_level = std::max(base_level, 1);
