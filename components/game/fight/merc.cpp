@@ -272,9 +272,10 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                     missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = actor->merc_st.level; missile.friendly = true; missile.caster = actor->id; missile.by_merc = true;
                     missiles.push_back(std::move(missile));
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
-                    // A melee skill (Jab, Bash, Stun) builds its hit as the
-                    // player's do (skill_swing) at the merc's skill level.
-                    // ponytail: Jab's SQ hits come as one.
+                    // A melee skill (Bash, Stun; Jab only off its sequence) builds
+                    // its hit as the player's do (skill_swing) at the merc's skill
+                    // level. act2hire's Jab plays seq_act2guardjab above, a hit at
+                    // each of its two event-1 rows.
                     const auto swing_with = skill ? skill_swing(*skill, std::max(actor->merc_skill_level, 1), merc_calc_env(), false) : d2d::rules::Swing{};
                     merc_strike(std::size_t(actor->merc_target), swing_with, now_ms);
                 }

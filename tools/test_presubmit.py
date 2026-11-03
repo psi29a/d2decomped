@@ -33,6 +33,13 @@ class PresubmitTests(unittest.TestCase):
         self.assertEqual(presubmit.unsorted_runs("t.py", ["import sys", "import emu", "from drops import rows"]), [(1, "import sys")])
         self.assertEqual(presubmit.unsorted_runs("t.py", ["import emu", "import sys", "from drops import rows"]), [])
 
+    def test_unlisted_sources(self):
+        with tempfile.TemporaryDirectory() as folder:
+            tree = Path(folder)
+            (tree / "build").mkdir()
+            (tree / "build" / "compile_commands.json").write_text(f'[{{"file": "{tree / "a.cpp"}"}}]')
+            self.assertEqual(presubmit.unlisted_sources(tree, tree / "build", ["a.cpp", "b.cpp", "c.hpp"]), ["b.cpp"])
+
     def test_unsorted_tables(self):
         table = ["| Address | Role |", "|---|---|", "| `FUN_00500000` | b |", "| `FUN_00400000` | a |"]
         self.assertEqual(presubmit.unsorted_tables(["## Map", *table]), [(5, "00400000")])

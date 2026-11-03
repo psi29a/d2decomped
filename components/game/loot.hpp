@@ -211,7 +211,7 @@ struct Loot {
             // members (to what their purse holds), the picker the rest; what
             // the picker's purse can't hold stays.
             std::int64_t pile = ground_item.gold;
-            if (const auto sharers = gold_sharers && ground_item.owner == 0 ? gold_sharers() : std::vector<Character*>{}; !sharers.empty()) {
+            if (const auto& sharers = gold_sharers && ground_item.owner == 0 ? gold_sharers() : std::vector<Character*>{}; !sharers.empty()) {
                 const std::int64_t share = pile / std::int64_t(sharers.size() + 1);
                 for (Character* other : sharers) {
                     const auto given = std::min(share, room(*other));

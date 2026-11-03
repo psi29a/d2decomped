@@ -107,7 +107,7 @@ int main(int argc, char** argv) try {
         monster.stats.hit_points = monster.hit_points = 1000000;
         monster.life_frac = 0;
         monster.next_act = ~0u;
-        world.fight.add_monster(monster);
+        world.fight.add_monster(std::move(monster));
         auto& placed = world.fight.monsters.back();
         placed.boss_res = {};
         const auto res = world.fight.target_of(world.fight.monsters.size() - 1).res;

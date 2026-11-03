@@ -105,6 +105,7 @@ struct ItemBase {
     int version = 0;                                   // version (+0xf6): 100 an expansion item
     std::string type2;                                 // type2 (+0x120)
     int hit_class = 0;                                 // weapons.txt "hit class" (sound_ids::hit_class): its swing and impact sounds
+    int min_misdam = 0, max_misdam = 0;                // weapons.txt minmisdam / maxmisdam: a thrown one's (stats 159 / 160)
 };
 // Prices (FUN_0062efb0, docs/research/re/store.md): npc.txt by MonStats Id.
 struct NpcPrice { int buy = 1024, sell = 1024, rep = 1024; std::array<int, 3> qflag{}, qbuy{}, qsell{}, qrep{}, max_buy{}; };

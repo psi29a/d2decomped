@@ -505,7 +505,8 @@ struct Fight {
     // when the weapon is its type, the best one (FUN_00645830), Weapon Block
     // (348) with two claws when either hand is (FUN_0057dca0, class HT2);
     // the set bonuses (set_bonus_props, set_props); nothing from a broken item.
-    // ponytail: the throw masteries (345..347) wait for thrown weapons.
+    // Throwing a throwable with Throw, Left Hand Throw or Double Throw, the
+    // throw masteries (345..347) count in the melee ones' place (FUN_00645720).
     [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
                                                      const d2d::rules::StatSum* states = nullptr,
                                                      const std::vector<d2d::rules::PassiveStat>* passives = nullptr,
@@ -582,10 +583,10 @@ struct Fight {
     // calc1 damage %, calc2 damage after, SrcDam, ResultFlags' knockback;
     // a Dragon Talon kick: toht, ln12 damage % (FUN_005d5880), the skill's
     // physical damage, the last kick knocking back (100% on normal
-    // monsters, FUN_005d5a30).
+    // monsters, FUN_005d5a30). A finisher's charges add their stat 325
+    // to-hit (add_charges), Dragon Flight's too (progressive_tohit).
     // ponytail: the skills' states (Stun's stun, Concentrate's defense) and
-    // calc4's element conversion aren't applied; stat 325's to-hit on kicks
-    // isn't added.
+    // calc4's element conversion aren't applied.
     [[nodiscard]] d2d::rules::Swing swing();
     // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the
     // merc's (Jab, Bash, Stun). `by_player`: Smite's Holy Shield damage and
@@ -702,6 +703,8 @@ struct Fight {
     // at the higher of the stored level and today's), and progressive_tohit's
     // par4 a charge as the swing's to-hit %.
     void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing) { add_charges(actor->charges, fighter, swing, true); }
+    // The player's charges' progressive_tohit (stat 0x145, their aurastat 325s): Dragon Flight's to-hit % on top of its own.
+    [[nodiscard]] int progressive_tohit();
     void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
     // A row with no Skill: its own element at level lvl with its synergy
     // (EDmgSymPerCalc on `env`), the weapon at its SrcDamage.
@@ -726,9 +729,9 @@ struct Fight {
     void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
     // physical damage, on every monster within aurarangecalc subtiles of
-    // the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0).
-    // ponytail: fire mastery (stat 329) isn't summed into the fighter; the
-    // target is taken to be in the blast.
+    // the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0); the
+    // mastery is the player's stat 329 (psum: items, passives). The blast is
+    // centred on the unit kicked (FUN_00553540's, esi at 0x5d71f7), so it's in it.
     void dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms);
 
     // A unique's mods in the fight (uniques.hpp, monsters.md "Boss mods in
@@ -737,9 +740,8 @@ struct Fight {
     // wandering as Charged Bolt's) at
     // most every 10 frames; 4 frames after it dies (the event 7 its death
     // queues), Fire Enchanted's blast and Cold Enchanted's nova
-    // (FUN_005a2bd0: coldunique, level mlvl / 2).
-    // ponytail: a hit taken in GH waits 2 frames in game.exe, fires at once
-    // here.
+    // (FUN_005a2bd0: coldunique, level mlvl / 2). A hit taken in GH fires
+    // the bolts 2 frames on (event 7, FUN_005a37d0).
     void boss_events(std::span<Foe> foes, std::uint32_t now_ms);
     // A boss's missile from where it stands, at level mlvl / 2 (at least
     // 1), the row's own element (FUN_0064b100 ..).

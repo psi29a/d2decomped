@@ -503,7 +503,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.id = id;
         skill_row.name = text("skill"); skill_row.cls = text("charclass"); skill_row.desc = text("skilldesc");
         skill_row.srvstfunc = d2d::rules::ServerStartFunction(number("srvstfunc")); skill_row.srvdofunc = d2d::rules::ServerDoFunction(number("srvdofunc"));
-        skill_row.anim = text("anim"); skill_row.range = text("range"); skill_row.monanim = text("monanim");
+        skill_row.anim = text("anim"); skill_row.range = text("range"); skill_row.itypea1 = text("itypea1"); skill_row.monanim = text("monanim");
         skill_row.aitype = number("aitype"); skill_row.attack_rank = number("attackrank"); skill_row.aibonus = number("aibonus"); skill_row.delay = calc("delay"); skill_row.progressive = text("progressive") == "1";
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
@@ -938,6 +938,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                           number("bitfield1"), number("quest") > 0, number("unique") > 0, number("spawnstack"),
                                           table == &misc ? 0 : number("rarity") };
                 auto& base = game_data.rules.item_base[code];
+                if (table == &weapons) { base.min_misdam = number("minmisdam"); base.max_misdam = number("maxmisdam"); }
                 base.gem_sockets = number("gemsockets");
                 base.hit_class = table == &weapons ? d2d::rules::sound_ids::hit_class(table->get(row, "hit class")) : 0;
                 base.auto_prefix = table == &misc ? 0 : number("auto prefix");

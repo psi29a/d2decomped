@@ -1280,7 +1280,7 @@ int main(int argc, char** argv) try {
 
         // Meteor's centre (14) and Immolation Arrow (9) leave fire burning its own row (no fixed
         // damage) for Param3 + (lvl - 1) x Param4 / SHitCalc1 frames (FUN_0059fa30's flag 0x8000).
-        const auto burst_fires = [&](const char* row, const char* skill_name, int lvl) {
+        const auto burst_fires = [&](const char* row, const char* skill_name, int lvl, bool own_row = true) {
             const auto& skill_row = *data->skills.get(data->skills.by_name.at(skill_name));
             world.fight.pending.clear();
             auto shot = world.fight.launch(data->missiles.at(row), skill_row, lvl, world.actor->player.x + 3, world.actor->player.y, 0, 0, 1, 5000 * kTickMs);
@@ -1288,7 +1288,7 @@ int main(int argc, char** argv) try {
             world.fight.burst(shot, 5000 * kTickMs);
             std::vector<std::uint32_t> lives;
             for (const auto& flame : world.fight.pending)
-                if (flame.info->name == data->missiles.at(row).hit_sub) { assert(flame.fixed == -1); lives.push_back((flame.dies - flame.born) / kTickMs); }
+                if (flame.info->name == data->missiles.at(row).hit_sub) { assert(!own_row || flame.fixed == -1); lives.push_back((flame.dies - flame.born) / kTickMs); }
             world.fight.pending.clear();
             return lives;
         };
@@ -1298,6 +1298,16 @@ int main(int argc, char** argv) try {
         const auto immolation_fires = burst_fires("immolationarrow", "Immolation Arrow", 1);
         assert(!immolation_fires.empty() && std::ranges::all_of(immolation_fires, [](auto life) { return life == 100u; }));
         std::printf("OK: Meteor's and Immolation Arrow's fire last their own frames, burning their row\n");
+        // Molten Boulder's (47, FUN_005ac550): its fire lasts the burst's radius (sHitPar1, else
+        // aurarange); Armageddon's (56, FUN_005acc50): one fire on the spot, its row's length.
+        const auto& boulder_row = *data->skills.get(data->skills.by_name.at("Molten Boulder"));
+        const int boulder_radius = std::max(d2d::rules::eval_calc(data->skills, boulder_row.aurarange, world.fight.calc_env(), boulder_row.id, 2), 1);
+        const auto boulder_fires = burst_fires("moltenboulder", "Molten Boulder", 2, false);
+        assert(!boulder_fires.empty() && std::ranges::all_of(boulder_fires, [&](auto life) { return life == std::uint32_t(boulder_radius); }));
+        const auto& geddon_fire = data->missiles.at(data->missiles.at("armageddoncontrol").hit_sub);
+        const auto geddon_fires = burst_fires("armageddoncontrol", "Armageddon", 1, false);
+        assert(geddon_fires.size() == 1 && geddon_fires[0] == std::uint32_t(geddon_fire.range + geddon_fire.lev_range));
+        std::printf("OK: Molten Boulder's fire lasts its radius, Armageddon's control lays one fire\n");
     }
 
     // A chest's trap fires at its event 4, 35 frames after it opened

@@ -683,7 +683,8 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         // A merc's skill missile (Fire Arrow): its weapon, attack rating and
         // level; its skill's calcs see no synergies (mercs have none).
         const int clvl = missile.by_merc ? actor->merc_st.level : int(actor->character.stats.get(d2d::d2s::kLevel));
-        const auto fighter = missile.by_merc ? merc_fighter() : actor->player_combat;
+        const auto merc = missile.by_merc ? merc_fighter() : d2d::rules::Fighter{};
+        const auto& fighter = missile.by_merc ? merc : actor->player_combat;
         const auto env = missile.by_merc ? merc_calc_env() : calc_env();
         auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = missile.info->etype < 0 ? 0 : missile.info->etype, .elo = missile.fixed, .ehi = missile.fixed }
                 : missile.info->skill.empty() ? row_damage(*missile.info, missile.level, env, missile.skill)
@@ -755,11 +756,20 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
                             if (offset_x * offset_x + offset_y * offset_y <= burst_radius * burst_radius) sub_at(missile.x + float(offset_x) / 5, missile.y + float(offset_y) / 5, 0, 0, frames);
                 break;
             }
-            case 14: case 47: case 56: {
+            case 56: {
+                // Armageddon's / Diablogeddon's (FUN_005acc50, table 0x73c840): the burst,
+                // then one sub-missile on its spot (FUN_0056ede0), its row's length.
                 area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms);
-                // Meteor's (FUN_005aabb0 -> FUN_005aaa90): its fire lasts FUN_004cc7c0's Param3 + (lvl - 1) x Param4 frames.
-                // ponytail: 47 / 56 (untraced) keep the sub-row's EMin a frame.
-                const int frames = missile_info.hit_func == 14 ? skill->par[2] + (missile.level - 1) * skill->par[3] : 0;
+                if (sub) sub_at(missile.x, missile.y, 0, 0).fixed = hit_sub->second.emin > 0 ? hit_sub->second.emin : -1;
+                break;
+            }
+            case 14: case 47: {
+                const int burst = radius(missile_info.hit_par1, skill->aurarange);
+                area(missile, missile.x, missile.y, burst, now_ms);
+                // FUN_005aaa90 lays the fire every sHitPar2th spot. Meteor's (FUN_005aabb0) lasts
+                // FUN_004cc7c0's Param3 + (lvl - 1) x Param4 frames; Molten Boulder's
+                // (FUN_005ac550) is handed the burst's radius as its length (flag 0x8001).
+                const int frames = missile_info.hit_func == 14 ? skill->par[2] + (missile.level - 1) * skill->par[3] : burst;
                 if (sub)
                     for (std::size_t j = 0; j < 18; j += std::size_t(std::max(missile_info.hit_par2, 1))) {
                         auto& fire = sub_at(missile.x + float(kSpreadX[j]) / 5, missile.y + float(kSpreadY[j]) / 5, 0, 0, frames);
@@ -837,9 +847,9 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
             prayer_pulse(*skill, lvl, env, actor->player.x, actor->player.y);
             return;
         }
-        // Redemption (do 82): a corpse within aurarange redeemed at calc1 %,
-        // calc2 life and mana back.
-        // ponytail: its callback isn't traced; one corpse a pulse.
+        // Redemption (do 82, FUN_005d0e90): FUN_0056b7e0 runs FUN_005d0d70 on
+        // every unit within aurarange, so each corpse there rolls calc1 % on its
+        // own and each one redeemed gives calc2 life and calc3 mana back.
         if (skill->srvdofunc == ServerDoFunction::kRedemption) {
             using namespace d2d::d2s;
             const int radius = calc(*skill, skill->aurarange, lvl);
@@ -847,11 +857,10 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
                 if (!monster.alive() && !monster.corpse_used && monster.mode == "DD" && std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(radius)) {
                     if (int(rng(100)) < calc(*skill, skill->calc[0], lvl)) {
                         monster.corpse_used = true;
-                        const std::int64_t gain = std::int64_t(calc(*skill, skill->calc[1], lvl)) << 8;
-                        actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + gain);
-                        actor->character.stats.values[kMana] = std::min(actor->character.stats.values[kMaxMana], actor->character.stats.values[kMana] + gain);
+                        const std::int64_t life = std::int64_t(calc(*skill, skill->calc[1], lvl)) << 8, mana = std::int64_t(calc(*skill, skill->calc[2], lvl)) << 8;
+                        actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + life);
+                        actor->character.stats.values[kMana] = std::min(actor->character.stats.values[kMaxMana], actor->character.stats.values[kMana] + mana);
                     }
-                    break;
                 }
             return;
         }

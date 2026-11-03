@@ -103,7 +103,7 @@ struct Fighter {
 inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
                             const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& stats,
                             const ClassGains& gains, int defense, const std::array<int, 4>& res,
-                            const d2d::d2s::Item* boots = nullptr) {
+                            const d2d::d2s::Item* boots = nullptr, bool thrown = false) {
     using namespace d2d::d2s;
     Fighter fighter;
     const auto stat = [&](int id) { return sum[std::size_t(id)]; };
@@ -113,8 +113,10 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     if (weapon && !broken(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken one's stats are off (FUN_0055f850)
     if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end() && found->second.hit_class) fighter.hit_class = found->second.hit_class;
     // In 256ths, as game.exe keeps them.
-    std::int64_t low = (weapon_base ? weapon_base->mindam * (100 + weapon_stat(kMinDamagePercent)) / 100 : 1) + stat(kMinDamage) + stat(kNormalDamage),
-                 high = (weapon_base ? weapon_base->maxdam * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100 : 2) + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8 + stat(kNormalDamage);
+    // `thrown`: the weapon's throw damage (FUN_0064b860: stats 0x9f / 0xa0, minmisdam / maxmisdam).
+    const int base_min = weapon_base ? (thrown ? weapon_base->min_misdam : weapon_base->mindam) : 0, base_max = weapon_base ? (thrown ? weapon_base->max_misdam : weapon_base->maxdam) : 0;
+    std::int64_t low = (weapon_base ? base_min * (100 + weapon_stat(kMinDamagePercent)) / 100 : 1) + stat(kMinDamage) + stat(kNormalDamage),
+                 high = (weapon_base ? base_max * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100 : 2) + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8 + stat(kNormalDamage);
     low = std::max<std::int64_t>(low, 1) << 8;
     high = std::max<std::int64_t>(high << 8, low + 256);
     const std::int64_t pct = std::max<std::int64_t>(stat(kDamagePercent) + stat(kPassiveMasteryMeleeDamage) + (weapon_base ? str * weapon_base->str_bonus / 100 + dex * weapon_base->dex_bonus / 100 : 0), -90);
