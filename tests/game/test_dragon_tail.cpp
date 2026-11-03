@@ -29,6 +29,7 @@ int main() {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data);
+    if (!data->patched) { std::printf("SKIP: 1.14d's tables: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
     d2d::rules::Rng rng{ 3 };
     const auto fallen = data->monsters.by_id.find("fallen1");
     assert(fallen != data->monsters.by_id.end());

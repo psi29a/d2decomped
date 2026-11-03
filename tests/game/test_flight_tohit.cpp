@@ -27,6 +27,7 @@ int main() {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data);
+    if (!data->patched) { std::printf("SKIP: 1.14d's tables: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
     d2d::rules::Rng made_rng{ 7 };
     auto made_character = new_character(*data, 6, "Headless", false, true, made_rng);
     Character character;
