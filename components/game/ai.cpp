@@ -3136,6 +3136,7 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
     const int element = d2d::rules::kSpectralElement[std::size_t(rng(5))];
     const int low = damage_pct * game_data.umods.constants[28] / 100;
     monster.stats.elements[2] = { element, 100, low, std::max(damage_pct * game_data.umods.constants[31] / 100, low), element == 2 || element == 3 ? 40 : 0, mode };
+    monster.element_on[2] = true;   // set_mode rolled the slot's last element; this one is the swing's, 100 %
 }
 
 }  // namespace d2d::game

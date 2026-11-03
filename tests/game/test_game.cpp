@@ -873,6 +873,11 @@ int main(int argc, char** argv) try {
             assert(swinger.seed.low == expected.low && swinger.element_on[0] && swinger.element_on[1] == second_in && !swinger.element_on[2]);
             const auto swung = swinger.swing_stats();
             assert(swung.elements[0].pct == 100 && (swung.elements[1].type < 0) == !second_in && swung.elements[2].pct == 50);
+            // Spectral Hit's element is chosen after the roll: it's on for the swing.
+            swinger.boss = d2d::rules::Boss::unique; swinger.mods = { d2d::rules::umod::spectralhit };
+            set_mode(*data, swinger, "S1", throw_ms);
+            attack_starts(*data, swinger, "S1", world.fight.rng);
+            assert(swinger.swing_stats().elements[2].type >= 0 && swinger.swing_stats().elements[2].mode == "S1");
         }
         // The weapon switch keeps the current skill when the other set's
         // can't be used (FUN_005616a0 -> FUN_00620190: the skill list's +8).
