@@ -998,6 +998,10 @@ void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes
 // A monster's skill missile toward (dx, dy) cells (FUN_0059fa30, ai.cpp).
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
+// A monster's missile made at its target, (dx, dy) cells away (FUN_0056ede0 -> FUN_0059fa30
+// flag 1: the record's +0x14 / +0x18), heading a subtile on at (+1, +1).
+void missile_at_target(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
+                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
 // A monster's skill strike (Whirlwind, Leap Attack): its A1 swing at the skill's damage, to-hit and element (ai.cpp).
 d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl);
 // Fire Hit's and Jab's hit (FUN_005cae40, FUN_005db2d0): the swing's S1 damage,

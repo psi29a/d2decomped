@@ -411,6 +411,16 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
     if (carried) missiles.back().skill = carried->id;
 }
 
+void missile_at_target(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
+                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried) {
+    const std::size_t before = missiles.size();
+    andariel_missile(game_data, monster, name, 0.2f, 0.2f, now_ms, missiles, lvl, carried);
+    if (missiles.size() == before) return;
+    auto& centre = missiles.back();
+    centre.x += dx; centre.y += dy;
+    centre.to = std::pair{ centre.x + 0.2f, centre.y + 0.2f };
+}
+
 namespace {
 
 // A Skills.txt row by name, -1 none.
@@ -2586,8 +2596,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // FUN_005ca3e0: its srvmissilea at the target (MonBlizzard's centre),
                     // or at its point (the hell meteor's), when the missile's Size
                     // square there is clear of mask 5 (FUN_0056e450 -> FUN_0064d800).
-                    // ponytail: a blizzard's centre flies there.
-                    // One that doesn't move (Baal Taunt's control) stands at the target.
+                    // FUN_0056ede0 -> FUN_0059fa30 with flag 1 starts it there (record
+                    // +0x14 / +0x18), heading a subtile on at (+1, +1); every shipped
+                    // row (Vel 0) stands.
                     const float aim_x = monster.at_point ? (float(monster.skill_x) + 0.5f) / 5 - unit.x : dx, aim_y = monster.at_point ? (float(monster.skill_y) + 0.5f) / 5 - unit.y : dy;
                     const auto meteor = game_data.missiles.find(cast->srvmissilea);
                     const int size = meteor == game_data.missiles.end() ? 1 : std::max(meteor->second.size, 1);
@@ -2596,11 +2607,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     for (int at_y = point_y - (size >> 1); at_y < point_y - (size >> 1) + size; ++at_y)
                         for (int at_x = point_x - (size >> 1); at_x < point_x - (size >> 1) + size; ++at_x)
                             clear = clear && !level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 5);
-                    const std::size_t before = missiles.size();
-                    if (clear) andariel_missile(game_data, monster, cast->srvmissilea, aim_x, aim_y, now_ms, missiles, lvl, cast);
-                    if (missiles.size() > before && missiles.back().velocity_x == 0 && missiles.back().velocity_y == 0) {
-                        missiles.back().x += aim_x; missiles.back().y += aim_y;
-                    }
+                    if (clear) missile_at_target(game_data, monster, cast->srvmissilea, aim_x, aim_y, now_ms, missiles, lvl, cast);
                 } else if (cast->srvdofunc == ServerDoFunction::kMonPoisonNova) {
                     // FUN_005ccd10: srvmissilea toward the even 8 of rules::kPoisonNova at
                     // Param1 << 6, then every calc2th from the second at Param2 << 6
