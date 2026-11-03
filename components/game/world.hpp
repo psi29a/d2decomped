@@ -817,8 +817,8 @@ struct World {
     //   in single player at most what leaves level x 500, and only from the
     //   purse; the rest of the purse falls where the player dies
     //   (FUN_00535510: one pile, FUN_0055a090 splits only past 2,000,000,000;
-    //   the player owns it), the purse is emptied, goldlost (175) is set.
-    // ponytail: goldlost isn't kept.
+    //   the player owns it), the purse is emptied, goldlost (175) is set
+    //   (Player::gold_lost: the death screen's line, FUN_00453100).
     void death_penalty(std::uint32_t now_ms);
     // The death played out (mode 0x11; FUN_0057fca0 → FUN_0057f700): a
     // corpse where the player lies with what they wore and held, and 75% of
