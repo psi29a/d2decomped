@@ -40,7 +40,7 @@ class StructsTests(unittest.TestCase):
 
     def test_an_unknown_field_is_an_error(self):
         with self.assertRaises(KeyError):
-            structs.view(Memory(), "unit", 0).nope
+            _ = structs.view(Memory(), "unit", 0).nope
 
 
 if __name__ == "__main__":
