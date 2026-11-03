@@ -402,8 +402,13 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
     const auto shown = std::min<std::size_t>(lines.size(), 3);
     for (std::size_t i = 0; i < shown; ++i)
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83, kHeight - 0x58 + 15 * int(i) - font.line_height() + 1, lines[i], 255, 255, 255);
-    if (now_ms % 600 < 500)   // ponytail: blinks on the clock, not from when typing began
+    if (caret_shown)
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83 + font.measure(lines[shown - 1]), kHeight - 0x58 + 15 * int(shown - 1) - font.line_height() + 1, "_", 255, 255, 255);
+    if (now_ms - caret_turned > caret_period) {
+        caret_turned = now_ms;
+        caret_shown = !caret_shown;
+        caret_period = caret_shown ? 500 : 100;
+    }
 }
 
 // The field's pad prompt over the control panel: the button A is bound to,

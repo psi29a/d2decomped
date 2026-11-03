@@ -215,6 +215,11 @@ struct Town {
     auto draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void;
     auto wrap_chat(const std::string& text, int width) const -> std::vector<std::string>;
     std::optional<std::string> chat_typing;                 // a chat message, being typed (Enter)
+    // Its caret (FUN_0047b450): drawn while shown; a draw past its period
+    // since the last turn turns it, shown 500 ms, hidden 100 (0x713000 /
+    // 0x713004, from 500 and shown; the clock only moves while it's drawn).
+    mutable std::uint32_t caret_turned = 0, caret_period = 500;
+    mutable bool caret_shown = true;
     std::string typed;                                      // this frame's typed text (SDL text input)
     struct ChatShown { std::string text; std::uint32_t until = 0; int colour = 0; std::size_t gold = 0; };   // gold: that many letters first in gold (a speaker's name)
     std::vector<ChatShown> chat_lines;                      // the top-left chat lines, oldest first
