@@ -13,8 +13,12 @@ spec.loader.exec_module(pr_guard)
 
 
 class GuardTests(unittest.TestCase):
-    def run_guard(self, files, labels=()):
-        """Commit an empty base, then `files` on top; return (fails, warns)."""
+    def run_guard(self, files, labels=(), at_base=False):
+        """Commit an empty base, then `files` on top; return (fails, warns).
+
+        at_base: leave the working tree at the base, as CI does (it checks out the
+        base and fetches the PR head only as data), and check the head by hash.
+        """
         with tempfile.TemporaryDirectory() as directory:
             def git(*args):
                 subprocess.run(["git", "-C", directory, *args], check=True, capture_output=True)
@@ -26,10 +30,15 @@ class GuardTests(unittest.TestCase):
                 path.write_bytes(data)
             git("add", "-A")
             git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "change")
+            head = "HEAD"
+            if at_base:
+                git("branch", "pr")
+                git("checkout", "-q", "main~1")
+                head = "pr"
             cwd = os.getcwd()
             os.chdir(directory)
             try:
-                fails, warns, _ = pr_guard.check("main~1", set(labels), {0x45c3e0: 0x40})
+                fails, warns, _ = pr_guard.check("main~1", set(labels), {0x45c3e0: 0x40}, head)
             finally:
                 os.chdir(cwd)
             return fails, warns
@@ -73,6 +82,16 @@ class GuardTests(unittest.TestCase):
     def test_a_cited_tool_must_be_in_the_tree(self):
         fails, _ = self.run_guard({"components/x.hpp": b"// tools/emu/gone.py and tools/emu/here.py check it\n",
                                    "tools/emu/here.py": b"print()\n"})
+        self.assertEqual(len(fails), 1)
+        self.assertIn("tools/emu/gone.py", fails[0])
+
+    def test_a_tool_the_pr_adds_and_cites_passes_from_the_base_checkout(self):
+        files = {"components/x.hpp": b"// tools/emu/x.py checks it\n", "tools/emu/x.py": b"print()\n"}
+        fails, _ = self.run_guard(files, at_base=True)
+        self.assertEqual(fails, [])
+
+    def test_a_tool_in_neither_tree_fails_from_the_base_checkout(self):
+        fails, _ = self.run_guard({"components/x.hpp": b"// tools/emu/gone.py checks it\n"}, at_base=True)
         self.assertEqual(len(fails), 1)
         self.assertIn("tools/emu/gone.py", fails[0])
 
