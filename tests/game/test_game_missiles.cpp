@@ -33,6 +33,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -524,6 +525,33 @@ int main() try {
         knight.armored = true;
         assert(soak(knight, 384, 640) == 256 && knight.armor_pool == 616 && knight.armored);
         std::printf("OK: Bone Armor soaks in 256ths\n");
+    }
+
+    // Armageddon / Hurricane run every Param4 frames from the cast (8 / 20: FUN_005c8520 /
+    // FUN_005c8380 re-file event 5 at FUN_004efc80's Skills +0x154); a run in town ends them.
+    {
+        const auto* town = world.level;
+        world.level = data->level(d2d::rules::level_ids::kBloodMoor);
+        for (const auto* name : { "Armageddon", "Hurricane" }) {
+            const auto& skill = *data->skills.get(int(data->skills.by_name.at(name)));
+            world.fight.start_state(skill, 1, 0);
+            const auto strikes = [&] { return std::uint32_t(world.actor->armageddon_next + world.actor->hurricane_next); };
+            std::vector<std::uint32_t> runs;
+            for (std::uint32_t frame = 1, last = strikes(); frame <= 60; ++frame) {
+                world.fight.buff_tick(frame * kTickMs);
+                if (strikes() != last) runs.push_back(frame), last = strikes();
+            }
+            const std::uint32_t every = std::string_view(name) == "Armageddon" ? 8 : 20;
+            assert(skill.par[3] == int(every) && !runs.empty() && runs.size() == 60 / every);
+            for (std::size_t k = 0; k < runs.size(); ++k) assert(runs[k] == every * (k + 1));
+            world.level = town;
+            world.fight.buff_tick(61 * kTickMs + every * kTickMs);
+            assert(!world.fight.state_of(skill.aurastate));
+            world.level = data->level(d2d::rules::level_ids::kBloodMoor);
+        }
+        world.level = town;
+        world.fight.missiles.clear();
+        std::printf("OK: Armageddon / Hurricane strike every Param4 frames, not in town\n");
     }
     return 0;
 } catch (const std::exception& error) {
