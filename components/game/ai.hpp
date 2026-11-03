@@ -990,6 +990,8 @@ void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes
 // A monster's skill missile toward (dx, dy) cells (FUN_0059fa30, ai.cpp).
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
+// A monster's skill strike (Whirlwind, Leap Attack): its A1 swing at the skill's damage, to-hit and element (ai.cpp).
+d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl);
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
 // A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).

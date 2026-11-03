@@ -440,21 +440,27 @@ bool castable(const d2d::rules::Skill& skill) {
                                                                           kBaalColdMissiles, kBaalTentacle, kImpInferno, kImpTeleport, kImpFireMissile,
                                                                           kCryHelp, kOverseerWhip, kImpregnate, kSiegeBeastStomp, kWarCry, kCorpseExplosion, kMinionSpawner }, skill.srvdofunc);
 }
+}  // namespace
+
 // A monster's skill strike (Whirlwind's do 76, Leap Attack's FUN_005da660):
 // its A1 swing with calc1 % more damage, the skill's to-hit and its element
-// (FUN_0056e0c0) at the level.
-// ponytail: the to-hit is the swing's plus ToHit + LevToHit a level, as %.
+// (FUN_0056e0c0) at the level. The to-hit (FUN_006449f0: ToHitCalc, else
+// ToHit + LevToHit a level) is added to the rating as points: FUN_0057d9b0's
+// monster branch (0x57db93) rolls stat 19 + it + dex x 5, then stat 119's %.
 d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl) {
     auto stats = monster.swing_stats();
     const int more = d2d::rules::eval_calc(game_data.skills, skill.calc[0], {}, skill.id, lvl);
     for (int* damage : { &stats.a1_min, &stats.a1_max }) *damage = std::max(*damage * (100 + more + monster.dmg_pct) / 100, 0);
-    stats.to_hit += stats.to_hit * (skill.tohit + skill.levtohit * (lvl - 1)) / 100;
+    stats.to_hit += d2d::rules::skill_tohit(game_data.skills, skill, {}, lvl);
     const auto added = d2d::rules::row_damage(skill.etype, skill.emin, skill.emax, skill.emin_lev, skill.emax_lev, skill.hitshift, skill.elen, skill.elen_lev, lvl);
     if (added.etype >= 0)
         for (auto& element : stats.elements)
             if (element.type < 0) { element = { added.etype, 100, added.elo >> 8, added.ehi >> 8, added.elen, "A1" }; break; }
     return stats;
 }
+
+namespace {
+
 // Impregnate's test (FUN_005d2140): a live monster, not a putrid defiler
 // (0x222) or painworm (0x227), not impregnated (state 0x6e), not a
 // player's pet (FUN_006259b0 2).
