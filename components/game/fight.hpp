@@ -395,7 +395,7 @@ struct Fight {
     Hero* actor = nullptr;
     void act_as(Hero& hero) {
         actor = &hero;
-        loot.character = &hero.character; loot.player = &hero.player; loot.sound_unit = unit_key(kSoundOnPlayer, hero.id);
+        loot.character = &hero.character; loot.player = &hero.player;
         loot.blessed_find = hero.wisp_blessing.find; loot.blessed_until = hero.wisp_blessing.until;
     }
     // The player of that id, or null (gone).

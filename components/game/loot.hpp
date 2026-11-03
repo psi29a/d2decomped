@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -39,10 +40,10 @@ struct Loot {
     Cues& cues;
     Character* character = nullptr;        // the acting player's (World::act_as)
     UnitState* player = nullptr;
-    std::uint64_t sound_unit = 0;          // the acting player's, for its own lines (cues.hpp unit_key)
     // The picker's party alive on the level besides them (World's): they
     // share the gold picked up.
     std::function<std::vector<Character*>()> gold_sharers;
+    std::function<void(std::string_view, std::uint32_t)> class_voice;   // Fight::class_voice
     // An item on the ground (gold: code "gld", `gold` coins).
     struct GroundItem {
         int id = -1;                         // its unit id (the server's)
@@ -198,10 +199,9 @@ struct Loot {
     // Picking up: gold into the purse (up to 10000 per character level),
     // an item stacked, into the belt or the inventory (rules::pick_up); no
     // room plays the class's "can't carry" (message 0x17: FUN_004cb9c0,
-    // the class's sound table at 0x72a008, +0x14).
-    // ponytail: the client's repeat guard on that voice (the same sound
-    // again within 75 of FUN_0044db00's clock) isn't kept.
-    void take(std::size_t index) {
+    // the class's sound table at 0x72a008, +0x14) through class_voice, so
+    // the same line again within 75 client frames (FUN_0044db00) is skipped.
+    void take(std::size_t index, std::uint32_t now_ms) {
         using namespace d2d::d2s;
         auto& ground_item = ground[index];
         if (ground_item.item.code == "gld") {
@@ -234,7 +234,7 @@ struct Loot {
                 static constexpr std::array<const char*, 7> kCantCarry{ "amazon_cantcarry_1", "sorceress_cantcarry_1", "necromancer_cantcarry_1",
                     "paladin_cantcarry_1", "barbarian_cantcarry_1", "druid_cantcarry_1", "assassin_cant_carry" };
                 d2d::log::info("no room for {}", ground_item.label);
-                cues.cue_on(sound_unit, kCantCarry[std::size_t(std::clamp(character->character_class, 0, 6))], 0, player->x, player->y);
+                if (class_voice) class_voice(kCantCarry[std::size_t(std::clamp(character->character_class, 0, 6))], now_ms);
             }
             if (taken != d2d::rules::Pickup::kGone) return;
             cues.cue("item_pickup", 0, player->x, player->y);

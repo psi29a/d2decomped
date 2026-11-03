@@ -529,7 +529,7 @@ auto World::carries(std::string_view code) const -> bool {
 auto World::give_item(std::string_view code, std::uint32_t now_ms, int ilvl, int quality) -> void {
         const std::size_t had = loot.ground.size();
         loot.put({ .code = std::string(code), .quality = quality }, actor->player.x, actor->player.y, ilvl, fight.spawning.game, now_ms);
-        if (loot.ground.size() > had) loot.take(loot.ground.size() - 1);   // only what was made
+        if (loot.ground.size() > had) loot.take(loot.ground.size() - 1, now_ms);   // only what was made
     }
 
 auto World::khalim_parts() const -> d2d::rules::KhalimQuest::Parts {
