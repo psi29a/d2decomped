@@ -6,6 +6,7 @@
 #include <gamedata.hpp>
 
 #include <cassert>
+#include <cstdint>
 
 using namespace d2d::game;
 
