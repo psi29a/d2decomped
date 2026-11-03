@@ -98,10 +98,6 @@ They all parse every file in the MPQs and draw or load right; tracing
 them would only confirm it (unverified.md has each row): the DCC format as
 a whole, the DS1 layer order, and the .d2s header and item bitstream.
 
-TBL values are traced as UTF-8, not Latin-1. d2d still zero-extends their
-bytes, mismatching 12 non-ASCII English values (`tbl-strings.md`;
-`ponytail:` in `components/tbl/tbl.hpp`).
-
 ## Joined games
 
 Out of single player's way, listed so they aren't lost: 0x74 corpses,
