@@ -981,7 +981,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.aidel = per_difficulty.aidel ? per_difficulty.aidel : 15;
     // Act 2's: Skill4 / 5; the target's fire / cold resists (stats 0x27 /
     // 0x2b); the second target (FUN_005ddc30, below); Duriel's aura
-    // on; the searches (FUN_005dd0b0) over the monsters within 80 subtiles:
+    // on; the searches (FUN_005dd0b0 mode 1: near_order):
     // the nearest living kin of its class (FUN_005b0d00, the Panthers'),
     // any other living one (FUN_005f06b0, the Sand Raider's), by squared
     // distance (FUN_005b0bd0); the Greater Mummy's (FUN_005f2a00) within
@@ -989,7 +989,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // found; an lUndead (MonStats +0xd & 8) not a unique (FUN_005a0180, 8).
     // Radament's (FUN_005f2b10, class 0xe5): within aip5 + 10, uniques
     // too, on Normal any undead (FUN_0063e990).
-    // ponytail: a skill is always usable (FUN_005fd470); the near rooms as 80 subtiles.
+    // ponytail: a skill is always usable (FUN_005fd470).
     input.regen = monster.stats.regen;
     input.skill45 = { !type_info.skill[3].empty(), !type_info.skill[4].empty() };
     input.target_fire_res = target->fighter.res[0]; input.target_cold_res = target->fighter.res[2];
@@ -1036,10 +1036,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         const bool panther = type_info.ai_name == "PantherWoman" || type_info.ai_name == "PantherJavelin";
         const bool raider = type_info.ai_name == "SandRaider", mummy = type_info.ai_name == "GreaterMummy";
         int kin_dist = std::numeric_limits<int>::max();
-        for (std::size_t i = 0; (panther || raider || mummy) && i < pack.size(); ++i) {
-            const auto& other = pack[i];
+        for (const int i : panther || raider || mummy ? near_order([&](const Monster& other) { return &other != &monster; }) : std::vector<int>{}) {
+            const auto& other = pack[std::size_t(i)];
             const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
-            if (&other == &monster || d2d::rules::ai_distance(off_x, off_y) >= 80) continue;
             if (mummy) {
                 const bool radament = monster.type == d2d::rules::monster_ids::kRadament;
                 const auto& other_type = game_data.monsters.types[std::size_t(other.type)];
@@ -1048,9 +1047,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const int reach = input.aip[4] + (radament ? 10 : 0);
                 if (squared > reach * reach) continue;
                 ++input.in_reach;
-                if (!other.alive() && other.mode == "DD" && !other.corpse_used) corpse = int(i);
-                else if (other.alive() && other.hit_points < other.stats.hit_points) aid = int(i);
-            } else if (other.alive() && (raider || other.type == monster.type) && squared < kin_dist) { kin = int(i); kin_dist = squared; }
+                if (!other.alive() && other.mode == "DD" && !other.corpse_used) corpse = i;
+                else if (other.alive() && other.hit_points < other.stats.hit_points) aid = i;
+            } else if (other.alive() && (raider || other.type == monster.type) && squared < kin_dist) { kin = i; kin_dist = squared; }
         }
         if (mummy) { input.corpse = corpse >= 0; input.aid = aid >= 0; }
         else { input.kin = kin >= 0; input.kin_dist = kin_dist; }
