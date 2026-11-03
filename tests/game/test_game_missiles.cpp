@@ -15,6 +15,7 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <missiles.hpp>
+#include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -569,6 +570,19 @@ int main() try {
         assert(shadow.skill_list.size() == 2 && shadow.skill_list[0].kind == 1 && shadow.skill_list[1].kind == 1);
         assert(archer.skill_list.size() == 1 && archer.skill_list[0].kind == 2);
         std::printf("OK: a Shadow's Attack is ranged with a bow\n");
+    }
+
+    // With the stones done, talking to anyone in Act 1 takes a bkd still carried (FUN_00592580).
+    {
+        world.cain.stones_done = true;
+        world.actor->character.items.push_back({ .code = "bkd", .location = d2d::d2s::item_location::kStored });
+        const auto carried = [&] { return std::ranges::count(world.actor->character.items, std::string_view("bkd"), &d2d::d2s::Item::code); };
+        (void)world.quest_talk(d2d::rules::monster_ids::kAkara, false);   // a check, not a talk
+        assert(carried() == 1);
+        (void)world.quest_talk(d2d::rules::monster_ids::kAkara);
+        assert(carried() == 0);
+        world.cain.stones_done = false;
+        std::printf("OK: a talk takes the bkd left once the stones are done\n");
     }
     return 0;
 } catch (const std::exception& error) {
