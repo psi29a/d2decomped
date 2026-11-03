@@ -227,7 +227,7 @@ inline int speed_frames(int base_frames, int speed_stat) {
 // the unit's seed (FUN_00472210) of 0 is none; then under 4 max / d: a roll of
 // 4 of 0 is none; else a get-hit. So the bands: 37.5 % from max / d, 75 % from
 // 2 max / d, sure from 4 max / d. A monster also needs MonStats2's GH mode
-// (FUN_0046c140 bit 3). tools/emu/hit_rule.py runs game.exe's own code on it.
+// (FUN_0046c140 bit 3). Its oracle (hit_rule.py) was never committed: cited, not re-checkable.
 // `max_life` and `damage` in 256ths; `marked`: an element or a doubled hit.
 inline int get_hit_divisor(int hit_class) {
     switch (hit_class) {
@@ -264,7 +264,7 @@ struct StruckBlow {
 // Cyclone Armor (FUN_005c87a0) from fire, cold, then lightning. A blow whose
 // fire / lightning / cold went keeps its mark only by its poison
 // (FUN_0057ce30 reads the fields after). Returns what the pool took.
-// tools/emu/hit_absorb.py runs game.exe's own code on it.
+// Its oracle (hit_absorb.py) was never committed: cited, not re-checkable.
 // ponytail: game.exe absorbs before resistances and damage reduction (the loop at 0x57c378); d2d's blows are already resisted.
 inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) {
     int taken = 0;

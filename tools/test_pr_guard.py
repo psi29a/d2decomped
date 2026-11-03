@@ -70,6 +70,12 @@ class GuardTests(unittest.TestCase):
         fails, _ = self.run_guard({"tools/fetch.py": b'requests.get(os.environ["SOURCE_URL"])\n'})
         self.assertEqual(len(fails), 1)
 
+    def test_a_cited_tool_must_be_in_the_tree(self):
+        fails, _ = self.run_guard({"components/x.hpp": b"// tools/emu/gone.py and tools/emu/here.py check it\n",
+                                   "tools/emu/here.py": b"print()\n"})
+        self.assertEqual(len(fails), 1)
+        self.assertIn("tools/emu/gone.py", fails[0])
+
     def test_risky_code_needs_the_label(self):
         files = {"components/x.cpp": b'auto h = InternetOpen("x");\n', ".github/workflows/w.yml": b"on: push\n"}
         fails, _ = self.run_guard(files)
