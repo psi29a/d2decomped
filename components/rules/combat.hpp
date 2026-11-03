@@ -455,7 +455,6 @@ struct MissileRoll { int phys = -1, element = -1; };
 // attacker's pierce stat only while under 100. Stats 0x99 / 0x76
 // (FUN_0057c140) aren't read: no MonProp, MonUMod or state row gives them
 // to a monster.
-// ponytail: player_blow's cold still chills only on a whole point.
 inline Blow missile_blow(const MissileDamage& damage, const Target& target, const std::array<int, 4>& pierce, Rng& rng,
                          Blow blow = { .hit = true }, MissileRoll* shared = nullptr) {
     if (damage.phys_hi > 0) {
@@ -618,9 +617,14 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     for (int element = 0; element < 5; ++element) {
         const auto [elo, ehi] = fighter.elem[std::size_t(element)];
         if (ehi <= 0) continue;
-        const int element_damage = resisted(rng.range(elo, ehi), target.res[std::size_t(kRes[element])]);
+        // The gear's cold puts its length in the record with any cold rolled
+        // (FUN_0057b7d0: +0x30 when +0x24 > 0, before resistance), and
+        // FUN_0057c6c0 chills on it untested: cold resisted under a point
+        // still chills; so does a conversion to cold, at least 50 frames (case 4).
+        const int element_roll = rng.range(elo, ehi);
+        const int element_damage = resisted(element_roll, target.res[std::size_t(kRes[element])]);
         if (element == 3) { blow.poison = element_damage; blow.poison_ticks = std::max(fighter.poison_len, 1); continue; }
-        if (element == 2 && element_damage > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(fighter.cold_len, target.res[4]));   // the length less cold resist too (FUN_0057c1e0)
+        if (element == 2 && element_roll > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(fighter.cold_len, target.res[4]));   // the length less cold resist too (FUN_0057c1e0)
         elem += element_damage;
         if (element != 4) marking += element_damage;
     }
@@ -629,7 +633,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
         blow.poison += resisted(int(conv / 8 * ticks >> 8), target.res[5]);
         blow.poison_ticks = std::max(blow.poison_ticks, ticks);
     }
-    if (conv > 0 && swing.conv_type == 2 && resisted(int(conv >> 8), target.res[4]) > 0)
+    if (conv > 0 && swing.conv_type == 2)
         blow.chill_ticks = std::max(blow.chill_ticks, resisted(std::max(fighter.elem[2].second > 0 ? fighter.cold_len : 0, 50), target.res[4]));
     // Crushing Blow (FUN_005bffc0): the life left after the hit / the
     // divisor, less the raw damage resist's share (100 at most, none at 0
