@@ -1049,9 +1049,9 @@ struct Fight {
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
     // The missile row a pet's skill shoots: its srvmissile, else
     // srvmissilea — NecromageMissile's do 149 (FUN_005ce0b0) adds the mage's
-    // variant (+0xf of its monster data) to it: necromage1..4.
-    // ponytail: the variant is rolled at the raise; where game.exe sets it
-    // isn't traced.
+    // variant (+0xf of its monster data) to it: necromage1..4, rolled at
+    // the raise (FUN_005c4180: the caster's seed & 3).
+    // ponytail: on d2d's rng; d2d keeps no player seed.
     [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& skill, int variant = 0) const;
     void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) { summon(skill, skill_level ? skill_level(skill.id) : 1, actor->cast_x, actor->cast_y, now_ms); }
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
