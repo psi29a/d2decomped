@@ -1007,6 +1007,9 @@ void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes
 // A monster's skill missile toward (dx, dy) cells (FUN_0059fa30, ai.cpp).
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
+// A monster turned into MonStats row `type` in place (FUN_00574370: the same unit id,
+// its group and spot, a new init for the class, FUN_00574250).
+void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players);
 // Baal's Vile Effigy (FUN_005fc860): baalclone +- 12 subtiles (two draws of his seed) about
 // (at_x, at_y), a third of his life, no regen (stat 0x4a 0); none without the row.
 std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players);

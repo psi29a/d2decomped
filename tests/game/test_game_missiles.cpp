@@ -113,6 +113,16 @@ int main() try {
         assert(clone && int(std::floor(clone->unit.x * 5)) == want_x && int(std::floor(clone->unit.y * 5)) == want_y);
         assert(clone->stats.regen == 0 && clone->hit_points == std::max(baal.hit_points / 3, 1));
         std::printf("OK: the Vile Effigy rises about Baal's target, with no regen\n");
+
+        // A whipped minion turns itself (FUN_00574370): the same unit id, group and spot, the new class.
+        const auto minion_row = data->monsters.by_id.find("minion1");
+        const auto suicide_row = data->monsters.by_id.find("suicideminion1");
+        assert(minion_row != data->monsters.by_id.end() && suicide_row != data->monsters.by_id.end());
+        auto minion = make_monster(*data, int(minion_row->second), 12.f, 7.f, effigy_rng, 0);
+        minion.id = 4242; minion.leader = 3;
+        morph_monster(*data, minion, int(suicide_row->second), effigy_rng, 1);
+        assert(minion.type == int(suicide_row->second) && minion.id == 4242 && minion.leader == 3 && minion.unit.x == 12.f && minion.unit.y == 7.f);
+        std::printf("OK: a morph keeps the unit, its group and its spot\n");
     }
 
     {

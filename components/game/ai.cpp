@@ -411,6 +411,13 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
     if (carried) missiles.back().skill = carried->id;
 }
 
+void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players) {
+    auto turned = make_monster(game_data, type, unit.unit.x, unit.unit.y, rng, unit.difficulty, true, players, unit.level_id);
+    turned.id = unit.id; turned.leader = unit.leader; turned.seed = unit.seed;
+    turned.home_x = unit.home_x; turned.home_y = unit.home_y;
+    unit = std::move(turned);
+}
+
 std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players) {
     const auto made = game_data.monsters.by_id.find("baalclone");
     if (made == game_data.monsters.by_id.end()) return std::nullopt;
@@ -2371,21 +2378,18 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // auratargetstate for auralen frames, aurastats velocity,
                     // attack rate, armor and damage %). The roll is the caster's seed
                     // (+0x20), drawn for any live minion before the Bloodlust test.
-                    // ponytail: a new unit where the old one was, aware; game.exe
-                    // turns the minion itself (FUN_00574370, state 0x8e stat 0x163).
+                    // The minion turns itself (morph_monster: FUN_00574370).
+                    // ponytail: the morph's state 0x8e (stat 0x163, the old class) isn't kept.
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                         auto& whipped = pack[std::size_t(monster.skill_unit)];
                         const bool minion = whipped.type >= 0 && game_data.monsters.types[std::size_t(whipped.type)].base == 0x1c5;
                         const bool lusted = whipped.cry.skill == monster.skill && now_ms < whipped.cry.until;
                         const int chance = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
                         const auto summon = game_data.monsters.by_id.find(cast->summon);
-                        if (whipped.alive() && minion && chance <= monster.seed(100) && !lusted && born && summon != game_data.monsters.by_id.end()) {
-                            auto turned = make_monster(game_data, summon->second, whipped.unit.x, whipped.unit.y, rng, monster.difficulty, true, players_in(foes), level.id);
-                            turned.aware = true;
-                            turned.seed = d2d::rules::Rng{ rng.next() };
-                            set_mode(game_data, turned, cast->summode.empty() ? "NU" : cast->summode, now_ms);
-                            born->push_back(std::move(turned));
-                            whipped.gone = true;
+                        if (whipped.alive() && minion && chance <= monster.seed(100) && !lusted && summon != game_data.monsters.by_id.end()) {
+                            morph_monster(game_data, whipped, summon->second, rng, players_in(foes));
+                            whipped.aware = true;
+                            set_mode(game_data, whipped, cast->summode.empty() ? "NU" : cast->summode, now_ms);
                             d2d::log::info("{} whips a minion into a suicide minion", monster.npc.name);
                         } else if (whipped.alive()) {
                             const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl), 0);
