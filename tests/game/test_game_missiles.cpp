@@ -569,6 +569,21 @@ int main() try {
         world.actor->character.appearance = look;
         assert(shadow.skill_list.size() == 2 && shadow.skill_list[0].kind == 1 && shadow.skill_list[1].kind == 1);
         assert(archer.skill_list.size() == 1 && archer.skill_list[0].kind == 2);
+        // ... and shot as its missile from afar (skill_missile: weapon_missile).
+        const auto worn = world.actor->character.items;
+        d2d::rules::Rng shadow_rng{ 4 };
+        world.actor->character.items.push_back(bow);
+        archer.monster = make_monster(*data, int(data->monsters.by_id.at("shadowwarrior")), world.actor->player.x, world.actor->player.y, shadow_rng, 0);
+        archer.cast = 0;
+        const auto fallen_far = make_monster(*data, int(data->monsters.by_id.at("fallen1")), world.actor->player.x + 8, world.actor->player.y, shadow_rng, 0);
+        world.fight.monsters.push_back(fallen_far);
+        archer.target = int(world.fight.monsters.size() - 1);
+        const auto shots = world.fight.pending.size() + world.fight.missiles.size();
+        world.fight.shadow_cast(archer, 6000, Crowd{});
+        assert(world.fight.pending.size() + world.fight.missiles.size() > shots);
+        world.fight.monsters.pop_back();
+        world.fight.pending.clear(); world.fight.missiles.clear();
+        world.actor->character.items = worn;
         std::printf("OK: a Shadow's Attack is ranged with a bow\n");
     }
 

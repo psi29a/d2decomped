@@ -898,7 +898,8 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
             actor->pet_summons.push_back({ skill->id, lvl, foe.x, foe.y });
             return;
         }
-        if (skill->id != 0 && missile_skill(*skill)) { fire(*skill, now_ms, caster); return; }
+        // Attack with the owner's bow or crossbow shoots its missile (skill_missile: weapon_missile); fire spends no ammo.
+        if (missile_skill(*skill)) { fire(*skill, now_ms, caster); return; }
         if (skill->srvdofunc == ServerDoFunction::kPsychicHammer || skill->srvdofunc == ServerDoFunction::kMindBlast) { spot(*skill, now_ms, caster); return; }
         std::erase_if(pet.charges, [&](const Charge& charge) { return now_ms >= charge.until; });
         if (skill->srvdofunc == ServerDoFunction::kDragonFlight && target >= 0) {   // do 52: beside the target, then the kick (as the owner's)
