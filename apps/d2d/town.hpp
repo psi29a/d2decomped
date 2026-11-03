@@ -221,7 +221,7 @@ struct Town {
     mutable std::uint32_t caret_turned = 0, caret_period = 500;
     mutable bool caret_shown = true;
     std::string typed;                                      // this frame's typed text (SDL text input)
-    struct ChatShown { std::string text; std::uint32_t until = 0; int colour = 0; std::size_t gold = 0; };   // gold: that many letters first in gold (a speaker's name)
+    struct ChatShown { std::string text; std::uint32_t until = 0; int colour = 0; std::size_t gold = 0; std::uint32_t message = 0; };   // gold: that many letters first in gold (a speaker's name); message: which add_chat made it
     std::vector<ChatShown> chat_lines;                      // the top-left chat lines, oldest first
     std::optional<GoldBox> gold_box;                        // the gold box up (store.hpp): drop, offer, deposit or withdraw
     int net_operate_waypoint = -1;                           // ... a waypoint: then 0x49 to this level

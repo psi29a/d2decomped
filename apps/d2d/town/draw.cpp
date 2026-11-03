@@ -349,15 +349,17 @@ auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<st
 }
 
 // A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
-// - 70 (at most 6 lines); past 18 lines on screen the oldest message goes.
+// - 70 (at most 6 lines); past 18 lines on screen the oldest message goes,
+// one message an add, however many lines that leaves.
 auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> void {
     auto wrapped = wrap_chat(text, int(kScreenWidth) - 70);
     wrapped.resize(std::min<std::size_t>(wrapped.size(), 6));
+    const std::uint32_t message = chat_lines.empty() ? 0 : chat_lines.back().message + 1;
     for (auto& line : wrapped) {
-        chat_lines.push_back({ std::move(line), now_ms + 10000, colour, gold });
+        chat_lines.push_back({ std::move(line), now_ms + 10000, colour, gold, message });
         gold = 0;                                               // the name is on the first line
     }
-    if (chat_lines.size() > 18) chat_lines.erase(chat_lines.begin(), chat_lines.end() - 18);   // ponytail: by line, not by message
+    if (chat_lines.size() > 18) std::erase_if(chat_lines, [oldest = chat_lines.front().message](const ChatShown& line) { return line.message == oldest; });
 }
 
 // The chat lines (FUN_0049dc40): FontInGameChat (0xd), at x 15 (the
