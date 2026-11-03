@@ -3927,7 +3927,7 @@ Think terror_think(const ThinkIn& input, Rng& rng, Away&& away) {
 // ctrl[0])) and stands 1. SandMaggot's (FUN_005f1750): with its AI command
 // 14's +0x18 at 1 and a Skill1 it casts Skill1 at the target (event 30; the
 // word 0); else it toggles back keeping the third scratch word, event 1.
-// ponytail: nothing found sets command 14's +0x18, so d2d's word stays 0.
+// Nothing sets that word (stubs.md: FUN_005f1750's cast branch), so it stays 0.
 inline Think other_think(std::string_view ai_name, const ThinkIn& input) {
     // Diablo's (FUN_005e8480): state 0xc (his lightning's) off, back to his
     // own think (FUN_005b0e00), stands 1; his kept point stays.

@@ -36,6 +36,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `0x5e9df0` | UberDiablo think (MonAI 147) | stub (`ret 4`) | uber Diablo stands | same | same |
 | `FUN_005eeaa0` | AncientStatue think (MonAI 132): Rite awake → skill 302 | unreachable | ancientstatue1..3 are never placed or made | not ported | monster-ai.md, as above |
 | `FUN_005f1140`'s command branch | QuillRat (MonAI 14) shoots at a pending command's unit | unreachable | only QuillMother (75) of its kin sends one, to its own group of quillbears, which never read it; no group holding quillrats (packs, champions, Flamespike) has a sender | not ported | monster-ai.md "AI commands" |
+| `FUN_005f1750`'s cast branch | SandMaggot's other think (MonAI 15) casts Skill1 when its AI command 14's +0x18 is 1 | unreachable | its main think (`FUN_005f1800`) never touches command 14; `FUN_005f1750` makes it (`FUN_0058efa0`, the word 0) and only clears the word; the one 0xe sender, FetishShaman, sends to its own group of fetishes | not ported (`other_think` keeps the branch on a word that stays 0) | monster-ai.md "Curse thinks and other thinks" |
 | `FUN_005f7f10` | a make next to Mephisto's think (1.13 uber Mephisto's minions) | orphan | — | not ported | same |
 | `0x5f81c0` | UberMephisto think (MonAI 146) | stub (`ret 4`) | uber Mephisto stands | same | same |
 | `0x5fd200` | UberBaal think (MonAI 145) | stub (`ret 4`) | uber Baal stands after his target search | `mon_think` returns none | monster-ai.md "AncientStatue and the ubers' MonAIs", bugs.md #26 |
