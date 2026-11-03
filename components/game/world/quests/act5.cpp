@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Act 5's quests at the World's quest hooks (world.hpp: World::actN_*;
 // rules/quests_act5.hpp, docs/research/re/quests-act5.md).
-#include "world.hpp"
 #include "ai.hpp"
 #include "character.hpp"
 #include "gamedata.hpp"
 #include "log.hpp"
-#include <d2s_items.hpp>
+#include "world.hpp"
+#include <algorithm>
+#include <cmath>
 #include <combat.hpp>
+#include <cstddef>
+#include <cstdint>
+#include <d2s_items.hpp>
+#include <iterator>
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <cstdint>
-#include <iterator>
 #include <tuple>
 #include <utility>
 #include <vector>

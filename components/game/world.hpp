@@ -32,11 +32,11 @@
 #include <shake.hpp>
 
 #include <algorithm>
-#include <initializer_list>
 #include <array>
 #include <bitset>
 #include <cstdint>
 #include <ctime>
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <optional>

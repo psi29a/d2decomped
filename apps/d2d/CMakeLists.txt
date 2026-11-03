@@ -228,6 +228,11 @@ add_executable(d2d
     common.cpp
     controls.cpp
     cursor.cpp
+    devctl/debug.cpp
+    devctl/debug_fight.cpp
+    devctl/debug_hero.cpp
+    devctl/debug_level.cpp
+    devctl/debug_net.cpp
     frontend.cpp
     gamemenu.cpp
     gamepad.cpp
@@ -246,14 +251,6 @@ add_executable(d2d
     skilltree.cpp
     store.cpp
     tile_blit.cpp
-    ui.cpp
-    window.cpp
-    world_view.cpp
-    devctl/debug.cpp
-    devctl/debug_fight.cpp
-    devctl/debug_hero.cpp
-    devctl/debug_level.cpp
-    devctl/debug_net.cpp
     town/ambient.cpp
     town/controls.cpp
     town/draw.cpp
@@ -263,6 +260,9 @@ add_executable(d2d
     town/update.cpp
     town/view.cpp
     town/walk.cpp
+    ui.cpp
+    window.cpp
+    world_view.cpp
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/assets/icon/d2d.rc>)
 # The source dir too: a file in a subdirectory (devctl/, town/) includes
 # the client's headers by name, as the files here do.

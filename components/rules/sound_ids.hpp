@@ -5,9 +5,9 @@
 
 #include <algorithm>
 #include <array>
-#include <cstdlib>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <string_view>
 
 namespace d2d::rules::sound_ids {

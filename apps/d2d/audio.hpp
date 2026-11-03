@@ -9,9 +9,9 @@
 #include <install.hpp>
 #include <log.hpp>
 #include <rules.hpp>
+#include <shake.hpp>
 #include <sound_mix.hpp>
 #include <sound_start.hpp>
-#include <shake.hpp>
 
 #include <algorithm>
 #include <array>

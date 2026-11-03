@@ -7,13 +7,13 @@
 #include <d2gs/wire.hpp>
 
 #include <algorithm>
-#include <utility>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace d2d::net {

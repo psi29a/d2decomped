@@ -7,6 +7,7 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <automap_scroll.hpp>
 #include <d2s.hpp>
 #include <d2s_automap.hpp>
 #include <d2s_items.hpp>
@@ -16,7 +17,6 @@
 #include <object_ids.hpp>
 #include <palette.hpp>
 #include <quests.hpp>
-#include <automap_scroll.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 

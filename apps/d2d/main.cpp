@@ -23,12 +23,12 @@
 #include "devctl/verbs.hpp"
 #include "frontend.hpp"
 #include "gamepad.hpp"
-#include "keyconfig.hpp"
-#include "lobby.hpp"
 #include "gamepad_map.hpp"
-#include "roster.hpp"
+#include "keyconfig.hpp"
 #include "load.hpp"
+#include "lobby.hpp"
 #include "platform.hpp"
+#include "roster.hpp"
 #include "scene.hpp"
 #include "town.hpp"
 #include "ui.hpp"
@@ -40,7 +40,6 @@
 #include <character_name.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
-#include <sound_ids.hpp>
 #include <devctl.hpp>
 #include <install.hpp>
 #include <join.hpp>
@@ -48,6 +47,7 @@
 #include <mpq.hpp>
 #include <screenshot.hpp>
 #include <sentry.h>
+#include <sound_ids.hpp>
 #include <switches.hpp>
 #include <tcp.hpp>
 #include <userdir.hpp>
@@ -59,22 +59,22 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <map>
 #include <cstring>
-#include <condition_variable>
 #include <exception>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <initializer_list>
-#include <functional>
 #include <ios>
 #include <iterator>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -89,8 +89,8 @@
 #if defined(_WIN32) && (defined(_M_IX86) || defined(_M_X64))
 #include <intrin.h>
 #elif defined(__APPLE__)
-#include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/types.h>
 #endif
 #ifdef _WIN32
 #include <windows.h>

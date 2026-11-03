@@ -23,8 +23,8 @@
 #include <skills.hpp>
 #include <world.hpp>
 
-#include <cassert>
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>

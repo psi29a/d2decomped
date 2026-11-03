@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Act 4's quests at the World's quest hooks (world.hpp: World::actN_*;
 // rules/quests_act4.hpp, docs/research/re/quests-act4.md).
-#include "world.hpp"
 #include "ai.hpp"
 #include "fight.hpp"
 #include "gamedata.hpp"
 #include "log.hpp"
+#include "world.hpp"
+#include <algorithm>
+#include <array>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
@@ -14,11 +16,9 @@
 #include <rules.hpp>
 #include <shake.hpp>
 #include <uniques.hpp>
-#include <algorithm>
-#include <array>
 
-#include <cstddef>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <iterator>

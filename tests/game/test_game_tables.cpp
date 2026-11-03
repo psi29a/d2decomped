@@ -9,8 +9,8 @@
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <gamedata.hpp>
-#include <item_text.hpp>
 #include <gamedata_load.hpp>
+#include <item_text.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>

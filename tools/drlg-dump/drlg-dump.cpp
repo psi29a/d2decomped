@@ -23,10 +23,10 @@
 #include <level_ids.hpp>
 #include <maze.hpp>
 #include <mpq.hpp>
-#include <rules.hpp>
 #include <outdoor.hpp>
 #include <outdoor_data.hpp>
 #include <room_tiles.hpp>
+#include <rules.hpp>
 #include <shrines.hpp>
 #include <tile_pick.hpp>
 #include <town_npcs.hpp>

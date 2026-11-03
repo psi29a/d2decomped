@@ -14,10 +14,10 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include <optional>
 #include <vector>
 
 namespace d2d::drlg {

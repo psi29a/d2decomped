@@ -9,7 +9,6 @@
 # its headers are included by name.
 add_library(game STATIC
     ai.cpp
-    objgroups.cpp
     fight/deaths.cpp
     fight/merc.cpp
     fight/missiles.cpp
@@ -21,18 +20,19 @@ add_library(game STATIC
     fight/tick.cpp
     gamedata/gamedata.cpp
     gamedata/gamedata_load.cpp
+    objgroups.cpp
     world/commands.cpp
     world/objects.cpp
-    world/setup.cpp
-    world/tick.cpp
-    world/travel.cpp
-    world/view.cpp
     world/quests/act1.cpp
     world/quests/act2.cpp
     world/quests/act3.cpp
     world/quests/act4.cpp
     world/quests/act5.cpp
     world/quests/shared.cpp
+    world/setup.cpp
+    world/tick.cpp
+    world/travel.cpp
+    world/view.cpp
 )
 target_include_directories(game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/character
                                        ${CMAKE_CURRENT_SOURCE_DIR}/gamedata ${CMAKE_CURRENT_SOURCE_DIR}/npc)

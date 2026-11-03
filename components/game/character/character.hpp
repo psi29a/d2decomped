@@ -12,8 +12,8 @@
 #include <skills.hpp>
 
 #include <algorithm>
-#include <bit>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <optional>

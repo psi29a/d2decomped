@@ -303,6 +303,38 @@ def check_short_names(texts):
     report("FAIL" if hits else "ok", "short-names", "\n      ".join(hits[:15]) if hits else "no 1-2 letter names added")
 
 
+SOURCE_LINE = re.compile(r"[\w/.${}-]+\.(?:cpp|hpp)")
+ORDER_MATTERS = re.compile(r"win(sock|dows)|shlobj|objbase", re.I)       # <winsock2.h> before <windows.h>
+
+
+def unsorted_runs(path, lines):
+    """(line, what) for each run that should sort and doesn't: a block of #include lines,
+    a CMake list of source files. New entries go where they sort, not at the end (AGENTS.md 7)."""
+    if path.endswith((".cpp", ".hpp")):
+        member = lambda line: line.startswith("#include")
+    elif path.endswith("CMakeLists.txt"):
+        member = lambda line: bool(SOURCE_LINE.fullmatch(line.strip()))
+    else:
+        return []
+    found, run = [], []
+    for number, line in enumerate([*lines, ""], 1):
+        if member(line):
+            run.append(line.strip())
+            continue
+        if len(run) > 1 and run != sorted(run) and not any(ORDER_MATTERS.search(entry) for entry in run):
+            first = next(i for i, (have, want) in enumerate(zip(run, sorted(run))) if have != want)
+            found.append((number - len(run) + first, run[first]))
+        run = []
+    return found
+
+
+def check_sorted(tree, changed):
+    """Whole files, not just added lines: a file the branch touches leaves sorted."""
+    hits = [f"{path}:{number}: {entry} is out of order" for path in changed if (tree / path).is_file()
+            for number, entry in unsorted_runs(path, (tree / path).read_text(encoding="utf-8", errors="replace").splitlines())]
+    report("FAIL" if hits else "ok", "sorted", "\n      ".join(hits[:15]) if hits else "includes and source lists in order")
+
+
 def build_volume(tree):
     """validate-linux.sh's build volume for worktree `tree`: d2d-build-linux-<folder>-<path hash>."""
     path = str(Path(tree).resolve())
@@ -653,6 +685,7 @@ def main():
     check_python(tree, changed, numbers)
     check_review(tree, args.base, changed, texts)
     check_short_names(texts)
+    check_sorted(tree, changed)
     built = check_cpp(tree, changed, numbers, build, args.quick, args.docker)
     check_ctest(build, args.quick, args.docker, built)
 
