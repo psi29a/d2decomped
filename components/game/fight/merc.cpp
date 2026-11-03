@@ -156,8 +156,9 @@ auto Fight::merc_cry_stat(int stat) const -> int {
 auto Fight::merc_max_life() const -> int {
         // Its level-up life (stat 7) + its items' maxhp and hp per level (216,
         // an eighth a level), the items' maxhp percent (76) on the level-up's.
-        // ponytail: vitality's share isn't given (a hireling has no CharStats
-        // row); its items' mana goes nowhere (d2d keeps no merc mana).
+        // No vitality share: ItemStatCost op 9 (FUN_00626200) adds CharStats'
+        // life per point for a player (unit type 0) only. Its items' mana
+        // isn't kept: a cast costs a non-player nothing (FUN_0056bfe0).
         const auto gear = merc_gear();
         return int(std::max<std::int64_t>(actor->merc_st.life + gear.sum[d2d::d2s::kMaxLife] + gear.sum[216] * actor->merc_st.level / 8
                                               + std::int64_t(actor->merc_st.life) * (gear.sum[d2d::d2s::kMaxLifePercent] + merc_cry_stat(d2d::d2s::kMaxLifePercent)) / 100, 1));
