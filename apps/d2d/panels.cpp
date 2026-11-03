@@ -1055,7 +1055,7 @@ void quest_log_open(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits
     quest_log.frame.fill(0);
     quest_log.frame_ms.fill(0);
     quest_log.pressed = -1;
-    quest_log.close_down = quest_log.last_down = false;
+    quest_log.close_down = quest_log.last_down = quest_log.replayed = false;
     quest_log_select(quest_log, quest_bits, quest_state, false);
 }
 
@@ -1064,7 +1064,7 @@ void quest_log_close(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bit
     quest_log_mark_seen(quest_log, quest_bits, quest_state);
     quest_log.open = false;
     quest_log.pressed = -1;
-    quest_log.close_down = quest_log.last_down = false;
+    quest_log.close_down = quest_log.last_down = quest_log.replayed = false;
 }
 
 void quest_log_tab(QuestLog& quest_log, const d2d::rules::QuestBits& quest_bits, const QuestState& quest_state, int act, bool expansion) {

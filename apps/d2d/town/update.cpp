@@ -459,8 +459,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // hold with a click (Sounds.txt 4); let go on the same icon picks it,
         // over close shuts the log, over questlast plays the picked quest's
         // message again (FUN_004a27d0: none for 0xe8c / 0xe8d), which leaves
-        // the log deaf till it shuts (QuestLog::replayed).
-        if (!quest_log.open) quest_log.replayed = false;
+        // the log deaf till it shuts (QuestLog::replayed, cleared by quest_log_close).
         if (quest_log.open) {
             const int button = quest_button_at(mouse.x, mouse.y);
             const int slot = quest_slot_at(mouse.x, mouse.y);
