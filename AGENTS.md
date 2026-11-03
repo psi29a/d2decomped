@@ -62,6 +62,7 @@ We promise:
 |---|---|---|---|
 | `python3 tools/gaps.py` | git | `build/gaps/` | nothing; GitHub with `--issues` |
 | `python3 tools/pr_guard.py` | git | nothing | nothing |
+| `.githooks/pre-push`, once they run `git config core.hooksPath .githooks` | `tools/pr_guard.py --sorted` | nothing | nothing |
 | `tools/ghidra/import.sh` | Ghidra on their `game.exe` | `tools/ghidra/project/`, `docs/research/re/game-*.tsv` | nothing |
 | `tools/ghidra/decompile.sh` | `tools/gaps.py`, Ghidra on their `game.exe` | `build/gaps/`, `tools/ghidra/project/` | nothing |
 | `tools/emu`: `uv sync`, then `uv run` | Unicorn on their `game.exe` | `tools/emu/.venv`, `tools/emu/.cache` | PyPI, during `uv sync` |
@@ -213,8 +214,10 @@ The same bar for everyone, people and agents alike.
   number; numbers are cited elsewhere, so never renumber the old rows. A
   research table keyed by address runs in address order; one that follows
   a call chain or a walk says so above it ("in call order").
-  `tools/presubmit.py` fails an include block, a CMake source list or an
-  address table out of order in any file you touch.
+  `tools/pr_guard.py` (CI, on every pull request) fails an include block,
+  Python imports, a CMake source list or an address table out of order in
+  any file you touch; `git config core.hooksPath .githooks` runs that
+  check before each push (`python3 tools/pr_guard.py --sorted`).
 - **New code goes where its subsystem lives.** A subsystem split over
   several files has its own directory beside its header
   (`components/game/fight/`, `components/game/world/`, `apps/d2d/town/`,

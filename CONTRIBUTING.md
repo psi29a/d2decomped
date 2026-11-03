@@ -68,10 +68,13 @@ The same for every pull request, whoever or whatever wrote it:
 
 - `tools/pr_guard.py` runs on every pull request. It fails addresses that
   can't be in game.exe (a `FUN_` inside another function's body is one)
-  and binary files. It also stops a change that touches CI, downloads,
+  and binary files, and lists that should sort and don't (includes,
+  imports, CMake sources, address tables: add where it sorts, not at the
+  end). It also stops a change that touches CI, downloads,
   networking, process launches or the agent instructions until a
   maintainer has read it and added the `security-reviewed` label.
-  Run it yourself first: `python3 tools/pr_guard.py`.
+  Run it yourself first: `python3 tools/pr_guard.py`, or have git run the
+  order check before each push: `git config core.hooksPath .githooks`.
 - A reviewer re-runs your evidence on their own copy before merging.
 - Changes to CI, the build, the tools, the launcher and the agent
   instructions need a maintainer's review (`.github/CODEOWNERS`).
