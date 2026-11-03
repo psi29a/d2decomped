@@ -17,7 +17,7 @@ A function you traced that no d2d function is named after (a getter, a
 SetFont, a table walker): add a row to `docs/research/re/names.tsv`
 (address order; the name, the evidence) and it's `d2d_<name>` next run.
 `tools/ghidra/calls.py <from> --to <addr>` lists the call paths from one
-function to another in code order: what state (a font, a mode) is current
+function to another in the C's text order: what state (a font, a mode) is current
 when something draws or runs.
 
 Project: `tools/ghidra/project` (make it with `tools/ghidra/import.sh`).
