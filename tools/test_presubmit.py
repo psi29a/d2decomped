@@ -30,6 +30,8 @@ class PresubmitTests(unittest.TestCase):
         self.assertEqual(presubmit.unsorted_runs("CMakeLists.txt", ["add_library(x", "    b.cpp", "    a/c.cpp", ")"]),
                          [(2, "b.cpp")])
         self.assertEqual(presubmit.unsorted_runs("notes.md", ["b", "a"]), [])
+        self.assertEqual(presubmit.unsorted_runs("t.py", ["import sys", "import emu", "from drops import rows"]), [(1, "import sys")])
+        self.assertEqual(presubmit.unsorted_runs("t.py", ["import emu", "import sys", "from drops import rows"]), [])
 
     def test_unsorted_tables(self):
         table = ["| Address | Role |", "|---|---|", "| `FUN_00500000` | b |", "| `FUN_00400000` | a |"]

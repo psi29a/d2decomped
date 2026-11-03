@@ -8,6 +8,7 @@ line per offset: dx dy volume pan, for tests/test_sound_mix.cpp. Then
 FUN_005165f0 (0, 127, v), the hundredths of a dB SetVolume and SetPan get.
 """
 import struct
+
 import emu
 
 e = emu.Emu()

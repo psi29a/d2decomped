@@ -10,8 +10,8 @@ copies every .d2s from $D2_SAVES_DIR when set — then clicks through
 CharSelect -> InGame and pans left (the old infinite-loop direction).
 Skips when the MPQ dir isn't reachable, like the other asset tests.
 """
-import re
 import os, platform, shutil, socket, struct, subprocess, sys, tempfile, time
+import re
 
 d2d = sys.argv[1]
 data = os.environ.get("D2_MPQ_DIR") or os.path.expanduser("~/Workspace/private/diablo2")

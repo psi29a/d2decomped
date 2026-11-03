@@ -37,8 +37,8 @@ last unit at creation its owner (FUN_0059fa30 0x59fdbb).
 import sys
 
 import emu
-from unicorn.x86_const import UC_X86_REG_EDX
 from drops import txt_rows
+from unicorn.x86_const import UC_X86_REG_EDX
 
 BASE_FRAME = 1000
 STATE = 0x56

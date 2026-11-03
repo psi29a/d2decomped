@@ -304,14 +304,20 @@ def check_short_names(texts):
 
 
 SOURCE_LINE = re.compile(r"[\w/.${}-]+\.(?:cpp|hpp)")
+PY_IMPORT = re.compile(r"(?:from (\S+) import |import (?=(\S+)))")
 ORDER_MATTERS = re.compile(r"win(sock|dows)|shlobj|objbase", re.I)       # <winsock2.h> before <windows.h>
 
 
 def unsorted_runs(path, lines):
     """(line, what) for each run that should sort and doesn't: a block of #include lines,
-    a CMake list of source files. New entries go where they sort, not at the end (AGENTS.md 7)."""
+    a block of Python imports (`import`s, then `from`s), a CMake list of source files.
+    New entries go where they sort, not at the end (AGENTS.md 7)."""
+    key = str.strip
     if path.endswith((".cpp", ".hpp")):
         member = lambda line: line.startswith("#include")
+    elif path.endswith(".py"):
+        member = lambda line: bool(PY_IMPORT.match(line))
+        key = lambda line: (line.startswith("from"), (PY_IMPORT.match(line).group(1) or PY_IMPORT.match(line).group(2)).lower())
     elif path.endswith("CMakeLists.txt"):
         member = lambda line: bool(SOURCE_LINE.fullmatch(line.strip()))
     else:
@@ -321,8 +327,8 @@ def unsorted_runs(path, lines):
         if member(line):
             run.append(line.strip())
             continue
-        if len(run) > 1 and run != sorted(run) and not any(ORDER_MATTERS.search(entry) for entry in run):
-            first = next(i for i, (have, want) in enumerate(zip(run, sorted(run))) if have != want)
+        if len(run) > 1 and run != sorted(run, key=key) and not any(ORDER_MATTERS.search(entry) for entry in run):
+            first = next(i for i, (have, want) in enumerate(zip(run, sorted(run, key=key))) if have != want)
             found.append((number - len(run) + first, run[first]))
         run = []
     return found

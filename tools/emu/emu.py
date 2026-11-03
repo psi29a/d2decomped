@@ -18,8 +18,8 @@ import unicorn.x86_const
 from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_MEM_INVALID, UC_PROT_ALL
 from unicorn.x86_const import *
 
-from mpq_cache import MpqCache
 import structs
+from mpq_cache import MpqCache
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
