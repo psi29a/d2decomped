@@ -1,6 +1,7 @@
 <!--
-AGENTS.md §6. One claim per pull request, or a research batch from one
-subsystem (AGENTS.md §5): then fill in "Claims", a row each. Fill in each
+AGENTS.md §6. One claim per pull request, or a batch from one subsystem
+(AGENTS.md §5), one claim or code change per commit: then fill in
+"Claims", a row each. Fill in each
 section and delete the ones that don't apply. Comments like this one don't show on GitHub.
 -->
 
@@ -18,14 +19,14 @@ the field, then the data it uses. One row per address. -->
 |---|---|
 | `00000000` | |
 
-## Claims (a research batch only)
+## Claims (a batch only)
 
-<!-- One row per claim, one commit each; a reviewer can drop a row and merge
-the rest. -->
+<!-- One row per commit: one claim or one code change (with its test) each;
+a reviewer can drop a row and merge the rest. -->
 
-| Claim | Evidence | Re-check |
-|---|---|---|
-| | `00000000` | |
+| Commit | Claim or change | Evidence | Re-check |
+|---|---|---|---|
+| | | `00000000` | |
 
 ## How to re-check
 

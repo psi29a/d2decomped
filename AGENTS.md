@@ -152,14 +152,15 @@ The same bar for everyone, people and agents alike.
 - **One claim per pull request**, with the commands that re-check it in the
   body. The reviewer re-runs them on their own copy before merging. A claim
   nobody can re-run is noted as cited, not proven.
-- **Research may come as a batch:** several traced claims in one pull
-  request, so a run of findings doesn't become a run of pull requests that
-  conflict with each other. Batch claims from one subsystem (one research
-  doc and its tables), one commit per claim, and a row per claim in the
-  body: what it says, its evidence, the command that re-checks it. Each
-  claim stands alone, so a reviewer can drop one and merge the rest. Keep
-  one research batch open at a time; add to it rather than opening another.
-  A code fix stays one claim per pull request.
+- **Claims may come as a batch:** several traced claims or code changes in
+  one pull request, so a run of them doesn't become a run of pull requests
+  that conflict with each other. Batch from one subsystem (one research doc
+  and the code it covers), **one claim or one code change per commit**: a
+  code change's commit carries its test and cites its game.exe address. A
+  row per commit in the body: what it says, its evidence, the command that
+  re-checks it. Each commit stands alone, so a reviewer can drop one and
+  merge the rest. Keep one batch open at a time; add to it rather than
+  opening another.
 - **A match with game.exe needs an oracle:** `tools/emu` runs game.exe's own
   code on the same inputs as d2d, then diffs the two. CI has no game.exe, so
   a maintainer runs it before merging.
