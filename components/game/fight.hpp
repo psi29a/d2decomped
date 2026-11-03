@@ -224,6 +224,7 @@ struct Fight {
         std::optional<Leap> leap;
         bool  pstruck = false;                 // this swing's hit is resolved
         struct Owed { int skill = -1, lvl = 0; } owed;   // a cast's mana, taken on its action frame (FUN_0056f7f0)
+        std::uint32_t action_ms = 0;           // the current mode's action frame, ms from its start
         float prate = 1.f;                     // the mode's animation rate (attack speed, FHR, FBR)
         d2d::rules::Fighter player_combat;                // the player in a fight, as of this frame
         d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)

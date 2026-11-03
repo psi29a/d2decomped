@@ -408,6 +408,9 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             len = std::uint32_t(shown) * anim.ms_per_frame();
         }
         actor->prate = len ? float(anim.length_ms()) / float(len) : 1.f;
+        actor->action_ms = std::uint32_t(float(anim.action_ms()) / actor->prate);
+        if (mode == kModeSC && anim.frames && anim.action >= 0)
+            actor->action_ms = std::uint32_t(d2d::rules::cast_action_ticks(anim.action, int(anim.speed ? anim.speed : 256), actor->player_combat.fcr)) * 40;
         actor->pmode_until = mode == kModeDD ? 0 : now_ms + len;
         // Struck or dying (FUN_004cc410's player branch): the hit's impact, then the class's own cry,
         // the get-hit one (modes 4 / 0x13) none while one of its speech lines plays (FUN_004b9e90: hush).

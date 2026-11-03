@@ -11,6 +11,7 @@
 
 #include <character.hpp>
 #include <character_store.hpp>
+#include <combat.hpp>
 #include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
@@ -141,6 +142,7 @@ int main(int argc, char** argv) try {
         assert(paid.began && paid.fired > 0 && paid.mana[0] == control.mana[0]);   // the command takes nothing
         assert(control.mana[std::size_t(paid.fired - 1)] - paid.mana[std::size_t(paid.fired - 1)] == 0);
         assert(control.mana[std::size_t(paid.fired)] - paid.mana[std::size_t(paid.fired)] == cost);   // the action frame does
+        assert(d2d::rules::cast_action_ticks(7, 256, 0) == 7 && d2d::rules::cast_action_ticks(7, 256, 9) == 7 && d2d::rules::cast_action_ticks(7, 256, 200) == 4);
         const auto cut = rig.run(38, 100 * 256, 0, paid.fired - 1, true);
         assert(cut.began && cut.fired < 0 && cut.mana.back() == rig.run(38, 100 * 256, 0, -1, false).mana.back());   // cut before it: free
         std::printf("test_cast_mana: ok\n");
