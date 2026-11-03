@@ -71,7 +71,7 @@ auto Town::critter_tick(std::uint32_t frame_ms) -> void {
                         const int subtile_x = room.x * 5 + room_seed(room.width * 5 - 1), subtile_y = room.y * 5 + room_seed(room.height * 5 - 1);
                         const float x = (float(subtile_x) + 0.5f) / 5, y = (float(subtile_y) + 0.5f) / 5;
                         if (level->blocked_here(x, y, 0x3f11)) continue;
-                        // ponytail: its unit seed is the room's on from here; game.exe's comes with the unit (FUN_00465fd0), not traced.
+                        // Its unit seed: {the room seed's next step, 666}, as the client unit maker takes it (FUN_00465fd0 at 0x46606a).
                         critters.push_back({ critter.row, x, y, x, y, 4, false, false, 0, 0, frame_ms, d2d::rules::Rng{ room_seed.next() } });
                         break;
                     }

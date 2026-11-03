@@ -290,7 +290,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     foe.size = type_info.size; foe.threat = type_info.threat; foe.of = &monster; foe.id = monster.id;
                     monster_foe_props(*game_data, monster, foe);
                     foe.pick = unit_pick(*game_data, { target.res[0], target.res[1], target.res[2], target.res[3], target.res[4] }, monster.aura, monster.aura_lvl,
-                                         d2d::rules::swing_max_damage(monster.stats, monster.swing_mode));
+                                         d2d::rules::swing_max_damage(monster.swing_stats(), monster.swing_mode));
                     foe.pick.state_b = now_ms < monster.chill_until;   // state 0xb, cold
                 }
             std::vector<Monster> born;

@@ -127,7 +127,7 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
             static constexpr int kIlvl[3] = { 7, 30, 60 };
             const int diff = std::clamp(actor->character.header.active_difficulty(), 0, 2);
             loot.put({ .code = "rin", .quality = diff ? 6 : 4 }, actor->player.x, actor->player.y, kIlvl[diff], fight.spawning.game, now);
-            loot.take(loot.ground.size() - 1);
+            loot.take(loot.ground.size() - 1, now);
             cues.cue("item_ring", now, actor->player.x, actor->player.y);   // FUN_005458e0(4): S->C 0x5d flags 2, the client's item_ring (FUN_004a2cb0)
             d2d::log::info("Search for Cain: done, Akara's ring");
         }

@@ -528,7 +528,8 @@ auto Town::take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> lines, std:
 // npcalert over that NPC, as game.exe's client puts the looping overlay
 // on (FUN_004b3380 -> FUN_00470390, overlay 0x48).
 // ponytail: 0x8a's palace guard check (class 0x14b, FUN_004b1620) isn't
-// here, and its alert still expires locally after 16 * 111 ms.
+// here, and its alert still expires locally after 16 * 111 ms. It reads
+// the client's talk state (DAT_007c0d29, FUN_004b3380).
 auto Town::net_quests(std::uint32_t frame_ms) -> void {
         for (auto& host_quest : net_game->npc_quests) {
             const auto* host_npc = npc_menu.npc >= 0 ? net_npc(npc_menu.npc) : nullptr;

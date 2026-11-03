@@ -46,15 +46,17 @@
 namespace d2d::game {
 
 // The client's ticks from an object's OP to its ON (FUN_004bcbb0): the
-// counter runs from Start1 at FrameDelta1 a tick (FUN_00624390) until it
-// reaches FrameCnt1 - 1; -1: never (FrameCnt1 1, or a counter that doesn't move).
+// counter runs from Start1 at its OP rate (FUN_00624390: object_frame_delta,
+// as the client draws it) until it reaches FrameCnt1 - 1; -1: never
+// (FrameCnt1 1, or a counter that doesn't move).
 static int op_ticks(const Npc& npc) {
     if (!npc.op_frames) return 0;
     if (npc.frames[1] == 1) return -1;
     const int need = (int(npc.frames[1]) - 1 - int(npc.loop_from[1])) * 256;
     if (need <= 0) return 0;
-    if (!npc.frame_delta[1]) return -1;
-    return (need + npc.frame_delta[1] - 1) / npc.frame_delta[1];
+    const int rate = object_frame_delta(npc, 1);
+    if (!rate) return -1;
+    return (need + rate - 1) / rate;
 }
 
 auto World::greet_sound(const Npc& npc, int kind) -> int {
@@ -333,7 +335,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 const auto& ground_item = loot.ground[ground_index];
                 if (std::hypot(ground_item.x - actor->player.x, ground_item.y - actor->player.y) <= 1.f) {
                     const bool malus = ground_item.item.code == "hdm";
-                    loot.take(ground_index);
+                    loot.take(ground_index, now_ms);
                     if (malus && holding_malus() && tools.picked_up(quests())) d2d::log::info("Tools of the Trade: the malus picked up (the player's line, FUN_00553380)");
                     actor->pick_item = -1; actor->player.walking = false; actor->player.path.clear();
                 } else {
@@ -348,7 +350,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                     if (ground_item.dropped_by == actor->id) { if (!underfoot) ground_item.dropped_by = 0; continue; }
                     if (underfoot) {
                         if (loot.index_of(actor->pick_item) == int(i)) actor->pick_item = -1;
-                        loot.take(i);
+                        loot.take(i, now_ms);
                     }
                 }
             bool to_unit = (actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size()) || actor->take_portal >= 0;   // an NPC, object or portal: a path to the unit

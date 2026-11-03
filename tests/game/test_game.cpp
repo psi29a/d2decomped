@@ -855,6 +855,64 @@ int main(int argc, char** argv) try {
         assert(world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 120) && thrower.pmode >= 0);
         thrower.pmode = -1;
         if (data->patched) assert(data->sound_index.at("amazon_impossible_1") == 0xb89);
+        // Utrans 255 (necroskeleton) on a monster that isn't a pet: 0 (FUN_004791b0, 0x46665c).
+        Monster skeleton;
+        skeleton.npc.utrans = { 255, 255, 255 };
+        assert(world.monster_colour(skeleton) == 0);
+        // A swing rolls its mode's elements under 100 % on the unit's seed
+        // (FUN_005a4f50, 0x5a5223); 100 % takes no roll; the rest stay out.
+        {
+            Monster swinger;
+            swinger.stats.elements[0] = { 0, 100, 1, 2, 0, "A1" };
+            swinger.stats.elements[1] = { 1, 50, 1, 2, 0, "A1" };
+            swinger.stats.elements[2] = { 2, 50, 1, 2, 0, "A2" };
+            swinger.seed = d2d::rules::Rng{ 99 };
+            auto expected = swinger.seed;
+            const bool second_in = expected(100) < 50;
+            set_mode(*data, swinger, "A1", throw_ms);
+            assert(swinger.seed.low == expected.low && swinger.element_on[0] && swinger.element_on[1] == second_in && !swinger.element_on[2]);
+            const auto swung = swinger.swing_stats();
+            assert(swung.elements[0].pct == 100 && (swung.elements[1].type < 0) == !second_in && swung.elements[2].pct == 50);
+            // Spectral Hit's element is chosen after the roll: it's on for the swing.
+            swinger.boss = d2d::rules::Boss::unique; swinger.mods = { d2d::rules::umod::spectralhit };
+            set_mode(*data, swinger, "S1", throw_ms);
+            attack_starts(*data, swinger, "S1", world.fight.rng);
+            assert(swinger.swing_stats().elements[2].type >= 0 && swinger.swing_stats().elements[2].mode == "S1");
+        }
+        // The weapon switch keeps the current skill when the other set's
+        // can't be used (FUN_005616a0 -> FUN_00620190: the skill list's +8).
+        {
+            auto& header = world.actor->character.header;
+            const bool expansion = world.actor->character.expansion;
+            const auto left = header.left_skill, left_swap = header.left_swap;
+            const auto throw_skill = std::uint32_t(data->skills.by_name.at("Throw")), fire_bolt = std::uint32_t(data->skills.by_name.at("Fire Bolt"));
+            world.actor->character.expansion = true;
+            header.left_skill = throw_skill; header.left_swap = fire_bolt;
+            world.apply(cmd::SwapWeapons{}, throw_ms);
+            assert(world.actor->character.character_class == 1 || header.left_skill == throw_skill);
+            world.apply(cmd::SwapWeapons{}, throw_ms);
+            world.actor->character.expansion = expansion; header.left_skill = left; header.left_swap = left_swap;
+        }
+        // Taking a corpse (FUN_00562f30): a bow doesn't go on beside a
+        // worn shield (FUN_0055f2d0) but into the inventory; a free hand takes it.
+        {
+            const auto kept_items = world.actor->character.items;
+            const auto kept_str = world.actor->character.stats.values[d2d::d2s::kStr], kept_dex = world.actor->character.stats.values[d2d::d2s::kDex];
+            auto& items = world.actor->character.items;
+            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped; });
+            items.push_back({ .code = "buc", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true });
+            const d2d::d2s::Item sword{ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true };
+            world.actor->corpses.push_back({ .level = world.level, .items = { sword } });
+            world.actor->character.stats.values[d2d::d2s::kStr] = world.actor->character.stats.values[d2d::d2s::kDex] = 200;
+            world.take_corpse_items(world.actor->corpses.size() - 1, throw_ms);
+            assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "sbw" && item.location == d2d::d2s::item_location::kStored; }) == 1);
+            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.code == "sbw" || item.code == "buc"; });
+            world.actor->corpses.push_back({ .level = world.level, .items = { sword } });
+            world.take_corpse_items(world.actor->corpses.size() - 1, throw_ms);
+            assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "sbw" && item.location == d2d::d2s::item_location::kEquipped; }) == 1);
+            items = kept_items;
+            world.actor->character.stats.values[d2d::d2s::kStr] = kept_str; world.actor->character.stats.values[d2d::d2s::kDex] = kept_dex;
+        }
         thrower.attack_skill = 0;
         thrower.character.items = saved_items;
     }
@@ -1132,7 +1190,8 @@ int main(int argc, char** argv) try {
     // OP from its use, then ON once its counter reaches FrameCnt1 - 1 (Start1 0 at FrameDelta1 a tick).
     assert(world.npc_states[std::size_t(shrine_index)].mode == "OP" && world.npc_states[std::size_t(shrine_index)].mode_ms == 900 * kTickMs);
     assert(shrine->loop_from[1] == 0 && shrine->frame_delta[1] > 0);
-    const std::uint32_t on_ms = (900 + std::uint32_t(((shrine->frames[1] - 1) * 256 + shrine->frame_delta[1] - 1) / shrine->frame_delta[1])) * kTickMs;
+    const int op_rate = object_frame_delta(*shrine, 1);   // as the client draws OP
+    const std::uint32_t on_ms = (900 + std::uint32_t(((shrine->frames[1] - 1) * 256 + op_rate - 1) / op_rate)) * kTickMs;
     world.tick({}, on_ms - kTickMs, 901 * kTickMs);
     assert(world.npc_states[std::size_t(shrine_index)].mode == "OP");
     world.tick({}, on_ms, on_ms - kTickMs);
@@ -1173,10 +1232,12 @@ int main(int argc, char** argv) try {
         {   // the client's View carries its side: no hover name, no pad pick there either
             View shown = world.view();
             shown.monsters = { world.fight.monsters[std::size_t(index)] };
+            shown.sounds = { { .when_ms = 9, .sound = 3, .unit = 0x100000007ull, .hush = true } };   // a class line keeps its unit and hush
             ViewEncoder encoder;
             View received;
             assert(apply_view(*data, encode_view(*data, shown, encoder), received));
             assert(received.monsters.size() == 1 && received.monsters[0].align == 2 && received.monsters[0].ally_not_interact(*data, world.level->id));
+            assert(received.sounds.size() == 1 && received.sounds[0].unit == 0x100000007ull && received.sounds[0].hush);
         }
         world.fight.monsters[std::size_t(index)].cry = {};    // the same monster, hostile: attacked
         world.fight.monsters[std::size_t(index)].align = 0;
@@ -1537,12 +1598,12 @@ int main(int argc, char** argv) try {
         const auto lead_gold = coop.lead().character.stats.get(d2d::d2s::kGold), second_gold = second.character.stats.get(d2d::d2s::kGold);
         coop.loot.put({ .code = "gld", .gold = 100 }, coop.lead().player.x, coop.lead().player.y, 1, coop.fight.spawning.game, now_ms);
         coop.loot.ground.back().gold = 100;
-        coop.loot.take(coop.loot.ground.size() - 1);
+        coop.loot.take(coop.loot.ground.size() - 1, now_ms);
         assert(coop.lead().character.stats.get(d2d::d2s::kGold) == lead_gold + 50 && second.character.stats.get(d2d::d2s::kGold) == second_gold + 50);
         // A player's own dropped gold isn't (FUN_0055c850: an owned pile goes whole to the picker).
         coop.loot.put({ .code = "gld", .gold = 100 }, coop.lead().player.x, coop.lead().player.y, 1, coop.fight.spawning.game, now_ms);
         coop.loot.ground.back().gold = 100; coop.loot.ground.back().owner = second.id;
-        coop.loot.take(coop.loot.ground.size() - 1);
+        coop.loot.take(coop.loot.ground.size() - 1, now_ms);
         assert(coop.lead().character.stats.get(d2d::d2s::kGold) == lead_gold + 150 && second.character.stats.get(d2d::d2s::kGold) == second_gold + 50);
         // A quest step's bits reach the partner who hasn't done that quest.
         {

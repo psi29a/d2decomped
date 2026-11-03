@@ -120,7 +120,8 @@ inline bool throw_ready(const GameData& game_data, const Character& character) {
 // FUN_004a8d30 on FUN_004d9fc0), and a cast stops with the class's
 // impossible_1 (FUN_004610c0, reason 0x13 at 0x711ddc).
 // ponytail: only Throw's weapon gate; FUN_00647960's other statuses (1
-// mana, 4, 5, 6, the other weapon gates) aren't kept.
+// mana, 4, 5, 6, the other weapon gates) aren't kept. Its weapon gate
+// (FUN_00647640) takes a dual-wielder's primary hand (FUN_006235a0).
 inline bool skill_refused(const GameData& game_data, const Character& character, int id) {
     const auto* skill = game_data.skills.get(id);
     return skill && skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow && !throw_ready(game_data, character);
@@ -395,7 +396,7 @@ struct Fight {
     Hero* actor = nullptr;
     void act_as(Hero& hero) {
         actor = &hero;
-        loot.character = &hero.character; loot.player = &hero.player; loot.sound_unit = unit_key(kSoundOnPlayer, hero.id);
+        loot.character = &hero.character; loot.player = &hero.player;
         loot.blessed_find = hero.wisp_blessing.find; loot.blessed_until = hero.wisp_blessing.until;
     }
     // The player of that id, or null (gone).
@@ -1049,9 +1050,9 @@ struct Fight {
     [[nodiscard]] const d2d::rules::Skill* skill_named(std::string_view name) const;
     // The missile row a pet's skill shoots: its srvmissile, else
     // srvmissilea — NecromageMissile's do 149 (FUN_005ce0b0) adds the mage's
-    // variant (+0xf of its monster data) to it: necromage1..4.
-    // ponytail: the variant is rolled at the raise; where game.exe sets it
-    // isn't traced.
+    // variant (+0xf of its monster data) to it: necromage1..4, rolled at
+    // the raise (FUN_005c4180: the caster's seed & 3).
+    // ponytail: on d2d's rng; d2d keeps no player seed.
     [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& skill, int variant = 0) const;
     void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) { summon(skill, skill_level ? skill_level(skill.id) : 1, actor->cast_x, actor->cast_y, now_ms); }
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);

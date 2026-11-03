@@ -564,6 +564,7 @@ struct World {
                 if (player.get() != actor && player->pmode != kModeDT && player->pmode != kModeDD) others.push_back(&player->character);
             return others;
         };
+        loot.class_voice = [this](std::string_view name, std::uint32_t now_ms) { fight.class_voice(name, now_ms); };
         const bool have_world = level && !level->dt1s.empty();
         actor->player.x = (start_x >= 0 ? float(start_x) : have_world ? float(level->ds1.width() / 2) : 0.f) + 0.5f;
         actor->player.y = (start_y >= 0 ? float(start_y) : have_world ? float(level->ds1.height() / 2) : 0.f) + 0.5f;
@@ -601,9 +602,12 @@ struct World {
     // TransLvl + 2 (8 and up: 2); a unique's (and superunique's) roll from
     // its seed, rand(30) + 9, unless noUniqueShift; MonStats2 Utrans for the
     // difficulty; a superunique's own Utrans; 30 and up fall back to 2.
+    // Utrans 0xff (necroskeleton, necromage) is 1 for a pet of the viewer
+    // or of a player not hostile to them, else 0 (FUN_004791b0: the 0x7a pet
+    // list's owner, the roster's flag 8; 0x46665c): 0 here, where pets aren't
+    // (Player::pets). Both draw untinted.
     // ponytail: the roll is on the unit id, not the unit's seed (the same
-    // odds, not the same colour as game.exe's for a given monster); Utrans
-    // 0xff's pick (FUN_004791b0) is taken as 1.
+    // odds, not the same colour as game.exe's for a given monster).
     [[nodiscard]] int monster_colour(const Monster& monster) const;
     [[nodiscard]] View view() const;
 
@@ -821,10 +825,13 @@ struct World {
     // the experience lost. They go on without it.
     void make_corpse();
     // Taking one's corpse (FUN_0057fb70): its experience back, each item to
-    // its slot when that's free (FUN_00562f30; its requirements met), else to
-    // the inventory; what doesn't fit stays on it. It goes once it's empty.
-    // ponytail: requirements aren't checked; two-handed / quiver pairing
-    // (FUN_0055f2d0) isn't.
+    // its slot when that's free (FUN_00562f30), its requirements met
+    // (FUN_0062eaf0: rules::can_wear) and held with the other hand's
+    // (FUN_0055f2d0), else to the inventory; what doesn't fit stays on it.
+    // It goes once it's empty.
+    // ponytail: FUN_0055f2d0's pairing taken as rules::hands_ok (FUN_0063dbc0);
+    // its own walk (weapon switch via FUN_0055f240, types 0x2d / 0x43) isn't
+    // compared.
     void take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms);
 
     // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the

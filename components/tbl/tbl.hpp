@@ -26,6 +26,35 @@
 
 namespace d2d::tbl {
 
+// game.exe's UTF-8 decoder (FUN_00526100, its table at 0x7309b8): a
+// sequence of 1..6 bytes by the first byte's lead bits, continuation bytes
+// 10xxxxxx, each sequence one 16-bit unit (truncated), under its minimum an
+// error. FUN_00526320 ends the string at the first error.
+inline std::u16string utf8_units(std::span<const std::byte> text) {
+    struct Lead { unsigned mask, value, value_mask, minimum; };
+    static constexpr Lead kLeads[] = { { 0x80, 0x00, 0x7f, 0 }, { 0xe0, 0xc0, 0x7ff, 0x80 }, { 0xf0, 0xe0, 0xffff, 0x800 },
+                                       { 0xf8, 0xf0, 0x1fffff, 0x10000 }, { 0xfc, 0xf8, 0x3ffffff, 0x200000 }, { 0xfe, 0xfc, 0x7fffffff, 0x4000000 } };
+    std::u16string units;
+    for (std::size_t at = 0; at < text.size();) {
+        const unsigned first = unsigned(text[at]);
+        if (!first) break;                                  // a NUL ends it (0x526385)
+        std::uint32_t code = first;
+        std::size_t length = 0;
+        for (std::size_t step = 0; step < std::size(kLeads); ++step) {
+            if ((first & kLeads[step].mask) == kLeads[step].value) {
+                if ((code & kLeads[step].value_mask) >= kLeads[step].minimum) length = step + 1;
+                break;
+            }
+            if (at + step + 1 >= text.size() || ((unsigned(text[at + step + 1]) ^ 0x80u) & 0xc0u) != 0) break;
+            code = code << 6 | (unsigned(text[at + step + 1]) ^ 0x80u);
+        }
+        if (!length) break;
+        units.push_back(char16_t(code & kLeads[length - 1].value_mask));
+        at += length;
+    }
+    return units;
+}
+
 class Table {
 public:
     Table() = default;
@@ -101,16 +130,10 @@ private:
             std::size_t keyLen = 0;
             while (keyLen < keyMax && keyp[keyLen] != '\0') ++keyLen;
 
-            // ponytail: game.exe decodes UTF-8 to UTF-16 through FUN_00526320
-            // and FUN_00526100; this zero-extends bytes instead. The separate
-            // font-map lead-byte path applies to non-Latin fonts, not UTF-8.
+            // UTF-8 to 16-bit units (FUN_00526320 -> FUN_00526100). The
+            // separate font-map lead-byte path applies to non-Latin fonts.
             if (valLen == 0 || valOff + std::size_t(valLen) > bytes.size()) continue;
-            const auto* valp = reinterpret_cast<const unsigned char*>(bytes.data() + valOff);
-            std::u16string value;
-            value.reserve(valLen - 1);
-            for (std::uint16_t j = 0; j + 1 < valLen; ++j) {  // skip trailing NUL
-                value.push_back(char16_t(valp[j]));
-            }
+            std::u16string value = utf8_units({ bytes.data() + valOff, std::size_t(valLen - 1) });   // less the trailing NUL
 
             // Nodes carry a 16-bit `Index` at offset +0x01 — that's D2's ID.
             // Stash the value under it too so callers can look up by either.

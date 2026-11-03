@@ -9,6 +9,7 @@ Writes, from the repo alone (no game files, no Ghidra):
   functions.tsv  one row per game.exe function: status, module, callers ported, ...
   index.md       the summary page (published with GitHub Pages)
   symbols.tsv    d2d's names and citations, for tools/ghidra/decompile.sh to put in Ghidra
+                 (names: docs/research/re/names.tsv, else a C++ function citing one FUN_)
 
 A function's status comes from where its address is written (FUN_xxxxxxxx,
 LAB_xxxxxxxx, 0x4b35b0 or a bare 00xxxxxx, mapped to the function holding it):
@@ -30,11 +31,20 @@ Credits count commit authors plus Reported-by: / Traced-by: trailers.
 Done means nothing left: no listed gap, and every counted function ported or
 verified. The last line says DONE, or what remains; gaps.json has it too.
 """
-import argparse, bisect, collections, datetime, hashlib, json, os, re, subprocess
+import argparse, bisect, collections, datetime, hashlib, json, os, re, subprocess, sys
 
 RE_DIR = "docs/research/re"
 LEVELS = ("untouched", "cited", "ported", "verified")
 ADDRESS = re.compile(r"(?i)\b(?:thunk_FUN_|FUN_|LAB_|0x)(?:00)?([4-7][0-9a-f]{5})\b|\b00([4-7][0-9a-f]{5})\b")
+# What a gap's text says it waits on, so the cheap ones show (a ponytail note's own words).
+NEEDS = {
+    "pathing": r"\bpath|sets off|\bwalks?\b",
+    "client state": r"\bclient\b|sound on|speech|\bdrawn?\b|overlay",
+    "seed": r"\bseed\b|d2d's rng|update's rng",
+    "dual-wield": r"dual|two weapons|both hands|either hand|primary",
+    "networking": r"network|\bhost\b|joined",
+}
+
 DOCS = {  # file: (kind, a gap?, stop at this heading)
     "todo.md": ("todo", True, None),
     "unverified.md": ("unverified", True, "## Traced"),
@@ -180,6 +190,11 @@ def build(with_issues):
                 if len(entry["refs"]) < 5:
                     entry["refs"].append(f"{path}:{number}")
 
+    # Names traced by hand (names.tsv: a function no C++ function is named after).
+    traced = {int(a, 16): name for a, name, *_ in read_tsv("names.tsv")}
+    for a in traced.keys() - info.keys():
+        sys.exit(f"names.tsv: {a:08x} isn't a function's entry (game-functions.tsv)")
+
     # Calls, and the source file an assert names.
     callers, callees = collections.defaultdict(set), collections.defaultdict(set)
     for caller, callee, kind in read_tsv("game-calls.tsv"):
@@ -236,6 +251,8 @@ def build(with_issues):
             gap["id"] += f"-{seen[gap['id']]}"
         for a in gap["functions"]:
             info[int(a, 16)]["gaps"].append(gap["id"])
+        gap["size"] = sum(info[int(a, 16)]["size"] for a in gap["functions"])   # bytes of game.exe to read
+        gap["needs"] = [need for need, pattern in NEEDS.items() if re.search(pattern, gap["title"], re.I)]
     # Only a stub row's own Address: its other cells name callers and kin.
     dead = {h for g in gaps if g["kind"] == "stub"
             for h in map(funcs.holding, addresses(g["row"].get("Address", ""))) if h}
@@ -256,7 +273,7 @@ def build(with_issues):
             "frontier": status == "untouched" and not library and a not in dead and ported_callers > 0,
             "refs": entry["refs"], "gaps": entry["gaps"],
             # Two d2d functions citing one address: neither name is the whole of it.
-            "d2d_name": next(iter(entry["d2d"])) if len(entry["d2d"]) == 1 else "",
+            "d2d_name": f"d2d_{traced[a]}" if a in traced else next(iter(entry["d2d"])) if len(entry["d2d"]) == 1 else "",
         })
 
     counted = [r for r in records if not r["library"] and not r["dead"]]
@@ -285,8 +302,44 @@ def build(with_issues):
         "remaining": remaining, "done": not any(remaining.values()),
         "frontier": [r["address"] for r in frontier],
         "blocking": [{"address": r["address"], "gaps": len(r["gaps"]), "status": r["status"]} for r in blocking],
-        "gaps": gaps, "credits": credits(),
+        "gaps": gaps, "credits": credits(), "oracles": oracles(funcs),
     }, records, frontier
+
+
+# tools/emu scripts that are tools, not oracles: the emulator, readers, finders, a live join test.
+HELPERS = {"emu.py", "disasm.py", "mpq_cache.py", "structs.py", "scan_writes.py", "txt_fields.py", "join_live.py",
+           "libd2_crc.py", "price_terms.py"}
+
+
+def oracles(funcs):
+    """tools/emu's scripts that run game.exe's own code, where the repo cites them, and any cited but missing."""
+    scripts = [p for p in git("ls-files", "tools/emu/*.py").splitlines() if not os.path.basename(p).startswith(("_", "test_"))]
+    present = {os.path.basename(p) for p in git("ls-files", "tools").splitlines()}
+    cited, missing = collections.Counter(), collections.defaultdict(set)
+    mention = re.compile(r"\b(\w+\.py)\b")
+    for path in git("ls-files", "components", "apps", "docs", "tests").splitlines():
+        try:
+            with open(path, encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except (UnicodeDecodeError, IsADirectoryError, FileNotFoundError):
+            continue
+        for number, line in enumerate(lines, 1):
+            for name in set(mention.findall(line)):
+                if name in present:
+                    cited[name] += 1
+                elif "oracle" in line.lower() or "tools/emu/" in line:
+                    missing[name].add(f"{path}:{number}")
+    rows = []
+    for path in scripts:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        if os.path.basename(path) in HELPERS:
+            continue
+        doc = re.search(r'"""(.*?)(?:\n|""")', text, re.S)
+        runs = list(dict.fromkeys(f"{h:08x}" for h in map(funcs.holding, addresses(text)) if h))   # as the script names them
+        name = os.path.basename(path)
+        rows.append({"script": path, "what": doc.group(1).strip() if doc else "", "runs": runs, "cited": cited[name]})
+    return {"scripts": rows, "missing": {name: sorted(where) for name, where in sorted(missing.items())}}
 
 
 def credits():
@@ -305,6 +358,11 @@ def credits():
                 people[re.sub(r"\s*<[^>]*>", "", who).strip()][key] += 1  # names only, no emails
     return sorted(({"name": n, **c} for n, c in people.items()),
                   key=lambda p: (-(p["commits"] + p["reported"] + p["traced"]), p["name"]))
+
+
+def shade(pct):
+    """Red at 0 % through orange and yellow to green at 100 % (hue 0..120)."""
+    return f"hsl({1.2 * pct:.0f}, 70%, 42%)"
 
 
 def write(out, summary, records, frontier):
@@ -331,11 +389,15 @@ def write(out, summary, records, frontier):
     t, repo = summary["totals"], "https://github.com/psi29a/d2decomped/blob/main/"
     total = sum(t[s]["functions"] for s in LEVELS)
     size = sum(t[s]["bytes"] for s in LEVELS)
+    done = 100 * (t["verified"]["bytes"] + t["ported"]["bytes"]) / size
     md = ["---\ntitle: D2Decomp gap map\n---\n", "# D2Decomp gap map\n",
           f"What of game.exe 1.14d d2d has looked at, ported and verified. Generated from "
           f"`{summary['generated']['commit']}` on {summary['generated']['date']} by `tools/gaps.py`. "
           f"Data: [gaps.json](gaps.json) (gaps, frontier, credits), [functions.tsv](functions.tsv) "
           f"(every function). New here? Read [CONTRIBUTING.md]({repo}CONTRIBUTING.md).\n",
+          f"**{done:.1f}% done**: verified or ported, by code bytes.\n",
+          f'<div style="background:#ddd;border-radius:4px;height:1.2em"><div style="width:{done:.1f}%;height:100%;'
+          f'border-radius:4px;background:{shade(done)}"></div></div>\n',
           "## game.exe functions\n", "| Status | Functions | Share | Code bytes | Share |", "|---|---|---|---|---|"]
     for s in reversed(LEVELS):
         md.append(f"| {s} | {t[s]['functions']:,} | {100 * t[s]['functions'] / total:.1f}% "
@@ -345,9 +407,13 @@ def write(out, summary, records, frontier):
               f"wrote the address down, not that it's understood.\n")
     md.append(done_line(summary["remaining"]) + "\n")
     md += ["## By module\n", "From the source file an assert names, or the file around it.\n",
-           "| Module | Verified | Ported | Cited | Untouched |", "|---|---|---|---|---|"]
+           "Done: verified or ported, by functions.\n",
+           "<table><tr><th>Module</th><th>Done</th><th>Verified</th><th>Ported</th><th>Cited</th><th>Untouched</th></tr>"]
     for name, counts in sorted(summary["modules"].items(), key=lambda m: -sum(m[1].values())):
-        md.append(f"| {name} | {counts['verified']} | {counts['ported']} | {counts['cited']} | {counts['untouched']} |")
+        share = 100 * (counts["verified"] + counts["ported"]) / max(sum(counts.values()), 1)
+        md.append(f'<tr><td>{name}</td><td style="background:{shade(share)};color:#fff">{share:.1f}%</td>'
+                  + "".join(f"<td>{counts[s]}</td>" for s in ("verified", "ported", "cited", "untouched")) + "</tr>")
+    md.append("</table>")
     md += ["\n## Frontier\n", f"{len(frontier):,} untouched functions that ported code calls. "
            "The top 40, the most gaps and callers first:\n", "| Address | Size | Module | Ported callers |", "|---|---|---|---|"]
     for r in frontier[:40]:
@@ -357,6 +423,27 @@ def write(out, summary, records, frontier):
     for b in summary["blocking"][:20]:
         md.append(f"| `{b['address']}` | {b['gaps']} | {b['status']} |")
     kinds = collections.Counter((g["kind"], g["gap"]) for g in summary["gaps"])
+    cheap = sorted((g for g in summary["gaps"] if g["kind"] == "ponytail" and g["functions"] and not g["needs"]),
+                   key=lambda g: g["size"])
+    md += ["\n## Cheapest notes\n", f"`ponytail:` notes naming a function, whose words name nothing they wait on "
+           f"({', '.join(NEEDS)}), smallest code first. {len(cheap)} of them; the top 20:\n",
+           "| Note | Functions | Bytes |", "|---|---|---|"]
+    for g in cheap[:20]:
+        md.append(f"| `{g['source']}` | {' '.join(f'`{a}`' for a in g['functions'][:3])} | {g['size']} |")
+    o = summary["oracles"]
+    md += ["\n## Oracles\n", "Scripts in `tools/emu` that run game.exe's own code on the same inputs as d2d and diff the "
+           "two (AGENTS.md \"Evidence\"). They need your own game.exe; run them from `tools/emu` with `uv run python`. "
+           "Cited: lines in the code and docs that name the script.\n",
+           "| Oracle | What it checks | Runs | Cited |", "|---|---|---|---|"]
+    for r in sorted(o["scripts"], key=lambda r: -r["cited"]):
+        what = r["what"].replace("|", "\\|")
+        md.append(f"| [{os.path.basename(r['script'])}]({repo}{r['script']}) | {what} | "
+                  f"{' '.join(f'`{a}`' for a in r['runs'][:3])}{' …' if len(r['runs']) > 3 else ''} | {r['cited']} |")
+    if o["missing"]:
+        md += ["\nCited as an oracle but not in the repo, so the claims that lean on them can't be re-checked:\n",
+               "| Script | Cited at |", "|---|---|"]
+        for name, where in o["missing"].items():
+            md.append(f"| {name} | {', '.join(f'`{w}`' for w in where[:3])} |")
     md += ["\n## Listed gaps\n", "| Kind | Rows | A gap? |", "|---|---|---|"]
     for (kind, is_gap), n in sorted(kinds.items(), key=lambda k: (not k[0][1], k[0][0])):
         md.append(f"| {kind} | {n} | {'yes' if is_gap else 'context'} |")

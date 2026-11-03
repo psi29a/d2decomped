@@ -8,6 +8,8 @@
 #include "cues.hpp"
 #include "fight.hpp"
 #include "gamedata.hpp"
+#include "inventory.hpp"
+#include "item_text.hpp"
 #include "log.hpp"
 
 #include <d2s_items.hpp>
@@ -221,8 +223,18 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
         corpse.exp = 0;
         const auto& layout = game_data->inv_layout[std::size_t(actor->character.header.cls % 7)];
         for (auto item_it = corpse.items.begin(); item_it != corpse.items.end();) {
-            const bool worn = std::ranges::any_of(actor->character.items, [&](const Item& worn_item) { return worn_item.location == d2d::d2s::item_location::kEquipped && worn_item.slot == item_it->slot; });
-            if (!worn && item_it->slot >= d2d::d2s::body_location::kFirst && item_it->slot <= d2d::d2s::body_location::kLeftArmSwitch) { actor->character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
+            namespace body = d2d::d2s::body_location;
+            const auto worn_in = [&](int slot) { return std::ranges::find_if(actor->character.items, [&](const Item& worn_item) { return worn_item.location == d2d::d2s::item_location::kEquipped && worn_item.slot == slot; }); };
+            const int slot = item_it->slot, base_slot = slot >= body::kRightArmSwitch ? slot - (body::kRightArmSwitch - body::kRightArm) : slot;
+            const auto worn_by = wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats);
+            // FUN_00562f30: its requirements (FUN_0062eaf0), then the pair with the other hand's (FUN_0055f2d0).
+            bool fits = slot >= body::kFirst && slot <= body::kLeftArmSwitch && worn_in(slot) == actor->character.items.end()
+                        && d2d::rules::can_wear(game_data->rules, *item_it, base_slot, worn_by, required_level(*game_data, *item_it, worn_by.cls));
+            if (fits && (base_slot == body::kRightArm || base_slot == body::kLeftArm)) {
+                const int other = slot == body::kRightArm ? body::kLeftArm : slot == body::kLeftArm ? body::kRightArm : slot == body::kRightArmSwitch ? body::kLeftArmSwitch : body::kRightArmSwitch;
+                if (const auto paired = worn_in(other); paired != actor->character.items.end()) fits = d2d::rules::hands_ok(game_data->rules, *item_it, *paired, worn_by);
+            }
+            if (fits) { actor->character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
             std::optional<Item> held_item = *item_it;
             held_item->location = d2d::d2s::item_location::kStored;
             std::vector<const Item*> inv;

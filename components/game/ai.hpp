@@ -160,6 +160,17 @@ struct Monster {
     std::uint32_t bolts_at = 0, fx_at = 0;
     bool fx_done = false;
     std::string_view swing_mode;               // its last attack mode (A1, A2, SC, S1..S4; "" none yet): the stats it set (FUN_005a4f50)
+    std::array<bool, 3> element_on{};          // which of its elements that swing rolled in (roll_elements)
+    // Its stats as the last swing set them: the elements it didn't roll in left out.
+    [[nodiscard]] d2d::rules::MonStats swing_stats() const {
+        auto swung = stats;
+        for (std::size_t element = 0; element < swung.elements.size(); ++element)
+            if (swung.elements[element].mode == swing_mode) {
+                if (element_on[element]) swung.elements[element].pct = 100;
+                else swung.elements[element] = {};
+            }
+        return swung;
+    }
     std::string_view fx_mode = "NU";         // its mode as of the last boss_events (a scarab's GH / DT comes once)
     std::vector<std::uint32_t> scarab_due;    // when a scarab's bolts are due, one a GH / DT (game.exe queues each event 7)
     int mana_lo = 0, mana_hi = 0;

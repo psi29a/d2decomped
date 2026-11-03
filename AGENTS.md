@@ -163,7 +163,11 @@ The same bar for everyone, people and agents alike.
   opening another.
 - **A match with game.exe needs an oracle:** `tools/emu` runs game.exe's own
   code on the same inputs as d2d, then diffs the two. CI has no game.exe, so
-  a maintainer runs it before merging.
+  a maintainer runs it before merging. **The oracle goes in the same pull
+  request** as `tools/emu/<name>.py`. It's expected: the maintainer reviews
+  it as any `tools/` change, and it needs `security-reviewed` only if it
+  launches a process or uses the network. A claim whose oracle isn't
+  committed can't be re-checked (the gap map lists those).
 - `tools/pr_guard.py` fails impossible addresses (a `FUN_` inside another
   function's body is one), binary files and unreviewed risky changes.
   Passing it means the evidence is possible, not that it's right.

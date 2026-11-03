@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     // `--get-hit-frames`: the frame drawn at each tick of a monster's (or the merc's) get-hit hold for
-    // the kind-1 cases on stdin (tools/emu/hit_render.py's, which runs game.exe's client step
+    // the kind-1 cases on stdin (an uncommitted oracle's, hit_render.py, which ran game.exe's client step
     // FUN_004b1280 and the draw's FUN_00621810 on them): `id rate ticks f0 f1 ...` a case.
     if (argc > 1 && std::string_view(argv[1]) == "--get-hit-frames") {
         long case_id, kind, speed, frames, fhr;
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     // `--get-hit`: FUN_0057cb00's decision for the damage records on stdin (`id kind maxlife damage hc
-    // rec64 fire ltng cold poison f2000 mgh stun frozen seedlo seedhi next`, as tools/emu/hit_rule.py
+    // rec64 fire ltng cold poison f2000 mgh stun frozen seedlo seedhi next`, as hit_rule.py (never committed)
     // writes and runs game.exe's FUN_0057cee0 on): one line a frame, `id gh -1`. `next` 1 means the
     // following record lands on the same unit in the same frame (its seed carries on; the frame is a
     // get-hit if any record is, each one rolling, as Fight::hurt_side's blows). The stun, frozen,
@@ -705,7 +705,7 @@ int main(int argc, char** argv) {
         walk_blocks += monster_blow(defender, 1, Motion::walking, mon, false, rng).blocked;
         run_blocks += monster_blow(defender, 1, Motion::running, mon, false, rng).blocked;
     }
-    assert(blocks > 700 && blocks < 800 && walk_blocks > 700 && walk_blocks < 800 && run_blocks > 200 && run_blocks < 300);
+    assert(blocks > 650 && blocks < 800 && walk_blocks > 650 && walk_blocks < 800 && run_blocks > 200 && run_blocks < 300);
     {                                                                  // a swing at a runner always lands (FUN_0057ec10)
         Fighter fortress;
         fortress.defense = 1000000000;

@@ -282,8 +282,8 @@ struct MonStats {
 // element of that mode as its own stat, poison x 10), as Diablo's score
 // sums it (FUN_005e8530: maxdamage, fire / lightning / magic / cold max,
 // poison max >> 8). 0 before any swing.
-// ponytail: an element counts whatever its chance (FUN_005a4f50 rolls one
-// under 100 %); the hireling / damage-% scaling (+0x70, stat 100) is left out.
+// Only the elements the swing rolled in count (Monster::swing_stats).
+// ponytail: the hireling / damage-% scaling (+0x70, stat 100) is left out.
 inline int swing_max_damage(const MonStats& stats, std::string_view swing_mode) {
     if (swing_mode.empty()) return 0;
     int total = swing_mode == "A2" ? stats.a2_max : swing_mode == "SC" || swing_mode == "S1" ? stats.s1_max : stats.a1_max;
@@ -412,8 +412,11 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     stats.exp += int(std::int64_t(stats.exp) * player_exp_pct(players) / 100);
     for (std::size_t element = 0; element < 3; ++element) {
         const auto& element_info = per_difficulty.elements[element];
-        if (type_info.el_type[element] < 0 || element_info.max <= 0) continue;
-        stats.elements[element] = { type_info.el_type[element], element_info.pct ? element_info.pct : 100, pct(level_row.damage[std::size_t(difficulty_index)], element_info.min),
+        // Every typed one keeps its mode and chance, which the swing rolls on
+        // (roll_elements); one that does no damage here is type -2 (rand -3).
+        if (type_info.el_type[element] == -1) continue;
+        const int kind = type_info.el_type[element] >= 0 && element_info.max <= 0 ? -2 : type_info.el_type[element];
+        stats.elements[element] = { kind, element_info.pct ? element_info.pct : 100, pct(level_row.damage[std::size_t(difficulty_index)], element_info.min),
                     std::max(pct(level_row.damage[std::size_t(difficulty_index)], element_info.max), pct(level_row.damage[std::size_t(difficulty_index)], element_info.min)), element_info.dur, type_info.el_mode[element] };
     }
     return stats;

@@ -168,7 +168,18 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms) {
     if (monster.mode != "NU") monster.left_mode = monster.mode;
     monster.mode = mode;
-    if (mode == "A1" || mode == "A2" || mode == "SC" || mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4") monster.swing_mode = mode;
+    if (mode == "A1" || mode == "A2" || mode == "SC" || mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4") {
+        monster.swing_mode = mode;
+        // FUN_005a4f50 at 0x5a5223: each element of the mode with a chance
+        // comes in under 100 % by a roll on the unit's seed; a rand one rolls
+        // its kind (rand(5) + 1, 0x5a52f1).
+        // ponytail: rand's kind isn't kept: its roll steps the seed, its damage isn't added.
+        for (std::size_t element = 0; element < monster.stats.elements.size(); ++element) {
+            const auto& info = monster.stats.elements[element];
+            monster.element_on[element] = info.type != -1 && info.mode == mode && info.pct > 0 && (info.pct > 99 || monster.seed(100) < info.pct);
+            if (monster.element_on[element] && info.type == -3) monster.seed(5);
+        }
+    }
     monster.seq_frame = -1;                                   // a sequence's row: drawn again as it plays
     monster.unit.mode_ms = now_ms;
     monster.unit.walking = mode == "WL" || mode == "RN";
@@ -431,7 +442,7 @@ bool castable(const d2d::rules::Skill& skill) {
 // (FUN_0056e0c0) at the level.
 // ponytail: the to-hit is the swing's plus ToHit + LevToHit a level, as %.
 d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl) {
-    auto stats = monster.stats;
+    auto stats = monster.swing_stats();
     const int more = d2d::rules::eval_calc(game_data.skills, skill.calc[0], {}, skill.id, lvl);
     for (int* damage : { &stats.a1_min, &stats.a1_max }) *damage = std::max(*damage * (100 + more + monster.dmg_pct) / 100, 0);
     stats.to_hit += stats.to_hit * (skill.tohit + skill.levtohit * (lvl - 1)) / 100;
@@ -918,9 +929,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // A Shaman's corpse (FUN_005dd0b0, the last found): a unique's
     // (FUN_005a0180 mask 8, not 4; FUN_005f1380) any Fallen's or Shaman's
     // not unique; else its own group's (FUN_005dcda0) within aip4 (squared,
-    // FUN_005dc380). Either way in DD, not yet gone.
-    // ponytail: "the rooms" as within 80 subtiles; the corpse flag
-    // (+0xc4 bit 1) and FUN_0063a770 as corpse_used; units are monsters.
+    // FUN_005dc380). Either way in DD, not yet gone. A unique's (FUN_005f1440) walks the
+    // near rooms (FUN_005dd0b0 mode 1: near_order), the rest its group
+    // (mode 9: FUN_005dd050 -> FUN_0058f380 on FUN_005dcda0).
+    // ponytail: the group in pack order (its list's own order isn't traced);
+    // the corpse flag (+0xc4 bit 1) and FUN_0063a770 as corpse_used; units
+    // are monsters.
     const auto self = pack.empty() ? pack.size() : std::size_t(&monster - pack.data());
     bool rally = false;
     int corpse = -1;
@@ -928,16 +942,20 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.leader = !pack.empty() && monster.leader == int(self);
     using d2d::rules::Boss;
     auto unique = [](const Monster& other) { return other.boss == Boss::unique || other.boss == Boss::superunique; };
+    const auto corpse_for = [&](const Monster& other) {
+        if (type_info.ai_name != "FallenShaman" || other.alive() || other.mode != "DD" || other.corpse_used) return false;
+        const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
+        const int base = game_data.monsters.types[std::size_t(other.type)].base;
+        return unique(monster) ? d2d::rules::shaman_corpse_reach(base, other.boss == Boss::champion, unique(other), off_x, off_y, input.aip[3])
+                               : other.leader == int(self) && off_x * off_x + off_y * off_y <= input.aip[3] * input.aip[3];
+    };
     for (std::size_t i = 0; i < pack.size(); ++i) {
         const auto& other = pack[i];
-        const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
-        if (i != self && other.mode == "DT" && d2d::rules::ai_distance(off_x, off_y) < 15) input.dying = true;
-        if (type_info.ai_name != "FallenShaman" || other.alive() || other.mode != "DD" || other.corpse_used) continue;
-        const int base = game_data.monsters.types[std::size_t(other.type)].base;
-        if (unique(monster) ? d2d::rules::shaman_corpse_reach(base, other.boss == Boss::champion, unique(other), off_x, off_y, input.aip[3])
-                            : other.leader == int(self) && off_x * off_x + off_y * off_y <= input.aip[3] * input.aip[3])
-            corpse = int(i);
+        if (i != self && other.mode == "DT" && d2d::rules::ai_distance(subtile(other.unit.x) - x, subtile(other.unit.y) - y) < 15) input.dying = true;
+        if (!unique(monster) && corpse_for(other)) corpse = int(i);
     }
+    if (unique(monster) && type_info.ai_name == "FallenShaman")
+        if (const auto order = near_order(corpse_for); !order.empty()) corpse = order.back();
     if (type_info.ai_name == "Fallen") {
         if (!input.dying) monster.fleeing = false;
         else if (!monster.fleeing) { monster.fleeing = true; monster.flee_sound = true; }
@@ -963,7 +981,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.aidel = per_difficulty.aidel ? per_difficulty.aidel : 15;
     // Act 2's: Skill4 / 5; the target's fire / cold resists (stats 0x27 /
     // 0x2b); the second target (FUN_005ddc30, below); Duriel's aura
-    // on; the searches (FUN_005dd0b0) over the monsters within 80 subtiles:
+    // on; the searches (FUN_005dd0b0 mode 1: near_order):
     // the nearest living kin of its class (FUN_005b0d00, the Panthers'),
     // any other living one (FUN_005f06b0, the Sand Raider's), by squared
     // distance (FUN_005b0bd0); the Greater Mummy's (FUN_005f2a00) within
@@ -971,7 +989,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // found; an lUndead (MonStats +0xd & 8) not a unique (FUN_005a0180, 8).
     // Radament's (FUN_005f2b10, class 0xe5): within aip5 + 10, uniques
     // too, on Normal any undead (FUN_0063e990).
-    // ponytail: a skill is always usable (FUN_005fd470); the near rooms as 80 subtiles.
+    // ponytail: a skill is always usable (FUN_005fd470).
     input.regen = monster.stats.regen;
     input.skill45 = { !type_info.skill[3].empty(), !type_info.skill[4].empty() };
     input.target_fire_res = target->fighter.res[0]; input.target_cold_res = target->fighter.res[2];
@@ -1018,10 +1036,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         const bool panther = type_info.ai_name == "PantherWoman" || type_info.ai_name == "PantherJavelin";
         const bool raider = type_info.ai_name == "SandRaider", mummy = type_info.ai_name == "GreaterMummy";
         int kin_dist = std::numeric_limits<int>::max();
-        for (std::size_t i = 0; (panther || raider || mummy) && i < pack.size(); ++i) {
-            const auto& other = pack[i];
+        for (const int pack_index : panther || raider || mummy ? near_order([&](const Monster& other) { return &other != &monster; }) : std::vector<int>{}) {
+            const auto& other = pack[std::size_t(pack_index)];
             const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
-            if (&other == &monster || d2d::rules::ai_distance(off_x, off_y) >= 80) continue;
             if (mummy) {
                 const bool radament = monster.type == d2d::rules::monster_ids::kRadament;
                 const auto& other_type = game_data.monsters.types[std::size_t(other.type)];
@@ -1030,9 +1047,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const int reach = input.aip[4] + (radament ? 10 : 0);
                 if (squared > reach * reach) continue;
                 ++input.in_reach;
-                if (!other.alive() && other.mode == "DD" && !other.corpse_used) corpse = int(i);
-                else if (other.alive() && other.hit_points < other.stats.hit_points) aid = int(i);
-            } else if (other.alive() && (raider || other.type == monster.type) && squared < kin_dist) { kin = int(i); kin_dist = squared; }
+                if (!other.alive() && other.mode == "DD" && !other.corpse_used) corpse = pack_index;
+                else if (other.alive() && other.hit_points < other.stats.hit_points) aid = pack_index;
+            } else if (other.alive() && (raider || other.type == monster.type) && squared < kin_dist) { kin = pack_index; kin_dist = squared; }
         }
         if (mummy) { input.corpse = corpse >= 0; input.aid = aid >= 0; }
         else { input.kin = kin >= 0; input.kin_dist = kin_dist; }
@@ -1942,7 +1959,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         const int frames = int((now_ms - monster.diab_run_ms) / frame_ms);
         const auto contact = [&] {
             if (!foe.alive || d2d::rules::unit_distance(subtile(foe.x) - subtile(unit.x), subtile(foe.y) - subtile(unit.y), type_info.size, foe.size) > type_info.melee_rng + 1) return;
-            auto stats = monster.stats;
+            auto stats = monster.swing_stats();
             stats.a1_min = d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, false) >> 8;
             stats.a1_max = std::max(d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, true) >> 8, stats.a1_min);
             for (auto& element : stats.elements) element.mode = "";
@@ -2092,7 +2109,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
                 x.level = lvl; x.to = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id;
                 const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's S1's; SC's only its elements (El SC)
-                x.src = monster_shot_stats(missile_info, monster.stats, first, cast, s1_shot, lvl);
+                x.src = monster_shot_stats(missile_info, monster.swing_stats(), first, cast, s1_shot, lvl);
                 missiles.push_back(x);
                 // Multishot (FUN_005a3610, the missile hook): two more, aimed a
                 // subtile to either side.
@@ -2649,7 +2666,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     andariel_missile(game_data, monster, stem + std::to_string(first + type_info.trans_lvl), dx, dy, now_ms, missiles, lvl);
                     if (missiles.size() > sent) {
                         auto& imp_shot = missiles.back();
-                        imp_shot.src = monster.stats;
+                        imp_shot.src = monster.swing_stats();
                         imp_shot.src.no_hit_roll = !imp_shot.info->to_hit;
                         imp_shot.src.a2_min = monster.stats.a1_min * imp_shot.info->src_damage / 128 + imp_shot.info->min;
                         imp_shot.src.a2_max = monster.stats.a1_max * imp_shot.info->src_damage / 128 + imp_shot.info->max;
@@ -2712,7 +2729,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             } else if (attack && foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
                 // pays the foe's thorns (lightning ones less its resistance).
-                auto stats = monster.stats;                                  // Weaken, Decrepify, Battle Cry, Taunt, a boss's aura: its damage %
+                auto stats = monster.swing_stats();                                // Weaken, Decrepify, Battle Cry, Taunt, a boss's aura: its damage %
                 // Fire Hit (srvstfunc 42, FUN_005cae40, the Sand Raiders'): the hit
                 // is its S1 damage and S1 elements (FUN_005a4f50 mode 8).
                 // ponytail: the skill's ResultFlags / HitFlags / HitClass unread.
@@ -3119,6 +3136,7 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
     const int element = d2d::rules::kSpectralElement[std::size_t(rng(5))];
     const int low = damage_pct * game_data.umods.constants[28] / 100;
     monster.stats.elements[2] = { element, 100, low, std::max(damage_pct * game_data.umods.constants[31] / 100, low), element == 2 || element == 3 ? 40 : 0, mode };
+    monster.element_on[2] = true;   // set_mode rolled the slot's last element; this one is the swing's, 100 %
 }
 
 }  // namespace d2d::game

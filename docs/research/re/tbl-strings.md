@@ -31,15 +31,9 @@ font's `default.map`.
 `tools/emu/tbl.py` calls game.exe's `FUN_00526320` on each installed English
 value; `tools/tbl-dump` prints d2d's decoded entries in the same hexadecimal
 form. Across 8,949 entries in `string.tbl`, `patchstring.tbl`, and
-`expansionstring.tbl`, all 8,937 ASCII-only values match. Twelve values differ:
-
-- `string.tbl`: 8 of 5,099 entries;
-- `patchstring.tbl`: 4 of 1,062 entries;
-- `expansionstring.tbl`: 0 of 2,788 entries.
-
-Each difference is UTF-8 `c3 bf` (U+00FF, `ÿ`) in a colour-code prefix.
-game.exe emits `00ff`; d2d's byte zero-extension emits `00c3 00bf`. The
-`ponytail:` in `components/tbl/tbl.hpp` records this known decoding gap.
+`expansionstring.tbl` all match, including the twelve with UTF-8 `c3 bf`
+(U+00FF, `ÿ`, a colour-code prefix) that byte zero-extension used to get
+wrong (`00c3 00bf`): `d2d::tbl::utf8_units` is FUN_00526100's decoder.
 
 Reproduce the comparison:
 
@@ -55,7 +49,8 @@ done
 diff -u .cache/tbl-game.txt .cache/tbl-d2d.txt
 ```
 
-The diff should contain exactly the 12 documented non-ASCII mismatches.
+The diff should be empty. `mpq-cat` needs `D2_PATCH_INSTALLER` for the
+1.14d `patchstring.tbl`, or a third of its rows are missing.
 
 ## Files loaded
 

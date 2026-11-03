@@ -309,7 +309,7 @@ MercAttack merc_attack(const MercFightView& view, int& chance_growth, int x, int
     else if (merc_class == 560 && of_type("axe") && !info->two_handed) slot = body::kRightArm;
     else if (merc_class == 561 && of_type("swor")) slot = body::kRightArm;
     if ((merc_class == 560 || merc_class == 561) && of_type("phlm")) slot = body::kHead;
-    if (slot == 0 || !meets_stats(*info, item, str, dex, level)) return 0;
+    if (slot == 0 || !meets_stats(*info, item, str, dex, level, -1, &tables)) return 0;
     return slot;
 }
 

@@ -89,7 +89,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         const auto& own = type_info.diff[std::size_t(pet.monster.difficulty)].res;
         std::array<int, 5> res{ own[0] + pet_buff_stat(pet, d2d::d2s::kDamageResist), own[1] };
         for (std::size_t k = 0; k < 3; ++k) res[k + 2] = pet.res[k] + pet_buff_stat(pet, kResists[k]);
-        foe.pick = unit_pick(*game_data, res, pet.aura, pet.aura_level, d2d::rules::swing_max_damage(pet.monster.stats, pet.monster.swing_mode));
+        foe.pick = unit_pick(*game_data, res, pet.aura, pet.aura_level, d2d::rules::swing_max_damage(pet.monster.swing_stats(), pet.monster.swing_mode));
         return foe;
     }
 
@@ -324,12 +324,20 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         const bool need_sight = std::exchange(monster.force_sight, false) || indoor;
         const auto wall = [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x04); };
         std::vector<d2d::rules::NearFoe> nears;
+        // The Shadow Master's units are its near rooms' (FUN_005eb970's FUN_005dd0b0 mode 1):
+        // its foe, the driver, comes from those only.
+        const bool master_ai = type_info.ai_name == "ShadowMaster";
+        std::vector<int> rooms;
+        if (master_ai)
+            for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, unit.x, unit.y))
+                if (room_level == level) rooms.push_back(near_room);
         for (const auto& other : monsters) {
             const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
             const int foe_x = sub(other.unit.x), foe_y = sub(other.unit.y);
             auto& entry = nears.emplace_back(d2d::rules::NearFoe{ d2d::rules::near_distance(foe_x - pet_x, foe_y - pet_y, other_type.size), other.align, other_type.threat,
                                                                   false, true, !other.targetable(), town });   // FUN_005dca70: no unit flag 0x4, no target
             entry.blocked = need_sight && entry.distance <= 0x23 && d2d::rules::sight_blocked(foe_x, foe_y, other_type.size, pet_x, pet_y, size, wall);
+            if (master_ai && !std::ranges::contains(rooms, room_of(*level, other.unit.x, other.unit.y))) entry.skip = true;
         }
         const auto pick = d2d::rules::search_near(nears, 2, need_sight);
         const int found = pick.target >= 0 ? pick.target : pick.second;
@@ -591,10 +599,11 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         world.give = std::move(give_hands);
         d2d::rules::PetBrain brain(scene, monster.seed, pet.ctrl, world);
         // The Shadow Master (shadows.hpp) on the units round it: the pet, its
-        // owner, the monsters within 64 subtiles of either, its fellow pets
-        // (the traps it counts). Its world turns what it does into a PetAct.
-        // A monster's states are its curse / cry (their auratargetstates).
-        // ponytail: units by that radius, not FUN_005dd0b0's rooms.
+        // owner, the monsters in its near rooms (FUN_005eb970's FUN_005dd0b0
+        // mode 1: room_order), its fellow pets (the traps it counts). Its
+        // world turns what it does into a PetAct. A monster's states are its
+        // curse / cry (their auratargetstates).
+        // ponytail: players and pets go first, not in their rooms' turn.
         auto master_think = [&] {
             using d2d::rules::ShadowUnit;
             d2d::rules::ShadowMasterScene master;
@@ -602,15 +611,18 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             std::vector<int> monster_of{ -1, -1 };                          // by unit: its monster (-1 the pet and owner, -2 a fellow pet)
             units.push_back({ .type = 1, .x = pet_x, .y = pet_y, .foe = false, .owner = 1 });
             units.push_back({ .type = 0, .x = sub(actor->player.x), .y = sub(actor->player.y), .targetable = false, .foe = false });
-            const int owner_x = sub(actor->player.x), owner_y = sub(actor->player.y);
-            for (std::size_t i = 0; i < monsters.size(); ++i) {
-                const auto& other = monsters[i];
+            std::vector<int> rooms;
+            for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, pet.monster.unit.x, pet.monster.unit.y))
+                if (room_level == level) rooms.push_back(near_room);
+            std::vector<d2d::rules::RoomUnit> room_units;
+            for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT" });
+            for (const int near_index : d2d::rules::room_order(room_units, rooms)) {
+                const auto monster_index = std::size_t(near_index);
+                const auto& other = monsters[monster_index];
                 const int other_x = sub(other.unit.x), other_y = sub(other.unit.y);
-                if (std::max(std::abs(other_x - pet_x), std::abs(other_y - pet_y)) > 0x40 && std::max(std::abs(other_x - owner_x), std::abs(other_y - owner_y)) > 0x40) continue;
-                if (!other.alive() && other.mode != "DT") continue;
                 const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
                 const bool special = other.boss == d2d::rules::Boss::champion || other.boss == d2d::rules::Boss::unique || other.boss == d2d::rules::Boss::superunique;
-                const auto foe = target_of(i);
+                const auto foe = target_of(monster_index);
                 ShadowUnit entry{ .type = 1, .x = other_x, .y = other_y, .targetable = other.alive(), .dying = !other.alive(), .foe = other.align == 0,
                                   .melee = d2d::rules::unit_distance(other_x - pet_x, other_y - pet_y, size, other_type.size) <= type_info.melee_rng + 1,
                                   .worth = d2d::rules::shadow_worth(true, !other.alive(), game_data->mon_is_npc[std::size_t(other.type)], other_type.killable,
@@ -620,7 +632,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 entry.resist = { foe.res[0], foe.res[2], foe.res[3], foe.res[1], foe.res[4], foe.res[5] };   // by EType: none, fire, light, magic, cold, poison
                 entry.drain = foe.drain;
                 units.push_back(std::move(entry));
-                monster_of.push_back(int(i));
+                monster_of.push_back(int(monster_index));
             }
             for (const auto& fellow : actor->pets)
                 if (&fellow != &pet && fellow.monster.alive() && fellow.where == level) {

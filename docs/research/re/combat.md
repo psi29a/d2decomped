@@ -250,15 +250,16 @@ strike or deadly strike roll landed in `FUN_0057b7d0`). Magic (+0x20) is not
 in that table. Any of those
 puts the class past 12: a blow with an element divides by 16 whatever the
 weapon. d2d: `rules::get_hit` (`Blow::elemental`, `hurt`'s class, the player's
-and the merc's struck frame). tools/emu/hit_rule.py runs game.exe's
-`FUN_0057cee0` on 100,000 random cases and diffs them. An armor's pool
+and the merc's struck frame). Its oracle (`hit_rule.py`, game.exe's
+`FUN_0057cee0` on 100,000 random cases) was never committed, so this
+is cited, not re-checkable. An armor's pool
 works record by record too: `FUN_0057c1e0` raises state event 0xb
 (`FUN_005c0c30`, 0x57c2fc) on each record before its resistances and its
 total +0x4c, and Bone Armor (`FUN_005c6370`) takes from that record's
 physical field, Cyclone Armor (`FUN_005c87a0`) from its fire, cold, then
 lightning, the pool carrying to the next record; the get-hit then reads what
 is left, an element emptied no longer marks. d2d: `rules::absorb_blows`
-(tools/emu/hit_absorb.py runs game.exe's handlers on it).
+(its oracle, `hit_absorb.py`, was never committed: cited, not re-checkable).
 
 ## Approximations still in the port (marked `ponytail:` in code)
 
@@ -325,7 +326,7 @@ is left, an element emptied no longer marks. d2d: `rules::absorb_blows`
   17 ticks). A player's `FUN_00463390` (row 4 of 0x711e00, [0, 1, 2]) steps
   the same way and, re-testing after the step, ends the mode a tick before
   the server's event. Ported for monsters and the merc: `rules::get_hit_frame`
-  (`Unit::get_hit_rate` in the renderer), checked by the oracle `hit_render.py`
+  (`Unit::get_hit_rate` in the renderer), checked by the oracle `hit_render.py` (never committed: todo.md #37)
   (the PR's; game.exe's step and draw run natively) against `test_combat --get-hit-frames`. Not ported: the player's own frames
   (prate, a stretch over the hold); a joined game's merc has no FHR on the wire.
 

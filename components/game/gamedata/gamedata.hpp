@@ -118,10 +118,10 @@ struct Npc {
     std::uint8_t cycle = 0xff;           // its CycleAnim0..7: loops in that mode, else holds the last frame
     std::array<std::uint8_t, 8> frames{};      // its FrameCnt0..7: a mode's length (FUN_004bcbb0), not its COF's
     std::array<std::uint8_t, 8> loop_from{};   // its Start0..7: the frame a mode starts on and a loop goes back to
-    // Its FrameDelta0..7: 256 a frame a tick (unit +0x4c, FUN_00624390).
-    // ponytail: without Sync game.exe takes 1/16 off and adds up to 1/8 from
-    // the client unit's seed (0x624558); d2d runs it as written.
+    // Its FrameDelta0..7: 256 a frame a tick (unit +0x4c, FUN_00624390);
+    // without Sync (+0x175) it varies a little: object_frame_delta.
     std::array<std::uint16_t, 8> frame_delta{};
+    bool sync = false;
     std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)
     int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     std::string id;                      // MonStats Id (npc.txt key)
@@ -1023,6 +1023,21 @@ inline int missile_elem(const GameData& game_data, const GameData::MissileInfo& 
 // An object's mode tokens, and the index of one (0 when unknown).
 inline constexpr std::array<std::string_view, 8> kObjectModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
 int mode_index(std::string_view mode);
+// An object's frame rate in a mode (FUN_00624390, 0x624558): FrameDelta as
+// written with Sync, else less its 1/16 plus a roll under its 1/8 on the
+// unit's seed, kept within 0..0x7fff.
+// ponytail: one roll on a seed from the object's spot, the same each time the
+// mode comes (what's drawn and op_ticks agree); game.exe rolls at each mode
+// set on the client unit's seed ({its room's client seed step, 666},
+// FUN_00465fd0), whose room seed isn't kept.
+inline int object_frame_delta(int delta, bool sync, d2d::rules::Rng seed) {
+    if (sync) return delta;
+    return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
+}
+inline int object_frame_delta(const Npc& npc, std::size_t mode) {
+    const auto spot = std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5);   // subtiles: never moves
+    return object_frame_delta(npc.frame_delta[mode], npc.sync, d2d::rules::Rng{ spot });
+}
 // The game's object seed: {the game seed's second step, 666}
 // (FUN_00546c60, objrgn.cpp; the first step made the monster regions).
 inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {

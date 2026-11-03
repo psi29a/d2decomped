@@ -651,6 +651,7 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
         npc.loop_from[mode] = std::uint8_t(std::atoi(std::string(objects.get(row, "Start" + std::to_string(mode))).c_str()));
         npc.frame_delta[mode] = std::uint16_t(std::atoi(std::string(objects.get(row, "FrameDelta" + std::to_string(mode))).c_str()));
     }
+    npc.sync = objects.get(row, "Sync") == "1";
     npc.size_x = std::atoi(std::string(objects.get(row, "SizeX")).c_str());
     npc.size_y = std::atoi(std::string(objects.get(row, "SizeY")).c_str());
     for (std::size_t layer = 0; layer < 16; ++layer)

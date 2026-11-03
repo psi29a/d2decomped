@@ -10,10 +10,12 @@
 // Each picker icon bound to a hotkey shows its key's name (FUN_004a8ed0 /
 // FUN_004a9300 over the 16 slots, then FUN_004a8df0): colour 4 (gold),
 // cut to 40 px, left edge at x + 0x22, or right-aligned at x + 47 when
-// wider than 13 px, baseline at the icon's bottom - 0x23.
-// ponytail: the font is whatever is current there (untraced), font8 here;
-// a slot's name is its first key's, else its second's (which game.exe
-// shows is untraced). Town sets `hotkey_names` from the key config.
+// wider than 13 px, baseline at the icon's bottom - 0x23, in font16
+// (scene.font): game.exe's picker sets no font, and just before it in its
+// draw order (FUN_00456ee0) the belt key labels set font16 (FUN_00499040,
+// SetFont(1) at 0x499053).
+// ponytail: a slot's name is its first key's, else its second's (which
+// game.exe shows is untraced). Town sets `hotkey_names` from the key config.
 // Charged items (SpellSel's skill grid, FUN_004aa7e0's top row): one entry
 // per item and skill (game::charged_skills), its charges left drawn on the
 // icon and the button (SPELLSEL_DrawSkillLevel: at x + 4, the icon's bottom
@@ -273,9 +275,9 @@ struct SkillBar {
                     const auto hotkey = character.header.hotkeys[k];
                     if (bound(k) == row_list[row][column] && ((hotkey & 0x8000) != 0) == on_left) {
                         const auto& label = hotkey_names[k];
-                        const int width = scene->font_small.measure(label);
-                        scene->font_small.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, icon_x + 0x22 + std::min(0, 13 - width),
-                                                      icon_y - 0x23 - scene->font_small.line_height(), label, 199, 179, 119);
+                        const int width = scene->font.measure(label);
+                        scene->font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, icon_x + 0x22 + std::min(0, 13 - width),
+                                                icon_y - 0x23 - scene->font.line_height(), label, 199, 179, 119);
                     }
                 }
             }
