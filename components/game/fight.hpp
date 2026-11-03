@@ -373,8 +373,6 @@ struct Fight {
         std::uint32_t merc_poison_until = 0;
         std::array<PotionState, 2> merc_potion_states;   // the merc's antidote / thawing states (merc_drinks)
         double regen_acc_life = 0, regen_acc_mana = 0;
-        std::string_view last_voice;          // the last class line (FUN_004cb9c0's DAT_007c88c8) and when (DAT_007c88c4)
-        std::uint32_t last_voice_ms = 0;
         bool portal_due = false;                       // Town Portal's action frame came
         // The wisps' dance's blessing on the player (FUN_005f39b0): stat 0x50
         // (magic find) for 0x1a5e00 frames, the last one's.
@@ -551,9 +549,8 @@ struct Fight {
     void impossible(std::uint32_t now_ms);
     // FUN_004cb9c0's messages 0x13..0x18: the class line on the player, none
     // while one of its speech lines plays (FUN_004b9e90: Cue::hush); the
-    // last line again within 75 client frames of it is skipped.
-    // ponytail: a line the hush drops still counts as the last one (the
-    // client drops it, after Fight has moved the last on).
+    // last line again within 75 client frames of it is skipped, on the
+    // client (Cues::repeat_line), as game.exe's client does it.
     void class_voice(std::string_view name, std::uint32_t now_ms);
     // An SQ skill plays its sequence (FUN_00663310: seqnum's frames for
     // the weapon class) at the attack's speed; with no frames for the

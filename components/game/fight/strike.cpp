@@ -282,9 +282,7 @@ auto Fight::need_mana(std::uint32_t now_ms) -> void {
     }
 
 auto Fight::class_voice(std::string_view name, std::uint32_t now_ms) -> void {
-        if (name == actor->last_voice && now_ms - actor->last_voice_ms < 75 * 40) return;
-        actor->last_voice = name; actor->last_voice_ms = now_ms;
-        cues.cue_on(unit_key(kSoundOnPlayer, actor->id), name, now_ms, actor->player.x, actor->player.y, true);
+        cues.cue_on(unit_key(kSoundOnPlayer, actor->id), name, now_ms, actor->player.x, actor->player.y, Cues::kClassLine);
     }
 
 auto Fight::impossible(std::uint32_t now_ms) -> void {
