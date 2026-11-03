@@ -64,6 +64,11 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             if (info->second.kind == 1 && found->second.block > 0) shield = &item;
         }
         add(sum, set_props(*game_data, actor->character.items));
+        // Throwing (FUN_00645720): a throwable in hand and the skill in use ranged
+        // (range 2) with an itypea1 of thro (type 0x30).
+        const auto* in_use = game_data->skills.get(actor->attack_skill);
+        const bool throwing = weapon && throwable(*game_data, weapon->code) && in_use && in_use->range == "rng" && !in_use->itypea1.empty()
+                           && d2d::rules::type_is(game_data->rules, in_use->itypea1, "thro");
         if (passives) {
             const auto type_of = [&](const d2d::d2s::Item& item) {
                 const auto found = game_data->rules.item_info.find(item.code);
@@ -74,11 +79,8 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                 if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)) hands.push_back(type_of(item));
             const auto is_type = [&](const std::string& type, const std::string& want) { return d2d::rules::type_is(game_data->rules, type, want); };
             const bool claws2 = hands.size() == 2 && is_type(hands[0], "h2h") && is_type(hands[1], "h2h");
-            // Throwing (FUN_00645720): a throwable in hand and the skill in use ranged
-            // (range 2) with an itypea1 of thro (type 0x30): the throw masteries
-            // (345..347) stand in for the melee ones, the best whose type fits.
-            const auto* in_use = game_data->skills.get(actor->attack_skill);
-            const bool throwing = weapon && throwable(*game_data, weapon->code) && in_use && in_use->range == "rng" && !in_use->itypea1.empty() && is_type(in_use->itypea1, "thro");
+            // Throwing, the throw masteries (345..347) stand in for the melee ones,
+            // the best whose type fits.
             const int first = throwing ? kPassiveMasteryThrowToHit : kPassiveMasteryMeleeToHit;
             std::array<std::int64_t, 4> best{};              // 342 (345), 343 (346), 344 (347), 348
             for (const auto& passive : *passives) {
@@ -103,7 +105,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         const auto& gains = game_data->class_gains[std::size_t(std::max(actor->character.character_class, 0))];
         const std::array<int, 4> res{ int(resistances[0]), int(resistances[2]), int(resistances[1]), int(resistances[3]) };
         auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, actor->character.stats, gains,
-                                          int(actor->character.panel.defense), res, boots);
+                                          int(actor->character.panel.defense), res, boots, throwing);
         {                                                    // poison length reduction: the panel's difficulty penalty, no max stat so at most 75 (FUN_0057be00)
             const int diff = actor->character.header.active_difficulty();
             const std::int64_t penalty = actor->character.header.expansion() ? game_data->resist_penalty[std::size_t(diff)] : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];
@@ -926,9 +928,8 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // missile (weapons.txt missiletype) and one of it is spent. Its
             // FUN_0056c600 puts the throw mastery on the missile (stat 0x13 +
             // FUN_00645720 kind 0, stat 0x19 = kind 1), no skill bonus: here the
-            // player's fighter carries it while throwing (player_fighter).
-            // ponytail: the shot's damage is the attack's, not the weapon's
-            // throw damage (minmisdam..).
+            // player's fighter carries it while throwing (player_fighter), as it
+            // does the weapon's throw damage (minmisdam / maxmisdam).
             case ServerDoFunction::kThrow:
                 if (const int index = ammo_index(); index >= 0)
                     if (const auto found_thrown = game_data->thrown.find(actor->character.items[std::size_t(index)].code); found_thrown != game_data->thrown.end())

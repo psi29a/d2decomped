@@ -3,7 +3,8 @@
 // Throwing Mastery (FUN_00645720): with a throwable in hand and Throw,
 // Left Hand Throw or Double Throw in use (range rng, itypea1 thro), the
 // throw masteries (345..347) take the melee ones' place (342..344) in the
-// REAL Fight::player_fighter; with another skill, the melee ones. Needs
+// REAL Fight::player_fighter, and its base damage is the throw damage;
+// with another skill, the melee ones. Needs
 // the game data.
 
 #include <character.hpp>
@@ -62,6 +63,15 @@ int main() {
         const auto sum = with(thrower);
         assert(sum[d2d::d2s::kPassiveMasteryMeleeToHit] == 40 && sum[d2d::d2s::kPassiveMasteryMeleeDamage] == 25);
     }
+    // Thrown, the javelin's throw damage (minmisdam / maxmisdam: FUN_0064b860's stats 0x9f / 0xa0).
+    const auto& jav = data->rules.item_base.at("jav");
+    assert(jav.min_misdam > 0 && jav.min_misdam != jav.mindam);
+    const auto base_of = [&](const char* skill) {
+        world.actor->attack_skill = data->skills.by_name.at(skill);
+        return world.fight.player_fighter(nullptr, nullptr, &passives, nullptr).phys_lo >> 8;
+    };
+    const int thrown_lo = base_of("Throw"), stabbed_lo = base_of("Attack");
+    assert(thrown_lo - stabbed_lo == jav.min_misdam - jav.mindam);
     const auto stabbing = with("Attack");
     assert(stabbing[d2d::d2s::kPassiveMasteryMeleeToHit] == 10 && stabbing[d2d::d2s::kPassiveMasteryMeleeDamage] == 0);
     return 0;
