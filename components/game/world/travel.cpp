@@ -211,7 +211,15 @@ auto World::make_corpse() -> void {
         for (auto item_it = actor->character.items.begin(); item_it != actor->character.items.end();)
             if (item_it->location == d2d::d2s::item_location::kEquipped) { corpse.items.push_back(std::move(*item_it)); item_it = actor->character.items.erase(item_it); }
             else ++item_it;
-        if (actor->held) { corpse.items.push_back(std::move(*actor->held)); corpse.items.back().location = 1; actor->held.reset(); }   // ponytail: the held item's slot
+        // The item in hand goes first (FUN_0057f700's -1 pass), into the
+        // corpse's own inventory grid (FUN_0063b950 on its inventory page,
+        // mode 0): stored, at the empty grid's first cell.
+        if (actor->held) {
+            auto& stored = *corpse.items.insert(corpse.items.begin(), std::move(*actor->held));
+            stored.location = d2d::d2s::item_location::kStored; stored.panel = d2d::d2s::item_panel::kInventory;
+            stored.slot = 0; stored.column = 0; stored.row = 0;
+            actor->held.reset();
+        }
         if (actor->corpses.size() >= 16) actor->corpses.erase(actor->corpses.begin());
         actor->corpses.push_back(std::move(corpse));
     }

@@ -584,6 +584,19 @@ int main() try {
         world.cain.stones_done = false;
         std::printf("OK: a talk takes the bkd left once the stones are done\n");
     }
+
+    // Dying with an item in hand: it goes into the corpse's grid first (FUN_0057f700's -1 pass).
+    {
+        const auto kept = world.actor->character.items;
+        world.actor->held = d2d::d2s::Item{ .code = "hp1", .location = d2d::d2s::item_location::kCursor, .slot = 4 };
+        world.make_corpse();
+        const auto& corpse = world.actor->corpses.back();
+        assert(!world.actor->held && !corpse.items.empty() && corpse.items[0].code == "hp1");
+        assert(corpse.items[0].location == d2d::d2s::item_location::kStored && corpse.items[0].panel == d2d::d2s::item_panel::kInventory && corpse.items[0].slot == 0);
+        world.actor->corpses.pop_back();
+        world.actor->character.items = kept;
+        std::printf("OK: the item in hand lies in the corpse's grid\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());
