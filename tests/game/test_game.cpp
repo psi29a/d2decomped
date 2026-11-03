@@ -859,6 +859,26 @@ int main(int argc, char** argv) try {
         Monster skeleton;
         skeleton.npc.utrans = { 255, 255, 255 };
         assert(world.monster_colour(skeleton) == 0);
+        // Taking a corpse (FUN_00562f30): a bow doesn't go on beside a
+        // worn shield (FUN_0055f2d0) but into the inventory; a free hand takes it.
+        {
+            const auto kept_items = world.actor->character.items;
+            const auto kept_str = world.actor->character.stats.values[d2d::d2s::kStr], kept_dex = world.actor->character.stats.values[d2d::d2s::kDex];
+            auto& items = world.actor->character.items;
+            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped; });
+            items.push_back({ .code = "buc", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kLeftArm, .identified = true });
+            const d2d::d2s::Item sword{ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true };
+            world.actor->corpses.push_back({ .level = world.level, .items = { sword } });
+            world.actor->character.stats.values[d2d::d2s::kStr] = world.actor->character.stats.values[d2d::d2s::kDex] = 200;
+            world.take_corpse_items(world.actor->corpses.size() - 1, throw_ms);
+            assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "sbw" && item.location == d2d::d2s::item_location::kStored; }) == 1);
+            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.code == "sbw" || item.code == "buc"; });
+            world.actor->corpses.push_back({ .level = world.level, .items = { sword } });
+            world.take_corpse_items(world.actor->corpses.size() - 1, throw_ms);
+            assert(std::ranges::count_if(items, [](const d2d::d2s::Item& item) { return item.code == "sbw" && item.location == d2d::d2s::item_location::kEquipped; }) == 1);
+            items = kept_items;
+            world.actor->character.stats.values[d2d::d2s::kStr] = kept_str; world.actor->character.stats.values[d2d::d2s::kDex] = kept_dex;
+        }
         thrower.attack_skill = 0;
         thrower.character.items = saved_items;
     }

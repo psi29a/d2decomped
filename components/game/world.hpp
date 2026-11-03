@@ -825,10 +825,13 @@ struct World {
     // the experience lost. They go on without it.
     void make_corpse();
     // Taking one's corpse (FUN_0057fb70): its experience back, each item to
-    // its slot when that's free (FUN_00562f30; its requirements met), else to
-    // the inventory; what doesn't fit stays on it. It goes once it's empty.
-    // ponytail: requirements aren't checked; two-handed / quiver pairing
-    // (FUN_0055f2d0) isn't.
+    // its slot when that's free (FUN_00562f30), its requirements met
+    // (FUN_0062eaf0: rules::can_wear) and held with the other hand's
+    // (FUN_0055f2d0), else to the inventory; what doesn't fit stays on it.
+    // It goes once it's empty.
+    // ponytail: FUN_0055f2d0's pairing taken as rules::hands_ok (FUN_0063dbc0);
+    // its own walk (weapon switch via FUN_0055f240, types 0x2d / 0x43) isn't
+    // compared.
     void take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms);
 
     // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the
