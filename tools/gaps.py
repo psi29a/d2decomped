@@ -307,6 +307,11 @@ def credits():
                   key=lambda p: (-(p["commits"] + p["reported"] + p["traced"]), p["name"]))
 
 
+def shade(pct):
+    """Red at 0 % through orange and yellow to green at 100 % (hue 0..120)."""
+    return f"hsl({1.2 * pct:.0f}, 70%, 42%)"
+
+
 def write(out, summary, records, frontier):
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "gaps.json"), "w", encoding="utf-8") as f:
@@ -331,11 +336,15 @@ def write(out, summary, records, frontier):
     t, repo = summary["totals"], "https://github.com/psi29a/d2decomped/blob/main/"
     total = sum(t[s]["functions"] for s in LEVELS)
     size = sum(t[s]["bytes"] for s in LEVELS)
+    done = 100 * (t["verified"]["bytes"] + t["ported"]["bytes"]) / size
     md = ["---\ntitle: D2Decomp gap map\n---\n", "# D2Decomp gap map\n",
           f"What of game.exe 1.14d d2d has looked at, ported and verified. Generated from "
           f"`{summary['generated']['commit']}` on {summary['generated']['date']} by `tools/gaps.py`. "
           f"Data: [gaps.json](gaps.json) (gaps, frontier, credits), [functions.tsv](functions.tsv) "
           f"(every function). New here? Read [CONTRIBUTING.md]({repo}CONTRIBUTING.md).\n",
+          f"**{done:.1f}% done**: verified or ported, by code bytes.\n",
+          f'<div style="background:#ddd;border-radius:4px;height:1.2em"><div style="width:{done:.1f}%;height:100%;'
+          f'border-radius:4px;background:{shade(done)}"></div></div>\n',
           "## game.exe functions\n", "| Status | Functions | Share | Code bytes | Share |", "|---|---|---|---|---|"]
     for s in reversed(LEVELS):
         md.append(f"| {s} | {t[s]['functions']:,} | {100 * t[s]['functions'] / total:.1f}% "
@@ -345,9 +354,13 @@ def write(out, summary, records, frontier):
               f"wrote the address down, not that it's understood.\n")
     md.append(done_line(summary["remaining"]) + "\n")
     md += ["## By module\n", "From the source file an assert names, or the file around it.\n",
-           "| Module | Verified | Ported | Cited | Untouched |", "|---|---|---|---|---|"]
+           "Done: verified or ported, by functions.\n",
+           "<table><tr><th>Module</th><th>Done</th><th>Verified</th><th>Ported</th><th>Cited</th><th>Untouched</th></tr>"]
     for name, counts in sorted(summary["modules"].items(), key=lambda m: -sum(m[1].values())):
-        md.append(f"| {name} | {counts['verified']} | {counts['ported']} | {counts['cited']} | {counts['untouched']} |")
+        share = 100 * (counts["verified"] + counts["ported"]) / max(sum(counts.values()), 1)
+        md.append(f'<tr><td>{name}</td><td style="background:{shade(share)};color:#fff">{share:.1f}%</td>'
+                  + "".join(f"<td>{counts[s]}</td>" for s in ("verified", "ported", "cited", "untouched")) + "</tr>")
+    md.append("</table>")
     md += ["\n## Frontier\n", f"{len(frontier):,} untouched functions that ported code calls. "
            "The top 40, the most gaps and callers first:\n", "| Address | Size | Module | Ported callers |", "|---|---|---|---|"]
     for r in frontier[:40]:

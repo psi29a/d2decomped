@@ -50,5 +50,10 @@ class GapsTests(unittest.TestCase):
                          "remaining: 2 gaps, 1 cited")
 
 
+    def test_shade_runs_red_to_green(self):
+        self.assertEqual(gaps.shade(0), "hsl(0, 70%, 42%)")      # red
+        self.assertEqual(gaps.shade(50), "hsl(60, 70%, 42%)")    # yellow
+        self.assertEqual(gaps.shade(100), "hsl(120, 70%, 42%)")  # green
+
 if __name__ == "__main__":
     unittest.main()
