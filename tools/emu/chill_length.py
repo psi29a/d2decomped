@@ -45,18 +45,13 @@ CLASS = 60
 
 class Game(life_apply.Game):
     def __init__(self):
-        plain = emu.Emu.hook
-        emu.Emu.hook = lambda e, addr, fn, n: None if addr == 0x57af80 else plain(e, addr, fn, n)   # run it for real
-        try:
-            super().__init__()
-        finally:
-            emu.Emu.hook = plain
+        super().__init__(real={0x57af80})
         e = self.e
         self.tables = e.alloc(0xb00)
         self.rows = e.alloc((CLASS + 1) * 0x1a8)
         e.w32(self.tables + 0xa78, self.rows); e.w32(self.tables + 0xa80, CLASS + 1)
         e.w32(0x744304, self.tables)
-        e.w32(self.game + 0xa8, FRAME)
+        e.view("game", self.game).frame = FRAME
         self.prior = 0
         self.end = None
         e.hook(0x625500, lambda e: self.stats.get((e.arg(0), e.arg(1)), 0), 3)

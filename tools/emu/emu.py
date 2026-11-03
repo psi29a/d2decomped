@@ -19,6 +19,7 @@ from unicorn import Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_HOOK_CODE, UC_HOOK_
 from unicorn.x86_const import *
 
 from mpq_cache import MpqCache
+import structs
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -85,8 +86,10 @@ def mpq_cache():
 
 
 class Emu:
-    def __init__(self, exe=None):
+    def __init__(self, exe=None, real=()):
+        """real: game.exe functions a harness would hook that run for real instead (the claim)."""
         exe = exe or os.path.join(data_path(), "bin", "game.exe")
+        self.real = set(real)
         pe = pefile.PE(exe, fast_load=False)
         self.base = pe.OPTIONAL_HEADER.ImageBase
         mu = self.mu = Uc(UC_ARCH_X86, UC_MODE_32)
@@ -149,11 +152,23 @@ class Emu:
     def arg(self, i): return self.r32(self.mu.reg_read(UC_X86_REG_ESP) + 4 + 4 * i)
 
     def hook(self, addr, fn, nstack):
-        """Replace game.exe's function at addr: fn(emu) -> eax; callee pops nstack args."""
+        """Replace game.exe's function at addr: fn(emu) -> eax; callee pops nstack args.
+        An address in self.real stays game.exe's."""
+        if addr in self.real:
+            return
         a = STUB + 16 * (len(self.slots) + 1)
         self.slots[a] = (f"hook_{addr:x}", lambda e: (fn(e), nstack))
         self.mu.mem_write(addr, b"\xe9" + struct.pack("<i", a - (addr + 5)))
         self.mu.ctl_remove_cache(addr, addr + 5)        # a block already translated would run the old code
+
+    def stub(self, value, functions):
+        """Hook each {addr: nstack} to return value: the side effects a claim doesn't cover."""
+        for addr, nstack in functions.items():
+            self.hook(addr, lambda e: value, nstack)
+
+    def view(self, kind, addr):
+        """A struct's fields by name (docs/research/re/structs.tsv): e.view("unit", u).mode = 3."""
+        return structs.view(self, kind, addr)
 
     def call(self, addr, *args, ecx=0, edx=0, cdecl=False, limit=0, regs=None):
         mu = self.mu
