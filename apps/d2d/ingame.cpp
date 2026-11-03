@@ -177,7 +177,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             if (npc.root != "objects" || index < 0) return;
             unit.frames = npc.frames[std::size_t(index)];
             unit.loop_from = npc.loop_from[std::size_t(index)];
-            unit.frame_delta = npc.frame_delta[std::size_t(index)];
+            unit.frame_delta = std::uint16_t(game::object_frame_delta(npc.frame_delta[std::size_t(index)], npc.sync, npc.seed));
         };
         // NPCs and objects, at their live position when they patrol.
         for (std::size_t i = 0; i < level.npcs.size(); ++i) {
