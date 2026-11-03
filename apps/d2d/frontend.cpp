@@ -572,13 +572,13 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
                            319 + (169 - name_width) / 2,
                            kNameTop + (26 - nlh) / 2,
                            create_ui.name, 255, 208, 80);
-        // Simple blinking cursor after the last char (D2 uses a blinking
-        // underline; we use a solid "|" for now).
-        if (((elapsed_ms / 500) & 1) == 0) {
+        // The edit box's caret (FUN_004ff620): "_" in its text colour after
+        // the last letter, on while (GetTickCount / 250) & 1 in the focused box.
+        if (((elapsed_ms / 250) & 1) != 0) {
             scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal,
                                319 + (169 - name_width) / 2 + name_width,
                                kNameTop + (26 - nlh) / 2,
-                               "|", 255, 208, 80);
+                               "_", 255, 208, 80);
         }
     }
 
@@ -753,7 +753,7 @@ TitleUI other_multiplayer_ui(const Scene& scene) {
     TitleUI menu;
     menu.labels.reserve(3);
     menu.buttons.reserve(3);
-    // ponytail: OPEN BATTLE.NET does nothing; d2d has no Battle.net.
+    // OPEN BATTLE.NET does nothing (deviations.md, Approximations #16).
     struct Entry { int y; int tbl_id; const char* fallback; Screen target; };
     static constexpr Entry kEntries[] = { { 310, 0x13fb, "OPEN BATTLE.NET", Screen::OtherMultiplayer },
                                           { 350, 0x13fc, "TCP/IP GAME", Screen::TcpIp },
@@ -826,8 +826,8 @@ void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     if (scene.ip_box.frames_per_direction() > 0) blit_sprite(framebuffer, scene.ip_box.frame(0, 0), scene.pal, 291, rec_top(270, 26));
     const int edit_y = rec_top(268, 20) + (20 - scene.font_formal12.line_height()) / 2;
     const int typed = scene.font_formal12.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 300, edit_y, tcpip.address);
-    // ponytail: a blinking "|" for the caret, as the name field's.
-    if (((elapsed_ms / 500) & 1) == 0) scene.font_formal12.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, typed, edit_y, "|");
+    // Its caret as the name field's (FUN_004ff620: "_", 250 ms on, 250 off).
+    if (((elapsed_ms / 250) & 1) != 0) scene.font_formal12.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, typed, edit_y, "_");
     button(tcpip.box_cancel, tcpip.cancel_label, true);
     button(tcpip.box_ok, tcpip.ok_label, true);
 }

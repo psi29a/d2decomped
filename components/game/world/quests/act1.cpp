@@ -17,6 +17,7 @@
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace d2d::game {
@@ -87,6 +88,8 @@ auto World::act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool f
         std::ranges::copy(burial.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
         std::ranges::copy(tower.talk(quests(), hc_idx, actor->id), std::back_inserter(out));
         std::ranges::copy(tools.talk(quests(), hc_idx, holding_malus(), int(actor->character.stats.get(d2d::d2s::kLevel))), std::back_inserter(out));
+        if (const auto bkd = std::ranges::find(actor->character.items, std::string_view("bkd"), &d2d::d2s::Item::code);
+            fresh && act() == 0 && cain.stones_done && bkd != actor->character.items.end()) actor->character.items.erase(bkd);   // FUN_00592580
         std::ranges::copy(cain.talk(quests(), hc_idx, carries("bks"), actor->id), std::back_inserter(out));
     }
 

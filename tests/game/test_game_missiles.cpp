@@ -15,6 +15,7 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <missiles.hpp>
+#include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -33,6 +34,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -488,6 +490,127 @@ int main() try {
         assert(mended.hit_points == before);
         world.fight.monsters.pop_back();
         std::printf("OK: a monster regenerates its DamageRegen, not under Prevent Monster Heal\n");
+    }
+
+    // State 0x36 (a whirl, leap or nest) takes no freeze (FUN_0057b230's first test).
+    {
+        const auto fallen_row = data->monsters.by_id.find("fallen1");
+        const auto spike = data->skills.by_name.find("Glacial Spike");
+        d2d::rules::Rng make_rng{ 5 };
+        GameData::MissileInfo spike_info;
+        spike_info.name = "freezewhirl";
+        spike_info.etype = 2;
+        Missile missile;
+        missile.info = &spike_info;
+        missile.skill = int(spike->second);
+        missile.friendly = true;
+        for (const bool whirling : { false, true }) {
+            Monster frozen = make_monster(*data, int(fallen_row->second), world.actor->player.x + 6, world.actor->player.y, make_rng, 0);
+            frozen.stats.hit_points = frozen.hit_points = 1000000;
+            frozen.whirl = whirling;
+            world.fight.monsters.push_back(frozen);
+            world.fight.strike(missile, world.fight.monsters.size() - 1, 6000, 100);
+            assert((world.fight.monsters.back().stun_until > 6000) == !whirling);
+            world.fight.monsters.pop_back();
+        }
+        std::printf("OK: a whirling monster isn't frozen\n");
+    }
+
+    // Bone Armor's pool works on the record's fine physical (FUN_005c6370): the 256ths stay.
+    {
+        Monster knight;
+        knight.armor_pool = 300;
+        knight.armored = true;
+        assert(soak(knight, 512, 700) == 400 && knight.armor_pool == 0 && !knight.armored);
+        knight.armor_pool = 1000;
+        knight.armored = true;
+        assert(soak(knight, 384, 640) == 256 && knight.armor_pool == 616 && knight.armored);
+        std::printf("OK: Bone Armor soaks in 256ths\n");
+    }
+
+    // Armageddon / Hurricane run every Param4 frames from the cast (8 / 20: FUN_005c8520 /
+    // FUN_005c8380 re-file event 5 at FUN_004efc80's Skills +0x154); a run in town ends them.
+    {
+        const auto* town = world.level;
+        world.level = data->level(d2d::rules::level_ids::kBloodMoor);
+        for (const auto* name : { "Armageddon", "Hurricane" }) {
+            const auto& skill = *data->skills.get(int(data->skills.by_name.at(name)));
+            world.fight.start_state(skill, 1, 0);
+            const auto strikes = [&] { return std::uint32_t(world.actor->armageddon_next + world.actor->hurricane_next); };
+            std::vector<std::uint32_t> runs;
+            for (std::uint32_t frame = 1, last = strikes(); frame <= 60; ++frame) {
+                world.fight.buff_tick(frame * kTickMs);
+                if (strikes() != last) runs.push_back(frame), last = strikes();
+            }
+            const std::uint32_t every = std::string_view(name) == "Armageddon" ? 8 : 20;
+            assert(skill.par[3] == int(every) && !runs.empty() && runs.size() == 60 / every);
+            for (std::size_t k = 0; k < runs.size(); ++k) assert(runs[k] == every * (k + 1));
+            world.level = town;
+            world.fight.world(false, 61 * kTickMs + every * kTickMs, 0.04f, Crowd{});   // buff_tick doesn't run in town
+            assert(!world.fight.state_of(skill.aurastate));
+            world.level = data->level(d2d::rules::level_ids::kBloodMoor);
+        }
+        world.level = town;
+        world.fight.missiles.clear();
+        std::printf("OK: Armageddon / Hurricane strike every Param4 frames, not in town\n");
+    }
+
+    // A Shadow's Attack (range both) is ranged with its owner's bow (FUN_00645460 ->
+    // FUN_0064f460: weapon class 1 / 7), melee otherwise.
+    {
+        const auto look = world.actor->character.appearance;
+        Fight::Pet shadow;
+        world.fight.shadow_give(shadow, 0, 1);
+        d2d::d2s::Item bow{ .code = "sbw", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm };
+        world.actor->character.appearance = data->look_of({ bow });
+        world.fight.shadow_give(shadow, 1, 1);                          // Kick (h2h) stays melee
+        Fight::Pet archer;
+        world.fight.shadow_give(archer, 0, 1);
+        world.actor->character.appearance = look;
+        assert(shadow.skill_list.size() == 2 && shadow.skill_list[0].kind == 1 && shadow.skill_list[1].kind == 1);
+        assert(archer.skill_list.size() == 1 && archer.skill_list[0].kind == 2);
+        // ... and shot as its missile from afar (skill_missile: weapon_missile).
+        const auto worn = world.actor->character.items;
+        d2d::rules::Rng shadow_rng{ 4 };
+        world.actor->character.items.push_back(bow);
+        archer.monster = make_monster(*data, int(data->monsters.by_id.at("shadowwarrior")), world.actor->player.x, world.actor->player.y, shadow_rng, 0);
+        archer.cast = 0;
+        const auto fallen_far = make_monster(*data, int(data->monsters.by_id.at("fallen1")), world.actor->player.x + 8, world.actor->player.y, shadow_rng, 0);
+        world.fight.monsters.push_back(fallen_far);
+        archer.target = int(world.fight.monsters.size() - 1);
+        const auto shots = world.fight.pending.size() + world.fight.missiles.size();
+        world.fight.shadow_cast(archer, 6000, Crowd{});
+        assert(world.fight.pending.size() + world.fight.missiles.size() > shots);
+        world.fight.monsters.pop_back();
+        world.fight.pending.clear(); world.fight.missiles.clear();
+        world.actor->character.items = worn;
+        std::printf("OK: a Shadow's Attack is ranged with a bow\n");
+    }
+
+    // With the stones done, talking to anyone in Act 1 takes a bkd still carried (FUN_00592580).
+    {
+        world.cain.stones_done = true;
+        world.actor->character.items.push_back({ .code = "bkd", .location = d2d::d2s::item_location::kStored });
+        const auto carried = [&] { return std::ranges::count(world.actor->character.items, std::string_view("bkd"), &d2d::d2s::Item::code); };
+        (void)world.quest_talk(d2d::rules::monster_ids::kAkara, false);   // a check, not a talk
+        assert(carried() == 1);
+        (void)world.quest_talk(d2d::rules::monster_ids::kAkara);
+        assert(carried() == 0);
+        world.cain.stones_done = false;
+        std::printf("OK: a talk takes the bkd left once the stones are done\n");
+    }
+
+    // Dying with an item in hand: it goes into the corpse's grid first (FUN_0057f700's -1 pass).
+    {
+        const auto kept = world.actor->character.items;
+        world.actor->held = d2d::d2s::Item{ .code = "hp1", .location = d2d::d2s::item_location::kCursor, .slot = 4 };
+        world.make_corpse();
+        const auto& corpse = world.actor->corpses.back();
+        assert(!world.actor->held && !corpse.items.empty() && corpse.items[0].code == "hp1");
+        assert(corpse.items[0].location == d2d::d2s::item_location::kStored && corpse.items[0].panel == d2d::d2s::item_panel::kInventory && corpse.items[0].slot == 0);
+        world.actor->corpses.pop_back();
+        world.actor->character.items = kept;
+        std::printf("OK: the item in hand lies in the corpse's grid\n");
     }
     return 0;
 } catch (const std::exception& error) {

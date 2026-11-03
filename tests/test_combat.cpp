@@ -749,5 +749,17 @@ int main(int argc, char** argv) {
     assert(merc.resist == 10 + 6 / 4);
     merc = merc_stats(merc_tables, 1, 21u * 100 * 20 * 20);                      // level 20: the second band
     assert(merc.level == 20 && merc.life == 500 && merc.dmg_min == 10);
+    // Melee cold resisted under a point still chills (FUN_0057b7d0 sets the length on the rolled cold).
+    {
+        Fighter cold_hand;
+        cold_hand.ar_base = 100000;
+        cold_hand.elem[2] = { 1, 1 };
+        cold_hand.cold_len = 50;
+        Target resists;
+        resists.res[4] = 75;
+        Rng hit_rng{ 3 };
+        const auto chilled = player_blow(cold_hand, resists, 1, hit_rng);
+        assert(chilled.hit && chilled.chill_ticks == 12);   // 50 less 75 %, no cold point left
+    }
     std::puts("ok");
 }

@@ -41,7 +41,9 @@ struct UnitIds {
 // A DS1's units as its loader lists them (FUN_00665950): mapped ids, each
 // put at the front, so the list runs from the file's last object back.
 // Monsters need v5+; ids that map to nothing are dropped.
-// ponytail: type 4 (NPCs by name) isn't there.
+// Type 4 (a unit by its code, v5+: FUN_00665950 reads the name table at
+// 0x748ad4) is in none of 1.14d's DS1s: the 2,043 LvlPrest File1..6 maps
+// carry only types 1 and 2, so it isn't mapped here.
 inline std::vector<Unit> ds1_units(const d2d::ds1::Map& map, const UnitIds& ids) {
     std::vector<Unit> list;
     const int version = map.version(), act = std::clamp(int(map.act()) - 1, 0, 4);

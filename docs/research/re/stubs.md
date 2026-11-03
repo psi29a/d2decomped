@@ -13,6 +13,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 
 | Address | What | Kind | Effect in 1.14d | d2d | Details |
 |---|---|---|---|---|---|
+| `FUN_0044e770`'s `endgame2` branch | the endgame screen's expansion layout (`ui\menu\endgame2`, twelve 256-wide cels for 800x600), picked by `DAT_007a04f4` (S->C 0x01 byte +6, the expansion flag) | unreachable | the screen only comes with `DAT_007a0604`, set only by `FUN_0044ec80`, which the client calls only in a classic game (0x4a2d75: an expansion game jumps to `FUN_00483340`) | not ported | quests-act4.md "The ending" |
 | `FUN_00458f40` | room2 result from `FUN_0061aae0` is saved in EDI and never read | dead | the computed room2 pointer is discarded | not ported | drlg.md "A room's life on the server" |
 | `FUN_0046d450` | critter row 574 (Worldstone Effect): 5 %, a unit (`FUN_004cdb40`) up to 30 subtiles round it | unreachable | no Levels.txt cmon names row 574 | not ported | critters.md |
 | `FUN_0046d660` | a critter's think when MonStats `zoo` (flag 0x16) is set: stand 20, or 20 % each walk to / flee 8 from the player, else wander 8 | unreachable | no Levels.txt cmon names a zoo row (zoo is on ordinary monsters, which never take the critter think) | ported anyway (town/walk.cpp, for mods) | critters.md |

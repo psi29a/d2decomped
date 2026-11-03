@@ -56,12 +56,11 @@ base-palette entry with `FUN_00605210`. Thus the three weights `0xbf`,
 `game.exe`'s installed additive table at `0x7de468` matches d2d in all
 65,536 Act 1 cells.
 
-`Pl2::blend50()` currently uses `0x5b500`, the max-component-weighted table,
-instead of the original 50/50 alpha table at `0x13500`. Act 1 differs in
-51,800 of 65,536 cells. Across Acts 1–5 the mismatch counts are 51,800;
-49,916; 52,337; 51,525; and 50,644. The method has no runtime caller yet;
-its diagonal-identity test also passes for the incorrect table, so that test
-does not identify the semantics.
+`Pl2::blend50()` uses the 50/50 alpha table at `0x13500` (installed at
+`0x7fe468`) and matches it in all 65,536 Act 1 cells. It read `0x5b500`, the
+max-component-weighted table, until 2026-11-03 (51,800 Act 1 cells off).
+The method has no runtime caller yet; its diagonal-identity test passes for
+either table, so only the oracle identifies it.
 
 Reproduce the Act 1 oracle comparison:
 
@@ -75,5 +74,4 @@ for table in additive blend50; do
 done
 ```
 
-No diff is expected for `additive`. The `blend50` diff is the documented
-mismatch, traced 2026-10-30.
+No diff is expected for either table.

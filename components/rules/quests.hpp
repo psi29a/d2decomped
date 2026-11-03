@@ -1384,9 +1384,10 @@ struct CainQuest {
         else if (bks) { state = 4; log = 2; tree_used = true; }
     }
     // What `npc` says about it (FUN_00592580): blocks at 0x737668, by the
-    // state (0x737648: -1, 0, 1, 2, 3, 4).
-    // ponytail: the bkd a player still carries once the stones are done
-    // isn't taken here (the fifth stone took the only one).
+    // state (0x737648: -1, 0, 1, 2, 3, 4). Once the stones are done
+    // (+0x4f) it first takes one bkd a player still carries
+    // (FUN_00544160, +0x7c less one): World::act1_talk. Event 0 runs only
+    // the talker's act's quests (FUN_00543d10 -> FUN_005438e0's act filter).
     struct E { int npc, string; bool greet; };
     static inline const std::vector<E> kBlocks[10] = {
         { { kAkara, 97, true } },

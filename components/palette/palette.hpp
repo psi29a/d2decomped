@@ -97,7 +97,7 @@ private:
 // PL2 colormap file. We currently parse:
 //   * base 256 RGBA at offset 0                    → base_palette()
 //   * additive[256][256] at offset 0x33500         → additive(fg, bg)
-//   * max-component blend at offset 0x5b500        → blend50(fg, bg)
+//   * 50/50 alpha at offset 0x13500 (weight 0x7f)  → blend50(fg, bg)
 //
 // The additive table is D2's TRANS_ADDITIVE mode — the fire, spell VFX,
 // and shrine glows all blend through it. Given (foreground_idx, bg_idx)
@@ -105,16 +105,15 @@ private:
 // of the two — palette-preserving, unlike direct RGB addition which drifts
 // off the palette and looks off-key.
 //
-// ponytail: blend50 is misnamed and reads the max-component-weighted table;
-// game.exe's actual 50/50 alpha table is at 0x13500. The full traced layout
-// and oracle diff are in docs/research/formats/pl2.md. Other transforms are
-// not exposed here — add when a subsystem asks for one.
+// blend50 is game.exe's installed 0x7fe468 (FUN_004fb1e0): tools/emu pl2.py
+// diffs it (docs/research/formats/pl2.md). The other tables (the 75 / 25 %
+// alphas, multiply, max-component at 0x5b500) have no caller here yet.
 class Pl2 {
 public:
     static constexpr std::size_t kFileSize        = 443175;
     static constexpr std::size_t kBaseOff         = 0;
     static constexpr std::size_t kAdditiveOff     = 0x33500;
-    static constexpr std::size_t kBlend50Off      = 0x5b500;
+    static constexpr std::size_t kBlend50Off      = 0x13500;
     // The 13 text colours' index shifts (FUN_004fb1e0 copies PL2 +0x6b627
     // to 0x7d5668 and hands it to the driver: a glyph's index i draws as
     // shift[colour][i]); their RGBs at +0x6b600 (0x7d563c).
@@ -123,7 +122,7 @@ public:
     Pl2() = default;
 
     explicit Pl2(std::span<const std::byte> bytes) {
-        if (bytes.size() < kBlend50Off + 256u * 256u)
+        if (bytes.size() < kAdditiveOff + 256u * 256u)   // the later of the two tables
             throw std::runtime_error("PL2: buffer too small");
         for (std::size_t i = 0; i < 256; ++i) {
             base_[i] = Rgba{

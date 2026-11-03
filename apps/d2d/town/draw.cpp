@@ -307,6 +307,24 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
         if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
+        // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
+        // action, then 0x1052 " (%s)" for each key bound to it, the second
+        // slot first; FUN_00502280 at (x - 3, H - 0x32 - 0x1a). Menu has no key.
+        if (int button_x = 0; !coop_hud_hidden())
+            if (const int kind = mini.hovered(left_open, inv_open || tree_open, mouse.x, mouse.y, button_x); kind >= 0) {
+                static constexpr std::array<int, 7> kKeys = { keys::kCharacter, keys::kInventory, keys::kSkillTree, keys::kParty, keys::kAutomap, keys::kMessageLog, keys::kQuestLog };
+                std::string tip = string_id(*scene, std::uint16_t(0x1049 + kind));
+                if (kind < int(kKeys.size()))
+                    for (const int slot : { 1, 0 })
+                        if (const auto key = keys::key_of(key_table, kKeys[std::size_t(kind)], slot); key != keys::kNone) {
+                            const auto id = keys::name_id(key);
+                            auto bound = string_id(*scene, 0x1052);
+                            if (const auto spot = bound.find("%s"); spot != std::string::npos) bound.replace(spot, 2, id ? string_id(*scene, id) : std::string(1, char(key & 0xff)));
+                            tip += bound;
+                        }
+                const int bottom = int(kScreenHeight) - 0x32 - 0x1a;
+                draw_hover_text(framebuffer, *scene, { { std::move(tip), kTxtWhite } }, button_x - 3, button_x - 3, bottom, bottom);
+            }
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
         if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty())) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
@@ -349,15 +367,17 @@ auto Town::wrap_chat(const std::string& text, int width) const -> std::vector<st
 }
 
 // A chat line (FUN_0049e3a0): it stays 10 s, wrapped to the screen's width
-// - 70 (at most 6 lines); past 18 lines on screen the oldest message goes.
+// - 70 (at most 6 lines); past 18 lines on screen the oldest message goes,
+// one message an add, however many lines that leaves.
 auto Town::add_chat(const std::string& text, int colour, std::size_t gold) -> void {
     auto wrapped = wrap_chat(text, int(kScreenWidth) - 70);
     wrapped.resize(std::min<std::size_t>(wrapped.size(), 6));
+    const std::uint32_t message = chat_lines.empty() ? 0 : chat_lines.back().message + 1;
     for (auto& line : wrapped) {
-        chat_lines.push_back({ std::move(line), now_ms + 10000, colour, gold });
+        chat_lines.push_back({ std::move(line), now_ms + 10000, colour, gold, message });
         gold = 0;                                               // the name is on the first line
     }
-    if (chat_lines.size() > 18) chat_lines.erase(chat_lines.begin(), chat_lines.end() - 18);   // ponytail: by line, not by message
+    if (chat_lines.size() > 18) std::erase_if(chat_lines, [oldest = chat_lines.front().message](const ChatShown& line) { return line.message == oldest; });
 }
 
 // The chat lines (FUN_0049dc40): FontInGameChat (0xd), at x 15 (the
@@ -374,7 +394,7 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
     const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
     const int x = left_open && !right_open ? int(kScreenWidth) / 2 + 15 : 15;
-    int baseline = portraits_shown ? 0x5f : 20;   // ponytail: taken as below the portraits (UI flag 0x13 (?))
+    int baseline = portraits_shown ? 0x5f : 20;   // below the portraits while UI 0x13 is up (FUN_004538d0(0x13), 0x49dc69)
     static constexpr std::array<std::array<std::uint8_t, 3>, 10> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 },
                                                                           { 105, 105, 105 }, { 255, 255, 255 }, { 255, 255, 255 }, { 255, 168, 0 }, { 255, 255, 100 } } };
     auto darken = [&](int left, int top, int width, int height) {   // FUN_0046efd0 colour 0, mode 1
@@ -402,8 +422,13 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
     const auto shown = std::min<std::size_t>(lines.size(), 3);
     for (std::size_t i = 0; i < shown; ++i)
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83, kHeight - 0x58 + 15 * int(i) - font.line_height() + 1, lines[i], 255, 255, 255);
-    if (now_ms % 600 < 500)   // ponytail: blinks on the clock, not from when typing began
+    if (caret_shown)
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, 0x83 + font.measure(lines[shown - 1]), kHeight - 0x58 + 15 * int(shown - 1) - font.line_height() + 1, "_", 255, 255, 255);
+    if (now_ms - caret_turned > caret_period) {
+        caret_turned = now_ms;
+        caret_shown = !caret_shown;
+        caret_period = caret_shown ? 500 : 100;
+    }
 }
 
 // The field's pad prompt over the control panel: the button A is bound to,
@@ -524,13 +549,19 @@ std::array<std::uint8_t, 3> life_colour(int life) {
 auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open) -> void {
     portraits_shown = false;
     merc_portrait_x = -1;                                             // none to hover or drop on until drawn
-    if (left_open || portraits_hidden || coop_hud_hidden()) { merc_hovered = false; merc_hover_at = 0; return; }   // local co-op's: draw_coop_portraits
+    if (portraits_hidden || coop_hud_hidden()) { merc_hovered = false; merc_hover_at = 0; return; }   // local co-op's: draw_coop_portraits
+    // Under a left panel (FUN_0045ae90 2 / 3) FUN_00494020 draws none, but
+    // UI 0x13 stays up (FUN_00493340: any portrait to show), so the chat
+    // still sits below them (portraits_shown).
+    if (left_open) { merc_hovered = false; merc_hover_at = 0; }
     const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
     const auto& font = scene->font_tiny.line_height() > 0 ? scene->font_tiny : scene->font;
     int x = 15, name_y = 0x48;
     // Each icon at draw mode 1 (FUN_004f6480: half over what's there); the
     // merc's at mode 7 while hovered (its table untraced, lighting.md: drawn as is).
     const auto portrait = [&](const d2d::dc6::Sprite* icon, int life, std::string name, int count, bool lit = false) {
+        portraits_shown = true;
+        if (left_open) return;
         if (icon && icon->total_frames() > 0) {
             const auto& frame = icon->frame(0, 0);
             const int top = 0x3c - int(frame.height) + 1, frame_w = fb_width(framebuffer);
@@ -556,7 +587,6 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
         font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, std::max(x + 0x16 - font.measure(name) / 2, 0), name_y - font.line_height() + 1, name);
         name_y = name_y == 0x48 ? 0x52 : 0x48;
         x += 0x38;
-        portraits_shown = true;
     };
     if (net_game)
         if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end() && self->second.party != 0xffff)
@@ -573,7 +603,7 @@ auto Town::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool left_open
     const auto gone = [](std::string_view mode) { return mode == "DT" || mode == "DD"; };
     if (view.merc && !gone(view.merc->mode))
         if (const auto* type = game_data.pet_type("hireable")) {
-            merc_portrait_x = x; merc_portrait_y = name_y;
+            if (!left_open) { merc_portrait_x = x; merc_portrait_y = name_y; }
             portrait(icon_of(*type, view.merc_sheet ? view.merc_sheet->cls : -1),
                      view.merc_sheet ? int(std::int64_t(view.merc_sheet->life) * 100 / std::max(view.merc_sheet->max_life, 1)) : -1, merc_label, 0, merc_hovered);
         }

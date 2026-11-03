@@ -103,6 +103,9 @@ auto Fight::start_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t n
         const std::uint32_t until = len > 0 ? now_ms + std::uint32_t(len) * 40 : ~0u;
         std::erase_if(actor->self_states, [&](const SelfState& state) { return state.skill == skill.id; });
         actor->self_states.push_back({ skill.id, lvl, until });
+        // Armageddon / Hurricane's first strike: Param4 frames on (FUN_005c8190 -> FUN_004efc80).
+        if (skill.srvdofunc == ServerDoFunction::kStormAroundCaster)
+            (skill.aurastate == "armageddon" ? actor->armageddon_next : actor->hurricane_next) = now_ms + std::uint32_t(skill.par[3]) * 40;
         for (std::size_t k = 0; k < skill.aurastat.size(); ++k)
             if (skill.aurastat[k] == d2d::d2s::kBoneArmor) actor->absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, actor->absorb_skill = skill.id;
         if (skill.srvdofunc == ServerDoFunction::kCloakOfShadows)
@@ -160,14 +163,14 @@ auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
         // coldeffect, for length / MonsterFreezeDivisor, and not chilled.
         // Shiver Armor (3, FUN_005cad40, attackedinmelee): its element
         // (FUN_0056e0c0) on any.
-        // ponytail: state 0x36 (no freeze), the 20 % state 0x6b roll of the
-        // chill and the freeze's AI event at its end + 1 (FUN_005417d0 2)
-        // aren't kept; a length / divisor of 0 (state 1 for no frame) isn't.
+        // Not on state 0x36 (uninterruptable). The chill rolls shatter (state
+        // 0x6b) as a blow's does; a length / divisor of 0 is state 1 for no frame.
+        // The freeze's think at its end + 1 gives way to the thaw's (mon_think).
         for (const int striker : foe.melee_by) {
             const int found = this->monster_index(striker);
             if (found < 0 || !monsters[std::size_t(found)].alive()) continue;
             const auto monster_index = std::size_t(found);
-            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker) && monsters[monster_index].type >= 0) {
+            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker) && monsters[monster_index].type >= 0 && !monsters[monster_index].uninterruptable()) {
                 const auto* skill = game_data->skills.get(frozen_armor->skill);
                 auto& struck = monsters[monster_index];
                 const auto& struck_type = game_data->monsters.types[std::size_t(struck.type)];
@@ -181,6 +184,7 @@ auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
                     const int divisor = game_data->cold_divisor[difficulty];
                     const int ticks = std::max(cold_effect < 0 && divisor != 0 ? length / divisor : length, 1);
                     struck.chill_until = std::max(struck.chill_until, now_ms + std::uint32_t(ticks) * 40);
+                    struck.shatter = struck.seed.next() % 100 < 20 && !struck.npc.dead_col;
                 } else if (const int divisor = game_data->freeze_divisor[difficulty]; length > 0 && !special && cold_effect < 0 && divisor != 0 && length / divisor > 0) {
                     struck.stun_until = std::max(struck.stun_until, now_ms + std::uint32_t(length / divisor) * 40);
                 }
@@ -240,22 +244,26 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
                 launch(found->second, *skill, blaze->level, actor->player.x, actor->player.y, 0, 0, found->second.range + found->second.lev_range * blaze->level, now_ms);
         }
         // Armageddon / Hurricane (do 124, FUN_005c8190: the state and its
-        // timer event, FUN_005417d0(5, ...)): Armageddon drops its control
-        // row (hit 56) on a spot within aurarange every 5 frames; Hurricane
-        // strikes what's within aurarange with its cold once a second.
-        // ponytail: the timer's period (FUN_004efc80) and the events aren't
-        // traced: the paces are by eye.
+        // timer event, FUN_005417d0(5, ...) at Param4 frames, FUN_004efc80
+        // reading Skills +0x154). The event runs the state's srvactivefunc
+        // (FUN_0056d790): each run files the next Param4 frames on, so
+        // Armageddon (146, FUN_005c8520) drops its control row (hit 56) on a
+        // spot within aurarange every 8 frames, Hurricane (145, FUN_005c8380)
+        // strikes what's within aurarange with its cold every 20. A run in
+        // town takes the state off instead (FUN_0061ab00): Fight::world.
         // Blade Shield: blade_shield, every perdelay frames.
-        if (const auto* armageddon = state_of("armageddon"); armageddon && (now_ms / 40) % 5 == 0 && now_ms / 40 != actor->storm_frame) {
+        if (const auto* armageddon = state_of("armageddon"); armageddon && now_ms >= actor->armageddon_next) {
             const auto* skill = game_data->skills.get(armageddon->skill);
+            actor->armageddon_next = now_ms + std::uint32_t(std::max(skill->par[3], 1)) * 40;
             if (const auto found = game_data->missiles.find(skill->srvmissilea); found != game_data->missiles.end()) {
                 const int radius = std::max(calc(*skill, skill->aurarange, armageddon->level), 1);
                 launch(found->second, *skill, armageddon->level, actor->player.x + float(int(rng(2 * radius + 1)) - radius) / 5, actor->player.y + float(int(rng(2 * radius + 1)) - radius) / 5,
                        0, 0, found->second.range, now_ms);
             }
         }
-        if (const auto* state = state_of("hurricane"); state && now_ms / 40 != actor->storm_frame && (now_ms / 40) % 25 == 0) {
+        if (const auto* state = state_of("hurricane"); state && now_ms >= actor->hurricane_next) {
             const auto* skill = game_data->skills.get(state->skill);
+            actor->hurricane_next = now_ms + std::uint32_t(std::max(skill->par[3], 1)) * 40;
             const auto damage = d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), state->level);
             const int radius = std::max(calc(*skill, skill->aurarange, state->level), 1);
             for (std::size_t j = 0; j < monsters.size(); ++j)
@@ -267,7 +275,6 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
             actor->blade_next = now_ms + std::uint32_t(std::max(calc(*skill, skill->perdelay_calc, state->level), 1)) * 40;
             blade_shield(*skill, state->level, actor->player.x, actor->player.y, actor->player_combat, true, player_foe_id(), now_ms);
         }
-        actor->storm_frame = now_ms / 40;
         // Thunder Storm (do 29, FUN_005ca4d0): a periodic skill (stats 0x15e /
         // 0x15f), every perdelay frames while its state lasts. The bolt
         // (srvmissilea, hit at once: FUN_005adf10) goes at the monster within

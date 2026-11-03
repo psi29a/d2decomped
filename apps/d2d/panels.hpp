@@ -330,6 +330,10 @@ struct QuestLog {
     std::array<std::uint32_t, 41> frame_ms{};
     std::array<bool, 41> seen{};
     bool close_down = false, last_down = false;   // 0x7bf2b2, 0x7bf2b4
+    // 0x7bf2b3: questlast replayed the picked quest's message (FUN_004a27d0);
+    // till the log shuts (FUN_00455ae0 case 0xf) its presses do nothing and
+    // the description isn't drawn.
+    bool replayed = false;
     // The Quest Log button (UI 0x11) that a quest's news brings up while the
     // log is shut (FUN_004a2cb0): on, held (0x7bf2b0), and its quest waiting
     // for the log to open (0x7bf298 1).

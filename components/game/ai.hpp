@@ -358,7 +358,7 @@ struct Monster {
     bool breath_state = false;
     // Act 4's: Diablo's kept point (his leader word, kind 10: his own spot at
     // his first think, FUN_0058ef40); a knight's Bone Armor up since its
-    // think, and its absorb pool (stat 132, the cast's aurastat calc / 256).
+    // think, and its absorb pool (stat 132, the cast's aurastat calc, in 256ths).
     bool has_point = false, armored = false;
     int armor_pool = 0;
     bool greeted = false;                     // Izual's first think (ThinkEffect::greet): a4q1's FUN_005b4390, the World's to take
@@ -1067,7 +1067,7 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
 // the cap cuts leaves it at full life, no 256ths taken off.
 void heal(Monster& monster, int points);
 // Bone Armor's absorb on a monster (event 22, FUN_005c6370): the pool takes
-// the hit's physical; at 0 the state goes. The damage left.
+// the hit's physical; at 0 the state goes. All in 256ths: the damage left.
 int soak(Monster& monster, int physical, int damage);
 
 // A monster that blocked plays its block (BL), when it has one.

@@ -178,7 +178,7 @@ constexpr std::array<const char*, 7> kCinematicVideo = {
 // (FUN_0044d3e0, FUN_0044e5a0); endgameok at (W/2-48, H-80) with 0x13ee in
 // font16 (pressed: 2 left, 2 down). Its click (FUN_0044e4f0) goes on to the
 // main menu.
-// ponytail: classic only; LoD's endgame2 layout is never reached (its end is Tyrael's portal).
+// Classic only: LoD's endgame2 layout is unreachable (stubs.md).
 struct EndgameUI {
     d2d::dc6::Sprite background, ok;
     d2d::palette::Palette pal;

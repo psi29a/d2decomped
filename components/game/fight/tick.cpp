@@ -251,6 +251,14 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
         // Monsters think while a player is near (D2 runs the rooms around
         // each player); what they hit comes off that player's life, and a hit
         // of a twelfth of max life or more makes them flinch (GH).
+        // Armageddon / Hurricane's next run in town takes its state off
+        // (FUN_005c8520 / FUN_005c8380 on FUN_0061ab00); buff_tick runs only out of town.
+        if (in_town(level))
+            std::erase_if(actor->self_states, [&](const SelfState& state) {
+                const auto* skill = game_data->skills.get(state.skill);
+                return skill && skill->srvdofunc == ServerDoFunction::kStormAroundCaster
+                    && now_ms >= (skill->aurastate == "armageddon" ? actor->armageddon_next : actor->hurricane_next);
+            });
         if (in_moor) {
             // Each player's side: the player and the merc, then everyone's
             // pets; the monsters (Confuse, Attract) after them.
@@ -311,7 +319,10 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 // pet or a hireling takes too): its own armor pool, then its get-hit on its own class and mark.
                 bool dead = false;
                 for (const auto& blow : foes[i].blows)
-                    if (!dead) dead = hurt(*game_data, struck, soak(struck, blow.physical, blow.damage), now_ms, 0, blow.hit_class, blow.marked);
+                    if (!dead) {
+                        const int taken = soak(struck, blow.physical << 8, blow.damage << 8);
+                        dead = hurt(*game_data, struck, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.marked);
+                    }
                 // Its Crushing Blows after the hits, less its own damageresist
                 // (FUN_005bffc0), and a knockback as the player's (knock_back).
                 for (const int divisor : foes[i].crushed)

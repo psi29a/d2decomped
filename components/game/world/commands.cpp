@@ -113,7 +113,9 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         }
         // A Scroll of Identify (isc, used up) or a Tome (ibk, a charge, stat
         // 0x46) on an unidentified item (FUN_00561ed0).
-        // ponytail: no sound or message for an empty tome.
+        // An empty tome (type 0x12, stat 0x46 under 1: 0x5620a5) does nothing
+        // either: no sound or message, only the inventory's flag 4 cleared
+        // (FUN_0055bf50) and S->C 0x7c ending its stat list.
         if (const auto* with = std::get_if<cmd::IdentifyWith>(&command)) {
             auto& items = actor->character.items;
             const auto scroll = std::ranges::find(items, with->scroll, &d2d::d2s::Item::id);

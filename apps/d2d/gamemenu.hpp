@@ -56,7 +56,7 @@ private:
 
 // The mini-panel and the HUD's menu button (FUN_0047f710 / FUN_004977c0).
 // Its buttons' actions, as FUN_0047ec50 numbers them.
-// ponytail: no tooltips (FUN_0047f490); messages (5) does nothing.
+// ponytail: messages (5) does nothing.
 struct MiniPanel {
     enum Button { kCharacter = 0, kInventory = 1, kSkills = 2, kAutomap = 4, kMessages = 5, kQuests = 6, kMenu = 7 };
     bool open = true;                      // FUN_004567f0 opens it with the game
@@ -66,6 +66,9 @@ struct MiniPanel {
     // true if it took the click; `action` the button let go on, else -1.
     bool input(const Scene& scene, Audio& audio, const Mouse& mouse, bool left, bool right, int& action);
     void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, bool left, bool right, int mouse_x, int mouse_y) const;
+    // The button under the mouse for its tooltip (0x47f650): its action,
+    // else -1; `button_x` its left edge.
+    [[nodiscard]] int hovered(bool left, bool right, int mouse_x, int mouse_y, int& button_x) const;
 };
 
 }  // namespace d2d::client

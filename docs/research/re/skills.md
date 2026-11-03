@@ -1117,7 +1117,12 @@ lines (missile names aren't passed in). What it does:
   stolen. st **56** (FUN_005c7690) / **58** (FUN_005c7e00): the
   werebeast hits.
 - Do **124** (FUN_005c8190, Armageddon / Hurricane): the state and a timer
-  event (FUN_005417d0(5, FUN_004efc80 + frame)). **44** (FUN_005d6020,
+  event (FUN_005417d0(5, FUN_004efc80 + frame): Skills +0x154, Param4).
+  Event 5 (FUN_0056d790) runs the state's srvactivefunc (States.txt, the
+  table 0x7322b0): 145 Hurricane (FUN_005c8380) strikes within aurarange,
+  146 Armageddon (FUN_005c8520) lays its control row on a free spot within
+  it (5 tries, 0x805); each run files the next Param4 frames on (8 / 20),
+  and one in town takes the state off. **44** (FUN_005d6020,
   Blade Sentinel): a trap monster (FUN_005d5e10) sent to the point and
   back (FUN_00554ea0). **54** (FUN_005d7e10 -> FUN_005d7ce0, Blade
   Shield): a periodic skill, struck every perdelay (par3: 25) frames while
@@ -1139,7 +1144,7 @@ lines (missile names aren't passed in). What it does:
   `debug unbuilt` (lists none). Not traced / not built: the shapeshifted
   look (the Druid keeps his) and the werebeast skills' form requirement,
   Rabies' spread, the walls' time (24 s published) and makers' pace,
-  Armageddon / Hurricane paces, Blade Sentinel as a
+  Armageddon's 5 spot tries, Blade Sentinel as a
   monster, Double Throw's toht, Vine Attack / the cyclers (the vines'
   published behaviour).
 

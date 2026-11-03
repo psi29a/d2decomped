@@ -818,10 +818,12 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
 // passes the carried cap (clvl x 10000) returned to drop at the player's
 // feet (FUN_0055b060). The vendor stocks a copy at full durability and stack
 // (stats 72 / 70) unless it's Cracked (LowQualityItems row 1), broken
-// (0x100), unique, personalized, ethereal, a greater or super potion in an
-// expansion game, or one of the vendor's perm items (FUN_00576ed0).
-// ponytail: no belt/equipped selling; FUN_0055f590's test and the vendor
-// proxy's +4 flag (FUN_00536cb0) aren't kept.
+// (0x100), unique, personalized, ethereal, holds something in its sockets
+// (FUN_0055f590: Items hasinv, +0x137, with its inventory not empty), sold
+// while gambling (the player's proxy at the vendor, FUN_00536cb0: +4 set by
+// the gamble open, FUN_00578b30), a greater or super potion in an expansion
+// game, or one of the vendor's perm items (FUN_00576ed0).
+// ponytail: no belt/equipped selling.
 inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const auto& sold = items[index];
     const int price = item_price(tables, sold, store.npc_id, true, store.header);
@@ -830,6 +832,7 @@ inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t i
     stats.values[d2d::d2s::kGold] = purse + price - over;
     static constexpr std::array<std::string_view, 4> kStrongPotions = { "hp4", "hp5", "mp4", "mp5" };
     const bool kept = !(sold.quality == 1 && sold.qsub == 1) && !(sold.flags & 0x100u) && sold.quality != 7 && !sold.personalized && !sold.ethereal
+                      && sold.socketed_items.empty() && !store.gamble
                       && !(store.header.expansion() && std::ranges::find(kStrongPotions, sold.code) != kStrongPotions.end())
                       && std::ranges::find(store.perm, sold.code) == store.perm.end();
     if (kept) {
