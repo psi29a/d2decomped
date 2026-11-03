@@ -546,7 +546,7 @@ int main() try {
             assert(skill.par[3] == int(every) && !runs.empty() && runs.size() == 60 / every);
             for (std::size_t k = 0; k < runs.size(); ++k) assert(runs[k] == every * (k + 1));
             world.level = town;
-            world.fight.buff_tick(61 * kTickMs + every * kTickMs);
+            world.fight.world(false, 61 * kTickMs + every * kTickMs, 0.04f, Crowd{});   // buff_tick doesn't run in town
             assert(!world.fight.state_of(skill.aurastate));
             world.level = data->level(d2d::rules::level_ids::kBloodMoor);
         }

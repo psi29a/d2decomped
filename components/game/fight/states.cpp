@@ -250,17 +250,12 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         // Armageddon (146, FUN_005c8520) drops its control row (hit 56) on a
         // spot within aurarange every 8 frames, Hurricane (145, FUN_005c8380)
         // strikes what's within aurarange with its cold every 20. A run in
-        // town takes the state off instead (FUN_0061ab00).
-        const auto storm_in_town = [&](const SelfState& state) {
-            if (!in_town(level)) return false;
-            std::erase_if(actor->self_states, [&](const SelfState& other) { return other.skill == state.skill; });
-            return true;
-        };
+        // town takes the state off instead (FUN_0061ab00): Fight::world.
         // Blade Shield: blade_shield, every perdelay frames.
         if (const auto* armageddon = state_of("armageddon"); armageddon && now_ms >= actor->armageddon_next) {
             const auto* skill = game_data->skills.get(armageddon->skill);
             actor->armageddon_next = now_ms + std::uint32_t(std::max(skill->par[3], 1)) * 40;
-            if (const auto found = game_data->missiles.find(skill->srvmissilea); !storm_in_town(*armageddon) && found != game_data->missiles.end()) {
+            if (const auto found = game_data->missiles.find(skill->srvmissilea); found != game_data->missiles.end()) {
                 const int radius = std::max(calc(*skill, skill->aurarange, armageddon->level), 1);
                 launch(found->second, *skill, armageddon->level, actor->player.x + float(int(rng(2 * radius + 1)) - radius) / 5, actor->player.y + float(int(rng(2 * radius + 1)) - radius) / 5,
                        0, 0, found->second.range, now_ms);
@@ -271,7 +266,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
             actor->hurricane_next = now_ms + std::uint32_t(std::max(skill->par[3], 1)) * 40;
             const auto damage = d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), state->level);
             const int radius = std::max(calc(*skill, skill->aurarange, state->level), 1);
-            for (std::size_t j = 0, count = storm_in_town(*state) ? 0 : monsters.size(); j < count; ++j)
+            for (std::size_t j = 0; j < monsters.size(); ++j)
                 if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - actor->player.x, monsters[j].unit.y - actor->player.y) * 5 <= float(radius))
                     land(j, d2d::rules::missile_blow(damage, target_of(j), pierce(), rng), true, now_ms, player_foe_id());
         }
