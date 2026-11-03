@@ -755,11 +755,20 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
                             if (offset_x * offset_x + offset_y * offset_y <= burst_radius * burst_radius) sub_at(missile.x + float(offset_x) / 5, missile.y + float(offset_y) / 5, 0, 0, frames);
                 break;
             }
-            case 14: case 47: case 56: {
+            case 56: {
+                // Armageddon's / Diablogeddon's (FUN_005acc50, table 0x73c840): the burst,
+                // then one sub-missile on its spot (FUN_0056ede0), its row's length.
                 area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms);
-                // Meteor's (FUN_005aabb0 -> FUN_005aaa90): its fire lasts FUN_004cc7c0's Param3 + (lvl - 1) x Param4 frames.
-                // ponytail: 47 / 56 (untraced) keep the sub-row's EMin a frame.
-                const int frames = missile_info.hit_func == 14 ? skill->par[2] + (missile.level - 1) * skill->par[3] : 0;
+                if (sub) sub_at(missile.x, missile.y, 0, 0).fixed = hit_sub->second.emin > 0 ? hit_sub->second.emin : -1;
+                break;
+            }
+            case 14: case 47: {
+                const int burst = radius(missile_info.hit_par1, skill->aurarange);
+                area(missile, missile.x, missile.y, burst, now_ms);
+                // FUN_005aaa90 lays the fire every sHitPar2th spot. Meteor's (FUN_005aabb0) lasts
+                // FUN_004cc7c0's Param3 + (lvl - 1) x Param4 frames; Molten Boulder's
+                // (FUN_005ac550) is handed the burst's radius as its length (flag 0x8001).
+                const int frames = missile_info.hit_func == 14 ? skill->par[2] + (missile.level - 1) * skill->par[3] : burst;
                 if (sub)
                     for (std::size_t j = 0; j < 18; j += std::size_t(std::max(missile_info.hit_par2, 1))) {
                         auto& fire = sub_at(missile.x + float(kSpreadX[j]) / 5, missile.y + float(kSpreadY[j]) / 5, 0, 0, frames);
