@@ -165,9 +165,18 @@ struct Monster {
     // Its stats as the last swing set them: the elements it didn't roll in left out.
     // A rand one takes its rolled kind (FUN_005a4f50's table at 0x5a5444: 1 fire,
     // 2 lightning, 3 magic, 4 cold, 5 poison), a cold one 25 frames when it has none.
+    // Past Normal a hostile one's swing grows by its players (FUN_005a4f50 in an
+    // expansion game, game +0x70: stat 0x64 through FUN_005a4f20, table 0x6e21f4):
+    // damage, to-hit and each element's min / max / length + n / 128 of it.
     [[nodiscard]] d2d::rules::MonStats swing_stats() const {
         static constexpr std::array<int, 6> kRandType{ -2, 0, 1, 4, 2, 3 };   // kind -> d2d's El type (fire, ltng, cold, pois, mag)
         auto swung = stats;
+        if (const int more = align == 0 && difficulty > 0 ? d2d::rules::player_swing_128ths(players) : 0; more > 0) {
+            for (int* value : { &swung.a1_min, &swung.a1_max, &swung.a2_min, &swung.a2_max, &swung.s1_min, &swung.s1_max, &swung.to_hit, &swung.to_hit2, &swung.to_hit_s1 })
+                *value += *value * more / 128;
+            for (auto& element : swung.elements)
+                for (int* value : { &element.min, &element.max, &element.dur }) *value += *value * more / 128;
+        }
         for (std::size_t element = 0; element < swung.elements.size(); ++element)
             if (auto& swung_element = swung.elements[element]; swung_element.mode == swing_mode) {
                 if (!element_on[element]) { swung_element = {}; continue; }

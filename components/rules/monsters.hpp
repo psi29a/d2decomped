@@ -282,7 +282,10 @@ struct MonStats {
 // sums it (FUN_005e8530: maxdamage, fire / lightning / magic / cold max,
 // poison max >> 8). 0 before any swing.
 // Only the elements the swing rolled in count (Monster::swing_stats).
-// ponytail: the hireling / damage-% scaling (+0x70, stat 100) is left out.
+// The player-count growth past Normal is in Monster::swing_stats.
+// ponytail: a classic game's x 10 / 12 damage and x 10 / 15 to-hit past
+// Normal (FUN_005a4f50, game +0x70 0) aren't made: d2d's monsters take
+// the expansion columns throughout.
 inline int swing_max_damage(const MonStats& stats, std::string_view swing_mode) {
     if (swing_mode.empty()) return 0;
     int total = swing_mode == "A2" ? stats.a2_max : swing_mode == "SC" || swing_mode == "S1" ? stats.s1_max : stats.a1_max;
@@ -291,6 +294,12 @@ inline int swing_max_damage(const MonStats& stats, std::string_view swing_mode) 
     return total;
 }
 
+// A hostile monster's swing growth past Normal, in 128ths (FUN_005a4f20 on
+// its stat 0x64, table 0x6e21f4): 8 a player past the first to 8, then n x 8 - 16.
+inline int player_swing_128ths(int players) {
+    static constexpr std::array<int, 9> kMore{ 0, 0, 8, 16, 24, 32, 40, 48, 56 };
+    return players < 2 ? 0 : players < 9 ? kMore[std::size_t(players)] : players * 8 - 16;
+}
 // The player-count bonus in % (FUN_005738f0 life, table 0x6e1590;
 // FUN_00573910 experience, 0x6e15b4): 50 a player past the first up to 8,
 // then (n - 2) x 50 and (5n + 130) x 2.
