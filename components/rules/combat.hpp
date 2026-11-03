@@ -426,8 +426,10 @@ inline int resisted_fine(int fine, int res) {
 // of it (MulDiv) leaving at least 1 point, then at least `low` (calc2). A
 // negative lightning resistance is taken back out first (MulDiv(dmg, 100,
 // 100 - res)), so it adds nothing once FUN_0057bf80 applies it.
-// ponytail: life_fine and max_fine are the unit's 256ths; res is its raw
-// lightning resistance (stat 0x29), pierce not taken off.
+// life_fine and max_fine are the unit's 256ths (stat 6 at 0x5c96c2, max
+// life FUN_00625d10 at 0x5c96e1, each >> 8 there); res is the unit's own
+// stat 0x29 (FUN_00625480 on FUN_0056c8e0's stat), as game.exe reads it
+// here: the attacker's pierce comes off only in FUN_0057c6c0, after.
 inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int floor_pct, int res) {
     const int life = life_fine >> 8;
     if (life < 1) return -1;
