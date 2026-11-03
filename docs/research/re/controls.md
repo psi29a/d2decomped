@@ -69,6 +69,11 @@ the wheel, Enter, Shift, F1..F24, Num Pad 0..9 and the punctuation
 (`keys::name_id`). The skill picker's hotkey labels use these names
 too (`FUN_00495410`, `FUN_00495dc0`).
 
+A label names slot 1's key (`FUN_0046a530(f, 1)`). The skill picker's
+(`FUN_004a8df0`) is drawn only when slot 1 has a key; the belt's
+(`FUN_00499040`) when either slot has one, so a key in slot 0 alone
+reads "None" (bugs.md #48; `keys::label_key`).
+
 ## The screen
 
 The panel sits at `((W-0x26c)/2, (H-0x1a4)/2)`, (90, 90) at 800×600. It

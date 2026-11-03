@@ -272,6 +272,18 @@ inline constexpr std::uint16_t kVersion = 0x25;
     return 0;
 }
 
+// The key a label shows for `action`, or nullopt for none: slot 1's (the
+// first column; FUN_0046a530(f, 1) names it, "None" when unassigned).
+// The skill picker (FUN_004a8df0) shows one only when slot 1 has a key
+// (FUN_00469aa0(f, 1) at 0x4a8dfe); the belt (FUN_00499040, `either`)
+// when either slot has one (0x499357, 0x49936b): slot 0 alone shows
+// "None" (bugs.md #48).
+[[nodiscard]] inline std::optional<std::uint16_t> label_key(const Table& table, int action, bool either) {
+    const auto key = key_of(table, action, 1);
+    if (key == kNone && !(either && key_of(table, action, 0) != kNone)) return std::nullopt;
+    return key;
+}
+
 // The screen's rows (classic 0x724268, 0x33; expansion 0x724468, 0x3e):
 // {function or kSeparator, its name's string id}.
 struct Row { int action; std::uint16_t name; };

@@ -14,8 +14,7 @@
 // (scene.font): game.exe's picker sets no font, and just before it in its
 // draw order (FUN_00456ee0) the belt key labels set font16 (FUN_00499040,
 // SetFont(1) at 0x499053).
-// ponytail: a slot's name is its first key's, else its second's (which
-// game.exe shows is untraced). Town sets `hotkey_names` from the key config.
+// The name is keys::label_key's (slot 1's only, FUN_004a8df0). Town sets `hotkey_names` from the key config.
 // Charged items (SpellSel's skill grid, FUN_004aa7e0's top row): one entry
 // per item and skill (game::charged_skills), its charges left drawn on the
 // icon and the button (SPELLSEL_DrawSkillLevel: at x + 4, the icon's bottom

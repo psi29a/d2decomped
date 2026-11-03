@@ -78,6 +78,15 @@ int main(int argc, char** argv) {
     // Names: a letter is itself, the rest strings (None, Enter, F1, Mouse 3, Wheel Down).
     assert(name_id('K') == 0 && name_id(kNone) == 0xeb2 && name_id(0x0d) == 0xed1 && name_id(0x70) == 0xef1);
     assert(name_id(kMouse3) == 0xeb6 && name_id(kWheelDown) == 0xeba);
+    // A label's key: slot 1's; slot 0 alone shows only on the belt ("None").
+    {
+        Table table = start;
+        assert(label_key(table, kInventory, false) == 'I');
+        clear(table, kInventory, 1);
+        assert(!label_key(table, kInventory, false) && label_key(table, kInventory, true) == kNone);
+        clear(table, kInventory, 0);
+        assert(!label_key(table, kInventory, true));
+    }
     // The screen's rows: 0x33 classic, 0x3e expansion.
     assert(rows(false).size() == 0x33 && rows(true).size() == 0x3e);
     return 0;
