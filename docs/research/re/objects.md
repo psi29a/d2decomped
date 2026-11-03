@@ -20,7 +20,7 @@ the 1.14d patch data (installer layer, see mpq-archives.md).
 `u32 table[5][150]` at `0x748ad8` (act-major, 600 bytes per act),
 read by `FUN_006658e0(act, id)`; `FUN_00665860(act)` counts an act's
 entries up to the first 0 (act 1: 113, act 2: 135, act 3: 116, act 4: 66,
-act 5: 150). Embedded as `apps/d2d/obj_preset.hpp`.
+act 5: 150). Embedded as `components/drlg/obj_preset.hpp`.
 
 objects.txt then gives `Token` (folder under `data\global\objects\`),
 layer flags `HD..S8`, and per mode (`Mode0..7` = NU OP ON S1..S5) its

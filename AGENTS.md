@@ -81,7 +81,8 @@ We promise:
    - Trace a claim: also Ghidra (`brew install ghidra`, or a download from
      ghidra-sre.org with `GHIDRA_INSTALL_DIR` set to its folder) and
      [uv](https://docs.astral.sh/uv/), then
-     `tools/ghidra/import.sh /path/to/game.exe` (a few minutes) and
+     `tools/ghidra/import.sh /path/to/game.exe` (a few minutes),
+     `tools/ghidra/decompile.sh` (a minute: d2d's names in the C) and
      `cd tools/emu && uv sync`.
    - Fix or port: also the build in README.md "Build and run".
 3. **Pick one task from the gap map.** Build it with `python3 tools/gaps.py`
@@ -217,5 +218,6 @@ The same bar for everyone, people and agents alike.
   matches, or start a new one there; don't grow a file past about 1,500
   lines. A new test is a new `test_*.cpp` with a `// test-links:` line
   (tests/README.md); `tests/CMakeLists.txt` finds it.
-- Before pushing: `python3 tools/presubmit.py --quick` (lint and review
-  checks), then the full run if you built.
+- Before pushing: `python3 tools/presubmit.py --quick` (lint, review
+  checks, and GCC + clang-tidy on the changed files once a build exists),
+  then the full run if you built.
