@@ -998,6 +998,9 @@ void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes
 // A monster's skill missile toward (dx, dy) cells (FUN_0059fa30, ai.cpp).
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
+// Baal's Vile Effigy (FUN_005fc860): baalclone +- 12 subtiles (two draws of his seed) about
+// (at_x, at_y), a third of his life, no regen (stat 0x4a 0); none without the row.
+std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players);
 // A monster's missile made at its target, (dx, dy) cells away (FUN_0056ede0 -> FUN_0059fa30
 // flag 1: the record's +0x14 / +0x18), heading a subtile on at (+1, +1).
 void missile_at_target(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,

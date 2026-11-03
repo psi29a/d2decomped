@@ -411,6 +411,20 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
     if (carried) missiles.back().skill = carried->id;
 }
 
+std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players) {
+    const auto made = game_data.monsters.by_id.find("baalclone");
+    if (made == game_data.monsters.by_id.end()) return std::nullopt;
+    const int clone_x = at_x + int(baal.seed.next() % 24) - 12, clone_y = at_y + int(baal.seed.next() % 24) - 12;
+    auto clone = make_monster(game_data, made->second, (float(clone_x) + 0.5f) / 5, (float(clone_y) + 0.5f) / 5, rng, baal.difficulty, true, players, level.id);
+    std::tie(clone.unit.x, clone.unit.y) = level.nearest_free(clone.unit.x, clone.unit.y);
+    clone.stats.hit_points = std::max(baal.stats.hit_points / 3, 1);
+    clone.hit_points = std::max(baal.hit_points / 3, 1);
+    clone.stats.regen = 0;
+    clone.aware = true;
+    clone.seed = d2d::rules::Rng{ rng.next() };
+    return clone;
+}
+
 void missile_at_target(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                        std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried) {
     const std::size_t before = missiles.size();
@@ -1552,21 +1566,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (effect.kind == d2d::rules::ThinkEffect::greet) monster.greeted = true;
         if (effect.kind == d2d::rules::ThinkEffect::mount && imp_found >= 0) pack[std::size_t(imp_found)].ai_state = monster.id;   // FUN_005e17e0
         // Baal's Vile Effigy (FUN_005fc860): none while one lives; baalclone
-        // at his spot +- 12 (two draws of his seed), a third of his life,
-        // made in NU; his AI control +0x18 counts it.
-        // ponytail: FUN_00553540's other spot, the clone's regen off (stat
-        // 0x4a) and its flags 0x4020000 aren't.
+        // +- 12 (two draws of his seed) about the unit he's at (FUN_00553540;
+        // his own spot without one), a third of his life, no regen (stat 0x4a
+        // 0), made in NU; his AI control +0x18 counts it.
+        // ponytail: its unit flags 0x4020000 aren't kept.
         if (effect.kind == d2d::rules::ThinkEffect::clone && born
             && std::ranges::none_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrabClone"; }))
-            if (const auto made = game_data.monsters.by_id.find("baalclone"); made != game_data.monsters.by_id.end()) {
-                const int clone_x = x + int(monster.seed.next() % 24) - 12, clone_y = y + int(monster.seed.next() % 24) - 12;
-                auto clone = make_monster(game_data, made->second, (float(clone_x) + 0.5f) / 5, (float(clone_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes), level.id);
-                std::tie(clone.unit.x, clone.unit.y) = level.nearest_free(clone.unit.x, clone.unit.y);
-                clone.stats.hit_points = std::max(monster.stats.hit_points / 3, 1);
-                clone.hit_points = std::max(monster.hit_points / 3, 1);
-                clone.aware = true;
-                clone.seed = d2d::rules::Rng{ rng.next() };
-                born->push_back(std::move(clone));
+            if (auto clone = vile_effigy(game_data, level, monster, target ? target_x : x, target ? target_y : y, rng, players_in(foes))) {
+                born->push_back(std::move(*clone));
                 ++monster.ai_state2;
             }   // a4q1's FUN_005b4390 (World::act4_update)
         if (effect.kind == d2d::rules::ThinkEffect::aura) { monster.aura = skill_id(game_data, type_info.skill[std::size_t(effect.id)]); monster.aura_lvl = std::max(input.aip[0], 1); }
