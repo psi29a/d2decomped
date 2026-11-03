@@ -16,7 +16,12 @@ Usage: tools/pr_guard.py [BASE [HEAD]]   (default origin/main HEAD; reads the di
         made up, or a label (write LAB_ for code inside a function)
   WARN  a FUN_ address in no function's body (Ghidra misses code reached
         through tables: say how you know)
+  FAIL  a file the branch touches with an #include block, Python imports, a
+        CMake source list or an address-keyed research table out of order
+        (AGENTS.md 7: add where it sorts, not at the end)
   WARN  docs/PLAN.md changed: the maintainer's, updated after a merge
+
+With --sorted, only the order check: what .githooks/pre-push runs.
 
 Labels come from PR_LABELS (a JSON list; CI passes the PR's labels).
 A passing run proves the evidence is possible, not that it's right: a
@@ -62,6 +67,82 @@ def added_lines(base, head):
             number += 1
 
 
+SOURCE_LINE = re.compile(r"[\w/.${}-]+\.(?:cpp|hpp)")
+PY_IMPORT = re.compile(r"(?:from (\S+) import |import (?=(\S+)))")
+ORDER_MATTERS = re.compile(r"win(sock|dows)|shlobj|objbase", re.I)       # <winsock2.h> before <windows.h>
+
+
+def unsorted_runs(path, lines):
+    """(line, what) for each run that should sort and doesn't: a block of #include lines,
+    a block of Python imports (`import`s, then `from`s), a CMake list of source files.
+    New entries go where they sort, not at the end (AGENTS.md 7)."""
+    key = str.strip
+    if path.endswith((".cpp", ".hpp")):
+        member = lambda line: line.startswith("#include")
+    elif path.endswith(".py"):
+        member = lambda line: bool(PY_IMPORT.match(line))
+        key = lambda line: (line.startswith("from"), (PY_IMPORT.match(line).group(1) or PY_IMPORT.match(line).group(2)).lower())
+    elif path.endswith("CMakeLists.txt"):
+        member = lambda line: bool(SOURCE_LINE.fullmatch(line.strip()))
+    else:
+        return []
+    found, run = [], []
+    for number, line in enumerate([*lines, ""], 1):
+        if member(line):
+            run.append(line.strip())
+            continue
+        if len(run) > 1 and run != sorted(run, key=key) and not any(ORDER_MATTERS.search(entry) for entry in run):
+            first = next(i for i, (have, want) in enumerate(zip(run, sorted(run, key=key))) if have != want)
+            found.append((number - len(run) + first, run[first]))
+        run = []
+    return found
+
+
+ADDRESS_KEY = re.compile(r"\|\s*(address|addr|fn|function)\s*\|", re.I)
+IN_ORDER = re.compile(r"\b(order|route|chain|sequence|in turn)\b", re.I)
+TABLE_ADDRESS = re.compile(r"(?:FUN_|LAB_|0x)(?:00)?([4-7][0-9a-f]{5})\b")
+
+
+def unsorted_tables(lines):
+    """(line, address) for each research table keyed by address (its first column Address,
+    Addr, fn) whose rows don't run in address order, unless the heading or the two lines
+    above say it follows an order of its own ("in call order", "route")."""
+    found, heading = [], ""
+    for number, line in enumerate(lines):
+        if line.startswith("#"):
+            heading = line
+        if not (ADDRESS_KEY.match(line) and number + 1 < len(lines) and set(lines[number + 1].strip()) <= set("|-: ")):
+            continue
+        if IN_ORDER.search(" ".join([heading, *lines[max(0, number - 2):number]])):
+            continue
+        keys, row = [], number + 2
+        while row < len(lines) and lines[row].startswith("|"):
+            hit = TABLE_ADDRESS.search(lines[row].strip("|").split("|")[0])
+            if hit:
+                keys.append((int(hit.group(1), 16), row + 1))
+            row += 1
+        for (low, _), (high, at) in zip(keys, keys[1:]):
+            if high < low:
+                found.append((at, f"{high:08x}"))
+                break
+    return found
+
+
+def unsorted(base, head):
+    """The order checks on each file the branch adds or changes, as the head has it."""
+    found = []
+    for path in git("diff", "--name-only", "--no-renames", "--diff-filter=d", f"{base}...{head}").splitlines():
+        if not (path.endswith((".cpp", ".hpp", ".py", "CMakeLists.txt")) or
+                (path.startswith("docs/research/") and path.endswith(".md"))):
+            continue
+        lines = git("show", f"{head}:{path}").splitlines()
+        found += [f"{path}:{number}: {entry} is out of order" for number, entry in unsorted_runs(path, lines)]
+        if path.endswith(".md"):
+            found += [f"{path}:{number}: {address} is out of address order (a table in another order says so above it)"
+                      for number, address in unsorted_tables(lines)]
+    return found
+
+
 def in_ranges(address, ranges):
     return any(low <= address < high for low, high in ranges)
 
@@ -89,6 +170,7 @@ def check(base, labels, entries, head="HEAD"):
             for what, pattern in RISKY_CODE:
                 if pattern.search(text):
                     risky.append(f"{where}: {what}: {text.strip()[:100]}")
+    fails += unsorted(base, head)
     if risky and REVIEW_LABEL not in labels:
         fails += [f"needs the `{REVIEW_LABEL}` label (a maintainer reads these first): {r}" for r in risky]
     return fails, warns, risky
@@ -120,8 +202,15 @@ def function_entries():
 
 
 if __name__ == "__main__":
-    base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
-    head = sys.argv[2] if len(sys.argv) > 2 else "HEAD"
+    args = [arg for arg in sys.argv[1:] if arg != "--sorted"]
+    base = args[0] if args else "origin/main"
+    head = args[1] if len(args) > 1 else "HEAD"
+    if "--sorted" in sys.argv:
+        found = unsorted(base, head)
+        for line in found:
+            print("FAIL ", line)
+        print(f"pr_guard --sorted: {len(found)} FAIL against {base}")
+        sys.exit(1 if found else 0)
     labels = json.loads(os.environ.get("PR_LABELS") or "[]")
     fails, warns, risky = check(base, labels, function_entries(), head)
     for line in warns:

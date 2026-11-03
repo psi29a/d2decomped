@@ -24,6 +24,7 @@ Data tests run when D2_MPQ_DIR (and D2_PATCH_INSTALLER) are set, as in CI.
 import argparse
 import concurrent.futures
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -303,65 +304,11 @@ def check_short_names(texts):
     report("FAIL" if hits else "ok", "short-names", "\n      ".join(hits[:15]) if hits else "no 1-2 letter names added")
 
 
-SOURCE_LINE = re.compile(r"[\w/.${}-]+\.(?:cpp|hpp)")
-PY_IMPORT = re.compile(r"(?:from (\S+) import |import (?=(\S+)))")
-ORDER_MATTERS = re.compile(r"win(sock|dows)|shlobj|objbase", re.I)       # <winsock2.h> before <windows.h>
-
-
-def unsorted_runs(path, lines):
-    """(line, what) for each run that should sort and doesn't: a block of #include lines,
-    a block of Python imports (`import`s, then `from`s), a CMake list of source files.
-    New entries go where they sort, not at the end (AGENTS.md 7)."""
-    key = str.strip
-    if path.endswith((".cpp", ".hpp")):
-        member = lambda line: line.startswith("#include")
-    elif path.endswith(".py"):
-        member = lambda line: bool(PY_IMPORT.match(line))
-        key = lambda line: (line.startswith("from"), (PY_IMPORT.match(line).group(1) or PY_IMPORT.match(line).group(2)).lower())
-    elif path.endswith("CMakeLists.txt"):
-        member = lambda line: bool(SOURCE_LINE.fullmatch(line.strip()))
-    else:
-        return []
-    found, run = [], []
-    for number, line in enumerate([*lines, ""], 1):
-        if member(line):
-            run.append(line.strip())
-            continue
-        if len(run) > 1 and run != sorted(run, key=key) and not any(ORDER_MATTERS.search(entry) for entry in run):
-            first = next(i for i, (have, want) in enumerate(zip(run, sorted(run, key=key))) if have != want)
-            found.append((number - len(run) + first, run[first]))
-        run = []
-    return found
-
-
-ADDRESS_KEY = re.compile(r"\|\s*(address|addr|fn|function)\s*\|", re.I)
-IN_ORDER = re.compile(r"\b(order|route|chain|sequence|in turn)\b", re.I)
-TABLE_ADDRESS = re.compile(r"(?:FUN_|LAB_|0x)(?:00)?([4-7][0-9a-f]{5})\b")
-
-
-def unsorted_tables(lines):
-    """(line, address) for each research table keyed by address (its first column Address,
-    Addr, fn) whose rows don't run in address order, unless the heading or the two lines
-    above say it follows an order of its own ("in call order", "route")."""
-    found, heading = [], ""
-    for number, line in enumerate(lines):
-        if line.startswith("#"):
-            heading = line
-        if not (ADDRESS_KEY.match(line) and number + 1 < len(lines) and set(lines[number + 1].strip()) <= set("|-: ")):
-            continue
-        if IN_ORDER.search(" ".join([heading, *lines[max(0, number - 2):number]])):
-            continue
-        keys, row = [], number + 2
-        while row < len(lines) and lines[row].startswith("|"):
-            hit = TABLE_ADDRESS.search(lines[row].strip("|").split("|")[0])
-            if hit:
-                keys.append((int(hit.group(1), 16), row + 1))
-            row += 1
-        for (low, _), (high, at) in zip(keys, keys[1:]):
-            if high < low:
-                found.append((at, f"{high:08x}"))
-                break
-    return found
+# The sort checks live in pr_guard (CI's gate on every pull request); presubmit runs them early.
+_GUARD = importlib.util.spec_from_file_location("pr_guard", Path(__file__).with_name("pr_guard.py"))
+pr_guard = importlib.util.module_from_spec(_GUARD)
+_GUARD.loader.exec_module(pr_guard)
+unsorted_runs, unsorted_tables = pr_guard.unsorted_runs, pr_guard.unsorted_tables
 
 
 def check_sorted(tree, changed):

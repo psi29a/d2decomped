@@ -1,0 +1,10 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Before a push: the order check CI's guard runs on every pull request
+# (tools/pr_guard.py --sorted), on each commit being pushed. Turn it on once:
+#   git config core.hooksPath .githooks
+# git push --no-verify skips it.
+base=$(git rev-parse -q --verify upstream/main || git rev-parse -q --verify origin/main) || exit 0
+while read -r _ local_sha _ _; do
+    case "$local_sha" in *[!0]*) python3 tools/pr_guard.py --sorted "$base" "$local_sha" || exit 1 ;; esac
+done
