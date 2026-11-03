@@ -356,6 +356,12 @@ def select_units(tree, build, sources):
         [str(tree / path) for path in sources if path.endswith(".cpp")]
 
 
+def unlisted_sources(tree, build, sources):
+    """The changed .cpp files `build`'s compile_commands.json has no entry for."""
+    listed = {os.path.realpath(entry["file"]) for entry in json.loads((build / "compile_commands.json").read_text())}
+    return [path for path in sources if path.endswith(".cpp") and os.path.realpath(tree / path) not in listed]
+
+
 def check_gcc(build, units):
     """GCC's -Wshadow / -Wconversion on each unit, -fsyntax-only: what CI's Linux build fails on
     and Apple clang lets by (most of the fix-up commits after #150)."""
@@ -417,6 +423,11 @@ def check_cpp(tree, changed, numbers, build, quick, docker):
         # an earlier build's compile commands are enough for GCC and tidy on the changed files
         known = next((folder for folder in (build, tree / "build") if (folder / "compile_commands.json").is_file()), None)
         if sources and known:
+            if stale := unlisted_sources(tree, known, sources):
+                # tidy-pr-select keeps only the build's TUs: a .cpp the build hasn't
+                # configured yet (a new test) would pass unchecked
+                report("FAIL", "compile commands", f"{known.name}/compile_commands.json lacks {', '.join(stale[:8])}: "
+                       f"run `cmake --build {os.path.relpath(known, tree)}` (or a full tools/presubmit.py) first")
             units = select_units(tree, known, sources)
             check_gcc(known, units)
             check_tidy(tree, known, units, numbers, set(changed))
