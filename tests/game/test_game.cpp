@@ -686,6 +686,102 @@ int main(int argc, char** argv) try {
         world.cues.due.clear();
         std::printf("OK: an arrow's get-hit, then block_arrow on a block; a graze's class blocked; weapon_kick, an Assassin's late\n");
     }
+    {   // A monster's hit carries its 256ths into the player's life; Bone Armor takes its pool off the fine physical and the
+        // rest keeps them (FUN_005c6370); a life under one whole point is dead (FUN_0057c6c0, 0057c865).
+        auto& hero = *world.actor;
+        const auto life = hero.character.stats.values[d2d::d2s::kLife];
+        const auto pool = std::tuple{ hero.absorb_pool, hero.absorb_frac, hero.absorb_skill };
+        const auto states = hero.self_states;
+        const std::uint32_t when_ms = 40 * kTickMs;
+        const std::int64_t start = std::int64_t(50) << 8;
+        auto hit = [&](int whole, int frac) {
+            auto side = std::array{ world.fight.player_foe(when_ms), world.fight.merc_foe(when_ms) };
+            side[0].hits = 1;
+            side[0].damage = side[0].physical = whole;
+            side[0].frac = frac;
+            side[0].blows.push_back({ whole, 0, false, whole, 0, false, frac });
+            world.fight.hurt_side(side, when_ms);
+        };
+        hero.character.stats.values[d2d::d2s::kLife] = start;
+        hit(3, 100);                                                                  // 3.39 hp, no state
+        assert(hero.character.stats.values[d2d::d2s::kLife] == start - (3 * 256 + 100));
+        hero.character.stats.values[d2d::d2s::kLife] = start;
+        hero.absorb_skill = 68;                                                       // Bone Armor
+        hero.self_states.push_back({ 68, 1, ~0u });
+        hero.absorb_pool = 2; hero.absorb_frac = 0;
+        hit(5, 100);                                                                  // 5.39 hp less a 2 hp pool: 3.39 hp, the fraction kept
+        assert(hero.character.stats.values[d2d::d2s::kLife] == start - (3 * 256 + 100) && hero.absorb_pool == 0 && hero.absorb_frac == 0);
+        hero.self_states.push_back({ 68, 1, ~0u });
+        hero.character.stats.values[d2d::d2s::kLife] = start;
+        hero.absorb_pool = 10; hero.absorb_frac = 0;
+        hit(5, 100);                                                                  // a pool past the hit takes the fraction too
+        assert(hero.character.stats.values[d2d::d2s::kLife] == start && hero.absorb_pool == 4 && hero.absorb_frac == 256 - 100);
+        {   // game.exe absorbs first and reduces after: a 10.x hit with 2 flat and 50 %, a 3 hp pool (FUN_005c6370 then FUN_0057bf80)
+            const int raw = 10 * 256 + 90;
+            const int reduced = d2d::rules::reduce_fine(raw, 50, 2);
+            auto side = std::array{ world.fight.player_foe(when_ms), world.fight.merc_foe(when_ms) };
+            side[0].hits = 1;
+            side[0].damage = side[0].physical = reduced >> 8;
+            side[0].frac = reduced & 255;
+            side[0].blows.push_back({ reduced >> 8, 0, false, reduced >> 8, 0, false, reduced & 255, raw, 50, 2 });
+            hero.self_states.push_back({ 68, 1, ~0u });
+            hero.absorb_pool = 3; hero.absorb_frac = 0;
+            hero.character.stats.values[d2d::d2s::kLife] = start;
+            world.fight.hurt_side(side, when_ms);
+            assert(hero.character.stats.values[d2d::d2s::kLife] == start - d2d::rules::reduce_fine(raw - 3 * 256, 50, 2) && hero.absorb_pool == 0);
+            hero.self_states = states;
+        }
+        {   // a hit the reduction takes to 0 still empties the pool: a 1.17 hp record, 2 flat, a 3 hp pool (the pool takes the unreduced field)
+            const int raw = 256 + 44;
+            assert(d2d::rules::reduce_fine(raw, 0, 2) == 0);
+            auto side = std::array{ world.fight.player_foe(when_ms), world.fight.merc_foe(when_ms) };
+            side[0].hits = 1;
+            side[0].blows.push_back({ 0, 0, false, 0, 0, false, 0, raw, 0, 2 });
+            hero.self_states.push_back({ 68, 1, ~0u });
+            hero.absorb_pool = 3; hero.absorb_frac = 0;
+            hero.character.stats.values[d2d::d2s::kLife] = start;
+            world.fight.hurt_side(side, when_ms);
+            assert(hero.character.stats.values[d2d::d2s::kLife] == start && hero.absorb_pool * 256 + hero.absorb_frac == 3 * 256 - raw);
+            hero.self_states = states;
+        }
+        hero.self_states = states;
+        hero.character.stats.values[d2d::d2s::kLife] = (std::int64_t(1) << 8) + 200;   // 1.78 hp
+        hit(0, 100);                                                                  // 0.39 hp: 1.39 left
+        assert(hero.character.stats.values[d2d::d2s::kLife] == 256 + 100 && !world.fight.dead());
+        hit(0, 150);                                                                  // 0.59 more leaves 0.80: under one whole point, dead
+        assert(hero.character.stats.values[d2d::d2s::kLife] == 0 && world.fight.dead());
+        hero.pmode = -1; hero.player.mode_ms = when_ms;
+        std::tie(hero.absorb_pool, hero.absorb_frac, hero.absorb_skill) = pool;
+        hero.self_states = states;
+        hero.character.stats.values[d2d::d2s::kLife] = life;
+        world.cues.due.clear();
+        std::printf("OK: a monster's hit keeps its 256ths through Bone Armor's pool; under one whole point of life is dead\n");
+    }
+    {   // A merc under one whole point of life is dead, as the player and a monster are (hurt, 0057c86c): 3 hp takes 1.39, then 0.47, then 0.16
+        auto& hero = *world.actor;
+        const auto saved = hero.merc;
+        const std::uint32_t when_ms = 44 * kTickMs;
+        Monster merc;
+        merc.hit_points = 3;
+        hero.merc = merc;
+        auto hit = [&](int whole, int frac) {
+            auto side = std::array{ world.fight.player_foe(when_ms), world.fight.merc_foe(when_ms) };
+            side[1].hits = 1;
+            side[1].damage = side[1].physical = whole;
+            side[1].frac = frac;
+            side[1].blows.push_back({ whole, 0, false, whole, 0, false, frac });
+            world.fight.hurt_side(side, when_ms);
+        };
+        hit(1, 100);                                                                  // 3 - 1.39 = 1.61 hp: alive
+        assert(hero.merc->hit_points == 2 && hero.merc->life_frac == 100 && hero.merc->mode != "DT");
+        hit(0, 120);                                                                  // 1.61 - 0.47 = 1.14 hp: alive
+        assert(hero.merc->hit_points == 2 && hero.merc->life_frac == 220 && hero.merc->mode != "DT");
+        hit(0, 40);                                                                   // 0.98 hp: under one whole point, dead
+        assert(hero.merc->hit_points <= 0 && hero.merc->mode == "DT");
+        hero.merc = saved;
+        world.cues.due.clear();
+        std::printf("OK: a merc under one whole point of life is dead\n");
+    }
     {   // A vendor's stock and Kashya's hire list last the game, not one opening.
         const auto& npcs = world.level->npcs;
         const auto index_of = [&](int hc_idx) { return int(std::ranges::find(npcs, hc_idx, &Npc::hc_idx) - npcs.begin()); };

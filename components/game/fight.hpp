@@ -308,7 +308,8 @@ struct Fight {
         // swing does (made with no length; its removal isn't traced), Berserk's
         // calc2 ticks (FUN_005d97f0, 10 when that's 0).
         std::vector<SelfState> self_states;
-        int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb
+        int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb, whole points
+        int absorb_frac = 0;                           // and the 256ths of a point the pool holds beyond them
         std::uint32_t blaze_frame = 0, storm_next = 0; // Blaze's last flame, Thunder Storm's next bolt
         int storm_last = -1;                            // the unit id Thunder Storm struck last (FUN_00644560)
         std::uint32_t blade_next = 0;                  // Blade Shield's next strike
@@ -1078,7 +1079,7 @@ struct Fight {
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;
-    void pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class = 0, bool marked = false);
+    void pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class = 0, bool marked = false, int fraction = 0);
     // The player crossed from `from` to `to` (shifted by dx, dy): the pets
     // with them come along, traps stay where they were set.
     void pets_cross(const Level* from, const Level* destination, float dx, float dy);

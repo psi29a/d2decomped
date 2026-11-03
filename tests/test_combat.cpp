@@ -10,11 +10,15 @@
 #include <rules.hpp>
 #include <sound_ids.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -63,6 +67,46 @@ int main(int argc, char** argv) {
             for (int fcr = 0; fcr <= 400; ++fcr) std::printf("rate %d %d %d\n", fcr, speed, cast_speed(speed, fcr));
         for (const auto& [frames, speed] : std::to_array<std::array<int, 2>>({ { 14, 256 }, { 20, 256 }, { 16, 256 }, { 17, 256 }, { 15, 208 } }))
             for (int fcr = 0; fcr <= 400; ++fcr) std::printf("ticks plain %d %d %d %d\n", frames, speed, fcr, cast_ticks(frames, speed, fcr));
+        return 0;
+    }
+    // `--monster-damage CASES`: a frame of up to three sure monster blows on a player with a Bone Armor pool, as
+    // Foe::take and Fight::absorb build them (rules::monster_blow, then rules::absorb_blows), for the cases of
+    // tools/emu/monster_damage.py: `id kind class pool pct flat n seed_low seed_high {min max} x 3`. One line each,
+    // `id life pool seed_low seed_high`: what the life loses and the pool left (256ths), the attacker's seed after.
+    // game.exe's: `python monster_damage.py game CASES`. A kind `exact` is a record made without the roll
+    // (Corpse Explosion, Diablo's cold: monster_blow's `exact`).
+    if (argc > 2 && std::string_view(argv[1]) == "--monster-damage") {
+        std::ifstream cases(argv[2]);
+        if (!cases) return 2;
+        std::string line;
+        while (std::getline(cases, line)) {
+            std::istringstream fields(line);
+            std::string kind, name;
+            long case_id = 0, pool = 0, pct = 0, flat = 0, blows = 0;
+            unsigned seed_low = 0, seed_high = 0;
+            std::array<long, 6> range{};
+            fields >> case_id >> kind >> name >> pool >> pct >> flat >> blows >> seed_low >> seed_high;
+            for (auto& edge : range) fields >> edge;
+            Rng seed;
+            seed.low = seed_low;
+            seed.high = seed_high;
+            Fighter defender;
+            defender.dr_pct = int(pct);
+            defender.dr_flat = int(flat);
+            std::vector<StruckBlow> landed;
+            for (long index = 0; index < blows; ++index) {
+                MonStats stats;
+                stats.a1_min = int(range[std::size_t(2 * index)]);
+                stats.a1_max = int(range[std::size_t(2 * index + 1)]);
+                const auto taken = monster_blow(defender, 1, Motion::standing, stats, false, seed, false, true, kind == "exact");
+                landed.push_back({ taken.damage, 0, false, taken.physical, 0, false, taken.frac, taken.raw, defender.dr_pct, defender.dr_flat });
+            }
+            int left = int(pool);
+            if (left > 0) (void)absorb_blows(landed, left, false);
+            long life = 0;
+            for (const auto& blow : landed) life += long(blow.damage) * 256 + blow.frac;
+            std::printf("%ld %ld %d %u %u\n", case_id, life, left, unsigned(seed.low), unsigned(seed.high));
+        }
         return 0;
     }
     // `--get-hit`: FUN_0057cb00's decision for the damage records on stdin (`id kind maxlife damage hc
@@ -116,18 +160,18 @@ int main(int argc, char** argv) {
         // FUN_0057c1e0: Bone Armor FUN_005c6370 the physical, Cyclone Armor FUN_005c87a0 fire / cold / lightning).
         // A sword's 32 then a fire blow's 32 on 64 life: Cyclone Armor takes the fire, the sword's blow stays sure.
         std::vector<StruckBlow> blows{ { 32, 2, false, 32, 0 }, { 32, 0, true, 0, 32 } };
-        int pool = 100;
+        int pool = 100 * 256;
         Rng seed{ 9u };
-        assert(absorb_blows(blows, pool, true) == 32 && pool == 68 && blows[0].damage == 32 && blows[1].damage == 0 && !blows[1].marked);
+        assert(absorb_blows(blows, pool, true) == 32 * 256 && pool == 68 * 256 && blows[0].damage == 32 && blows[1].damage == 0 && !blows[1].marked);
         assert(struck_big(blows, 64 << 8, seed));
         // Bone Armor, the mirror: a fire blow first keeps its 32; the pool empties inside the sword's blow.
         blows = { { 32, 0, true, 0, 32 }, { 32, 2, false, 32, 0 } };
-        pool = 20;
-        assert(absorb_blows(blows, pool, false) == 20 && pool == 0 && blows[0].damage == 32 && blows[1].damage == 12 && blows[1].physical == 12);
+        pool = 20 * 256;
+        assert(absorb_blows(blows, pool, false) == 20 * 256 && pool == 0 && blows[0].damage == 32 && blows[1].damage == 12 && blows[1].physical == 12);
         // A fire blow with poison keeps its mark when the fire goes (FUN_0057ce30 reads the poison field too).
         blows = { { 10, 2, true, 4, 6, true } };
-        pool = 6;
-        assert(absorb_blows(blows, pool, true) == 6 && blows[0].damage == 4 && blows[0].marked);
+        pool = 6 * 256;
+        assert(absorb_blows(blows, pool, true) == 6 * 256 && blows[0].damage == 4 && blows[0].marked);
         // Two class-2 blows of 6 on 64 life: each under max / 8, no get-hit (their sum of 12 would roll).
         blows = { { 6, 2, false, 6, 0 }, { 6, 2, false, 6, 0 } };
         for (int sample = 0; sample < 64; ++sample) assert(!struck_big(blows, 64 << 8, seed));
@@ -530,7 +574,7 @@ int main(int argc, char** argv) {
         built = make_fighter(types_tables, nullptr, nullptr, gear, weapon_gear, owner, {}, 0, {});
         assert(!built.blunt && built.undead_pct == 25);                                   // barehanded: stat 122 still counts
     }
-    // Monster blows: block, damage reduced % then flat, elemental less resistance.
+    // Monster blows: block, damage reduced flat then % (FUN_0057bf80), elemental less resistance.
     MonStats mon;
     mon.level = 99; mon.to_hit = 1000000; mon.a1_min = mon.a1_max = 100;
     mon.elements[0] = { 0, 100, 40, 40, 0, "A1" };                           // fire, always
@@ -538,8 +582,118 @@ int main(int argc, char** argv) {
     defender.dr_pct = 20; defender.dr_flat = 5; defender.res[0] = 75; defender.mdr = 2;
     auto taken = monster_blow(defender, 1, Motion::standing, mon, false, rng);
     for (int i = 0; i < 20 && !taken.hit; ++i) taken = monster_blow(defender, 1, Motion::standing, mon, false, rng);
-    assert(taken.hit && taken.damage == 75 + 8);                               // 100 x 80% - 5, 40 x 25% - 2
-    assert(taken.physical == 75 && taken.elemental == 8);                      // Bone Armor's part, Cyclone Armor's
+    assert(taken.hit && taken.damage == 76 + 8);                               // (100.x - 5) x 80%, 40 x 25% - 2
+    assert(taken.physical == 76 && taken.elemental == 8);                      // Bone Armor's part, Cyclone Armor's
+    {                                                                  // the physical roll (FUN_0057b420): min << 8 + rand((max - min) << 8), the top never rolled
+        MonStats fallen;
+        fallen.a1_min = 1; fallen.a1_max = 2;
+        const Fighter bare;
+        long long total = 0;
+        int lowest = 1 << 20, highest = 0;
+        for (std::uint32_t seed = 1; seed <= 2000; ++seed) {
+            Rng seeded{ seed }, rolled{ seed };
+            seeded.next();
+            const auto sure = monster_blow(bare, 1, Motion::standing, fallen, false, rolled, false, true);
+            const int fine = sure.damage * 256 + sure.frac;
+            assert(fine == 256 + int(seeded.low & 255) && sure.physical == sure.damage && sure.frac >= 0 && sure.frac < 256);
+            assert(rolled.low == seeded.low && rolled.high == seeded.high);        // one draw on the attacker's seed
+            total += fine; lowest = std::min(lowest, fine); highest = std::max(highest, fine);
+        }
+        assert(lowest >= 256 && highest <= 511);                                   // never the max, 2.0 hp
+        assert(std::abs(double(total) / 2000 / 256 - 1.5) < 0.05);
+        MonStats flat;                                                             // an empty or inverted range is min .. min + 1 and still draws; min 0 is 1
+        for (const auto& bounds : { std::pair{ 3, 3 }, std::pair{ 5, 4 }, std::pair{ 0, 0 } }) {
+            flat.a1_min = bounds.first; flat.a1_max = bounds.second;
+            Rng flat_seed{ 77 }, flat_rolled{ 77 };
+            flat_seed.next();
+            const auto sure = monster_blow(bare, 1, Motion::standing, flat, false, flat_rolled, false, true);
+            assert(sure.damage * 256 + sure.frac == std::max(bounds.first, 1) * 256 + int(flat_seed.low & 255) && flat_rolled.low == flat_seed.low);
+        }
+        Fighter armoured;                                                          // the reduction takes the 256ths: 1 hp flat off 1.x
+        armoured.dr_flat = 1;
+        Rng flat_dr_seed{ 9 }, flat_dr_rolled{ 9 };
+        flat_dr_seed.next();
+        const auto reduced = monster_blow(armoured, 1, Motion::standing, fallen, false, flat_dr_rolled, false, true);
+        assert(reduced.damage == 0 && reduced.frac == int(flat_dr_seed.low & 255));
+        armoured.dr_flat = 0; armoured.dr_pct = 50;
+        Rng pct_seed{ 9 }, pct_rolled{ 9 };
+        pct_seed.next();
+        const auto halved = monster_blow(armoured, 1, Motion::standing, fallen, false, pct_rolled, false, true);
+        assert(halved.damage * 256 + halved.frac == (256 + int(pct_seed.low & 255)) * 50 / 100);
+        MonStats ten;                                                              // flat first, then the percent: 10.x hp, 3 flat, 20 %
+        ten.a1_min = 10; ten.a1_max = 11;
+        armoured.dr_flat = 3; armoured.dr_pct = 20;
+        Rng order_seed{ 5 }, order_rolled{ 5 };
+        order_seed.next();
+        const auto ordered = monster_blow(armoured, 1, Motion::standing, ten, false, order_rolled, false, true);
+        assert(ordered.damage * 256 + ordered.frac == (2560 + int(order_seed.low & 255) - 3 * 256) * 80 / 100);
+        assert(reduce_fine(2560, 20, 3) == 1433 && reduce_fine(2560, 0, 0) == 2560 && reduce_fine(0, 20, 3) == 0);
+        assert(reduce_fine(200, 0, 1) == 0 && reduce_fine(200, 50, 1) == 0 && reduce_fine(300, 50, 1) == 22);       // the flat takes it all: nothing left for the percent
+        assert(reduce_fine(1000, -50, 0) == 1500 && reduce_fine(1000, 150, 0) == 0);   // a negative percent adds, 100 caps
+    }
+    {                                                                  // Bone Armor takes its pool from the fine physical: the rest keeps its 256ths
+        std::vector<StruckBlow> blows{ { 5, 2, false, 5, 0, false, 100 } };        // 5.39 hp
+        int pool = 2 * 256;
+        assert(absorb_blows(blows, pool, false) == 512 && pool == 0);
+        assert(blows[0].damage == 3 && blows[0].physical == 3 && blows[0].frac == 100);
+        blows = { { 5, 2, false, 5, 0, false, 100 } };
+        pool = 2 * 256 + 128;                                                      // a 2.5 hp pool: the remainder is 2.89
+        assert(absorb_blows(blows, pool, false) == 640 && pool == 0 && blows[0].damage == 2 && blows[0].frac == 228);
+        blows = { { 5, 2, false, 5, 0, false, 100 } };
+        pool = 10 * 256;                                                           // a pool past the field takes the fraction too
+        assert(absorb_blows(blows, pool, false) == 1380 && pool == 10 * 256 - 1380 && blows[0].damage == 0 && blows[0].frac == 0);
+        blows = { { 1, 2, false, 0, 1, false, 77 } };                              // Cyclone Armor leaves the physical fraction alone
+        pool = 3 * 256;
+        assert(absorb_blows(blows, pool, true) == 256 && pool == 2 * 256 && blows[0].damage == 0 && blows[0].frac == 77);
+    }
+    {                                                                  // absorb first, then the reduction (state event 0xb at 0x57c2fc, the loop at 0x57c378)
+        MonStats ten;
+        ten.a1_min = 10; ten.a1_max = 11;
+        Fighter armoured;
+        armoured.dr_flat = 2; armoured.dr_pct = 50;
+        Rng seed{ 5 };
+        const auto blow_hit = monster_blow(armoured, 1, Motion::standing, ten, false, seed, false, true);
+        assert(blow_hit.raw >= 2560 && blow_hit.raw < 2816 && blow_hit.damage * 256 + blow_hit.frac == reduce_fine(blow_hit.raw, 50, 2));
+        const auto blow_of = [&] { return StruckBlow{ blow_hit.damage, 0, false, blow_hit.physical, 0, false, blow_hit.frac, blow_hit.raw, 50, 2 }; };
+        std::vector<StruckBlow> blows{ blow_of() };
+        int pool = 3 * 256;                                            // 3 hp of pool off the 10.x, then 2 flat, then half
+        assert(absorb_blows(blows, pool, false) == 3 * 256 && pool == 0);
+        const int game_order = reduce_fine(blow_hit.raw - 3 * 256, 50, 2);
+        assert(blows[0].damage * 256 + blows[0].frac == game_order && blows[0].physical == blows[0].damage);
+        assert(game_order != reduce_fine(blow_hit.raw, 50, 2) - 3 * 256 && game_order > reduce_fine(blow_hit.raw, 50, 2) - 3 * 256);   // d2d's old order took 3 hp off the halved hit
+        blows = { blow_of() };
+        pool = 100 * 256;                                              // a pool past the field: nothing left, whatever the reduction
+        assert(absorb_blows(blows, pool, false) == blow_hit.raw && pool == 100 * 256 - blow_hit.raw && blows[0].damage == 0 && blows[0].frac == 0);
+        blows = { blow_of() };
+        pool = 2 * 256;                                                // a pool under the flat: the flat still takes its 2 hp off the rest
+        assert(absorb_blows(blows, pool, false) == 512 && blows[0].damage * 256 + blows[0].frac == reduce_fine(blow_hit.raw - 512, 50, 2));
+    }
+    {                                                                  // a fixed record (Corpse Explosion FUN_005c4d10, Diablo's cold FUN_005cce80): not FUN_0057b420's roll
+        const Fighter bare;
+        MonStats corpse;
+        for (const int x : { 0, 1, 7, 40 }) {
+            corpse.a1_min = corpse.a1_max = x;
+            Rng seed{ 31 }, drawn{ 31 };
+            const auto exact = monster_blow(bare, 1, Motion::standing, corpse, false, drawn, false, true, true);
+            assert(exact.hit && exact.damage == x && exact.frac == 0 && exact.physical == x && exact.raw == x * 256);   // X..X is X, no 256ths
+            assert(drawn.low == seed.low && drawn.high == seed.high);                                                   // and no draw
+        }
+        corpse.a1_min = corpse.a1_max = 10;                            // the reduction and the absorbs still apply (57c6c0 calls 57c1e0)
+        Fighter armoured;
+        armoured.dr_flat = 2; armoured.dr_pct = 50;
+        Rng seed{ 31 };
+        const auto reduced = monster_blow(armoured, 1, Motion::standing, corpse, false, seed, false, true, true);
+        assert(reduced.damage == 4 && reduced.frac == 0);              // (10 - 2) x 50 %
+        MonStats rolled = corpse;                                      // the same row through the roll is not exact: it draws and clamps
+        Rng again{ 31 }, base{ 31 };
+        base.next();
+        (void)monster_blow(bare, 1, Motion::standing, rolled, false, again, false, true);
+        assert(again.low == base.low);
+        MonStats cold;                                                 // Diablo's cold touch: 0..0 physical, the element on top
+        Rng cold_seed{ 17 }, cold_drawn{ 17 };
+        const auto touch = monster_blow(bare, 1, Motion::standing, cold, false, cold_drawn, false, true, true);
+        assert(touch.hit && touch.damage == 0 && touch.physical == 0 && touch.frac == 0 && cold_drawn.low == cold_seed.low);
+    }
     {                                                                  // a sure hit (DiabRun, DiabCold, a monster's Charge): no FUN_0057ec10
         Fighter guard = defender;
         guard.block = 100; guard.dodge = 100; guard.defense = 1000000;
@@ -547,7 +701,7 @@ int main(int argc, char** argv) {
         feeble.to_hit = 1;
         for (int i = 0; i < 20; ++i) {
             assert(!monster_blow(guard, 99, Motion::standing, feeble, false, rng).hit);
-            assert(monster_blow(guard, 99, Motion::standing, feeble, false, rng, false, true).damage == 75 + 8);
+            assert(monster_blow(guard, 99, Motion::standing, feeble, false, rng, false, true).damage == 76 + 8);
         }
         // A ToHit 0 missile (FUN_005adf10): no to-hit roll, but block and avoid still come (FUN_005ad730).
         MonStats shot = feeble;

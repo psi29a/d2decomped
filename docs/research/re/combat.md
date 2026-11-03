@@ -198,6 +198,22 @@ d2d matches both, and the one-poison-at-a-time rule.
   dex × DexBonus / 100 + mastery damage (`madm`), at least −90. Then
   `min' = min + min × (stat 18 + p) / 100`, `max' = max + max × (stat 17 + p)
   / 100`, a roll between them, times SrcDam / 128.
+- A monster's blow (`FUN_0057b420` on its mode damage, stats 21 / 22): the
+  roll is `(min << 8) + rand((max - min) << 8)` on the attacker's seed, one
+  draw, the top not rolled; min is taken at least 1 and max at least min + 1
+  (`0..0` rolls 1..2 and draws once, `5..4` rolls 5..6). `FUN_0057c1e0` then
+  raises the absorb event on the unreduced physical, reduces the record
+  (the flat, stat 34, first, then the percent, stat 36) and the life stat
+  takes the total +0x4c in 256ths when it is above 0 (`0057c852`). V:
+  `tools/emu/monster_damage.py` runs both on the 8 Act 1 classes (sets `roll`,
+  `reduce`, `absorb`, `both`, `negpct`) and d2d's `rules::monster_blow`,
+  `reduce_fine` and `absorb_blows` match it in life, pool and seed after. A
+  record built without the roll (Corpse Explosion `FUN_005c4d10`, Diablo's
+  cold touch `FUN_005cce80`) enters `FUN_0057c1e0` as `min << 8` and draws
+  nothing (V: set `exact`; U: which callers build one, read at 005c4dc1 and
+  005ccf3f). Not covered (U): Energy Shield, Cyclone Armor's fractions, the
+  flat's +0x54 / 1024 scale, `FUN_0057c060`'s percent, elements, a missile's
+  `FUN_005a89a0` roll.
 - Deadly strike (stat 141), critical strike (stat 337) and mastery crit
   (`macr`) are **separate** rolls against rand(100); any one doubles the
   physical damage.

@@ -116,7 +116,7 @@ auto Fight::start_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t n
         if (skill.srvdofunc == ServerDoFunction::kStormAroundCaster)
             (skill.aurastate == "armageddon" ? actor->armageddon_next : actor->hurricane_next) = now_ms + std::uint32_t(skill.par[3]) * 40;
         for (std::size_t k = 0; k < skill.aurastat.size(); ++k)
-            if (skill.aurastat[k] == d2d::d2s::kBoneArmor) actor->absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, actor->absorb_skill = skill.id;
+            if (skill.aurastat[k] == d2d::d2s::kBoneArmor) actor->absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, actor->absorb_frac = std::max(calc(skill, skill.aura_calc[k], lvl), 0) & 255, actor->absorb_skill = skill.id;
         if (skill.srvdofunc == ServerDoFunction::kCloakOfShadows)
             for (auto& monster : monsters)
                 if (monster.targetable() && std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(calc(skill, skill.aurarange, lvl)))
@@ -131,33 +131,56 @@ auto Fight::state_of(std::string_view name) const -> const SelfState* {
 
 auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
         using namespace d2d::d2s;
-        int damage = foe.damage;
-        if (damage <= 0) return 0;
+        // The hit in 256ths, as game.exe's damage records hold it: the absorbs below take from it and what they
+        // leave keeps its fraction (foe.frac is set to it).
+        std::int64_t fine = (std::int64_t(foe.damage) << 8) + foe.frac;
+        // A hit the flat and percent reduction took to 0 still goes through the absorbs: game.exe takes the pool from the
+        // unreduced physical (0x57c2fc) before it reduces, so only a frame with no blow at all has nothing to absorb.
+        if (fine <= 0 && foe.blows.empty()) return 0;
+        const auto blows_fine = [&] {
+            std::int64_t sum = 0;
+            for (const auto& blow : foe.blows) sum += (std::int64_t(blow.damage) << 8) + blow.frac;
+            return sum;
+        };
+        const std::int64_t before = blows_fine();
+        // FUN_0057c1e0 raises the absorb event (0xb) on each record BEFORE it reduces it (the loop at 0x57c378): the
+        // states take from the unreduced physical (StruckBlow::raw) and the flat and percent reduction are put back on
+        // what is left (settle_blow).
         // Bone Armor (event 22, FUN_005c6370) takes from the physical part
         // (the hit's +8), Cyclone Armor (25, FUN_005c87a0) from fire,
         // lightning and cold (+0x10, +0x1c, +0x24), each blow's own, in
-        // landing order (rules::absorb_blows).
-        if (actor->absorb_pool > 0 && std::ranges::contains(actor->self_states, actor->absorb_skill, &SelfState::skill)) {
+        // landing order (rules::absorb_blows). The pool is in 256ths.
+        if ((actor->absorb_pool > 0 || actor->absorb_frac > 0) && std::ranges::contains(actor->self_states, actor->absorb_skill, &SelfState::skill)) {
             const auto* pool_skill = game_data->skills.get(actor->absorb_skill);
-            damage -= d2d::rules::absorb_blows(foe.blows, actor->absorb_pool, pool_skill && pool_skill->aurastate == "cyclonearmor");
-            if (actor->absorb_pool <= 0) std::erase_if(actor->self_states, [&](const SelfState& state) { return state.skill == actor->absorb_skill; });
+            int pool = actor->absorb_pool * 256 + actor->absorb_frac;
+            (void)d2d::rules::absorb_blows(foe.blows, pool, pool_skill && pool_skill->aurastate == "cyclonearmor");
+            actor->absorb_pool = pool >> 8; actor->absorb_frac = pool & 255;
+            if (pool <= 0) std::erase_if(actor->self_states, [&](const SelfState& state) { return state.skill == actor->absorb_skill; });
         }
-        if (const auto* energy_shield = state_of("energyshield"); energy_shield && damage > 0) {
+        fine += blows_fine() - before;
+        // Energy Shield (FUN_005ca6c0) takes calc1 % of the hit while the mana lasts; the mana is in 256ths.
+        // ponytail: the shield runs after the armors on the REDUCED total, in landing order. game.exe takes it per record field on
+        // the unreduced value and runs the absorb state registered LAST first (FUN_005c0ad0 puts the event node at the head of the
+        // unit's list). A per-record-field form matched game.exe for the physical field with the shield alone; this form does not
+        // (it runs on the reduced total), and with an armor up the order and fire / lightning / cold were never matched. It cuts
+        // whole points only, so the blows read after it are off by under a point, and calc1 is clamped to 0..95 where FUN_005ca6c0
+        // has no cap (no effect at levels 1..30). Not changed further here.
+        if (const auto* energy_shield = state_of("energyshield"); energy_shield && fine > 0) {
             const auto* skill = game_data->skills.get(energy_shield->skill);
-            const int part = damage * std::clamp(calc(*skill, skill->calc[0], energy_shield->level), 0, 95) / 100;
+            const std::int64_t part = fine * std::clamp(calc(*skill, skill->calc[0], energy_shield->level), 0, 95) / 100;
             const int per16 = std::max(calc(*skill, skill->calc[1], energy_shield->level), 1);
-            const int can = int(std::min<std::int64_t>(part, (actor->character.stats.values[kMana] >> 8) * 16 / per16));
-            actor->character.stats.values[kMana] -= (std::int64_t(can) * per16 / 16) << 8;
-            damage -= can;
-            // ponytail: Energy Shield's share is taken off the blows in landing order, not record by record.
-            for (int left = can; auto& blow : foe.blows) { const int cut = std::min(left, blow.damage); blow.damage -= cut; left -= cut; }
+            const std::int64_t can = std::min<std::int64_t>(part, actor->character.stats.values[kMana] * 16 / per16);
+            actor->character.stats.values[kMana] -= can * per16 / 16;
+            fine -= can;
+            for (std::int64_t left = can >> 8; auto& blow : foe.blows) { const int cut = int(std::min<std::int64_t>(left, blow.damage)); blow.damage -= cut; left -= cut; }
             if (can > 0 && actor->character.character_class == 1) {
                 static constexpr std::array<std::string_view, 5> kEnergyShieldHits = { "sorceress_energyshield_hit_1", "sorceress_energyshield_hit_2",
                     "sorceress_energyshield_hit_3", "sorceress_energyshield_hit_4", "sorceress_energyshield_hit_5" };
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), kEnergyShieldHits[std::size_t(sound_rng(int(kEnergyShieldHits.size())))], now_ms, actor->player.x, actor->player.y);
             }
         }
-        return damage;
+        foe.frac = int(fine & 255);
+        return int(fine >> 8);
     }
 
 auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
