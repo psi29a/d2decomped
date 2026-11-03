@@ -5,6 +5,7 @@
 // redeemed at calc1 % (all of them at level 60's 100 %), not one a pulse;
 // the REAL Fight::aura_pulse. Needs the game data.
 
+#include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <fight.hpp>
@@ -14,11 +15,11 @@
 #include <world.hpp>
 
 #include <algorithm>
-
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <utility>
 
 using namespace d2d::game;
 

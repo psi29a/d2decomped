@@ -9,14 +9,15 @@
 
 #include <character.hpp>
 #include <character_store.hpp>
+#include <combat.hpp>
 #include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <rules.hpp>
+#include <skills.hpp>
 #include <world.hpp>
 
-#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
