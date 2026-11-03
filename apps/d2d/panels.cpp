@@ -453,8 +453,9 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     // game.exe sets no font for it: its frame's current one is font16, which
     // its belt key labels set earlier in its draw order (FUN_00456ee0 ->
     // FUN_00499040, SetFont(1) at 0x499053). d2d's own draw order differs.
-    // ponytail: an open FUN_004a2a80 panel's hover path (FUN_004a5060) may
-    // set another between; not traced.
+    // An open FUN_004a2a80 panel's layout (FUN_004a5060) sets font 13 but
+    // puts back the one SetFont returned (0x4a5075 saves it, 0x4a511e
+    // restores it), so it leaves font16 in place.
     auto globe_text = [&](int centre, const std::string& text) {
         const int text_y = height - 0x5f - int(scene.font.sheet().frame(0, 0).height) + 1;
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centre - scene.font.measure(text) / 2, text_y, text);
