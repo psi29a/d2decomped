@@ -896,10 +896,16 @@ inline int scale(int value, int times, int over) {
 // (FUN_00483360), 10 less on an ethereal item; a wearer with no strength
 // or no dexterity meets neither. `required_level`: the item's full
 // requirement (FUN_0062b5b0; stat 92 can take it below the base's), or -1
-// for the base's levelreq.
-inline bool meets_stats(const ItemInfo& info, const d2d::d2s::Item& item, int str, int dex, int lvl, int required_level = -1) {
+// for the base's levelreq. Stat 91 is the item's full stat (FUN_00625500),
+// what its sockets hold included (a Hel rune): pass `tables` for those.
+inline bool meets_stats(const ItemInfo& info, const d2d::d2s::Item& item, int str, int dex, int lvl, int required_level = -1,
+                        const Tables* tables = nullptr) {
     int percent = 0;
-    for (const auto& prop : item.props) if (prop.stat == d2d::d2s::kRequirementPercent) percent += prop.value;
+    const auto add = [&](const std::vector<d2d::d2s::ItemProp>& props) {
+        for (const auto& prop : props) if (prop.stat == d2d::d2s::kRequirementPercent) percent += prop.value;
+    };
+    add(item.props);
+    if (tables) for (const auto& filled : item.socketed_items) add(socket_props(*tables, item, filled));
     const int ethereal = item.ethereal ? 10 : 0;
     const int req_str = info.req_str + (percent ? scale(info.req_str, percent, 100) : 0) - ethereal;
     const int req_dex = info.req_dex + (percent ? scale(info.req_dex, percent, 100) : 0) - ethereal;
@@ -912,7 +918,7 @@ inline bool meets_requirements(const Tables& tables, const d2d::d2s::Item& item,
     if (!info) return false;
     if (const auto class_code = type_class(tables, info->type); !class_code.empty() && (wearer.cls < 0 || wearer.cls > 6 || class_code != kClassCode[std::size_t(wearer.cls)]))
         return false;
-    return meets_stats(*info, item, wearer.str, wearer.dex, wearer.lvl, required_level);
+    return meets_stats(*info, item, wearer.str, wearer.dex, wearer.lvl, required_level, &tables);
 }
 
 // Can `it` be worn in body slot `slot` by `w` at all (slot, class, stat and

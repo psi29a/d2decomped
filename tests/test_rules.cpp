@@ -297,6 +297,13 @@ int main() {
         assert(meets_stats(info, gear, 80, 40, 1) && !meets_stats(info, gear, 79, 40, 1) && !meets_stats(info, gear, 80, 39, 1));
         gear.ethereal = true;
         assert(meets_stats(info, gear, 70, 30, 1) && !meets_stats(info, gear, 69, 30, 1) && !meets_stats(ItemInfo{}, gear, 0, 30, 1));
+        // A socketed jewel's -15 % counts too (FUN_00625500: the full stat list).
+        Item socketed = item("xxx");
+        Item jewel = item("jew"); jewel.props = { { .stat = 91, .value = -15 } };
+        socketed.socketed_items = { jewel };
+        const Tables no_gems;
+        assert(!meets_stats(info, socketed, 85, 43, 1) && meets_stats(info, socketed, 85, 43, 1, -1, &no_gems)
+               && !meets_stats(info, socketed, 84, 43, 1, -1, &no_gems));
     }
     // Equipping: slot, class and requirement checks, swaps.
     std::vector<Item> empty;
