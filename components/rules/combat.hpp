@@ -766,8 +766,10 @@ inline std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::sp
 // quotient a float (x87 FSTP) and the product truncated (_ftol). Each share
 // then takes its member's level penalty (kill_exp). One member (or none):
 // the kill's, unshared.
-// ponytail: the quotient is a double rounded to float, not x87 extended
-// precision rounded to float (a tie could round differently).
+// The quotient (0x57e754: FILD, FIDIV, FSTP float) comes out the same
+// through a double: an int over a level sum under 2^28 is never within
+// 2^-53 of a float's halfway point without being on it, so rounding to 53
+// bits first (or 64, or the 24 of a single-precision FPU) can't move it.
 inline std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels) {
     if (levels.size() < 2) return std::vector<std::int64_t>(levels.size(), exp);
     const auto grown = std::int32_t(std::uint32_t(levels.size() - 1) * std::uint32_t(exp) * 0x59u);
