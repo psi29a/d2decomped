@@ -726,9 +726,9 @@ struct Fight {
     void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
     // physical damage, on every monster within aurarangecalc subtiles of
-    // the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0).
-    // ponytail: fire mastery (stat 329) isn't summed into the fighter; the
-    // target is taken to be in the blast.
+    // the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0); the
+    // mastery is the player's stat 329 (psum: items, passives).
+    // ponytail: the target is taken to be in the blast.
     void dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms);
 
     // A unique's mods in the fight (uniques.hpp, monsters.md "Boss mods in

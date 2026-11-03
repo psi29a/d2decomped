@@ -48,7 +48,8 @@ constexpr std::pair<float, float> kCompass[] = { { 0.f, -1.f }, { 1.f, 0.f }, { 
 auto Fight::dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
-        const int fire = phys * d2d::rules::eval_calc(game_data->skills, skill.calc[0], env, skill.id, lvl) / 100;
+        const int mastery = env.stat ? env.stat(d2d::d2s::kPassiveFireMastery) : 0;   // stat 0x149 (FUN_005d7180)
+        const int fire = phys * (d2d::rules::eval_calc(game_data->skills, skill.calc[0], env, skill.id, lvl) + mastery) / 100;
         const float radius = float(d2d::rules::eval_calc(game_data->skills, skill.aurarange, env, skill.id, lvl));
         const float center_x = monsters[target].unit.x, center_y = monsters[target].unit.y;
         for (std::size_t i = 0; i < monsters.size() && fire > 0; ++i) {
