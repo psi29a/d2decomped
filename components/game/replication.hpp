@@ -346,7 +346,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         }
     }
     out.u16(int(view.sounds.size()));
-    for (const auto& cue : view.sounds) out.u32(cue.when_ms).i32(cue.sound).f32(cue.x).f32(cue.y).i32(cue.owner);
+    for (const auto& cue : view.sounds) out.u32(cue.when_ms).i32(cue.sound).f32(cue.x).f32(cue.y).i32(cue.owner).put(cue.unit).u8(cue.hush);   // unit, hush: a class line the client drops while its speech plays
     return out.bytes;
 }
 
@@ -591,7 +591,9 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         const int snd = i32();
         const float x = f32(), y = f32();
         const int owner = i32();
-        view.sounds.push_back({ when_ms, snd, x, y, owner });
+        const auto unit = input.get<std::uint64_t>();
+        const bool hush = byte() != 0;
+        view.sounds.push_back({ when_ms, snd, x, y, owner, unit, hush });
     }
     return input.ok && input.offset == bytes.size() && view.level;
 }

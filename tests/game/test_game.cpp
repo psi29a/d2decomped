@@ -1232,10 +1232,12 @@ int main(int argc, char** argv) try {
         {   // the client's View carries its side: no hover name, no pad pick there either
             View shown = world.view();
             shown.monsters = { world.fight.monsters[std::size_t(index)] };
+            shown.sounds = { { .when_ms = 9, .sound = 3, .unit = 0x100000007ull, .hush = true } };   // a class line keeps its unit and hush
             ViewEncoder encoder;
             View received;
             assert(apply_view(*data, encode_view(*data, shown, encoder), received));
             assert(received.monsters.size() == 1 && received.monsters[0].align == 2 && received.monsters[0].ally_not_interact(*data, world.level->id));
+            assert(received.sounds.size() == 1 && received.sounds[0].unit == 0x100000007ull && received.sounds[0].hush);
         }
         world.fight.monsters[std::size_t(index)].cry = {};    // the same monster, hostile: attacked
         world.fight.monsters[std::size_t(index)].align = 0;
