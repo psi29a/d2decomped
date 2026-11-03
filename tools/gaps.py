@@ -36,6 +36,15 @@ import argparse, bisect, collections, datetime, hashlib, json, os, re, subproces
 RE_DIR = "docs/research/re"
 LEVELS = ("untouched", "cited", "ported", "verified")
 ADDRESS = re.compile(r"(?i)\b(?:thunk_FUN_|FUN_|LAB_|0x)(?:00)?([4-7][0-9a-f]{5})\b|\b00([4-7][0-9a-f]{5})\b")
+# What a gap's text says it waits on, so the cheap ones show (a ponytail note's own words).
+NEEDS = {
+    "pathing": r"\bpath|sets off|\bwalks?\b",
+    "client state": r"\bclient\b|sound on|speech|\bdrawn?\b|overlay",
+    "seed": r"\bseed\b|d2d's rng|update's rng",
+    "dual-wield": r"dual|two weapons|both hands|either hand|primary",
+    "networking": r"network|\bhost\b|joined",
+}
+
 DOCS = {  # file: (kind, a gap?, stop at this heading)
     "todo.md": ("todo", True, None),
     "unverified.md": ("unverified", True, "## Traced"),
@@ -242,6 +251,8 @@ def build(with_issues):
             gap["id"] += f"-{seen[gap['id']]}"
         for a in gap["functions"]:
             info[int(a, 16)]["gaps"].append(gap["id"])
+        gap["size"] = sum(info[int(a, 16)]["size"] for a in gap["functions"])   # bytes of game.exe to read
+        gap["needs"] = [need for need, pattern in NEEDS.items() if re.search(pattern, gap["title"], re.I)]
     # Only a stub row's own Address: its other cells name callers and kin.
     dead = {h for g in gaps if g["kind"] == "stub"
             for h in map(funcs.holding, addresses(g["row"].get("Address", ""))) if h}
@@ -376,6 +387,13 @@ def write(out, summary, records, frontier):
     for b in summary["blocking"][:20]:
         md.append(f"| `{b['address']}` | {b['gaps']} | {b['status']} |")
     kinds = collections.Counter((g["kind"], g["gap"]) for g in summary["gaps"])
+    cheap = sorted((g for g in summary["gaps"] if g["kind"] == "ponytail" and g["functions"] and not g["needs"]),
+                   key=lambda g: g["size"])
+    md += ["\n## Cheapest notes\n", f"`ponytail:` notes naming a function, whose words name nothing they wait on "
+           f"({', '.join(NEEDS)}), smallest code first. {len(cheap)} of them; the top 20:\n",
+           "| Note | Functions | Bytes |", "|---|---|---|"]
+    for g in cheap[:20]:
+        md.append(f"| `{g['source']}` | {' '.join(f'`{a}`' for a in g['functions'][:3])} | {g['size']} |")
     md += ["\n## Listed gaps\n", "| Kind | Rows | A gap? |", "|---|---|---|"]
     for (kind, is_gap), n in sorted(kinds.items(), key=lambda k: (not k[0][1], k[0][0])):
         md.append(f"| {kind} | {n} | {'yes' if is_gap else 'context'} |")

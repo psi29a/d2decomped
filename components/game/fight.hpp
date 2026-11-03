@@ -120,7 +120,8 @@ inline bool throw_ready(const GameData& game_data, const Character& character) {
 // FUN_004a8d30 on FUN_004d9fc0), and a cast stops with the class's
 // impossible_1 (FUN_004610c0, reason 0x13 at 0x711ddc).
 // ponytail: only Throw's weapon gate; FUN_00647960's other statuses (1
-// mana, 4, 5, 6, the other weapon gates) aren't kept.
+// mana, 4, 5, 6, the other weapon gates) aren't kept. Its weapon gate
+// (FUN_00647640) takes a dual-wielder's primary hand (FUN_006235a0).
 inline bool skill_refused(const GameData& game_data, const Character& character, int id) {
     const auto* skill = game_data.skills.get(id);
     return skill && skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow && !throw_ready(game_data, character);

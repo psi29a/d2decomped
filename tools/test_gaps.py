@@ -50,6 +50,13 @@ class GapsTests(unittest.TestCase):
                          "remaining: 2 gaps, 1 cited")
 
 
+    def test_needs_from_a_notes_words(self):
+        def needs(text): return [n for n, p in gaps.NEEDS.items() if gaps.re.search(p, text, gaps.re.I)]
+        self.assertEqual(needs("a walk home always sets off"), ["pathing"])
+        self.assertEqual(needs("It reads the client's talk state"), ["client state"])
+        self.assertEqual(needs("a dual-wielder's primary hand"), ["dual-wield"])
+        self.assertEqual(needs("FUN_00526100's table"), [])
+
     def test_shade_runs_red_to_green(self):
         self.assertEqual(gaps.shade(0), "hsl(0, 70%, 42%)")      # red
         self.assertEqual(gaps.shade(50), "hsl(60, 70%, 42%)")    # yellow
