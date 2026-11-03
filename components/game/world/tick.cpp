@@ -46,15 +46,17 @@
 namespace d2d::game {
 
 // The client's ticks from an object's OP to its ON (FUN_004bcbb0): the
-// counter runs from Start1 at FrameDelta1 a tick (FUN_00624390) until it
-// reaches FrameCnt1 - 1; -1: never (FrameCnt1 1, or a counter that doesn't move).
+// counter runs from Start1 at its OP rate (FUN_00624390: object_frame_delta,
+// as the client draws it) until it reaches FrameCnt1 - 1; -1: never
+// (FrameCnt1 1, or a counter that doesn't move).
 static int op_ticks(const Npc& npc) {
     if (!npc.op_frames) return 0;
     if (npc.frames[1] == 1) return -1;
     const int need = (int(npc.frames[1]) - 1 - int(npc.loop_from[1])) * 256;
     if (need <= 0) return 0;
-    if (!npc.frame_delta[1]) return -1;
-    return (need + npc.frame_delta[1] - 1) / npc.frame_delta[1];
+    const int rate = object_frame_delta(npc, 1);
+    if (!rate) return -1;
+    return (need + rate - 1) / rate;
 }
 
 auto World::greet_sound(const Npc& npc, int kind) -> int {

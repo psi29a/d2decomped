@@ -1190,7 +1190,8 @@ int main(int argc, char** argv) try {
     // OP from its use, then ON once its counter reaches FrameCnt1 - 1 (Start1 0 at FrameDelta1 a tick).
     assert(world.npc_states[std::size_t(shrine_index)].mode == "OP" && world.npc_states[std::size_t(shrine_index)].mode_ms == 900 * kTickMs);
     assert(shrine->loop_from[1] == 0 && shrine->frame_delta[1] > 0);
-    const std::uint32_t on_ms = (900 + std::uint32_t(((shrine->frames[1] - 1) * 256 + shrine->frame_delta[1] - 1) / shrine->frame_delta[1])) * kTickMs;
+    const int op_rate = object_frame_delta(*shrine, 1);   // as the client draws OP
+    const std::uint32_t on_ms = (900 + std::uint32_t(((shrine->frames[1] - 1) * 256 + op_rate - 1) / op_rate)) * kTickMs;
     world.tick({}, on_ms - kTickMs, 901 * kTickMs);
     assert(world.npc_states[std::size_t(shrine_index)].mode == "OP");
     world.tick({}, on_ms, on_ms - kTickMs);

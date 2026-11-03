@@ -1026,12 +1026,17 @@ int mode_index(std::string_view mode);
 // An object's frame rate in a mode (FUN_00624390, 0x624558): FrameDelta as
 // written with Sync, else less its 1/16 plus a roll under its 1/8 on the
 // unit's seed, kept within 0..0x7fff.
-// ponytail: one roll on a copy of the object's server seed, the same each time
-// the mode comes; game.exe rolls at each mode set on the client unit's seed
-// ({its room's client seed step, 666}, FUN_00465fd0), whose room seed isn't kept.
+// ponytail: one roll on a seed from the object's spot, the same each time the
+// mode comes (what's drawn and op_ticks agree); game.exe rolls at each mode
+// set on the client unit's seed ({its room's client seed step, 666},
+// FUN_00465fd0), whose room seed isn't kept.
 inline int object_frame_delta(int delta, bool sync, d2d::rules::Rng seed) {
     if (sync) return delta;
     return std::clamp(seed(delta >> 3) + delta - (delta >> 4), 0, 0x7fff);
+}
+inline int object_frame_delta(const Npc& npc, std::size_t mode) {
+    const auto spot = std::uint32_t(npc.x * 5) << 16 | std::uint32_t(npc.y * 5);   // subtiles: never moves
+    return object_frame_delta(npc.frame_delta[mode], npc.sync, d2d::rules::Rng{ spot });
 }
 // The game's object seed: {the game seed's second step, 666}
 // (FUN_00546c60, objrgn.cpp; the first step made the monster regions).
