@@ -368,7 +368,7 @@ def check_gcc(build, units):
            f"{len(units)} TUs, {Path(gcc).name} {CI_FLAGS}")
 
 
-def check_tidy(tree, build, units, numbers):
+def check_tidy(tree, build, units, numbers, changed):
     clang_tidy = find_tool("clang-tidy")
     if not clang_tidy:
         report("WARN", "clang-tidy", "not installed (brew install llvm)")
@@ -382,7 +382,8 @@ def check_tidy(tree, build, units, numbers):
     for output in outputs:
         for hit in re.finditer(r"^(\S+?):(\d+):\d+: (?:warning|error): (.*)$", output, re.M):
             path = os.path.relpath(hit.group(1), tree)
-            if int(hit.group(2)) in numbers.get(path, set()):
+            # an include the branch dropped shows on old lines: any include-cleaner hit in a changed file
+            if int(hit.group(2)) in numbers.get(path, set()) or (path in changed and "misc-include-cleaner" in hit.group(3)):
                 mine.append(f"{path}:{hit.group(2)}: {hit.group(3)}")
             else:
                 elsewhere += 1
@@ -400,7 +401,7 @@ def check_cpp(tree, changed, numbers, build, quick, docker):
         if sources and known:
             units = select_units(tree, known, sources)
             check_gcc(known, units)
-            check_tidy(tree, known, units, numbers)
+            check_tidy(tree, known, units, numbers, set(changed))
         elif sources:
             report("WARN", "gcc", "no compile_commands.json yet: one full tools/presubmit.py run makes it")
         return False
@@ -453,7 +454,7 @@ def check_cpp(tree, changed, numbers, build, quick, docker):
         return True
     units = select_units(tree, build, sources)
     check_gcc(build, units)
-    check_tidy(tree, build, units, numbers)
+    check_tidy(tree, build, units, numbers, set(changed))
     return True
 
 
