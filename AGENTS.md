@@ -86,6 +86,8 @@ We promise:
      `tools/ghidra/decompile.sh` (a minute: d2d's names in the C) and
      `cd tools/emu && uv sync`.
    - Fix or port: also the build in README.md "Build and run".
+   - Trace or fix: once per clone, `git config core.hooksPath .githooks`,
+     so git checks the order rules (section 7) before each push.
 3. **Pick one task from the gap map.** Build it with `python3 tools/gaps.py`
    (a second) or read https://psi29a.github.io/d2decomped/ (`gaps.json`,
    `functions.tsv`). Suggest two or three; they choose.
