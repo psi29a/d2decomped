@@ -846,8 +846,9 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 actor->player.goal_x = target_x; actor->player.goal_y = target_y;
                 actor->reassigned = true;                                           // FUN_00554ea0's 0x10000: the client's 0x15
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {             // the kick, then its charges released, hit or not (FUN_005d5220)
-                    const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), rng,
-                                                              skill_swing(skill, lvl, env, true));
+                    auto flight_swing = skill_swing(skill, lvl, env, true);
+                    flight_swing.ar_pct += progressive_tohit();                     // FUN_005d7850: FUN_006449f0 + stat 0x145
+                    const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, flight_swing);
                     if (land(std::size_t(tgt), kick, true, now_ms, striker_of(caster))) player_thorns(std::size_t(tgt), kick);   // a melee blow like any kick
                     release(std::size_t(tgt), now_ms);
                 }

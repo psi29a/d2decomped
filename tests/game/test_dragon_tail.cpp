@@ -14,7 +14,6 @@
 #include <rules.hpp>
 #include <world.hpp>
 
-#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>

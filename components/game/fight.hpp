@@ -583,10 +583,10 @@ struct Fight {
     // calc1 damage %, calc2 damage after, SrcDam, ResultFlags' knockback;
     // a Dragon Talon kick: toht, ln12 damage % (FUN_005d5880), the skill's
     // physical damage, the last kick knocking back (100% on normal
-    // monsters, FUN_005d5a30).
+    // monsters, FUN_005d5a30). A finisher's charges add their stat 325
+    // to-hit (add_charges), Dragon Flight's too (progressive_tohit).
     // ponytail: the skills' states (Stun's stun, Concentrate's defense) and
-    // calc4's element conversion aren't applied; stat 325's to-hit on kicks
-    // isn't added.
+    // calc4's element conversion aren't applied.
     [[nodiscard]] d2d::rules::Swing swing();
     // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the
     // merc's (Jab, Bash, Stun). `by_player`: Smite's Holy Shield damage and
@@ -703,6 +703,8 @@ struct Fight {
     // at the higher of the stored level and today's), and progressive_tohit's
     // par4 a charge as the swing's to-hit %.
     void add_charges(d2d::rules::Fighter& fighter, d2d::rules::Swing& swing) { add_charges(actor->charges, fighter, swing, true); }
+    // The player's charges' progressive_tohit (stat 0x145, their aurastat 325s): Dragon Flight's to-hit % on top of its own.
+    [[nodiscard]] int progressive_tohit();
     void add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fighter, d2d::rules::Swing& swing, bool player_levels);
     // A row with no Skill: its own element at level lvl with its synergy
     // (EDmgSymPerCalc on `env`), the weapon at its SrcDamage.

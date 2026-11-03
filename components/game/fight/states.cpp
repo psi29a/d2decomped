@@ -361,6 +361,15 @@ auto Fight::add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fi
         }
     }
 
+auto Fight::progressive_tohit() -> int {
+        const auto env = calc_env();
+        int total = 0;
+        for (const auto& charge : actor->charges)
+            if (const auto* skill = game_data->skills.get(charge.skill))
+                total += d2d::rules::charge_bonus(game_data->skills, *skill, env, std::max(charge.level, skill_level ? skill_level(charge.skill) : 0), charge.count).ar_pct;
+        return total;
+    }
+
 auto Fight::row_damage(const GameData::MissileInfo& missile_info, int lvl, const d2d::rules::CalcEnv& env, int skill_id) const -> d2d::rules::MissileDamage {
         auto damage = d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev, missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
         if (damage.etype >= 0 && lvl >= 1 && !missile_info.edmg_sym.empty()) {   // FUN_0064b100 / FUN_0064b1d0
