@@ -397,6 +397,20 @@ int main() try {
         world.fight.pending.clear();
         world.fight.monsters.pop_back();
         std::printf("OK: Lightning Enchanted's bolts wander as Charged Bolt's\n");
+
+        // Struck in GH: event 7 two frames on (FUN_005a37d0), not at once.
+        enchanted.mode = "GH";
+        enchanted.bolts_at = 0;
+        world.fight.monsters.push_back(enchanted);
+        world.fight.boss_events({}, 7000 * kTickMs);
+        assert(world.fight.pending.empty());
+        world.fight.boss_events({}, 7001 * kTickMs);
+        assert(world.fight.pending.empty());
+        world.fight.boss_events({}, 7002 * kTickMs);
+        assert(world.fight.pending.size() == 8);
+        world.fight.pending.clear();
+        world.fight.monsters.pop_back();
+        std::printf("OK: Lightning Enchanted struck in GH lets off its bolts 2 frames on\n");
     }
 
     // UberIzual's Chilling Armor (do 18): skill_armor_percent on its defense

@@ -740,9 +740,8 @@ struct Fight {
     // wandering as Charged Bolt's) at
     // most every 10 frames; 4 frames after it dies (the event 7 its death
     // queues), Fire Enchanted's blast and Cold Enchanted's nova
-    // (FUN_005a2bd0: coldunique, level mlvl / 2).
-    // ponytail: a hit taken in GH waits 2 frames in game.exe, fires at once
-    // here.
+    // (FUN_005a2bd0: coldunique, level mlvl / 2). A hit taken in GH fires
+    // the bolts 2 frames on (event 7, FUN_005a37d0).
     void boss_events(std::span<Foe> foes, std::uint32_t now_ms);
     // A boss's missile from where it stands, at level mlvl / 2 (at least
     // 1), the row's own element (FUN_0064b100 ..).

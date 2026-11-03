@@ -98,7 +98,15 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 charged_bolts("buglightning", mlvl);
             }
             if (monster.alive()) {
-                if (has(d2d::rules::umod::lightning) && monster.hit_points < monster.last_hp && now_ms - monster.bolts_at >= 10 * 40) {
+                // Struck in GH, hook 1 (FUN_005a37d0) queues event 7 two frames on;
+                // otherwise hooks 2 / 4 (FUN_005a2ba0) fire at once.
+                bool fire = false;
+                if (has(d2d::rules::umod::lightning) && monster.hit_points < monster.last_hp) {
+                    if (monster.mode == "GH") monster.bolts_due = now_ms + 2 * 40;
+                    else fire = true;
+                }
+                if (monster.bolts_due && now_ms >= monster.bolts_due) { monster.bolts_due = 0; fire = true; }
+                if (fire && now_ms - monster.bolts_at >= 10 * 40) {
                     monster.bolts_at = now_ms;
                     d2d::log::info("{} lets off charged bolts", monster.npc.name);
                     charged_bolts("lightunique", 0);
