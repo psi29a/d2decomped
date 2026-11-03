@@ -259,7 +259,7 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
             actor->attack_mon = -1;
             return false;
         }
-        pay(*skill_row, cost);
+        pay(*skill_row, lvl);
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;
         actor->player.dir = direction16(target_x - actor->player.x, target_y - actor->player.y);

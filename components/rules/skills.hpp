@@ -514,11 +514,26 @@ inline int calc_dm(int base, int per_level, int lvl) {
     if (lvl < 1) return 0;
     return std::min((110 * lvl / (lvl + 6)) * (per_level - base) / 100 + base, per_level);
 }
-// Mana cost in 256ths (FUN_0056c160): (mana + lvlmana x (lvl - 1)) << manashift,
-// at least minmana points.
+// What a cast must have in mana, in 256ths (FUN_0056c160, the check):
+// (mana + lvlmana x (lvl - 1)) << manashift. No minmana floor here.
+inline int mana_formula(const Skill& skill, int lvl) {
+    if (lvl < 1) return 0;
+    return (skill.mana + skill.lvlmana * (lvl - 1)) << (skill.manashift & 31);
+}
+// The cost shown for a skill, and the most a payment takes: the formula, at
+// least minmana points (FUN_0056bfe0).
 inline int mana_cost(const Skill& skill, int lvl) {
     if (lvl < 1) return 0;
-    return std::max((skill.mana + skill.lvlmana * (lvl - 1)) << (skill.manashift & 31), skill.minmana * 256);
+    return std::max(mana_formula(skill, lvl), skill.minmana * 256);
+}
+// What the payment takes off `mana` (FUN_0056bfe0): nothing for a row with
+// no mana and no lvlmana, nothing when the mana is short of mana_cost (the
+// cast has happened by then), else mana_cost. Not modelled: a unit in state
+// 0x72 pays through FUN_005d2b60, and srvdofunc 116 passes the check at once.
+inline int mana_paid(const Skill& skill, int lvl, std::int64_t mana) {
+    if (skill.mana == 0 && skill.lvlmana == 0) return 0;
+    const int cost = mana_cost(skill, lvl);
+    return mana < cost ? 0 : cost;
 }
 
 // What calcs may ask of the unit using the skill.

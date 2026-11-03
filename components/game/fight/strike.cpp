@@ -310,7 +310,7 @@ auto Fight::start_swing(std::uint32_t now_ms) -> bool {
                 const int lvl = cast_level(actor->attack_skill);
                 const int cost = cost_of(*skill, lvl);
                 if (lvl > 0 && actor->character.stats.values[kMana] >= cost) {
-                    pay(*skill, cost);
+                    pay(*skill, lvl);
                     actor->swing_skill = actor->attack_skill;
                     if (skill->srvstfunc == ServerStartFunction::kDragonTalon || skill->srvstfunc == ServerStartFunction::kRepeatedHit || skill->srvstfunc == ServerStartFunction::kFend) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
                         const auto env = calc_env();
@@ -839,7 +839,20 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     actor->player.path.clear(); actor->player.walking = false;
                     break;
                 }
-                if (in_town(level) || level->unit_blocked(target_x, target_y) || level->teleport == 0 || (level->teleport == 2 && !clear_line(target_x, target_y))) break;
+                const bool teleporting = skill.srvdofunc == ServerDoFunction::kTeleport;
+                if (in_town(level) || (!teleporting && level->unit_blocked(target_x, target_y)) || level->teleport == 0 || (level->teleport == 2 && !clear_line(target_x, target_y))) break;
+                // Teleport (do 27, FUN_005ca360 -> FUN_00554ea0 -> FUN_00463740): only a point in the caster's room or its near list.
+                if (teleporting) {
+                    const int sub_x = level->world_x * 5 + int(std::floor(target_x * 5)), sub_y = level->world_y * 5 + int(std::floor(target_y * 5));
+                    const auto rects = missile_rooms(*game_data, *level, actor->player.x, actor->player.y);
+                    if (!std::ranges::any_of(rects, [&](const std::array<int, 4>& rect) {
+                            return sub_x >= rect[0] && sub_y >= rect[1] && sub_x < rect[0] + rect[2] && sub_y < rect[1] + rect[3]; })) break;
+                    // Then the nearest free spot to it (FUN_0064e7b0), the point itself when it is free.
+                    const int spot_x = int(std::floor(target_x * 5)), spot_y = int(std::floor(target_y * 5));
+                    const auto spot = level->warp_spot(spot_x, spot_y);
+                    if (!spot) break;
+                    if (*spot != std::pair{ spot_x, spot_y }) { target_x = (float(spot->first) + 0.5f) / 5; target_y = (float(spot->second) + 0.5f) / 5; }
+                }
                 actor->player.x = target_x; actor->player.y = target_y;
                 actor->player.path.clear(); actor->player.walking = false;
                 actor->player.goal_x = target_x; actor->player.goal_y = target_y;

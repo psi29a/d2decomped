@@ -58,7 +58,7 @@ auto Fight::cast_summon(int skill, float target_x, float target_y, std::uint32_t
         const int cost = cost_of(*skill_row, lvl);
         if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);
         if (lvl <= 0 || actor->character.stats.values[kMana] < cost) return false;
-        pay(*skill_row, cost);
+        pay(*skill_row, lvl);
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;
         actor->attack_mon = -1;
