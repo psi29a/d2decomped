@@ -17,13 +17,13 @@ HEADER = re.compile(r"// (\S+) @ ([0-9a-f]{8})\n")
 CALL = re.compile(r"\b(FUN_[0-9a-f]{8}|d2d_\w+)\s*\(")
 
 
-def address_of(arg):
-    return re.sub(r"(?i)^(fun_|0x)", "", arg).lower().rjust(8, "0")
-
-
 heads = list(HEADER.finditer(text))
 names = {m.group(1): m.group(2) for m in heads}
 bodies = {m.group(2): text[m.end():heads[i + 1].start() if i + 1 < len(heads) else None] for i, m in enumerate(heads)}
+
+
+def address_of(arg):
+    return names.get(arg) or re.sub(r"(?i)^(fun_|0x)", "", arg).lower().rjust(8, "0")
 
 
 def callees(address):
