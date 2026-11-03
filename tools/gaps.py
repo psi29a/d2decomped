@@ -9,6 +9,7 @@ Writes, from the repo alone (no game files, no Ghidra):
   functions.tsv  one row per game.exe function: status, module, callers ported, ...
   index.md       the summary page (published with GitHub Pages)
   symbols.tsv    d2d's names and citations, for tools/ghidra/decompile.sh to put in Ghidra
+                 (names: docs/research/re/names.tsv, else a C++ function citing one FUN_)
 
 A function's status comes from where its address is written (FUN_xxxxxxxx,
 LAB_xxxxxxxx, 0x4b35b0 or a bare 00xxxxxx, mapped to the function holding it):
@@ -30,7 +31,7 @@ Credits count commit authors plus Reported-by: / Traced-by: trailers.
 Done means nothing left: no listed gap, and every counted function ported or
 verified. The last line says DONE, or what remains; gaps.json has it too.
 """
-import argparse, bisect, collections, datetime, hashlib, json, os, re, subprocess
+import argparse, bisect, collections, datetime, hashlib, json, os, re, subprocess, sys
 
 RE_DIR = "docs/research/re"
 LEVELS = ("untouched", "cited", "ported", "verified")
@@ -180,6 +181,11 @@ def build(with_issues):
                 if len(entry["refs"]) < 5:
                     entry["refs"].append(f"{path}:{number}")
 
+    # Names traced by hand (names.tsv: a function no C++ function is named after).
+    traced = {int(a, 16): name for a, name, *_ in read_tsv("names.tsv")}
+    for a in traced.keys() - info.keys():
+        sys.exit(f"names.tsv: {a:08x} isn't a function's entry (game-functions.tsv)")
+
     # Calls, and the source file an assert names.
     callers, callees = collections.defaultdict(set), collections.defaultdict(set)
     for caller, callee, kind in read_tsv("game-calls.tsv"):
@@ -256,7 +262,7 @@ def build(with_issues):
             "frontier": status == "untouched" and not library and a not in dead and ported_callers > 0,
             "refs": entry["refs"], "gaps": entry["gaps"],
             # Two d2d functions citing one address: neither name is the whole of it.
-            "d2d_name": next(iter(entry["d2d"])) if len(entry["d2d"]) == 1 else "",
+            "d2d_name": f"d2d_{traced[a]}" if a in traced else next(iter(entry["d2d"])) if len(entry["d2d"]) == 1 else "",
         })
 
     counted = [r for r in records if not r["library"] and not r["dead"]]

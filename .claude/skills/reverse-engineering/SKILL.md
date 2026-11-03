@@ -13,6 +13,9 @@ it ports: `tools/ghidra/decompile.sh` (a minute, after `import.sh`), then
 verified: ... */` note above a function says where d2d ports or checks it;
 a callee named `d2d_<file>_<function>` is already ported. A d2d function
 gets its name there when the comment right above it cites one `FUN_`.
+A function you traced that no d2d function is named after (a getter, a
+SetFont, a table walker): add a row to `docs/research/re/names.tsv`
+(address order; the name, the evidence) and it's `d2d_<name>` next run.
 
 Project: `tools/ghidra/project` (make it with `tools/ghidra/import.sh`).
 Run one analyzeHeadless at a time (the project lock); chain several

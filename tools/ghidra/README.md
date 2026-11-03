@@ -20,7 +20,8 @@ Reading many functions? `tools/ghidra/decompile.sh` (a minute) decompiles
 all of game.exe into `tools/ghidra/project/game_all.c` with d2d's names
 on the functions it ports and a `/* d2d ported: file:line */` note on
 each one d2d cites; then `tools/ghidra/fn.py 00584870 FUN_0057af80` prints
-them. Rerun it after porting: the names come from the code.
+them. Rerun it after porting: the names come from the code, and from
+`docs/research/re/names.tsv` for functions traced but not ported.
 
 ## Why it exists
 
