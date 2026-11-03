@@ -730,8 +730,8 @@ struct Fight {
     // Dragon Tail's kick hit: fire, (calc1 + fire mastery) % of the kick's
     // physical damage, on every monster within aurarangecalc subtiles of
     // the target, less fire resistance (FUN_005d7180 -> FUN_0056bad0); the
-    // mastery is the player's stat 329 (psum: items, passives).
-    // ponytail: the target is taken to be in the blast.
+    // mastery is the player's stat 329 (psum: items, passives). The blast is
+    // centred on the unit kicked (FUN_00553540's, esi at 0x5d71f7), so it's in it.
     void dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms);
 
     // A unique's mods in the fight (uniques.hpp, monsters.md "Boss mods in
