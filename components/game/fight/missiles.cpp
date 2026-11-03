@@ -701,6 +701,10 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
                 : missile.info->skill.empty() ? row_damage(*missile.info, missile.level, env, missile.skill)
                                         : d2d::rules::missile_damage(game_data->skills, *skill, env, missile.level);
         damage = d2d::rules::influenced(damage, missile.influence);
+        if (missile.info->dmg_func == 5) {                  // FUN_005ad2f0: Blessed Hammer's bonus against the undead and the demons
+            damage.undead_pct = missile.info->dmg_par1;
+            damage.demon_pct = missile.info->dmg_par2;
+        }
         d2d::rules::Blow blow{ .hit = true };
         if (damage.srcdam > 0) {
             d2d::rules::Swing swing;

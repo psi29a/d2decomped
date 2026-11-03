@@ -2,8 +2,8 @@
 // test-links: game
 // `--hammer-hit CASES`: a Blessed Hammer hit on one monster, the cases of
 // tools/emu/hammer_hit.py (game.exe's FUN_00644d50 / FUN_00644e40 for the
-// skill, FUN_006461d0 for the caster's Concentration, FUN_005ad2f0 and
-// FUN_0057c6c0 for the hit), one line each, to diff: the missile's magic min
+// skill, FUN_006461d0 for the caster's Concentration, FUN_005ad2f0 (the
+// undead / demon bonus) and FUN_0057c6c0 for the hit), one line each, to diff: the missile's magic min
 // and max after the Concentration influence (256ths) and the monster's life
 // after rules::missile_blow and hurt() (256ths), the roll drawn on the case's
 // seed.
@@ -67,8 +67,15 @@ int main(int argc, char** argv) try {
         const auto* skill = data->skills.get(kBlessedHammer);
         assert(skill && skill->etype == 4);
         auto damage = d2d::rules::missile_damage(data->skills, *skill, env, lvl);
+        const auto& row = data->missiles.at("blessedhammer");
+        assert(row.dmg_func == 5);
+        damage.undead_pct = row.dmg_par1;
+        damage.demon_pct = row.dmg_par2;
         damage = d2d::rules::influenced(damage, percent == kNoAura ? 0 : d2d::rules::aura_influence(percent, skill->par[0]));
         d2d::rules::Target target;
+        const auto& type = data->monsters.types[data->mon_bin[std::size_t(monster_id)]];
+        target.undead = type.undead;
+        target.demon = type.demon;
         target.res[kMagicRes] = res;
         d2d::rules::Rng rng;
         rng.low = std::uint32_t(seed_low & 0xFFFFFFFFULL);

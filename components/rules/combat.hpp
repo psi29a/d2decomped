@@ -425,6 +425,7 @@ struct Target {
     int drain = 100;
     int crush_divisor = 4;
     bool undead = false;                            // MonStats lUndead or hUndead (FUN_0063e990)
+    bool demon = false;                             // MonStats demon (FUN_0063e940)
 };
 // What one player hit does: the instant damage (physical after resistance,
 // fire / lightning / cold / magic, crushing blow), leeched life and mana,
@@ -492,7 +493,11 @@ inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int 
 // element's mastery) in 256ths, the element (Skill::etype order: fire,
 // lightning, cold, poison, magic, stun) and its length in ticks, and the
 // weapon's share (SrcDam as written, 128ths; 0 for spells).
-struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 0, elen = 0, srcdam = 0; };
+// undead_pct / demon_pct: the missile's pSrvDmgFunc 5 (FUN_005ad2f0, Blessed
+// Hammer), dParam1 / dParam2: against an undead (a demon) it adds that % of
+// the rolled element (MulDiv, per class, both when a monster is both) to the
+// element's field before the resistance.
+struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 0, elen = 0, srcdam = 0, undead_pct = 0, demon_pct = 0; };
 
 // The caster's Concentration on Blessed Hammer (FUN_006461d0, called by the
 // do FUN_005d0040 at 0x5d011a): the damagepercent of the caster's state 0x2a
@@ -548,19 +553,26 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
     const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
     const int roll = shared && shared->element >= 0 ? shared->element : low > 0 ? low + rng(high - low) : 0;
     if (shared) shared->element = roll;
+    // FUN_005ad2f0: after the roll, MulDiv(roll, dParam, 100) more for each class the monster is in.
+    // Magic only (etype 4; the one row with pSrvDmgFunc 5 is the hammer): for poison the base is
+    // the roll x 25 (0x5a8e1a), which this does not model. game.exe rolls the hit twice from the
+    // missile's seed (the record, then FUN_005a8c70 inside this function); d2d draws from one
+    // shared fight stream, so the distribution is the same.
+    const int rolled = roll + (target.undead && damage.undead_pct > 0 ? mul_div(roll, damage.undead_pct, 100) : 0)
+                            + (target.demon && damage.demon_pct > 0 ? mul_div(roll, damage.demon_pct, 100) : 0);
     if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
     int res = target.res[std::size_t(kRes[damage.etype])];
     if (damage.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(damage.etype)], -100);
     if (damage.etype == 3) {
-        blow.poison += resisted(int(std::int64_t(roll) * std::max(damage.elen, 1) >> 8), res);
+        blow.poison += resisted(int(std::int64_t(rolled) * std::max(damage.elen, 1) >> 8), res);
         blow.poison_ticks = std::max(blow.poison_ticks, std::max(damage.elen, 1));
-        blow.elemental = blow.elemental || resisted_fine(roll, res) > 0;   // the record's poison field (per tick, 256ths) is tested as the others are
+        blow.elemental = blow.elemental || resisted_fine(rolled, res) > 0;   // the record's poison field (per tick, 256ths) is tested as the others are
         return blow;
     }
     // FUN_005a89a0 rolls the element in 256ths, the resistance applies to
     // that fine value (FUN_0057bf80) and the life stat (6) takes it as is
     // (0057c852): keep the part under one point in `frac`.
-    const int fine = resisted_fine(roll, res);
+    const int fine = resisted_fine(rolled, res);
     const int resisted_damage = fine >> 8;
     blow.damage += resisted_damage;
     blow.elemental = blow.elemental || (fine > 0 && damage.etype != 4);   // the record's element is in 256ths (over 0)
