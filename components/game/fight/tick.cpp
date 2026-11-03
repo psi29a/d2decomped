@@ -311,7 +311,10 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 // pet or a hireling takes too): its own armor pool, then its get-hit on its own class and mark.
                 bool dead = false;
                 for (const auto& blow : foes[i].blows)
-                    if (!dead) dead = hurt(*game_data, struck, soak(struck, blow.physical, blow.damage), now_ms, 0, blow.hit_class, blow.marked);
+                    if (!dead) {
+                        const int taken = soak(struck, blow.physical << 8, blow.damage << 8);
+                        dead = hurt(*game_data, struck, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.marked);
+                    }
                 // Its Crushing Blows after the hits, less its own damageresist
                 // (FUN_005bffc0), and a knockback as the player's (knock_back).
                 for (const int divisor : foes[i].crushed)

@@ -513,6 +513,18 @@ int main() try {
         }
         std::printf("OK: a whirling monster isn't frozen\n");
     }
+
+    // Bone Armor's pool works on the record's fine physical (FUN_005c6370): the 256ths stay.
+    {
+        Monster knight;
+        knight.armor_pool = 300;
+        knight.armored = true;
+        assert(soak(knight, 512, 700) == 400 && knight.armor_pool == 0 && !knight.armored);
+        knight.armor_pool = 1000;
+        knight.armored = true;
+        assert(soak(knight, 384, 640) == 256 && knight.armor_pool == 616 && knight.armored);
+        std::printf("OK: Bone Armor soaks in 256ths\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

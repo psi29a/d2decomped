@@ -2569,7 +2569,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // set as it's thought) and the absorb pool from its aurastat calc.
                     for (std::size_t k = 0; k < cast->aurastat.size(); ++k)
                         if (cast->aurastat[k] == d2d::d2s::kBoneArmor) {
-                            monster.armor_pool = d2d::rules::eval_calc(game_data.skills, cast->aura_calc[k], {}, monster.skill, lvl) >> 8;
+                            monster.armor_pool = d2d::rules::eval_calc(game_data.skills, cast->aura_calc[k], {}, monster.skill, lvl);
                             monster.armored = monster.armor_pool > 0;
                         }
                     // Another's (UberIzual's Chilling Armor): its state for auralen frames.

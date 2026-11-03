@@ -378,6 +378,7 @@ struct Blow {
     bool hit = false, blocked = false, crushing = false, deadly = false, bleed = false, knockback = false;
     int damage = 0, life = 0, mana = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
+    int phys_fine = 0;                   // the physical after resistance, in 256ths (the record's +8 field)
     int frac = 0;                        // 256ths of a point the physical (a blow's fine value after resistance) and a missile's element dealt beyond `damage`; may pass 255 (game.exe keeps life in 256ths)
     int stun_ticks = 0;
     int hit_class = 0;                   // what the struck unit's impact sound is (sound_ids::impact)
@@ -468,6 +469,7 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
         const int fine = resisted_fine(roll, std::max(target.res[0], -100));
         blow.damage += fine >> 8;
         blow.frac += fine & 255;
+        blow.phys_fine += fine;
     }
     if (damage.etype < 0 || damage.etype > 5 || damage.ehi <= 0) return blow;
     static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };             // element -> Target::res index
@@ -596,6 +598,7 @@ inline Blow player_blow(const Fighter& fighter, const Target& target, int clvl, 
     const int fine = resisted_fine(int(rolled_fine), target.res[0]);
     const int phys = fine >> 8;
     blow.frac = fine & 255;
+    blow.phys_fine = fine;
     // The stun: the skill's, else the gear's stat 66 x the share (FUN_0057b7d0: [0x11] when 0).
     const int stun = swing.stun_ticks > 0 ? swing.stun_ticks : fighter.stun_len * swing.srcdam / 128;
     if (swing.smite) {
