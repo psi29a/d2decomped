@@ -198,6 +198,15 @@ int main() {
     assert(inv.size() == 1 && shop.tabs[1].size() == 2);
     const auto stocked_keys = shop.tabs[3].size();
     assert(store_sell(tables, shop, 0, inv, stats) >= 0 && inv.empty() && shop.tabs[3].size() == stocked_keys);   // the key: perm
+    // Not restocked: one with a socket filled (FUN_0055f590), or sold while gambling (proxy +4).
+    for (const bool gambling : { false, true }) {
+        std::vector<Item> sold = { item("hax") };
+        if (!gambling) sold[0].socketed_items.push_back(item("gcv"));
+        shop.gamble = gambling;
+        const auto stocked = shop.tabs[1].size();
+        assert(store_sell(tables, shop, 0, sold, stats) >= 0 && sold.empty() && shop.tabs[1].size() == stocked);
+    }
+    shop.gamble = false;
     // A vendor buys none with flag 0x1000, no quest item, nothing of type ques (FUN_0062a130).
     assert(sellable(tables, item("hax")));
     Item serviced = item("hax");
