@@ -210,6 +210,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kPassiveFirePierce = 333, kPassiveLightningPierce = 334, kPassiveColdPierce = 335, kPassivePoisonPierce = 336,
               kPassiveCriticalStrike = 337, kPassiveDodge = 338, kPassiveAvoid = 339, kPassiveEvade = 340,
               kPassiveMasteryMeleeToHit = 342, kPassiveMasteryMeleeDamage = 343, kPassiveMasteryMeleeCritical = 344,
+              kPassiveMasteryThrowToHit = 345, kPassiveMasteryThrowDamage = 346, kPassiveMasteryThrowCritical = 347,
               kPassiveWeaponBlock = 348,
               kQuestItemDifficulty = 356, kPassiveMagicMastery = 357 };
 

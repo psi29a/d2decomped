@@ -505,7 +505,8 @@ struct Fight {
     // when the weapon is its type, the best one (FUN_00645830), Weapon Block
     // (348) with two claws when either hand is (FUN_0057dca0, class HT2);
     // the set bonuses (set_bonus_props, set_props); nothing from a broken item.
-    // ponytail: the throw masteries (345..347) wait for thrown weapons.
+    // Throwing a throwable with Throw, Left Hand Throw or Double Throw, the
+    // throw masteries (345..347) count in the melee ones' place (FUN_00645720).
     [[nodiscard]] d2d::rules::Fighter player_fighter(d2d::rules::Fighter* kick = nullptr,
                                                      const d2d::rules::StatSum* states = nullptr,
                                                      const std::vector<d2d::rules::PassiveStat>* passives = nullptr,

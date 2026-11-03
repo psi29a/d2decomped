@@ -74,12 +74,17 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                 if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)) hands.push_back(type_of(item));
             const auto is_type = [&](const std::string& type, const std::string& want) { return d2d::rules::type_is(game_data->rules, type, want); };
             const bool claws2 = hands.size() == 2 && is_type(hands[0], "h2h") && is_type(hands[1], "h2h");
-            std::array<std::int64_t, 4> best{};              // 342, 343, 344, 348
+            // Throwing (FUN_00645720): a throwable in hand and the skill in use ranged
+            // (range 2) with an itypea1 of thro (type 0x30): the throw masteries
+            // (345..347) stand in for the melee ones, the best whose type fits.
+            const auto* in_use = game_data->skills.get(actor->attack_skill);
+            const bool throwing = weapon && throwable(*game_data, weapon->code) && in_use && in_use->range == "rng" && !in_use->itypea1.empty() && is_type(in_use->itypea1, "thro");
+            const int first = throwing ? kPassiveMasteryThrowToHit : kPassiveMasteryMeleeToHit;
+            std::array<std::int64_t, 4> best{};              // 342 (345), 343 (346), 344 (347), 348
             for (const auto& passive : *passives) {
                 if (passive.stat < 0 || std::size_t(passive.stat) >= sum.size()) continue;
                 if (passive.itype.empty()) { sum[std::size_t(passive.stat)] += passive.value; continue; }
-                const std::size_t mastery = passive.stat >= kPassiveMasteryMeleeToHit && passive.stat <= kPassiveMasteryMeleeCritical
-                                            ? std::size_t(passive.stat - kPassiveMasteryMeleeToHit)
+                const std::size_t mastery = passive.stat >= first && passive.stat <= first + 2 ? std::size_t(passive.stat - first)
                                             : passive.stat == kPassiveWeaponBlock ? 3 : 4;
                 if (mastery == 4) continue;
                 const bool fits = mastery < 3 ? weapon && is_type(type_of(*weapon), passive.itype)
