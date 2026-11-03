@@ -183,7 +183,7 @@ auto World::monster_colour(const Monster& monster) const -> int {
         int colour = npc.trans_lvl < 8 ? npc.trans_lvl + 2 : 2;
         if ((monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique) && !npc.no_unique_shift)
             colour = int(std::uint32_t(monster.id) * 2654435761u % 30u) + 9;
-        if (const int unique_trans = npc.utrans[std::size_t(difficulty_index)]; unique_trans != 0) colour = unique_trans == 255 ? 1 : unique_trans;
+        if (const int unique_trans = npc.utrans[std::size_t(difficulty_index)]; unique_trans != 0) colour = unique_trans == 255 ? 0 : unique_trans;
         if (monster.boss == d2d::rules::Boss::superunique && monster.super >= 0 && std::size_t(monster.super) < game_data->superuniques.size())
             if (const int unique_trans = game_data->superuniques[std::size_t(monster.super)].utrans[std::size_t(difficulty_index)]; unique_trans != 0) colour = unique_trans;
         return colour >= 30 ? 2 : colour;

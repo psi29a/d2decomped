@@ -855,6 +855,10 @@ int main(int argc, char** argv) try {
         assert(world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 120) && thrower.pmode >= 0);
         thrower.pmode = -1;
         if (data->patched) assert(data->sound_index.at("amazon_impossible_1") == 0xb89);
+        // Utrans 255 (necroskeleton) on a monster that isn't a pet: 0 (FUN_004791b0, 0x46665c).
+        Monster skeleton;
+        skeleton.npc.utrans = { 255, 255, 255 };
+        assert(world.monster_colour(skeleton) == 0);
         thrower.attack_skill = 0;
         thrower.character.items = saved_items;
     }
