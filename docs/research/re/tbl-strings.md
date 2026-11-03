@@ -96,11 +96,11 @@ JPN/KOR use a different glyph pipeline entirely (multi-byte).
 |------------|--------------|------|
 | `0x525920` | `FUN_00525920` | Opens a TBL through `FUN_00517079`, checks its CRC and node offsets. |
 | `0x5259c0` | `FUN_005259c0` | Loads the selected language's tables, allocates offset and decoded-data arrays, and populates the globals below. |
+| `0x525fb0` | `FUN_00525fb0` | Sibling helper: formats an integer with comma separators. |
 | `0x526100` | `FUN_00526100` | Decodes one UTF-8 sequence to one 16-bit unit and returns its byte length. |
 | `0x526320` | `FUN_00526320` | Converts a complete NUL-terminated UTF-8 value. |
-| `0x527d50` | `FUN_00527d50` | Counts value characters for allocation, using the optional font multibyte table. |
 | `0x527790` | `FUN_00527790` | Loads `default.map` and its mapping/multibyte tables. |
-| `0x525fb0` | `FUN_00525fb0` | Sibling helper: formats an integer with comma separators. |
+| `0x527d50` | `FUN_00527d50` | Counts value characters for allocation, using the optional font multibyte table. |
 
 ## Loader globals (six per TBL, 3 TBLs)
 

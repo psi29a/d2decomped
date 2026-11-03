@@ -210,7 +210,11 @@ The same bar for everyone, people and agents alike.
   no order of its own (an include, a source list, a `debug` verb) goes in
   its sorted place, so two pull requests touch different lines. In a
   numbered table (`todo.md`, `bugs.md`, `deviations.md`) take the next
-  number; numbers are cited elsewhere, so never renumber the old rows.
+  number; numbers are cited elsewhere, so never renumber the old rows. A
+  research table keyed by address runs in address order; one that follows
+  a call chain or a walk says so above it ("in call order").
+  `tools/presubmit.py` fails an include block, a CMake source list or an
+  address table out of order in any file you touch.
 - **New code goes where its subsystem lives.** A subsystem split over
   several files has its own directory beside its header
   (`components/game/fight/`, `components/game/world/`, `apps/d2d/town/`,

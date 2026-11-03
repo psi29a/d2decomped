@@ -328,11 +328,44 @@ def unsorted_runs(path, lines):
     return found
 
 
+ADDRESS_KEY = re.compile(r"\|\s*(address|addr|fn|function)\s*\|", re.I)
+IN_ORDER = re.compile(r"\b(order|route|chain|sequence|in turn)\b", re.I)
+TABLE_ADDRESS = re.compile(r"(?:FUN_|LAB_|0x)(?:00)?([4-7][0-9a-f]{5})\b")
+
+
+def unsorted_tables(lines):
+    """(line, address) for each research table keyed by address (its first column Address,
+    Addr, fn) whose rows don't run in address order, unless the heading or the two lines
+    above say it follows an order of its own ("in call order", "route")."""
+    found, heading = [], ""
+    for number, line in enumerate(lines):
+        if line.startswith("#"):
+            heading = line
+        if not (ADDRESS_KEY.match(line) and number + 1 < len(lines) and set(lines[number + 1].strip()) <= set("|-: ")):
+            continue
+        if IN_ORDER.search(" ".join([heading, *lines[max(0, number - 2):number]])):
+            continue
+        keys, row = [], number + 2
+        while row < len(lines) and lines[row].startswith("|"):
+            hit = TABLE_ADDRESS.search(lines[row].strip("|").split("|")[0])
+            if hit:
+                keys.append((int(hit.group(1), 16), row + 1))
+            row += 1
+        for (low, _), (high, at) in zip(keys, keys[1:]):
+            if high < low:
+                found.append((at, f"{high:08x}"))
+                break
+    return found
+
+
 def check_sorted(tree, changed):
     """Whole files, not just added lines: a file the branch touches leaves sorted."""
     hits = [f"{path}:{number}: {entry} is out of order" for path in changed if (tree / path).is_file()
             for number, entry in unsorted_runs(path, (tree / path).read_text(encoding="utf-8", errors="replace").splitlines())]
-    report("FAIL" if hits else "ok", "sorted", "\n      ".join(hits[:15]) if hits else "includes and source lists in order")
+    hits += [f"{path}:{number}: {address} is out of address order (a table in another order says so above it)"
+             for path in changed if path.startswith("docs/research/") and path.endswith(".md") and (tree / path).is_file()
+             for number, address in unsorted_tables((tree / path).read_text(encoding="utf-8").splitlines())]
+    report("FAIL" if hits else "ok", "sorted", "\n      ".join(hits[:15]) if hits else "includes, source lists and address tables in order")
 
 
 def build_volume(tree):
