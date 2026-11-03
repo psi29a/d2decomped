@@ -3951,8 +3951,9 @@ inline Think other_think(std::string_view ai_name, const ThinkIn& input) {
     }
     // FrogDemon's (FUN_005f81d0): up (state3 past 1) with a Skill1, not on
     // a curse's think (special 10 / 11), it dives (Skill1, under, take-off);
-    // else toggled back, waits 1.
-    // ponytail: the special taken as 0, as an other think runs.
+    // else toggled back, waits 1. The special test never fails: an other
+    // think is swapped to only on toggle 0 (the special rows, FUN_005b15d0's
+    // 0x73d358, have no fourth word), so ctrl[0] is 0 while it runs.
     if (ai_name == "FrogDemon") {
         if (input.skill[0] && *input.state3 > 1) {
             *input.state3 = 1;
