@@ -690,7 +690,7 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     phys = std::max(phys * (100 - defender.dr_pct) / 100 - defender.dr_flat, 0);
     taken.damage = taken.physical = phys;
     for (const auto& element : attacker.elements) {
-        if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || rng(100) >= element.pct) continue;
+        if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || (element.pct < 100 && rng(100) >= element.pct)) continue;
         const int roll = rng.range(element.min, element.max);
         switch (element.type) {
             case 2: taken.elemental += std::max(resisted(roll, defender.res[2]) - defender.mdr, 0); taken.damage += std::max(resisted(roll, defender.res[2]) - defender.mdr, 0); if (roll > 0) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, element.dur)); break;

@@ -89,7 +89,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         const auto& own = type_info.diff[std::size_t(pet.monster.difficulty)].res;
         std::array<int, 5> res{ own[0] + pet_buff_stat(pet, d2d::d2s::kDamageResist), own[1] };
         for (std::size_t k = 0; k < 3; ++k) res[k + 2] = pet.res[k] + pet_buff_stat(pet, kResists[k]);
-        foe.pick = unit_pick(*game_data, res, pet.aura, pet.aura_level, d2d::rules::swing_max_damage(pet.monster.stats, pet.monster.swing_mode));
+        foe.pick = unit_pick(*game_data, res, pet.aura, pet.aura_level, d2d::rules::swing_max_damage(pet.monster.swing_stats(), pet.monster.swing_mode));
         return foe;
     }
 

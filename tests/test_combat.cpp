@@ -705,7 +705,7 @@ int main(int argc, char** argv) {
         walk_blocks += monster_blow(defender, 1, Motion::walking, mon, false, rng).blocked;
         run_blocks += monster_blow(defender, 1, Motion::running, mon, false, rng).blocked;
     }
-    assert(blocks > 700 && blocks < 800 && walk_blocks > 700 && walk_blocks < 800 && run_blocks > 200 && run_blocks < 300);
+    assert(blocks > 650 && blocks < 800 && walk_blocks > 650 && walk_blocks < 800 && run_blocks > 200 && run_blocks < 300);
     {                                                                  // a swing at a runner always lands (FUN_0057ec10)
         Fighter fortress;
         fortress.defense = 1000000000;

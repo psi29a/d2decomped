@@ -194,9 +194,9 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             static constexpr std::array<std::string_view, 5> kEl = { "fire", "ltng", "cold", "pois", "mag" };
             const std::string element_prefix = "El" + std::to_string(element + 1);
             type_info.el_mode[std::size_t(element)] = text(element_prefix + "Mode");
-            const auto type = text(element_prefix + "Type");                  // frze counts as cold; life/mana/stam/stun/rand aren't damage here
+            const auto type = text(element_prefix + "Type");                  // frze counts as cold; life/mana/stam/stun aren't damage here (-2), rand -3
             const auto element_type = std::ranges::find(kEl, type == "frze" ? std::string_view("cold") : type);
-            type_info.el_type[std::size_t(element)] = element_type == kEl.end() ? -1 : int(element_type - kEl.begin());
+            type_info.el_type[std::size_t(element)] = element_type != kEl.end() ? int(element_type - kEl.begin()) : type.empty() ? -1 : type == "rand" ? -3 : -2;
         }
         type_info.sound = text("MonSound");
         type_info.usound = text("UMonSound");

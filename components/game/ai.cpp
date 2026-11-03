@@ -168,7 +168,18 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms) {
     if (monster.mode != "NU") monster.left_mode = monster.mode;
     monster.mode = mode;
-    if (mode == "A1" || mode == "A2" || mode == "SC" || mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4") monster.swing_mode = mode;
+    if (mode == "A1" || mode == "A2" || mode == "SC" || mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4") {
+        monster.swing_mode = mode;
+        // FUN_005a4f50 at 0x5a5223: each element of the mode with a chance
+        // comes in under 100 % by a roll on the unit's seed; a rand one rolls
+        // its kind (rand(5) + 1, 0x5a52f1).
+        // ponytail: rand's kind isn't kept: its roll steps the seed, its damage isn't added.
+        for (std::size_t element = 0; element < monster.stats.elements.size(); ++element) {
+            const auto& info = monster.stats.elements[element];
+            monster.element_on[element] = info.type != -1 && info.mode == mode && info.pct > 0 && (info.pct > 99 || monster.seed(100) < info.pct);
+            if (monster.element_on[element] && info.type == -3) monster.seed(5);
+        }
+    }
     monster.seq_frame = -1;                                   // a sequence's row: drawn again as it plays
     monster.unit.mode_ms = now_ms;
     monster.unit.walking = mode == "WL" || mode == "RN";
@@ -431,7 +442,7 @@ bool castable(const d2d::rules::Skill& skill) {
 // (FUN_0056e0c0) at the level.
 // ponytail: the to-hit is the swing's plus ToHit + LevToHit a level, as %.
 d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl) {
-    auto stats = monster.stats;
+    auto stats = monster.swing_stats();
     const int more = d2d::rules::eval_calc(game_data.skills, skill.calc[0], {}, skill.id, lvl);
     for (int* damage : { &stats.a1_min, &stats.a1_max }) *damage = std::max(*damage * (100 + more + monster.dmg_pct) / 100, 0);
     stats.to_hit += stats.to_hit * (skill.tohit + skill.levtohit * (lvl - 1)) / 100;
@@ -1942,7 +1953,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         const int frames = int((now_ms - monster.diab_run_ms) / frame_ms);
         const auto contact = [&] {
             if (!foe.alive || d2d::rules::unit_distance(subtile(foe.x) - subtile(unit.x), subtile(foe.y) - subtile(unit.y), type_info.size, foe.size) > type_info.melee_rng + 1) return;
-            auto stats = monster.stats;
+            auto stats = monster.swing_stats();
             stats.a1_min = d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, false) >> 8;
             stats.a1_max = std::max(d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, true) >> 8, stats.a1_min);
             for (auto& element : stats.elements) element.mode = "";
@@ -2092,7 +2103,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
                 x.level = lvl; x.to = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id;
                 const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's S1's; SC's only its elements (El SC)
-                x.src = monster_shot_stats(missile_info, monster.stats, first, cast, s1_shot, lvl);
+                x.src = monster_shot_stats(missile_info, monster.swing_stats(), first, cast, s1_shot, lvl);
                 missiles.push_back(x);
                 // Multishot (FUN_005a3610, the missile hook): two more, aimed a
                 // subtile to either side.
@@ -2649,7 +2660,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     andariel_missile(game_data, monster, stem + std::to_string(first + type_info.trans_lvl), dx, dy, now_ms, missiles, lvl);
                     if (missiles.size() > sent) {
                         auto& imp_shot = missiles.back();
-                        imp_shot.src = monster.stats;
+                        imp_shot.src = monster.swing_stats();
                         imp_shot.src.no_hit_roll = !imp_shot.info->to_hit;
                         imp_shot.src.a2_min = monster.stats.a1_min * imp_shot.info->src_damage / 128 + imp_shot.info->min;
                         imp_shot.src.a2_max = monster.stats.a1_max * imp_shot.info->src_damage / 128 + imp_shot.info->max;
@@ -2712,7 +2723,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             } else if (attack && foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
                 // pays the foe's thorns (lightning ones less its resistance).
-                auto stats = monster.stats;                                  // Weaken, Decrepify, Battle Cry, Taunt, a boss's aura: its damage %
+                auto stats = monster.swing_stats();                                // Weaken, Decrepify, Battle Cry, Taunt, a boss's aura: its damage %
                 // Fire Hit (srvstfunc 42, FUN_005cae40, the Sand Raiders'): the hit
                 // is its S1 damage and S1 elements (FUN_005a4f50 mode 8).
                 // ponytail: the skill's ResultFlags / HitFlags / HitClass unread.

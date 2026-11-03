@@ -859,6 +859,21 @@ int main(int argc, char** argv) try {
         Monster skeleton;
         skeleton.npc.utrans = { 255, 255, 255 };
         assert(world.monster_colour(skeleton) == 0);
+        // A swing rolls its mode's elements under 100 % on the unit's seed
+        // (FUN_005a4f50, 0x5a5223); 100 % takes no roll; the rest stay out.
+        {
+            Monster swinger;
+            swinger.stats.elements[0] = { 0, 100, 1, 2, 0, "A1" };
+            swinger.stats.elements[1] = { 1, 50, 1, 2, 0, "A1" };
+            swinger.stats.elements[2] = { 2, 50, 1, 2, 0, "A2" };
+            swinger.seed = d2d::rules::Rng{ 99 };
+            auto expected = swinger.seed;
+            const bool second_in = expected(100) < 50;
+            set_mode(*data, swinger, "A1", throw_ms);
+            assert(swinger.seed.low == expected.low && swinger.element_on[0] && swinger.element_on[1] == second_in && !swinger.element_on[2]);
+            const auto swung = swinger.swing_stats();
+            assert(swung.elements[0].pct == 100 && (swung.elements[1].type < 0) == !second_in && swung.elements[2].pct == 50);
+        }
         // Taking a corpse (FUN_00562f30): a bow doesn't go on beside a
         // worn shield (FUN_0055f2d0) but into the inventory; a free hand takes it.
         {

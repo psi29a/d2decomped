@@ -47,7 +47,7 @@ struct MonType {
     int place_spawn = -1;                       // with placespawn, the spawn row a population pick becomes 80 % of the time (FUN_005bde80)
     std::string sound;                          // MonSound: its MonSounds.txt row
     std::string usound;                         // UMonSound: a boss's or minion's (rules::boss_sound)
-    // El1..3 Mode ("A1", "A2", ...) and Type (0 fire, 1 light, 2 cold, 3 poison, 4 magic, -1 none).
+    // El1..3 Mode ("A1", "A2", ...) and Type (0 fire, 1 light, 2 cold, 3 poison, 4 magic, -2 another, -3 rand, -1 none).
     std::array<std::string, 3> el_mode;
     std::array<int, 3> el_type{ -1, -1, -1 };
     // MonProp.txt, its row by MonStats MonProp (record +0x1a, FUN_00573470):
