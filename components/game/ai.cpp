@@ -172,12 +172,11 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
         monster.swing_mode = mode;
         // FUN_005a4f50 at 0x5a5223: each element of the mode with a chance
         // comes in under 100 % by a roll on the unit's seed; a rand one rolls
-        // its kind (rand(5) + 1, 0x5a52f1).
-        // ponytail: rand's kind isn't kept: its roll steps the seed, its damage isn't added.
+        // its kind (rand(5) + 1, 0x5a52f1), kept for swing_stats.
         for (std::size_t element = 0; element < monster.stats.elements.size(); ++element) {
             const auto& info = monster.stats.elements[element];
             monster.element_on[element] = info.type != -1 && info.mode == mode && info.pct > 0 && (info.pct > 99 || monster.seed(100) < info.pct);
-            if (monster.element_on[element] && info.type == -3) monster.seed(5);
+            if (monster.element_on[element] && info.type == -3) monster.rand_kind[element] = monster.seed(5) + 1;
         }
     }
     monster.seq_frame = -1;                                   // a sequence's row: drawn again as it plays
@@ -388,9 +387,8 @@ bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool sp
 // poison per frame over ELen as the total, another element in 256ths.
 // ToHit 0: it always hits. A Fallen Shaman's fire bolts too. A row naming a
 // Skill (`carried`: the Summoner's Fire Ball, Glacial Spike, Frost Nova)
-// carries that skill's element at the level instead (FUN_0064b860).
-// ponytail: a carried skill's physical damage (MinDam..) left out; the
-// Act 2 casters' skills have none.
+// carries that skill's element at the level instead (FUN_0064b860), and its
+// physical in place of the row's (FUN_00647bc0 / FUN_00647d00: skill_phys).
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried) {
     const auto found = game_data.missiles.find(name);
@@ -401,12 +399,47 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
         : d2d::rules::row_damage(missile_info.etype, missile_info.emin, missile_info.emax, missile_info.emin_lev, missile_info.emax_lev,
                                  missile_info.hitshift, missile_info.elen, missile_info.elen_lev, lvl);
     auto stats = missile_blow(missile_info, poison, monster.stats.level);
+    if (carried && !missile_info.skill.empty()) {
+        stats.a2_min = d2d::rules::skill_phys(game_data.skills, *carried, {}, lvl, false) >> 8;
+        stats.a2_max = std::max(d2d::rules::skill_phys(game_data.skills, *carried, {}, lvl, true) >> 8, stats.a2_min);
+    }
     stats.to_hit = monster.stats.to_hit;                              // its stat 0x13, rolled when the row has ToHit
     const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
     missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
     missiles.back().level = lvl; missiles.back().to = { monster.unit.x + dx, monster.unit.y + dy }; missiles.back().owner = monster.id;
     if (carried) missiles.back().skill = carried->id;
+}
+
+void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players) {
+    auto turned = make_monster(game_data, type, unit.unit.x, unit.unit.y, rng, unit.difficulty, true, players, unit.level_id);
+    turned.id = unit.id; turned.leader = unit.leader; turned.seed = unit.seed;
+    turned.home_x = unit.home_x; turned.home_y = unit.home_y;
+    unit = std::move(turned);
+}
+
+std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players) {
+    const auto made = game_data.monsters.by_id.find("baalclone");
+    if (made == game_data.monsters.by_id.end()) return std::nullopt;
+    const int clone_x = at_x + int(baal.seed.next() % 24) - 12, clone_y = at_y + int(baal.seed.next() % 24) - 12;
+    auto clone = make_monster(game_data, made->second, (float(clone_x) + 0.5f) / 5, (float(clone_y) + 0.5f) / 5, rng, baal.difficulty, true, players, level.id);
+    std::tie(clone.unit.x, clone.unit.y) = level.nearest_free(clone.unit.x, clone.unit.y);
+    clone.stats.hit_points = std::max(baal.stats.hit_points / 3, 1);
+    clone.hit_points = std::max(baal.hit_points / 3, 1);
+    clone.stats.regen = 0;
+    clone.aware = true;
+    clone.seed = d2d::rules::Rng{ rng.next() };
+    return clone;
+}
+
+void missile_at_target(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
+                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried) {
+    const std::size_t before = missiles.size();
+    andariel_missile(game_data, monster, name, 0.2f, 0.2f, now_ms, missiles, lvl, carried);
+    if (missiles.size() == before) return;
+    auto& centre = missiles.back();
+    centre.x += dx; centre.y += dy;
+    centre.to = std::pair{ centre.x + 0.2f, centre.y + 0.2f };
 }
 
 namespace {
@@ -437,21 +470,27 @@ bool castable(const d2d::rules::Skill& skill) {
                                                                           kBaalColdMissiles, kBaalTentacle, kImpInferno, kImpTeleport, kImpFireMissile,
                                                                           kCryHelp, kOverseerWhip, kImpregnate, kSiegeBeastStomp, kWarCry, kCorpseExplosion, kMinionSpawner }, skill.srvdofunc);
 }
+}  // namespace
+
 // A monster's skill strike (Whirlwind's do 76, Leap Attack's FUN_005da660):
 // its A1 swing with calc1 % more damage, the skill's to-hit and its element
-// (FUN_0056e0c0) at the level.
-// ponytail: the to-hit is the swing's plus ToHit + LevToHit a level, as %.
+// (FUN_0056e0c0) at the level. The to-hit (FUN_006449f0: ToHitCalc, else
+// ToHit + LevToHit a level) is added to the rating as points: FUN_0057d9b0's
+// monster branch (0x57db93) rolls stat 19 + it + dex x 5, then stat 119's %.
 d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl) {
     auto stats = monster.swing_stats();
     const int more = d2d::rules::eval_calc(game_data.skills, skill.calc[0], {}, skill.id, lvl);
     for (int* damage : { &stats.a1_min, &stats.a1_max }) *damage = std::max(*damage * (100 + more + monster.dmg_pct) / 100, 0);
-    stats.to_hit += stats.to_hit * (skill.tohit + skill.levtohit * (lvl - 1)) / 100;
+    stats.to_hit += d2d::rules::skill_tohit(game_data.skills, skill, {}, lvl);
     const auto added = d2d::rules::row_damage(skill.etype, skill.emin, skill.emax, skill.emin_lev, skill.emax_lev, skill.hitshift, skill.elen, skill.elen_lev, lvl);
     if (added.etype >= 0)
         for (auto& element : stats.elements)
             if (element.type < 0) { element = { added.etype, 100, added.elo >> 8, added.ehi >> 8, added.elen, "A1" }; break; }
     return stats;
 }
+
+namespace {
+
 // Impregnate's test (FUN_005d2140): a live monster, not a putrid defiler
 // (0x222) or painworm (0x227), not impregnated (state 0x6e), not a
 // player's pet (FUN_006259b0 2).
@@ -1534,21 +1573,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (effect.kind == d2d::rules::ThinkEffect::greet) monster.greeted = true;
         if (effect.kind == d2d::rules::ThinkEffect::mount && imp_found >= 0) pack[std::size_t(imp_found)].ai_state = monster.id;   // FUN_005e17e0
         // Baal's Vile Effigy (FUN_005fc860): none while one lives; baalclone
-        // at his spot +- 12 (two draws of his seed), a third of his life,
-        // made in NU; his AI control +0x18 counts it.
-        // ponytail: FUN_00553540's other spot, the clone's regen off (stat
-        // 0x4a) and its flags 0x4020000 aren't.
+        // +- 12 (two draws of his seed) about the unit he's at (FUN_00553540;
+        // his own spot without one), a third of his life, no regen (stat 0x4a
+        // 0), made in NU; his AI control +0x18 counts it.
+        // ponytail: its unit flags 0x4020000 aren't kept.
         if (effect.kind == d2d::rules::ThinkEffect::clone && born
             && std::ranges::none_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrabClone"; }))
-            if (const auto made = game_data.monsters.by_id.find("baalclone"); made != game_data.monsters.by_id.end()) {
-                const int clone_x = x + int(monster.seed.next() % 24) - 12, clone_y = y + int(monster.seed.next() % 24) - 12;
-                auto clone = make_monster(game_data, made->second, (float(clone_x) + 0.5f) / 5, (float(clone_y) + 0.5f) / 5, rng, monster.difficulty, true, players_in(foes), level.id);
-                std::tie(clone.unit.x, clone.unit.y) = level.nearest_free(clone.unit.x, clone.unit.y);
-                clone.stats.hit_points = std::max(monster.stats.hit_points / 3, 1);
-                clone.hit_points = std::max(monster.hit_points / 3, 1);
-                clone.aware = true;
-                clone.seed = d2d::rules::Rng{ rng.next() };
-                born->push_back(std::move(clone));
+            if (auto clone = vile_effigy(game_data, level, monster, target ? target_x : x, target ? target_y : y, rng, players_in(foes))) {
+                born->push_back(std::move(*clone));
                 ++monster.ai_state2;
             }   // a4q1's FUN_005b4390 (World::act4_update)
         if (effect.kind == d2d::rules::ThinkEffect::aura) { monster.aura = skill_id(game_data, type_info.skill[std::size_t(effect.id)]); monster.aura_lvl = std::max(input.aip[0], 1); }
@@ -2346,21 +2378,18 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // auratargetstate for auralen frames, aurastats velocity,
                     // attack rate, armor and damage %). The roll is the caster's seed
                     // (+0x20), drawn for any live minion before the Bloodlust test.
-                    // ponytail: a new unit where the old one was, aware; game.exe
-                    // turns the minion itself (FUN_00574370, state 0x8e stat 0x163).
+                    // The minion turns itself (morph_monster: FUN_00574370).
+                    // ponytail: the morph's state 0x8e (stat 0x163, the old class) isn't kept.
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                         auto& whipped = pack[std::size_t(monster.skill_unit)];
                         const bool minion = whipped.type >= 0 && game_data.monsters.types[std::size_t(whipped.type)].base == 0x1c5;
                         const bool lusted = whipped.cry.skill == monster.skill && now_ms < whipped.cry.until;
                         const int chance = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
                         const auto summon = game_data.monsters.by_id.find(cast->summon);
-                        if (whipped.alive() && minion && chance <= monster.seed(100) && !lusted && born && summon != game_data.monsters.by_id.end()) {
-                            auto turned = make_monster(game_data, summon->second, whipped.unit.x, whipped.unit.y, rng, monster.difficulty, true, players_in(foes), level.id);
-                            turned.aware = true;
-                            turned.seed = d2d::rules::Rng{ rng.next() };
-                            set_mode(game_data, turned, cast->summode.empty() ? "NU" : cast->summode, now_ms);
-                            born->push_back(std::move(turned));
-                            whipped.gone = true;
+                        if (whipped.alive() && minion && chance <= monster.seed(100) && !lusted && summon != game_data.monsters.by_id.end()) {
+                            morph_monster(game_data, whipped, summon->second, rng, players_in(foes));
+                            whipped.aware = true;
+                            set_mode(game_data, whipped, cast->summode.empty() ? "NU" : cast->summode, now_ms);
                             d2d::log::info("{} whips a minion into a suicide minion", monster.npc.name);
                         } else if (whipped.alive()) {
                             const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->auralen, {}, monster.skill, lvl), 0);
@@ -2578,8 +2607,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // FUN_005ca3e0: its srvmissilea at the target (MonBlizzard's centre),
                     // or at its point (the hell meteor's), when the missile's Size
                     // square there is clear of mask 5 (FUN_0056e450 -> FUN_0064d800).
-                    // ponytail: a blizzard's centre flies there.
-                    // One that doesn't move (Baal Taunt's control) stands at the target.
+                    // FUN_0056ede0 -> FUN_0059fa30 with flag 1 starts it there (record
+                    // +0x14 / +0x18), heading a subtile on at (+1, +1); every shipped
+                    // row (Vel 0) stands.
                     const float aim_x = monster.at_point ? (float(monster.skill_x) + 0.5f) / 5 - unit.x : dx, aim_y = monster.at_point ? (float(monster.skill_y) + 0.5f) / 5 - unit.y : dy;
                     const auto meteor = game_data.missiles.find(cast->srvmissilea);
                     const int size = meteor == game_data.missiles.end() ? 1 : std::max(meteor->second.size, 1);
@@ -2588,11 +2618,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     for (int at_y = point_y - (size >> 1); at_y < point_y - (size >> 1) + size; ++at_y)
                         for (int at_x = point_x - (size >> 1); at_x < point_x - (size >> 1) + size; ++at_x)
                             clear = clear && !level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 5);
-                    const std::size_t before = missiles.size();
-                    if (clear) andariel_missile(game_data, monster, cast->srvmissilea, aim_x, aim_y, now_ms, missiles, lvl, cast);
-                    if (missiles.size() > before && missiles.back().velocity_x == 0 && missiles.back().velocity_y == 0) {
-                        missiles.back().x += aim_x; missiles.back().y += aim_y;
-                    }
+                    if (clear) missile_at_target(game_data, monster, cast->srvmissilea, aim_x, aim_y, now_ms, missiles, lvl, cast);
                 } else if (cast->srvdofunc == ServerDoFunction::kMonPoisonNova) {
                     // FUN_005ccd10: srvmissilea toward the even 8 of rules::kPoisonNova at
                     // Param1 << 6, then every calc2th from the second at Param2 << 6
@@ -2723,16 +2749,20 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
             } else if (monster.skill >= 0 && monster.skill == skill_id(game_data, "SpiderLay")) {
                 // srvdofunc 23 (FUN_005c9c10): its aurastate spiderlay for
-                // auralen 300 frames, aurastat velocitypercent -100.
-                // ponytail: the slowed state on those about (auratargetstate) left out.
+                // auralen 300 frames, aurastat velocitypercent -100. Its
+                // auratargetstate (slowed) reaches no one: the row names no
+                // auraevent (+0x84 < 0, so the event loop's FUN_0056e740 never
+                // runs) and no aurarangecalc.
                 monster.laid_until = now_ms + 300 * 40;
             } else if (attack && foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
                 // pays the foe's thorns (lightning ones less its resistance).
                 auto stats = monster.swing_stats();                                // Weaken, Decrepify, Battle Cry, Taunt, a boss's aura: its damage %
                 // Fire Hit (srvstfunc 42, FUN_005cae40, the Sand Raiders'): the hit
-                // is its S1 damage and S1 elements (FUN_005a4f50 mode 8).
-                // ponytail: the skill's ResultFlags / HitFlags / HitClass unread.
+                // is its S1 damage and S1 elements (FUN_005a4f50 mode 8) at the
+                // skill's to-hit (s1_strike). It ORs in the skill's ResultFlags,
+                // HitFlags and HitClass (+0x12e / +0x130 / +0x134): all empty in
+                // Fire Hit's row, so none are read.
                 const auto* struck_with = monster.skill >= 0 ? game_data.skills.get(monster.skill) : nullptr;
                 if (monster.leaping) monster.seq_once = true;               // Leap's hit at its start (FUN_005d9c80), its later rows only fly (do 77)
                 // FUN_005a4f50 builds the hit by the mode: A2's damage, to-hit
@@ -2744,8 +2774,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const bool smite = struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kSmite;
                 const bool jab = struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kJab;
                 if (jab || (seq && struck_with && struck_with->srvstfunc == d2d::rules::ServerStartFunction::kFireHit)) {
-                    stats.a1_min = stats.s1_min; stats.a1_max = stats.s1_max; stats.to_hit = stats.to_hit_s1;
-                    for (auto& element : stats.elements) element.mode = element.mode == "S1" ? "A1" : "";
+                    s1_strike(stats, game_data.skills, *struck_with, skill_level(game_data, monster, monster.skill));
                 } else if (smite || monster.mode == "A2") {
                     stats.a1_min = stats.a2_min; stats.a1_max = stats.a2_max; stats.to_hit = stats.to_hit2;
                     for (auto& element : stats.elements) element.mode = element.mode == "A2" ? "A1" : "";

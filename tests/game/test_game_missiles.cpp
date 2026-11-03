@@ -99,6 +99,33 @@ int main() try {
     }
 
     {
+        // Baal's Vile Effigy (FUN_005fc860): about the unit he's at (FUN_00553540), +- 12
+        // subtiles by two draws of his seed, a third of his life, no regen (stat 0x4a 0).
+        const auto baal_row = data->monsters.by_id.find("baalcrab");
+        assert(baal_row != data->monsters.by_id.end());
+        d2d::rules::Rng effigy_rng{ 5 };
+        Level here{};
+        auto baal = make_monster(*data, int(baal_row->second), 10.f, 10.f, effigy_rng, 0);
+        baal.seed = d2d::rules::Rng{ 9 };
+        auto draws = baal.seed;
+        const int want_x = 200 + int(draws.next() % 24) - 12, want_y = 300 + int(draws.next() % 24) - 12;
+        const auto clone = vile_effigy(*data, here, baal, 200, 300, effigy_rng, 1);
+        assert(clone && int(std::floor(clone->unit.x * 5)) == want_x && int(std::floor(clone->unit.y * 5)) == want_y);
+        assert(clone->stats.regen == 0 && clone->hit_points == std::max(baal.hit_points / 3, 1));
+        std::printf("OK: the Vile Effigy rises about Baal's target, with no regen\n");
+
+        // A whipped minion turns itself (FUN_00574370): the same unit id, group and spot, the new class.
+        const auto minion_row = data->monsters.by_id.find("minion1");
+        const auto suicide_row = data->monsters.by_id.find("suicideminion1");
+        assert(minion_row != data->monsters.by_id.end() && suicide_row != data->monsters.by_id.end());
+        auto minion = make_monster(*data, int(minion_row->second), 12.f, 7.f, effigy_rng, 0);
+        minion.id = 4242; minion.leader = 3;
+        morph_monster(*data, minion, int(suicide_row->second), effigy_rng, 1);
+        assert(minion.type == int(suicide_row->second) && minion.id == 4242 && minion.leader == 3 && minion.unit.x == 12.f && minion.unit.y == 7.f);
+        std::printf("OK: a morph keeps the unit, its group and its spot\n");
+    }
+
+    {
         // Baal's tentacles (FUN_005d2c20): one class a cast (FUN_0063efa0's base 0x220 case),
         // rand(2) + the difficulty down the chain from baaltentacle1 (0x232).
         const auto baal_row = data->monsters.by_id.find("baalcrab");

@@ -260,9 +260,8 @@ bool room_spot(SpawnRoom& room, Fits&& fits, Near&& near_entrance, int& spot_x, 
 // every row and difficulty against game.exe.
 // With `players` in the game (FUN_00535790's count, FUN_00573930) life
 // and experience grow by player_life_pct / player_exp_pct of the roll
-// (FUN_00483360: truncated), life capped at 0x7fffff (FUN_00573cb0).
-// ponytail: monster data +0x4c (unidentified) skips the bonus in game.exe;
-// d2d's pets never take it.
+// (FUN_00483360: truncated), life capped at 0x7fffff (FUN_00573cb0); not
+// for a MonStats row with an Align (+0x4c: FUN_00573930 skips the bonus).
 struct MonStats {
     int level = 1, hit_points = 1, armor_class = 0, to_hit = 0, a1_min = 0, a1_max = 0, a2_min = 0, a2_max = 0, exp = 0;
     int s1_min = 0, s1_max = 0;
@@ -283,7 +282,10 @@ struct MonStats {
 // sums it (FUN_005e8530: maxdamage, fire / lightning / magic / cold max,
 // poison max >> 8). 0 before any swing.
 // Only the elements the swing rolled in count (Monster::swing_stats).
-// ponytail: the hireling / damage-% scaling (+0x70, stat 100) is left out.
+// The player-count growth past Normal is in Monster::swing_stats.
+// ponytail: a classic game's x 10 / 12 damage and x 10 / 15 to-hit past
+// Normal (FUN_005a4f50, game +0x70 0) aren't made: d2d's monsters take
+// the expansion columns throughout.
 inline int swing_max_damage(const MonStats& stats, std::string_view swing_mode) {
     if (swing_mode.empty()) return 0;
     int total = swing_mode == "A2" ? stats.a2_max : swing_mode == "SC" || swing_mode == "S1" ? stats.s1_max : stats.a1_max;
@@ -292,6 +294,12 @@ inline int swing_max_damage(const MonStats& stats, std::string_view swing_mode) 
     return total;
 }
 
+// A hostile monster's swing growth past Normal, in 128ths (FUN_005a4f20 on
+// its stat 0x64, table 0x6e21f4): 8 a player past the first to 8, then n x 8 - 16.
+inline int player_swing_128ths(int players) {
+    static constexpr std::array<int, 9> kMore{ 0, 0, 8, 16, 24, 32, 40, 48, 56 };
+    return players < 2 ? 0 : players < 9 ? kMore[std::size_t(players)] : players * 8 - 16;
+}
 // The player-count bonus in % (FUN_005738f0 life, table 0x6e1590;
 // FUN_00573910 experience, 0x6e15b4): 50 a player past the first up to 8,
 // then (n - 2) x 50 and (5n + 130) x 2.
@@ -378,6 +386,7 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     MonStats stats;
     if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;
     const auto& type_info = monsters.types[std::size_t(type)];
+    if (type_info.align != 0) players = 1;
     const int difficulty_index = std::clamp(difficulty, 0, 2);
     const int base_level = start_level(type_info, difficulty_index, area_level);
     const int spawn_level = std::max(base_level, 1);
@@ -3927,7 +3936,7 @@ Think terror_think(const ThinkIn& input, Rng& rng, Away&& away) {
 // ctrl[0])) and stands 1. SandMaggot's (FUN_005f1750): with its AI command
 // 14's +0x18 at 1 and a Skill1 it casts Skill1 at the target (event 30; the
 // word 0); else it toggles back keeping the third scratch word, event 1.
-// ponytail: nothing found sets command 14's +0x18, so d2d's word stays 0.
+// Nothing sets that word (stubs.md: FUN_005f1750's cast branch), so it stays 0.
 inline Think other_think(std::string_view ai_name, const ThinkIn& input) {
     // Diablo's (FUN_005e8480): state 0xc (his lightning's) off, back to his
     // own think (FUN_005b0e00), stands 1; his kept point stays.
@@ -3951,8 +3960,9 @@ inline Think other_think(std::string_view ai_name, const ThinkIn& input) {
     }
     // FrogDemon's (FUN_005f81d0): up (state3 past 1) with a Skill1, not on
     // a curse's think (special 10 / 11), it dives (Skill1, under, take-off);
-    // else toggled back, waits 1.
-    // ponytail: the special taken as 0, as an other think runs.
+    // else toggled back, waits 1. The special test never fails: an other
+    // think is swapped to only on toggle 0 (the special rows, FUN_005b15d0's
+    // 0x73d358, have no fourth word), so ctrl[0] is 0 while it runs.
     if (ai_name == "FrogDemon") {
         if (input.skill[0] && *input.state3 > 1) {
             *input.state3 = 1;

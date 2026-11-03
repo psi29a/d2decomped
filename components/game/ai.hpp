@@ -161,13 +161,30 @@ struct Monster {
     bool fx_done = false;
     std::string_view swing_mode;               // its last attack mode (A1, A2, SC, S1..S4; "" none yet): the stats it set (FUN_005a4f50)
     std::array<bool, 3> element_on{};          // which of its elements that swing rolled in (roll_elements)
+    std::array<int, 3> rand_kind{};            // a rand element's kind that swing rolled, 1..5
     // Its stats as the last swing set them: the elements it didn't roll in left out.
+    // A rand one takes its rolled kind (FUN_005a4f50's table at 0x5a5444: 1 fire,
+    // 2 lightning, 3 magic, 4 cold, 5 poison), a cold one 25 frames when it has none.
+    // Past Normal a hostile one's swing grows by its players (FUN_005a4f50 in an
+    // expansion game, game +0x70: stat 0x64 through FUN_005a4f20, table 0x6e21f4):
+    // damage, to-hit and each element's min / max / length + n / 128 of it.
     [[nodiscard]] d2d::rules::MonStats swing_stats() const {
+        static constexpr std::array<int, 6> kRandType{ -2, 0, 1, 4, 2, 3 };   // kind -> d2d's El type (fire, ltng, cold, pois, mag)
         auto swung = stats;
+        if (const int more = align == 0 && difficulty > 0 ? d2d::rules::player_swing_128ths(players) : 0; more > 0) {
+            for (int* value : { &swung.a1_min, &swung.a1_max, &swung.a2_min, &swung.a2_max, &swung.s1_min, &swung.s1_max, &swung.to_hit, &swung.to_hit2, &swung.to_hit_s1 })
+                *value += *value * more / 128;
+            for (auto& element : swung.elements)
+                for (int* value : { &element.min, &element.max, &element.dur }) *value += *value * more / 128;
+        }
         for (std::size_t element = 0; element < swung.elements.size(); ++element)
-            if (swung.elements[element].mode == swing_mode) {
-                if (element_on[element]) swung.elements[element].pct = 100;
-                else swung.elements[element] = {};
+            if (auto& swung_element = swung.elements[element]; swung_element.mode == swing_mode) {
+                if (!element_on[element]) { swung_element = {}; continue; }
+                swung_element.pct = 100;
+                if (swung_element.type == -3) {
+                    swung_element.type = kRandType[std::size_t(std::clamp(rand_kind[element], 0, 5))];
+                    if (swung_element.type == 2 && swung_element.dur == 0) swung_element.dur = 25;
+                }
             }
         return swung;
     }
@@ -990,6 +1007,26 @@ void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes
 // A monster's skill missile toward (dx, dy) cells (FUN_0059fa30, ai.cpp).
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
+// A monster turned into MonStats row `type` in place (FUN_00574370: the same unit id,
+// its group and spot, a new init for the class, FUN_00574250).
+void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players);
+// Baal's Vile Effigy (FUN_005fc860): baalclone +- 12 subtiles (two draws of his seed) about
+// (at_x, at_y), a third of his life, no regen (stat 0x4a 0); none without the row.
+std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players);
+// A monster's missile made at its target, (dx, dy) cells away (FUN_0056ede0 -> FUN_0059fa30
+// flag 1: the record's +0x14 / +0x18), heading a subtile on at (+1, +1).
+void missile_at_target(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
+                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
+// A monster's skill strike (Whirlwind, Leap Attack): its A1 swing at the skill's damage, to-hit and element (ai.cpp).
+d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl);
+// Fire Hit's and Jab's hit (FUN_005cae40, FUN_005db2d0): the swing's S1 damage,
+// to-hit and S1 elements as A1's, plus the skill's to-hit as points (FUN_006449f0
+// into FUN_0057ec10, as skill_strike).
+inline void s1_strike(d2d::rules::MonStats& stats, const d2d::rules::SkillTables& skill_tables, const d2d::rules::Skill& skill, int lvl) {
+    stats.a1_min = stats.s1_min; stats.a1_max = stats.s1_max;
+    stats.to_hit = stats.to_hit_s1 + d2d::rules::skill_tohit(skill_tables, skill, {}, lvl);
+    for (auto& element : stats.elements) element.mode = element.mode == "S1" ? "A1" : "";
+}
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
 // A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).

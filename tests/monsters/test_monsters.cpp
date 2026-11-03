@@ -191,6 +191,15 @@ int main() {
         assert(stats.hit_points >= 101 && stats.hit_points <= 181 && stats.armor_class == 84 && stats.exp == 111);
         assert(stats.to_hit == 101 && stats.a1_min == 51 && stats.a1_max == 151);
     }
+    // Three players: experience + 100 % (player_exp_pct); not for a row with
+    // an Align (MonStats +0x4c, FUN_00573930: a hireling, a town guard).
+    {
+        auto aligned = monsters;
+        Rng party_rng{ 3 };
+        assert(monster_stats(aligned, 0, 0, party_rng, 0, 3).exp == 66);
+        aligned.types[0].align = 1;
+        assert(monster_stats(aligned, 0, 0, party_rng, 0, 3).exp == 33);
+    }
     // A boss's leveladd (FUN_005a0e40) raises the level after FUN_00573cb0
     // read life, defence and experience at the MonStats level; to-hit and
     // damage follow the raised level (FUN_005a4f50).
