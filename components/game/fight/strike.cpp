@@ -922,9 +922,11 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // none left, none flies.
             // ponytail: both hands throw at once, not one an SQ event (FUN_00535bc0's hand).
             // Throw (do 3, FUN_0056f460): the throwable in hand flies as its
-            // missile (weapons.txt missiletype) and one of it is spent.
-            // ponytail: FUN_0056c600's to-hit / damage % from the skill aren't
-            // added; the shot's damage is the attack's, not the weapon's
+            // missile (weapons.txt missiletype) and one of it is spent. Its
+            // FUN_0056c600 puts the throw mastery on the missile (stat 0x13 +
+            // FUN_00645720 kind 0, stat 0x19 = kind 1), no skill bonus: here the
+            // player's fighter carries it while throwing (player_fighter).
+            // ponytail: the shot's damage is the attack's, not the weapon's
             // throw damage (minmisdam..).
             case ServerDoFunction::kThrow:
                 if (const int index = ammo_index(); index >= 0)
