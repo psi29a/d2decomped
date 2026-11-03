@@ -161,13 +161,21 @@ struct Monster {
     bool fx_done = false;
     std::string_view swing_mode;               // its last attack mode (A1, A2, SC, S1..S4; "" none yet): the stats it set (FUN_005a4f50)
     std::array<bool, 3> element_on{};          // which of its elements that swing rolled in (roll_elements)
+    std::array<int, 3> rand_kind{};            // a rand element's kind that swing rolled, 1..5
     // Its stats as the last swing set them: the elements it didn't roll in left out.
+    // A rand one takes its rolled kind (FUN_005a4f50's table at 0x5a5444: 1 fire,
+    // 2 lightning, 3 magic, 4 cold, 5 poison), a cold one 25 frames when it has none.
     [[nodiscard]] d2d::rules::MonStats swing_stats() const {
+        static constexpr std::array<int, 6> kRandType{ -2, 0, 1, 4, 2, 3 };   // kind -> d2d's El type (fire, ltng, cold, pois, mag)
         auto swung = stats;
         for (std::size_t element = 0; element < swung.elements.size(); ++element)
-            if (swung.elements[element].mode == swing_mode) {
-                if (element_on[element]) swung.elements[element].pct = 100;
-                else swung.elements[element] = {};
+            if (auto& swung_element = swung.elements[element]; swung_element.mode == swing_mode) {
+                if (!element_on[element]) { swung_element = {}; continue; }
+                swung_element.pct = 100;
+                if (swung_element.type == -3) {
+                    swung_element.type = kRandType[std::size_t(std::clamp(rand_kind[element], 0, 5))];
+                    if (swung_element.type == 2 && swung_element.dur == 0) swung_element.dur = 25;
+                }
             }
         return swung;
     }

@@ -172,12 +172,11 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
         monster.swing_mode = mode;
         // FUN_005a4f50 at 0x5a5223: each element of the mode with a chance
         // comes in under 100 % by a roll on the unit's seed; a rand one rolls
-        // its kind (rand(5) + 1, 0x5a52f1).
-        // ponytail: rand's kind isn't kept: its roll steps the seed, its damage isn't added.
+        // its kind (rand(5) + 1, 0x5a52f1), kept for swing_stats.
         for (std::size_t element = 0; element < monster.stats.elements.size(); ++element) {
             const auto& info = monster.stats.elements[element];
             monster.element_on[element] = info.type != -1 && info.mode == mode && info.pct > 0 && (info.pct > 99 || monster.seed(100) < info.pct);
-            if (monster.element_on[element] && info.type == -3) monster.seed(5);
+            if (monster.element_on[element] && info.type == -3) monster.rand_kind[element] = monster.seed(5) + 1;
         }
     }
     monster.seq_frame = -1;                                   // a sequence's row: drawn again as it plays
