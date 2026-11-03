@@ -929,9 +929,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // A Shaman's corpse (FUN_005dd0b0, the last found): a unique's
     // (FUN_005a0180 mask 8, not 4; FUN_005f1380) any Fallen's or Shaman's
     // not unique; else its own group's (FUN_005dcda0) within aip4 (squared,
-    // FUN_005dc380). Either way in DD, not yet gone.
-    // ponytail: "the rooms" as within 80 subtiles; the corpse flag
-    // (+0xc4 bit 1) and FUN_0063a770 as corpse_used; units are monsters.
+    // FUN_005dc380). Either way in DD, not yet gone. A unique's (FUN_005f1440) walks the
+    // near rooms (FUN_005dd0b0 mode 1: near_order), the rest its group
+    // (mode 9: FUN_005dd050 -> FUN_0058f380 on FUN_005dcda0).
+    // ponytail: the group in pack order (its list's own order isn't traced);
+    // the corpse flag (+0xc4 bit 1) and FUN_0063a770 as corpse_used; units
+    // are monsters.
     const auto self = pack.empty() ? pack.size() : std::size_t(&monster - pack.data());
     bool rally = false;
     int corpse = -1;
@@ -939,16 +942,20 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.leader = !pack.empty() && monster.leader == int(self);
     using d2d::rules::Boss;
     auto unique = [](const Monster& other) { return other.boss == Boss::unique || other.boss == Boss::superunique; };
+    const auto corpse_for = [&](const Monster& other) {
+        if (type_info.ai_name != "FallenShaman" || other.alive() || other.mode != "DD" || other.corpse_used) return false;
+        const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
+        const int base = game_data.monsters.types[std::size_t(other.type)].base;
+        return unique(monster) ? d2d::rules::shaman_corpse_reach(base, other.boss == Boss::champion, unique(other), off_x, off_y, input.aip[3])
+                               : other.leader == int(self) && off_x * off_x + off_y * off_y <= input.aip[3] * input.aip[3];
+    };
     for (std::size_t i = 0; i < pack.size(); ++i) {
         const auto& other = pack[i];
-        const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
-        if (i != self && other.mode == "DT" && d2d::rules::ai_distance(off_x, off_y) < 15) input.dying = true;
-        if (type_info.ai_name != "FallenShaman" || other.alive() || other.mode != "DD" || other.corpse_used) continue;
-        const int base = game_data.monsters.types[std::size_t(other.type)].base;
-        if (unique(monster) ? d2d::rules::shaman_corpse_reach(base, other.boss == Boss::champion, unique(other), off_x, off_y, input.aip[3])
-                            : other.leader == int(self) && off_x * off_x + off_y * off_y <= input.aip[3] * input.aip[3])
-            corpse = int(i);
+        if (i != self && other.mode == "DT" && d2d::rules::ai_distance(subtile(other.unit.x) - x, subtile(other.unit.y) - y) < 15) input.dying = true;
+        if (!unique(monster) && corpse_for(other)) corpse = int(i);
     }
+    if (unique(monster) && type_info.ai_name == "FallenShaman")
+        if (const auto order = near_order(corpse_for); !order.empty()) corpse = order.back();
     if (type_info.ai_name == "Fallen") {
         if (!input.dying) monster.fleeing = false;
         else if (!monster.fleeing) { monster.fleeing = true; monster.flee_sound = true; }
