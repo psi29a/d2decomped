@@ -449,8 +449,11 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         hovers.push_back({ { width / 2 - 0x4c, height - 0x34 }, { game::d2_format(str(0x1044), { shown, top }), more || hud.stamina_shrine ? kBlue : kWhite } });
     }
     for (const auto& [anchor, line] : hovers) draw_hover_text(framebuffer, scene, { line }, anchor[0], anchor[0], anchor[1], anchor[1]);
-    // The globes' text (FUN_00498120): plain, centred, in the frame's font.
-    // ponytail: taken as font16, as for the level buttons.
+    // The globes' text (FUN_00498120): plain, centred, in the frame's font:
+    // font16, which the belt's key labels set (FUN_00499040, SetFont(1) at
+    // 0x499053) each frame before (FUN_00456ee0's order).
+    // ponytail: an open FUN_004a2a80 panel's hover path (FUN_004a5060) may
+    // set another between; not traced.
     auto globe_text = [&](int centre, const std::string& text) {
         const int text_y = height - 0x5f - int(scene.font.sheet().frame(0, 0).height) + 1;
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centre - scene.font.measure(text) / 2, text_y, text);
@@ -501,8 +504,9 @@ void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& sce
         const auto& frame_ref = spr.frame(0, std::uint32_t(frame));
         blit_sprite(framebuffer, frame_ref, pal, x, bottom - int(frame_ref.height));
     };
-    // The label in the font the frame left set.
-    // ponytail: taken as font16; FUN_004a6b30 sets none of its own.
+    // The label in the font the frame left set: font16, the belt's key
+    // labels' (FUN_00499040, SetFont(1) at 0x499053), drawn before it in
+    // FUN_00456ee0; FUN_004a6b30 sets none of its own.
     auto button = [&](int x, int label_id, bool pressed) {
         if (x < 0 || scene.level_socket.frames_per_direction() == 0) return;
         if (const auto found = lookup_string(scene, std::uint16_t(label_id))) {
@@ -1183,7 +1187,8 @@ void draw_quest_log_button(std::vector<std::uint8_t>& framebuffer, const Scene& 
         const auto& frame_ref = sprite.frame(0, std::uint32_t(frame));
         blit_sprite(framebuffer, frame_ref, pal, x, bottom_y - int(frame_ref.height));
     };
-    // ponytail: the label in font16, as the level buttons' (the frame's font).
+    // The label in the frame's font, font16 (FUN_00499040's SetFont(1) at
+    // 0x499053, earlier in FUN_00456ee0), as the level buttons'.
     const auto label = string_id(scene, 0xf58);
     const int socket_w = int(scene.level_socket.frame(0, 0).width);
     scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, button.x0 + 1 + socket_w / 2 - scene.font.measure(label) / 2,
