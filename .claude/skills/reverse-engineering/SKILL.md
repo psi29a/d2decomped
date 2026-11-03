@@ -7,6 +7,13 @@ description: How to reverse-engineer game.exe (D2 1.14d) in this repo — Ghidra
 
 ## 1. Find and read code (Ghidra, headless)
 
+Start with the whole program decompiled once, with d2d's names on what
+it ports: `tools/ghidra/decompile.sh` (a minute, after `import.sh`), then
+`tools/ghidra/fn.py <addr>...` prints functions from it. A `/* d2d
+verified: ... */` note above a function says where d2d ports or checks it;
+a callee named `d2d_<file>_<function>` is already ported. A d2d function
+gets its name there when the comment right above it cites one `FUN_`.
+
 Project: `tools/ghidra/project` (make it with `tools/ghidra/import.sh`).
 Run one analyzeHeadless at a time (the project lock); chain several
 `-postScript` calls in one run instead:
@@ -50,6 +57,12 @@ uv run python -c "import emu; e = emu.Emu(); print(e.call(0x45c3e0, ecx=seed_ptr
 - Anything that needs data tables: `emu.serve_files(e); e.crt_init();
   e.call(0x619300, 0, 1, 1)` loads every excel table plus the preset/LvlSub
   DS1s from the MPQs. `drlg.boot()` does exactly this.
+- Struct fields by name: `e.view("unit", u).mode = 3`, from
+  `docs/research/re/structs.tsv` (one row per field, with the line that
+  shows it). Add the row instead of writing a bare `e.w32(u + 0x10, 3)`.
+- Reuse a harness: `life_apply.Game(real={addr})` hooks damage and stats
+  side effects and runs `addr` for real; `e.stub(0, {addr: nstack})` hooks
+  the rest.
 - An unstubbed import stops the run with its name and a stack. Add a
   `w_<Name>` returning `(eax, stdcall argc)` to `emu.py`, or `e.hook(addr,
   fn, nstack)` to cut off a subsystem you don't care about.
