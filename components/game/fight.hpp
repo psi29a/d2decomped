@@ -663,6 +663,7 @@ struct Fight {
     // brackets, synergy and the element's mastery (flag 1); Power Strike's
     // lightning, Poison Dagger's poison). Stun is elsewhere.
     void skill_element(d2d::rules::Fighter& fighter, const d2d::rules::Skill& skill);
+    void add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t until);
     void self_state(const d2d::rules::Skill& skill, std::uint32_t now_ms);
 
     // A self cast's state (FUN_005c9480 and kin): auralen frames — none
