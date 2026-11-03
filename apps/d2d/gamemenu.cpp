@@ -397,6 +397,15 @@ bool MiniPanel::input(const Scene& scene, Audio& audio, const Mouse& mouse, bool
     return took;
 }
 
+int MiniPanel::hovered(bool left, bool right, int mouse_x, int mouse_y, int& button_x) const {
+    if (!open || (left && right)) return -1;
+    const int centre = kWidth / 2 + (right ? -0x76 : 0) + (left ? 0x77 : 0);
+    if (!(mouse_x > centre - 0x54 && mouse_x < centre + 0x59 && mouse_y > kHeight - 0x45 && mouse_y < kHeight - 0x2f)) return -1;
+    for (std::size_t i = 0; i < kMiniActions.size(); ++i)
+        if (const int x = mini_x0(left, right) + 0x15 * int(i); mouse_x > x && mouse_x < x + 0x14) { button_x = x; return kMiniActions[i]; }
+    return -1;
+}
+
 void MiniPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, bool left, bool right, int mouse_x, int mouse_y) const {
     if (open && !(left && right)) {                        // FUN_0047f710
         const int panel_x = right ? kWidth / 2 - 0xcd : left ? kWidth / 2 + 0x38 - 2 : kWidth / 2 - 0x4a - 3;

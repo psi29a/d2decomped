@@ -307,6 +307,24 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
         if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
+        // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
+        // action, then 0x1052 " (%s)" for each key bound to it, the second
+        // slot first; FUN_00502280 at (x - 3, H - 0x32 - 0x1a). Menu has no key.
+        if (int button_x = 0; !coop_hud_hidden())
+            if (const int kind = mini.hovered(left_open, inv_open || tree_open, mouse.x, mouse.y, button_x); kind >= 0) {
+                static constexpr std::array<int, 7> kKeys = { keys::kCharacter, keys::kInventory, keys::kSkillTree, keys::kParty, keys::kAutomap, keys::kMessageLog, keys::kQuestLog };
+                std::string tip = string_id(*scene, std::uint16_t(0x1049 + kind));
+                if (kind < int(kKeys.size()))
+                    for (const int slot : { 1, 0 })
+                        if (const auto key = keys::key_of(key_table, kKeys[std::size_t(kind)], slot); key != keys::kNone) {
+                            const auto id = keys::name_id(key);
+                            auto bound = string_id(*scene, 0x1052);
+                            if (const auto spot = bound.find("%s"); spot != std::string::npos) bound.replace(spot, 2, id ? string_id(*scene, id) : std::string(1, char(key & 0xff)));
+                            tip += bound;
+                        }
+                const int bottom = int(kScreenHeight) - 0x32 - 0x1a;
+                draw_hover_text(framebuffer, *scene, { { std::move(tip), kTxtWhite } }, button_x - 3, button_x - 3, bottom, bottom);
+            }
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
         if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty())) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
