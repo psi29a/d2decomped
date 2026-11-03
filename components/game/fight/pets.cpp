@@ -591,10 +591,11 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         world.give = std::move(give_hands);
         d2d::rules::PetBrain brain(scene, monster.seed, pet.ctrl, world);
         // The Shadow Master (shadows.hpp) on the units round it: the pet, its
-        // owner, the monsters within 64 subtiles of either, its fellow pets
-        // (the traps it counts). Its world turns what it does into a PetAct.
-        // A monster's states are its curse / cry (their auratargetstates).
-        // ponytail: units by that radius, not FUN_005dd0b0's rooms.
+        // owner, the monsters in its near rooms (FUN_005eb970's FUN_005dd0b0
+        // mode 1: room_order), its fellow pets (the traps it counts). Its
+        // world turns what it does into a PetAct. A monster's states are its
+        // curse / cry (their auratargetstates).
+        // ponytail: players and pets go first, not in their rooms' turn.
         auto master_think = [&] {
             using d2d::rules::ShadowUnit;
             d2d::rules::ShadowMasterScene master;
@@ -602,12 +603,15 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             std::vector<int> monster_of{ -1, -1 };                          // by unit: its monster (-1 the pet and owner, -2 a fellow pet)
             units.push_back({ .type = 1, .x = pet_x, .y = pet_y, .foe = false, .owner = 1 });
             units.push_back({ .type = 0, .x = sub(actor->player.x), .y = sub(actor->player.y), .targetable = false, .foe = false });
-            const int owner_x = sub(actor->player.x), owner_y = sub(actor->player.y);
-            for (std::size_t i = 0; i < monsters.size(); ++i) {
+            std::vector<int> rooms;
+            for (const auto& [room_level, room] : near_rooms(*game_data, *level, pet.monster.unit.x, pet.monster.unit.y))
+                if (room_level == level) rooms.push_back(room);
+            std::vector<d2d::rules::RoomUnit> room_units;
+            for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT" });
+            for (const int index : d2d::rules::room_order(room_units, rooms)) {
+                const auto i = std::size_t(index);
                 const auto& other = monsters[i];
                 const int other_x = sub(other.unit.x), other_y = sub(other.unit.y);
-                if (std::max(std::abs(other_x - pet_x), std::abs(other_y - pet_y)) > 0x40 && std::max(std::abs(other_x - owner_x), std::abs(other_y - owner_y)) > 0x40) continue;
-                if (!other.alive() && other.mode != "DT") continue;
                 const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
                 const bool special = other.boss == d2d::rules::Boss::champion || other.boss == d2d::rules::Boss::unique || other.boss == d2d::rules::Boss::superunique;
                 const auto foe = target_of(i);
