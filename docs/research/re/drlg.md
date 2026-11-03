@@ -451,7 +451,8 @@ head) with n = v.next, m = n.next: (dx1, dy1) = sign(n − v), (dx2, dy2)
 
 After the last vertex: FUN_00675670 scans in from each side and marks
 cells 0x100 (no room) until it meets a border cell (bit 1) — the
-outside of a non-rectangular outline; a no-op on rectangles.
+outside of a non-rectangular outline; a no-op on rectangles (d2d:
+Gen::blank_outside; tiles diff exact on 19 outdoor levels, seeds 1-25).
 
 **Placing presets.** A def covers LvlPrest SizeX/8 × SizeY/8 cells.
 
