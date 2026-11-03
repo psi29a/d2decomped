@@ -2745,8 +2745,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
             } else if (monster.skill >= 0 && monster.skill == skill_id(game_data, "SpiderLay")) {
                 // srvdofunc 23 (FUN_005c9c10): its aurastate spiderlay for
-                // auralen 300 frames, aurastat velocitypercent -100.
-                // ponytail: the slowed state on those about (auratargetstate) left out.
+                // auralen 300 frames, aurastat velocitypercent -100. Its
+                // auratargetstate (slowed) reaches no one: the row names no
+                // auraevent (+0x84 < 0, so the event loop's FUN_0056e740 never
+                // runs) and no aurarangecalc.
                 monster.laid_until = now_ms + 300 * 40;
             } else if (attack && foe.alive && dist <= kMeleeReach + 0.3f) {
                 // Melee: block, reductions, resistances; a hit that lands
