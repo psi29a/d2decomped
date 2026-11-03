@@ -1000,6 +1000,14 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
 // A monster's skill strike (Whirlwind, Leap Attack): its A1 swing at the skill's damage, to-hit and element (ai.cpp).
 d2d::rules::MonStats skill_strike(const GameData& game_data, const Monster& monster, const d2d::rules::Skill& skill, int lvl);
+// Fire Hit's and Jab's hit (FUN_005cae40, FUN_005db2d0): the swing's S1 damage,
+// to-hit and S1 elements as A1's, plus the skill's to-hit as points (FUN_006449f0
+// into FUN_0057ec10, as skill_strike).
+inline void s1_strike(d2d::rules::MonStats& stats, const d2d::rules::SkillTables& skill_tables, const d2d::rules::Skill& skill, int lvl) {
+    stats.a1_min = stats.s1_min; stats.a1_max = stats.s1_max;
+    stats.to_hit = stats.to_hit_s1 + d2d::rules::skill_tohit(skill_tables, skill, {}, lvl);
+    for (auto& element : stats.elements) element.mode = element.mode == "S1" ? "A1" : "";
+}
 // FUN_005b0e00(ctrl, special): rules::ai_toggle on the monster.
 void ai_toggle(const GameData& game_data, Monster& monster, int special);
 // A timed state on a monster in its slot (FUN_0056e970) and a state's end (fight/).

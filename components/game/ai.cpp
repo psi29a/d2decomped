@@ -2739,8 +2739,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // pays the foe's thorns (lightning ones less its resistance).
                 auto stats = monster.swing_stats();                                // Weaken, Decrepify, Battle Cry, Taunt, a boss's aura: its damage %
                 // Fire Hit (srvstfunc 42, FUN_005cae40, the Sand Raiders'): the hit
-                // is its S1 damage and S1 elements (FUN_005a4f50 mode 8).
-                // ponytail: the skill's ResultFlags / HitFlags / HitClass unread.
+                // is its S1 damage and S1 elements (FUN_005a4f50 mode 8) at the
+                // skill's to-hit (s1_strike). It ORs in the skill's ResultFlags,
+                // HitFlags and HitClass (+0x12e / +0x130 / +0x134): all empty in
+                // Fire Hit's row, so none are read.
                 const auto* struck_with = monster.skill >= 0 ? game_data.skills.get(monster.skill) : nullptr;
                 if (monster.leaping) monster.seq_once = true;               // Leap's hit at its start (FUN_005d9c80), its later rows only fly (do 77)
                 // FUN_005a4f50 builds the hit by the mode: A2's damage, to-hit
@@ -2752,8 +2754,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const bool smite = struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kSmite;
                 const bool jab = struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kJab;
                 if (jab || (seq && struck_with && struck_with->srvstfunc == d2d::rules::ServerStartFunction::kFireHit)) {
-                    stats.a1_min = stats.s1_min; stats.a1_max = stats.s1_max; stats.to_hit = stats.to_hit_s1;
-                    for (auto& element : stats.elements) element.mode = element.mode == "S1" ? "A1" : "";
+                    s1_strike(stats, game_data.skills, *struck_with, skill_level(game_data, monster, monster.skill));
                 } else if (smite || monster.mode == "A2") {
                     stats.a1_min = stats.a2_min; stats.a1_max = stats.a2_max; stats.to_hit = stats.to_hit2;
                     for (auto& element : stats.elements) element.mode = element.mode == "A2" ? "A1" : "";
