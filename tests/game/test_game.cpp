@@ -874,6 +874,20 @@ int main(int argc, char** argv) try {
             const auto swung = swinger.swing_stats();
             assert(swung.elements[0].pct == 100 && (swung.elements[1].type < 0) == !second_in && swung.elements[2].pct == 50);
         }
+        // The weapon switch keeps the current skill when the other set's
+        // can't be used (FUN_005616a0 -> FUN_00620190: the skill list's +8).
+        {
+            auto& header = world.actor->character.header;
+            const bool expansion = world.actor->character.expansion;
+            const auto left = header.left_skill, left_swap = header.left_swap;
+            const auto throw_id = std::uint32_t(data->skills.by_name.at("Throw")), fire_bolt = std::uint32_t(data->skills.by_name.at("Fire Bolt"));
+            world.actor->character.expansion = true;
+            header.left_skill = throw_id; header.left_swap = fire_bolt;
+            world.apply(cmd::SwapWeapons{}, throw_ms);
+            assert(world.actor->character.character_class == 1 || header.left_skill == throw_id);
+            world.apply(cmd::SwapWeapons{}, throw_ms);
+            world.actor->character.expansion = expansion; header.left_skill = left; header.left_swap = left_swap;
+        }
         // Taking a corpse (FUN_00562f30): a bow doesn't go on beside a
         // worn shield (FUN_0055f2d0) but into the inventory; a free hand takes it.
         {

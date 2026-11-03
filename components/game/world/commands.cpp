@@ -333,10 +333,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // FUN_005616a0): an expansion character's hands (body slots 4 / 5)
         // and the switch's (0xb / 0xc) trade places, and the left / right
         // skills the pair the other set kept (header +0x80 / +0x84); a kept
-        // one no longer usable gives way (FUN_00647960 says 2 or 7). Not
-        // while dying or dead (FUN_005541b0).
-        // ponytail: it gives way to Attack, not the skill list's own
-        // (FUN_00643930 / FUN_00643960, untraced).
+        // one no longer usable (FUN_00647960 says 2 or 7) gives way to the
+        // skill list's current one (+8 / +0xc: FUN_00620190 / FUN_006201d0),
+        // the one before the switch. Not while dying or dead (FUN_005541b0).
         if (std::holds_alternative<cmd::SwapWeapons>(command)) {
             namespace body = d2d::d2s::body_location;
             if (!actor->character.expansion || fight.dead()) return;
@@ -348,14 +347,14 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             auto& header = actor->character.header;
             if (header.right_skill == std::uint32_t(kResurrectSkill)) header.right_skill = actor->right_before;   // co-op's Resurrect stays with no set
             header.weapon_set ^= 1;
-            const auto kept = [&](std::uint32_t id, bool left) {
+            const auto kept = [&](std::uint32_t id, bool left, std::uint32_t current) {
                 const auto* skill = game_data->skills.get(int(id));
-                return skill && !skill->passive && (!left || skill->leftskill) && skill_level(*game_data, actor->character, int(id), {}) > 0 ? id : 0u;
+                return skill && !skill->passive && (!left || skill->leftskill) && skill_level(*game_data, actor->character, int(id), {}) > 0 ? id : current;
             };
             std::swap(header.left_skill, header.left_swap);
             std::swap(header.right_skill, header.right_swap);
-            header.left_skill = kept(header.left_skill, true);
-            header.right_skill = kept(header.right_skill, false);
+            header.left_skill = kept(header.left_skill, true, header.left_swap);
+            header.right_skill = kept(header.right_skill, false, header.right_swap);
             const auto* right = game_data->skills.get(int(header.right_skill));
             actor->aura = right && right->aura ? int(header.right_skill) : 0;
             return;
