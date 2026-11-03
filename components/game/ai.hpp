@@ -603,6 +603,7 @@ struct Missile {
     // row's own is replaced (-1: its row's or skill's), the last frame a
     // spawner or burner ran.
     int target = -1, hops = 0, ed_pct = 0, ar_pct = 0, fixed = -1, frame = -1;
+    int influence = 0;                        // Blessed Hammer's: the caster's Concentration share of its damage, % (FUN_006461d0)
     int target_id = -1;                       // its target's Foe::id: the foes are rebuilt each frame, pets come and go
     int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre

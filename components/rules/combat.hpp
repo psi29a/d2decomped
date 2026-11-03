@@ -494,6 +494,20 @@ inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int 
 // weapon's share (SrcDam as written, 128ths; 0 for spells).
 struct MissileDamage { int phys_lo = 0, phys_hi = 0, etype = -1, elo = 0, ehi = 0, elen = 0, srcdam = 0; };
 
+// The caster's Concentration on Blessed Hammer (FUN_006461d0, called by the
+// do FUN_005d0040 at 0x5d011a): the damagepercent of the caster's state 0x2a
+// (the aura) times the skill's Param1 over 8, truncated toward 0; the do then
+// sets the missile's magic min and max to MulDiv(stat, 100 + influence, 100)
+// when it is not 0. `percent` is the state's damagepercent stat, 0 with no
+// such state.
+inline int aura_influence(int percent, int param1) { return percent * param1 / 8; }
+inline MissileDamage influenced(MissileDamage damage, int influence) {
+    if (influence == 0) return damage;
+    damage.elo = mul_div(damage.elo, 100 + influence, 100);
+    damage.ehi = mul_div(damage.ehi, 100 + influence, 100);
+    return damage;
+}
+
 // A burst rolls its record once and hands a copy to every unit it takes in
 // (FUN_005a9a70 and FUN_005aa8b0 call FUN_005a8c70 once; each unit resists
 // its own copy): the physical and the element roll in 256ths, -1 until the
