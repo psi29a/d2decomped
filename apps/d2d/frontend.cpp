@@ -753,7 +753,7 @@ TitleUI other_multiplayer_ui(const Scene& scene) {
     TitleUI menu;
     menu.labels.reserve(3);
     menu.buttons.reserve(3);
-    // ponytail: OPEN BATTLE.NET does nothing; d2d has no Battle.net.
+    // OPEN BATTLE.NET does nothing (deviations.md, Approximations #16).
     struct Entry { int y; int tbl_id; const char* fallback; Screen target; };
     static constexpr Entry kEntries[] = { { 310, 0x13fb, "OPEN BATTLE.NET", Screen::OtherMultiplayer },
                                           { 350, 0x13fc, "TCP/IP GAME", Screen::TcpIp },
