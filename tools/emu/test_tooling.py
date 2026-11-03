@@ -4,6 +4,7 @@
 Run from tools/emu with: python3 -m unittest test_tooling.py
 """
 import os
+import struct
 import subprocess
 import tempfile
 import time
@@ -11,6 +12,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from cast_mana import animdata_records, cut_cases, pay_tick
 from mpq_cache import MpqCache
 
 
@@ -54,6 +56,26 @@ class CacheTests(unittest.TestCase):
                 oracle.files.clear()
                 self.assertIsNone(oracle.read("absent.txt"))
                 self.assertEqual(run.call_count, 1)
+
+
+class CastManaTests(unittest.TestCase):
+    def test_action_events_are_values_one_and_two(self):
+        events = [(0, 1008, 1, 0), (0, 1009, 3, 1), (1, 1013, 0, 0), (0, 1010, 2, 2)]
+        self.assertEqual(pay_tick(events, 1000), [8, 10])
+
+    def test_cuts_never_sit_on_the_event(self):
+        cuts = cut_cases(8)
+        self.assertEqual(cuts[0], -1)
+        self.assertNotIn(8, cuts)
+        self.assertEqual(cuts[1:], [5, 6, 7, 9, 10])
+        self.assertEqual(cut_cases(1), [-1, 0, 2, 3])
+
+    def test_animdata_records_by_prefix(self):
+        def record(name, frames, speed):
+            return name.encode().ljust(8, b"\0") + struct.pack("<II", frames, speed) + bytes(144)
+        blob = struct.pack("<I", 2) + record("SOSCSTF", 14, 256) + record("SOWL1HS", 8, 256) + struct.pack("<I", 1) + record("SOSCHTH", 14, 256)
+        found = animdata_records(blob, "SOSC")
+        self.assertEqual([(name, frames, speed) for name, frames, speed, _ in found], [("SOSCSTF", 14, 256), ("SOSCHTH", 14, 256)])
 
 
 class SweepTests(unittest.TestCase):

@@ -378,6 +378,7 @@ auto Fight::player_anim(int mode) const -> const GameData::AnimTiming& {
 
 auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->pmode = mode;
+        if (mode != kModeSC && mode != kModeA1) actor->owed = {};   // a cast cut off before its action frame pays nothing
         actor->player.mode_ms = now_ms;
         actor->player.walking = false;
         actor->player.path.clear();

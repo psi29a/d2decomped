@@ -79,6 +79,26 @@ auto Fight::pay(const d2d::rules::Skill& skill, int lvl) -> void {
         else mana -= d2d::rules::mana_paid(skill, lvl, mana);
     }
 
+// A skill with no start function pays in its do, on the cast mode's action frame (FUN_0056f7f0 ->
+// FUN_0056bfe0): a cast cut off before it costs nothing, and short of the mana by then it pays nothing
+// (mana_paid) and stands. A start function pays at the command unless the row has UseManaOnDo
+// (FUN_0056f640, 0x56f78c; V read): Plague Javelin and Blade Fury have both and pay in the do, not
+// modelled here. cast_summon and start_swing still pay at the command through pay(); in game.exe
+// their srvstfunc-none rows (summons, Smite, Frenzy, Double Swing, Hunger) also pay in the do
+// (0x56f773, 0x56fa57; V read): not moved, not claimed.
+// A get-hit start clears the queued event (FUN_0057fe30 -> FUN_00553990 -> FUN_00540e60 at
+// 0x57fe78; V read), so a cut cast pays nothing; the oracle models that, it does not run it.
+auto Fight::owe(const d2d::rules::Skill& skill, int lvl) -> void {
+        if (skill.srvstfunc == ServerStartFunction::kNone) actor->owed = { skill.id, lvl };
+        else pay(skill, lvl);
+    }
+
+auto Fight::settle_cast() -> void {
+        const auto owed = std::exchange(actor->owed, {});
+        const auto* skill = owed.skill >= 0 ? game_data->skills.get(owed.skill) : nullptr;
+        if (skill) pay(*skill, owed.lvl);
+    }
+
 auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
         using namespace d2d::d2s;
         const auto* skill_row = game_data->skills.get(skill);
@@ -87,7 +107,7 @@ auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
         const int cost = cost_of(*skill_row, lvl);
         if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);
         if (lvl <= 0 || actor->character.stats.values[kMana] < cost) return false;
-        pay(*skill_row, lvl);
+        owe(*skill_row, lvl);
         actor->swing_skill = skill;
         actor->attack_mon = -1;
         set_pmode(kModeSC, now_ms);
