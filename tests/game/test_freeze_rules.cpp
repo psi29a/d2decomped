@@ -34,6 +34,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -101,7 +102,7 @@ int main(int argc, char** argv) try {
         monster.chill_until = prior_chill > 0 ? now + std::uint32_t(prior_chill) * kTickMs : 0;
         monster.stun_until = prior_freeze > 0 ? now + std::uint32_t(prior_freeze) * kTickMs : 0;
         world.fight.monsters.clear();
-        world.fight.add_monster(monster);
+        world.fight.add_monster(std::move(monster));
         const auto target = world.fight.target_of(0);
         Missile missile;
         missile.info = &spike_info;

@@ -683,7 +683,8 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         // A merc's skill missile (Fire Arrow): its weapon, attack rating and
         // level; its skill's calcs see no synergies (mercs have none).
         const int clvl = missile.by_merc ? actor->merc_st.level : int(actor->character.stats.get(d2d::d2s::kLevel));
-        const auto fighter = missile.by_merc ? merc_fighter() : actor->player_combat;
+        const auto merc = missile.by_merc ? merc_fighter() : d2d::rules::Fighter{};
+        const auto& fighter = missile.by_merc ? merc : actor->player_combat;
         const auto env = missile.by_merc ? merc_calc_env() : calc_env();
         auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = missile.info->etype < 0 ? 0 : missile.info->etype, .elo = missile.fixed, .ehi = missile.fixed }
                 : missile.info->skill.empty() ? row_damage(*missile.info, missile.level, env, missile.skill)
