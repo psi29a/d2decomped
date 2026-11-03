@@ -10,7 +10,7 @@
 // cases made by `gen N SEED --no-units` (d2d keeps units in the Crowd, so the
 // units' bit 0x1000 is left out).
 // With no argument: a target outside the caster's room and its near list is
-// refused, one inside lands.
+// refused, one inside lands, a blocked one lands on the nearest free spot.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -35,6 +35,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -119,6 +120,20 @@ int main(int argc, char** argv) try {
         assert(!place(1, 100, 100, 160, 100, {}));         // the room after it: not near
         assert(!place(1, 100, 100, 100, 199, {}));
         assert(!place(0, 100, 100, 110, 100, {}));         // the level's Teleport 0
+        // A blocked target lands on the nearest free spot (FUN_0064e7b0): the first ring's corner, then the least |dx| + |dy| of a ring.
+        const auto landed = [&] { return std::pair{ int(std::floor(world.actor->player.x * 5)) - kOffset, int(std::floor(world.actor->player.y * 5)) - kOffset }; };
+        assert(place(1, 100, 100, 130, 100, { { 130, 100, 1 } }) && landed() == std::pair(129, 99));
+        assert(place(1, 100, 100, 130, 100, { { 130, 101, 1 } }) && landed() == std::pair(129, 100));       // the plus of (130, 100) is hit: left column first
+        assert(place(1, 100, 100, 130, 100, { { 129, 100, 1 }, { 131, 100, 1 }, { 130, 99, 1 }, { 130, 101, 1 } }) && landed() == std::pair(128, 99));
+        // The search stops at ring 49 (FUN_0064dea0: on only while ring + 1 < 50): a square of blocked subtiles out to ring 49 leaves only ring 50, refused; out to ring 48, the first corner of ring 49 is taken.
+        const auto square = [](int half) {
+            std::vector<std::array<int, 3>> words;
+            for (int y = 100 - half; y <= 100 + half; ++y)
+                for (int x = 130 - half; x <= 130 + half; ++x) words.push_back({ x, y, 1 });
+            return words;
+        };
+        assert(!place(1, 100, 100, 130, 100, square(49)));
+        assert(place(1, 100, 100, 130, 100, square(48)) && landed() == std::pair(81, 51));
         std::printf("test_tele_spot: ok\n");
         return 0;
     }

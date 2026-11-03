@@ -40,10 +40,11 @@ class CaseTests(unittest.TestCase):
 
     def test_diff_names_each_kind_and_the_class_of_case(self):
         far = "0 1 100 100 190 100 0"                          # two rooms east: not near
-        game, d2d = ["0 0 - -", "1 1 105 100", "2 1 5 5"], ["a log line", "0 1 190 100", "1 0 - -", "2 1 5 5"]
-        kinds = tele.diff(game, d2d, [far, "1 1 100 100 105 100 0", "2 1 100 100 105 105 0"])
+        blocked = "1 1 100 100 110 100 1 110 100 1"
+        game, d2d = ["0 0 - -", "1 1 111 100", "2 1 5 5"], ["a log line", "0 1 190 100", "1 0 - -", "2 1 5 5"]
+        kinds = tele.diff(game, d2d, [far, blocked, "2 1 100 100 105 105 0"])
         self.assertEqual(kinds, {"game refuses, d2d lands (target room not near)": 1,
-                                 "game lands, d2d refuses": 1, "same": 1})
+                                 "game lands, d2d refuses (target blocked)": 1, "same": 1})
 
     def test_diff_rejects_unequal_or_empty_answer_files(self):
         with self.assertRaises(ValueError):
@@ -69,6 +70,12 @@ class GameTests(unittest.TestCase):
 
     def test_teleport_0_is_refused(self):
         self.assertEqual(self.run_case((110, 100), level=0)[0], 0)
+
+    def test_a_blocked_target_lands_on_the_nearest_free_spot(self):
+        ret, pos = self.run_case((110, 100), {(110, 100): 1})
+        self.assertEqual(ret, 1)
+        self.assertNotEqual(pos, (110, 100))
+        self.assertLessEqual(max(abs(pos[0] - 110), abs(pos[1] - 100)), 3)
 
 
 if __name__ == "__main__":

@@ -285,6 +285,35 @@ struct Level {
                         return { x + float(offset_x) * 0.2f, y + float(offset_y) * 0.2f };
         return { x, y };
     }
+    // Where a warp puts a player on subtile (x, y) (FUN_00554ea0 -> FUN_0064e7b0
+    // -> FUN_0064dea0, the plus footprint, mask 0x1c09 less the units' bit): the
+    // subtile itself when it is free, else the first square ring of subtiles
+    // round it (1 to 49: FUN_0064dea0 goes on only while ring + 1 < 50) holding
+    // a free one, in it the one of least |dx| + |dy|; ties are FUN_0064dea0's
+    // scan order: the left and right columns (row by row, left first), then the
+    // top and bottom rows (column by column, top first), then the corners (row
+    // by row). None: nullopt.
+    // VERIFIED: ring limit and scan order read in FUN_0064dea0; the ring and the
+    // distance also against game.exe's own run (sk_tele_spot.py, dense obstacles).
+    [[nodiscard]] std::optional<std::pair<int, int>> warp_spot(int x, int y) const {
+        const auto is_free = [&](int sub_x, int sub_y) { return !unit_blocked((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5); };
+        if (is_free(x, y)) return std::pair{ x, y };
+        for (int ring = 1; ring < 50; ++ring) {
+            std::optional<std::pair<int, int>> best;
+            int best_distance = 0;
+            const auto consider = [&](int column, int row) {
+                const int distance = std::abs(column) + std::abs(row);
+                if ((best && distance >= best_distance) || !is_free(x + column, y + row)) return;
+                best = std::pair{ x + column, y + row };
+                best_distance = distance;
+            };
+            for (int row = 1 - ring; row < ring; ++row) { consider(-ring, row); consider(ring, row); }
+            for (int column = 1 - ring; column < ring; ++column) { consider(column, -ring); consider(column, ring); }
+            for (const int row : { -ring, ring }) { consider(-ring, row); consider(ring, row); }
+            if (best) return best;
+        }
+        return std::nullopt;
+    }
     // FUN_00545340: a spot near subtile (x, y) for something `size` wide
     // whose (size x 2 + 1) square, centred a subtile up-left of it, has no
     // bit of `mask` (FUN_0064d800), searched ring by ring (c = 1 .. rings - 1:

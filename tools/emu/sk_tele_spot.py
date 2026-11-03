@@ -8,7 +8,7 @@ collision test FUN_0064d9b0), run natively on synthetic rooms.
     uv run python sk_tele_spot.py game cases.tsv > game.tsv
     ../../build/tests/test_tele_spot --tele-spot cases.tsv | grep -E '^[0-9]+ ' > d2d.tsv    # tests/game/test_tele_spot.cpp
     uv run python sk_tele_spot.py diff game.tsv d2d.tsv cases.tsv
-    uv run python sk_tele_spot.py probe          # the open-map landings and the refusals
+    uv run python sk_tele_spot.py probe          # where the snap lands round a blocked target
 
 The world: 5 x 5 rooms of 40 x 40 subtiles (outdoor rooms are 8 x 8 tiles);
 the caster stands in the centre room (2, 2). A room's near list is the room
@@ -203,14 +203,23 @@ def diff(game, d2d, cases=()):
                 kind += " (target room not near)"
             elif tele == 0:
                 kind += " (Teleport 0)"
+            elif a[1] == "1" and b[1] == "0":
+                kind += " (target blocked)"
         kinds[kind] = kinds.get(kind, 0) + 1
     return kinds
 
 
 def probe(oracle):
-    """Lines describing where the unit lands on an open map and the refusals."""
+    """Lines describing where the snap lands round a blocked target, and the refusals."""
     cx, cy = 100, 100
     out = []
+    for radius in (0, 1, 2, 3, 5):
+        words = {(110 + dx, 100 + dy): 1 for dx in range(-radius, radius + 1) for dy in range(-radius, radius + 1)}
+        ret, pos = oracle.run(1, cx, cy, 110, 100, words)
+        out.append(f"target (110,100), blocked square radius {radius}: do {ret} landed {pos}")
+    for bits in (0x4, 0x8, 0x400, 0x800, 0x2, 0x10, 0x100, 0x2000):
+        ret, pos = oracle.run(1, cx, cy, 110, 100, {(110, 100): bits})
+        out.append(f"target word {bits:#x}: do {ret} landed {pos}")
     for target in ((199, 100), (120, 100), (79, 100), (40, 40), (39, 39), (159, 159), (160, 160), (-1, 100)):
         ret, pos = oracle.run(1, cx, cy, *target, {})
         out.append(f"open map, target {target}: do {ret} landed {pos}")
