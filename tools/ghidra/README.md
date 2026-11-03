@@ -23,9 +23,10 @@ each one d2d cites; then `tools/ghidra/fn.py 00584870 FUN_0057af80` prints
 them. Rerun it after porting: the names come from the code, and from
 `docs/research/re/names.tsv` for functions traced but not ported.
 `tools/ghidra/calls.py 00499450 --to 00502ef0` walks the calls from a
-function in the C's text order (a nested `f(g())` lists f first) and lists each path that reaches
-the target (which SetFont is current at a draw, which event a think
-schedules); without `--to` it prints the call tree.
+function in the C's text order (a nested `f(g())` lists f first) and lists
+each call to the target it reaches, with a shortest path to it (which
+SetFont is current at a draw, which event a think schedules); without
+`--to` it prints the call tree.
 
 ## Why it exists
 

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Walk game.exe's calls in the order they're written, from tools/ghidra/project/game_all.c.
 
-Usage: tools/ghidra/calls.py 00499450 004aa7e0 --to 00502ef0   # each call to SetFont they reach, with its path
+Usage: tools/ghidra/calls.py 00499450 004aa7e0 --to 00502ef0   # each call to SetFont they reach, with a shortest path
        tools/ghidra/calls.py 00456ee0 --depth 2                # the call tree, two levels down
 
 Order is the decompiled C's text order, statement by statement: that's the run
@@ -39,9 +39,11 @@ def callees(address, names, bodies):
 
 
 def walk(start, limit, target, calls):
-    """Lines: the calls `limit` levels down from `start` (a tree), or each path to `target`.
-    `calls(address)` yields (name, address or None). A function is walked again only when a
-    shorter path reaches it (more levels left), so a cycle ends and a short path isn't lost."""
+    """Lines: the calls `limit` levels down from `start` (a tree), or each call to `target`
+    reached, with a shortest path to it. `calls(address)` yields (name, address or None). A
+    function is walked once per depth it's first reached at, again only by a shorter path: a
+    cycle ends and a short path isn't lost, but two routes of one length to a function give
+    one path (listing every route grows exponentially in game.exe's shared helpers)."""
     out, best = [], {}
 
     def visit(address, level, path):
@@ -66,7 +68,7 @@ def walk(start, limit, target, calls):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("start", nargs="+")
-    parser.add_argument("--to", help="list only the calls to this function, each with its path")
+    parser.add_argument("--to", help="list only the calls to this function, each with a shortest path")
     parser.add_argument("--depth", type=int, default=6, help="levels of calls below a start (1: its own calls)")
     options = parser.parse_args()
     names, bodies = load()

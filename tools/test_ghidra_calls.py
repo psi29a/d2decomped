@@ -25,5 +25,12 @@ class CallsTests(unittest.TestCase):
         self.assertEqual(calls.walk("root", 3, "t", edges), ["root -> x -> y -> t"])
 
 
+    def test_converging_routes_give_one_path_per_call(self):
+        # root -> a -> x -> t and root -> b -> x -> t: x's one call to t, listed once.
+        graph = {"root": ["a", "b"], "a": ["x"], "b": ["x"], "x": ["t"]}
+        edges_of = lambda address: [(name, name) for name in graph.get(address, [])]
+        self.assertEqual(calls.walk("root", 4, "t", edges_of), ["root -> a -> x -> t"])
+
+
 if __name__ == "__main__":
     unittest.main()
