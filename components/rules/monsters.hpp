@@ -415,8 +415,8 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
         // Every typed one keeps its mode and chance, which the swing rolls on
         // (roll_elements); one that does no damage here is type -2 (rand -3).
         if (type_info.el_type[element] == -1) continue;
-        const int type = type_info.el_type[element] >= 0 && element_info.max <= 0 ? -2 : type_info.el_type[element];
-        stats.elements[element] = { type, element_info.pct ? element_info.pct : 100, pct(level_row.damage[std::size_t(difficulty_index)], element_info.min),
+        const int kind = type_info.el_type[element] >= 0 && element_info.max <= 0 ? -2 : type_info.el_type[element];
+        stats.elements[element] = { kind, element_info.pct ? element_info.pct : 100, pct(level_row.damage[std::size_t(difficulty_index)], element_info.min),
                     std::max(pct(level_row.damage[std::size_t(difficulty_index)], element_info.max), pct(level_row.damage[std::size_t(difficulty_index)], element_info.min)), element_info.dur, type_info.el_mode[element] };
     }
     return stats;

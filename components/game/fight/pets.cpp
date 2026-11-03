@@ -604,17 +604,17 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             units.push_back({ .type = 1, .x = pet_x, .y = pet_y, .foe = false, .owner = 1 });
             units.push_back({ .type = 0, .x = sub(actor->player.x), .y = sub(actor->player.y), .targetable = false, .foe = false });
             std::vector<int> rooms;
-            for (const auto& [room_level, room] : near_rooms(*game_data, *level, pet.monster.unit.x, pet.monster.unit.y))
-                if (room_level == level) rooms.push_back(room);
+            for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, pet.monster.unit.x, pet.monster.unit.y))
+                if (room_level == level) rooms.push_back(near_room);
             std::vector<d2d::rules::RoomUnit> room_units;
             for (const auto& other : monsters) room_units.push_back({ room_of(*level, other.unit.x, other.unit.y), other.alive() || other.mode == "DT" });
-            for (const int index : d2d::rules::room_order(room_units, rooms)) {
-                const auto i = std::size_t(index);
-                const auto& other = monsters[i];
+            for (const int near_index : d2d::rules::room_order(room_units, rooms)) {
+                const auto monster_index = std::size_t(near_index);
+                const auto& other = monsters[monster_index];
                 const int other_x = sub(other.unit.x), other_y = sub(other.unit.y);
                 const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
                 const bool special = other.boss == d2d::rules::Boss::champion || other.boss == d2d::rules::Boss::unique || other.boss == d2d::rules::Boss::superunique;
-                const auto foe = target_of(i);
+                const auto foe = target_of(monster_index);
                 ShadowUnit entry{ .type = 1, .x = other_x, .y = other_y, .targetable = other.alive(), .dying = !other.alive(), .foe = other.align == 0,
                                   .melee = d2d::rules::unit_distance(other_x - pet_x, other_y - pet_y, size, other_type.size) <= type_info.melee_rng + 1,
                                   .worth = d2d::rules::shadow_worth(true, !other.alive(), game_data->mon_is_npc[std::size_t(other.type)], other_type.killable,
@@ -624,7 +624,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
                 entry.resist = { foe.res[0], foe.res[2], foe.res[3], foe.res[1], foe.res[4], foe.res[5] };   // by EType: none, fire, light, magic, cold, poison
                 entry.drain = foe.drain;
                 units.push_back(std::move(entry));
-                monster_of.push_back(int(i));
+                monster_of.push_back(int(monster_index));
             }
             for (const auto& fellow : actor->pets)
                 if (&fellow != &pet && fellow.monster.alive() && fellow.where == level) {

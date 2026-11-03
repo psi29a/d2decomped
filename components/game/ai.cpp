@@ -1036,8 +1036,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         const bool panther = type_info.ai_name == "PantherWoman" || type_info.ai_name == "PantherJavelin";
         const bool raider = type_info.ai_name == "SandRaider", mummy = type_info.ai_name == "GreaterMummy";
         int kin_dist = std::numeric_limits<int>::max();
-        for (const int i : panther || raider || mummy ? near_order([&](const Monster& other) { return &other != &monster; }) : std::vector<int>{}) {
-            const auto& other = pack[std::size_t(i)];
+        for (const int pack_index : panther || raider || mummy ? near_order([&](const Monster& other) { return &other != &monster; }) : std::vector<int>{}) {
+            const auto& other = pack[std::size_t(pack_index)];
             const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
             if (mummy) {
                 const bool radament = monster.type == d2d::rules::monster_ids::kRadament;
@@ -1047,9 +1047,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const int reach = input.aip[4] + (radament ? 10 : 0);
                 if (squared > reach * reach) continue;
                 ++input.in_reach;
-                if (!other.alive() && other.mode == "DD" && !other.corpse_used) corpse = i;
-                else if (other.alive() && other.hit_points < other.stats.hit_points) aid = i;
-            } else if (other.alive() && (raider || other.type == monster.type) && squared < kin_dist) { kin = i; kin_dist = squared; }
+                if (!other.alive() && other.mode == "DD" && !other.corpse_used) corpse = pack_index;
+                else if (other.alive() && other.hit_points < other.stats.hit_points) aid = pack_index;
+            } else if (other.alive() && (raider || other.type == monster.type) && squared < kin_dist) { kin = pack_index; kin_dist = squared; }
         }
         if (mummy) { input.corpse = corpse >= 0; input.aid = aid >= 0; }
         else { input.kin = kin >= 0; input.kin_dist = kin_dist; }

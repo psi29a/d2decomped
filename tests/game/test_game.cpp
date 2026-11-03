@@ -880,11 +880,11 @@ int main(int argc, char** argv) try {
             auto& header = world.actor->character.header;
             const bool expansion = world.actor->character.expansion;
             const auto left = header.left_skill, left_swap = header.left_swap;
-            const auto throw_id = std::uint32_t(data->skills.by_name.at("Throw")), fire_bolt = std::uint32_t(data->skills.by_name.at("Fire Bolt"));
+            const auto throw_skill = std::uint32_t(data->skills.by_name.at("Throw")), fire_bolt = std::uint32_t(data->skills.by_name.at("Fire Bolt"));
             world.actor->character.expansion = true;
-            header.left_skill = throw_id; header.left_swap = fire_bolt;
+            header.left_skill = throw_skill; header.left_swap = fire_bolt;
             world.apply(cmd::SwapWeapons{}, throw_ms);
-            assert(world.actor->character.character_class == 1 || header.left_skill == throw_id);
+            assert(world.actor->character.character_class == 1 || header.left_skill == throw_skill);
             world.apply(cmd::SwapWeapons{}, throw_ms);
             world.actor->character.expansion = expansion; header.left_skill = left; header.left_swap = left_swap;
         }
