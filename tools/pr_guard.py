@@ -19,8 +19,8 @@ Usage: tools/pr_guard.py [BASE [HEAD]]   (default origin/main HEAD; reads the di
   FAIL  a file the branch touches with an #include block, Python imports, a
         CMake source list or an address-keyed research table out of order
         (AGENTS.md 7: add where it sorts, not at the end)
-  FAIL  an added line naming a tools/ script that isn't in the tree: a
-        citation nobody can re-run (AGENTS.md "Evidence")
+  FAIL  an added line naming a tools/ script that isn't in the PR's head tree (the
+        PR may add it): a citation nobody can re-run (AGENTS.md "Evidence")
   WARN  docs/PLAN.md changed: the maintainer's, updated after a merge
 
 With --sorted, only the order check: what .githooks/pre-push runs.
@@ -170,7 +170,7 @@ def check(base, labels, entries, head="HEAD"):
         if not path.startswith(("tools/test_", "tools/pr_guard.py")):  # made-up addresses, section ends
             check_addresses(where, text, entries, fails, warns)
             for tool in TOOL_PATH.findall(text):
-                if not os.path.exists(tool):
+                if not git("ls-tree", "--name-only", head, "--", tool).strip():   # the PR head, not the base checkout CI runs from
                     fails.append(f"{where}: {tool} isn't in the tree: commit it, or say the check can't be re-run")
         if not path.endswith(".md"):
             for what, pattern in RISKY_CODE:
