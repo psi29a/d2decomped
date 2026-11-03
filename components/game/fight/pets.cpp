@@ -324,12 +324,20 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         const bool need_sight = std::exchange(monster.force_sight, false) || indoor;
         const auto wall = [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x04); };
         std::vector<d2d::rules::NearFoe> nears;
+        // The Shadow Master's units are its near rooms' (FUN_005eb970's FUN_005dd0b0 mode 1):
+        // its foe, the driver, comes from those only.
+        const bool master_ai = type_info.ai_name == "ShadowMaster";
+        std::vector<int> rooms;
+        if (master_ai)
+            for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, unit.x, unit.y))
+                if (room_level == level) rooms.push_back(near_room);
         for (const auto& other : monsters) {
             const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
             const int foe_x = sub(other.unit.x), foe_y = sub(other.unit.y);
             auto& entry = nears.emplace_back(d2d::rules::NearFoe{ d2d::rules::near_distance(foe_x - pet_x, foe_y - pet_y, other_type.size), other.align, other_type.threat,
                                                                   false, true, !other.targetable(), town });   // FUN_005dca70: no unit flag 0x4, no target
             entry.blocked = need_sight && entry.distance <= 0x23 && d2d::rules::sight_blocked(foe_x, foe_y, other_type.size, pet_x, pet_y, size, wall);
+            if (master_ai && !std::ranges::contains(rooms, room_of(*level, other.unit.x, other.unit.y))) entry.skip = true;
         }
         const auto pick = d2d::rules::search_near(nears, 2, need_sight);
         const int found = pick.target >= 0 ? pick.target : pick.second;
