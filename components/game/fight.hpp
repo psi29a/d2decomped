@@ -584,8 +584,11 @@ struct Fight {
     // physical damage, the last kick knocking back (100% on normal
     // monsters, FUN_005d5a30). A finisher's charges add their stat 325
     // to-hit (add_charges), Dragon Flight's too (progressive_tohit).
-    // ponytail: the skills' states (Stun's stun, Concentrate's defense) and
-    // calc4's element conversion aren't applied.
+    // Their states and conversion come too: an EType stun skill (Stun) its
+    // elemental length as the stun, calc4 % of the physical to the element
+    // (Concentrate's magic; skill_swing), and a do-2 skill's aurastate on
+    // the player for the swing (FUN_0056f1f0, self_state: Concentrate's
+    // skill_armor_percent, Berserk's).
     [[nodiscard]] d2d::rules::Swing swing();
     // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the
     // merc's (Jab, Bash, Stun). `by_player`: Smite's Holy Shield damage and
