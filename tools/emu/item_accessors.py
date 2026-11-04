@@ -80,6 +80,7 @@ def main():
     for index in range(3):
         read16(0x627EC0, 0x38 + index * 2, (index,))
         write16(0x627EF0, 0x38 + index * 2, (index,))
+    read16(0x627F20, 0x36)
     print("item accessors: all game.exe checks passed")
 
 
