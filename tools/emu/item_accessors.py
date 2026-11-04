@@ -38,6 +38,16 @@ def main():
         actual = machine.call(address, 0, *args, regs={"eax": HIGH})
         expect(actual, 0, f"{address:08x} null read")
 
+    def read32(address, offset):
+        select()
+        for value in (0, 1, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF, 0x89ABCDEF):
+            machine.w32(data + offset, value)
+            expect(machine.call(address, unit), value, f"{address:08x} read {offset:#x}")
+        for kind, with_data in ((3, True), (4, False)):
+            select(kind, with_data)
+            expect(machine.call(address, unit), 0, f"{address:08x} rejected read")
+        expect(machine.call(address, 0), 0, f"{address:08x} null read")
+
     def write16(address, offset, args=()):
         select()
         for value in (0, 1, 0x7FFF, 0x8000, 0xFFFF, 0x12345678):
@@ -88,6 +98,7 @@ def main():
     write16(0x628010, 0x32)
     read16(0x628040, 0x34)
     write16(0x628070, 0x34)
+    read32(0x628110, 0x18)
     print("item accessors: all game.exe checks passed")
 
 
