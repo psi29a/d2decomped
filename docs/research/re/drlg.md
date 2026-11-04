@@ -76,7 +76,8 @@ W/H the new level's size):
 - town (FUN_00676450): as the Blood Moor with 8-tile offsets: flip 1
   (L.x, L.y2), (L.x−W, L.y+8), (L.x2−W, L.y−H), (L.x2, L.y2−H−8);
   flip 0 (L.x2−W, L.y2), (L.x−W, L.y2−H−8), (L.x, L.y−H), (L.x2, L.y+8).
-- fixed (FUN_006768c0): below the link, left-aligned.
+- fixed (FUN_006768c0): sets dir 0 before its switch, so always below
+  the link, left-aligned; returns 1 (never retried).
 
 **Driver** (FUN_006772c0): place record i; if its function has tried
 every side, reset it and back up to i−1 (which tries its next side);
@@ -89,7 +90,10 @@ side); Black Marsh (6) sets level 27's variant from a roll.
 its link (FUN_0066b800: per-axis gap, overlap unless a gap ≥ 0); the town
 only where 0x6f1158[dir + 4 flip + 8 bm_dir + 32 bm_flip] is 1; the
 Burial Grounds not on the same side of Cold Plains as another level from
-it. Chain 2 (FUN_00676eb0) checks overlaps shifted by 200 — not ported.
+it. Chain 2 (FUN_00676eb0): clear of every earlier level except its
+link, then (record > 0) clear of record 0, the Moo Moo Farm, grown 200
+tiles upward (y − 200, h + 200). The chains aren't checked against each
+other. d2d: place_chain's farm_margin.
 
 **Outdoor flags** (FUN_00677180, table 0x6f1258, 15 rules of
 `{level or 0, not, not, dir[i], dir[i+1], flag}`): OR'd into DrlgType-3
@@ -1390,9 +1394,9 @@ Conditions those results hold under, so they aren't overstated:
 
 | What | State |
 |---|---|
-| The rest of act 1's layout: other levels' rectangles, chain 2 (Moo Moo Farm, Monastery, Tamoe Highland, Black Marsh, Dark Wood), chain 2's overlap check shifted by 200 (FUN_00676eb0) | ported partly (chain 2 simplified); only the Blood Moor's rectangle and flags are diffed |
 | The town's own layout beyond its DS1 choice | not diffed |
 | Act 2's layout (rectangles, Lut Gholein's file, the tombs) | diffed, 2000/2000 seeds |
+| Act 1's layout (both chains' rectangles, `diff_drlg.py 1-3000 2 layout`) | diffed, 3000/3000 seeds (the farm margin never decided one there) |
 | Lut Gholein (level 40): rooms, tiles, units | diffed: 20/20 seeds, units 10/10 (`diff_drlg.py 1-20 40 tiles`) |
 | Act 2's mazes and presets (47–73): rooms, tiles, units, doors | diffed (list order), 5/5 each |
 | Act 2's desert (41–46): grids, tiles, units | diffed, 10/10 each |
