@@ -201,9 +201,10 @@ struct Monster {
     UnitState unit;
     d2d::rules::MonStats stats;
     int hit_points = 1;
-    // ponytail: life_frac isn't replicated to co-op clients (replication.hpp
-    // sends hit_points only); a client's bar is under a point off. The server
-    // is authoritative.
+    // Co-op clients get hit_points, not life_frac (replication.hpp): still
+    // finer than game.exe's own client, which only ever sees life / 128 of
+    // the maximum (net-packets.md "Monster life"; 0x0c / 0x0d / 0xab). The
+    // server is authoritative.
     int life_frac = 0;                        // 256ths of a point already taken off hit_points (life = hit_points x 256 - life_frac)
     int leader = -1;                          // index of its group's leader
     int difficulty = 0;
