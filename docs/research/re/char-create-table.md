@@ -285,8 +285,12 @@ of two kind-4 boxes `FUN_00435580` registers, record 0xc5 (`0x7795d8`:
 0, bottom 180, 800 x 100) to the class name and 0xc6 (`0x7795dc`: 250,
 bottom 210, 300 x 100) to its description, both centred (+0x2c = 2), and
 remembers the class (`0x708d0c`). Off, for that class: both cleared. The
-style words at +0x28 point to `0x7089b4` (2, 0, 7, 0) and `0x7089c4`
-(1, 0, 0, 4), read as font30 tan and font16 white (not traced further).
+style pair at +0x28 points to `0x7089b4` (2, 0) and `0x7089c4` (1, 0):
+`FUN_004fc7a0` keeps it at the box's +0x94 / +0x98, and the draw
+(`FUN_004fbf30`) sets font +0x94 (0x4fbfdb: Font30, Font16) and never
+reads +0x98. Both texts are added in colour 0, white (0x4307c1 /
+0x4307e7 push 0, 0, 0 before `FUN_004fc9b0`; line +0x14 is the colour
+`FUN_00502320` draws with).
 
 | Class | Name | Description |
 |---|---|---|

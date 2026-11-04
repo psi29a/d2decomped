@@ -423,6 +423,9 @@ public:
     }
     [[nodiscard]] int pad(int seat) const { return seat >= 0 && seat < kMost && seats_[std::size_t(seat)].used ? seats_[std::size_t(seat)].pad : -1; }
     [[nodiscard]] bool present(int seat) const { return pad(seat) >= 0; }
+    // The pad whose button labels the screen shows: in co-op the UI seat's
+    // while it's there, else -1 (the primary pad's).
+    [[nodiscard]] int label_pad(bool coop, int ui_seat) const { return coop && present(ui_seat) ? pad(ui_seat) : -1; }
     [[nodiscard]] bool used(int seat) const { return seat >= 0 && seat < kMost && seats_[std::size_t(seat)].used; }
     // The seat's colour (0..3: red, green, blue, magenta): its first seat's,
     // kept as the pad moves seat.

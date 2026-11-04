@@ -180,7 +180,7 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state);
 // ctrlpnl_popbelt frame 0, bottom-anchored at x W/2+21, bottom H-41-32i,
 // and its items. Hovering an item shows its hover text. Over a first-row
 // useable item (Items +0x11d, FUN_00628c20) the key bound to that slot's
-// Use Belt (0x722404; primary, else secondary) in font 1, gold (4), cut to
+// Use Belt (0x722404; keys::label_key) in font 1, gold (4), cut to
 // 28 px, at its box's left + 2, baseline bottom - 2 (FUN_00499040).
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys = {});

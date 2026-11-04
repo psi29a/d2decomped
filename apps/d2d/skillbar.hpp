@@ -14,16 +14,16 @@
 // (scene.font): game.exe's picker sets no font, and just before it in its
 // draw order (FUN_00456ee0) the belt key labels set font16 (FUN_00499040,
 // SetFont(1) at 0x499053).
-// ponytail: a slot's name is its first key's, else its second's (which
-// game.exe shows is untraced). Town sets `hotkey_names` from the key config.
+// The name is keys::label_key's (slot 1's only, FUN_004a8df0). Town sets `hotkey_names` from the key config.
 // Charged items (SpellSel's skill grid, FUN_004aa7e0's top row): one entry
 // per item and skill (game::charged_skills), its charges left drawn on the
 // icon and the button (SPELLSEL_DrawSkillLevel: at x + 4, the icon's bottom
 // - 1, colour 3, nothing at 0). A hand or hotkey keeps the entry's item; a
 // hand whose entry is gone goes back to Attack / skill 0
 // (SKILLS_AddOrRemoveItemSkill's remove).
-// ponytail: a hotkey bound to an entry that's gone stays bound (a no-op till
-// the item's back) where game.exe clears it at 0 charges (SPELLSEL_ClearSkillBinding).
+// A hotkey bound to an entry that's gone stays bound, a no-op till the item's
+// back, as game.exe's: its press (FUN_004aa030) asks FUN_004a9fc0, which finds
+// no entry for the bound item (or 0 charges); nothing clears 0x7c06c8 then.
 #pragma once
 
 #include <array>

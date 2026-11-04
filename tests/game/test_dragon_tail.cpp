@@ -17,11 +17,12 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
@@ -62,4 +63,7 @@ int main() {
     assert(plain > 0);                             // calc1's own share at level 1
     assert(mastered - plain == 1000 * 50 / 100);   // the mastery's points join calc1's
     return 0;
+} catch (const std::exception& error) {
+    std::printf("test_dragon_tail: %s\n", error.what());
+    return 1;
 }

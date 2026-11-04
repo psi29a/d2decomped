@@ -9,6 +9,7 @@
 #include "controls.hpp"
 #include "ingame.hpp"
 #include "internal.hpp"
+#include "mini_panel.hpp"
 #include "panels.hpp"
 #include "party.hpp"
 #include "platform.hpp"
@@ -22,6 +23,7 @@
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shake.hpp>
+#include <userdir.hpp>
 
 #include <algorithm>
 #include <array>
@@ -103,7 +105,12 @@ auto Town::enter() -> void {
         quest_log = {};                           // done animations play again in a new game
         alert_clocks.clear();                      // Town is reused when a second game starts on the same level
         alert_level = nullptr;
-        mini = {};                                // open (FUN_004567f0; ponytail: not the "Mini Panel" registry value)
+        mini = {};
+        if (!cfg_file.empty()) {                  // FUN_004567f0: open unless the registry's "Mini Panel" reads nonzero
+            d2d::userdir::Config cfg;
+            d2d::userdir::load_cfg(cfg_file, cfg);
+            mini.open = mini_panel::opens(cfg["mini_panel"]);
+        }
         game_menu.open = false;
         controls.open = false;
         world.enter(character);
@@ -135,6 +142,11 @@ auto Town::new_game() -> void {
         world.new_game();
         skillbar.new_game();
         hand_items.clear();
+    }
+
+auto Town::game_ended() -> void {
+        if (!cfg_file.empty() && !d2d::userdir::save_cfg(cfg_file, { { "mini_panel", mini_panel::saved(game_menu.restore_mini) } }))
+            d2d::log::warn("d2d.cfg: mini_panel not saved");
     }
 
 auto Town::open_game_menu() -> void {

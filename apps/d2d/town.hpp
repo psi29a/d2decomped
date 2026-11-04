@@ -468,6 +468,11 @@ struct Town {
     // Into the game with the character the client has (a save loaded, or
     // made): the World takes it.
     void enter();
+    // The game's end (FUN_00456d80 -> FUN_0047f130): d2d.cfg's mini_panel
+    // (game.exe: the registry's "Mini Panel") is 1 when the mini-panel was
+    // shut as the game menu last opened (0x71315c, the menu's saved UI 0x15),
+    // else 0; enter() leaves it shut while it's nonzero (FUN_004567f0).
+    void game_ended();
 
     // Saving the character: the item on the cursor goes back first, then
     // the World writes it.

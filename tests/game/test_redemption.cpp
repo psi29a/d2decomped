@@ -18,12 +18,13 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <utility>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
@@ -58,4 +59,7 @@ int main() {
     world.fight.aura_pulse(1000);
     assert(std::ranges::all_of(world.fight.monsters, [](const Monster& monster) { return monster.corpse_used; }));
     return 0;
+} catch (const std::exception& error) {
+    std::printf("test_redemption: %s\n", error.what());
+    return 1;
 }

@@ -75,19 +75,15 @@ auto Town::save_keys(bool shared) const -> void {
     }
 
 auto Town::update_hotkey_names() -> void {
-        for (int slot = 0; slot < 16; ++slot) {
-            const int action = slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8;
-            auto key = keys::key_of(key_table, action, 1);
-            if (key == keys::kNone) key = keys::key_of(key_table, action, 0);
-            const auto key_name_id = keys::name_id(key);
-            skillbar.hotkey_names[std::size_t(slot)] = key == keys::kNone ? std::string{} : key_name_id ? string_id(*scene, key_name_id) : std::string(1, char(key & 0xff));
-        }
-        for (int slot = 0; slot < 4; ++slot) {                     // the belt's (FUN_00499040)
-            auto key = keys::key_of(key_table, keys::kBelt1 + slot, 1);
-            if (key == keys::kNone) key = keys::key_of(key_table, keys::kBelt1 + slot, 0);
-            const auto key_name_id = keys::name_id(key);
-            belt_key_names[std::size_t(slot)] = key == keys::kNone ? std::string{} : key_name_id ? string_id(*scene, key_name_id) : std::string(1, char(key & 0xff));
-        }
+        auto name = [&](int action, bool either) {
+            const auto key = keys::label_key(key_table, action, either);
+            if (!key) return std::string{};
+            const auto key_name_id = keys::name_id(*key);
+            return key_name_id ? string_id(*scene, key_name_id) : std::string(1, char(*key & 0xff));
+        };
+        for (int slot = 0; slot < 16; ++slot)
+            skillbar.hotkey_names[std::size_t(slot)] = name(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8, false);
+        for (int slot = 0; slot < 4; ++slot) belt_key_names[std::size_t(slot)] = name(keys::kBelt1 + slot, true);   // the belt's (FUN_00499040)
     }
 
 // Accept (0x4a5020): the keys kept, the pad's settings to d2d.cfg, back to the game.

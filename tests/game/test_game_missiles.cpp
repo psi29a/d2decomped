@@ -462,7 +462,7 @@ int main() try {
         // Struck in GH: event 7 two frames on (FUN_005a37d0), not at once.
         enchanted.mode = "GH";
         enchanted.bolts_at = 0;
-        world.fight.monsters.push_back(enchanted);
+        world.fight.monsters.push_back(std::move(enchanted));
         world.fight.boss_events({}, 7000 * kTickMs);
         assert(world.fight.pending.empty());
         world.fight.boss_events({}, 7001 * kTickMs);

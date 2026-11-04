@@ -904,6 +904,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (!pad.built_in && start && !was && seats.seat_of(int(pad.id)) < 0) take_seat(pad);
                 }
             if (!in_game) coop_game = false;
+            if (!in_game && was_in_game) town.game_ended();
             was_in_game = in_game;
             if (coop_game)
                 for (const auto& coop_player : town.coop)
@@ -966,8 +967,10 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             pad_cursor_hidden = pad_field;
             town.pad_cue = pad_field;
-            // ponytail: the primary pad's labels, also when a co-op partner's pad has the screen
-            town.pad_family = gamepads.primary() ? gamepads.primary()->family : pad::Family::Xbox;
+            // The button labels of the pad playing the UI: a co-op partner's while they have the screen.
+            const int label_pad = seats.label_pad(coop_game, ui_seat);
+            town.pad_family = label_pad >= 0 ? gamepads.family(SDL_JoystickID(label_pad))
+                            : gamepads.primary() ? gamepads.primary()->family : pad::Family::Xbox;
             if (pad_actions.recentre_cursor) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }
             if (!pad_field) {
                 mouse.x = std::clamp(mouse.x + int(std::lround(pad_actions.cursor_dx)), -pad_side, int(kScreenWidth) + pad_side - 1);
