@@ -106,8 +106,10 @@ private:
 // A character made in d2d (the char-create screen): CharStats.txt's start
 // (stats, life = vit + hpadd, mana = int, stamina; the start skill at 1;
 // its items: rarm / larm in the hands, potions in the belt, the rest in
-// the inventory), level 1, normal difficulty, no hotkeys.
-// ponytail: stacks (javelins) roll their quantity as a drop does.
+// the inventory), level 1, normal difficulty, no hotkeys. A stack comes
+// full (javelins: 60), a quiver with 250 in a hand or 100 elsewhere.
+// ponytail: the first slot's item has no item_singleskill (stat 0x6b) of
+// StartSkill (FUN_00534c70: Fire Bolt on the Sorceress's staff).
 struct NewCharacter { d2d::d2s::Header header; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> items; };
 inline NewCharacter new_character(const GameData& game_data, int cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng) {
     using namespace d2d::d2s;
@@ -144,6 +146,10 @@ inline NewCharacter new_character(const GameData& game_data, int cls, const std:
             if (entry.loc == "rarm" || entry.loc == "larm") { item.location = d2d::d2s::item_location::kEquipped; item.slot = entry.loc == "rarm" ? d2d::d2s::body_location::kRightArm : d2d::d2s::body_location::kLeftArm; }
             else if (entry.code.starts_with("hp") || entry.code.starts_with("mp")) { item.location = d2d::d2s::item_location::kBelt; item.column = belt++; }
             else { item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = inv++; }
+            if (const auto base = game_data.rules.item_base.find(entry.code); base != game_data.rules.item_base.end() && base->second.stackable)
+                item.quantity = std::min(base->second.max_stack, 511);                     // FUN_00534c70: maxstack (FUN_006295b0)
+            if (const auto* info = d2d::rules::info_of(game_data.rules, item); info && d2d::rules::type_is(game_data.rules, info->type, "bowq"))
+                item.quantity = entry.loc.empty() ? 100 : 250;                             // FUN_00534d60: ItemTypes row 5
             made.items.push_back(std::move(item));
         }
     return made;
