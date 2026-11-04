@@ -218,6 +218,16 @@ def main():
                 expected = initial | mask if enabled else initial & (~mask & 0xFFFFFFFF)
                 expect(machine.r32(target), expected, "item bitmask update")
 
+    def normal_code_get():
+        select_record()
+        for code, normcode in ((0x20786F62, 0), (0x2064736C, 0x2070636D),
+                               (0, 0xFFFFFFFF), (0x89ABCDEF, 0x12345678)):
+            record_view = machine.view("item_record", record)
+            record_view.code = code
+            record_view.normcode = normcode
+            expected = normcode if normcode else code
+            expect(machine.call(0x6287D0, unit), expected, "item normal code read")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -270,6 +280,7 @@ def main():
     base_level_get()
     bit_and()
     bitmask_set()
+    normal_code_get()
     print("item accessors: all game.exe checks passed")
 
 
