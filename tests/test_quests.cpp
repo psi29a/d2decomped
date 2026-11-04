@@ -235,7 +235,9 @@ int main() {
     cain.talk_closed(cain_bits, CainQuest::kAkara);
     assert(cain.state == 2 && cain.log == 1 && quest::bit(cain_bits, 4, 2) && cain.talk(cain_bits, 150, false, 1)[0].string == 98);
     cain.enter(cain_bits, 1, 2, 1);
-    assert(cain.state == 3 && quest::bit(cain_bits, 4, 3) && cain.talk(cain_bits, CainQuest::kAkara, false, 1)[0].string == 104);
+    assert(cain.state == 3 && !quest::bit(cain_bits, 4, 3));                // out of camp: bit 3 waits for a Bark Scroll (FUN_00592e20)
+    cain.item_event(cain_bits);
+    assert(quest::bit(cain_bits, 4, 3) && cain.talk(cain_bits, CainQuest::kAkara, false, 1)[0].string == 104);
     assert(cain.tree(cain_bits, false) && cain.state == 4 && cain.log == 2 && !cain.tree(cain_bits, false));
     assert(cain.alert(cain_bits, CainQuest::kAkara, true, 1) && !cain.alert(cain_bits, CainQuest::kAkara, false, 1));
     assert(cain.talk(cain_bits, CainQuest::kAkara, true, 1)[0].string == 112 && cain.talk(cain_bits, 150, false, 1)[0].string == 105);

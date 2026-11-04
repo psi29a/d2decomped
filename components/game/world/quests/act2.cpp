@@ -163,6 +163,7 @@ auto World::act2_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
     }
 
 auto World::act2_update() -> void {
+        act1_update();                                // the tick's quest hook runs act 1's first
         // The Summoner goes for the player (FUN_005f85c0's first think -> FUN_0059c330).
         // His first think (FUN_005f85c0: AI control +0x14 0 -> 1) opens it (FUN_0059c330).
         if (!summoner.started && !hosted_quests && level->id == d2d::rules::SummonerQuest::kSanctuary)

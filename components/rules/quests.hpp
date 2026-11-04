@@ -1457,6 +1457,10 @@ struct CainQuest {
         if (akara_log) { log = 1; akara_log = false; mark(quest_bits); }
         if (decipher_log) { log = 3; mark(quest_bits); decipher_log = false; }
     }
+    // A Bark Scroll (bks / bkd, Items.txt quest 5: bound to this record)
+    // into the player's inventory (event 4, FUN_00592e20): with +9, their
+    // bits for the state (LAB_00592130). tools/emu/quest_item_events.py.
+    void item_event(QuestBits& quest_bits) const { if (active) mark(quest_bits); }
     // The player went from level `from` to `dest` (FUN_00596de0). True:
     // camp Cain's due in the camp (FUN_00592960).
     bool enter(QuestBits& quest_bits, int from, int dest, int player) {
@@ -1464,8 +1468,7 @@ struct CainQuest {
         const bool fresh = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         if (from == level_ids::kRogueEncampment) {
             rewarded.remove(player); missed.remove(player);
-            // ponytail: marked now, not at the next event 4 (FUN_00592e20)
-            if (fresh && state == 2) { state = 3; mark(quest_bits); }
+            if (fresh && state == 2) state = 3;          // the player's bit waits for item_event (0x596eef)
         }
         if (dest == level_ids::kRogueEncampment) return camp_spawn();
         if (dest == level_ids::kLutGholein && fresh && !resolved && state < 6) { rogues(quest_bits, player); tree_used = true; }

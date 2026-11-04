@@ -227,6 +227,7 @@ struct World {
         std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock
         bool had_soulstone = false;            // the Hellforge's item event (LAB_005b5a90): the soulstone picked up
+        bool had_bks = false, had_bkd = false;  // the Bark Scrolls, last tick (a1q4's item event)
         bool had_gidbinn = false;
         bool had_figurine = false, had_bird = false;   // the Golden Bird's items, last tick (its pickups)
         std::int64_t gold_lost = 0;            // goldlost (175), as the last death set it
@@ -552,6 +553,7 @@ struct World {
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.
+    void act1_update();
     void act2_update();
     void act3_update(std::uint32_t now_ms);
     void act4_update(std::uint32_t now_ms);
