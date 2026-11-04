@@ -21,12 +21,14 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
@@ -52,7 +54,7 @@ int main() {
     std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == loc::kEquipped && (item.slot == body::kRightArm || item.slot == body::kLeftArm); });
     d2d::d2s::Item javelins;
     javelins.code = "jav"; javelins.location = loc::kEquipped; javelins.slot = body::kRightArm; javelins.id = 9102; javelins.quantity = 5;
-    items.push_back(javelins);
+    items.push_back(std::move(javelins));
     const std::vector<d2d::rules::PassiveStat> passives{ { d2d::d2s::kPassiveMasteryMeleeToHit, 10, "jave" }, { d2d::d2s::kPassiveMasteryThrowToHit, 40, "thro" },
                                                          { d2d::d2s::kPassiveMasteryThrowDamage, 25, "thro" } };
     const auto with = [&](const char* skill) {
@@ -77,4 +79,7 @@ int main() {
     const auto stabbing = with("Attack");
     assert(stabbing[d2d::d2s::kPassiveMasteryMeleeToHit] == 10 && stabbing[d2d::d2s::kPassiveMasteryMeleeDamage] == 0);
     return 0;
+} catch (const std::exception& error) {
+    std::printf("test_throw_mastery: %s\n", error.what());
+    return 1;
 }
