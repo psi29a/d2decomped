@@ -115,15 +115,16 @@ auto World::act2_tick() -> void {
         // Tyrael's think (NpcStationary, FUN_005e73a0): once his portal is
         // open (FUN_0059df50: record +0xf) and no player is within 12 of
         // him (FUN_006416d0, the sweep at 0x59df30), not in a talk
-        // (FUN_00572dc0), he leaves (FUN_005ddfc0 mode 0), for good.
-        // ponytail: the takers' unit event 0x36 (LAB_0059c710) unread.
+        // (FUN_00572dc0), he leaves (FUN_005ddfc0 mode 0), for good; every
+        // player (FUN_0059c750 -> FUN_005537d0) with the quest's bit 13 gets
+        // unit event 0x36, act2_complete_tombs (LAB_0059c710).
         if (level->id == d2d::rules::SevenTombsQuest::kLair && tombs.tyrael_portal && !tombs.tyrael_gone)
             for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
                 if (level->npcs[i].hc_idx == d2d::rules::SevenTombsQuest::kTyrael && actor->talking[0] != int(i)
                     && std::hypot(level->npcs[i].x - actor->player.x, level->npcs[i].y - actor->player.y) * 5 >= 12) {
                     npc_states[i].hidden = true;
                     tombs.tyrael_gone = true;
-                    class_cue("act2_complete_tombs", day_at);   // LAB_0059c710: unit event 0x36
+                    each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), d2d::rules::SevenTombsQuest::kQuest, 13)) class_cue("act2_complete_tombs", day_at); });
                     d2d::log::info("The Seven Tombs: Tyrael leaves");
                 }
         if (summoner.tick() && d2d::rules::quest::bit(quests(), d2d::rules::SummonerQuest::kQuest, 13) && level->id == d2d::rules::SummonerQuest::kSanctuary)
