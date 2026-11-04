@@ -117,6 +117,25 @@ def main():
             expect(machine.call(0x628340, unit), 0, "ear name rejected read")
         expect(machine.call(0x628340, 0), 0, "ear name null read")
 
+    def ear_name_set():
+        source = machine.alloc(0x20)
+        select()
+        for text in (b"\0", b"Earl\0", b"Kimi\0"):
+            machine.mu.mem_write(source, text)
+            machine.mu.mem_write(data + 0x4A, b"\xa5" * 0x16)
+            before = machine.read(data, 0x60)
+            machine.call(0x628370, unit, source)
+            expected = before[:0x4A] + text + before[0x4A + len(text):]
+            if machine.read(data, 0x60) != expected:
+                raise AssertionError(f"ear name write failed for {text!r}")
+        for kind, with_data in ((3, True), (4, False)):
+            select(kind, with_data)
+            before = machine.read(data, 0x60)
+            machine.call(0x628370, unit, source)
+            if machine.read(data, 0x60) != before:
+                raise AssertionError("ear name rejected write changed item data")
+        machine.call(0x628370, 0, source)
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -159,6 +178,7 @@ def main():
     write8(0x628280, 0x45)
     write8(0x628320, 0x47)
     ear_name_get()
+    ear_name_set()
     print("item accessors: all game.exe checks passed")
 
 
