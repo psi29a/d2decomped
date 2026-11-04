@@ -509,8 +509,11 @@ auto Fight::monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms) -> Hero
 auto Fight::curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env) const -> std::vector<std::pair<int, int>> {
         const auto* skill = curse.skill >= 0 ? game_data->skills.get(curse.skill) : nullptr;
         if (!skill) return {};
-        // ponytail: picks 2 and 3 (Iron Maiden's / Life Tap's aura events) do nothing on
-        // the player's side; their event funcs aren't run there.
+        // Picks 2 and 3 carry only aura events, and those do nothing on a player in 1.14d:
+        // pick 2's Iron Maiden func (FUN_005c5f50) returns the struck's calc3 % (calc2 on a
+        // player) of the picked row, Life Tap's, both empty: a 0 hit with no result flags;
+        // pick 3's Life Tap func (FUN_005c61e0) heals the striker Decrepify's calc1 %,
+        // empty: 0, and its prgoverlay (+0x10c) is none. bugs.md #43.
         if (curse.pick >= 0) return d2d::rules::monster_curse_stats(curse.pick, skill->par[6]);
         std::vector<std::pair<int, int>> stats;
         for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
