@@ -140,11 +140,10 @@ bool blit_dcc_frame(std::vector<std::uint8_t>& framebuffer,
 
 // Draw a composite's current frame with its feet at (anchor_x, anchor_y):
 // every loaded layer, in the COF's per-(direction, frame) draw order.
-// Frame time from the COF speed byte: D2 advances speed/256 frames per
-// 25 Hz tick, so one frame lasts 40 ms * 256 / speed (BA 80 -> 128 ms).
-// ponytail: COF speed as the rate; AnimData.d2 is authoritative — read it
-// when an animation visibly runs at the wrong pace. No shadow, no
-// transparent-layer draw effects yet (no TN layer sets `transparent`).
+// Frame time from AnimData.d2's speed (Scene::composite / npc_anim; the
+// COF's byte only for a mode animdata lacks): D2 advances speed/256 frames
+// per 25 Hz tick, so one frame lasts 40 ms * 256 / speed (BA 80 -> 128 ms).
+// Shadows and transparent layers' effects are the callers' (layer_trans).
 // Each layer's frame of a composite at `elapsed_ms`, in the COF's
 // per-(direction, frame) draw order.
 // The layer's COF record (its draw effect, whether it casts a shadow).
