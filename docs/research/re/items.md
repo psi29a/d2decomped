@@ -5,10 +5,16 @@ with a non-null item-data pointer at unit `+0x14`; rejected calls do not
 write item data. `FUN_0048c060` uses the quality to select item-name
 formatting, and the other call sites cited below identify the affix fields.
 
+The 16-bit getters write only `AX`, zeroing it on every rejected call. On
+success the upper `EAX` bits come from the item-data pointer. A wrong-type
+call instead retains the unit pointer's upper bits; null-unit and null-data
+calls return zero.
+
 | Address | Traced claim |
 |---|---|
 | `FUN_00627e70` | Read the 32-bit quality at item data `+0x00`; return 2 (normal) for a rejected call. |
 | `FUN_00627ea0` | Write the 32-bit quality at item data `+0x00`; do nothing for a rejected call. |
+| `FUN_00627ec0` | Read MagicPrefix ID `i` (0..2) from item data `+0x38 + 2*i`. `FUN_0048c060` formats slot 0 through `FUN_00633ee0`; `FUN_0055f5d0` compares all three slots. |
 
 Re-check all claims against game.exe 1.14d:
 
