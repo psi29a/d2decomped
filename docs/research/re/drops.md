@@ -162,6 +162,40 @@ seed (FUN_00650e50 before them only reads it):
   weight rarity, 0 counts 1; rand(total), then subtract.
 - A failed unique goes rare with durability x3, a failed set x2.
 
+## A new character's items — FUN_00534f10, FUN_00534d60, FUN_00534c70
+
+FUN_00532590 (PlrSave.cpp, a new character) calls FUN_00534f10, which
+walks the class's CharStats row (`[0x744304] +0xbc4`, stride 0xc4) over
+its ten item slots at `+0x5c`, 8 bytes each: the item code, loc (a body
+location, 0 none) at `+4` and count at `+5`. FUN_00534d60 makes each of
+the count:
+
+- FUN_00534c70 makes it (FUN_00559ce0: normal, ilvl from FUN_00558200).
+  The first slot's item also gets stat 0x6b (item_singleskill) set to the
+  row's StartSkill (`+0xac`, when it's a skill). Then a stackable item
+  (Items `+0x132`, FUN_006289f0) gets stat 0x46 (quantity) set to
+  FUN_006295b0: maxstack (Items `+0xe8`) + stat 0xfe, at most 511. A drop
+  rolls its stack (above); a new character's comes full, so the Amazon's
+  javelins (Weapons.txt maxstack 60) come as 60.
+- A belt item (ItemTypes Beltable, `+0x19`, FUN_0062bad0) goes to the belt
+  (FUN_0055e9b0).
+- Else one with a loc is put there (FUN_00534bb0), or in the inventory
+  when that fails (FUN_00534b30). One with no loc goes to the inventory.
+- Then an arrow quiver (ItemTypes row 5, `bowq`, FUN_00629bb0) gets
+  quantity 250 (`0x534e6b`), or 100 when it has no loc (250 at `0x534e98`,
+  then 100 at `0x534ebe`). Any other item gets stat 0x48 (durability) set
+  to FUN_00625e00, its max durability. Bolts (`xboq`, row 6) aren't
+  `bowq`: they keep the full stack. No class's row in 1.14d has a quiver.
+
+d2d: `new_character` (components/game/character/character_store.hpp) gives
+a stackable start item its maxstack and a `bowq` 250 / 100, after
+`generate_item`'s roll. The first slot's item_singleskill (Fire Bolt on
+the Sorceress's staff, Raise Skeleton on the Necromancer's wand, as the
+oracle shows) isn't given yet: a `ponytail:` there.
+
+Checked by `tools/emu/new_character_stacks.py` (`jav 60`; with `quivers`:
+`aqv 250, aqv 100, cqv 250`) and `tests/game/test_new_character_stacks.cpp`.
+
 ## Item mods — FUN_0065fec0, FUN_0065fd70
 
 FUN_0065fec0 (item, row, kind: 1 superior, 3 unique, 4 set, 0 / 2 / 5

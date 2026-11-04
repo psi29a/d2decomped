@@ -120,6 +120,10 @@ The 1.14d patch data comes from `$D2_PATCH_INSTALLER`, which defaults to
   stands' / weapon racks' items (`drops.py stands`). Item creation is
   hooked, so only the dropper's seed moves. See
   `docs/research/re/drops.md`.
+- `new_character_stacks.py`: a new character's start items (FUN_00534f10
+  over its CharStats row) and the quantity each gets. It should print
+  `jav 60` for the Amazon (class 0), and `aqv 250, aqv 100, cqv 250` with
+  `quivers`. See `docs/research/re/drops.md` "A new character's items".
 - `drlg.py`: the level generator as an oracle.
   - `boot()` loads every data table (FUN_00619300(0, 1, 1), about 1.4 s
     warm), including the LvlPrest and LvlSub DS1s.
