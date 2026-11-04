@@ -1145,8 +1145,10 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
     // FUN_0066b2b0 (type 0xb): with neither a waypoint room nor a warp room,
     // the start spot is the centre of the room holding the level's middle less 2.
     // ponytail: no room there (FUN_0066ae70's pick) adds none.
-    // A Levels Position level (Tristram) takes its type 0xb tile instead (FUN_0066ac40).
-    // ponytail: the first; with more game.exe rolls the level seed for one each check.
+    // A Levels Position level (Tristram) takes its type 0xb tile instead (FUN_0066ac40):
+    // every such level but the towns has just one (drlg.md "Spawn tiles and the start
+    // spot"), so the first; the level-seed draw each check makes isn't kept, as nothing
+    // after the build draws on that seed.
     if (position && !level.starts.empty()) pop.ways.push_back({ level.starts.front().first * 5, level.starts.front().second * 5 });
     else if (pop.ways.empty()) centre(level.ds1.width() / 2 - 2, level.ds1.height() / 2 - 2);
     int total = 0;
