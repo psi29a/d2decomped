@@ -217,7 +217,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
             if (!unit.walking) unit.path.clear();
-            // ponytail: the merc's FHR is its items' (merc_fighter); a state's stat 99 isn't kept, as a monster's.
+            // The merc's FHR is its items' (merc_fighter): no 1.14d Skills.txt aurastat or passivestat
+            // is item_fastergethitrate (stat 99), so no state of its changes it.
             actor->merc->mode_until = mode == "NU" || unit.walking ? 0
                 : mode == "GH"                                  ? now_ms + d2d::game::get_hit_ms(game_data->npc_timing(*actor->merc_npc, mode), merc_fighter().fhr)
                                                                 : now_ms + game_data->npc_timing(*actor->merc_npc, mode).length_ms();
