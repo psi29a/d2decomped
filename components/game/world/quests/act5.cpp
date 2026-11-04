@@ -407,11 +407,11 @@ auto World::act5_hide() -> void {
     }
 
 // a5q3's objects: the Frozen River's marker (460) as its room comes up, fana
-// 25 frames on at its spot (event 7, FUN_0058a500; again till made) and her
-// InitFn (74: the log 2); the thaw, a tick a step; the Halls of Vaught's
-// marker (462, InitFn 69, FUN_0058a6c0) with +0x88 set: superunique 60,
-// Nihlathak, at its spot (FUN_0054e600), once.
-// ponytail: the marker's event reruns (fana not made) are one try.
+// 25 frames on at its spot (event 7, FUN_0058a500) and her InitFn (74: the
+// log 2); the thaw, a tick a step; the Halls of Vaught's marker (462, InitFn
+// 69, FUN_0058a6c0) with +0x88 set: superunique 60, Nihlathak, at its spot
+// (FUN_0054e600), once. game.exe's rerun on a failed make never runs: an
+// object's make doesn't fail (stubs.md FUN_0058a500's rerun).
 auto World::prison_update(std::uint32_t now_ms) -> void {
         const auto made_rooms = fight.spawning.levels.find(level);
         const auto room_up = [&](const Npc& npc) {
