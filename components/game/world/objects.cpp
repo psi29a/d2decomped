@@ -548,11 +548,14 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
         if (door.operate_fn == d2d::rules::operate_fn::kSecretDoor) {                   // secret door (FUN_00583ff0): slides open (OP), once
             if (state.mode == 0) mode = 1;
         } else if (door.operate_fn == d2d::rules::operate_fn::kTrapDoor) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
-            // ponytail: the level's nearest warp for the room's warp unit (trap
-            // doors are past act 1).
+            // Mode 2: the first warp tile unit (type 5) of the door's room
+            // (room +0x74's list); a room without one is game.exe's assert 0x40e.
             if (state.mode == 0) mode = 2;
-            else if (state.mode == 2 && !level->warps.empty())
-                actor->take_warp = int(std::ranges::min_element(level->warps, {}, [&](const Level::Warp& warp) { return std::hypot(warp.x - door.x, warp.y - door.y); }) - level->warps.begin());
+            else if (state.mode == 2) {
+                const int room = room_of(*level, door.x, door.y);
+                const auto warp = std::ranges::find_if(level->warps, [&](const Level::Warp& candidate) { return room >= 0 && room_of(*level, candidate.unit_x, candidate.unit_y) == room; });
+                if (warp != level->warps.end()) actor->take_warp = int(warp - level->warps.begin());
+            }
         } else if (now_ms - state.when >= 500) {       // a door (FUN_00581d40): is anyone in the doorway?
             // ponytail: a unit's own subtile, not its collision pattern.
             auto in_door = [&](float x, float y) {

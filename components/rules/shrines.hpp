@@ -49,6 +49,19 @@ inline int roll_shrine(const std::vector<ShrineRow>& rows, int parm0, int level_
     return id == 5 ? 3 : id == 4 ? 2 : id == 16 ? 18 : id;
 }
 
+// A preset shrine 574..579 (FUN_0054f0d0, its row of the table at
+// 0x6e1080: object 136, low, high): made as object 136 (its InitFn's
+// roll_shrine first), then its kind low + rand(high - low) on the unit's
+// own seed (+0x20, FUN_0045c3e0), so high never; 4 and 5 become 2.
+// tools/emu/preset_shrines.py checks it against game.exe. -1: not one.
+inline int preset_shrine(int id, Rng& unit_seed) {
+    static constexpr std::array<std::pair<int, int>, 6> kRanges{ { { 2, 6 }, { 7, 7 }, { 8, 11 }, { 12, 12 }, { 1, 5 }, { 14, 14 } } };
+    if (id < 574 || id > 579) return -1;
+    const auto [low, high] = kRanges[std::size_t(id - 574)];
+    const int kind = low + unit_seed(high - low);
+    return kind == 4 || kind == 5 ? 2 : kind;
+}
+
 // A booster's stats (FUN_00583b30 through the table at 0x6e1850: Arg0 on
 // its stat; combat FUN_005839b0: Arg0 % of the attack rating as tohit (19)
 // and Arg1 damagepercent (25); stamina FUN_00583a70: its stamina filled,

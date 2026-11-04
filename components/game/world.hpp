@@ -675,9 +675,11 @@ struct World {
     // / 8 by difficulty; a row with a Skill (chainlightning) carries that
     // skill's damage, the others their own columns. 5 / 7 leave two fires
     // (no damage traced); 8 raises the level's undead.
+    // trapfirebolt bursts into its fireexplode as any missile does (its
+    // ExplosionMissile, missiles_update).
     // ponytail: the AI's range check (aip1) is skipped — the player opening
-    // the chest is always close; trapfirebolt's fireexplode isn't spawned;
-    // chainlightning doesn't hop (act 2 on: act 1 swaps it for firebolt).
+    // the chest is always close; chainlightning doesn't hop (act 2 on: act 1
+    // swaps it for firebolt).
     // `undead`: 8's count (0: 1 or 2); a casket's or barrel's undead is one.
     void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
     // A container's trap as it opens (FUN_00582510): trap 8 with no undead

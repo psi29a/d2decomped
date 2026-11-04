@@ -138,6 +138,26 @@ int main() try {
         const int any = roll_shrine(rows, 0, 2, object_rng);
         assert(any >= 1 && any <= 3);
     }
+    // Preset shrines 574..579 (FUN_0054f0d0): low + rand(high - low) on the
+    // unit seed, 4 / 5 as 2; a one-kind row draws nothing.
+    for (std::uint32_t seed = 1; seed < 300; ++seed) {
+        Rng unit_seed{ seed };
+        const int kind = preset_shrine(574, unit_seed);
+        assert(kind == 2 || kind == 3);
+        assert(unit_seed.low != seed);
+        Rng other{ seed };
+        const int ranged = preset_shrine(576, other);
+        assert(ranged >= 8 && ranged <= 10);
+        Rng fixed{ seed };
+        assert(preset_shrine(579, fixed) == 14 && fixed.low == seed);
+        Rng low_row{ seed };
+        const int healing = preset_shrine(578, low_row);
+        assert(healing >= 1 && healing <= 3);
+    }
+    Rng first{ 1 }, second{ 1 };                           // low 1791398751: & 3 = 3, % 3 = 0
+    assert(preset_shrine(574, first) == 2 && preset_shrine(576, second) == 8);
+    Rng none{ 1 };
+    assert(preset_shrine(573, none) == -1 && preset_shrine(580, none) == -1);
     // Recharges set to max (over-max life comes down); the skill shrine's
     // +2 whatever its Arg0; sounds, states and resets by Code.
     std::int64_t shrine_life = 900, shrine_mana = 10;

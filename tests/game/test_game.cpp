@@ -557,6 +557,19 @@ int main(int argc, char** argv) try {
         assert(World::walk_percent(*data, kBarbarian, true, 0, false) == run_percent);
         assert(World::walk_percent(*data, kBarbarian, false, 0, true) == 50 && World::walk_percent(*data, 99, false, 0, false) == 100);
         assert(d2d::rules::moving_anim_rate(true, World::walk_percent(*data, kBarbarian, true, 0, false)) == 0x65 * run_percent / 100);
+        // A run that drains the last stamina is a walk that frame, before its
+        // regen (0x580c5f: FUN_0057f090): staminarecoverybonus 1000 gives a
+        // run regen, a walk at 0 none.
+        const auto* town = std::exchange(world.level, data->level(d2d::rules::level_ids::kBloodMoor));
+        const auto bonus = std::exchange(walker.psum[d2d::d2s::kStaminaRecoveryBonus], 1000);
+        walker.player.walking = walker.running = true;
+        walker.character.stats.values[d2d::d2s::kStamina] = 1;
+        world.stamina_frame();
+        assert(walker.character.stats.values[d2d::d2s::kStamina] == 0);
+        world.level = town;
+        walker.psum[d2d::d2s::kStaminaRecoveryBonus] = bonus;
+        walker.player.walking = walker.running = false;
+        walker.character.stats.values[d2d::d2s::kStamina] = stamina;
     }
 
     // d2d's autoloot (deviations.md #5): gold under the player goes into the purse.
