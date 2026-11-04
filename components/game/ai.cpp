@@ -214,6 +214,8 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         const auto& npc = level.npcs[i];
         if (npc.town_ai == TownAi::none || ((npc.town_ai == TownAi::npc || npc.town_ai == TownAi::towner) && npc.path.empty())) continue;
         auto& state = npcs[i];
+        // Its room in play (NU): the think 2 frames on (FUN_00573780).
+        if (!state.filed) { state.filed = true; state.wait_until = now_ms + 2 * kFrameMs; }
         // A talk starting (FUN_00548b00): its path stopped, AI control +0x14
         // = 40, the think next frame.
         const bool listed = std::ranges::find(busy, int(i)) != busy.end();

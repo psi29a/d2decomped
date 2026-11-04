@@ -45,6 +45,7 @@ struct UnitState {
     bool greets = false;              // a town NPC's think greeted the player just now (unit sound 0x12; World plays it)
     std::size_t next = 0;             // path point being walked to
     std::uint32_t wait_until = 0;     // ms; idle until then
+    bool filed = false;               // a town NPC's first think is filed (npc_patrol: 2 frames after it's met)
     std::uint32_t mode_ms = 0;        // when the current mode (walk/idle) started
     std::uint32_t stuck_since = 0;    // ms the merc last got blocked, 0 = moving
     float goal_x = 0, goal_y = 0;     // where the route was planned to
@@ -103,8 +104,11 @@ struct Crowd {
 // up to `player` within 16 and greets it; one in `busy` (menu, speech or
 // store open on it) stops and stands (rules::npc_think's visitor).
 // The walk is a monster's (set_off / walk_on: toward 0xd, wall 0xf) at
-// Velocity.
-// ponytail: an NPC's first think comes at once.
+// Velocity. Its first think comes 2 frames after the first call that
+// meets it: game.exe files it as the NPC's room comes into play (its
+// first client, FUN_0053a8e0, or made in one already in play,
+// FUN_00554850) through FUN_00573780: mode NU, event 2 at frame + 2
+// (0x5737c0).
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
                 std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, const UnitState* player = nullptr, bool guard_aside = false);
 
