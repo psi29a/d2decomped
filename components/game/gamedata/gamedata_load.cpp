@@ -777,7 +777,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             overlay.frames = std::max(number("Frames"), 1); overlay.x = number("Xoffset"); overlay.y = number("Yoffset"); overlay.rate = number("AnimRate");
             overlay.trans = number("Trans"); overlay.radius = number("Radius"); overlay.init_radius = number("InitRadius"); overlay.predraw = number("PreDraw") != 0;
             overlay.height = { number("Height1"), number("Height2"), number("Height3"), number("Height4") };
-            game_data.overlays.emplace(std::string(overlay_table.get(row, "overlay")), std::move(overlay));
+            const auto [kept, fresh] = game_data.overlays.emplace(std::string(overlay_table.get(row, "overlay")), std::move(overlay));
+            game_data.overlay_rows.push_back(!fresh || kept->second.file.empty() || kept->second.file == "null" ? nullptr : &kept->second);
         }
     auto overlay = [&](std::string_view name) -> const GameData::OverlayInfo* {
         const auto found = game_data.overlays.find(std::string(name));

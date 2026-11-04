@@ -231,20 +231,29 @@ int main() {
         think_in.leader = false; think_in.in_melee = true; state = 1; roll = Rng{ 8 };   // scared: swings without the aip3 roll
         const auto swing = mon_think("Fallen", think_in, roll, no_away);
         assert((swing.act == MonAct::a1 || swing.act == MonAct::a2) && state == 0 && steps(8, roll) == 1);
-        // FallenShaman: the rally roll, then a corpse raised, else two fire
-        // rolls within aip5, then circle or stand.
+        // FallenShaman: the rally roll, then a corpse raised, else a fire roll
+        // at the target and one at its second target, each within aip5, then
+        // circle or stand.
         rally = false;
         think_in = { .aip = { 100, 0, 0, 24, 15 }, .dist = 5, .skill = { true, true }, .state = &state, .corpse = true, .command = &command, .rally = &rally };
         roll = Rng{ 2 };
         const auto raise = mon_think("FallenShaman", think_in, roll, no_away);
         assert(raise.act == MonAct::skill && raise.n == 0 && rally && steps(2, roll) == 2);
         think_in.corpse = false; roll = Rng{ 2 };
-        assert(mon_think("FallenShaman", think_in, roll, no_away).act == MonAct::idle && steps(2, roll) == 4);
+        // Rally, one fire roll (no second target: no second roll), stand.
+        assert(mon_think("FallenShaman", think_in, roll, no_away).act == MonAct::idle && steps(2, roll) == 3);
         think_in.dist = 15; think_in.aip[2] = 100; roll = Rng{ 2 };
         assert(mon_think("FallenShaman", think_in, roll, no_away).act == MonAct::circle && steps(2, roll) == 3);
         think_in.aip[1] = 100; think_in.dist = 14; roll = Rng{ 2 };
         const auto fire = mon_think("FallenShaman", think_in, roll, no_away);
-        assert(fire.act == MonAct::skill && fire.n == 1 && steps(2, roll) == 2);
+        assert(fire.act == MonAct::skill && fire.n == 1 && fire.unit == d2d::rules::ThinkUnit::target && steps(2, roll) == 2);
+        // The target out of reach: the second roll is at its second target (FUN_005ddc30) within aip5.
+        think_in.dist = 15; think_in.second = true; think_in.second_dist = 14; roll = Rng{ 2 };
+        const auto second_fire = mon_think("FallenShaman", think_in, roll, no_away);
+        assert(second_fire.act == MonAct::skill && second_fire.n == 1 && second_fire.unit == d2d::rules::ThinkUnit::second && steps(2, roll) == 2);
+        think_in.second_dist = 15; roll = Rng{ 2 };
+        assert(mon_think("FallenShaman", think_in, roll, no_away).act == MonAct::circle);
+        think_in.second = false;
         // FoulCrowNest: lays every aip1 frames (no draw), else stands 20..29
         // on a seed step; blocked, the clock restarts all the same; done
         // laying aip3, it collapses.

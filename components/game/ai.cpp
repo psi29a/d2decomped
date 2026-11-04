@@ -413,7 +413,7 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
 
 void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players) {
     auto turned = make_monster(game_data, type, unit.unit.x, unit.unit.y, rng, unit.difficulty, true, players, unit.level_id);
-    turned.id = unit.id; turned.leader = unit.leader; turned.seed = unit.seed;
+    turned.id = unit.id; turned.leader = unit.leader; turned.seed = unit.seed; turned.classic = unit.classic;
     turned.home_x = unit.home_x; turned.home_y = unit.home_y;
     unit = std::move(turned);
 }
@@ -428,6 +428,7 @@ std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level
     clone.hit_points = std::max(baal.hit_points / 3, 1);
     clone.stats.regen = 0;
     clone.aware = true;
+    clone.no_exp = clone.no_drop = true;                           // unit flags |= 0x4020000 (005fca71)
     clone.seed = d2d::rules::Rng{ rng.next() };
     return clone;
 }
@@ -1416,7 +1417,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // found (FUN_00552f60), dead (FUN_005541b0), ridden (FUN_00552fd0), its spot.
         // Riding, its mount found and dead.
         if (name == "Imp") {
-            if (monster.ai_state == 0 && monster.special != 16) monster.ai_state = -1;
+            if (monster.ai_state == 0 && monster.special != 16) monster.ai_state = -1;   // its init, FUN_005e2fd0 (rules::ai_toggle)
             for (std::size_t k = 0; k < 4; ++k)
                 input.imp_aip[k] = game_data.monsters.types[std::size_t(game_data.mon_bin[0x1ec + k])].diff[std::size_t(std::clamp(monster.difficulty, 0, 2))].aip;
             input.self_x = x; input.self_y = y;
@@ -1538,10 +1539,16 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     monster.move_pct = pace;                                       // the next mode takes it (FUN_005a63f0)
     if (type_info.ai_name == "AbyssKnight" && act.act == MonAct::skill && act.n == 1) monster.armored = true;   // its Bone Armor up
-    // Its effects: the leader's command done; Duriel's aura (Skill4) on.
-    // ponytail: states 0x5a / 0x5b and the overlays (looks) and stat 0x4a
-    // (regen) left out; the Summoner's quest reads his first think (ai_state).
+    // Its effects: the leader's command done; Duriel's aura (Skill4) on;
+    // states 0x5a / 0x5b (looks: blue / red) on or off; an overlay played
+    // once on it; stat 0x4a (regen). The Summoner's quest reads his first
+    // think (ai_state).
     for (const auto& effect : effects) {
+        if (effect.kind == d2d::rules::ThinkEffect::state && (effect.id == 0x5a || effect.id == 0x5b)) {
+            const auto bit = std::uint8_t(effect.id == 0x5a ? 1 : 2);
+            monster.looks = effect.value ? std::uint8_t(monster.looks | bit) : std::uint8_t(monster.looks & ~bit);
+        }
+        if (effect.kind == d2d::rules::ThinkEffect::overlay) { monster.flash_overlay = effect.id; monster.flash_at = now_ms; }
         if (effect.kind == d2d::rules::ThinkEffect::command_done) monster.ai_command = 0;
         if (effect.kind == d2d::rules::ThinkEffect::unset) monster.set_kind = 0;   // FUN_00573120
         if (effect.kind == d2d::rules::ThinkEffect::state && effect.id == 0xc && !effect.value) monster.breath_state = false;   // FUN_00639db0(0xc, 0)
@@ -1575,11 +1582,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // Baal's Vile Effigy (FUN_005fc860): none while one lives; baalclone
         // +- 12 (two draws of his seed) about the unit he's at (FUN_00553540;
         // his own spot without one), a third of his life, no regen (stat 0x4a
-        // 0), made in NU; his AI control +0x18 counts it.
-        // ponytail: its unit flags 0x4020000 aren't kept.
+        // 0), made in NU; his AI control +0x18 counts it. Unit flags 0x4020000
+        // (no experience, no drop: vile_effigy) and its first think 15 frames
+        // on (005fca71 .. 005fca7f: FUN_005de0f0(15) with EDX the clone).
         if (effect.kind == d2d::rules::ThinkEffect::clone && born
             && std::ranges::none_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrabClone"; }))
             if (auto clone = vile_effigy(game_data, level, monster, target ? target_x : x, target ? target_y : y, rng, players_in(foes))) {
+                clone->next_act = now_ms + 15 * 40;
                 born->push_back(std::move(*clone));
                 ++monster.ai_state2;
             }   // a4q1's FUN_005b4390 (World::act4_update)
@@ -2332,10 +2341,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
                 monster.seq_once = true;
             } else if (skill("Resurrect") || skill("Resurrect2")) {           // srvdofunc 97 (FUN_005ccb10 / FUN_005cc960): the corpse back at full life
-                // ponytail: the revived state's look (FUN_005cc960's state) left out.
+                // FUN_005cc960 puts no state on it: a raised monster gets unit
+                // flags 0x4020000 (no experience, no drop). FUN_005ccb10's
+                // overlay is the skill's srvoverlay (+0x4e), none for Resurrect
+                // and Resurrect2 (their healing is a castoverlay, the client's).
                 if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                     auto& raised = pack[std::size_t(monster.skill_unit)];
                     if (!raised.alive() && raised.mode == "DD" && !raised.corpse_used) {
+                        raised.no_exp = raised.no_drop = true;
                         raised.hit_points = raised.last_hp = raised.stats.hit_points;
                         raised.ai_state = raised.ai_command = 0; raised.skill = -1; raised.left_mode = "NU";
                         set_mode(game_data, raised, "NU", now_ms);
@@ -2982,6 +2995,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.killable = type_info.killable;
     // FUN_005b2a00: Align 1 good (stat 0xac 2), 2 neutral (1), else evil.
     monster.align = type_info.align == 1 ? 2 : type_info.align == 2 ? 1 : 0;
+    monster.row_align = type_info.align;
     monster.npc = game_data.mon_npc[std::size_t(type)];
     for (std::size_t layer = 0; layer < 16; ++layer)
         if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer][std::size_t(rng(int(type_info.parts[layer].size())))];
@@ -2993,9 +3007,11 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     if (stats) monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng, 0, players, area_monster_level(game_data, level_id, difficulty));
     monster.hit_points = monster.last_hp = monster.stats.hit_points;
     monster.difficulty = std::clamp(difficulty, 0, 2);
-    // Its MonProp row; spawn_monsters takes it again on the unit seed.
-    // ponytail: here a min..max slot draws on the seed it has yet (no shipped
-    // row with one is made this way).
+    // Its MonProp row; spawn_monsters takes it again on the unit seed. Here
+    // the row draws on the seed it has yet, which no shipped row feels: 1.14d
+    // MonProp has no chance column set, and its only min..max slots are
+    // quillrat6..8's thorns (N, H), made only by spawn_monsters (no MonStats
+    // spawn / minion, Skills summon or quest makes them).
     monster.props = d2d::rules::monster_props(game_data.rules, type_info, monster.difficulty, monster.seed);
     return monster;
 }
@@ -3023,8 +3039,9 @@ bool swaps_ai(const GameData& game_data, const Monster& monster) {
 }
 
 void ai_toggle(const GameData& game_data, Monster& monster, int special) {
-    d2d::rules::ai_toggle(monster.special, monster.other, { &monster.ai_state, &monster.ai_state2, &monster.ai_state3 }, special,
-                          d2d::rules::has_other_think(game_data.monsters.types[std::size_t(monster.type)].ai_name));
+    if (d2d::rules::ai_toggle(monster.special, monster.other, { &monster.ai_state, &monster.ai_state2, &monster.ai_state3 }, special,
+                              d2d::rules::has_other_think(game_data.monsters.types[std::size_t(monster.type)].ai_name)))
+        monster.ai_command = 0;                                    // FUN_0058ede0: its command list freed
 }
 
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique) {

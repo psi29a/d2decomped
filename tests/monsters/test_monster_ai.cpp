@@ -530,8 +530,8 @@ int main() {
             {
                 int special = 0, state = 5, state2 = 6, state3 = 7;
                 bool other = false;
-                auto toggle = [&](int next, bool has_other) { d2d::rules::ai_toggle(special, other, { &state, &state2, &state3 }, next, has_other); };
-                toggle(11, true);                                  // Terror on
+                auto toggle = [&](int next, bool has_other) { return d2d::rules::ai_toggle(special, other, { &state, &state2, &state3 }, next, has_other); };
+                assert(toggle(11, true));                          // Terror on: a full toggle (FUN_0058ede0 frees the commands)
                 assert(special == 11 && !other && state == 0 && state2 == 0 && state3 == 0);
                 state = 3;
                 toggle(10, true);                                  // Cloak on: its own special, the words cleared
@@ -539,7 +539,7 @@ int main() {
                 toggle(0, true);                                   // one ends: its own think
                 assert(special == 0 && !other);
                 state = 4;
-                toggle(0, true);                                   // the other ends: the other think, the words kept
+                assert(!toggle(0, true));                          // the other ends: the other think, the words (and commands) kept
                 assert(special == 0 && other && state == 4);
                 toggle(0, true);                                   // it toggles back
                 assert(special == 0 && !other && state == 0);

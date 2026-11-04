@@ -114,7 +114,8 @@ int main() try {
         const auto clone = vile_effigy(*data, here, baal, 200, 300, effigy_rng, 1);
         assert(clone && int(std::floor(clone->unit.x * 5)) == want_x && int(std::floor(clone->unit.y * 5)) == want_y);
         assert(clone->stats.regen == 0 && clone->hit_points == std::max(baal.hit_points / 3, 1));
-        std::printf("OK: the Vile Effigy rises about Baal's target, with no regen\n");
+        assert(clone->no_exp && clone->no_drop);   // unit flags 0x4020000 (005fca71)
+        std::printf("OK: the Vile Effigy rises about Baal's target, with no regen, experience or drop\n");
 
         // A whipped minion turns itself (FUN_00574370): the same unit id, group and spot, the new class.
         const auto minion_row = data->monsters.by_id.find("minion1");
@@ -157,6 +158,37 @@ int main() try {
                 assert(std::ranges::all_of(born, [&](const Monster& tentacle) { return tentacle.type == born[0].type; }));
             }
         std::printf("OK: Baal's tentacles are one class a cast, rand(2) + the difficulty down the chain\n");
+    }
+
+    {
+        // Resurrect (do 97, FUN_005ccb10 -> FUN_005cc960): the corpse back at
+        // full life with unit flags 0x4020000: no experience, no drop.
+        const auto shaman_row = data->monsters.by_id.find("fallenshaman1");
+        const auto fallen_row = data->monsters.by_id.find("fallen1");
+        const auto raise = data->skills.by_name.find("Resurrect");
+        const auto seq = shaman_row == data->monsters.by_id.end() ? data->mon_seqs.end()
+                                                                  : data->mon_seqs.find(data->monsters.types[std::size_t(shaman_row->second)].sk_mode[0]);
+        assert(shaman_row != data->monsters.by_id.end() && fallen_row != data->monsters.by_id.end() && raise != data->skills.by_name.end());
+        assert(seq != data->mon_seqs.end() && !seq->second.empty());
+        d2d::rules::Rng raise_rng{ 3 };
+        Level here{};
+        here.id = d2d::rules::level_ids::kBloodMoor;
+        std::vector<Monster> pack{ make_monster(*data, int(shaman_row->second), 10.f, 10.f, raise_rng, 0),
+                                   make_monster(*data, int(fallen_row->second), 11.f, 10.f, raise_rng, 0) };
+        pack[1].hit_points = 0;
+        set_mode(*data, pack[1], "DD", 0);
+        pack[0].skill = raise->second;
+        pack[0].skill_unit = 1;
+        set_mode(*data, pack[0], seq->second.front().mode, 0);
+        std::array<Foe, 1> foes{};
+        foes[0].x = 30.f; foes[0].y = 30.f;
+        const Crowd crowd;
+        std::vector<Missile> missiles;
+        for (std::uint32_t frame = 1; frame <= 100 && !pack[1].alive(); ++frame)
+            monster_update(*data, here, pack[0], foes, raise_rng, frame * 40, 0.04f, crowd, missiles, pack);
+        assert(pack[1].alive() && pack[1].hit_points == pack[1].stats.hit_points);
+        assert(pack[1].no_exp && pack[1].no_drop);
+        std::printf("OK: a raised corpse gives no experience and drops nothing\n");
     }
 
     // A new barbarian in the camp (20 dexterity: the ammo checks lean on it).

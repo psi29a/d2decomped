@@ -9,7 +9,7 @@ through it, upstream's mon_ais.py); edits neither. Adds scenes and hooks for wha
 
 Labels normalised before the case is written (each a representation difference, stated in the trace): `keep`'s y is the move mode (always 2:
 FUN_005de6d0 pushes 2), which d2d's Think does not carry; the second target is the primary one (d2d feeds it so), so unit foe2 reads foe for
-FallenShaman and BloodRaven.
+BloodRaven and SkeletonBow.
 
     PYTHONPATH=<upstream tools/emu>:tools/emu D2_MPQ_DIR=<dir> python mon_ais_pace.py <ai,ai|all> <cases> <seed> --dump <dir>
     env MAI2_CMD=none1 (leader command none or 1) | two (command 2: the D8 regime) | (unset: as drawn)
@@ -137,7 +137,7 @@ def check(e, ai, cases, rng, lines, tally):
         if ai == "BloodRaven" and act[0] == "circle": act[3] = 0                    # the circle's flag 1 (walk flagged 4): d2d's Think has no field for it
         if home: act[:] = ["home", 0, 0, 0, 0, act[5], act[6]]
         if act[0] == "keep": act[3] = 0                                       # y is the move mode, always 2 (FUN_005de6d0), d2d's Think has none
-        if ai in ("FallenShaman", "BloodRaven", "SkeletonBow") and act[4] == 2: act[4] = 0   # the second target is the primary one, as ai.cpp feeds it
+        if ai in ("BloodRaven", "SkeletonBow") and act[4] == 2: act[4] = 0   # the second target is the primary one, as ai.cpp feeds it
         s["stat"][("mon", 0x2b)] = int(s["dying"])
         lines.append(M.dump_case(s, act, pace, effects, asks, ctrl, seed))
         key = (ai, "dying" if s["dying"] else "-", act[0])

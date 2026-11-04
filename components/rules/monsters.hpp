@@ -283,15 +283,22 @@ struct MonStats {
 // poison max >> 8). 0 before any swing.
 // Only the elements the swing rolled in count (Monster::swing_stats).
 // The player-count growth past Normal is in Monster::swing_stats.
-// ponytail: a classic game's x 10 / 12 damage and x 10 / 15 to-hit past
-// Normal (FUN_005a4f50, game +0x70 0) aren't made: d2d's monsters take
-// the expansion columns throughout.
 inline int swing_max_damage(const MonStats& stats, std::string_view swing_mode) {
     if (swing_mode.empty()) return 0;
     int total = swing_mode == "A2" ? stats.a2_max : swing_mode == "SC" || swing_mode == "S1" ? stats.s1_max : stats.a1_max;
     for (const auto& element : stats.elements)
         if (element.type >= 0 && element.mode == swing_mode) total += element.type == 3 ? element.max * 10 >> 8 : element.max;
     return total;
+}
+
+// A classic game's swing (FUN_005a4f50 0x5a5112, game +0x70 0): past Normal
+// a monster whose MonStats Align (+0x4c) isn't 1 swings for x 10 / 12 of its
+// damage (min and max) and x 10 / 15 of its to-hit, truncated; its elements
+// as they are, and no player-count growth (that's the expansion branch).
+inline void classic_swing(MonStats& stats, int difficulty, int row_align) {
+    if (difficulty == 0 || row_align == 1) return;
+    for (int* damage : { &stats.a1_min, &stats.a1_max, &stats.a2_min, &stats.a2_max, &stats.s1_min, &stats.s1_max }) *damage = *damage * 10 / 12;
+    for (int* to_hit : { &stats.to_hit, &stats.to_hit2, &stats.to_hit_s1 }) *to_hit = *to_hit * 10 / 15;
 }
 
 // A hostile monster's swing growth past Normal, in 128ths (FUN_005a4f20 on
@@ -1591,8 +1598,11 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // else 30 % taunts, else stands 10.
     // Its group's senders (Fallen, FallenShaman) only send 1 (monster-ai.md
     // "AI commands"); any other would be dropped.
-    // ponytail: the stand-10 outside NU is left out (our moves re-think
-    // mid-way, game.exe's at their end).
+    // Out of NU (FUN_005f02c0's mode test after the dying scan) it stands
+    // 10. Every mode's end leaves NU before a think (FUN_005a8030: WL / RN
+    // FUN_00624690(unit, 1), the rest FUN_005a7c20 mode 1), so only a think
+    // event due mid-mode meets it, and d2d thinks at a mode's end (ai.cpp's
+    // think scheduling note): never here.
     if (ai_name == "Fallen") {
         if (input.dying) {
             *input.state = 1; *input.command = 0; *input.pace = 50;
@@ -1614,16 +1624,15 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     }
     // FallenShaman (13, FUN_005f1440): in melee aip3 % A1; aip1 % sets its
     // group charging; with a corpse (FUN_005dd0b0) aip1 % raises it
-    // (Skill1); within aip5, aip2 % a fire bolt (Skill2), rolled again for
-    // its second target search (FUN_005ddc30); else aip3 % circles 3, else
-    // stands 10.
-    // ponytail: the second target search taken as its target.
+    // (Skill1); within aip5, aip2 % a fire bolt (Skill2) at the target,
+    // then the same at its second target (FUN_005ddc30) within aip5 of it
+    // (0x5f167d..0x5f16d9); else aip3 % circles 3, else stands 10.
     if (ai_name == "FallenShaman") {
         if (input.in_melee && roll() < aip[2]) return { MonAct::a1 };
         if (roll() < aip[0]) *input.rally = true;
         if (input.corpse && roll() < aip[0] && input.skill[0]) return { MonAct::skill, 0 };
-        for (int search = 0; search < 2; ++search)
-            if (input.dist < aip[4] && roll() < aip[1]) return { MonAct::skill, 1 };
+        if (input.dist < aip[4] && roll() < aip[1]) return { MonAct::skill, 1 };
+        if (input.second && input.second_dist < aip[4] && roll() < aip[1]) return at_second({ MonAct::skill, 1 });
         if (roll() >= aip[2]) return { MonAct::idle, 10 };
         return think_circle(rng, 3);
     }
@@ -3857,13 +3866,20 @@ inline Think countess_think(const ThinkIn& input, const CountessIn& where, std::
 // Cloak of Shadows) whose end (FUN_005c3370, on expiry or when another
 // curse takes its place, FUN_006269f0) comes while it's back on its own.
 // `special`: the monster's special AI (0 its own think), `other`: on its
-// row's other think.
-// ponytail: the init (row +4) and FUN_0058ede0 aren't run; d2d's thinks
-// take their first values as they go.
-inline void ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, int next, bool has_other) {
-    if (next == 0 && special == 0 && !other && has_other) { other = true; return; }
+// row's other think. True on a full toggle, where FUN_0058ede0 also frees
+// the AI command list (AI control +0x20: Monster::ai_command, the caller's).
+// The inits (row +4) a toggle can reach: a monster swaps only as
+// game::swaps_ai allows (it walks, SwitchAI, not unique), and of the MonAI
+// rows with an init (0x73ca18) only Imp's walks with SwitchAI in 1.14d
+// MonStats (the rest are summons, the act 5 barbarians, or don't walk).
+// Its FUN_005e2fd0 sets +0x14 to -1, which ai.cpp's Imp inputs take for 0;
+// special 16's (FUN_005e2cd0) is imp_ride_pick, run by its caller; special
+// 11's is terror_think's note; 10 and 12 have none.
+inline bool ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, int next, bool has_other) {
+    if (next == 0 && special == 0 && !other && has_other) { other = true; return false; }
     special = next; other = false;
     for (int* word : scratch) *word = 0;
+    return true;
 }
 
 // The riding imp's init (special 16's, FUN_005e2cd0): one draw on its seed;

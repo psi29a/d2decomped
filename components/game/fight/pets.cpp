@@ -83,7 +83,8 @@ bool shadow_may_have(const d2d::rules::Skill* skill, const d2d::rules::MonType& 
 }
 
 auto Fight::pet_foe(const Pet& pet) const -> Foe {
-        auto fighter = d2d::rules::simple_fighter(pet.monster.stats.a1_min, pet.monster.stats.a1_max, pet.monster.stats.to_hit,
+        const auto swung = pet.monster.classic_stats();                 // a revived one's swing in a classic game
+        auto fighter = d2d::rules::simple_fighter(swung.a1_min, swung.a1_max, swung.to_hit,
                                                   pet.monster.stats.armor_class * (100 + pet_buff_stat(pet, d2d::d2s::kSkillArmorPercent)) / 100);   // Shout's
         static constexpr std::array<int, 4> kResists{ d2d::d2s::kFireResist, d2d::d2s::kLightningResist, d2d::d2s::kColdResist, d2d::d2s::kPoisonResist };
         for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(pet.res[k] + pet_buff_stat(pet, kResists[k]), 95);   // Fade's on a Shadow
@@ -199,7 +200,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     } else if (monsters[monster_index].targetable() && std::hypot(monsters[monster_index].unit.x - unit.x, monsters[monster_index].unit.y - unit.y) <= kMeleeReach + 0.3f) {
                         auto target = target_of(monster_index);
                         // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's.
-                        auto blow = d2d::rules::player_blow(pet.mirror ? actor->player_combat : d2d::rules::simple_fighter(monster.stats.a1_min, monster.stats.a1_max, monster.stats.to_hit),
+                        auto blow = d2d::rules::player_blow(pet.mirror ? actor->player_combat : d2d::rules::simple_fighter(monster.classic_stats().a1_min, monster.classic_stats().a1_max, monster.classic_stats().to_hit),
                                                          target, monster.stats.level, rng);
                         if (!traced && pet.hits > 0 && --pet.hits == 0) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); }   // a Raven's last
                         if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(rng.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
@@ -980,7 +981,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
         }
         if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }   // Fenris eats the corpse
         if (std::hypot(monsters[std::size_t(target)].unit.x - monster.unit.x, monsters[std::size_t(target)].unit.y - monster.unit.y) <= kMeleeReach + 0.3f)
-            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(d2d::rules::simple_fighter(monster.stats.a1_min, monster.stats.a1_max, monster.stats.to_hit),
+            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(d2d::rules::simple_fighter(monster.classic_stats().a1_min, monster.classic_stats().a1_max, monster.classic_stats().to_hit),
                                                                          target_of(std::size_t(target)), monster.stats.level, rng), now_ms);
     }
 
