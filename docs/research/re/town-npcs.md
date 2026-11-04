@@ -45,9 +45,11 @@ up at 0x61a6ef) then sends every monster in its unit list (+0x74, next
 +0xe8) to FUN_00573780 when +0x78 is under 2 (0x53a93c). So the first
 think, the Npc think's home and stand 20 (FUN_005e6800), runs 2 frames
 after the NPC's room comes into play, whether the NPC was made before
-then (aidel replaced) or in a room already in play. d2d: `npc_patrol`
-files it 2 frames after the first call that meets the state
-(`UnitState::filed`), which is when its level comes into play. Checked:
+then (aidel replaced) or in a room already in play. d2d:
+`file_first_think` files it 2 frames on (`UnitState::filed`). `World::tick`
+files the states its rooms grow in a frame (`rooms_up`, then
+`grow_states`) from that frame. `npc_patrol` files any other state the
+first time it meets it, which is when its level comes into play. Checked:
 `tools/emu/npc_first_think.py` (the camp, seeds 1 and 7: every pathed
 NPC made 15, in play 2), `tests/game/test_npc_first_think.cpp`.
 

@@ -98,6 +98,13 @@ struct Crowd {
     }
 };
 
+// A town NPC's first think, 2 frames after `now_ms`: game.exe files it as
+// the NPC's room comes into play (its first client, FUN_0053a8e0, or made
+// in one already in play, FUN_00554850) through FUN_00573780: mode NU,
+// event 2 at frame + 2 (0x5737c0). World files the states its rooms grow
+// in a frame; npc_patrol files the rest the first time it meets them.
+void file_first_think(UnitState& state, std::uint32_t now_ms);
+
 // Town NPCs with the Npc AI think (rules::npc_think on their unit seed)
 // when due: a stand thinks again n frames on, a walk at its end, a special
 // mode (S1, S2) aidel (15) frames after it ends. An NPC with a "!" walks
@@ -105,10 +112,7 @@ struct Crowd {
 // store open on it) stops and stands (rules::npc_think's visitor).
 // The walk is a monster's (set_off / walk_on: toward 0xd, wall 0xf) at
 // Velocity. Its first think comes 2 frames after the first call that
-// meets it: game.exe files it as the NPC's room comes into play (its
-// first client, FUN_0053a8e0, or made in one already in play,
-// FUN_00554850) through FUN_00573780: mode NU, event 2 at frame + 2
-// (0x5737c0).
+// meets it, unless file_first_think filed it already.
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
                 std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, const UnitState* player = nullptr, bool guard_aside = false);
 

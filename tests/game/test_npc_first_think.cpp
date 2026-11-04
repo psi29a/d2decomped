@@ -37,5 +37,16 @@ int main() {
     npc_patrol(game_data, level, states, { -1, -1, -1 }, kStart + 2 * kFrameMs, 0.04f);
     assert(level.npcs[0].seed.low != seed);                                       // 2 frames on: the think
     assert(states[0].wait_until == kStart + 2 * kFrameMs + 30 * kFrameMs);       // its stand 30
+
+    // Grown after the frame's patrol (World: its room came up this frame):
+    // filed from that frame, not from the next patrol's.
+    vendor.seed = d2d::rules::Rng(seed);
+    level.npcs.push_back(vendor);
+    states.push_back(npc_start(level)[1]);
+    file_first_think(states[1], kStart);
+    npc_patrol(game_data, level, states, { -1, -1, -1 }, kStart + kFrameMs, 0.04f);
+    assert(states[1].wait_until == kStart + 2 * kFrameMs && level.npcs[1].seed.low == seed);
+    npc_patrol(game_data, level, states, { -1, -1, -1 }, kStart + 2 * kFrameMs, 0.04f);
+    assert(level.npcs[1].seed.low != seed);                                       // 2 frames after its room came up
     return 0;
 }
