@@ -19,6 +19,17 @@ Esc (`0x4690b0`), first that applies:
 `FUN_0047e090` closes the UIs listed in `0x713058` and remembers those
 flagged b=1 (automap 10, mini-panel 21, and 6, 7, 17, 35) for
 `FUN_0047e200` to reopen. The selection starts on the menu's last row.
+The list is 38 entries of `{closes, reopens, was open}` (12 bytes); the
+third word stays set after the menu shuts.
+
+The mini-panel's start: the UI reset at a game's start (`FUN_00456970`,
+which zeroes the flags) calls, at 0x456bad,
+`FUN_004567f0`, which turns UI 0x15 on unless the registry's
+`Diablo II\Mini Panel` reads nonzero (`FUN_00414f10` at 0x456806). At
+the game's end `FUN_00456d80` calls `FUN_0047f130`, which writes
+`Mini Panel` = 1 when entry 21's "was open" (0x71315c) is 0, else 0:
+the mini-panel's state as the game menu last opened (Save and Exit).
+d2d: d2d.cfg's `mini_panel` (`Town::game_ended`).
 
 ## Menu tables
 

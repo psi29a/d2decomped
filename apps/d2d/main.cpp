@@ -904,6 +904,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (!pad.built_in && start && !was && seats.seat_of(int(pad.id)) < 0) take_seat(pad);
                 }
             if (!in_game) coop_game = false;
+            if (!in_game && was_in_game) town.game_ended();
             was_in_game = in_game;
             if (coop_game)
                 for (const auto& coop_player : town.coop)
