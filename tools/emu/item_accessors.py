@@ -79,6 +79,21 @@ def main():
                 raise AssertionError(f"{address:08x} rejected write changed item data")
         machine.call(address, 0, 0xFFFF, *args)
 
+    def item_level_get():
+        select()
+        for value in (0x80000000, 0xFFFFFFFF, 0, 1, 2, 0x7FFFFFFF):
+            machine.w32(data + 0x2C, value)
+            expected = 1 if value == 0 or value & 0x80000000 else value
+            expect(machine.call(0x6281E0, unit), expected, "item level read")
+            expect(machine.r32(data + 0x2C), expected, "item level clamp")
+        for kind, with_data in ((3, True), (4, False)):
+            select(kind, with_data)
+            before = machine.read(data, 0x60)
+            expect(machine.call(0x6281E0, unit), 1, "item level rejected read")
+            if machine.read(data, 0x60) != before:
+                raise AssertionError("item level rejected read changed item data")
+        expect(machine.call(0x6281E0, 0), 1, "item level null read")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -117,6 +132,7 @@ def main():
     write16(0x628070, 0x34)
     read32(0x628110, 0x18)
     mask32(0x628170, 0x14)
+    item_level_get()
     print("item accessors: all game.exe checks passed")
 
 
