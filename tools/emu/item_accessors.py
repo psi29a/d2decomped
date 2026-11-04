@@ -208,6 +208,16 @@ def main():
             for right in (0, 1, 0x33333333, 0x80000000, 0xFFFFFFFF):
                 expect(machine.call(0x6287A0, left, right), left & right, "bitwise AND")
 
+    def bitmask_set():
+        target = machine.alloc(4)
+        for mask in (0, 1, 0x0F0F0F0F, 0x80000000, 0xFFFFFFFF):
+            for enabled in (0, 1, 2, 0xFFFFFFFF):
+                initial = 0xA5A55A5A
+                machine.w32(target, initial)
+                machine.call(0x6287B0, target, mask, enabled)
+                expected = initial | mask if enabled else initial & (~mask & 0xFFFFFFFF)
+                expect(machine.r32(target), expected, "item bitmask update")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -259,6 +269,7 @@ def main():
     record_pair_get()
     base_level_get()
     bit_and()
+    bitmask_set()
     print("item accessors: all game.exe checks passed")
 
 
