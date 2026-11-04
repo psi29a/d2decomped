@@ -1591,8 +1591,11 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // else 30 % taunts, else stands 10.
     // Its group's senders (Fallen, FallenShaman) only send 1 (monster-ai.md
     // "AI commands"); any other would be dropped.
-    // ponytail: the stand-10 outside NU is left out (our moves re-think
-    // mid-way, game.exe's at their end).
+    // Out of NU (FUN_005f02c0's mode test after the dying scan) it stands
+    // 10. Every mode's end leaves NU before a think (FUN_005a8030: WL / RN
+    // FUN_00624690(unit, 1), the rest FUN_005a7c20 mode 1), so only a think
+    // event due mid-mode meets it, and d2d thinks at a mode's end (ai.cpp's
+    // think scheduling note): never here.
     if (ai_name == "Fallen") {
         if (input.dying) {
             *input.state = 1; *input.command = 0; *input.pace = 50;
