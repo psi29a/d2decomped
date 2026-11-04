@@ -183,6 +183,8 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.back().cmap = scene.monster_map(monster.npc);
         out.back().ghostly = monster.alive() && std::ranges::find(monster.mods, d2d::rules::umod::ghostly) != monster.mods.end();
         dress(scene, out.back(), monster.id, monster_states(scene, monster, now_ms, view.aura), clk);
+        if (monster.flash_overlay >= 0 && std::size_t(monster.flash_overlay) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(monster.flash_overlay)])
+            out.back().overs.push_back({ scene.overlay_rows[std::size_t(monster.flash_overlay)], monster.flash_at, true });   // its think's overlay, played once
     }
 }
 

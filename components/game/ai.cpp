@@ -1539,10 +1539,16 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     monster.move_pct = pace;                                       // the next mode takes it (FUN_005a63f0)
     if (type_info.ai_name == "AbyssKnight" && act.act == MonAct::skill && act.n == 1) monster.armored = true;   // its Bone Armor up
-    // Its effects: the leader's command done; Duriel's aura (Skill4) on.
-    // ponytail: states 0x5a / 0x5b and the overlays (looks) and stat 0x4a
-    // (regen) left out; the Summoner's quest reads his first think (ai_state).
+    // Its effects: the leader's command done; Duriel's aura (Skill4) on;
+    // states 0x5a / 0x5b (looks: blue / red) on or off; an overlay played
+    // once on it; stat 0x4a (regen). The Summoner's quest reads his first
+    // think (ai_state).
     for (const auto& effect : effects) {
+        if (effect.kind == d2d::rules::ThinkEffect::state && (effect.id == 0x5a || effect.id == 0x5b)) {
+            const auto bit = std::uint8_t(effect.id == 0x5a ? 1 : 2);
+            monster.looks = effect.value ? std::uint8_t(monster.looks | bit) : std::uint8_t(monster.looks & ~bit);
+        }
+        if (effect.kind == d2d::rules::ThinkEffect::overlay) { monster.flash_overlay = effect.id; monster.flash_at = now_ms; }
         if (effect.kind == d2d::rules::ThinkEffect::command_done) monster.ai_command = 0;
         if (effect.kind == d2d::rules::ThinkEffect::unset) monster.set_kind = 0;   // FUN_00573120
         if (effect.kind == d2d::rules::ThinkEffect::state && effect.id == 0xc && !effect.value) monster.breath_state = false;   // FUN_00639db0(0xc, 0)

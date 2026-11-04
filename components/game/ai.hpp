@@ -254,6 +254,9 @@ struct Monster {
     // and the damage / to-hit % it gets from bosses' auras this frame.
     int aura = 0, aura_lvl = 0;
     std::vector<std::string_view> host_states;   // a joined game's: the States.txt names the host has on it (0xa8 / 0xaa)
+    std::uint8_t looks = 0;                      // its thinks' states: 0x5a "blue" (bit 1), 0x5b "red" (bit 2)
+    int flash_overlay = -1;                      // its think's one-shot overlay (FUN_00621e40: an Overlay.txt row), from flash_at
+    std::uint32_t flash_at = 0;
     std::uint32_t aura_next = 0;
     int aura_dmg = 0, aura_th = 0, aura_rate = 0;   // a boss's aura over it: damagepercent, item_tohit_percent, attackrate (Fanaticism)
     // Skills' states on it (their auratargetstate): one curse at a time

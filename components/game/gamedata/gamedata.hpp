@@ -457,6 +457,7 @@ struct GameData {
         [[nodiscard]] int dy(int cls) const { return y + (cls >= 0 && cls < 4 ? height[std::size_t(cls)] : 75); }
     };
     std::unordered_map<std::string, OverlayInfo> overlays;
+    std::vector<const OverlayInfo*> overlay_rows;      // by Overlay.txt row (the id a one-shot overlay names); null: no file
     // States.txt's look: the colour shift that wins by colorpri (PL2's
     // colour shift tables, +0x53500, colorshift - 1), overlays while it lasts
     // (overlay1..4) and once as it starts (castoverlay); the colour worn
