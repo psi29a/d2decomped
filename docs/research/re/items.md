@@ -25,6 +25,7 @@ calls return zero.
 | `FUN_00628040` | Read the rare-name suffix ID at item data `+0x34`. `FUN_0048c060` formats rare and crafted names through `FUN_00634260`. |
 | `FUN_00628070` | Write the low 16 bits of a value to the rare-name suffix ID at item data `+0x34`; do nothing for a rejected call. |
 | `FUN_00628110` | Read the 32-bit item flags at item data `+0x18`; return 0 for a rejected call. |
+| `FUN_00628170` | For a mask and boolean-like third argument, nonzero sets `item_data[+0x14] |= mask` and zero applies `item_data[+0x14] &= ~mask`; do nothing for a rejected call. |
 
 Re-check these claims against game.exe 1.14d:
 

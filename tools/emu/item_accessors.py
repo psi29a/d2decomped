@@ -48,6 +48,23 @@ def main():
             expect(machine.call(address, unit), 0, f"{address:08x} rejected read")
         expect(machine.call(address, 0), 0, f"{address:08x} null read")
 
+    def mask32(address, offset):
+        select()
+        for mask in (0, 1, 0x0F0F0F0F, 0x80000000, 0xFFFFFFFF):
+            for enabled in (0, 1, 2, 0xFFFFFFFF):
+                initial = 0xA5A55A5A
+                machine.w32(data + offset, initial)
+                machine.call(address, unit, mask, enabled)
+                expected = initial | mask if enabled else initial & (~mask & 0xFFFFFFFF)
+                expect(machine.r32(data + offset), expected, f"{address:08x} mask {offset:#x}")
+        for kind, with_data in ((3, True), (4, False)):
+            select(kind, with_data)
+            before = machine.read(data, 0x60)
+            machine.call(address, unit, 0xFFFFFFFF, 1)
+            if machine.read(data, 0x60) != before:
+                raise AssertionError(f"{address:08x} rejected mask changed item data")
+        machine.call(address, 0, 0xFFFFFFFF, 1)
+
     def write16(address, offset, args=()):
         select()
         for value in (0, 1, 0x7FFF, 0x8000, 0xFFFF, 0x12345678):
@@ -99,6 +116,7 @@ def main():
     read16(0x628040, 0x34)
     write16(0x628070, 0x34)
     read32(0x628110, 0x18)
+    mask32(0x628170, 0x14)
     print("item accessors: all game.exe checks passed")
 
 
