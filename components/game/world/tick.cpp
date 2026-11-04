@@ -124,9 +124,9 @@ auto World::walk_percent(const Player& player, std::uint32_t now_ms) const -> in
 // A frame's stamina (FUN_00580c20 / FUN_00580810 event 3): a run outside
 // town drains it (FUN_0057f240), at 0 the run is a walk (FUN_0057f090: no
 // run at stamina 0); then it regens by mode (FUN_00580500).
-// ponytail: the run stays a run while stamina lasts and walks at 0 each
-// frame, not at the next move as game.exe; the same since a walk at 0 never
-// regens.
+// The run turns a walk on the frame stamina hits 0 (0x580c5f: FUN_0057f090
+// with mode 2, town walk 6), before that frame's regen: a walk at 0 regens
+// nothing, even with staminarecoverybonus 1000 (a run's would).
 auto World::stamina_frame() -> void {
         using namespace d2d::d2s;
         if (fight.dead()) return;
@@ -141,7 +141,7 @@ auto World::stamina_frame() -> void {
             stamina = std::max<std::int64_t>(0, stamina - d2d::rules::stamina_drain(game_data->run_drain[std::size_t(std::max(actor->character.character_class, 0))],
                                                                                   armor_speed, int(actor->psum[kStaminaDrainPercent])));
         }
-        const int mode = actor->pmode >= 0 ? -1 : actor->player.walking ? (run ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
+        const int mode = actor->pmode >= 0 ? -1 : actor->player.walking ? (run && stamina > 0 ? kModeRN : town ? kModeTW : kModeWL) : town ? kModeTN : kModeNU;
         stamina = d2d::rules::stamina_regen(stamina, actor->character.stats.values[kMaxStamina], mode, int(actor->psum[kStaminaRecoveryBonus]));
     }
 
