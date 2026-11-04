@@ -1617,16 +1617,15 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     }
     // FallenShaman (13, FUN_005f1440): in melee aip3 % A1; aip1 % sets its
     // group charging; with a corpse (FUN_005dd0b0) aip1 % raises it
-    // (Skill1); within aip5, aip2 % a fire bolt (Skill2), rolled again for
-    // its second target search (FUN_005ddc30); else aip3 % circles 3, else
-    // stands 10.
-    // ponytail: the second target search taken as its target.
+    // (Skill1); within aip5, aip2 % a fire bolt (Skill2) at the target,
+    // then the same at its second target (FUN_005ddc30) within aip5 of it
+    // (0x5f167d..0x5f16d9); else aip3 % circles 3, else stands 10.
     if (ai_name == "FallenShaman") {
         if (input.in_melee && roll() < aip[2]) return { MonAct::a1 };
         if (roll() < aip[0]) *input.rally = true;
         if (input.corpse && roll() < aip[0] && input.skill[0]) return { MonAct::skill, 0 };
-        for (int search = 0; search < 2; ++search)
-            if (input.dist < aip[4] && roll() < aip[1]) return { MonAct::skill, 1 };
+        if (input.dist < aip[4] && roll() < aip[1]) return { MonAct::skill, 1 };
+        if (input.second && input.second_dist < aip[4] && roll() < aip[1]) return at_second({ MonAct::skill, 1 });
         if (roll() >= aip[2]) return { MonAct::idle, 10 };
         return think_circle(rng, 3);
     }
