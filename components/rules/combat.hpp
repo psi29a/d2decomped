@@ -248,6 +248,19 @@ inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, b
     return true;
 }
 
+// FUN_0057bf80 on a damage record's physical field, in 256ths: the flat
+// reduction (stat 34, whole points) comes off first, then the percent (stat 36)
+// of what is left; a field already at 0 stays 0, the product truncates toward
+// zero (FUN_00483360). A result under 0 is clamped here; game.exe stores it and
+// only ignores a record total that is not above 0 (0057c852).
+// ponytail: FUN_0057c1e0 scales the flat by the record's +0x54 / 1024 when that
+// is above 0 and the whole record by FUN_0057c060's percent; neither is modelled.
+inline int reduce_fine(int fine, int percent, int flat) {
+    if (fine <= 0) return 0;
+    fine -= flat * 256;
+    if (fine > 0 && percent != 0) fine = int(std::int64_t(fine) * (100 - std::clamp(percent, -100, 100)) / 100);
+    return std::max(fine, 0);
+}
 // One landed blow on a unit this frame, as game.exe keeps one damage record a
 // hit: its damage (whole points), hit class and element mark (an element or
 // poison, Foe::take), and of the damage the physical part (record +0x08) and
@@ -257,7 +270,21 @@ struct StruckBlow {
     bool marked = false;
     int physical = 0, elemental = 0;
     bool poisoned = false;
+    int frac = 0;                        // 256ths of a point the physical carries beyond `damage` (Taken::frac)
+    // The physical field before the defender's reduction, in 256ths, and the reduction (percent, flat) to put back on it:
+    // game.exe absorbs first (state event 0xb, 0x57c2fc) and reduces after (the loop at 0x57c378). -1: not known,
+    // the physical and `frac` are taken as they are (nothing to reduce again).
+    int raw = -1, pct = 0, flat = 0;
 };
+
+// Puts a blow's reduced physical (`physical`, `frac`, and its share of `damage`) back in line with `raw`.
+inline void settle_blow(StruckBlow& blow) {
+    if (blow.raw < 0) return;
+    const int fine = reduce_fine(blow.raw, blow.pct, blow.flat);
+    blow.damage += (fine >> 8) - blow.physical;
+    blow.physical = fine >> 8;
+    blow.frac = fine & 255;
+}
 
 // A state's absorb pool on the frame's blows: FUN_0057c1e0 raises state event
 // 0xb (FUN_005c0c30, 0x57c2fc) on each record before it sums the total +0x4c,
@@ -265,17 +292,33 @@ struct StruckBlow {
 // only its own part: Bone Armor (FUN_005c6370) from the physical field,
 // Cyclone Armor (FUN_005c87a0) from fire, cold, then lightning. A blow whose
 // fire / lightning / cold went keeps its mark only by its poison
-// (FUN_0057ce30 reads the fields after). Returns what the pool took.
-// Its oracle (hit_absorb.py) was never committed: cited, not re-checkable.
-// ponytail: game.exe absorbs before resistances and damage reduction (the loop at 0x57c378); d2d's blows are already resisted.
+// (FUN_0057ce30 reads the fields after). `pool` is in 256ths, as game.exe's
+// stat is: Bone Armor subtracts it from the physical field BEFORE the defender's
+// reduction (`raw`; a blow without one takes it from `physical` and `frac`), then
+// the flat and percent reduction (reduce_fine) are put back on what is left, as
+// game.exe does (absorb event 0xb at 0x57c2fc, the loop at 0x57c378). A pool that
+// outlasts the field takes the fraction too. Returns what the pool took, in 256ths
+// of the unreduced field.
+// Its oracle for the pool in 256ths and the absorb before the reduction is tools/emu/monster_damage.py (sets absorb and
+// both); hit_absorb.py, the older whole-point one, was never committed.
+// ponytail: the physical reduction is put back after the absorb (raw); fire / lightning / cold are already resisted in d2d's blows, game.exe resists after.
+// ponytail: Cyclone Armor's fields are whole points here (no elemental fraction), so it takes whole points from the pool.
 inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) {
     int taken = 0;
     for (auto& blow : blows) {
-        int& part = elemental ? blow.elemental : blow.physical;
-        const int cut = std::min({ pool, part, blow.damage });
+        if (elemental) {
+            const int cut = std::min({ pool >> 8, blow.elemental, blow.damage });
+            if (cut <= 0) continue;
+            blow.elemental -= cut; blow.damage -= cut; pool -= cut * 256; taken += cut * 256;
+            if (blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
+            continue;
+        }
+        if (blow.raw < 0) blow.raw = blow.physical * 256 + blow.frac;
+        const int cut = std::min(pool, blow.raw);
         if (cut <= 0) continue;
-        part -= cut; blow.damage -= cut; pool -= cut; taken += cut;
-        if (elemental && blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
+        blow.raw -= cut;
+        settle_blow(blow);
+        pool -= cut; taken += cut;
     }
     return taken;
 }
@@ -689,10 +732,12 @@ inline int chill_length(const Fighter& defender, int len) {
 }
 // `physical` / `elemental` (fire, lightning, cold): the parts of `damage`
 // Bone Armor (22) and Cyclone Armor (25) absorb.
-struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0, physical = 0, elemental = 0; };
+// `frac`: the 256ths of a point the physical carries beyond `damage` (game.exe keeps life in 256ths).
+// `raw`: the physical before the reduction, in 256ths (what absorbs take from first, StruckBlow::raw).
+struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0, physical = 0, elemental = 0, frac = 0, raw = -1; };
 enum class Motion : std::uint8_t { standing, walking, running };
 inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonStats& attacker, bool second_attack, Rng& rng,
-                          bool missile = false, bool sure = false) {
+                          bool missile = false, bool sure = false, bool exact = false) {
     Taken taken;
     const bool moving = motion != Motion::standing, running = motion == Motion::running;
     if (!sure) {
@@ -704,9 +749,18 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
         if (dodge > 0 && rng(100) < dodge) { taken.dodged = true; return taken; }
     }
     taken.hit = true;
-    int phys = second_attack ? rng.range(attacker.a2_min, attacker.a2_max) : rng.range(attacker.a1_min, attacker.a1_max);
-    phys = std::max(phys * (100 - defender.dr_pct) / 100 - defender.dr_flat, 0);
-    taken.damage = taken.physical = phys;
+    // FUN_0057b420: min << 8 + rand((max - min) << 8) on the attacker's seed, the top never rolled; FUN_0057c1e0
+    // reduces that record in 256ths (reduce_fine) and the life stat takes it as is (0057c852). A missile's
+    // FUN_005a89a0 draws on the missile's own seed with no clamp; here it shares the roll (unverified).
+    // `exact`: a record the caller builds itself (Corpse Explosion FUN_005c4d10, Diablo's cold touch FUN_005cce80: min == max
+    // straight into FUN_0057c6c0 with the reduce flag, V read 005c4dc1 / 005ccf3f): not FUN_0057b420's roll, so no 256ths
+    // are added, no clamp and no draw; the reduction and the absorbs still apply (57c6c0 calls 57c1e0 at 57c7a0).
+    int low = second_attack ? attacker.a2_min : attacker.a1_min, high = second_attack ? attacker.a2_max : attacker.a1_max;
+    if (!missile && !exact) { low = std::max(low, 1); high = std::max(high, low + 1); }   // min at least 1, max at least min + 1: an empty range still draws
+    taken.raw = exact ? low * 256 : low * 256 + rng((high - low) * 256);
+    const int fine = reduce_fine(taken.raw, defender.dr_pct, defender.dr_flat);
+    taken.damage = taken.physical = fine >> 8;
+    taken.frac = fine & 255;
     for (const auto& element : attacker.elements) {
         if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || (element.pct < 100 && rng(100) >= element.pct)) continue;
         const int roll = rng.range(element.min, element.max);

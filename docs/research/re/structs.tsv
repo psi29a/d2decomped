@@ -1,4 +1,11 @@
 struct	offset	type	name	what	evidence
+damage	0x04	u32	flags	which fields the record carries (1 | 4 as FUN_0057b420's callers set it)	tools/emu/monster_damage.py:165
+damage	0x08	i32	physical	the physical field, in 256ths (what Bone Armor takes from)	docs/research/re/combat.md:274
+damage	0x4c	i32	total	the record's total after the absorb and the reduction, in 256ths	docs/research/re/combat.md:274
+event	0x00	u8	event	the event id (0xb: absorb)	tools/emu/monster_damage.py:153
+event	0x04	u32	active	1 while the state is on	tools/emu/monster_damage.py:153
+event	0x0c	u32	skill	the Skills row index of the state	tools/emu/monster_damage.py:153
+event	0x14	u32	handler	the handler's address (Bone Armor: FUN_005c6370)	tools/emu/monster_damage.py:153
 game	0x6d	u8	difficulty	0 Normal, 1 Nightmare, 2 Hell	docs/research/re/pet-ai.md:134
 game	0x70	u32	expansion	the expansion flag, set by FUN_00555230	components/rules/rules.hpp:1690
 game	0xa8	u32	frame	frame counter, + 1 a frame (FUN_0052d870)	docs/research/re/network.md:19
@@ -24,6 +31,9 @@ room	0x58	u32	h	its height in subtiles	docs/research/re/act1-end.md:737
 skill	0x08	u8	flags	0x20: usemanaondo	tools/emu/sk_mana.py:88
 skill	0x2c	u16	srvst	the server start function id (srvstfunc)	tools/emu/sk_mana.py:87
 skill	0x2e	u16	srvdo	the server do function id (srvdofunc)	tools/emu/sk_mana.py:88
+skill	0x54	u16	pool_stat	the stat that holds an absorb state's pool	tools/emu/monster_damage.py:128
+skill	0x56	u16	max_stat	the stat that holds its maximum	tools/emu/monster_damage.py:128
+skill	0x80	u16	state	the state the skill turns on	tools/emu/monster_damage.py:128
 skill	0x184	u16	startmana	Skills.txt startmana	tools/emu/sk_mana.py:86
 skill	0x186	u16	minmana	Skills.txt minmana (in points: the payment's floor is minmana x 256)	tools/emu/sk_mana.py:86
 skill	0x188	u8	manashift	Skills.txt manashift: the price is shifted left by it	tools/emu/sk_mana.py:86
@@ -44,6 +54,7 @@ unit	0x60	ptr	inventory	inventory (FUN_00647640's equipment gate)	docs/research/
 unit	0x7c	u32	sound_time	its last sound	components/game/ai.hpp:187
 unit	0x80	u32	neutral_time	its last Neutral	components/game/ai.hpp:187
 unit	0x84	u32	step_time	its last footstep	components/game/ai.hpp:187
+unit	0x90	ptr	events	the head of its event list (FUN_005c0c30)	components/game/ai.hpp:510
 unit	0xa0	u32	struck_by	who last struck it (FUN_00621d50 from FUN_0057c6c0)	components/game/ai.hpp:190
 unit	0xb0	u32	hit_class	the last hit's class: the impact its GH / KB / DT plays	components/game/ai.hpp:190
 unit	0xc4	u32	flags	0x400: a sound event queued	docs/research/re/char-panel.md:182

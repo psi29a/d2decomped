@@ -466,6 +466,7 @@ struct Foe {
     d2d::rules::Fighter fighter;                    // defense, block, reductions, resistances, thorns
     int damage = 0;                           // life lost this frame, whole points
     int physical = 0, elemental = 0;          // of it, physical and fire / lightning / cold (the absorbs')
+    int frac = 0;                             // 256ths of a point the physical took beyond `damage` (Taken::frac); may pass 255
     int poison = 0, poison_ticks = 0;         // poison taken this frame: life per tick (256ths), for ticks
     int chill_ticks = 0;                      // chilled this frame, ticks
     int stun_ticks = 0;                       // stunned this frame (a monster's Smite), ticks
@@ -507,8 +508,8 @@ struct Foe {
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
         hits += taken.hit ? 1 : 0;
-        if (taken.hit) blows.push_back({ taken.damage, 0, taken.elemental > 0 || taken.poison > 0, taken.physical, taken.elemental, taken.poison > 0 });
-        damage += taken.damage; physical += taken.physical; elemental += taken.elemental;
+        if (taken.hit) blows.push_back({ taken.damage, 0, taken.elemental > 0 || taken.poison > 0, taken.physical, taken.elemental, taken.poison > 0, taken.frac, taken.raw, fighter.dr_pct, fighter.dr_flat });
+        damage += taken.damage; frac += taken.frac; physical += taken.physical; elemental += taken.elemental;
         if (taken.poison > 0 && taken.poison >= poison) { poison = taken.poison; poison_ticks = taken.poison_ticks; }   // the stronger (FUN_0057ac50)
         chill_ticks = std::max(chill_ticks, taken.chill_ticks);
     }

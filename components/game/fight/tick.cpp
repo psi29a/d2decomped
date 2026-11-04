@@ -390,7 +390,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 for (std::size_t k = 0; k < actor->pets.size(); ++k) {
                     auto& pet = actor->pets[k];
                     const auto& foe = foes[side.pets + k];
-                    for (const auto& blow : foe.blows) pet_hurt(pet, blow.damage, now_ms, blow.hit_class, blow.marked);   // a record a blow, as the monsters'
+                    for (const auto& blow : foe.blows) pet_hurt(pet, blow.damage, now_ms, blow.hit_class, blow.marked, blow.frac);   // a record a blow, as the monsters'
                     for (const int divisor : foe.crushed)                // Crushing Blows, after the hits (FUN_005bffc0)
                         if (pet.monster.alive()) pet_hurt(pet, int(crushing_blow(pet.monster.hit_points, divisor, foe.pick.damage_resist)), now_ms);
                     if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);
@@ -539,8 +539,16 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // life, 75 % from twice it, sure from four times; every blow rolls, a get-hit restarts.
         // What the unit's states absorbed (Bone Armor, Cyclone Armor, Energy Shield: absorb) is off the
         // blows already: an armor's from each blow's own part (rules::absorb_blows).
-        if (actor->merc && side[1].damage > 0 && actor->merc->mode != "DT") {
+        // The merc's life carries the 256ths as a monster's (hurt).
+        if (actor->merc && side[1].frac > 0 && actor->merc->mode != "DT") {
+            actor->merc->life_frac += side[1].frac;
+            side[1].damage += actor->merc->life_frac >> 8;
+            actor->merc->life_frac &= 255;
+        }
+        if (actor->merc && (side[1].damage > 0 || side[1].frac > 0) && actor->merc->mode != "DT") {
             actor->merc->hit_points -= side[1].damage;
+            if (actor->merc->hit_points == 1 && actor->merc->life_frac > 0) actor->merc->hit_points = 0;   // under one whole point is dead (hurt, 0057c86c)
+            if (actor->merc->hit_points <= 0) actor->merc->life_frac = 0;
             auto& unit = actor->merc->unit;
             const auto mode = actor->merc->hit_points <= 0                                     ? std::string_view("DT")
                             : actor->merc->mode != "KB" && d2d::rules::struck_big(side[1].blows, std::int64_t(merc_max_life()) << 8, actor->merc->seed) ? std::string_view("GH")
@@ -625,14 +633,17 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         }
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);
-        foe.damage = absorb(foe, now_ms);
+        foe.damage = absorb(foe, now_ms);                   // leaves foe.frac what the absorbs left of the 256ths
+        const int fine = foe.frac;
         foe.damage += int(actor->self_hurt >> 8);
         actor->self_hurt &= 255;
         using namespace d2d::d2s;
         bool died = false;
-        if (foe.damage > 0 && !dead()) {                    // a dead player takes no more (no second death)
-            actor->character.stats.values[kLife] -= std::int64_t(foe.damage) << 8;
-            if (actor->character.stats.values[kLife] <= 0) { die(now_ms); died = true; }
+        if ((foe.damage > 0 || fine > 0) && !dead()) {      // a dead player takes no more (no second death)
+            auto& life = actor->character.stats.values[kLife];
+            life -= (std::int64_t(foe.damage) << 8) + fine;
+            if (life < 0x100) life = 0;                     // under one whole point is dead (FUN_0057c6c0, 0057c865)
+            if (life <= 0) { die(now_ms); died = true; }
         }
         for (const int divisor : foe.crushed) {             // Crushing Blows, after the hits (crushing_blow, FUN_005bffc0)
             if (died || dead()) break;

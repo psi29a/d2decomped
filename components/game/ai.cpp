@@ -2487,7 +2487,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         stats.elements[0] = { 1, 100, dmg - dmg / 2, dmg - dmg / 2, 0, "A1" };   // fire
                         for (auto& near_foe : foes)
                             if (near_foe.alive && std::hypot(near_foe.x - corpse.unit.x, near_foe.y - corpse.unit.y) * 5 <= float(radius)) {
-                                const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, rng, false, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0
+                                const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, rng, false, true, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0 (not FUN_0057b420's roll)
                                 near_foe.take(taken);
                             }
                         d2d::log::info("{} explodes a corpse ({} damage)", monster.npc.name, dmg);
@@ -2524,7 +2524,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     for (auto& element : stats.elements) element = {};
                     const auto added = d2d::rules::row_damage(cast->etype, cast->emin, cast->emax, cast->emin_lev, cast->emax_lev, cast->hitshift, cast->elen, cast->elen_lev, lvl);
                     if (added.etype >= 0) stats.elements[0] = { added.etype, 100, added.elo >> 8, added.ehi >> 8, added.elen, "A1" };
-                    const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, true);
+                    const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, true, true);   // the record is min == max, not FUN_0057b420's roll
                     foe.take(taken);
                     if (taken.hit) foe.struck_by(type_info.hit_class);
                 } else if (cast->srvdofunc == ServerDoFunction::kFingerMageSpider || cast->srvdofunc == ServerDoFunction::kDoomKnightMissile
