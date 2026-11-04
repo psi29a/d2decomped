@@ -404,13 +404,14 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
         if (tower.dead && !tower.treasure && level->id == d2d::rules::TowerQuest::kCellar) {
             tower.treasure = true;
             for (std::size_t i = 0; i < level->npcs.size() && treasure.size() < 8; ++i)
-                if (level->npcs[i].root == "objects" && level->npcs[i].object_id == d2d::rules::object_ids::kLargeChestR) treasure.push_back({ level, int(i), d2d::rules::TowerQuest::kTreasureFrames });
+                if (level->npcs[i].root == "objects" && level->npcs[i].object_id == d2d::rules::object_ids::kLargeChestR) treasure.push_back({ level, int(i), d2d::rules::TowerQuest::kTreasureLife });
         }
         if (quest_kill) d2d::log::info("The Forgotten Tower: the Countess is dead");
     }
 
 // The towerchestspawner's frame (FUN_005af300; Missiles.txt row 332:
-// Range 400, Param1 150, Param2 2, Param3 5). At Range - Param1 left the
+// Range 400, LevRange 1, Param1 150, Param2 2, Param3 5; made at level 1,
+// FUN_0056ede0's [0xc], so 401 frames). At Range - Param1 left the
 // chest opens (FUN_00585e00, mode 0 only): the act's chest class three
 // times with quality forced magic (FUN_00585b90, EDX 4), then two each of
 // hp / mp by act (+2 past normal: 0x731f4c / 0x731f60, FUN_00558450 /
@@ -418,8 +419,7 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
 // pile at the area level, rand(2r + 1) - r subtiles off (r = Param3).
 // The rounds roll off the chest's unit seed (chest_round).
 // ponytail: the world's rng stands in for the missile's seed; it runs only while the player's on its level (game.exe: while
-// its room's up); the end event (unit event 0x5c at 1 left) isn't sent;
-// the missile's lifetime taken as Range (LevRange 1 at level 0).
+// its room's up); the end event (unit event 0x5c at 1 left) isn't sent.
 auto World::tower_treasure(std::uint32_t now_ms) -> void {
         using Tower = d2d::rules::TowerQuest;
         for (auto& spawner : treasure) {

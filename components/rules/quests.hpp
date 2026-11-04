@@ -1581,8 +1581,9 @@ struct CainQuest {
 struct TowerQuest {
     static constexpr int kQuest = 5, kTower = level_ids::kForgottenTower, kCellar = level_ids::kTowerCellarLevel5, kCountess = 6, kTome = 127;   // kCountess: SuperUniques row
     // Her treasure's spawner (Missiles.txt towerchestspawner: Range,
-    // Param1, Param2, Param3).
-    static constexpr int kTreasureFrames = 400, kTreasureOpen = 150, kTreasureEvery = 2, kTreasureRadius = 5;
+    // Param1, Param2, Param3; LevRange 1 at the level FUN_005954f0 makes
+    // it with, 1: kTreasureLife frames).
+    static constexpr int kTreasureFrames = 400, kTreasureOpen = 150, kTreasureEvery = 2, kTreasureRadius = 5, kTreasureLife = kTreasureFrames + 1;
     int state = 0;      // +0xc: 0 init, 2 started, 3 cellar / out of town, 5 Countess dead (1 and 4 unused)
     int log = 0;        // +0xb
     int log_in = 0;     // ticks to the kill's timer (0x5954c0, 7), 0 not running
