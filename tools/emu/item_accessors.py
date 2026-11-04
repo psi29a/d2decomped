@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Check game.exe 1.14d's item data accessors on synthetic items.
+"""Check game.exe 1.14d's item accessors and helpers on synthetic records.
 
 Usage: uv run python item_accessors.py
 """
@@ -15,11 +15,17 @@ def w16(machine, address, value):
 def main():
     machine = emu.Emu()
     unit, data = machine.alloc(0x20), machine.alloc(0x60)
+    record = machine.alloc(0x1A8)
+    machine.hook(0x6335F0, lambda current: record if current.arg(0) == 7 else 0, 1)
 
     def select(kind=4, with_data=True):
         unit_view = machine.view("unit", unit)
         unit_view.type = kind
         unit_view.data = data if with_data else 0
+
+    def select_record(class_id=7):
+        select()
+        machine.view("unit", unit)["class"] = class_id
 
     def expect(actual, expected, label):
         if actual != expected:
@@ -150,6 +156,17 @@ def main():
             expect(actual, expected, "ear class rejected read")
         expect(machine.call(0x6283A0, 0, regs={"eax": HIGH}), 1, "ear class null read")
 
+    def record_c0_get():
+        for value in (0, 1, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF, 0x89ABCDEF):
+            select_record()
+            machine.view("item_record", record).field_c0 = value
+            expect(machine.call(0x628500, unit), value, "item record +0xc0 read")
+        select(3)
+        expect(machine.call(0x628500, unit), 0, "item record +0xc0 wrong type")
+        select_record(8)
+        expect(machine.call(0x628500, unit), 0, "item record +0xc0 missing record")
+        expect(machine.call(0x628500, 0), 0, "item record +0xc0 null read")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -196,6 +213,7 @@ def main():
     write8(0x6283D0, 0x48)
     ear_class_get()
     write8(0x628420, 0x49)
+    record_c0_get()
     print("item accessors: all game.exe checks passed")
 
 

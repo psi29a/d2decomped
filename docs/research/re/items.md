@@ -1,4 +1,4 @@
-# Item data accessors
+# Item accessors and helpers
 
 These functions take an item unit. They require a non-null unit of type 4
 with a non-null item-data pointer at unit `+0x14`; rejected calls do not
@@ -34,6 +34,15 @@ calls return zero.
 | `FUN_006283a0` | Read the ear-class byte at item data `+0x48`, writing only `AL`; rejected calls set `AL=1`. Successful calls retain the item-data pointer's upper 24 bits, wrong-type calls retain the unit pointer's upper 24 bits, and null-unit or null-data calls return 1. |
 | `FUN_006283d0` | Write the low byte of a value to the ear-class byte at item data `+0x48`; do nothing for a rejected call. `FUN_00567070` sets the ear class through this function. |
 | `FUN_00628420` | Write the low byte of a value to the picture ID at item data `+0x49`; do nothing for a rejected call. `FUN_00557a70` sets it from the item graphics code. |
+
+## Item-record accessors and helpers
+
+`FUN_006335f0` resolves the unit class at unit `+0x04` to the item record used
+by the record accessors below. The oracle substitutes a synthetic record.
+
+| Address | Traced claim |
+|---|---|
+| `FUN_00628500` | Read the 32-bit value at item record `+0xc0`; return 0 for a null unit, a wrong unit type, or a failed class lookup. |
 
 Re-check these claims against game.exe 1.14d:
 
