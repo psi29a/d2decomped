@@ -356,13 +356,16 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             bool to_unit = (actor->interact_npc >= 0 && std::size_t(actor->interact_npc) < level->npcs.size()) || actor->take_portal >= 0;   // an NPC, object or portal: a path to the unit
             if (const auto target = fight.engage(now_ms)) { std::tie(actor->target_x, actor->target_y) = *target; actor->player.walking = true; to_unit = true; }
             if (actor->player.walking && (actor->pmode < 0 || actor->ghost)) {
-                // A route to the target (path type 7), re-planned when the
-                // target moves off its end (dragging, a walking NPC) and when
-                // it ran out short of it (FUN_006503f0's last test).
-                // ponytail: a target unit re-paths at 0.3 cells, not game.exe's
-                // 5 subtiles off SP2.
+                // A route to the target (path type 7), re-planned as
+                // FUN_006503f0 has it: a target unit more than 5 subtiles off
+                // the path's end on either axis (path +0x14 / +0x16 against
+                // the unit's spot; a static object never is), and the path run
+                // out short of it. A spot (a click, a drag) is a new path when
+                // it moves to another subtile (a new C->S move); a fresh click
+                // drops the old path (World::apply's walk_to).
                 const auto subtile = [](float value) { return int(std::floor(value * 5)); };
-                if (actor->player.path.empty() || std::hypot(actor->player.goal_x - actor->target_x, actor->player.goal_y - actor->target_y) > 0.3f) {
+                const int off_x = std::abs(subtile(actor->player.goal_x) - subtile(actor->target_x)), off_y = std::abs(subtile(actor->player.goal_y) - subtile(actor->target_y));
+                if (actor->player.path.empty() || (to_unit ? off_x > 5 || off_y > 5 : off_x != 0 || off_y != 0)) {
                     actor->player.path = player_walk(*level, actor->player.x, actor->player.y, actor->target_x, actor->target_y, to_unit, walk_crowd, &actor->player);
                     actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;
                 }

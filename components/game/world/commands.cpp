@@ -548,6 +548,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             actor->interact_npc = -1;
             if (fresh) actor->take_portal = actor->take_corpse = -1;
             if (!fresh) return;
+            actor->player.path.clear();                                             // a click: a new path (FUN_006503f0 re-plans only a moved unit's)
             actor->attack_mon = actor->pick_item = -1;
             actor->take_warp = -1;                                                  // a click on a warp: go through it
             for (std::size_t i = 0; i < level->warps.size(); ++i)
