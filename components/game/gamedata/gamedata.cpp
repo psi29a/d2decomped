@@ -566,8 +566,10 @@ int mode_index(std::string_view mode) {
 // game.exe's preset table) as an Npc in `into`, rolling a shrine's kind and
 // a chest's trap and lock, then (FUN_0054f5d0) a PreOperate object starts
 // opened (ON) one time in 14. `rgn`: the game's object seed (FUN_00546fa0).
-// ponytail: the unit flag 0x80 FUN_0054f5d0 checks before the PreOperate
-// roll is taken as clear; what sets it isn't traced.
+// The unit flag 0x80 FUN_0054f5d0 checks before the PreOperate roll is
+// always clear there: its one caller is unit creation (FUN_00555230 at
+// 005553fe) on a unit FUN_00620290 zeroes, and the one write of it
+// (0054f406, FUN_0054f370: preset 580) comes after that returns.
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn) {
     const auto found = obj_row.find(std::to_string(oid));
