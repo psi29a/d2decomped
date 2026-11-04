@@ -3857,13 +3857,20 @@ inline Think countess_think(const ThinkIn& input, const CountessIn& where, std::
 // Cloak of Shadows) whose end (FUN_005c3370, on expiry or when another
 // curse takes its place, FUN_006269f0) comes while it's back on its own.
 // `special`: the monster's special AI (0 its own think), `other`: on its
-// row's other think.
-// ponytail: the init (row +4) and FUN_0058ede0 aren't run; d2d's thinks
-// take their first values as they go.
-inline void ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, int next, bool has_other) {
-    if (next == 0 && special == 0 && !other && has_other) { other = true; return; }
+// row's other think. True on a full toggle, where FUN_0058ede0 also frees
+// the AI command list (AI control +0x20: Monster::ai_command, the caller's).
+// The inits (row +4) a toggle can reach: a monster swaps only as
+// game::swaps_ai allows (it walks, SwitchAI, not unique), and of the MonAI
+// rows with an init (0x73ca18) only Imp's walks with SwitchAI in 1.14d
+// MonStats (the rest are summons, the act 5 barbarians, or don't walk).
+// Its FUN_005e2fd0 sets +0x14 to -1, which ai.cpp's Imp inputs take for 0;
+// special 16's (FUN_005e2cd0) is imp_ride_pick, run by its caller; special
+// 11's is terror_think's note; 10 and 12 have none.
+inline bool ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, int next, bool has_other) {
+    if (next == 0 && special == 0 && !other && has_other) { other = true; return false; }
     special = next; other = false;
     for (int* word : scratch) *word = 0;
+    return true;
 }
 
 // The riding imp's init (special 16's, FUN_005e2cd0): one draw on its seed;

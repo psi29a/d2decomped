@@ -1417,7 +1417,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // found (FUN_00552f60), dead (FUN_005541b0), ridden (FUN_00552fd0), its spot.
         // Riding, its mount found and dead.
         if (name == "Imp") {
-            if (monster.ai_state == 0 && monster.special != 16) monster.ai_state = -1;
+            if (monster.ai_state == 0 && monster.special != 16) monster.ai_state = -1;   // its init, FUN_005e2fd0 (rules::ai_toggle)
             for (std::size_t k = 0; k < 4; ++k)
                 input.imp_aip[k] = game_data.monsters.types[std::size_t(game_data.mon_bin[0x1ec + k])].diff[std::size_t(std::clamp(monster.difficulty, 0, 2))].aip;
             input.self_x = x; input.self_y = y;
@@ -3032,8 +3032,9 @@ bool swaps_ai(const GameData& game_data, const Monster& monster) {
 }
 
 void ai_toggle(const GameData& game_data, Monster& monster, int special) {
-    d2d::rules::ai_toggle(monster.special, monster.other, { &monster.ai_state, &monster.ai_state2, &monster.ai_state3 }, special,
-                          d2d::rules::has_other_think(game_data.monsters.types[std::size_t(monster.type)].ai_name));
+    if (d2d::rules::ai_toggle(monster.special, monster.other, { &monster.ai_state, &monster.ai_state2, &monster.ai_state3 }, special,
+                              d2d::rules::has_other_think(game_data.monsters.types[std::size_t(monster.type)].ai_name)))
+        monster.ai_command = 0;                                    // FUN_0058ede0: its command list freed
 }
 
 void poison_hit(const GameData& game_data, Monster& monster, int difficulty, bool unique) {
