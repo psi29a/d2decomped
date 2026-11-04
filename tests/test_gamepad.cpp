@@ -217,6 +217,10 @@ int main() {
         assert(seats.expire(5000 + Seats::kHoldMs - 1).empty());
         assert((seats.expire(5000 + Seats::kHoldMs) == std::vector<int>{ 1 }) && !seats.used(1));
         assert(seats.connect("pad-e", 17) == 1 && seats.seat_of(17) == 1);
+        // The labels: the UI seat's pad in co-op while it's there, else the primary's.
+        assert(seats.label_pad(true, 1) == 17 && seats.label_pad(false, 1) == -1 && seats.label_pad(true, 3) == 13);
+        seats.disconnect(13, 6000);
+        assert(seats.label_pad(true, 3) == -1);
         // A hand-over: seat 2's pad to seat 0, the colours with the pads.
         assert(seats.colour(0) == 0 && seats.colour(2) == 2);
         seats.swap(0, 2);
