@@ -1144,7 +1144,7 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
         }
     // FUN_0066b2b0 (type 0xb): with neither a waypoint room nor a warp room,
     // the start spot is the centre of the room holding the level's middle less 2.
-    // ponytail: no room there (FUN_0066ae70's pick) adds none.
+    // No room there adds none: game.exe's random room (FUN_0066ae70) is never reached (stubs.md).
     // A Levels Position level (Tristram) takes its type 0xb tile instead (FUN_0066ac40):
     // every such level but the towns has just one (drlg.md "Spawn tiles and the start
     // spot"), so the first; the level-seed draw each check makes isn't kept, as nothing
