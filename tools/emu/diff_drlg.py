@@ -15,7 +15,7 @@ come out the same in any order (d2d's are made once, list order).
 `game` one game, $LEVELS (default 2,8,4,9; the level argument unused) made
 in turn, their rooms brought up in $ORDER and populated, every container
 opened: the object seed, the game seed and the drops (objgroups.game_dump).
-`layout` act 2's outdoor rectangles and Lut Gholein's file (level unused).
+`layout` the level's act's outdoor rectangles (act 2: and Lut Gholein's file).
 `npcs` the camp's NPCs thinking (level 40: Lut Gholein's) ($THINKS each, default 40; npcs.py).
 Several kinds share one emulator boot (sweep.sh); each result line then
 starts with its kind. Exit status 1 when any kind mismatches.

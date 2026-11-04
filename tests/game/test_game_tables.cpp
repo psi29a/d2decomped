@@ -274,6 +274,22 @@ int main() try {
         assert(d2d::game::required_level(*data, amulet, 0) == 24);
         std::printf("OK: classlevelreq and the +skill stats' reqlevel in the required level\n");
     }
+    if (data->patched) {
+        // FUN_0062b5b0: magic and rare count the class automod (data +0x36,
+        // AutoMagic "Bowyer's", row 1, levelreq 30); crafted and normal don't.
+        assert(data->automagic_req.at(1) == 30);
+        d2d::d2s::Item bow{ .code = "am1", .identified = true };
+        bow.class_affix = 2;
+        bow.quality = 4;
+        assert(d2d::game::required_level(*data, bow) == 30);
+        bow.quality = 6;
+        assert(d2d::game::required_level(*data, bow) == 30);
+        bow.quality = 2;
+        assert(d2d::game::required_level(*data, bow) < 30);
+        bow.quality = 8;
+        assert(d2d::game::required_level(*data, bow) < 30);
+        std::printf("OK: the class automod's levelreq in magic and rare items' required level\n");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

@@ -486,8 +486,24 @@ struct Gen {
             }
             vert_index = first.next;
         } while (vert_index != head);
-        // ponytail: FUN_00675670 (blanking outside a non-rectangular
-        // outline) skipped — every level here is a rectangle.
+        blank_outside();
+    }
+    // FUN_00675670: from each corner ({0,0} {w-1,0} {0,h-1} {w-1,h-1}, stepping
+    // inward), rows of cells get 0x100 (no room) up to the first border cell
+    // (bit 1), until a row starts on one. A no-op when the outline runs along
+    // the grid's edge. Reads index linearly as game.exe's do; d2d stops at
+    // the grid's last row where game.exe would read past it.
+    void blank_outside() {
+        static constexpr std::array<std::array<int, 4>, 4> kCorners = { { { 0, 0, 1, 1 }, { 1, 0, -1, 1 }, { 0, 1, 1, -1 }, { 1, 1, -1, -1 } } };
+        for (const auto& corner : kCorners) {
+            const int start_x = corner[0] ? cells_wide - 1 : 0;
+            for (int row = corner[1] ? cells_high - 1 : 0; row >= 0 && row < cells_high && !(g2c.get(start_x, row) & 1); row += corner[3])
+                for (int col = start_x; !(g2c.get(col, row) & 1); col += corner[2]) {
+                    const long index = long(row) * cells_wide + col;
+                    if (index < 0 || index >= long(g2c.values.size())) break;
+                    g2c.values[std::size_t(index)] |= 0x100;   // op 0, indexed as the read
+                }
+        }
     }
 
     // ---- border substitution (FUN_006752a0 -> FUN_00670750)
@@ -1451,8 +1467,9 @@ inline void room_tiles(Room& room, const OutdoorData& data, const OutdoorLevel& 
 
 // The act 1 wilderness level `L` from its seed. The tiles come out
 // level-relative: 4 wall layers, 2 floors, 1 shadow.
-// ponytail: plain-room tiles take a DT1 variant at draw time (first
-// match), not game.exe's rarity pick on the room seed (FUN_0066d820).
+// Plain rooms' tiles get their DT1 variant later, as game.exe's rarity pick
+// on the room seed (FUN_0066d820 in room_tiles.hpp level_room_tiles, into
+// Level::picks): `diff_drlg.py 1-20 2 tiles` (and level 4) match.
 // A plain room's DT1 mask by LevelType (FUN_006750f0): the wilderness
 // 0x44103; the desert, Kurast, the Siege, Bloody Foothills 1; the jungle
 // 4; Act 5's highlands 0x11.

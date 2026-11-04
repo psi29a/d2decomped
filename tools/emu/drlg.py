@@ -201,10 +201,12 @@ def act_of(lid):
 
 def layout_dump(e, seed, lid):
     """The act's outdoor rectangles (act 2: levels 40..46) and Lut Gholein's
-    LvlPrest file, as drlg-dump ... layout prints them; nothing is built."""
+    LvlPrest file (act 1: its two chains' rectangles), as drlg-dump ...
+    layout prints them; nothing is built."""
     if lid >= 109: return act4_layout_dump(e, seed, 4, (109, 110, 111, 112, 117, 134, 136))
     if lid >= 103: return act4_layout_dump(e, seed)
     if lid >= 75: return act3_layout_dump(e, seed)
+    if lid < 40: return act4_layout_dump(e, seed, 0, (2, 3, 4, 5, 6, 7, 17, 26, 39))   # act 1's two chains (FUN_00677750)
     act = alloc_act(e, 1, seed, 0)            # act 2 for any level below 75
     out = []
     for l in sorted(levels(e, act), key=lambda l: e.r32(l + 0x1d0)):

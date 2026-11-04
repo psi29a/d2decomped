@@ -526,8 +526,10 @@ int main(int argc, char** argv) try {
         const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
         for (auto seed = first;; ++seed) {
             std::ostringstream out;
-            if (id >= level_ids::kPandemoniumFortress) {     // acts 4 and 5, as drlg.act4_layout_dump
-                auto layout = id >= level_ids::kHarrogath ? act5_layout(defs, act_seed(seed)) : act4_layout(defs, act_seed(seed));
+            if (id >= level_ids::kPandemoniumFortress || id < level_ids::kLutGholein) {     // acts 1, 4 and 5, as drlg.act4_layout_dump
+                auto layout = id >= level_ids::kHarrogath ? act5_layout(defs, act_seed(seed))
+                            : id >= level_ids::kPandemoniumFortress ? act4_layout(defs, act_seed(seed)) : act1_layout(defs, act_seed(seed));
+                std::erase_if(layout, [](const Placed& placement) { return placement.level == level_ids::kRogueEncampment; });   // act 1's dump leaves the town out
                 std::ranges::sort(layout, {}, &Placed::level);
                 for (const auto& placement : layout)
                     out << "level " << placement.level << " at " << placement.x << ',' << placement.y << " size " << placement.width << 'x' << placement.height << '\n';

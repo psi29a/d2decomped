@@ -106,13 +106,14 @@ inline bool apart(const Placed& first, const Placed& second, int gap = 0) {
 // Places one chain (FUN_006772c0): each record tries the sides of its
 // link, starting at a rolled one; a record that has tried them all hands
 // back to the one before, which moves on. `seed` is a copy of the act's:
-// the chains don't advance it.
-// ponytail: chain 2's Fixed record (Tamoe Highland, FUN_006768c0) always
-// goes below its link and nothing checks chain 2's overlaps with chain
-// 1 — game.exe's check for that chain (FUN_00676eb0) shifts by 200 tiles
-// first, not ported.
+// the chains don't advance it. Act 1's chain 2 (FUN_00677750) is checked
+// by FUN_00676eb0 (`farm_margin`): clear of every earlier level but its
+// link, then clear of its first record (the Moo Moo Farm) grown 200 tiles
+// upward (y - 200, height + 200). Its Fixed record (Tamoe Highland,
+// FUN_006768c0) sets dir 0 before its switch, so it always goes below, and
+// never retries. Neither chain is checked against the other.
 inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const LevelDefs& defs, d2d::rules::Rng seed,
-                                       bool town_rules, bool act1_flags = true, bool checked = true) {
+                                       bool town_rules, bool act1_flags = true, bool checked = true, bool farm_margin = false) {
     const int count = int(recs.size());
     std::vector<Placed> placed(static_cast<std::size_t>(count));
     std::vector<int> start_dir(static_cast<std::size_t>(count), -1), start_flip(static_cast<std::size_t>(count), -1);
@@ -258,6 +259,12 @@ inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const Le
         const auto& record = recs[std::size_t(index)];
         for (int j = 0; j < index; ++j)
             if (j != record.link && !apart(placed[std::size_t(index)], placed[std::size_t(j)])) return false;
+        if (farm_margin && index != 0) {
+            Placed grown = placed[0];
+            grown.y -= 200;
+            grown.height += 200;
+            return apart(grown, placed[std::size_t(index)]);
+        }
         if (!town_rules) return true;
         if (record.level == level_ids::kRogueEncampment) {
             const auto& linked = placed[std::size_t(record.link)];
@@ -293,7 +300,7 @@ inline std::vector<Placed> place_chain(const std::vector<Record>& recs, const Le
 // Act 1's outdoor levels (FUN_00677750), both chains from the act seed.
 inline std::vector<Placed> act1_layout(const LevelDefs& defs, const d2d::rules::Rng& act_seed) {
     auto outdoors = place_chain(kAct1Outdoors, defs, act_seed, true);
-    const auto highlands = place_chain(kAct1Highlands, defs, act_seed, false);
+    const auto highlands = place_chain(kAct1Highlands, defs, act_seed, false, true, true, true);
     outdoors.insert(outdoors.end(), highlands.begin(), highlands.end());
     return outdoors;
 }

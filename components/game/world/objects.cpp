@@ -562,7 +562,20 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
             bool occupied = in_door(actor->player.x, actor->player.y) || (actor->merc && in_door(actor->merc->unit.x, actor->merc->unit.y));
             if (fight.mon_level == level)
                 for (const auto& monster : fight.monsters) occupied = occupied || (monster.alive() && in_door(monster.unit.x, monster.unit.y));
-            mode = d2d::rules::door_mode(state.mode, occupied);
+            // An 0x8000 object stamped in the doorway (the same rect, FUN_0064d800).
+            bool blocker = false;
+            for (int row = 0; row < door.size_y && !blocker; ++row)
+                for (int column = 0; column < door.size_x && !blocker; ++column)
+                    blocker = level->blocked((float(int(door.x * 5) - door.size_x / 2 + column) + 0.5f) / 5, (float(int(door.y * 5) - door.size_y / 2 + row) + 0.5f) / 5, 0x8000);
+            bool key = false;                                // locked (FUN_0055f140: a key from the inventory, as a chest's)
+            if (state.mode == 6) {
+                const auto found = std::ranges::find_if(actor->character.items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && item.code == "key"; });
+                if (found == actor->character.items.end()) { d2d::log::info("I need a key."); return; }
+                if (found->quantity > 1) --found->quantity;
+                else actor->character.items.erase(found);
+                key = true;
+            }
+            mode = d2d::rules::door_mode(state.mode, occupied, blocker, key);
         }
         if (mode >= 0) set_door_mode(npc_index, mode, now_ms);
     }

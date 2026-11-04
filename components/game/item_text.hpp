@@ -229,20 +229,6 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
     kTxtGreen{ 0, 255, 0 }, kTxtGold{ 199, 179, 119 }, kTxtYellow{ 255, 255, 100 },
     kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 }, kTxtRed{ 255, 77, 77 };
 
-// FUN_0062efb0 (D2Common's transaction cost), for buying (sell == false,
-// the vendor's price) and selling (the vendor pays). Base = the item's
-// cost (items record +0xe0), plus per quality (mult, add) extras:
-// low quality -base/2, magic prefix + suffix, rare/crafted its six
-// affixes, set/unique their cost mult/add (extra = base*mult/1024 + add);
-// + half the cost of each socketed item (FUN_006292f0); ethereal sells
-// at a quarter. Then npc.txt: * buy/sell mult / 1024 and each questflag's
-// mult when that quest is done; * quantity; selling caps at "max buy"
-// for the difficulty.
-// npc.txt's mults are the vendor's side: its "sell mult" is our buy price
-// (gamedata_load.cpp swaps them in). A buy, gamble or repair then takes
-// the player's reduced prices (stat 87) off (price_reduced).
-// ponytail: no charges/books/ammo branches, automagic affix or durability.
-
 // game.exe's attack speed bands (DAT_00721f10, FUN_004861d0): row speed
 // 10..27 (frames, below), column by class and bow/crossbow (0x722078);
 // 1 Very Fast .. 5 Very Slow. Under 10 is 1, 28 and over 5.
@@ -254,23 +240,27 @@ inline constexpr std::uint8_t kSpeedColumn[7][2] = { { 0, 2 }, { 1, 4 }, { 1, 4 
 
 // An item's required level (FUN_0062b5b0): its affixes' / set item's /
 // unique's levelreq (crafted: the highest affix + 10 + 3 per affix, at
-// most 98), at least the base's and each socketed item's, plus
+// most 98; magic and rare also their class automod's, item data +0x36,
+// AutoMagic row class_affix - 1: 0062b61b, 0062b7c0), at least the base's
+// and each socketed item's, plus
 // item_levelreq (stat 92); never below 0. An affix of the wearer's class
 // (`cls`, a player's; -1 none) takes its classlevelreq. A +skill (stat 107)
 // needs that skill's reqlevel (Skills +0x174), an other class's skill
 // (stat 97, item_nonclassskill) its reqlevel + 6 unless it's the wearer's
 // class's.
-// ponytail: no automagic affix.
 inline int required_level(const GameData& game_data, const d2d::d2s::Item& item, int cls = -1) {
     auto level_at = [](const std::vector<int>& levels, int index) { return index >= 0 && std::size_t(index) < levels.size() ? levels[std::size_t(index)] : 0; };
-    auto affix_level = [&](bool prefix, int index) {
-        const auto& class_req = prefix ? game_data.prefix_class_req : game_data.suffix_class_req;
+    auto row_level = [&](const std::vector<std::pair<int, int>>& class_req, const std::vector<int>& req, int index) {   // FUN_00628830
         if (cls >= 0 && index >= 0 && std::size_t(index) < class_req.size() && class_req[std::size_t(index)].first == cls) return class_req[std::size_t(index)].second;
-        return level_at(prefix ? game_data.prefix_req : game_data.suffix_req, index);
+        return level_at(req, index);
     };
+    auto affix_level = [&](bool prefix, int index) {
+        return prefix ? row_level(game_data.prefix_class_req, game_data.prefix_req, index) : row_level(game_data.suffix_class_req, game_data.suffix_req, index);
+    };
+    const int automod = item.class_affix > 0 ? row_level(game_data.automagic_class_req, game_data.automagic_req, item.class_affix - 1) : 0;
     int level = 0;
     switch (item.quality) {
-        case 4: level = std::max(affix_level(true, item.prefix), affix_level(false, item.suffix)); break;
+        case 4: level = std::max({ affix_level(true, item.prefix), affix_level(false, item.suffix), automod }); break;
         case 5: level = level_at(game_data.set_req, item.set_id); break;
         case 7: level = level_at(game_data.unique_req, item.unique_id); break;
         case 6: case 8: {
@@ -278,6 +268,7 @@ inline int required_level(const GameData& game_data, const d2d::d2s::Item& item,
             for (std::size_t i = 0; i < 6; ++i)
                 if (item.affixes[i] > 0) { level = std::max(level, affix_level(i % 2 == 0, item.affixes[i])); ++count; }
             if (item.quality == 8) level = std::min(level + 10 + 3 * count, 98);
+            else level = std::max(level, automod);
             break;
         }
         default: break;

@@ -526,14 +526,10 @@ std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& 
     return order;
 }
 
-// Footprints into the walk grid, centred on each unit's subtile: an
-// object's when it collides in its start mode (HasCollision0..7), noting
-// the subtiles a tile blocks as well (Npc::walls) for set_footprint.
-// (Quest-gated units like Cain stay out of it: they're not always there.)
-// ponytail: static — fine while NPCs only idle; moving units need a
-// separate occupancy layer.
-// ponytail: one walk bit (0x01) for every footprint; game.exe's object
-// flags (FUN_006209d0: 0x400, a door 0x800 | 0x06) aren't split out.
+// Footprints into the walk grid, centred on each object's subtile, when it
+// collides in its start mode (HasCollision0..7): its own FUN_006209d0 bits
+// (Npc::stamp: 0x400, a door 0x800 | 0x06, ...; set_footprint). Monsters and
+// NPCs aren't stamped here: they move, and their bits are the Crowd's (ai.hpp).
 void stamp_footprints(Level& level) {
     for (auto& npc : level.npcs) stamp_footprint(level, npc);
 }
@@ -566,8 +562,10 @@ int mode_index(std::string_view mode) {
 // game.exe's preset table) as an Npc in `into`, rolling a shrine's kind and
 // a chest's trap and lock, then (FUN_0054f5d0) a PreOperate object starts
 // opened (ON) one time in 14. `rgn`: the game's object seed (FUN_00546fa0).
-// ponytail: the unit flag 0x80 FUN_0054f5d0 checks before the PreOperate
-// roll is taken as clear; what sets it isn't traced.
+// The unit flag 0x80 FUN_0054f5d0 checks before the PreOperate roll is
+// always clear there: its one caller is unit creation (FUN_00555230 at
+// 005553fe) on a unit FUN_00620290 zeroes, and the one write of it
+// (0054f406, FUN_0054f370: preset 580) comes after that returns.
 void add_object(const GameData& game_data, const d2d::txt::Table& objects, const std::unordered_map<std::string, std::size_t>& obj_row,
                 Level& into, int oid, int spot_x, int spot_y, d2d::rules::Rng& rgn) {
     const auto found = obj_row.find(std::to_string(oid));

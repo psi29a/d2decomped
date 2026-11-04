@@ -122,7 +122,6 @@ struct Npc {
     // without Sync (+0x175) it varies a little: object_frame_delta.
     std::array<std::uint16_t, 8> frame_delta{};
     bool sync = false;
-    std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)
     int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     std::string id;                      // MonStats Id (npc.txt key)
     int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
@@ -561,9 +560,9 @@ struct GameData {
         int spell_desc = 0, spell_calc = 0, spell_stat = -1;
     };
     std::unordered_map<std::string, ItemDesc> item_desc;
-    std::vector<int> prefix_req, suffix_req, unique_req, set_req;
-    // MagicPrefix / MagicSuffix class (+0x67, -1 none) and classlevelreq (+0x68), by row.
-    std::vector<std::pair<int, int>> prefix_class_req, suffix_class_req;
+    std::vector<int> prefix_req, suffix_req, unique_req, set_req, automagic_req;   // automagic_req: AutoMagic levelreq by row (class_affix - 1)
+    // MagicPrefix / MagicSuffix / AutoMagic class (+0x67, -1 none) and classlevelreq (+0x68), by row.
+    std::vector<std::pair<int, int>> prefix_class_req, suffix_class_req, automagic_class_req;
     // UniqueItems / SetItems dropsound, usesound, dropsfxframe by row (item_sound, flippy_sound).
     struct RowSound { std::string drop, use; int drop_frame = 0; };
     std::vector<RowSound> unique_sounds, set_sounds;

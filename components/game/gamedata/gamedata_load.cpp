@@ -1256,14 +1256,17 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.prefix_cost = pairs("MagicPrefix", "multiply", "add", true);
         game_data.rules.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
+        game_data.rules.automagic_cost = pairs("AutoMagic", "multiply", "add", true);
         game_data.rules.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
         game_data.rules.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
         for (const auto& [target, file_name, column, all] : { std::tuple{ &game_data.prefix_req, "MagicPrefix", "levelreq", true },
                                                           { &game_data.suffix_req, "MagicSuffix", "levelreq", true },
+                                                          { &game_data.automagic_req, "AutoMagic", "levelreq", true },
                                                           { &game_data.unique_req, "UniqueItems", "lvl req", false },
                                                           { &game_data.set_req, "SetItems", "lvl req", false } })
             for (const auto& level : pairs(file_name, column, column, all)) target->push_back(level.first);
-        for (const auto& [target, file_name] : { std::pair{ &game_data.prefix_class_req, "MagicPrefix" }, { &game_data.suffix_class_req, "MagicSuffix" } })
+        for (const auto& [target, file_name] : { std::pair{ &game_data.prefix_class_req, "MagicPrefix" }, { &game_data.suffix_class_req, "MagicSuffix" },
+                                                   { &game_data.automagic_class_req, "AutoMagic" } })
             if (auto bytes = mpqs.try_read(std::string(R"(data\global\excel\)") + file_name + ".txt")) {
                 static constexpr std::array<std::string_view, 7> kClassCodes = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
                 const d2d::txt::Table table(*bytes, true);
