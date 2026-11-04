@@ -457,8 +457,8 @@ auto World::prison_update(std::uint32_t now_ms) -> void {
 // the Ancients asleep till then; a death there (RiteQuest::died) or a town
 // portal opened there (RiteQuest::portal_opened) puts it back.
 // An Ancient fallen: the return timer every 2 frames (FUN_0058bd50), its
-// statue to mode 1, then mode 2 after FrameCnt1 (its event 1).
-// ponytail: one try per statue.
+// statue to mode 1, then mode 2 after FrameCnt1 (its event 1). game.exe
+// retries a failed make 10 frames on (FUN_0058c0e0); seal_boss doesn't fail.
 auto World::rite_update(std::uint32_t now_ms) -> void {
         if (level->id != d2d::rules::RiteQuest::kSummit) return;
         const auto object_index = [&](int object_id) { return int(std::ranges::find(level->npcs, object_id, &Npc::object_id) - level->npcs.begin()); };

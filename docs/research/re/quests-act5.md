@@ -160,7 +160,13 @@ open, +0x4c altar mode.
 - Altar (546, OperateFn 65): at mode 0 the Ancients speak (20002), state
   2, log 3, mode 1. Heard: statues to mode 3, event 7 20 frames on
   (`FUN_0058c0e0`: each its Ancient — 475 → 0x2b, 474 → 0x2d, 476 → 0x2c —
-  via `FUN_00545c30`, statue mode 4); awake.
+  via `FUN_00545c30`, statue mode 4); awake. Per statue (its event 7):
+  skipped once it's in mode 4 or three are made (+0x40); a portal open
+  (+0xc > 0) puts it back instead (`FUN_0058c000`); `FUN_00545c30` null
+  (no room near holding the statue's spot, `FUN_00463740`, or the
+  superunique's make `FUN_0054e600` failing) queues that statue's event 7
+  again 10 frames on (`FUN_005417d0(7, frame + 10)`), so it retries till
+  made.
 - The Ancients sleep (their AI, `FUN_0058cf90`) till awake. A town
   portal opened on the Summit (the Town Portal skill's `FUN_005be290` →
   `FUN_0058cf00`, each end) counts in (data +0xc), turns heard and awake
