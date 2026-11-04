@@ -310,9 +310,12 @@ inline int get_hit_rate(int speed, int fhr) {
 // the game frame + max(held, 1) + 1; a rate of 0 ends it the next frame.
 // Sorceress SOGHHTH (8 frames at 256): 16 / 15 / 14 / 13 / 12 / 11 / 10 / 9 /
 // 8 / 7 / 6 ticks at FHR 0 / 5 / 9 / 14 / 20 / 30 / 42 / 60 / 86 / 142 / 280.
-// ponytail: the record's own event frames (AnimData +0x10, read in the same
-// loop) only queue type-0 events, not the end; a get-hit record with one
-// isn't modelled.
+// The record's own event frames (AnimData +0x10, read in the same loop)
+// queue only type-0 events, never the end, and in a get-hit those do
+// nothing: a player's (event table 0x6e1810 -> FUN_005811d0, mode 4's
+// action 0x732c10[4] = FUN_0057fe20) returns 1, a monster's (mode 3's
+// action FUN_005a6de0) drops the unit's type-0 events. 11 of 1.14d's 187
+// GH records have one (frame 0: BAGH 1HT / 2HS / 2HT / XBW, IP, SL, ...).
 inline int get_hit_ticks(int frames, int speed, int fhr) {
     const int rate = get_hit_rate(speed, fhr);
     if (rate <= 0) return 1;
