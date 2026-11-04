@@ -880,6 +880,27 @@ inline int repair_all_cost(const Tables& tables, const Store& store, const std::
         if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return cost;
 }
+// Which corpse a save keeps (FUN_005697f0, PlrSave2's corpse list): over
+// them oldest first, one with items scores 1 + each non-gold item's repair
+// cost at `npc_id` (Malah: FUN_0062fdc0 -> FUN_0062efb0 mode 3, args at
+// 0x5698a8..0x5698b4; a whole repairable item 1, as repair_cost has it);
+// the highest, a tie the later (`best <= score`, jb at 0x5698d1). -1: none
+// has items. combat.md "Saving".
+inline int corpse_to_save(const Tables& tables, const std::vector<const std::vector<d2d::d2s::Item>*>& corpses, const std::string& npc_id,
+                          const d2d::d2s::Header& header, int reduced) {
+    int best = -1;
+    std::uint32_t best_score = 0;
+    for (std::size_t index = 0; index < corpses.size(); ++index) {
+        if (corpses[index]->empty()) continue;
+        std::uint32_t score = 1;
+        for (const auto& item : *corpses[index]) {
+            if (item.code == "gld") continue;
+            score += std::uint32_t(repair_cost(tables, item, npc_id, header, reduced));
+        }
+        if (best < 0 || best_score <= score) { best = int(index); best_score = score; }
+    }
+    return best;
+}
 // Repair all (FUN_00578050, flag 0x80000000): the sum is paid at once
 // (FUN_00576d90). Short of it, nothing is repaired and the client is told
 // it hasn't the gold (12, line 0x9e4): nullopt. Paid, a second

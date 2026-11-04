@@ -440,6 +440,15 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
 - **Saving:** the d2s keeps a corpse list after the player's items ("JM",
   count, then 12 bytes and an item list each; `FUN_00533850` makes them
   again on joining).
+  - Which corpse (`FUN_005697f0`): over the player's corpse list
+    (inventory +0x34, oldest first, `FUN_0063d570` / `FUN_0063d610`),
+    each corpse with items (`FUN_0063cd60`) scores 1 + the repair cost
+    at Malah (`FUN_0062fdc0` -> `FUN_0062efb0` mode 3, npc 0x201, the
+    player's quest flags for the game's difficulty, 0x5698a8..0x5698b4) of
+    each item that isn't gold (`FUN_00629bb0(item, 4)`); the highest
+    score is written, a tie to the later (`local_18 <= score`). None with
+    items: count 0. The 12 bytes: a word, then the corpse's x and y
+    (`FUN_0045adf0` / `FUN_0045ae20`).
   - Read back (`FUN_00533850`): a corpse unit (`FUN_00555230` type 0,
     the class, at 0, 0, no room, mode 0x11) with the items, on the
     player's corpse list with flag 1 (`FUN_0063d470(.., 0, 1)`); the
