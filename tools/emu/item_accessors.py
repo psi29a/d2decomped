@@ -136,6 +136,19 @@ def main():
                 raise AssertionError("ear name rejected write changed item data")
         machine.call(0x628370, 0, source)
 
+    def ear_class_get():
+        select()
+        for value in (0, 1, 0x7F, 0x80, 0xFF):
+            machine.mu.mem_write(data + 0x48, bytes([value]))
+            actual = machine.call(0x6283A0, unit, regs={"eax": HIGH})
+            expect(actual, (data & 0xFFFFFF00) | value, "ear class read")
+        for kind, with_data in ((3, True), (4, False)):
+            select(kind, with_data)
+            actual = machine.call(0x6283A0, unit, regs={"eax": HIGH})
+            expected = (unit & 0xFFFFFF00) | 1 if kind != 4 else 1
+            expect(actual, expected, "ear class rejected read")
+        expect(machine.call(0x6283A0, 0, regs={"eax": HIGH}), 1, "ear class null read")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -179,6 +192,7 @@ def main():
     write8(0x628320, 0x47)
     ear_name_get()
     ear_name_set()
+    ear_class_get()
     print("item accessors: all game.exe checks passed")
 
 
