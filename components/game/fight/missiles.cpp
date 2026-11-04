@@ -622,11 +622,12 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         // A NextHit row's hit puts state 0x56 (justhit) on the monster
         // (FUN_005adb00), and every NextHit missile, of any cast, passes a
         // monster in it by (FUN_005a8730 / FUN_005adf10); a LastCollide row also
-        // the monster it struck last (FUN_0064a470). ponytail: justhit ends
-        // after the missiles of frame f + NextDelay: FUN_005414d0 runs the
-        // missile timers (group 2) before the monsters' (group 1), whose expiry
-        // is FUN_005a7f80 -> FUN_00627460 -> 0x5adaf0. Struck at f, blocked
-        // f+1..f+NextDelay, next hit at f+NextDelay+1.
+        // the monster it struck last (FUN_0064a470). Justhit ends after the
+        // missiles of frame f + NextDelay: FUN_005414d0 runs the missile
+        // timers (group 2) before the monsters' (group 1), whose expiry is
+        // FUN_005a7f80 -> FUN_00627460 -> 0x5adaf0. Struck at f, blocked
+        // f+1..f+NextDelay, next hit at f+NextDelay+1, as game.exe's own
+        // filter and hit decide it (tools/emu/next_hit.py, test_next_hit).
         if (missile_info.next_hit) {
             auto& struck_unit = monsters[monster_index];
             if (now_ms <= struck_unit.just_hit_until || (missile_info.last_collide && missile.last_hit == int(monster_index))) return false;
