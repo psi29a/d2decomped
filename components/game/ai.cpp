@@ -2335,10 +2335,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
                 monster.seq_once = true;
             } else if (skill("Resurrect") || skill("Resurrect2")) {           // srvdofunc 97 (FUN_005ccb10 / FUN_005cc960): the corpse back at full life
-                // ponytail: the revived state's look (FUN_005cc960's state) left out.
+                // FUN_005cc960 puts no state on it: a raised monster gets unit
+                // flags 0x4020000 (no experience, no drop). FUN_005ccb10's
+                // overlay is the skill's srvoverlay (+0x4e), none for Resurrect
+                // and Resurrect2 (their healing is a castoverlay, the client's).
                 if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                     auto& raised = pack[std::size_t(monster.skill_unit)];
                     if (!raised.alive() && raised.mode == "DD" && !raised.corpse_used) {
+                        raised.no_exp = raised.no_drop = true;
                         raised.hit_points = raised.last_hp = raised.stats.hit_points;
                         raised.ai_state = raised.ai_command = 0; raised.skill = -1; raised.left_mode = "NU";
                         set_mode(game_data, raised, "NU", now_ms);
