@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Check game.exe 1.14d's item quality and affix accessors on synthetic items.
+"""Check game.exe 1.14d's item data accessors on synthetic items.
 
 Usage: uv run python item_accessors.py
 """
@@ -87,6 +87,7 @@ def main():
     read16(0x627FE0, 0x32)
     write16(0x628010, 0x32)
     read16(0x628040, 0x34)
+    write16(0x628070, 0x34)
     print("item accessors: all game.exe checks passed")
 
 

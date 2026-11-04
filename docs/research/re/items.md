@@ -1,9 +1,10 @@
-# Item quality and affix accessors
+# Item data accessors
 
 These functions take an item unit. They require a non-null unit of type 4
 with a non-null item-data pointer at unit `+0x14`; rejected calls do not
 write item data. `FUN_0048c060` uses the quality to select item-name
-formatting, and the other call sites cited below identify the affix fields.
+formatting, and the call sites cited below identify fields where a semantic
+name is known.
 
 The 16-bit getters write only `AX`, zeroing it on the rejection paths above.
 On success the upper `EAX` bits come from the item-data pointer. A wrong-type
@@ -22,6 +23,7 @@ calls return zero.
 | `FUN_00627fe0` | Read the rare-name prefix ID at item data `+0x32`. `FUN_0048c060` formats rare and crafted names through `FUN_00634260`. |
 | `FUN_00628010` | Write the low 16 bits of a value to the rare-name prefix ID at item data `+0x32`; do nothing for a rejected call. |
 | `FUN_00628040` | Read the rare-name suffix ID at item data `+0x34`. `FUN_0048c060` formats rare and crafted names through `FUN_00634260`. |
+| `FUN_00628070` | Write the low 16 bits of a value to the rare-name suffix ID at item data `+0x34`; do nothing for a rejected call. |
 
 Re-check these claims against game.exe 1.14d:
 
