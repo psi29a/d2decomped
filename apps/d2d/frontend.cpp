@@ -679,11 +679,15 @@ void render_cinematics(std::vector<std::uint8_t>& framebuffer, const Scene& scen
         blit_sprite(framebuffer, scene.cinematics_panel.frame(0, 2), scene.pal, x, y + int(panel.height));
         blit_sprite(framebuffer, scene.cinematics_panel.frame(0, 3), scene.pal, x + int(panel.width), y + int(panel.height));
     }
-    // ponytail: heading in font16 centred in its text box; the text
-    // control's own font/colour (FUN_004fc9b0) isn't pinned down.
+    // The heading (FUN_004313d0): record 0x3e (262, bottom 153, 272 x 35),
+    // its pair at 0x7089bc (font 7, Font24), centred (flags 2), the text
+    // added by FUN_004fd060 in colour 4 (gold: push 4 at 0x4fd064) through
+    // the Sky PL2's shift (the screen's palette\sky, 0x4313e8). One line
+    // sits as draw_text_box's.
     {
-        const int width = scene.font.measure(cinematics.heading);
-        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, scene.pal, 262 + (272 - width) / 2, rec_top(153, 35) + (35 - scene.font.line_height()) / 2, cinematics.heading);
+        const int width = scene.font24.measure(cinematics.heading);
+        scene.font24.draw(framebuffer, kScreenWidth, kScreenHeight, scene.sky_pl2.text_palette(scene.pal, 4), 262 + (272 - width) / 2,
+                          rec_top(153, 35) + (35 - scene.font24.line_height()) / 2, cinematics.heading);
     }
     // Labels bind here: the UI is returned by value, so pointers into its
     // own strings can't live in the Buttons.
