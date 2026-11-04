@@ -1,4 +1,7 @@
 struct	offset	type	name	what	evidence
+affix	0x65	u8	level	the affix's normal required level	docs/research/re/items.md:52
+affix	0x67	u8	class	the player class that selects class_level, or 0xff	docs/research/re/items.md:52
+affix	0x68	u8	class_level	the affix's class-specific required level	docs/research/re/items.md:52
 damage	0x04	u32	flags	which fields the record carries (1 | 4 as FUN_0057b420's callers set it)	tools/emu/monster_damage.py:165
 damage	0x08	i32	physical	the physical field, in 256ths (what Bone Armor takes from)	docs/research/re/combat.md:274
 damage	0x4c	i32	total	the record's total after the absorb and the reduction, in 256ths	docs/research/re/combat.md:274

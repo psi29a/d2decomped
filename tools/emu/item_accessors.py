@@ -228,6 +228,29 @@ def main():
             expected = normcode if normcode else code
             expect(machine.call(0x6287D0, unit), expected, "item normal code read")
 
+    def affix_level_clamp():
+        affix = machine.alloc(0x90)
+        initials = (0, 1, 0x7F, 0x80, 0xFF, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF)
+        for initial in initials:
+            actual = machine.call(0x628830, ecx=0, edx=unit, regs={"eax": initial})
+            expect(actual, initial, "null affix level clamp")
+        scenarios = ((0xFF, 3, 50, 90), (3, None, 50, 90),
+                     (3, 4, 50, 90), (3, 3, 50, 90))
+        for affix_class, player_class, level, class_level in scenarios:
+            affix_view = machine.view("affix", affix)
+            affix_view.level = level
+            affix_view["class"] = affix_class
+            affix_view.class_level = class_level
+            selected = class_level if player_class == affix_class != 0xFF else level
+            if player_class is not None:
+                machine.view("unit", unit)["class"] = player_class
+            for initial in initials:
+                actual = machine.call(0x628830, ecx=affix, edx=unit if player_class is not None else 0,
+                                      regs={"eax": initial})
+                signed_initial = initial - 0x100000000 if initial & 0x80000000 else initial
+                expected = initial if signed_initial > selected else selected
+                expect(actual, expected, "affix required level clamp")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -281,6 +304,7 @@ def main():
     bit_and()
     bitmask_set()
     normal_code_get()
+    affix_level_clamp()
     print("item accessors: all game.exe checks passed")
 
 
