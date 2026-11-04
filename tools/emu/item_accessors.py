@@ -196,6 +196,13 @@ def main():
         expect(machine.read(first, 1)[0], 0xA5, "item record pair null output")
         expect(machine.read(second, 1)[0], 0xA5, "item record pair null output")
 
+    def base_level_get():
+        select_record()
+        for value in (0, 1, 0x7F, 0x80, 0xFF):
+            machine.view("item_record", record).level = value
+            actual = machine.call(0x628740, unit, regs={"eax": HIGH})
+            expect(actual, (record & 0xFFFFFF00) | value, "base item level read")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -245,6 +252,7 @@ def main():
     record_c0_get()
     item_code_get()
     record_pair_get()
+    base_level_get()
     print("item accessors: all game.exe checks passed")
 
 
