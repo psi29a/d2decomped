@@ -17,8 +17,9 @@ def main():
     unit, data = machine.alloc(0x20), machine.alloc(0x60)
 
     def select(kind=4, with_data=True):
-        machine.w32(unit, kind)
-        machine.w32(unit + 0x14, data if with_data else 0)
+        unit_view = machine.view("unit", unit)
+        unit_view.type = kind
+        unit_view.data = data if with_data else 0
 
     def expect(actual, expected, label):
         if actual != expected:

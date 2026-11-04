@@ -32,6 +32,7 @@ skill	0x18c	u16	lvlmana	Skills.txt lvlmana (added per level above 1)	tools/emu/s
 unit	0x00	u32	type	0 player, 1 monster, 2 object, 3 missile, 4 item, 5 warp	components/rules/object_ids.hpp:10
 unit	0x04	u32	class	its row: MonStats, objects.txt, Missiles, ...	tools/emu/life_apply.py:50
 unit	0x10	u32	mode	animation mode	components/rules/monsters.hpp:1253
+unit	0x14	ptr	data	type-specific data; item data for type 4	docs/research/re/items.md:4
 unit	0x20	u32	seed_low	the unit seed {low, 666} (FUN_00552df0)	docs/research/re/drops.md:129
 unit	0x24	u32	seed_high	666 when made	docs/research/re/drops.md:129
 unit	0x28	u32	seed_init	the seed's low word when made	docs/research/re/drops.md:129
