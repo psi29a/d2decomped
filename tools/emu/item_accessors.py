@@ -167,6 +167,12 @@ def main():
         expect(machine.call(0x628500, unit), 0, "item record +0xc0 missing record")
         expect(machine.call(0x628500, 0), 0, "item record +0xc0 null read")
 
+    def item_code_get():
+        select_record()
+        for value in (0, 1, 0x20786F62, 0x2064736C, 0xFFFFFFFF):
+            machine.view("item_record", record).code = value
+            expect(machine.call(0x628590, unit), value, "item code read")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -214,6 +220,7 @@ def main():
     ear_class_get()
     write8(0x628420, 0x49)
     record_c0_get()
+    item_code_get()
     print("item accessors: all game.exe checks passed")
 
 

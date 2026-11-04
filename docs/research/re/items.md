@@ -43,6 +43,7 @@ by the record accessors below. The oracle substitutes a synthetic record.
 | Address | Traced claim |
 |---|---|
 | `FUN_00628500` | Read the 32-bit value at item record `+0xc0`; return 0 for a null unit, a wrong unit type, or a failed class lookup. |
+| `FUN_00628590` | Return the 32-bit item code at item record `+0x80` for a valid item unit with a successful class lookup. `FUN_00483c50` compares this field with the Horadric Cube code `box `. |
 
 Re-check these claims against game.exe 1.14d:
 
