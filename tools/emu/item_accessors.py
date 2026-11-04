@@ -79,6 +79,7 @@ def main():
     quality_set()
     for index in range(3):
         read16(0x627EC0, 0x38 + index * 2, (index,))
+        write16(0x627EF0, 0x38 + index * 2, (index,))
     print("item accessors: all game.exe checks passed")
 
 
