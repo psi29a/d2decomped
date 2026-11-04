@@ -47,6 +47,7 @@ auto Fight::add_monster(Monster monster) -> void { add_monster(std::move(monster
 
 auto Fight::add_monster(Monster monster, const Level* where) -> void {
         monster.id = next_id++;
+        monster.classic = !game_expansion;
         const auto* made_level = where ? where : mon_level ? mon_level : level;
         if (made_level && (monster.boss == d2d::rules::Boss::unique || monster.boss == d2d::rules::Boss::superunique))
             made_bosses.push_back({ monster.id, monster.type, made_level->id });
@@ -62,6 +63,7 @@ auto Fight::own_stats() const -> d2d::d2s::Stats {
 
 auto Fight::new_game(int difficulty) -> void {
         game_difficulty = difficulty;
+        game_expansion = actor->character.expansion;
         spawning = start_spawning(*game_data, difficulty);
         monsters.clear();
         made_bosses.clear();

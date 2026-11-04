@@ -149,6 +149,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         for (std::size_t layer = 0; layer < 16; ++layer)
             if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer].front();
         monster.difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
+        monster.row_align = type_info.align; monster.classic = !game_expansion;   // a revived one swings as a classic game's (summons are Align 1)
         monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);   // spawned at its own level (FUN_005b2f20)
         // Its life and damage straight from MonStats' columns (a Raise
         // Skeleton skeleton: 21 life, 1-2 damage in Normal; 30 / 42 in

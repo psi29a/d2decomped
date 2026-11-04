@@ -413,7 +413,7 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
 
 void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players) {
     auto turned = make_monster(game_data, type, unit.unit.x, unit.unit.y, rng, unit.difficulty, true, players, unit.level_id);
-    turned.id = unit.id; turned.leader = unit.leader; turned.seed = unit.seed;
+    turned.id = unit.id; turned.leader = unit.leader; turned.seed = unit.seed; turned.classic = unit.classic;
     turned.home_x = unit.home_x; turned.home_y = unit.home_y;
     unit = std::move(turned);
 }
@@ -2995,6 +2995,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.killable = type_info.killable;
     // FUN_005b2a00: Align 1 good (stat 0xac 2), 2 neutral (1), else evil.
     monster.align = type_info.align == 1 ? 2 : type_info.align == 2 ? 1 : 0;
+    monster.row_align = type_info.align;
     monster.npc = game_data.mon_npc[std::size_t(type)];
     for (std::size_t layer = 0; layer < 16; ++layer)
         if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer][std::size_t(rng(int(type_info.parts[layer].size())))];

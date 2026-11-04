@@ -169,10 +169,11 @@ struct Monster {
     // Past Normal a hostile one's swing grows by its players (FUN_005a4f50 in an
     // expansion game, game +0x70: stat 0x64 through FUN_005a4f20, table 0x6e21f4):
     // damage, to-hit and each element's min / max / length + n / 128 of it.
+    // In a classic game it's classic_stats' cut instead.
     [[nodiscard]] d2d::rules::MonStats swing_stats() const {
         static constexpr std::array<int, 6> kRandType{ -2, 0, 1, 4, 2, 3 };   // kind -> d2d's El type (fire, ltng, cold, pois, mag)
-        auto swung = stats;
-        if (const int more = align == 0 && difficulty > 0 ? d2d::rules::player_swing_128ths(players) : 0; more > 0) {
+        auto swung = classic_stats();
+        if (const int more = !classic && align == 0 && difficulty > 0 ? d2d::rules::player_swing_128ths(players) : 0; more > 0) {
             for (int* value : { &swung.a1_min, &swung.a1_max, &swung.a2_min, &swung.a2_max, &swung.s1_min, &swung.s1_max, &swung.to_hit, &swung.to_hit2, &swung.to_hit_s1 })
                 *value += *value * more / 128;
             for (auto& element : swung.elements)
@@ -188,6 +189,13 @@ struct Monster {
                 }
             }
         return swung;
+    }
+    // Its stats as a swing sets them in a classic game (FUN_005a4f50, game
+    // +0x70 0: rules::classic_swing); its own stats in an expansion game.
+    [[nodiscard]] d2d::rules::MonStats classic_stats() const {
+        auto cut = stats;
+        if (classic) d2d::rules::classic_swing(cut, difficulty, row_align);
+        return cut;
     }
     std::string_view fx_mode = "NU";         // its mode as of the last boss_events (a scarab's GH / DT comes once)
     std::vector<std::uint32_t> scarab_due;    // when a scarab's bolts are due, one a GH / DT (game.exe queues each event 7)
@@ -403,6 +411,8 @@ struct Monster {
     int variant = -1;                         // the knights' rand(4) as made (d2d::rules::monster_variant), -1 none
     d2d::rules::MonProps props;               // its MonProp row's (d2d::rules::monster_props)
     int players = 1;                          // the players in the game as it was made (stat 0x64 monster_playercount)
+    int row_align = 0;                        // its MonStats Align (+0x4c), as made (align is its side now)
+    bool classic = false;                     // made in a classic game (game +0x70 0: Fight::add_monster)
     int level_id = -1;                        // the Levels.txt id it was made in (-1: unknown): Nightmare / Hell start at that level's MonLvl (rules::start_level)
     [[nodiscard]] bool alive() const { return hit_points > 0 && !gone; }
     [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one

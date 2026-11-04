@@ -283,15 +283,22 @@ struct MonStats {
 // poison max >> 8). 0 before any swing.
 // Only the elements the swing rolled in count (Monster::swing_stats).
 // The player-count growth past Normal is in Monster::swing_stats.
-// ponytail: a classic game's x 10 / 12 damage and x 10 / 15 to-hit past
-// Normal (FUN_005a4f50, game +0x70 0) aren't made: d2d's monsters take
-// the expansion columns throughout.
 inline int swing_max_damage(const MonStats& stats, std::string_view swing_mode) {
     if (swing_mode.empty()) return 0;
     int total = swing_mode == "A2" ? stats.a2_max : swing_mode == "SC" || swing_mode == "S1" ? stats.s1_max : stats.a1_max;
     for (const auto& element : stats.elements)
         if (element.type >= 0 && element.mode == swing_mode) total += element.type == 3 ? element.max * 10 >> 8 : element.max;
     return total;
+}
+
+// A classic game's swing (FUN_005a4f50 0x5a5112, game +0x70 0): past Normal
+// a monster whose MonStats Align (+0x4c) isn't 1 swings for x 10 / 12 of its
+// damage (min and max) and x 10 / 15 of its to-hit, truncated; its elements
+// as they are, and no player-count growth (that's the expansion branch).
+inline void classic_swing(MonStats& stats, int difficulty, int row_align) {
+    if (difficulty == 0 || row_align == 1) return;
+    for (int* damage : { &stats.a1_min, &stats.a1_max, &stats.a2_min, &stats.a2_max, &stats.s1_min, &stats.s1_max }) *damage = *damage * 10 / 12;
+    for (int* to_hit : { &stats.to_hit, &stats.to_hit2, &stats.to_hit_s1 }) *to_hit = *to_hit * 10 / 15;
 }
 
 // A hostile monster's swing growth past Normal, in 128ths (FUN_005a4f20 on
