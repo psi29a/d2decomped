@@ -203,6 +203,12 @@ struct RescueQuest {
     static constexpr int kQuest = 0x24, kQualKehk = act5_detail::kQualKehk, kPrisoner = act5_detail::kPrisoner, kDoor = act5_detail::kPrisonDoor;
     static constexpr int kTold = 20096, kReward = 20110, kCages = 3, kPerCage = 5, kFreeReach = 15, kFail = 5;
     static constexpr std::array<const char*, 3> kRunes{ "r07", "r08", "r09" };   // 0x732fec: Ral, Ort, Tal
+    // A cage's portal (FUN_005888d0): the dead door's subtile + 2 on x, as
+    // is (an object's make, FUN_00555230 at 0x588a13, tests no collision);
+    // cells, the subtile's centre.
+    static std::pair<float, float> portal_spot(int door_x, int door_y) {
+        return { (float(door_x + 2) + 0.5f) / 5, (float(door_y) + 0.5f) / 5 };
+    }
     bool open = true;
     int state = 0, log = 0;
     bool told_heard = false;       // data +0x84

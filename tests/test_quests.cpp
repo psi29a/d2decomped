@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -567,5 +568,7 @@ int main() {
         rite.done = true;
         assert(!rite.portal_opened() && rite.portals == 0);
     }
+    // A cage's portal (FUN_005888d0): the dead door's subtile + 2 on x, never a free-spot search.
+    assert(RescueQuest::portal_spot(100, 40) == std::pair(102.5f / 5, 40.5f / 5));
     std::puts("ok");
 }
