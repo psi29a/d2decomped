@@ -207,11 +207,21 @@ auto World::take_character(const Character& entering) -> void {
         actor->store = {};
     }
 
-auto World::lay_save_corpse(const Character& entering, float x, float y) -> void {
+auto World::lay_save_corpse(const Character& entering) -> void {
         actor->corpses.clear();
         if (entering.corpse.empty()) return;
-        const auto [spot_x, spot_y] = level->nearest_free(x, y);
-        actor->corpses.push_back({ level, spot_x, spot_y, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
+        const auto* town = act() > 0 && act() < int(d2d::rules::level_ids::kActTowns.size()) ? game_data->level(d2d::rules::level_ids::kActTowns[std::size_t(act())]) : nullptr;
+        if (!town || town->start.first < 0) town = &game_data->town;
+        const int width = town->ds1.width() * 5, height = town->ds1.height() * 5;
+        const Crowd crowd = town == level ? crowd_now() : Crowd{};
+        static constexpr UnitShape kFootprint{ 0, 0, 0x1000 };                  // a unit's 0x1000 on that very subtile
+        const auto flags = [&](int sub_x, int sub_y) -> int {
+            if (sub_x < 0 || sub_y < 0 || sub_x >= width || sub_y >= height || town->walk.empty()) return 0x27;
+            const int unit = crowd.at((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, kFootprint, nullptr) ? 0x1000 : 0;
+            return town->walk[std::size_t(sub_y) * std::size_t(width) + std::size_t(sub_x)] | unit;
+        };
+        const auto [spot_x, spot_y] = corpse_spot(int(std::floor(town->start.first * 5)), int(std::floor(town->start.second * 5)), flags);
+        actor->corpses.push_back({ town, (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 4, entering.corpse, 0, entering.appearance ? *entering.appearance : game_data->starting_gear[std::size_t(entering.header.cls % 7)] });
     }
 
 auto World::join(const Character& entering) -> Player& {
@@ -227,8 +237,8 @@ auto World::join(const Character& entering) -> Player& {
         std::tie(player.player.x, player.player.y) = level->nearest_free(lead().player.x + 1, lead().player.y);
         player.target_x = player.player.x; player.target_y = player.player.y;
         player.player.dir = 4;
-        lay_save_corpse(entering, player.player.x + 1, player.player.y + 1);
         spawn_merc();
+        lay_save_corpse(entering);
         item_ids();
         d2d::log::info("{} joins the game (player {})", player.character.name, player.id);
         act_as(was);
@@ -276,8 +286,6 @@ auto World::enter(const Character& entering) -> void {
         const int save_act = act_byte & 0x80 ? act_byte & 7 : 0;
         const Level* act_town = save_act > 0 && save_act < int(d2d::rules::level_ids::kActTowns.size()) ? game_data->level(d2d::rules::level_ids::kActTowns[std::size_t(save_act)]) : nullptr;
         level = act_town && act_town->start.first >= 0 ? act_town : &game_data->town;   // set_map_seed may have rebuilt the camp
-        // A corpse in the save lies by the town's start.
-        lay_save_corpse(entering, level->start.first + 1.f, level->start.second + 1.f);
         other_npcs.clear();
         npc_states = npc_start(*level);
         actor->interact_npc = actor->pick_item = actor->take_warp = -1;
@@ -285,6 +293,7 @@ auto World::enter(const Character& entering) -> void {
         if (level->start.first >= 0) std::tie(actor->player.x, actor->player.y) = level->nearest_free(level->start.first, level->start.second);
         actor->target_x = actor->player.x; actor->target_y = actor->player.y;
         spawn_merc();
+        lay_save_corpse(entering);                    // by the town's start, the player standing there
         new_game();
         act5_hide();                                  // a5q3's join: Anya home, Nihlathak gone (Anya's state grown in)
         grow_states(npc_states, *level);

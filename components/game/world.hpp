@@ -714,10 +714,10 @@ struct World {
     std::string leave(int id);
     // The entering character, refilled (enter / join).
     void take_character(const Character& entering);
-    // The save's corpse (its corpse list, FUN_00533850) by (x, y).
-    // ponytail: where game.exe puts it isn't traced; the save's x / y
-    // aren't read.
-    void lay_save_corpse(const Character& entering, float x, float y);
+    // The save's corpse (its corpse list, FUN_00533850; its x / y unread),
+    // laid as the player comes in (FUN_005394a0): by the act town's start,
+    // corpse_spot round it, the units there blocking (combat.md "Saving").
+    void lay_save_corpse(const Character& entering);
 
     void new_game();
 

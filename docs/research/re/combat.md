@@ -440,6 +440,20 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
 - **Saving:** the d2s keeps a corpse list after the player's items ("JM",
   count, then 12 bytes and an item list each; `FUN_00533850` makes them
   again on joining).
+  - Read back (`FUN_00533850`): a corpse unit (`FUN_00555230` type 0,
+    the class, at 0, 0, no room, mode 0x11) with the items, on the
+    player's corpse list with flag 1 (`FUN_0063d470(.., 0, 1)`); the
+    saved x / y aren't read.
+  - Laid when the player comes into the game (`FUN_005394a0`, after the
+    player stands: `FUN_0053bc10`): each flagged corpse at the player's
+    act's town (`FUN_0061ab70`) start, spawn index 0 (`FUN_0061b060`,
+    tile x 5 + 3), then `FUN_005352c0`: the nearest free spot by
+    `FUN_0064e7e0(room, &xy, 2, mask 0x9c19, 4)` -> `FUN_0064dea0` with
+    test 2 (`FUN_0064d9b0` case 2: the plus, `FUN_0064d100`) against
+    0x9c19, which holds the player's own 0x1000 footprint, and a step of
+    4 (rings of radius 1, 5, 9, ..., spots 4 apart along each edge;
+    `FUN_0064e7b0` steps 1); with the player on the start the corpse lands
+    at (x - 1, y - 1) (tools/emu/corpse_spot.py). Mode 0x11.
 - **The look:** a death COF has only a TR layer and only LIT pieces (no
   BATRHVYDTHTH); a composite piece missing in a mode is drawn as LIT.
 
