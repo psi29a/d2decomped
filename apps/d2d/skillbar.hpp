@@ -21,8 +21,9 @@
 // - 1, colour 3, nothing at 0). A hand or hotkey keeps the entry's item; a
 // hand whose entry is gone goes back to Attack / skill 0
 // (SKILLS_AddOrRemoveItemSkill's remove).
-// ponytail: a hotkey bound to an entry that's gone stays bound (a no-op till
-// the item's back) where game.exe clears it at 0 charges (SPELLSEL_ClearSkillBinding).
+// A hotkey bound to an entry that's gone stays bound, a no-op till the item's
+// back, as game.exe's: its press (FUN_004aa030) asks FUN_004a9fc0, which finds
+// no entry for the bound item (or 0 charges); nothing clears 0x7c06c8 then.
 #pragma once
 
 #include <array>
