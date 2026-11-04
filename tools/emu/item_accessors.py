@@ -193,6 +193,7 @@ def main():
     ear_name_get()
     ear_name_set()
     ear_class_get()
+    write8(0x628420, 0x49)
     print("item accessors: all game.exe checks passed")
 
 
