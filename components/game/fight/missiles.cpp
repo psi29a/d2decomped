@@ -371,6 +371,16 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             auto& missile = send(dx, dy, range);
             missile.target_x = caster.x; missile.target_y = caster.y;
             missile.turn = int(std::atan2(dy, dx) * 1000);
+            // FUN_006461d0: the caster's state 0x2a (Concentration), its damagepercent x Param1 / 8. ponytail: the state is
+            // taken from the first friendly aura of that name over the caster; one set by two sources isn't merged.
+            if (!caster.merc && !caster.pet)
+                for (const auto& aura : friendly_auras(caster.x, caster.y)) {
+                    if (aura.skill->aurastate != "concentration") continue;
+                    for (std::size_t i = 0; i < aura.skill->aurastat.size(); ++i)
+                        if (aura.skill->aurastat[i] == d2d::d2s::kDamagePercent)
+                            missile.influence = d2d::rules::aura_influence(d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[i], aura.env, aura.skill->id, aura.level), skill.par[0]);
+                    break;
+                }
         } else if (skill.srvdofunc == ServerDoFunction::kFistOfTheHeavens) {                      // Fist of the Heavens (FUN_005d0670): on the target
             if (target < 0) return;
             const auto& target_monster = monsters[std::size_t(target)];
@@ -690,6 +700,11 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = missile.info->etype < 0 ? 0 : missile.info->etype, .elo = missile.fixed, .ehi = missile.fixed }
                 : missile.info->skill.empty() ? row_damage(*missile.info, missile.level, env, missile.skill)
                                         : d2d::rules::missile_damage(game_data->skills, *skill, env, missile.level);
+        damage = d2d::rules::influenced(damage, missile.influence);
+        if (missile.info->dmg_func == 5) {                  // FUN_005ad2f0: Blessed Hammer's bonus against the undead and the demons
+            damage.undead_pct = missile.info->dmg_par1;
+            damage.demon_pct = missile.info->dmg_par2;
+        }
         d2d::rules::Blow blow{ .hit = true };
         if (damage.srcdam > 0) {
             d2d::rules::Swing swing;

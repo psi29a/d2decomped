@@ -431,7 +431,7 @@ struct Monster {
         auto res = per_difficulty.res;
         for (std::size_t i = 0; i < 6; ++i) res[i] += boss_res[i];
         return { hit_points, stats.hit_points, stats.armor_class, stats.level, type_info.can_block ? per_difficulty.to_block : 0, res, per_difficulty.drain,
-                 crush_divisor(game_data), type_info.undead };
+                 crush_divisor(game_data), type_info.undead, type_info.demon };
     }
     // Crushing Blow's life divisor on it (FUN_005bffc0): 10 for a hireling
     // (FUN_0063ee90's classes 0x10f, 0x152, 0x167, 0x230, 0x231); else 4, 8
@@ -603,6 +603,7 @@ struct Missile {
     // row's own is replaced (-1: its row's or skill's), the last frame a
     // spawner or burner ran.
     int target = -1, hops = 0, ed_pct = 0, ar_pct = 0, fixed = -1, frame = -1;
+    int influence = 0;                        // Blessed Hammer's: the caster's Concentration share of its damage, % (FUN_006461d0)
     int target_id = -1;                       // its target's Foe::id: the foes are rebuilt each frame, pets come and go
     int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
