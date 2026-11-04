@@ -251,16 +251,17 @@ inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, b
 // FUN_0057bf80 on a damage record's physical field, in 256ths: the flat
 // reduction (stat 34, whole points) comes off first, then the percent (stat 36)
 // of what is left; a field already at 0 stays 0, the product truncates toward
-// zero (FUN_00483360). A result under 0 is clamped here; game.exe stores it and
-// only ignores a record total that is not above 0 (0057c852).
+// zero (FUN_00483360). reduce_fine clamps a result under 0; game.exe stores it, sums it into the
+// record total and only ignores a total not above 0 (0057c852): reduce_fine_signed keeps it.
 // ponytail: FUN_0057c1e0 scales the flat by the record's +0x54 / 1024 when that
 // is above 0 and the whole record by FUN_0057c060's percent; neither is modelled.
-inline int reduce_fine(int fine, int percent, int flat) {
+inline int reduce_fine_signed(int fine, int percent, int flat) {
     if (fine <= 0) return 0;
     fine -= flat * 256;
     if (fine > 0 && percent != 0) fine = int(std::int64_t(fine) * (100 - std::clamp(percent, -100, 100)) / 100);
-    return std::max(fine, 0);
+    return fine;
 }
+inline int reduce_fine(int fine, int percent, int flat) { return std::max(reduce_fine_signed(fine, percent, flat), 0); }
 // One landed blow on a unit this frame, as game.exe keeps one damage record a
 // hit: its damage (whole points), hit class and element mark (an element or
 // poison, Foe::take), and of the damage the physical part (record +0x08) and
@@ -275,6 +276,13 @@ struct StruckBlow {
     // game.exe absorbs first (state event 0xb, 0x57c2fc) and reduces after (the loop at 0x57c378). -1: not known,
     // the physical and `frac` are taken as they are (nothing to reduce again).
     int raw = -1, pct = 0, flat = 0;
+    // The fire / lightning / cold / magic parts before the defender's resistance (Taken::element_raw, by monster_blow's
+    // element type: 0 fire, 1 lightning, 2 cold, 4 magic; 3 is poison, which has no record field an absorb reads): the rolls
+    // summed (whole points), what the blow carries of them now (`dealt`, whole points) and the resistance they went through.
+    // An Energy Shield works on these, as game.exe's absorb event runs before the resistance pass (energy_shield_blows).
+    struct Part { int raw = 0, dealt = 0, res = 0; };
+    std::array<Part, 5> parts{};
+    int mdr = 0;                         // the flat magic damage reduction taken off each of them before the resistance
 };
 
 // Puts a blow's reduced physical (`physical`, `frac`, and its share of `damage`) back in line with `raw`.
@@ -466,6 +474,78 @@ inline int resisted_fine(int fine, int res) {
     if (res == 0) return fine;
     return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
 }
+// Energy Shield (FUN_005ca6c0, the state's absorb event 0xb like Bone Armor's): the pool of mana and the two numbers of the
+// state, calc1 (the percent of a field it takes, at most 95 here) and calc2 (`per16`: 16ths of mana per point absorbed, at least 1).
+struct EnergyShield {
+    int pct = 0, per16 = 1;
+    std::int64_t mana = 0;               // the wearer's mana in 256ths, drained as it absorbs
+    std::int64_t absorbed = 0;           // what it took so far, in 256ths of damage
+    // One record field (256ths): the percent of it, at most what the mana pays for (MulDiv(mana, 16, calc2)); the mana
+    // paid is MulDiv(taken, calc2, 16), not below 0. Returns what it took. A field at or under 0 is left alone.
+    int take(int field) {
+        if (field <= 0 || pct <= 0) return 0;
+        const int mana_in = int(std::clamp<std::int64_t>(mana, 0, 0x7fffffff));
+        const int part = std::max(std::min(mul_div(field, pct, 100), mul_div(mana_in, 16, per16)), 0);
+        mana = std::max<std::int64_t>(mana - mul_div(part, per16, 16), 0);
+        absorbed += part;
+        return part;
+    }
+};
+
+// Energy Shield on the frame's blows. FUN_005ca6c0 runs in state event 0xb, before the resistance pass (event 0xb is raised
+// on each record BEFORE FUN_0057c1e0 reduces it), on the record's fields in the order of its table 0x6e30e0: physical (+8),
+// fire (+0x10), lightning (+0x1c), cold (+0x24), magic (+0x20); poison is not in it. So the percent and the mana limit work on the
+// UNRESISTED field and the resistance, the flat magic reduction and the physical reduction work on what is left: a field
+// the shield took from is put back through them: the flat reduction first, then the resistance, a field under 0 kept and summed (0057bf80). The mana is drained field by field,
+// record by record in landing order. The physical field is taken from `raw` as absorb_blows leaves it (Bone Armor first).
+// What a blow carries that no field accounts for (a record built without them: Corpse Explosion, a Fire Golem's burn) is taken
+// from as it stands, as the shield used to take everything.
+// ponytail: a state absorb registered later runs first in game.exe (FUN_005c0ad0); the armor-before-shield order of Fight::absorb
+// is kept, and a Cyclone Armor cut is not put back through the resistance. Magic has no percent resistance on a monster blow here
+// (monster_blow), so its field goes through the flat reduction only.
+// A field the shield did not touch keeps monster_blow's value: resistance, then mdr, clamped at 0 (game.exe takes mdr first and keeps a negative);
+// frames without a shield differ from game.exe the same way.
+inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shield) {
+    constexpr std::array<int, 4> kElementOrder{ 0, 1, 2, 4 };
+    for (auto& blow : blows) {
+        const std::int64_t whole = (std::int64_t(blow.damage) << 8) + blow.frac;
+        std::int64_t total = whole;   // the record total (+0x4c) in 256ths: a field under 0 stays in it, the total is clamped once at the end
+        const int physical_fine = blow.raw >= 0 ? blow.raw : blow.physical * 256 + blow.frac;
+        std::int64_t accounted = blow.raw >= 0 ? reduce_fine(blow.raw, blow.pct, blow.flat) : physical_fine;   // what the fields hold of the blow
+        if (const int cut = shield.take(physical_fine); cut > 0) {
+            blow.raw = physical_fine - cut;
+            const int fine = reduce_fine_signed(blow.raw, blow.pct, blow.flat);
+            total += fine - (blow.physical * 256 + blow.frac);
+            blow.physical = std::max(fine, 0) >> 8;
+        }
+        for (const int type : kElementOrder) {
+            auto& part = blow.parts[std::size_t(type)];
+            if (part.raw <= 0) continue;
+            accounted += std::int64_t(part.dealt) << 8;
+            const int field = part.raw * 256;
+            const int cut = shield.take(field);
+            if (cut <= 0) continue;
+            // FUN_0057bf80: a field at or under 0 is stored as 0; else the flat magic reduction comes off FIRST (and may leave it under 0,
+            // which is stored and summed), then the resistance on what is still above 0.
+            int fine = field - cut;
+            if (fine > 0) {
+                fine -= blow.mdr * 256;
+                if (fine > 0 && type != 4) fine = resisted_fine(fine, part.res);
+            }
+            total += fine - (std::int64_t(part.dealt) << 8);
+            if (type != 4) {
+                blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
+                if (blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
+            }
+            part.dealt = std::max(fine, 0) >> 8;
+        }
+        if (const std::int64_t loose = whole - accounted; loose > 0) total -= shield.take(int(std::min<std::int64_t>(loose, 0x7fffffff)));
+        total = std::max(total, std::int64_t(0));
+        blow.damage = int(total >> 8);
+        blow.frac = int(total & 255);
+    }
+}
+
 // Static Field's record on one unit (FUN_005c96a0), in 256ths before the
 // resistance, or -1 when it makes none. Life is the unit's in whole points
 // (stat 6 >> 8): nothing under 1, nothing at or under floor % of its max
@@ -766,7 +846,9 @@ inline int chill_length(const Fighter& defender, int len) {
 // Bone Armor (22) and Cyclone Armor (25) absorb.
 // `frac`: the 256ths of a point the physical carries beyond `damage` (game.exe keeps life in 256ths).
 // `raw`: the physical before the reduction, in 256ths (what absorbs take from first, StruckBlow::raw).
-struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0, physical = 0, elemental = 0, frac = 0, raw = -1; };
+// `element_raw` / `element_dealt`: per element type (0 fire, 1 lightning, 2 cold, 4 magic) the rolls summed and what they dealt, whole points.
+struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0, physical = 0, elemental = 0, frac = 0, raw = -1;
+             std::array<int, 5> element_raw{}, element_dealt{}; };   // by element type: the rolls before the resistance and what they dealt after it (whole points)
 enum class Motion : std::uint8_t { standing, walking, running };
 inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonStats& attacker, bool second_attack, Rng& rng,
                           bool missile = false, bool sure = false, bool exact = false) {
@@ -793,16 +875,22 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     const int fine = reduce_fine(taken.raw, defender.dr_pct, defender.dr_flat);
     taken.damage = taken.physical = fine >> 8;
     taken.frac = fine & 255;
+    const auto note_element = [&](int type, int roll, int dealt) {
+        if (roll <= 0 || type < 0 || type >= int(taken.element_raw.size())) return;
+        taken.element_raw[std::size_t(type)] += roll;
+        taken.element_dealt[std::size_t(type)] += dealt;
+    };
     for (const auto& element : attacker.elements) {
         if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || (element.pct < 100 && rng(100) >= element.pct)) continue;
         const int roll = rng.range(element.min, element.max);
         switch (element.type) {
-            case 2: taken.elemental += std::max(resisted(roll, defender.res[2]) - defender.mdr, 0); taken.damage += std::max(resisted(roll, defender.res[2]) - defender.mdr, 0); if (roll > 0) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, element.dur)); break;
+            case 2: { const int dealt = std::max(resisted(roll, defender.res[2]) - defender.mdr, 0); taken.elemental += dealt; taken.damage += dealt; note_element(2, roll, dealt); if (roll > 0) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, element.dur)); break; }
             case 3: if (const int per = resisted(roll * 10, defender.res[3]); per >= taken.poison) { taken.poison = per; taken.poison_ticks = resisted(element.dur * 2, defender.plr); } break;
-            case 4: taken.damage += std::max(roll - defender.mdr, 0); break;
+            case 4: { const int dealt = std::max(roll - defender.mdr, 0); taken.damage += dealt; note_element(4, roll, dealt); break; }
             default: {
                 const int dealt = std::max(resisted(roll, defender.res[std::size_t(element.type)]) - defender.mdr, 0);
                 taken.damage += dealt; taken.elemental += dealt;
+                note_element(element.type, roll, dealt);
                 break;
             }
         }
