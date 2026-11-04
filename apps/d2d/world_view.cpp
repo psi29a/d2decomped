@@ -404,8 +404,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             // (FUN_00467a10 -> FUN_00471ec0) and a Ghostly champion
             // (umod 36, FUN_005a1080). Its light doubles, clamped
             // 0x40..0xff.
-            // ponytail: objects also switch to mode 7 under the cursor,
-            // untraced.
+            // Objects too: the unit draw (FUN_004dc7b0) sends an object
+            // (type 2, 0x4dc909) through the same FUN_00471ec0, whose
+            // hover test (0x4720f6) and mode 7 don't look at the type.
             const bool bright = unit.highlight || unit.ghostly;
             const auto& lpal = !light ? upal0
                              : (*light->pal)[std::size_t((bright ? std::clamp(light->unit_at(unit.x, unit.y) * 2, 0x40, 0xff) : light->unit_at(unit.x, unit.y)) >> 3)];
