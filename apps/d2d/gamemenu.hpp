@@ -56,7 +56,8 @@ private:
 
 // The mini-panel and the HUD's menu button (FUN_0047f710 / FUN_004977c0).
 // Its buttons' actions, as FUN_0047ec50 numbers them.
-// ponytail: messages (5) does nothing.
+// Messages (5, 0x47ed08) shuts the belt (UI 0x1f) and toggles the Message
+// Log (UI 0x18), a flag 1.14d never draws (controls.md).
 struct MiniPanel {
     enum Button { kCharacter = 0, kInventory = 1, kSkills = 2, kAutomap = 4, kMessages = 5, kQuests = 6, kMenu = 7 };
     bool open = true;                      // FUN_004567f0 opens it with the game

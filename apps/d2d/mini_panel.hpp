@@ -15,4 +15,8 @@ namespace d2d::client::mini_panel {
 [[nodiscard]] inline const char* saved(bool open_at_menu) { return open_at_menu ? "0" : "1"; }
 [[nodiscard]] inline bool opens(const std::string& saved) { return std::strtoul(saved.c_str(), nullptr, 0) == 0; }
 
+// Its Messages button (5, 0x47ed08): the belt (UI 0x1f) shut, the Message
+// Log (UI 0x18) toggled.
+inline void messages(bool& belt_open, bool& message_log) { belt_open = false; message_log = !message_log; }
+
 }  // namespace d2d::client::mini_panel

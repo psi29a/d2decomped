@@ -9,6 +9,7 @@
 #include "gamepad_map.hpp"
 #include "ingame.hpp"
 #include "keyconfig.hpp"
+#include "mini_panel.hpp"
 #include "panels.hpp"
 #include "party.hpp"
 #include "platform.hpp"
@@ -330,6 +331,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (action == MiniPanel::kInventory) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (action == MiniPanel::kSkills) { tree_open = !tree_open; if (tree_open) inv_open = false; }
             if (action == MiniPanel::kAutomap) automap.open = !automap.open;
+            if (action == MiniPanel::kMessages) mini_panel::messages(belt_open, message_log);
             if (action == MiniPanel::kQuests) toggle_quest_log();
             if (action == MiniPanel::kMenu) open_game_menu();
         }
