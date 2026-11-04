@@ -79,6 +79,21 @@ def main():
                 raise AssertionError(f"{address:08x} rejected write changed item data")
         machine.call(address, 0, 0xFFFF, *args)
 
+    def write8(address, offset):
+        select()
+        for value in (0, 1, 0x7F, 0x80, 0xFF, 0x12345678):
+            machine.mu.mem_write(data + offset, b"\xa5")
+            machine.call(address, unit, value)
+            actual = machine.read(data + offset, 1)[0]
+            expect(actual, value & 0xFF, f"{address:08x} write {offset:#x}")
+        for kind, with_data in ((3, True), (4, False)):
+            select(kind, with_data)
+            before = machine.read(data, 0x60)
+            machine.call(address, unit, 0xFF)
+            if machine.read(data, 0x60) != before:
+                raise AssertionError(f"{address:08x} rejected write changed item data")
+        machine.call(address, 0, 0xFF)
+
     def item_level_get():
         select()
         for value in (0x80000000, 0xFFFFFFFF, 0, 1, 2, 0x7FFFFFFF):
@@ -133,6 +148,7 @@ def main():
     read32(0x628110, 0x18)
     mask32(0x628170, 0x14)
     item_level_get()
+    write8(0x628280, 0x45)
     print("item accessors: all game.exe checks passed")
 
 
