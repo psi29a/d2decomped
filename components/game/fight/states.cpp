@@ -86,6 +86,17 @@ auto Fight::skill_element(d2d::rules::Fighter& fighter, const d2d::rules::Skill&
         if (skill.etype == 2) fighter.cold_len = std::max(fighter.cold_len, len);
     }
 
+// A state of the same States.txt group goes off as this one comes on (FUN_0056c740).
+auto Fight::add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t until) -> void {
+        const auto group_of = [&](const d2d::rules::Skill& row) { const auto info = game_data->states.find(row.aurastate); return info != game_data->states.end() ? info->second.group : 0; };
+        const int group = group_of(skill);
+        std::erase_if(actor->self_states, [&](const SelfState& state) {
+            const auto* other = game_data->skills.get(state.skill);
+            return state.skill == skill.id || (group != 0 && other && other->aurastate != skill.aurastate && group_of(*other) == group);
+        });
+        actor->self_states.push_back({ skill.id, lvl, until });
+    }
+
 auto Fight::self_state(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         std::uint32_t until = actor->pmode_until;
@@ -94,15 +105,13 @@ auto Fight::self_state(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
             const int ticks = d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl);
             until = now_ms + std::uint32_t(ticks > 0 ? ticks : 10) * 40;
         }
-        std::erase_if(actor->self_states, [&](const SelfState& state) { return state.skill == skill.id; });
-        actor->self_states.push_back({ skill.id, lvl, until });
+        add_state(skill, lvl, until);
     }
 
 auto Fight::start_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t now_ms) -> void {
         const int len = calc(skill, skill.auralen, lvl);
         const std::uint32_t until = len > 0 ? now_ms + std::uint32_t(len) * 40 : ~0u;
-        std::erase_if(actor->self_states, [&](const SelfState& state) { return state.skill == skill.id; });
-        actor->self_states.push_back({ skill.id, lvl, until });
+        add_state(skill, lvl, until);
         // Armageddon / Hurricane's first strike: Param4 frames on (FUN_005c8190 -> FUN_004efc80).
         if (skill.srvdofunc == ServerDoFunction::kStormAroundCaster)
             (skill.aurastate == "armageddon" ? actor->armageddon_next : actor->hurricane_next) = now_ms + std::uint32_t(skill.par[3]) * 40;

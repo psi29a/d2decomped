@@ -74,8 +74,15 @@ struct Rig {
 
     auto& mana() { return world->actor->character.stats.values[d2d::d2s::kMana]; }
 
-    // Start the skill by the path d2d takes for it: true when the cast began. The mana stat is the case's, then what is left.
+    // Start the skill by the path d2d takes for it: true when the cast began. The mana stat is the case's, then what is left
+    // once the payment is taken: a skill with no start function pays on its action frame (settle_cast), the rest at the command.
     bool start(int id, int lvl, int mana_256ths) {
+        const bool began = begin_cast(id, lvl, mana_256ths);
+        if (began) world->fight.settle_cast();
+        return began;
+    }
+
+    bool begin_cast(int id, int lvl, int mana_256ths) {
         auto& fight = world->fight;
         auto* actor = world->actor;
         level = lvl;

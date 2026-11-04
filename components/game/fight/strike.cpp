@@ -584,7 +584,7 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
 
 auto Fight::strike(std::uint32_t now_ms) -> void {
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && missile_skill(*skill)) {   // Magic Arrow: the bow's action frame
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; do_sounds(now_ms); fire(*skill, now_ms); }
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); }
             return;
         }
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && (skill->srvdofunc == ServerDoFunction::kThrow || skill->srvdofunc == ServerDoFunction::kDoubleThrow)) {   // the throws (TH)
@@ -1009,8 +1009,9 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
                 if (!held) actor->attack_mon = -1;
             }
         } else if (actor->pmode == kModeSC) {                       // a self cast: its state on the action frame
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(kModeSC).action_ms()) / actor->prate)) {
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + actor->action_ms) {
                 actor->pstruck = true;
+                settle_cast();
                 do_sounds(now_ms);
                 if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && skill->srvdofunc == ServerDoFunction::kBookOrScroll) {
                     actor->portal_due = true;                         // Town Portal (FUN_005bf3d0): the World opens it

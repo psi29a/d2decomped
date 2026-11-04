@@ -463,6 +463,7 @@ struct GameData {
     // items of itemtype take (itemtrans).
     struct StateInfo {
         int pri = 0, shift = -1, item_colour = -1;
+        int group = 0;                     // States.txt group (+0x1e): states of one group switch each other off (FUN_0056c740)
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;

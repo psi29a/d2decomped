@@ -352,6 +352,15 @@ inline int cast_ticks(int frames, int rate, int fcr) {
     return std::max((256 * frames + speed - 1) / speed - 1, 1);
 }
 
+// The tick of a cast mode's action frame, counted from its start: the animation scheduler
+// (FUN_005539b0) files the event on the first tick whose position (steps of the cast speed
+// from 0) reaches the frame (tools/emu/cast_mana.py runs game.exe's code for it, V run, for the
+// first Sorceress SC record only; other classes' SC records and A1-mode casts such as Magic Arrow
+// are not in the oracle, U).
+inline int cast_action_ticks(int frame, int rate, int fcr) {
+    return std::max(256 * frame + std::max(cast_speed(rate, fcr), 1) - 1, 0) / std::max(cast_speed(rate, fcr), 1);
+}
+
 // Open wounds: bleeding per second for a character level (1.10's table in
 // 256ths a tick, times 25 ticks), for 8 seconds.
 inline int open_wounds_per_sec(int clvl) {

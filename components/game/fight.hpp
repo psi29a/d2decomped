@@ -223,6 +223,8 @@ struct Fight {
         struct Leap { float from_x = 0, from_y = 0, to_x = 0, to_y = 0; std::uint32_t start = 0, lands = 0; int skill = -1, level = 1; };
         std::optional<Leap> leap;
         bool  pstruck = false;                 // this swing's hit is resolved
+        struct Owed { int skill = -1, lvl = 0; } owed;   // a cast's mana, taken on its action frame (FUN_0056f7f0)
+        std::uint32_t action_ms = 0;           // the current mode's action frame, ms from its start
         float prate = 1.f;                     // the mode's animation rate (attack speed, FHR, FBR)
         d2d::rules::Fighter player_combat;                // the player in a fight, as of this frame
         d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)
@@ -661,6 +663,7 @@ struct Fight {
     // brackets, synergy and the element's mastery (flag 1); Power Strike's
     // lightning, Poison Dagger's poison). Stun is elsewhere.
     void skill_element(d2d::rules::Fighter& fighter, const d2d::rules::Skill& skill);
+    void add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t until);
     void self_state(const d2d::rules::Skill& skill, std::uint32_t now_ms);
 
     // A self cast's state (FUN_005c9480 and kin): auralen frames — none
@@ -1116,6 +1119,8 @@ struct Fight {
     // What the check asks (FUN_0056c160: no minmana floor); pay takes what FUN_0056bfe0 takes.
     [[nodiscard]] int cost_of(const d2d::rules::Skill& skill, int lvl) const;
     void pay(const d2d::rules::Skill& skill, int lvl);
+    void owe(const d2d::rules::Skill& skill, int lvl);
+    void settle_cast();
     // Frenzy's state (FUN_005d8c70): each hit that lands raises it a level,
     // up to the skill's, for auralencalc ticks; its aurastats (velocitypercent
     // dm34, attackrate dm56) are taken at that level.
