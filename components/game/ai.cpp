@@ -3000,9 +3000,11 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     if (stats) monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng, 0, players, area_monster_level(game_data, level_id, difficulty));
     monster.hit_points = monster.last_hp = monster.stats.hit_points;
     monster.difficulty = std::clamp(difficulty, 0, 2);
-    // Its MonProp row; spawn_monsters takes it again on the unit seed.
-    // ponytail: here a min..max slot draws on the seed it has yet (no shipped
-    // row with one is made this way).
+    // Its MonProp row; spawn_monsters takes it again on the unit seed. Here
+    // the row draws on the seed it has yet, which no shipped row feels: 1.14d
+    // MonProp has no chance column set, and its only min..max slots are
+    // quillrat6..8's thorns (N, H), made only by spawn_monsters (no MonStats
+    // spawn / minion, Skills summon or quest makes them).
     monster.props = d2d::rules::monster_props(game_data.rules, type_info, monster.difficulty, monster.seed);
     return monster;
 }
