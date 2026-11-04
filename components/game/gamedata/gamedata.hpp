@@ -560,9 +560,9 @@ struct GameData {
         int spell_desc = 0, spell_calc = 0, spell_stat = -1;
     };
     std::unordered_map<std::string, ItemDesc> item_desc;
-    std::vector<int> prefix_req, suffix_req, unique_req, set_req;
-    // MagicPrefix / MagicSuffix class (+0x67, -1 none) and classlevelreq (+0x68), by row.
-    std::vector<std::pair<int, int>> prefix_class_req, suffix_class_req;
+    std::vector<int> prefix_req, suffix_req, unique_req, set_req, automagic_req;   // automagic_req: AutoMagic levelreq by row (class_affix - 1)
+    // MagicPrefix / MagicSuffix / AutoMagic class (+0x67, -1 none) and classlevelreq (+0x68), by row.
+    std::vector<std::pair<int, int>> prefix_class_req, suffix_class_req, automagic_class_req;
     // UniqueItems / SetItems dropsound, usesound, dropsfxframe by row (item_sound, flippy_sound).
     struct RowSound { std::string drop, use; int drop_frame = 0; };
     std::vector<RowSound> unique_sounds, set_sounds;
