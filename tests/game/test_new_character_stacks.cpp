@@ -7,6 +7,7 @@
 // minstack 30, maxstack 60) and the rest typed in.
 
 #include <character_store.hpp>
+#include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <rules.hpp>
 
