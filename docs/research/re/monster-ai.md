@@ -559,8 +559,9 @@ BaalCrab,BaalCrabClone --dump tests/mon_ais_baal_cases.inc` (2026-10-24).
   the target's spot); 15 a clone (FUN_005fc860), then stand 5; else stand 5.
 - Clone (FUN_005fc860): none while one of his lives (FUN_0058f380 /
   FUN_005fc830); baalclone (0x23a) at his spot + low % 24 − 12 per axis
-  (his seed), a third of his max life and life, regen 0, flags 0x4020000,
-  +0x18 counted.
+  (his seed), a third of his max life and life, regen 0, flags 0x4020000
+  (no experience, no drop), its first think 15 frames on (`FUN_005de0f0`
+  with EDX the clone, 005fca7b), +0x18 counted. d2d: `vile_effigy`.
 - The clone's think: its master gone or busy (FUN_00552fd0, FUN_005541b0)
   → FUN_0057ccb0 (dies); else Baal's chooser, acts 7 / 9 / 14 / 15 → 2,
   no target stands 15.

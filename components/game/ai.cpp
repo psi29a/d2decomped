@@ -428,6 +428,7 @@ std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level
     clone.hit_points = std::max(baal.hit_points / 3, 1);
     clone.stats.regen = 0;
     clone.aware = true;
+    clone.no_exp = clone.no_drop = true;                           // unit flags |= 0x4020000 (005fca71)
     clone.seed = d2d::rules::Rng{ rng.next() };
     return clone;
 }
@@ -1575,11 +1576,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // Baal's Vile Effigy (FUN_005fc860): none while one lives; baalclone
         // +- 12 (two draws of his seed) about the unit he's at (FUN_00553540;
         // his own spot without one), a third of his life, no regen (stat 0x4a
-        // 0), made in NU; his AI control +0x18 counts it.
-        // ponytail: its unit flags 0x4020000 aren't kept.
+        // 0), made in NU; his AI control +0x18 counts it. Unit flags 0x4020000
+        // (no experience, no drop: vile_effigy) and its first think 15 frames
+        // on (005fca71 .. 005fca7f: FUN_005de0f0(15) with EDX the clone).
         if (effect.kind == d2d::rules::ThinkEffect::clone && born
             && std::ranges::none_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrabClone"; }))
             if (auto clone = vile_effigy(game_data, level, monster, target ? target_x : x, target ? target_y : y, rng, players_in(foes))) {
+                clone->next_act = now_ms + 15 * 40;
                 born->push_back(std::move(*clone));
                 ++monster.ai_state2;
             }   // a4q1's FUN_005b4390 (World::act4_update)

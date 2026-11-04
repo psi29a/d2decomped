@@ -114,7 +114,8 @@ int main() try {
         const auto clone = vile_effigy(*data, here, baal, 200, 300, effigy_rng, 1);
         assert(clone && int(std::floor(clone->unit.x * 5)) == want_x && int(std::floor(clone->unit.y * 5)) == want_y);
         assert(clone->stats.regen == 0 && clone->hit_points == std::max(baal.hit_points / 3, 1));
-        std::printf("OK: the Vile Effigy rises about Baal's target, with no regen\n");
+        assert(clone->no_exp && clone->no_drop);   // unit flags 0x4020000 (005fca71)
+        std::printf("OK: the Vile Effigy rises about Baal's target, with no regen, experience or drop\n");
 
         // A whipped minion turns itself (FUN_00574370): the same unit id, group and spot, the new class.
         const auto minion_row = data->monsters.by_id.find("minion1");
