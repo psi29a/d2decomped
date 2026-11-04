@@ -526,14 +526,10 @@ std::vector<std::pair<std::size_t, std::size_t>> populate_level(const GameData& 
     return order;
 }
 
-// Footprints into the walk grid, centred on each unit's subtile: an
-// object's when it collides in its start mode (HasCollision0..7), noting
-// the subtiles a tile blocks as well (Npc::walls) for set_footprint.
-// (Quest-gated units like Cain stay out of it: they're not always there.)
-// ponytail: static — fine while NPCs only idle; moving units need a
-// separate occupancy layer.
-// ponytail: one walk bit (0x01) for every footprint; game.exe's object
-// flags (FUN_006209d0: 0x400, a door 0x800 | 0x06) aren't split out.
+// Footprints into the walk grid, centred on each object's subtile, when it
+// collides in its start mode (HasCollision0..7): its own FUN_006209d0 bits
+// (Npc::stamp: 0x400, a door 0x800 | 0x06, ...; set_footprint). Monsters and
+// NPCs aren't stamped here: they move, and their bits are the Crowd's (ai.hpp).
 void stamp_footprints(Level& level) {
     for (auto& npc : level.npcs) stamp_footprint(level, npc);
 }

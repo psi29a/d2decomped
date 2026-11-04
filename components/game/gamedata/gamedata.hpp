@@ -122,7 +122,6 @@ struct Npc {
     // without Sync (+0x175) it varies a little: object_frame_delta.
     std::array<std::uint16_t, 8> frame_delta{};
     bool sync = false;
-    std::uint32_t walls = 0;             // footprint subtiles a tile blocks too, row-major (stamp_footprints)
     int hc_idx = -1;                     // MonStats hcIdx (NPC menu table key)
     std::string id;                      // MonStats Id (npc.txt key)
     int quest = 0;                       // shown once this Act 1 quest is done (Cain: 4), 0 = always
