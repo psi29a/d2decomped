@@ -214,6 +214,9 @@ int main() try {
     // Doors (FUN_00581d40): closed opens; open closes, or sticks while occupied.
     assert(door_mode(0, true) == 2 && door_mode(2, false) == 0 && door_mode(2, true) == 5);
     assert(door_mode(5, true) == -1 && door_mode(5, false) == 0 && door_mode(1, false) == -1);
+    // An 0x8000 object in the doorway: 4, for good; locked (6) opens only with a key.
+    assert(door_mode(2, false, true) == 4 && door_mode(5, true, true) == 4 && door_mode(4, false) == -1);
+    assert(door_mode(6, false) == -1 && door_mode(6, false, false, true) == 2);
     assert(object_sound(15, 2) == 2568 && object_sound(13, 0) == 2564 && object_sound(15, 1) == 0 && object_loop(37, 0) > 0 && object_loop(12, 3) > 0);   // object_door_wood_open, object_door_metal_close; a torch, a fountain loop
     // The Gibbet's call (FUN_004cb460): FUN_006416d0's range, less the half sizes (the Gibbet's 3, a
     // player's 2), the smaller plus twice the larger, halved; under 0x14, in mode 0, once.

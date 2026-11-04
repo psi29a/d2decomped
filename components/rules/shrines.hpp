@@ -229,13 +229,14 @@ Opened open_container(int operate, int object_id, bool locked, bool sparkle, Rng
 // A door operated (OperateFn 8, FUN_00581d40; its modes NU OP ON S1..S4 are
 // 0..6), at least 500 ms after its last change (unit +0xd4): closed (0)
 // opens (2); open, or stuck (5), it closes (0) when no one stands in it
-// (FUN_0064d800, mask 0x8180), else it sticks at 5. -1: no change.
-// ponytail: the 0x8000 blocker (mode 4) and the locked door (6, a key)
-// aren't here: no Act 1 door starts in either.
-inline int door_mode(int mode, bool occupied) {
-    if (mode == 0) return 2;
+// (FUN_0064d800, mask 0x8180), else it sticks at 5, or goes to 4 when what
+// stands in it is an 0x8000 object (`blocker`: SubClass & 4, Npc::stamp).
+// Locked (6), it opens (2) when the operator had a key (`key`: FUN_0055f140
+// takes one) and otherwise stays. -1: no change; 4 never changes again.
+inline int door_mode(int mode, bool occupied, bool blocker = false, bool key = false) {
+    if (mode == 0 || (mode == 6 && key)) return 2;
     if (mode != 2 && mode != 5) return -1;
-    return !occupied ? 0 : mode == 5 ? -1 : 5;
+    return !occupied && !blocker ? 0 : blocker ? 4 : mode == 5 ? -1 : 5;
 }
 // An armor stand's armor (FUN_00584160 -> FUN_005594c0) or a weapon rack's
 // weapon (FUN_005841d0 -> FUN_00559630) at item level `ilvl` (the area
