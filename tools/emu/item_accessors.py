@@ -149,6 +149,7 @@ def main():
     mask32(0x628170, 0x14)
     item_level_get()
     write8(0x628280, 0x45)
+    write8(0x628320, 0x47)
     print("item accessors: all game.exe checks passed")
 
 
