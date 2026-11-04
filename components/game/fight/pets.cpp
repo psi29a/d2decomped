@@ -910,7 +910,11 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
             auto fighter = actor->pf_kick;
             auto swing = skill_swing(*skill, lvl, calc_env(), false);
             add_charges(pet.charges, fighter, swing, false);
-            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(fighter, target_of(std::size_t(target)), monster.stats.level, rng, swing), now_ms);
+            const auto target_view = target_of(std::size_t(target));
+            auto blow = d2d::rules::player_blow(fighter, target_view, monster.stats.level, rng, swing);
+            const auto frozen = freeze_on(std::size_t(target), target_view, blow, swing.freeze_len);
+            pet_strike(pet, std::size_t(target), blow, now_ms);
+            stand(std::size_t(target), frozen, now_ms);
             release(pet.charges, std::size_t(target), now_ms, false);
             return;
         }
@@ -927,8 +931,11 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         }
         const bool finishing = finisher(skill);
         if (finishing) add_charges(pet.charges, fighter, swing, false);
-        const auto blow = d2d::rules::player_blow(fighter, target_of(std::size_t(target)), monster.stats.level, rng, swing);
+        const auto target_view = target_of(std::size_t(target));
+        auto blow = d2d::rules::player_blow(fighter, target_view, monster.stats.level, rng, swing);
+        const auto frozen = freeze_on(std::size_t(target), target_view, blow, swing.freeze_len);
         pet_strike(pet, std::size_t(target), blow, now_ms);
+        stand(std::size_t(target), frozen, now_ms);
         if (blow.hit && skill->srvstfunc == ServerStartFunction::kChargeUp) charge(pet.charges, *skill, lvl, now_ms);
         if (blow.hit && finishing) release(pet.charges, std::size_t(target), now_ms, false);
     }

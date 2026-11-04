@@ -641,8 +641,11 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         }
         const int hp_before = target_monster.hit_points;
         const auto target = std::size_t(actor->attack_mon);
-        const auto blow = d2d::rules::player_blow(fighter, target_of(target), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, current_swing);
+        const auto target_view = target_of(target);
+        auto blow = d2d::rules::player_blow(fighter, target_view, int(actor->character.stats.get(d2d::d2s::kLevel)), rng, current_swing);
+        const auto frozen = freeze_on(target, target_view, blow, current_swing.freeze_len);
         if (land(target, blow, true, now_ms, player_foe_id())) player_thorns(target, blow);
+        stand(target, frozen, now_ms);
         if (blow.hit && charging) charge(*skill, now_ms);
         if (blow.hit && finishing) release(target, now_ms);
         if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kDragonTail) dragon_tail(*skill, target, blow.phys, now_ms);

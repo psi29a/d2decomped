@@ -703,6 +703,13 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow, roll);
         blow.hit_class = missile.info->hit_class | skill->hit_class;
+        const auto frozen = freeze_on(monster_index, target, blow, freeze);
+        land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
+        if (missile.striker < 0) monster_return_fire(monster_index, missile, missile.by_merc, now_ms);
+        stand(monster_index, frozen, now_ms);
+    }
+
+auto Fight::freeze_on(std::size_t monster_index, const d2d::rules::Target& target, d2d::rules::Blow& blow, int freeze) -> d2d::rules::Freeze {
         d2d::rules::Freeze frozen;
         // State 0x36 (uninterruptable) takes no freeze and no chill for it (FUN_0057b230's first test).
         if (const auto& struck = monsters[monster_index]; blow.hit && freeze > 0 && struck.type >= 0 && !struck.uninterruptable()) {
@@ -712,8 +719,10 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
                                                 game_data->freeze_divisor[std::size_t(struck.difficulty)]);
             blow.chill_ticks = std::max(blow.chill_ticks, frozen.chill_ticks);
         }
-        land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
-        if (missile.striker < 0) monster_return_fire(monster_index, missile, missile.by_merc, now_ms);
+        return frozen;
+    }
+
+auto Fight::stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, std::uint32_t now_ms) -> void {
         // A freeze stands it as a stun does, without the stun's guards. A
         // length over the divisor of 0 is state 1 for no frame: nothing shows.
         // MonsterFreezeDivisor 0 is game.exe's assert (0x254); 1.14d has none.

@@ -542,6 +542,7 @@ struct Swing {
     int stun_ticks = 0;                   // EType stun: the target stands this long (FUN_0057aae0)
     int hit_class = 0;                    // the skill's HitClass, OR-ed into the weapon's
     int conv_type = -1, conv_pct = 0;     // calc4 % of the physical becomes this element (Skill::etype order)
+    int freeze_len = 0;                   // the record's freeze length (+0x34): Blades of Ice's third charge (charge_bonus)
     // Elemental damage as % of the physical rolled (Vengeance, FUN_005cfe10:
     // FUN_0057b420's physical x calc1 fire, calc2 cold, calc3 lightning).
     int fire_pct = 0, cold_pct = 0, ltng_pct = 0, cold_len = 0;

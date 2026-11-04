@@ -142,6 +142,19 @@ int main() {
     fists.prgdam = 4;
     const auto fists_charge = charge_bonus(skill_tables, fists, CalcEnv{}, 1, 1);
     assert(fists_charge.etype == bolt.etype && fists_charge.elem_lo == 3 && charge_bonus(skill_tables, fists, CalcEnv{}, 1, 0).etype == -1);
+    assert(fists_charge.conv_pct == 0 && fists_charge.freeze_len == 0);
+    // FUN_005d3970: calc1 % of the physical to the element (Fists of Fire's
+    // lvl*3); cold at 3 charges adds its length / Param5 to the freeze.
+    fists.calc[0] = compile("lvl*3");
+    assert(charge_bonus(skill_tables, fists, CalcEnv{}, 4, 1).conv_pct == 12);
+    Skill blades = bolt;
+    blades.prgdam = 4; blades.etype = 2; blades.elen = 50; blades.par[4] = 1;
+    assert(charge_bonus(skill_tables, blades, CalcEnv{}, 1, 2).freeze_len == 0);
+    assert(charge_bonus(skill_tables, blades, CalcEnv{}, 1, 3).freeze_len == 50 && charge_bonus(skill_tables, blades, CalcEnv{}, 1, 3).elem_len == 50);
+    blades.par[4] = 2;
+    assert(charge_bonus(skill_tables, blades, CalcEnv{}, 1, 3).freeze_len == 25);
+    blades.par[4] = 0;
+    assert(charge_bonus(skill_tables, blades, CalcEnv{}, 1, 3).freeze_len == 0);
 
     // Sequences (0x7483b8): Jab with a spear, 21 frames, three hits; the
     // claws' seq 16 with two claws hits in A2 then S4; none for a bow.

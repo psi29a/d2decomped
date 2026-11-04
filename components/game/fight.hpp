@@ -974,6 +974,11 @@ struct Fight {
     // `freeze`: a Glacial Spike's freeze, frames. `roll`: the burst's one
     // record, drawn by the first blow and resisted by each unit.
     void strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze = 0, d2d::rules::MissileRoll* roll = nullptr);
+    // A blow's freeze length (record +0x34) on monster i (FUN_0057b230,
+    // rules::monster_freeze): its chill goes on the blow; stand() then
+    // stands it for the freeze, after the blow lands.
+    [[nodiscard]] d2d::rules::Freeze freeze_on(std::size_t monster_index, const d2d::rules::Target& target, d2d::rules::Blow& blow, int freeze);
+    void stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, std::uint32_t now_ms);
     // Every monster within r subtiles of (x, y) takes the missile's damage;
     // `one_roll`: from one roll for all of them (hit functions 1 and 13).
     void area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze = 0, bool one_roll = false);
