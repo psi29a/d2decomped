@@ -16,6 +16,7 @@
 #include <outdoor_data.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <shrines.hpp>
 #include <txt.hpp>
 #include <uniques.hpp>
 #include <units.hpp>
@@ -802,12 +803,12 @@ struct ObjectRooms {
     }
 
     // A preset past objects.txt (FUN_0054f490's table at 0x731d28): 574-579 a
-    // shrine (136), 580 / 581 a random chest (FUN_0054f370 a sparkling one,
-    // FUN_0054f180), 582 a quest's (FUN_0059d830): the Summoner's six tomb
-    // symbols (FUN_0059d720), the table at 0x738fac less the true tomb's, in
-    // turn, round again after six.
-    // ponytail: 574-579's kind (their range, on the unit's own seed) and
-    // 582's quest check aren't taken.
+    // shrine (136, FUN_0054f0d0: its kind rules::preset_shrine, in presets),
+    // 580 / 581 a random chest (FUN_0054f370 a sparkling one, FUN_0054f180),
+    // 582 a quest's (FUN_0059d830): the Summoner's six tomb symbols
+    // (FUN_0059d720), the table at 0x738fac less the true tomb's, in turn,
+    // round again after six. FUN_0059d830's check for quest record 13 always
+    // passes: FUN_00545d80 makes every record of 0x731510's 37 at game start.
     int special(int id) {
         if (id < 580) return 136;
         if (id == 582) {
@@ -878,6 +879,8 @@ struct ObjectRooms {
             if (unit.type == d2d::rules::unit_type::kObject && unit.id != 0x23d) {
                 const auto before = level.npcs.size();
                 make(unit.id > 0x23d ? special(unit.id) : unit.id, unit.x, unit.y, false);
+                if (unit.id >= 574 && unit.id <= 579 && level.npcs.size() > before)
+                    level.npcs.back().shrine = d2d::rules::preset_shrine(unit.id, level.npcs.back().seed);
                 // FUN_0054f370: FUN_005540a0(unit, 1); in the Maggot Lair (62-64) only 51 in 100, an object-seed draw after it's made.
                 const bool lair = level.id >= d2d::rules::level_ids::kMaggotLairLevel3 - 2 && level.id <= d2d::rules::level_ids::kMaggotLairLevel3;
                 if (unit.id == 580 && level.npcs.size() > before && (!lair || rgn.next() % 100 <= 50)) level.npcs.back().sparkle = true;
