@@ -1467,8 +1467,9 @@ inline void room_tiles(Room& room, const OutdoorData& data, const OutdoorLevel& 
 
 // The act 1 wilderness level `L` from its seed. The tiles come out
 // level-relative: 4 wall layers, 2 floors, 1 shadow.
-// ponytail: plain-room tiles take a DT1 variant at draw time (first
-// match), not game.exe's rarity pick on the room seed (FUN_0066d820).
+// Plain rooms' tiles get their DT1 variant later, as game.exe's rarity pick
+// on the room seed (FUN_0066d820 in room_tiles.hpp level_room_tiles, into
+// Level::picks): `diff_drlg.py 1-20 2 tiles` (and level 4) match.
 // A plain room's DT1 mask by LevelType (FUN_006750f0): the wilderness
 // 0x44103; the desert, Kurast, the Siege, Bloody Foothills 1; the jungle
 // 4; Act 5's highlands 0x11.
