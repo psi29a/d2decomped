@@ -5,6 +5,8 @@ affix	0x68	u8	class_level	the affix's class-specific required level	docs/researc
 damage	0x04	u32	flags	which fields the record carries (1 | 4 as FUN_0057b420's callers set it)	tools/emu/monster_damage.py:165
 damage	0x08	i32	physical	the physical field, in 256ths (what Bone Armor takes from)	docs/research/re/combat.md:274
 damage	0x4c	i32	total	the record's total after the absorb and the reduction, in 256ths	docs/research/re/combat.md:274
+data_tables	0xbf8	ptr	item_types	the ItemTypes records, with stride 0xe4	docs/research/re/items.md:53
+data_tables	0xbfc	u32	item_type_count	the number of ItemTypes records	docs/research/re/items.md:53
 event	0x00	u8	event	the event id (0xb: absorb)	tools/emu/monster_damage.py:153
 event	0x04	u32	active	1 while the state is on	tools/emu/monster_damage.py:153
 event	0x0c	u32	skill	the Skills row index of the state	tools/emu/monster_damage.py:153
@@ -29,6 +31,7 @@ item_record	0xc0	u32	field_c0	the value returned by FUN_00628500	docs/research/r
 item_record	0xfd	u8	level	the base item level	docs/research/re/items.md:48
 item_record	0x10f	u8	field_10f	the first byte returned by FUN_006286c0	docs/research/re/items.md:47
 item_record	0x110	u8	field_110	the second byte returned by FUN_006286c0	docs/research/re/items.md:47
+item_type	0x10	u8	field_10	the byte returned by FUN_00628860	docs/research/re/items.md:53
 levels	0x04	u8	teleport	the Levels row's Teleport column (0 none, 1 and 2 allowed)	tools/emu/sk_tele_spot.py:124
 path	0x1c	ptr	room	the room the unit is in	docs/research/re/missiles.md:33
 path	0x50	u32	collide_mask	what it collides with: a player 0x1c09, a monster 0x3c01	docs/research/re/collision.md:51

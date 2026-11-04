@@ -251,6 +251,22 @@ def main():
                 expected = initial if signed_initial > selected else selected
                 expect(actual, expected, "affix required level clamp")
 
+    def item_type_byte_get():
+        types = machine.alloc(0xE4 * 2)
+        tables = machine.alloc(0xC00)
+        machine.w32(0x744304, tables)
+        tables_view = machine.view("data_tables", tables)
+        tables_view.item_types = types
+        tables_view.item_type_count = 2
+        for index in range(2):
+            for value in (0, 1, 0x7F, 0x80, 0xFF):
+                machine.view("item_type", types + index * 0xE4).field_10 = value
+                expect(machine.call(0x628860, index), value, "item type byte read")
+        for index in (0x80000000, 0xFFFFFFFF, 2, 3, 0x7FFFFFFF):
+            expect(machine.call(0x628860, index), 0, "item type rejected index")
+        tables_view.item_types = 0
+        expect(machine.call(0x628860, 0), 0, "null item type record")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -305,6 +321,7 @@ def main():
     bitmask_set()
     normal_code_get()
     affix_level_clamp()
+    item_type_byte_get()
     print("item accessors: all game.exe checks passed")
 
 
