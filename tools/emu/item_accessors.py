@@ -62,7 +62,21 @@ def main():
             expect(machine.call(0x627E70, unit), 2, "quality rejected read")
         expect(machine.call(0x627E70, 0), 2, "quality null read")
 
+    def quality_set():
+        select()
+        for value in (0, 1, 2, 9, 0x89ABCDEF):
+            machine.call(0x627EA0, unit, value)
+            expect(machine.r32(data), value, "quality write")
+        for kind, with_data in ((3, True), (4, False)):
+            select(kind, with_data)
+            before = machine.read(data, 0x60)
+            machine.call(0x627EA0, unit, 9)
+            if machine.read(data, 0x60) != before:
+                raise AssertionError("quality rejected write changed item data")
+        machine.call(0x627EA0, 0, 9)
+
     quality_get()
+    quality_set()
     print("item accessors: all game.exe checks passed")
 
 

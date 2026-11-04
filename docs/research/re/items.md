@@ -8,6 +8,7 @@ formatting, and the other call sites cited below identify the affix fields.
 | Address | Traced claim |
 |---|---|
 | `FUN_00627e70` | Read the 32-bit quality at item data `+0x00`; return 2 (normal) for a rejected call. |
+| `FUN_00627ea0` | Write the 32-bit quality at item data `+0x00`; do nothing for a rejected call. |
 
 Re-check all claims against game.exe 1.14d:
 
