@@ -512,12 +512,15 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
 
     // Before a class is picked, the one under the mouse shows its name and
     // what it is (FUN_004307a0 from the classes' hover handlers, e.g.
-    // FUN_00430870): text boxes 0xc5 (0, 80, 800 x 100; font30 gold) and
-    // 0xc6 (250, 110, 300 x 100; font16 white), both centred, the second
+    // FUN_00430870): text boxes 0xc5 (0, 80, 800 x 100; font30) and
+    // 0xc6 (250, 110, 300 x 100; font16), both centred, the second
     // wrapped. Names 0xfa7.. / patchstring 0x2771..; descriptions string.tbl
     // 0x1408.. / expansionstring 0x57f6 (Druid), 0x57f7 (Assassin).
-    // ponytail: the boxes' font / colour words (0x7089b4: 2, 0, 7, 0 and
-    // 0x7089c4: 1, 0, 0, 4) are read as font id and colour, not traced.
+    // The record's +0x28 pair {font, word} (0x7089b4: 2, 0; 0x7089c4: 1, 0)
+    // goes to the box's +0x94 / +0x98 (FUN_004fc7a0); the draw sets font
+    // +0x94 (0x4fbfdb) and never reads +0x98. Each line's colour is the
+    // one it was added with (line +0x14): 0, white, for both (the pushes
+    // at 0x4307c1 / 0x4307e7 before FUN_004fc9b0).
     if (create_ui.selected < 0 && create_ui.hovered >= 0) {
         static constexpr std::uint16_t kName[7] = { 0xfa7, 0xfa9, 0xfa8, 0xfab, 0xfaa, 0x2771, 0x2772 };   // BA NE PA AM SO DZ AS
         static constexpr std::uint16_t kDesc[7] = { 0x140a, 0x1409, 0x140c, 0x1408, 0x140b, 0x57f6, 0x57f7 };
@@ -525,7 +528,7 @@ void render_charcreate(std::vector<std::uint8_t>& framebuffer,
         const auto& name_font = scene.font30.line_height() > 0 ? scene.font30 : scene.font;
         if (const auto name = lookup_string(scene, kName[hovered])) {
             const auto text = u16_to_latin1(*name);
-            name_font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - name_font.measure(text) / 2, 80, text, 199, 179, 119);
+            name_font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - name_font.measure(text) / 2, 80, text);
         }
         if (const auto desc = lookup_string(scene, kDesc[hovered])) {
             const auto text = u16_to_latin1(*desc);
