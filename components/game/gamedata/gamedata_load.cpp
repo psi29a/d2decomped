@@ -1255,6 +1255,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         };
         game_data.rules.prefix_cost = pairs("MagicPrefix", "multiply", "add", true);
         game_data.rules.suffix_cost = pairs("MagicSuffix", "multiply", "add", true);
+        game_data.rules.automagic_cost = pairs("AutoMagic", "multiply", "add", true);
         game_data.rules.unique_cost = pairs("UniqueItems", "cost mult", "cost add", false);
         game_data.rules.set_cost    = pairs("SetItems", "cost mult", "cost add", false);
         for (const auto& [target, file_name, column, all] : { std::tuple{ &game_data.prefix_req, "MagicPrefix", "levelreq", true },

@@ -229,20 +229,6 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
     kTxtGreen{ 0, 255, 0 }, kTxtGold{ 199, 179, 119 }, kTxtYellow{ 255, 255, 100 },
     kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 }, kTxtRed{ 255, 77, 77 };
 
-// FUN_0062efb0 (D2Common's transaction cost), for buying (sell == false,
-// the vendor's price) and selling (the vendor pays). Base = the item's
-// cost (items record +0xe0), plus per quality (mult, add) extras:
-// low quality -base/2, magic prefix + suffix, rare/crafted its six
-// affixes, set/unique their cost mult/add (extra = base*mult/1024 + add);
-// + half the cost of each socketed item (FUN_006292f0); ethereal sells
-// at a quarter. Then npc.txt: * buy/sell mult / 1024 and each questflag's
-// mult when that quest is done; * quantity; selling caps at "max buy"
-// for the difficulty.
-// npc.txt's mults are the vendor's side: its "sell mult" is our buy price
-// (gamedata_load.cpp swaps them in). A buy, gamble or repair then takes
-// the player's reduced prices (stat 87) off (price_reduced).
-// ponytail: no charges/books/ammo branches, automagic affix or durability.
-
 // game.exe's attack speed bands (DAT_00721f10, FUN_004861d0): row speed
 // 10..27 (frames, below), column by class and bow/crossbow (0x722078);
 // 1 Very Fast .. 5 Very Slow. Under 10 is 1, 28 and over 5.

@@ -203,8 +203,9 @@ struct Tables {
     std::unordered_map<std::string, ItemBase> item_base;   // by item code
     std::unordered_map<std::string, NpcPrice> npc_prices;  // by MonStats Id
     // The (multiply, add) cost pairs of affixes (raw rows, like the
-    // names), uniques and set items.
-    std::vector<std::pair<int, int>> prefix_cost, suffix_cost, unique_cost, set_cost;
+    // names), uniques and set items; AutoMagic's by row (class_affix - 1:
+    // all 0 in 1.14d's AutoMagic.txt).
+    std::vector<std::pair<int, int>> prefix_cost, suffix_cost, unique_cost, set_cost, automagic_cost;
     // Vendors (docs/research/re/store.md): per game.exe vendor index (0
     // Akara, 1 Gheed, 2 Charsi, 3 Fara, 4 Lysander, 5 Drognan, 6 Hratli,
     // 7 Alkor, 8 Ormus, 9 Elzix, 10 Asheara, 11 Cain, 12 Halbu, 13
@@ -515,7 +516,17 @@ inline int staff_mod_costs(const Tables& tables, const d2d::d2s::Item& item, int
 }
 
 // Buy (sell = false) or sell price of an item at the NPC with MonStats Id
-// npc_id, for the player's header (difficulty, quest flags).
+// npc_id, for the player's header (difficulty, quest flags): FUN_0062efb0
+// (D2Common's transaction cost). Base = the item's cost (items record
+// +0xe0), plus per quality (mult, add) extras: low quality -base/2, magic
+// prefix + suffix, rare/crafted its six affixes, set/unique their cost
+// mult/add (extra = base*mult/1024 + add); + half the cost of each
+// socketed item (FUN_006292f0); ethereal sells at a quarter. Then npc.txt:
+// * buy/sell mult / 1024 and each questflag's mult when that quest is
+// done; * quantity; selling caps at "max buy" for the difficulty.
+// npc.txt's mults are the vendor's side: its "sell mult" is our buy price
+// (gamedata_load.cpp swaps them in). A buy, gamble or repair then takes
+// the player's reduced prices (stat 87) off (price_reduced).
 inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, bool sell,
                       const d2d::d2s::Header& header, int reduced = 0) {
     const auto found = tables.item_base.find(item.code);
@@ -549,15 +560,16 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     };
     // The quality extras count only once the item is identified (0062f182):
     // an unidentified magic item sells as a normal one, a low quality one isn't halved.
-    // Superior, magic, rare and crafted add their stats' costs (0062f814).
+    // The class automod's (item data +0x36, 0062f1b8) comes first, any quality;
+    // low quality's half replaces it. Superior, magic, rare and crafted add their stats' costs (0062f814).
     auto extras = [&](bool sale) {
-        int x = 0;
+        int x = item.identified && item.class_affix > 0 ? extra(tables.automagic_cost, item.class_affix - 1) : 0;
         switch (item.identified ? item.quality : 0) {
             case 1: x = -(base / 2); break;
-            case 3: x = stat_costs(tables, item, buy_base, base, sale); break;
-            case 4: x = extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix) + stat_costs(tables, item, buy_base, base, sale); break;
-            case 5: x = extra(tables.set_cost, item.set_id); break;
-            case 7: x = extra(tables.unique_cost, item.unique_id); break;
+            case 3: x += stat_costs(tables, item, buy_base, base, sale); break;
+            case 4: x += extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix) + stat_costs(tables, item, buy_base, base, sale); break;
+            case 5: x += extra(tables.set_cost, item.set_id); break;
+            case 7: x += extra(tables.unique_cost, item.unique_id); break;
             case 6: case 8:
                 for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
                 x += stat_costs(tables, item, buy_base, base, sale);
@@ -699,7 +711,7 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
         const auto [mul, add] = costs[std::size_t(index)];
         return (base < 0x10000 ? mul * base / 1024 : base / 1024 * mul) + add;
     };
-    long long x = base;
+    long long x = base + (item.quality != 1 && item.class_affix > 0 ? extra(tables.automagic_cost, item.class_affix - 1) : 0);   // the class automod, as item_price
     switch (item.quality) {
         case 1: x -= base / 2; break;
         case 3: x += stat_costs(tables, item, base, base, false); break;

@@ -64,6 +64,11 @@ int main() {
     assert(item_price(tables, item("hax", 1), "Charsi", false, header) == 500);        // low quality: half off
     Item magic = item("hax", 4); magic.prefix = 1;
     assert(item_price(tables, magic, "Charsi", false, header) == 2100);                // + 1024/1024 x base + 100
+    tables.automagic_cost = { { 0, 0 }, { 512, 10 } };
+    Item automod = item("hax", 2); automod.class_affix = 2;                            // FUN_0062efb0: AutoMagic row 1
+    assert(item_price(tables, automod, "Charsi", false, header) == 1510);              // + 512/1024 x base + 10, any quality
+    automod.quality = 1;
+    assert(item_price(tables, automod, "Charsi", false, header) == 500);               // low quality's half replaces it
     Item unid_magic = magic; unid_magic.identified = false;
     assert(item_price(tables, unid_magic, "Charsi", false, header) == 1000);              // unidentified: no quality extras
     Item cracked = item("hax", 1); cracked.identified = false;
