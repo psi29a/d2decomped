@@ -15,6 +15,7 @@
 #include <object_ids.hpp>
 #include <outdoor_data.hpp>
 #include <quests.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <txt.hpp>
@@ -31,6 +32,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -844,6 +846,10 @@ struct ObjectRooms {
         if (spawns) leader = int(spawns->size());                                              // a placement of its own (FUN_005b2f20)
         last_made.reset();
         monster(int(row), unit.x, unit.y, retry);
+        npc_from(row, unit, walks);
+    }
+    // The NPC of MonStats `row` where monster() made it last, else at the unit's spot.
+    void npc_from(std::size_t row, const d2d::drlg::Unit& unit, bool walks) {
         if (!game_data.mon_is_npc[row] || game_data.mon_npc[row].code.empty()) return;
         auto npc = game_data.mon_npc[row];
         const auto [spot_x, spot_y] = last_made ? last_spot : std::pair{ unit.x, unit.y };     // where it was made: its spot, or the free one nearest
@@ -903,11 +909,10 @@ struct ObjectRooms {
                 // object 543, record 0x1f) Larzuk (0x1ff) within 5 of FUN_00545340's spot
                 // round it (size 2, mask 0x100, 100 rings; none: no Larzuk); InitFn 68
                 // (LAB_0058a610 -> FUN_005459a0, object 461, record 0x21) Nihlathak (0x202):
-                // up to 21 steps (+1, +1) from it till inside its room less the last row
-                // and column, FUN_00545340 there (the same; none: the marker), made at
-                // that spot, else within 5, till he's gone (record +0x88).
-                // ponytail: FUN_005459a0's 20 further tries (a step on, radius 10) and its
-                // last (radius 15) aren't, nor the records' "made" bytes. InitFns 66 / 67 / 69
+                // rules::marker_npc's spot (the marker's, else a step or more on) till he's
+                // gone (record +0x88).
+                // ponytail: made in this room's bounds and on its seed, not the near room's
+                // FUN_005b2f20 is handed; nor the records' "made" bytes. InitFns 66 / 67 / 69
                 // are Act 5's quests' (world/quests/act5.cpp); 70 (LAB_00587830, Larzuk Greeting) is empty.
                 if (init == 71)
                     if (const auto spot = level.free_area(unit.x, unit.y, 2, 0x100, 100)) {
@@ -916,15 +921,30 @@ struct ObjectRooms {
                     }
                 if (init == 68) {
                     const auto& marker_room = level.rooms[room_at];
-                    const int left = marker_room.x * 5, top = marker_room.y * 5;
-                    const int right = left + marker_room.width * 5 - 1, bottom = top + marker_room.height * 5 - 1;
-                    auto marker = unit;
-                    int step = 0;
-                    while (step < 21 && !(marker.x >= left && marker.y >= top && marker.x < right && marker.y < bottom)) { ++marker.x; ++marker.y; ++step; }
-                    if (step == 21) { marker.x = unit.y; marker.y = unit.y + 21; }               // none inside: x takes the marker's y (00545a0d, bugs.md #47)
-                    if (const auto spot = level.free_area(marker.x, marker.y, 2, 0x100, 100)) { marker.x = spot->first; marker.y = spot->second; }
-                    else { marker.x = unit.x; marker.y = unit.y; }
-                    monster_or_npc(0x202, marker, 5, false);
+                    const std::array<int, 4> rect{ marker_room.x * 5, marker_room.y * 5, marker_room.width * 5, marker_room.height * 5 };
+                    const auto row = game_data.mon_bin[0x202];
+                    if (spawns) leader = int(spawns->size());
+                    using Spot = std::pair<int, int>;                                       // a room, as a subtile it holds
+                    const auto free_spot = [&](Spot&, int& at_x, int& at_y) {
+                        const auto spot = level.free_area(at_x, at_y, 2, 0x100, 100);
+                        if (spot) std::tie(at_x, at_y) = *spot;
+                        return spot.has_value();
+                    };
+                    const auto near_room = [&](const Spot& from, int at_x, int at_y) -> std::optional<Spot> {
+                        const auto rects = missile_rooms(game_data, level, float(from.first) / 5, float(from.second) / 5);
+                        if (std::ranges::any_of(rects, [&](const auto& box) { return at_x >= box[0] && at_y >= box[1] && at_x < box[0] + box[2] && at_y < box[1] + box[3]; }))
+                            return Spot{ at_x, at_y };
+                        return std::nullopt;
+                    };
+                    const auto make_at = [&](const Spot&, int at_x, int at_y, int retry) {
+                        int spot_x, spot_y;
+                        if (!put(int(row), at_x, at_y, retry, false, spot_x, spot_y)) return false;
+                        auto own = made(int(row), spot_x, spot_y);
+                        party(int(row), own, spot_x, spot_y);
+                        return true;
+                    };
+                    last_made.reset();
+                    if (d2d::rules::marker_npc(Spot{ unit.x, unit.y }, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, false);
                 }
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made

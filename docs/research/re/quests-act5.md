@@ -82,6 +82,14 @@ dead, +0xac freed, +0xb0 prisoner ids (3 × 5), +0x108 cage emptied,
   (`FUN_005888d0`: object 189 at the dead door +2, prisoners only); still
   caged → log 5 (`FUN_00588dd0`) and rand(1000) < 100 the overhead 0x14ff.
   Stands 25.
+- The portal's spot (`FUN_005888d0`): the dead door's subtile + 2 on x
+  (`FUN_00620870`, then `+2`), in the room near the player's that holds it
+  (`FUN_00463740`, 0x5889ef), made there by `FUN_00555230` (0x588a13)
+  with no collision test: an object's make (jump table 0x5554e8 entry 2,
+  0x5553aa -> `FUN_0054f5d0`) returns the unit whatever stands there, and
+  `FUN_00555230` is null only when `FUN_00620290` is, which never fails
+  (it allocates). So the fallbacks after it (the door's own x, 0x588a3b;
+  `FUN_00545340(2, 0x8000, .., 100)`, 0x588a65) never run (stubs.md).
 - The portal's opener: every cage up and made = dead + freed: ≥ 12 freed
   → log 3, bits 13, 1 and 5 / 6 / 7 (15 / 14 / 12..13); else bit 14. Not
   all: bit 4, log 2.
@@ -97,9 +105,22 @@ second scroll.
 
 - Markers: 459 (InitFn 66) Anya in town at +0x84 2; 460 (InitFn 67, event
   7 `FUN_0058a500`, 25 frames, again till made) makes fana (558) at its
-  spot; 461 (InitFn 68) town Nihlathak while +0x88 is 0 (event 7:
+  spot (`FUN_00555230` ECX 2, EDX 0x22e at 0x58a558: an object's make
+  doesn't fail, so the rerun never comes: stubs.md); 461 (InitFn 68) town Nihlathak while +0x88 is 0 (event 7:
   `FUN_00589340` removes him); 462 (InitFn 69, `FUN_0058a6c0`) superunique
   60 (Nihlathak) at +0x88 1.
+- `FUN_005459a0(room, x, y, hcIdx, ...)` places a marker's town NPC (461
+  via `LAB_0058a610` at 0x58a666; also 0x5891d0, 0x58aab0, 0x58eac0): (+1,
+  +1) steps up to 21 till inside the room less its last row and column
+  (none: bugs.md #47), `FUN_00545340(size 2, mask 0x100, 100 rings)` there
+  (none: the marker's spot), then `FUN_005b2f20` at that spot (retry -1),
+  again with retry 5 (0x545a6a). Both fail: 20 tries (count at [ebp-0x10],
+  `cmp 0x14` at 0x545b04), each a further (+1, +1) from the last spot made,
+  the room near the old one holding it (`FUN_00463740`, 0x545a97; none: the
+  marker's room and spot), `FUN_00545340` (2, 0x100, 100) round it (none:
+  the marker's spot), `FUN_005b2f20` retry 10 (0x545af2). All 20 fail: one
+  at the marker's own spot, retry 15. Made with the last arg set: unit
+  +0xc4 |= 0x3000000.
 - `FUN_005893e0` (into 112 from state 0, into 113 / 114, 20131 heard):
   town Anya removed unless home, town Nihlathak removed, +0x88 = 1. Temple
   (121..124) at state < 5: state 6, Anya home, bit 14 unless 13.

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -1011,5 +1012,31 @@ struct EveQuest {
     // The log: the records' default (+0xe8 none; done at +0xd 4).
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
 };
+
+// FUN_005459a0 (InitFn 68's town Nihlathak, LAB_0058a610; Anya's markers call
+// it too): where a marker's NPC is made, quests-act5.md "Prison of Ice".
+// `rect` is the marker room's subtiles {x, y, width, height}. The callbacks:
+// `free_spot(room, x, y)` FUN_00545340 (size 2, mask 0x100, 100 rings; moves the
+// spot, false when none), `near_room(room, x, y)` FUN_00463740 (the room near
+// `room` holding the spot, nullopt when none), `make_at(room, x, y, retry)`
+// FUN_005b2f20 (true when made). True when made.
+template <class Room, class Free, class Near, class Make>
+bool marker_npc(Room marker_room, const std::array<int, 4>& rect, int marker_x, int marker_y, Free&& free_spot, Near&& near_room, Make&& make_at) {
+    int x = marker_x, y = marker_y, step = 0;
+    const auto inside = [&]() { return x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] - 1 && y < rect[1] + rect[3] - 1; };
+    while (step < 21 && !inside()) { ++x; ++y; ++step; }
+    if (step == 21) x = marker_y;                                                  // bugs.md #47: x takes the marker's y (0x545a0d)
+    Room room = marker_room;
+    if (!free_spot(room, x, y)) { x = marker_x; y = marker_y; }
+    if (make_at(room, x, y, -1) || make_at(room, x, y, 5)) return true;
+    for (int attempt = 0; attempt < 20; ++attempt) {                               // cmp 0x14 at 0x545b04
+        ++x; ++y;
+        if (const std::optional<Room> held = near_room(room, x, y)) room = *held;    // 0x545a97
+        else { room = marker_room; x = marker_x; y = marker_y; }
+        if (!free_spot(room, x, y)) { room = marker_room; x = marker_x; y = marker_y; }   // 0x545ad5
+        if (make_at(room, x, y, 10)) return true;
+    }
+    return make_at(marker_room, marker_x, marker_y, 15);
+}
 
 }  // namespace d2d::rules
