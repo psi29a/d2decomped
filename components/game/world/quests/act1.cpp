@@ -131,8 +131,11 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
         const bool cain_flagged = cain.rescued_flag;
         const auto cain_said = cain.said(quests(), hc_idx, message_string, scroll != actor->character.items.end(), actor->id);
         if (cain_said == Said::ring && !cain_flagged && d2d::rules::quest::bit(quests(), 4, 13)) chain(4);   // FUN_00592250: the game's (4, 13) goes on
-        if (cain_said == Said::decipher) {        // ponytail: bks becomes bkd where it lies (same size), not a new item (agent A's)
-            scroll->code = "bkd";
+        if (cain_said == Said::decipher) {        // the scroll goes (FUN_00544160), a new bkd (FUN_005466b0): into the inventory, else at the feet
+            take_carried("bks");
+            loot.put({ .code = "bkd", .quality = 2 }, actor->player.x, actor->player.y, d2d::rules::player_ilvl(int(actor->character.stats.get(d2d::d2s::kLevel))),
+                     fight.spawning.game, now);
+            loot.take(loot.ground.size() - 1, now);
             d2d::log::info("Search for Cain: Akara deciphered the scroll");
         }
         if (cain_said == Said::ring) {            // FUN_005466b0: into the inventory, else at the feet

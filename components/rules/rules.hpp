@@ -1930,14 +1930,16 @@ inline bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expa
     if (found->second.quest && item.code != "leg") return false;
     return !item.socketed && item.socketed_items.empty() && item.quality >= 1 && item.quality <= 3;
 }
+// A player's default item level (FUN_00558200): max(clvl, 1), +4 past 5.
+inline int player_ilvl(int clvl) {
+    const int ilvl = clvl < 2 ? 1 : clvl;
+    return ilvl > 5 ? ilvl + 4 : ilvl;
+}
 // The imbued item (FUN_00579d60, kind 0 at Charsi): the same base made
-// anew — rare (+0x30 = 6), item level max(clvl, 1) (+4 past 5,
-// FUN_00558200), a fresh seed; ethereal stays so (flag 4 / 2) and a
-// personalized name is kept.
+// anew — rare (+0x30 = 6), item level player_ilvl, a fresh seed; ethereal
+// stays so (flag 4 / 2) and a personalized name is kept.
 inline d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& rng) {
-    int ilvl = clvl < 2 ? 1 : clvl;
-    if (ilvl > 5) ilvl += 4;
-    auto made = generate_item(tables, item.code, ilvl, 6, rng);
+    auto made = generate_item(tables, item.code, player_ilvl(clvl), 6, rng);
     made.ethereal = item.ethereal;
     made.personalized = item.personalized;
     made.owner = item.owner;
