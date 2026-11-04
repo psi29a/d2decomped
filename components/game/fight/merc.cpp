@@ -156,8 +156,9 @@ auto Fight::merc_cry_stat(int stat) const -> int {
 auto Fight::merc_max_life() const -> int {
         // Its level-up life (stat 7) + its items' maxhp and hp per level (216,
         // an eighth a level), the items' maxhp percent (76) on the level-up's.
-        // ponytail: vitality's share isn't given (a hireling has no CharStats
-        // row); its items' mana goes nowhere (d2d keeps no merc mana).
+        // No vitality share: ItemStatCost op 9 (FUN_00626200) adds CharStats'
+        // life per point for a player (unit type 0) only. Its items' mana
+        // isn't kept: a cast costs a non-player nothing (FUN_0056bfe0).
         const auto gear = merc_gear();
         return int(std::max<std::int64_t>(actor->merc_st.life + gear.sum[d2d::d2s::kMaxLife] + gear.sum[216] * actor->merc_st.level / 8
                                               + std::int64_t(actor->merc_st.life) * (gear.sum[d2d::d2s::kMaxLifePercent] + merc_cry_stat(d2d::d2s::kMaxLifePercent)) / 100, 1));
@@ -216,7 +217,8 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
             if (!unit.walking) unit.path.clear();
-            // ponytail: the merc's FHR is its items' (merc_fighter); a state's stat 99 isn't kept, as a monster's.
+            // The merc's FHR is its items' (merc_fighter): no 1.14d Skills.txt aurastat or passivestat
+            // is item_fastergethitrate (stat 99), so no state of its changes it.
             actor->merc->mode_until = mode == "NU" || unit.walking ? 0
                 : mode == "GH"                                  ? now_ms + d2d::game::get_hit_ms(game_data->npc_timing(*actor->merc_npc, mode), merc_fighter().fhr)
                                                                 : now_ms + game_data->npc_timing(*actor->merc_npc, mode).length_ms();

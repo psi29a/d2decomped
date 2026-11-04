@@ -943,7 +943,14 @@ int main(int argc, char** argv) try {
         const auto voice = data->sound_index.find(std::format("{}_impossible_1", kClass[std::size_t(std::clamp(thrower.character.character_class, 0, 6))]));
         assert(voice != data->sound_index.end() && world.cues.due.size() == 1 && world.cues.due[0].sound == voice->second);
         thrower.attack_mon = 0;
-        assert(!world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 40) && world.cues.due.size() == 1);   // within 75 frames: not again
+        assert(!world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 40) && world.cues.due.size() == 2);
+        // The client skips the same class line within 75 frames of the last one played (FUN_004cb9c0);
+        // one the hush dropped never became the last.
+        Cues client{ &*data };
+        assert(world.cues.due[0].hush == Cues::kClassLine && !client.repeat_line(world.cues.due[0], throw_ms));
+        assert(client.repeat_line(world.cues.due[1], throw_ms + 75 * 40 - 1) && !client.repeat_line(world.cues.due[1], throw_ms + 75 * 40));
+        assert(!client.repeat_line({ .sound = voice->second, .hush = Cues::kHush }, throw_ms + 75 * 40 + 1));
+        world.cues.due.resize(1);
         world.display_swing(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 80);   // the host's swing, for show: shown
         assert(thrower.pmode >= 0 && std::ranges::count(world.cues.due, voice->second, &Cues::Cue::sound) == 1);
         thrower.pmode = -1;

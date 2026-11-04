@@ -374,8 +374,6 @@ struct Fight {
         std::uint32_t merc_poison_until = 0;
         std::array<PotionState, 2> merc_potion_states;   // the merc's antidote / thawing states (merc_drinks)
         double regen_acc_life = 0, regen_acc_mana = 0;
-        std::string_view last_voice;          // the last class line (FUN_004cb9c0's DAT_007c88c8) and when (DAT_007c88c4)
-        std::uint32_t last_voice_ms = 0;
         bool portal_due = false;                       // Town Portal's action frame came
         // The wisps' dance's blessing on the player (FUN_005f39b0): stat 0x50
         // (magic find) for 0x1a5e00 frames, the last one's.
@@ -553,9 +551,8 @@ struct Fight {
     void impossible(std::uint32_t now_ms);
     // FUN_004cb9c0's messages 0x13..0x18: the class line on the player, none
     // while one of its speech lines plays (FUN_004b9e90: Cue::hush); the
-    // last line again within 75 client frames of it is skipped.
-    // ponytail: a line the hush drops still counts as the last one (the
-    // client drops it, after Fight has moved the last on).
+    // last line again within 75 client frames of it is skipped, on the
+    // client (Cues::repeat_line), as game.exe's client does it.
     void class_voice(std::string_view name, std::uint32_t now_ms);
     // An SQ skill plays its sequence (FUN_00663310: seqnum's frames for
     // the weapon class) at the attack's speed; with no frames for the
@@ -589,8 +586,11 @@ struct Fight {
     // physical damage, the last kick knocking back (100% on normal
     // monsters, FUN_005d5a30). A finisher's charges add their stat 325
     // to-hit (add_charges), Dragon Flight's too (progressive_tohit).
-    // ponytail: the skills' states (Stun's stun, Concentrate's defense) and
-    // calc4's element conversion aren't applied.
+    // Their states and conversion come too: an EType stun skill (Stun) its
+    // elemental length as the stun, calc4 % of the physical to the element
+    // (Concentrate's magic; skill_swing), and a do-2 skill's aurastate on
+    // the player for the swing (FUN_0056f1f0, self_state: Concentrate's
+    // skill_armor_percent, Berserk's).
     [[nodiscard]] d2d::rules::Swing swing();
     // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the
     // merc's (Jab, Bash, Stun). `by_player`: Smite's Holy Shield damage and
@@ -697,8 +697,9 @@ struct Fight {
     // velocitypercent (67) go on its damage and pace; Iron Maiden returns
     // calc1 % of its melee damage (event domeleedamage), Terror sends it
     // running, Dim Vision and Cloak of Shadows blind it, Confuse and
-    // Attract leave it blind to the player (ponytail: they don't set it on
-    // other monsters).
+    // Attract make it neutral (align 1) for as long: it then fights other
+    // monsters, by the target kind 3 / 2 its cast set (FUN_005c3de0,
+    // FUN_005c3b90; ai.cpp's FUN_005dd610).
     void monster_states(std::uint32_t now_ms);
     // A charge-up's hit lands: one more charge (up to 3), for auralencalc
     // ticks more (FUN_005d3320).
@@ -978,6 +979,11 @@ struct Fight {
     // `freeze`: a Glacial Spike's freeze, frames. `roll`: the burst's one
     // record, drawn by the first blow and resisted by each unit.
     void strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze = 0, d2d::rules::MissileRoll* roll = nullptr);
+    // A blow's freeze length (record +0x34) on monster i (FUN_0057b230,
+    // rules::monster_freeze): its chill goes on the blow; stand() then
+    // stands it for the freeze, after the blow lands.
+    [[nodiscard]] d2d::rules::Freeze freeze_on(std::size_t monster_index, const d2d::rules::Target& target, d2d::rules::Blow& blow, int freeze);
+    void stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, std::uint32_t now_ms);
     // Every monster within r subtiles of (x, y) takes the missile's damage;
     // `one_roll`: from one roll for all of them (hit functions 1 and 13).
     void area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze = 0, bool one_roll = false);

@@ -423,7 +423,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             actor->struck_class = 0;
             if (const int cls = actor->character.character_class; cls >= 0 && cls < 7) {
                 const auto& voice = d2d::rules::sound_ids::kPlayerVoice[std::size_t(cls)];
-                cues.cue_on(unit_key(kSoundOnPlayer, actor->id), mode == kModeDT ? voice.death : voice.hit, now_ms, actor->player.x, actor->player.y, 0, mode == kModeGH);
+                cues.cue_on(unit_key(kSoundOnPlayer, actor->id), mode == kModeDT ? voice.death : voice.hit, now_ms, actor->player.x, actor->player.y, 0, mode == kModeGH ? Cues::kHush : 0);
             }
         }
         // A block (FUN_004cb860): by the hit class the client last had (unit +0xb0), the

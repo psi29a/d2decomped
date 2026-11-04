@@ -395,7 +395,10 @@ auto Fight::add_charges(const std::vector<Charge>& held, d2d::rules::Fighter& fi
             if (bonus.etype >= 0 && bonus.etype < 5) {
                 auto& [low, high] = fighter.elem[std::size_t(bonus.etype)];
                 low += bonus.elem_lo; high += bonus.elem_hi;
-                if (bonus.etype == 2) fighter.cold_len = std::max(fighter.cold_len, bonus.elem_len);
+                if (bonus.etype == 2) fighter.cold_len = bonus.elem_len;   // FUN_0056c8e0 case 4 sets +0x30
+                swing.freeze_len += bonus.freeze_len;
+                // A finisher has no calc4 conversion of its own: the charge's is the record's.
+                if (bonus.conv_pct > 0 && swing.conv_type < 0) { swing.conv_type = bonus.etype; swing.conv_pct = bonus.conv_pct; }
             }
         }
     }

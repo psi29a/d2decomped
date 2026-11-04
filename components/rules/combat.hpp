@@ -353,9 +353,12 @@ inline int get_hit_rate(int speed, int fhr) {
 // the game frame + max(held, 1) + 1; a rate of 0 ends it the next frame.
 // Sorceress SOGHHTH (8 frames at 256): 16 / 15 / 14 / 13 / 12 / 11 / 10 / 9 /
 // 8 / 7 / 6 ticks at FHR 0 / 5 / 9 / 14 / 20 / 30 / 42 / 60 / 86 / 142 / 280.
-// ponytail: the record's own event frames (AnimData +0x10, read in the same
-// loop) only queue type-0 events, not the end; a get-hit record with one
-// isn't modelled.
+// The record's own event frames (AnimData +0x10, read in the same loop)
+// queue only type-0 events, never the end, and in a get-hit those do
+// nothing: a player's (event table 0x6e1810 -> FUN_005811d0, mode 4's
+// action 0x732c10[4] = FUN_0057fe20) returns 1, a monster's (mode 3's
+// action FUN_005a6de0) drops the unit's type-0 events. 11 of 1.14d's 187
+// GH records have one (frame 0: BAGH 1HT / 2HS / 2HT / XBW, IP, SL, ...).
 inline int get_hit_ticks(int frames, int speed, int fhr) {
     const int rate = get_hit_rate(speed, fhr);
     if (rate <= 0) return 1;
@@ -469,8 +472,10 @@ inline int resisted_fine(int fine, int res) {
 // of it (MulDiv) leaving at least 1 point, then at least `low` (calc2). A
 // negative lightning resistance is taken back out first (MulDiv(dmg, 100,
 // 100 - res)), so it adds nothing once FUN_0057bf80 applies it.
-// ponytail: life_fine and max_fine are the unit's 256ths; res is its raw
-// lightning resistance (stat 0x29), pierce not taken off.
+// life_fine and max_fine are the unit's 256ths (stat 6 at 0x5c96c2, max
+// life FUN_00625d10 at 0x5c96e1, each >> 8 there); res is the unit's own
+// stat 0x29 (FUN_00625480 on FUN_0056c8e0's stat), as game.exe reads it
+// here: the attacker's pierce comes off only in FUN_0057c6c0, after.
 inline int static_field_fine(int life_fine, int max_fine, int pct, int low, int floor_pct, int res) {
     const int life = life_fine >> 8;
     if (life < 1) return -1;
@@ -583,6 +588,7 @@ struct Swing {
     int stun_ticks = 0;                   // EType stun: the target stands this long (FUN_0057aae0)
     int hit_class = 0;                    // the skill's HitClass, OR-ed into the weapon's
     int conv_type = -1, conv_pct = 0;     // calc4 % of the physical becomes this element (Skill::etype order)
+    int freeze_len = 0;                   // the record's freeze length (+0x34): Blades of Ice's third charge (charge_bonus)
     // Elemental damage as % of the physical rolled (Vengeance, FUN_005cfe10:
     // FUN_0057b420's physical x calc1 fire, calc2 cold, calc3 lightning).
     int fire_pct = 0, cold_pct = 0, ltng_pct = 0, cold_len = 0;
@@ -820,8 +826,10 @@ inline std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::sp
 // quotient a float (x87 FSTP) and the product truncated (_ftol). Each share
 // then takes its member's level penalty (kill_exp). One member (or none):
 // the kill's, unshared.
-// ponytail: the quotient is a double rounded to float, not x87 extended
-// precision rounded to float (a tie could round differently).
+// The quotient (0x57e754: FILD, FIDIV, FSTP float) comes out the same
+// through a double: an int over a level sum under 2^28 is never within
+// 2^-53 of a float's halfway point without being on it, so rounding to 53
+// bits first (or 64, or the 24 of a single-precision FPU) can't move it.
 inline std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels) {
     if (levels.size() < 2) return std::vector<std::int64_t>(levels.size(), exp);
     const auto grown = std::int32_t(std::uint32_t(levels.size() - 1) * std::uint32_t(exp) * 0x59u);

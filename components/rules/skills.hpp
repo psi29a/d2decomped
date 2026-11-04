@@ -874,14 +874,17 @@ inline int whirlwind_gap(int attack_frames) {
 //   mana at 2, both doubled at 3 (FUN_004e6ca0(ECX skill, EDX level) =
 //   Param1 + Param2 x (level - 1), at 0x5d3834);
 // 4 (Fists of Fire, Claws of Thunder, Blades of Ice, FUN_005d3970): the
-//   skill's elemental damage (FUN_0056e0c0).
+//   skill's elemental damage (FUN_0056e0c0), which sets the record's cold
+//   length (+0x30, FUN_0056c8e0 case 4); cold at 3 charges adds that length
+//   / Param5 (+0x158, FUN_004e6c70) to the freeze length (+0x34: Blades of
+//   Ice, Param5 1); calc1 % (FUN_00646ca0 at +0x138) of the physical, at
+//   most all of it, moves to the element (Fists of Fire's lvl*3).
+// prgdam 3 (FUN_005d3880) is no 1.14d skill's.
 // Each new charge also adds its aurastat calc to the state's stat
 // (FUN_005d3320 -> FUN_00627030): progressive_tohit (325, Tiger Strike's
 // and Fists of Fire's par4) is the finisher's to-hit % (FUN_0056f070
 // hands stat 0x145 to FUN_0057ec10).
-// ponytail: prgdam 4's third-charge freeze (cold length / an untraced
-// divisor) and its calc1 physical-to-element share aren't applied.
-struct ChargeBonus { int ar_pct = 0, ed_pct = 0, life_steal = 0, mana_steal = 0, etype = -1, elem_lo = 0, elem_hi = 0, elem_len = 0; };
+struct ChargeBonus { int ar_pct = 0, ed_pct = 0, life_steal = 0, mana_steal = 0, etype = -1, elem_lo = 0, elem_hi = 0, elem_len = 0, freeze_len = 0, conv_pct = 0; };
 inline ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int charges) {
     ChargeBonus bonus;
     if (lvl < 1 || charges < 1) return bonus;
@@ -901,6 +904,8 @@ inline ChargeBonus charge_bonus(const SkillTables& skill_tables, const Skill& sk
             bonus.elem_lo = elem_damage(skill_tables, skill, env, lvl, false) >> 8;
             bonus.elem_hi = elem_damage(skill_tables, skill, env, lvl, true) >> 8;
             bonus.elem_len = elem_length(skill_tables, skill, env, lvl);
+            if (skill.etype == 2 && charges == 3 && skill.par[4] != 0) bonus.freeze_len = bonus.elem_len / skill.par[4];
+            bonus.conv_pct = std::max(eval_calc(skill_tables, skill.calc[0], env, skill.id, lvl), 0);
             break;
         default: break;
     }

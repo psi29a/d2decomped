@@ -721,6 +721,7 @@ inline void play_cues(Cues& cues, Audio& audio, float listener_x, float listener
     std::erase_if(cues.due, [&](const Cues::Cue& cue) {
         if (now_ms < cue.when_ms) return false;
         if (cue.hush && audio.speaking(cue.unit)) return true;
+        if (cues.repeat_line(cue, now_ms)) return true;
         audio.play_world(*cues.game_data, cue.sound, rng(16), cue.x, cue.y, listener_x, listener_y, cue.owner, cue.unit);
         return true;
     });
