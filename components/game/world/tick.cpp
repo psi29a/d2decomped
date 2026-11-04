@@ -460,7 +460,10 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         act3_bind_new_bosses();
         init_new_objects();
         reopen_doors();
+        const auto grown_from = npc_states.size();
         grow_states(npc_states, *level);
+        // Their rooms came into play this frame (FUN_0053a8e0): thinks filed from now.
+        for (auto index = grown_from; index < npc_states.size(); ++index) file_first_think(npc_states[index], now_ms);
         stones_up();
         each_player([&](Player&) { if (!fight.dead()) fight.apply_regen(now_ms, last_ms); });
         raise_step(elapsed, now_ms);

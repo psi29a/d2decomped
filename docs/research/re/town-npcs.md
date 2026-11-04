@@ -23,6 +23,36 @@ inline) and the life (FUN_00573cb0 → FUN_0045c3e0). So an NPC's first think
 sees its seed two steps on. (A guard rogue takes up to 11; nothing reads
 them.)
 
+## The first think
+
+The spawn files it. A preset monster (DS1 mode 1, NU: drlg.md "Preset
+units") comes through FUN_0054e600 → FUN_0054e490 → FUN_005b2f20 →
+FUN_005b2a00, which calls FUN_00555230 with flags 1 (3 with spawn flag
+0x20). Its type 1 case (0x555393) sets the mode (+0x10) and runs the
+monster init (FUN_00574250). Setting NU files the think aidel (15)
+frames on (FUN_005a73e0, 0x5a7482). Flag 1 then puts the unit in its room
+(FUN_00554850, 0x55545d). A room with a client (FUN_00553160: room +0x78,
+its client count, non-zero) goes to FUN_00573780; one without goes to
+FUN_00553220 and keeps the aidel. FUN_00573780 drops the unit's event 2s
+(FUN_00540e60) and, in mode NU, files event 2 at game frame (+0xa8) + 2
+(FUN_005417d0, 0x5737c0). Modes 0 and 12 (DT, DD) file nothing. Other
+modes file only in levels 0x6e, 0x76, 0x88 and 0xf7 (also + 2). Nothing
+later in the spawn (FUN_00547d90, FUN_00552d60, FUN_005543b0,
+FUN_005b21b0, FUN_005b1cf0, FUN_005b2830) files another.
+
+A room's first client (FUN_0053a8e0: FUN_0061a660 adds it, +0x78 counted
+up at 0x61a6ef) then sends every monster in its unit list (+0x74, next
++0xe8) to FUN_00573780 when +0x78 is under 2 (0x53a93c). So the first
+think, the Npc think's home and stand 20 (FUN_005e6800), runs 2 frames
+after the NPC's room comes into play, whether the NPC was made before
+then (aidel replaced) or in a room already in play. d2d:
+`file_first_think` files it 2 frames on (`UnitState::filed`). `World::tick`
+files the states its rooms grow in a frame (`rooms_up`, then
+`grow_states`) from that frame. `npc_patrol` files any other state the
+first time it meets it, which is when its level comes into play. Checked:
+`tools/emu/npc_first_think.py` (the camp, seeds 1 and 7: every pathed
+NPC made 15, in play 2), `tests/game/test_npc_first_think.cpp`.
+
 ## The AI's commands
 
 AI control +0x20 is a circular list of commands, found by type

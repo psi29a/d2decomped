@@ -207,6 +207,12 @@ int facing16(int dir64) {
 
 }  // namespace
 
+void file_first_think(UnitState& state, std::uint32_t now_ms) {
+    constexpr std::uint32_t kFrameMs = 40;
+    state.filed = true;
+    state.wait_until = now_ms + 2 * kFrameMs;                 // NU: event 2 at frame + 2 (FUN_00573780, 0x5737c0)
+}
+
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
                 std::uint32_t now_ms, float elapsed, const Crowd& crowd, const UnitState* player, bool guard_aside) {
     constexpr std::uint32_t kFrameMs = 40;
@@ -214,6 +220,7 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         const auto& npc = level.npcs[i];
         if (npc.town_ai == TownAi::none || ((npc.town_ai == TownAi::npc || npc.town_ai == TownAi::towner) && npc.path.empty())) continue;
         auto& state = npcs[i];
+        if (!state.filed) file_first_think(state, now_ms);
         // A talk starting (FUN_00548b00): its path stopped, AI control +0x14
         // = 40, the think next frame.
         const bool listed = std::ranges::find(busy, int(i)) != busy.end();

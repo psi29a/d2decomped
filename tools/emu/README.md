@@ -246,3 +246,9 @@ to matter.
   effects hooked, against `drlg-dump ... npcs` (`rules::npc_think`):
   `THINKS=150 uv run python diff_drlg.py 1-40 0 npcs`. See
   `docs/research/re/town-npcs.md`.
+- `npc_first_think.py`: when the camp's NPCs first think, as game.exe
+  files it: made with no client in the room (aidel), then the room's
+  first client (FUN_0053a8e0 → FUN_00573780; FUN_005417d0 watched):
+  `uv run python npc_first_think.py 1` should print `made 15 in play 2`
+  for each (`npc_patrol`, `tests/game/test_npc_first_think.cpp`). See
+  `docs/research/re/town-npcs.md` "The first think".
