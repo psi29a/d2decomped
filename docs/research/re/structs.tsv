@@ -22,6 +22,8 @@ grid	0x1c	u32	h_copy	see x_copy	tools/emu/sk_tele_spot.py:65
 grid	0x20	ptr	cells	the u16 collision words, row-major (docs/research/re/collision.md)	docs/research/re/collision.md:20
 item_record	0x80	u32	code	the item's 4-character code	docs/research/re/items.md:46
 item_record	0xc0	u32	field_c0	the value returned by FUN_00628500	docs/research/re/items.md:45
+item_record	0x10f	u8	field_10f	the first byte returned by FUN_006286c0	docs/research/re/items.md:47
+item_record	0x110	u8	field_110	the second byte returned by FUN_006286c0	docs/research/re/items.md:47
 levels	0x04	u8	teleport	the Levels row's Teleport column (0 none, 1 and 2 allowed)	tools/emu/sk_tele_spot.py:124
 path	0x1c	ptr	room	the room the unit is in	docs/research/re/missiles.md:33
 path	0x50	u32	collide_mask	what it collides with: a player 0x1c09, a monster 0x3c01	docs/research/re/collision.md:51

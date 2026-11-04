@@ -173,6 +173,29 @@ def main():
             machine.view("item_record", record).code = value
             expect(machine.call(0x628590, unit), value, "item code read")
 
+    def record_pair_get():
+        first, second = machine.alloc(1), machine.alloc(1)
+        for value in (0, 1, 0x7F, 0x80, 0xFF):
+            select_record()
+            record_view = machine.view("item_record", record)
+            record_view.field_10f = value
+            record_view.field_110 = 0xFF - value
+            machine.call(0x6286C0, unit, first, second, 0, 0)
+            expect(machine.read(first, 1)[0], value, "item record +0x10f output")
+            expect(machine.read(second, 1)[0], 0xFF - value, "item record +0x110 output")
+        for rejected in (lambda: select(3), lambda: select_record(8)):
+            rejected()
+            machine.mu.mem_write(first, b"\xa5")
+            machine.mu.mem_write(second, b"\xa5")
+            machine.call(0x6286C0, unit, first, second, 0, 0)
+            expect(machine.read(first, 1)[0], 0xA5, "item record pair rejected output")
+            expect(machine.read(second, 1)[0], 0xA5, "item record pair rejected output")
+        machine.mu.mem_write(first, b"\xa5")
+        machine.mu.mem_write(second, b"\xa5")
+        machine.call(0x6286C0, 0, first, second, 0, 0)
+        expect(machine.read(first, 1)[0], 0xA5, "item record pair null output")
+        expect(machine.read(second, 1)[0], 0xA5, "item record pair null output")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -221,6 +244,7 @@ def main():
     write8(0x628420, 0x49)
     record_c0_get()
     item_code_get()
+    record_pair_get()
     print("item accessors: all game.exe checks passed")
 
 
