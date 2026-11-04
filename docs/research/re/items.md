@@ -46,6 +46,7 @@ by the record accessors below. The oracle substitutes a synthetic record.
 | `FUN_00628590` | Return the 32-bit item code at item record `+0x80` for a valid item unit with a successful class lookup. `FUN_00483c50` compares this field with the Horadric Cube code `box `. |
 | `FUN_006286c0` | Copy item record bytes `+0x10f` and `+0x110` to the two output pointers; leave them unchanged for a null unit, a wrong unit type, or a failed class lookup. The function returns with `RET 0x14`, so the oracle supplies the two additional assert arguments used by its call sites. |
 | `FUN_00628740` | Read the base item level at item record `+0xfd`, writing only `AL` and retaining the record pointer's upper 24 bits. `FUN_005c1560` uses it as a floor when selecting an affix level. |
+| `FUN_006287a0` | Return the bitwise AND of its two 32-bit arguments. |
 
 Re-check these claims against game.exe 1.14d:
 

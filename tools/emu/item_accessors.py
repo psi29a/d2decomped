@@ -203,6 +203,11 @@ def main():
             actual = machine.call(0x628740, unit, regs={"eax": HIGH})
             expect(actual, (record & 0xFFFFFF00) | value, "base item level read")
 
+    def bit_and():
+        for left in (0, 1, 0x0F0F0F0F, 0x80000000, 0xFFFFFFFF, 0x89ABCDEF):
+            for right in (0, 1, 0x33333333, 0x80000000, 0xFFFFFFFF):
+                expect(machine.call(0x6287A0, left, right), left & right, "bitwise AND")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -253,6 +258,7 @@ def main():
     item_code_get()
     record_pair_get()
     base_level_get()
+    bit_and()
     print("item accessors: all game.exe checks passed")
 
 
