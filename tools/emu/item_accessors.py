@@ -109,6 +109,14 @@ def main():
                 raise AssertionError("item level rejected read changed item data")
         expect(machine.call(0x6281E0, 0), 1, "item level null read")
 
+    def ear_name_get():
+        select()
+        expect(machine.call(0x628340, unit), data + 0x4A, "ear name pointer")
+        for kind, with_data in ((3, True), (4, False)):
+            select(kind, with_data)
+            expect(machine.call(0x628340, unit), 0, "ear name rejected read")
+        expect(machine.call(0x628340, 0), 0, "ear name null read")
+
     def quality_get():
         select()
         for value in (0, 1, 2, 9, 0x89ABCDEF):
@@ -150,6 +158,7 @@ def main():
     item_level_get()
     write8(0x628280, 0x45)
     write8(0x628320, 0x47)
+    ear_name_get()
     print("item accessors: all game.exe checks passed")
 
 
