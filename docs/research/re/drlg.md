@@ -1454,3 +1454,10 @@ its tile's cell × 5 + LvlWarp OffsetX / OffsetY (FUN_0066e1c0). The
 record comes by id and direction (FUN_0061f310: 'b', or 'l' / 'r' for
 wall orientations 10 / 11, FUN_0066e160); act 1's are all 'b'. d2d:
 `Level::Warp::unit_x/unit_y`, `World::use_warp`.
+
+When: C->S 0x13 on the tile unit (`FUN_00548b00` case 5):
+`FUN_00641530(player, tile unit)` (`rules::unit_distance`; the player's
+size 2, a warp unit's 0: `FUN_00620510` has no case 5) under 5 takes it at
+once; under 0x33 the player walks toward the unit (`FUN_00548a50`); else
+nothing. LvlWarp's SelectX / SelectY / SelectDX / SelectDY are the
+client's click box only; the server's test is that distance.

@@ -22,6 +22,7 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
+#include <monsters.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -34,6 +35,7 @@
 #include <algorithm>
 #include <array>
 #include <bitset>
+#include <cmath>
 #include <cstdint>
 #include <ctime>
 #include <initializer_list>
@@ -753,9 +755,17 @@ struct World {
     // it, the player goes to the level it leads to and stands at that
     // level's warp back, at its ExitWalk. Everything with the player
     // (merc, pets) comes along; the automap and monsters are the new level's.
-    // ponytail: "close" is 2 cells of the warp's cell, not LvlWarp's
-    // Select box; arriving puts the player on the first warp back.
+    // Close (FUN_00548b00 case 5): warp_close; a click further off walks
+    // toward its tile unit (drlg.md "Taking a warp").
+    // ponytail: a click picks the warp within 2 cells of its cell, not by
+    // LvlWarp's Select box (the client's click target).
     void use_warp();
+    // Within reach of the warp's tile unit: rules::unit_distance (the
+    // player's size 2, a warp unit's 0) under 5 (FUN_00641530).
+    [[nodiscard]] static bool warp_close(const Level::Warp& warp, float x, float y) {
+        const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+        return d2d::rules::unit_distance(subtile(x) - subtile(warp.unit_x), subtile(y) - subtile(warp.unit_y), 2, 0) < 5;
+    }
     bool host_warps = false;   // a joined game: the host takes warps; d2d follows its 0x15 there
 
     // Into level `to` near (ax, ay): everything with the player (merc, pets)

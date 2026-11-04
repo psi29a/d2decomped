@@ -97,7 +97,7 @@ auto World::display_swing(int skill, float x, float y, std::uint32_t now_ms) -> 
 auto World::use_warp() -> void {
         if (actor->take_warp < 0 || std::size_t(actor->take_warp) >= level->warps.size()) return;
         const auto warp = level->warps[std::size_t(actor->take_warp)];
-        if (std::hypot(warp.x + 0.5f - actor->player.x, warp.y + 0.5f - actor->player.y) > 2.f) {
+        if (!warp_close(warp, actor->player.x, actor->player.y)) {
             if (!actor->player.walking) actor->take_warp = -1;                                // stopped short
             return;
         }
