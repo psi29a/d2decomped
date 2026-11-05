@@ -109,6 +109,17 @@ int main() {
     items.clear();
     stats.values[d2d::d2s::kGold] = 3 * potion;
     assert(store_buy(tables, shop, 2, items, stats, 8, true) == Trade::no_gold && items.size() == 3 && gold() == 0);
+    // In an expansion game a super potion is perm (FUN_00576ed0) though not
+    // in PermStoreItems: it fills, and stays stocked (FUN_00576f50).
+    tables.item_info["hp5"] = { .type = "hpot" };
+    tables.item_base["hp5"] = { .cost = 300, .autobelt = true, .multibuy = true };
+    shop.tabs[3].push_back(stock("hp5"));
+    shop.header.status = 0x20;
+    items.clear();
+    stats.values[d2d::d2s::kGold] = 100000;
+    assert(store_buy(tables, shop, 3, items, stats, 8, true) == Trade::done && items.size() == 9 && shop.tabs[3].size() == 4);
+    shop.header.status = 0;
+    assert(store_buy(tables, shop, 3, items, stats, 8, true) == Trade::done && shop.tabs[3].size() == 3);   // classic: one, then gone
     // The belt and the inventory full after one: done, nothing more said.
     tables.item_info["big"] = { .width = 10, .height = 4 };
     tables.item_info["mp1"] = { .type = "hpot" };

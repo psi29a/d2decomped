@@ -919,7 +919,7 @@ inline bool store_perm(const Store& store, const std::string& code) {
 // Buys stock item i of the open tab (C->S 0x32, FUN_00577830): gold down
 // by the price (more than carried + stash gold: no_gold), carried gold
 // first, then the stash (FUN_00576d90); the item leaves the stock unless
-// it's a perm one. A scroll goes into a carried tome with room
+// it's a perm one (FUN_00576f50 asks FUN_00576ed0: store_perm). A scroll goes into a carried tome with room
 // (FUN_0055f640). Anything else is a copy (FUN_0055a2a0), stack and all,
 // offered to the belt first (FUN_0055e9b0 -> FUN_0063c790: belt_box,
 // `boxes` the worn belt's, 4 with none), else the inventory's first free
@@ -1013,7 +1013,7 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
         }
         items.push_back(std::move(copy));
         pay(price);
-        if (std::ranges::find(store.perm, item.code) == store.perm.end()) tab.erase(tab.begin() + index);
+        if (!store_perm(store, item.code)) tab.erase(tab.begin() + index);
     }
 }
 
