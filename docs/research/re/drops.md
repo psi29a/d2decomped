@@ -189,12 +189,17 @@ the count:
 
 d2d: `new_character` (components/game/character/character_store.hpp) gives
 a stackable start item its maxstack and a `bowq` 250 / 100, after
-`generate_item`'s roll. The first slot's item_singleskill (Fire Bolt on
-the Sorceress's staff, Raise Skeleton on the Necromancer's wand, as the
-oracle shows) isn't given yet: a `ponytail:` there.
+`generate_item`'s roll, and each item of the first slot item_singleskill
+at 1 with the start skill as its param: FUN_00534c70 calls FUN_00627150
+(the item's stat list, 0x6b, 1, the skill) once per item it makes, so a
+first slot with a count of 2 gives both. In 1.14d's data only two classes
+get it: Fire Bolt (36) on the Sorceress's staff, Raise Skeleton (70) on
+the Necromancer's wand.
 
-Checked by `tools/emu/new_character_stacks.py` (`jav 60`; with `quivers`:
-`aqv 250, aqv 100, cqv 250`) and `tests/game/test_new_character_stacks.cpp`.
+Checked by `tools/emu/new_character_stacks.py` (`jav 60`, `stat 0x6b 36 =
+1`, `stat 0x6b 70 = 1`; with `quivers`: `aqv 250, aqv 100, cqv 250`),
+`tests/game/test_new_character_stacks.cpp` and
+`tests/game/test_new_character_start_skill.cpp`.
 
 ## Item mods — FUN_0065fec0, FUN_0065fd70
 
