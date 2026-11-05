@@ -104,6 +104,25 @@ public:
         return x;
     }
 
+    // FUN_00501a80 hands glyphs to FUN_004f64b0 at a bottom-left anchor.
+    // Unlike draw_tinted, each frame's own height determines its top.
+    int draw_tinted_baseline(std::vector<std::uint8_t>& framebuffer,
+                             std::uint32_t framebuffer_width, std::uint32_t framebuffer_height,
+                             const palette::Palette& palette, int x, int baseline,
+                             std::string_view text, std::uint8_t tint_red,
+                             std::uint8_t tint_green, std::uint8_t tint_blue) const {
+        for (unsigned char letter : text) {
+            const auto* glyph = find(letter);
+            if (!glyph) continue;
+            const auto& frame = sheet_.frame(0, glyph->frame);
+            blit_glyph_tinted(framebuffer, framebuffer_width, framebuffer_height, palette, frame,
+                             x + frame.offset_x, baseline + frame.offset_y - int(frame.height) + 1,
+                             tint_red, tint_green, tint_blue, 0, 1 << 30);
+            x += glyph->width;
+        }
+        return x;
+    }
+
 private:
     static void blit_glyph_tinted(std::vector<std::uint8_t>& framebuffer,
                                   std::uint32_t fbW, std::uint32_t fbH,

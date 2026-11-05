@@ -9,6 +9,7 @@
 
 #include <d2s.hpp>
 #include <font.hpp>
+#include <text_box.hpp>
 
 #include <algorithm>
 #include <array>
@@ -16,31 +17,22 @@
 #include <cstdint>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 namespace d2d::client {
 
-// A text record (kind 4, bottom-left x, y): lines centred across `width`,
-// wrapped to it; one line sits centred in `height`.
-// ponytail: wrapped lines run down from the box's top; FUN_004fd060's
-// own placement of several lines isn't traced.
+// FUN_004fd060 adds colour-4 text through FUN_004fc9b0; FUN_004fbf30
+// draws the resulting rows. See frontend-text-box.md for the Latin path.
 static void draw_text_box(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::font::Font& font,
-                          const std::string& line, int x, int y, int width, int height, std::uint8_t shade = 255) {
-    std::vector<std::string> rows{ std::string{} };
-    std::size_t start = 0;
-    while (start < line.size()) {
-        const auto end = std::min(line.find(' ', start), line.size());
-        const std::string word = line.substr(start, end - start);
-        if (!rows.back().empty() && font.measure(rows.back() + " " + word) > width) rows.emplace_back();
-        rows.back() += (rows.back().empty() ? "" : " ") + word;
-        start = end + 1;
-    }
-    const int top = rec_top(y, height), pitch = font.line_height();
-    int row_y = rows.size() == 1 ? top + (height - pitch) / 2 : top;
+                          const std::string& line, int x, int y, int width, int height,
+                          std::uint8_t shade = 255, int margin_x = 0, int margin_y = 0) {
+    const auto rows = d2d::font::text_box_rows(line, x, y, width, height, font.line_height(),
+        [&](std::string_view text) { return font.measure(text); }, margin_x, margin_y);
     for (const auto& row : rows) {
-        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, scene.pal, x + (width - font.measure(row)) / 2, row_y, row, shade, shade, shade);
-        row_y += pitch;
+        font.draw_tinted_baseline(framebuffer, kScreenWidth, kScreenHeight, scene.pal,
+                                 row.x, row.baseline, row.text, shade, shade, shade);
     }
 }
 
@@ -277,7 +269,7 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
     if (select_ui.confirm_delete) {
         // DELETE's question: PopUpOKCancel2 (record 0xd6), the text (0xd9), NO / YES.
         blit_dc6_grid(framebuffer, scene.popup_ok_cancel, pal, 268, rec_top(350, 176), 2);
-        draw_text_box(framebuffer, scene, scene.font24, select_ui.delete_text, 268, 320, 264, 120);
+        draw_text_box(framebuffer, scene, scene.font, select_ui.delete_text, 268, 320, 264, 120, 255, 10, 8);
         for (const auto& [button, label] : { std::pair{ &select_ui.popup_no, &select_ui.no_label }, std::pair{ &select_ui.popup_yes, &select_ui.yes_label } }) {
             blit_button_chrome(framebuffer, pal, scene.cancel_button, button->x, button->y, button->hovered && button->pressed);
             const int label_x = button->x + (button->width - scene.font.measure(*label)) / 2, label_y = button->y + (button->height - scene.font.line_height()) / 2;
@@ -309,7 +301,7 @@ void render_charselect(std::vector<std::uint8_t>& framebuffer,
     // FUN_00433380 on a Sky screen: PopUpOK (record 0xde), the message
     // (0xe0, Font24) and OK (0xe1).
     blit_dc6_grid(framebuffer, scene.popup_ok, pal, 268, rec_top(350, 176), 2);
-    draw_text_box(framebuffer, scene, scene.font24, select_ui.popup, 268, 300, 264, 100);
+    draw_text_box(framebuffer, scene, scene.font24, select_ui.popup, 268, 300, 264, 100, 255, 10, 8);
     const auto& ok = select_ui.popup_ok;
     blit_button_chrome(framebuffer, pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
     const int label_x = ok.x + (ok.width - scene.font.measure(select_ui.ok_label)) / 2, label_y = ok.y + (ok.height - scene.font.line_height()) / 2;
@@ -824,7 +816,9 @@ void render_tcpip(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
     button(tcpip.cancel, tcpip.cancel_label, true);
     // The buttons' hover texts (FUN_00430120 / FUN_00430160 show records 0x108 / 0x109).
     if (!tcpip.box_open && tcpip.has_ip && (tcpip.host.hovered || tcpip.join.hovered))
-        text(scene.font_formal11, tcpip.host.hovered ? tcpip.host_text : tcpip.join_text, 265, 520, 272, 210);
+        draw_text_box(framebuffer, scene, scene.font_formal11,
+                      tcpip.host.hovered ? tcpip.host_text : tcpip.join_text, 265, 520, 272, 210,
+                      255, tcpip.join.hovered ? 2 : 0);
     if (!tcpip.box_open) return;
     // The join box: PopUpOKCancel2 (0x10f), its prompt (0x10c), IPAddressBox
     // (0x10e) and the edit line (0x10d, FontFormal12, from its left edge).
@@ -843,7 +837,7 @@ void render_tcpip_popup(std::vector<std::uint8_t>& framebuffer, const Scene& sce
     if (tcpip.popup.empty()) return;
     // FUN_00433380 on a Sky screen: PopUpOK (0xde), the message (0xe0, Font24), OK (0xe1).
     blit_dc6_grid(framebuffer, scene.popup_ok, scene.pal, 268, rec_top(350, 176), 2);
-    draw_text_box(framebuffer, scene, scene.font24, tcpip.popup, 268, 300, 264, 100);
+    draw_text_box(framebuffer, scene, scene.font24, tcpip.popup, 268, 300, 264, 100, 255, 10, 8);
     const auto& ok = tcpip.popup_ok;
     blit_button_chrome(framebuffer, scene.pal, scene.cancel_button, ok.x, ok.y, ok.hovered && ok.pressed);
     const int label_x = ok.x + (ok.width - scene.font.measure(tcpip.ok_label)) / 2, label_y = ok.y + (ok.height - scene.font.line_height()) / 2;
