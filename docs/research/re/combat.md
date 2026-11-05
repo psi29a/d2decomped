@@ -211,7 +211,15 @@ d2d matches both, and the one-poison-at-a-time rule.
   record built without the roll (Corpse Explosion `FUN_005c4d10`, Diablo's
   cold touch `FUN_005cce80`) enters `FUN_0057c1e0` as `min << 8` and draws
   nothing (V: set `exact`; U: which callers build one, read at 005c4dc1 and
-  005ccf3f). Not covered (U): Energy Shield, Cyclone Armor's fractions, the
+  005ccf3f). Energy Shield (`FUN_005ca6c0`) is an absorb event too (0xb): it
+  takes calc1 % of each unresisted field, record by record, and the
+  resistance works on what is left (`rules::energy_shield_blows`,
+  `test_energy_shield`; V run: the game-side order against the real d2d
+  build). `FUN_0057bf80` takes the flat / magic damage reduction off a field
+  BEFORE the resistance and stores a result under 0, which the record total
+  sums (V run, no shield: 100 fire at 50 % with mdr 10 deals 45); the shield
+  path keeps that, the blows no shield touched still clamp per part (U).
+  Not covered (U): Cyclone Armor's fractions, the
   flat's +0x54 / 1024 scale, `FUN_0057c060`'s percent, elements, a missile's
   `FUN_005a89a0` roll.
 - Deadly strike (stat 141), critical strike (stat 337) and mastery crit

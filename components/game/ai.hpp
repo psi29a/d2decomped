@@ -530,7 +530,13 @@ struct Foe {
     void take(const d2d::rules::Taken& taken) {
         blocked = blocked || taken.blocked;
         hits += taken.hit ? 1 : 0;
-        if (taken.hit) blows.push_back({ taken.damage, 0, taken.elemental > 0 || taken.poison > 0, taken.physical, taken.elemental, taken.poison > 0, taken.frac, taken.raw, fighter.dr_pct, fighter.dr_flat });
+        if (taken.hit) {
+            Blow blow{ taken.damage, 0, taken.elemental > 0 || taken.poison > 0, taken.physical, taken.elemental, taken.poison > 0, taken.frac, taken.raw, fighter.dr_pct, fighter.dr_flat };
+            for (std::size_t type = 0; type < blow.parts.size(); ++type)
+                if (type != 3) blow.parts[type] = { taken.element_raw[type], taken.element_dealt[type], type < fighter.res.size() ? fighter.res[type] : 0 };
+            blow.mdr = fighter.mdr;
+            blows.push_back(blow);
+        }
         damage += taken.damage; frac += taken.frac; physical += taken.physical; elemental += taken.elemental;
         if (taken.poison > 0 && taken.poison >= poison) { poison = taken.poison; poison_ticks = taken.poison_ticks; }   // the stronger (FUN_0057ac50)
         chill_ticks = std::max(chill_ticks, taken.chill_ticks);
