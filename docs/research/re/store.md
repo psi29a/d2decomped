@@ -220,7 +220,9 @@ The price function computes buy, sell and repair together. Repair:
    indestructible). In vanilla data the 186 bases of the 66 types without
    Repair (bows, throwing potions, potions, ...) all have nodurability 1,
    as do crossbows, so the Repair test never decides alone there; it is
-   kept for fidelity (mods). Nothing for whole ones. With charges missing
+   kept for fidelity (mods). The gate doesn't ask whether the item is
+   worn: a whole one passes, comes to 0 and takes the minimum, 1
+   (`0062fd5c`; 2,103 whole items in 20,000 oracle cases, all 1). With charges missing
    the gate passes and the base is scaled by durability only when
    `FUN_00629930` holds (`0062f9e7`): an item without durability pays its
    whole base, a durable one its missing share. Confidence: high (the
@@ -347,7 +349,15 @@ else rare.
 - A button's hover (`FUN_004886c0`): box x .. x + 0x2d by 432..474, the
   string centred on x = 80 + the button table's x, bottom 440. Repair
   all's string 0x276f ("Repair all equipment: %d") takes the total
-  repair cost (`FUN_0062fe60`).
+  repair cost (`FUN_0062fe60`). It counts an item by its own test, not
+  its price: one that passes `FUN_0062e660`, has durability
+  (`FUN_00629930`) and isn't at its max (durability != max); a
+  restocking stack (`FUN_0062e5d0`) under its max stack; or one with a
+  charge missing (`FUN_0062a840`). So a whole item, priced 1, adds
+  nothing. d2d: `rules::needs_repair`, used by `repair_all_cost` and
+  `store_repair`. FUN_0062fe60 walks the 13 body slots
+  (`FUN_0063bde0(inventory, 0..0xc)`); d2d's sum also takes the
+  inventory grid, which isn't traced here.
 - A bought scroll goes into a carried tome with room (`FUN_00577830` →
   `FUN_0055f640`), as one picked up does. 0x29 (`FUN_0054b710` →
   `FUN_0055ef20`) puts the held scroll into a stored tome of the same

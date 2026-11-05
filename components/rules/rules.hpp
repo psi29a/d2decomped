@@ -675,35 +675,63 @@ inline bool recharge(d2d::d2s::Item& item) {
     return any;
 }
 
+// A charged skill (stat 204) below its max: FUN_0062a840's second answer 0.
+inline bool charge_missing(const d2d::d2s::Item& item) {
+    return std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == d2d::d2s::kChargedSkill && (prop.value & 255) < (prop.value >> 8); });
+}
+// FUN_00629930: an item with durability (nodurability 0, a durability
+// column, max != 0, not indestructible).
+inline bool has_durability(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto found = tables.item_base.find(item.code);
+    return found != tables.item_base.end() && !found->second.no_durability && found->second.durability > 0 && max_durability(item) != 0 && !indestructible(tables, item);
+}
+// The item's ItemTypes row has Repair (FUN_0062b400 -> FUN_00555c90 +8).
+inline bool type_mends(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto info = tables.item_info.find(item.code);
+    const auto kind = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+    return kind != tables.types.end() && kind->second.repair;
+}
+// What a repair may price (FUN_0062e660): identified, not ethereal, and a
+// charge missing, or a type with Repair that restocks or has durability.
+// A whole item passes: worn or not isn't asked here.
+inline bool repairable(const Tables& tables, const d2d::d2s::Item& item) {
+    if (item.ethereal || !item.identified) return false;
+    return charge_missing(item) || (type_mends(tables, item) && (restocks(tables, item) || has_durability(tables, item)));
+}
+// What Repair All counts (FUN_0062fe60): a repairable item with durability
+// below or above its max, a restocking stack (FUN_0062e5d0: its type has
+// Repair, not ethereal) short of its max stack, or a charge missing.
+inline bool needs_repair(const Tables& tables, const d2d::d2s::Item& item) {
+    const int max = max_durability(item);
+    if (repairable(tables, item) && has_durability(tables, item) && item.durability != max) return true;
+    const auto found = tables.item_base.find(item.code);
+    const int max_stack = found != tables.item_base.end() ? found->second.max_stack : 0;
+    if (type_mends(tables, item) && restocks(tables, item) && !item.ethereal && item.quantity < max_stack) return true;
+    return charge_missing(item);
+}
+
 // Repair cost at the NPC (FUN_0062efb0 mode 3): the buy base with its
 // quality extras, times missing / max durability, times npc.txt rep mult
 // and the quest rep mults / 1024, then the missing charges'
-// (charges_repair_cost, after the mults); 0 when there's nothing to repair.
-// A stack that restocks pays for its missing quantity instead (its base
-// a unit's, its durability free). Ethereal and unidentified items can't
-// be repaired (FUN_0062e660 at 0062efee: price 0), nor can an item whose
-// ItemTypes row has no Repair, or that neither restocks nor has durability
-// (FUN_00629930: nodurability 0, a durability column, max != 0, not
-// indestructible), unless charges are missing. In vanilla data every base
-// of a type without Repair also has nodurability 1, so the Repair test is
-// redundant there and kept for fidelity (mods).
+// (charges_repair_cost, after the mults). An item `repairable` refuses
+// (FUN_0062e660 at 0062efee) costs 0. A stack that restocks pays for its
+// missing quantity instead (its base a unit's, its durability free). In
+// vanilla data every base of a type without Repair also has nodurability
+// 1, so the Repair test is redundant there and kept for fidelity (mods).
 // With charges missing the gate passes and the base is scaled by the
 // durability as FUN_0062efb0 does (0062f9e7): an item without durability
-// pays its whole base, a durable one its missing share (none when whole).
-// ponytail: no socket terms. A whole item stays 0 here (the original
-// prices it 1, its Repair All skips it).
+// pays its whole base, a durable one its missing share. A whole item that
+// passes the gate costs 0 before the minimum, so 1 (0062fd5c): Repair All
+// skips it by `needs_repair`, not by its price.
+// ponytail: no socket terms.
 inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, int reduced = 0) {
     const int max = max_durability(item);
     const bool restock = restocks(tables, item);
     const auto found = tables.item_base.find(item.code);
     const int max_stack = found != tables.item_base.end() ? std::max(found->second.max_stack, 1) : 1;
-    if (item.ethereal || !item.identified) return 0;
-    const auto info = tables.item_info.find(item.code);
-    const auto kind = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
-    const bool mends = kind != tables.types.end() && kind->second.repair;
-    const bool durable = found != tables.item_base.end() && !found->second.no_durability && found->second.durability > 0 && max != 0 && !indestructible(tables, item);
+    if (!repairable(tables, item)) return 0;
+    const bool durable = has_durability(tables, item);
     const int charges = charges_repair_cost(tables, item);
-    if (!(mends && (restock ? item.quantity < max_stack : durable && item.durability < max)) && charges <= 0) return 0;
     int base = armor_scaled(tables, item, found != tables.item_base.end() ? found->second.cost : 0);
     if (item.quality < 4) base += staff_mod_costs(tables, item, base, base, false);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
@@ -753,8 +781,10 @@ inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
 }
 
 // Repairs item i (gold first from the inventory, then the stash, as a
-// buy). False if it's whole or you can't pay.
+// buy). False if it needs none (`needs_repair`: a whole item's price is
+// still 1), it's priced 0 or you can't pay.
 inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Item& item, d2d::d2s::Stats& stats) {
+    if (!needs_repair(tables, item)) return false;
     const int cost = repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     if (cost <= 0 || stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < cost) return false;
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
@@ -767,11 +797,13 @@ inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Ite
     return true;
 }
 
-// What repair all would cost (Repair all's hover, FUN_004886c0 -> FUN_0062fe60).
+// What repair all would cost (Repair all's hover, FUN_004886c0 -> FUN_0062fe60):
+// each item that `needs_repair`, at its repair price.
 inline int repair_all_cost(const Tables& tables, const Store& store, const std::vector<d2d::d2s::Item>& items) {
     int cost = 0;
     for (const auto& item : items)
-        if (item.location == d2d::d2s::item_location::kEquipped || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory))
+        if ((item.location == d2d::d2s::item_location::kEquipped || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory))
+            && needs_repair(tables, item))
             cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return cost;
 }
