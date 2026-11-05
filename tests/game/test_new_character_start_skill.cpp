@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 
 using namespace d2d::game;
@@ -48,8 +49,8 @@ int main() {
         const auto sorceress = new_character(game_data, kSorceress, "Starter", false, true, rng);
         assert(sorceress.stats.skills[0] == 1 && sorceress.stats.skills[1] == 0);   // the skill itself, at 1
         assert(sorceress.items.size() == 3);
-        for (std::size_t i = 0; i < 2; ++i) {                                       // each of the first slot's
-            const auto& staff = sorceress.items[i];
+        for (std::size_t item_index = 0; item_index < 2; ++item_index) {   // each of the first slot's
+            const auto& staff = sorceress.items[item_index];
             assert(start_skill_props(staff) == 1);
             const auto prop = std::ranges::find(staff.props, d2d::d2s::kSingleSkill, &d2d::d2s::ItemProp::stat);
             assert(prop->param == kFireBolt && prop->value == 1);
