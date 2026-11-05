@@ -417,7 +417,7 @@ int main() {
     assert(repair_cost(tables_copy, worn, "Charsi", header) == 1000 * 30 / 40 / 2);
     Item whole = worn; whole.durability = 40;
     Item ghost = worn; ghost.ethereal = true;
-    assert(repair_cost(tables_copy, whole, "Charsi", header) == 0 && repair_cost(tables_copy, ghost, "Charsi", header) == 0);
+    assert(repair_cost(tables_copy, whole, "Charsi", header) == 1 && repair_cost(tables_copy, ghost, "Charsi", header) == 0);   // whole: the minimum (0062fd5c)
     Item unknown_worn = worn; unknown_worn.identified = false;
     assert(repair_cost(tables_copy, unknown_worn, "Charsi", header) == 0);            // unidentified: no repair
     Item tough = worn; tough.props = { { .stat = 73, .value = 10 } };        // +10 max: 50
@@ -467,7 +467,7 @@ int main() {
     // The repair refills them (FUN_0055fe80): left back to max.
     wallet.values[kGold] = 20000;
     assert(store_repair(tables_copy, smith, wand, wallet) && wand.props[0].value == (10 << 8 | 10) && wallet.get(kGold) == 20000 - 5 * 27492 / 10);
-    assert(repair_cost(tables_copy, wand, "Charsi", header) == 0 && !recharge(wand));
+    assert(repair_cost(tables_copy, wand, "Charsi", header) == 1 && !needs_repair(tables_copy, wand) && !recharge(wand));
 
     // Healing raises life/mana to max, never lowers gear-boosted values.
     d2d::d2s::Stats hurt;
