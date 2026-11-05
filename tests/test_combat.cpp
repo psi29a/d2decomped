@@ -632,42 +632,42 @@ int main(int argc, char** argv) {
         assert(reduce_fine(200, 0, 1) == 0 && reduce_fine(200, 50, 1) == 0 && reduce_fine(300, 50, 1) == 22);       // the flat takes it all: nothing left for the percent
         assert(reduce_fine(1000, -50, 0) == 1500 && reduce_fine(1000, 150, 0) == 0);   // a negative percent adds, 100 caps
     }
-    {                                                                  // FUN_0057bf80 on a monster's record: the flat reduction off a field, THEN the resistance; a field left under 0 is kept and summed
-        const auto blow = [](const Fighter& defender, int physical, std::initializer_list<std::pair<int, int>> elements) {
+    {                                                                  // FUN_0057bf80 on a monster's record: the flat reduction off a dr_field, THEN the resistance; a dr_field left under 0 is kept and summed
+        const auto dr_blow = [](const Fighter& victim, int physical, std::initializer_list<std::pair<int, int>> elements) {
             MonStats attacker;
             attacker.level = 1; attacker.a1_min = attacker.a1_max = physical;
             for (auto& element : attacker.elements) element.type = -1;
             std::size_t slot = 0;
             for (const auto& [type, roll] : elements) attacker.elements[slot++] = { type, 100, roll, roll, 25, "A1" };
-            Rng rng{ 1 };
-            return monster_blow(defender, 1, Motion::standing, attacker, false, rng, false, true, true);
+            Rng dice{ 1 };
+            return monster_blow(victim, 1, Motion::standing, attacker, false, dice, false, true, true);
         };
-        Fighter field;
-        field.res[0] = 50; field.mdr = 10;
-        auto taken = blow(field, 0, { { 0, 100 } });                     // game.exe, run natively: 100 fire, 50 %, mdr 10 deals 45, not 40
-        assert(taken.damage == 45 && taken.frac == 0 && taken.elemental == 45);
-        field.res[0] = 75;
-        taken = blow(field, 0, { { 0, 100 } });                          // (100 - 10) x 25 % = 22.5
-        assert(taken.damage == 22 && taken.frac == 128);
-        field.res[0] = -100;
-        taken = blow(field, 0, { { 0, 100 } });                          // (100 - 10) x 2
-        assert(taken.damage == 180 && taken.frac == 0);
-        field.res[0] = 0; field.res[2] = 0; field.mdr = 6;               // fire 5 and cold 100, mdr 6: fire is -1 and takes it off the cold 94
-        taken = blow(field, 0, { { 0, 5 }, { 2, 100 } });
-        assert(taken.damage == 93 && taken.frac == 0 && taken.elemental == 94 && taken.element_fine[0] == -256 && taken.sum == 93 * 256);
-        field.mdr = 0;                                                   // zero-flat control: nothing goes negative
-        taken = blow(field, 0, { { 0, 5 }, { 2, 100 } });
-        assert(taken.damage == 105 && taken.element_fine[0] == 5 * 256);
-        field.mdr = 6;                                                   // all fields under the reduction: the total is clamped once, at 0
-        taken = blow(field, 0, { { 0, 5 }, { 2, 2 } });
-        assert(taken.damage == 0 && taken.frac == 0 && taken.sum == -5 * 256);
-        Fighter armoured;                                                // physical 10 under flat 15 is -5 and takes it off fire 50: 45, not 50
-        armoured.dr_flat = 15;
-        taken = blow(armoured, 10, { { 0, 50 } });
-        assert(taken.damage == 45 && taken.physical == 0 && taken.elemental == 50);
-        armoured.dr_flat = 0;
-        taken = blow(armoured, 10, { { 0, 50 } });
-        assert(taken.damage == 60);
+        Fighter dr_field;
+        dr_field.res[0] = 50; dr_field.mdr = 10;
+        auto dr_taken = dr_blow(dr_field, 0, { { 0, 100 } });                     // game.exe, run natively: 100 fire, 50 %, mdr 10 deals 45, not 40
+        assert(dr_taken.damage == 45 && dr_taken.frac == 0 && dr_taken.elemental == 45);
+        dr_field.res[0] = 75;
+        dr_taken = dr_blow(dr_field, 0, { { 0, 100 } });                          // (100 - 10) x 25 % = 22.5
+        assert(dr_taken.damage == 22 && dr_taken.frac == 128);
+        dr_field.res[0] = -100;
+        dr_taken = dr_blow(dr_field, 0, { { 0, 100 } });                          // (100 - 10) x 2
+        assert(dr_taken.damage == 180 && dr_taken.frac == 0);
+        dr_field.res[0] = 0; dr_field.res[2] = 0; dr_field.mdr = 6;               // fire 5 and cold 100, mdr 6: fire is -1 and takes it off the cold 94
+        dr_taken = dr_blow(dr_field, 0, { { 0, 5 }, { 2, 100 } });
+        assert(dr_taken.damage == 93 && dr_taken.frac == 0 && dr_taken.elemental == 94 && dr_taken.element_fine[0] == -256 && dr_taken.sum == 93 * 256);
+        dr_field.mdr = 0;                                                   // zero-flat control: nothing goes negative
+        dr_taken = dr_blow(dr_field, 0, { { 0, 5 }, { 2, 100 } });
+        assert(dr_taken.damage == 105 && dr_taken.element_fine[0] == 5 * 256);
+        dr_field.mdr = 6;                                                   // all fields under the reduction: the total is clamped once, at 0
+        dr_taken = dr_blow(dr_field, 0, { { 0, 5 }, { 2, 2 } });
+        assert(dr_taken.damage == 0 && dr_taken.frac == 0 && dr_taken.sum == -5 * 256);
+        Fighter dr_armoured;                                                // physical 10 under flat 15 is -5 and takes it off fire 50: 45, not 50
+        dr_armoured.dr_flat = 15;
+        dr_taken = dr_blow(dr_armoured, 10, { { 0, 50 } });
+        assert(dr_taken.damage == 45 && dr_taken.physical == 0 && dr_taken.elemental == 50);
+        dr_armoured.dr_flat = 0;
+        dr_taken = dr_blow(dr_armoured, 10, { { 0, 50 } });
+        assert(dr_taken.damage == 60);
     }
     {                                                                  // Bone Armor takes its pool from the fine physical: the rest keeps its 256ths
         std::vector<StruckBlow> blows{ { 5, 2, false, 5, 0, false, 100 } };        // 5.39 hp
