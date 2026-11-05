@@ -10,3 +10,4 @@ address	name	evidence
 00620190	left_skill	FUN_00643930: the skill list's +8
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
+0066eea0	room_tiles_alloc	allocates room +0x54 once: 0x2c bytes zeroed, from ".\DRLG\RoomTile.cpp" line 0x533; called first by FUN_0067d710, FUN_0067d2d0, FUN_00666ac0

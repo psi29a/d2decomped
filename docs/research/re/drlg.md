@@ -851,7 +851,12 @@ Room tiles as game.exe keeps them (room +0x54): walls +0x08 count /
 entries with room-relative x, y at +0x08, +0x0c, the tile header at
 +0x18 and the orientation at +0x1c. A tile header points into its DT1's
 loaded file (0x60-byte records from `buf + 0x110`, rarity at +0x20);
-loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
+The block itself is made by FUN_0066eea0 (ECX = room), the first call of
+each room's tile walk (FUN_0067d710, FUN_0067d2d0, FUN_00666ac0): if
+room +0x54 is 0 it takes 0x2c bytes from the allocator FUN_0040b430 (assert
+file `.\DRLG\RoomTile.cpp`, line 0x533) and zeroes them; a room that already
+has one keeps it. Re-check: `python3 tools/ghidra/fn.py 0066eea0`.
+Loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
 cached by name.
 
 ## Act 3's jungle (FUN_0067f450, levels 76–78)
