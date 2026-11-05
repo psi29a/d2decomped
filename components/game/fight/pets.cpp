@@ -329,7 +329,7 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         const bool town = d2d::rules::level_ids::is_town(level->id);
         // The foe (FUN_005dd7f0 -> FUN_005dd0b0 mode 5).
         const int room = room_of(*level, unit.x, unit.y);
-        const auto* in_room = room >= 0 ? &level->rooms[std::size_t(room)] : nullptr;
+        const auto* in_room = room >= 0 && std::size_t(room) < level->rooms.size() ? &level->rooms[std::size_t(room)] : nullptr;   // the camp has none
         const bool indoor = in_room && in_room->kind == 2
             && !(std::size_t(in_room->def) < game_data->prest_outdoors.size() && game_data->prest_outdoors[std::size_t(in_room->def)]);
         const bool need_sight = std::exchange(monster.force_sight, false) || indoor;
@@ -434,7 +434,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         const bool town = d2d::rules::level_ids::is_town(level->id);
         // The foe (as necropet_turn's).
         const int room = room_of(*level, unit.x, unit.y);
-        const auto* in_room = room >= 0 ? &level->rooms[std::size_t(room)] : nullptr;
+        const auto* in_room = room >= 0 && std::size_t(room) < level->rooms.size() ? &level->rooms[std::size_t(room)] : nullptr;   // the camp has none
         const bool indoor = in_room && in_room->kind == 2
             && !(std::size_t(in_room->def) < game_data->prest_outdoors.size() && game_data->prest_outdoors[std::size_t(in_room->def)]);
         const bool need_sight = std::exchange(monster.force_sight, false) || indoor;
