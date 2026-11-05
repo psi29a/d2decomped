@@ -797,21 +797,26 @@ inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Ite
     return true;
 }
 
+// An item Repair All takes (FUN_0062fe60): a worn one, the 13 body slots
+// (FUN_0063bde0(inventory, 0..0xc)), never the inventory grid, that
+// `needs_repair`.
+inline bool repair_all_takes(const Tables& tables, const d2d::d2s::Item& item) {
+    return item.location == d2d::d2s::item_location::kEquipped && needs_repair(tables, item);
+}
+
 // What repair all would cost (Repair all's hover, FUN_004886c0 -> FUN_0062fe60):
-// each item that `needs_repair`, at its repair price.
+// each item it takes, at its repair price.
 inline int repair_all_cost(const Tables& tables, const Store& store, const std::vector<d2d::d2s::Item>& items) {
     int cost = 0;
     for (const auto& item : items)
-        if ((item.location == d2d::d2s::item_location::kEquipped || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory))
-            && needs_repair(tables, item))
-            cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
+        if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return cost;
 }
-// Repair all: every worn or carried item, in list order, while the gold lasts.
+// Repair all: every worn item, in list order, while the gold lasts.
 inline int store_repair_all(const Tables& tables, const Store& store, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     int repaired = 0;
     for (auto& item : items)
-        if (item.location == d2d::d2s::item_location::kEquipped || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory)) repaired += store_repair(tables, store, item, stats);
+        if (repair_all_takes(tables, item)) repaired += store_repair(tables, store, item, stats);
     return repaired;
 }
 

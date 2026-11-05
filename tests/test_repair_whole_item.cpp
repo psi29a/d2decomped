@@ -56,8 +56,9 @@ int main() {
     over.durability = 41;
     assert(needs_repair(tables, over));
 
-    // Repair All's sum counts the worn axe only: not 1 for the whole one.
-    const std::vector<Item> items{ whole, worn };
+    // Repair All's sum, both on the body, counts the worn axe only: not 1 for the whole one.
+    std::vector<Item> items{ whole, worn };
+    for (auto& item : items) item.location = d2d::d2s::item_location::kEquipped;
     assert(repair_all_cost(tables, smith, items) == 1000 * 30 / 40);
 
     // A single repair of a whole item takes nothing and changes nothing.
