@@ -88,7 +88,7 @@ int main() {
     Item three = item("hax"); three.quantity = 3;
     assert(item_price(tables, three, "Charsi", false, header) == 3000);                // non-stackable x quantity
     Item keys = item("key"); keys.quantity = 3;
-    assert(item_price(tables, keys, "Charsi", false, header) == 10);                   // stackables priced once
+    assert(item_price(tables, keys, "Charsi", false, header) == 30);                   // stackables x quantity too
     Item tome = item("tbk");
     tome.quantity = 4;
     assert(item_price(tables, tome, "Nobody", false, header) == 450);                  // cost 250 + 4 scrolls x CostPerCharge 50
