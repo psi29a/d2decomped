@@ -247,6 +247,10 @@ The price function computes buy, sell and repair together. Repair:
    term;
 3. × (max − current) / max, where max is the maxdurability stat (73)
    with item_maxdurability_percent (75) — the save stores the base max;
+   an item that replenishes its durability (item_replenish_durability,
+   stat 0xfc, `0062fa13`) pays (max − 1) / max while below max − 1
+   (`0062fa35`), else nothing (`0062fa2c`), however worn
+   (`rules::repair_each`, test_repair_replenish);
    a stackable (ItemsTxt +0x132, FUN_006289f0) that isn't a tome or a
    quiver skips this: its extras are shared by its most, as a price's;
 4. × npc.txt rep mult and the quest rep mults / 1024; a stackable's

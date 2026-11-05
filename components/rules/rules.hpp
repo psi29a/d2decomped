@@ -517,7 +517,7 @@ inline int staff_mod_costs(const Tables& tables, const d2d::d2s::Item& item, int
 
 // A stack's most (FUN_006295b0): Items.txt maxstack plus item_extra_stack
 // (stat 0xfe), at most 0x1ff.
-inline constexpr int kExtraStack = 0xfe, kReplenishQuantity = 0xfd;
+inline constexpr int kExtraStack = 0xfe, kReplenishQuantity = 0xfd, kReplenishDurability = 0xfc;
 inline int stack_most(const Tables& tables, const d2d::d2s::Item& item) {
     const auto found = tables.item_base.find(item.code);
     int most = found != tables.item_base.end() ? found->second.max_stack : 0;
@@ -802,11 +802,16 @@ inline long long repair_each(const Tables& tables, const d2d::d2s::Item& item, c
     }
     long long x = base + affixes / divisor + unsigned_share(stats, divisor);
     if (item.quality >= 4) x += unsigned_share(staff_mod_costs(tables, item, int(x), int(x), false), divisor);
-    // The missing share's product is game.exe's 32 bits (0062fa35). A
+    // The missing share's product is game.exe's 32 bits (0062fa45). An item
+    // that replenishes its durability (stat 0xfc, 0062fa13) pays (max - 1) /
+    // max of it below max - 1 (0062fa35), else nothing (0062fa2c). A
     // throwable skips it (FUN_0062ba80; `restocks` stands for it).
     long long cost = x;
-    if (worn_share && !restocks(tables, item) && has_durability(tables, item))
-        cost = item.durability < max ? std::int32_t(std::uint32_t((max - item.durability) * x)) / max : 0;
+    if (worn_share && !restocks(tables, item) && has_durability(tables, item)) {
+        const bool replenishes = std::ranges::any_of(item.props, [](const auto& prop) { return prop.stat == kReplenishDurability && prop.value != 0; });
+        const int missing = item.durability >= max ? 0 : !replenishes ? max - item.durability : item.durability < max - 1 ? max - 1 : 0;
+        cost = missing > 0 ? std::int32_t(std::uint32_t(missing * x)) / max : 0;
+    }
     if (const auto price_row = tables.npc_prices.find(npc_id); price_row != tables.npc_prices.end()) {
         const auto& prices = price_row->second;
         // Above 0xffff the cost is divided by 1024 before the mult, as a price's (0062fb1d).
