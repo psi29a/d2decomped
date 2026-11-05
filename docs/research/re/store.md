@@ -164,9 +164,14 @@ The base y is 539 (= 60 + 255 + 224):
      side: a buy takes "sell mult" and "questsellmult", a sale "buy mult"
      and "questbuymult";
   5. × quantity for every other item that isn't a tome or a quiver
-     (stackable or not; a stack that restocks on repair, e.g. javelins,
-     takes another path for its sale price); a sale is capped at the
-     NPC's max buy for the difficulty;
+     (stackable or not: buy `0062fc75`, sell `0062fcd0`). A stackable
+     whose repair gate passes (`FUN_0062e660`: identified, not ethereal,
+     a Repair type, e.g. javelins) sells instead as a full stack less the
+     repair of what it lacks: most × sale − rep-scaled repair unit ×
+     (most − quantity) (`0062fcaf`); full, or replenishing itself
+     (item_replenish_quantity, stat 0xfd, `0062fca4`), most × sale
+     (`0062fcc0`). A sale is capped at the NPC's max buy for the
+     difficulty;
   6. a buy, gamble or repair takes the player's item_reducedprices
      (stat 87, at most 99) off: price − price × r / 100; the minimum is 1.
   Checked live on a 1.14d host: Tome of Town Portal 450 at Akara (the scroll count wasn't read; 4 fits:
@@ -175,8 +180,9 @@ The base y is 539 (= 60 + 255 + 224):
   the rules above (`rules::item_price`, test_rules).
   d2d: every other item × its quantity (buy `0062fc75`, sell `0062fcd0`), its extras shared
   by its most (`rules::stack_divisor`, test_stack_prices); the oracle's
-  buy prices of stacks all match. The restocking sale's path isn't
-  followed yet: it sells × quantity.
+  buy prices of stacks all match; the restocking sale is
+  `rules::item_price` with `rules::stack_missing` and
+  `rules::repair_each`.
   Checked live on a 1.14d host (2026-10-05; Akara, Den of Evil done, a
   14% Gheed's Fortune): mp1 47, hp1 24, isc 62, tsc 78, vps 19, yps 31 =
   cost × 922 / 1024 − 14%. d2d had the columns swapped (buying at half,
@@ -241,13 +247,15 @@ The price function computes buy, sell and repair together. Repair:
    term;
 3. × (max − current) / max, where max is the maxdurability stat (73)
    with item_maxdurability_percent (75) — the save stores the base max;
-   a stacking throwable (ItemsTxt +0x132 stackable, FUN_006289f0) pays
-   per unit instead: base / max stack × the missing quantity;
-4. × npc.txt rep mult and the quest rep mults / 1024; minimum 1;
+   a stackable (ItemsTxt +0x132, FUN_006289f0) that isn't a tome or a
+   quiver skips this: its extras are shared by its most, as a price's;
+4. × npc.txt rep mult and the quest rep mults / 1024; a stackable's
+   then × what it lacks of its most (`0062fcb6`; 0 when full or with
+   stat 0xfd, `0062fcc0`); minimum 1;
 5. plus the charge recharge cost (FUN_00628d30): `rules::charges_repair_cost`.
 
 The repair itself (`FUN_005761c0`): a stacking throwable's quantity back
-to its max stack (`FUN_006295b0`); a broken item (flag 0x100) unbroken
+to its most (`FUN_006295b0`: maxstack + stat 0xfe; `rules::stack_most`); a broken item (flag 0x100) unbroken
 (`FUN_0055f900`), else its durability to max.
 
 ## Wear (`FUN_0057d4f0` → `FUN_0057d3d0` → `FUN_00559e30`)

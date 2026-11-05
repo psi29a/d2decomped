@@ -84,7 +84,11 @@ class Oracle:
 
         def stats(u):
             return self.pstats if u == self.player else self.istats if u == self.item else {}
-        e.hook(0x625480, lambda e: stats(e.arg(0)).get(e.arg(1), 0) & 0xFFFFFFFF, 3)
+        def total(e):   # an item's total takes its magic stats too: item_extra_stack (0xfe), replenish (0xfc / 0xfd)
+            unit, stat, layer = e.arg(0), e.arg(1), e.arg(2)
+            magic = self.mods.get((stat, layer), 0) if unit == self.item else 0
+            return (stats(unit).get(stat, 0) + magic) & 0xFFFFFFFF
+        e.hook(0x625480, total, 3)
         e.hook(0x6253b0, lambda e: stats(e.arg(0)).get(e.arg(1), 0) & 0xFFFFFFFF, 3)
         e.hook(0x625e00, lambda e: stats(e.arg(0)).get(STAT_MAXDUR, 0), 1)
         e.hook(0x6261d0, lambda e: stat_list(e, e.arg(1)) if e.arg(0) == self.item else 0, 4)
