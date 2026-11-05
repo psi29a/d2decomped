@@ -780,16 +780,10 @@ inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
     return true;
 }
 
-// Repairs item i (gold first from the inventory, then the stash, as a
-// buy). False if it needs none (`needs_repair`: a whole item's price is
-// still 1), it's priced 0 or you can't pay.
-inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Item& item, d2d::d2s::Stats& stats) {
-    if (!needs_repair(tables, item)) return false;
-    const int cost = repair_cost(tables, item, store.npc_id, store.header, store.reduced);
-    if (cost <= 0 || stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < cost) return false;
-    const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
-    stats.values[d2d::d2s::kGold] -= from_inv;
-    stats.values[d2d::d2s::kGoldBank] -= cost - from_inv;
+// Mends an item (FUN_005761c0): only one its gate (FUN_0062e660) passes. A
+// restocking stack back to its max, durability to its max, charges full.
+inline bool mend(const Tables& tables, d2d::d2s::Item& item) {
+    if (!repairable(tables, item)) return false;
     if (restocks(tables, item)) item.quantity = tables.item_base.at(item.code).max_stack;
     item.durability = max_durability(item);
     item.flags &= ~0x100u;
@@ -797,22 +791,43 @@ inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Ite
     return true;
 }
 
+// Repairs item i (gold first from the inventory, then the stash, as a
+// buy). False if it needs none (`needs_repair`: a whole item's price is
+// still 1), it's priced 0 or you can't pay.
+inline bool store_repair(const Tables& tables, const Store& store, d2d::d2s::Item& item, d2d::d2s::Stats& stats) {
+    if (!needs_repair(tables, item)) return false;
+    const int cost = repair_cost(tables, item, store.npc_id, store.header, store.reduced);
+    return cost > 0 && pay(stats, cost) && mend(tables, item);
+}
+
+// An item Repair All takes (FUN_0062fe60): a worn one, the 13 body slots
+// (FUN_0063bde0(inventory, 0..0xc)), never the inventory grid, that
+// `needs_repair`.
+inline bool repair_all_takes(const Tables& tables, const d2d::d2s::Item& item) {
+    return item.location == d2d::d2s::item_location::kEquipped && needs_repair(tables, item);
+}
+
 // What repair all would cost (Repair all's hover, FUN_004886c0 -> FUN_0062fe60):
-// each item that `needs_repair`, at its repair price.
+// each item it takes, at its repair price.
 inline int repair_all_cost(const Tables& tables, const Store& store, const std::vector<d2d::d2s::Item>& items) {
     int cost = 0;
     for (const auto& item : items)
-        if ((item.location == d2d::d2s::item_location::kEquipped || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory))
-            && needs_repair(tables, item))
-            cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
+        if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return cost;
 }
-// Repair all: every worn or carried item, in list order, while the gold lasts.
-inline int store_repair_all(const Tables& tables, const Store& store, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
-    int repaired = 0;
+// Repair all (FUN_00578050, flag 0x80000000): the sum is paid at once
+// (FUN_00576d90). Short of it, nothing is repaired and the client is told
+// it hasn't the gold (12, line 0x9e4): nullopt. Paid, a second
+// FUN_0062fe60 pass mends each item it takes (FUN_005762b0 ->
+// FUN_005761c0). The count mended; a sum of 0 mends none (0x9dd).
+inline std::optional<int> store_repair_all(const Tables& tables, const Store& store, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+    const int cost = repair_all_cost(tables, store, items);
+    if (cost == 0) return 0;
+    if (!pay(stats, cost)) return std::nullopt;
+    int mended = 0;
     for (auto& item : items)
-        if (item.location == d2d::d2s::item_location::kEquipped || (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory)) repaired += store_repair(tables, store, item, stats);
-    return repaired;
+        if (repair_all_takes(tables, item)) mended += int(mend(tables, item));
+    return mended;
 }
 
 // A scroll's tome (Books.txt pairs tsc / tbk, isc / ibk) for `scroll`:

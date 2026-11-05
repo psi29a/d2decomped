@@ -91,8 +91,9 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (actor->store.npc < 0) return true;
             actor->store.reduced = reduced_prices();
             if (repair->item < 0) {
-                if (d2d::rules::store_repair_all(item_rules, actor->store, actor->character.items, actor->character.stats) > 0)
-                    cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
+                const auto mended = d2d::rules::store_repair_all(item_rules, actor->store, actor->character.items, actor->character.stats);
+                if (!mended) actor->events.push_back(ev::TradeRefused{ d2d::rules::Trade::no_gold });
+                else if (*mended > 0) cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
                 return true;
             }
             const auto found = std::ranges::find(actor->character.items, repair->item, &d2d::d2s::Item::id);
