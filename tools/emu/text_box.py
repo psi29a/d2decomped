@@ -26,10 +26,11 @@ def main():
         samples = ("", "Hello world", "Enter Host IP Address to Join Game",
                    "Are you sure that you want to delete this character?",
                    "Cannot detect a valid TCP/IP address.", "W" * 30,
-                   " Hello  world ", "One two three four five six seven eight nine ten")
+                   " Hello  world ", "One two three four five six seven eight nine ten",
+                   "\v\fHello world")
         for name in ("font16", "font24", "font42", "fontformal11"):
             for width in (80, 100, 200, 264, 272):
-                for height, margin_x, margin_y in ((50, 0, 0), (120, 10, 8), (1, 0, 0)):
+                for height, margin_x, margin_y in ((50, 0, 0), (120, 10, 8), (1, 0, 0), (300, 0, 0)):
                     for text in samples:
                         print(f"{name} {width} {height} {margin_x} {margin_y}\t{text}")
         return 0
@@ -67,13 +68,17 @@ def main():
 
     drawn = []
 
+    def signed32(value):
+        return (value & 0x7fffffff) - (value & 0x80000000)
+
     def draw(current):
-        drawn.append((current.mu.reg_read(UC_X86_REG_EDX), current.arg(0),
+        drawn.append((signed32(current.mu.reg_read(UC_X86_REG_EDX)), signed32(current.arg(0)),
                       wide_text(current.mu.reg_read(UC_X86_REG_ECX))))
         return 0
 
     machine.hook(0x502320, draw, 3)
-    for case_index, case in enumerate(args.cases.read_text(encoding="latin-1").splitlines()):
+    cases = args.cases.read_text(encoding="latin-1").removesuffix("\n").split("\n")
+    for case_index, case in enumerate(cases):
         fields, text = case.split("\t", 1)
         name, width, height, margin_x, margin_y = fields.split()
         width, height, margin_x, margin_y = map(int, (width, height, margin_x, margin_y))

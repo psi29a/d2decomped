@@ -63,8 +63,9 @@ Extract your own Latin font16.tbl, font24.tbl, font42.tbl and fontformal11.tbl i
 then run from the repository root:
 
 ```sh
+set -eu
 build/tests/test_text_box
-python3 tools/emu/text_box.py --make-cases > cases.tsv
+uv run --project tools/emu python tools/emu/text_box.py --make-cases > cases.tsv
 build/tests/test_text_box --dump /private/fonts < cases.tsv > port.txt
 cd tools/emu
 uv run python text_box.py --game-exe /private/game.exe --font-dir /private/fonts --cases ../../cases.tsv > ../../original.txt
@@ -72,9 +73,10 @@ cd ../..
 diff -u original.txt port.txt
 ```
 
-The 480 cases cover four actual fonts, five widths (including the prompt's
-exact boundary), three height/margin combinations, and eight strings:
-empty text, ordinary sentences, long words, leading and repeated spaces.
+The 720 cases cover four actual fonts, five widths (including the prompt's
+exact boundary), four height/margin combinations (including negative
+baselines), and nine strings: empty text, ordinary sentences, long words,
+leading and repeated spaces, vertical tabs and form feeds.
 The oracle executes the original glyph lookup, widths, string handling,
 row-adder, splitter, height checks, centering and baseline placement.
 It isolates allocation, English language selection, ASCII whitespace
