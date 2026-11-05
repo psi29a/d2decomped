@@ -395,3 +395,13 @@ else rare.
   `FUN_0055f640`), as one picked up does. 0x29 (`FUN_0054b710` →
   `FUN_0055ef20`) puts the held scroll into a stored tome of the same
   spell, quantity (stat 70) under its max.
+- Anything else bought is a copy of the stock item (`FUN_0055a2a0`),
+  its stack and all, offered to the belt first, as a pickup is
+  (`FUN_0055e9b0` → `FUN_0063c790`; `FUN_00628ba0` lets every item
+  through): a 1×1 Beltable potion to its matching column, else, autobelt,
+  a free bottom box. Else the inventory's first free spot
+  (`FUN_00560200` → `FUN_0063b950`); no room refunds it and answers 10
+  (line 0x91c). d2d: `rules::store_buy` (`rules::belt_box`).
+  Not yet: before the inventory, the item is offered to a body slot
+  (`FUN_00562e00`, `auto_equip_slot`), with rules for arrows and bolts
+  by the bow or crossbow held (0x883e9c / 0x883ea0).

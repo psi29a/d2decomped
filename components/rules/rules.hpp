@@ -907,29 +907,39 @@ inline bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const
 // that request.", 10 string 0xd1c "You do not have enough free space to do
 // that.", 12 string 0xd22 "You do not have enough gold for that.").
 enum class Trade : std::uint8_t { done = 0, refused = 9, no_room = 10, no_gold = 12 };
-// Buys stock item i of the open tab into the inventory (10x4): gold
-// down by the price (more than carried + stash gold: no_gold), the item
-// leaves the stock unless it's a perm one (nowhere for it: no_room).
-// ponytail: no stacks or quantity.
-inline Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+inline int belt_box(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, int boxes);
+// Buys stock item i of the open tab (C->S 0x32, FUN_00577830): gold down
+// by the price (more than carried + stash gold: no_gold), carried gold
+// first, then the stash (FUN_00576d90); the item leaves the stock unless
+// it's a perm one. A scroll goes into a carried tome with room
+// (FUN_0055f640). Anything else is a copy (FUN_0055a2a0), stack and all,
+// offered to the belt first (FUN_0055e9b0 -> FUN_0063c790: belt_box,
+// `boxes` the worn belt's, 4 with none), else the inventory's first free
+// spot (FUN_00560200; nowhere for it: no_room, nothing paid).
+// ponytail: an item bound for the inventory isn't first offered to a body
+// slot (FUN_00562e00: auto_equip_slot, with its own rules for arrows and
+// bolts by the weapon held, 0x883e9c / 0x883ea0).
+inline Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats, int boxes = 4) {
     auto& tab = store.tabs[std::size_t(store.tab)];
-    const auto& item = tab[std::size_t(index)];
+    const auto item = tab[std::size_t(index)];
     const int price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return Trade::no_gold;
-    // A scroll goes into a carried tome with room (FUN_00577830 -> FUN_0055f640).
     const auto book = std::ranges::find_if(items, [&](const d2d::d2s::Item& carried) { return carried.panel == d2d::d2s::item_panel::kInventory && tome_takes(tables, item, carried); });
-    std::vector<const d2d::d2s::Item*> inv;
-    for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
-    const auto [width, height] = item_size(tables, item.code);
-    const auto [column, row] = book != items.end() ? std::pair{ 0, 0 } : free_spot(tables, inv, 10, 4, width, height, true);
-    if (column < 0) return Trade::no_room;
     if (book != items.end()) ++book->quantity;
     else {
         auto bought = item;
-        bought.column = column; bought.row = row; bought.location = d2d::d2s::item_location::kStored; bought.panel = d2d::d2s::item_panel::kInventory;
+        if (const int box = belt_box(tables, items, bought, boxes); box >= 0) {
+            bought.location = d2d::d2s::item_location::kBelt; bought.column = box; bought.row = 0; bought.panel = 0; bought.slot = 0;
+        } else {
+            std::vector<const d2d::d2s::Item*> inv;
+            for (const auto& carried : items) if (carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&carried);
+            const auto [width, height] = item_size(tables, item.code);
+            const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
+            if (column < 0) return Trade::no_room;
+            bought.column = column; bought.row = row; bought.location = d2d::d2s::item_location::kStored; bought.panel = d2d::d2s::item_panel::kInventory;
+        }
         items.push_back(std::move(bought));
     }
-    // Carried gold first, then the stash (FUN_00577830 -> FUN_00576d90).
     const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
     stats.values[d2d::d2s::kGold] -= from_inv;
     stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
