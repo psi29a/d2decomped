@@ -108,8 +108,9 @@ private:
 // its items: rarm / larm in the hands, potions in the belt, the rest in
 // the inventory), level 1, normal difficulty, no hotkeys. A stack comes
 // full (javelins: 60), a quiver with 250 in a hand or 100 elsewhere.
-// ponytail: the first slot's item has no item_singleskill (stat 0x6b) of
-// StartSkill (FUN_00534c70: Fire Bolt on the Sorceress's staff).
+// Each item of the first slot gets +1 to StartSkill (FUN_00534c70: stat
+// 0x6b, item_singleskill, param the skill: Fire Bolt on the Sorceress's
+// staff, Raise Skeleton on the Necromancer's wand).
 struct NewCharacter { d2d::d2s::Header header; d2d::d2s::Stats stats; std::vector<d2d::d2s::Item> items; };
 inline NewCharacter new_character(const GameData& game_data, int cls, const std::string& name, bool hardcore, bool expansion, d2d::rules::Rng& rng) {
     using namespace d2d::d2s;
@@ -131,18 +132,21 @@ inline NewCharacter new_character(const GameData& game_data, int cls, const std:
     stats.values[kMana] = stats.values[kMaxMana] = std::int64_t(start.ene) << 8;
     stats.values[kStamina] = stats.values[kMaxStamina] = std::int64_t(start.stamina) << 8;
     stats.values[kLevel] = 1;
+    int start_skill = -1;
     if (!start.start_skill.empty()) {
         const auto& ids = game_data.skills.class_ids[class_index];
         for (std::size_t i = 0; i < ids.size() && i < stats.skills.size(); ++i)
             if (const auto* skill = game_data.skills.get(ids[i]); skill) {
                 auto lower = [](std::string text) { for (auto& letter : text) letter = char(std::tolower(static_cast<unsigned char>(letter))); return text; };
-                if (lower(skill->name) == lower(start.start_skill)) stats.skills[i] = 1;
+                if (lower(skill->name) == lower(start.start_skill)) { stats.skills[i] = 1; start_skill = ids[i]; }
             }
     }
     int belt = 0, inv = 0;
-    for (const auto& entry : start.items)
-        for (int k = 0; k < std::max(entry.count, 1); ++k) {
+    for (std::size_t slot = 0; slot < start.items.size(); ++slot)
+        for (int k = 0; k < std::max(start.items[slot].count, 1); ++k) {
+            const auto& entry = start.items[slot];
             auto item = d2d::rules::generate_item(game_data.rules, entry.code, 1, 2, rng);
+            if (slot == 0 && start_skill >= 0) item.props.push_back({ d2d::d2s::kSingleSkill, start_skill, 1 });   // FUN_00534c70: each of the first slot's
             if (entry.loc == "rarm" || entry.loc == "larm") { item.location = d2d::d2s::item_location::kEquipped; item.slot = entry.loc == "rarm" ? d2d::d2s::body_location::kRightArm : d2d::d2s::body_location::kLeftArm; }
             else if (entry.code.starts_with("hp") || entry.code.starts_with("mp")) { item.location = d2d::d2s::item_location::kBelt; item.column = belt++; }
             else { item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory; item.column = inv++; }

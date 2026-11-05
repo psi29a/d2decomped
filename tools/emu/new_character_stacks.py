@@ -14,9 +14,12 @@ making the unit (FUN_00559ce0, a fake item of that index), its ilvl
 putting it in a hand, the inventory or the belt (FUN_00534bb0,
 FUN_00534b30, FUN_0055e9b0) and max durability (FUN_00625e00).
 FUN_00627260 (set stat) is hooked to record each item's stats. A line per
-item: its code, then stat 70 (quantity), or `-` when nothing set it.
-Should print `jav 60` for the Amazon, and `aqv 250, aqv 100, cqv 250` for
-quivers: arrows 250 in a hand, 100 elsewhere; bolts (maxstack 250) full.
+item: its code, then stat 70 (quantity), or `-` when nothing set it, and
+the StartSkill stat FUN_00627150 sets on the first slot's item: its param
+(the skill) and value. Should print `jav 60` for the Amazon, `stat 0x6b 36
+= 1` (Fire Bolt) for the Sorceress and `stat 0x6b 70 = 1` (Raise Skeleton)
+for the Necromancer, and `aqv 250, aqv 100, cqv 250` for quivers: arrows
+250 in a hand, 100 elsewhere; bolts (maxstack 250) full.
 """
 import sys
 
@@ -57,7 +60,7 @@ def main():
     e.stub(0, {0x6280d0: 3, 0x627d70: 2, 0x625e00: 1, 0x6257d0: 3, 0x626e10: 3})
     skills = []                                       # the first slot's StartSkill (stat 0x6b on its list)
     e.hook(0x6251f0, lambda e: 0x5157, 5)
-    e.hook(0x627150, lambda e: skills.append((e.arg(1), e.arg(3))), 4)
+    e.hook(0x627150, lambda e: skills.append((e.arg(1), e.arg(3), e.arg(2))), 4)   # (list, stat, value, param)
     e.stub(1, {0x534bb0: 1, 0x534b30: 2, 0x55e9b0: 4})
 
     codes = {}
@@ -72,7 +75,7 @@ def main():
             if index not in codes: codes[index] = e.read(e.call(0x6335f0, index) + 0x80, 4).decode("latin-1").rstrip(" \0")
             quantity = stats[item].get(0x46)
             line.append(f"{codes[index]} {'-' if quantity is None else quantity}")
-        print(f"class {cls}: " + ", ".join(line) + "".join(f" | stat {stat:#x} = {value}" for stat, value in skills))
+        print(f"class {cls}: " + ", ".join(line) + "".join(f" | stat {stat:#x} {param} = {value}" for stat, param, value in skills))
 
 
 if __name__ == "__main__":
