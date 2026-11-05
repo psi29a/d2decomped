@@ -533,8 +533,9 @@ struct Foe {
         if (taken.hit) {
             Blow blow{ taken.damage, 0, taken.elemental > 0 || taken.poison > 0, taken.physical, taken.elemental, taken.poison > 0, taken.frac, taken.raw, fighter.dr_pct, fighter.dr_flat };
             for (std::size_t type = 0; type < blow.parts.size(); ++type)
-                if (type != 3) blow.parts[type] = { taken.element_raw[type], taken.element_dealt[type], type < fighter.res.size() ? fighter.res[type] : 0 };
+                if (type != 3) blow.parts[type] = { taken.element_raw[type], taken.element_dealt[type], type < fighter.res.size() ? fighter.res[type] : 0, taken.element_raw[type] > 0 ? taken.element_fine[type] : d2d::rules::StruckBlow::kNoFine };
             blow.mdr = fighter.mdr;
+            blow.sum = taken.sum;
             blows.push_back(blow);
         }
         damage += taken.damage; frac += taken.frac; physical += taken.physical; elemental += taken.elemental;

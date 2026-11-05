@@ -217,8 +217,9 @@ d2d matches both, and the one-poison-at-a-time rule.
   `test_energy_shield`; V run: the game-side order against the real d2d
   build). `FUN_0057bf80` takes the flat / magic damage reduction off a field
   BEFORE the resistance and stores a result under 0, which the record total
-  sums (V run, no shield: 100 fire at 50 % with mdr 10 deals 45); the shield
-  path keeps that, the blows no shield touched still clamp per part (U).
+  sums (V run, no shield: 100 fire at 50 % with mdr 10 deals 45);
+  `rules::monster_blow` and the shield path both do that now (the fields in
+  256ths, one field a type, the total clamped once; `test_combat`).
   Not covered (U): Cyclone Armor's fractions, the
   flat's +0x54 / 1024 scale, `FUN_0057c060`'s percent, elements, a missile's
   `FUN_005a89a0` roll.
