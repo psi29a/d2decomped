@@ -515,6 +515,37 @@ inline int staff_mod_costs(const Tables& tables, const d2d::d2s::Item& item, int
     return total;
 }
 
+// A stack's most (FUN_006295b0): Items.txt maxstack plus item_extra_stack
+// (stat 0xfe), at most 0x1ff.
+inline constexpr int kExtraStack = 0xfe, kReplenishQuantity = 0xfd;
+inline int stack_most(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto found = tables.item_base.find(item.code);
+    int most = found != tables.item_base.end() ? found->second.max_stack : 0;
+    for (const auto& prop : item.props)
+        if (prop.stat == kExtraStack) most += int(prop.value);
+    return std::min(most, 0x1ff);
+}
+// A tome (ItemTypes book) or a quiver (bowq / xboq): FUN_0062efb0 prices
+// them by their quantity up front, not as a stack.
+inline bool priced_by_contents(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto info = tables.item_info.find(item.code);
+    const std::string type = info != tables.item_info.end() ? info->second.type : std::string{};
+    return type == "book" || type == "bowq" || type == "xboq";
+}
+// A stack's share of its extras (FUN_0062efb0's local_1c): a stackable
+// (Items.txt +0x132, FUN_006289f0) priced as a stack takes its quality
+// extras, stat costs (FUN_00628e70) and staff mods (FUN_0062edd0), each
+// divided by its most when that is 2 or more. FUN_00628e70 and FUN_0062edd0
+// divide unsigned.
+inline int stack_divisor(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto found = tables.item_base.find(item.code);
+    if (found == tables.item_base.end() || !found->second.stackable || priced_by_contents(tables, item)) return 1;
+    return std::max(stack_most(tables, item), 1);
+}
+inline int unsigned_share(int total, int divisor) {
+    return int(std::uint32_t(total) / std::uint32_t(divisor));
+}
+
 // Buy (sell = false) or sell price of an item at the NPC with MonStats Id
 // npc_id, for the player's header (difficulty, quest flags): FUN_0062efb0
 // (D2Common's transaction cost). Base = the item's cost (items record
@@ -534,12 +565,13 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     // FUN_0062efb0 prices two kinds of item by their quantity (stat 70, at least
     // 1) before the NPC multipliers: a tome (ItemTypes book) is its cost plus
     // books.txt CostPerCharge per scroll inside; an arrow or bolt quiver
-    // (bowq / xboq) is cost x quantity / 1024. Other stackables:
-    // ponytail: the original multiplies their price by the quantity too (keys,
-    // javelins, restocking stacks take another path), d2d still prices them once.
+    // (bowq / xboq) is cost x quantity / 1024. Anything else is priced one
+    // (a stack's extras divided by its most: stack_divisor) and multiplied
+    // by its quantity after the NPC multipliers (buy 0062fc75, sell 0062fcd0).
     const auto info = tables.item_info.find(item.code);
     const std::string& type = info != tables.item_info.end() ? info->second.type : std::string{};
     const int count = std::max(item.quantity, 1);
+    const int divisor = stack_divisor(tables, item);
     if (type == "book") {
         const auto charge = tables.book_charge_cost.find(item.code);
         base += (charge != tables.book_charge_cost.end() ? charge->second : 0) * count;
@@ -551,8 +583,8 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     // identified or not (0062f166), and on the price with its extras from magic up.
     // The buy side's base picks every branch below, a sale's too.
     const bool magic = item.quality >= 4;
-    const int buy_base = magic ? base : base + staff_mod_costs(tables, item, base, base, false);
-    if (!magic) base += staff_mod_costs(tables, item, base, base, sell);
+    const int buy_base = magic ? base : base + unsigned_share(staff_mod_costs(tables, item, base, base, false), divisor);
+    if (!magic) base += unsigned_share(staff_mod_costs(tables, item, base, base, sell), divisor);
     auto extra = [&](const std::vector<std::pair<int, int>>& costs, int index) {
         if (index < 0 || std::size_t(index) >= costs.size()) return 0;
         const auto [mul, add] = costs[std::size_t(index)];
@@ -562,24 +594,26 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     // an unidentified magic item sells as a normal one, a low quality one isn't halved.
     // The class automod's (item data +0x36, 0062f1b8) comes first, any quality;
     // low quality's half replaces it. Superior, magic, rare and crafted add their stats' costs (0062f814).
+    // A stack's affix extras and stat costs are each divided by its divisor (0062f83f, FUN_00628e70).
     auto extras = [&](bool sale) {
         int x = item.identified && item.class_affix > 0 ? extra(tables.automagic_cost, item.class_affix - 1) : 0;
+        int stats = 0;
         switch (item.identified ? item.quality : 0) {
             case 1: x = -(base / 2); break;
-            case 3: x += stat_costs(tables, item, buy_base, base, sale); break;
-            case 4: x += extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix) + stat_costs(tables, item, buy_base, base, sale); break;
+            case 3: stats = stat_costs(tables, item, buy_base, base, sale); break;
+            case 4: x += extra(tables.prefix_cost, item.prefix) + extra(tables.suffix_cost, item.suffix); stats = stat_costs(tables, item, buy_base, base, sale); break;
             case 5: x += extra(tables.set_cost, item.set_id); break;
             case 7: x += extra(tables.unique_cost, item.unique_id); break;
             case 6: case 8:
                 for (int i = 0; i < 6; ++i) x += extra(i % 2 == 0 ? tables.prefix_cost : tables.suffix_cost, item.affixes[std::size_t(i)]);
-                x += stat_costs(tables, item, buy_base, base, sale);
+                stats = stat_costs(tables, item, buy_base, base, sale);
                 break;
             default: break;
         }
-        return x;
+        return x / divisor + unsigned_share(stats, divisor);
     };
     long long price = base + extras(sell);
-    if (magic && item.identified) price += staff_mod_costs(tables, item, base + extras(false), int(price), sell);
+    if (magic && item.identified) price += unsigned_share(staff_mod_costs(tables, item, base + extras(false), int(price), sell), divisor);
     for (const auto& socketed : item.socketed_items)
         if (const auto socketed_base = tables.item_base.find(socketed.code); socketed_base != tables.item_base.end()) price += socketed_base->second.cost / 2;
     if (sell && item.ethereal) price /= 4;
@@ -600,7 +634,7 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
             if (prices.qflag[std::size_t(quest)] && (header.quest_flag(diff, prices.qflag[std::size_t(quest)], 0) || header.quest_flag(diff, prices.qflag[std::size_t(quest)], 1)))
                 scale(sell ? prices.qsell[std::size_t(quest)] : prices.qbuy[std::size_t(quest)]);
     }
-    if (item.quantity > 1 && !(found != tables.item_base.end() && found->second.stackable)) price *= item.quantity;
+    if (!priced_by_contents(tables, item)) price *= count;
     if (sell && price_row != tables.npc_prices.end()) price = std::min<long long>(price, price_row->second.max_buy[std::size_t(diff)]);
     return int(sell ? std::max<long long>(price, 1) : price_reduced(price, reduced));
 }

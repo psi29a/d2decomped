@@ -148,7 +148,13 @@ The base y is 539 (= 60 + 255 + 224):
      0xffff each term divides the price first; the buy side's price picks
      that branch for a sale and a repair too. `rules::item_price`,
      `stat_costs`, `staff_mod_costs`; `tools/emu/price_oracle.py` cases
-     carry magic stats (20000 cases: buy and sell exact, stacks aside);
+     carry magic stats (20000 cases: buy and sell exact, stacks aside).
+     A stackable (ItemsTxt +0x132, `FUN_006289f0`) that isn't a tome or a
+     quiver is priced one: its quality extras, its stat costs and its
+     staff mods are each divided by its most (`local_1c`: Items.txt
+     maxstack plus item_extra_stack, stat 0xfe, at most 0x1ff:
+     `FUN_006295b0`; 1 below 2), the latter two unsigned;
+     `rules::stack_divisor`;
   3. plus half of each socketed item's cost; ethereal sells for ¼, and a
      class item (ItemTypes Class, `FUN_0062c060`) for ¼ again; an
      ethereal item with durability worn to 0 sells for nothing (the
@@ -167,7 +173,10 @@ The base y is 539 (= 60 + 255 + 224):
   250 + 4 x 50); a full quiver of 350 arrows 81 at Charsi
   (350 x 256 / 1024 = 87, x 960 / 1024). d2d: tomes and quivers follow
   the rules above (`rules::item_price`, test_rules).
-  ponytail: other stackables (keys, javelins) are still priced once.
+  d2d: every other item × its quantity (buy `0062fc75`, sell `0062fcd0`), its extras shared
+  by its most (`rules::stack_divisor`, test_stack_prices); the oracle's
+  buy prices of stacks all match. The restocking sale's path isn't
+  followed yet: it sells × quantity.
   Checked live on a 1.14d host (2026-10-05; Akara, Den of Evil done, a
   14% Gheed's Fortune): mp1 47, hp1 24, isc 62, tsc 78, vps 19, yps 31 =
   cost × 922 / 1024 − 14%. d2d had the columns swapped (buying at half,
