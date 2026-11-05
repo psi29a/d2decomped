@@ -50,6 +50,17 @@ FUN_006424a0 generates it by DrlgType: 1 maze (FUN_00673b30), 2 preset
 at its OffsetX/Y plus its Depend level's position; size is SizeX/SizeY
 for the difficulty.
 
+**A level's Vis/Warp node** (FUN_00642860, ECX act, EDX level id; the chain
+driver FUN_006772c0 and FUN_006775c0 call it for each level before linking):
+a find-or-create over the singly linked list at act +0x90. A node is
+at least 0x48 bytes (from `.\DRLG\Drlg.cpp` line 0x3e0, every dword set):
+`[0]` level id, `[1..8]` the Levels.txt Vis0..7 (level def +0x48..+0x64, def
+from FUN_0061e470), `[9..0x10]` Warp0..7 (def +0x68..+0x84), `[0x11]` next
+(+0x44). A level already listed is left as it is; a new one is pushed at the
+head. FUN_00642920 then fills the slots (a pair goes in the slot already
+holding that vis level, else the first free one). Cited from the decompile
+only, no oracle: not proven.
+
 ## Act 1's layout (FUN_00677750)
 
 Two chains, each run through FUN_006772c0 on a **copy** of the act seed
