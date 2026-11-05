@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <initializer_list>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -582,8 +583,8 @@ int main(int argc, char** argv) {
     defender.dr_pct = 20; defender.dr_flat = 5; defender.res[0] = 75; defender.mdr = 2;
     auto taken = monster_blow(defender, 1, Motion::standing, mon, false, rng);
     for (int i = 0; i < 20 && !taken.hit; ++i) taken = monster_blow(defender, 1, Motion::standing, mon, false, rng);
-    assert(taken.hit && taken.damage == 76 + 8);                               // (100.x - 5) x 80%, 40 x 25% - 2
-    assert(taken.physical == 76 && taken.elemental == 8);                      // Bone Armor's part, Cyclone Armor's
+    assert(taken.hit && taken.damage * 256 + taken.frac == reduce_fine(taken.raw, 20, 5) + (40 - 2) * 256 / 4);   // (100.x - 5) x 80%, (40 - 2) x 25% (FUN_0057bf80: the flat first)
+    assert(taken.physical == 76 && taken.elemental == 9 && taken.damage >= 85 && taken.damage <= 86);   // Bone Armor's part, Cyclone Armor's
     {                                                                  // the physical roll (FUN_0057b420): min << 8 + rand((max - min) << 8), the top never rolled
         MonStats fallen;
         fallen.a1_min = 1; fallen.a1_max = 2;
@@ -630,6 +631,43 @@ int main(int argc, char** argv) {
         assert(reduce_fine(2560, 20, 3) == 1433 && reduce_fine(2560, 0, 0) == 2560 && reduce_fine(0, 20, 3) == 0);
         assert(reduce_fine(200, 0, 1) == 0 && reduce_fine(200, 50, 1) == 0 && reduce_fine(300, 50, 1) == 22);       // the flat takes it all: nothing left for the percent
         assert(reduce_fine(1000, -50, 0) == 1500 && reduce_fine(1000, 150, 0) == 0);   // a negative percent adds, 100 caps
+    }
+    {                                                                  // FUN_0057bf80 on a monster's record: the flat reduction off a dr_field, THEN the resistance; a dr_field left under 0 is kept and summed
+        const auto dr_blow = [](const Fighter& victim, int physical, std::initializer_list<std::pair<int, int>> elements) {
+            MonStats attacker;
+            attacker.level = 1; attacker.a1_min = attacker.a1_max = physical;
+            for (auto& element : attacker.elements) element.type = -1;
+            std::size_t slot = 0;
+            for (const auto& [type, roll] : elements) attacker.elements[slot++] = { type, 100, roll, roll, 25, "A1" };
+            Rng dice{ 1 };
+            return monster_blow(victim, 1, Motion::standing, attacker, false, dice, false, true, true);
+        };
+        Fighter dr_field;
+        dr_field.res[0] = 50; dr_field.mdr = 10;
+        auto dr_taken = dr_blow(dr_field, 0, { { 0, 100 } });                     // game.exe, run natively: 100 fire, 50 %, mdr 10 deals 45, not 40
+        assert(dr_taken.damage == 45 && dr_taken.frac == 0 && dr_taken.elemental == 45);
+        dr_field.res[0] = 75;
+        dr_taken = dr_blow(dr_field, 0, { { 0, 100 } });                          // (100 - 10) x 25 % = 22.5
+        assert(dr_taken.damage == 22 && dr_taken.frac == 128);
+        dr_field.res[0] = -100;
+        dr_taken = dr_blow(dr_field, 0, { { 0, 100 } });                          // (100 - 10) x 2
+        assert(dr_taken.damage == 180 && dr_taken.frac == 0);
+        dr_field.res[0] = 0; dr_field.res[2] = 0; dr_field.mdr = 6;               // fire 5 and cold 100, mdr 6: fire is -1 and takes it off the cold 94
+        dr_taken = dr_blow(dr_field, 0, { { 0, 5 }, { 2, 100 } });
+        assert(dr_taken.damage == 93 && dr_taken.frac == 0 && dr_taken.elemental == 94 && dr_taken.element_fine[0] == -256 && dr_taken.sum == 93 * 256);
+        dr_field.mdr = 0;                                                   // zero-flat control: nothing goes negative
+        dr_taken = dr_blow(dr_field, 0, { { 0, 5 }, { 2, 100 } });
+        assert(dr_taken.damage == 105 && dr_taken.element_fine[0] == 5 * 256);
+        dr_field.mdr = 6;                                                   // all fields under the reduction: the total is clamped once, at 0
+        dr_taken = dr_blow(dr_field, 0, { { 0, 5 }, { 2, 2 } });
+        assert(dr_taken.damage == 0 && dr_taken.frac == 0 && dr_taken.sum == -5 * 256);
+        Fighter dr_armoured;                                                // physical 10 under flat 15 is -5 and takes it off fire 50: 45, not 50
+        dr_armoured.dr_flat = 15;
+        dr_taken = dr_blow(dr_armoured, 10, { { 0, 50 } });
+        assert(dr_taken.damage == 45 && dr_taken.physical == 0 && dr_taken.elemental == 50);
+        dr_armoured.dr_flat = 0;
+        dr_taken = dr_blow(dr_armoured, 10, { { 0, 50 } });
+        assert(dr_taken.damage == 60);
     }
     {                                                                  // Bone Armor takes its pool from the fine physical: the rest keeps its 256ths
         std::vector<StruckBlow> blows{ { 5, 2, false, 5, 0, false, 100 } };        // 5.39 hp
@@ -701,7 +739,7 @@ int main(int argc, char** argv) {
         feeble.to_hit = 1;
         for (int i = 0; i < 20; ++i) {
             assert(!monster_blow(guard, 99, Motion::standing, feeble, false, rng).hit);
-            assert(monster_blow(guard, 99, Motion::standing, feeble, false, rng, false, true).damage == 76 + 8);
+            assert(std::abs(monster_blow(guard, 99, Motion::standing, feeble, false, rng, false, true).damage - 85) <= 1);   // 76.x + (40 - 2) x 25 % = 9.5 (the flat first)
         }
         // A ToHit 0 missile (FUN_005adf10): no to-hit roll, but block and avoid still come (FUN_005ad730).
         MonStats shot = feeble;
