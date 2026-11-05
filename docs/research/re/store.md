@@ -405,3 +405,18 @@ else rare.
   Not yet: before the inventory, the item is offered to a body slot
   (`FUN_00562e00`, `auto_equip_slot`), with rules for arrows and bolts
   by the bow or crossbow held (0x883e9c / 0x883ea0).
+- Shift + right click fills (`FUN_004b2650`: mouse flag 4 and Items
+  +0x1a5, Misc.txt multibuy: the potions, scrolls and keys, set C->S
+  0x32's 0x80000000; the server, `FUN_0054bac0` → `FUN_00577830`, takes
+  it for a perm item only, `FUN_00576ed0`: PermStoreItems, and hp4/5,
+  mp4/5 in an expansion game):
+  - a scroll fills its tome: purse / price of them, at most its room;
+  - an AutoStack type (`FUN_0062e790`, the item's own ItemTypes row
+    +0x13), priced at a quantity of 1, tops up the first carried stack
+    of it with room, worn then backpack (`FUN_00577700`), with as many
+    as the gold buys (none: 12, line 0x89a); with none carried, one
+    stack of that many, at most its most (`FUN_006295b0`);
+  - anything else is bought again while the belt takes it; the first it
+    doesn't goes to the inventory and ends it. Gold running out after
+    one answers 12 (0x8d4); room running out says nothing.
+  d2d: `rules::store_buy`'s `fill`, `cmd::Buy::fill`.

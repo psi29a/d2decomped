@@ -72,7 +72,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
             const auto& belt = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))];
             const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats)
-                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes);
+                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill);
             if (result != d2d::rules::Trade::done) actor->events.push_back(ev::TradeRefused{ result });   // a gamble's buy is a buy (C->S 0x32, FUN_00577830)
             return true;
         }

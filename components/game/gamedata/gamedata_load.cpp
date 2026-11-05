@@ -976,6 +976,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (std::size_t row = 0; row < misc.size(); ++row) {
             auto number = [&](const std::string& column) { return std::atoi(std::string(misc.get(row, column)).c_str()); };
             if (number("autobelt")) if (const auto base = game_data.rules.item_base.find(std::string(misc.get(row, "code"))); base != game_data.rules.item_base.end()) base->second.autobelt = true;
+            if (number("multibuy")) if (const auto base = game_data.rules.item_base.find(std::string(misc.get(row, "code"))); base != game_data.rules.item_base.end()) base->second.multibuy = true;
             const auto stat1 = misc.get(row, "stat1"), stat2 = misc.get(row, "stat2");
             d2d::rules::Tables::Potion potion{ 0, 0, number("len") };
             if (stat1 == "hpregen") potion.life = number("calc1");
