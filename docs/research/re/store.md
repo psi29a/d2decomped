@@ -362,7 +362,13 @@ else rare.
   repaired: the server's Repair All (`FUN_00578050`, flag 0x80000000)
   repairs what a second FUN_0062fe60 pass counts, through its callback
   `FUN_005762b0` → `FUN_005761c0`, a single repair's mend. d2d:
-  `rules::repair_all_takes`.
+  `rules::repair_all_takes`. The sum is paid at once (`FUN_00576d90`,
+  purse then stash) before anything is mended: short of it, nothing is
+  repaired and the client is told it hasn't the gold (12, line 0x9e4);
+  a sum of 0 does nothing (0x9dd). An item counted at price 0 (an
+  unidentified one with a charge missing) is left as it is: the mend
+  asks the gate (`FUN_0062e660`) again. d2d: `rules::store_repair_all`
+  → `rules::mend`.
 - A bought scroll goes into a carried tome with room (`FUN_00577830` →
   `FUN_0055f640`), as one picked up does. 0x29 (`FUN_0054b710` →
   `FUN_0055ef20`) puts the held scroll into a stored tome of the same
