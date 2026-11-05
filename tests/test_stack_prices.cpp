@@ -38,6 +38,12 @@ int main() {
     assert(item_price(tables, keys, "Charsi", true, header) == 25 * 256 / 1024 * 4);
     keys.quantity = 0;                                                     // no quantity counts as 1
     assert(item_price(tables, keys, "Charsi", false, header) == 25);
+    // x quantity in 32 bits (0062fc75): 100,000,000 (99,999,744 past the
+    // mult's / 1024) x 30 passes 2^31, goes negative, and costs 1.
+    tables.item_base["key"].cost = 100000000;
+    keys.quantity = 30;
+    assert(item_price(tables, keys, "Charsi", false, header) == 1);
+    tables.item_base["key"].cost = 25;
 
     // A magic javelin: its prefix's 2048 x 100 / 1024 + 600 = 800 is shared
     // by the 60 a stack holds (13 each), then the 20 here are paid for.

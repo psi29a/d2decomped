@@ -164,7 +164,8 @@ The base y is 539 (= 60 + 255 + 224):
      side: a buy takes "sell mult" and "questsellmult", a sale "buy mult"
      and "questbuymult";
   5. × quantity for every other item that isn't a tome or a quiver
-     (stackable or not: buy `0062fc75`, sell `0062fcd0`). A stackable
+     (stackable or not: buy `0062fc75`, sell `0062fcd0`; a 32-bit
+     product, so one past 2^31 goes negative and takes the minimum 1). A stackable
      whose repair gate passes (`FUN_0062e660`: identified, not ethereal,
      a Repair type, e.g. javelins) sells instead as a full stack less the
      repair of what it lacks: most × sale − rep-scaled repair unit ×

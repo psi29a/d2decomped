@@ -650,9 +650,12 @@ inline int item_price(const Tables& tables, const d2d::d2s::Item& item, const st
     }
     // A stack its repair refills (stackable, and FUN_0062e660 passes) sells
     // as a full one less the repair of what it lacks (0062fc85..0062fcbb).
+    // The products are game.exe's 32 bits: one past 2^31 goes negative, so
+    // the minimum 1.
+    const auto wrap = [](long long number) { return std::int32_t(std::uint32_t(number)); };
     if (sell && priced_as_stack(tables, item) && repairable(tables, item))
-        price = stack_most(tables, item) * price - repair_each(tables, item, npc_id, header, false) * stack_missing(tables, item);
-    else if (!priced_by_contents(tables, item)) price *= count;
+        price = wrap(wrap(stack_most(tables, item) * price) - wrap(repair_each(tables, item, npc_id, header, false) * stack_missing(tables, item)));
+    else if (!priced_by_contents(tables, item)) price = wrap(price * count);
     if (sell && price_row != tables.npc_prices.end()) price = std::min<long long>(price, price_row->second.max_buy[std::size_t(diff)]);
     return int(sell ? std::max<long long>(price, 1) : price_reduced(price, reduced));
 }
