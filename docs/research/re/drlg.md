@@ -1084,6 +1084,14 @@ warp's seq, sequence < 4) on it; a visible warp wall (FUN_0066e260) puts
 itself on it. Either cuts the chain it was on, so a later room's
 FUN_0066e4c0 misses the tiles past it and adds its own copies (L23).
 
+**Room rect test** (FUN_0066b9d0, 65 bytes, fastcall `(rect, x, y)`, rect
+= four ints {x, y, w, h}): true when `rx <= x <= rx + w` and `ry <= y <=
+ry + h`, both ends inclusive, so a room of w x h tiles holds (w+1) x (h+1)
+points. FUN_0066c3d0 (wall flood), FUN_0066c870 (wall cells), FUN_0066cf60
+(border join) and FUN_0066e4c0 (edge sharing) call it; d2d inlines it as
+`x >= room.x && ... && x <= room.x + room.width` (room_tiles.hpp). Cited
+from the decompiled body, not run through tools/emu.
+
 **Doors** (FUN_0066d9e0; d2d's `relevel` makes the units again in the
 rooms' order, so a shared edge's door is the first room's): an orientation 8 / 9 wall makes a door unit —
 hidden (FUN_0066e9b0, no tile), newly added (FUN_0066dc50 ->
