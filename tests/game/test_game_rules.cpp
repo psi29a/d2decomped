@@ -115,13 +115,13 @@ int main() try {
         ViewEncoder rate_encoder;
         assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
         assert(rates.monsters.size() == 1 && rates.monsters[0].anim_pct == 25 && rates.monsters[0].props.ias == 60 && rates.monsters[0].props.fcr == 40);
-        assert(anim_rate_pct(rates.monsters[0], "A1") == 65 && anim_rate_pct(rates.monsters[0], "SC") == 55);
+        assert(anim_rate_pct(rates.monsters[0], "A1") == 65 && anim_rate_pct(rates.monsters[0], "SC") == 30);   // a cast reads no attackrate (FUN_006216e0)
         sent.monsters[0].anim_pct = 30;
         assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
         assert(anim_rate_pct(rates.monsters[0], "A1") == 70);
         sent.monsters[0].aura_rate = 20;   // Fanaticism's: a host's aura reaches the swing as drawn
         assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
-        assert(anim_rate_pct(rates.monsters[0], "A1") == 90 && anim_rate_pct(rates.monsters[0], "SC") == 60);
+        assert(anim_rate_pct(rates.monsters[0], "A1") == 75 && anim_rate_pct(rates.monsters[0], "SC") == 30);   // 100 + 30 + 20 + 40 capped at 175 (FUN_00623f50)
     }
     {
         // Event 1's deadline is specific to the operate function: most
@@ -158,7 +158,7 @@ int main() try {
         Monster monster;
         monster.props.ias = 30; monster.props.fcr = 15; monster.anim_pct = 10;
         assert(anim_rate_pct(monster, "A1") == 34 && anim_rate_pct(monster, "A2") == 34);
-        assert(anim_rate_pct(monster, "SC") == 23 && anim_rate_pct(monster, "WL") == 10 && anim_rate_pct(monster, "S1") == 10);
+        assert(anim_rate_pct(monster, "SC") == 13 && anim_rate_pct(monster, "WL") == 10 && anim_rate_pct(monster, "S1") == 10);
         monster.seed = d2d::rules::Rng(77);
         monster.props.knock = 1;
         for (int k = 0; k < 8; ++k) {
