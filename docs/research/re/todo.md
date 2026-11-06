@@ -37,6 +37,7 @@ Ranked by Seen, then by how much play it touches.
 | 37 | The get-hit oracles `hit_rule.py`, `hit_absorb.py` and `hit_render.py` were cited but never committed: get-hit, absorb and get-hit frames are cited, not re-checkable | trace | no | combat.md, combat.hpp `get_hit` / `absorb_blows`, `test_combat --get-hit*` |
 | 38 | A walk to an NPC or object that stops without moving drops the interact; game.exe's client keeps it and re-plans each frame until another action | exact | yes | collision.md "What keeps a walk to a unit going"; world/tick.cpp "blocked on the way" |
 | 39 | A walk to an NPC ends at the server's reach (under 7, no line test), not the client's melee range with a clear line (FUN_00480c80 → FUN_00622c40) | exact | yes | collision.md "How near the client walks"; world/tick.cpp `in_reach` |
+| 40 | One click on the ground re-plans after a blocked or short path while it moves; game.exe's walk to a spot ends there | exact | maybe | collision.md "A walk to a spot just ends"; world/tick.cpp "Short of the target with a step made" |
 
 ## Sounds
 

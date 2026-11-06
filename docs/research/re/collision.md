@@ -263,3 +263,14 @@ server's reach of 6 (FUN_00548b00) isn't what ends a client's walk to an NPC.
 
 d2d's `tick.cpp` talks at the server's reach, `unit_distance` under 7, with no
 line test: sooner than game.exe's client, and through a wall.
+
+### A walk to a spot just ends
+
+A click on the ground queues nothing, so a player's walk to a spot that runs
+out or is blocked stops there: FUN_00650840 stops the same frame (LAB_006508ff),
+the server goes idle (FUN_00580c20) and the client goes neutral (FUN_00463390).
+FUN_006503f0's re-path at idx ≥ count isn't reached from this. A held button
+goes through the queued click (FUN_0044c000), which wasn't traced.
+
+d2d re-plans a walk to a spot too while it moves ("Short of the target with a
+step made", `tick.cpp`), so one click can walk farther than game.exe's does.
