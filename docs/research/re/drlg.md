@@ -1403,6 +1403,18 @@ d2d: not ported. Its levels are C++ objects freed by scope, and no room is
 ever freed (see the ponytail above). Cited from the decompile, not run in
 `tools/emu`.
 
+`FUN_00642390(_, level)` is the other half of that `keep` pass, called at the
+end of `FUN_006424a0` (the level builder). When the level has a room2 list
+(`+0x10`), a room count (`+8`) and the saved block (`+0x22c`), it walks the
+rooms (next `+0x24`) beside the block's dwords and sets room2 `+0x60` bit 0
+wherever the saved dword is nonzero. So bit 0 survives a free and rebuild.
+d2d: not ported (no room is rebuilt). Cited, not run in `tools/emu`.
+
+`FUN_00642230(act)` is `act ? [act+0x94] : 0`, the Act 2 boss tomb level
+(roll in "Act 2's layout"). Its only caller is `FUN_0061aeb0`, a null-checking
+copy of it. d2d: agrees, `act_seed(...)` + `roll_act2_tombs(...).boss`
+(`components/game/world/quests/act2.cpp:47`). Cited, not run in `tools/emu`.
+
 ## Checking against game.exe — what's proven, what isn't
 
 **How it's proven.** `tools/emu` runs game.exe 1.14d itself under unicorn:
