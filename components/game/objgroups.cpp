@@ -927,19 +927,19 @@ struct ObjectRooms {
                     const std::array<int, 4> rect{ marker_room.x * 5, marker_room.y * 5, marker_room.width * 5, marker_room.height * 5 };
                     const auto row = game_data.mon_bin[0x202];
                     if (spawns) leader = int(spawns->size());
-                    using Spot = std::pair<int, int>;                                       // a room, as a subtile it holds
-                    const auto free_spot = [&](Spot&, int& at_x, int& at_y) {
+                    using RoomSpot = std::pair<int, int>;                                       // a room, as a subtile it holds
+                    const auto free_spot = [&](RoomSpot&, int& at_x, int& at_y) {
                         const auto spot = level.free_area(at_x, at_y, 2, 0x100, 100);
                         if (spot) std::tie(at_x, at_y) = *spot;
                         return spot.has_value();
                     };
-                    const auto near_room = [&](const Spot& from, int at_x, int at_y) -> std::optional<Spot> {
+                    const auto near_room = [&](const RoomSpot& from, int at_x, int at_y) -> std::optional<RoomSpot> {
                         const auto rects = missile_rooms(game_data, level, float(from.first) / 5, float(from.second) / 5);
                         if (std::ranges::any_of(rects, [&](const auto& box) { return at_x >= box[0] && at_y >= box[1] && at_x < box[0] + box[2] && at_y < box[1] + box[3]; }))
-                            return Spot{ at_x, at_y };
+                            return RoomSpot{ at_x, at_y };
                         return std::nullopt;
                     };
-                    const auto make_at = [&](const Spot&, int at_x, int at_y, int retry) {
+                    const auto make_at = [&](const RoomSpot&, int at_x, int at_y, int retry) {
                         int spot_x, spot_y;
                         if (!put(int(row), at_x, at_y, retry, false, spot_x, spot_y)) return false;
                         auto own = made(int(row), spot_x, spot_y);
@@ -947,7 +947,7 @@ struct ObjectRooms {
                         return true;
                     };
                     last_made.reset();
-                    if (d2d::rules::marker_npc(Spot{ unit.x, unit.y }, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, false);
+                    if (d2d::rules::marker_npc(RoomSpot{ unit.x, unit.y }, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, false);
                 }
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made
