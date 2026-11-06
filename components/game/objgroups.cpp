@@ -1260,7 +1260,8 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
     pop.seed = index < early.size() && early[index] ? *early[index] : d2d::rules::Rng{ index < level.room1_seeds.size() ? level.room1_seeds[index] : level.rooms[index].seed };
     // FUN_0054f060; on a step with its low 15 bits clear, a MonWndr level
     // rolls a wanderer (FUN_0054eff0: under 3 in 100).
-    // ponytail: the wanderer itself (FUN_0054ef50) isn't made; 3 in 3.3M rooms.
+    // ponytail: the wanderer itself (FUN_0054ef50: always MonStats 270, the Act 1
+    // rogue scout, list 8 GoodNpcRanged) isn't made: d2d has no good-aligned AI; 3 in 3.3M rooms.
     if ((pop.seed.next() & 0x7fff) == 0 && level.mon.wander) pop.seed.next();
     pop.presets(index);
     pop.out->pre = pop.seed.low;
