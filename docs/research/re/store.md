@@ -140,6 +140,11 @@ The base y is 539 (= 60 + 255 + 224):
      stat list less the base one, ItemStatCost Multiply·base·value/1024 +
      Add; a skill stat, Encode 1 by its value or 2/3 by its level, takes
      Skills.txt cost mult / cost add, a sale's / 4096; value 0 skipped).
+     The full list is the stat list's `+0x48` array (`FUN_00625c30`), each
+     value `FUN_00625420` (full) less `FUN_00625350` (`+0x24`, base). A
+     filled socket's stats hang on that list (`FUN_00627910` ->
+     `FUN_00626e10`, as stat 91 is read through `FUN_00625500`), so a gem,
+     rune or jewel's stats are priced with the item's own, summed by stat.
      Staff mods (`FUN_0062edd0`: each stat 107, (2·level − 1)·(skill cost
      mult·price/1024 + cost add), a sale's / 4096) count on the base below
      magic, identified or not, and on the price with its extras from magic

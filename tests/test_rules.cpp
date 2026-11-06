@@ -108,6 +108,10 @@ int main() {
         assert(item_price(tables, superior, "Nobody", true, header) == 1000 + 662 + 225);     // a sale's skill term / 4096
         Item plain = superior; plain.quality = 2;
         assert(item_price(tables, plain, "Nobody", false, header) == 1000);                   // a normal item's stats cost nothing
+        Item holder = item("hax", 3); holder.props = { { 0, 0, 4 } };
+        Item filled = item("gem"); filled.props = { { 0, 0, 6 } };
+        holder.socketed_items = { filled };
+        assert(item_price(tables, holder, "Nobody", false, header) == 1000 + 662 + 100);      // the socket's strength 6 joins the 4: 10 once, + half the gem
         Item staff = item("hax"); staff.props = { { 107, 5, 2 } };
         assert(item_price(tables, staff, "Nobody", false, header) == 1000 + 3 * 350);         // (2 x 2 - 1) x (256 x 1000 / 1024 + 100)
         assert(item_price(tables, staff, "Nobody", true, header) == 1000 + 3 * 162);

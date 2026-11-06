@@ -477,11 +477,16 @@ inline int price_term(int mul, int add, int price, int value, int limit, int shi
 // the skill) by the value, Encode 2 / 3 (skill << 6 | level: on-hit, charges) by
 // the level, a sale by / 4096. Encode 4 (by time) is mult 0 and no add in 1.14d.
 // `buy` is the buy side's price, which picks the branch. The save's lists (the
-// main one, a runeword's after it) stand for the magic lists.
-// ponytail: a socketed item's own stats, if the full list holds them, aren't added.
+// main one, a runeword's after it) stand for the magic lists. The list is the
+// full one (FUN_00625c30: the stat list's +0x48; FUN_00625560: FUN_00625420
+// full less FUN_00625350 base), what the sockets hang on it included
+// (socket_props), as stat 91 is read (FUN_00625500 -> FUN_00625420).
+inline std::vector<d2d::d2s::ItemProp> socket_props(const Tables& tables, const d2d::d2s::Item& parent, const d2d::d2s::Item& filled);
 inline int stat_costs(const Tables& tables, const d2d::d2s::Item& item, int buy, int price, bool sell) {
     std::map<std::pair<int, int>, int> stats;
     for (const auto& prop : item.props) stats[{ prop.stat, prop.param }] += prop.value;
+    for (const auto& filled : item.socketed_items)
+        for (const auto& prop : socket_props(tables, item, filled)) stats[{ prop.stat, prop.param }] += prop.value;
     int total = 0;
     for (const auto& [key, value] : stats) {
         const auto [stat, param] = key;
