@@ -1005,9 +1005,11 @@ struct Fight {
     // each undead in it; 29 (FUN_005abb00, Frozen Orb) HitSubMissile1 in
     // every sHitPar1th of 64 directions; 48 (FUN_005ac6d0) HitSubMissile1
     // on toward where it was sent.
-    // ponytail: Immolation's ground fire burns the row's EMin a frame (the
-    // record FUN_0064b7c0 builds isn't traced); Plague's clouds are one;
-    // a wall doesn't set a missile off.
+    // Immolation's ground fire burns its own row a frame (FUN_0064b100,
+    // its synergy through the Missiles.txt calc evaluator FUN_0064b7c0) for
+    // SHitCalc1 frames (FUN_005aa250 -> FUN_005a9530).
+    // ponytail: pSrvDmgFunc 3's flag 0x4000 roll (FUN_005ad220) isn't
+    // applied; Plague's clouds are one; a wall doesn't set a missile off.
     void burst(Missile& missile, std::uint32_t now_ms);
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
     // hitpoints heal the player (Prayer: edns, 256ths); an enemy one
