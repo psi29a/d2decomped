@@ -515,7 +515,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) {
                 const auto sound = item_sound(*game_data, *actor->held, false);
                 const int level_needed = required_level(*game_data, *actor->held, cls);
-                if (d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed)) {
+                const auto& layout = game_data->inv_layout[std::size_t(cls)];
+                if (d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed,
+                                      layout.cols, layout.rows)) {
                     sound_cue(sound);
                     if (to_body->slot == d2d::d2s::body_location::kBelt) spill_belt(now_ms);   // FUN_00560f00
                 }

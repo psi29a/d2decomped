@@ -340,7 +340,22 @@ int main() {
     held = item("am1");
     assert(!equip(cursor_tables, empty, held, 4, sorc));                                     // Amazon-only bow
     held = item("2ax");
-    assert(!equip(cursor_tables, empty, held, 4, sorc));                                     // both hands full: two would come off
+    assert(!equip(cursor_tables, empty, held, 4, sorc));                                     // both hands full, no inventory: code 0
+    {   // Code 7 (C->S 0x1e, FUN_00561220): the shield to the inventory, the sword to the cursor.
+        auto both = empty;
+        std::optional<Item> two_hander = item("2ax");
+        assert(equip(cursor_tables, both, two_hander, 4, sorc, -1, 10, 4) && two_hander && two_hander->code == "ssd");
+        const auto shield = std::ranges::find(both, std::string("buc"), &Item::code);
+        assert(shield != both.end() && shield->location == d2d::d2s::item_location::kStored && shield->panel == d2d::d2s::item_panel::kInventory);
+        assert(item_at(both, 1, 4) && item_at(both, 1, 4)->code == "2ax" && !item_at(both, 1, 5));
+        auto no_room = empty;
+        cursor_tables.item_info["fil"] = { .width = 10, .height = 4 };
+        Item filler = item("fil");
+        filler.location = d2d::d2s::item_location::kStored; filler.panel = d2d::d2s::item_panel::kInventory;
+        no_room.push_back(filler);
+        two_hander = item("2ax");
+        assert(!equip(cursor_tables, no_room, two_hander, 4, sorc, -1, 10, 4) && two_hander->code == "2ax");   // no room: refused
+    }
     std::erase_if(empty, [](const Item& x) { return x.code == "buc"; });
     assert(equip(cursor_tables, empty, held, 4, sorc) && held && held->code == "ssd");       // two-hander swaps the sword out
     held = item("buc");

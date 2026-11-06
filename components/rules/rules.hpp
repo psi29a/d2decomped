@@ -1271,26 +1271,39 @@ inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items
     return true;
 }
 
-// Equip `held` in body slot `slot` (1..10), swapping out what's there.
-// In the hands, the other hand's item comes off too when the two can't
-// be held together (a two-hander and a shield, a second weapon for a
-// non-Barbarian) — as long as only one item comes off in all.
-// ponytail: that displacing is the D2 behaviour for two-handers; for the
-// second-weapon case it isn't checked against game.exe yet.
+// Equip `held` in body slot `slot` (1..10), swapping out what's there. In
+// the hands, `held` and the other hand's item must go together (FUN_0063dd90
+// -> FUN_0063dbc0: rules::hands_ok); when they can't:
+// - this hand empty: the other hand's item comes off to the cursor (code 2,
+//   C->S 0x1b, FUN_00563d20);
+// - this hand full: the other hand's item goes to the inventory's free spot
+//   (code 7, C->S 0x1e, FUN_00561220: FUN_0063cb00's room test, then
+//   FUN_0063b950, a player's best fit) and this hand's to the cursor. No
+//   room in the `cols` x `rows` inventory: code 0, refused.
 inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
-                  int slot, const Wearer& wearer, int required_level = -1) {
+                  int slot, const Wearer& wearer, int required_level = -1, int cols = 0, int rows = 0) {
     if (!held || !can_wear(tables, *held, slot, wearer, required_level)) return false;
     const bool hand = slot == d2d::d2s::body_location::kRightArm || slot == d2d::d2s::body_location::kLeftArm;
     const int other = hand ? d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot : 0;
-    int off = -1;                                      // the item coming off
+    int off = -1, other_off = -1;                      // this slot's item; the other hand's, when it can't stay
     for (std::size_t i = 0; i < items.size(); ++i) {
         const auto& worn = items[i];
         if (worn.location != d2d::d2s::item_location::kEquipped) continue;
-        const bool comes_off = worn.slot == slot
-            || (hand && worn.slot == other && !hands_ok(tables, *held, worn, wearer));
-        if (!comes_off) continue;
-        if (off >= 0) return false;
-        off = int(i);
+        if (worn.slot == slot) off = int(i);
+        else if (hand && worn.slot == other && !hands_ok(tables, *held, worn, wearer)) other_off = int(i);
+    }
+    if (off >= 0 && other_off >= 0) {                  // code 7: the other hand's to the inventory
+        std::vector<const d2d::d2s::Item*> placed;
+        for (const auto& carried : items)
+            if (carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory) placed.push_back(&carried);
+        auto& moved = items[std::size_t(other_off)];
+        const auto [width, height] = item_size(tables, moved.code);
+        const auto [column, row] = free_spot(tables, placed, cols, rows, width, height, true);
+        if (column < 0) return false;
+        moved.location = d2d::d2s::item_location::kStored; moved.panel = d2d::d2s::item_panel::kInventory;
+        moved.column = column; moved.row = row; moved.slot = 0;
+    } else if (off < 0) {
+        off = other_off;                               // code 2: the other hand's to the cursor
     }
     auto put = std::move(*held);
     held.reset();

@@ -86,3 +86,34 @@ holds an item (`FUN_0063e020` page 2).
 
 d2d: `rules::spill_belt`, called by the World's `cmd::ToBody` (belt
 slot) and `cmd::ToCursor` (the worn belt).
+
+## Into a hand (`FUN_0063de60` → `FUN_0063dd90`)
+
+For body slots 4 and 5, `FUN_0063de60` asks `FUN_0063dd90` with the item
+on the cursor, the one in the clicked hand and the other hand's. With an
+item on the cursor:
+
+| Clicked hand | The other hand's item | Code | Client sends | Server |
+|---|---|---|---|---|
+| empty | none, or goes with it (`FUN_0063dbc0`) | 1 | 0x1a | `FUN_005606b0`: equipped |
+| empty | doesn't go with it | 2 | 0x1b | `FUN_00563d20`: the other hand's to the cursor, then equipped |
+| full | stacks with it (`FUN_0062c850`) | 6 | 0x21 | stack |
+| full | none, or goes with it | 5 | 0x1d | `FUN_00560f00`: swapped |
+| full | doesn't go with it, and fits the inventory (`FUN_0063cb00` → `FUN_0063b850`) | 7 | 0x1e | `FUN_00561220`: the other hand's to the inventory (`FUN_0063b950`), this hand's to the cursor, then equipped |
+| full | doesn't go with it, no room | 0 | nothing | the client's "can't" voice (`FUN_004cb9c0`) |
+
+`FUN_0063dbc0` (d2d `rules::hands_ok`) passes:
+- a bow beside its quiver;
+- not a quiver beside anything else;
+- a two-hander alone, unless the wearer holds it in one hand
+  (`FUN_0062a1e0`);
+- two weapons (ItemTypes 0x2d) for a Barbarian, or for an Assassin with
+  two claws (0x43).
+
+The client's hand handlers are `FUN_00490780` (right, slot 4) and
+`FUN_00490ba0` (left, 5). Each sends the packet with `FUN_004786a0`, and
+puts the moving items in state 0x36 (`FUN_004c21f0`) until the server
+answers.
+
+d2d: `rules::equip`, called by the World's `cmd::ToBody` with the class's
+inventory grid.

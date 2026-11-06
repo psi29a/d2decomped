@@ -804,8 +804,10 @@ skill to the others only (0x4c / 0x4d), not back to it.
 | 18 cursor → grid | 17 | u32 id, u32 x, u32 y, u32 buffer (0 inventory, 2 trade, 3 cube, 4 stash; only 4 proven) | `54abb0` → `FUN_00560200` | `cmd::ToGrid`: d2d's panel 1 / 4 / 5 → 0 / 3 / 4 |
 | 19 grid → cursor | 5 | u32 id | `54acd0` | `cmd::ToCursor` |
 | 1a equip | 9 | u32 id, u8 body slot 1..10 | `54ad90` | `cmd::ToBody` |
+| 1b equip, the other hand's off | 9 | u32 id, u8 body slot (4 / 5) | `54ae30` → `FUN_00563d20`: the other hand's item to the cursor, this one in (`FUN_0063de60` code 2) | `cmd::ToBody` |
 | 1c body → cursor | 3 | u16 body slot | `54aec0` | `cmd::ToCursor`: **slot, not id** |
 | 1d swap cursor ↔ body | 9 | u32 id, u8 slot | `54af50` | `cmd::ToBody` |
+| 1e swap, the other hand's to the inventory | 9 | u32 id, u8 slot (4 / 5) | `54b030` → `FUN_00561220`: the other hand's item to the inventory, this hand's to the cursor (`FUN_0063de60` code 7) | `cmd::ToBody` |
 | 1f swap cursor ↔ grid item | 17 | u32 cursor id, u32 target id, u32 x, u32 y | `54b0f0` | `cmd::ToGrid` (swap) |
 | 20 use item | 13 | u32 id, u32 x, u32 y (the player's position) | `54b1e0` → `FUN_0055e170` | `cmd::UseItem` |
 | 23 cursor → belt | 9 | u32 id, u32 belt slot | `54b3e0` | `cmd::ToBelt` |
