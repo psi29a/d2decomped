@@ -90,6 +90,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(pet.res[k] + pet_buff_stat(pet, kResists[k]), 95);   // Fade's on a Shadow
         fighter.thorns_pct = pet.thorns;                             // Iron Golem's thorns
         fighter.dr_pct = std::min(pet_buff_stat(pet, d2d::d2s::kDamageResist), 50);   // a curse's (Amplify Damage)
+        fighter.prime_evil_pct = 400;                                // a player's pet, not a hireling, under a prime evil's blow (FUN_0057c060)
         const auto& type_info = game_data->monsters.types[std::size_t(pet.monster.type)];
         const bool still = type_info.velocity == 0 && type_info.run == 0 && pet.ranged >= 0;   // a Hydra, like a trap, isn't there to hit
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,

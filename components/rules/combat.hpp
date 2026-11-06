@@ -76,6 +76,7 @@ struct Fighter {
     int thorns = 0, thorns_light = 0;               // attackers take (melee)
     int thorns_pct = 0;                             // stat 131: % of a melee hit's damage back (Thorns)
     int life_regen = 0, mana_regen = 0;             // hpregen; manarecoverybonus %
+    int prime_evil_pct = 100;                       // FUN_0057c060's percent on a prime evil's blow: a hireling 200, a player's other pet 400
 };
 
 // Builds the Fighter from the worn weapon / shield, the summed item stats
@@ -255,8 +256,10 @@ inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, b
 // of what is left; a field already at 0 stays 0, the product truncates toward
 // zero (FUN_00483360). reduce_fine clamps a result under 0; game.exe stores it, sums it into the
 // record total and only ignores a total not above 0 (0057c852): reduce_fine_signed keeps it.
-// ponytail: FUN_0057c1e0 scales the flat by the record's +0x54 / 1024 when that
-// is above 0 and the whole record by FUN_0057c060's percent; neither is modelled.
+// FUN_0057c1e0 scales the whole record by FUN_0057c060's pair percent
+// first (monster_blow: a prime evil's on a pet).
+// ponytail: it also scales the flat by the record's +0x54 / 1024 when that
+// is above 0; not modelled.
 inline int reduce_fine_signed(int fine, int percent, int flat) {
     if (fine <= 0) return 0;
     fine -= flat * 256;
@@ -895,6 +898,17 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
     int low = second_attack ? attacker.a2_min : attacker.a1_min, high = second_attack ? attacker.a2_max : attacker.a1_max;
     if (!missile && !exact) { low = std::max(low, 1); high = std::max(high, low + 1); }   // min at least 1, max at least min + 1: an empty range still draws
     taken.raw = exact ? low * 256 : low * 256 + rng((high - low) * 256);
+    // FUN_0057c060 (0x57c060), the attacker / defender pair's percent: a prime
+    // evil (MonStats +0xc & 0x80) on a player's pet (unit +0xc4 bit 31), 200
+    // a hireling, else 400. FUN_0057c1e0 takes each damage field above 0 to
+    // v x pct / 100 (FUN_00483360) before the absorbs and reductions. Its
+    // other pairs (a player or a hireling or pet on a player 17, hireling on
+    // hireling 25) don't come up here.
+    // ponytail: a hireling on a MonStats boss takes the hit context's +0x38
+    // (untraced); the poison field isn't scaled.
+    const int pair_pct = attacker.prime_evil ? defender.prime_evil_pct : 100;
+    const auto pair_scaled = [&](int fine) { return pair_pct != 100 && fine > 0 ? int(std::int64_t(fine) * pair_pct / 100) : fine; };
+    taken.raw = pair_scaled(taken.raw);
     // FUN_0057bf80, per field of the record: the flat reduction (physical: stat 34 then the percent; the elements and magic: the magic damage
     // reduction) comes off FIRST, then the resistance on what is still above 0; a field left under 0 is stored and summed into the record total
     // (+0x4c), which is clamped once (0057c852). A type's rows are one field of the record.
@@ -912,6 +926,7 @@ inline Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, cons
         }
     }
     for (const int type : { 0, 1, 2, 4 }) {
+        if (pair_pct != 100) taken.element_raw[std::size_t(type)] = pair_scaled(taken.element_raw[std::size_t(type)] * 256) >> 8;   // 200 / 400: whole points stay whole
         const int roll = taken.element_raw[std::size_t(type)];
         if (roll <= 0) continue;
         int fine = roll * 256 - defender.mdr * 256;

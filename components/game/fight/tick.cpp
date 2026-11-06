@@ -224,6 +224,7 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
         for (auto& state : actor->merc_potion_states) if (now_ms >= state.until) state = {};
         Foe foe{ actor->merc ? actor->merc->unit.x : 0, actor->merc ? actor->merc->unit.y : 0, actor->merc_st.level, actor->merc && actor->merc->mode != "DT",
                  actor->merc && actor->merc->unit.walking, merc_fighter() };
+        foe.fighter.prime_evil_pct = 200;                // a hireling under a prime evil's blow (FUN_0057c060)
         foe.pet = true;                                  // the merc: its MonStats class's size
         foe.id = merc_foe_id();
         foe.neutral = actor->merc && actor->merc->mode == "NU";

@@ -275,6 +275,7 @@ struct MonStats {
     // Its own poison stats 57 / 58 / 59 (MonUMod poison hit, FUN_005a1e00),
     // on every hit it lands (FUN_0057b7d0): per tick in 256ths, ticks.
     int poison_min = 0, poison_max = 0, poison_len = 0;
+    bool prime_evil = false;                  // MonStats primeevil (+0xc & 0x80, FUN_0063edc0): FUN_0057c060's pair percent
 };
 // The max damage a monster's last swing left in its stats (FUN_005a4f50,
 // at each attack mode: A2's for A2, S1's for SC / S1, A1's otherwise; each
@@ -393,6 +394,7 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     MonStats stats;
     if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;
     const auto& type_info = monsters.types[std::size_t(type)];
+    stats.prime_evil = type_info.prime_evil;
     if (type_info.align != 0) players = 1;
     const int difficulty_index = std::clamp(difficulty, 0, 2);
     const int base_level = start_level(type_info, difficulty_index, area_level);
