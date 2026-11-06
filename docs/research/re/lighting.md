@@ -135,7 +135,11 @@ The environment lookup was hooked; no d2d parity claim is made.
   (`FUN_004ddef0`), entry (col, row) the grid at subtile (x − 1 + col,
   y − 1 + row) from the tile's cell. A roof with a roof height hands it
   in as the third argument and the table is all the environment's light:
-  raised roofs take the ambient alone, no lamps. A floor whose DT1
+  raised roofs take the ambient alone, no lamps. That is +0xc itself
+  (`FUN_0061c0e0`), not `FUN_00474550`, so a level's own light doesn't reach
+  them. Of the levels with their own light, only Pandemonium Fortress (103)
+  places any: 57, all `Exterior.dt1`, at 128 settled where its level light is
+  140. d2d lights them from `Lighting::ambient`, the level's (todo.md #42). A floor whose DT1
   material has 0x100 gets 0xff throughout. The block callback
   (`FUN_004f8b80`) takes block (bx, by) (its grid bytes, +6 / +7) with
   e = table + bx + 8·by: A = e[9], B = e[10], C = e[17], D = e[18]; flat
