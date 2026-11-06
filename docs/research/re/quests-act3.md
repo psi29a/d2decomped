@@ -53,6 +53,16 @@ unit event 0x23), +0x18 the stand's mode.
   tome carried 2; under way 1, lost 8 (9 in a multiplayer game, game +0x6a
   != 3); carried by someone 0xc (1 in act 3).
 
+- **Item events** (set at init, `FUN_005b7e90`: +0xb0 `FUN_005b7970`, +0xb4
+  `LAB_005b7a00`): event 4 (an item into a player's inventory, `0x543d80`)
+  and event 5 (one dropped, `0x543db0`) go only to the records on the
+  item's own list (item +0x74, `FUN_005439a0`; bound as it's made,
+  `FUN_00555d20` at 0x555d82: Items.txt quest − 1), so only `bbb ` reaches
+  a3q1; the handlers don't test the code again or the state. With +9: event 4 sends log 2 (`FUN_00544300`, EDX 2 at
+  0x5b79a0), state 4 (EDX 4 at 0x5b79ba), the player into data +0x1c;
+  event 5 takes the player out (0x5b7a1a), state 3 (EDX 3 at 0x5b7a2f),
+  log 1 (0x5b7a44), whatever the state was (+9 the only gate).
+
 d2d: `rules::LamEsenQuest`; the pickup / drop are polled from what's
 carried. `tests/quests_d2d.py` plays it.
 

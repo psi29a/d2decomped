@@ -82,7 +82,8 @@ struct LamEsenQuest {
         if (state != 3) state = 3;
         return true;
     }
-    // The tome picked up (FUN_005b7970) / dropped (FUN_005b7a00).
+    // The tome picked up (FUN_005b7970) / dropped (FUN_005b7a00): with +9,
+    // state 4 / 3, whatever it was (tools/emu/quest_item_events.py).
     void picked_up() { if (open) state = 4; }
     void dropped() { if (open) state = 3; }
     // What `npc` says (FUN_005b7400; blocks 0x73ecf0, state -> 0x73f188).

@@ -38,6 +38,7 @@ auto World::act3_join() -> void {
         d2d::rules::HratliGreeting::join(quests(), game_bits);
         lam_esen = {};
         lam_esen.join(quests(), game_bits, carries(d2d::rules::LamEsenQuest::kTome));
+        actor->had_tome = carries(d2d::rules::LamEsenQuest::kTome);
         khalim = {};
         khalim.join(quests(), khalim_parts());
         temple = {};
@@ -81,7 +82,7 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         // Lam Esen's Tome handed to Alkor (FUN_005b7740): the tome goes (FUN_00544160), 5 stat points.
         if (const auto heard = lam_esen.said(quests(), game_bits, hc_idx, message_string, carries(d2d::rules::LamEsenQuest::kTome), d2d::rules::level_act(level->id) == 2, actor->id); heard.takes_tome || heard.stat_points) {
             if (heard.stat_points) class_cue("act3_complete_lamesen", now);
-            if (heard.takes_tome) take_carried(d2d::rules::LamEsenQuest::kTome);
+            if (heard.takes_tome) { take_carried(d2d::rules::LamEsenQuest::kTome); actor->had_tome = carries(d2d::rules::LamEsenQuest::kTome); }   // taken (FUN_00544160): no drop event
             actor->character.stats.values[d2d::d2s::kStatPts] += heard.stat_points;
             d2d::log::info("Lam Esen's Tome: handed to Alkor, +{} stat points", heard.stat_points);
             if (heard.first) {
@@ -231,10 +232,15 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
             if (gidbinn && !actor->had_gidbinn && blade.picked_up(quests())) d2d::log::info("The Blade of the Old Religion: the Gidbinn (FUN_00553380)");
             actor->had_gidbinn = gidbinn;
         }
-        // The tome picked up / dropped (a3q1's +0xb0 / +0xb4, FUN_005b7970 / FUN_005b7a00).
-        // ponytail: polled from what's carried, not the item events.
-        if (const bool tome = carries(d2d::rules::LamEsenQuest::kTome); !hosted_quests && tome && lam_esen.state == 3) lam_esen.picked_up();
-        else if (!hosted_quests && !tome && lam_esen.state == 4) lam_esen.dropped();
+        // The tome picked up / dropped (a3q1's +0xb0 / +0xb4, FUN_005b7970 / FUN_005b7a00:
+        // events 4 / 5 on bbb, the item bound to it), whatever the state.
+        // ponytail: polled from what's carried, not the item events; the holders list
+        // (data +0x1c) and the logs those send aren't kept.
+        if (const bool tome = carries(d2d::rules::LamEsenQuest::kTome); tome != actor->had_tome) {
+            if (!hosted_quests && tome) lam_esen.picked_up();
+            else if (!hosted_quests) lam_esen.dropped();
+            actor->had_tome = tome;
+        }
     }
 
 }  // namespace d2d::game
