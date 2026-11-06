@@ -139,9 +139,22 @@ and the day's:
   `FUN_0046beb0` clears both 30 frames on. Diablo's death sends 13 only in a
   classic game (LAB_005b5369, game +0x70 zero), so in Lord of Destruction it holds
   until the next game (`FUN_0046bf90`).
+- **A dip to black, in any level but 8, 107 and 108** (`level_ambient.py`: 107 and 108 keep their light through one): `FUN_0046bdd0`
+  returns the bytes `FUN_0046ad10` keeps at 0x7a7430: the fill's own light and
+  RGB, an intensity that falls on the cosine over the fade in, is 0 for the
+  hold, and rises over the fade back. While it runs (0x7a742c), floors, walls
+  and units follow; raised roofs don't. `FUN_0046ae50(in, hold, back, level,
+  force)` starts it; a change of level ends it. Two callers: States.txt
+  setfunc 2 (`FUN_004d87e0`, from the state's table at 0x72a690), which only
+  `cloak_of_shadows` (state 153) has: in 5, hold 3/5 of the skill's auralen,
+  back 2/5, so level 1's 200 frames are about 5 s black then 3 s back. And
+  event 1 in level 4 (0x46aee0, sent by `FUN_00593710` as the Cairn Stones
+  open): in 40, hold 220, back 40, from missile `cairnstones` (288).
 
-`tools/emu/level_ambient.py` runs these with Levels.txt's values. d2d fills
-from the level's light (`frame_light`) with only the Den's case: todo.md #43.
+`tools/emu/level_ambient.py` runs events 12 and 13 and Cloak's dip with Levels.txt's
+values; the Den's flash and the Cairn Stones' event 1 aren't run. d2d fills
+from the level's light (`frame_light`) with only the Den's case: todo.md #43
+and #44.
 
 ### Who reads the intensity
 
