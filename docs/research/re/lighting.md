@@ -123,6 +123,21 @@ The environment lookup was hooked; no d2d parity claim is made.
 - **Sampling:** `FUN_00475aa0(x, y)` reads the entry at (x >> 3, y >> 3),
   clamped to 0..47.
 
+### Who reads the intensity
+
++0xc goes out through `FUN_0061c0e0` alone (`FUN_0061bb80` is its writer). Its
+callers: `FUN_00474550` (the grid's fill, which a level's light overrides),
+`FUN_004ddef0` (raised roofs, software), `FUN_004de070` and `FUN_004de260`
+(3D modes), `FUN_004ded20` (bytes nothing reads). `FUN_0044c990` takes only
+the RGB. Units, objects and their shadows don't read it: `FUN_004df1c0`
+(LAB_004df343, LAB_004df416) and `FUN_004df510` (LAB_004df572) hand
+`FUN_004dc7b0` the grid's entry from `FUN_00475aa0`. d2d's `Lighting::ambient`
+is read in one place besides the grid's fill, raised roofs (world_view.cpp),
+so in Acts 1 to 4 roofs are the only draw where +0xc and d2d can differ: level
+103, todo.md #42. Read from the code, no oracle. Act 5's cap of 170 and level
+120's 200 (`env_light.py`) aren't in d2d's `Day::sun`, which fills the grid
+there; Act 5 is outside todo.md.
+
 ## Drawing with it (DirectDraw, video mode 3; GDI, mode 1, the same)
 
 - **Video modes** (`DAT_007c8cb0`; drivers at 0x72da80 by mode): 1
