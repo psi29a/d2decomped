@@ -87,7 +87,6 @@ Known differences in the ones it draws, and what's left to check:
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
 | 31 | Static lights' shadows (type 2) not built | build | maybe | lighting.md, deviations.md approximation 5 |
 | 32 | Light Quality always high; unit shadows darken once; lit tiles per pixel, not per 32-pixel block | exact | hardly | deviations.md approximations 2–4 |
-| 33 | Act 4's clock: its 15 more a frame and eclipse phases (0x744438) | build | maybe | light.hpp:28 |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
 | 42 | Raised roofs take the level's own light, not the environment's +0xc: Pandemonium Fortress's are 140, game.exe's 128 after a fade from the last act's light | exact | hardly | lighting.md "Drawing with it", Floors and roofs; world_view.cpp roofs; `FUN_004dea70` -> `FUN_004ddef0` |
 
