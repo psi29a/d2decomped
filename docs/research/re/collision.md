@@ -162,3 +162,39 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 - ponytail: FUN_0056d8d0 skips bit 31 for a summon record with flag 8;
   no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
   d2d pet takes 3 / 4.
+
+## A walk's stop
+
+Read from the code; `objdump -d -M intel --start-address=0x64eda0
+--stop-address=0x650910 game.exe` shows the first three paragraphs.
+
+- **The stop.** FUN_00650840 calls FUN_00650660, which calls FUN_00650150
+  (LAB_0065073c). A blocked subtile: FUN_00650150 writes the centre of the
+  last free walked point (LAB_0065025f, `and edi,0xffff0000`, then adding 0x8000) and
+  returns 1, and FUN_00650660 sets idx = count (LAB_0065076c). FUN_00650840
+  puts the unit there (LAB_006508ca), sees idx ≥ count and calls FUN_006507b0
+  (LAB_006508ff), which snaps again (LAB_006507b5), clears flag 0x20 and sets
+  idx and count to 0. No path means the same stop, from the same label.
+- **Steps don't count.** The walk starts at the unit's own position
+  (LAB_0065017c) and no step made earlier decides the snap: path +0x1d4 starts
+  at 0 each call, and only its cap of 10 subtiles a call (LAB_00650236) leaves
+  without a snap. Blocked on the first step, the unit goes to the centre of
+  the subtile it stands on. A velocity of 0 snaps too (LAB_006506a8).
+- **Wall or unit, the same.** A walker (no path flag 0x40000) tests a new
+  subtile through FUN_0064ff90 → FUN_0064eda0: its own stamp off
+  (FUN_0064ec10), then FUN_0064d870 against the mask (path +0x50). Any bit
+  blocks (LAB_0065005f, `or` into path +0x54, then LAB_00650070), so a wall,
+  an object and the units' 0x1000 take one path. Only a change of subtile is
+  tested (LAB_006501c0 on).
+- **Who.** Player, monster and merc share this stop; the merc differs only in
+  what it stamps (0x2000, "The grid" above). What follows differs: FUN_00554ca0
+  turns the stop into 2, a player's FUN_00580c20 then goes idle or takes its
+  pending interact, a monster's walk update (LAB_005a84c4) thinks at
+  once (FUN_005a8030). Only a client-side monster re-paths from the stop
+  (monster-ai.md).
+- **d2d.** `follow_path` (ai.cpp), for the player, merc, pets and town NPCs,
+  stops for a wall and the crowd alike, as game.exe does. It leaves the unit
+  where it was, not on the centre: off-centre after a crowd stops it part way, or when a new path from
+  the middle of a subtile clips a blocked one on its first leg. Neither needs
+  `debug warp`. In game.exe no stop stays off-centre. A
+  hostile monster walks by `move_frame`, which snaps already.
