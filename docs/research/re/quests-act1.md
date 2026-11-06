@@ -849,6 +849,11 @@ mis = FUN_0056ede0(game, m, 0, 1, 0x14c, chest x, chest y);   // missile 332 tow
 if (mis) { FUN_0064a710(mis, chest id); FUN_0064a760(mis, 0); FUN_0061aed0(room(mis), 0); }
 ```
 
+So the treasure goes to the chests listed when it's made: at her death, or
+as the first chest's room comes up after it; a chest listed later gets none
+(d2d: `World::tower_treasure_made`, from `countess_died` and
+`init_new_objects`).
+
 - Mon 326 is the invisible owner (trap-firebolt class). Every chest shares the same owner.
 
 ### Countess spawn and FUN_005b0e00

@@ -1611,6 +1611,7 @@ struct TowerQuest {
     quest::Players due;    // list B (data+0x34): killed her in cellar 5, the success talk due
     bool dead = false;  // d+0x118: rec+0xc0 is gone
     bool treasure = false;   // d+0x119: her treasure's spawners made
+    std::vector<int> chests;   // d+0x68 (count +0x88): cellar 5's chests (npc indices) as their rooms came up, at most 8
     bool first_talk = false;   // d+0x11a
     bool tome_early = false;   // d+0x11b: the tome read while log == 0
 

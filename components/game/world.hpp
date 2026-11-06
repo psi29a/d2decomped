@@ -798,6 +798,7 @@ struct World {
     struct Treasure { const Level* level; int npc; int left; };
     std::vector<Treasure> treasure;
     void tower_treasure(std::uint32_t now_ms);
+    void tower_treasure_made();            // FUN_005954f0
     void stamina_frame();                  // a 40 ms frame's stamina drain / regen
     [[nodiscard]] int walk_percent(const Player& player, std::uint32_t now_ms) const;   // a player's walk % (FUN_00623f50)
     [[nodiscard]] static int walk_percent(const GameData& data, int save_class, bool run, int frw, bool chilled, int velocity_pct = 0);   // the same from its parts

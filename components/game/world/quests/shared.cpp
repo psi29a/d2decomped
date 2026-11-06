@@ -401,19 +401,21 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
                 d2d::rules::quest::set(bits, d2d::rules::TowerQuest::kQuest, 13);
                 d2d::rules::quest::set(bits, d2d::rules::TowerQuest::kQuest, 0);
             });
-        // Her treasure (FUN_005954f0, dead and not yet made: d+0x118 / 0x119):
-        // a towerchestspawner (missile 332) at each chest of cellar 5 (object
-        // 371, InitFn 47 lists up to 8).
-        // The invisible owner (monster 326 at her death spot, FUN_005b2f20)
-        // only owns the spawners, which d2d plays without one.
-        // ponytail: the chests are the level's, not the ones whose rooms came
-        // up (room units: agent D's).
-        if (tower.dead && !tower.treasure && level->id == d2d::rules::TowerQuest::kCellar) {
-            tower.treasure = true;
-            for (std::size_t i = 0; i < level->npcs.size() && treasure.size() < 8; ++i)
-                if (level->npcs[i].root == "objects" && level->npcs[i].object_id == d2d::rules::object_ids::kLargeChestR) treasure.push_back({ level, int(i), d2d::rules::TowerQuest::kTreasureLife });
-        }
+        tower_treasure_made();
         if (quest_kill) d2d::log::info("The Forgotten Tower: the Countess is dead");
+    }
+
+// Her treasure (FUN_005954f0, at her death and as InitFn 47 lists a chest;
+// dead and not yet made: d+0x118 / 0x119): a towerchestspawner (missile
+// 332) at each chest listed so far (tower.chests: only those whose rooms
+// came up), none for one listed after.
+// The invisible owner (monster 326 at her death spot, FUN_005b2f20)
+// only owns the spawners, which d2d plays without one.
+auto World::tower_treasure_made() -> void {
+        const Level* cellar = game_data->level(d2d::rules::TowerQuest::kCellar);
+        if (!tower.dead || tower.treasure || tower.chests.empty() || !cellar) return;
+        tower.treasure = true;
+        for (const int chest : tower.chests) treasure.push_back({ cellar, chest, d2d::rules::TowerQuest::kTreasureLife });
     }
 
 // The towerchestspawner's frame (FUN_005af300; Missiles.txt row 332:
