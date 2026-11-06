@@ -1263,8 +1263,7 @@ inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std:
 }
 
 // Put `held` in belt box `box` (0..boxes-1): potions, scrolls — ItemTypes
-// Beltable along the Equiv chain.
-// ponytail: swapping in a smaller belt doesn't check the rows it'd lose.
+// Beltable along the Equiv chain. A smaller belt's lost rows: spill_belt.
 inline bool put_in_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
                         int box, int boxes) {
     if (!held || box < 0 || box >= boxes) return false;
@@ -1283,6 +1282,31 @@ inline bool put_in_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items
     put.location = d2d::d2s::item_location::kBelt; put.column = box; put.row = 0; put.panel = 0; put.slot = 0;
     items.push_back(std::move(put));
     return true;
+}
+
+// A belt put on or taken off (FUN_005608c0, from the swap FUN_00560f00 and
+// body -> cursor FUN_00560cd0; none worn: Belts.txt row 2, one row): each
+// item in a box the belt now worn lacks, `boxes` up to 15 in order, goes to
+// the inventory (FUN_0063b950: free_spot, a player's best fit), else it's
+// returned, for the caller to drop at the player's feet (FUN_00555da0,
+// FUN_00558aa0).
+inline std::vector<d2d::d2s::Item> spill_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int boxes, int cols, int rows) {
+    std::vector<d2d::d2s::Item> dropped;
+    for (int box = std::max(boxes, 0); box < 16; ++box) {
+        const auto found = std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kBelt && item.column == box; });
+        if (found == items.end()) continue;
+        std::optional<d2d::d2s::Item> spilt = std::move(*found);
+        items.erase(found);
+        std::vector<const d2d::d2s::Item*> placed;
+        for (const auto& item : items)
+            if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) placed.push_back(&item);
+        const auto [width, height] = item_size(tables, spilt->code);
+        if (const auto [column, row] = free_spot(tables, placed, cols, rows, width, height, true);
+            column >= 0 && put_in_grid(tables, items, spilt, d2d::d2s::item_panel::kInventory, cols, rows, column, row)) continue;
+        spilt->location = d2d::d2s::item_location::kStored; spilt->column = spilt->row = spilt->panel = 0;
+        dropped.push_back(std::move(*spilt));
+    }
+    return dropped;
 }
 
 // Per stat point, in quarter points (CharStats LifePerVitality,

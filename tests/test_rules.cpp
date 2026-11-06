@@ -386,6 +386,24 @@ int main() {
     assert(put_in_belt(cursor_tables, belt, held, 2, 4) && held && belt.size() == 1);
     assert(!put_in_belt(cursor_tables, belt, held, 4, 4));                               // no such box
 
+    // A smaller belt (FUN_005608c0): boxes 4.. go to the inventory, box order,
+    // the rest returned to drop; boxes it has stay.
+    std::vector<d2d::d2s::Item> spilling;
+    for (const int box : { 9, 1, 4, 13 }) {
+        spilling.push_back(item("hp1"));
+        spilling.back().location = d2d::d2s::item_location::kBelt;
+        spilling.back().column = box;
+        spilling.back().id = box;
+    }
+    const auto spilt = spill_belt(cursor_tables, spilling, 4, 2, 1);                        // a 2 x 1 inventory
+    assert(spilt.size() == 1 && spilt[0].id == 13);
+    assert(std::ranges::count(spilling, d2d::d2s::item_location::kBelt, &d2d::d2s::Item::location) == 1);
+    for (const int box : { 4, 9 }) {
+        const auto moved = std::ranges::find(spilling, box, &d2d::d2s::Item::id);
+        assert(moved != spilling.end() && moved->location == d2d::d2s::item_location::kStored && moved->panel == d2d::d2s::item_panel::kInventory);
+    }
+    assert(spill_belt(cursor_tables, spilling, 4, 2, 1).empty());                           // nothing past box 3 left
+
     // Stat points: vitality adds life and stamina, energy mana (quarters,
     // 8.8 fixed), never more than there are points.
     d2d::d2s::Stats spend_stats;
