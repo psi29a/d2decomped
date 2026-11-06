@@ -238,7 +238,7 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
             if (gidbinn && !actor->had_gidbinn && blade.picked_up(quests())) d2d::log::info("The Blade of the Old Religion: the Gidbinn (FUN_00553380)");
             actor->had_gidbinn = gidbinn;
         }
-        // The tome picked up / dropped (a3q1's +0xb0 / +0xb4, FUN_005b7970 / FUN_005b7a00:
+        // The tome picked up / dropped (a3q1's +0xb0 / +0xb4, FUN_005b7970 / LAB_005b7a00:
         // events 4 / 5 on bbb, the item bound to it), whatever the state.
         // ponytail: polled from what's carried, not the item events; the holders list
         // (data +0x1c) and the logs those send aren't kept.
