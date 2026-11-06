@@ -2406,7 +2406,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // attack rate, armor and damage %). The roll is the caster's seed
                     // (+0x20), drawn for any live minion before the Bloodlust test.
                     // The minion turns itself (morph_monster: FUN_00574370).
-                    // ponytail: the morph's state 0x8e (stat 0x163, the old class) isn't kept.
+                    // Its state 0x8e (changeclass, stat 0x163 the old class) isn't kept: only the
+                    // client's set function FUN_004d89b0 reads it, and acts only for 0x21f
+                    // (baalthrone); no server code tests the state.
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                         auto& whipped = pack[std::size_t(monster.skill_unit)];
                         const bool minion = whipped.type >= 0 && game_data.monsters.types[std::size_t(whipped.type)].base == 0x1c5;
