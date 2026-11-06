@@ -41,7 +41,7 @@ struct Rain {
     // next strike (0x7a8968), thunder (0x712b4c: not the first strike's).
     bool lightning = false, second = false, heard = false;
     int flash = 0, strike_left = 0x4e2;
-    bool flashing = false;                         // this drawn frame is a flash's
+    bool flashing = false;                         // this client frame is a flash's
     struct Drop {
         int x = 0, y = 0, bottom = 0;              // screen; where it lands
         int len = 0, speed = 0, wait = 3;          // nearer ones longer and faster; ticks it shows landed

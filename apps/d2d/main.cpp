@@ -1405,7 +1405,6 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             if (const auto* here = town.world.level; here && net.self_x > 0) {
                                 town.hero.player.x = (net.self_x + 0.5f) / 5.f - float(here->world_x);
                                 town.hero.player.y = (net.self_y + 0.5f) / 5.f - float(here->world_y);
-                                town.slide_from.clear();
                                 town.publish();
                             }
                             town.net_game->set_running(town.view.running);   // the host starts us walking
