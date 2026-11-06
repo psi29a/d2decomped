@@ -1124,8 +1124,9 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
         }
     // The level's own warp table (FUN_0066aec0: its +0x90 override, the
     // Blood Moor's one Den of Evil way in of Warp3..6) keeps one of the slots
-    // sharing a Vis: the one that placed a warp.
-    // ponytail: read off the warps built, not game.exe's override list.
+    // sharing a Vis: the one that placed a warp. The override equals
+    // Levels.txt Warp0..7 in every level (emu, 5 map seeds) and only the
+    // placed preset flags a room, so the warps built say the same.
     std::uint32_t warped = 0;
     for (const auto& warp : level.warps) if (warp.slot >= 0 && warp.slot < 8) warped |= 0x10u << warp.slot;
     slots &= ~shared | warped;
