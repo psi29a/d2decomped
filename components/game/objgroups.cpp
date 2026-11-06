@@ -896,7 +896,8 @@ struct ObjectRooms {
                 // till word 0x10 has bit 13, InitFn 50 (FUN_005b7160) at his shop
                 // after; InitFn 52 (FUN_005bce80, object 0x17e: the DS1's Natalya,
                 // units.hpp) Natalya (0x129), else within 3, till word 0x16 has bit 13.
-                // ponytail: their quest records' "made" bits aren't kept: a room comes up once.
+                // Their records' made bytes (FUN_005b70b0 data +0 / +0xc, FUN_005bce80 +0x20 / +0x2c)
+                // only stop a second one while the first lives: d2d's rooms come up once.
                 const int init = obj(unit.id, "InitFn");
                 const bool hratli_moved = d2d::rules::quest::bit(game_quests, 0x10, 13);
                 if ((init == 49 && !hratli_moved) || (init == 50 && hratli_moved)) monster_or_npc(0xfd, unit, 0, false);
