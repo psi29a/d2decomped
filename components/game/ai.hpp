@@ -424,6 +424,10 @@ struct Monster {
     bool classic = false;                     // made in a classic game (game +0x70 0: Fight::add_monster)
     int level_id = -1;                        // the Levels.txt id it was made in (-1: unknown): Nightmare / Hell start at that level's MonLvl (rules::start_level)
     [[nodiscard]] bool alive() const { return hit_points > 0 && !gone; }
+    // A corpse the corpse searches take (FUN_0063a770, 0x63a770: no `udead`
+    // state on it): dead, in DD, not used (raised, eaten, exploded: corpse_used
+    // stands for revive / corpseexp / redeemed), not shattered (state 107).
+    [[nodiscard]] bool usable_corpse() const { return !alive() && mode == "DD" && !corpse_used && !shatter; }
     [[nodiscard]] bool targetable() const { return alive() && killable && !buried && !aloft && !riding; }   // unit flags 0xe: not a buried maggot, a vulture aloft, a riding imp, an unkillable one
     // The cursor drops it (FUN_00466870 -> FUN_00465c60, cursor-units.md): in town
     // nothing for alignment; elsewhere MonStats2 alSel passes, noSel refuses, else

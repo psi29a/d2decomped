@@ -365,6 +365,9 @@ auto Fight::monster_states(std::uint32_t now_ms) -> void {
                     }
                     monster.anim_pct += rate;
                 }
+            // The chill's end (LAB_0057ad80) takes shatter (107) off only while
+            // it lives (FUN_005541b0, 0x57ada5): one that died chilled keeps it.
+            if (monster.alive() && now_ms >= monster.chill_until) monster.shatter = false;
             if (monster.set_kind && now_ms >= monster.set_until) monster.set_kind = 0;   // event 10 (0x5a7f70 -> FUN_00573120)
         }
     }
