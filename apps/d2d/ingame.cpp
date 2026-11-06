@@ -16,6 +16,7 @@
 #include <d2s_items.hpp>
 #include <palette.hpp>
 #include <rules.hpp>
+#include <show_items.hpp>
 #include <weather.hpp>
 
 #include <algorithm>
@@ -256,13 +257,15 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 }
         };
         // Alt ("Show Items", UI\showitems.cpp FUN_004c0810): each ground
-        // item's name over it, nudged up clear of the ones already placed.
+        // item's name over it, moved clear of the ones already placed by up
+        // to 12 tries of FUN_004c0640 (rules::label_place), within the
+        // columns an open panel leaves; one that finds no room has none.
         // A label is black at half (draw mode 1) in the item's colour; the
         // first one under the mouse, or naming the item the cursor is on,
         // goes solid (mode 5) in the palette's nearest to (0, 64, 128)
         // (FUN_004fb180) with white text, and a click picks that item up.
-        // ponytail: game.exe's label layout (FUN_004c0640's 12 tries, its
-        // screen clamps) isn't traced.
+        // ponytail: the items' order (d2d: nearest the bottom first) isn't
+        // FUN_004c0810's near-room walk.
         if (show_items) {
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
             std::array<std::uint8_t, 3> hover_blue{};
@@ -272,20 +275,22 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (distance < best) { best = distance; hover_blue = { colour.r, colour.g, colour.b }; }
             }
             std::ranges::sort(items, {}, [](const auto& entry) { return -entry.second[3]; });   // nearest the bottom first
-            std::vector<std::array<int, 4>> placed;
+            std::vector<d2d::rules::LabelRect> placed;
             const int line_height = scene.font.line_height();
+            // The columns (FUN_004c0810): the screen, its left half less 0x20
+            // with a right panel open (FUN_0045ae90 1), its right half with a left one (2).
+            const int panel = hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2;
+            const int max_x = panel == 1 ? world_w / 2 - 0x20 : world_w, min_x = panel == 2 ? world_w / 2 : 0;
             bool label_hovered = false;
             for (const auto& [unit, box] : items) {
                 if (!unit->name || unit->name->empty()) continue;
-                const int width = scene.font.measure(*unit->name) + 8;
-                std::array<int, 4> rect{ (box[0] + box[2]) / 2 - width / 2, box[1] - line_height - 4, 0, 0 };
-                rect[2] = rect[0] + width; rect[3] = rect[1] + line_height + 2;
-                for (bool moved = true; moved;) {
-                    moved = false;
-                    for (const auto& placed_rect : placed)
-                        if (rect[0] < placed_rect[2] && placed_rect[0] < rect[2] && rect[1] < placed_rect[3] && placed_rect[1] < rect[3]) { const int dy = rect[3] - placed_rect[1]; rect[1] -= dy; rect[3] -= dy; moved = true; }
-                }
-                placed.push_back(rect);
+                // Its spot (x, y): the label's bottom over the item's centre; left = x - (w + 8) / 2, top = y - h + 4.
+                const int text_w = scene.font.measure(*unit->name), spot_x = (box[0] + box[2]) / 2, spot_y = box[1] - 2;
+                d2d::rules::LabelRect label{ spot_x - ((text_w + 8) >> 1), spot_y - line_height - 2, spot_x - ((text_w + 8) >> 1) + text_w + 8, spot_y };
+                bool kept = false;
+                (void)d2d::rules::label_place(label, placed, spot_x, spot_y, max_x, min_x, int(kScreenHeight), kept);
+                if (!kept) continue;
+                const std::array<int, 4> rect{ label.left, label.top, label.right, label.bottom };
                 const bool lit = !label_hovered && ((world_mouse_x >= rect[0] && world_mouse_x < rect[2] && mouse_y >= rect[1] && mouse_y < rect[3]) || hovered.first == unit);
                 fill(rect, lit ? 5 : 1, lit ? hover_blue : std::array<std::uint8_t, 3>{});
                 const auto& colour = lit ? std::array<std::uint8_t, 3>{ 255, 255, 255 } : unit->rgb;
