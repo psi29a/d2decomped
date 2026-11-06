@@ -9,6 +9,7 @@
 #include <gamedata.hpp>
 #include <item_text.hpp>
 #include <monsters.hpp>
+#include <object_ids.hpp>
 #include <quests.hpp>
 #include <replication.hpp>
 #include <rules.hpp>
@@ -77,6 +78,7 @@ int main() try {
     }
     {
         GameData empty_data;
+        empty_data.monsters.types.emplace_back();
         View sent;
         sent.level = &empty_data.town;
         sent.quest_log.back() = 9;
@@ -86,6 +88,13 @@ int main() try {
         sent.panel.next = 3'000'000'000; sent.panel.defense = 345; sent.panel.res = { 75, -100, 12, 40 }; sent.panel.bonus[3] = 7;
         sent.panel.blue = d2d::rules::kPanelDefense; sent.panel.red = d2d::rules::kPanelFire | d2d::rules::kPanelPoison;
         sent.stat_sum = { { 0, 25 }, { 329, 40 } };
+        Monster sent_monster;
+        sent_monster.id = 1;
+        sent_monster.type = 0;
+        sent_monster.anim_pct = 25;
+        sent_monster.props.ias = 60;
+        sent_monster.props.fcr = 40;
+        sent.monsters = { sent_monster };
         ViewEncoder encoder;
         const auto bytes = encode_view(empty_data, sent, encoder);
         View received;
@@ -102,6 +111,46 @@ int main() try {
         bad[bad.size() - 3] = 2;
         assert(!apply_view(empty_data, bad, received));
         assert(!apply_view(empty_data, std::span(bytes).first(bytes.size() - 3), received));
+        View rates;
+        ViewEncoder rate_encoder;
+        assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
+        assert(rates.monsters.size() == 1 && rates.monsters[0].anim_pct == 25 && rates.monsters[0].props.ias == 60 && rates.monsters[0].props.fcr == 40);
+        assert(anim_rate_pct(rates.monsters[0], "A1") == 65 && anim_rate_pct(rates.monsters[0], "SC") == 55);
+        sent.monsters[0].anim_pct = 30;
+        assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
+        assert(anim_rate_pct(rates.monsters[0], "A1") == 70);
+        sent.monsters[0].aura_rate = 20;   // Fanaticism's: a host's aura reaches the swing as drawn
+        assert(apply_view(empty_data, encode_view(empty_data, sent, rate_encoder), rates));
+        assert(anim_rate_pct(rates.monsters[0], "A1") == 90 && anim_rate_pct(rates.monsters[0], "SC") == 60);
+    }
+    {
+        // Event 1's deadline is specific to the operate function: most
+        // container functions and the shrine queue FrameCnt1 + 1, while the
+        // Gidbinn altar and Moldy Tome queue FrameCnt1.
+        Npc object;
+        object.op_frames = 10;
+        object.mode2 = true;
+        object.sync = true;            // no per-object variation: FrameDelta1 as it stands
+        object.frames[1] = 10;
+        object.frame_delta[1] = 120;   // client reaches FrameCnt1 - 1 after 20 ticks
+        object.operate_fn = d2d::rules::operate_fn::kChest;
+        assert(object_op_ticks(object) == 11);
+        object.mode2 = false;
+        assert(object_op_ticks(object) == 20);  // callback 0x581490 requires Mode2
+        object.mode2 = true;
+        object.operate_fn = d2d::rules::operate_fn::kMoldyTome;
+        assert(object_op_ticks(object) == 10);
+        object.operate_fn = d2d::rules::operate_fn::kGidbinnAltar;
+        assert(object_op_ticks(object) == 10);
+        object.operate_fn = d2d::rules::operate_fn::kShrine;
+        assert(object_op_ticks(object) == 11);
+        object.frames[1] = 1;          // no client transition on a one-frame mode
+        assert(object_op_ticks(object) == 11);  // server event still transitions it
+        object.mode2 = false;
+        assert(object_op_ticks(object) == -1);
+        object.operate_fn = d2d::rules::operate_fn::kChest;
+        object.mode2 = true;
+        assert(object_op_ticks(object) == 11);
     }
     {
         // MonProp's stats on a monster: IAS on A1 / A2, FCR on SC (120 x v /

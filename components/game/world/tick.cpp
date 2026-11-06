@@ -45,18 +45,34 @@
 
 namespace d2d::game {
 
-// The client's ticks from an object's OP to its ON (FUN_004bcbb0): the
-// counter runs from Start1 at its OP rate (FUN_00624390: object_frame_delta,
-// as the client draws it) until it reaches FrameCnt1 - 1; -1: never
-// (FrameCnt1 1, or a counter that doesn't move).
-static int op_ticks(const Npc& npc) {
+// The client's OP counter runs from Start1 at its OP rate (FUN_00624390:
+// object_frame_delta, as the client draws it) to FrameCnt1 - 1 (FUN_004bcbb0).
+// These known operation functions also queue event 1 (FUN_005417d0); the altar
+// and Moldy Tome schedule it at FrameCnt1, the others at FrameCnt1 + 1.
+// ponytail: map the other event-1 callers to their operate functions.
+int object_op_ticks(const Npc& npc) {
     if (!npc.op_frames) return 0;
-    if (npc.frames[1] == 1) return -1;
-    const int need = (int(npc.frames[1]) - 1 - int(npc.loop_from[1])) * 256;
-    if (need <= 0) return 0;
-    const int rate = object_frame_delta(npc, 1);
-    if (!rate) return -1;
-    return (need + rate - 1) / rate;
+    int client = -1;
+    if (npc.frames[1] != 1) {
+        const int need = (int(npc.frames[1]) - 1 - int(npc.loop_from[1])) * 256;
+        const int rate = object_frame_delta(npc, 1);
+        if (need <= 0) client = 0;
+        else if (rate) client = (need + rate - 1) / rate;
+    }
+    if (!npc.mode2) return client;
+    using namespace d2d::rules::operate_fn;
+    int delay = 0;
+    switch (npc.operate_fn) {
+    case kShrine: case kCasket: case kUrn: case kChest: case kBarrel: case kCorpse: case kTrapObject: case kWaypoint:
+        delay = 1;
+        break;
+    case kMoldyTome: case kGidbinnAltar:
+        break;
+    default:
+        return client;
+    }
+    const int server = npc.op_frames + delay;
+    return client < 0 ? server : std::min(server, client);
 }
 
 auto World::greet_sound(const Npc& npc, int kind) -> int {
@@ -212,9 +228,10 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             const int reset = npc.operate_fn == d2d::rules::operate_fn::kShrine && std::size_t(npc.shrine) < game_data->shrines.size() ? game_data->shrines[std::size_t(npc.shrine)].reset : 0;
             const bool back = reset > 0 && now_ms - when_ms >= d2d::rules::shrine_reset_frames(reset) * kTickMs;
             if (key.first == level && npc_index < npc_states.size()) {
-                const auto on_ticks = op_ticks(npc);
-                const std::uint32_t on_ms = on_ticks < 0 ? 0 : when_ms + std::uint32_t(on_ticks) * kTickMs;
-                const bool opening = on_ticks < 0 || now_ms < on_ms;
+                const auto on_ticks = object_op_ticks(npc);
+                const bool never_on = on_ticks < 0;
+                const std::uint32_t on_ms = never_on ? 0 : when_ms + std::uint32_t(on_ticks) * kTickMs;
+                const bool opening = never_on || now_ms < on_ms;
                 const std::string_view mode = back ? std::string_view{} : opening ? "OP" : "ON";
                 // Its footprint in the new mode (ON: FUN_00623830 when HasCollision2 is off; jugs q4 / q5, xj).
                 // ponytail: on this level's tick only; one left mid-OP keeps OP's until it's back in view.

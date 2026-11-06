@@ -105,6 +105,11 @@ auto Town::enter() -> void {
         quest_log = {};                           // done animations play again in a new game
         alert_clocks.clear();                      // Town is reused when a second game starts on the same level
         alert_level = nullptr;
+        critters.clear();                         // a new game's map: its own critters
+        critters_level = -1;
+        critter_rooms.clear();
+        entry_level = 0;                          // its first level shows no "entering" art
+        entry_until = 0;
         mini = {};
         if (!cfg_file.empty()) {                  // FUN_004567f0: open unless the registry's "Mini Panel" reads nonzero
             d2d::userdir::Config cfg;
@@ -182,12 +187,12 @@ auto Town::toggle_quest_log() -> void {
     }
 
 auto Town::quest_log_button_now() const -> QuestLogButton {
-        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        const bool left_open = left_panel_open();
         return quest_log_button(quest_log, left_open, inv_open || tree_open, char_open);
     }
 
 auto Town::level_buttons_now() const -> LevelButtons {
-        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        const bool left_open = left_panel_open();
         auto out = level_buttons(character.stats, left_open, inv_open || tree_open, char_open, tree_open, store.npc >= 0);
         out.stats_down = stats_down;
         out.skills_down = skills_down;
