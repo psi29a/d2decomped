@@ -1378,6 +1378,31 @@ up then, and its units restored from storage. Matching that needs the
 unit storage (SUnitInactive.cpp) and tiles laid as events (up and freed),
 not as one order.
 
+### Freeing an act's levels (Drlg.cpp)
+
+`FUN_00642190(act)` (called by `FUN_0061afd0`, the Dungeon.cpp act free, when
+act +0x48 is set) frees the act's DRLG state. It walks the level list at act
+`+0x47c` (next `+0x1ac`), calls `FUN_00642010(act +0x478, 0)` on each, and
+frees one block per node (`Drlg.cpp` line 0xdd). It then walks the list at act
+`+0x90` (next `+0x44`), freeing one block per node (line 0xec), clears both
+heads, and frees one more block (line 0xf2).
+
+`FUN_00642010(_, keep)` clears one DRLG level (`ESI` in the decompile; the
+register was not checked in the assembly). With `keep` 0 it frees the
+block at `+0x22c` (line 0x84); with `keep` nonzero it allocates it
+(`+8` dwords, line 0x7c) and fills it, for each room2 on the list at `+0x10`
+(next `+0x24`), with that room's `+0x60 & 1`. It frees each room2
+(`FUN_0066c100`), then the block at `+0x1b0` (`FUN_006683d0`) and the
+per-type state by type `+0`: 1 `FUN_00673fe0`, 2 `FUN_006674d0`, 3
+`FUN_006754c0`. It zeroes `+0x2c..+0x1ac`, `+0x1d8` and `+0x1e0..+0x22c`, frees `+0x1bc`
+when `keep` is 0 (line 0xb7), and frees the chain at `+0x1cc` (next `+0xc`,
+line 0xc5). The `keep` call is the rebuild that `FUN_00643200` makes
+(`FUN_00642390` below puts the saved bit back).
+
+d2d: not ported. Its levels are C++ objects freed by scope, and no room is
+ever freed (see the ponytail above). Cited from the decompile, not run in
+`tools/emu`.
+
 ## Checking against game.exe — what's proven, what isn't
 
 **How it's proven.** `tools/emu` runs game.exe 1.14d itself under unicorn:
