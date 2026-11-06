@@ -122,3 +122,32 @@ the primary is `+0x1c`) and `components/game/world/objects.cpp` (Khalim's
 Will in either arm). One refinement for that ponytail: the "primary" is
 the selected id, tested in cell 5 then cell 4. `FUN_0063add0` and
 `FUN_0063d1d0` are not ported.
+
+### The other hand and the dual-wield stats (`FUN_0063bf90`, `FUN_00535e20`, `FUN_004e9260`, `FUN_004e9300`)
+
+Cited. `FUN_0063bf90(inventory)` is the weapon **not** in hand: it reads
+cells 5 and 4 of the body grid as `FUN_0063bef0` does (weap items only);
+when one has id `+0x1c` it returns the other; no wielded id gives 0. This
+is the "other hand" the `throw_ready` ponytail names (it calls it
+`FUN_00643d60`; that address is not what this trace read).
+
+`FUN_00535e20(unit, flag)` (flag non-zero): for the wielded weapon, if
+`FUN_00625820(item, 0)` (the item's data record `+0x34` has bit 0x80000000;
+returns its `+0x44`) is non-zero, `FUN_00627910(unit, item, 1)`; then the
+same with flag 0 for the other hand's weapon. `FUN_00627910` is the
+item-stat toggle: it applies or removes an item's stat list by its data
+flag 0x40000000 (`FUN_00627a40` / `FUN_00627860`), or sockets props
+(`d2d_rules_socket_props`) when the owner differs. A 11 / 12 item data
+byte (`FUN_00627d40`) goes to `FUN_006269f0` instead.
+
+`FUN_004e9260` / `FUN_004e9300` (EBX the unit, only for a dual-wielder,
+`FUN_006235a0`): take the wielded weapon, and the item in the body slot
+that is the other hand (`FUN_0063bde0(inventory, 4 + (data byte == 4))`).
+If that is a different weapon and both are usable (`FUN_0062a4e0`), the
+roles swap: `FUN_004e9260` toggles the stats of the old wielded one with
+flag 0 and the new one with flag 1 and returns the new one;
+`FUN_004e9300` toggles the other one with 0, the wielded one with 1 and
+returns the wielded one (else it still toggles the wielded with 1 when
+usable). The ids `+0x1c` are not changed by either.
+
+d2d: not ported (no mention under `components/` or `apps/`).
