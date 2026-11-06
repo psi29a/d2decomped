@@ -137,8 +137,9 @@ bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd
 
 // Moves u along its path by `step` cells, dropping reached points and
 // turning it to face the way; blocked by a wall or another unit, it
-// drops the route. False once there (or stuck).
-bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {});
+// drops the route and stands on its subtile's centre (FUN_00650150), and
+// `blocked`, if given, is set. False once there (or stuck).
+bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {}, bool* blocked = nullptr);
 
 // A pet follows the player about camp: it sets off when more than 3 cells
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;

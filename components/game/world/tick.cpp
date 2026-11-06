@@ -392,7 +392,8 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 const int walk = std::max(game_data->walk_velocity[save_class], 1);
                 const float vel = float(walk * walk_percent(*actor, now_ms)) / 100.f;
                 const float before_x = actor->player.x, before_y = actor->player.y;
-                actor->player.walking = follow_path(*level, actor->player, cells_per_sec(vel) * elapsed, walk_crowd);
+                bool blocked = false;
+                actor->player.walking = follow_path(*level, actor->player, cells_per_sec(vel) * elapsed, walk_crowd, &blocked);
                 // The merc's think reads the player's footsteps (FUN_00580c20): walking or
                 // running, 25 ms on from the last, over 45 (squared) from it.
                 if (const int step_x = int(std::floor(actor->player.x * 5)), step_y = int(std::floor(actor->player.y * 5)); now_ms > actor->footstep_ms + 25) {
@@ -401,8 +402,9 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 }
                 if (!actor->player.walking) {
                     actor->player.path.clear();
-                    // Short of the target with a step made: it paths again from here.
-                    actor->player.walking = (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
+                    // Short of the target with a step made and nothing in the way: it paths
+                    // again from here. A block ends the walk (the snap isn't a step).
+                    actor->player.walking = !blocked && (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
                                      && (actor->player.x != before_x || actor->player.y != before_y);
                 }
             }

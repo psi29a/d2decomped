@@ -91,9 +91,9 @@ bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bo
 
 bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd) {
     if (unit.path.empty()) return false;
-    const auto end = unit.path.back();
-    if (follow_path(level, unit, step, crowd)) return true;
-    if (unit.x != end.first || unit.y != end.second) return false;      // blocked on the way
+    bool blocked = false;
+    if (follow_path(level, unit, step, crowd, &blocked)) return true;
+    if (blocked) return false;
     auto sub = [](float value) { return int(std::floor(value * 5)); };
     if ((sub(unit.x) == sub(unit.goal_x) && sub(unit.y) == sub(unit.goal_y)) || unit.budget == 0) return false;
     unit.budget = std::max(unit.budget - unit.path_points, 0);
@@ -3166,7 +3166,7 @@ void heal(Monster& monster, int points) {
     else monster.hit_points = healed;
 }
 
-bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd) {
+bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd, bool* blocked) {
     auto& path = unit.path;
     auto& x = unit.x;
     auto& y = unit.y;
@@ -3177,7 +3177,13 @@ bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& c
         if (dist > 0.05f) dir = direction16(dx, dy);
         if (dist <= step) { x = target_x; y = target_y; step -= dist; path.erase(path.begin()); continue; }
         const float next_x = x + dx / dist * step, next_y = y + dy / dist * step;
-        if (level.unit_blocked(next_x, next_y, unit.shape) || crowd.at(next_x, next_y, &unit)) { path.clear(); break; }
+        if (level.unit_blocked(next_x, next_y, unit.shape) || crowd.at(next_x, next_y, &unit)) {
+            // FUN_00650150: a blocked subtile ends the path on a subtile's centre, the one it's on here.
+            x = (std::floor(x * 5) + 0.5f) / 5; y = (std::floor(y * 5) + 0.5f) / 5;
+            path.clear();
+            if (blocked) *blocked = true;
+            break;
+        }
         x = next_x; y = next_y;
         break;
     }
