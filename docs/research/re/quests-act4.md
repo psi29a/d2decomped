@@ -167,7 +167,10 @@ hammers about, +0x14 gems per round, +0x1c the soulstone given.
 - **Hephasto dies** (+0xc0 `FUN_005b65d0`): drops `hfh ` (the Hellforge
   Hammer, `FUN_00559a30(7)`), +0x10.
 - **The forge** (objects 376: InitFn 48 `FUN_005b5a20` mode = +0 (3 with no
-  record); OperateFn 49 `FUN_005b5c10`): not done / due: mode 0 with `mss `
+  record or +9 clear; it runs each time its room comes up, and again only
+  re-sets that mode and, with +0xb not 13 / 2 / 3, log 2 (EDX 2 at
+  0x5b5a64) sent: a rerun only puts the log back to 2 after Cain's talk
+  set it to 1 / 4); OperateFn 49 `FUN_005b5c10`): not done / due: mode 0 with `mss `
   carried → mode 1 (event at its anim end), +0 = 2, the logs, `mss `
   taken; without it the player's unit event; mode 2 with `hfh ` in hand
   (`FUN_0063bef0` on the player's +0x60, item code +0x80): +0xc += 1; the

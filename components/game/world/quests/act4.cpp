@@ -255,9 +255,10 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
         const Npc* forge = nullptr;
         if (river)
             if (const auto found = std::ranges::find(river->npcs, d2d::rules::operate_fn::kHellforge, &Npc::operate_fn); found != river->npcs.end()) forge = &*found;
-        // The forge's InitFn (48, FUN_005b5a20) as its room comes up.
-        // ponytail: once; d2d's rooms stay up (player_moved), game.exe's
-        // come up again after one's freed and run it again.
+        // The forge's InitFn (48, FUN_005b5a20) as its room comes up, once:
+        // d2d's rooms stay up (player_moved). game.exe's come up again after
+        // one's freed and rerun it, which only re-sets the mode and puts the
+        // log back to 2 if Cain's talk had set 1 / 4 (quests-act4.md).
         if (!forge_inited && forge)
             if (const auto made = fight.spawning.levels.find(river); made != fight.spawning.levels.end())
                 if (const int room = room_of(*river, forge->x, forge->y); room >= 0 && std::ranges::contains(made->second.order, std::size_t(room))) {
