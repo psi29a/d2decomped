@@ -90,6 +90,7 @@ holds an item (`FUN_0063e020` page 2).
 | `FUN_0063cbb0` | Inventory list head: return `inv[+0x2c]` if `inv` is non-null and `inv[0] == 0x01020304` (the inventory magic), else 0. | not ported |
 | `FUN_0063cbd0` | Free an inventory's node list: if `inv` is non-null with the magic, walk from `inv[+0x2c]` following `node[+4]`, calling `FUN_0040b480(".\\INVENTORY\\Inventory.cpp", 0xcbb, 0)` per node (a free; the node argument goes in a register the decompiler dropped), then zero `inv[+0x2c]` and `inv[+0x30]`. | not ported |
 | `FUN_0063cd20` | List node next: return `node[+4]`, or 0 for a null node. | not ported |
+| `FUN_0063cd40` | List node payload: return `node[0]`, or 0 for a null node. | not ported |
 d2d: `rules::spill_belt`, called by the World's `cmd::ToBody` (belt
 slot) and `cmd::ToCursor` (the worn belt).
 
