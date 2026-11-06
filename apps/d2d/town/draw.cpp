@@ -19,6 +19,7 @@
 #include "store.hpp"
 #include "tile_blit.hpp"
 #include "ui.hpp"
+#include "unit_slide.hpp"
 #include "world_view.hpp"
 
 #include <combat.hpp>

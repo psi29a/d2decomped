@@ -12,6 +12,7 @@
 #include "scene.hpp"
 #include "store.hpp"
 #include "ui.hpp"
+#include "unit_slide.hpp"
 
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
