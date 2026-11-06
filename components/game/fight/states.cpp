@@ -142,7 +142,6 @@ auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
             for (const auto& blow : foe.blows) sum += (std::int64_t(blow.damage) << 8) + blow.frac;
             return sum;
         };
-        const std::int64_t before = blows_fine();
         // FUN_0057c1e0 raises the absorb event (0xb) on each record BEFORE it reduces it (the loop at 0x57c378): the
         // states take from the unreduced physical (StruckBlow::raw) and the flat and percent reduction are put back on
         // what is left (settle_blow).
@@ -150,21 +149,24 @@ auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
         // (the hit's +8), Cyclone Armor (25, FUN_005c87a0) from fire,
         // lightning and cold (+0x10, +0x1c, +0x24), each blow's own, in
         // landing order (rules::absorb_blows). The pool is in 256ths.
-        if ((actor->absorb_pool > 0 || actor->absorb_frac > 0) && std::ranges::contains(actor->self_states, actor->absorb_skill, &SelfState::skill)) {
+        const auto armor = [&] {
+            if ((actor->absorb_pool <= 0 && actor->absorb_frac <= 0) || !std::ranges::contains(actor->self_states, actor->absorb_skill, &SelfState::skill)) return;
+            const std::int64_t before = blows_fine();
             const auto* pool_skill = game_data->skills.get(actor->absorb_skill);
             int pool = actor->absorb_pool * 256 + actor->absorb_frac;
             (void)d2d::rules::absorb_blows(foe.blows, pool, pool_skill && pool_skill->aurastate == "cyclonearmor");
             actor->absorb_pool = pool >> 8; actor->absorb_frac = pool & 255;
             if (pool <= 0) std::erase_if(actor->self_states, [&](const SelfState& state) { return state.skill == actor->absorb_skill; });
-        }
-        fine += blows_fine() - before;
-        const std::int64_t before_shield = blows_fine();
+            fine += blows_fine() - before;
+        };
         // Energy Shield (FUN_005ca6c0, an absorb event like the armors') takes calc1 % of each record field while the mana lasts,
         // BEFORE the resistance pass: rules::energy_shield_blows works on the unresisted fields and puts what is left back through
         // the resistances. The mana is in 256ths. Damage no blow carries (loose) is taken from as it stands.
-        // ponytail: it runs after the armors; game.exe runs the absorb state registered LAST first (FUN_005c0ad0 puts the event node at
-        // the head of the unit's list). calc1 is clamped to 0..95 where FUN_005ca6c0 has no cap (no effect at levels 1..30).
-        if (const auto* energy_shield = state_of("energyshield")) {
+        // ponytail: calc1 is clamped to 0..95 where FUN_005ca6c0 has no cap (no effect at levels 1..30).
+        const auto shield_pass = [&] {
+            const auto* energy_shield = state_of("energyshield");   // after the armor's pass, which may drop its state
+            if (!energy_shield) return;
+            const std::int64_t before_shield = blows_fine();
             const auto* skill = game_data->skills.get(energy_shield->skill);
             d2d::rules::EnergyShield shield{ std::clamp(calc(*skill, skill->calc[0], energy_shield->level), 0, 95), std::max(calc(*skill, skill->calc[1], energy_shield->level), 1),
                                              actor->character.stats.values[kMana] };
@@ -178,7 +180,16 @@ auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
                     "sorceress_energyshield_hit_3", "sorceress_energyshield_hit_4", "sorceress_energyshield_hit_5" };
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), kEnergyShieldHits[std::size_t(sound_rng(int(kEnergyShieldHits.size())))], now_ms, actor->player.x, actor->player.y);
             }
-        }
+        };
+        // The unit's event list runs newest first (FUN_005c0ad0, 0x5c0ad0, puts a node at its head) and a re-cast moves its
+        // state's nodes to the front (do 18 FUN_005c9480 / do 23 FUN_005c9c10: FUN_005c0b50 then re-register): self_states is
+        // in cast order (add_state), so the later of the two takes from each record first. Each takes from its own pool, so a
+        // whole pass over the blows each is the same as both on each record.
+        const auto* energy_shield = state_of("energyshield");
+        const auto shield_at = energy_shield ? energy_shield - actor->self_states.data() : -1;
+        const auto armor_at = std::ranges::find(actor->self_states, actor->absorb_skill, &SelfState::skill) - actor->self_states.begin();
+        if (shield_at > armor_at) { shield_pass(); armor(); }
+        else { armor(); shield_pass(); }
         foe.frac = int(fine & 255);
         return int(fine >> 8);
     }
