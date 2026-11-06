@@ -207,7 +207,8 @@ mode, +0x1c soulstones owed.
 - **The bridge** (341, `xj`, InitFn 45 `FUN_005bcb90`, 11 × 5): takes
   +0x10 as its mode and, short of 2, schedules event 7 20 frames on. Event
   7 (`FUN_005449e0` for class 0x155 → `FUN_005bcac0`), every 24 frames:
-  with the state 2 and a player (unit type 0) of its room within 18
+  with the state 2 and a player (unit type 0) of its room (its room's
+  unit list, room +0x74; any player, the first) within 18
   (`FUN_00641530`), mode 0 → 1 (it rises, 28 frames) and the next 1 → 2,
   its footprint lifted (`FUN_00623830`: no HasCollision2). Mode 2 stops it.
 

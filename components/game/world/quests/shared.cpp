@@ -172,9 +172,10 @@ auto World::mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 
 // The hellgate's event 1 (mode 1 -> 2 at FrameCnt1 + 1 frames) and the
 // bridge's event 7 (FUN_005bcac0, every 24 frames): with Mephisto dead and
-// a player within 18 of it (FUN_00641530), mode 0 -> 1 (it rises), and at
-// the next 1 -> 2, its collision lifted (FUN_00623830: no HasCollision2).
-// ponytail: the bridge's checks run while the player's on its level.
+// the first player in its own room (its room's units, room +0x74) within
+// 18 of it (FUN_00641530), mode 0 -> 1 (it rises), and at the next 1 -> 2,
+// its collision lifted (FUN_00623830: no HasCollision2). The checks run
+// while the party's on its level (game.exe: while its room's up).
 auto World::mephisto_bridge(std::uint32_t now_ms) -> void {
         if (!guardian.dead || level->id != d2d::rules::level_ids::kDuranceOfHateLevel3) return;
         for (std::size_t i = 0; i < level->npcs.size(); ++i) {
@@ -191,8 +192,12 @@ auto World::mephisto_bridge(std::uint32_t now_ms) -> void {
             const auto& bridge = level->npcs[i];
             if (bridge.object_id != d2d::rules::object_ids::kMephistoBridge) continue;
             auto& state = doors.try_emplace({ level, int(i) }, Door{ 0, 0 }).first->second;
-            const int off_x = int(std::floor(actor->player.x * 5)) - int(std::floor(bridge.x * 5)), off_y = int(std::floor(actor->player.y * 5)) - int(std::floor(bridge.y * 5));
-            if (state.mode == 2 || d2d::rules::unit_distance(off_x, off_y, 2, bridge.size_x) >= 18) continue;
+            const int bridge_room = room_of(*level, bridge.x, bridge.y);
+            const auto by_bridge = [&](const auto& player) {
+                const int off_x = int(std::floor(player->player.x * 5)) - int(std::floor(bridge.x * 5)), off_y = int(std::floor(player->player.y * 5)) - int(std::floor(bridge.y * 5));
+                return room_of(*level, player->player.x, player->player.y) == bridge_room && d2d::rules::unit_distance(off_x, off_y, 2, bridge.size_x) < 18;
+            };
+            if (state.mode == 2 || std::ranges::none_of(players, by_bridge)) continue;
             state = Door{ state.mode + 1, now_ms };
             if (state.mode == 2) set_footprint(*level, bridge, false);
             d2d::log::info("The Guardian: the bridge {}", state.mode == 1 ? "rises" : "is up");
