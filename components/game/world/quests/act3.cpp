@@ -184,7 +184,8 @@ auto World::act3_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
 
 // FUN_005a09e0 calls FUN_00544e80 when a qualifying boss is made,
 // including one in a nearby room before the player enters that level.
-// ponytail: drained once a tick (after rooms_up) and on arrival, in creation order.
+// Drained once a tick (after rooms_up) and on arrival, in creation order:
+// the same first boss as game.exe's bind at the make, which disarms it.
 auto World::act3_bind_new_bosses() -> void {
         auto made = std::exchange(fight.made_bosses, {});
         if (hosted_quests) return;

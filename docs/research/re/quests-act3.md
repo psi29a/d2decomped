@@ -105,7 +105,10 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
 - **The carrier.** `FUN_005a09e0` (placing a unique, superunique or preset
   special) calls `FUN_00544e80`: in act 3, record 0x12 open, the monster not
   class 0x197 and not MonStats +0xd & 0x40, → `FUN_005bac70` while armed and
-  due: the quest bound to it (`FUN_005436b0(0x12)`), +0xc0 = `FUN_005bab60`.
+  due, and not while a3q3 makes its guardian (record 0x11 data +4, set
+  around `FUN_005b9930`'s `FUN_005a43e0` at 0x5b993f..0x5b995a; that unit
+  is class 0x197, excluded anyway): the quest bound to it
+  (`FUN_005436b0(0x12)`), +0xc0 = `FUN_005bab60`.
 - **Its death** (`FUN_005bab60`): unless the killer has bit 0, `j34 ` drops
   (`FUN_00559a30`), due off, state 1.
 - **Talk** (`FUN_005b9ed0`, blocks 0x7401d0): done → block 6 once rewarded;
