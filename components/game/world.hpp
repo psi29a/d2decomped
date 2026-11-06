@@ -226,7 +226,7 @@ struct World {
         std::vector<Event> events;             // for the client, since it last looked
         std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock
-        bool had_soulstone = false;            // the Hellforge's item event (LAB_005b5a90): the soulstone picked up
+        bool had_hammer = false;               // the Hellforge's item event (LAB_005b5a90): the hammer, last tick
         bool had_bks = false, had_bkd = false;  // the Bark Scrolls, last tick (a1q4's item event)
         bool had_gidbinn = false;
         bool had_figurine = false, had_bird = false;   // the Golden Bird's items, last tick (its pickups)

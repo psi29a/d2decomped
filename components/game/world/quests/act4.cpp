@@ -79,7 +79,7 @@ auto World::act4_join() -> void {
         forge_inited = false;
         seal_bosses.clear();
         fortress_warp_done = end_movie = game_closed = false;
-        actor->had_soulstone = carries(d2d::rules::HellforgeQuest::kStone);
+        actor->had_hammer = carries(d2d::rules::HellforgeQuest::kHammer);
         act4_chain();
     }
 
@@ -121,7 +121,7 @@ auto World::act4_said(int hc_idx, int message_string) -> void {
         }
         // The Hellforge (FUN_005b6100): Cain's soulstone (FUN_005466b0 "mss "), his reward.
         if (const auto heard = hellforge.said(quests(), hc_idx, message_string, actor->id); heard.gives_stone || heard.chain) {
-            if (heard.gives_stone) { give_item(d2d::rules::HellforgeQuest::kStone, now); actor->had_soulstone = true; d2d::log::info("The Hellforge: Cain's soulstone"); }
+            if (heard.gives_stone) { give_item(d2d::rules::HellforgeQuest::kStone, now); d2d::log::info("The Hellforge: Cain's soulstone"); }
             if (heard.chain) act4_chain();
         }
         // Terror's End (FUN_005b4670): LoD, Tyrael's portal 5 cells east of him (FUN_005b45e0).
@@ -322,11 +322,12 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
             game_closed = true;
             d2d::log::info("Terror's End: the game closes");
         }
-        // The soulstone picked up (LAB_005b5a90): the Hellforge open.
-        // ponytail: polled from what's carried, not the item event.
-        if (const bool stone = carries(d2d::rules::HellforgeQuest::kStone); stone != actor->had_soulstone) {
-            if (stone) hellforge.stone_picked(quests());
-            actor->had_soulstone = stone;
+        // The Hellforge Hammer picked up (LAB_005b5a90, its bound item's event 4): the Hellforge open.
+        // ponytail: polled from what's carried, not the item event; the soulstone's
+        // own record (a4q1, 0x16) item handler isn't traced.
+        if (const bool hammer = carries(d2d::rules::HellforgeQuest::kHammer); hammer != actor->had_hammer) {
+            if (hammer) hellforge.hammer_picked(quests());
+            actor->had_hammer = hammer;
         }
     }
 

@@ -176,9 +176,11 @@ struct HellforgeQuest {
     }
     // a4q1's chain (LAB_005b5f40): 0 → 1.
     void opened() { if (open && state == 0) state = 1; }
-    // The soulstone picked up (LAB_005b5a90): 0 → 1 unless done, in this
-    // game (13), due, or the log at 13.
-    void stone_picked(const QuestBits& quest_bits) {
+    // The Hellforge Hammer into an inventory (LAB_005b5a90, event 4 on an
+    // item bound to this record: hfh's Items.txt quest 25; the soulstone's
+    // 23 is a4q1's): 0 → 1 unless done, in this game (13), due, or the log
+    // at 13. tools/emu/quest_item_events.py.
+    void hammer_picked(const QuestBits& quest_bits) {
         if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 13) && !quest::bit(quest_bits, kQuest, 1) && open && log != 13 && state == 0) state = 1;
     }
     // The forge's InitFn (48, FUN_005b5a20): open, the log 2 unless 2 / 3 / 13, sent.
