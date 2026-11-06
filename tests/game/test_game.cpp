@@ -845,10 +845,17 @@ int main(int argc, char** argv) try {
         assert(codes(charsi, false) == stock);
         away_and_back();
         assert(codes(charsi, false) != stock);
-        // A store left open ends with the trip: no deal saves the old stock back.
+        // A store left open ends with the trip (here the camp's waypoint, as a
+        // player takes it): no deal saves the old stock back.
+        const auto stone = std::ranges::find(camp->npcs, d2d::rules::operate_fn::kWaypoint, &Npc::operate_fn);
+        assert(stone != camp->npcs.end());
+        for (const auto& act_levels : data->waypoint_levels)
+            for (const auto& row : act_levels) if (row.level == d2d::rules::level_ids::kColdPlains) vendors.set_waypoint(row.waypoint);
         vendors.apply(d2d::game::cmd::OpenTrade{ charsi, false }, 27 * kTickMs);
         const auto open = vendors.actor->store.tabs;
-        away_and_back();
+        vendors.apply(d2d::game::cmd::Waypoint{ int(stone - camp->npcs.begin()), d2d::rules::level_ids::kColdPlains }, 27 * kTickMs);
+        assert(vendors.level == data->level(d2d::rules::level_ids::kColdPlains));
+        vendors.arrive(camp, camp->start.first, camp->start.second, "a test");
         assert(vendors.actor->store.npc < 0);
         const auto reopened = codes(charsi, false);
         assert(!reopened.empty());
