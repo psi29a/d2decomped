@@ -282,8 +282,31 @@ LAB_00480b11, through 0x4786d0), 0x13 for the rest, a warp too (LAB_00480a3d, th
 0x4786a0). The other 0x16 immediates in these functions aren't sends: LAB_004807db is a state
 test, and LAB_00481186 and LAB_004811f6 are FUN_00461250 command numbers.
 
-d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit; warps
-weren't compared.
+d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit.
+
+A warp's click, FUN_00461dc0's type 5 (LAB_00461fb7): refused until 0x7a04c8, the time
+FUN_0044dad0 sets 500 ms ahead (LAB_00462022, LAB_0048168f; FUN_00467000 uses it too).
+Within 4 it sends at once (LAB_00462010); further it walks and queues 0x13 (LAB_00461fed,
+LAB_00461ffc). FUN_00548b00's case 5 (LAB_00548bdc) answers: over 0x32 nothing, over 4
+walk (FUN_00548a50), else FUN_005550b0 (LAB_00548c32). The test runs when a packet comes and
+when the walk ends, not on the way. This case has no held test, so a held button clicks
+again each 500 ms, and each click is two more walks.
+
+d2d (`World::use_warp`, compared on this branch, before fix/walk-blocked-centre and
+fix/interact-retry; neither changes `use_warp`):
+
+- Same reach: `warp_close`, under 5 by `unit_distance`.
+- No two-walk limit here: "Short of the target with a step made" re-plans with no
+  count, and it drops `take_warp` only when a walk stops without a step. With
+  fix/walk-blocked-centre any block ends the walk, so one walk where game.exe has two.
+- It tests every tick, so it takes the warp on the way at reach 4; a single click in
+  game.exe walks on to the path's end first. Up to 4 subtiles early.
+- A held button sets `take_warp` only on the press, so after a stop it's gone.
+- No 500 ms refusal. No 0x32 limit, which a click can't reach: at 800x600 the
+  screen corner is about 31 subtiles from the player, by the iso projection.
+
+All read from the code, no oracle. It takes a crowd or a blocked path on the way to a warp; how
+often wasn't measured.
 
 ### How near the client walks
 
