@@ -36,6 +36,7 @@ Ranked by Seen, then by how much play it touches.
 | 15 | A town portal opens 0.6 cells south of its caster, not at game.exe's nearest free spot (collision 0x3e01, size 3) | exact | hardly | deviations.md approximation 8 |
 | 37 | The get-hit oracles `hit_rule.py`, `hit_absorb.py` and `hit_render.py` were cited but never committed: get-hit, absorb and get-hit frames are cited, not re-checkable | trace | no | combat.md, combat.hpp `get_hit` / `absorb_blows`, `test_combat --get-hit*` |
 | 38 | A walk to an NPC or object that stops without moving drops the interact; game.exe's client keeps it and re-plans each frame until another action | exact | yes | collision.md "What keeps a walk to a unit going"; world/tick.cpp "blocked on the way" |
+| 39 | A walk to an NPC ends at the server's reach (under 7, no line test), not the client's melee range with a clear line (FUN_00480c80 → FUN_00622c40) | exact | yes | collision.md "How near the client walks"; world/tick.cpp `in_reach` |
 
 ## Sounds
 
