@@ -342,9 +342,9 @@ inline std::pair<std::string, int> flippy_sound(const GameData& game_data, const
 // player (class, strength, dexterity, level); without one there are no
 // red requirements, class bonuses, speed or spelldesc lines, as game.exe
 // without a player unit. docs/research/re/item-names.md.
+// The socketed runes' letters (FUN_00486670) under the name.
 // ponytail: no set bonus lists, Holy Shield's block / smite, time-of-day
-// damage (272/273), the gold quest-item line (FUN_00486670) or
-// throwing-potion damage.
+// damage (272/273) or throwing-potion damage.
 inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
                                         const d2d::rules::Wearer* wearer = nullptr) {
     auto str = [&](std::string_view key) {
@@ -426,6 +426,23 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     const int cls = wearer && wearer->cls >= 0 && wearer->cls < 7 ? wearer->cls : -1;
     if (wearer) clvl = wearer->lvl;
     const std::string space = " ", to_text = space + string_id(game_data, 3464) + space;            // "to"
+
+    // The socketed runes' letters (FUN_00486670, 0x486670; FUN_00629900:
+    // an item that takes sockets), runeword or not: each socketed item of
+    // type rune with a gems.txt row adds its letter, in the socket list's
+    // order, between RuneQuotes (20506). Under the name: FUN_0048dd90 puts
+    // its buffer (ebp-0x2434) last but the name's into the bottom-up
+    // string (0x48ebb1), so it's drawn just under the name lines.
+    // ponytail: the line has no colour code of its own (20506 is a bare
+    // "'"); the colour it carries from the string before it isn't traced:
+    // white here.
+    {
+        std::string letters;
+        for (const auto& socketed : item.socketed_items)
+            if (const auto rune_info = game_data.rules.item_info.find(socketed.code); rune_info != game_data.rules.item_info.end() && d2d::rules::type_is(game_data.rules, rune_info->second.type, "rune"))
+                if (const auto letter = game_data.gem_letters.find(socketed.code); letter != game_data.gem_letters.end()) letters += letter->second;
+        if (!letters.empty()) out.push_back({ string_id(game_data, 20506) + letters + string_id(game_data, 20506), kTxtWhite });
+    }
 
     // Defense: armorclass with its +% (16, on the base) and flat adds.
     if (armor && item.defense >= 0) {

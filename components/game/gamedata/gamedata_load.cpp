@@ -1079,6 +1079,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                       std::atoi(std::string(properties_table.get(row, "val" + std::to_string(i))).c_str()) });
             }
         const auto gems_table = txt("gems");
+        for (std::size_t row = 0; row < gems_table.size(); ++row)
+            if (const auto letter = gems_table.get(row, "letter"); !letter.empty()) game_data.gem_letters[std::string(gems_table.get(row, "code"))] = std::string(letter);
         static constexpr const char* kSlot[3] = { "weaponMod", "helmMod", "shieldMod" };
         for (std::size_t row = 0; row < gems_table.size(); ++row)
             for (int k = 0; k < 3; ++k)
