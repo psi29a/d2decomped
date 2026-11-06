@@ -358,3 +358,27 @@ that spot. Not examined: the OR of record +0xa8 / +0xac into the roll's flags.
   (FUN_006417f0), standing missiles
   (srvdofunc 1 never strikes at velocity 0; d2d's keep a 0.4-cell test),
   rooms not yet up (game.exe skips them).
+
+## Pierce — FUN_005ada80 (ESI the missile; called from FUN_005adf10)
+
+Cited. Returns the hit-result mask local of `FUN_005adf10`: 3 (run
+the hit function, then end the missile) unless the missile's
+Missiles.txt row (0x1a4 each at `PTR_DAT_00744304 + 0xb64`) has the
+**Pierce** flag (byte +4, mask 0x04: FUN_00661b20's column list gives
+LastCollide mask 0x01, Explosion 0x02, Pierce 0x04, CanSlow 0x08) **and** the
+missile's own stat 0x148 (`FUN_00625480(missile, 0x148, 0)`) is nonzero.
+Then the stat is lowered by one (`FUN_00627260(missile, 0x148, n - 1, 0)`)
+and 2 is returned: the hit function runs and the missile flies on (bit 1
+clear, so FUN_005adf10's end test fails). No random roll is drawn.
+FUN_005adf10 only asks when the missile has an owner (`FUN_00552fd0`)
+that has stat 0xa6 or `FUN_00625500(owner, 0x9c)` nonzero, and a struck
+unit. Stat 0x148 is a per-missile counter: the client packet handler
+writes it from a packet byte, and the client hit adds 1; who seeds it on
+the server is not traced.
+
+Re-check: `python3 tools/ghidra/fn.py 005ada80`, `python3 tools/ghidra/fn.py 005adf10`.
+
+d2d: **DISAGREES.** fight/missiles.cpp:701 treats stat 328 as a percent:
+`pierce && rng(100) < psum[kPierceIndex]` on the shooter's summed
+passives, drawing one rng per hit. game.exe draws none and counts down a
+stat on the missile, gated on the owner's stats 0xa6 / skill 0x9c.
