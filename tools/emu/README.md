@@ -56,6 +56,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Vendor buy / sell / repair price | `uv run python price_oracle.py gen 100000 7 > cases.tsv; uv run python price_oracle.py game cases.tsv > g.txt; ../../build/tests/test_game --price cases.tsv \| grep -E '^[0-9]+ ' > d.txt; uv run python price_terms.py cases.tsv g.txt d.txt` | last line `outside stacks, whole, bigmul, nodur: buy 0/…, sell 0/…, repair 0/… differ`; the terms d2d doesn't model yet are listed above it |
 | Key bindings (assign rules, key names) | `uv run python keys.py \| diff - <(../../build/tests/test_keyconfig --dump)` | no output |
 | Overlay frames, loop/one-shot endings, delayed-loop wait | `uv run python overlays.py > /tmp/overlay_cases.inc && diff ../../tests/overlay_cases.inc /tmp/overlay_cases.inc` | no diff; also checks kind 6's wait and duplicate clock |
+| HUD life / mana / stamina glide (FUN_00496dd0) | `uv run python globe_glide.py gen 2000 1 > cases.tsv; uv run python globe_glide.py game cases.tsv > g.txt; ../../build/tests/test_globe_glide g.txt \| diff g.txt -` | no output |
 
 ## When it breaks
 

@@ -114,13 +114,15 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 //   H-23 (FUN_00497300). Globes (FUN_00498120): "Life: %d / %d" /
 //   "Mana: %d / %d" plain, centred on 65 / W-80, bottom H-95.
 // The maxima include what's worn (Fight::item_max).
-// ponytail: no skill icons; no potion preview fill (states 100 / 0x6a), no
-// smoothing of the shown values (FUN_00496dd0), no stamina potion's blue
+// The shown life / mana / stamina glide (FUN_00496dd0: rules::glide) on
+// the client's frame (`frame`, 25 a second).
+// ponytail: no skill icons; no potion preview fill (states 100 / 0x6a), no stamina potion's blue
 // (state 0x18 / 0x88), no Show HP / MP Text toggles (a globe click,
 // DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
 struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;
              std::array<std::string, 4> belt_keys{};     // the keys bound to Use Belt 1..4, by name (draw_belt)   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's
-             const d2d::d2s::Header* header = nullptr; };   // the player's: its quest words (the grid's tint, tint_cells)
+             const d2d::d2s::Header* header = nullptr;    // the player's: its quest words (the grid's tint, tint_cells)
+             std::uint32_t frame = 0; };                  // the client's frame (the shown values' glide)
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
 // The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by
