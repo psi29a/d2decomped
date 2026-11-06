@@ -235,9 +235,10 @@ object or player going is the client, every game frame, until it stands in reach
   target dead or not selectable (FUN_00467a70). Besides those, in address order:
   - LAB_0045c9e5: S→C 0x04's handler (0x45c9a0, table 0x7114cc): the game
     coming up.
-  - LAB_004615b9: FUN_00461250's command 8 (table 0x4616a4, index 0x4616e4),
-    through FUN_0045c470. Which caller passes 8 isn't settled: FUN_00480c10's
-    packet handlers pass a command read from the packet (LAB_0045d2b7).
+  - LAB_004615b9: FUN_00461250's command 8, the player dying (table 0x4616a4, index
+    0x4616e4; FUN_00480e70 with mode 0, LAB_004615a9), through FUN_0045c470. Only a packet
+    can pass 8: S→C 0x0d's handler (0x45ccc0) reads it at +6 (LAB_0045cce7), as net-packets.md's
+    recording of a player's death shows. The fixed callers pass 0, 1, 2, 7, 0x15 to 0x19.
   - LAB_004622c4 and LAB_004622db, FUN_004621d0, the first thing FUN_004625b0
     does on a click, held or not: a queued action other than 0x13 goes
     (LAB_004622db); a queued 0x13 goes if FUN_00463990 finds its target
