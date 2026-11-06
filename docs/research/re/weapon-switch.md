@@ -129,7 +129,8 @@ Cited. `FUN_0063bf90(inventory)` is the weapon **not** in hand: it reads
 cells 5 and 4 of the body grid as `FUN_0063bef0` does (weap items only);
 when one has id `+0x1c` it returns the other; no wielded id gives 0. This
 is the "other hand" the `throw_ready` ponytail names (it calls it
-`FUN_00643d60`; that address is not what this trace read).
+`FUN_00643d60`, which this trace did not read: unchecked whether it is
+this function or a wrapper of it).
 
 `FUN_00535e20(unit, flag)` (flag non-zero): for the wielded weapon, if
 `FUN_00625820(item, 0)` (the item's data record `+0x34` has bit 0x80000000;
