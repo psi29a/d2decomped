@@ -1064,7 +1064,9 @@ lines (missile names aren't passed in). What it does:
   - **24** Energy Shield (FUN_005ca6c0): calc1 % of each damage type of
     DAT_006e30e0 (+8, +0x10, +0x1c, +0x24, +0x20; the flagged +0x38..+0x40
     only from a monster), mana (stat 8) taken 16 / calc2 a point; at 0 the
-    state goes.
+    state goes. Each field loses min(field x calc1 / 100, mana x 16 /
+    calc2) (FUN_00483360 at 0x5ca7e1 / 0x5ca7f3): no cap on calc1 in the
+    function; Skills.txt's calc1 is `min(edmn,95)`, so it never passes 95.
   - **25** Cyclone Armor (FUN_005c87a0): the pool takes fire, lightning
     and cold (+0x10, +0x1c, +0x24; FUN_005c8780 each).
   d2d: `buff_events` (Foe::fired_by, damaged_by), `absorb` (Taken::physical
