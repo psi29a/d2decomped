@@ -820,7 +820,7 @@ FUN_00547170(game, obj, ...)   // push {room, dest wp x, y} onto game+0x10f0->+0
 - If the level def +0x90 (spawn list) is set: idx 13 → FUN_0066ad80, else FUN_0066ac40.
 - Otherwise the chain is FUN_0066ad80 → FUN_0066b1f0 → FUN_00642630 (centre) → FUN_0066ae70.
 - FUN_0066ad80 finds the waypoint preset:
-  - walk the room2 list (+0x10, next +0x24) where flags +0x28 & 0x30000;
+  - walk the room2 list (+0x10, next +0x24) where flags +0x28 & 0x30000 (FUN_0066baa0, a 9-byte fastcall getter of `room2 +0x28 & 0x30000`; FUN_0066ad80 is its only caller; d2d sets the same bits in `room_flags`: objgroups.cpp:1203 for a room holding a SubClass 0x40 object, gamedata.cpp:1104 for outdoor cells; cited from the decompiled body, not run through tools/emu);
   - walk the presets (+0x5c, next +0xc) with type(+0x14) == 2, id(+4) ≤ 0x23c, objects.bin SubClass & 0x40;
   - tile x = preset+8 / 5 + room+0x34, y = preset+0x18 / 5 + room+0x38.
 - Fallback: the room centre (+0x34 + +0x3c/2, +0x38 + +0x40/2).
