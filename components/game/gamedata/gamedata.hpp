@@ -772,6 +772,7 @@ struct GameData {
     Npc afterglow;                                         // object 131 (9b), OP: the "vile dog afterglow" the Dark Wanderer leaves
     Npc town_portal;                                       // object 59 (TP): a town portal's look and light
     std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
+    std::unordered_map<std::string, std::string> gem_letters;   // gems.txt letter by code (the runes'; gems.txt +0x20)
     std::vector<std::size_t> mon_bin;                  // game.exe's MonStats unit ids -> rows (no Expansion row)
     std::vector<bool> mon_is_npc;                      // by MonStats row: MonStats npc
     // MonEquip.txt's oninit rows (FUN_005d6b60 as a monster's made), by
