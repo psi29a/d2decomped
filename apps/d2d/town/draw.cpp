@@ -107,11 +107,16 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         std::vector<Unit> extra;
         // The camera (and the player's unit) between the World's last two
         // ticks; a jump (a warp, devctl) snaps.
-        // ponytail: the other units move at the tick rate, as game.exe draws them.
+        // ponytail: game.exe draws the other units at the tick rate; d2d
+        // slides them too (unit_slide.hpp), smooth past 25 frames a second.
         const float blend = std::clamp(float(frame_ms - world_ms) / float(kTickMs), 0.f, 1.f);
         const bool jump = std::hypot(unit.x - prev_x, unit.y - prev_y) > 2.f;
         const float hero_x = jump ? unit.x : prev_x + (unit.x - prev_x) * blend, hero_y = jump ? unit.y : prev_y + (unit.y - prev_y) * blend;
         cam_x = hero_x; cam_y = hero_y;
+        // The other units slide too, drawn at the blend (the party camera
+        // and the lights read them there) and put back as the frame ends;
+        // a jump (a teleport or level change) or an unmatched unit snaps.
+        const SlidGuard slid = g_unit_slide ? SlidGuard(slide_units(view, slide_from, blend)) : SlidGuard();
         if (!coop.empty()) {
             // Local co-op: the camera eases to the party's middle (one screen,
             // World::leash keeps it there); a jump (a level, a warp) snaps.

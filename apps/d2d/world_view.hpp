@@ -40,6 +40,7 @@ inline bool g_light_grid = true;
 inline bool g_splash_centre = true;
 inline bool g_autoparty = true;      // a joined game: invite the others, accept invites (deviations.md #7); off: --toggle autoparty=off
 inline bool g_autoloot = true;        // gold walked over is picked up (deviations.md #5); off: --toggle autoloot=off
+inline bool g_unit_slide = true;      // units drawn sliding between the World's ticks (deviations.md #16); off: --toggle unit_slide=off
 
 // Render the loaded DS1 onto the framebuffer around the camera point
 // (cam_x, cam_y), in cells. Draws in D2's back-to-front Z order:

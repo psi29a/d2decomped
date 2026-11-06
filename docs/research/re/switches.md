@@ -92,7 +92,7 @@ ini read uses an empty default; its dword is 0 and unused.
 
 d2d status is from the 2026-10-20 map of this table onto d2d, rechecked
 against `main` at `f2906d3` for the options that status depends on
-(`--seed`, `--no-save`, `--join`, `--start-class`, vsync forced on):
+(`--seed`, `--no-save`, `--join`, `--start-class`, vsync on unless `--fps-cap` sets a rate):
 
 - `ready` — d2d already does this; the token only needs translating.
 - `partial` — something similar exists, and the behavior differs.
@@ -114,7 +114,7 @@ against `main` at `f2906d3` for the options that status depends on
 | `-per` | VIDEO | PERSPECTIVE | bool | 14 | 0 | n/a, 3D-card perspective |
 | `-lq` | VIDEO | QUALITY | bool | 15 | 0 | missing |
 | `-gamma` | VIDEO | GAMMA | int | 16 | 0 | missing |
-| `-vsync` | VIDEO | VSYNC | bool | 20 | 0 | partial, d2d always turns vsync on |
+| `-vsync` | VIDEO | VSYNC | bool | 20 | 0 | partial, d2d turns vsync on unless `--fps-cap` sets a rate |
 | `-fr` | VIDEO | FRAMERATE | int | 21 | 0 | missing |
 | `-s` | NETWORK | SERVERIP | string | 55 | empty | partial, `--join` is a host, not this field |
 | `-gametype` | NETWORK | GAMETYPE | int | 25 | 0 | n/a, Battle.net |
