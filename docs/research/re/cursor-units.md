@@ -49,6 +49,34 @@ malachai, tyrael3, drehyaiced and ancientstatue1..3; `noSel` on 29
 critters and helpers (chicken, rat, cow, act2hire, invisopet, the
 catapult spotters, the injured barbarians, ...).
 
+## Show Items labels (`FUN_004c0810`, UI\showitems.cpp)
+
+Each ground item of the player's near rooms (unit type 4, flag +0xc8 bit
+7, at most 0x20) gets a label rect {left, top, right, bottom} kept at
+0x7c54a8 + 0x120 n (count 0x7c54a0). The columns it may use: min_x 0 and
+max_x the screen width (`DAT_0071146c`), or max_x W/2 − 0x20 with a panel
+on the right (`FUN_0045ae90` 1), min_x W/2 with one on the left (2). An
+item whose spot has x outside min_x..max_x, or y outside −8..(the
+screen height − 0x10), gets none. Then up to 12 tries of
+`FUN_004c0640` (fastcall ECX &left, EDX &top; &right, &bottom, try,
+max_x, min_x; `ret 0x14`), H = screen height
+(`DAT_00711470`) − 0x30:
+
+1. left < min_x: right += min_x − left, and left = 6 (6, not min_x).
+2. top < 6: bottom += 6 − top, top = 6.
+3. right ≥ max_x: d = right − max_x + 1, right −= d, left −= d.
+4. bottom ≥ H: d = bottom − H, bottom −= d, top −= d.
+5. The first placed label it meets (left ≤ R, right ≥ L, top ≤ B,
+   bottom ≥ T): tries 0..6 move it vertically: up by T − bottom − 3 when
+   (bottom − top) / 2 ≠ 0 and top ≤ H, else down by B − top + 5; tries
+   7..11 horizontally: by L − right − 1 when (right − left) / 2 ≠ 0 and
+   left ≥ max_x (after step 3 never), else by R − left + 1 (to its right).
+   It returns 0 (moved). None met: 1.
+
+A try returning 1 places it, if then right ≤ max_x and left ≥ min_x;
+twelve moves without a clear spot, or a spot outside the columns, and
+the item gets no label.
+
 ## d2d
 
 `Monster::ally_not_interact` (components/game/ai.hpp) is that rule for a
