@@ -46,6 +46,7 @@ namespace d2d::client {
 // The ambience cross-fades at dusk and dawn over 250 sound ticks
 // (FUN_004e42e0: FUN_004b9ef0(0, 0xfa)), and switches at once otherwise.
 // ponytail: channels are head-relative (no 3D positions yet).
+//
 // A song's resume point from its position (FUN_004dcaa0).
 [[nodiscard]] constexpr int next_block(const std::array<int, 3>& blocks, int pos) {
     if (pos >= 0 && pos < blocks[0]) return blocks[0];
