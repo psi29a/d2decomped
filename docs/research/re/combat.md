@@ -415,7 +415,14 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   stat 67 (100; running run × 100 / walk), at least 25, on the walk
   velocity and on the walk's animation (RN 0x65, WL / TW 0xd5, char-select.md
   "Unit animation timing"); attack % = effective IAS + stat 68, 15..175 (attack_ticks'
-  eias, chill as −50 SIAS).
+  eias, chill as −50 SIAS). A monster (0x623f50 on): its cast mode (SC, 7:
+  `FUN_006216e0`) runs at min(100 + effective FCR, 175) % of its AnimData
+  speed, stat 68 / 69 not read; an attack mode (`FUN_00621580`: A1 / A2,
+  and S1..S4 / SQ for one holding a weapon) at effective IAS + stat 68
+  (attackrate, 100 base), clamped 15..175; a moving mode (`FUN_006214a0`)
+  at stat 67 + effective FRW, at least 25; any other (not GH / DD, which
+  have their own) at stat 69 (other_animrate) clamped 15..175. The speed ×
+  pct / 100 is at least 1 when not 0 and at most 0x7fff.
 - Ported: `chill_length` / `monster_blow` (combat.hpp), `Fight::land`
   (monsters), `Fight::chill_rate`; the merc and the chill's 0x6b roll aren't.
 

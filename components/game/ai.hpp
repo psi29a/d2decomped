@@ -460,15 +460,17 @@ struct Monster {
     }
 };
 
-// A monster's mode rate over its AnimData speed, % more (FUN_00623f50):
-// anim_pct (attackrate / other_animrate from auras), and its MonProp
-// IAS on its attack modes (A1, A2: 0x6e8b90 / 0x6e8cd0 mark them so for
-// every monster) and FCR on its cast mode (SC, FUN_006216e0), each
-// 120 x v / (120 + v) (FUN_00621740's table at 0x6e8e24). A skill's
-// sequence plays as SQ, neither.
+// A monster's mode rate over its AnimData speed, % more (FUN_00623f50,
+// 0x623f50): its attack modes (A1, A2: 0x6e8b90 / 0x6e8cd0 mark them so
+// for every monster, FUN_00621580) at 100 + anim_pct (attackrate from
+// auras) + its MonProp IAS, clamped 15..175; its cast mode (SC,
+// FUN_006216e0) at 100 + its FCR, at most 175, no attackrate /
+// other_animrate; IAS and FCR each 120 x v / (120 + v) (FUN_00621740's
+// table at 0x6e8e24). A moving mode (WL, RN: FUN_006214a0), GH and DD keep
+// their own; any other (a skill's sequence plays as SQ) at 100 + anim_pct
+// (other_animrate), clamped 15..175.
 // ponytail: S1..S4 / SQ are attack modes too for a monster holding a
-// weapon (FUN_00621580), never here; FUN_00623f50's 15..175 clamps and
-// the cast mode's skipping attackrate / other_animrate aren't applied.
+// weapon (FUN_00621580), never here.
 // A get-hit's length in ms: rules::get_hit_ticks on the mode's AnimData
 // record (frames and speed, the COF's for a mode animdata lacks) and the
 // unit's FHR, a tick 40 ms.
@@ -478,9 +480,10 @@ inline std::uint32_t get_hit_ms(const GameData::AnimTiming& timing, int fhr) {
 }
 
 inline int anim_rate_pct(const Monster& monster, std::string_view mode) {
-    if (mode == "A1" || mode == "A2") return monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias);
-    if (mode == "SC") return monster.anim_pct + d2d::rules::effective_speed(monster.props.fcr);
-    return monster.anim_pct;
+    if (mode == "A1" || mode == "A2") return std::clamp(100 + monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias), 15, 175) - 100;
+    if (mode == "SC") return std::min(100 + d2d::rules::effective_speed(monster.props.fcr), 175) - 100;
+    if (mode == "WL" || mode == "RN" || mode == "GH" || mode == "DD") return monster.anim_pct;
+    return std::clamp(100 + monster.anim_pct, 15, 175) - 100;
 }
 
 // Whoever the monsters are after (the player, the merc), and what they
