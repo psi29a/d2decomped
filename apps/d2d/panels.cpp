@@ -12,6 +12,7 @@
 #include <d2s_automap.hpp>
 #include <d2s_items.hpp>
 #include <font.hpp>
+#include <hud_glide.hpp>
 #include <item_text.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
@@ -358,6 +359,13 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         const int orb_x[6] = { 0, width / 2 - 0xeb, width / 2 - 0x6b, width / 2 + 0x15, width / 2 + 0x95, width - 0x75 };
         for (int i = 0; i < 6; ++i) at_bottom(scene.ctrl_panel, i, orb_x[i], height);
     }
+    // What the globes, the stamina bar and their texts show (FUN_00496dd0:
+    // rules::glide), a slot a stat as game.exe's globals at 0x7bef30.
+    static std::array<d2d::rules::Glide, 3> glides;
+    const auto glided = [&](std::size_t slot, int stat, int max_stat) {
+        return std::int64_t(d2d::rules::glide(glides[slot], slot == 0, int(stats.values[std::size_t(stat)]), int(stats.values[std::size_t(max_stat)]), hud.frame));
+    };
+    const std::int64_t life_shown = glided(0, kLife, kMaxLife), mana_shown = glided(1, kMana, kMaxMana), stamina_shown = glided(2, kStamina, kMaxStamina);
     // Globe fill: only the bottom `rows` rows of the 80x80 cel.
     auto fill = [&](int frame, int x, std::int64_t cur, std::int64_t max) {
         if (max <= 0 || frame >= int(scene.globes.frames_per_direction())) return;
@@ -375,8 +383,8 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
                 pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b;
             }
     };
-    fill(hud.poisoned ? 2 : 0, 29, stats.fixed(kLife), stats.fixed(kMaxLife));
-    fill(1, width - 0x6f, stats.fixed(kMana), stats.fixed(kMaxMana));
+    fill(hud.poisoned ? 2 : 0, 29, life_shown, stats.values[kMaxLife]);
+    fill(1, width - 0x6f, mana_shown, stats.values[kMaxMana]);
     at_bottom(scene.globe_glass, 0, 28, height - 5);
     at_bottom(scene.globe_glass, 1, width - 0x6e, height - 9);
     auto str = [&](int id) {
@@ -434,7 +442,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         }
         return out;
     };
-    std::int64_t stamina = stats.values[kStamina], stamina_max = stats.values[kMaxStamina];
+    std::int64_t stamina = stamina_shown, stamina_max = stats.values[kMaxStamina];
     auto rgb = nearest(0xf4, 0xc0, 0x4c);
     if (stamina_max + 5 < stamina || hud.stamina_blue) { stamina_max = stamina; rgb = nearest(0, 0, 0xff); }
     const int bar = stamina_max < 1 ? 0 : int(stamina * 0x66 / stamina_max);
@@ -446,7 +454,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
             for (std::size_t channel = 0; channel < 3; ++channel) pixel[channel] = std::uint8_t((rgb[channel] * 3 + pixel[channel]) / 4);
         }
     if (over(width / 2 - 0x7f, height - 0x1b, width / 2 - 0x19, height - 9)) {
-        auto shown = stats.values[kStamina] >> 8;
+        auto shown = stamina_shown >> 8;
         const auto top = stats.values[kMaxStamina] >> 8;
         const bool more = shown > top;
         if (more) shown = top;
@@ -466,12 +474,12 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centre - scene.font.measure(text) / 2, text_y, text);
     };
     if (over(0x1e, height - 0x4b, 0x6e, height - 0xf)) {
-        auto life = stats.values[kLife] >> 8;
-        if (stats.values[kLife] > 0 && life < 1) life = 1;
+        auto life = life_shown >> 8;
+        if (life_shown > 0 && life < 1) life = 1;
         globe_text(0x41, game::d2_format(str(0x1045), { life, stats.values[kMaxLife] >> 8 }));
     }
     if (over(width - 0x6f, height - 0x4b, width - 0x1f, height - 0xf))
-        globe_text(width - 0x50, game::d2_format(str(0x1046), { stats.values[kMana] >> 8, stats.values[kMaxMana] >> 8 }));
+        globe_text(width - 0x50, game::d2_format(str(0x1046), { mana_shown >> 8, stats.values[kMaxMana] >> 8 }));
 }
 
 bool over_run_button(int mouse_x, int mouse_y) {

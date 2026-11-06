@@ -230,7 +230,22 @@ bottom H−8, frame 2, a hover tooltip at H−50); d2d draws the other layout.
 `FUN_00496f80` life globe, `FUN_00497110` mana globe, `FUN_00498ea0`
 experience bar, `FUN_00497480` run button, `FUN_004975b0` stamina bar,
 `FUN_004977c0` mini-panel button, then the belt / skill area. Shown
-values go through `FUN_00496dd0` (a smoothing of stats 6 / 8 / 10).
+values go through `FUN_00496dd0` (EAX the stat: 6 life, 8 mana, 10
+stamina; max `FUN_00625d10` / `FUN_00625d60` / `FUN_00625db0`; max 0
+shows 0), a glide kept per stat in 16 bytes at 0x7bef30 + 0x10 n: +0 the
+last value V, +4 the frame it came (t1), +8 the value it glides from F,
++0xc that glide's start t0. The frame is `FUN_0044da90` (DAT_007a0498).
+With cur the stat now (256ths):
+1. frame < 2: V = F = cur.
+2. Life only: cur < V (a loss) sets V = F = cur, t1 = t0 = frame.
+3. cur ≠ V: if |V − cur| < max / 8 (signed, rounded toward 0) then t0 =
+   t1 and F = cur at max, else F = V; otherwise F = cur and t0 = frame.
+   Then V = cur, t1 = frame.
+4. dur = t1 − t0 clamped to 7..15 frames. With cur > 0, frame − t1 < dur
+   and V ≠ F: shown = F + trunc((frame − t1 + 1) / dur × (V − F)) (x87,
+   `_ftol` 0x682fd0), else cur. Then clamped to 0..max.
+So a small rise or fall (under an eighth of max) glides over 7..15
+frames; a big change, and any life loss, shows at once.
 
 **Life globe** (`FUN_00496f80`): rows = cur × 80 / max; 1 row becomes 2
 while not dead (mode 0x11). `hlthmana` frame 2 with state 2 (poison),
