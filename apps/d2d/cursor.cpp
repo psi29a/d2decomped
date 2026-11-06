@@ -66,6 +66,7 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
             if (held) return { true, cmd::ToBody{ slot } };
             for (const auto& item : items)
                 if (item.location == d2d::d2s::item_location::kEquipped && item.slot == slot) return { true, cmd::ToCursor{ item.id } };
+            if (const int two_hander = d2d::rules::two_hander_beside(tables, items, slot); two_hander >= 0) return { true, cmd::ToCursor{ two_hander } };
             return { true, {} };
         }
     // The I / II tabs: 0x18 px over either hand's box, the cursor empty, an

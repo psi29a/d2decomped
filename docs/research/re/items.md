@@ -102,6 +102,13 @@ item on the cursor:
 | full | doesn't go with it, and fits the inventory (`FUN_0063cb00` → `FUN_0063b850`) | 7 | 0x1e | `FUN_00561220`: the other hand's to the inventory (`FUN_0063b950`), this hand's to the cursor, then equipped |
 | full | doesn't go with it, no room | 0 | nothing | the client's class voice (`FUN_004cb9c0`): 0x13 "impossible"; 0x14 "can't use yet" only when a retry without the requirements (`FUN_0063de60` with 1) passes and the item's class is any or the player's (`FUN_0062c0b0`) |
 
+With nothing on the cursor, a hand holding an item gives code 3 (C->S
+0x1c, picked up). An empty hand beside a two-hander (Items +0x11c,
+`FUN_006289c0`; read from the 1.14d tables: bax, 2hs, sst, sbw, 9gi 1;
+axe, ssd, jav, buc 0) gives code 4: the client sends 0x1c with the
+other hand's slot, so the two-hander is picked up. d2d:
+`rules::two_hander_beside`, used by the cursor.
+
 `FUN_0063dbc0` (d2d `rules::hands_ok`) passes:
 - a bow beside its quiver;
 - not a quiver beside anything else;

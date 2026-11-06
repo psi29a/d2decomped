@@ -1313,6 +1313,19 @@ inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std:
     return true;
 }
 
+// An empty hand clicked with nothing held, beside a two-hander (Items
+// +0x11c, FUN_006289c0): FUN_0063dd90's code 4, and the client takes the
+// two-hander (C->S 0x1c with the other hand's slot, FUN_00490780 /
+// FUN_00490ba0). Its unit id, -1 none.
+inline int two_hander_beside(const Tables& tables, const std::vector<d2d::d2s::Item>& items, int slot) {
+    if (slot != d2d::d2s::body_location::kRightArm && slot != d2d::d2s::body_location::kLeftArm) return -1;
+    const int other = d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot;
+    for (const auto& item : items)
+        if (item.location == d2d::d2s::item_location::kEquipped && item.slot == other)
+            if (const auto info = tables.item_info.find(item.code); info != tables.item_info.end() && info->second.two_handed) return item.id;
+    return -1;
+}
+
 // Put `held` in belt box `box` (0..boxes-1): potions, scrolls — ItemTypes
 // Beltable along the Equiv chain. A smaller belt's lost rows: spill_belt.
 inline bool put_in_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,

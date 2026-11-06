@@ -358,6 +358,12 @@ int main() {
     }
     std::erase_if(empty, [](const Item& x) { return x.code == "buc"; });
     assert(equip(cursor_tables, empty, held, 4, sorc) && held && held->code == "ssd");       // two-hander swaps the sword out
+    {   // Code 4: the empty left hand beside the two-hander gives the two-hander.
+        auto two_handed = empty;
+        two_handed.back().id = 77;
+        assert(item_at(two_handed, 1, 4)->code == "2ax" && two_hander_beside(cursor_tables, two_handed, 5) == 77);
+        assert(two_hander_beside(cursor_tables, two_handed, 4) == -1 && two_hander_beside(cursor_tables, two_handed, 1) == -1);
+    }
     held = item("buc");
     assert(equip(cursor_tables, empty, held, 5, sorc) && held && held->code == "2ax");       // a shield displaces the two-hander
     held.reset();
