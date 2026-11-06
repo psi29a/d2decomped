@@ -5,6 +5,7 @@
 // scales each damage field above 0 first, before the reductions.
 #include <combat.hpp>
 #include <monsters.hpp>
+#include <rules.hpp>
 
 #include <cassert>
 #include <cstdio>

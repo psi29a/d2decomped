@@ -8,6 +8,7 @@
 #include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
+#include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>

@@ -30,12 +30,12 @@ struct Run {
 int main(int argc, char** argv) {
     Run run;
     if (argc > 1) {
-        std::ifstream in(argv[1]);
+        std::ifstream input(argv[1]);
         int seq = 0, stat = 0, cur = 0, max = 0;
         std::uint32_t frame = 0;
         std::string rest;
-        while (in >> seq >> stat >> frame >> cur >> max) {
-            std::getline(in, rest);
+        while (input >> seq >> stat >> frame >> cur >> max) {
+            std::getline(input, rest);
             std::printf("%d %d %u %d %d %d\n", seq, stat, frame, cur, max, run.shown(seq, stat, frame, cur, max));
         }
         return 0;

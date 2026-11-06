@@ -6,6 +6,7 @@
 #include "character.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
+#include "log.hpp"
 #include "montypes.hpp"
 
 #include <combat.hpp>

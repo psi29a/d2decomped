@@ -9,6 +9,7 @@
 #include <ai.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
+#include <combat.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
