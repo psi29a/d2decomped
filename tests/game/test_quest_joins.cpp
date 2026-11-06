@@ -129,6 +129,23 @@ int main() try {
         world.join(on);
         assert(d2d::rules::quest::bit(bits_of(*world.players.back()), 0x1a, 9));
     }
+    {   // Act 5's +0xd8s: a5q2 clears bit 4 (LAB_00588450); a5q3 past state 4 with a5q4 open gives bit 14 (LAB_0058a1e0); a5q6 done: bit 10 (LAB_0058e3f0).
+        World world(&*data, -1, -1);
+        world.enter(make(kSorceress, "Lead"));
+        world.prison.state = 5; world.betrayal.open = true;
+        auto joiner = make(kSorceress, "Joiner");
+        auto& bits = joiner.header.quests[std::size_t(joiner.header.active_difficulty())];
+        d2d::rules::quest::set(bits, 0x24, 4);
+        d2d::rules::quest::set(bits, 0x28, 0);
+        world.join(joiner);
+        const auto& joined = world.players.back()->character.header;
+        const auto& after = joined.quests[std::size_t(joined.active_difficulty())];
+        assert(!d2d::rules::quest::bit(after, 0x24, 4) && d2d::rules::quest::bit(after, 0x26, 14) && d2d::rules::quest::bit(after, 0x28, 10));
+        world.prison.state = 3;                                                  // still under way: no bit 14
+        world.join(make(kSorceress, "Later"));
+        const auto& later = world.players.back()->character.header;
+        assert(!d2d::rules::quest::bit(later.quests[std::size_t(later.active_difficulty())], 0x26, 14));
+    }
     std::printf("OK: quest joins\n");
     return 0;
 } catch (const std::exception& error) {

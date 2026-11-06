@@ -597,6 +597,9 @@ auto World::join_more() -> void {
         d2d::rules::SevenTombsQuest::join_more(quests());   // a2q6 LAB_0059d4d0 (a2q2's FUN_0059e970: HoradricStaffQuest)
         lam_esen.join_more(carries(d2d::rules::LamEsenQuest::kTome));   // a3q1 LAB_005b7bc0 (a3q3 / a3q4's: BladeQuest, GoldenBirdQuest)
         d2d::rules::TerrorQuest::join_more(quests(), lead().character.header.expansion());   // a4q2 LAB_005b5030, the game's LoD (game +0x70) (a4q3's: HellforgeQuest)
+        d2d::rules::RescueQuest::join_more(quests());                     // a5q2 LAB_00588450
+        prison.join_more(quests(), betrayal.open);                        // a5q3 LAB_0058a1e0
+        d2d::rules::EveQuest::join_more(quests());                        // a5q6 LAB_0058e3f0
     }
 
 auto World::take_carried(std::string_view code) -> void {

@@ -228,6 +228,8 @@ struct RescueQuest {
     std::vector<int> freed_ids;    // data +0x120, count +0x15c
     bool news = false;
 
+    // A later player joins (+0xd8, LAB_00588450): their bit 4 cleared.
+    static void join_more(QuestBits& quest_bits) { quest::set(quest_bits, kQuest, 4, false); }
     // The player joins (LAB_00588470): bit 4 cleared first.
     void join(QuestBits& quest_bits) {
         quest::set(quest_bits, kQuest, 4, false);
@@ -433,6 +435,14 @@ struct PrisonQuest {
     bool news = false;
 
     // The player joins (FUN_0058a110).
+    // A later player joins (+0xd8, LAB_0058a1e0): the potion they carry
+    // counts (data +0xd8, not kept); with this one shut or past state 4 and
+    // a5q4 open (record 0x22 +9, 0x58a212), a joiner with none of bits 1, 6
+    // and 0 gets a5q4's bit 14 (0x58a262).
+    void join_more(QuestBits& quest_bits, bool betrayal_open) const {
+        if ((!open || state >= 5) && betrayal_open && !quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 6) && !quest::bit(quest_bits, kQuest, 0))
+            quest::set(quest_bits, kQuest + 1, 14);
+    }
     void join(const QuestBits& quest_bits, bool carries_potion) {
         if (carries_potion) potions = 1;
         open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
@@ -923,6 +933,8 @@ struct EveQuest {
     bool tyrael_heard = false;     // data +0x98
     bool news = false;
 
+    // A later player joins (+0xd8, LAB_0058e3f0): done, bit 10.
+    static void join_more(QuestBits& quest_bits) { if (quest::bit(quest_bits, kQuest, 0)) quest::set(quest_bits, kQuest, 10); }
     // The player joins (FUN_0058e430): done, bit 10 and the next difficulty.
     bool join(QuestBits& quest_bits) {
         open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
