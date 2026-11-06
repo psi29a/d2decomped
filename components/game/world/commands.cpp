@@ -663,7 +663,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             actor->attack_mon = -1;
             fight.impossible(now_ms);
         } else if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
-            if (fight.cast(use_skill.skill, now_ms)) actor->player.walking = false;
+            if (fight.cast(use_skill.skill, now_ms)) { actor->player.walking = false; actor->interact_npc = -1; }
         } else if (skill && skill->srvdofunc == ServerDoFunction::kWhirlwind && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
             actor->move_x = use_skill.x; actor->move_y = use_skill.y;
             actor->attack_mon = -1;

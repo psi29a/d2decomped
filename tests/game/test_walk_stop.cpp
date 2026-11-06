@@ -2,8 +2,10 @@
 // test-links: game
 // Through the real World tick: a ground click whose path runs into a wall ends
 // on the tick it's blocked, on a subtile's centre (FUN_00650150), with no new
-// path from there (FUN_00650840 stops the same frame, LAB_006508ff). Needs the data; SKIPs
-// without it.
+// path from there (FUN_00650840 stops the same frame, LAB_006508ff). A walk to
+// an NPC stays queued while it's walled in, standing, and talks once the way
+// opens (FUN_00481600 -> FUN_004812e0, LAB_004813c3); another action or the NPC
+// gone ends it. Needs the data; SKIPs without it.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -19,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <variant>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
@@ -90,6 +93,51 @@ int main() {
         now += kTickMs;
     }
     assert(!actor->player.walking && actor->player.x == stop_x && actor->player.y == stop_y);
-    std::printf("ok: the walk ended on a centre\n");
+
+    // Walled into its own subtile, an interact stays queued, and the player stands:
+    // no step to be had, so no walk (FUN_00461250's neutral) till a later tick finds one.
+    town.walk.assign(std::size_t(width) * std::size_t(height), std::uint16_t(1));
+    town.walk[std::size_t(std::floor(stop_y * 5)) * std::size_t(width) + std::size_t(std::floor(stop_x * 5))] = 0;
+    int npc = -1;
+    for (std::size_t index = 0; index < town.npcs.size() && npc < 0; ++index)
+        if (town.npcs[index].root != "objects" && !world.npc_states[index].hidden && std::hypot(town.npcs[index].x - stop_x, town.npcs[index].y - stop_y) > 3.f) npc = int(index);
+    assert(npc >= 0);
+    const auto stands_queued = [&](int ticks) {
+        for (int tick = 0; tick < ticks; ++tick) {
+            world.tick({}, now + kTickMs, now);
+            now += kTickMs;
+            assert(actor->interact_npc == npc && !actor->player.walking && actor->player.path.empty());
+            assert(actor->player.x == stop_x && actor->player.y == stop_y);
+        }
+    };
+    world.apply(cmd::Interact{ npc }, now);
+    assert(actor->interact_npc == npc);
+    stands_queued(25);
+
+    // Another action ends it (FUN_00481030, LAB_00481240), and so does the NPC gone (LAB_00481697).
+    world.apply(cmd::Move{ stop_x, stop_y, true }, now);
+    assert(actor->interact_npc == -1);
+    world.tick({}, now + kTickMs, now);
+    now += kTickMs;
+    world.apply(cmd::Interact{ npc }, now);
+    stands_queued(2);
+    world.npc_states[std::size_t(npc)].hidden = true;
+    world.tick({}, now + kTickMs, now);
+    now += kTickMs;
+    assert(actor->interact_npc == -1 && !actor->player.walking);
+    world.npc_states[std::size_t(npc)].hidden = false;
+
+    // The way opens: the same queued interact walks there and talks.
+    world.apply(cmd::Interact{ npc }, now);
+    stands_queued(2);
+    town.walk.assign(std::size_t(width) * std::size_t(height), std::uint16_t(0));
+    for (int tick = 0; tick < 2000 && actor->interact_npc >= 0; ++tick) {
+        world.tick({}, now + kTickMs, now);
+        now += kTickMs;
+    }
+    assert(actor->interact_npc == -1 && !actor->player.walking);
+    const auto* talk = actor->events.empty() ? nullptr : std::get_if<ev::OpenUI>(&actor->events.back());
+    assert(talk && talk->kind == ev::OpenUI::talk && talk->npc == npc);
+    std::printf("ok: the walk ended on a centre, the interact kept trying\n");
     return 0;
 }

@@ -309,7 +309,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 const bool in_reach = npc.root == "objects"
                     ? d2d::rules::object_reach(from_x - to_x, from_y - to_y, 2, npc.size_x, npc.size_y) && !wall_to(npc, from_x, from_y, 2)
                     : d2d::rules::unit_distance(from_x - to_x, from_y - to_y, 2, npc.size_x) < 7;
-                if (in_reach) {
+                if (in_reach && !state.hidden) {
                     if (operable(npc.operate_fn) || npc.operate_fn == d2d::rules::operate_fn::kMoldyTome || npc.operate_fn == d2d::rules::ToolsQuest::kStand || quest_object(npc.operate_fn)) {
                         credit_party([&] { operate(actor->interact_npc, now_ms); });
                     } else if (npc.operate_fn == d2d::rules::operate_fn::kStash) {
@@ -340,10 +340,15 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                         actor->events.push_back(ev::OpenUI{ ev::OpenUI::talk, actor->interact_npc, std::move(lines) });
                     }
                     actor->player.walking = false; actor->interact_npc = -1;
-                } else if (!actor->player.walking) {
-                    actor->interact_npc = -1;                         // blocked on the way
+                } else if (state.hidden || (!actor->player.walking && from_x == to_x && from_y == to_y)) {
+                    actor->interact_npc = -1;                         // the target's gone (FUN_00481600, LAB_00481697), or it's here and out of reach
+                    if (state.hidden) { actor->player.walking = false; actor->player.path.clear(); }
                 } else {
                     actor->target_x = npc_x; actor->target_y = npc_y;              // follow a walking NPC
+                    // Queued, a walk that stopped tries again whether or not it moved, and
+                    // stands meanwhile: no route is no walk (FUN_00481600 -> FUN_004812e0,
+                    // LAB_004813c3, FUN_00461250's neutral). A hit waits, as a pick_item's does.
+                    if (!busy) actor->player.walking = true;
                 }
             }
             if (actor->pick_item >= 0 && loot.index_of(actor->pick_item) < 0) actor->pick_item = -1;   // someone took it

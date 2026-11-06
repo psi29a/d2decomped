@@ -143,6 +143,7 @@ auto World::leash(std::span<const std::pair<float, float>> before) -> void {
             auto& unit = players[i]->player;
             std::tie(unit.x, unit.y) = before[i];
             unit.walking = false; unit.path.clear();
+            players[i]->interact_npc = -1;
             players[i]->target_x = unit.x; players[i]->target_y = unit.y;
         }
         if (!too_far(spread(players.size()))) return;
