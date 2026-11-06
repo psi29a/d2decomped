@@ -193,6 +193,8 @@ int main() try {
         if (const auto* skill = data->skills.get(id); skill && skill->aurastate == "energyshield") es_id = id;
     assert(es_id >= 0);
     const auto* es_skill = data->skills.get(es_id);
+    // FUN_005ca6c0 takes calc1 uncapped; the data's own calc1 is min(edmn,95), so a high level stops at 95.
+    assert(fight.calc(*es_skill, es_skill->calc[0], 60) == 95);
     auto states = hero.self_states;
     const std::uint32_t now = 30 * kTick;
 
@@ -225,7 +227,7 @@ int main() try {
 
     // The first differing case of the differential: fire, resistance -100, raw 632, level 40, mana 103179/256.
     {
-        const int pct = std::clamp(fight.calc(*es_skill, es_skill->calc[0], 40), 0, 95), per16 = std::max(fight.calc(*es_skill, es_skill->calc[1], 40), 1);
+        const int pct = fight.calc(*es_skill, es_skill->calc[0], 40), per16 = std::max(fight.calc(*es_skill, es_skill->calc[1], 40), 1);
         const auto [life, mana] = run(2, -100, 632, 40, 103179);
         const auto want = expected(2, -100, 632, pct, per16, 103179);
         assert(life >> 8 == want.life >> 8 && mana == want.mana);
@@ -239,7 +241,7 @@ int main() try {
             for (const int whole : { 1, 5, 50, 632, 1500 })
                 for (const int level : { 0, 1, 18, 40 })
                     for (const std::int64_t mana : { std::int64_t(0), std::int64_t(3 * 256 + 100), std::int64_t(100 * 256), std::int64_t(600 * 256) }) {
-                        const int pct = level > 0 ? std::clamp(fight.calc(*es_skill, es_skill->calc[0], level), 0, 95) : 0;
+                        const int pct = level > 0 ? fight.calc(*es_skill, es_skill->calc[0], level) : 0;
                         const int per16 = level > 0 ? std::max(fight.calc(*es_skill, es_skill->calc[1], level), 1) : 1;
                         const auto [life, mana_left] = run(element, element == 1 ? 0 : res, whole, level, mana);
                         const auto want = expected(element, element == 1 ? 0 : res, whole, pct, per16, mana);
@@ -262,7 +264,7 @@ int main() try {
         assert(bone_id >= 0);
         int es_level = 1;   // the first level that takes at least 40 %
         while (es_level < 60 && fight.calc(*es_skill, es_skill->calc[0], es_level) < 40) ++es_level;
-        const int pct = std::clamp(fight.calc(*es_skill, es_skill->calc[0], es_level), 0, 95);
+        const int pct = fight.calc(*es_skill, es_skill->calc[0], es_level);
         assert(pct >= 40 && pct < 95);
         auto both = [&](bool shield_last) {
             rules::MonStats attacker;
