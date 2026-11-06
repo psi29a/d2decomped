@@ -93,6 +93,7 @@ Known differences in the ones it draws, and what's left to check:
 | 42 | Raised roofs take the level's own light, not the environment's +0xc: Pandemonium Fortress's are 140, game.exe's 128 after a fade from the last act's light | exact | hardly | lighting.md "Drawing with it", Floors and roofs; world_view.cpp roofs; `FUN_004dea70` -> `FUN_004ddef0` |
 | 43 | River of Flame and the Chaos Sanctuary stay at their own light (120, 80) after Diablo's release; game.exe fills them with 160 until the next game (classic: until he dies), so floors, walls and units there are brighter | build | yes | lighting.md "What fills it"; `town/view.cpp` `frame_light`; tools/emu/level_ambient.py |
 | 44 | The ambient's dip to black isn't built: Cloak of Shadows (state 153) and the Cairn Stones opening in Stony Field leave the level lit | build | yes | lighting.md "What fills it"; `FUN_004d87e0`, `FUN_0046ad10`; tools/emu/level_ambient.py |
+| 45 | Rooms over a level's edge take the player's level's ambient, not their own: at least three Act 4 borders differ (140 / 120, 120 / 80, 80 / 40; the listing leaves out River of Flame, 107) | exact | hardly | lighting.md "What fills it"; `FUN_00474610`; `level_ambient.py borders` |
 
 ## Tables
 
