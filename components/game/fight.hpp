@@ -1118,9 +1118,10 @@ struct Fight {
     void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
     // Holy Shield (FUN_005c9480): the holyshield state for auralencalc
     // ticks, its aurastats (toblock dm56) on the player.
-    // ponytail: the aura events (+0x84) and the passive part
-    // (FUN_005c6dc0) aren't read; a shield is assumed (itypea1 shie isn't
-    // checked).
+    // Its row has no auraevent and no passivestat, so the aura events
+    // (+0x84) and the passive part (FUN_005c6dc0) add nothing (skills.md).
+    // ponytail: a shield is assumed (itypea1 shld isn't checked: the
+    // skills' weapon-type gate isn't traced).
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost (FUN_0056bfe0): a charged entry's (Hero::charge, for
     // that skill) is a charge and no mana, else the skill's mana.

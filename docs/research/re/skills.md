@@ -442,7 +442,11 @@ lines (missile names aren't passed in). What it does:
   state (0x65) for auralencalc (ln12) ticks, its aurastats (toblock =
   dm56) via FUN_005c6cc0, FUN_005c6dc0's part, the skill and level in
   stats 0x15e / 0x15f, its aura events (+0x84, up to 3, FUN_0056e740).
-  Smite adds its MinDam..MaxDam while it's up.
+  Smite adds its MinDam..MaxDam while it's up. FUN_005c6dc0 adds
+  passivestat1..5 (+0x98) at passivecalc1..5 (+0xa4, FUN_00646ca0) to the
+  state's stats (stat 0x44 velocitypercent also as 0x45); in 1.14d Holy
+  Shield's row has no passivestat and no auraevent, so neither adds
+  anything (its aurastatcalc2 has no aurastat2 either).
 
 ### Skills that move: Whirlwind, Leap Attack, Charge
 - **Whirlwind**, start 38 (FUN_005d8f50): a path to the clicked point
