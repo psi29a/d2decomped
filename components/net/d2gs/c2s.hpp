@@ -276,6 +276,13 @@ inline auto equip(std::uint32_t id, std::uint32_t slot, bool swap, bool other_of
     put_u8(out, other_off ? (swap ? 0x1e : 0x1b) : (swap ? 0x1d : 0x1a)); put_u32(out, id); put_u32(out, slot);
     return out;
 }
+// 0x21: the cursor's stack onto `target` (54b300 -> FUN_0055e7c0; a hand's
+// stack, FUN_0063dd90 code 6).
+inline auto stack(std::uint32_t id, std::uint32_t target) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x21); put_u32(out, id); put_u32(out, target);
+    return out;
+}
 // 0x1c: the item in body slot -> cursor (by slot, not id).
 inline auto body_to_cursor(std::uint16_t slot) -> Bytes {
     Bytes out;

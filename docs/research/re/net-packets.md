@@ -810,11 +810,12 @@ skill to the others only (0x4c / 0x4d), not back to it.
 | 1e swap, the other hand's to the inventory | 9 | u32 id, u8 slot (4 / 5) | `54b030` → `FUN_00561220`: the other hand's item to the inventory, this hand's to the cursor (`FUN_0063de60` code 7) | `cmd::ToBody`; joined: `c2s::equip` (`other_off`) |
 | 1f swap cursor ↔ grid item | 17 | u32 cursor id, u32 target id, u32 x, u32 y | `54b0f0` | `cmd::ToGrid` (swap) |
 | 20 use item | 13 | u32 id, u32 x, u32 y (the player's position) | `54b1e0` → `FUN_0055e170` | `cmd::UseItem` |
+| 21 stack | 9 | u32 cursor id, u32 target id | `54b300` → `FUN_0055e7c0`: not onto page 2; `FUN_0062c850`, then `FUN_0055e590` merges | `cmd::ToBody` onto a hand's stack (`rules::stack_onto`); joined: `c2s::stack` |
 | 23 cursor → belt | 9 | u32 id, u32 belt slot | `54b3e0` | `cmd::ToBelt` |
 | 24 belt → cursor | 5 | u32 id | `54b450` | `cmd::ToCursor` |
 | 26 use belt | 13 | u32 item id, u32 flag, u32 (unused) | `54b560` → `FUN_00562390` | `cmd::UseBelt{slot}`: **column, not id** |
 | 27 identify with a scroll | 9 | u32 scroll id, u32 item id | `54b280` | `cmd::IdentifyWith` |
-| 21 / 25 / 28 / 29 / 2a / 4c / 63 | | stack, belt swap, socket, scroll to book, to cube, transmute, auto-belt | | none |
+| 25 / 28 / 29 / 2a / 4c / 63 | | belt swap, socket, scroll to book, to cube, transmute, auto-belt | | none |
 | 50 drop gold | 9 | u32 player id, u32 amount | `54c800` | none |
 
 **Chat's framing** (`FUN_0052bc20`, the host's C→S sizer): 3 + message +

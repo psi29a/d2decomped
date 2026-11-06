@@ -1271,7 +1271,35 @@ inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items
     return true;
 }
 
-// Equip `held` in body slot `slot` (1..10), swapping out what's there. In
+// A hand's stack `held` joins (FUN_0063dd90's first test, code 6, C->S
+// 0x21 -> FUN_0055e7c0): its index in `items`, -1 none. FUN_0062c850 (a
+// Stackable base, FUN_006289f0, and stacks_with).
+inline int hand_stack(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& held, int slot) {
+    if (slot != d2d::d2s::body_location::kRightArm && slot != d2d::d2s::body_location::kLeftArm) return -1;
+    const auto base = tables.item_base.find(held.code);
+    if (base == tables.item_base.end() || !base->second.stackable) return -1;
+    for (std::size_t i = 0; i < items.size(); ++i)
+        if (items[i].location == d2d::d2s::item_location::kEquipped && items[i].slot == slot && stacks_with(items[i], held)) return int(i);
+    return -1;
+}
+// The cursor's stack onto `target` (FUN_0055e590): past the target's most
+// (stack_most, FUN_006295b0) the target fills and the rest stays held;
+// else the target takes it all, the lower durability of the two (stat
+// 0x48, an item with durability: FUN_00629930), and nothing is held.
+inline void stack_onto(const Tables& tables, d2d::d2s::Item& target, std::optional<d2d::d2s::Item>& held) {
+    const int most = stack_most(tables, target), total = held->quantity + target.quantity;
+    if (total > most) {
+        held->quantity = total - most;
+        target.quantity = most;
+        return;
+    }
+    if (has_durability(tables, *held) && held->durability < target.durability) target.durability = held->durability;
+    target.quantity = total;
+    held.reset();
+}
+
+// Equip `held` in body slot `slot` (1..10), swapping out what's there; a
+// stack onto its kind in a hand joins it (hand_stack, stack_onto). In
 // the hands, `held` and the other hand's item must go together (FUN_0063dd90
 // -> FUN_0063dbc0: rules::hands_ok); when they can't:
 // - this hand empty: the other hand's item comes off to the cursor (code 2,
@@ -1282,7 +1310,11 @@ inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items
 //   room in the `cols` x `rows` inventory: code 0, refused.
 inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
                   int slot, const Wearer& wearer, int required_level = -1, int cols = 0, int rows = 0) {
-    if (!held || !can_wear(tables, *held, slot, wearer, required_level)) return false;
+    if (!held || !can_wear(tables, *held, slot, wearer, required_level)) return false;   // FUN_0063de60 asks first
+    if (const int stack = hand_stack(tables, items, *held, slot); stack >= 0) {
+        stack_onto(tables, items[std::size_t(stack)], held);
+        return true;
+    }
     const bool hand = slot == d2d::d2s::body_location::kRightArm || slot == d2d::d2s::body_location::kLeftArm;
     const int other = hand ? d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot : 0;
     int off = -1, other_off = -1;                      // this slot's item; the other hand's, when it can't stay

@@ -386,6 +386,22 @@ int main() {
     assert(equip(cursor_tables, archer, held, 5, sorc) && !held);                        // a quiver goes with a bow
     held = item("cqv");
     assert(!equip(cursor_tables, archer, held, 5, sorc) && held);                         // bolts aren't a bow's: the arrows and the bow would both come off
+    {   // Code 6 (C->S 0x21, FUN_0055e7c0 -> FUN_0055e590): a stack onto its kind in a hand.
+        cursor_tables.types["jave"] = { .equiv = { "weap", "" }, .body = { 4, 5 } };
+        cursor_tables.item_info["jav"] = { .width = 1, .height = 3, .type = "jave", .kind = 2 };
+        cursor_tables.item_base["jav"] = { .stackable = true, .durability = 20, .max_stack = 60 };
+        std::vector<Item> thrower;
+        held = item("jav"); held->quantity = 40; held->durability = 20; held->max_durability = 20;
+        assert(equip(cursor_tables, thrower, held, 4, sorc) && !held);
+        held = item("jav"); held->quantity = 30; held->durability = 20; held->max_durability = 20;
+        assert(equip(cursor_tables, thrower, held, 4, sorc) && held && held->quantity == 10 && item_at(thrower, 1, 4)->quantity == 60);   // past its most: the rest stays held
+        thrower[0].quantity = 30;
+        held->quantity = 20; held->durability = 5;
+        assert(equip(cursor_tables, thrower, held, 4, sorc) && !held && thrower.size() == 1);
+        assert(thrower[0].quantity == 50 && thrower[0].durability == 5);                     // all of it, the lower durability
+        held = item("jav"); held->quantity = 5; held->quality = 3;
+        assert(equip(cursor_tables, thrower, held, 4, sorc) && held && held->quality == 2);   // superior isn't normal: swapped, not stacked
+    }
     // FUN_0063dbc0: a quiver joins only the bow it's for (issue #139: arrows
     // beside a staff). Into the free hand it takes the other one's place.
     std::vector<Item> staff;

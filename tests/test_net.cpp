@@ -147,6 +147,7 @@ int main() try {
         assert(d2gs::c2s::equip(7, 4, false)[0] == 0x1a && d2gs::c2s::equip(7, 4, true)[0] == 0x1d);
         assert(d2gs::c2s::equip(7, 4, false, true)[0] == 0x1b && d2gs::c2s::equip(7, 5, true, true)[0] == 0x1e);
         assert((d2gs::c2s::equip(7, 5, true, true) == d2d::net::Bytes{ 0x1e, 7, 0, 0, 0, 5, 0, 0, 0 }));
+        assert((d2gs::c2s::stack(7, 9) == d2d::net::Bytes{ 0x21, 7, 0, 0, 0, 9, 0, 0, 0 }));   // code 6: onto a hand's stack
         // Chat to all: type 1, language 0, the message, no target (54a5d0 wants size > length + 4).
         assert((d2gs::c2s::chat("hi") == d2d::net::Bytes{ 0x15, 0x01, 0x00, 'h', 'i', 0x00, 0x00, 0x00 }));
         assert((d2gs::c2s::chat("hi", "Mi") == d2d::net::Bytes{ 0x15, 0x02, 0x00, 'h', 'i', 0x00, 'M', 'i', 0x00, 0x00 }));   // "@Mi hi": a whisper
