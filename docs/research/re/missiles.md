@@ -175,6 +175,50 @@ from straight down: 8 directions take 8 steps each (0..3 and 60..63 south),
 half steps after), 4 is plain angle order, and 2's row is all 0.
 fireball.dcc and firebolt.dcc have 16 directions.
 
+## Server hit function 58 — FUN_005acdf0 (ECX game, EDX the missile)
+
+Slot 58 of the pSrvHitFunc table 0x73c840 (`0x73c840 + 58 * 4 = 0x73c928`;
+slot 59 is `0x73c92c` = FUN_005acf20). Baal Taunt's lightning control
+(quests-act5.md "Eve of Destruction") ends here. Cited from the decompile
+(no oracle run); the return paths I read in the decompile return 1.
+
+- Gate: the missile's class (unit +4) is in `0 <= class < Missiles.txt count`
+  (half-open; `PTR_DAT_00744304 + 0xb6c`), its record (`+ 0xb64`, 0x1a4 each) has
+  HitSubMissile1 (short, +0x24) ≥ 0, and its owner is found by
+  FUN_00552fd0 (unit flag +0xc8 bit 10, then FUN_00552f60 on unit +0x98);
+  none: nothing is laid.
+- Radius: the record's sHitPar1 (+0x4c), or 1 when that is 0 or less.
+- Spot: the missile's subtile (FUN_0045adf0 / FUN_0045ae20: x, y) plus
+  `rand(n) - radius` on each axis, FUN_0045c390 on a stack seed that
+  FUN_00650e40 sets to `{x, 666}` just before (the argument is read off the
+  call order; the decompile drops the register args, so n = 2 × radius + 1
+  is the same kind of reading, matching FUN_0045c390's range 0 .. n-1).
+  The missile's own seed is not used.
+- Made by FUN_0059fa30 with a zeroed 0x5c-byte params block: flags **0x20**
+  (target at [7] / [8] absolute; no flag 1, so the start is the missile's own
+  spot via [2]; no flag 4, so the velocity is the record's Vel + VelLev ×
+  level / 8, << 8, then × 75 / 100), [1] the owner, [2] the missile, [4]
+  HitSubMissile1, [0xb] the missile's skill (FUN_0064a280), [0xc] its level
+  (FUN_0064a210), [7] / [8] the spot.
+  FUN_0064a280 / 0064a210 read the shorts at +10 / +0xc of the missile data
+  (unit +0x14), none for a non-missile.
+- FUN_0059fa30's rule applies: a spot in the same subtile as the start
+  (no target unit) moves to (+1, +1), so the sub missile flies diagonally
+  instead of being laid with no direction.
+- Callers' side: FUN_0045adf0 / FUN_0045ae20 (unit x / y): types 2 and 4..5
+  read the path-less unit's data (+0x2c)+0xc / +0x10, else the path
+  (+0x2c) through FUN_006488c0 / FUN_00648900, 0 with no path.
+  FUN_0045c390 (rand): `n ≤ 0` gives 0; a power of two `& (n-1)` of the
+  step `lo * 0x6ac690c5 + hi`, else that step's low word `% n`.
+  FUN_00650e40 stores `{arg, 0x29a}`.
+
+d2d: `Missiles` `hit_spawn` (ai.hpp) reads the same, cited from the decompile, no oracle run,
+on the gate, the radius clamp, the
+sub missile, the start and the flags-0x20 aim, and keeps its own rng
+(ponytail already noted). It differs in one case: when both draws land on the
+missile's own subtile, game.exe aims (+1, +1) subtiles away, d2d at that
+subtile's centre.
+
 ## d2d
 
 - `rules::MissileFlight` (launch, step, walk, retarget), `missile_aim`,
