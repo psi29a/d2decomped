@@ -592,6 +592,8 @@ auto World::music_cue(std::string_view sound) -> void {
 
 // FUN_00546270 for a later player: each record's +0xd8 (quests.md "Joins").
 auto World::join_more() -> void {
+        if (hosted_quests) return;
+        tools.join_more(carries("hdm"));          // a1q3 LAB_005919d0 (a1q4's FUN_00592b90: CainQuest)
     }
 
 auto World::take_carried(std::string_view code) -> void {

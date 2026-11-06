@@ -1369,6 +1369,8 @@ struct CainQuest {
         if (state == 2) quest::set(quest_bits, kQuest, 2);
         else if (state > 2 && state < 6) quest::set(quest_bits, kQuest, 3);
     }
+    // A later player's +0xd8 (FUN_00592b90) only adds each scroll they carry
+    // to +0x7c, which the rewind left out above alone reads.
     // The player joins, carrying the scroll (bks) / the deciphered one (bkd) (FUN_00597030).
     void join(const QuestBits& quest_bits, bool bks, bool bkd) {
         active = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
@@ -1747,6 +1749,7 @@ struct ToolsQuest {
     bool given = false, returned = false;   // data[2] / data[3]: the log waits for the talk to close
     bool game_returned = false;             // the game's flag 13 (FUN_00544720(3, 0xd))
     bool carried_in = false;                // data+0xa1: the player joined holding the malus
+    int carriers = 0;                       // data+0x9c: the players who joined holding it
 
     // A player's bits for the state (0x591340).
     void mark(QuestBits& quest_bits) const {
@@ -1758,9 +1761,15 @@ struct ToolsQuest {
     // closed turns it off for the game (FUN_00546270, FUN_00544410).
     void join(const QuestBits& quest_bits, bool holding = false) {
         carried_in = holding;
+        carriers = holding ? 1 : 0;
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) { active = false; return; }
         if (quest::bit(quest_bits, kQuest, 2)) { log = 1; state = 2; }
         else if (quest::bit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
+    }
+    // A later player joins (+0xd8, LAB_005919d0): holding the malus, with
+    // +9 and not returned, a carrier more; the first, the stand used: log 2.
+    void join_more(bool holding) {
+        if (holding && active && state != 5 && ++carriers == 1 && dropped) log = 2;
     }
     // The chain reached it (+0xf0, FUN_00591e40): open (Charsi's "!").
     // True: it passes on to the next (+0x10 = 6).

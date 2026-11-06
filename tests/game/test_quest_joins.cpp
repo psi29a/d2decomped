@@ -58,7 +58,21 @@ int main() try {
         world.enter(fresh);
         assert(world.hellforge.state == 0);
     }
-    (void)kBarbarian;
+    {   // a1q3's +0xd8 (LAB_005919d0): the first carrier joining, the stand used: log 2.
+        World world(&*data, -1, -1);
+        world.enter(make(kSorceress, "Lead"));
+        world.tools.state = 4; world.tools.dropped = true; world.tools.log = 1;
+        auto carrier = make(kBarbarian, "Carrier");
+        d2d::d2s::Item malus;
+        malus.code = "hdm"; malus.identified = true;
+        malus.location = d2d::d2s::item_location::kStored; malus.panel = d2d::d2s::item_panel::kInventory;
+        malus.column = 0; malus.row = 0;
+        carrier.items.push_back(malus);
+        world.join(carrier);
+        assert(world.tools.carriers == 1 && world.tools.log == 2);
+        world.join(make(kSorceress, "Empty"));
+        assert(world.tools.carriers == 1);                                        // no malus: no carrier
+    }
     std::printf("OK: quest joins\n");
     return 0;
 } catch (const std::exception& error) {
