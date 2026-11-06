@@ -11,6 +11,7 @@
 #include <rules.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -82,5 +83,33 @@ int main() {
     assert(store_repair_all(tables, smith, mixed, wallet) == 1);
     assert(mixed[0].durability == 10 && mixed[0].props[0].value == (10 << 8 | 5) && mixed[1].durability == 40);
     assert(wallet.get(d2d::d2s::kGold) == 0);
+
+    // Modded costs past 2^31 together (bugs.md 50): FUN_0062fe60 sums in a
+    // 32-bit int, so the sum wraps negative. Paying it (FUN_00576d90's
+    // price <= purse branch, FUN_0053ff00(-price)) would add to the purse,
+    // but past its cap (clvl x 10000) FUN_0053ff00 sets it to 0: the purse
+    // is lost and both items are mended.
+    tables.item_info["gax"] = { .type = "axe", .kind = 2 };
+    tables.item_base["gax"] = { .cost = 1'200'000'000, .durability = 1 };
+    Item dear = equipped;
+    dear.code = "gax";
+    dear.max_durability = 1;
+    dear.durability = 0;
+    std::vector<Item> dear_two{ dear, dear };
+    constexpr std::int64_t kWide = 2LL * 1'200'000'000;
+    constexpr int kWrapped = int(kWide - (1LL << 32));
+    assert(repair_cost(tables, dear, smith.npc_id, smith.header) == 1'200'000'000);
+    assert(repair_all_cost(tables, smith, dear_two) == kWrapped);
+    wallet.values[d2d::d2s::kLevel] = 30;
+    wallet.values[d2d::d2s::kGold] = 5000;
+    wallet.values[d2d::d2s::kGoldBank] = 7000;
+    assert(store_repair_all(tables, smith, dear_two, wallet) == 2);
+    assert(wallet.get(d2d::d2s::kGold) == 0 && wallet.get(d2d::d2s::kGoldBank) == 7000);
+    assert(dear_two[0].durability == 1 && dear_two[1].durability == 1);
+    // Under the cap the credit stands (FUN_006272b0 adds it).
+    d2d::d2s::Stats small;
+    small.values[d2d::d2s::kLevel] = 30;
+    small.values[d2d::d2s::kGold] = 1000;
+    assert(pay(small, -500) && small.get(d2d::d2s::kGold) == 1500);
     return 0;
 }

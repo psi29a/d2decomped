@@ -844,11 +844,16 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
 }
 
 // Paying (FUN_00576d90): the purse first, then the stash; nothing taken
-// and false when both together fall short.
+// and false when both together fall short. A cost the purse covers, a
+// negative one too (Repair All's wrapped sum, bugs.md 50), goes through
+// FUN_0053ff00(-cost): a purse that would pass its cap (clvl x 10000,
+// FUN_00622e70) is set to 0 instead. A payment only lowers a purse within
+// its cap, so only a growing one can pass it.
 inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < cost) return false;
     const auto from_purse = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
-    stats.values[d2d::d2s::kGold] -= from_purse;
+    const auto purse = stats.get(d2d::d2s::kGold) - from_purse;
+    stats.values[d2d::d2s::kGold] = from_purse < 0 && purse > stats.get(d2d::d2s::kLevel) * 10000 ? 0 : purse;
     stats.values[d2d::d2s::kGoldBank] -= cost - from_purse;
     return true;
 }
@@ -881,12 +886,15 @@ inline bool repair_all_takes(const Tables& tables, const d2d::d2s::Item& item) {
 }
 
 // What repair all would cost (Repair all's hover, FUN_004886c0 -> FUN_0062fe60):
-// each item it takes, at its repair price.
+// each item it takes, at its repair price. game.exe sums them in a 32-bit
+// int (FUN_0062fe60's local_8), so past 2^31 the sum wraps negative and
+// paying it credits the gold (bugs.md 50). Summed wide here and wrapped as
+// game.exe's, without C++'s signed overflow.
 inline int repair_all_cost(const Tables& tables, const Store& store, const std::vector<d2d::d2s::Item>& items) {
-    int cost = 0;
+    std::int64_t cost = 0;
     for (const auto& item : items)
         if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
-    return cost;
+    return std::int32_t(std::uint32_t(cost));
 }
 // Which corpse a save keeps (FUN_005697f0, PlrSave2's corpse list): over
 // them oldest first, one with items scores 1 + each non-gold item's repair
