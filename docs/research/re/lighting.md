@@ -156,6 +156,18 @@ values; the Den's flash and the Cairn Stones' event 1 aren't run. d2d fills
 from the level's light (`frame_light`) with only the Den's case: todo.md #43
 and #44.
 
+The fill runs over the whole grid for the player's room, then for each other
+room in its near list (`FUN_00619790`, `FUN_00619730`) over the cells under
+that room, with that room's level. So across an edge each level keeps its own
+ambient, where d2d's single fill gives the player's level's (todo.md #45). In
+Act 4, whose list from `FUN_006194a0` holds five of its six levels (not 107,
+River of Flame), three pairs touch and differ: 103 / 104 (140, 120), 104 / 105
+(120, 80), 105 / 106 (80, 40). River of Flame (120) between 106 (40) and 108
+(80) likely makes two more.
+`level_ambient.py borders` lists these; the other acts' lists hold only some of
+their levels, so they aren't counted. Read from the code, the fill by room
+not run; a border's cells only.
+
 ### Who reads the intensity
 
 +0xc goes out through `FUN_0061c0e0` alone (`FUN_0061bb80` is its writer). Its
