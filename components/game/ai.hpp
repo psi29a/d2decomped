@@ -1095,6 +1095,14 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
 std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d2d::rules::Spawn> spawns, const d2d::rules::Region& region,
                                     d2d::rules::Rng& rng, int difficulty, int players = 1, int level_id = -1);
 
+// Baal Corpse Explode's corpses (srvdo 141, FUN_005d2e80): FUN_0056dcc0's
+// area (0x56dcc0, flags 0x3002, radius 40) through FUN_0065aa40
+// (0x65aa40): a monster whose subtile is within the radius of the
+// caster's (dx² + dy² <= r²; every near room passes, bugs.md #23), flag
+// 0x1000 only in mode DD (a DT corpse isn't one); not spent before.
+inline bool baal_corpse_spent(const Monster& corpse, int off_x, int off_y) {
+    return !corpse.alive() && corpse.mode == "DD" && !corpse.corpse_used && off_x * off_x + off_y * off_y <= 40 * 40;
+}
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
 // The frame of a mode's end event (unit event 1) as the mode starts at
 // `frame`: its frames on, plus one (the mode starts' FUN_005417d0(1, (unit

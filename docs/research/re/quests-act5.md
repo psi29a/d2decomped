@@ -293,6 +293,11 @@ radius Param5 + (level - 1) x Param6 = 40) calls `FUN_005d2e50` on each
 corpse: `FUN_005c50b0(285, level)`, which is Corpse Explosion's
 `FUN_005c4df0`. That takes its damage from calc1..calc2, and row 285 has
 neither, so the blast does nothing (bugs.md #27). The corpses are spent.
+The area is the unit finder's (`FUN_0065a950` / `FUN_0065ac70`, each unit
+through `FUN_0065aa40`): the near rooms (every one passes, bugs.md #23), then
+a unit whose subtile is within the radius of the caster's (dx² + dy² ≤ 40²);
+flag 2 takes monsters, 0x1000 only those in mode 0xc (DD), so a corpse still
+in DT isn't one. It runs at the S3 cast's srvdo, not as the think starts it.
 
 ## Baal Taunt's sound
 
