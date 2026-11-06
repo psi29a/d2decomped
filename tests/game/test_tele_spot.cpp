@@ -120,6 +120,11 @@ int main(int argc, char** argv) try {
         assert(!place(1, 100, 100, 160, 100, {}));         // the room after it: not near
         assert(!place(1, 100, 100, 100, 199, {}));
         assert(!place(0, 100, 100, 110, 100, {}));         // the level's Teleport 0
+        // Teleport 2: a clear line (FUN_006229f0 -> FUN_00622920, mask 0x804), sizes 2 at both ends
+        // (the caster's FUN_00620510, the point's 0x622a80): a barrier (0x04) under either end doesn't cut it.
+        assert(place(2, 100, 100, 110, 100, { { 100, 100, 4 } }));
+        assert(place(2, 100, 100, 110, 100, { { 109, 100, 4 } }));
+        assert(!place(2, 100, 100, 110, 100, { { 105, 100, 4 } }));
         // A blocked target lands on the nearest free spot (FUN_0064e7b0): the first ring's corner, then the least |dx| + |dy| of a ring.
         const auto landed = [&] { return std::pair{ int(std::floor(world.actor->player.x * 5)) - kOffset, int(std::floor(world.actor->player.y * 5)) - kOffset }; };
         assert(place(1, 100, 100, 130, 100, { { 130, 100, 1 } }) && landed() == std::pair(129, 99));

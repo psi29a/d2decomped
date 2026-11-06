@@ -811,15 +811,18 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 // state 0x12; it flies there (path type 9 at the class's run
                 // velocity, FUN_005d9f70), lands (FUN_005da120) and knocks back
                 // every monster within calc1 subtiles (result 9, FUN_0056bad0):
-                // Fight::leap. The clear line is FUN_0064e260's from the
-                // caster's subtile (mask 0x804, no sizes: rules::sight_blocked).
+                // Fight::leap. Leap's clear line is FUN_0064e260's from the
+                // caster's subtile (mask 0x804, no sizes); Teleport 2's is
+                // FUN_006229f0's: FUN_00622920 with the caster's size
+                // (FUN_00620510: a player's 2) and 2 at the point (0x622a80).
                 float target_x = actor->cast_x, target_y = actor->cast_y;
                 const int tgt = actor->attack_mon >= 0 && monsters[std::size_t(actor->attack_mon)].alive() ? actor->attack_mon : -1;
                 const int from_x = int(std::floor(actor->player.x * 5)), from_y = int(std::floor(actor->player.y * 5));
-                const auto clear_to = [&](int to_x, int to_y) {
-                    return !d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); });
+                const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); };
+                const auto clear_to = [&](int to_x, int to_y) { return !d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, wall); };
+                const auto clear_line = [&](float to_x, float to_y) {
+                    return !d2d::rules::sight_blocked(from_x, from_y, 2, int(std::floor(to_x * 5)), int(std::floor(to_y * 5)), 2, wall);
                 };
-                const auto clear_line = [&](float to_x, float to_y) { return clear_to(int(std::floor(to_x * 5)), int(std::floor(to_y * 5))); };
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {
                     if (tgt < 0) break;
                     const auto& target = monsters[std::size_t(tgt)];

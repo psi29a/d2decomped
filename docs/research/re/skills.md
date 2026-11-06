@@ -1113,7 +1113,8 @@ lines (missile names aren't passed in). What it does:
   aurarangecalc, neither in town; do 52, FUN_005d7850): the flight is at
   once, to the free spot nearest the target (FUN_00554ea0), unless the
   level's Teleport (Levels.txt, FUN_0061db70 +4) is 0, or 2 without a clear
-  line (FUN_006229f0, 0x804); then the kick. `Level::teleport` holds the
+  line (FUN_006229f0, 0x804: FUN_00622920 with the caster's size,
+  FUN_00620510's 2 for a player, and 2 at the point, 0x622a80); then the kick. `Level::teleport` holds the
   column (Acts 1–2: 1, Duriel's Lair 2); Teleport obeys it too.
 
 ### The rest (phase 6, part 5)
