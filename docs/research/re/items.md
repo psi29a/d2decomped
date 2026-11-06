@@ -100,7 +100,7 @@ item on the cursor:
 | full | stacks with it (`FUN_0062c850`) | 6 | 0x21 | stack |
 | full | none, or goes with it | 5 | 0x1d | `FUN_00560f00`: swapped |
 | full | doesn't go with it, and fits the inventory (`FUN_0063cb00` → `FUN_0063b850`) | 7 | 0x1e | `FUN_00561220`: the other hand's to the inventory (`FUN_0063b950`), this hand's to the cursor, then equipped |
-| full | doesn't go with it, no room | 0 | nothing | the client's "can't" voice (`FUN_004cb9c0`) |
+| full | doesn't go with it, no room | 0 | nothing | the client's class voice (`FUN_004cb9c0`): 0x13 "impossible"; 0x14 "can't use yet" only when a retry without the requirements (`FUN_0063de60` with 1) passes and the item's class is any or the player's (`FUN_0062c0b0`) |
 
 `FUN_0063dbc0` (d2d `rules::hands_ok`) passes:
 - a bow beside its quiver;

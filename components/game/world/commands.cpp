@@ -521,9 +521,14 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                     sound_cue(sound);
                     if (to_body->slot == d2d::d2s::body_location::kBelt) spill_belt(now_ms);   // FUN_00560f00
                 }
-                else if (const auto& put = *actor->held;                         // refused: equip left it in hand
-                         !d2d::rules::can_wear(tables, put, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed))
-                    class_cue(d2d::rules::can_wear(tables, put, to_body->slot, { cls, std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), std::numeric_limits<int>::max() }) ? "cantuseyet" : "impossible_1", now_ms);
+                else {                                                           // refused (code 0): equip left it in hand
+                    // FUN_00490780 retries without the requirements: passing, voice 0x14,
+                    // else 0x13 (no room for the other hand's item too).
+                    const auto& put = *actor->held;
+                    const bool short_of_stats = !d2d::rules::can_wear(tables, put, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed)
+                        && d2d::rules::can_wear(tables, put, to_body->slot, { cls, std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), std::numeric_limits<int>::max() });
+                    class_cue(short_of_stats ? "cantuseyet" : "impossible_1", now_ms);
+                }
             }
             return;
         }

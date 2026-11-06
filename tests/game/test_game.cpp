@@ -838,6 +838,43 @@ int main(int argc, char** argv) try {
         assert(moved != items.end() && moved->location == d2d::d2s::item_location::kStored);
         std::printf("OK: a worn belt sells and spills; a belt item doesn't sell\n");
     }
+    {   // A two-hander into a full right hand beside a shield (FUN_0063dd90
+        // code 7, FUN_00561220): the shield to the inventory, the sword to the
+        // cursor. The inventory full: code 0, refused with the class's
+        // "impossible" (voice 0x13, FUN_00490780 -> FUN_004cb9c0).
+        World hands(&*data, -1, -1);
+        hands.enter(character);
+        auto& items = hands.actor->character.items;
+        items.clear();
+        const auto give = [&](const std::string& code, int location, int panel, int column, int row, int slot, int id) {
+            d2d::d2s::Item given;
+            given.code = code; given.location = location; given.panel = panel; given.column = column; given.row = row; given.slot = slot; given.id = id; given.identified = true;
+            items.push_back(std::move(given));
+        };
+        const auto arm = [&] {
+            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped; });
+            give("ssd", d2d::d2s::item_location::kEquipped, 0, 0, 0, d2d::d2s::body_location::kRightArm, 9101);
+            give("buc", d2d::d2s::item_location::kEquipped, 0, 0, 0, d2d::d2s::body_location::kLeftArm, 9102);
+            hands.actor->held = d2d::d2s::Item{ .code = "sst", .identified = true, .id = 9103 };
+        };
+        arm();
+        hands.apply(d2d::game::cmd::ToBody{ d2d::d2s::body_location::kRightArm }, 27 * kTickMs);
+        assert(hands.actor->held && hands.actor->held->id == 9101);
+        const auto shield = std::ranges::find(items, 9102, &d2d::d2s::Item::id);
+        assert(shield != items.end() && shield->location == d2d::d2s::item_location::kStored && shield->panel == d2d::d2s::item_panel::kInventory);
+        items.clear();
+        const auto& layout = data->inv_layout[std::size_t(hands.actor->character.header.cls)];
+        for (int row = 0; row < layout.rows; ++row)
+            for (int column = 0; column < layout.cols; ++column) give("hp1", d2d::d2s::item_location::kStored, d2d::d2s::item_panel::kInventory, column, row, 0, 9200 + row * layout.cols + column);
+        arm();
+        hands.cues.due.clear();
+        hands.apply(d2d::game::cmd::ToBody{ d2d::d2s::body_location::kRightArm }, 27 * kTickMs);
+        assert(hands.actor->held && hands.actor->held->id == 9103);
+        static constexpr std::array<const char*, 7> kClassNames{ "amazon", "sorceress", "necromancer", "paladin", "barbarian", "druid", "assassin" };
+        const auto voice = data->sound_index.find(std::format("{}_impossible_1", kClassNames[std::size_t(std::clamp(hands.actor->character.character_class, 0, 6))]));
+        assert(voice != data->sound_index.end() && std::ranges::count(hands.cues.due, voice->second, &Cues::Cue::sound) == 1);
+        std::printf("OK: a two-hander into a full hand puts the shield in the inventory; no room: impossible\n");
+    }
     {   // A vendor's stock and Kashya's hire list last the game, not one opening.
         const auto& npcs = world.level->npcs;
         const auto index_of = [&](int hc_idx) { return int(std::ranges::find(npcs, hc_idx, &Npc::hc_idx) - npcs.begin()); };
