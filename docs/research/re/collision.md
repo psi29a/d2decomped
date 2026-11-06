@@ -223,9 +223,24 @@ object or player going is the client, every game frame, until it stands in reach
 - **In reach,** FUN_00481030 (LAB_00481709) sends 0x13 and clears the queue.
 - **Abandoned** by any other action (FUN_00481030 clears the queue,
   LAB_00481240), a target gone (LAB_00481697, the queue already cleared), or a
-  target dead or not selectable (FUN_00467a70), and by the clears at
-  LAB_0045c9e5, LAB_004622db, LAB_004b3c45 and LAB_004b6e1f, which weren't
-  followed further.
+  target dead or not selectable (FUN_00467a70). Besides those, in address order:
+  - LAB_0045c9e5: S→C 0x04's handler (0x45c9a0, table 0x7114cc): the game
+    coming up.
+  - LAB_004615b9: FUN_00461250's command 8 (table 0x4616a4, index 0x4616e4),
+    through FUN_0045c470. Which caller passes 8 isn't settled: FUN_00480c10's
+    packet handlers pass a command read from the packet (LAB_0045d2b7).
+  - LAB_004622c4 and LAB_004622db, FUN_004621d0, the first thing FUN_004625b0
+    does on a click, held or not: a queued action other than 0x13 goes
+    (LAB_004622db); a queued 0x13 goes if FUN_00463990 finds its target
+    (LAB_004622c4), and if not FUN_00481600 clears it. So a new click ends a queue.
+    FUN_004621d0's skill gate can return first, without clearing (LAB_00462226).
+  - LAB_004b3c45: FUN_004b3c20(id), then FUN_00463990(id, 1) and FUN_004b3790,
+    from the NPC menu code (calls from 0x4b3d10 to 0x4b70c2) and FUN_00453910.
+  - LAB_004b6e1f: FUN_004b6dd0, S→C 0x28's (handler 0x45d370), when the unit
+    isn't found (and the packet's kind isn't 6): it also sends C→S 0x30 and
+    calls FUN_004b3830.
+
+  Nothing here is a timer or a count: a queue ends on input, a packet or its target.
 
 So a blocked walk to an NPC re-plans the frame after it stops, from the
 snapped centre, whether or not it moved. This is a reading of the code; no
