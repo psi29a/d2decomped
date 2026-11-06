@@ -17,10 +17,10 @@
 int main() {
     d2d::d2s::Header header;
     header.difficulty[1] = 0x80;                     // Nightmare
-    const auto set = [&](int quest, int bit, bool on) {
+    const auto set = [&](int quest, int bit, bool enabled) {
         const int index = quest * 16 + bit;
         auto& byte = header.quests[1][std::size_t(index >> 3)];
-        byte = std::uint8_t(on ? byte | (1 << (index & 7)) : byte & ~(1 << (index & 7)));
+        byte = std::uint8_t(enabled ? byte | (1 << (index & 7)) : byte & ~(1 << (index & 7)));
     };
     using d2d::game::quest_item_held_back;
     assert(quest_item_held_back("ass", header) && quest_item_held_back("xyz", header) && quest_item_held_back("tr2", header));

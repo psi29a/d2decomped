@@ -279,8 +279,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             const int line_height = scene.font.line_height();
             // The columns (FUN_004c0810): the screen, its left half less 0x20
             // with a right panel open (FUN_0045ae90 1), its right half with a left one (2).
-            const int panel = hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2;
-            const int max_x = panel == 1 ? world_w / 2 - 0x20 : world_w, min_x = panel == 2 ? world_w / 2 : 0;
+            const int open_side = hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2;
+            const int max_x = open_side == 1 ? world_w / 2 - 0x20 : world_w, min_x = open_side == 2 ? world_w / 2 : 0;
             bool label_hovered = false;
             for (const auto& [unit, box] : items) {
                 if (!unit->name || unit->name->empty()) continue;

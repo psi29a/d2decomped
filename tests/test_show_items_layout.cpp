@@ -25,8 +25,8 @@ d2d::rules::LabelRect built(int x, int y, int text_w, int text_h) {
 
 int main(int argc, char** argv) {
     if (argc > 1) {
-        std::ifstream in(argv[1]);
-        for (std::string line; std::getline(in, line);) {
+        std::ifstream input(argv[1]);
+        for (std::string line; std::getline(input, line);) {
             std::istringstream fields(line);
             int scene = 0, width = 0, height = 0, min_x = 0, max_x = 0, count = 0;
             fields >> scene >> width >> height >> min_x >> max_x >> count;
