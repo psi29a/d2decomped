@@ -12,6 +12,7 @@
 #include <rules.hpp>
 
 #include <cassert>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -75,7 +76,7 @@ int main() {
 
     // Unidentified: the gate refuses it (0), and it needs no repair; with a
     // charge missing Repair All counts it, at that price 0.
-    Item unknown = worn;
+    Item unknown = std::move(worn);
     unknown.identified = false;
     assert(repair_cost(tables, unknown, "Charsi", header) == 0 && !needs_repair(tables, unknown));
     unknown.props = { { .stat = d2d::d2s::kChargedSkill, .param = 54 << 6 | 3, .value = 10 << 8 | 5 } };

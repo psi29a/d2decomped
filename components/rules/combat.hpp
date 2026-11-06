@@ -296,7 +296,7 @@ inline int part_fine(const StruckBlow::Part& part) { return part.fine != StruckB
 inline std::int64_t blow_total(const StruckBlow& blow) { return blow.sum ? *blow.sum : (std::int64_t(blow.damage) << 8) + blow.frac; }
 // The physical field now, in 256ths: under 0 when the blow keeps its fields signed (`sum`), else as `damage` holds it (clamped).
 inline std::int64_t physical_now(const StruckBlow& blow) {
-    if (blow.raw < 0) return blow.physical * 256 + blow.frac;
+    if (blow.raw < 0) return std::int64_t(blow.physical) * 256 + blow.frac;
     const std::int64_t fine = reduce_fine_signed(blow.raw, blow.pct, blow.flat);
     return blow.sum ? fine : std::max<std::int64_t>(fine, 0);
 }

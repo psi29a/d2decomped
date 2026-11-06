@@ -147,7 +147,7 @@ int main() {
     // lvl*3); cold at 3 charges adds its length / Param5 to the freeze.
     fists.calc[0] = compile("lvl*3");
     assert(charge_bonus(skill_tables, fists, CalcEnv{}, 4, 1).conv_pct == 12);
-    Skill blades = bolt;
+    Skill blades = std::move(bolt);
     blades.prgdam = 4; blades.etype = 2; blades.elen = 50; blades.par[4] = 1;
     assert(charge_bonus(skill_tables, blades, CalcEnv{}, 1, 2).freeze_len == 0);
     assert(charge_bonus(skill_tables, blades, CalcEnv{}, 1, 3).freeze_len == 50 && charge_bonus(skill_tables, blades, CalcEnv{}, 1, 3).elem_len == 50);

@@ -84,7 +84,7 @@ int main(int argc, char** argv) try {
             d2d::drlg::Outdoor::RoomSeed room;
             room.x = kOffset / 5 + column * 8;
             room.y = kOffset / 5 + row * 8;
-            field.rooms.push_back(room);
+            field.rooms.push_back(std::move(room));
         }
     const int width = field.ds1.width() * 5, height = field.ds1.height() * 5;
     assert(width >= kOffset + kSide && height >= kOffset + kSide);

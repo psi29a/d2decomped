@@ -84,7 +84,7 @@ static void baseline_pixels() {
     }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     if (argc == 3 && std::string_view(argv[1]) == "--dump") { dump(argv[2]); return 0; }
     const auto measure = [](std::string_view text) { return int(text.size()) * 5; };
     const auto exact = d2d::font::text_box_rows("abc def", 10, 100, 35, 50, 10, measure);
@@ -102,4 +102,8 @@ int main(int argc, char** argv) {
     assert(tiny.size() == 3 && tiny[0].text == "a" && tiny[2].text == "c");
     baseline_pixels();
     std::puts("text-box regression checks passed");
+    return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "%s\n", error.what());
+    return 1;
 }
