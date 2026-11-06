@@ -878,8 +878,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // flags 0x3002) goes up as Corpse Explosion (FUN_005c50b0 ->
     // FUN_005c4df0), whose damage is calc1..calc2 % of its life: the row
     // has neither, so it hurts no one (bugs.md); the corpses are spent.
-    // ponytail: spent as the cast starts, not at its action frame, by
-    // ai_distance, not FUN_0056dcc0's own area; the
+    // The corpses are FUN_0056dcc0's (flags 0x3002, radius 40): baal_corpse_spent.
+    // ponytail: spent as the cast starts, not at its action frame; the
     // skill1 at a foe while a wave fights isn't made; a wave is its
     // superunique's group.
     if (type_info.ai_name == "BaalThrone") {
@@ -903,7 +903,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.ai_state2 |= 1;
         monster.ai_state3 = frame + 250;
         for (auto& corpse : pack)
-            if (!corpse.alive() && !corpse.corpse_used && d2d::rules::ai_distance(subtile(corpse.unit.x) - x, subtile(corpse.unit.y) - y) <= 40) corpse.corpse_used = true;
+            if (baal_corpse_spent(corpse, subtile(corpse.unit.x) - x, subtile(corpse.unit.y) - y)) corpse.corpse_used = true;
         return true;
     }
     // BaalToStairs (138, FUN_005ef620): the Chamber's portal (object 563)
