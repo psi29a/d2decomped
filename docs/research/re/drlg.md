@@ -867,6 +867,19 @@ each room's tile walk (FUN_0067d710, FUN_0067d2d0, FUN_00666ac0): if
 room +0x54 is 0 it takes 0x2c bytes from the allocator FUN_0040b430 (assert
 file `.\DRLG\RoomTile.cpp`, line 0x533) and zeroes them; a room that already
 has one keeps it. Re-check: `python3 tools/ghidra/fn.py 0066eea0`.
+
+The entry arrays are made by FUN_0066eee0 (ECX = room), called by FUN_0067d710
+and FUN_00666ac0 after their counting passes. The block's +0x18, +0x20, +0x28
+are capacities (entries to make), not the filled counts +0x08, +0x0c, +0x10:
+for each, if non-zero it takes `capacity * 0x30` bytes from FUN_0040b430
+(assert file `.\DRLG\RoomTile.cpp`) and zeroes them: +0x18 → walls array +0x14
+(line 0x545), +0x20 → floors array +0x1c (0x54b), +0x28 → shadows array +0x24
+(0x551). Only the shadows are guarded (`+0x24 == 0`); walls and floors are
+allocated again if called twice (the old array is not freed). Once the tile
+walk has filled the arrays FUN_0067d710 overwrites the capacities with the
+filled counts (+0x18 = +0x08, +0x20 = +0x0c, +0x28 = +0x10). d2d keeps tiles
+in a vector (`BuiltRoom::tiles`), so the allocation has no d2d counterpart and
+nothing to disagree with. Re-check: `python3 tools/ghidra/fn.py 0066eee0`.
 Loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
 cached by name.
 

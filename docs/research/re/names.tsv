@@ -15,3 +15,4 @@ address	name	evidence
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)
 0066eea0	room_tiles_alloc	allocates room +0x54 once: 0x2c bytes zeroed, from ".\DRLG\RoomTile.cpp" line 0x533; called first by FUN_0067d710, FUN_0067d2d0, FUN_00666ac0
+0066eee0	room_tiles_alloc_arrays	fastcall (room): block = room +0x54; walls +0x14 (capacity +0x18, line 0x545), floors +0x1c (+0x20, line 0x54b), shadows +0x24 (+0x28, line 0x551, only when +0x24 is 0); 0x30 bytes per entry, zeroed; ".\DRLG\RoomTile.cpp"
