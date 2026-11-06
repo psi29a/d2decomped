@@ -87,3 +87,38 @@ The pairing, `FUN_0063dbc0` (ESI, EDI the two items, EBX the unit):
 
 d2d: `rules::hands_ok`, `ItemType::shoots` / `quiver`;
 `tests/test_rules.cpp` (issue #139: arrows beside a staff).
+
+## The wielded weapon (`FUN_0063bef0`, `FUN_0063d1d0`, `FUN_0063add0`)
+
+Cited, not run in an oracle (the register arguments are read from the
+decompile; `tools/emu/auto_belt.py` already lays out the same inventory).
+
+The inventory record (magic `0x1020304`) keeps a **wielded id** at `+0x1c`
+(`-1` none): the unit id (`+0xc`) of the weapon in hand.
+
+- `FUN_0063add0(dims)` (EAX the grid index, EDI the inventory; the
+  asserts `.\INVENTORY\Inventory.cpp` lines 0x2d1, 0x2e4 and 0x2eb) finds
+  grid *index* in the array at `+0x14` (count `+0x18`, 16-byte records:
+  width `+8`, height `+9`, cells `+0xc`, a `w*h*4`-byte zeroed array). A
+  `dims` of NULL only looks; else it allocates the cells on first use, grows
+  the array (zeroed) when *index* is past the count, and returns 0 when the
+  stored size differs from `dims`. It returns the record.
+- `FUN_0063bef0(inventory)` is the weapon in hand: 0 when `+0x1c` is -1;
+  else the item in cell 5 (`+0x14` of the body grid, `DAT_0074479c`; the
+  left arm) if it is of type weap (0x2d, `FUN_00629bb0`) and its id is
+  `+0x1c`; else the same test on cell 4 (the right arm). So the cell 5 hand
+  wins only when it is the selected one; the id decides, not the hand.
+- `FUN_0063d1d0(inventory, item)` keeps `+0x1c` right when an item changes.
+  It acts only on a weapon whose item data byte `+0x44` (`FUN_00627d40`)
+  is 4 or 5. Unusable (`FUN_0062a4e0`: flag 0x100 or 0x4000): it clears
+  `+0x1c` if that is the item's id. Usable: `+0x1c` takes the item's id when
+  `FUN_0063bef0` is 0, not a weapon, or ItemTypes row 0x26 (tpot);
+  otherwise (another real weapon is wielded) it clears `+0x1c` if that is the
+  item's id. Callers: `FUN_004c12f0`, `FUN_004c1350`, `FUN_004c2e90`,
+  `FUN_004c3070`, `FUN_004c35f0`.
+
+d2d: reads the same, cited from the decompile, no oracle run, as `components/game/fight.hpp` (`throw_ready` ponytail:
+the primary is `+0x1c`) and `components/game/world/objects.cpp` (Khalim's
+Will in either arm). One refinement for that ponytail: the "primary" is
+the selected id, tested in cell 5 then cell 4. `FUN_0063add0` and
+`FUN_0063d1d0` are not ported.
