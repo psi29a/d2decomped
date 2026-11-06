@@ -58,6 +58,34 @@ Re-check these claims against game.exe 1.14d:
 cd tools/emu && uv run python item_accessors.py
 ```
 
+## Clearing transient unit and item flags (`FUN_005979b0`)
+
+`FUN_005979b0` (fastcall, the unit is the second argument, in `EDX`) does three
+things in order:
+
+1. A nonnull unit has bits `0x14` cleared: `unit[+0xc8] &= 0xffffffeb`.
+2. For each of `DAT_00738cc4` entries of the table at `DAT_00738c70`, it calls
+   `FUN_00628170(unit, entry, 0)`: that clears the entry's bits in
+   `item_data[+0x14]` (see the accessor table above).
+3. For each of `DAT_00738c6c` entries of the table at `DAT_00738c4c`, it calls
+   `FUN_006280d0(unit, entry, 0)`: that clears the entry's bits in
+   `item_data[+0x18]`, the item flags.
+
+Both setters ignore a null unit, a non-item unit or null item data, so the
+loops are harmless for a non-item unit. Step 1 is not guarded by the type.
+
+Callers: `FUN_00597b00` (source file `INVENTORY/InvMode.cpp`, per
+`game-srcfiles.tsv`) calls it for each item in a unit's inventory list, and
+again for each item in the contents (`unit[+0x60]` list) of an item that has
+`unit[+0xc8] & 1`; `FUN_0055a2a0` (item copy) also calls it.
+
+Not read: the entries of the two tables and their counts. Nothing in
+game.exe's code writes `DAT_00738cc4`, `DAT_00738c6c` or the tables
+(`game_all.c` has no other reference), so they are initialised data, and the
+byte values were not dumped. Which flags are cleared is therefore open.
+Status: cited, not proven; no oracle was run. d2d: not ported (no mention of
+`FUN_005979b0` in `components/` or `apps/`).
+
 ## A belt put on or taken off (`FUN_005608c0`)
 
 The server runs it in two cases:
@@ -84,6 +112,11 @@ The swap itself checks nothing about the rows. The one belt check in the
 another player is open (interaction type 0, `FUN_00554100`) and the belt
 holds an item (`FUN_0063e020` page 2).
 
+d2d: `rules::spill_belt`, called by the World's `cmd::ToBody` (belt
+slot) and `cmd::ToCursor` (the worn belt).
+
+| Address | Traced claim | Status |
+|---|---|---|
 | `FUN_00451f50` | `__fastcall`: return `*(int*)(p + 0xc)`, or `0xffffffff` for a null pointer. A null-safe read of a field at `+0xc` (used by `FUN_0048a990`, `FUN_0055a2a0`, `FUN_0045f190`, `FUN_0049a690`, `FUN_004d6d40`, `FUN_0052c410`; the struct was not identified). `tools/emu/_hire_probe.py:25-26` replaces it with a zero-returning hook. | not verified by this probe; not ported |
 | `FUN_00557fd0` | `__fastcall` wrapper: `FUN_005538d0(arg2)` then `FUN_00555600()`; no logic of its own. Called by `FUN_00597b00` when `FUN_00628140(item, 1)` is nonzero, and by `FUN_00535f30`, `FUN_00536580`, `FUN_005466b0`, `FUN_0055c850`, `FUN_0055d0d0`. What the two callees do was not read. | not ported |
 | `FUN_00597b00` | Source file `.\INVENTORY\InvMode.cpp` (`game-srcfiles.tsv`). `__fastcall`, the unit is the second argument. Takes `unit[+0x60]` (its inventory); if null, does nothing. Otherwise `FUN_00621000(unit, 0)`, then walks the inventory list (`FUN_0063cbb0` head, `FUN_0063cd20` next, `FUN_0063cd40` payload, `FUN_00552f60` payload to unit; skips null units). Per item: if `FUN_00628140(item, 0x10)` or `(item, 0x4000)` is set, `FUN_00627d70(item, 0)`; if `(item, 0x20)` is set and `FUN_006280a0(item, 0x80, 0x180, ".\\INVENTORY\\InvMode.cpp")` is nonzero, `FUN_00627d70(item, 0)`; then `FUN_005979b0(item)`. If `item[+0xc8] & 1` (it holds a socket inventory): `FUN_00621000(item, 0)`, take `item[+0x60]` (null: log via `FUN_00408090(0x1a4)`/`FUN_00408a60` and exit `FUN_00681e09(-1)`), call `FUN_005979b0` on every child, then free that inner list with `FUN_0063cbd0`. Finally if `FUN_00628140(item, 1)` is set, `FUN_00557fd0()`. After the loop it frees the outer list with `FUN_0063cbd0`. Sibling `FUN_00597890` (`stubs.md:54`) does the same walk with `FUN_005973f0`. The decompiler drops the fastcall arguments of the `FUN_005979b0`/`FUN_00557fd0` calls, so what is passed is inferred, not read from asm. Callers: `FUN_00539760`, `FUN_00553220`. | not ported |
