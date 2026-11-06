@@ -1010,8 +1010,8 @@ struct ObjectRooms {
                 // Act 5's dead (FUN_0054e600 0x1d..0x20): the level's minion (0x1c5), imp (0x211 in
                 // the Bloody Foothills, else 0x1ec), barbarian (0x20a), reanimated horde (0x1b6),
                 // its spot then radius 4, made in mode 12 (unit +0xc4 |= 0x2000000).
-                // ponytail: a reanimated horde's rise (rand(50) on its seed, FUN_005417d0 event 7 at
-                // frame + 250 + that) isn't kept: it lies there.
+                // A reanimated horde's rand(50) event 7 (FUN_005417d0) is FUN_005a4370 (0x6e2490[7]): the
+                // MonUMod event-2 hooks (FUN_005a4270), none without mods, so it lies there in game.exe too.
                 const int base = code == 0x1d ? 0x1c5 : code == 0x1e ? (level.id == d2d::rules::level_ids::kBloodyFoothills ? 0x211 : 0x1ec) : code == 0x1f ? 0x20a : 0x1b6;
                 const auto before = spawns ? spawns->size() : 0;
                 monster(own(base), unit.x, unit.y, 4);
