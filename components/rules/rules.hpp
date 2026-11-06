@@ -2180,9 +2180,11 @@ inline std::string gamble_upgrade_code(const Tables& tables, const std::string& 
 // set + unique is unique / set / rare by those odds, else magic. Each is
 // made as a drop (FUN_00559ce0: two game seed steps, generate_item),
 // unidentified, and put on its type's page; one that doesn't fit ends the
-// roll.
-// ponytail: game.exe keeps the list per player at the vendor (FUN_00578ae0)
-// until something clears it (not traced); d2d rolls one at every opening.
+// roll. The list is the player's (FUN_00578ae0 rolls when the vendor holds
+// none for them) and lasts the talk: ending it (C->S 0x30, FUN_00572f20 ->
+// FUN_00537190) frees it, so each talk rolls a new one.
+// ponytail: FUN_00572f20 frees it only when no other player is still
+// talking to the vendor; d2d rolls anew at every opening regardless.
 inline Store open_gamble(const Tables& tables, std::string npc_id, int clvl, int difficulty, bool expansion, Rng& proxy, Rng& game,
                          std::vector<bool>* found_uniques = nullptr) {
     Store store;

@@ -394,10 +394,10 @@ struct World {
     std::vector<Portal> portal = std::vector<Portal>(kGamePortals);
     std::uint32_t now = 0;                 // the tick's time
     const CharacterStore* characters = nullptr;   // where the character is saved
-    // A vendor's stock lasts the game (the NPC's own inventory, server
-    // side): bought items gone, sold ones there to buy back. By NPC index.
-    // An act change refreshes them (World::arrive clears the lot), so NPC
-    // indices stay within one town.
+    // A vendor's stock (the NPC's own inventory, server side): bought items
+    // gone, sold ones there to buy back, until the party leaves its town
+    // (leave_town). By NPC index. An act change clears the lot too
+    // (World::arrive), so NPC indices stay within one town.
     std::map<int, Store> stocks;
     // The hire lists (FUN_00576070), one per act's hire NPC (Kashya, Greiz):
     // rolled when first asked for, a hired offer leaves it, and once none is
@@ -737,6 +737,9 @@ struct World {
     // The player came to `level` from `from`: `from`'s NPC states are kept,
     // `level`'s taken back (made at their start the first time).
     void swap_npcs(const Level* from);
+    // The party left `from`: a town's vendors restock at their next
+    // opening (FUN_00537340).
+    void leave_town(const Level* from);
     void stones_up();                      // the Cairn Stones as their room comes up (InitFn 6)
     bool stones_pending = false;           // on Stony Field, the stones not up yet
 

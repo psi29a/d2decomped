@@ -50,7 +50,27 @@ Vendor index by NPC hcIdx (`FUN_00536f80`):
   permanent items only store their code.
 - `FUN_00536070` copies those lists to each vendor NPC
   (NPC record +0x1d24).
-- `FUN_00537230` restocks after 240 000 ms (4 minutes).
+- `FUN_00537230(game, act, empty)` restocks a town's vendors. It runs
+  from `FUN_00537340(from, to)` when a player's level changes
+  (`FUN_005380d0`) and `from` is a town (1, 0x28, 0x4b, 0x67, 0x6d).
+  `empty` means no player is left in `from` (`FUN_005538d0` with the
+  callback `FUN_00536820` counts the players there). A player leaving
+  the game runs it as well (`FUN_00537580`). The records are 0x44
+  bytes. It takes only those of the act (+0x22) that are vendors
+  (+0x23), have had a trade opened (+0x1c, set by `FUN_00579430`) and
+  are stocked (+0x20):
+  - empty, the NPC gone: everything goes (`FUN_00536580`) and +0x20 is
+    cleared;
+  - empty, nobody at the NPC (`FUN_00572da0` of `FUN_00535e80`'s list
+    is 0): `FUN_00536d10`, the same and a new empty inventory;
+  - empty, someone at the NPC: +0x27 (restock at the next trade);
+  - not empty: +0x27 once 240 000 ms (4 minutes) have passed since
+    +0x28 (the fill's `GetTickCount`).
+
+  So leaving town empty restocks the vendors that were traded with: at
+  once, or at the next trade when someone is at the NPC. `FUN_00536580`
+  also frees any gamble lists left at the vendor (+8, "Gambling"
+  below).
 - The fill is FUN_00576980 (SUNITNPC.CPP), from the trade deal
   (FUN_00579430: when the NPC's proxy record +0x27 says restock, the old
   stock goes (FUN_00536d10) and it fills; Kashya, Greiz and Larzuk's
@@ -114,8 +134,9 @@ The base y is 539 (= 60 + 255 + 224):
   - each listed item Min..Max times, plus PermStoreItems once;
   - packed first-fit: armour → tab 0, weapons → 1 (spilling into 2),
     misc → 3;
-  - rolled at the first opening and kept for the game (the vendor's own
-    inventory on the server), what a trade leaves in it included.
+  - rolled at the first opening and kept (the vendor's own inventory on
+    the server), what a trade leaves in it included, until the party
+    leaves town (`World::leave_town`, `FUN_00537230` above).
 - The hire lists (`FUN_00576070`, npc-menu.md "Hire"): game.exe's, on
   the game seed, ten of the seller's names offered; an empty list is
   rolled anew (`FUN_00577010`).
@@ -213,7 +234,9 @@ The base y is 539 (= 60 + 255 + 224):
   `rules::make_store_item` (the upgrades, the item off the game seed as a
   drop, magic affixes as drops.md "Magic", the Cracked retry), on its
   type's StorePage. Not yet: FUN_00560200's own spot search (first fit by
-  column), the 4-minute restock (FUN_00537230: the stock lasts the game).
+  column). The stock is dropped when the party leaves town (FUN_00537230,
+  `World::leave_town`). The 4-minute restock never comes up, because the
+  party moves together and always leaves the town empty.
 
 ## Refusals (S->C 0x2a results)
 
@@ -318,7 +341,7 @@ column. Everything else, with C = max(clvl, 5), qlvl the base's level:
 stack, +0xfd level, +0x88/+0x8c uber/ultra codes.)
 
 Stock (`FUN_00578790`, from the trade open `FUN_00578b30` →
-`FUN_00578ae0`, once per player at the vendor): 14 items, all on the
+`FUN_00578ae0`, once per player per talk, below): 14 items, all on the
 proxy seed (`FUN_00536b40`):
 
 - level = clvl − 5 + (seed % 10), under 6 → 5, over 98 → 99;
@@ -339,8 +362,27 @@ proxy seed (`FUN_00536b40`):
 Buying one pays the gamble price of its code; the client's C->S 37
 names it and the server identifies it (`FUN_00578640`). d2d:
 `rules::open_gamble`, `gamble_upgrade_code`, `msvc_qsort` (the gamble
-table's order checked against the emulator's), `store_gamble`. d2d rolls
-a stock at every opening: what clears the per-player list isn't traced.
+table's order checked against the emulator's), `store_gamble`.
+
+The list is the player's own, and it lasts one talk with the vendor:
+
+- `FUN_00578ae0` walks the vendor record's list at +8. It rolls only
+  when no node holds the player's unit id.
+- Each node is 12 bytes, allocated in `FUN_00578790`: `{inventory, unit
+  id, next}`.
+- Ending the talk (C->S 0x30, `54b9f0`) runs `FUN_00572f20`. It takes
+  the player out of the NPC's list of talkers (the NPC's data +0x30).
+  When that list is then empty, it frees the player's node
+  (`FUN_00537190`).
+- Once the node is freed, the next talk rolls a new list. While another
+  player is still talking to the vendor, the closing player's node stays,
+  and their next talk shows the same list.
+- An interaction cut short (`FUN_00555500` → `FUN_00536b50`) frees the
+  node whether or not anyone else is talking.
+
+d2d rolls a list at every opening, so every talk gets a new one, as in
+game.exe. Not yet: game.exe keeps the player's list if another player
+is still talking to the vendor when they close.
 
 ## Item generation (d2d, `components/rules` `generate_item`)
 
