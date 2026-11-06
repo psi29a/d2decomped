@@ -794,8 +794,9 @@ struct World {
     void kashya_merc();
     void countess_died(std::uint32_t now_ms);
     // The Countess's treasure (missile 332, towerchestspawner, one a chest
-    // of cellar 5: FUN_005954f0): frames left, counting down (FUN_005af300).
-    struct Treasure { const Level* level; int npc; int left; };
+    // of cellar 5: FUN_005954f0): frames left, counting down (FUN_005af300),
+    // and its unit seed ({a game seed step, 666}: FUN_00555230 -> FUN_00552df0).
+    struct Treasure { const Level* level; int npc; int left; d2d::rules::Rng seed; };
     std::vector<Treasure> treasure;
     void tower_treasure(std::uint32_t now_ms);
     void tower_treasure_made();            // FUN_005954f0

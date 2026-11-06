@@ -852,7 +852,10 @@ if (mis) { FUN_0064a710(mis, chest id); FUN_0064a760(mis, 0); FUN_0061aed0(room(
 So the treasure goes to the chests listed when it's made: at her death, or
 as the first chest's room comes up after it; a chest listed later gets none
 (d2d: `World::tower_treasure_made`, from `countess_died` and
-`init_new_objects`).
+`init_new_objects`). Each spawner is a missile unit (`FUN_0056ede0` →
+`FUN_00555230` type 3): one game seed step makes its unit seed {low, 666}
+(`FUN_00552df0`; no item step), and its frame (`FUN_005af300`) rolls the
+gold piles' offsets rand(2r + 1) − r on that seed.
 
 - Mon 326 is the invisible owner (trap-firebolt class). Every chest shares the same owner.
 

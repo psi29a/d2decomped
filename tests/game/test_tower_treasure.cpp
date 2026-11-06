@@ -63,8 +63,11 @@ int main() try {
     world.objects_inited[cellar] = std::size_t(chest - cellar->npcs.begin());
     world.countess_died(0);
     assert(world.treasure.empty() && !world.tower.treasure);
+    auto game_seed = world.fight.spawning.game;
     world.init_new_objects();
     assert(world.treasure.size() == 1 && world.tower.treasure);
+    const auto spawner_seed = d2d::rules::Rng{ game_seed.next() };   // its unit seed: a game seed step (FUN_00552df0)
+    assert(world.treasure.front().seed.low == spawner_seed.low && world.treasure.front().seed.high == 666);
     world.objects_inited[cellar] = 0;                               // the ones before it too: still that one
     world.init_new_objects();
     assert(world.treasure.size() == 1);

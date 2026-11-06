@@ -415,7 +415,7 @@ auto World::tower_treasure_made() -> void {
         const Level* cellar = game_data->level(d2d::rules::TowerQuest::kCellar);
         if (!tower.dead || tower.treasure || tower.chests.empty() || !cellar) return;
         tower.treasure = true;
-        for (const int chest : tower.chests) treasure.push_back({ cellar, chest, d2d::rules::TowerQuest::kTreasureLife });
+        for (const int chest : tower.chests) treasure.push_back({ cellar, chest, d2d::rules::TowerQuest::kTreasureLife, d2d::rules::Rng{ fight.spawning.game.next() } });
     }
 
 // The towerchestspawner's frame (FUN_005af300; Missiles.txt row 332:
@@ -426,9 +426,10 @@ auto World::tower_treasure_made() -> void {
 // hp / mp by act (+2 past normal: 0x731f4c / 0x731f60, FUN_00558450 /
 // FUN_005584c0), then mode 2. From then on every Param2 * 4 frames a gold
 // pile at the area level, rand(2r + 1) - r subtiles off (r = Param3).
-// The rounds roll off the chest's unit seed (chest_round).
-// ponytail: the world's rng stands in for the missile's seed; it runs only while the player's on its level (game.exe: while
-// its room's up); the end event (unit event 0x5c at 1 left) isn't sent.
+// The rounds roll off the chest's unit seed (chest_round), the piles' offsets
+// off the spawner's own.
+// ponytail: it runs only while the player's on its level (game.exe: while its room's up); the end
+// event (unit event 0x5c at 1 left) isn't sent.
 auto World::tower_treasure(std::uint32_t now_ms) -> void {
         using Tower = d2d::rules::TowerQuest;
         for (auto& spawner : treasure) {
@@ -450,7 +451,7 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
             }
             if (spawner.left < Tower::kTreasureFrames - Tower::kTreasureOpen && spawner.left % (Tower::kTreasureEvery * 4) == 0) {
                 const int radius = Tower::kTreasureRadius;
-                const float off_x = float(rng(2 * radius + 1) - radius) / 5, off_y = float(rng(2 * radius + 1) - radius) / 5;
+                const float off_x = float(spawner.seed(2 * radius + 1) - radius) / 5, off_y = float(spawner.seed(2 * radius + 1) - radius) / 5;
                 const auto [spot_x, spot_y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
                 loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms);
             }
