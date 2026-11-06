@@ -198,3 +198,38 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   the middle of a subtile clips a blocked one on its first leg. Neither needs
   `debug warp`. In game.exe no stop stays off-centre. A
   hostile monster walks by `move_frame`, which snaps already.
+
+### What keeps a walk to a unit going: the client
+
+Nothing on the server re-plans a walk to an NPC, object or player. The client
+does, every game frame, until it stands in reach:
+
+- **Queued at the click.** FUN_00461dc0 starts the walk (LAB_0046213f; an NPC
+  over 2 away, LAB_0046204e, LAB_0046212a) and queues the interact: pending
+  (player data +0x150) = 1, action +0x154 = 0x13, target +0x158 / +0x15c
+  (LAB_00462159). A stop leaves it queued, the mode unchanged (FUN_00463390,
+  LAB_004636ae).
+- **Run each frame.** FUN_0044efa0 calls FUN_00481600 (LAB_0044f126), which
+  clears the queue (LAB_00481672, FUN_0045c470) and asks FUN_00480c80 about
+  a player, monster or object target (LAB_004816f5, LAB_004816ea,
+  LAB_004816d8).
+- **Out of reach,** FUN_004812e0 runs the walk command (LAB_0048136b,
+  FUN_00480c10 → FUN_00461250 → FUN_00480780: a new path from where the unit is) and, with a
+  path, sends C→S 0x02 or 0x04 (LAB_0048137a). Path or no path it queues the
+  action again (LAB_004813c3), with no count, no timer and no test of the
+  steps made. With no path the unit goes neutral, nothing is sent, and the
+  next frame tries again.
+- **In reach,** FUN_00481030 (LAB_00481709) sends 0x13 and clears the queue.
+- **Abandoned** by any other action (FUN_00481030 clears the queue,
+  LAB_00481240), a target gone (LAB_00481697, the queue already cleared), or a
+  target dead or not selectable (FUN_00467a70), and by the clears at
+  LAB_0045c9e5, LAB_004622db, LAB_004b3c45 and LAB_004b6e1f, which weren't
+  followed further.
+
+So a blocked walk to an NPC re-plans the frame after it stops, from the
+snapped centre, whether or not it moved. This is a reading of the code; no
+packet log has been taken of 0x02 going out each frame.
+
+d2d differs (`tick.cpp`): a walk that stops without moving drops the interact
+("blocked on the way"), and one that moved re-plans. game.exe keeps trying
+from both.
