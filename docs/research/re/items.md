@@ -1,4 +1,4 @@
-# Item data accessors
+# Item accessors and helpers
 
 These functions take an item unit. They require a non-null unit of type 4
 with a non-null item-data pointer at unit `+0x14`; rejected calls do not
@@ -32,7 +32,25 @@ calls return zero.
 | `FUN_00628340` | Return `item_data + 0x4a`, the ear-name string pointer; return 0 for a rejected call. |
 | `FUN_00628370` | Copy a NUL-terminated source string to item data `+0x4a`, including the terminator; do nothing for a rejected call. `FUN_00567070` copies ear names through this setter. |
 | `FUN_006283a0` | Read the ear-class byte at item data `+0x48`, writing only `AL`; rejected calls set `AL=1`. Successful calls retain the item-data pointer's upper 24 bits, wrong-type calls retain the unit pointer's upper 24 bits, and null-unit or null-data calls return 1. |
+| `FUN_006283d0` | Write the low byte of a value to the ear-class byte at item data `+0x48`; do nothing for a rejected call. `FUN_00567070` sets the ear class through this function. |
 | `FUN_00628420` | Write the low byte of a value to the picture ID at item data `+0x49`; do nothing for a rejected call. `FUN_00557a70` sets it from the item graphics code. |
+
+## Item-record accessors and helpers
+
+`FUN_006335f0` resolves the unit class at unit `+0x04` to the item record used
+by the record accessors below. The oracle substitutes a synthetic record.
+
+| Address | Traced claim |
+|---|---|
+| `FUN_00628500` | Read the 32-bit value at item record `+0xc0`; return 0 for a null unit, a wrong unit type, or a failed class lookup. |
+| `FUN_00628590` | Return the 32-bit item code at item record `+0x80` for a valid item unit with a successful class lookup. `FUN_00483c50` compares this field with the Horadric Cube code `box `. |
+| `FUN_006286c0` | Copy item record bytes `+0x10f` and `+0x110` to the two output pointers; leave them unchanged for a null unit, a wrong unit type, or a failed class lookup. The function returns with `RET 0x14`, so the oracle supplies the two additional assert arguments used by its call sites. |
+| `FUN_00628740` | Read the base item level at item record `+0xfd`, writing only `AL` and retaining the record pointer's upper 24 bits. `FUN_005c1560` uses it as a floor when selecting an affix level. |
+| `FUN_006287a0` | Return the bitwise AND of its two 32-bit arguments. |
+| `FUN_006287b0` | Update the 32-bit value at the first argument: a nonzero third argument sets the bits in the second argument with `\|=`, while zero clears them with `&= ~mask`. |
+| `FUN_006287d0` | For a valid item unit and class lookup, return item record `normcode` at `+0x84` when nonzero, otherwise `code` at `+0x80`. Invalid inputs take assertion paths. `FUN_0062efb0` uses this fallback when pricing gambled items. |
+| `FUN_00628830` | Clamp an affix required level using a custom fastcall convention: `ECX` is the affix record, `EDX` the optional player unit, and `EAX` the initial value. A null affix preserves `EAX`. Select byte `+0x65`, or byte `+0x68` when byte `+0x67` is not `0xff`, the player is nonnull, and that byte equals the player class at `+0x04`; raise a signed initial value to the selected byte, but preserve higher values. `FUN_0062b5b0` calls this helper. |
+| `FUN_00628860` | Resolve the data-table state through global pointer `0x744304`; index the item-type table at state `+0xbf8`, with count at `+0xbfc` and record stride `0xe4`. Return the zero-extended byte at item-type record `+0x10`, or 0 for a negative index, an index greater than or equal to the count, or a computed null record. `FUN_0055a6d0` uses the result when rerolling classic drops. |
 
 Re-check these claims against game.exe 1.14d:
 
