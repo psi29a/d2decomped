@@ -981,7 +981,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (mode 9: FUN_005dd050 -> FUN_0058f380 on FUN_005dcda0).
     // The group list runs newest first (FUN_0058f100 adds at its head, as
     // each member is made), so its last match is the first in pack order.
-    // ponytail: the corpse flag (+0xc4 bit 1) and FUN_0063a770 as corpse_used.
+    // ponytail: the selectable flag (+0xc4 bit 1) and the udead states but shatter (freeze 1 on a corpse) aren't kept.
     const auto self = pack.empty() ? pack.size() : std::size_t(&monster - pack.data());
     bool rally = false;
     int corpse = -1;
@@ -990,7 +990,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     using d2d::rules::Boss;
     auto unique = [](const Monster& other) { return other.boss == Boss::unique || other.boss == Boss::superunique; };
     const auto corpse_for = [&](const Monster& other) {
-        if (type_info.ai_name != "FallenShaman" || other.alive() || other.mode != "DD" || other.corpse_used) return false;
+        if (type_info.ai_name != "FallenShaman" || !other.usable_corpse()) return false;
         const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
         const int base = game_data.monsters.types[std::size_t(other.type)].base;
         return unique(monster) ? d2d::rules::shaman_corpse_reach(base, other.boss == Boss::champion, unique(other), off_x, off_y, input.aip[3])
@@ -1094,7 +1094,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const int reach = input.aip[4] + (radament ? 10 : 0);
                 if (squared > reach * reach) continue;
                 ++input.in_reach;
-                if (!other.alive() && other.mode == "DD" && !other.corpse_used) corpse = pack_index;
+                if (other.usable_corpse()) corpse = pack_index;
                 else if (other.alive() && other.hit_points < other.stats.hit_points) aid = pack_index;
             } else if (other.alive() && (raider || other.type == monster.type) && squared < kin_dist) { kin = pack_index; kin_dist = squared; }
         }
@@ -1260,7 +1260,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             }
         }
         if (name == "Regurgitator") {
-            const auto [found, found_squared] = nearest_kin([](const Monster& other) { return !other.alive() && other.mode == "DD" && !other.corpse_used; }, input.aip[5] * input.aip[5]);
+            const auto [found, found_squared] = nearest_kin([](const Monster& other) { return other.usable_corpse(); }, input.aip[5] * input.aip[5]);
             corpse = found;
             input.corpse = found >= 0;
             take(found, found_squared);
@@ -1380,7 +1380,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (name == "Nihlathak") {
             corpse = first_near([&](const Monster& other) {
                 const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y;
-                return !other.alive() && other.mode == "DD" && !other.corpse_used
+                return other.usable_corpse()
                     && game_data.monsters.types[std::size_t(other.type)].corpse_sel && off_x * off_x + off_y * off_y <= 100;
             });
             input.corpse = corpse >= 0;
@@ -2354,7 +2354,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // and Resurrect2 (their healing is a castoverlay, the client's).
                 if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                     auto& raised = pack[std::size_t(monster.skill_unit)];
-                    if (!raised.alive() && raised.mode == "DD" && !raised.corpse_used) {
+                    if (raised.usable_corpse()) {
                         raised.no_exp = raised.no_drop = true;
                         raised.hit_points = raised.last_hp = raised.stats.hit_points;
                         raised.ai_state = raised.ai_command = 0; raised.skill = -1; raised.left_mode = "NU";
@@ -2600,7 +2600,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // up by MulDiv(the corpse's max life, calc1, 100) (FUN_00483360: ECX,
                     // EDX, then 100 on the stack), at most its max, at least 1.
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size())
-                        if (auto& eaten = pack[std::size_t(monster.skill_unit)]; !eaten.alive() && eaten.mode == "DD" && !eaten.corpse_used) {
+                        if (auto& eaten = pack[std::size_t(monster.skill_unit)]; eaten.usable_corpse()) {
                             eaten.corpse_used = true;
                             const int pct = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
                             const int max_life = monster.stats.hit_points * 256;
