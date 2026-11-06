@@ -85,6 +85,7 @@ another player is open (interaction type 0, `FUN_00554100`) and the belt
 holds an item (`FUN_0063e020` page 2).
 
 | `FUN_00451f50` | `__fastcall`: return `*(int*)(p + 0xc)`, or `0xffffffff` for a null pointer. A null-safe read of a field at `+0xc` (used by `FUN_0048a990`, `FUN_0055a2a0`, `FUN_0045f190`, `FUN_0049a690`, `FUN_004d6d40`, `FUN_0052c410`; the struct was not identified). `tools/emu/_hire_probe.py:25` already calls it. | agrees with the oracle's use; not ported |
+| `FUN_00557fd0` | `__fastcall` wrapper: `FUN_005538d0(arg2)` then `FUN_00555600()`; no logic of its own. Called by `FUN_00597b00` when `FUN_00628140(item, 1)` is nonzero, and by `FUN_00535f30`, `FUN_00536580`, `FUN_005466b0`, `FUN_0055c850`, `FUN_0055d0d0`. What the two callees do was not read. | not ported |
 d2d: `rules::spill_belt`, called by the World's `cmd::ToBody` (belt
 slot) and `cmd::ToCursor` (the worn belt).
 
