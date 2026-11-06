@@ -76,7 +76,8 @@ struct Window {
         if (!renderer) { d2d::log::error("SDL_CreateRenderer: {}", SDL_GetError()); return false; }
         // VSync avoids tearing AND caps our frame rate at the monitor
         // refresh — the primary yield mechanism. Failure is not fatal;
-        // pace_frame() delays anyway as a floor.
+        // pace_frame() delays anyway as a floor. --fps-cap turns it off again:
+        // that rate is the sleep's.
         SDL_SetRenderVSync(renderer, 1);
         SDL_HideCursor();   // d2d draws D2's gauntlet into the frame
         SDL_SetRenderLogicalPresentation(renderer, width_, height_, SDL_LOGICAL_PRESENTATION_LETTERBOX);

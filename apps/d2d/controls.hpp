@@ -50,7 +50,6 @@ struct ControlsUI {
     std::string pad_message;               // the pad page's (d2d's own text)
     static constexpr int kNoButton = -1;
     int hover_button = kNoButton;          // 0x7c02b4: the button under the mouse (game.exe's none is 3)
-    unsigned frame = 0;                    // 0x7c02d0: the edited key blinks by it
 
     // Opening (FUN_004a5200): the keys now kept to go back to.
     void show(const keys::Table& keys_now, const pad::Config& pad_now, bool lod, const keys::Clicks& clicks_now = keys::kNoClicks);

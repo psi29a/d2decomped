@@ -92,7 +92,7 @@ ini read uses an empty default; its dword is 0 and unused.
 
 d2d status is from the 2026-10-20 map of this table onto d2d, rechecked
 against `main` at `f2906d3` for the options that status depends on
-(`--seed`, `--no-save`, `--join`, `--start-class`, vsync on unless `--fps-cap` sets a rate):
+(`--seed`, `--no-save`, `--join`, `--start-class`, vsync on; `--fps-cap`, newer than that, turns vsync off):
 
 - `ready` — d2d already does this; the token only needs translating.
 - `partial` — something similar exists, and the behavior differs.

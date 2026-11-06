@@ -20,7 +20,7 @@ enum class MainPhase : std::uint32_t {
     Render         = 3,
     Upload         = 4,   // SDL_UpdateTexture
     Present        = 5,   // SDL_RenderPresent
-    PaceDelay      = 6,   // SDL_Delay at end of frame
+    PaceDelay      = 6,   // the pacer's sleep at end of frame
     // InGame sub-phases so we can pinpoint the stuck one exactly.
     IngameClear    = 10,
     IngameFloor    = 11,

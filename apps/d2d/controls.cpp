@@ -395,7 +395,6 @@ ControlsUI::Result ControlsUI::input(const Scene& scene, const std::vector<std::
                                      std::uint32_t now_ms) {
     Result result = kStay;
     now_ = now_ms;
-    ++frame;
     if (editing && pad_page && pad_press != pad::Button::Count && pad_press != pad::Button::Start) { pad_edit(pad_press, now_ms); return result; }
     if (editing && pad_page && pad_press == pad::Button::Start) { editing = false; return result; }
     for (const auto key_now : keys_now) key(key_now, now_ms, result);
@@ -459,7 +458,8 @@ void ControlsUI::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
         const auto button = pad.bindings[pad::Action(pad_row.index)][slot == 1 ? 0 : 1];
         return button == pad::Bindings::kNone ? string_id(scene, 0xeb2) : std::string(pad::label(family, button));
     };
-    const bool blink_off = editing && (frame & 0xf) <= 4;
+    // The edited key blinks by the frame count (0x7c02d0), at the client's 25 a second on any display.
+    const bool blink_off = editing && (now_ms / 40 & 0xf) <= 4;
     for (int i = 0; i < kShown && scroll + i < count(); ++i) {
         const int row = scroll + i, baseline = kTop + 0x34 + 18 * i;
         const int action = row_action(row);

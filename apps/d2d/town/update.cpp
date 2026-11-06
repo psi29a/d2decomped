@@ -610,6 +610,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // 64 scene_rain at the density's volume, easing 6 a tick
         // (FUN_004e42e0).
         if (frame_ms - rain_ms > 1000) rain_ms = frame_ms;
+        const bool rain_ticks = frame_ms - rain_ms >= 40;
+        bool flashed = false;
         for (; frame_ms - rain_ms >= 40; rain_ms += 40) {
             den_tick(frame_ms);
             critter_tick(frame_ms);
@@ -623,12 +625,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                            d2d::rules::kDay[std::size_t(view.day.phase)].type, level->id, d2d::rules::level_ids::act_of(level->id));
             const int want = level->rain && !rain.snow ? int(rain.volume() * 255.f) : 0;   // FUN_00473c40: no sound in the snow
             rain_vol = rain_vol < want ? std::min(want, rain_vol + 6) : std::max(want, rain_vol - 6);
+            // The lightning's drawn frame (FUN_00473910), a client frame so a
+            // fast display doesn't shorten the flash: and thunder queued that
+            // many sound ticks on.
+            const auto strike = rain.frame(rain.rng, audio.dev != nullptr);
+            flashed = flashed || strike.flash;
+            if (strike.thunder >= 0) {
+                thunder_at = frame_ms + std::uint32_t(strike.thunder) * 40; thunder_x = strike.x; thunder_y = strike.y; thunder_due = true;
+            }
         }
-        // The lightning's drawn frame (a frame drawn each update) (FUN_00473910): its flash, and thunder
-        // queued that many sound ticks on.
-        if (const auto strike = rain.frame(rain.rng, audio.dev != nullptr); strike.thunder >= 0) {
-            thunder_at = frame_ms + std::uint32_t(strike.thunder) * 40; thunder_x = strike.x; thunder_y = strike.y; thunder_due = true;
-        }
+        // A flash in any of this frame's ticks is drawn, and one holds until the next tick.
+        if (rain_ticks) rain.flashing = flashed;
         if (thunder_due && frame_ms >= thunder_at) { thunder_due = false; audio.play_placed(*scene, d2d::rules::sound_ids::kEventThunder, 0, float(thunder_x), float(thunder_y)); }
         if (rain_vol > 0 && audio.rain.sound != d2d::rules::sound_ids::kSceneRain) audio.play(audio.rain, *scene, d2d::rules::sound_ids::kSceneRain);
         if (rain_vol == 0 && audio.rain.sound) audio.stop(audio.rain);

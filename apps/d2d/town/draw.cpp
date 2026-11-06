@@ -108,8 +108,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         std::vector<Unit> extra;
         // The camera (and the player's unit) between the World's last two
         // ticks; a jump (a warp, devctl) snaps.
-        // ponytail: game.exe draws the other units at the tick rate; d2d
-        // slides them too (unit_slide.hpp), smooth past 25 frames a second.
+        // game.exe draws the other units at the tick rate; d2d slides them
+        // too (unit_slide.hpp, deviations.md #16).
         const float blend = std::clamp(float(frame_ms - world_ms) / float(kTickMs), 0.f, 1.f);
         const bool jump = std::hypot(unit.x - prev_x, unit.y - prev_y) > 2.f;
         const float hero_x = jump ? unit.x : prev_x + (unit.x - prev_x) * blend, hero_y = jump ? unit.y : prev_y + (unit.y - prev_y) * blend;
