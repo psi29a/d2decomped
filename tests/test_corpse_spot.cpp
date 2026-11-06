@@ -41,6 +41,11 @@ int diff(const char* cases_path, const char* game_path, bool twin) {
         std::istringstream fields(line), expect(answer);
         int number = 0, start_x = 0, start_y = 0, words_count = 0, found = 0, want_x = 0, want_y = 0;
         fields >> number >> start_x >> start_y >> words_count;
+        if (start_x < 0 || start_y < 0 || start_x >= kWorld || start_y >= kWorld || words_count < 0 || words_count > kWorld * kWorld) {
+            std::fprintf(stderr, "case %d: out of the world\n", number);
+            ++bad;
+            continue;
+        }
         Words words;
         for (int k = 0, at_x = 0, at_y = 0, bits = 0; k < words_count && fields >> at_x >> at_y >> bits; ++k) words[{ at_x, at_y }] = bits;
         if (!twin) words[{ start_x, start_y }] |= 0x1000;                           // the player on the start

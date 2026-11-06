@@ -238,4 +238,7 @@ than 3 made in the game's region (+0x2c4), FUN_0054ef50 makes one of the
 act's wandering monsters (table 0x731b2c by act, 0x731b30 {first, count})
 at a free spot (FUN_0054dc40, FUN_005b2f20) and adds it to list 8
 (FUN_005b1990). About 1 room in 1.1 million; d2d steps the draw only
-(objgroups.cpp ponytail).
+(objgroups.cpp ponytail). The table: 0x731b2c holds one id, 270 (rogue2, RogueScout,
+GoodNpcRanged), and only act 0 has a non-zero count ({0, 1} at 0x731b30;
+acts 1..4 {0, 0}): the wanderer is always that rogue scout, only in Act 1
+(emu dump).

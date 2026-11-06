@@ -54,18 +54,29 @@ int main() try {
     world.level = cellar;
     world.npc_states = npc_start(*cellar);
     world.tower.dead = true;
-    const bool has_chest = std::ranges::any_of(cellar->npcs, [](const auto& npc) {
+    const auto chest = std::ranges::find_if(cellar->npcs, [](const auto& npc) {
         return npc.root == "objects" && npc.object_id == d2d::rules::object_ids::kLargeChestR;
     });
-    if (!has_chest) { std::printf("SKIP: no chest in cellar 5\n"); return D2D_TEST_SKIPPED; }
+    if (chest == cellar->npcs.end()) { std::printf("SKIP: no chest in cellar 5\n"); return D2D_TEST_SKIPPED; }
+    // InitFn 47 (FUN_00595a50) lists a chest as its room comes up: dead before
+    // any is up, nothing yet; the first chest up makes the treasure there.
+    world.objects_inited[cellar] = std::size_t(chest - cellar->npcs.begin());
     world.countess_died(0);
-    assert(!world.treasure.empty());
+    assert(world.treasure.empty() && !world.tower.treasure);
+    auto game_seed = world.fight.spawning.game;
+    world.init_new_objects();
+    assert(world.treasure.size() == 1 && world.tower.treasure);
+    const auto spawner_seed = d2d::rules::Rng{ game_seed.next() };   // its unit seed: a game seed step (FUN_00552df0)
+    assert(world.treasure.front().seed.low == spawner_seed.low && world.treasure.front().seed.high == 666);
+    world.objects_inited[cellar] = 0;                               // the ones before it too: still that one
+    world.init_new_objects();
+    assert(world.treasure.size() == 1);
     const auto opened = [&]() { return world.operated.contains({ cellar, world.treasure.front().npc }); };
     for (int frame = 0; frame < 151; ++frame) world.tower_treasure(0);
     assert(!opened());
     world.tower_treasure(0);
     assert(opened());
-    std::printf("OK: the tower chest opens on the spawner's 152nd frame\n");
+    std::printf("OK: only chests up when it's made get spawners; the chest opens on the 152nd frame\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

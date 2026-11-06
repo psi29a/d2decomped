@@ -50,7 +50,7 @@ MonPlace code:
   0x11,0x12,0x16,0x17  level-typed monster: FUN_0063ec70(room, FUN_004e6c50()) + FUN_0054e2a0,
                        FUN_005b2f20 (retry with mode 4)
   0x1d..0x20  same, but mode 0xc (dead) and u+0xc4 |= 0x2000000
-  if the spawned MonStats is 0x1b6: FUN_005417d0(7, game+0xa8 + 0xfa + difficulty)   (event slot)
+  if the spawned MonStats is 0x1b6: FUN_005417d0(7, game+0xa8 + 0xfa + rand(50) on its seed)   (event 7: a no-op without mods)
 ```
 
 Andariel (MonStats 156) is a plain MonStats preset in level 37. Nothing

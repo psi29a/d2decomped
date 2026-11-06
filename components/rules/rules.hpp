@@ -983,7 +983,7 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
                        bool fill = false, const Wearer* wearer = nullptr, int required_level = -1) {
     using d2d::d2s::Item;
     auto& tab = store.tabs[std::size_t(store.tab)];
-    const auto item = tab[std::size_t(index)];
+    const auto item = tab[std::size_t(index)];   // a copy: the loop below erases tab[index], then reads it again
     const auto purse = [&] { return stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank); };
     const auto pay = [&](std::int64_t cost) {
         const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);

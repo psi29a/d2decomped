@@ -20,6 +20,7 @@
 #include <exception>
 #include <filesystem>
 #include <string_view>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -48,7 +49,7 @@ int main() try {
     scroll.code = "bks"; scroll.identified = true; scroll.quality = 2;
     scroll.location = d2d::d2s::item_location::kStored; scroll.panel = d2d::d2s::item_panel::kInventory;
     scroll.column = 8; scroll.row = 2;                                            // far off, the inventory otherwise empty
-    character.items.push_back(scroll);
+    character.items.push_back(std::move(scroll));
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
 
     World world(&*data, -1, -1);

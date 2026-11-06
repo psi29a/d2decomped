@@ -896,7 +896,8 @@ struct ObjectRooms {
                 // till word 0x10 has bit 13, InitFn 50 (FUN_005b7160) at his shop
                 // after; InitFn 52 (FUN_005bce80, object 0x17e: the DS1's Natalya,
                 // units.hpp) Natalya (0x129), else within 3, till word 0x16 has bit 13.
-                // ponytail: their quest records' "made" bits aren't kept: a room comes up once.
+                // Their records' made bytes (FUN_005b70b0 data +0 / +0xc, FUN_005bce80 +0x20 / +0x2c)
+                // only stop a second one while the first lives: d2d's rooms come up once.
                 const int init = obj(unit.id, "InitFn");
                 const bool hratli_moved = d2d::rules::quest::bit(game_quests, 0x10, 13);
                 if ((init == 49 && !hratli_moved) || (init == 50 && hratli_moved)) monster_or_npc(0xfd, unit, 0, false);
@@ -926,19 +927,19 @@ struct ObjectRooms {
                     const std::array<int, 4> rect{ marker_room.x * 5, marker_room.y * 5, marker_room.width * 5, marker_room.height * 5 };
                     const auto row = game_data.mon_bin[0x202];
                     if (spawns) leader = int(spawns->size());
-                    using Spot = std::pair<int, int>;                                       // a room, as a subtile it holds
-                    const auto free_spot = [&](Spot&, int& at_x, int& at_y) {
+                    using RoomSpot = std::pair<int, int>;                                       // a room, as a subtile it holds
+                    const auto free_spot = [&](RoomSpot&, int& at_x, int& at_y) {
                         const auto spot = level.free_area(at_x, at_y, 2, 0x100, 100);
                         if (spot) std::tie(at_x, at_y) = *spot;
                         return spot.has_value();
                     };
-                    const auto near_room = [&](const Spot& from, int at_x, int at_y) -> std::optional<Spot> {
+                    const auto near_room = [&](const RoomSpot& from, int at_x, int at_y) -> std::optional<RoomSpot> {
                         const auto rects = missile_rooms(game_data, level, float(from.first) / 5, float(from.second) / 5);
                         if (std::ranges::any_of(rects, [&](const auto& box) { return at_x >= box[0] && at_y >= box[1] && at_x < box[0] + box[2] && at_y < box[1] + box[3]; }))
-                            return Spot{ at_x, at_y };
+                            return RoomSpot{ at_x, at_y };
                         return std::nullopt;
                     };
-                    const auto make_at = [&](const Spot&, int at_x, int at_y, int retry) {
+                    const auto make_at = [&](const RoomSpot&, int at_x, int at_y, int retry) {
                         int spot_x, spot_y;
                         if (!put(int(row), at_x, at_y, retry, false, spot_x, spot_y)) return false;
                         auto own = made(int(row), spot_x, spot_y);
@@ -946,7 +947,7 @@ struct ObjectRooms {
                         return true;
                     };
                     last_made.reset();
-                    if (d2d::rules::marker_npc(Spot{ unit.x, unit.y }, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, false);
+                    if (d2d::rules::marker_npc(RoomSpot{ unit.x, unit.y }, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, false);
                 }
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made
@@ -1010,8 +1011,8 @@ struct ObjectRooms {
                 // Act 5's dead (FUN_0054e600 0x1d..0x20): the level's minion (0x1c5), imp (0x211 in
                 // the Bloody Foothills, else 0x1ec), barbarian (0x20a), reanimated horde (0x1b6),
                 // its spot then radius 4, made in mode 12 (unit +0xc4 |= 0x2000000).
-                // ponytail: a reanimated horde's rise (rand(50) on its seed, FUN_005417d0 event 7 at
-                // frame + 250 + that) isn't kept: it lies there.
+                // A reanimated horde's rand(50) event 7 (FUN_005417d0) is FUN_005a4370 (0x6e2490[7]): the
+                // MonUMod event-2 hooks (FUN_005a4270), none without mods, so it lies there in game.exe too.
                 const int base = code == 0x1d ? 0x1c5 : code == 0x1e ? (level.id == d2d::rules::level_ids::kBloodyFoothills ? 0x211 : 0x1ec) : code == 0x1f ? 0x20a : 0x1b6;
                 const auto before = spawns ? spawns->size() : 0;
                 monster(own(base), unit.x, unit.y, 4);
@@ -1124,8 +1125,9 @@ ObjectRooms& rooms_of(const GameData& game_data, Spawning& spawning, const Level
         }
     // The level's own warp table (FUN_0066aec0: its +0x90 override, the
     // Blood Moor's one Den of Evil way in of Warp3..6) keeps one of the slots
-    // sharing a Vis: the one that placed a warp.
-    // ponytail: read off the warps built, not game.exe's override list.
+    // sharing a Vis: the one that placed a warp. The override equals
+    // Levels.txt Warp0..7 in every level (emu, 5 map seeds) and only the
+    // placed preset flags a room, so the warps built say the same.
     std::uint32_t warped = 0;
     for (const auto& warp : level.warps) if (warp.slot >= 0 && warp.slot < 8) warped |= 0x10u << warp.slot;
     slots &= ~shared | warped;
@@ -1259,7 +1261,8 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
     pop.seed = index < early.size() && early[index] ? *early[index] : d2d::rules::Rng{ index < level.room1_seeds.size() ? level.room1_seeds[index] : level.rooms[index].seed };
     // FUN_0054f060; on a step with its low 15 bits clear, a MonWndr level
     // rolls a wanderer (FUN_0054eff0: under 3 in 100).
-    // ponytail: the wanderer itself (FUN_0054ef50) isn't made; 3 in 3.3M rooms.
+    // ponytail: the wanderer itself (FUN_0054ef50: always MonStats 270, the Act 1
+    // rogue scout, list 8 GoodNpcRanged) isn't made: d2d has no good-aligned AI; 3 in 3.3M rooms.
     if ((pop.seed.next() & 0x7fff) == 0 && level.mon.wander) pop.seed.next();
     pop.presets(index);
     pop.out->pre = pop.seed.low;

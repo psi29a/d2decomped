@@ -395,7 +395,7 @@ up the rejoin before the stones existed, and a save with the stones lit
 3. **Success:** unit flags |= 0x3000000; voice(0) on the opener (+0x3c).
 4. **Failure:**
    - log "Cain not created, look in town" (a1q4.cpp line 0x6b6); +0x74 = 0;
-   - LAB_00593220 looks for a player in level 0x26. If one is found and !+0x66: town portal object 0x3b to level 1 at (x+6, y+6), and +0x66 = 1;
+   - LAB_00593220 looks for a player in level 0x26. If one is found and !+0x66: town portal object 0x3b to level 1 at (x+6, y+6), and +0x66 = 1. `FUN_0056d130` links the pair only to each other and never touches player data +0x48 (the caster's own portal): it is nobody's own, the player's own portal stays (d2d: `World::kGibbetPortal`);
    - if !+0x51: +0x52 = 1 (Cain goes straight to camp);
    - +0x62 = 1.
 5. Over players:
@@ -848,6 +848,14 @@ d+0x119 = 1;
 mis = FUN_0056ede0(game, m, 0, 1, 0x14c, chest x, chest y);   // missile 332 towerchestspawner (SrvDo 18)
 if (mis) { FUN_0064a710(mis, chest id); FUN_0064a760(mis, 0); FUN_0061aed0(room(mis), 0); }
 ```
+
+So the treasure goes to the chests listed when it's made: at her death, or
+as the first chest's room comes up after it; a chest listed later gets none
+(d2d: `World::tower_treasure_made`, from `countess_died` and
+`init_new_objects`). Each spawner is a missile unit (`FUN_0056ede0` →
+`FUN_00555230` type 3): one game seed step makes its unit seed {low, 666}
+(`FUN_00552df0`; no item step), and its frame (`FUN_005af300`) rolls the
+gold piles' offsets rand(2r + 1) − r on that seed.
 
 - Mon 326 is the invisible owner (trap-firebolt class). Every chest shares the same owner.
 

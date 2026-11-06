@@ -25,6 +25,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -72,7 +73,7 @@ int main() try {
         malus.code = "hdm"; malus.identified = true;
         malus.location = d2d::d2s::item_location::kStored; malus.panel = d2d::d2s::item_panel::kInventory;
         malus.column = 0; malus.row = 0;
-        carrier.items.push_back(malus);
+        carrier.items.push_back(std::move(malus));
         world.join(carrier);
         assert(world.tools.carriers == 1 && world.tools.log == 2);
         world.join(make(kSorceress, "Empty"));
@@ -94,7 +95,7 @@ int main() try {
         d2d::d2s::Item tome;
         tome.code = d2d::rules::LamEsenQuest::kTome; tome.identified = true;
         tome.location = d2d::d2s::item_location::kStored; tome.panel = d2d::d2s::item_panel::kInventory;
-        joiner.items.push_back(tome);
+        joiner.items.push_back(std::move(tome));
         const int before = world.lam_esen.holders;
         world.join(joiner);
         assert(world.lam_esen.holders == before + 1);

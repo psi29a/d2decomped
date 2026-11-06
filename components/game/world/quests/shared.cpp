@@ -34,6 +34,7 @@
 #include <ctime>
 #include <format>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -42,27 +43,13 @@
 namespace d2d::game {
 
 // FUN_00463740: whether subtile (x, y) lies in the room holding subtile
-// (from_x, from_y) or in one of that room's near list (FUN_00619790).
-// ponytail: rooms as gamedata.cpp's room_rects has them (a preset level's
-// as 8x8 tiles), the near list as its closeness (FUN_0066bc20: under 6
-// tiles apart on both axes); the level's own rooms only. Rooms are agent
-// D's (units off a level's rooms).
-static bool room_near_holds(const Level& level, int from_x, int from_y, int x, int y) {
-    struct Rect { int x, y, width, height; };
-    std::vector<Rect> rects;
-    for (const auto& room : level.rooms) rects.push_back({ room.x, room.y, room.width, room.height });
-    if (rects.empty())
-        for (int top = 0; top < level.ds1.height(); top += 8)
-            for (int left = 0; left < level.ds1.width(); left += 8) rects.push_back({ left, top, std::min(8, level.ds1.width() - left), std::min(8, level.ds1.height() - top) });
-    const auto holds = [](const Rect& rect, int sub_x, int sub_y) {
-        return sub_x >= rect.x * 5 && sub_y >= rect.y * 5 && sub_x < (rect.x + rect.width) * 5 && sub_y < (rect.y + rect.height) * 5;
-    };
-    const auto own = std::ranges::find_if(rects, [&](const Rect& rect) { return holds(rect, from_x, from_y); });
-    if (own == rects.end()) return false;
-    return std::ranges::any_of(rects, [&](const Rect& rect) {
-        const int gap_x = own->x < rect.x ? rect.x - own->width - own->x : own->x - rect.width - rect.x;
-        const int gap_y = own->y < rect.y ? rect.y - own->height - own->y : own->y - rect.height - rect.y;
-        return gap_x < 6 && gap_y < 6 && holds(rect, x, y);
+// (from_x, from_y) or in one of that room's near list (FUN_00619790), the
+// next-door levels' close rooms and a warp's room included (missile_rooms).
+static bool room_near_holds(const GameData& game_data, const Level& level, int from_x, int from_y, int x, int y) {
+    const auto rects = missile_rooms(game_data, level, (float(from_x) + 0.5f) / 5, (float(from_y) + 0.5f) / 5);
+    const int act_x = level.world_x * 5 + x, act_y = level.world_y * 5 + y;
+    return std::ranges::any_of(rects | std::views::drop(1), [&](const auto& rect) {
+        return act_x >= rect[0] && act_y >= rect[1] && act_x < rect[0] + rect[2] && act_y < rect[1] + rect[3];
     });
 }
 
@@ -172,9 +159,10 @@ auto World::mephisto_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 
 // The hellgate's event 1 (mode 1 -> 2 at FrameCnt1 + 1 frames) and the
 // bridge's event 7 (FUN_005bcac0, every 24 frames): with Mephisto dead and
-// a player within 18 of it (FUN_00641530), mode 0 -> 1 (it rises), and at
-// the next 1 -> 2, its collision lifted (FUN_00623830: no HasCollision2).
-// ponytail: the bridge's checks run while the player's on its level.
+// the first player in its own room (its room's units, room +0x74) within
+// 18 of it (FUN_00641530), mode 0 -> 1 (it rises), and at the next 1 -> 2,
+// its collision lifted (FUN_00623830: no HasCollision2). The checks run
+// while the party's on its level (game.exe: while its room's up).
 auto World::mephisto_bridge(std::uint32_t now_ms) -> void {
         if (!guardian.dead || level->id != d2d::rules::level_ids::kDuranceOfHateLevel3) return;
         for (std::size_t i = 0; i < level->npcs.size(); ++i) {
@@ -191,8 +179,12 @@ auto World::mephisto_bridge(std::uint32_t now_ms) -> void {
             const auto& bridge = level->npcs[i];
             if (bridge.object_id != d2d::rules::object_ids::kMephistoBridge) continue;
             auto& state = doors.try_emplace({ level, int(i) }, Door{ 0, 0 }).first->second;
-            const int off_x = int(std::floor(actor->player.x * 5)) - int(std::floor(bridge.x * 5)), off_y = int(std::floor(actor->player.y * 5)) - int(std::floor(bridge.y * 5));
-            if (state.mode == 2 || d2d::rules::unit_distance(off_x, off_y, 2, bridge.size_x) >= 18) continue;
+            const int bridge_room = room_of(*level, bridge.x, bridge.y);
+            const auto by_bridge = [&](const auto& player) {
+                const int off_x = int(std::floor(player->player.x * 5)) - int(std::floor(bridge.x * 5)), off_y = int(std::floor(player->player.y * 5)) - int(std::floor(bridge.y * 5));
+                return room_of(*level, player->player.x, player->player.y) == bridge_room && d2d::rules::unit_distance(off_x, off_y, 2, bridge.size_x) < 18;
+            };
+            if (state.mode == 2 || std::ranges::none_of(players, by_bridge)) continue;
             state = Door{ state.mode + 1, now_ms };
             if (state.mode == 2) set_footprint(*level, bridge, false);
             d2d::log::info("The Guardian: the bridge {}", state.mode == 1 ? "rises" : "is up");
@@ -337,7 +329,7 @@ auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 
 auto World::near_room(float from_x, float from_y, float x, float y) const -> bool {
         const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
-        return room_near_holds(*level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
+        return room_near_holds(*game_data, *level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
     }
 
 auto World::hire_list(int list_act) -> std::vector<d2d::rules::HireEntry>& {
@@ -396,19 +388,21 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
                 d2d::rules::quest::set(bits, d2d::rules::TowerQuest::kQuest, 13);
                 d2d::rules::quest::set(bits, d2d::rules::TowerQuest::kQuest, 0);
             });
-        // Her treasure (FUN_005954f0, dead and not yet made: d+0x118 / 0x119):
-        // a towerchestspawner (missile 332) at each chest of cellar 5 (object
-        // 371, InitFn 47 lists up to 8).
-        // The invisible owner (monster 326 at her death spot, FUN_005b2f20)
-        // only owns the spawners, which d2d plays without one.
-        // ponytail: the chests are the level's, not the ones whose rooms came
-        // up (room units: agent D's).
-        if (tower.dead && !tower.treasure && level->id == d2d::rules::TowerQuest::kCellar) {
-            tower.treasure = true;
-            for (std::size_t i = 0; i < level->npcs.size() && treasure.size() < 8; ++i)
-                if (level->npcs[i].root == "objects" && level->npcs[i].object_id == d2d::rules::object_ids::kLargeChestR) treasure.push_back({ level, int(i), d2d::rules::TowerQuest::kTreasureLife });
-        }
+        tower_treasure_made();
         if (quest_kill) d2d::log::info("The Forgotten Tower: the Countess is dead");
+    }
+
+// Her treasure (FUN_005954f0, at her death and as InitFn 47 lists a chest;
+// dead and not yet made: d+0x118 / 0x119): a towerchestspawner (missile
+// 332) at each chest listed so far (tower.chests: only those whose rooms
+// came up), none for one listed after.
+// The invisible owner (monster 326 at her death spot, FUN_005b2f20)
+// only owns the spawners, which d2d plays without one.
+auto World::tower_treasure_made() -> void {
+        const Level* cellar = game_data->level(d2d::rules::TowerQuest::kCellar);
+        if (!tower.dead || tower.treasure || tower.chests.empty() || !cellar) return;
+        tower.treasure = true;
+        for (const int chest : tower.chests) treasure.push_back({ cellar, chest, d2d::rules::TowerQuest::kTreasureLife, d2d::rules::Rng{ fight.spawning.game.next() } });
     }
 
 // The towerchestspawner's frame (FUN_005af300; Missiles.txt row 332:
@@ -419,9 +413,10 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
 // hp / mp by act (+2 past normal: 0x731f4c / 0x731f60, FUN_00558450 /
 // FUN_005584c0), then mode 2. From then on every Param2 * 4 frames a gold
 // pile at the area level, rand(2r + 1) - r subtiles off (r = Param3).
-// The rounds roll off the chest's unit seed (chest_round).
-// ponytail: the world's rng stands in for the missile's seed; it runs only while the player's on its level (game.exe: while
-// its room's up); the end event (unit event 0x5c at 1 left) isn't sent.
+// The rounds roll off the chest's unit seed (chest_round), the piles' offsets
+// off the spawner's own.
+// ponytail: it runs only while the player's on its level (game.exe: while its room's up); the end
+// event (unit event 0x5c at 1 left) isn't sent.
 auto World::tower_treasure(std::uint32_t now_ms) -> void {
         using Tower = d2d::rules::TowerQuest;
         for (auto& spawner : treasure) {
@@ -443,7 +438,7 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
             }
             if (spawner.left < Tower::kTreasureFrames - Tower::kTreasureOpen && spawner.left % (Tower::kTreasureEvery * 4) == 0) {
                 const int radius = Tower::kTreasureRadius;
-                const float off_x = float(rng(2 * radius + 1) - radius) / 5, off_y = float(rng(2 * radius + 1) - radius) / 5;
+                const float off_x = float(spawner.seed(2 * radius + 1) - radius) / 5, off_y = float(spawner.seed(2 * radius + 1) - radius) / 5;
                 const auto [spot_x, spot_y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
                 loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms);
             }
@@ -490,7 +485,7 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         }
         if (cain_walk.stage < 2) {
             if (off(cain_walk.x, cain_walk.y) > 1 && cain_walk.tries < 6) { ++cain_walk.tries; walk(cain_walk.x, cain_walk.y); return; }
-            if (room_near_holds(*level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
+            if (room_near_holds(*game_data, *level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
                 cain_portal = { level, cell(cain_walk.spot_x), cell(cain_walk.spot_y), now_ms };
                 cues.cue("object_townportal", now_ms, cain_portal.x, cain_portal.y);
                 d2d::log::info("Search for Cain: Cain opens a portal at subtile ({}, {})", cain_walk.spot_x, cain_walk.spot_y);
@@ -613,9 +608,10 @@ auto World::take_carried(std::string_view code) -> void {
 // the deciphered scroll's order, the fifth opening the way to Tristram at
 // StoneLambda (x + 6, y - 3); the Gibbet (10) frees Cain.
 // The order draws on the game's quest rng (game+0x10f4).
-// ponytail: CairnStones' missile and the portal's red look aren't drawn. Cain walks out (cain_step); with no room for him the portal
-// FUN_0056d130 opens at x + 6, y + 6 is the player's own pair. Quests:
-// agent A's.
+// Cain walks out (cain_step); with no room for him (FUN_00593290) a town
+// portal pair (FUN_0056d130, object 0x3b) opens at x + 6, y + 6, linked only
+// to its twin in the camp: nobody's own, the player's own portal stays.
+// ponytail: CairnStones' missile and the portal's red look aren't drawn.
 auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         using Cain = d2d::rules::CainQuest;
         const auto& object = level->npcs[std::size_t(npc_index)];
@@ -652,7 +648,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
                                 d2d::rules::quest::set(bits, d2d::rules::CainQuest::kQuest, 14);
                         });
             if (spawned) cain_walk = { .npc = int(found - level->npcs.begin()), .next = now_ms + std::uint32_t(object.op_frames) * 40 };
-            else open_portal_at(object.x + 6, object.y + 6, now_ms);
+            else open_portal_at(object.x + 6, object.y + 6, now_ms, int(kGibbetPortal));   // a pair of its own: the player's stays
             d2d::log::info("Search for Cain: Cain is free");
             return;
         }

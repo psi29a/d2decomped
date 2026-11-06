@@ -288,9 +288,9 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             return;
         }
         // Khalim's chests (OperateFns 57 / 58 / 59): rand(5) + 5 gold piles on
-        // the quest seed (FUN_00585970), the part for one who needs it (its
-        // Will not made, Khalim's Will not done), a chest's drops (FUN_00585b90).
-        // ponytail: "needs it" is not carried (the per-player count's callbacks, LAB_005b8770.., read as that).
+        // the quest seed (FUN_00585970), one part for each player carrying
+        // neither it nor Khalim's Will (LAB_005b8810 counts them into a3q2's
+        // data +0xc; no quest bit read), a chest's drops (FUN_00585b90).
         if (const int operate_id = object.operate_fn; operate_id == d2d::rules::operate_fn::kKhalimHeart || operate_id == d2d::rules::operate_fn::kKhalimEye
                                                        || operate_id == d2d::rules::operate_fn::kKhalimBrain) {
             if (operated.contains({ level, npc_index })) return;
@@ -301,7 +301,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             std::vector<d2d::rules::Drop> drops;
             for (std::uint32_t gold = fight.spawning.quests.next() % 5 + 5; gold > 0; --gold) drops.push_back({ .code = "gld" });
             const char* part = operate_id == d2d::rules::operate_fn::kKhalimHeart ? K::kHeartCode : operate_id == d2d::rules::operate_fn::kKhalimEye ? K::kEyeCode : K::kBrainCode;
-            if (!d2d::rules::quest::bit(quests(), K::kQuest, 0) && !carries(part) && !carries(K::kWillCode)) drops.push_back({ .code = part });
+            each_player([&](Player&) { if (!carries(part) && !carries(K::kWillCode)) drops.push_back({ .code = part }); });
             const auto [low, high] = d2d::rules::kChestLevels[std::size_t(std::clamp(act(), 0, 2))];
             d2d::rules::chest_round(game_data->rules, d2d::rules::chest_tc(act(), diff, here, alvl(low), alvl(high)), object.seed, drops, 4);
             for (const auto& dropped : drops) loot.put(dropped, object.x, object.y, here, fight.spawning.game, now_ms);
@@ -400,7 +400,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // carried it takes it (FUN_0059dd80: the staff and its parts gone,
         // the Horadric Staff done, the way down to Duriel after its timer);
         // without, "I can't" (voice).
-        // ponytail: game.exe opens a panel to drop the staff into (C->S 0x44 3); d2d places it on use.
+        // ponytail: game.exe opens the orifice (mode 1) and a drop panel (FUN_00554120 / FUN_0053d8d0) and takes
+        // the staff once it's placed (C->S 0x44 3 -> FUN_0059dd80); d2d has no panel and takes it on use.
         if (object.operate_fn == d2d::rules::operate_fn::kOrifice) {
             if (operated.contains({ level, npc_index }) || hosted_quests) return;
             if (!carries("hst")) { d2d::log::info("I can't use this yet."); return; }

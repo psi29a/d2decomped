@@ -11,6 +11,7 @@
 #include <rules.hpp>
 
 #include <cassert>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -68,7 +69,7 @@ int main() {
     big.location = location::kStored;
     big.panel = d2d::d2s::item_panel::kInventory;
     tables.item_info["big"] = { .width = 10, .height = 4 };
-    std::vector<Item> packed = { big };
+    std::vector<Item> packed = { std::move(big) };
     const auto gold = stats.get(d2d::d2s::kGold);
     assert(store_buy(tables, shop, 0, packed, stats) == Trade::no_room && stats.get(d2d::d2s::kGold) == gold && shop.tabs[1].size() == 1);
 

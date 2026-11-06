@@ -1225,6 +1225,11 @@ for every try):
   levels or the level's own +0x68), the room at the level's middle less 2
   (`FUN_00642630`), last a random room (`FUN_0066ae70`, stubs.md: never
   reached in the sweep); the room's centre unless a tile was found.
+- The warp table `FUN_0066aec0` reads (the act's +0x90 row for the
+  level, else Levels.txt Warp0..7) equals Levels.txt in every level (emu,
+  map seeds 0x1234, 0x9e3779b9, 77, 0xdeadbeef, 5); only the placed
+  preset's walls flag a room `0x10 << slot` (Blood Moor 0x230: slots 0,
+  1, 5), so an unplaced Den slot flags no room.
 
 ## What the client draws (2026-10-27, live)
 

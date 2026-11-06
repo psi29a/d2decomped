@@ -329,7 +329,7 @@ auto World::portal_spot(const Level& where, float x, float y) -> std::optional<s
         return std::pair{ (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5 };
     }
 
-auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms) -> bool {
+auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms, int pair) -> bool {
         const Level* act_town = game_data->town_of(level->id);
         if (in_town(level) || !act_town || act_town->portal_spot.first < 0) return false;
         const auto& town = *act_town;
@@ -337,8 +337,9 @@ auto World::open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms)
         if (!by_caster) { d2d::log::info("town portal: no room by ({:.1f}, {:.1f})", portal_x, portal_y); return false; }
         const auto [spot_x, spot_y] = *by_caster;
         const auto [town_x, town_y] = town.nearest_free(town.portal_spot.first, town.portal_spot.second);
-        portal[actor->portal_pair] = { level, spot_x, spot_y, now_ms };
-        portal[actor->portal_pair + 1] = { &town, town_x, town_y, now_ms };
+        const std::size_t here = pair < 0 ? actor->portal_pair : std::size_t(pair);
+        portal[here] = { level, spot_x, spot_y, now_ms };
+        portal[here + 1] = { &town, town_x, town_y, now_ms };
         cues.cue("object_townportal", now_ms, spot_x, spot_y);
         d2d::log::info("town portal: {} ({:.1f}, {:.1f}) <-> {} ({:.1f}, {:.1f})", level_name(*level), spot_x, spot_y, level_name(town), town_x, town_y);
         return true;

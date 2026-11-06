@@ -68,11 +68,19 @@ auto World::act1_enter(const Level& from) -> void {
 
 // As each object is made (its room up): the Moldy Tome's InitFn 4 (FUN_00595a00) with
 // its record closed at the join (+9 clear) puts it in mode 3, not selectable; the malus
-// stand's InitFn 15 (FUN_00544950) with its record off, mode 2.
+// stand's InitFn 15 (FUN_00544950) with its record off, mode 2; cellar 5's
+// chests' InitFn 47 (FUN_00595a50) lists each (up to 8) for the Countess's
+// treasure, then FUN_005954f0.
 auto World::init_new_objects() -> void {
         auto& seen = objects_inited[level];
         for (; seen < level->npcs.size(); ++seen) {
-            const int operate_fn = level->npcs[seen].operate_fn;
+            const auto& made = level->npcs[seen];
+            if (level->id == d2d::rules::TowerQuest::kCellar && made.root == "objects" && made.object_id == d2d::rules::object_ids::kLargeChestR
+                && tower.chests.size() < 8 && !std::ranges::contains(tower.chests, int(seen))) {
+                tower.chests.push_back(int(seen));
+                tower_treasure_made();
+            }
+            const int operate_fn = made.operate_fn;
             if (operate_fn == d2d::rules::operate_fn::kMoldyTome && closed_at_join[std::size_t(d2d::rules::TowerQuest::kQuest)])
                 doors.try_emplace({ level, int(seen) }, Door{ 3, now });
             if (operate_fn == d2d::rules::ToolsQuest::kStand && !tools.active) doors.try_emplace({ level, int(seen) }, Door{ 2, now });

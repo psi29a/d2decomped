@@ -3069,6 +3069,7 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     monster.boss = kind;
     monster.mods = mods;
     monster.super = super;
+    monster.name_seed = name_seed;
     monster.stats.hit_points += monster.stats.hit_points * boss.hp_pct / 100;
     monster.stats.hit_points = std::max(monster.stats.hit_points + monster.stats.hit_points * boss.life_after_pct / 100, 1);
     monster.stats.armor_class += monster.stats.armor_class * boss.defense_pct / 100;

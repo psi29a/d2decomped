@@ -105,7 +105,10 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
 - **The carrier.** `FUN_005a09e0` (placing a unique, superunique or preset
   special) calls `FUN_00544e80`: in act 3, record 0x12 open, the monster not
   class 0x197 and not MonStats +0xd & 0x40, → `FUN_005bac70` while armed and
-  due: the quest bound to it (`FUN_005436b0(0x12)`), +0xc0 = `FUN_005bab60`.
+  due, and not while a3q3 makes its guardian (record 0x11 data +4, set
+  around `FUN_005b9930`'s `FUN_005a43e0` at 0x5b993f..0x5b995a; that unit
+  is class 0x197, excluded anyway): the quest bound to it
+  (`FUN_005436b0(0x12)`), +0xc0 = `FUN_005bab60`.
 - **Its death** (`FUN_005bab60`): unless the killer has bit 0, `j34 ` drops
   (`FUN_00559a30`), due off, state 1.
 - **Talk** (`FUN_005b9ed0`, blocks 0x7401d0): done → block 6 once rewarded;
@@ -141,7 +144,9 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
 
 - **The chests** (objects 405 / 407 / 406, OperateFns 57 heart / 58 eye / 59
   brain: `FUN_005b8860` / `005b8940` / `005b8a20`): rand(5) + 5 gold piles on
-  the quest seed, the part for each player who needs it, a chest's drops
+  the quest seed, one part for each player in the game carrying neither it
+  nor Khalim's Will (`LAB_005b8810` counts them into record 0x10 data +0xc;
+  `FUN_00559a30(2)` each; no quest bit is read), a chest's drops
   (`FUN_00585b90`). In the sewers 2 (93), the Spider Cavern (85), the Flayer
   Dungeon 3 (91).
 - **The sewers' stairs** (366, InitFn 41 `FUN_005b8660`: the record's +8
@@ -204,7 +209,8 @@ mode, +0x1c soulstones owed.
 - **The bridge** (341, `xj`, InitFn 45 `FUN_005bcb90`, 11 × 5): takes
   +0x10 as its mode and, short of 2, schedules event 7 20 frames on. Event
   7 (`FUN_005449e0` for class 0x155 → `FUN_005bcac0`), every 24 frames:
-  with the state 2 and a player (unit type 0) of its room within 18
+  with the state 2 and a player (unit type 0) of its room (its room's
+  unit list, room +0x74; any player, the first) within 18
   (`FUN_00641530`), mode 0 → 1 (it rises, 28 frames) and the next 1 → 2,
   its footprint lifted (`FUN_00623830`: no HasCollision2). Mode 2 stops it.
 

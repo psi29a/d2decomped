@@ -423,7 +423,7 @@ id, x, y, mode) — fastcall, id / x / y / mode on the stack:
 | 0x08 | place_tightspotboss | MonStats 0x11c at the marker (radius −1 only), flag 8 |
 | 0x0a / 0x0b | place_tentacle_ns / _ew | FUN_0054da60: MonStats 0x105's chain by the level (act 3) |
 | 0x11, 0x12 | place_fallen, place_fallenshaman | one monster at the marker: base 0x13 (fallen1) / 0x3a (fallenshaman1) → the level's own (FUN_0063ec70) → FUN_0054e2a0 |
-| 0x16, 0x17, 0x19, 0x1b..0x20 | fetish, fetishshaman, imp, minion, bloodlord, deadminion / imp / barb, reanimateddead | the same with bases 0x8d, 0x116, 0x1c5, 0x211 / 0x1ec, 0x20a, 0x1b6 (other acts); 0x1d..0x20 (bases 0x1c5, 0x1ec — 0x211 in level 0x6e —, 0x20a, 0x1b6; 0x54e9a0..) try radius −1 then 4 in mode 12 (dead), unit +0xc4 \|= 0x2000000; 0x1b6 then rolls rand(50) on its own seed for a FUN_005417d0 event |
+| 0x16, 0x17, 0x19, 0x1b..0x20 | fetish, fetishshaman, imp, minion, bloodlord, deadminion / imp / barb, reanimateddead | the same with bases 0x8d, 0x116, 0x1c5, 0x211 / 0x1ec, 0x20a, 0x1b6 (other acts); 0x1d..0x20 (bases 0x1c5, 0x1ec — 0x211 in level 0x6e —, 0x20a, 0x1b6; 0x54e9a0..) try radius −1 then 4 in mode 12 (dead), unit +0xc4 \|= 0x2000000; 0x1b6 then rolls rand(50) on its own seed for a FUN_005417d0 event 7 at frame + 250 + that: monster event 7 is FUN_005a4370 (table 0x6e2490[7]) → the MonUMod event-2 hooks (FUN_005a4270), none for a monster without mods, so it does nothing |
 | 0x18, 0x1a | place_impgroup, place_miniongroup | normal only: the level's imp (0x1ec, 0x211 in level 0x6e) / minion (0x1c5) by FUN_0063ec70, then FUN_0054e090: MinGrp..MaxGrp (+0x2f / +0x30) set, the leader through FUN_005b3040 (radius −1, flags 0: its party), then `rand(max − min + 1) + min − 1` on its seed more at radius 3 round it (FUN_005b2f70, flags 0) |
 | 0x00, 0x06, 0x07, 0x09, 0x0c..0x10, 0x13..0x15, 0x21..0x24 | nothing, the river monsters, amphibian, fallennest, fetishnest, talking / dumb guards, maggots, mosquitonest, **group25..group100** | **nothing** (the default; group ids 0x21..0x24 are past the table: `index − 2 > 0x1e`) |
 
@@ -515,7 +515,10 @@ Seed 3's Blood Moor: 155 monsters (107 fallen1, 24 quillrat1, 24 zombie1).
 The client picks a monster's colour index as it makes the unit:
 1. MonStats `TransLvl` + 2 (TransLvl 8 and up: 2);
 2. a unique (monster flag 8; superuniques too), unless MonStats2
-   `noUniqueShift`: `rand(30) + 9` on the unit's seed (`FUN_00477620`);
+   `noUniqueShift`: `rand(30) + 9` on a seed made for it: {unit id + the
+   name seed's low byte, 666}, one step (`FUN_00477620` via `FUN_00650e40`;
+   the 0xac handler keeps only the low byte of the 16-bit name seed,
+   0x45f387: bugs.md #49);
 3. MonStats2 `Utrans` for the difficulty, when set (0xff: `FUN_004791b0`);
 4. a superunique's own SuperUniques `Utrans` for the difficulty, when set;
 5. 30 and up: 2.
@@ -527,8 +530,8 @@ plain, 3..6 Carver, Devilkin, ... colours); 8..29 `RandTransforms.dat`
 table - 8 (30 x 256: reds, oranges, greens, teals, blues, purples). A
 second set (+0x800) is used when a setting (+0x11c) is 2; untraced.
 
-d2d: `World::monster_colour` (the roll on the unit id: same odds, not
-game.exe's colour for that monster), `Scene::monster_map`. A state's
+d2d: `World::monster_colour` (game.exe's roll: the same colour for the
+same unit id and name seed), `Scene::monster_map`. A state's
 colour shift (states.md) replaces it while it lasts.
 
 ### Ghostly blend (client flag 0x40)

@@ -382,11 +382,13 @@ struct World {
     // the true tomb's way down to Duriel (object 100, OperateFn 43: one
     // way). Act 5's: [8] Anya's red portal to Nihlathak's Temple (object 60,
     // FUN_0058af90), [9] its twin. [10] the Cube's Cow Portal (object 60,
-    // FUN_00594140) in the camp, [11] its twin in the Moo Moo Farm. From [12]
-    // on, the other players' town portals, a pair each (Player::portal_pair).
+    // FUN_00594140) in the camp, [11] its twin in the Moo Moo Farm. [12] the
+    // Gibbet's town portal when Cain has no room (FUN_00593290 -> FUN_0056d130:
+    // nobody's own), [13] its twin in the camp. From [14] on, the other
+    // players' town portals, a pair each (Player::portal_pair).
     // A portal's other end is k ^ 1.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    static constexpr std::size_t kGamePortals = 12, kTemplePortal = 8, kCowPortal = 10;
+    static constexpr std::size_t kGamePortals = 14, kTemplePortal = 8, kCowPortal = 10, kGibbetPortal = 12;
     bool cow_portal_opened = false;        // this game's (quest record 0xb's flag, FUN_00544720)
     // a5q2's cages' portals (FUN_005888d0: object 189, as Cain's): the freed
     // prisoners' way out, no twin, not selectable.
@@ -609,14 +611,15 @@ struct World {
     // What the client is told (View).
     // A monster's colour as the client picks it (FUN_00466360): its
     // TransLvl + 2 (8 and up: 2); a unique's (and superunique's) roll from
-    // its seed, rand(30) + 9, unless noUniqueShift; MonStats2 Utrans for the
+    // own seed, rand(30) + 9, unless noUniqueShift; MonStats2 Utrans for the
     // difficulty; a superunique's own Utrans; 30 and up fall back to 2.
     // Utrans 0xff (necroskeleton, necromage) is 1 for a pet of the viewer
     // or of a player not hostile to them, else 0 (FUN_004791b0: the 0x7a pet
     // list's owner, the roster's flag 8; 0x46665c): 0 here, where pets aren't
     // (Player::pets). Both draw untinted.
-    // ponytail: the roll is on the unit id, not the unit's seed (the same
-    // odds, not the same colour as game.exe's for a given monster).
+    // That seed (FUN_00477620 via FUN_00650e40): {unit id + the name seed's
+    // low byte, 666}, one step (the 0xac handler keeps only the low byte of
+    // the 16-bit name seed, 0x45f387: bugs.md).
     [[nodiscard]] int monster_colour(const Monster& monster) const;
     [[nodiscard]] View view() const;
 
@@ -686,9 +689,10 @@ struct World {
     // (no damage traced); 8 raises the level's undead.
     // trapfirebolt bursts into its fireexplode as any missile does (its
     // ExplosionMissile, missiles_update).
-    // ponytail: the AI's range check (aip1) is skipped — the player opening
-    // the chest is always close; chainlightning doesn't hop (act 2 on: act 1
-    // swaps it for firebolt).
+    // The AI's range check (aip1 25 / 20 subtiles) always passes for the
+    // opener: operating needs reach 2 of the chest (FUN_00623660), the trap
+    // within 3 of it (FUN_00582420). Untraced: its pick among several players.
+    // ponytail: chainlightning doesn't hop (act 2 on: act 1 swaps it for firebolt).
     // `undead`: 8's count (0: 1 or 2); a casket's or barrel's undead is one.
     void spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_ms, int undead = 0);
     // A container's trap as it opens (FUN_00582510): trap 8 with no undead
@@ -794,10 +798,12 @@ struct World {
     void kashya_merc();
     void countess_died(std::uint32_t now_ms);
     // The Countess's treasure (missile 332, towerchestspawner, one a chest
-    // of cellar 5: FUN_005954f0): frames left, counting down (FUN_005af300).
-    struct Treasure { const Level* level; int npc; int left; };
+    // of cellar 5: FUN_005954f0): frames left, counting down (FUN_005af300),
+    // and its unit seed ({a game seed step, 666}: FUN_00555230 -> FUN_00552df0).
+    struct Treasure { const Level* level; int npc; int left; d2d::rules::Rng seed; };
     std::vector<Treasure> treasure;
     void tower_treasure(std::uint32_t now_ms);
+    void tower_treasure_made();            // FUN_005954f0
     void stamina_frame();                  // a 40 ms frame's stamina drain / regen
     [[nodiscard]] int walk_percent(const Player& player, std::uint32_t now_ms) const;   // a player's walk % (FUN_00623f50)
     [[nodiscard]] static int walk_percent(const GameData& data, int save_class, bool run, int frw, bool chilled, int velocity_pct = 0);   // the same from its parts
@@ -875,7 +881,7 @@ struct World {
     // A town portal pair `pair` closes (FUN_00535430 / FUN_00584870): an end
     // on the Summit counts out of the Rite (RiteQuest::portal_closed).
     void close_portal_pair(std::size_t pair);
-    bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms);
+    bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms, int pair = -1);   // -1: the actor's own pair
     // FUN_0056d130's spot (FUN_0064e810, field_spot): from (x, y) cells, a
     // 3 x 3 box (size 3) clear of 0x3e01 and expfield.d2's walk back clear of
     // 0xc01, over the grid, the items lying (0x200) and the units here (the
