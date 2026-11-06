@@ -464,7 +464,11 @@ unit's death).
   bloodlust, with `FUN_0045c390`'s roll at least calc1 (65), turns
   (`FUN_005d1e10`): its summon (suicideminion1) in summode (S1) through
   `FUN_00574370`, special AI 15 (`FUN_005e1d30`, the SuicideMinion
-  think), state 0x8e with stat 0x163, sumumod 33. Else Bloodlust
+  think), state 0x8e with stat 0x163, sumumod 33. Only the client reads
+  them: state 0x8e is changeclass (States.txt setfunc 5), whose client
+  set function (`FUN_004d9e60` -> table 0x72a690[5] = `FUN_004d89b0`)
+  reads stat 0x163, the old class, and acts only for 0x21f (baalthrone,
+  set by `FUN_005ef320`); no server code tests state 0x8e. Else Bloodlust
   (`FUN_005d1d70`): state 141 for auralen (250) frames and its aurastats
   (velocity +80, attack rate +80, armor +50, damage +100 %).
 - **Impregnate** (do 133, `FUN_005d2250`; PutridDefiler, S1 at its find):
