@@ -177,9 +177,12 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
 // trade has stocked (its record's +0x1c and +0x20) loses its stock
 // (FUN_00536d10 -> FUN_00536580), rolled anew at the next opening. The
 // party moves together, so the town is always left empty: the 4-minute
-// restock (+0x27, players still in town) doesn't come up.
+// restock (+0x27, players still in town) doesn't come up. A store still
+// open ends with the trip (FUN_00555500, an interaction cut short), so no
+// later deal saves the old stock back.
 auto World::leave_town(const Level* from) -> void {
         if (!in_town(from) || from == level) return;
+        for (auto& player : players) player->store = {};
         stocks.clear();
     }
 

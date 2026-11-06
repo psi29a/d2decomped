@@ -360,7 +360,9 @@ The list is the player's own, and it lasts one talk with the vendor:
   the player out of the NPC's list of talkers (the NPC's data +0x30).
   When that list is then empty, it frees the player's node
   (`FUN_00537190`).
-- So each talk rolls a new list.
+- Once the node is freed, the next talk rolls a new list. While another
+  player is still talking to the vendor, the closing player's node stays,
+  and their next talk shows the same list.
 - An interaction cut short (`FUN_00555500` → `FUN_00536b50`) frees the
   node whether or not anyone else is talking.
 

@@ -845,6 +845,16 @@ int main(int argc, char** argv) try {
         assert(codes(charsi, false) == stock);
         away_and_back();
         assert(codes(charsi, false) != stock);
+        // A store left open ends with the trip: no deal saves the old stock back.
+        vendors.apply(d2d::game::cmd::OpenTrade{ charsi, false }, 27 * kTickMs);
+        const auto open = vendors.actor->store.tabs;
+        away_and_back();
+        assert(vendors.actor->store.npc < 0);
+        const auto reopened = codes(charsi, false);
+        assert(!reopened.empty());
+        std::vector<std::string> before;
+        for (const auto& tab : open) for (const auto& item : tab) before.push_back(item.code + std::to_string(item.id));
+        assert(reopened != before);
         std::printf("OK: leaving town restocks the vendors; each talk with Gheed rolls a new list\n");
     }
     {   // gold find (FUN_005589a0): the coins times (100 + stat 79) / 100
