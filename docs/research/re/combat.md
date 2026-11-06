@@ -221,8 +221,22 @@ d2d matches both, and the one-poison-at-a-time rule.
   `rules::monster_blow` and the shield path both do that now (the fields in
   256ths, one field a type, the total clamped once; `test_combat`).
   Not covered (U): Cyclone Armor's fractions, the
-  flat's +0x54 / 1024 scale, `FUN_0057c060`'s percent, elements, a missile's
+  flat's +0x54 / 1024 scale, elements, a missile's
   `FUN_005a89a0` roll.
+- **The pair percent** (`FUN_0057c060`, EAX the hit context: +4 ?, +8
+  attacker, +0xc defender; 100 when either is missing or they are one).
+  On a player: 17 (0x11) from a player, a hireling (`FUN_0063ee90`: classes
+  0x10f, 0x152, 0x167, 0x230, 0x231) or a player's pet (unit +0xc4 bit 31,
+  `FUN_00451f30`), else 100. On anything else: 25 (0x19) hireling on
+  hireling; a hireling on a MonStats boss (`FUN_0063e9f0(0, ..)`, +0xc &
+  0x40) takes the context's +4 record's +0x38 (100 without one; not
+  traced); a primeevil (`FUN_0063edc0`, +0xc & 0x80: Andariel, Duriel,
+  Mephisto, Diablo and his clone, Baal and his clone, the ubers) on a
+  player's pet: 200 for a hireling, 400 for any other; else 100.
+  `FUN_0057c1e0` (0x57c214 on) scales each damage field of the record
+  (table 0x732980's 12 rows, those with +0x20 set) above 0 by it
+  (`FUN_00483360`, × pct / 100) before the absorb events and the
+  reduction.
 - Deadly strike (stat 141), critical strike (stat 337) and mastery crit
   (`macr`) are **separate** rolls against rand(100); any one doubles the
   physical damage.
