@@ -70,6 +70,7 @@ auto World::cross_level() -> void {
             level = neighbour.level;
             fight.enter(level);
             loot.enter(level);
+            leave_town(from);
             swap_npcs(from);
             d2d::log::info("level: {} at ({:.1f}, {:.1f})", level_name(*level), actor->player.x, actor->player.y);
             return;
@@ -143,6 +144,7 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         const Level* from = level;
         const int from_act = act();
         level = destination;
+        leave_town(from);
         if (act() != from_act) {                      // a new act (the caravan, a waypoint): its vendors stock anew; the save starts there
             stocks.clear();
             set_act(act());
@@ -168,6 +170,17 @@ auto World::arrive(const Level* destination, float arrive_x, float arrive_y, con
         actor->interact_npc = actor->pick_item = actor->take_warp = actor->take_portal = -1;
         if (level->id == d2d::rules::DenQuest::kDen) den.enter_den(quests());
         d2d::log::info("level: {} at ({:.1f}, {:.1f}), through {} from {}", level_name(*level), free_x, free_y, how, level_name(*from));
+    }
+
+// The party left `from` (FUN_005380d0 -> FUN_00537340: from one of the five
+// towns, none left in it, FUN_00537230's last argument set): each vendor a
+// trade has stocked (its record's +0x1c and +0x20) loses its stock
+// (FUN_00536d10 -> FUN_00536580), rolled anew at the next opening. The
+// party moves together, so the town is always left empty: the 4-minute
+// restock (+0x27, players still in town) doesn't come up.
+auto World::leave_town(const Level* from) -> void {
+        if (!in_town(from) || from == level) return;
+        stocks.clear();
     }
 
 // The save's act (its difficulty byte: 0x80 and the act in the low bits):

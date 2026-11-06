@@ -816,6 +816,37 @@ int main(int argc, char** argv) try {
         assert(!offers.empty() && world.hire_offers(0).size() == offers.size() && world.hire_offers(0).front().seed == offers.front().seed);
         std::printf("OK: Charsi's stock and Kashya's offers outlast their windows\n");
     }
+    {   // Leaving town restocks the vendors that a trade stocked (FUN_00537340
+        // -> FUN_00537230 -> FUN_00536d10); the stock is kept until then. A
+        // gamble list lasts one talk (C->S 0x30 -> FUN_00572f20 ->
+        // FUN_00537190), so each talk with Gheed rolls a new one.
+        World vendors(&*data, -1, -1);
+        vendors.enter(character);
+        const auto* camp = vendors.level;
+        const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
+        const auto index_of = [&](int hc_idx) { return int(std::ranges::find(camp->npcs, hc_idx, &Npc::hc_idx) - camp->npcs.begin()); };
+        const int charsi = index_of(d2d::rules::monster_ids::kCharsi), gheed = index_of(d2d::rules::monster_ids::kGheed);
+        const auto codes = [&](int npc, bool gamble) {
+            vendors.apply(d2d::game::cmd::OpenTrade{ npc, gamble }, 27 * kTickMs);
+            std::vector<std::string> out;
+            for (const auto& tab : vendors.actor->store.tabs) for (const auto& item : tab) out.push_back(item.code + std::to_string(item.id));
+            vendors.apply(d2d::game::cmd::CloseTrade{}, 27 * kTickMs);
+            return out;
+        };
+        const auto away_and_back = [&] {
+            vendors.arrive(moor, float(moor->ds1.width()) / 2, float(moor->ds1.height()) / 2, "a test");
+            vendors.arrive(camp, camp->start.first, camp->start.second, "a test");
+        };
+        const auto list = codes(gheed, true);
+        assert(!list.empty() && codes(gheed, true) != list);              // a new talk, a new list
+        const auto stock = codes(charsi, false);
+        assert(!stock.empty() && codes(charsi, false) == stock);
+        vendors.arrive(camp, camp->start.first, camp->start.second, "a test");   // town to town: not left
+        assert(codes(charsi, false) == stock);
+        away_and_back();
+        assert(codes(charsi, false) != stock);
+        std::printf("OK: leaving town restocks the vendors; each talk with Gheed rolls a new list\n");
+    }
     {   // gold find (FUN_005589a0): the coins times (100 + stat 79) / 100
         auto seed = world.fight.spawning.game;
         d2d::rules::Rng unit{ seed.next() };
