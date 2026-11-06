@@ -52,7 +52,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 2 | Lit tiles | 32-pixel blocks, each bilinear between its four corner lights | Each pixel bilinear between the subtile corners round the ground under it | hardly | tile_blit.hpp `blit_dt1_tile_lit` |
 | 3 | Unit shadows | Each layer drawn through the alpha table (untraced whether overlaps darken twice) | A composite darkens each pixel once | hardly | world_view.hpp `shadow_composite` |
 | 4 | Light Quality | Drops to 0 or 1 by frame rate and the Video Options setting (fewer shadows, capped radii) | Always high (2) | only on slow machines | town.hpp `frame_light` |
-| 5 | Static lights' shadows (type 2) | Cached from the collision map (`FUN_004750f0`) | Not built (no such light in the Blood Moor) | not yet | lighting.md |
+| 5 | Static lights' shadows (type 2) | Cached from the collision map (`FUN_004750f0`) | Read from the map each frame (`stamp_shadowed`): only the cache differs | hardly | lighting.md |
 | 6 | Ambience at dusk and dawn | Cross-fades over 250 sound ticks (`FUN_004e42e0`) | matched since this commit (`Audio::crossfade_ambience`) | — | audio.hpp |
 | 7 | Rain's random rolls | The player unit's seed | A client seed of its own | no (same odds) | weather.hpp `Rain::rng` |
 | 8 | Where a town portal opens by its caster | Nearest free spot from the caster, collision 0x3e01, size 3 | matched since this commit (`World::portal_spot`) | — | world/travel.cpp `portal_spot` |
