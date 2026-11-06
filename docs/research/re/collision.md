@@ -210,8 +210,12 @@ object or player going is the client, every game frame, until it stands in reach
   (player data +0x150) = 1, action +0x154 = 0x13, target +0x158 / +0x15c
   (LAB_00462159). A stop leaves it queued, the mode unchanged (FUN_00463390,
   LAB_004636ae).
-- **Run each frame.** FUN_0044efa0 calls FUN_00481600 (LAB_0044f126), which
-  clears the queue (LAB_00481672, FUN_0045c470) and asks FUN_00480c80 about
+- **Run each frame** of a game. FUN_0044efa0 calls FUN_00481600 (LAB_0044f126)
+  only while 0x7a061c is set: S→C 0x04's handler sets it (LAB_0045c9a3), and
+  S→C 0x05's handler (LAB_0045ca3f), FUN_0044e380 (LAB_0044e3df), FUN_00477ee0
+  (LAB_00477f2f) and FUN_00453910 (LAB_004539bb) clear it, as FUN_0044e200 does
+  at the start. FUN_00481600 clears the queue
+  (LAB_00481672, FUN_0045c470) and asks FUN_00480c80 about
   a player, monster or object target (LAB_004816f5, LAB_004816ea,
   LAB_004816d8).
 - **Out of reach,** FUN_004812e0 runs the walk command (LAB_0048136b,
