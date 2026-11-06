@@ -424,6 +424,10 @@ int main() {
     assert(max_durability(tough) == 50 && repair_cost(tables_copy, tough, "Charsi", header) == 1000 * 40 / 50 / 2);
     Item forever = worn; forever.props = { { .stat = 152, .value = 1 } };
     assert(repair_cost(tables_copy, forever, "Charsi", header) == 0);
+    // A corpse's item to its slot or the other side (FUN_0055f2d0 / FUN_0055f240).
+    assert(corpse_slot(4, false, true) == 4 && corpse_slot(4, true, false) == 5 && corpse_slot(4, true, true) == -1);
+    assert(corpse_slot(6, true, false) == 7 && corpse_slot(12, true, false) == 11 && corpse_slot(1, false, false) == 1);
+    assert(other_side(3) == 0 && corpse_slot(3, true, false) == 0);                      // no other side: nowhere
     // The corpse a save keeps (FUN_005697f0): the dearest repair, 1 + each item's (a whole one 1), a tie the later.
     {
         Item purse = item("gld");

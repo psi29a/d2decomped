@@ -437,6 +437,18 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   player; each item (`FUN_00562f30`) to its body location when that's free
   and its requirements are met, else to the inventory; the corpse goes
   when nothing's left on it.
+  The worn pass (`FUN_00562f30`): body locations 1..12 of the corpse, in
+  order, passes repeated while one moved something. An item whose
+  requirements pass (`FUN_0062eaf0`) goes to `FUN_0055f2d0(player, item,
+  &A, &B, &loc)`, A the player's item at its location, B the one at the
+  other side's (`FUN_0055f240`: 4 <-> 5, 6 <-> 7 the rings, 0xb <-> 0xc).
+  Both free: it fits. Both taken: no. A taken, B free (0x55f32f..): it
+  goes to the other side instead, with A as its pair. For a hand the pair
+  is then checked (a bow with what it Shoots, a quiver only with its bow,
+  two weapons only for a Barbarian (class 4) or an Assassin with two claws
+  (type 0x43), else one weapon; a monster unit (the merc) any two); a ring
+  needs nothing more. No: to the inventory now (`FUN_005600a0`); fits:
+  worn (event 4, `FUN_00543d80`).
 - **Saving:** the d2s keeps a corpse list after the player's items ("JM",
   count, then 12 bytes and an item list each; `FUN_00533850` makes them
   again on joining).

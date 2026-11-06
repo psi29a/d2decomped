@@ -1183,6 +1183,25 @@ inline bool hands_ok(const Tables& tables, const d2d::d2s::Item& first, const d2
     return first_weapon != second_weapon;
 }
 
+// A body slot's other side (FUN_0055f240): the arms 4 <-> 5, the rings
+// 6 <-> 7, the switch arms 11 <-> 12; 0 for the rest.
+inline int other_side(int slot) {
+    switch (slot) {
+    case 4: return 5; case 5: return 4; case 6: return 7; case 7: return 6;
+    case 11: return 12; case 12: return 11;
+    default: return 0;
+    }
+}
+// Where a corpse's item from `slot` goes (FUN_0055f2d0): `taken` the
+// player's slot, `other_taken` its other side's. Both free: its own; both
+// taken: none (-1, the inventory); its own taken, the other free: the other
+// side (0x55f333..0x55f33a); else its own. An arm then pairs with what the
+// other hand holds (hands_ok), a ring with nothing.
+inline int corpse_slot(int slot, bool taken, bool other_taken) {
+    if (taken && other_taken) return -1;
+    return taken ? other_side(slot) : slot;
+}
+
 // The item cursor. D2 moves one item at a time: picking up takes it out
 // of the list into `held`; putting down places it, swapping with the one
 // item it lands on (into `held`), and fails when it would overlap two or
