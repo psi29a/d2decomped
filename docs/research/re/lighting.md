@@ -63,8 +63,9 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
   next phase's by how far the time is between them. Level 120 is fixed at
   (245, 240, 255).
 - **The level's own light:** `FUN_00619d70` gives the level's Levels.txt
-  Intensity / Red / Green / Blue. When any is non-zero, its Intensity
-  replaces the day's (`FUN_00474550`). Act 1's caves (8..): 0, (255, 255,
+  Intensity / Red / Green / Blue. When any of the colours is non-zero, its
+  Intensity replaces the day's (`FUN_00474550` doesn't test the Intensity; no
+  Levels.txt row sets one without a colour). Act 1's caves (8..): 0, (255, 255,
   255): dark but for the lights.
 - **Ambient sound:** day while the phase index is 1..3 (`FUN_004e42e0`
   via `FUN_0061c220`), so 0° to 180°; else night.
