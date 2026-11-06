@@ -477,11 +477,16 @@ inline int price_term(int mul, int add, int price, int value, int limit, int shi
 // the skill) by the value, Encode 2 / 3 (skill << 6 | level: on-hit, charges) by
 // the level, a sale by / 4096. Encode 4 (by time) is mult 0 and no add in 1.14d.
 // `buy` is the buy side's price, which picks the branch. The save's lists (the
-// main one, a runeword's after it) stand for the magic lists.
-// ponytail: a socketed item's own stats, if the full list holds them, aren't added.
+// main one, a runeword's after it) stand for the magic lists. The list is the
+// full one (FUN_00625c30: the stat list's +0x48; FUN_00625560: FUN_00625420
+// full less FUN_00625350 base), what the sockets hang on it included
+// (socket_props), as stat 91 is read (FUN_00625500 -> FUN_00625420).
+inline std::vector<d2d::d2s::ItemProp> socket_props(const Tables& tables, const d2d::d2s::Item& parent, const d2d::d2s::Item& filled);
 inline int stat_costs(const Tables& tables, const d2d::d2s::Item& item, int buy, int price, bool sell) {
     std::map<std::pair<int, int>, int> stats;
     for (const auto& prop : item.props) stats[{ prop.stat, prop.param }] += prop.value;
+    for (const auto& filled : item.socketed_items)
+        for (const auto& prop : socket_props(tables, item, filled)) stats[{ prop.stat, prop.param }] += prop.value;
     int total = 0;
     for (const auto& [key, value] : stats) {
         const auto [stat, param] = key;
@@ -777,8 +782,9 @@ inline bool needs_repair(const Tables& tables, const d2d::d2s::Item& item) {
 // durability as FUN_0062efb0 does (0062f9e7): an item without durability
 // pays its whole base, a durable one its missing share. A whole item that
 // passes the gate costs 0 before the minimum, so 1 (0062fd5c): Repair All
-// skips it by `needs_repair`, not by its price.
-// ponytail: no socket terms.
+// skips it by `needs_repair`, not by its price. What its sockets hold adds
+// half of each one's cost (FUN_006292f0 at 0062f86c, the repair total too),
+// after the staff mods and before the missing share and the mults.
 inline long long repair_each(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, bool worn_share) {
     const int max = max_durability(item);
     const auto found = tables.item_base.find(item.code);
@@ -806,6 +812,8 @@ inline long long repair_each(const Tables& tables, const d2d::d2s::Item& item, c
     }
     long long x = base + affixes / divisor + unsigned_share(stats, divisor);
     if (item.quality >= 4) x += unsigned_share(staff_mod_costs(tables, item, int(x), int(x), false), divisor);
+    for (const auto& socketed : item.socketed_items)
+        if (const auto socketed_base = tables.item_base.find(socketed.code); socketed_base != tables.item_base.end()) x += socketed_base->second.cost / 2;
     // The missing share's product is game.exe's 32 bits (0062fa45). An item
     // that replenishes its durability (stat 0xfc, 0062fa13) pays (max - 1) /
     // max of it below max - 1 (0062fa35), else nothing (0062fa2c). A
@@ -959,11 +967,20 @@ inline bool store_perm(const Store& store, const std::string& code) {
 //   that can't goes to the inventory and ends it (FUN_0055e9b0 fails:
 //   param_8 cleared). Gold or room running out after one is bought: gold
 //   says no_gold (0x8d4), room says nothing (done).
-// ponytail: an item bound for the inventory isn't first offered to a body
-// slot (FUN_00562e00: auto_equip_slot, with its own rules for arrows and
-// bolts by the weapon held, 0x883e9c / 0x883ea0).
+// Given a wearer, an item bound for the inventory is first offered to a body
+// slot (0x577d10 .. FUN_00562e00 -> FUN_0055d710 mode 0: auto_equip_slot,
+// `required_level` the item's), unless a weapon is in hand (FUN_0063bef0,
+// either arm, ItemTypes 0x2d) and the item is a weapon too. Bolts (cqv,
+// 0x883e9c) go on only by a crossbow in hand (its wclass xbw, FUN_00623c60
+// 7), arrows (aqv, 0x883ea0) only by a bow (bow, 1), neither with nothing in
+// hand: in vanilla data every bow's wclass is bow and every crossbow's xbw,
+// so auto_equip_slot's own test (the hand's weapon shoots the quiver's type)
+// is the same one.
+struct Wearer;
+inline int auto_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, const Wearer& wearer,
+                           int required_level);
 inline Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats, int boxes = 4,
-                       bool fill = false) {
+                       bool fill = false, const Wearer* wearer = nullptr, int required_level = -1) {
     using d2d::d2s::Item;
     auto& tab = store.tabs[std::size_t(store.tab)];
     const auto item = tab[std::size_t(index)];
@@ -974,6 +991,14 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
         stats.values[d2d::d2s::kGoldBank] -= cost - from_inv;
     };
     const auto in_inventory = [](const Item& carried) { return carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory; };
+    const auto weapon = [&](const Item& carried) {
+        const auto found = tables.item_info.find(carried.code);
+        return found != tables.item_info.end() && type_is(tables, found->second.type, "weap");
+    };
+    const auto in_hand = [&](const Item& carried) {
+        return carried.location == d2d::d2s::item_location::kEquipped && weapon(carried)
+            && (carried.slot == d2d::d2s::body_location::kRightArm || carried.slot == d2d::d2s::body_location::kLeftArm);
+    };
     std::int64_t price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
     if (purse() < price) return Trade::no_gold;
     fill = fill && store_perm(store, item.code);
@@ -1023,6 +1048,10 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
         copy.quantity = quantity;
         if (const int box = belt_box(tables, items, copy, boxes); box >= 0) {
             copy.location = d2d::d2s::item_location::kBelt; copy.column = box; copy.row = 0; copy.panel = 0; copy.slot = 0;
+        } else if (const int slot = wearer && !(weapon(copy) && std::ranges::any_of(items, in_hand)) ? auto_equip_slot(tables, items, copy, *wearer, required_level) : -1;
+                   slot > 0) {
+            fill = false;
+            copy.location = d2d::d2s::item_location::kEquipped; copy.slot = slot; copy.column = 0; copy.row = 0; copy.panel = 0;
         } else {
             fill = false;
             std::vector<const Item*> inv;
@@ -1038,7 +1067,7 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
     }
 }
 
-// Sells inventory item i (FUN_00579510): gold up by the sell value, what
+// Sells item i (FUN_00579510): gold up by the sell value, what
 // passes the carried cap (clvl x 10000) returned to drop at the player's
 // feet (FUN_0055b060). The vendor stocks a copy at full durability and stack
 // (stats 72 / 70) unless it's Cracked (LowQualityItems row 1), broken
@@ -1046,8 +1075,9 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
 // (FUN_0055f590: Items hasinv, +0x137, with its inventory not empty), sold
 // while gambling (the player's proxy at the vendor, FUN_00536cb0: +4 set by
 // the gamble open, FUN_00578b30), a greater or super potion in an expansion
-// game, or one of the vendor's perm items (FUN_00576ed0).
-// ponytail: no belt/equipped selling.
+// game, or one of the vendor's perm items (FUN_00576ed0). The item is a
+// stored one, the cursor's or a worn one (the World's cmd::Sell: off its
+// body slot by FUN_00560cd0; a belt item refused).
 inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const auto& sold = items[index];
     const int price = item_price(tables, sold, store.npc_id, true, store.header);
@@ -1263,8 +1293,7 @@ inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std:
 }
 
 // Put `held` in belt box `box` (0..boxes-1): potions, scrolls — ItemTypes
-// Beltable along the Equiv chain.
-// ponytail: swapping in a smaller belt doesn't check the rows it'd lose.
+// Beltable along the Equiv chain. A smaller belt's lost rows: spill_belt.
 inline bool put_in_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
                         int box, int boxes) {
     if (!held || box < 0 || box >= boxes) return false;
@@ -1283,6 +1312,31 @@ inline bool put_in_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items
     put.location = d2d::d2s::item_location::kBelt; put.column = box; put.row = 0; put.panel = 0; put.slot = 0;
     items.push_back(std::move(put));
     return true;
+}
+
+// A belt put on or taken off (FUN_005608c0, from the swap FUN_00560f00 and
+// body -> cursor FUN_00560cd0; none worn: Belts.txt row 2, one row): each
+// item in a box the belt now worn lacks, `boxes` up to 15 in order, goes to
+// the inventory (FUN_0063b950: free_spot, a player's best fit), else it's
+// returned, for the caller to drop at the player's feet (FUN_00555da0,
+// FUN_00558aa0).
+inline std::vector<d2d::d2s::Item> spill_belt(const Tables& tables, std::vector<d2d::d2s::Item>& items, int boxes, int cols, int rows) {
+    std::vector<d2d::d2s::Item> dropped;
+    for (int box = std::max(boxes, 0); box < 16; ++box) {
+        const auto found = std::ranges::find_if(items, [&](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kBelt && item.column == box; });
+        if (found == items.end()) continue;
+        std::optional<d2d::d2s::Item> spilt = std::move(*found);
+        items.erase(found);
+        std::vector<const d2d::d2s::Item*> placed;
+        for (const auto& item : items)
+            if (item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory) placed.push_back(&item);
+        const auto [width, height] = item_size(tables, spilt->code);
+        if (const auto [column, row] = free_spot(tables, placed, cols, rows, width, height, true);
+            column >= 0 && put_in_grid(tables, items, spilt, d2d::d2s::item_panel::kInventory, cols, rows, column, row)) continue;
+        spilt->location = d2d::d2s::item_location::kStored; spilt->column = spilt->row = spilt->panel = 0;
+        dropped.push_back(std::move(*spilt));
+    }
+    return dropped;
 }
 
 // Per stat point, in quarter points (CharStats LifePerVitality,

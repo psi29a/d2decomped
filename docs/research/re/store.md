@@ -140,6 +140,11 @@ The base y is 539 (= 60 + 255 + 224):
      stat list less the base one, ItemStatCost Multiply·base·value/1024 +
      Add; a skill stat, Encode 1 by its value or 2/3 by its level, takes
      Skills.txt cost mult / cost add, a sale's / 4096; value 0 skipped).
+     The full list is the stat list's `+0x48` array (`FUN_00625c30`), each
+     value `FUN_00625420` (full) less `FUN_00625350` (`+0x24`, base). A
+     filled socket's stats hang on that list (`FUN_00627910` ->
+     `FUN_00626e10`, as stat 91 is read through `FUN_00625500`), so a gem,
+     rune or jewel's stats are priced with the item's own, summed by stat.
      Staff mods (`FUN_0062edd0`: each stat 107, (2·level − 1)·(skill cost
      mult·price/1024 + cost add), a sale's / 4096) count on the base below
      magic, identified or not, and on the price with its extras from magic
@@ -216,6 +221,13 @@ The base y is 539 (= 60 + 255 + 224):
   sends 12, no spot for it 10, a cursor item 7, a failed copy 9.
 - A sale (FUN_00579510): FUN_0062a130 refuses flag 0x1000, an Items.txt
   quest item (+0x12a: Wirt's leg too) and type 0x27 (ques) with 9.
+- The sold item's mode (unit +0x10) must be the one the packet carries
+  (else 9). Mode 0, stored, leaves its grid; mode 4, the cursor's, leaves
+  by `FUN_0055eea0`. Any other mode comes off its body slot
+  (`FUN_00627d40` → `FUN_00560cd0`, which needs nothing else on the
+  cursor). A belt item has no body slot, so that fails and the sale
+  returns with nothing paid and no message. A worn belt sold spills its
+  boxes (`FUN_005608c0`). d2d: the World's `cmd::Sell`.
 - The client (FUN_004b6390 -> FUN_004b53f0) answers 7..0x10 with an
   NPC-menu box at the mouse (FUN_00468730 / 40): the text in colour 1
   (red), line height 0x15, over "Continue" (0xd4b, height 0xf, handler
@@ -228,7 +240,9 @@ The base y is 539 (= 60 + 255 + 224):
 
 The price function computes buy, sell and repair together. Repair:
 
-1. base = the buy base with its quality extras (no ethereal ¼);
+1. base = the buy base with its quality extras (no ethereal ¼), plus
+   half of each socketed item's cost: `FUN_006292f0` (`0062f86c`) adds
+   it to the repair total as well as to buy and sell;
 2. nothing for ethereal or unidentified items (`FUN_0062e660`), nor,
    unless charges are missing, for an item whose ItemTypes row has no
    Repair or that neither restocks nor has durability
@@ -402,9 +416,20 @@ else rare.
   a free bottom box. Else the inventory's first free spot
   (`FUN_00560200` → `FUN_0063b950`); no room refunds it and answers 10
   (line 0x91c). d2d: `rules::store_buy` (`rules::belt_box`).
-  Not yet: before the inventory, the item is offered to a body slot
-  (`FUN_00562e00`, `auto_equip_slot`), with rules for arrows and bolts
-  by the bow or crossbow held (0x883e9c / 0x883ea0).
+- Before the inventory, the item is offered to a body slot (from
+  `LAB_00577d10`: `FUN_00562e00` → `FUN_0055d710` mode 0, as a pickup's
+  `auto_equip_slot`). The buy's own gates come first:
+  - With a weapon in hand (`FUN_0063bef0`, either arm, ItemTypes 0x2d),
+    a bought weapon isn't offered (`FUN_00629bb0(item, 0x2d)`).
+  - Bolts (`0x883e9c`, "cqv", set in `FUN_00536070`) only with a weapon
+    in hand whose wclass (`FUN_00623c60` → `FUN_00629fe0`, Items +0xc0)
+    is 7, xbw. Arrows (`0x883ea0`, "aqv") only with wclass 1, bow.
+    Neither with no weapon in hand.
+
+  In vanilla data every bow's wclass is bow and every crossbow's xbw, so
+  `auto_equip_slot`'s own test (a weapon in hand that shoots the
+  quiver's type) is the same one. d2d: `rules::store_buy`, given the
+  World's wearer.
 - Shift + right click fills (`FUN_004b2650`: mouse flag 4 and Items
   +0x1a5, Misc.txt multibuy: the potions, scrolls and keys, set C->S
   0x32's 0x80000000; the server, `FUN_0054bac0` → `FUN_00577830`, takes

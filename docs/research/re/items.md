@@ -57,3 +57,32 @@ Re-check these claims against game.exe 1.14d:
 ```sh
 cd tools/emu && uv run python item_accessors.py
 ```
+
+## A belt put on or taken off (`FUN_005608c0`)
+
+The server runs it in two cases:
+
+- A belt swapped in from the cursor (C->S 0x1d, `54af50` -> `FUN_00560f00`).
+  After the swap passes `FUN_0063de60`, an incoming item of type 0x13
+  (`FUN_0062b400`) calls it with the new belt.
+- A belt taken to the cursor (C->S 0x1c, `54aec0` -> `FUN_00560cd0`). It
+  calls it with no belt, so Belts.txt row 2 (one row) is used.
+
+It reads the belt's row (`FUN_00621ed0`, its Belts.txt index;
+`FUN_00660cb0`) for `numboxes`. Then, for box 0 up to 15, each item in a
+box at or past `numboxes`:
+
+1. Comes out of the belt (`FUN_0063ad90`), and the client is told
+   (`FUN_0053eed0`).
+2. Gets inventory page 0 (`FUN_00628280`) and goes to the inventory's
+   free spot (`FUN_0063b950`, a player's best fit).
+3. With no room, drops at the nearest free spot to the player
+   (`FUN_00555da0`, `FUN_00558aa0`).
+
+The swap itself checks nothing about the rows. The one belt check in the
+0x1d handler, `FUN_00567840`, refuses the swap only while a trade with
+another player is open (interaction type 0, `FUN_00554100`) and the belt
+holds an item (`FUN_0063e020` page 2).
+
+d2d: `rules::spill_belt`, called by the World's `cmd::ToBody` (belt
+slot) and `cmd::ToCursor` (the worn belt).

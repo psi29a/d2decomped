@@ -108,6 +108,10 @@ int main() {
         assert(item_price(tables, superior, "Nobody", true, header) == 1000 + 662 + 225);     // a sale's skill term / 4096
         Item plain = superior; plain.quality = 2;
         assert(item_price(tables, plain, "Nobody", false, header) == 1000);                   // a normal item's stats cost nothing
+        Item holder = item("hax", 3); holder.props = { { 0, 0, 4 } };
+        Item filled = item("gem"); filled.props = { { 0, 0, 6 } };
+        holder.socketed_items = { filled };
+        assert(item_price(tables, holder, "Nobody", false, header) == 1000 + 662 + 100);      // the socket's strength 6 joins the 4: 10 once, + half the gem
         Item staff = item("hax"); staff.props = { { 107, 5, 2 } };
         assert(item_price(tables, staff, "Nobody", false, header) == 1000 + 3 * 350);         // (2 x 2 - 1) x (256 x 1000 / 1024 + 100)
         assert(item_price(tables, staff, "Nobody", true, header) == 1000 + 3 * 162);
@@ -386,6 +390,24 @@ int main() {
     assert(put_in_belt(cursor_tables, belt, held, 2, 4) && held && belt.size() == 1);
     assert(!put_in_belt(cursor_tables, belt, held, 4, 4));                               // no such box
 
+    // A smaller belt (FUN_005608c0): boxes 4.. go to the inventory, box order,
+    // the rest returned to drop; boxes it has stay.
+    std::vector<d2d::d2s::Item> spilling;
+    for (const int box : { 9, 1, 4, 13 }) {
+        spilling.push_back(item("hp1"));
+        spilling.back().location = d2d::d2s::item_location::kBelt;
+        spilling.back().column = box;
+        spilling.back().id = box;
+    }
+    const auto spilt = spill_belt(cursor_tables, spilling, 4, 2, 1);                        // a 2 x 1 inventory
+    assert(spilt.size() == 1 && spilt[0].id == 13);
+    assert(std::ranges::count(spilling, d2d::d2s::item_location::kBelt, &d2d::d2s::Item::location) == 1);
+    for (const int box : { 4, 9 }) {
+        const auto moved = std::ranges::find(spilling, box, &d2d::d2s::Item::id);
+        assert(moved != spilling.end() && moved->location == d2d::d2s::item_location::kStored && moved->panel == d2d::d2s::item_panel::kInventory);
+    }
+    assert(spill_belt(cursor_tables, spilling, 4, 2, 1).empty());                           // nothing past box 3 left
+
     // Stat points: vitality adds life and stamina, energy mana (quarters,
     // 8.8 fixed), never more than there are points.
     d2d::d2s::Stats spend_stats;
@@ -415,6 +437,8 @@ int main() {
     tables_copy.item_base["hax"].durability = tables_copy.item_base["hlm"].durability = tables_copy.item_base["big"].durability = 40;
     Item worn = item("hax"); worn.max_durability = 40; worn.durability = 10;
     assert(repair_cost(tables_copy, worn, "Charsi", header) == 1000 * 30 / 40 / 2);
+    Item worn_socketed = worn; worn_socketed.socketed_items = { item("gem") };
+    assert(repair_cost(tables_copy, worn_socketed, "Charsi", header) == (1000 + 100) * 30 / 40 / 2);   // + half the gem's cost (FUN_006292f0)
     Item whole = worn; whole.durability = 40;
     Item ghost = worn; ghost.ethereal = true;
     assert(repair_cost(tables_copy, whole, "Charsi", header) == 1 && repair_cost(tables_copy, ghost, "Charsi", header) == 0);   // whole: the minimum (0062fd5c)

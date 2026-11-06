@@ -45,6 +45,14 @@
 
 namespace d2d::game {
 
+auto World::spill_belt(std::uint32_t now_ms) -> void {
+        const auto& layout = game_data->inv_layout[std::size_t(actor->character.header.cls)];
+        const int boxes = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))].boxes;
+        auto dropped = d2d::rules::spill_belt(game_data->rules, actor->character.items, boxes, layout.cols, layout.rows);
+        if (!dropped.empty()) loot.enter(level);
+        for (auto& item : dropped) loot.place(std::move(item), actor->player.x, actor->player.y, now_ms);
+    }
+
 auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         const auto& item_rules = game_data->rules;
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
@@ -71,8 +79,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (buy->tab >= 0 && buy->tab < 4) actor->store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
             if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
             const auto& belt = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))];
+            const auto worn_by = wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats);
+            const auto& stocked = actor->store.tabs[std::size_t(actor->store.tab)][std::size_t(buy->stock)];
             const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats)
-                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill);
+                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill,
+                                                                            &worn_by, required_level(*game_data, stocked, worn_by.cls));
             if (result != d2d::rules::Trade::done) actor->events.push_back(ev::TradeRefused{ result });   // a gamble's buy is a buy (C->S 0x32, FUN_00577830)
             return true;
         }
@@ -82,10 +93,17 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             const auto found = std::ranges::find(actor->character.items, sell->item, &d2d::d2s::Item::id);
             if (found == actor->character.items.end()) return true;
             if (!d2d::rules::sellable(item_rules, *found)) { actor->events.push_back(ev::TradeRefused{ d2d::rules::Trade::refused }); return true; }
+            // Not stored nor on the cursor: off its body slot first (FUN_00579510
+            // -> FUN_00560cd0, the item's body slot). A belt item has none and
+            // something else on the cursor stops it: no sale, no message.
+            const bool worn = found->location == d2d::d2s::item_location::kEquipped;
+            if (found->location == d2d::d2s::item_location::kBelt || (worn && actor->held)) return true;
+            const bool belt = worn && found->slot == d2d::d2s::body_location::kBelt;
             if (const auto over = d2d::rules::store_sell(item_rules, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats); over > 0) {
                 loot.enter(level);
                 loot.put({ .code = "gld", .gold = int(over) }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
             }
+            if (belt) spill_belt(now_ms);                                          // FUN_00560cd0 -> FUN_005608c0
             return true;
         }
         if (const auto* repair = std::get_if<cmd::Repair>(&command)) {
@@ -464,9 +482,12 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         const auto item_cue = [&](const d2d::d2s::Item& item, bool use) { sound_cue(item_sound(*game_data, item, use)); };
         if (const auto* to_cursor = std::get_if<cmd::ToCursor>(&command)) {
             const auto found = std::ranges::find(actor->character.items, to_cursor->item, &d2d::d2s::Item::id);
+            const bool belt = found != actor->character.items.end() && found->location == d2d::d2s::item_location::kEquipped && found->slot == d2d::d2s::body_location::kBelt;
             if (!actor->held && found != actor->character.items.end()
-                && d2d::rules::pick_up(actor->character.items, actor->held, std::size_t(found - actor->character.items.begin())))
+                && d2d::rules::pick_up(actor->character.items, actor->held, std::size_t(found - actor->character.items.begin()))) {
                 item_cue(*actor->held, true);
+                if (belt) spill_belt(now_ms);                            // FUN_00560cd0
+            }
             return;
         }
         if (const auto* drop = std::get_if<cmd::Drop>(&command)) {           // FUN_0054ab40: the item in hand, not while dead
@@ -494,8 +515,10 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) {
                 const auto sound = item_sound(*game_data, *actor->held, false);
                 const int level_needed = required_level(*game_data, *actor->held, cls);
-                if (d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed))
+                if (d2d::rules::equip(tables, actor->character.items, actor->held, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed)) {
                     sound_cue(sound);
+                    if (to_body->slot == d2d::d2s::body_location::kBelt) spill_belt(now_ms);   // FUN_00560f00
+                }
                 else if (const auto& put = *actor->held;                         // refused: equip left it in hand
                          !d2d::rules::can_wear(tables, put, to_body->slot, wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed))
                     class_cue(d2d::rules::can_wear(tables, put, to_body->slot, { cls, std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), std::numeric_limits<int>::max() }) ? "cantuseyet" : "impossible_1", now_ms);
