@@ -120,6 +120,7 @@ auto Town::enter() -> void {
         focus = 0;
         skillbar.new_game();
         hand_items.clear();
+        slide_from.clear();                          // a new View, not the next tick: nothing slides into it
         publish();
         if (scene && level) rain_join();
         if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer, int(scene->automap_cels.frames_per_direction()));

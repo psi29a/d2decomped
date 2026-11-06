@@ -220,6 +220,7 @@ auto Town::lead_leaves() -> int {
         pad = next->pad;
         coop.erase(next);
         view_enc.reset();                             // the next View whole: another player's
+        slide_from.clear();                          // a new View, not the next tick: nothing slides into it
         publish();
         return seat;
     }
@@ -429,6 +430,7 @@ auto Town::take_focus(int id) -> void {
         quest_log.sent_known = false;
         pad = {};
         view_enc.reset();                             // the next View whole: another player's
+        slide_from.clear();                          // a new View, not the next tick: nothing slides into it
         publish();
         d2d::log::info("co-op: the screen is {}'s", owner.character.name);
     }

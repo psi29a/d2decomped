@@ -12,6 +12,7 @@
 #include "scene.hpp"
 #include "store.hpp"
 #include "ui.hpp"
+#include "unit_slide.hpp"
 
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
@@ -383,6 +384,8 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             ticked = true;
         }
         if (!ticked && view.level == world.level) return;
+        if (ticked && view.level == world.level) remember_slides(view, slide_from);   // where the View had them: the slide's start
+        else slide_from.clear();
         publish();
         // What the World said, handled once the View it came in is here
         // (the hire list's offers come with it).
