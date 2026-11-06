@@ -1159,6 +1159,19 @@ d2d: `components/drlg/units.hpp` (`ds1_units`), `room_tiles.hpp`
 (`BuiltRoom::units`); the app makes them objects, NPCs and monsters
 (`load_npcs`, `load_monsters`).
 
+**The DS1 cache (FUN_00665f40).** The preset's DS1 is loaded once per
+file name. Under the critical section DAT_0096d610 it walks the list at
+DAT_0096d60c (nodes 0x110 bytes: name[0x104], refcount +0x104, DS1 ptr
++0x108, next +0x10c; byte-exact, case-sensitive compare). A hit does
+InterlockedIncrement on the count and returns the cached 0x5c-byte DS1;
+a miss allocates the node and the zeroed 0x5c record (`.\DRLG\Preset.cpp`
+lines 0x4e0, 0x4e1), copies the name, sets the count to 1, puts the node at
+the list's head and loads the file with FUN_00665950. Callers: FUN_00667890
+(a preset's first room, def path at +0x44), FUN_00667970 (maze),
+FUN_0061ebb0, FUN_0061f500, FUN_006704e0. d2d reads the DS1 on every call
+and keeps no cache; the unit lists are copied out of it (FUN_00667620), so
+the result is the same. Cited from decompilation only, no oracle run.
+
 **Units off every room.** FUN_00666710 is the only hand-out (its one
 caller is the preset room init FUN_006667d0). A unit of the record that
 lies inside no room of the preset stays in the record and nothing ever

@@ -11,6 +11,7 @@ address	name	evidence
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
+00665f40	ds1_cache_acquire	thiscall (out, path): finds path in the list at DAT_0096d60c (byte-exact compare) and bumps the refcount, else loads via FUN_00665950; ".\DRLG\Preset.cpp" lines 0x4e0, 0x4e1
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)
 0066eea0	room_tiles_alloc	allocates room +0x54 once: 0x2c bytes zeroed, from ".\DRLG\RoomTile.cpp" line 0x533; called first by FUN_0067d710, FUN_0067d2d0, FUN_00666ac0
