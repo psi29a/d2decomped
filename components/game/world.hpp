@@ -609,14 +609,15 @@ struct World {
     // What the client is told (View).
     // A monster's colour as the client picks it (FUN_00466360): its
     // TransLvl + 2 (8 and up: 2); a unique's (and superunique's) roll from
-    // its seed, rand(30) + 9, unless noUniqueShift; MonStats2 Utrans for the
+    // own seed, rand(30) + 9, unless noUniqueShift; MonStats2 Utrans for the
     // difficulty; a superunique's own Utrans; 30 and up fall back to 2.
     // Utrans 0xff (necroskeleton, necromage) is 1 for a pet of the viewer
     // or of a player not hostile to them, else 0 (FUN_004791b0: the 0x7a pet
     // list's owner, the roster's flag 8; 0x46665c): 0 here, where pets aren't
     // (Player::pets). Both draw untinted.
-    // ponytail: the roll is on the unit id, not the unit's seed (the same
-    // odds, not the same colour as game.exe's for a given monster).
+    // That seed (FUN_00477620 via FUN_00650e40): {unit id + the name seed's
+    // low byte, 666}, one step (the 0xac handler keeps only the low byte of
+    // the 16-bit name seed, 0x45f387: bugs.md).
     [[nodiscard]] int monster_colour(const Monster& monster) const;
     [[nodiscard]] View view() const;
 

@@ -211,6 +211,7 @@ struct Monster {
     d2d::rules::Boss boss = d2d::rules::Boss::none;   // champion, unique, superunique, minion
     std::vector<int> mods;                    // MonUMod ids
     int super = -1;                           // SuperUniques row
+    int name_seed = 0;                        // a boss's name seed (make_boss: the 0xac packet's, unit data +0x14)
     std::array<int, 6> boss_res{};            // what its mods add to its resistances (ResDm..ResPo)
     int boss_speed = 0;                       // + speed % (fast, champion)
     Npc npc;
