@@ -155,6 +155,18 @@ The environment lookup was hooked; no d2d parity claim is made.
   32)). Iso blocks go through `FUN_004f6bb0`, RLE ones `FUN_004f71a0`,
   the same way. A floor tile's diamond is at its buffer's top (block
   (0, 0) at x 64, y 0).
+- **The 3D path** (`FUN_004de070`, `FUN_004de260`, and for a 0x100 material
+  `FUN_004ddfd0`, `FUN_004de190`): floors (LAB_004de507) and roofs
+  (LAB_004dec42) take these only when `DAT_00712ccc` is 4 or more. It starts
+  at 3 (.data); `FUN_0044d9f0` runs the option setters at 0x70f488: window 1,
+  3dfx 4, opengl 5, d3d 6, rave 7. So neither software mode gets here. They
+  fill 6 × 6 vertices of 12 bytes, the raised-roof rule the same: a non-zero
+  height gives each +0xc and the environment's RGB. `FUN_004de260` adds
+  `FUN_004f6760`, which asserts driver 4 or more and perspective on. d2d copies
+  the software path, so it isn't affected. The driver has its own test
+  (`FUN_00405c30`: 3dfx 4, window 1, d3d 6, else 3), so opengl, rave or d3d
+  with window send this table to a software driver: not followed, and off by
+  default. Read from the code, no oracle.
 - **Walls** (`FUN_004df1c0`) and **lower walls** (`FUN_004dedf0`, from
   `FUN_004df480`) take 0x6db9d8[direction] lights (6 for DT1 directions 1..9) at spots
   from the tile's cell origin (its subtile, not where it's drawn), by
