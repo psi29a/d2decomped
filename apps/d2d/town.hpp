@@ -546,7 +546,7 @@ struct Town {
     float rain_cam_x = 0, rain_cam_y = 0;          // the camera at the last weather tick
     int rain_vol = 0;                              // the rain sound's volume 0..255
     // The Den of Evil cleared (docs/research/re/quests.md "The Den lights
-    // up"): S→C 0x2d event 0 starts a count (FUN_0046b0c0); for 30 frames
+    // up"): S→C 0x89 event 0 starts a count (FUN_0046b0c0); for 30 frames
     // the Den's ambient falls from 80 (FUN_0046bd50), then its rooms get
     // light beams, missile denofevillight, three to a room at free spots
     // (FUN_0046b0d0 / FUN_0046af70), and keep them (client func 23).

@@ -227,7 +227,7 @@ ponytail: not built yet:
 Clearing the Den of Evil lights it, in this game only (the client's quest
 states for the game come in S→C 0x02, 37 bytes, `LAB_004b92b0` → 0x7c0ea4;
 a new game's Den is dark again).
-- **The event:** S→C 0x2d `{0x2d, event}` (`FUN_004b9330` →
+- **The event:** S→C 0x89 `{0x89, event}` (handler 0x4b9330 →
   `FUN_0046b630`) runs the client's quest event table 0x7129d8; event 0
   (`FUN_0046b0c0`) starts a count at 0x7129cc.
 - **The flash** (`FUN_0046bd50`, as the Den's own light, `FUN_0046bdd0`):
