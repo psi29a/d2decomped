@@ -575,7 +575,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         bool menu_click = false;
         if (g_drawn.level == level) {                                 // drawn last frame, in this level
             automap_reveal(*scene, *level, automap, g_drawn.cells);
-            if (view.level == level) automap_icons(*world.game_data, *level, automap, view.player.x, view.player.y, view.npc_states);
+            if (view.level == level) automap_icons(*world.game_data, *level, automap, view.player.x, view.player.y, view.npc_states, view.monsters);
             for (const auto& neighbour : level->nearby)               // what's in view across the edge
                 if (neighbour.level->layer == level->layer) automap_reveal(*scene, *neighbour.level, automap, g_drawn.cells, neighbour.dx, neighbour.dy);
         }

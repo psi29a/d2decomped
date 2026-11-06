@@ -293,7 +293,11 @@ dropped, otherwise the cel decides.
     `FUN_004dc7b0` for each unit of the view's draw list (`FUN_004df1c0`;
     0x20000000 then marks it added). `FUN_00471ec0` returns 1 whenever
     the unit has a frame (0 only for Objects.txt Draw off or no graphics),
-    so "drawn" is "in the list", not "on screen". `FUN_004ddb70` ->
+    so "drawn" is "in the list", not "on screen". A monster (unit type 1)
+    takes the same path with no other condition: its MonStats row's +0x18
+    (MonStatsEx) names a MonStats2 row (0x134 bytes) whose +0x118
+    automapCel, when not 0, is the cel; in 1.14d only barricadetower
+    (MonStats 436) has one, cel 1258. `FUN_004ddb70` ->
     `FUN_004dd7c0` fill it from the player's room's near list
     (`FUN_00619bd0`): a room whose client px box (`FUN_00619c40`, corners
     by `FUN_006433c0`) meets the view's, widened 200 left and 400 down,
