@@ -3892,6 +3892,43 @@ inline int imp_ride_pick(Rng& rng, bool has_fireball, bool has_inferno) {
     return 0;
 }
 
+// Leader death and minion pack promotion (FUN_0058f530 / FUN_0058f6c0):
+// When a pack's leader dies, the first living minion in the group is elected
+// as the new leader, updating siblings. Returns the elected leader ID or -1 if empty.
+inline int ai_minion_elect_leader(std::span<const int> live_minions) {
+    return live_minions.empty() ? -1 : live_minions.front();
+}
+
+// Ancient AI scratch flag update (FUN_005ef1f0): sets or clears bitmask in +0x18.
+inline void ancient_flag_apply(std::uint32_t& flags, std::uint32_t mask, bool turn_on) {
+    if (turn_on) flags |= mask;
+    else flags &= ~mask;
+}
+
+// Generic spawner initialization (FUN_005e6190): nests/sarcophagus init;
+// sets spawn_class to -1 (none until assigned).
+inline int generic_spawner_init() {
+    return -1;
+}
+
+// HighPriest other think (FUN_005e0400): before cooldown frame (+0x14 < frame)
+// yields/waits (event 0); once reached, stands 15 frames.
+inline Think high_priest_other_think(int cooldown_frame, int current_frame) {
+    if (cooldown_frame < current_frame) return { MonAct::none };
+    return { MonAct::idle, 15 };
+}
+
+// Act 5 minion melee think (FUN_005e2610): out of melee, walk at target (89%);
+// in melee, A2 attack at target (95%); else stand 10 frames.
+inline Think minion_melee_think(bool in_melee, Rng& rng) {
+    if (!in_melee) {
+        if (rng(100) < 89) return { MonAct::walk };
+    } else {
+        if (rng(100) < 95) return { MonAct::a2 };
+    }
+    return { MonAct::idle, 10 };
+}
+
 // MonAI rows with an other think (the fourth word, table 0x73ca18 + ai x
 // 16): 15 SandMaggot, 29 BatDemon, 51 Diablo, 52 FrogDemon, 65 FetishShaman;
 // Diablo's FUN_005e8480 also 147 UberDiablo's, the same code FUN_005fcf30

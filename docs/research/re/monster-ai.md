@@ -787,6 +787,50 @@ a corpse command (0xe) is dropped, the corpse not kept.
 `tools/emu/mon_ais_act1.py` gives Fetish scenes a command (QuillRat's
 stay without).
 
+## AI control lifecycle and minion group management (AiGeneral.cpp)
+
+A monster's AI state is held in a 0x40-byte block allocated by `FUN_0058ebc0` (`ai_control_alloc`, `.\Ai\AiGeneral.cpp` line 0x1b). It initialises:
+- `+0x10 = 1` (flags)
+- `+0x30 = 1`
+- `+0x0c = 0xffffffff` (target unit id)
+- `+0x2c = 0xffffffff` (leader unit id)
+
+Accessors:
+- `FUN_0058ec50`: reads scratch words `+0x14` (index 1), `+0x18` (index 2), or `+0x1c` (index 3).
+- `FUN_0058f710`: reads spawn monster class from `+0x3c`.
+- `FUN_0058eea0`: steps the circular command queue pointer (`+0x20`) forward (or backwards if `param_2 < 0`).
+- `FUN_0058ed80`: walks the circular command queue (`+0x20` / `+0x24`) and frees every entry (`line 0xc4`).
+
+Minions and Leader election:
+- `+0x34` holds a singly linked list of minion IDs `{unit_id, next*}` belonging to this leader.
+- `FUN_0058f160`: removes a minion from the leader's list (`line 0x217`) when it dies or leaves.
+- `FUN_0058f260`: disbands and frees all minions in `+0x34` (`line 0x237`), resetting each minion's owner (`+0x2c = 0xffffffff`, `+0x30 = 1`, `+0x28 = leader.flags`).
+- `FUN_0058f350`: frees a minion node chain (`line 0x246`).
+- `FUN_0058f440` / `FUN_0058f4d0`: detaches and assigns a minion list to a leader.
+- `FUN_0058f530` / `FUN_0058f6c0`: leader death. When the leader dies, `FUN_0058f6c0` checks `FUN_005dd220()`. If true and candidates exist, `FUN_0058f530` elects the first living minion in `+0x34` as the new leader (`new_leader_id`), resets its state, updates all sibling minions' `+0x2c` to `new_leader_id`, and notifies them via `FUN_0058f100`. Otherwise, the pack is disbanded.
+- `FUN_0058f810`: frees the AI control struct (`line 0x19d`), after cleaning up the command ring and minion list, and invoking `FUN_00666130` if `+0x38` is non-zero.
+
+## Dialogue and chatter — FUN_005de330 (AiTatics.cpp)
+
+`FUN_005de330` handles spoken monster/hireling dialogue (called during hireling level up `FUN_00572840`):
+- Formats message number `%d` into a 12-byte buffer.
+- Cleans up existing chatter via `FUN_006611a0(*(param_1 + 0x1c), *(param_2 + 0xa4))`.
+- Looks up the chat message node with `FUN_00661110` and stores it into `unit + 0xa4`.
+- Sets unit speech flag `unit + 0xc4 |= 0x100`.
+- Plays sound event 6 via `FUN_005417d0(6, FUN_006611d0(node), 0, 0)`.
+
+## Additional think helpers and inits
+
+- **Minion melee think (`FUN_005e2610`, `AI/?`)**: When not in melee, walks at target with 89 % chance (`seed(100) < 89`); in melee, attacks with A2 with 95 % chance (`seed(100) < 95`); otherwise stands 10 frames (`FUN_005de080(10)`).
+- **Generic Spawner init (`FUN_005e6190`, `AI/?`)**: Runs nest/sarcophagus init `FUN_005f6630` and resets spawn class `+0x3c = 0xffffffff`.
+- **Ancient AI flag (`FUN_005ef1f0`, `AiThink4.cpp`)**: Sets (`mask`) or clears (`~mask`) bits in Ancient scratch word `+0x18`.
+- **HighPriest other think (`FUN_005e0400`, `AI/?`)**: If cooldown frame `+0x14 < current_frame` yields/waits (event 0); once reached, stands 15 frames.
+- **AI scratch clear (`FUN_005ec6a0`, `AiThink4.cpp`)**: Resets scratch word `+0x14 = 0`.
+- **AI frame stamp (`FUN_005ea290`, `AiThink4.cpp`)**: Writes current frame into `+0x14` and sets `+0x18 = -1`.
+- **NpcBarb target setter (`FUN_005edc00`, `AiThink4.cpp`)**: Sets `+0x18 = x` and `+0x1c = y`.
+- **Town NPC check (`FUN_005e7350`, `AI/?`)**: If `FUN_00572dc0() == 0`, waits 0 and returns 1; else returns 0.
+- **Baal quest stage check (`FUN_005fc070`, `AiBaal.cpp`)**: Checks Act 5 quest stages 59, 56, 51, and 27 via `FUN_00643ce0` (`line 0x131`).
+
 ## In d2d
 
 - `ai.cpp search_target` is the search for both the traced thinks and the AIs not traced (those used to notice within 8 cells and chase within 16, by eye).

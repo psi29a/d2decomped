@@ -546,6 +546,48 @@ int main() {
                 toggle(0, false);                                  // a row without one stays on its own think
                 assert(special == 0 && !other);
             }
+            // AI control and pack minion management (FUN_0058f530 / FUN_0058f6c0).
+            {
+                const std::array<int, 3> pack_minions{ 101, 102, 103 };
+                assert(d2d::rules::ai_minion_elect_leader(pack_minions) == 101);
+                assert(d2d::rules::ai_minion_elect_leader({}) == -1);
+            }
+            // Generic spawner init (FUN_005e6190).
+            assert(d2d::rules::generic_spawner_init() == -1);
+            // Ancient AI scratch flag update (FUN_005ef1f0).
+            {
+                std::uint32_t flags = 0;
+                d2d::rules::ancient_flag_apply(flags, 0x10, true);
+                assert(flags == 0x10);
+                d2d::rules::ancient_flag_apply(flags, 0x04, true);
+                assert(flags == 0x14);
+                d2d::rules::ancient_flag_apply(flags, 0x10, false);
+                assert(flags == 0x04);
+            }
+            // HighPriest other think (FUN_005e0400).
+            {
+                assert(d2d::rules::high_priest_other_think(10, 20).act == MonAct::none);
+                const auto stand = d2d::rules::high_priest_other_think(25, 20);
+                assert(stand.act == MonAct::idle && stand.n == 15);
+            }
+            // Minion melee think (FUN_005e2610).
+            {
+                Rng rng_melee{ 42 };
+                int walks = 0, attacks = 0, stands = 0;
+                for (int iter = 0; iter < 1000; ++iter) {
+                    const auto think_walk = d2d::rules::minion_melee_think(false, rng_melee);
+                    if (think_walk.act == MonAct::walk) ++walks;
+                    else if (think_walk.act == MonAct::idle && think_walk.n == 10) ++stands;
+                }
+                assert(walks > 850 && stands < 150);
+                stands = 0;
+                for (int iter = 0; iter < 1000; ++iter) {
+                    const auto think_atk = d2d::rules::minion_melee_think(true, rng_melee);
+                    if (think_atk.act == MonAct::a2) ++attacks;
+                    else if (think_atk.act == MonAct::idle && think_atk.n == 10) ++stands;
+                }
+                assert(attacks > 900 && stands < 100);
+            }
             // The Shadows (tools/emu/shadow_init.py / shadow_master.py --dump:
             // game.exe's own runs): the Warrior's init and the Master's, then the
             // Master's think (the log of what it asks and does), then its scan.
