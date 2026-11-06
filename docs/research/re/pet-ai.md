@@ -134,6 +134,13 @@ aip1..5 are MonStats +0x56 / +0x5c / +0x62 / +0x68 / +0x6e by difficulty
 (game +0x6d). "Follow" is `FUN_005e3ea0`, "decide" `FUN_005e45d0` (above).
 Distances: `FUN_005dc380` (gap, the first unit's size) and `FUN_006416d0`
 (each axis less half of both sizes; (short + 2 × long) / 2).
+`FUN_005ddc30`'s foe (the thinks below that call it) is not the driver's
+mode 5 one: the skill-set target (`FUN_005dd610`) when there is one, else
+`FUN_005dd0b0` mode 6 (`FUN_005dcbd0`, monster-ai.md "Second target"): the
+near rooms' units, each room's newest first, its enemies, alive, out of
+town, distance (`FUN_005dc380`) under 0x31 with the line from them tested
+(mask 4) always, threat 2 or more the primary, else the secondary; a pet is
+a monster, so `FUN_005dd510` takes the primary (no path test).
 
 - **Hydra** (`0x5e9e60`): past its last frame (+0x14) it dies
   (`FUN_005ddfc0(0)`); the driver's target under 25 off, a seed step % 100

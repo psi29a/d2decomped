@@ -409,17 +409,47 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
         }
     }
 
+// FUN_005ddc30's foe for a pet: FUN_005dd0b0 mode 6 (FUN_005dcbd0, as a
+// monster's second target and the merc's: rules::search_sight): the near
+// rooms' monsters, each room's newest first, its enemies, alive, out of
+// town, the line from them (mask 4) tested under 0x31; a pet is a monster,
+// so FUN_005dd510 finds a path to the primary always. No skill-set target
+// (FUN_005dd610): d2d's pets have none.
+auto Fight::pet_second_foe(float x, float y, int size, int& gap) const -> int {
+        auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+        const int pet_x = sub(x), pet_y = sub(y);
+        const bool town = d2d::rules::level_ids::is_town(level->id);
+        const auto wall = [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+        std::vector<d2d::rules::SightFoe> sight_foes;
+        std::vector<int> sight_index;
+        for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, x, y)) {
+            if (room_level != level) continue;
+            for (std::size_t i = monsters.size(); i-- > 0;) {
+                const auto& other = monsters[i];
+                if (room_of(*level, other.unit.x, other.unit.y) != near_room) continue;
+                const auto& other_type = game_data->monsters.types[std::size_t(other.type)];
+                const int foe_x = sub(other.unit.x), foe_y = sub(other.unit.y);
+                auto& entry = sight_foes.emplace_back(d2d::rules::SightFoe{ d2d::rules::near_distance(foe_x - pet_x, foe_y - pet_y, other_type.size), other_type.threat,
+                                                                            other.targetable() && !town && !d2d::rules::friends(2, other.align) });
+                entry.blocked = entry.enemy && entry.distance < 0x31 && d2d::rules::sight_blocked(foe_x, foe_y, other_type.size, pet_x, pet_y, size, wall);
+                sight_index.push_back(int(i));
+            }
+        }
+        gap = 0x7fffffff;
+        const int chosen = d2d::rules::sight_choice(sight_foes, d2d::rules::search_sight(sight_foes), [](int) { return true; }, gap);
+        return chosen >= 0 ? sight_index[std::size_t(chosen)] : -1;
+    }
+
 // A traced pet's frame outside an attack (rules::traced_pet_ai): a walk
 // goes on, then at its think the AI's rules::*_think on a PetScene, its
 // follows and follow-or-fight tests by rules::PetFollow as NecroPet's. The
 // units: the foe of the mode 5 search (necropet_turn's), the corpse near the
 // owner (Fenris: 10 subtiles; the cycle vines: their skill's calc, 5..50)
-// or near the Death Sentry. The AI driver's target and the merc-style
-// search's are that foe too.
-// ponytail: `foe2` is the mode 5 foe, not FUN_005ddc30's; no unit is ever
-// poisoned (state 2), slowed (0x3c) or in Fenris's rage (0x8a); the
-// owner's life / mana are whole points; Blade Sentinel isn't summoned, so
-// its think doesn't run. The Shadows: the Warrior's scene and the Master's
+// or near the Death Sentry. The AI driver's target is that foe too; the
+// Vines' and the Sentries' `foe2` is FUN_005ddc30's (0x5ddc30), below.
+// ponytail: no unit is ever poisoned (state 2), slowed (0x3c) or in
+// Fenris's rage (0x8a); the owner's life / mana are whole points; Blade
+// Sentinel isn't summoned, so its think doesn't run. The Shadows: the Warrior's scene and the Master's
 // think below.
 auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         using d2d::rules::PetUnit;
@@ -450,6 +480,12 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         }
         const auto pick = d2d::rules::search_near(nears, 2, need_sight);
         const int found = pick.target >= 0 ? pick.target : pick.second;
+        // The Vines', the AssassinSentry's and the DeathSentry's foe2 is
+        // FUN_005ddc30's (FUN_005ec6c0, FUN_005ea3d0, FUN_005ea980 call it);
+        // the others' PetUnit::foe2 is the driver's target, the mode 5 foe.
+        const bool own_search = type_info.ai_name == "Vines" || type_info.ai_name == "AssassinSentry" || type_info.ai_name == "DeathSentry";
+        int second_gap = 0x7fffffff;
+        const int second = own_search ? pet_second_foe(unit.x, unit.y, size, second_gap) : found;
         // The corpse: near the owner for Fenris (10) and the cycle vines
         // (their skill's calc), near itself for the Death Sentry.
         const auto* summoning = game_data->skills.get(pet.skill);
@@ -457,7 +493,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         const bool by_self = type_info.ai_name == "DeathSentry";
         int corpse = corpse_near(by_self ? unit.x : actor->player.x, by_self ? unit.y : actor->player.y);
         if (corpse >= 0 && !by_self && std::hypot(monsters[std::size_t(corpse)].unit.x - actor->player.x, monsters[std::size_t(corpse)].unit.y - actor->player.y) * 5 > float(corpse_reach)) corpse = -1;
-        std::array<int, 6> index{ -1, -1, -1, found, found, corpse };   // by PetUnit: a monster
+        std::array<int, 6> index{ -1, -1, -1, found, second, corpse };   // by PetUnit: a monster
         d2d::rules::PetScene scene;
         scene.cls = monster.npc.hc_idx; scene.owner_id = 1; scene.owner_mode = actor->owner_mode; scene.town = town; scene.frame = int(now_ms / 40);
         std::array<int, 6> sizes{ 0, size, 2, 0, 0, 0 };
@@ -481,13 +517,20 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         if (found >= 0) {
             const auto& foe = monsters[std::size_t(found)];
             const auto [foe_x, foe_y] = scene.spot[3];
-            scene.foe = scene.foe2 = scene.driver = true;
-            scene.foe_distance = scene.foe2_distance = scene.driver_distance = pick.target >= 0 ? pick.best : pick.second_best;
-            scene.foe_melee = scene.foe2_melee = scene.driver_melee
+            scene.foe = scene.driver = true;
+            scene.foe_distance = scene.driver_distance = pick.target >= 0 ? pick.best : pick.second_best;
+            scene.foe_melee = scene.driver_melee
                 = d2d::rules::unit_distance(foe_x - pet_x, foe_y - pet_y, size, game_data->monsters.types[std::size_t(foe.type)].size) <= type_info.melee_rng + 1;
-            scene.clear[3] = scene.clear[4] = d2d::rules::pet_line_clear(pet_x, pet_y, size, foe_x, foe_y,
-                                                                         [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x805); });
-            scene.poison_resist = target_of(std::size_t(found)).res[5];
+            scene.clear[3] = d2d::rules::pet_line_clear(pet_x, pet_y, size, foe_x, foe_y, [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x805); });
+        }
+        if (second >= 0) {
+            const auto& foe = monsters[std::size_t(second)];
+            const auto [foe_x, foe_y] = scene.spot[4];
+            scene.foe2 = true;
+            scene.foe2_distance = own_search ? second_gap : scene.foe_distance;
+            scene.foe2_melee = d2d::rules::unit_distance(foe_x - pet_x, foe_y - pet_y, size, game_data->monsters.types[std::size_t(foe.type)].size) <= type_info.melee_rng + 1;
+            scene.clear[4] = d2d::rules::pet_line_clear(pet_x, pet_y, size, foe_x, foe_y, [&](int at_x, int at_y) { return level->blocked(centre(at_x), centre(at_y), 0x805); });
+            scene.poison_resist = target_of(std::size_t(second)).res[5];
         }
         for (std::size_t k = 3; k < 6; ++k) {
             if (index[k] < 0) continue;

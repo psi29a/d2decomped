@@ -1107,6 +1107,8 @@ struct Fight {
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
+    // FUN_005ddc30's foe (an index into monsters, -1 none) for a pet of `size` at x, y (cells); `gap` its distance.
+    [[nodiscard]] int pet_second_foe(float x, float y, int size, int& gap) const;
     void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
     void shadow_give(Pet& pet, int skill, int lvl) const;
     void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
