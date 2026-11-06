@@ -94,6 +94,7 @@ struct ItemBase {
     int spawn_stack = 0;                               // misc.txt spawnstack (Items +0xec)
     int rarity = 0;                                    // weapons / armor.txt rarity (Items +0xfc): a stand's pick
     bool autobelt = false;                             // misc.txt autobelt (Items +0x131): a pickup takes a free belt column
+    bool multibuy = false;                             // misc.txt multibuy (Items +0x1a5): shift + right click fills (FUN_004b2650)
     int gem_sockets = 0, auto_prefix = 0, magic_lvl = 0;  // gemsockets (+0x138), auto prefix (+0xf8), magic lvl (+0x140)
     bool has_inv = false, no_durability = false;          // hasinv (+0x137), nodurability (+0x113)
     bool useable = false;                                 // useable (+0x11d, FUN_00628c20): a right click uses it
@@ -907,34 +908,113 @@ inline bool tome_takes(const Tables& tables, const d2d::d2s::Item& scroll, const
 // that request.", 10 string 0xd1c "You do not have enough free space to do
 // that.", 12 string 0xd22 "You do not have enough gold for that.").
 enum class Trade : std::uint8_t { done = 0, refused = 9, no_room = 10, no_gold = 12 };
-// Buys stock item i of the open tab into the inventory (10x4): gold
-// down by the price (more than carried + stash gold: no_gold), the item
-// leaves the stock unless it's a perm one (nowhere for it: no_room).
-// ponytail: no stacks or quantity.
-inline Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
+inline int belt_box(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, int boxes);
+inline bool stacks_with(const d2d::d2s::Item& one, const d2d::d2s::Item& other);
+// The vendor's perm items (FUN_00576ed0): its PermStoreItems, and in an
+// expansion game greater and super potions.
+inline bool store_perm(const Store& store, const std::string& code) {
+    static constexpr std::array<std::string_view, 4> kStrongPotions = { "hp4", "hp5", "mp4", "mp5" };
+    return std::ranges::find(store.perm, code) != store.perm.end() || (store.header.expansion() && std::ranges::find(kStrongPotions, code) != kStrongPotions.end());
+}
+// Buys stock item i of the open tab (C->S 0x32, FUN_00577830): gold down
+// by the price (more than carried + stash gold: no_gold), carried gold
+// first, then the stash (FUN_00576d90); the item leaves the stock unless
+// it's a perm one (FUN_00576f50 asks FUN_00576ed0: store_perm). A scroll goes into a carried tome with room
+// (FUN_0055f640). Anything else is a copy (FUN_0055a2a0), stack and all,
+// offered to the belt first (FUN_0055e9b0 -> FUN_0063c790: belt_box,
+// `boxes` the worn belt's, 4 with none), else the inventory's first free
+// spot (FUN_00560200; nowhere for it: no_room, nothing paid).
+// `fill` (the packet's 0x80000000: shift + right click on a multibuy item,
+// FUN_004b2650) counts for a perm item only (FUN_00576ed0):
+// - a scroll fills the tome: as many as the gold buys (local_14 / local_8),
+//   at most its room;
+// - an AutoStack type (keys; FUN_0062e790, its own ItemTypes row +0x13)
+//   priced one at a time (stat 0x46 set to 1) tops up the first carried
+//   stack of it with room, worn then the backpack (FUN_00577700:
+//   FUN_0063c2f0, FUN_0063c200), with as many as the gold buys (none:
+//   no_gold, 0x89a); with none carried, it buys one stack of that many,
+//   at most its most;
+// - anything else is bought again while it goes to the belt: the first
+//   that can't goes to the inventory and ends it (FUN_0055e9b0 fails:
+//   param_8 cleared). Gold or room running out after one is bought: gold
+//   says no_gold (0x8d4), room says nothing (done).
+// ponytail: an item bound for the inventory isn't first offered to a body
+// slot (FUN_00562e00: auto_equip_slot, with its own rules for arrows and
+// bolts by the weapon held, 0x883e9c / 0x883ea0).
+inline Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats, int boxes = 4,
+                       bool fill = false) {
+    using d2d::d2s::Item;
     auto& tab = store.tabs[std::size_t(store.tab)];
-    const auto& item = tab[std::size_t(index)];
-    const int price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
-    if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < price) return Trade::no_gold;
-    // A scroll goes into a carried tome with room (FUN_00577830 -> FUN_0055f640).
-    const auto book = std::ranges::find_if(items, [&](const d2d::d2s::Item& carried) { return carried.panel == d2d::d2s::item_panel::kInventory && tome_takes(tables, item, carried); });
-    std::vector<const d2d::d2s::Item*> inv;
-    for (const auto& x : items) if (x.location == d2d::d2s::item_location::kStored && x.panel == d2d::d2s::item_panel::kInventory) inv.push_back(&x);
-    const auto [width, height] = item_size(tables, item.code);
-    const auto [column, row] = book != items.end() ? std::pair{ 0, 0 } : free_spot(tables, inv, 10, 4, width, height, true);
-    if (column < 0) return Trade::no_room;
-    if (book != items.end()) ++book->quantity;
-    else {
-        auto bought = item;
-        bought.column = column; bought.row = row; bought.location = d2d::d2s::item_location::kStored; bought.panel = d2d::d2s::item_panel::kInventory;
-        items.push_back(std::move(bought));
+    const auto item = tab[std::size_t(index)];
+    const auto purse = [&] { return stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank); };
+    const auto pay = [&](std::int64_t cost) {
+        const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
+        stats.values[d2d::d2s::kGold] -= from_inv;
+        stats.values[d2d::d2s::kGoldBank] -= cost - from_inv;
+    };
+    const auto in_inventory = [](const Item& carried) { return carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory; };
+    std::int64_t price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
+    if (purse() < price) return Trade::no_gold;
+    fill = fill && store_perm(store, item.code);
+    const auto book = std::ranges::find_if(items, [&](const Item& carried) { return carried.panel == d2d::d2s::item_panel::kInventory && tome_takes(tables, item, carried); });
+    if (book != items.end()) {
+        const auto room = std::int64_t(tables.item_base.at(book->code).max_stack - book->quantity);
+        const auto count = fill ? std::min(purse() / price, room) : 1;
+        pay(count * price);
+        book->quantity += int(count);
+        return Trade::done;
     }
-    // Carried gold first, then the stash (FUN_00577830 -> FUN_00576d90).
-    const auto from_inv = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), price);
-    stats.values[d2d::d2s::kGold] -= from_inv;
-    stats.values[d2d::d2s::kGoldBank] -= price - from_inv;
-    if (std::ranges::find(store.perm, item.code) == store.perm.end()) tab.erase(tab.begin() + index);
-    return Trade::done;
+    int quantity = item.quantity;   // local_c
+    const auto info = tables.item_info.find(item.code);
+    const auto type_row = info != tables.item_info.end() ? tables.types.find(info->second.type) : tables.types.end();
+    if (fill && type_row != tables.types.end() && type_row->second.autostack) {
+        auto one = item;
+        one.quantity = 1;
+        const std::int64_t unit = item_price(tables, one, store.npc_id, false, store.header, store.reduced);
+        Item* stack = nullptr;
+        std::int64_t room = 1;
+        const auto base = tables.item_base.find(item.code);
+        if (base != tables.item_base.end() && base->second.stackable) {
+            room = stack_most(tables, item);
+            const auto open = [&](const Item& carried) { return stacks_with(carried, item) && carried.quantity < stack_most(tables, carried); };
+            for (const bool worn : { true, false }) {
+                const auto found = std::ranges::find_if(items, [&](const Item& carried) { return (worn ? carried.location == d2d::d2s::item_location::kEquipped : in_inventory(carried)) && open(carried); });
+                if (found == items.end()) continue;
+                stack = &*found;
+                room = stack_most(tables, *found) - found->quantity;
+                break;
+            }
+        }
+        const auto count = std::min(purse() / unit, room);
+        if (stack) {
+            if (count < 1) return Trade::no_gold;
+            pay(count * unit);
+            stack->quantity += int(count);
+            return Trade::done;
+        }
+        quantity = int(std::max<std::int64_t>(count, 1));
+        price = quantity * unit;
+    }
+    for (bool bought = false;; bought = true) {
+        if (bought && !fill) return Trade::done;
+        if (purse() < price) return Trade::no_gold;
+        auto copy = item;
+        copy.quantity = quantity;
+        if (const int box = belt_box(tables, items, copy, boxes); box >= 0) {
+            copy.location = d2d::d2s::item_location::kBelt; copy.column = box; copy.row = 0; copy.panel = 0; copy.slot = 0;
+        } else {
+            fill = false;
+            std::vector<const Item*> inv;
+            for (const auto& carried : items) if (in_inventory(carried)) inv.push_back(&carried);
+            const auto [width, height] = item_size(tables, item.code);
+            const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
+            if (column < 0) return bought ? Trade::done : Trade::no_room;
+            copy.column = column; copy.row = row; copy.location = d2d::d2s::item_location::kStored; copy.panel = d2d::d2s::item_panel::kInventory;
+        }
+        items.push_back(std::move(copy));
+        pay(price);
+        if (!store_perm(store, item.code)) tab.erase(tab.begin() + index);
+    }
 }
 
 // Sells inventory item i (FUN_00579510): gold up by the sell value, what
@@ -953,11 +1033,8 @@ inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t i
     const auto cap = stats.get(d2d::d2s::kLevel) * 10000, purse = stats.get(d2d::d2s::kGold);
     const auto over = std::max<std::int64_t>(purse + price - std::max(cap, purse), 0);
     stats.values[d2d::d2s::kGold] = purse + price - over;
-    static constexpr std::array<std::string_view, 4> kStrongPotions = { "hp4", "hp5", "mp4", "mp5" };
     const bool kept = !(sold.quality == 1 && sold.qsub == 1) && !(sold.flags & 0x100u) && sold.quality != 7 && !sold.personalized && !sold.ethereal
-                      && sold.socketed_items.empty() && !store.gamble
-                      && !(store.header.expansion() && std::ranges::find(kStrongPotions, sold.code) != kStrongPotions.end())
-                      && std::ranges::find(store.perm, sold.code) == store.perm.end();
+                      && sold.socketed_items.empty() && !store.gamble && !store_perm(store, sold.code);
     if (kept) {
         auto copy = sold;
         copy.durability = max_durability(copy);

@@ -765,11 +765,16 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320)
                 store.tab = (mouse.x - kCharPanelX) / 80;
             // Right-click on stock buys; with Buy or Sell toggled on,
-            // a left click buys the stock item / sells your item.
+            // a left click buys the stock item / sells your item. Shift +
+            // right click on a multibuy item fills (FUN_004b2650: mouse
+            // flag 4, Items +0x1a5).
             const int store_index = store_item_at(*scene, store, mouse.x, mouse.y);
             if (store_index >= 0 && (mouse.rpress_this_frame || (mouse.press_this_frame && store.mode == 1)))
             {
-                send(cmd::Buy{ store_index, store.tab });
+                const auto& stock = store.tabs[std::size_t(store.tab)][std::size_t(store_index)];
+                const auto base = scene->rules.item_base.find(stock.code);
+                const bool fill = mouse.rpress_this_frame && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 && base != scene->rules.item_base.end() && base->second.multibuy;
+                send(cmd::Buy{ store_index, store.tab, fill });
             }
             // Sell: an inventory item; repair: that or a worn one.
             if (mouse.press_this_frame && (store.mode == 2 || store.mode == 3))

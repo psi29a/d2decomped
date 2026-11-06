@@ -86,7 +86,7 @@ struct ScrollToBook { int book = -1; };
 // ponytail: stock and offers by index, not unit id.
 struct OpenTrade { int npc = -1; bool gamble = false; };
 struct OpenHire { int npc = -1; };
-struct Buy { int stock = -1; int tab = -1; };   // the tab the stock index is on (-1: the store's own)
+struct Buy { int stock = -1; int tab = -1; bool fill = false; };   // the tab the stock index is on (-1: the store's own); fill: shift held on a multibuy item (C->S 0x32's 0x80000000)
 struct Sell { int item = -1; };
 struct Repair { int item = -1; };
 struct Identify {};
@@ -252,7 +252,7 @@ inline std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::OpenHire>) out.u8(opcode::kNpcDeal).u8(npc_deal::kHire).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Respec>) out.u8(opcode::kNpcDeal).u8(npc_deal::kRespec).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::ResurrectMerc>) out.u8(opcode::kNpcDeal).u8(npc_deal::kResurrectMerc).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::Buy>) out.u8(opcode::kBuy).i32(message.stock).i32(message.tab);
+        else if constexpr (std::is_same_v<T, cmd::Buy>) out.u8(opcode::kBuy).i32(message.stock).i32(message.tab).u8(message.fill);
         else if constexpr (std::is_same_v<T, cmd::Sell>) out.u8(opcode::kSell).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Repair>) out.u8(opcode::kRepair).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Identify>) out.u8(opcode::kIdentify);
@@ -314,7 +314,7 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
                     : kind == npc_deal::kHire ? Command{ cmd::OpenHire{ npc } } : Command{ cmd::OpenTrade{ npc, kind == npc_deal::kGamble } };
             break;
         }
-        case opcode::kBuy: { const int stock = i32(); command = cmd::Buy{ stock, i32() }; break; }
+        case opcode::kBuy: { const int stock = i32(), tab = i32(); command = cmd::Buy{ stock, tab, byte() != 0 }; break; }
         case opcode::kSell: command = cmd::Sell{ i32() }; break;
         case opcode::kRepair: command = cmd::Repair{ i32() }; break;
         case opcode::kIdentify: command = cmd::Identify{}; break;

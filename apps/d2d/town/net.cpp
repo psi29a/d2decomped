@@ -166,7 +166,7 @@ auto Town::send(const Command& command) -> void {
                 const auto& item = tab[std::size_t(buy->stock)];
                 const int cost = d2d::rules::item_price(scene->rules, item, hero.store.npc_id, false, hero.store.header, store.reduced);
                 net_game->buying = true;
-                net_game->send_items({ d2d::net::d2gs::c2s::buy(net_game->trade_npc, std::uint32_t(item.id), 0, std::uint32_t(cost)) });
+                net_game->send_items({ d2d::net::d2gs::c2s::buy(net_game->trade_npc, std::uint32_t(item.id), buy->fill ? 0x80000000u : 0u, std::uint32_t(cost)) });
             }
             return;                                         // the host's item comes to us; its gold change too
         } else if (const auto* sell = std::get_if<cmd::Sell>(&command); sell && net_game->trade_npc) {
