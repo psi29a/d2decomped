@@ -116,4 +116,5 @@ puts the moving items in state 0x36 (`FUN_004c21f0`) until the server
 answers.
 
 d2d: `rules::equip`, called by the World's `cmd::ToBody` with the class's
-inventory grid.
+inventory grid. A joined client sends 0x1b / 0x1e the same way
+(`c2s::equip`'s `other_off`), and nothing when the move is refused.

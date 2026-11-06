@@ -268,9 +268,12 @@ inline auto swap_grid(std::uint32_t id, std::uint32_t target, std::uint32_t x, s
     return out;
 }
 // 0x1a / 0x1d: equip the cursor's item in body slot 1..10 / swap it there.
-inline auto equip(std::uint32_t id, std::uint32_t slot, bool swap) -> Bytes {
+// `other_off`, a hand whose other hand's item can't stay (FUN_0063dd90 code
+// 2 / 7): 0x1b takes that item to the cursor, 0x1e (this hand full) to the
+// inventory (the client's FUN_00490780 / FUN_00490ba0).
+inline auto equip(std::uint32_t id, std::uint32_t slot, bool swap, bool other_off = false) -> Bytes {
     Bytes out;
-    put_u8(out, swap ? 0x1d : 0x1a); put_u32(out, id); put_u32(out, slot);
+    put_u8(out, other_off ? (swap ? 0x1e : 0x1b) : (swap ? 0x1d : 0x1a)); put_u32(out, id); put_u32(out, slot);
     return out;
 }
 // 0x1c: the item in body slot -> cursor (by slot, not id).
