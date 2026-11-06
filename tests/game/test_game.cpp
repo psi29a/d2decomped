@@ -804,9 +804,7 @@ int main(int argc, char** argv) try {
         });
         assert(big != data->rules.item_info.end());
         auto& items = belted.actor->character.items;
-        std::erase_if(items, [](const d2d::d2s::Item& item) {
-            return item.location == d2d::d2s::item_location::kBelt || (item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kBelt);
-        });
+        items.clear();                                                     // only what's given below: the spill always has room
         const auto give = [&](const std::string& code, int location, int column, int slot, int id) {
             d2d::d2s::Item given;
             given.code = code; given.location = location; given.column = column; given.slot = slot; given.id = id; given.identified = true;
