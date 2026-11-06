@@ -973,10 +973,12 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         return false;
     };
     // Gone into a unit or a wall, its ExplosionMissile plays there; run
-    // out, only when AlwaysExplode (FUN_004d30c0 -> FUN_004d2d70).
+    // out, only when AlwaysExplode (FUN_004d30c0 -> FUN_004d2d70). An
+    // explosion starts at frame 0: RandStart (+0x17c) is read only by the
+    // client's grid maker FUN_004ced60, not by FUN_004cdba0 or FUN_0059fa30
+    // (missiles.md).
     // ponytail: one that flies on through units (CollideKill 0) doesn't
-    // burst at each; RandStart isn't applied; a guided one losing its
-    // owner bursts as a hit.
+    // burst at each; a guided one losing its owner bursts as a hit.
     // At its end Baal Taunt's lightning control (hit 58, FUN_005acdf0) sends
     // HitSubMissile1 at a random subtile within sHitPar1 (at least 1) of it;
     // the poison one (hit 59, FUN_005acf20 -> FUN_005a9370) sends it the 8

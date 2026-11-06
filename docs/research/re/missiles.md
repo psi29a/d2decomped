@@ -135,7 +135,14 @@ ExplosionMissile ≥ 0 that missile is made at the missile's spot
 leaves the missile flying.
 
 `fireexplode` (a fire bolt's, the firebolt trap's): 12 frames (Range,
-AnimLen), RandStart 5, Light 13, additive, one direction.
+AnimLen), RandStart 5, Light 13, additive, one direction. RandStart
+(record +0x17c, a word) is read only by the client's grid maker
+`FUN_004ced60` (from `FUN_004cef50` / `FUN_004e1320`: create flags 0x201):
+start frame rand(RandStart) on the unit's seed (`& (n − 1)` for a power of
+two, else `% n`), which `FUN_004cd540` (flag 0x200) takes off the missile's
+life and sets as its frame (+0x44 = start << 8). An ExplosionMissile
+(`FUN_004cdba0`, flags 0x20) and a server missile (`FUN_0059fa30`) never
+read it, so an explosion starts at frame 0.
 
 ## A nova's 64 — FUN_0056d400
 
