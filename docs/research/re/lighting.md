@@ -123,6 +123,26 @@ The environment lookup was hooked; no d2d parity claim is made.
 - **Sampling:** `FUN_00475aa0(x, y)` reads the entry at (x >> 3, y >> 3),
   clamped to 0..47.
 
+### What fills it
+
+`FUN_00474610` calls `FUN_00474550` with its last argument 1, so
+`FUN_0046bdd0` answers first and any colour from it beats the level's light
+and the day's:
+
+- **Level 8:** the Den's flash (quests.md "The Den lights up").
+- **Levels 107, 108: Diablo's release.** The server's `FUN_005b5230` sends
+  S→C 0x89 event 12 (`FUN_00545760`) to the game when the sanctuary is
+  cleared. Its client entry, 0x46b290 in the table at 0x7129d8, sets 0x7a7460 in
+  any level. While it's set and 0x7129d0 is −1: intensity 160, (255, 64, 48), so River
+  of Flame goes from 120 to 160 and the Chaos Sanctuary from 80 to 160. Event
+  13 (0x46b3a0) sets the count 0x7129d0 to 0, which ends the red at once;
+  `FUN_0046beb0` clears both 30 frames on. Diablo's death sends 13 only in a
+  classic game (LAB_005b5369, game +0x70 zero), so in Lord of Destruction it holds
+  until the next game (`FUN_0046bf90`).
+
+`tools/emu/level_ambient.py` runs these with Levels.txt's values. d2d fills
+from the level's light (`frame_light`) with only the Den's case: todo.md #43.
+
 ### Who reads the intensity
 
 +0xc goes out through `FUN_0061c0e0` alone (`FUN_0061bb80` is its writer). Its
