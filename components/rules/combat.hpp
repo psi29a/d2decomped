@@ -501,7 +501,7 @@ inline int resisted_fine(int fine, int res) {
     return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
 }
 // Energy Shield (FUN_005ca6c0, the state's absorb event 0xb like Bone Armor's): the pool of mana and the two numbers of the
-// state, calc1 (the percent of a field it takes, at most 95 here) and calc2 (`per16`: 16ths of mana per point absorbed, at least 1).
+// state, calc1 (the percent of a field it takes; the data caps it at 95) and calc2 (`per16`: 16ths of mana per point absorbed, at least 1).
 struct EnergyShield {
     int pct = 0, per16 = 1;
     std::int64_t mana = 0;               // the wearer's mana in 256ths, drained as it absorbs
