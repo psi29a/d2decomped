@@ -58,6 +58,7 @@ or changes, list where else the same rule applies and check each one:
 - Paths compared across sources (getcwd, compile_commands.json, ninja deps) go through `os.path.realpath`, not `abspath`: macOS's `/var` is `/private/var` (#91 failed only on the macOS leg).
 - Shell: `set -euo pipefail`, quoting, a signal trap that exits, the cleanup trap on EXIT, background jobs stopped as a tree.
 - Comparisons must account for every requested case on both sides, reject malformed inputs and missing output, and count explicit skips separately (#156, #157, #160). Define which differences fail: an exploratory report may intentionally include classified residuals outside its claims. Chain producer commands and use pipefail so failed producers cannot leave two empty outputs that compare equal (#166).
+- Paired generators in different languages must normalize inputs to the same width and signedness before the first operation; test negative seeds and width boundaries (#155).
 - Schema validators must check required metadata, mirrored fields, and reciprocal relationship cardinality, not only that referenced IDs exist (#111).
 - A verifier must report absent required inputs, not just corrupt files it opened; compare its list with the consumer's requirements (#104).
 
