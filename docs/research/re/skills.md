@@ -867,8 +867,15 @@ lines (missile names aren't passed in). What it does:
   checks the mana): a flame per call lasting calc1 frames (flags 0x8020).
 - Missile do **5** (FUN_005ae520: the flames of Fire Wall, Meteor, Blaze)
   stands and collides every frame; damage func **3** (FUN_005ad220) only
-  rolls a hit flag (0x4000) against a percentage: the damage is the
+  rolls a hit flag (0x4000) against a percentage (the missile's seed & 0x7f
+  under dParam1, +0x78: immolationfire 19 / 128): the damage is the
   skill's per frame, in 256ths (Fire Wall 1: 15 << 4 = 240 = 23 a second).
+  A row with no Skill (meteorfire, immolationfire) burns its own row:
+  FUN_0064b100 = (EMin + the level's ELev part, FUN_00644b70) plus
+  EDmgSymPerCalc % (+0x118) << HitShift, the calc run by FUN_0064b7c0, the
+  Missiles.txt calc evaluator (missile, owner, calc offset, row, level). The
+  same evaluator gives Immolation Arrow's fire its length: FUN_005aa250 runs
+  SHitCalc1 (+0x88) through it and FUN_005a9530 hands that to each fire.
 - Built: `Fight::fire` / `missile_tick` / `burn` / `launch` (fight.hpp),
   `Missile::target / hops / ed_pct / fixed` (ai.hpp), MissileInfo
   srv_do / param1..2 / hit_par2 / sub / hit_sub (loaded to a fixed point
