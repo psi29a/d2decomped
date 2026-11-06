@@ -5,6 +5,7 @@
 #include "common.hpp"
 #include "scene.hpp"
 
+#include <ai.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <dc6.hpp>
@@ -247,10 +248,11 @@ int automap_cel(const Scene& scene, const Level& level, int orientation, int mai
 void automap_reveal(const Scene& scene, const Level& level, Automap& automap, std::span<const DrawnCell> cells,
                     int shift_x = 0, int shift_y = 0);
 
-// The objects the view draws with an Objects.txt AutoMap cel into list 2
-// (FUN_00458dc0 -> FUN_00457e80), the player at (player_x, player_y) cells.
+// The objects the view draws with an Objects.txt AutoMap cel, and the
+// level's monsters with a MonStats2 automapCel, into list 2 (FUN_00458dc0
+// -> FUN_00457e80), the player at (player_x, player_y) cells.
 void automap_icons(const GameData& game_data, const Level& level, Automap& automap, float player_x, float player_y,
-                   const std::vector<UnitState>& states);
+                   const std::vector<UnitState>& states, std::span<const d2d::game::Monster> monsters = {});
 
 void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Automap& automap, float player_x, float player_y);
 

@@ -799,11 +799,11 @@ void automap_reveal(const Scene& scene, const Level& level, Automap& automap, st
 // bank (267) only in Acts 3 and 4, the sewer stairs (366) when ON, the
 // waypoint 402 only in the Arcane Sanctuary. The view draws the units of
 // the player's room and its near rooms whose box meets the view's, those
-// in its unit grid (rules::room_in_view, rules::in_unit_grid).
-// ponytail: a monster's MonStats2 automapCel (+0x118, FUN_00458dc0's unit
-// type 1 branch) isn't added: in 1.14d only barricadetower has one (1258).
+// in its unit grid (rules::room_in_view, rules::in_unit_grid). A monster
+// (unit type 1) with a MonStats2 automapCel (+0x118) the same way, with no
+// other condition: in 1.14d only barricadetower (1258).
 void automap_icons(const GameData& game_data, const Level& level, Automap& automap, float player_x, float player_y,
-                   const std::vector<UnitState>& states) {
+                   const std::vector<UnitState>& states, std::span<const d2d::game::Monster> monsters) {
     constexpr int kWidth = int(kScreenWidth), kViewHeight = int(kScreenHeight) - 40;   // the view (FUN_00476000)
     const float player_act_x = player_x + float(level.world_x), player_act_y = player_y + float(level.world_y);
     const int view_x = int(std::lround((player_act_x - player_act_y) * 80)) - kWidth / 2;   // FUN_0044c990
@@ -814,6 +814,16 @@ void automap_icons(const GameData& game_data, const Level& level, Automap& autom
     std::erase_if(rooms, [&](const auto& room) {
         return !d2d::rules::room_in_view(view_x, view_y, kWidth, kViewHeight, room[0] / 5, room[1] / 5, room[2] / 5, room[3] / 5);
     });
+    const auto add_icon = [&](const Level& owner, int cel, float x, float y) {
+        const float act_x = x + float(owner.world_x), act_y = y + float(owner.world_y);
+        const int subtile_x = int(std::floor(act_x * 5)), subtile_y = int(std::floor(act_y * 5));
+        if (std::ranges::none_of(rooms, [&](const auto& room) {
+                return subtile_x >= room[0] && subtile_y >= room[1] && subtile_x < room[0] + room[2] && subtile_y < room[1] + room[3];
+            })) return;
+        const int pixel_x = int(std::lround((act_x - act_y) * 80)), pixel_y = int(std::lround((act_x + act_y) * 40));
+        if (!d2d::rules::in_unit_grid(view_x, view_y, kWidth, kViewHeight, pixel_x, pixel_y)) return;
+        automap.add({ cel, pixel_x / 10 + 1, pixel_y / 10 - 3, 2 });
+    };
     const auto add_icons = [&](const Level& owner, const std::vector<UnitState>& owner_states) {
         namespace ids = d2d::rules::object_ids;
         const int act = d2d::rules::level_ids::act_of(owner.id);
@@ -827,17 +837,12 @@ void automap_icons(const GameData& game_data, const Level& level, Automap& autom
             if (npc.object_id == ids::kBank && act != 2 && act != 3) continue;
             if (npc.object_id == ids::kSewerStairs && mode != "ON") continue;
             if (npc.object_id == ids::kSanctuaryWaypoint && owner.id != d2d::rules::level_ids::kArcaneSanctuary) continue;
-            const float act_x = x + float(owner.world_x), act_y = y + float(owner.world_y);
-            const int subtile_x = int(std::floor(act_x * 5)), subtile_y = int(std::floor(act_y * 5));
-            if (std::ranges::none_of(rooms, [&](const auto& room) {
-                    return subtile_x >= room[0] && subtile_y >= room[1] && subtile_x < room[0] + room[2] && subtile_y < room[1] + room[3];
-                })) continue;
-            const int pixel_x = int(std::lround((act_x - act_y) * 80)), pixel_y = int(std::lround((act_x + act_y) * 40));
-            if (!d2d::rules::in_unit_grid(view_x, view_y, kWidth, kViewHeight, pixel_x, pixel_y)) continue;
-            automap.add({ npc.automap, pixel_x / 10 + 1, pixel_y / 10 - 3, 2 });
+            add_icon(owner, npc.automap, x, y);
         }
     };
     add_icons(level, states);
+    for (const auto& monster : monsters)
+        if (monster.npc.automap > 0 && !monster.gone) add_icon(level, monster.npc.automap, monster.unit.x, monster.unit.y);
     for (const auto& neighbour : level.nearby)   // a near room can be the next level's
         if (neighbour.level->layer == level.layer) add_icons(*neighbour.level, {});
 }
