@@ -50,6 +50,17 @@ FUN_006424a0 generates it by DrlgType: 1 maze (FUN_00673b30), 2 preset
 at its OffsetX/Y plus its Depend level's position; size is SizeX/SizeY
 for the difficulty.
 
+**A level's Vis/Warp node** (FUN_00642860, ECX act, EDX level id; the chain
+driver FUN_006772c0 and FUN_006775c0 call it for each level before linking):
+a find-or-create over the singly linked list at act +0x90. A node is
+at least 0x48 bytes (from `.\DRLG\Drlg.cpp` line 0x3e0, every dword set):
+`[0]` level id, `[1..8]` the Levels.txt Vis0..7 (level def +0x48..+0x64, def
+from FUN_0061e470), `[9..0x10]` Warp0..7 (def +0x68..+0x84), `[0x11]` next
+(+0x44). A level already listed is left as it is; a new one is pushed at the
+head. FUN_00642920 then fills the slots (a pair goes in the slot already
+holding that vis level, else the first free one). Cited from the decompile
+only, no oracle: not proven.
+
 ## Act 1's layout (FUN_00677750)
 
 Two chains, each run through FUN_006772c0 on a **copy** of the act seed
@@ -851,7 +862,39 @@ Room tiles as game.exe keeps them (room +0x54): walls +0x08 count /
 entries with room-relative x, y at +0x08, +0x0c, the tile header at
 +0x18 and the orientation at +0x1c. A tile header points into its DT1's
 loaded file (0x60-byte records from `buf + 0x110`, rarity at +0x20);
-loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
+The block itself is made by FUN_0066eea0 (ECX = room), the first call of
+each room's tile walk (FUN_0067d710, FUN_0067d2d0, FUN_00666ac0): if
+room +0x54 is 0 it takes 0x2c bytes from the allocator FUN_0040b430 (assert
+file `.\DRLG\RoomTile.cpp`, line 0x533) and zeroes them; a room that already
+has one keeps it. Re-check: `python3 tools/ghidra/fn.py 0066eea0`.
+
+The entry arrays are made by FUN_0066eee0 (ECX = room), called by FUN_0067d710
+and FUN_00666ac0 after their counting passes. The block's +0x18, +0x20, +0x28
+are capacities (entries to make), not the filled counts +0x08, +0x0c, +0x10:
+for each, if non-zero it takes `capacity * 0x30` bytes from FUN_0040b430
+(assert file `.\DRLG\RoomTile.cpp`) and zeroes them: +0x18 → walls array +0x14
+(line 0x545), +0x20 → floors array +0x1c (0x54b), +0x28 → shadows array +0x24
+(0x551). Only the shadows are guarded (`+0x24 == 0`); walls and floors are
+allocated again if called twice (the old array is not freed). Once the tile
+walk has filled the arrays FUN_0067d710 overwrites the capacities with the
+filled counts (+0x18 = +0x08, +0x20 = +0x0c, +0x28 = +0x10). d2d keeps tiles
+in a vector (`BuiltRoom::tiles`), so the allocation has no d2d counterpart and
+nothing to disagree with. Re-check: `python3 tools/ghidra/fn.py 0066eee0`.
+
+The capacities come from two counting passes on a plain room (FUN_0067d710:
+FUN_0066edb0 once, FUN_0066ece0 twice), over the (w+1)x(h+1) cells
+(`+0x3c`/`+0x40`, +1 each unless the skip argument is set).
+FUN_0066ece0 counts per cell word: `& 1` → +0x18, `& 2` (or, with its
+`shared` argument, the cell inside a neighbour rect, FUN_0066b980) → +0x20,
+`& 0x8000000` → +0x28. These are the same bits d2d's `word` lambda tests
+(`room_tiles.hpp`: `& 2` floor, `& 1` wall, `& 0x8000000` shadow), so d2d
+agrees. FUN_0066edb0 adds to +0x18 for every cell whose orient (FUN_0067c570,
+a pure grid read) is 3, 10 or 11. Its `+0x20 += 6` branch is unreachable:
+it re-reads the same cell and the value is 10 or 11, so `>= 0`. Counts are
+upper bounds (an orient-3 cell also adds the extra orient-4 tile in d2d's
+`add(0, x, y, 4, ...)`, which is what the orient pass is for).
+Re-check: `python3 tools/ghidra/fn.py 0066ece0 0066edb0 0067c570`.
+Loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
 cached by name.
 
 ## Act 3's jungle (FUN_0067f450, levels 76–78)
@@ -1079,6 +1122,14 @@ warp's seq, sequence < 4) on it; a visible warp wall (FUN_0066e260) puts
 itself on it. Either cuts the chain it was on, so a later room's
 FUN_0066e4c0 misses the tiles past it and adds its own copies (L23).
 
+**Room rect test** (FUN_0066b9d0, 65 bytes, fastcall `(rect, x, y)`, rect
+= four ints {x, y, w, h}): true when `rx <= x <= rx + w` and `ry <= y <=
+ry + h`, both ends inclusive, so a room of w x h tiles holds (w+1) x (h+1)
+points. FUN_0066c3d0 (wall flood), FUN_0066c870 (wall cells), FUN_0066cf60
+(border join) and FUN_0066e4c0 (edge sharing) call it; d2d inlines it as
+`x >= room.x && ... && x <= room.x + room.width` (room_tiles.hpp). Cited
+from the decompiled body, not run through tools/emu.
+
 **Doors** (FUN_0066d9e0; d2d's `relevel` makes the units again in the
 rooms' order, so a shared edge's door is the first room's): an orientation 8 / 9 wall makes a door unit —
 hidden (FUN_0066e9b0, no tile), newly added (FUN_0066dc50 ->
@@ -1134,6 +1185,19 @@ they're added:
 d2d: `components/drlg/units.hpp` (`ds1_units`), `room_tiles.hpp`
 (`BuiltRoom::units`); the app makes them objects, NPCs and monsters
 (`load_npcs`, `load_monsters`).
+
+**The DS1 cache (FUN_00665f40).** The preset's DS1 is loaded once per
+file name. Under the critical section DAT_0096d610 it walks the list at
+DAT_0096d60c (nodes 0x110 bytes: name[0x104], refcount +0x104, DS1 ptr
++0x108, next +0x10c; byte-exact, case-sensitive compare). A hit does
+InterlockedIncrement on the count and returns the cached 0x5c-byte DS1;
+a miss allocates the node and the zeroed 0x5c record (`.\DRLG\Preset.cpp`
+lines 0x4e0, 0x4e1), copies the name, sets the count to 1, puts the node at
+the list's head and loads the file with FUN_00665950. Callers: FUN_00667890
+(a preset's first room, def path at +0x44), FUN_00667970 (maze),
+FUN_0061ebb0, FUN_0061f500, FUN_006704e0. d2d reads the DS1 on every call
+and keeps no cache; the unit lists are copied out of it (FUN_00667620), so
+the result is the same. Cited from decompilation only, no oracle run.
 
 **Units off every room.** FUN_00666710 is the only hand-out (its one
 caller is the preset room init FUN_006667d0). A unit of the record that
@@ -1353,6 +1417,45 @@ return, with a new room1 seed, its edge tiles re-laid against the rooms
 up then, and its units restored from storage. Matching that needs the
 unit storage (SUnitInactive.cpp) and tiles laid as events (up and freed),
 not as one order.
+
+### Freeing an act's levels (Drlg.cpp)
+
+`FUN_00642190(act)` (called by `FUN_0061afd0`, the Dungeon.cpp act free, when
+act +0x48 is set) frees the act's DRLG state. It walks the level list at act
+`+0x47c` (next `+0x1ac`), calls `FUN_00642010(act +0x478, 0)` on each, and
+frees one block per node (`Drlg.cpp` line 0xdd). It then walks the list at act
+`+0x90` (next `+0x44`), freeing one block per node (line 0xec), clears both
+heads, and frees one more block (line 0xf2).
+
+`FUN_00642010(_, keep)` clears one DRLG level (`ESI` in the decompile; the
+register was not checked in the assembly). With `keep` 0 it frees the
+block at `+0x22c` (line 0x84); with `keep` nonzero it allocates it
+(`+8` dwords, line 0x7c) and fills it, for each room2 on the list at `+0x10`
+(next `+0x24`), with that room's `+0x60 & 1`. It frees each room2
+(`FUN_0066c100`), then the block at `+0x1b0` (`FUN_006683d0`) and the
+per-type state by type `+0`: 1 `FUN_00673fe0`, 2 `FUN_006674d0`, 3
+`FUN_006754c0`. It zeroes `+0x2c` for 0x180 bytes (up to but not including `+0x1ac`), `+0x1d8`
+and `+0x1e0` for 0x4c bytes (up to but not including `+0x22c`, so the saved
+block pointer there is untouched), frees `+0x1bc`
+when `keep` is 0 (line 0xb7), and frees the chain at `+0x1cc` (next `+0xc`,
+line 0xc5). The `keep` call is the rebuild that `FUN_00643200` makes
+(`FUN_00642390` below puts the saved bit back).
+
+d2d: not ported. Its levels are C++ objects freed by scope, and no room is
+ever freed (see the ponytail above). Cited from the decompile, not run in
+`tools/emu`.
+
+`FUN_00642390(_, level)` is the other half of that `keep` pass, called at the
+end of `FUN_006424a0` (the level builder). When the level has a room2 list
+(`+0x10`), a room count (`+8`) and the saved block (`+0x22c`), it walks the
+rooms (next `+0x24`) beside the block's dwords and sets room2 `+0x60` bit 0
+wherever the saved dword is nonzero. So bit 0 survives a free and rebuild.
+d2d: not ported (no room is rebuilt). Cited, not run in `tools/emu`.
+
+`FUN_00642230(act)` is `act ? [act+0x94] : 0`, the Act 2 boss tomb level
+(roll in "Act 2's layout"). Its only caller is `FUN_0061aeb0`, a null-checking
+copy of it. d2d: agrees, `act_seed(...)` + `roll_act2_tombs(...).boss`
+(`components/game/world/quests/act2.cpp:47`). Cited, not run in `tools/emu`.
 
 ## Checking against game.exe — what's proven, what isn't
 
