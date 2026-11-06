@@ -1092,6 +1092,10 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
                                     d2d::rules::Rng& rng, int difficulty, int players = 1, int level_id = -1);
 
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms);
+// The frame of a mode's end event (unit event 1) as the mode starts at
+// `frame`: its frames on, plus one (the mode starts' FUN_005417d0(1, (unit
+// +0xdc >> 8) + 1 + frame), FUN_0054fe10). FUN_005415a0(1) reads it back.
+int mode_end_event(const GameData& game_data, const Monster& monster, std::string_view mode, int frame);
 
 // Damage to a monster: it dies (DT, then its corpse, DD), or recoils (GH)
 // by rules::get_hit (FUN_0057cb00); either way it notices.
