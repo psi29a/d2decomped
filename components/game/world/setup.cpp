@@ -193,6 +193,7 @@ auto World::take_character(const Character& entering) -> void {
         actor->character.character_class = entering.character_class; actor->character.name = entering.name;
         actor->character.appearance = entering.appearance; actor->character.items = entering.items; actor->character.stats = entering.stats; actor->character.panel = entering.panel;
         actor->character.expansion = entering.expansion; actor->character.header = entering.header; actor->character.merc_items = entering.merc_items;
+        actor->character.fresh = entering.fresh;
         // A new game starts at full life, mana and stamina, whatever the
         // save held (D2's "save and exit to heal").
         static constexpr std::pair<d2d::d2s::StatId, d2d::d2s::StatId> kRefill[] = {
@@ -229,6 +230,7 @@ auto World::join(const Character& entering) -> Player& {
         Player& player = add_player();
         act_as(player);
         take_character(entering);
+        join_more();
         // They play the game's difficulty (the first player's), in its act.
         auto& difficulty = player.character.header.difficulty;
         const auto game_difficulty = std::size_t(std::clamp(lead().character.header.active_difficulty(), 0, 2));
@@ -313,7 +315,10 @@ auto World::new_game() -> void {
         cues.due.clear();
         // The first join (FUN_00546270): quests the player's done or closed
         // are shut for the game (FUN_00544410, game flag 15), every quest's
-        // join runs, then the chain from quest 1.
+        // join (+0xd4) runs, then the chain from quest 1. A character made
+        // new (fresh, 0x53266d / 0x56a06c) runs no +0xd4: of them only a4q3's
+        // (FUN_005b64e0, state 1 with no soulstone) changes a new one's
+        // records (tools/emu/quest_joins.py), so act4_join skips that.
         for (int quest = 1; quest < int(closed_at_join.size()); ++quest)
             closed_at_join[std::size_t(quest)] = d2d::rules::quest::bit(quests(), quest, 0) || d2d::rules::quest::bit(quests(), quest, 15);
         game_bits = {};

@@ -71,7 +71,7 @@ auto World::act4_join() -> void {
         izual = {};
         izual.join(quests());
         hellforge = {};
-        hellforge.join(quests(), carries(d2d::rules::HellforgeQuest::kStone));
+        if (!actor->character.fresh) hellforge.join(quests(), carries(d2d::rules::HellforgeQuest::kStone));   // fresh: no +0xd4
         terror = {};
         terror.join(quests());
         izual_ghost_at = diablo_at = diablo_dead_at = gems_at = 0;

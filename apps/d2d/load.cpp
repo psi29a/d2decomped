@@ -358,6 +358,7 @@ Character made_character(const Scene& scene, int save_cls, const std::string& na
     character.stats = made.stats;
     character.items = std::move(made.items);
     character.panel = panel_stats(scene, character.header, character.items, character.stats);
+    character.fresh = true;
     return character;
 }
 

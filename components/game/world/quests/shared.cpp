@@ -590,6 +590,10 @@ auto World::music_cue(std::string_view sound) -> void {
             actor->events.push_back(ev::MusicCue{ found->second });
     }
 
+// FUN_00546270 for a later player: each record's +0xd8 (quests.md "Joins").
+auto World::join_more() -> void {
+    }
+
 auto World::take_carried(std::string_view code) -> void {
         if (actor->held && actor->held->code == code) { actor->held.reset(); return; }
         if (const auto found = std::ranges::find(actor->character.items, code, &d2d::d2s::Item::code); found != actor->character.items.end()) actor->character.items.erase(found);

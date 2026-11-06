@@ -275,6 +275,7 @@ struct Character {
     bool expansion = true;               // the save's expansion flag (stash size)
     d2d::d2s::Header header;             // the loaded save's header (quest flags ...)
     std::string name;                    // the character's name
+    bool fresh = false;                  // made, not loaded: its first game runs no quest joins (FUN_00546270's `fresh`)
 };
 
 }  // namespace d2d::game

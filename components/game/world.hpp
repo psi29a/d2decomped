@@ -710,9 +710,11 @@ struct World {
     // Another player joins the game under way (docs/design/local-coop.md):
     // their character (full life, as entering), beside the first player,
     // their merc along. The one acting stays.
-    // ponytail: the quests' join for a player (game.exe's +0xd4 callback)
-    // isn't run; their save's quest bits are theirs as they come.
+    // The quests hear of them through their +0xd8s (join_more), not the
+    // +0xd4s the game's first player ran (FUN_00546270).
     Player& join(const Character& entering);
+    // A later player's quest joins (FUN_00546270's +0xd8 loop), each act's.
+    void join_more();
     // A player leaves: their character saved (save's message, "" written),
     // gone from the game. The first player's place goes to the next player
     // (their state moves into slot [0]). The last player can't leave this way.
