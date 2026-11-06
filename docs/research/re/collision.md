@@ -233,3 +233,22 @@ packet log has been taken of 0x02 going out each frame.
 d2d differs (`tick.cpp`): a walk that stops without moving drops the interact
 ("blocked on the way"), and one that moved re-plans. game.exe keeps trying
 from both.
+
+### The server's pending interact: one more walk
+
+FUN_00548a50 walks a player at a target out of FUN_00548b00's reach (mode 3,
+FUN_00580a70) and sets pending (+0x150, LAB_00641f37). When the walk ends,
+blocked or not, FUN_00580c20 goes idle and calls FUN_00548b00 again
+(LAB_00580e73). Out of reach, that starts another walk and sets pending, and
+FUN_00580c20 then clears pending (LAB_00580e88). So the second walk ends in
+plain idle: one re-issue, then nothing. C→S 0x02 / 0x04 (`549890`, `549920`)
+never set it.
+
+An item or a warp is where this shows. FUN_00481600 sends those with no range
+test (LAB_004816b1 to LAB_00481709), once, as FUN_00480930's 0x16 or 0x13, so
+a blocked walk to one gets the two walks and stops. That the 0x16 handler ends
+in FUN_00548b00 is inferred, not read. An NPC farther than 8 gets no walk at
+all from FUN_00548b00 (LAB_00548d7d): 7 and 8 walk, 6 or less talks.
+
+d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit; warps
+weren't compared.
