@@ -120,6 +120,14 @@ The environment lookup was hooked; no d2d parity claim is made.
   subtiles, spread it outward ring by ring (`FUN_00474b50` /
   `FUN_00474c00`: each subtile takes a blend of the two nearer to the
   light), and scale the light by (8 − blocked / 2) / 8.
+- **Light Quality** (`FUN_00475780`, each frame from `FUN_00475800`): it starts
+  at 2. The Video Options row sets 0x72da50 on Low only (LAB_0047cfcf; Medium and
+  High clear it, LAB_0047cfc1, LAB_0047cfb1), and with 0x72a348 clear, as Low leaves it, the answer is
+  0 (LAB_004757a7). Then the frame rate, 0x7a04a8, the frames of the last 3 s over 3
+  (`FUN_0044cce0`): 9 or less 0, 10 to 12 gives 1, 13 to 15 keeps a level of 1 or more
+  (LAB_004757ba) or gives 1, more keeps the option's. A change waits 2000 ms from the
+  last (LAB_004757da). Read from the code, no oracle. d2d has the row (`gamemenu.cpp`), which
+  changes nothing here, and no drop by frame rate.
 - **Sampling:** `FUN_00475aa0(x, y)` reads the entry at (x >> 3, y >> 3),
   clamped to 0..47.
 
