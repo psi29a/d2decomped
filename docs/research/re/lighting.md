@@ -233,8 +233,11 @@ there; Act 5 is outside todo.md.
   `FUN_004f6760`, which asserts driver 4 or more and perspective on. d2d copies
   the software path, so it isn't affected. The driver has its own test
   (`FUN_00405c30`: 3dfx 4, window 1, d3d 6, else 3), so opengl, rave or d3d
-  with window send this table to a software driver: not followed, and off by
-  default. Read from the code, no oracle.
+  with window send this table to a software driver. A default setup doesn't: the config starts
+  zeroed, D2.ini's VIDEO keys default to 0 (switches.md), and the registry's `Render` is
+  only written (`FUN_006b2f60`, its one reference LAB_006b2fe6, RegSetValueExA). It
+  takes `-opengl`, `-rave` or `-d3d` with `-w`, by switch or D2.ini key. What the driver does
+  with the table wasn't followed. Read from the code, no oracle.
 - **Walls** (`FUN_004df1c0`) and **lower walls** (`FUN_004dedf0`, from
   `FUN_004df480`) take 0x6db9d8[direction] lights (6 for DT1 directions 1..9) at spots
   from the tile's cell origin (its subtile, not where it's drawn), by
