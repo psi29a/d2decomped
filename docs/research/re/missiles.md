@@ -219,6 +219,87 @@ sub missile, the start and the flags-0x20 aim, and keeps its own rng
 missile's own subtile, game.exe aims (+1, +1) subtiles away, d2d at that
 subtile's centre.
 
+## Server hit function 59 — FUN_005acf20 (ECX game, EDX the missile)
+
+Slot 59 of the pSrvHitFunc table 0x73c840 (`0x73c92c`). Baal Taunt's poison
+control ends here. Cited from the decompile (no oracle run); the return
+paths I read in the decompile return 1.
+
+- Gate: the missile's class (unit +4) is in `0 <= class < Missiles.txt count`
+  (half-open; `PTR_DAT_00744304 + 0xb6c`), its record (+ 0xb64, 0x1a4 each) has
+  HitSubMissile1 (short, +0x24) ≥ 0, and FUN_00552fd0 finds an owner;
+  otherwise nothing is laid. The decompile drops the register arguments, so
+  that the owner reaches FUN_005a9370 in EDX is read from that callee's use
+  of its second parameter.
+- Radius/step: sHitPar1 (+0x4c), 1 when 0 or less.
+- Calls FUN_005a9370 with the missile, HitSubMissile1, the missile's skill
+  (FUN_0064a280), its level (FUN_0064a210), sHitPar1 as the odd step, **2**
+  as the even step, and 0 for the life (param 9).
+- FUN_005a9370 zeroes a 0x5c params block: flags **0x17** (1 start given, 2
+  relative aim, 4 + 0x10 velocity as given, then FUN_0059fa30's × 75 / 100),
+  or 0x1f with a life in [0xd] when the life argument is > 0 (not here).
+  Start [5] / [6] = the missile's subtile (FUN_0045adf0 / FUN_0045ae20),
+  [0xb] skill, [0xc] level, velocity [10] = record Param1 (+0x38) << 7.
+  Even ring: entries 0, 2 ... 14 of the 16-entry pair 0x6e2510 (x) /
+  0x6e24d0 (y), 8 ways (byte offset += step × 4 while < 0x40). Then, when the
+  odd step is non-zero (FUN_005acf20 clamps sHitPar1 to at least 1 before
+  the call, so here it is; FUN_005a9370 itself does not clamp it), velocity Param2 (+0x3c) << 7 and
+  entries 1, 1 + s ... while the offset < 0x3c (≤ entry 15) of 0x6e2514 /
+  0x6e24d4. Each is made by FUN_0059fa30 (named d2d_ai_andariel_missile in
+  the decompile). FUN_005a9370 returns 0 for a class out of range or a null unit.
+
+d2d: `hit_spawn` (ai.hpp) reads the same, cited from the decompile, no oracle run,
+on the 8 even ways at Param1 << 7, the
+odd ones at a stride of sHitPar1 entries (at least 1) at Param2 << 7 and the × 75 / 100. Two
+notes: its comment says "flags 0x14", game.exe's is 0x17 (the velocity is as
+given in both, so the numbers agree as cited from the decompile, no oracle run), and d2d does not check that an owner
+exists as the gate does (not examined further).
+
+## Server hit function 23 — FUN_005acfc0 (ECX game, EDX the missile, stack unit)
+
+Slot 23 of the table (`0x73c89c`). Cited from the decompile, no oracle run; the return
+paths I read in the decompile return 1.
+
+- Gate: class in range with a record, the missile's skill (FUN_0064a280) and
+  level (FUN_0064a210) both > 0, and FUN_00552fd0 finds an owner.
+- With the stack unit non-zero, FUN_00620c10(missile, unit) stores it as the
+  missile path's target (FUN_00648b90: path +0x58 the unit, +0x5c its type,
+  +0x60 its id). Only for missile types 0, 1, 3; any other type is a fatal
+  error (strings 0x8ac / 0x8ae).
+- Then FUN_0056d810(sHitPar1, skill, level): the srvdofunc `0x7322b0`
+  table, index sHitPar1 (< 0xbf, a null entry does nothing). So hit 23 runs
+  server skill function number sHitPar1 at the missile's skill and level.
+
+d2d: not ported as a hit function (`git grep` for hit_func 23 finds no
+case); FUN_0056d810 itself is ported (fight/missiles.cpp:531).
+
+## Server damage functions 1, 2, 4 and 12 — FUN_005ad050, FUN_005ad1b0, FUN_005ad290, FUN_005ad0f0
+
+These four sit in the **pSrvDmgFunc** table 0x73c960 (`+ slot × 4`: 0x73c964
+= 1, 0x73c968 = 2, 0x73c970 = 4, 0x73c990 = 12), not the hit table. They run
+with ECX game, EDX the missile, then a unit and the damage record. Cited from
+the decompile, no oracle run; the decompile drops ECX / EDX, so which operand FUN_00483360
+(a × b / c, here c = 100) got is a reading, not proof.
+
+- **1, FUN_005ad050**: class gate, then FUN_0064b7c0(missile, owner, record
+  +0x90 calc, -1, -1) > 0. Then the physical (damage +8) loses
+  `min(phys, phys × calc / 100)` and FUN_005a9270 adds that to the damage
+  field of the missile's element (FUN_0064b0c0: record byte +0xe4; 0 phys
+  +8, 1 fire +0x10, 2 lightning +0x1c, 3 magic +0x20, 4 cold +0x24, 5 poison
+  +0x28, 6 +0x38, 7 +0x3c, 8 +0x40, 9 +0x44, 0xb +0x14; 0xc sets +0x24).
+- **12, FUN_005ad0f0**: same gate and calc; takes `min(phys, phys × calc /
+  100)`, rolls the missile's own element with FUN_005a8c70, clears the other
+  fields with FUN_005a91c0, then adds the taken part and the roll to the
+  element field.
+- **2, FUN_005ad1b0**: class gate only; sets the damage record +0x34 to
+  `FUN_00483360(100)` (a × b / 100 on its hidden operands) and +0x30 to 0,
+  after FUN_00625480(missile, 0x38, 0) (stat 0x38 of the missile).
+- **4, FUN_005ad290**: no gate: damage +0x34 = +0x30, then +0x30 = 0.
+
+d2d: pSrvDmgFunc is read only for 5 (`dmg_func` in gamedata.hpp); 1, 2, 4
+and 12 are **not ported**. Which Missiles.txt rows use them needs the game's
+table, not read here.
+
 ## d2d
 
 - `rules::MissileFlight` (launch, step, walk, retarget), `missile_aim`,
