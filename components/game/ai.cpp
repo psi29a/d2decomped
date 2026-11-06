@@ -189,6 +189,10 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
                                                                       : now_ms + game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, mode));
 }
 
+int mode_end_event(const GameData& game_data, const Monster& monster, std::string_view mode, int frame) {
+    return frame + int(game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, mode)) / 40) + 1;
+}
+
 std::vector<UnitState> npc_start(const Level& level) {
     std::vector<UnitState> out;
     for (const auto& npc : level.npcs) out.push_back({ .x = npc.x, .y = npc.y, .shape = npc.shape });
@@ -1139,11 +1143,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // the target (mask 4); MissS1's range; Skill6..8; Mephisto's weakest
     // foe within 32 (FUN_005f7700); the spots (the priests' and the
     // Council's cast points).
-    // ponytail: no pending think event is seen (FUN_005415a0: 0); the
-    // shaman's Inferno state (0xc) is never on; a fetish sent to a corpse
-    // (command 14) drops it (the corpse isn't kept); a think always has a
-    // target (search types 2 / 5 think without one in game.exe).
+    // The ThornHulk's FUN_005415a0(1) after its frenzy (Skill1) starts
+    // (FUN_005f4850): that cast mode's end event.
+    // ponytail: the shaman's Inferno state (0xc) is never on; a fetish sent
+    // to a corpse (command 14) drops it (the corpse isn't kept); a think
+    // always has a target (search types 2 / 5 think without one in game.exe).
     {
+        if (type_info.ai_name == "ThornHulk") input.next_event = mode_end_event(game_data, monster, type_info.sk_mode[0], frame);
         static constexpr std::array<std::string_view, 16> kModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
         const bool has_leader = monster.leader >= 0 && std::size_t(monster.leader) < pack.size() && &pack[std::size_t(monster.leader)] != &monster;
         if (type_info.ai_name == "Tentacle") {

@@ -1268,7 +1268,7 @@ struct ThinkIn {
     // +0x18 (FUN_0058efa0).
     bool swings = true, runs = false, afraid = true, in_s4 = false;
     int* cast_word = nullptr;
-    // Act 3's: its next think event's frame (FUN_005415a0 type 1, 0 none);
+    // Act 3's: its soonest mode-end event's frame (FUN_005415a0 type 1, 0 none);
     // its group leader's mode (unit +0x10; the tentacles' head: 12 DD, 14
     // S4), with `grouped`; its command's unit found (FUN_00552f60).
     // Skill1's level (FUN_006442a0, base + bonus); state 0xc (the fetish
@@ -2367,7 +2367,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // frenzy (Skill1) on (state: thinks left) it keeps casting; else aip1
     // % it fights: with no cooldown (state2) aip4 % frenzies (state aip6),
     // else aip2 % A1, else A2; else aip3 % circles 4, else stands 15. A
-    // cast waits aip5 past its next think event, if one's due.
+    // cast waits aip5 past the cast's end (its mode-end event, if one's due).
     if (ai_name == "ThornHulk") {
         if (!input.in_melee) { *input.state = 0; return { MonAct::run, 7 }; }
         auto frenzy = [&] {
