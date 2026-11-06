@@ -221,6 +221,13 @@ The base y is 539 (= 60 + 255 + 224):
   sends 12, no spot for it 10, a cursor item 7, a failed copy 9.
 - A sale (FUN_00579510): FUN_0062a130 refuses flag 0x1000, an Items.txt
   quest item (+0x12a: Wirt's leg too) and type 0x27 (ques) with 9.
+- The sold item's mode (unit +0x10) must be the one the packet carries
+  (else 9). Mode 0, stored, leaves its grid; mode 4, the cursor's, leaves
+  by `FUN_0055eea0`. Any other mode comes off its body slot
+  (`FUN_00627d40` → `FUN_00560cd0`, which needs nothing else on the
+  cursor). A belt item has no body slot, so that fails and the sale
+  returns with nothing paid and no message. A worn belt sold spills its
+  boxes (`FUN_005608c0`). d2d: the World's `cmd::Sell`.
 - The client (FUN_004b6390 -> FUN_004b53f0) answers 7..0x10 with an
   NPC-menu box at the mouse (FUN_00468730 / 40): the text in colour 1
   (red), line height 0x15, over "Continue" (0xd4b, height 0xf, handler

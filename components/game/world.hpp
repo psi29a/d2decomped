@@ -887,6 +887,9 @@ struct World {
     // NPC deals (protocol.hpp): the windows, buying, selling, repairing,
     // identifying, hiring. True when `c` was one.
     bool deal(const Command& command, std::uint32_t now_ms);
+    // A belt put on or taken off: what the boxes it lacks held, to the
+    // inventory or the floor (rules::spill_belt, FUN_005608c0).
+    void spill_belt(std::uint32_t now_ms);
 
     // A command from the player, checked and applied. A busy player's
     // are dropped (game.exe's dispatcher, FUN_0054d750 / FUN_0057eec0).

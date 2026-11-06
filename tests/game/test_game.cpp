@@ -822,6 +822,23 @@ int main(int argc, char** argv) try {
         assert(kept != items.end() && kept->location == d2d::d2s::item_location::kBelt);
         assert(spilt != items.end() && spilt->location == d2d::d2s::item_location::kStored && spilt->panel == d2d::d2s::item_panel::kInventory);
         std::printf("OK: a belt taken off spills its lost rows into the inventory\n");
+        // Sold at a vendor (FUN_00579510): a belt item isn't (no body slot for
+        // FUN_00560cd0); the worn belt is, and spills as it comes off.
+        belted.actor->held.reset();
+        give(big->first, d2d::d2s::item_location::kEquipped, 0, d2d::d2s::body_location::kBelt, 9001);
+        give("hp1", d2d::d2s::item_location::kBelt, 12, 0, 9004);
+        const auto& npcs = belted.level->npcs;
+        const int charsi = int(std::ranges::find(npcs, d2d::rules::monster_ids::kCharsi, &Npc::hc_idx) - npcs.begin());
+        belted.apply(d2d::game::cmd::OpenTrade{ charsi, false }, 27 * kTickMs);
+        assert(belted.actor->store.npc == charsi);
+        belted.apply(d2d::game::cmd::Sell{ 9002 }, 27 * kTickMs);
+        const auto unsold = std::ranges::find(items, 9002, &d2d::d2s::Item::id);
+        assert(unsold != items.end() && unsold->location == d2d::d2s::item_location::kBelt);
+        belted.apply(d2d::game::cmd::Sell{ 9001 }, 27 * kTickMs);
+        assert(std::ranges::find(items, 9001, &d2d::d2s::Item::id) == items.end());
+        const auto moved = std::ranges::find(items, 9004, &d2d::d2s::Item::id);
+        assert(moved != items.end() && moved->location == d2d::d2s::item_location::kStored);
+        std::printf("OK: a worn belt sells and spills; a belt item doesn't sell\n");
     }
     {   // A vendor's stock and Kashya's hire list last the game, not one opening.
         const auto& npcs = world.level->npcs;

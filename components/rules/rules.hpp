@@ -1067,7 +1067,7 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
     }
 }
 
-// Sells inventory item i (FUN_00579510): gold up by the sell value, what
+// Sells item i (FUN_00579510): gold up by the sell value, what
 // passes the carried cap (clvl x 10000) returned to drop at the player's
 // feet (FUN_0055b060). The vendor stocks a copy at full durability and stack
 // (stats 72 / 70) unless it's Cracked (LowQualityItems row 1), broken
@@ -1075,8 +1075,9 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
 // (FUN_0055f590: Items hasinv, +0x137, with its inventory not empty), sold
 // while gambling (the player's proxy at the vendor, FUN_00536cb0: +4 set by
 // the gamble open, FUN_00578b30), a greater or super potion in an expansion
-// game, or one of the vendor's perm items (FUN_00576ed0).
-// ponytail: no belt/equipped selling.
+// game, or one of the vendor's perm items (FUN_00576ed0). The item is a
+// stored one, the cursor's or a worn one (the World's cmd::Sell: off its
+// body slot by FUN_00560cd0; a belt item refused).
 inline std::int64_t store_sell(const Tables& tables, Store& store, std::size_t index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats) {
     const auto& sold = items[index];
     const int price = item_price(tables, sold, store.npc_id, true, store.header);
