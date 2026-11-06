@@ -194,6 +194,7 @@ def check_python(tree, changed, numbers):
 
 
 def check_tool_tests(tree):
+    """Run tracked tool tests with normal and symlinked temporary directories."""
     tests = tool_tests(tree)
     if tests:
         # Twice: as is, and with TMPDIR behind a symlink as macOS's /var -> /private/var
