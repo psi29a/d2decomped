@@ -210,6 +210,11 @@ object or player going is the client, every game frame, until it stands in reach
   (player data +0x150) = 1, action +0x154 = 0x13, target +0x158 / +0x15c
   (LAB_00462159). A stop leaves it queued, the mode unchanged (FUN_00463390,
   LAB_004636ae).
+- **Queued at a click on a player** in town: FUN_004625b0 (LAB_0046281a) calls
+  FUN_004619e0 when both units' rooms are in town (FUN_0061ab00). Within 2 with
+  a clear 0x804 line it interacts at once (LAB_00461a11); otherwise it walks
+  (LAB_00461a22) and queues the same way (from LAB_00461a3c). It isn't a caller of the frame code:
+  FUN_00481600 has one caller, LAB_0044f126.
 - **Run each frame** of a game. FUN_0044efa0 calls FUN_00481600 (LAB_0044f126)
   only while 0x7a061c is set: S→C 0x04's handler sets it (LAB_0045c9a3), and
   S→C 0x05's handler (LAB_0045ca3f), FUN_0044e380 (LAB_0044e3df), FUN_00477ee0
