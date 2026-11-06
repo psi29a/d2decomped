@@ -49,9 +49,16 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
 - **Intensity** (`FUN_0061bb80`): angle a = time / scale degrees;
   intensity = (int)(sin(a) × 128 + 128 + 0.5), the sine halved for
   a ≥ 180°, clamped to 0 and to 255 (170 in Act 5). Sunrise 128, noon
-  255 (256 clamped), midnight 64. Level 120 is fixed at 200. Act 4 levels
-  103..106 step toward 0x80 / 0x40 / 0x38 / 0x30. The eclipse drops by 8
-  down to 32.
+  255 (256 clamped), midnight 64. Level 120 is fixed at 200. The eclipse
+  drops by 8 down to 32.
+- **Act 4's intensity** has no sun: `FUN_0061bb80` tests the act first, so
+  the clock, the eclipse and level 120's rule are never read there. Each
+  frame +0xc moves one step toward its level's target: 103 0x80, 104 0x40,
+  105 0x38, 106 0x30, any other 16 (act + 13), so 107 and 108 settle at 16.
+  It starts from whatever the last act left, so entering Act 4 is a fade of
+  up to 239 frames. `tools/emu/env_light.py` runs it. The ambient most things
+  use doesn't show this: all six levels have their own light (below), and
+  only what reads +0xc itself does (raised roofs, "Floors and roofs").
 - **Colour** (`FUN_0061bce0`): blended from the phase's RGB toward the
   next phase's by how far the time is between them. Level 120 is fixed at
   (245, 240, 255).
