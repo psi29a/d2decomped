@@ -301,8 +301,24 @@ line test: sooner than game.exe's client, and through a wall.
 A click on the ground queues nothing, so a player's walk to a spot that runs
 out or is blocked stops there: FUN_00650840 stops the same frame (LAB_006508ff),
 the server goes idle (FUN_00580c20) and the client goes neutral (FUN_00463390).
-FUN_006503f0's re-path at idx ≥ count isn't reached from this. A held button
-goes through the queued click (FUN_0044c000), which wasn't traced.
+FUN_006503f0's re-path at idx ≥ count isn't reached from this.
+
+A held button: FUN_0044efa0 calls FUN_0044c000 each frame (LAB_0044f039) while the
+press was taken and 0x7a061c is set. That is FUN_00462d00 with flags 9 (the press has 5),
+so FUN_00462a20 and FUN_004625b0. On the ground FUN_004623c0 and FUN_00461840 path anew
+from where the unit stands, with the same FUN_00650840 stop, so a blocked
+walk gets a new one the next frame: the stop is the same, the button restarts it. With a queued
+action a held button on the ground does nothing (LAB_00462b1d) unless shift is held, so
+it doesn't drop a queued interact. On a unit, an object or item
+ignores the hold (LAB_00461df2, LAB_00461ee5), a monster needs the press
+(LAB_004628cb), and a warp has no such test ("The server's pending interact").
+Whether each frame sends C→S 0x01 or 0x03 wasn't followed, nor the skill branches
+before LAB_004628a8.
+
+d2d's held button (`input.cpp`, `cmd::Move` not fresh) walks again after a stop too.
+`walk_to` clears `interact_npc` before it tests `fresh`, which reads as if a held frame after
+the press on an NPC drops the interact, yet a normal click on a far NPC talks in play. What
+keeps it wasn't found, and no test holds a press: devctl's `click` sends down and up together.
 
 d2d re-plans a walk to a spot too while it moves ("Short of the target with a
 step made", `tick.cpp`), so one click can walk farther than game.exe's does.
