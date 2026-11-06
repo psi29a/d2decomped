@@ -1269,6 +1269,15 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
     return pop.seed;
 }
 
+bool every_room_populated(const Spawning& spawning, const Level& level) {
+    const auto found = spawning.levels.find(&level);
+    if (found == spawning.levels.end()) return false;
+    const auto& up = found->second.up;
+    for (std::size_t i = 0; i < level.rooms.size(); ++i)
+        if (!ObjectRooms::none(level, i) && (i >= up.size() || !up[i])) return false;
+    return true;
+}
+
 std::vector<std::uint16_t> object_collision(const Spawning& spawning, const Level& level) {
     const auto found = spawning.levels.find(&level);
     if (found == spawning.levels.end() || !found->second.objects) return {};

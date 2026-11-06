@@ -40,13 +40,14 @@ int main() {
     assert(again.state == 3 && again.log == 2);
 
     den.took_part(1);                                                                  // player 1 killed one
-    assert(den.killed(9) == DenQuest::Kill::none && den.log == 2);
-    assert(den.killed(5) == DenQuest::Kill::few && den.log == 4);                    // "Monsters remaining"
+    assert(den.killed(9, true) == DenQuest::Kill::none && den.log == 2);
+    assert(den.killed(5, true) == DenQuest::Kill::few && den.log == 4);                    // "Monsters remaining"
+    assert(den.killed(0, false) == DenQuest::Kill::none && den.state < 4);               // a Den room not populated yet: nothing
 
-    assert(den.killed(0) == DenQuest::Kill::cleared && den.state == 4);
+    assert(den.killed(0, true) == DenQuest::Kill::cleared && den.state == 4);
     QuestBits bystander{};                                                             // player 2 killed none: cleared by someone else
     assert(DenQuest::credit(quest_bits, den.participants.has(1)) && !DenQuest::credit(bystander, den.participants.has(2)));
-    assert(quest::bit(quest_bits, 1, 1) && quest::bit(quest_bits, 1, 13) && den.killed(0) == DenQuest::Kill::none);
+    assert(quest::bit(quest_bits, 1, 1) && quest::bit(quest_bits, 1, 13) && den.killed(0, true) == DenQuest::Kill::none);
     assert(quest::bit(bystander, 1, 14) && !quest::bit(bystander, 1, 1));
 
     // Akara's reward, once.
@@ -60,7 +61,7 @@ int main() {
     QuestBits other_bits{};
     DenQuest other_den;
     other_den.enter_den(other_bits);
-    assert(other_den.killed(0) == DenQuest::Kill::cleared && DenQuest::credit(other_bits, true) && other_den.talk(other_bits, 148)[0].string == 76);
+    assert(other_den.killed(0, true) == DenQuest::Kill::cleared && DenQuest::credit(other_bits, true) && other_den.talk(other_bits, 148)[0].string == 76);
 
     {   // Tools of the Trade: a party member's share of the malus coming back (0x591430): clvl 8+, not done or due.
         QuestBits low{}, high{}, done{};

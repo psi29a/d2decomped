@@ -1210,6 +1210,9 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
 // The level's collision as room_objects sees it (FUN_0064ca50's words, 0x27
 // off the rooms up), level subtiles row-major: drlg-dump drops.
 std::vector<std::uint16_t> object_collision(const Spawning& spawning, const Level& level);
+// Every room of the level that populates (FUN_00642be0's count: not
+// ObjectRooms::none) has (the objrgn record's +4 reaching it).
+bool every_room_populated(const Spawning& spawning, const Level& level);
 void install_level(const GameData& game_data, int id, std::unique_ptr<Level> level);
 std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int id);
 void want_nearby(const GameData& game_data, const Level& level);

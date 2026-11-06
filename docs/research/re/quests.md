@@ -63,6 +63,15 @@ States: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded.
 - **A monster dies** (`FUN_00590260`):
   - Remaining = the Den level's +0x2cc − +0x2d0. Those counters move with
     monster modes (`FUN_00547d90`..`FUN_00547ed0`).
+  - Only once every room of the Den has populated: the level's record
+    (`FUN_00547bb0(.., 8)`) +4, the rooms populated so far (objects.md:
+    bumped per eligible room), at least `FUN_0061abf0` → `FUN_00642be0`
+    (the level's populatable rooms). Before that a death does nothing
+    (no clear, no count in the log), however few are left. Checked on
+    every death (event 8), not when the count drops; with all rooms up
+    and under 6 left, the log's count is resent (state flag 0x20,
+    `FUN_00544300(0, FUN_0058fbe0, 1)`), and again at +0xb 4 with 6 or
+    more (a monster back up).
   - 0 remaining → state 4 and the game flag. Participants (the list at
     +0x18, `FUN_005455f0`) get bits 13 and 1. Others get bit 14 and the
     0xd82 message.
