@@ -348,7 +348,9 @@ auto Town::net_items(const Command& command) -> bool {
             auto trial_held = hero.held;
             if (!d2d::rules::equip(scene->rules, trial_items, trial_held, to_body->slot, worn_by, d2d::game::required_level(*scene, *hero.held, cls), layout.cols, layout.rows)) return true;
             if (const int stack = d2d::rules::hand_stack(scene->rules, hero.character.items, *hero.held, to_body->slot); stack >= 0) {   // code 6
-                if (const auto target = host(&hero.character.items[std::size_t(stack)])) net_game->send_items({ c2s::stack(held_id, target) });
+                const auto target = host(&hero.character.items[std::size_t(stack)]);
+                if (!target) return false;                    // the host can't make it: nor does the local World
+                net_game->send_items({ c2s::stack(held_id, target) });
                 net_cursor = trial_held ? held_id : 0;
                 return true;
             }
