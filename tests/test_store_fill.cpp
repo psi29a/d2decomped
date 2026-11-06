@@ -12,6 +12,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -128,7 +129,7 @@ int main() {
         auto mana = carried("mp1", -1);
         mana.location = location::kBelt;
         mana.column = box;
-        items.push_back(mana);
+        items.push_back(std::move(mana));
     }
     stats.values[d2d::d2s::kGold] = 100000;
     assert(store_buy(tables, shop, 2, items, stats, 4, true) == Trade::done && items.size() == 5 && items[4].column == 3 && gold() == 100000 - potion);

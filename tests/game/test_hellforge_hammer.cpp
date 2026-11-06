@@ -20,6 +20,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -51,7 +52,7 @@ int main() try {
         item.code = code; item.identified = true;
         item.location = d2d::d2s::item_location::kStored; item.panel = d2d::d2s::item_panel::kInventory;
         item.column = 9; item.row = 3;
-        world.actor->character.items.push_back(item);
+        world.actor->character.items.push_back(std::move(item));
         world.act4_update(0);
     };
     world.hellforge.open = true; world.hellforge.state = 0;

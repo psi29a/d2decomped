@@ -94,7 +94,7 @@ int main() try {
         sent_monster.anim_pct = 25;
         sent_monster.props.ias = 60;
         sent_monster.props.fcr = 40;
-        sent.monsters = { sent_monster };
+        sent.monsters = { std::move(sent_monster) };
         ViewEncoder encoder;
         const auto bytes = encode_view(empty_data, sent, encoder);
         View received;

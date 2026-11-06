@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -58,7 +59,7 @@ int main() try {
     world.act3_update(0);
     assert(world.lam_esen.state == 3);                                            // dropped: 3
     world.lam_esen.open = false;
-    items.push_back(tome);
+    items.push_back(std::move(tome));
     world.act3_update(0);
     assert(world.lam_esen.state == 3);                                            // shut (+9 clear): nothing
     std::printf("OK: the tome's pickup and drop move a3q1 whatever its state\n");
