@@ -608,9 +608,10 @@ auto World::take_carried(std::string_view code) -> void {
 // the deciphered scroll's order, the fifth opening the way to Tristram at
 // StoneLambda (x + 6, y - 3); the Gibbet (10) frees Cain.
 // The order draws on the game's quest rng (game+0x10f4).
-// ponytail: CairnStones' missile and the portal's red look aren't drawn. Cain walks out (cain_step); with no room for him the portal
-// FUN_0056d130 opens at x + 6, y + 6 is the player's own pair. Quests:
-// agent A's.
+// Cain walks out (cain_step); with no room for him (FUN_00593290) a town
+// portal pair (FUN_0056d130, object 0x3b) opens at x + 6, y + 6, linked only
+// to its twin in the camp: nobody's own, the player's own portal stays.
+// ponytail: CairnStones' missile and the portal's red look aren't drawn.
 auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         using Cain = d2d::rules::CainQuest;
         const auto& object = level->npcs[std::size_t(npc_index)];
@@ -647,7 +648,7 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
                                 d2d::rules::quest::set(bits, d2d::rules::CainQuest::kQuest, 14);
                         });
             if (spawned) cain_walk = { .npc = int(found - level->npcs.begin()), .next = now_ms + std::uint32_t(object.op_frames) * 40 };
-            else open_portal_at(object.x + 6, object.y + 6, now_ms);
+            else open_portal_at(object.x + 6, object.y + 6, now_ms, int(kGibbetPortal));   // a pair of its own: the player's stays
             d2d::log::info("Search for Cain: Cain is free");
             return;
         }

@@ -382,11 +382,13 @@ struct World {
     // the true tomb's way down to Duriel (object 100, OperateFn 43: one
     // way). Act 5's: [8] Anya's red portal to Nihlathak's Temple (object 60,
     // FUN_0058af90), [9] its twin. [10] the Cube's Cow Portal (object 60,
-    // FUN_00594140) in the camp, [11] its twin in the Moo Moo Farm. From [12]
-    // on, the other players' town portals, a pair each (Player::portal_pair).
+    // FUN_00594140) in the camp, [11] its twin in the Moo Moo Farm. [12] the
+    // Gibbet's town portal when Cain has no room (FUN_00593290 -> FUN_0056d130:
+    // nobody's own), [13] its twin in the camp. From [14] on, the other
+    // players' town portals, a pair each (Player::portal_pair).
     // A portal's other end is k ^ 1.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
-    static constexpr std::size_t kGamePortals = 12, kTemplePortal = 8, kCowPortal = 10;
+    static constexpr std::size_t kGamePortals = 14, kTemplePortal = 8, kCowPortal = 10, kGibbetPortal = 12;
     bool cow_portal_opened = false;        // this game's (quest record 0xb's flag, FUN_00544720)
     // a5q2's cages' portals (FUN_005888d0: object 189, as Cain's): the freed
     // prisoners' way out, no twin, not selectable.
@@ -879,7 +881,7 @@ struct World {
     // A town portal pair `pair` closes (FUN_00535430 / FUN_00584870): an end
     // on the Summit counts out of the Rite (RiteQuest::portal_closed).
     void close_portal_pair(std::size_t pair);
-    bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms);
+    bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms, int pair = -1);   // -1: the actor's own pair
     // FUN_0056d130's spot (FUN_0064e810, field_spot): from (x, y) cells, a
     // 3 x 3 box (size 3) clear of 0x3e01 and expfield.d2's walk back clear of
     // 0xc01, over the grid, the items lying (0x200) and the units here (the
