@@ -238,6 +238,20 @@ inline constexpr std::array<std::uint8_t, 90> kSpeedBand{
     4, 3, 5, 4, 4,  5, 4, 5, 5, 4,  5, 4, 5, 5, 5,  5, 4, 5, 5, 5,  5, 5, 5, 5, 5,  5, 5, 5, 5, 5 };
 inline constexpr std::uint8_t kSpeedColumn[7][2] = { { 0, 2 }, { 1, 4 }, { 1, 4 }, { 0, 3 }, { 0, 3 }, { 1, 4 }, { 0, 3 } };
 
+// A quest consumable its quest doesn't let the player use now (FUN_00483f80,
+// 0x483f80, on the client's quest words, FUN_004b32d0): the Book of Skill
+// (ass) unless Radament's word (9) has bit 5, the Potion of Life (xyz)
+// unless the Golden Bird's (0x14) has bit 5, the Scroll of Resistance (tr2)
+// unless the Prison of Ice's (0x25) has bit 8 and not bit 7. The grid tints
+// it red (FUN_00483ff0). Any other code: false.
+inline bool quest_item_held_back(std::string_view code, const d2d::d2s::Header& header) {
+    const int difficulty = header.active_difficulty();
+    if (code == "ass") return !header.quest_flag(difficulty, 9, 5);
+    if (code == "xyz") return !header.quest_flag(difficulty, 0x14, 5);
+    if (code == "tr2") return !header.quest_flag(difficulty, 0x25, 8) || header.quest_flag(difficulty, 0x25, 7);
+    return false;
+}
+
 // An item's required level (FUN_0062b5b0): its affixes' / set item's /
 // unique's levelreq (crafted: the highest affix + 10 + 3 per affix, at
 // most 98; magic and rare also their class automod's, item data +0x36,

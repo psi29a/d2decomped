@@ -80,13 +80,18 @@ void draw_sockets(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 // measured live 2026-10-25): red (0x80, 0, 0) when the wearer can't use it
 // (FUN_0062eaf0's requirements, or flags 0x100 / 0x4000: FUN_0062a4e0),
 // dull red (0x80, 0x40, 0x40) unidentified, else blue (0, 0, 0x80)
-// (FUN_00483960; their nearest palette colours, 0x08 / 0x4d / 0xea).
-// ponytail: the picked-up item's green, flag 4, FUN_004c2240's states and
-// the used quest consumables' red (FUN_00483f80) aren't told apart.
-void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect) {
+// (FUN_00483960; their nearest palette colours, 0x08 / 0x4d / 0xea). An
+// identified quest consumable its quest holds back (`header`'s quest words,
+// FUN_00483f80: game::quest_item_held_back) is red too.
+// ponytail: the picked-up item's green, flag 4 and FUN_004c2240's states (a
+// sub stat list with flag 2 on the item, FUN_00625760, or the player in
+// state 0x36) aren't told apart.
+void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect,
+                const d2d::d2s::Header* header) {
     static constexpr std::array<std::array<int, 3>, 3> kTints{ { { 144, 0, 0 }, { 140, 64, 64 }, { 24, 0, 104 } } };   // act 1's 0x08 / 0x4d / 0xea
     const bool usable = d2d::rules::meets_requirements(scene.rules, item, wearer, d2d::game::required_level(scene, item, wearer.cls)) && !(item.flags & 0x4100u);
-    const auto& tint = kTints[!usable ? 0 : !item.identified ? 1 : 2];
+    const bool held_back = item.identified && header && d2d::game::quest_item_held_back(item.code, *header);
+    const auto& tint = kTints[!usable || held_back ? 0 : !item.identified ? 1 : 2];
     const int screen_w = fb_width(framebuffer);
     for (int y_pos = std::max(rect[1], 0); y_pos < std::min(rect[1] + rect[3], int(kScreenHeight)); ++y_pos)
         for (int x_pos = std::max(rect[0], 0); x_pos < std::min(rect[0] + rect[2], screen_w); ++x_pos) {
@@ -97,7 +102,7 @@ void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
 
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x , int mouse_y , const d2d::rules::Wearer* wearer ,
-                    const std::function<std::string(const d2d::d2s::Item&)>* price, bool weapon_set_two) {
+                    const std::function<std::string(const d2d::d2s::Item&)>* price, bool weapon_set_two, const d2d::d2s::Header* header) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     // invchar6.dc6 holds two 2x2 panels (256+64 wide, 256+176 tall);
     // frames 4..7 are the inventory, 0..3 the character-stats page.
@@ -166,7 +171,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
             if (weapon_set_two && (item.slot == body::kRightArm || item.slot == body::kLeftArm)) { rect[0] += 4; rect[1] -= 4; }
         }
         if (rect[2] <= 0) continue;
-        if (item.location == d2d::d2s::item_location::kStored && wearer) tint_cells(framebuffer, scene, item, *wearer, rect);
+        if (item.location == d2d::d2s::item_location::kStored && wearer) tint_cells(framebuffer, scene, item, *wearer, rect, header);
         draw_in(item, rect[0], rect[1], rect[2], rect[3]);
         if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { hover = &item; hover_box = rect; }
     }

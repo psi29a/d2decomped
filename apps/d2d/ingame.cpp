@@ -337,7 +337,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                         return string_id(scene, 0xd03) + std::to_string(d2d::rules::item_price(scene.rules, item, store->npc_id, true, store->header));
                     };
                 draw_inventory(framebuffer, scene, scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
-                               mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two);
+                               mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two, hud.header);
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
             }
         };
