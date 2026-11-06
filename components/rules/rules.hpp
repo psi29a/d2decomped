@@ -844,11 +844,16 @@ inline int repair_cost(const Tables& tables, const d2d::d2s::Item& item, const s
 }
 
 // Paying (FUN_00576d90): the purse first, then the stash; nothing taken
-// and false when both together fall short.
+// and false when both together fall short. A cost the purse covers, a
+// negative one too (Repair All's wrapped sum, bugs.md 50), goes through
+// FUN_0053ff00(-cost): a purse that would pass its cap (clvl x 10000,
+// FUN_00622e70) is set to 0 instead. A payment only lowers a purse within
+// its cap, so only a growing one can pass it.
 inline bool pay(d2d::d2s::Stats& stats, std::int64_t cost) {
     if (stats.get(d2d::d2s::kGold) + stats.get(d2d::d2s::kGoldBank) < cost) return false;
     const auto from_purse = std::min<std::int64_t>(stats.get(d2d::d2s::kGold), cost);
-    stats.values[d2d::d2s::kGold] -= from_purse;
+    const auto purse = stats.get(d2d::d2s::kGold) - from_purse;
+    stats.values[d2d::d2s::kGold] = from_purse < 0 && purse > stats.get(d2d::d2s::kLevel) * 10000 ? 0 : purse;
     stats.values[d2d::d2s::kGoldBank] -= cost - from_purse;
     return true;
 }
@@ -881,12 +886,15 @@ inline bool repair_all_takes(const Tables& tables, const d2d::d2s::Item& item) {
 }
 
 // What repair all would cost (Repair all's hover, FUN_004886c0 -> FUN_0062fe60):
-// each item it takes, at its repair price.
+// each item it takes, at its repair price. game.exe sums them in a 32-bit
+// int (FUN_0062fe60's local_8), so past 2^31 the sum wraps negative and
+// paying it credits the gold (bugs.md 50). Summed wide here and wrapped as
+// game.exe's, without C++'s signed overflow.
 inline int repair_all_cost(const Tables& tables, const Store& store, const std::vector<d2d::d2s::Item>& items) {
-    int cost = 0;
+    std::int64_t cost = 0;
     for (const auto& item : items)
         if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
-    return cost;
+    return std::int32_t(std::uint32_t(cost));
 }
 // Which corpse a save keeps (FUN_005697f0, PlrSave2's corpse list): over
 // them oldest first, one with items scores 1 + each non-gold item's repair
@@ -1263,26 +1271,71 @@ inline bool put_in_grid(const Tables& tables, std::vector<d2d::d2s::Item>& items
     return true;
 }
 
-// Equip `held` in body slot `slot` (1..10), swapping out what's there.
-// In the hands, the other hand's item comes off too when the two can't
-// be held together (a two-hander and a shield, a second weapon for a
-// non-Barbarian) — as long as only one item comes off in all.
-// ponytail: that displacing is the D2 behaviour for two-handers; for the
-// second-weapon case it isn't checked against game.exe yet.
+// A hand's stack `held` joins (FUN_0063dd90's first test, code 6, C->S
+// 0x21 -> FUN_0055e7c0): its index in `items`, -1 none. FUN_0062c850 (a
+// Stackable base, FUN_006289f0, and stacks_with).
+inline int hand_stack(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& held, int slot) {
+    if (slot != d2d::d2s::body_location::kRightArm && slot != d2d::d2s::body_location::kLeftArm) return -1;
+    const auto base = tables.item_base.find(held.code);
+    if (base == tables.item_base.end() || !base->second.stackable) return -1;
+    for (std::size_t i = 0; i < items.size(); ++i)
+        if (items[i].location == d2d::d2s::item_location::kEquipped && items[i].slot == slot && stacks_with(items[i], held)) return int(i);
+    return -1;
+}
+// The cursor's stack onto `target` (FUN_0055e590): past the target's most
+// (stack_most, FUN_006295b0) the target fills and the rest stays held;
+// else the target takes it all, the lower durability of the two (stat
+// 0x48, an item with durability: FUN_00629930), and nothing is held.
+inline void stack_onto(const Tables& tables, d2d::d2s::Item& target, std::optional<d2d::d2s::Item>& held) {
+    const int most = stack_most(tables, target), total = held->quantity + target.quantity;
+    if (total > most) {
+        held->quantity = total - most;
+        target.quantity = most;
+        return;
+    }
+    if (has_durability(tables, *held) && held->durability < target.durability) target.durability = held->durability;
+    target.quantity = total;
+    held.reset();
+}
+
+// Equip `held` in body slot `slot` (1..10), swapping out what's there; a
+// stack onto its kind in a hand joins it (hand_stack, stack_onto). In
+// the hands, `held` and the other hand's item must go together (FUN_0063dd90
+// -> FUN_0063dbc0: rules::hands_ok); when they can't:
+// - this hand empty: the other hand's item comes off to the cursor (code 2,
+//   C->S 0x1b, FUN_00563d20);
+// - this hand full: the other hand's item goes to the inventory's free spot
+//   (code 7, C->S 0x1e, FUN_00561220: FUN_0063cb00's room test, then
+//   FUN_0063b950, a player's best fit) and this hand's to the cursor. No
+//   room in the `cols` x `rows` inventory: code 0, refused.
 inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std::optional<d2d::d2s::Item>& held,
-                  int slot, const Wearer& wearer, int required_level = -1) {
-    if (!held || !can_wear(tables, *held, slot, wearer, required_level)) return false;
+                  int slot, const Wearer& wearer, int required_level = -1, int cols = 0, int rows = 0) {
+    if (!held || !can_wear(tables, *held, slot, wearer, required_level)) return false;   // FUN_0063de60 asks first
+    if (const int stack = hand_stack(tables, items, *held, slot); stack >= 0) {
+        stack_onto(tables, items[std::size_t(stack)], held);
+        return true;
+    }
     const bool hand = slot == d2d::d2s::body_location::kRightArm || slot == d2d::d2s::body_location::kLeftArm;
     const int other = hand ? d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot : 0;
-    int off = -1;                                      // the item coming off
+    int off = -1, other_off = -1;                      // this slot's item; the other hand's, when it can't stay
     for (std::size_t i = 0; i < items.size(); ++i) {
         const auto& worn = items[i];
         if (worn.location != d2d::d2s::item_location::kEquipped) continue;
-        const bool comes_off = worn.slot == slot
-            || (hand && worn.slot == other && !hands_ok(tables, *held, worn, wearer));
-        if (!comes_off) continue;
-        if (off >= 0) return false;
-        off = int(i);
+        if (worn.slot == slot) off = int(i);
+        else if (hand && worn.slot == other && !hands_ok(tables, *held, worn, wearer)) other_off = int(i);
+    }
+    if (off >= 0 && other_off >= 0) {                  // code 7: the other hand's to the inventory
+        std::vector<const d2d::d2s::Item*> placed;
+        for (const auto& carried : items)
+            if (carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory) placed.push_back(&carried);
+        auto& moved = items[std::size_t(other_off)];
+        const auto [width, height] = item_size(tables, moved.code);
+        const auto [column, row] = free_spot(tables, placed, cols, rows, width, height, true);
+        if (column < 0) return false;
+        moved.location = d2d::d2s::item_location::kStored; moved.panel = d2d::d2s::item_panel::kInventory;
+        moved.column = column; moved.row = row; moved.slot = 0;
+    } else if (off < 0) {
+        off = other_off;                               // code 2: the other hand's to the cursor
     }
     auto put = std::move(*held);
     held.reset();
@@ -1290,6 +1343,19 @@ inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std:
     put.location = d2d::d2s::item_location::kEquipped; put.slot = slot; put.panel = 0; put.column = 0; put.row = 0;
     items.push_back(std::move(put));
     return true;
+}
+
+// An empty hand clicked with nothing held, beside a two-hander (Items
+// +0x11c, FUN_006289c0): FUN_0063dd90's code 4, and the client takes the
+// two-hander (C->S 0x1c with the other hand's slot, FUN_00490780 /
+// FUN_00490ba0). Its unit id, -1 none.
+inline int two_hander_beside(const Tables& tables, const std::vector<d2d::d2s::Item>& items, int slot) {
+    if (slot != d2d::d2s::body_location::kRightArm && slot != d2d::d2s::body_location::kLeftArm) return -1;
+    const int other = d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot;
+    for (const auto& item : items)
+        if (item.location == d2d::d2s::item_location::kEquipped && item.slot == other)
+            if (const auto info = tables.item_info.find(item.code); info != tables.item_info.end() && info->second.two_handed) return item.id;
+    return -1;
 }
 
 // Put `held` in belt box `box` (0..boxes-1): potions, scrolls — ItemTypes

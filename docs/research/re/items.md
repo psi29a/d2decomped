@@ -86,3 +86,54 @@ holds an item (`FUN_0063e020` page 2).
 
 d2d: `rules::spill_belt`, called by the World's `cmd::ToBody` (belt
 slot) and `cmd::ToCursor` (the worn belt).
+
+## Into a hand (`FUN_0063de60` → `FUN_0063dd90`)
+
+For body slots 4 and 5, `FUN_0063de60` asks `FUN_0063dd90` with the item
+on the cursor, the one in the clicked hand and the other hand's. With an
+item on the cursor:
+
+| Clicked hand | The other hand's item | Code | Client sends | Server |
+|---|---|---|---|---|
+| empty | none, or goes with it (`FUN_0063dbc0`) | 1 | 0x1a | `FUN_005606b0`: equipped |
+| empty | doesn't go with it | 2 | 0x1b | `FUN_00563d20`: the other hand's to the cursor, then equipped |
+| full, a stack it joins (`FUN_0062c850`) | (any) | 6 | 0x21 | `FUN_0055e7c0` → `FUN_0055e590`: merged |
+| full | none, or goes with it | 5 | 0x1d | `FUN_00560f00`: swapped |
+| full | doesn't go with it, and fits the inventory (`FUN_0063cb00` → `FUN_0063b850`) | 7 | 0x1e | `FUN_00561220`: the other hand's to the inventory (`FUN_0063b950`), this hand's to the cursor, then equipped |
+| full | doesn't go with it, no room | 0 | nothing | the client's class voice (`FUN_004cb9c0`): 0x13 "impossible"; 0x14 "can't use yet" only when a retry without the requirements (`FUN_0063de60` with 1) passes and the item's class is any or the player's (`FUN_0062c0b0`) |
+
+With nothing on the cursor, a hand holding an item gives code 3 (C->S
+0x1c, picked up). An empty hand beside a two-hander (Items +0x11c,
+`FUN_006289c0`; read from the 1.14d tables: bax, 2hs, sst, sbw, 9gi 1;
+axe, ssd, jav, buc 0) gives code 4: the client sends 0x1c with the
+other hand's slot, so the two-hander is picked up. d2d:
+`rules::two_hander_beside`, used by the cursor.
+
+Code 6 is asked first, after the requirements (`FUN_0063de60`'s
+`FUN_0062eaf0`). `FUN_0062c850`: the same class, quality and file index,
+a Stackable base (`FUN_006289f0`), both ethereal or neither, plain
+quality (`FUN_0062a2f0`), damage stats 21-24 and 159 / 160 equal, no
+sockets (d2d `rules::stacks_with`). `FUN_0055e590` merges: past the
+hand's most (`FUN_006295b0`) the hand's stack fills and the rest stays
+on the cursor; else the hand's takes it all, the lower durability of the
+two (stat 0x48, when the cursor's has durability, `FUN_00629930`), and
+the cursor's is freed. Two items of ItemTypes 0x12 also move a skill's
+count (`FUN_0055c070`), which a hand's stack never is. d2d:
+`rules::hand_stack`, `rules::stack_onto`.
+
+`FUN_0063dbc0` (d2d `rules::hands_ok`) passes:
+- a bow beside its quiver;
+- not a quiver beside anything else;
+- a two-hander alone, unless the wearer holds it in one hand
+  (`FUN_0062a1e0`);
+- two weapons (ItemTypes 0x2d) for a Barbarian, or for an Assassin with
+  two claws (0x43).
+
+The client's hand handlers are `FUN_00490780` (right, slot 4) and
+`FUN_00490ba0` (left, 5). Each sends the packet with `FUN_004786a0`, and
+puts the moving items in state 0x36 (`FUN_004c21f0`) until the server
+answers.
+
+d2d: `rules::equip`, called by the World's `cmd::ToBody` with the class's
+inventory grid. A joined client sends 0x1b / 0x1e the same way
+(`c2s::equip`'s `other_off`), and nothing when the move is refused.

@@ -340,9 +340,30 @@ int main() {
     held = item("am1");
     assert(!equip(cursor_tables, empty, held, 4, sorc));                                     // Amazon-only bow
     held = item("2ax");
-    assert(!equip(cursor_tables, empty, held, 4, sorc));                                     // both hands full: two would come off
+    assert(!equip(cursor_tables, empty, held, 4, sorc));                                     // both hands full, no inventory: code 0
+    {   // Code 7 (C->S 0x1e, FUN_00561220): the shield to the inventory, the sword to the cursor.
+        auto both = empty;
+        std::optional<Item> two_hander = item("2ax");
+        assert(equip(cursor_tables, both, two_hander, 4, sorc, -1, 10, 4) && two_hander && two_hander->code == "ssd");
+        const auto shield = std::ranges::find(both, std::string("buc"), &Item::code);
+        assert(shield != both.end() && shield->location == d2d::d2s::item_location::kStored && shield->panel == d2d::d2s::item_panel::kInventory);
+        assert(item_at(both, 1, 4) && item_at(both, 1, 4)->code == "2ax" && !item_at(both, 1, 5));
+        auto no_room = empty;
+        cursor_tables.item_info["fil"] = { .width = 10, .height = 4 };
+        Item filler = item("fil");
+        filler.location = d2d::d2s::item_location::kStored; filler.panel = d2d::d2s::item_panel::kInventory;
+        no_room.push_back(filler);
+        two_hander = item("2ax");
+        assert(!equip(cursor_tables, no_room, two_hander, 4, sorc, -1, 10, 4) && two_hander->code == "2ax");   // no room: refused
+    }
     std::erase_if(empty, [](const Item& x) { return x.code == "buc"; });
     assert(equip(cursor_tables, empty, held, 4, sorc) && held && held->code == "ssd");       // two-hander swaps the sword out
+    {   // Code 4: the empty left hand beside the two-hander gives the two-hander.
+        auto two_handed = empty;
+        two_handed.back().id = 77;
+        assert(item_at(two_handed, 1, 4)->code == "2ax" && two_hander_beside(cursor_tables, two_handed, 5) == 77);
+        assert(two_hander_beside(cursor_tables, two_handed, 4) == -1 && two_hander_beside(cursor_tables, two_handed, 1) == -1);
+    }
     held = item("buc");
     assert(equip(cursor_tables, empty, held, 5, sorc) && held && held->code == "2ax");       // a shield displaces the two-hander
     held.reset();
@@ -365,6 +386,22 @@ int main() {
     assert(equip(cursor_tables, archer, held, 5, sorc) && !held);                        // a quiver goes with a bow
     held = item("cqv");
     assert(!equip(cursor_tables, archer, held, 5, sorc) && held);                         // bolts aren't a bow's: the arrows and the bow would both come off
+    {   // Code 6 (C->S 0x21, FUN_0055e7c0 -> FUN_0055e590): a stack onto its kind in a hand.
+        cursor_tables.types["jave"] = { .equiv = { "weap", "" }, .body = { 4, 5 } };
+        cursor_tables.item_info["jav"] = { .width = 1, .height = 3, .type = "jave", .kind = 2 };
+        cursor_tables.item_base["jav"] = { .stackable = true, .durability = 20, .max_stack = 60 };
+        std::vector<Item> thrower;
+        held = item("jav"); held->quantity = 40; held->durability = 20; held->max_durability = 20;
+        assert(equip(cursor_tables, thrower, held, 4, sorc) && !held);
+        held = item("jav"); held->quantity = 30; held->durability = 20; held->max_durability = 20;
+        assert(equip(cursor_tables, thrower, held, 4, sorc) && held && held->quantity == 10 && item_at(thrower, 1, 4)->quantity == 60);   // past its most: the rest stays held
+        thrower[0].quantity = 30;
+        held->quantity = 20; held->durability = 5;
+        assert(equip(cursor_tables, thrower, held, 4, sorc) && !held && thrower.size() == 1);
+        assert(thrower[0].quantity == 50 && thrower[0].durability == 5);                     // all of it, the lower durability
+        held = item("jav"); held->quantity = 5; held->quality = 3;
+        assert(equip(cursor_tables, thrower, held, 4, sorc) && held && held->quality == 2);   // superior isn't normal: swapped, not stacked
+    }
     // FUN_0063dbc0: a quiver joins only the bow it's for (issue #139: arrows
     // beside a staff). Into the free hand it takes the other one's place.
     std::vector<Item> staff;

@@ -443,7 +443,9 @@ else rare.
   `rules::repair_all_takes`. The sum is paid at once (`FUN_00576d90`,
   purse then stash) before anything is mended: short of it, nothing is
   repaired and the client is told it hasn't the gold (12, line 0x9e4);
-  a sum of 0 does nothing (0x9dd). An item counted at price 0 (an
+  a sum of 0 does nothing (0x9dd). The sum is a 32-bit int: past 2^31
+  (modded costs only) it wraps negative, and paying it empties a purse
+  that the credit would push past its cap (bugs.md 50). An item counted at price 0 (an
   unidentified one with a charge missing) is left as it is: the mend
   asks the gate (`FUN_0062e660`) again. d2d: `rules::store_repair_all`
   → `rules::mend`.

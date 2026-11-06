@@ -335,10 +335,30 @@ auto Town::net_items(const Command& command) -> bool {
             if (under) { if (const auto target = host(under)) net_game->send_items({ c2s::swap_grid(held_id, target, std::uint32_t(to_grid->col), std::uint32_t(to_grid->row)) }); net_cursor = net_game->host_item(*under); }
             else { net_game->send_items({ c2s::cursor_to_grid(held_id, std::uint32_t(to_grid->col), std::uint32_t(to_grid->row), buffer) }); net_cursor = 0; }
         } else if (const auto* to_body = std::get_if<cmd::ToBody>(&command); to_body && held_id) {
-            const auto worn = std::ranges::find_if(hero.character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == to_body->slot; });
+            const auto worn_in = [&](int slot) { return std::ranges::find_if(hero.character.items, [&](const Item& item) { return item.location == item_location::kEquipped && item.slot == slot; }); };
+            const auto worn = worn_in(to_body->slot);
             const bool swap = worn != hero.character.items.end();
-            net_game->send_items({ c2s::equip(held_id, std::uint32_t(to_body->slot), swap) });
-            net_cursor = swap ? net_game->host_item(*worn) : 0;
+            // The client's code (FUN_0063dd90) by the move d2d makes: none
+            // made (code 0, no room), nothing sent; the other hand's item off
+            // (code 2 / 7), 0x1b / 0x1e.
+            const int cls = hero.character.header.cls;
+            const auto worn_by = d2d::game::wearer(*scene, cls, hero.character.items, hero.character.stats);
+            const auto& layout = scene->inv_layout[std::size_t(cls)];
+            auto trial_items = hero.character.items;
+            auto trial_held = hero.held;
+            if (!d2d::rules::equip(scene->rules, trial_items, trial_held, to_body->slot, worn_by, d2d::game::required_level(*scene, *hero.held, cls), layout.cols, layout.rows)) return true;
+            if (const int stack = d2d::rules::hand_stack(scene->rules, hero.character.items, *hero.held, to_body->slot); stack >= 0) {   // code 6
+                const auto target = host(&hero.character.items[std::size_t(stack)]);
+                if (!target) return false;                    // the host can't make it: nor does the local World
+                net_game->send_items({ c2s::stack(held_id, target) });
+                net_cursor = trial_held ? held_id : 0;
+                return true;
+            }
+            const bool hand = to_body->slot == body_location::kRightArm || to_body->slot == body_location::kLeftArm;
+            const auto other = hand ? worn_in(body_location::kRightArm + body_location::kLeftArm - to_body->slot) : hero.character.items.end();
+            const bool other_off = other != hero.character.items.end() && !d2d::rules::hands_ok(scene->rules, *hero.held, *other, worn_by);
+            net_game->send_items({ c2s::equip(held_id, std::uint32_t(to_body->slot), swap, other_off) });
+            net_cursor = swap ? net_game->host_item(*worn) : other_off ? net_game->host_item(*other) : 0;
         } else if (const auto* auto_belt = std::get_if<cmd::AutoBelt>(&command); auto_belt && !hero.held) {
             const auto id = host(local(auto_belt->item));
             if (!id) return false;
