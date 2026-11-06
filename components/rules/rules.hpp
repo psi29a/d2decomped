@@ -782,8 +782,9 @@ inline bool needs_repair(const Tables& tables, const d2d::d2s::Item& item) {
 // durability as FUN_0062efb0 does (0062f9e7): an item without durability
 // pays its whole base, a durable one its missing share. A whole item that
 // passes the gate costs 0 before the minimum, so 1 (0062fd5c): Repair All
-// skips it by `needs_repair`, not by its price.
-// ponytail: no socket terms.
+// skips it by `needs_repair`, not by its price. What its sockets hold adds
+// half of each one's cost (FUN_006292f0 at 0062f86c, the repair total too),
+// after the staff mods and before the missing share and the mults.
 inline long long repair_each(const Tables& tables, const d2d::d2s::Item& item, const std::string& npc_id, const d2d::d2s::Header& header, bool worn_share) {
     const int max = max_durability(item);
     const auto found = tables.item_base.find(item.code);
@@ -811,6 +812,8 @@ inline long long repair_each(const Tables& tables, const d2d::d2s::Item& item, c
     }
     long long x = base + affixes / divisor + unsigned_share(stats, divisor);
     if (item.quality >= 4) x += unsigned_share(staff_mod_costs(tables, item, int(x), int(x), false), divisor);
+    for (const auto& socketed : item.socketed_items)
+        if (const auto socketed_base = tables.item_base.find(socketed.code); socketed_base != tables.item_base.end()) x += socketed_base->second.cost / 2;
     // The missing share's product is game.exe's 32 bits (0062fa45). An item
     // that replenishes its durability (stat 0xfc, 0062fa13) pays (max - 1) /
     // max of it below max - 1 (0062fa35), else nothing (0062fa2c). A

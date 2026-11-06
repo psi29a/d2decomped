@@ -233,7 +233,9 @@ The base y is 539 (= 60 + 255 + 224):
 
 The price function computes buy, sell and repair together. Repair:
 
-1. base = the buy base with its quality extras (no ethereal ¼);
+1. base = the buy base with its quality extras (no ethereal ¼), plus
+   half of each socketed item's cost: `FUN_006292f0` (`0062f86c`) adds
+   it to the repair total as well as to buy and sell;
 2. nothing for ethereal or unidentified items (`FUN_0062e660`), nor,
    unless charges are missing, for an item whose ItemTypes row has no
    Repair or that neither restocks nor has durability

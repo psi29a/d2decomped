@@ -437,6 +437,8 @@ int main() {
     tables_copy.item_base["hax"].durability = tables_copy.item_base["hlm"].durability = tables_copy.item_base["big"].durability = 40;
     Item worn = item("hax"); worn.max_durability = 40; worn.durability = 10;
     assert(repair_cost(tables_copy, worn, "Charsi", header) == 1000 * 30 / 40 / 2);
+    Item worn_socketed = worn; worn_socketed.socketed_items = { item("gem") };
+    assert(repair_cost(tables_copy, worn_socketed, "Charsi", header) == (1000 + 100) * 30 / 40 / 2);   // + half the gem's cost (FUN_006292f0)
     Item whole = worn; whole.durability = 40;
     Item ghost = worn; ghost.ethereal = true;
     assert(repair_cost(tables_copy, whole, "Charsi", header) == 1 && repair_cost(tables_copy, ghost, "Charsi", header) == 0);   // whole: the minimum (0062fd5c)
