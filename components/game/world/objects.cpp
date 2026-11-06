@@ -400,7 +400,8 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // carried it takes it (FUN_0059dd80: the staff and its parts gone,
         // the Horadric Staff done, the way down to Duriel after its timer);
         // without, "I can't" (voice).
-        // ponytail: game.exe opens a panel to drop the staff into (C->S 0x44 3); d2d places it on use.
+        // ponytail: game.exe opens the orifice (mode 1) and a drop panel (FUN_00554120 / FUN_0053d8d0) and takes
+        // the staff once it's placed (C->S 0x44 3 -> FUN_0059dd80); d2d has no panel and takes it on use.
         if (object.operate_fn == d2d::rules::operate_fn::kOrifice) {
             if (operated.contains({ level, npc_index }) || hosted_quests) return;
             if (!carries("hst")) { d2d::log::info("I can't use this yet."); return; }
