@@ -527,6 +527,10 @@ struct Foe {
     int size = 2;                             // FUN_00620510: a player's 2, a monster's MonStats2 SizeX
     int threat = 14;                          // FUN_005dc920: a player's 14, a monster's MonStats threat
     int life_pct = 100;                       // FUN_00621f20 (a Fetish's think): life x 100 / max life
+    // Its full max life / mana in 256ths, stats 7 / 9 (FUN_00625d10 / FUN_00625d60):
+    // a player's. 0 for the rest: the thinks that read them (Baal's act 8,
+    // the Succubi's Skill3) take any non-player alike.
+    int max_life = 0, max_mana = 0;
     const Monster* of = nullptr;              // a monster in the fight (Confuse, Attract: monsters fight monsters)
     bool a3q5_done = false;                   // a player, or its pet, with quest 0x15 bit 0 (the zealots spare it)
     int blessed = 0;                          // the wisps' dance's magic find (stat 0x50) put on it this frame

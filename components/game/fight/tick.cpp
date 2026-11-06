@@ -202,6 +202,7 @@ auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
         foe.neutral = actor->pmode < 0 && actor->owner_mode == 1;   // mode 1: no swing, cast or get-hit, not moving
         foe.id = player_foe_id();
         foe.life_pct = int(std::int64_t(actor->character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(actor->character.stats.get(d2d::d2s::kMaxLife), 1));
+        foe.max_life = int(actor->character.stats.values[d2d::d2s::kMaxLife]); foe.max_mana = int(actor->character.stats.values[d2d::d2s::kMaxMana]);
         // Diablo's score of the player (FUN_005e8530).
         const auto stat = [&](int id) { return int(actor->psum[std::size_t(id)]); };
         auto& pick = foe.pick;
