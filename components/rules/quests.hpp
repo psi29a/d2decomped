@@ -1563,6 +1563,14 @@ struct CainQuest {
     // Tristram Cain went through his portal (FUN_005944f0: +0x91, +0x52):
     // camp Cain's due (FUN_005940e0 → FUN_00592960).
     void portal_entered() { camp_due = true; }
+    // Cain's portal in Tristram (object 189: InitFn 61 FUN_00594290 mode 1,
+    // its event 7 FUN_005942c0 every 25 frames from its opening): 1 -> 2,
+    // 2 -> 3 at the first event once Cain's in (+0x91), 3 -> 4 the next.
+    // The frame, from its opening, it reaches mode 4, Cain in at `entered`.
+    static int portal_closed_frame(int entered) {
+        constexpr int kStep = 25;
+        return std::max(2 * kStep, (entered / kStep + 1) * kStep) + kStep;
+    }
     // The Cube's Cow Portal (output kind 1, FUN_00594140): none opened this
     // game yet (record 0xb's flag, FUN_00544760), the Cow King alive (bit
     // 10), the last act's boss down in this difficulty (expansion: quest

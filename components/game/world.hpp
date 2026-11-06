@@ -819,6 +819,7 @@ struct World {
     struct CainWalk { int npc = -1, stage = -1, tries = 0, x = 0, y = 0, spot_x = 0, spot_y = 0; std::uint32_t next = 0; };
     CainWalk cain_walk;
     Portal cain_portal{};                  // his portal (object 189, at the spot): no twin, not selectable
+    std::uint32_t cain_portal_closes = 0;  // when it reaches mode 4 (rules::CainQuest::portal_closed_frame); 0: not due
     void cain_step(std::uint32_t now_ms, float elapsed);
     // Whether the player carries an item of `code`.
     [[nodiscard]] bool carries(std::string_view code) const;

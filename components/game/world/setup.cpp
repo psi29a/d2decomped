@@ -352,6 +352,7 @@ auto World::new_game() -> void {
         treasure.clear();
         cain_walk = {};
         cain_portal = {};
+        cain_portal_closes = 0;
         std::ranges::fill(portal, Portal{});
         actor->take_portal = -1;
         actor->take_corpse = -1;

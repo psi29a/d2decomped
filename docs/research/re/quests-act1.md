@@ -416,7 +416,7 @@ up the rejoin before the stones existed, and a save with the stones lit
 | FUN_00594610 | reads +0x93, used by FUN_00572c10 (npc 0x92 interact) |
 
 - Talk closed with npc 0x92 sets +0x93 = 1.
-- Cain portal: InitFn 61 is FUN_00594290 (mode 1, anim timer). Obj 0xbd uses mode-end FUN_005942c0: 1 -> 2; 2 -> 3 once +0x92 (camp counter +0x80 > 5) or +0x91; 3 -> 4.
+- Cain portal: InitFn 61 is FUN_00594290 (table 0x731bc0 entry 61: mode 1, event 7 25 frames on). Obj 0xbd's event 7 is FUN_005942c0, rescheduled every 25 frames whatever the mode: 1 -> 2; 2 -> 3 in level 1 (the camp side) once its counter +0x80, bumped each event there, passes 5 (then +0x92 = 1), elsewhere (Tristram) once +0x91 (Cain went in, FUN_005944f0); 3 -> 4. So Tristram's portal closes at the first event after Cain enters (mode 3), mode 4 25 frames later; the camp's after its sixth event in mode 2. Nothing removes the object.
 
 **FUN_00596ca0(resolve, removeTristCain)**, EDI = rec:
 

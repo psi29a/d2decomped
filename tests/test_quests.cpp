@@ -264,6 +264,8 @@ int main() {
     no_room.rescued(false);
     assert(no_room.camp_due && no_room.log == 6);
     cain.portal_entered();
+    // His portal (FUN_005942c0, 25 frames an event): mode 3 at the first event after he's in (not before 50), mode 4 the next.
+    assert(CainQuest::portal_closed_frame(10) == 75 && CainQuest::portal_closed_frame(60) == 100 && CainQuest::portal_closed_frame(75) == 125);
     assert(!cain.camp_cain && cain.enter(cain_bits, CainQuest::kTristram, 1, 1) && cain.camp_cain);
     assert(cain.alert(cain_bits, CainQuest::kCampCain, false, 1) && cain.talk(cain_bits, CainQuest::kCampCain, false, 1)[0].string == 123);
     cain.said(cain_bits, CainQuest::kCampCain, 123, false, 1);
