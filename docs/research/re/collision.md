@@ -266,9 +266,16 @@ never set it.
 
 An item or a warp is where this shows. FUN_00481600 sends those with no range
 test (LAB_004816b1 to LAB_00481709), once, as FUN_00480930's 0x16 or 0x13, so
-a blocked walk to one gets the two walks and stops. That the 0x16 handler ends
-in FUN_00548b00 is inferred, not read. An NPC farther than 8 gets no walk at
+a blocked walk to one gets the two walks and stops. The 0x16 handler (`54aad0`)
+ends in FUN_00548b00 (LAB_0054ab27). An NPC farther than 8 gets no walk at
 all from FUN_00548b00 (LAB_00548d7d): 7 and 8 walk, 6 or less talks.
+
+The sends, as FUN_00481030 reaches them: action 0x13 (LAB_004810f1) → FUN_00480c10
+→ FUN_00461250's command 2 (LAB_00461634) → FUN_00480930 (LAB_0046163d). That
+switches on the type (table 0x480b20): 0x16 only for an item (`mov cl,0x16`,
+LAB_00480b11, through 0x4786d0), 0x13 for the rest, a warp too (LAB_00480a3d, through
+0x4786a0). The other 0x16 immediates in these functions aren't sends: LAB_004807db is a state
+test, and LAB_00481186 and LAB_004811f6 are FUN_00461250 command numbers.
 
 d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit; warps
 weren't compared.
