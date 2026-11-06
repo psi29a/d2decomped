@@ -142,8 +142,10 @@ inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type
 // the kill (World::andariel_died, blood_raven_died). Travincal's compelling
 // orb also gets unit flag 0x20000. Duriel, Radament, the Summoner and a few
 // others bind a quest and take no mod.
-// ponytail: the ancients (0x21c, FUN_005b1c50) and the Fire Golem's
-// FUN_005a4850(0x1f, 0) aren't here.
+// The Fire Golem's FUN_005a4850(0x1f, 0) (goboom) is its pet's death blast
+// (Fight::golem_blast). A golem replaced by a new one is dropped, not killed,
+// so it doesn't blow.
+// ponytail: the ancients (0x21c, FUN_005b1c50) aren't here.
 struct ActBoss {
     std::vector<int> mods;
     bool half_freeze = false;

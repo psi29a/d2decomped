@@ -131,8 +131,50 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), {}, rng), false, now_ms, pet.monster.id);
     }
 
+// The Fire Golem's death blast: FUN_005b1cf0 (case BaseId 0x124) gives it
+// MonUMod 31 goboom (FUN_005a4850(0x1f, 0)); its hook FUN_005a3800 queues
+// FUN_005a2840 (0x5a2840) 4 frames after its death: monstercorpseexplode
+// (0x75) on its spot (FUN_0056ecb0) and FUN_0057e090 (radius 6, flags 0x583)
+// with a record of 100 physical and 100 fire (0x6400 each, 256ths) on each
+// of its owner's enemies within 6 subtiles (dx² + dy² <= 36), the line
+// clear of 0x805, through their resistances. True when it blew.
+auto Fight::blast_due(const Monster& golem) const -> bool {
+        return !golem.alive() && golem.mode == "DT" && !golem.fx_done && golem.type >= 0
+            && game_data->monsters.types[std::size_t(golem.type)].base == game_data->monsters.row("firegolem");
+    }
+
+auto Fight::golem_blast(Pet& pet, std::uint32_t now_ms) -> bool {
+        auto& golem = pet.monster;
+        if (!blast_due(golem) || now_ms < golem.unit.mode_ms + 4 * 40) return false;
+        golem.fx_done = true;
+        if (pet.where != level) return false;
+        const int from_x = int(std::floor(golem.unit.x * 5)), from_y = int(std::floor(golem.unit.y * 5));
+        for (std::size_t j = 0; j < monsters.size(); ++j) {
+            const auto& other = monsters[j];
+            const int to_x = int(std::floor(other.unit.x * 5)), to_y = int(std::floor(other.unit.y * 5));
+            if (!other.targetable() || d2d::rules::friends(2, other.align) || (to_x - from_x) * (to_x - from_x) + (to_y - from_y) * (to_y - from_y) > 36
+                || d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); }))
+                continue;
+            const auto target = target_of(j);
+            const int physical = d2d::rules::resisted_fine(0x6400, std::max(target.res[0], -100)), fire = d2d::rules::resisted_fine(0x6400, target.res[2]);
+            d2d::rules::Blow blow{ .hit = true };
+            blow.phys = 100; blow.phys_fine = physical;
+            blow.damage = (physical >> 8) + (fire >> 8); blow.frac = (physical & 255) + (fire & 255);
+            blow.elemental = fire > 0;
+            land(j, blow, false, now_ms, golem.id);
+        }
+        if (const auto found = game_data->missiles.find("monstercorpseexplode"); found != game_data->missiles.end()) {
+            Missile blast{ &found->second, golem.unit.x, golem.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };
+            blast.visual_only = true;
+            pending.push_back(std::move(blast));
+        }
+        d2d::log::info("{} blows up (100 physical, 100 fire)", golem.npc.name);
+        return true;
+    }
+
 auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
-        std::erase_if(actor->pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until; });
+        for (auto& pet : actor->pets) (void)golem_blast(pet, now_ms);
+        std::erase_if(actor->pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until && !blast_due(pet.monster); });
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         for (const auto& made : std::exchange(actor->pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn
             if (const auto* skill = game_data->skills.get(made.skill)) summon(*skill, made.level, made.x, made.y, now_ms);
