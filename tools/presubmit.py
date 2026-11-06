@@ -162,16 +162,23 @@ def check_python(tree, changed, numbers):
     broken = [path for path in scripts if broken_syntax(path)]
     if broken:
         report("FAIL", "py-compile", ", ".join(broken))
+    if any(path.startswith("tools/") for path in scripts):
+        check_tool_tests(tree)
     ruff = shutil.which("ruff") and ["ruff"] or shutil.which("uvx") and ["uvx", "--quiet", "ruff@0.8.6"]
     if not ruff:
         report("WARN", "ruff", "neither ruff nor uvx; Python unchecked")
         return
     run = subprocess.run([*ruff, "check", "--no-cache", "--output-format", "json", "--select", RUFF_RULES, *scripts],
                          cwd=tree, capture_output=True, text=True, check=False)
+    if run.returncode not in (0, 1):
+        report("FAIL", "ruff", f"exit {run.returncode}: {(run.stderr or run.stdout).strip()[:300]}")
+        return
     try:
-        found = json.loads(run.stdout or "[]")
-    except json.JSONDecodeError:
-        report("WARN", "ruff", (run.stderr or run.stdout).strip()[:300])
+        found = json.loads(run.stdout)
+        if not isinstance(found, list) or (run.returncode == 1 and not found):
+            raise ValueError("inconsistent Ruff result")
+    except (json.JSONDecodeError, ValueError):
+        report("FAIL", "ruff", "invalid or inconsistent JSON output: " + (run.stderr or run.stdout).strip()[:300])
         return
     mine = [hit for hit in found
             if hit["location"]["row"] in numbers.get(os.path.relpath(hit["filename"], tree), set())]
@@ -184,8 +191,11 @@ def check_python(tree, changed, numbers):
            f"{len(scripts)} files ({len(found) - len(mine)} on lines this branch didn't add)")
     for text in soft:
         report("WARN", "ruff", text)
+
+
+def check_tool_tests(tree):
     tests = tool_tests(tree)
-    if any(path.startswith("tools/") for path in scripts):
+    if tests:
         # Twice: as is, and with TMPDIR behind a symlink as macOS's /var -> /private/var
         # (#91: abspath against a resolved getcwd() picked every TU on the macOS leg)
         with tempfile.TemporaryDirectory() as real:

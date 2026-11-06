@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SPEC = importlib.util.spec_from_file_location("presubmit", Path(__file__).with_name("presubmit.py"))
@@ -178,6 +179,39 @@ class PresubmitTests(unittest.TestCase):
             (root / "tools" / "emu" / ".venv" / "test_dep.py").write_text("")
             git(root, "add", "tools/test_mine.py")
             self.assertEqual(presubmit.tool_tests(root), ["tools/test_mine.py"])
+
+    def test_ruff_failure_does_not_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sample.py").write_text("value = 1\n")
+            for status, output in ((2, ""), (0, ""), (1, "[]")):
+                presubmit.results.clear()
+                result = type("Result", (), {"returncode": status, "stdout": output, "stderr": "ruff error"})()
+                with patch.object(presubmit.shutil, "which", return_value="ruff"), \
+                     patch.object(presubmit.subprocess, "run", return_value=result):
+                    presubmit.check_python(root, ["sample.py"], {})
+                self.assertIn("FAIL", self.levels("ruff"))
+
+    def test_ruff_clean_output_passes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sample.py").write_text("value = 1\n")
+            result = type("Result", (), {"returncode": 0, "stdout": "[]", "stderr": ""})()
+            with patch.object(presubmit.shutil, "which", return_value="ruff"), \
+                 patch.object(presubmit.subprocess, "run", return_value=result):
+                presubmit.check_python(root, ["sample.py"], {})
+            self.assertEqual(self.levels("ruff"), ["ok"])
+
+    def test_tool_tests_run_without_ruff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "tools").mkdir()
+            (root / "tools/sample.py").write_text("value = 1\n")
+            with patch.object(presubmit.shutil, "which", return_value=None), \
+                 patch.object(presubmit, "check_tool_tests") as tests:
+                presubmit.check_python(root, ["tools/sample.py"], {})
+            tests.assert_called_once_with(root)
+            self.assertIn("WARN", self.levels("ruff"))
 
     def test_ctest_skipped_is_not_failed(self):
         with tempfile.TemporaryDirectory() as tmp:
