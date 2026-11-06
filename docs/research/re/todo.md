@@ -33,7 +33,6 @@ Ranked by Seen, then by how much play it touches.
 | 11 | Charsi's Imbue: game.exe's one-slot item panel and its button, not d2d's pick | build | yes | act1-end.md "Imbue", town/ `imbue_with` |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. `ponytail: one player` in quests.hpp |
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
-| 15 | A town portal opens 0.6 cells south of its caster, not at game.exe's nearest free spot (collision 0x3e01, size 3) | exact | hardly | deviations.md approximation 8 |
 | 37 | The get-hit oracles `hit_rule.py`, `hit_absorb.py` and `hit_render.py` were cited but never committed: get-hit, absorb and get-hit frames are cited, not re-checkable | trace | no | combat.md, combat.hpp `get_hit` / `absorb_blows`, `test_combat --get-hit*` |
 | 39 | A walk to an NPC ends at the server's reach (under 7, no line test), not the client's melee range with a clear line (FUN_00480c80 → FUN_00622c40) | exact | yes | collision.md "How near the client walks"; world/tick.cpp `in_reach` |
 | 40 | One click on the ground re-plans after a short path while it moves; game.exe's walk to a spot ends there | exact | maybe | collision.md "A walk to a spot just ends"; world/tick.cpp "Short of the target with a step made" |
