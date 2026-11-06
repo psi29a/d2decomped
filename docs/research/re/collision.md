@@ -336,8 +336,7 @@ action a held button on the ground does nothing (LAB_00462b1d) unless shift is h
 it doesn't drop a queued interact. On a unit, an object or item
 ignores the hold (LAB_00461df2, LAB_00461ee5), a monster needs the press
 (LAB_004628cb), and a warp has no such test ("The server's pending interact").
-Whether each frame sends C→S 0x01 or 0x03 wasn't followed, nor the skill branches
-before LAB_004628a8.
+What a held frame sends is in "What a held frame sends" below.
 
 d2d's held button (`input.cpp`, `cmd::Move` not fresh) walks again after a stop too.
 `walk_to` clears `interact_npc` before it tests `fresh`, which reads as if a held frame after
@@ -346,3 +345,37 @@ keeps it wasn't found, and no test holds a press: devctl's `click` sends down an
 
 d2d re-plans a walk to a spot too while it moves ("Short of the target with a
 step made", `tick.cpp`), so one click can walk farther than game.exe's does.
+
+### What a held frame sends
+
+Read from the code, no oracle or packet log.
+
+- **The gate.** FUN_00462a20 starts with FUN_00462930. The press (flag 4) arms it: 0x7a526c
+  = 1 on the ground, 2 with a unit under the cursor (LAB_00462952). A release (flag 0x10)
+  clears it. A held frame (flag 8) with it clear does nothing (LAB_00462968). With a unit under the
+  cursor: an object, missile or item does nothing (LAB_0046297f); a player, monster or warp
+  does nothing while the unit walks or runs, modes 2, 3 and 6 (LAB_0046298e to LAB_00462998).
+  So holding on an NPC during the walk to it sends nothing and leaves the queue alone.
+- **Which packet.** FUN_004621d0 takes action 3 with flag 0x40, else 1 (LAB_00462236,
+  LAB_0046224b), and 4 or 2 for a unit. Flag 0x40 is a run key (FUN_0044bec0) with stat 0xa
+  non-zero (LAB_00462dbf). FUN_00461840 passes it to FUN_00481030, whose FUN_00480b40 sends the
+  action as the opcode (LAB_004785db). So C→S 0x03 running and 0x01 walking, 5 bytes.
+- **How often.** FUN_004623c0, on the ground: a held frame of a walking or running player goes
+  on only when 7 frames of 0x7a0498's clock (25 a second) have passed since the last that
+  went on, 280 ms (LAB_00462537, LAB_00462542). A stopped player goes at once. Nothing goes if the
+  spot is 0x100 or more away on an axis, or under 1 on both (LAB_00462482).
+- **How near.** The spot goes out to a least distance (FUN_00474080, LAB_004624d9): a
+  press 3, or 5 with flag 0x40; held 4, or 5 with flag 0x40 (LAB_004624c1).
+- **The skill branches** in FUN_004625b0, in order; what the fields mean wasn't followed:
+  - No unit under the cursor, or a monster FUN_00464820 passes with a skill whose +7 lacks
+    0x6ce268: LAB_00462671. There flag 0x20, or flag 2 with FUN_00645460 not 1, casts
+    (FUN_004610c0, FUN_00461700, LAB_004626fe); otherwise the walk (LAB_004626c9).
+  - A unit and FUN_00643860 passing: a skill with 0x6ce274 in +7 casts (LAB_00462781); a unit
+    with bit 2 of +0xc4 and the skill's +7 masks or FUN_00465c60 takes the click by type
+    (LAB_004627cc); otherwise flag 0x20 casts (LAB_0046289c).
+  - FUN_00643860 failing: LAB_004628a8, as "A walk to a spot just ends" has it.
+
+d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
+wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
+joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known) against about 3.6.
+By reading both are small, a few subtiles of where a walk ends; neither was measured.
