@@ -594,6 +594,7 @@ auto World::music_cue(std::string_view sound) -> void {
 auto World::join_more() -> void {
         if (hosted_quests) return;
         tools.join_more(carries("hdm"));          // a1q3 LAB_005919d0 (a1q4's FUN_00592b90: CainQuest)
+        d2d::rules::SevenTombsQuest::join_more(quests());   // a2q6 LAB_0059d4d0 (a2q2's FUN_0059e970: HoradricStaffQuest)
     }
 
 auto World::take_carried(std::string_view code) -> void {

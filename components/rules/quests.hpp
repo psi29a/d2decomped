@@ -614,6 +614,9 @@ struct HoradricStaffQuest {
     bool cube_dropped = false;     // data+0x29: the Cube chest gave one
     bool staff_made = false;       // data+0x2a: transmuted (FUN_0059e5c0; the player's bit 11)
 
+    // A later player's +0xd8 (FUN_0059e970) counts the parts they carry
+    // (data +0x18..+0x24, not kept here) and, with data +0x2b set (not
+    // traced), resets the Tombs' data +0x10 when its +0xe isn't 1.
     // The player joins (FUN_0059e850): parts no longer carried are no
     // longer shown, unless all three are, the staff's made or placed.
     void join(QuestBits& quest_bits, const Items& items, bool staff_placed) {
@@ -1005,6 +1008,8 @@ struct SevenTombsQuest {
         if (!quest::bit(quest_bits, kQuest, 0) && state > 1) quest::set(quest_bits, kQuest, 2);
     }
     bool chain() { if (state == 0 && open) state = 1; return true; }   // FUN_0059d450, on to +0x10's
+    // A later player joins (+0xd8, LAB_0059d4d0): their word 10 bit 9 cleared.
+    static void join_more(QuestBits& quest_bits) { quest::set(quest_bits, 10, 9, false); }
     void join(QuestBits& quest_bits) {           // LAB_0059d4f0
         quest::set(quest_bits, 10, 9, false);
         if (quest::bit(quest_bits, 10, 0)) { later = true; staff_placed = true; }

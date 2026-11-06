@@ -73,6 +73,15 @@ int main() try {
         world.join(make(kSorceress, "Empty"));
         assert(world.tools.carriers == 1);                                        // no malus: no carrier
     }
+    {   // a2q6's +0xd8 (LAB_0059d4d0): the joiner's word 10 bit 9 cleared.
+        World world(&*data, -1, -1);
+        world.enter(make(kSorceress, "Lead"));
+        auto joiner = make(kSorceress, "Joiner");
+        d2d::rules::quest::set(joiner.header.quests[std::size_t(joiner.header.active_difficulty())], 10, 9);
+        world.join(joiner);
+        const auto& joined = world.players.back()->character.header;
+        assert(!d2d::rules::quest::bit(joined.quests[std::size_t(joined.active_difficulty())], 10, 9));
+    }
     std::printf("OK: quest joins\n");
     return 0;
 } catch (const std::exception& error) {
