@@ -87,7 +87,7 @@ int main() {
     Item cap;
     cap.code = "cap";
     cap.identified = true;
-    shop.tabs[0] = { cap };
+    shop.tabs[0].clear(); shop.tabs[0].push_back(std::move(cap));
     shop.tabs[1] = { axe, axe, axe };
     const Wearer barbarian{ .cls = d2d::d2s::kBarbarian, .str = 100, .dex = 100, .lvl = 30 };
     std::vector<Item> worn;
@@ -99,7 +99,7 @@ int main() {
     assert(worn[1].location == location::kEquipped && worn[1].slot == body::kRightArm);
     assert(store_buy(tables, shop, 0, worn, stats, 4, false, &barbarian) == Trade::done);
     assert(worn[2].location == location::kStored && worn[2].panel == d2d::d2s::item_panel::kInventory);
-    auto ground_axe = axe;
+    auto ground_axe = std::move(axe);
     assert(pick_up(tables, worn, ground_axe, 10, 4, 4, &barbarian) == Pickup::kGone && worn[3].slot == body::kLeftArm);   // the pickup does
     return 0;
 }

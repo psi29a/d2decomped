@@ -62,7 +62,7 @@ int main() try {
     world.npc_states = npc_start(*cavern);
     d2d::rules::quest::set(world.quests(), Khalim::kQuest, 0);       // the opener's done: no quest bit is read
     auto& second = world.add_player();
-    second.character = character;
+    second.character = std::move(character);
     World::Player& opener = *world.actor;
     const int chest_index = int(chest - cavern->npcs.begin());
     // Each player carrying `codes` ("" none), the chest opened afresh: the eyes dropped.
