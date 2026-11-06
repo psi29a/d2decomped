@@ -62,3 +62,27 @@ the decompile, no oracle run. The set
 form's callers (00535510, 005589a0, 00558d90, 0055a6d0) are not traced, so
 whether any can pass a value past the cap is open; loot.hpp:208 keeps
 gold pickups within `room`.
+
+## Starting stats from a class record — FUN_005706d0 (ECX, EDX unit, stack byte n)
+
+Cited; not compared with d2d (no d2d function cites it). The unit's class
+(+4) indexes the 0xc4-byte record table at `PTR_DAT_00744304 + 0xbc4`
+(count at +0xbc8; the table is not named here). With record `r`, it sets
+through `FUN_00627260`:
+
+| Stat | Value |
+|---|---|
+| 0, 1, 2, 3 | r+0x30, r+0x32, r+0x31, r+0x33 (bytes; stat 1 and 2 swap places) |
+| 0x13, 0x14 | 0 |
+| 6, 7 | (r+0x35 + r+0x33) x 256 |
+| 8, 9 | r+0x32 x 256 |
+| 10, 11 | r+0x34 x 256 |
+| 0xc | 1 (level) |
+| 0x1e | `FUN_00611800(class, 1)` |
+| 0x43, 0x44, 0x45 | 100 |
+
+Last, when the stack byte `n` (clamped to 4) is nonzero: `n` is zeroed if
+it is not below `DAT_007326b4`, then `FUN_0057eb10(DAT_006e1520[n])` runs.
+The 256 factor is the 8-bit fixed point of life, mana and stamina.
+
+Re-check: `python3 tools/ghidra/fn.py 005706d0`.
