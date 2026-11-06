@@ -24,6 +24,7 @@
 #include <exception>
 #include <filesystem>
 #include <string_view>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -59,15 +60,30 @@ int main() try {
     if (chest == cavern->npcs.end()) { std::printf("SKIP: no Eye chest in the Spider Cavern once populated\n"); return D2D_TEST_SKIPPED; }
     world.level = cavern;
     world.npc_states = npc_start(*cavern);
-    d2d::rules::quest::set(world.quests(), Khalim::kQuest, 0);       // done: still one part for this player
-    auto& carrier = world.add_player();                                // the second carries the eye: none for them
-    carrier.character = character;
-    d2d::d2s::Item eye;
-    eye.code = Khalim::kEyeCode;
-    carrier.character.items.push_back(eye);
-    world.operate(int(chest - cavern->npcs.begin()), 0);
-    const auto eyes = std::ranges::count(world.loot.ground, std::string_view(Khalim::kEyeCode), [](const auto& ground) { return std::string_view(ground.item.code); });
-    assert(eyes == 1);
+    d2d::rules::quest::set(world.quests(), Khalim::kQuest, 0);       // the opener's done: no quest bit is read
+    auto& second = world.add_player();
+    second.character = character;
+    World::Player& opener = *world.actor;
+    const int chest_index = int(chest - cavern->npcs.begin());
+    // Each player carrying `codes` ("" none), the chest opened afresh: the eyes dropped.
+    const auto eyes = [&](const char* opener_code, const char* second_code) {
+        for (auto [player, code] : { std::pair{ &opener, opener_code }, std::pair{ &second, second_code } }) {
+            auto& items = player->character.items;
+            std::erase_if(items, [](const d2d::d2s::Item& item) { return item.code == Khalim::kEyeCode || item.code == Khalim::kWillCode; });
+            d2d::d2s::Item part;
+            part.code = code;
+            if (!part.code.empty()) items.push_back(std::move(part));
+        }
+        world.operated.erase({ cavern, chest_index });
+        world.loot.ground.clear();
+        world.operate(chest_index, 0);
+        return std::ranges::count(world.loot.ground, std::string_view(Khalim::kEyeCode), [](const auto& ground) { return std::string_view(ground.item.code); });
+    };
+    assert(eyes("", "") == 2);                                       // one each
+    assert(eyes("", Khalim::kEyeCode) == 1);                         // the second has it
+    assert(eyes(Khalim::kEyeCode, "") == 1);                         // the opener has it
+    assert(eyes(Khalim::kWillCode, "") == 1);                        // the Will counts as having it
+    assert(eyes(Khalim::kEyeCode, Khalim::kWillCode) == 0);
     std::printf("OK: the Eye chest drops one eye per player carrying neither it nor the Will\n");
     return 0;
 } catch (const std::exception& error) {
