@@ -880,6 +880,20 @@ walk has filled the arrays FUN_0067d710 overwrites the capacities with the
 filled counts (+0x18 = +0x08, +0x20 = +0x0c, +0x28 = +0x10). d2d keeps tiles
 in a vector (`BuiltRoom::tiles`), so the allocation has no d2d counterpart and
 nothing to disagree with. Re-check: `python3 tools/ghidra/fn.py 0066eee0`.
+
+The capacities come from two counting passes on a plain room (FUN_0067d710:
+FUN_0066edb0 once, FUN_0066ece0 twice), over the (w+1)x(h+1) cells
+(`+0x3c`/`+0x40`, +1 each unless the skip argument is set).
+FUN_0066ece0 counts per cell word: `& 1` → +0x18, `& 2` (or, with its
+`shared` argument, the cell inside a neighbour rect, FUN_0066b980) → +0x20,
+`& 0x8000000` → +0x28. These are the same bits d2d's `word` lambda tests
+(`room_tiles.hpp`: `& 2` floor, `& 1` wall, `& 0x8000000` shadow), so d2d
+agrees. FUN_0066edb0 adds to +0x18 for every cell whose orient (FUN_0067c570,
+a pure grid read) is 3, 10 or 11. Its `+0x20 += 6` branch is unreachable:
+it re-reads the same cell and the value is 10 or 11, so `>= 0`. Counts are
+upper bounds (an orient-3 cell also adds the extra orient-4 tile in d2d's
+`add(0, x, y, 4, ...)`, which is what the orient pass is for).
+Re-check: `python3 tools/ghidra/fn.py 0066ece0 0066edb0 0067c570`.
 Loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
 cached by name.
 
@@ -1420,7 +1434,9 @@ block at `+0x22c` (line 0x84); with `keep` nonzero it allocates it
 (next `+0x24`), with that room's `+0x60 & 1`. It frees each room2
 (`FUN_0066c100`), then the block at `+0x1b0` (`FUN_006683d0`) and the
 per-type state by type `+0`: 1 `FUN_00673fe0`, 2 `FUN_006674d0`, 3
-`FUN_006754c0`. It zeroes `+0x2c..+0x1ac`, `+0x1d8` and `+0x1e0..+0x22c`, frees `+0x1bc`
+`FUN_006754c0`. It zeroes `+0x2c` for 0x180 bytes (up to but not including `+0x1ac`), `+0x1d8`
+and `+0x1e0` for 0x4c bytes (up to but not including `+0x22c`, so the saved
+block pointer there is untouched), frees `+0x1bc`
 when `keep` is 0 (line 0xb7), and frees the chain at `+0x1cc` (next `+0xc`,
 line 0xc5). The `keep` call is the rebuild that `FUN_00643200` makes
 (`FUN_00642390` below puts the saved bit back).
