@@ -300,6 +300,33 @@ d2d: pSrvDmgFunc is read only for 5 (`dmg_func` in gamedata.hpp); 1, 2, 4
 and 12 are **not ported**. Which Missiles.txt rows use them needs the game's
 table, not read here.
 
+## Server hit function 56 — FUN_005acc50 (Armageddon, Diablogeddon)
+
+Slot 56 of the table (`0x73c920`). Cited from the decompile; the return
+paths I read in the decompile return 1.
+
+- Gate: class in range with a record, and FUN_00552fd0 finds an owner;
+  otherwise nothing happens. Skill = FUN_0064a280, level = FUN_0064a210 of
+  the missile.
+- Spot: the missile's subtile x / y (FUN_0045adf0 / FUN_0045ae20 inlined:
+  types 2 and 4..5 read data +0xc / +0x10, else the path through
+  FUN_006488c0 / FUN_00648900, 0 with none).
+- Roll: FUN_005a89a0(missile, 0, &rec), then the record's +0xa8 (dword) and
+  +0xac (word) are OR-ed into its flags (the first dword and word).
+- Radius: sHitPar1 (+0x4c) when ≥ 1; else FUN_00646ca0(game, skill record
+  +0x64, skill, level) (a skill calc, +0x64 being the aurarangecalc of
+  skills.md), at least 1; a skill out of range (`+0xba0`, 0x23c each)
+  or null ends it.
+- Burst: FUN_0056bad0(x, y, radius, &rec, 0), which walks the units in the
+  radius with callback FUN_0056ba90 (0x8583 default, Skills.cpp); which of
+  them it hits is not read here.
+- Then, when HitSubMissile1 (+0x24) ≥ 0: FUN_0056ede0(skill, level, class,
+  x, y), one missile of that class made by FUN_0059fa30 flags 1 at the spot.
+
+d2d: fight/missiles.cpp case 56 reads the same, cited from the decompile, no oracle run,
+on the burst at the missile's spot with sHitPar1 else the skill's aurarange, and the one sub missile on
+that spot. Not examined: the OR of record +0xa8 / +0xac into the roll's flags.
+
 ## d2d
 
 - `rules::MissileFlight` (launch, step, walk, retarget), `missile_aim`,
