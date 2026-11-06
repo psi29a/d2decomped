@@ -252,3 +252,14 @@ all from FUN_00548b00 (LAB_00548d7d): 7 and 8 walk, 6 or less talks.
 
 d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit; warps
 weren't compared.
+
+### How near the client walks
+
+FUN_00480c80, FUN_00481600's test, for an interact (action 0x13) stops the
+walking for a player or monster only at FUN_00622c40: within melee range + 1 (+ 1 for a moving target) with no
+0x804 between (LAB_00480d0f), and an object at FUN_00623660 with no 0x804
+(LAB_00480cde). The click sends at once only for an NPC within 2. So the
+server's reach of 6 (FUN_00548b00) isn't what ends a client's walk to an NPC.
+
+d2d's `tick.cpp` talks at the server's reach, `unit_distance` under 7, with no
+line test: sooner than game.exe's client, and through a wall.
