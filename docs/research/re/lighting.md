@@ -342,7 +342,14 @@ from the code, no oracle.
   `FUN_004ae210`: a hireling with a light-radius item) type 0; missiles
   (0x470555) and MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; objects
   (0x4bc5bc, `FUN_004bc580`) and 0x4d6f85 type 2 (cached shadows,
-  `FUN_004750f0`).
+  `FUN_004750f0`). `FUN_004d6d40`'s 0x4d6f85 wasn't followed; 0x4accef, 0x4acd2c (type 0) and
+  0x4f3630 (type 1) are three more callers, not followed.
+- Type 2 is shaded at any quality (`FUN_004755a0`): `FUN_004750f0` fills its table once
+  (+0x2c, LAB_0047540b), `FUN_00475420` stamps from it, and a new radius frees it
+  (LAB_004755ff). Type 0 is shaded only above quality 1 (LAB_00475661); otherwise it's a plain
+  `FUN_004748d0`. d2d shades objects' lights by reading the map each frame (`stamp_shadowed`),
+  so at quality 2 only the cache differs: a blocked subtile that changes after the first stamp.
+  How many lights have a door or the like in reach wasn't measured. Read from the code, no oracle.
 - Checked live (Lut Gholein, game.exe under Wine, light grid at
   0x7b0e68 vs `debug light` with `--toggle light_grid=off`, the same
   spot and time of day): all 48 × 48 entries and the blocked subtiles
@@ -353,7 +360,7 @@ from the code, no oracle.
 
 - The Den of Evil's light once cleared: quests.md "The Den lights up".
 
-ponytail, not yet: type 2's cached shadows, lights easing to a new radius.
+ponytail, not yet: type 2's cached shadows (deviations.md approximation 5).
 
 ## The unit under the cursor
 
