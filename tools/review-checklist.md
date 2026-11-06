@@ -37,6 +37,7 @@ or changes, list where else the same rule applies and check each one:
 - Every new member or flag: who resets it on new game, leave, co-op end and load? Who replicates it to the client?
 - A new variant alternative must be handled by every encoder, decoder and visitor. A fallback that assumes a different alternative can throw (#116).
 - Deferred frame data belongs to the level or context that produced it; clear or consume it before a level change (#105). A debug command that calls a stateful helper must use the same clock and context as normal rendering (#99).
+- When moving per-frame state into a fixed-tick loop, keep an event set by an earlier catch-up tick until the next draw, and preserve it when no tick runs (#208).
 - A new counter next to an old one (e.g. `seq_sounds` beside `seq_done`, #94): it is emptied wherever the old one is, or on every frame; it isn't consumed on a frame the old one skips (far from the players, dead).
 - Event order: does a hit, death or drop happen before or after the state it reads?
 - A choice that matches game.exe but looks wrong: cite the FUN_ address in a comment next to it. 10 findings were invalid for this reason alone; the comment heads them off.
@@ -45,6 +46,7 @@ or changes, list where else the same rule applies and check each one:
 
 - `level()`, `town_of()`, finds and lookups: can they return null or end here?
 - Index arithmetic: an empty container, `-1`, a not-found sentinel cast to `size_t`.
+- Check sums and products against the supported data range, including table values, before narrowing or payment (#202: Repair All accumulated prices in `int`).
 - Pointers or references into a vector that grows afterwards; `act_as` and other temporary overrides restored on every exit path.
 - Files: the stream checked and closed before the rename; the replacement written before the old file is deleted.
 - A cancelled export must not replace complete output with partial rows (#122). Repeated emulator cases must release hook slots as well as heap allocations (#116).
