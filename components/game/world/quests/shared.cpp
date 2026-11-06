@@ -34,6 +34,7 @@
 #include <ctime>
 #include <format>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -42,27 +43,13 @@
 namespace d2d::game {
 
 // FUN_00463740: whether subtile (x, y) lies in the room holding subtile
-// (from_x, from_y) or in one of that room's near list (FUN_00619790).
-// ponytail: rooms as gamedata.cpp's room_rects has them (a preset level's
-// as 8x8 tiles), the near list as its closeness (FUN_0066bc20: under 6
-// tiles apart on both axes); the level's own rooms only. Rooms are agent
-// D's (units off a level's rooms).
-static bool room_near_holds(const Level& level, int from_x, int from_y, int x, int y) {
-    struct Rect { int x, y, width, height; };
-    std::vector<Rect> rects;
-    for (const auto& room : level.rooms) rects.push_back({ room.x, room.y, room.width, room.height });
-    if (rects.empty())
-        for (int top = 0; top < level.ds1.height(); top += 8)
-            for (int left = 0; left < level.ds1.width(); left += 8) rects.push_back({ left, top, std::min(8, level.ds1.width() - left), std::min(8, level.ds1.height() - top) });
-    const auto holds = [](const Rect& rect, int sub_x, int sub_y) {
-        return sub_x >= rect.x * 5 && sub_y >= rect.y * 5 && sub_x < (rect.x + rect.width) * 5 && sub_y < (rect.y + rect.height) * 5;
-    };
-    const auto own = std::ranges::find_if(rects, [&](const Rect& rect) { return holds(rect, from_x, from_y); });
-    if (own == rects.end()) return false;
-    return std::ranges::any_of(rects, [&](const Rect& rect) {
-        const int gap_x = own->x < rect.x ? rect.x - own->width - own->x : own->x - rect.width - rect.x;
-        const int gap_y = own->y < rect.y ? rect.y - own->height - own->y : own->y - rect.height - rect.y;
-        return gap_x < 6 && gap_y < 6 && holds(rect, x, y);
+// (from_x, from_y) or in one of that room's near list (FUN_00619790), the
+// next-door levels' close rooms and a warp's room included (missile_rooms).
+static bool room_near_holds(const GameData& game_data, const Level& level, int from_x, int from_y, int x, int y) {
+    const auto rects = missile_rooms(game_data, level, (float(from_x) + 0.5f) / 5, (float(from_y) + 0.5f) / 5);
+    const int act_x = level.world_x * 5 + x, act_y = level.world_y * 5 + y;
+    return std::ranges::any_of(rects | std::views::drop(1), [&](const auto& rect) {
+        return act_x >= rect[0] && act_y >= rect[1] && act_x < rect[0] + rect[2] && act_y < rect[1] + rect[3];
     });
 }
 
@@ -342,7 +329,7 @@ auto World::radament_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
 
 auto World::near_room(float from_x, float from_y, float x, float y) const -> bool {
         const auto subtile = [](float cell) { return int(std::floor(cell * 5)); };
-        return room_near_holds(*level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
+        return room_near_holds(*game_data, *level, subtile(from_x), subtile(from_y), subtile(x), subtile(y));
     }
 
 auto World::hire_list(int list_act) -> std::vector<d2d::rules::HireEntry>& {
@@ -498,7 +485,7 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         }
         if (cain_walk.stage < 2) {
             if (off(cain_walk.x, cain_walk.y) > 1 && cain_walk.tries < 6) { ++cain_walk.tries; walk(cain_walk.x, cain_walk.y); return; }
-            if (room_near_holds(*level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
+            if (room_near_holds(*game_data, *level, at_x, at_y, cain_walk.spot_x, cain_walk.spot_y)) {
                 cain_portal = { level, cell(cain_walk.spot_x), cell(cain_walk.spot_y), now_ms };
                 cues.cue("object_townportal", now_ms, cain_portal.x, cain_portal.y);
                 d2d::log::info("Search for Cain: Cain opens a portal at subtile ({}, {})", cain_walk.spot_x, cain_walk.spot_y);
