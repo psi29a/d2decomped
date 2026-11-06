@@ -165,6 +165,8 @@ struct HellforgeQuest {
     bool heard = false;            // data +2: Cain's 678 / 679 heard
     bool news = false;             // the log sent again (FUN_00544300 flag 1)
 
+    // A later player's +0xd8 (LAB_005b64c0) counts the hammers about (data
+    // +0x10), which d2d doesn't keep (the forge asks the hand).
     // The player joins (FUN_005b64e0).
     void join(const QuestBits& quest_bits, bool stone) {
         open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
@@ -273,7 +275,15 @@ struct TerrorQuest {
     bool heard = false;            // data +0: Tyrael's 681 heard
     bool news = false;             // the log sent again (FUN_00544300 flag 1)
 
-    void join(const QuestBits& quest_bits) {
+    // Its +0xd8 (LAB_005b5030), and the first part of its +0xd4: in LoD, a
+    // player who heard Tyrael's way on (bit 9) without word 0x1c bit 0
+    // (0x5b50a2..0x5b50c3) hears it again: bit 9 cleared.
+    static void join_more(QuestBits& quest_bits, bool expansion) {
+        if (expansion && quest::bit(quest_bits, kQuest, 9) && !quest::bit(quest_bits, 0x1c, 0)) quest::set(quest_bits, kQuest, 9, false);
+    }
+    // The player joins (FUN_005b5080).
+    void join(QuestBits& quest_bits, bool expansion) {
+        join_more(quest_bits, expansion);
         open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
         if (!open) return;
         if (quest::bit(quest_bits, kQuest, 4)) { log = 2; state = 3; }

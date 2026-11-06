@@ -115,6 +115,20 @@ int main() try {
         assert(!has_marker || wanderers() == 1);                                  // unseen: him
         if (!has_marker) std::printf("SKIP: no object 368 in the Spider Forest this seed\n");
     }
+    {   // a4q2's +0xd8 (LAB_005b5030): in LoD, bit 9 without word 0x1c bit 0 cleared.
+        World world(&*data, -1, -1);
+        world.enter(make(kSorceress, "Lead"));                                   // LoD (new_character's expansion)
+        auto heard = make(kSorceress, "Heard"), on = make(kSorceress, "On");
+        auto& heard_bits = heard.header.quests[std::size_t(heard.header.active_difficulty())];
+        auto& on_bits = on.header.quests[std::size_t(on.header.active_difficulty())];
+        d2d::rules::quest::set(heard_bits, 0x1a, 9);
+        d2d::rules::quest::set(on_bits, 0x1a, 9); d2d::rules::quest::set(on_bits, 0x1c, 0);
+        world.join(heard);
+        const auto bits_of = [&](const World::Player& player) { return player.character.header.quests[std::size_t(player.character.header.active_difficulty())]; };
+        assert(!d2d::rules::quest::bit(bits_of(*world.players.back()), 0x1a, 9));
+        world.join(on);
+        assert(d2d::rules::quest::bit(bits_of(*world.players.back()), 0x1a, 9));
+    }
     std::printf("OK: quest joins\n");
     return 0;
 } catch (const std::exception& error) {
