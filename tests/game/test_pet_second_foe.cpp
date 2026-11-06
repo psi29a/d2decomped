@@ -11,10 +11,12 @@
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <monsters.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -53,18 +55,24 @@ int main() try {
     for (const auto& room : moor->rooms) {
         const float at_x = float(room.x) + float(room.width) / 2, at_y = float(room.y) + float(room.height) / 2;
         if (moor->blocked(at_x, at_y, 0x805) || moor->blocked(at_x + 1, at_y, 0x805) || moor->blocked(at_x + 3, at_y, 0x805)) continue;
+        // Both lines clear (mask 4, as pet_second_foe tests them), else another room.
+        const auto sub = [](float cells) { return int(std::floor(cells * 5)); };
+        const auto wall = [&](int sub_x, int sub_y) { return moor->blocked((float(sub_x) + 0.5f) / 5, (float(sub_y) + 0.5f) / 5, 0x04); };
+        const auto line_clear = [&](int row, float foe_x) {
+            return !d2d::rules::sight_blocked(sub(foe_x), sub(at_y), data->monsters.types[std::size_t(row)].size, sub(at_x), sub(at_y), 1, wall);
+        };
+        if (!line_clear(weak, at_x + 1) || !line_clear(strong, at_x + 3)) continue;
         d2d::rules::Rng rng{ 3 };
         fight.monsters.clear();
-        Monster near_one = make_monster(*data, weak, at_x + 1, at_y, rng, 0), far_one = make_monster(*data, strong, at_x + 3, at_y, rng, 0);
+        // The strong one first, the near weak one newest: a pick by order alone would take the weak one.
+        Monster far_one = make_monster(*data, strong, at_x + 3, at_y, rng, 0), near_one = make_monster(*data, weak, at_x + 1, at_y, rng, 0);
         near_one.align = far_one.align = 0;
-        fight.monsters.push_back(std::move(near_one));
         fight.monsters.push_back(std::move(far_one));
+        fight.monsters.push_back(std::move(near_one));
         int gap = 0;
-        const int pick = fight.pet_second_foe(at_x, at_y, 1, gap);
-        if (pick < 0) continue;   // the line blocked from one of them: try another room
-        assert(pick == 1 && gap > 0 && gap < 0x31);
-        fight.monsters[1].hit_points = 0;   // no primary: the secondary
-        assert(fight.pet_second_foe(at_x, at_y, 1, gap) == 0);
+        assert(fight.pet_second_foe(at_x, at_y, 1, gap) == 0 && gap > 0 && gap < 0x31);
+        fight.monsters[0].hit_points = 0;   // no primary: the secondary
+        assert(fight.pet_second_foe(at_x, at_y, 1, gap) == 1);
         std::printf("pet_second_foe: ok (gap %d)\n", gap);
         return 0;
     }

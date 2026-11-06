@@ -34,6 +34,14 @@ int main() {
     assert((d2d::rules::leap_landing(0, 0, 5, 1, 10, as_is, first_side) == Spot{ { 6, -1 } }));
     const auto second_side = [](int at_x, int at_y) { return at_x == 4 && at_y == 3; };
     assert((d2d::rules::leap_landing(0, 0, 5, 1, 10, as_is, second_side) == Spot{ { 4, 3 } }));
+    // Negative deltas: the C division truncates toward 0, (-300 / 35, -100 / 35) = (-8, -2).
+    assert((d2d::rules::leap_landing(0, 0, -30, -10, 10, as_is, open) == Spot{ { -8, -2 } }));
+    assert((d2d::rules::leap_landing(5, 5, -25, -5, 10, as_is, open) == Spot{ { -3, 3 } }));
+    // Range 0: the point pulled back onto the caster.
+    assert((d2d::rules::leap_landing(3, 3, 7, 6, 0, as_is, open) == Spot{ { 3, 3 } }));
+    // A point at the caster: no side step, all three tries the caster's spot.
+    assert((d2d::rules::leap_landing(5, 5, 5, 5, 10, as_is, open) == Spot{ { 5, 5 } }));
+    assert(!d2d::rules::leap_landing(5, 5, 5, 5, 10, as_is, [](int, int) { return false; }));
     std::printf("leap landing: ok\n");
     return 0;
 }

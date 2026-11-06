@@ -18,6 +18,7 @@
 #include <world.hpp>
 
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -59,8 +60,10 @@ int main() try {
         if (!open) continue;
         d2d::rules::Rng rng{ 3 };
         fight.monsters.clear();
-        for (const float off : { 1.f, 2.f }) {                     // 5 subtiles (in reach), 10 (not)
-            Monster fallen = make_monster(*data, fallen_row, at_x + off, at_y, rng, 0);
+        // Everyone on subtile centres: 6 subtiles off is in reach (36), 7 isn't (49).
+        const auto centre = [&](int subtiles) { return (std::floor(at_x * 5) + float(subtiles) + 0.5f) / 5; };
+        for (const int off : { 6, 7 }) {
+            Monster fallen = make_monster(*data, fallen_row, centre(off), at_y, rng, 0);
             fallen.align = 0; fallen.hit_points = fallen.last_hp = fallen.stats.hit_points = 1000;
             fight.monsters.push_back(std::move(fallen));
         }
@@ -69,7 +72,7 @@ int main() try {
         auto& pets = world.actor->pets;
         pets.clear();
         auto& pet = pets.emplace_back();
-        pet.monster = make_monster(*data, golem_row, at_x, at_y, rng, 0);
+        pet.monster = make_monster(*data, golem_row, centre(0), at_y, rng, 0);
         pet.where = moor;
         pet.monster.hit_points = 0;
         set_mode(*data, pet.monster, "DT", 1000);
@@ -80,7 +83,7 @@ int main() try {
         assert(!fight.blast_due(pet.monster) && !fight.golem_blast(pet, 1000 + 5 * 40));   // once
         const int lost = 1000 - fight.monsters[0].hit_points;
         assert(lost >= want && lost <= want + 1 && want > 0);
-        assert(fight.monsters[1].hit_points == 1000);             // 10 subtiles off
+        assert(fight.monsters[1].hit_points == 1000);             // 7 subtiles off
         std::printf("golem blast: %d life off the one in reach\n", lost);
         return 0;
     }

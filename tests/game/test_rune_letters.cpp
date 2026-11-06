@@ -39,6 +39,9 @@ int main() try {
     sword.socketed_items = { tal, eth };
     const auto lines = item_lines(*data, sword, 1);
     assert(lines.size() >= 2 && lines[1].text == quote + "TalEth" + quote);
+    data->gem_letters.erase("r05");                 // a rune with no letters row adds nothing
+    const auto tal_only = item_lines(*data, sword, 1);
+    assert(tal_only.size() >= 2 && tal_only[1].text == quote + "Tal" + quote);
     sword.socketed_items = { ruby };
     const auto gem_lines = item_lines(*data, sword, 1);
     assert(std::ranges::none_of(gem_lines, [&](const TextLine& line) { return line.text.starts_with(quote); }));
