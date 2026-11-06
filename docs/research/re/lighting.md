@@ -260,8 +260,7 @@ The environment lookup was hooked; no d2d parity claim is made.
 
 - The Den of Evil's light once cleared: quests.md "The Den lights up".
 
-ponytail, not yet: type 2's cached shadows, lights easing to a new radius,
-Act 4's day.
+ponytail, not yet: type 2's cached shadows, lights easing to a new radius.
 
 ## The unit under the cursor
 
