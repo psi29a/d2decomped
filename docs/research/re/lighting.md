@@ -204,6 +204,19 @@ The environment lookup was hooked; no d2d parity claim is made.
   only. The RGB is for Glide / Direct3D (coloured light is on by default,
   0x712b8c, a debug key toggles it).
 
+### The bytes nothing reads
+
+`FUN_004ded20` (from the scene's draw, LAB_00476c62) writes the environment's
+RGB and +0xc to 0x7c8a6f, 0x7c8a6d, 0x7c8a6c and 0x7c8a6e, then the level's own
+light over them when it has a colour. Nothing reads them: searching game.exe's
+file for those four addresses as immediates finds only that function's
+own writes, and the same search for 0x7c8a70 (read at LAB_004dfb10) finds both
+its uses, so the search works. Nothing addresses them from below: 0x7c8a60..0x7c8a6b
+have no reference, and 0x7c8a28, the floor pass's struct (`FUN_004ded10`),
+is read only to +0x40 (`FUN_004de410`, `FUN_004de730`, `FUN_004dde80`), which
+leaves +0x44, the first of them, untouched. d2d has no equivalent and needs none. Read
+from the code, no oracle.
+
 ## Shadows
 
 - **Options:** Video Options "Blended Shadows" (registry, default on;
