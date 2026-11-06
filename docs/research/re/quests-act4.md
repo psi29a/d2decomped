@@ -167,7 +167,10 @@ hammers about, +0x14 gems per round, +0x1c the soulstone given.
 - **Hephasto dies** (+0xc0 `FUN_005b65d0`): drops `hfh ` (the Hellforge
   Hammer, `FUN_00559a30(7)`), +0x10.
 - **The forge** (objects 376: InitFn 48 `FUN_005b5a20` mode = +0 (3 with no
-  record); OperateFn 49 `FUN_005b5c10`): not done / due: mode 0 with `mss `
+  record or +9 clear; it runs each time its room comes up, and again only
+  re-sets that mode and, with +0xb not 13 / 2 / 3, log 2 (EDX 2 at
+  0x5b5a64) sent: a rerun only puts the log back to 2 after Cain's talk
+  set it to 1 / 4); OperateFn 49 `FUN_005b5c10`): not done / due: mode 0 with `mss `
   carried → mode 1 (event at its anim end), +0 = 2, the logs, `mss `
   taken; without it the player's unit event; mode 2 with `hfh ` in hand
   (`FUN_0063bef0` on the player's +0x60, item code +0x80): +0xc += 1; the
@@ -184,9 +187,14 @@ hammers about, +0x14 gems per round, +0x1c the soulstone given.
   (flawless), 1 0x73e5a4 (plain); a dropped round → +8 − 1 and the next 20
   frames on; the last, LoD: a rune `rand(11)` from 0x73e114 (r01–r11) /
   0x73e514 (nightmare r12–r22) / 0x73e540 (hell r15–r25).
-- **Item event** (+0xb0 `LAB_005b5a90`): `mss ` picked up → state 1;
+- **Item event** (+0xb0 `LAB_005b5a90`, event 4 `0x543d80(game, player,
+  item)`): it goes only to the records on the item's own list (item +0x74,
+  `FUN_005439a0`; bound as the item's made, `FUN_00555d20` at 0x555d82:
+  Items.txt quest − 1). That's `hfh ` (the Hellforge Hammer) for a4q3;
+  `mss ` is a4q1's (record 0x16). It takes state 0 → 1 (bits 0 / 13 / 1
+  clear, +9, +0xb not 13; tools/emu/quest_item_events.py);
   +0xc4 / +0xd8 count hammers about.
-- **Join** (`FUN_005b64e0`): `mss ` carried → state 1; bit 5 → state 2,
+- **Join** (`FUN_005b64e0`): `mss ` not carried → state 1 (`FUN_00558110('mss ')` 0, the push at 0x5b654d); carried: bit 5 → state 2,
   log 4; bits 3 / 2 → states as a4q1.
 
 ## Act 4's other objects
@@ -286,7 +294,7 @@ with flag 1 the callback over the players (`FUN_005b3940` / `FUN_005b4e40`
 | a4q3 | Cain's talk closes with 678 / 679 heard (`FUN_005b6440`, data +2) | 4 with the stone given (+0x1c), else 1 | yes |
 | a4q3 | Cain's 680 (state 5) | 13 | no |
 
-The soulstone's pickup (`LAB_005b5a90`) opens a4q3 (state 0 → 1) only
+The hammer's pickup (`LAB_005b5a90`, `hfh `; state 0 is left only by a join carrying the soulstone) opens a4q3 (state 0 → 1) only
 without bits 0 / 13 / 1 and with the log under 13; the chain from a4q1
 (`LAB_005b5f40`) only needs state 0 and +9. d2d: `IzualQuest` /
 `HellforgeQuest` / `TerrorQuest` `news`, drained in `World::act4_update`.

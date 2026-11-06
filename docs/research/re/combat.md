@@ -437,9 +437,44 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   player; each item (`FUN_00562f30`) to its body location when that's free
   and its requirements are met, else to the inventory; the corpse goes
   when nothing's left on it.
+  The worn pass (`FUN_00562f30`): body locations 1..12 of the corpse, in
+  order, passes repeated while one moved something. An item whose
+  requirements pass (`FUN_0062eaf0`) goes to `FUN_0055f2d0(player, item,
+  &A, &B, &loc)`, A the player's item at its location, B the one at the
+  other side's (`FUN_0055f240`: 4 <-> 5, 6 <-> 7 the rings, 0xb <-> 0xc).
+  Both free: it fits. Both taken: no. A taken, B free (0x55f32f..): it
+  goes to the other side instead, with A as its pair. For a hand the pair
+  is then checked (a bow with what it Shoots, a quiver only with its bow,
+  two weapons only for a Barbarian (class 4) or an Assassin with two claws
+  (type 0x43), else one weapon; a monster unit (the merc) any two); a ring
+  needs nothing more. No: to the inventory now (`FUN_005600a0`); fits:
+  worn (event 4, `FUN_00543d80`).
 - **Saving:** the d2s keeps a corpse list after the player's items ("JM",
   count, then 12 bytes and an item list each; `FUN_00533850` makes them
   again on joining).
+  - Which corpse (`FUN_005697f0`): over the player's corpse list
+    (inventory +0x34, oldest first, `FUN_0063d570` / `FUN_0063d610`),
+    each corpse with items (`FUN_0063cd60`) scores 1 + the repair cost
+    at Malah (`FUN_0062fdc0` -> `FUN_0062efb0` mode 3, npc 0x201, the
+    player's quest flags for the game's difficulty, 0x5698a8..0x5698b4) of
+    each item that isn't gold (`FUN_00629bb0(item, 4)`); the highest
+    score is written, a tie to the later (`local_18 <= score`). None with
+    items: count 0. The 12 bytes: a word, then the corpse's x and y
+    (`FUN_0045adf0` / `FUN_0045ae20`).
+  - Read back (`FUN_00533850`): a corpse unit (`FUN_00555230` type 0,
+    the class, at 0, 0, no room, mode 0x11) with the items, on the
+    player's corpse list with flag 1 (`FUN_0063d470(.., 0, 1)`); the
+    saved x / y aren't read.
+  - Laid when the player comes into the game (`FUN_005394a0`, after the
+    player stands: `FUN_0053bc10`): each flagged corpse at the player's
+    act's town (`FUN_0061ab70`) start, spawn index 0 (`FUN_0061b060`,
+    tile x 5 + 3), then `FUN_005352c0`: the nearest free spot by
+    `FUN_0064e7e0(room, &xy, 2, mask 0x9c19, 4)` -> `FUN_0064dea0` with
+    test 2 (`FUN_0064d9b0` case 2: the plus, `FUN_0064d100`) against
+    0x9c19, which holds the player's own 0x1000 footprint, and a step of
+    4 (rings of radius 1, 5, 9, ..., spots 4 apart along each edge;
+    `FUN_0064e7b0` steps 1); with the player on the start the corpse lands
+    at (x - 1, y - 1) (tools/emu/corpse_spot.py). Mode 0x11.
 - **The look:** a death COF has only a TR layer and only LIT pieces (no
   BATRHVYDTHTH); a composite piece missing in a mode is drawn as LIT.
 

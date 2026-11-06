@@ -193,7 +193,7 @@ int main() try {
         if (const auto* skill = data->skills.get(id); skill && skill->aurastate == "energyshield") es_id = id;
     assert(es_id >= 0);
     const auto* es_skill = data->skills.get(es_id);
-    const auto states = hero.self_states;
+    auto states = hero.self_states;
     const std::uint32_t now = 30 * kTick;
 
     // One blow of `whole` raw points through the REAL monster_blow, Foe::take and Fight::absorb.
@@ -253,7 +253,7 @@ int main() try {
                         assert((life >> 8) == (want.life >> 8) && mana_left == want.mana);
                         ++cases;
                     }
-    hero.self_states = states;
+    hero.self_states = std::move(states);
     std::printf("OK: Energy Shield through the real Fight::absorb, %d cases, life and mana as game.exe's order\n", cases);
     return 0;
 } catch (const std::exception& error) {

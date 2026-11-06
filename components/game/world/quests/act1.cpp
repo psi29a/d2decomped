@@ -16,7 +16,7 @@
 #include <monster_ids.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
-#include <string>
+#include <rules.hpp>
 #include <string_view>
 #include <vector>
 
@@ -43,8 +43,17 @@ auto World::act1_join() -> void {
         tools.join(quests(), carries("hdm"));
         cain = {};
         cain.join(quests(), carries("bks"), carries("bkd"));
+        actor->had_bks = carries("bks"); actor->had_bkd = carries("bkd");
         chain(1);
         cain.camp_spawn();
+    }
+
+// A Bark Scroll into the inventory (event 4 on an item bound to a1q4,
+// FUN_00592e20). ponytail: polled from what's carried, not the item event.
+auto World::act1_update() -> void {
+        const bool bks = carries("bks"), bkd = carries("bkd");
+        if (!hosted_quests && ((bks && !actor->had_bks) || (bkd && !actor->had_bkd))) cain.item_event(quests());
+        actor->had_bks = bks; actor->had_bkd = bkd;
     }
 
 auto World::act1_enter(const Level& from) -> void {
@@ -122,8 +131,9 @@ auto World::act1_said(int hc_idx, int message_string) -> void {
         const bool cain_flagged = cain.rescued_flag;
         const auto cain_said = cain.said(quests(), hc_idx, message_string, scroll != actor->character.items.end(), actor->id);
         if (cain_said == Said::ring && !cain_flagged && d2d::rules::quest::bit(quests(), 4, 13)) chain(4);   // FUN_00592250: the game's (4, 13) goes on
-        if (cain_said == Said::decipher) {        // ponytail: bks becomes bkd where it lies (same size), not a new item (agent A's)
-            scroll->code = "bkd";
+        if (cain_said == Said::decipher) {        // the scroll goes (FUN_00544160), a new bkd (FUN_005466b0): into the inventory, else at the feet
+            take_carried("bks");
+            give_item("bkd", now, d2d::rules::player_ilvl(int(actor->character.stats.get(d2d::d2s::kLevel))));
             d2d::log::info("Search for Cain: Akara deciphered the scroll");
         }
         if (cain_said == Said::ring) {            // FUN_005466b0: into the inventory, else at the feet

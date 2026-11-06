@@ -251,6 +251,23 @@ inline int door_mode(int mode, bool occupied, bool blocker = false, bool key = f
     if (mode != 2 && mode != 5) return -1;
     return !occupied && !blocker ? 0 : blocker ? 4 : mode == 5 ? -1 : 5;
 }
+// Whether a unit with collision pattern `pattern` at subtile (unit_x, unit_y)
+// stands in a door's doorway, the size_x x size_y rect centred on (door_x,
+// door_y) (FUN_0064d800, mask 0x8180): the own bit it stamps (FUN_0064ea90)
+// meets the rect. Patterns 1 / 3 / 5 stamp the plus (FUN_0064dc80), 2 / 4
+// the 3x3 square round it (FUN_0064ddf0), 0 nothing (collision.md).
+inline bool in_doorway(int pattern, int unit_x, int unit_y, int door_x, int door_y, int size_x, int size_y) {
+    if (pattern <= 0 || pattern > 5) return false;
+    const int left = door_x - size_x / 2, top = door_y - size_y / 2;
+    const auto inside = [&](int at_x, int at_y) { return at_x >= left && at_y >= top && at_x < left + size_x && at_y < top + size_y; };
+    if (pattern == 2 || pattern == 4) {
+        for (int row = -1; row <= 1; ++row)
+            for (int column = -1; column <= 1; ++column)
+                if (inside(unit_x + column, unit_y + row)) return true;
+        return false;
+    }
+    return inside(unit_x, unit_y) || inside(unit_x - 1, unit_y) || inside(unit_x + 1, unit_y) || inside(unit_x, unit_y - 1) || inside(unit_x, unit_y + 1);
+}
 // An armor stand's armor (FUN_00584160 -> FUN_005594c0) or a weapon rack's
 // weapon (FUN_005841d0 -> FUN_00559630) at item level `ilvl` (the area
 // level, less one above 1), on its room's seed (room +0x6c): of the

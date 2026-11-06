@@ -200,10 +200,13 @@ auto World::save() -> std::string {
         header.map_id = game_data->map_seed;
         if (actor->character.appearance)   // the save's tints leave states out (FUN_0062c100's state loop sets no tint byte)
             header.set_look(game_data->item_pieces.empty() || game_data->comp.empty() ? *actor->character.appearance : game_data->look_of(actor->character.items));
-        // The corpse list holds one: the latest corpse's items (PlrSave2.cpp).
-        // ponytail: game.exe's pick among several isn't traced.
+        // The corpse list holds one (PlrSave2.cpp): rules::corpse_to_save's, by its repair at Malah.
         const std::vector<d2d::d2s::Item> no_corpse;
-        const auto err = characters->save(header, fight.own_stats(), actor->character.items, actor->corpses.empty() ? &no_corpse : &actor->corpses.back().items,
+        std::vector<const std::vector<d2d::d2s::Item>*> corpses;
+        for (const auto& corpse : actor->corpses) corpses.push_back(&corpse.items);
+        constexpr int kMalah = 0x201;
+        const int kept = d2d::rules::corpse_to_save(game_data->rules, corpses, game_data->mon_npc[std::size_t(game_data->mon_bin[kMalah])].id, actor->character.header, reduced_prices());
+        const auto err = characters->save(header, fight.own_stats(), actor->character.items, kept < 0 ? &no_corpse : corpses[std::size_t(kept)],
                                           &actor->character.merc_items);
         if (err.empty()) actor->character.header.last_played = header.last_played;
         d2d::log::info("save {}: {}", header.name, err.empty() ? "written" : err);

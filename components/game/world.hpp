@@ -22,6 +22,7 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
+#include <monsters.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -34,6 +35,7 @@
 #include <algorithm>
 #include <array>
 #include <bitset>
+#include <cmath>
 #include <cstdint>
 #include <ctime>
 #include <initializer_list>
@@ -224,8 +226,10 @@ struct World {
         std::vector<Event> events;             // for the client, since it last looked
         std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock
-        bool had_soulstone = false;            // the Hellforge's item event (LAB_005b5a90): the soulstone picked up
+        bool had_hammer = false;               // the Hellforge's item event (LAB_005b5a90): the hammer, last tick
+        bool had_bks = false, had_bkd = false;  // the Bark Scrolls, last tick (a1q4's item event)
         bool had_gidbinn = false;
+        bool had_tome = false;                 // Lam Esen's Tome, last tick (a3q1's item events)
         bool had_figurine = false, had_bird = false;   // the Golden Bird's items, last tick (its pickups)
         std::int64_t gold_lost = 0;            // goldlost (175), as the last death set it
         std::size_t portal_pair = 0;           // their town portal in World::portal: [pair] where it was cast, [pair + 1] in town
@@ -550,6 +554,7 @@ struct World {
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.
+    void act1_update();
     void act2_update();
     void act3_update(std::uint32_t now_ms);
     void act4_update(std::uint32_t now_ms);
@@ -705,19 +710,21 @@ struct World {
     // Another player joins the game under way (docs/design/local-coop.md):
     // their character (full life, as entering), beside the first player,
     // their merc along. The one acting stays.
-    // ponytail: the quests' join for a player (game.exe's +0xd4 callback)
-    // isn't run; their save's quest bits are theirs as they come.
+    // The quests hear of them through their +0xd8s (join_more), not the
+    // +0xd4s the game's first player ran (FUN_00546270).
     Player& join(const Character& entering);
+    // A later player's quest joins (FUN_00546270's +0xd8 loop), each act's.
+    void join_more();
     // A player leaves: their character saved (save's message, "" written),
     // gone from the game. The first player's place goes to the next player
     // (their state moves into slot [0]). The last player can't leave this way.
     std::string leave(int id);
     // The entering character, refilled (enter / join).
     void take_character(const Character& entering);
-    // The save's corpse (its corpse list, FUN_00533850) by (x, y).
-    // ponytail: where game.exe puts it isn't traced; the save's x / y
-    // aren't read.
-    void lay_save_corpse(const Character& entering, float x, float y);
+    // The save's corpse (its corpse list, FUN_00533850; its x / y unread),
+    // laid as the player comes in (FUN_005394a0): by the act town's start,
+    // corpse_spot round it, the units there blocking (combat.md "Saving").
+    void lay_save_corpse(const Character& entering);
 
     void new_game();
 
@@ -744,8 +751,9 @@ struct World {
     // five are counted down in the quest log; the last one clears it, and a
     // player who's earned the reward says so (event 0x23: the class's
     // act1_complete_den, LAB_005900e0).
-    // ponytail: counted when the number drops (game.exe: on each death);
-    // the count goes to the log. Quests: agent A's.
+    // Nothing till every Den room has populated (rules::DenQuest::killed).
+    // ponytail: counted when the number drops (game.exe: on each death,
+    // and the count resent at log 4 with 6 or more, a monster back up).
     void den_count(std::uint32_t now_ms);
     [[nodiscard]] static const char* level_name(const Level& level);
 
@@ -753,9 +761,17 @@ struct World {
     // it, the player goes to the level it leads to and stands at that
     // level's warp back, at its ExitWalk. Everything with the player
     // (merc, pets) comes along; the automap and monsters are the new level's.
-    // ponytail: "close" is 2 cells of the warp's cell, not LvlWarp's
-    // Select box; arriving puts the player on the first warp back.
+    // Close (FUN_00548b00 case 5): warp_close; a click further off walks
+    // toward its tile unit (drlg.md "Taking a warp").
+    // ponytail: a click picks the warp within 2 cells of its cell, not by
+    // LvlWarp's Select box (the client's click target).
     void use_warp();
+    // Within reach of the warp's tile unit: rules::unit_distance (the
+    // player's size 2, a warp unit's 0) under 5 (FUN_00641530).
+    [[nodiscard]] static bool warp_close(const Level::Warp& warp, float x, float y) {
+        const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+        return d2d::rules::unit_distance(subtile(x) - subtile(warp.unit_x), subtile(y) - subtile(warp.unit_y), 2, 0) < 5;
+    }
     bool host_warps = false;   // a joined game: the host takes warps; d2d follows its 0x15 there
 
     // Into level `to` near (ax, ay): everything with the player (merc, pets)
@@ -806,6 +822,7 @@ struct World {
     struct CainWalk { int npc = -1, stage = -1, tries = 0, x = 0, y = 0, spot_x = 0, spot_y = 0; std::uint32_t next = 0; };
     CainWalk cain_walk;
     Portal cain_portal{};                  // his portal (object 189, at the spot): no twin, not selectable
+    std::uint32_t cain_portal_closes = 0;  // when it reaches mode 4 (rules::CainQuest::portal_closed_frame); 0: not due
     void cain_step(std::uint32_t now_ms, float elapsed);
     // Whether the player carries an item of `code`.
     [[nodiscard]] bool carries(std::string_view code) const;
@@ -833,11 +850,10 @@ struct World {
     // Taking one's corpse (FUN_0057fb70): its experience back, each item to
     // its slot when that's free (FUN_00562f30), its requirements met
     // (FUN_0062eaf0: rules::can_wear) and held with the other hand's
-    // (FUN_0055f2d0), else to the inventory; what doesn't fit stays on it.
+    // (FUN_0055f2d0: its own slot taken and the other side free, it goes
+    // there, rules::corpse_slot), else to the inventory; what doesn't fit
+    // stays on it. The body slots in order, 1..12 (FUN_00562f30's walk).
     // It goes once it's empty.
-    // ponytail: FUN_0055f2d0's pairing taken as rules::hands_ok (FUN_0063dbc0);
-    // its own walk (weapon switch via FUN_0055f240, types 0x2d / 0x43) isn't
-    // compared.
     void take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms);
 
     // Reading a Scroll of Town Portal or a Tome's charge (C->S 0x20 on the

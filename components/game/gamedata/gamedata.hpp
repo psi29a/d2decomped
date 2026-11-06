@@ -1013,6 +1013,9 @@ struct Spawning {
     // a3q5's record 0x13, its data +0xc: Khalim's Will done by a player at the
     // join (word 0x12 bit 0, FUN_005bb480): the compelling orb comes up broken.
     bool orb_smashed = false;
+    // a3q7's +0xd4 (LAB_005bd2c0): the game's first player has seen the Dark
+    // Wanderer (word 0x20 bit 0), its data +1 cleared: InitFn 43 makes none.
+    bool wanderer_seen = false;
     const Level* room_level = nullptr;                     // the player's room
     int room = -1;
 };
@@ -1078,15 +1081,16 @@ inline d2d::rules::Rng object_seed(std::uint32_t map_seed) {
     return d2d::rules::Rng{ game.next() };
 }
 
-// FUN_0064dea0's search, as FUN_0064e7b0 / FUN_0064e810 call it (50
-// rings, a subtile a step): (x, y) itself if `clear`, else rings 1..49
-// out, each ring's columns x - r and x + r top to bottom (left then right
-// a row), then its rows y - r and y + r left to right (top then bottom a
+// FUN_0064dea0's search (50 rings, `step` subtiles apart: FUN_0064e7b0 /
+// FUN_0064e810 pass 1, FUN_0064e7e0 4): (x, y) itself if `clear`, else
+// rings 1..49 out at radius r = 1 + step (ring - 1), each ring's columns
+// x - r and x + r from y - r every `step` (left then right a row), then its
+// rows y - r and y + r from x - r + 1 every `step` (top then bottom a
 // column); the first clear spot nearest (Manhattan) in the first ring with
 // one wins. None: nullopt (the callers' "keep the room" flag then keeps
 // (x, y) or fails).
 template <class Clear>
-std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear) {
+std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear, int step = 1) {
     if (clear(x, y)) return std::pair{ x, y };
     int best = -1, best_x = x, best_y = y;
     for (int ring = 1; ring < 50 && best < 0; ++ring) {
@@ -1094,11 +1098,41 @@ std::optional<std::pair<int, int>> nearest_spot(int x, int y, Clear clear) {
             const int distance = std::abs(test_x - x) + std::abs(test_y - y);
             if (clear(test_x, test_y) && (best < 0 || distance < best)) { best = distance; best_x = test_x; best_y = test_y; }
         };
-        for (int ty = y - ring; ty <= y + ring; ++ty) { test(x - ring, ty); test(x + ring, ty); }
-        for (int tx = x - ring + 1; tx <= x + ring - 1; ++tx) { test(tx, y - ring); test(tx, y + ring); }
+        const int radius = 1 + step * (ring - 1);
+        for (int ty = y - radius; ty <= y + radius; ty += step) { test(x - radius, ty); test(x + radius, ty); }
+        for (int tx = x - radius + 1; tx <= x + radius - 1; tx += step) { test(tx, y - radius); test(tx, y + radius); }
     }
     if (best < 0) return std::nullopt;
     return std::pair{ best_x, best_y };
+}
+
+// Where a saved corpse lies (FUN_005394a0 -> FUN_005352c0 -> FUN_0064e7e0(room,
+// &xy, 2, 0x9c19, 4)): from subtile (x, y), the act town's start, the nearest
+// spot, 4 apart, whose plus (FUN_0064d9b0 case 2) meets no bit of 0x9c19 in
+// `flags(x, y)` (0x27 off the rooms; 0x1000 the units' footprints: the player
+// standing on the start pushes it off). None: (x, y). Checked against
+// tools/emu/corpse_spot.py (test_corpse_spot).
+template <class Flags>
+std::pair<int, int> corpse_spot(int x, int y, Flags flags) {
+    const auto hit = [&](int at_x, int at_y) { return (flags(at_x, at_y) & 0x9c19) != 0; };
+    const auto clear = [&](int at_x, int at_y) { return !hit(at_x, at_y) && !hit(at_x - 1, at_y) && !hit(at_x + 1, at_y) && !hit(at_x, at_y - 1) && !hit(at_x, at_y + 1); };
+    return nearest_spot(x, y, clear, 4).value_or(std::pair{ x, y });
+}
+
+// Where a portal's twin stands (FUN_0056cf40 -> FUN_0064e7e0(room, &xy, 3,
+// 0xbe11, 5)): from subtile (x, y), the level's type 11 spawn tile + 3, the
+// nearest spot, 5 apart, whose 3x3 square (FUN_0064d9b0 case 3) meets no
+// bit of 0xbe11 in `flags(x, y)` (0x27 off the rooms). None: (x, y)
+// (0x56d033). Checked against tools/emu/corpse_spot.py's twin mode.
+template <class Flags>
+std::pair<int, int> twin_spot(int x, int y, Flags flags) {
+    const auto clear = [&](int at_x, int at_y) {
+        for (int row = -1; row <= 1; ++row)
+            for (int column = -1; column <= 1; ++column)
+                if (flags(at_x + column, at_y + row) & 0xbe11) return false;
+        return true;
+    };
+    return nearest_spot(x, y, clear, 5).value_or(std::pair{ x, y });
 }
 
 // FUN_0064e810 -> nearest_spot with expfield.d2 (`field`): the free
@@ -1195,6 +1229,9 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
 // The level's collision as room_objects sees it (FUN_0064ca50's words, 0x27
 // off the rooms up), level subtiles row-major: drlg-dump drops.
 std::vector<std::uint16_t> object_collision(const Spawning& spawning, const Level& level);
+// Every room of the level that populates (FUN_00642be0's count: not
+// ObjectRooms::none) has (the objrgn record's +4 reaching it).
+bool every_room_populated(const Spawning& spawning, const Level& level);
 void install_level(const GameData& game_data, int id, std::unique_ptr<Level> level);
 std::unique_ptr<Level> finish_job(std::future<std::unique_ptr<Level>>& job, int id);
 void want_nearby(const GameData& game_data, const Level& level);

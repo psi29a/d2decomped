@@ -880,6 +880,27 @@ inline int repair_all_cost(const Tables& tables, const Store& store, const std::
         if (repair_all_takes(tables, item)) cost += repair_cost(tables, item, store.npc_id, store.header, store.reduced);
     return cost;
 }
+// Which corpse a save keeps (FUN_005697f0, PlrSave2's corpse list): over
+// them oldest first, one with items scores 1 + each non-gold item's repair
+// cost at `npc_id` (Malah: FUN_0062fdc0 -> FUN_0062efb0 mode 3, args at
+// 0x5698a8..0x5698b4; a whole repairable item 1, as repair_cost has it);
+// the highest, a tie the later (`best <= score`, jb at 0x5698d1). -1: none
+// has items. combat.md "Saving".
+inline int corpse_to_save(const Tables& tables, const std::vector<const std::vector<d2d::d2s::Item>*>& corpses, const std::string& npc_id,
+                          const d2d::d2s::Header& header, int reduced) {
+    int best = -1;
+    std::uint32_t best_score = 0;
+    for (std::size_t index = 0; index < corpses.size(); ++index) {
+        if (corpses[index]->empty()) continue;
+        std::uint32_t score = 1;
+        for (const auto& item : *corpses[index]) {
+            if (item.code == "gld") continue;
+            score += std::uint32_t(repair_cost(tables, item, npc_id, header, reduced));
+        }
+        if (best < 0 || best_score <= score) { best = int(index); best_score = score; }
+    }
+    return best;
+}
 // Repair all (FUN_00578050, flag 0x80000000): the sum is paid at once
 // (FUN_00576d90). Short of it, nothing is repaired and the client is told
 // it hasn't the gold (12, line 0x9e4): nullopt. Paid, a second
@@ -1160,6 +1181,25 @@ inline bool hands_ok(const Tables& tables, const d2d::d2s::Item& first, const d2
     const bool first_weapon = type_is(tables, first_info->type, "weap"), second_weapon = type_is(tables, second_info->type, "weap");
     if (first_weapon && second_weapon) return wearer.cls == d2d::d2s::kBarbarian || (wearer.cls == d2d::d2s::kAssassin && type_is(tables, first_info->type, "h2h") && type_is(tables, second_info->type, "h2h"));
     return first_weapon != second_weapon;
+}
+
+// A body slot's other side (FUN_0055f240): the arms 4 <-> 5, the rings
+// 6 <-> 7, the switch arms 11 <-> 12; 0 for the rest.
+inline int other_side(int slot) {
+    switch (slot) {
+    case 4: return 5; case 5: return 4; case 6: return 7; case 7: return 6;
+    case 11: return 12; case 12: return 11;
+    default: return 0;
+    }
+}
+// Where a corpse's item from `slot` goes (FUN_0055f2d0): `taken` the
+// player's slot, `other_taken` its other side's. Both free: its own; both
+// taken: none (-1, the inventory); its own taken, the other free: the other
+// side (0x55f333..0x55f33a); else its own. An arm then pairs with what the
+// other hand holds (hands_ok), a ring with nothing.
+inline int corpse_slot(int slot, bool taken, bool other_taken) {
+    if (taken && other_taken) return -1;
+    return taken ? other_side(slot) : slot;
 }
 
 // The item cursor. D2 moves one item at a time: picking up takes it out
@@ -1909,14 +1949,16 @@ inline bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expa
     if (found->second.quest && item.code != "leg") return false;
     return !item.socketed && item.socketed_items.empty() && item.quality >= 1 && item.quality <= 3;
 }
+// A player's default item level (FUN_00558200): max(clvl, 1), +4 past 5.
+inline int player_ilvl(int clvl) {
+    const int ilvl = clvl < 2 ? 1 : clvl;
+    return ilvl > 5 ? ilvl + 4 : ilvl;
+}
 // The imbued item (FUN_00579d60, kind 0 at Charsi): the same base made
-// anew — rare (+0x30 = 6), item level max(clvl, 1) (+4 past 5,
-// FUN_00558200), a fresh seed; ethereal stays so (flag 4 / 2) and a
-// personalized name is kept.
+// anew — rare (+0x30 = 6), item level player_ilvl, a fresh seed; ethereal
+// stays so (flag 4 / 2) and a personalized name is kept.
 inline d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& rng) {
-    int ilvl = clvl < 2 ? 1 : clvl;
-    if (ilvl > 5) ilvl += 4;
-    auto made = generate_item(tables, item.code, ilvl, 6, rng);
+    auto made = generate_item(tables, item.code, player_ilvl(clvl), 6, rng);
     made.ethereal = item.ethereal;
     made.personalized = item.personalized;
     made.owner = item.owner;

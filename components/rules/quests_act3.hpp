@@ -55,6 +55,10 @@ struct LamEsenQuest {
     bool flourish = false;         // data+0xc: Alkor's thanks plays on the talk's close (LAB_005b76e0)
     quest::Players rewarded;         // in the record's +0x1c list (FUN_005452c0): handed in this game
 
+    // A later player joins (+0xd8, LAB_005b7bc0): a tome they carry is one
+    // more about; the first, with +9 and data +5, resends log 2 (d2d's log
+    // is each player's own: log_state).
+    void join_more(bool has_tome) { if (has_tome) ++holders; }
     // The player joins (FUN_005b7c10).
     void join(QuestBits& quest_bits, QuestBits& game_bits, bool has_tome) {
         if (quest::bit(quest_bits, kQuest, 0)) { quest::set(game_bits, kQuest, 13); return; }
@@ -82,7 +86,8 @@ struct LamEsenQuest {
         if (state != 3) state = 3;
         return true;
     }
-    // The tome picked up (FUN_005b7970) / dropped (FUN_005b7a00).
+    // The tome picked up (FUN_005b7970) / dropped (LAB_005b7a00): with +9,
+    // state 4 / 3, whatever it was (tools/emu/quest_item_events.py).
     void picked_up() { if (open) state = 4; }
     void dropped() { if (open) state = 3; }
     // What `npc` says (FUN_005b7400; blocks 0x73ecf0, state -> 0x73f188).
@@ -163,8 +168,8 @@ struct LamEsenQuest {
 // Potion of Life ("xyz ", 538: bits 0, 13, 5; 2..11 cleared, FUN_0065c3e0):
 // drunk with bit 5, +20 max life (0x55e44e: stat 7 0x1400) and bit 5 clears.
 // Its count of the figurine and bird carried (data+0x10) only triggers a
-// log resend when a joiner brings the first in (FUN_005ba9e0); d2d's log is
-// each player's own.
+// log resend when a joiner brings the first in (its +0xd8, LAB_005ba9e0:
+// log 1, 3 with the bird); d2d's log is each player's own.
 struct GoldenBirdQuest {
     static constexpr int kQuest = 0x14, kCain = monster_ids::kCainAct3, kAsheara = monster_ids::kAsheara, kMeshif = monster_ids::kMeshifAct3,
                          kAlkor = monster_ids::kAlkor;
@@ -325,6 +330,9 @@ struct BladeQuest {
         quest::set(quest_bits, kQuest, 4);
         if (!quest::bit(quest_bits, kQuest, 3)) quest::set(quest_bits, kQuest, 2);
     }
+    // A later player's +0xd8 (LAB_005b9680) counts the Gidbinn they carry
+    // (data +0x1c, not kept) and clears data +0x20 at the first: a log
+    // resend d2d's per-player log has no need of.
     // The player joins (FUN_005b9700).
     void join(QuestBits& quest_bits, bool has_gidbinn) {
         if (quest::bit(quest_bits, kQuest, 0)) { altar_done = true; return; }

@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -39,13 +40,14 @@ int main() {
     assert(again.state == 3 && again.log == 2);
 
     den.took_part(1);                                                                  // player 1 killed one
-    assert(den.killed(9) == DenQuest::Kill::none && den.log == 2);
-    assert(den.killed(5) == DenQuest::Kill::few && den.log == 4);                    // "Monsters remaining"
+    assert(den.killed(9, true) == DenQuest::Kill::none && den.log == 2);
+    assert(den.killed(5, true) == DenQuest::Kill::few && den.log == 4);                    // "Monsters remaining"
+    assert(den.killed(0, false) == DenQuest::Kill::none && den.state < 4);               // a Den room not populated yet: nothing
 
-    assert(den.killed(0) == DenQuest::Kill::cleared && den.state == 4);
+    assert(den.killed(0, true) == DenQuest::Kill::cleared && den.state == 4);
     QuestBits bystander{};                                                             // player 2 killed none: cleared by someone else
     assert(DenQuest::credit(quest_bits, den.participants.has(1)) && !DenQuest::credit(bystander, den.participants.has(2)));
-    assert(quest::bit(quest_bits, 1, 1) && quest::bit(quest_bits, 1, 13) && den.killed(0) == DenQuest::Kill::none);
+    assert(quest::bit(quest_bits, 1, 1) && quest::bit(quest_bits, 1, 13) && den.killed(0, true) == DenQuest::Kill::none);
     assert(quest::bit(bystander, 1, 14) && !quest::bit(bystander, 1, 1));
 
     // Akara's reward, once.
@@ -59,7 +61,7 @@ int main() {
     QuestBits other_bits{};
     DenQuest other_den;
     other_den.enter_den(other_bits);
-    assert(other_den.killed(0) == DenQuest::Kill::cleared && DenQuest::credit(other_bits, true) && other_den.talk(other_bits, 148)[0].string == 76);
+    assert(other_den.killed(0, true) == DenQuest::Kill::cleared && DenQuest::credit(other_bits, true) && other_den.talk(other_bits, 148)[0].string == 76);
 
     {   // Tools of the Trade: a party member's share of the malus coming back (0x591430): clvl 8+, not done or due.
         QuestBits low{}, high{}, done{};
@@ -235,7 +237,9 @@ int main() {
     cain.talk_closed(cain_bits, CainQuest::kAkara);
     assert(cain.state == 2 && cain.log == 1 && quest::bit(cain_bits, 4, 2) && cain.talk(cain_bits, 150, false, 1)[0].string == 98);
     cain.enter(cain_bits, 1, 2, 1);
-    assert(cain.state == 3 && quest::bit(cain_bits, 4, 3) && cain.talk(cain_bits, CainQuest::kAkara, false, 1)[0].string == 104);
+    assert(cain.state == 3 && !quest::bit(cain_bits, 4, 3));                // out of camp: bit 3 waits for a Bark Scroll (FUN_00592e20)
+    cain.item_event(cain_bits);
+    assert(quest::bit(cain_bits, 4, 3) && cain.talk(cain_bits, CainQuest::kAkara, false, 1)[0].string == 104);
     assert(cain.tree(cain_bits, false) && cain.state == 4 && cain.log == 2 && !cain.tree(cain_bits, false));
     assert(cain.alert(cain_bits, CainQuest::kAkara, true, 1) && !cain.alert(cain_bits, CainQuest::kAkara, false, 1));
     assert(cain.talk(cain_bits, CainQuest::kAkara, true, 1)[0].string == 112 && cain.talk(cain_bits, 150, false, 1)[0].string == 105);
@@ -260,6 +264,8 @@ int main() {
     no_room.rescued(false);
     assert(no_room.camp_due && no_room.log == 6);
     cain.portal_entered();
+    // His portal (FUN_005942c0, 25 frames an event): mode 3 at the first event after he's in (not before 50), mode 4 the next.
+    assert(CainQuest::portal_closed_frame(10) == 75 && CainQuest::portal_closed_frame(60) == 100 && CainQuest::portal_closed_frame(75) == 125);
     assert(!cain.camp_cain && cain.enter(cain_bits, CainQuest::kTristram, 1, 1) && cain.camp_cain);
     assert(cain.alert(cain_bits, CainQuest::kCampCain, false, 1) && cain.talk(cain_bits, CainQuest::kCampCain, false, 1)[0].string == 123);
     cain.said(cain_bits, CainQuest::kCampCain, 123, false, 1);
@@ -565,5 +571,7 @@ int main() {
         rite.done = true;
         assert(!rite.portal_opened() && rite.portals == 0);
     }
+    // A cage's portal (FUN_005888d0): the dead door's subtile + 2 on x, never a free-spot search.
+    assert(RescueQuest::portal_spot(100, 40) == std::pair(102.5f / 5, 40.5f / 5));
     std::puts("ok");
 }

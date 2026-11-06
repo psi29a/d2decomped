@@ -48,6 +48,97 @@ stat/skill reset, which the reward opens.
   | +0xd4 | `LAB_00590690` | a player joins |
   | +0xec | `FUN_005905b0` | the NPC has a quest ("!") |
 
+## Joins: +0xd4 and +0xd8 (`FUN_00546270`)
+
+`FUN_00546270(game, player, fresh)` runs as a player comes into the game:
+from `FUN_00534520` (join act with an uploaded save, net-join.md step 5;
+`fresh` 0, push at 0x53458b) and from `FUN_00532590` / `FUN_00569f80`
+(a character made new; `fresh` 1, 0x53266d / 0x56a06c); `FUN_005344b0`'s
+call (0x5344e9, 0) is an unreachable block. The game's quest list
+(game +0x10f4) keeps a started flag at +8:
+
+- **The first player** (+8 clear, then set): unless `fresh`, every quest
+  the player has done or closed (bit 0 or 15; init-table rows with flag 0)
+  is shut for the game (`FUN_00544410`, the game's bit 15), then every
+  record's **+0xd4** runs (0x546382: ECX the record, EDX an event
+  {game, 13, .., player}). A new character runs no +0xd4 at all.
+- **Every later player** (+8 set): only each record's **+0xd8** runs
+  (0x546270's first loop, EDX {game, .., player} with the player at +4 /
+  +0xc), then the quest states go to them (`FUN_0053d670`, `FUN_00544520`).
+  No +0xd4, no closing.
+
+So a +0xd4 reads the game's first player's flags and items into the
+record; a +0xd8 only adds a later player's part. The init table
+(0x731510, 24-byte rows) gives each record's init; the init stores the
+callbacks:
+
+| record | word | quest | init | +0xd4 | +0xd8 |
+|---|---|---|---|---|---|
+| 1 | 1 | a1q1 Den | `FUN_00590720` | `LAB_00590690` | — |
+| 2 | 2 | a1q2 Burial | `FUN_00591210` | `LAB_00591180` | — |
+| 3 | 3 | a1q3 Tools | `FUN_00591f70` | `FUN_00591ed0` | `LAB_005919d0` |
+| 4 | 4 | a1q4 Cain | `FUN_005971b0` | `FUN_00597030` | `FUN_00592b90` |
+| 5 | 5 | a1q5 Tower | `FUN_00595920` | `LAB_00595860` | — |
+| 6 | 6 | a1q6 Andariel | `FUN_00596990` | `0x596900` | — |
+| 7 | 8 | a2q0 | `FUN_00598810` | `LAB_005987d0` | — |
+| 8 | 9 | a2q1 Radament | `FUN_00599340` | `FUN_00599230` | — |
+| 9 | 10 | a2q2 Horadric Staff | `FUN_0059eb00` | `FUN_0059e850` | `FUN_0059e970` |
+| 10 | 11 | a2q3 Tainted Sun | `FUN_0059eea0` | `FUN_0059a5d0` | — |
+| 11 | 12 | a2q4 Arcane | `FUN_0059f2a0` | `FUN_0059b530` | — |
+| 12 | 13 | a2q5 Summoner | `FUN_0059c280` | `LAB_0059c220` | — |
+| 13 | 14 | a2q6 Tombs | `FUN_0059d5b0` | `LAB_0059d4f0` | `LAB_0059d4d0` |
+| 14 | 16 | a3q0 | `FUN_005b7010` | `LAB_005b6fd0` | — |
+| 15 | 17 | a3q1 Lam Esen | `FUN_005b7e90` | `FUN_005b7c10` | `LAB_005b7bc0` |
+| 16 | 18 | a3q2 Khalim | `FUN_005bda30` | `LAB_005b8470` | — |
+| 17 | 19 | a3q3 Blade | `FUN_005b9850` | `FUN_005b9700` | `LAB_005b9680` |
+| 18 | 20 | a3q4 Golden Bird | `FUN_005baa70` | `FUN_005ba870` | `LAB_005ba9e0` |
+| 19 | 21 | a3q5 Blackened Temple | `FUN_005bbeb0` | `FUN_005bb480` | — |
+| 20 | 22 | a3q6 Guardian | `FUN_005bcdc0` | `LAB_005bcc80` | — |
+| 28 | 32 | a3q7 Dark Wanderer | `FUN_005bd300` | `LAB_005bd2c0` | — |
+| 22 | 25 | a4q1 Izual | `FUN_005b42b0` | `LAB_005b4220` | — |
+| 23 | 26 | a4q2 Terror's End | `FUN_005b54c0` | `FUN_005b5080` | `LAB_005b5030` |
+| 24 | 27 | a4q3 Hellforge | `FUN_005b6610` | `FUN_005b64e0` | `LAB_005b64c0` |
+| 31 | 35 | a5q1 Siege | `FUN_005876e0` | `FUN_005875f0` | — |
+| 32 | 36 | a5q2 Rescue | `FUN_00588510` | `LAB_00588470` | `LAB_00588450` |
+| 33 | 37 | a5q3 Prison of Ice | `FUN_0058a410` | `FUN_0058a110` | `LAB_0058a1e0` |
+| 34 | 38 | a5q4 Betrayal | `FUN_0058bb20` | `FUN_0058b990` | — |
+| 35 | 39 | a5q5 Rite | `FUN_0058ce30` | `LAB_0058cda0` | — |
+| 36 | 40 | a5q6 Eve | `FUN_0058e500` | `FUN_0058e430` | `LAB_0058e3f0` |
+
+Records 0 (`FUN_0058fb80`), 7 / 25 (`FUN_00596c40`), 15 / 16
+(`FUN_0059e330` / `FUN_0059e530`), 21 (`FUN_005b3780`) and 29
+(`FUN_005b6a70`) set neither. The +0xd8s, each for the joining player:
+
+- a1q3 `LAB_005919d0`: carrying `hdm `, +9 and state not 5: carriers
+  (data +0x9c) + 1; the first, with data +1 and data +0x98 2: log 2.
+- a1q4 `FUN_00592b90`: `bkd ` and `bks ` carried each add 1 to data +0x7c.
+- a2q2 `FUN_0059e970`: `msf ` / `vip ` / `box ` / `hst ` carried add to
+  data +0x18 / +0x24 / +0x20 / +0x1c; with data +0x2b and the staff, or
+  all three parts: record 13 (`FUN_00543640` EDX 0xd at 0x59e9f7), +9
+  and its data +0xe not 1 → its data +0x10 = 0.
+- a2q6 `LAB_0059d4d0`: word 0xa bit 9 cleared.
+- a3q1 `LAB_005b7bc0`: `bbb ` carried: data +8 + 1; the first, +9 and
+  data +5 → data +5 = 0, log 2 sent (`FUN_00544300`).
+- a3q3 `LAB_005b9680`: `g33 ` carried: data +0x1c + 1; the first with
+  data +0x20 → data +0x20 = 0.
+- a3q4 `LAB_005ba9e0`: `j34 ` and `g34 ` carried add to data +0x10; at 1,
+  +9 and data +0x15 → data +0x15 = 0, log 1 (3 with the bird) sent.
+- a4q2 `LAB_005b5030`: LoD (game +0x70), word 0x1a bit 9 and word 0x1c
+  bit 0 clear → bit 9 cleared (also the first part of its +0xd4).
+- a4q3 `LAB_005b64c0`: `hfh ` carried: data +0x10 + 1.
+- a5q2 `LAB_00588450`: word 0x24 bit 4 cleared.
+- a5q3 `LAB_0058a1e0`: `ice ` carried: data +0xd8 + 1. With the quest
+  shut or past state 4, and record 0x22 (a5q4) on (+9): word 0x25 bits
+  1, 6 and 0 all clear → word 0x26 bit 14.
+- a5q6 `LAB_0058e3f0`: word 0x28 bit 0 → bit 10.
+
+Two +0xd4s not ported before: a3q7 `LAB_005bd2c0` (word 0x20 bit 0: the
+game's bit 13 for quest 0x20, `FUN_00544720` 0x5bd2ee, and data +1 = 0,
+so InitFn 43 `FUN_005bd1f0` makes no Dark Wanderer this game); a4q2
+`FUN_005b5080` (the bit 9 clear above, then bit 4 → state 3 log 2, bit 3
+→ state 3 log 1, bit 2 → state 2 log 1; d2d's `TerrorQuest::join` has
+the states, not the clear).
+
 States: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded.
 
 - **Join** (`LAB_00590690`): skipped if bit 0 or bit 15 is set.
@@ -63,6 +154,15 @@ States: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded.
 - **A monster dies** (`FUN_00590260`):
   - Remaining = the Den level's +0x2cc − +0x2d0. Those counters move with
     monster modes (`FUN_00547d90`..`FUN_00547ed0`).
+  - Only once every room of the Den has populated: the level's record
+    (`FUN_00547bb0(.., 8)`) +4, the rooms populated so far (objects.md:
+    bumped per eligible room), at least `FUN_0061abf0` → `FUN_00642be0`
+    (the level's populatable rooms). Before that a death does nothing
+    (no clear, no count in the log), however few are left. Checked on
+    every death (event 8), not when the count drops; with all rooms up
+    and under 6 left, the log's count is resent (state flag 0x20,
+    `FUN_00544300(0, FUN_0058fbe0, 1)`), and again at +0xb 4 with 6 or
+    more (a monster back up).
   - 0 remaining → state 4 and the game flag. Participants (the list at
     +0x18, `FUN_005455f0`) get bits 13 and 1. Others get bit 14 and the
     0xd82 message.

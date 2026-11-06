@@ -306,9 +306,8 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
 // quest in that order and each prisoner into its cage. Each prisoner's view
 // for its think (ai.cpp's Wussie), then what it asked: the log 5, its
 // cage's portal (FUN_005888d0: at the broken door's spot +2 subtiles east,
-// FUN_00555230 object 189: theirs alone), gone through it (FUN_00588880).
-// ponytail: the portal's fallback spots (x - 2, then FUN_00545340) are the
-// nearest free one.
+// FUN_00555230 object 189: theirs alone; an object's make doesn't fail, so
+// game.exe's fallback spots never run: stubs.md), gone through it (FUN_00588880).
 auto World::rescue_update(std::uint32_t now_ms) -> void {
         for (; cages_seen < fight.spawning.rescue_cages.size(); ++cages_seen) {
             const auto& [cage_level, cage_x, cage_y] = fight.spawning.rescue_cages[cages_seen];
@@ -359,7 +358,7 @@ auto World::rescue_update(std::uint32_t now_ms) -> void {
                             && d2d::rules::ai_distance(subtile(other.unit.x) - subtile(prisoner.unit.x), subtile(other.unit.y) - subtile(prisoner.unit.y)) < 15) { door = &other; break; }
                 }
                 if (!door) continue;
-                const auto [spot_x, spot_y] = level->nearest_free(door->unit.x + 2.f / 5, door->unit.y);
+                const auto [spot_x, spot_y] = d2d::rules::RescueQuest::portal_spot(subtile(door->unit.x), subtile(door->unit.y));
                 cage_portal[std::size_t(slot)] = { level, spot_x, spot_y, now_ms };
                 cues.cue("object_townportal", now_ms, spot_x, spot_y);
                 const auto opener = std::ranges::find(players, view.player_id, [](const auto& player) { return player->id; });
@@ -408,11 +407,11 @@ auto World::act5_hide() -> void {
     }
 
 // a5q3's objects: the Frozen River's marker (460) as its room comes up, fana
-// 25 frames on at its spot (event 7, FUN_0058a500; again till made) and her
-// InitFn (74: the log 2); the thaw, a tick a step; the Halls of Vaught's
-// marker (462, InitFn 69, FUN_0058a6c0) with +0x88 set: superunique 60,
-// Nihlathak, at its spot (FUN_0054e600), once.
-// ponytail: the marker's event reruns (fana not made) are one try.
+// 25 frames on at its spot (event 7, FUN_0058a500) and her InitFn (74: the
+// log 2); the thaw, a tick a step; the Halls of Vaught's marker (462, InitFn
+// 69, FUN_0058a6c0) with +0x88 set: superunique 60, Nihlathak, at its spot
+// (FUN_0054e600), once. game.exe's rerun on a failed make never runs: an
+// object's make doesn't fail (stubs.md FUN_0058a500's rerun).
 auto World::prison_update(std::uint32_t now_ms) -> void {
         const auto made_rooms = fight.spawning.levels.find(level);
         const auto room_up = [&](const Npc& npc) {
@@ -458,8 +457,8 @@ auto World::prison_update(std::uint32_t now_ms) -> void {
 // the Ancients asleep till then; a death there (RiteQuest::died) or a town
 // portal opened there (RiteQuest::portal_opened) puts it back.
 // An Ancient fallen: the return timer every 2 frames (FUN_0058bd50), its
-// statue to mode 1, then mode 2 after FrameCnt1 (its event 1).
-// ponytail: one try per statue.
+// statue to mode 1, then mode 2 after FrameCnt1 (its event 1). game.exe
+// retries a failed make 10 frames on (FUN_0058c0e0); seal_boss doesn't fail.
 auto World::rite_update(std::uint32_t now_ms) -> void {
         if (level->id != d2d::rules::RiteQuest::kSummit) return;
         const auto object_index = [&](int object_id) { return int(std::ranges::find(level->npcs, object_id, &Npc::object_id) - level->npcs.begin()); };

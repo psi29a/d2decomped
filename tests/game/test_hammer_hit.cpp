@@ -73,7 +73,7 @@ int main(int argc, char** argv) try {
         damage.demon_pct = row.dmg_par2;
         damage = d2d::rules::influenced(damage, percent == kNoAura ? 0 : d2d::rules::aura_influence(percent, skill->par[0]));
         d2d::rules::Target target;
-        const auto& type = data->monsters.types[data->mon_bin[std::size_t(monster_id)]];
+        const auto& type = data->monsters.types.at(data->mon_bin.at(std::size_t(monster_id)));
         target.undead = type.undead;
         target.demon = type.demon;
         target.res[kMagicRes] = res;

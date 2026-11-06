@@ -58,6 +58,9 @@ int main() try {
         ++markers;
     }
     assert(markers == 1);
+    // Tristram's one type 11 spawn tile, where the Cairn Stones' twin stands (FUN_0056cf40, twin_spot round it).
+    const auto* tristram = data->level(d2d::rules::level_ids::kTristram);
+    assert(tristram && tristram->starts.size() == 1);
     std::puts("test_town_spots: ok");
 } catch (const std::exception& error) {
     std::printf("FAIL: %s\n", error.what());

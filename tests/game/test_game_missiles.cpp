@@ -540,7 +540,7 @@ int main() try {
             Monster frozen = make_monster(*data, int(fallen_row->second), world.actor->player.x + 6, world.actor->player.y, make_rng, 0);
             frozen.stats.hit_points = frozen.hit_points = 1000000;
             frozen.whirl = whirling;
-            world.fight.monsters.push_back(frozen);
+            world.fight.monsters.push_back(std::move(frozen));
             world.fight.strike(missile, world.fight.monsters.size() - 1, 6000, 100);
             assert((world.fight.monsters.back().stun_until > 6000) == !whirling);
             world.fight.monsters.pop_back();
@@ -602,9 +602,9 @@ int main() try {
         assert(shadow.skill_list.size() == 2 && shadow.skill_list[0].kind == 1 && shadow.skill_list[1].kind == 1);
         assert(archer.skill_list.size() == 1 && archer.skill_list[0].kind == 2);
         // ... and shot as its missile from afar (skill_missile: weapon_missile).
-        const auto worn = world.actor->character.items;
+        auto worn = world.actor->character.items;
         d2d::rules::Rng shadow_rng{ 4 };
-        world.actor->character.items.push_back(bow);
+        world.actor->character.items.push_back(std::move(bow));
         archer.monster = make_monster(*data, int(data->monsters.by_id.at("shadowwarrior")), world.actor->player.x, world.actor->player.y, shadow_rng, 0);
         archer.cast = 0;
         const auto fallen_far = make_monster(*data, int(data->monsters.by_id.at("fallen1")), world.actor->player.x + 8, world.actor->player.y, shadow_rng, 0);
@@ -615,7 +615,7 @@ int main() try {
         assert(world.fight.pending.size() + world.fight.missiles.size() > shots);
         world.fight.monsters.pop_back();
         world.fight.pending.clear(); world.fight.missiles.clear();
-        world.actor->character.items = worn;
+        world.actor->character.items = std::move(worn);
         std::printf("OK: a Shadow's Attack is ranged with a bow\n");
     }
 
@@ -634,14 +634,14 @@ int main() try {
 
     // Dying with an item in hand: it goes into the corpse's grid first (FUN_0057f700's -1 pass).
     {
-        const auto kept = world.actor->character.items;
+        auto kept = world.actor->character.items;
         world.actor->held = d2d::d2s::Item{ .code = "hp1", .location = d2d::d2s::item_location::kCursor, .slot = 4 };
         world.make_corpse();
         const auto& corpse = world.actor->corpses.back();
         assert(!world.actor->held && !corpse.items.empty() && corpse.items[0].code == "hp1");
         assert(corpse.items[0].location == d2d::d2s::item_location::kStored && corpse.items[0].panel == d2d::d2s::item_panel::kInventory && corpse.items[0].slot == 0);
         world.actor->corpses.pop_back();
-        world.actor->character.items = kept;
+        world.actor->character.items = std::move(kept);
         std::printf("OK: the item in hand lies in the corpse's grid\n");
     }
     return 0;

@@ -185,6 +185,7 @@ Sets rec+0xa = 1, rec+0xd = 6 and rec+0x10 = 3. Allocates data (0x1bc bytes, FUN
 | +0xec | FUN_00592fb0 | NPC alert (the "!") |
 | +0xf0 | FUN_00593d70 | state 0 -> 1; chains to the next record's +0xf0 when state == 6 or +9 == 0 |
 
+- **Leaving the camp** (`FUN_00596de0`, from level 1, the player's bits 0 and 1 clear): state 2 goes to 3 (`FUN_00544350`, EDX 3 at 0x596eef, line 0x436) and nothing more; the player's log bit isn't touched there. It's set at the next event 4 on a quest item bound to this record (`0x543d80(game, player, item)` on an item into a player's inventory, from the ground pickup's auto-place `FUN_00563560`, its cursor path `FUN_0055cf50` and others; `FUN_005439a0` walks the item's own record list, item +0x74, which an item joins as it's made: `FUN_00555d20` at 0x555d82 binds Items.txt quest (+0x12a) − 1, so only `bks ` / `bkd ` reach a1q4): `FUN_00592e20` with +9 runs `LAB_00592130` over the players: bits 0 and 1 clear, state 2 sets bit 2 (0x592177), state 3..5 bit 3 (0x592190).
 - **FUN_00592c80:** only if +9 and state != 6. If the item is bkd or bks: data+0x7c--. Then, if data+0x7c == 0, state < 6, !+0x4f and +0x47: state 3, then 592bd0 (log 1). Losing the scroll rewinds the quest.
 - **LAB_00592cf0:** FUN_00545530, then removes the guid from list A and list B.
 
@@ -415,7 +416,7 @@ up the rejoin before the stones existed, and a save with the stones lit
 | FUN_00594610 | reads +0x93, used by FUN_00572c10 (npc 0x92 interact) |
 
 - Talk closed with npc 0x92 sets +0x93 = 1.
-- Cain portal: InitFn 61 is FUN_00594290 (mode 1, anim timer). Obj 0xbd uses mode-end FUN_005942c0: 1 -> 2; 2 -> 3 once +0x92 (camp counter +0x80 > 5) or +0x91; 3 -> 4.
+- Cain portal: InitFn 61 is FUN_00594290 (table 0x731bc0 entry 61: mode 1, event 7 25 frames on). Obj 0xbd's event 7 is FUN_005942c0, rescheduled every 25 frames whatever the mode: 1 -> 2; 2 -> 3 in level 1 (the camp side) once its counter +0x80, bumped each event there, passes 5 (then +0x92 = 1), elsewhere (Tristram) once +0x91 (Cain went in, FUN_005944f0); 3 -> 4. So Tristram's portal closes at the first event after Cain enters (mode 3), mode 4 25 frames later; the camp's after its sixth event in mode 2. Nothing removes the object.
 
 **FUN_00596ca0(resolve, removeTristCain)**, EDI = rec:
 

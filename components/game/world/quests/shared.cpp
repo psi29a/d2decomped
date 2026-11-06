@@ -19,6 +19,8 @@
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
+#include <quests_act4.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <sound_ids.hpp>
@@ -457,11 +459,12 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // (FUN_00463740); none does: the spot moves on 3 subtiles on each axis
 // and no portal opens. Then back to the portal (FUN_00594450: his own
 // spot when there's none) for up to 6 more thinks, stepping in
-// (FUN_005944f0: camp Cain due).
+// (FUN_005944f0: camp Cain due). The portal's drawn till its mode 4
+// (rules::CainQuest::portal_closed_frame); nothing removes the object.
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
-// tick; the portal stays for the game (FUN_005944f0 doesn't remove it;
-// InitFn 61 isn't traced); the Search for Cain: agent A's.
+// tick; its mode 3 (closing) is drawn as open.
 auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
+        if (cain_portal_closes && now_ms >= cain_portal_closes) { cain_portal = {}; cain_portal_closes = 0; }
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
         auto& unit = npc_states[std::size_t(cain_walk.npc)];
@@ -501,6 +504,7 @@ auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         const bool opened = cain_portal.level == level;
         if (++cain_walk.stage < 8 && opened && off(cain_walk.spot_x, cain_walk.spot_y) != 0) { walk(cain_walk.spot_x, cain_walk.spot_y); return; }
         cain.portal_entered();
+        if (opened) cain_portal_closes = cain_portal.born + std::uint32_t(d2d::rules::CainQuest::portal_closed_frame(int((now_ms - cain_portal.born) / kTickMs))) * kTickMs;
         unit.hidden = true;
         cain_walk.npc = -1;
         d2d::log::info("Search for Cain: Cain has gone to the camp");
@@ -588,6 +592,18 @@ auto World::music_cue(std::string_view sound) -> void {
             actor->events.push_back(ev::MusicCue{ found->second });
     }
 
+// FUN_00546270 for a later player: each record's +0xd8 (quests.md "Joins").
+auto World::join_more() -> void {
+        if (hosted_quests) return;
+        tools.join_more(carries("hdm"));          // a1q3 LAB_005919d0 (a1q4's FUN_00592b90: CainQuest)
+        d2d::rules::SevenTombsQuest::join_more(quests());   // a2q6 LAB_0059d4d0 (a2q2's FUN_0059e970: HoradricStaffQuest)
+        lam_esen.join_more(carries(d2d::rules::LamEsenQuest::kTome));   // a3q1 LAB_005b7bc0 (a3q3 / a3q4's: BladeQuest, GoldenBirdQuest)
+        d2d::rules::TerrorQuest::join_more(quests(), lead().character.header.expansion());   // a4q2 LAB_005b5030, the game's LoD (game +0x70) (a4q3's: HellforgeQuest)
+        d2d::rules::RescueQuest::join_more(quests());                     // a5q2 LAB_00588450
+        prison.join_more(quests(), betrayal.open);                        // a5q3 LAB_0058a1e0
+        d2d::rules::EveQuest::join_more(quests());                        // a5q6 LAB_0058e3f0
+    }
+
 auto World::take_carried(std::string_view code) -> void {
         if (actor->held && actor->held->code == code) { actor->held.reset(); return; }
         if (const auto found = std::ranges::find(actor->character.items, code, &d2d::d2s::Item::code); found != actor->character.items.end()) actor->character.items.erase(found);
@@ -667,7 +683,7 @@ auto World::den_count(std::uint32_t now_ms) -> void {
         for (const auto& kill : fight.kills)
             if (kill.killer > 0) den.took_part(kill.killer);   // a monster's death: its killer takes part
         if (den_left >= 0 && left < den_left) {
-            const auto kill = den.killed(left);
+            const auto kill = den.killed(left, every_room_populated(fight.spawning, *level));
             if (kill == d2d::rules::DenQuest::Kill::few) d2d::log::info("Den of Evil: {}", left == 1 ? "one monster left" : std::format("monsters remaining: {}", left));
             if (kill == d2d::rules::DenQuest::Kill::cleared) {
                 d2d::log::info("Den of Evil: cleared");

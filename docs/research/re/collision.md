@@ -38,7 +38,7 @@ own lifted while it paths, `FUN_00649970`) by pattern (`FUN_0064ea90`):
 | pattern | own bits (player 0x80, monster 0x100) | footprint |
 |---|---|---|
 | 1 / 3 | the plus | 0x1000 / 0x2000 on the subtile |
-| 2 / 4 | the SizeX box | 0x1000 / 0x2000 on the plus |
+| 2 / 4 | the 3x3 square round it (`FUN_0064ddf0`: x - 1 .. x + 1, y - 1 .. y + 1; SizeX 3 is the only size with pattern 2) | 0x1000 / 0x2000 on the plus |
 | 5 | the plus | none |
 
 The pattern (`FUN_006484e0`): MonStats2 SizeX through `DAT_006eb3dc` (0,
@@ -68,6 +68,15 @@ the `Crowd` (ai.hpp), each with its `UnitShape` (gamedata.hpp).
   Players and small units use the plus.
 - `FUN_0064e7b0` → `FUN_0064dea0`: nearest free spot (spawns, the town
   start).
+- A door's doorway (`FUN_00581d40`, modes 2 / 5, 500 ms since it last
+  changed: unit +0xd4): `FUN_0064d800(room, x, y, SizeX, SizeY, 0x8180)`
+  over the door's rect (`FUN_00620870` / `FUN_00620510` / `FUN_006205a0`).
+  0x80 / 0x100 are the units' own bits, stamped by pattern
+  (`FUN_0064ea90`): 1 / 3 / 5 the plus (`FUN_0064dc80`), 2 / 4 the 3x3
+  square (`FUN_0064ddf0`), 0 nothing. So a unit is in the doorway when its
+  plus (or 3x3) meets the rect, and a pattern-0 unit (SizeX 0: rats,
+  hydras) never is. Then a second test with 0x8000 alone (an object
+  stamped there).
 
 ## d2d
 

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -202,6 +203,12 @@ struct RescueQuest {
     static constexpr int kQuest = 0x24, kQualKehk = act5_detail::kQualKehk, kPrisoner = act5_detail::kPrisoner, kDoor = act5_detail::kPrisonDoor;
     static constexpr int kTold = 20096, kReward = 20110, kCages = 3, kPerCage = 5, kFreeReach = 15, kFail = 5;
     static constexpr std::array<const char*, 3> kRunes{ "r07", "r08", "r09" };   // 0x732fec: Ral, Ort, Tal
+    // A cage's portal (FUN_005888d0): the dead door's subtile + 2 on x, as
+    // is (an object's make, FUN_00555230 at 0x588a13, tests no collision);
+    // cells, the subtile's centre.
+    static std::pair<float, float> portal_spot(int door_x, int door_y) {
+        return { (float(door_x + 2) + 0.5f) / 5, (float(door_y) + 0.5f) / 5 };
+    }
     bool open = true;
     int state = 0, log = 0;
     bool told_heard = false;       // data +0x84
@@ -221,6 +228,8 @@ struct RescueQuest {
     std::vector<int> freed_ids;    // data +0x120, count +0x15c
     bool news = false;
 
+    // A later player joins (+0xd8, LAB_00588450): their bit 4 cleared.
+    static void join_more(QuestBits& quest_bits) { quest::set(quest_bits, kQuest, 4, false); }
     // The player joins (LAB_00588470): bit 4 cleared first.
     void join(QuestBits& quest_bits) {
         quest::set(quest_bits, kQuest, 4, false);
@@ -426,6 +435,14 @@ struct PrisonQuest {
     bool news = false;
 
     // The player joins (FUN_0058a110).
+    // A later player joins (+0xd8, LAB_0058a1e0): the potion they carry
+    // counts (data +0xd8, not kept); with this one shut or past state 4 and
+    // a5q4 open (record 0x22 +9, 0x58a212), a joiner with none of bits 1, 6
+    // and 0 gets a5q4's bit 14 (0x58a262).
+    void join_more(QuestBits& quest_bits, bool betrayal_open) const {
+        if ((!open || state >= 5) && betrayal_open && !quest::bit(quest_bits, kQuest, 1) && !quest::bit(quest_bits, kQuest, 6) && !quest::bit(quest_bits, kQuest, 0))
+            quest::set(quest_bits, kQuest + 1, 14);
+    }
     void join(const QuestBits& quest_bits, bool carries_potion) {
         if (carries_potion) potions = 1;
         open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
@@ -916,6 +933,8 @@ struct EveQuest {
     bool tyrael_heard = false;     // data +0x98
     bool news = false;
 
+    // A later player joins (+0xd8, LAB_0058e3f0): done, bit 10.
+    static void join_more(QuestBits& quest_bits) { if (quest::bit(quest_bits, kQuest, 0)) quest::set(quest_bits, kQuest, 10); }
     // The player joins (FUN_0058e430): done, bit 10 and the next difficulty.
     bool join(QuestBits& quest_bits) {
         open = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
@@ -1011,5 +1030,31 @@ struct EveQuest {
     // The log: the records' default (+0xe8 none; done at +0xd 4).
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
 };
+
+// FUN_005459a0 (InitFn 68's town Nihlathak, LAB_0058a610; Anya's markers call
+// it too): where a marker's NPC is made, quests-act5.md "Prison of Ice".
+// `rect` is the marker room's subtiles {x, y, width, height}. The callbacks:
+// `free_spot(room, x, y)` FUN_00545340 (size 2, mask 0x100, 100 rings; moves the
+// spot, false when none), `near_room(room, x, y)` FUN_00463740 (the room near
+// `room` holding the spot, nullopt when none), `make_at(room, x, y, retry)`
+// FUN_005b2f20 (true when made). True when made.
+template <class Room, class Free, class Near, class Make>
+bool marker_npc(Room marker_room, const std::array<int, 4>& rect, int marker_x, int marker_y, Free&& free_spot, Near&& near_room, Make&& make_at) {
+    int x = marker_x, y = marker_y, step = 0;
+    const auto inside = [&]() { return x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] - 1 && y < rect[1] + rect[3] - 1; };
+    while (step < 21 && !inside()) { ++x; ++y; ++step; }
+    if (step == 21) x = marker_y;                                                  // bugs.md #47: x takes the marker's y (0x545a0d)
+    Room room = marker_room;
+    if (!free_spot(room, x, y)) { x = marker_x; y = marker_y; }
+    if (make_at(room, x, y, -1) || make_at(room, x, y, 5)) return true;
+    for (int attempt = 0; attempt < 20; ++attempt) {                               // cmp 0x14 at 0x545b04
+        ++x; ++y;
+        if (const std::optional<Room> held = near_room(room, x, y)) room = *held;    // 0x545a97
+        else { room = marker_room; x = marker_x; y = marker_y; }
+        if (!free_spot(room, x, y)) { room = marker_room; x = marker_x; y = marker_y; }   // 0x545ad5
+        if (make_at(room, x, y, 10)) return true;
+    }
+    return make_at(marker_room, marker_x, marker_y, 15);
+}
 
 }  // namespace d2d::rules

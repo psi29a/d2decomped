@@ -11,11 +11,14 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
+#include <exception>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     constexpr std::uint32_t kFrameMs = 40, kStart = 1000;
     const GameData game_data;
     Level level{};
@@ -25,7 +28,7 @@ int main() {
     std::uint32_t seed = 1;
     while (d2d::rules::Rng(seed).next() % 100 < 20) ++seed;
     vendor.seed = d2d::rules::Rng(seed);
-    level.npcs.push_back(vendor);
+    level.npcs.push_back(std::move(vendor));
     auto states = npc_start(level);
     assert(!states[0].filed && states[0].wait_until == 0);
 
@@ -41,7 +44,7 @@ int main() {
     // Grown after the frame's patrol (World: its room came up this frame):
     // filed from that frame, not from the next patrol's.
     vendor.seed = d2d::rules::Rng(seed);
-    level.npcs.push_back(vendor);
+    level.npcs.push_back(std::move(vendor));
     states.push_back(npc_start(level)[1]);
     file_first_think(states[1], kStart);
     npc_patrol(game_data, level, states, { -1, -1, -1 }, kStart + kFrameMs, 0.04f);
@@ -49,4 +52,7 @@ int main() {
     npc_patrol(game_data, level, states, { -1, -1, -1 }, kStart + 2 * kFrameMs, 0.04f);
     assert(level.npcs[1].seed.low != seed);                                       // 2 frames after its room came up
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "%s\n", error.what());
+    return 1;
 }

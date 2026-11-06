@@ -97,7 +97,7 @@ auto World::display_swing(int skill, float x, float y, std::uint32_t now_ms) -> 
 auto World::use_warp() -> void {
         if (actor->take_warp < 0 || std::size_t(actor->take_warp) >= level->warps.size()) return;
         const auto warp = level->warps[std::size_t(actor->take_warp)];
-        if (std::hypot(warp.x + 0.5f - actor->player.x, warp.y + 0.5f - actor->player.y) > 2.f) {
+        if (!warp_close(warp, actor->player.x, actor->player.y)) {
             if (!actor->player.walking) actor->take_warp = -1;                                // stopped short
             return;
         }
@@ -230,19 +230,22 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
         actor->character.stats.values[kExp] += corpse.exp;
         corpse.exp = 0;
         const auto& layout = game_data->inv_layout[std::size_t(actor->character.header.cls % 7)];
+        std::ranges::stable_sort(corpse.items, {}, [](const Item& item) { return item.location == d2d::d2s::item_location::kEquipped ? item.slot : 100; });
         for (auto item_it = corpse.items.begin(); item_it != corpse.items.end();) {
             namespace body = d2d::d2s::body_location;
             const auto worn_in = [&](int slot) { return std::ranges::find_if(actor->character.items, [&](const Item& worn_item) { return worn_item.location == d2d::d2s::item_location::kEquipped && worn_item.slot == slot; }); };
             const int slot = item_it->slot, base_slot = slot >= body::kRightArmSwitch ? slot - (body::kRightArmSwitch - body::kRightArm) : slot;
             const auto worn_by = wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats);
-            // FUN_00562f30: its requirements (FUN_0062eaf0), then the pair with the other hand's (FUN_0055f2d0).
-            bool fits = slot >= body::kFirst && slot <= body::kLeftArmSwitch && worn_in(slot) == actor->character.items.end()
+            // FUN_00562f30: its requirements (FUN_0062eaf0), then FUN_0055f2d0: its slot,
+            // or the other side's when only its own is taken, paired with the other hand's.
+            const auto other = d2d::rules::other_side(slot);
+            const bool taken = worn_in(slot) != actor->character.items.end(), other_taken = other && worn_in(other) != actor->character.items.end();
+            const int to_slot = d2d::rules::corpse_slot(slot, taken, other_taken);
+            bool fits = slot >= body::kFirst && slot <= body::kLeftArmSwitch && to_slot > 0
                         && d2d::rules::can_wear(game_data->rules, *item_it, base_slot, worn_by, required_level(*game_data, *item_it, worn_by.cls));
-            if (fits && (base_slot == body::kRightArm || base_slot == body::kLeftArm)) {
-                const int other = slot == body::kRightArm ? body::kLeftArm : slot == body::kLeftArm ? body::kRightArm : slot == body::kRightArmSwitch ? body::kLeftArmSwitch : body::kRightArmSwitch;
-                if (const auto paired = worn_in(other); paired != actor->character.items.end()) fits = d2d::rules::hands_ok(game_data->rules, *item_it, *paired, worn_by);
-            }
-            if (fits) { actor->character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
+            if (fits && (base_slot == body::kRightArm || base_slot == body::kLeftArm))
+                if (const auto paired = worn_in(d2d::rules::other_side(to_slot)); paired != actor->character.items.end()) fits = d2d::rules::hands_ok(game_data->rules, *item_it, *paired, worn_by);
+            if (fits) { item_it->slot = to_slot; actor->character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
             std::optional<Item> held_item = *item_it;
             held_item->location = d2d::d2s::item_location::kStored;
             std::vector<const Item*> inv;
@@ -338,10 +341,22 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
             actor->take_portal = -1;
             const Level* tristram = game_data->level(d2d::rules::CainQuest::kTristram);
             if (!tristram || tristram->ds1.width() == 0) { d2d::log::info("not implemented: level 38 (the Cairn Stones' portal)"); return; }
-            const auto back = std::ranges::find(tristram->npcs, 60, &Npc::object_id);
-            // ponytail: no object 60 among Tristram's presets (the server makes it); its twin stands at the map's centre (agent A's).
-            const float back_x = back == tristram->npcs.end() ? float(tristram->ds1.width()) / 2 : back->x, back_y = back == tristram->npcs.end() ? float(tristram->ds1.height()) / 2 : back->y;
-            if (portal[3].level != tristram) portal[3] = { tristram, back_x, back_y, now_ms };
+            // Its twin (object 60, FUN_0056d130 -> FUN_0056cf40): at Tristram's type 11 spawn
+            // tile (FUN_0061b060, + 3 subtiles; it has one, drlg.md "Spawn tiles and the start
+            // spot"), twin_spot round it; the map's centre if d2d found none.
+            if (portal[3].level != tristram) {
+                float back_x = float(tristram->ds1.width()) / 2, back_y = float(tristram->ds1.height()) / 2;
+                if (!tristram->starts.empty()) {
+                    const int width = tristram->ds1.width() * 5, height = tristram->ds1.height() * 5;
+                    const auto flags = [&](int sub_x, int sub_y) -> int {
+                        if (sub_x < 0 || sub_y < 0 || sub_x >= width || sub_y >= height || tristram->walk.empty()) return 0x27;
+                        return tristram->walk[std::size_t(sub_y) * std::size_t(width) + std::size_t(sub_x)];
+                    };
+                    const auto [spot_x, spot_y] = twin_spot(tristram->starts.front().first * 5 + 3, tristram->starts.front().second * 5 + 3, flags);
+                    back_x = (float(spot_x) + 0.5f) / 5; back_y = (float(spot_y) + 0.5f) / 5;
+                }
+                portal[3] = { tristram, back_x, back_y, now_ms };
+            }
             arrive(tristram, portal[3].x, portal[3].y + 0.6f, "the Cairn Stones' portal");
             return;
         }

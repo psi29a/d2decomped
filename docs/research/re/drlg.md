@@ -1141,6 +1141,27 @@ lies inside no room of the preset stays in the record and nothing ever
 makes it. d2d drops them the same way (`level_room_tiles`' leftovers), so
 every `Level::units` entry has a room.
 
+## Spawn tiles and the start spot
+
+`FUN_0066b2b0(act, level, type, &x, &y)` (via `FUN_00619e50`; type 0xb
+from `FUN_0054db50`, the entrance check that objgroups' near test runs
+for every try):
+
+- A level with a spawn list (level def +0x90): type 0xd the waypoint
+  (`FUN_0066ad80`), else `FUN_0066ac40`: it counts the list's entries
+  (level +0x1d8, 12 bytes from +0x2c: x, y, type) of that type or its
+  group (`DAT_006eed88` / `0x6eed8c`), draws on the level seed (+0x1c4,
+  advanced on every call, one entry too) for the k-th, none: the first.
+  An emu sweep (map seed 0x1234, `FUN_0066b2b0(0xb)` on every level, the
+  list read after) finds 18 such levels: the five towns, and 38, 46, 54,
+  73, 74, 102, 121, 125, 126, 127, 132, 134, 135, each with exactly one
+  entry, of type 11. Only towns have more (Lut Gholein two of type 11).
+- Else: the waypoint room (`FUN_0066ad80`), a room with a warp slot whose
+  Warp isn't -1 (`FUN_0066b1f0`, the override list +0x90 of the act's
+  levels or the level's own +0x68), the room at the level's middle less 2
+  (`FUN_00642630`), last a random room (`FUN_0066ae70`, stubs.md: never
+  reached in the sweep); the room's centre unless a tile was found.
+
 ## What the client draws (2026-10-27, live)
 
 The client keeps its own copy of the level, and its picks are what the
@@ -1433,3 +1454,10 @@ its tile's cell × 5 + LvlWarp OffsetX / OffsetY (FUN_0066e1c0). The
 record comes by id and direction (FUN_0061f310: 'b', or 'l' / 'r' for
 wall orientations 10 / 11, FUN_0066e160); act 1's are all 'b'. d2d:
 `Level::Warp::unit_x/unit_y`, `World::use_warp`.
+
+When: C->S 0x13 on the tile unit (`FUN_00548b00` case 5):
+`FUN_00641530(player, tile unit)` (`rules::unit_distance`; the player's
+size 2, a warp unit's 0: `FUN_00620510` has no case 5) under 5 takes it at
+once; under 0x33 the player walks toward the unit (`FUN_00548a50`); else
+nothing. LvlWarp's SelectX / SelectY / SelectDX / SelectDY are the
+client's click box only; the server's test is that distance.

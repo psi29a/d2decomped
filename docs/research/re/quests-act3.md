@@ -53,6 +53,16 @@ unit event 0x23), +0x18 the stand's mode.
   tome carried 2; under way 1, lost 8 (9 in a multiplayer game, game +0x6a
   != 3); carried by someone 0xc (1 in act 3).
 
+- **Item events** (set at init, `FUN_005b7e90`: +0xb0 `FUN_005b7970`, +0xb4
+  `LAB_005b7a00`): event 4 (an item into a player's inventory, `0x543d80`)
+  and event 5 (one dropped, `0x543db0`) go only to the records on the
+  item's own list (item +0x74, `FUN_005439a0`; bound as it's made,
+  `FUN_00555d20` at 0x555d82: Items.txt quest − 1), so only `bbb ` reaches
+  a3q1; the handlers don't test the code again or the state. With +9: event 4 sends log 2 (`FUN_00544300`, EDX 2 at
+  0x5b79a0), state 4 (EDX 4 at 0x5b79ba), the player into data +0x1c;
+  event 5 takes the player out (0x5b7a1a), state 3 (EDX 3 at 0x5b7a2f),
+  log 1 (0x5b7a44), whatever the state was (+9 the only gate).
+
 d2d: `rules::LamEsenQuest`; the pickup / drop are polled from what's
 carried. `tests/quests_d2d.py` plays it.
 
@@ -111,6 +121,12 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
 - **The Potion of Life** (0x55e44e): with bit 5, bit 5 off and +20 max life
   (`FUN_006272b0` stat 7, 0x1400); else event 0x13. Picking it up wants bit 5
   (`FUN_0055cc90`).
+
+- **Item event** (+0xb0 `FUN_005ba6a0`, set at init 0x5baacf; event 4 on the
+  record's own items, `g34 ` / `j34 `): it also reads the item (event
+  +8 -> `FUN_006335f0` -> code at +0x80): bits 0 and 1 clear; `g34 ` state
+  3 (0x5ba721), log 3; `j34 ` log 1, state 1 (0x5ba76c), and bit 6 with
+  unit event 0x48 the first time (0x5ba794). No +9 test.
 
 d2d: `rules::GoldenBirdQuest`; the carrier is the first boss the World sees
 on an act 3 level; pickups polled. `tests/quests_d2d.py` plays it.

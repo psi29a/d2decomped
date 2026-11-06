@@ -557,14 +557,13 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
                 if (warp != level->warps.end()) actor->take_warp = int(warp - level->warps.begin());
             }
         } else if (now_ms - state.when >= 500) {       // a door (FUN_00581d40): is anyone in the doorway?
-            // ponytail: a unit's own subtile, not its collision pattern.
-            auto in_door = [&](float x, float y) {
-                const int sub_x = int(x * 5) - (int(door.x * 5) - door.size_x / 2), sub_y = int(y * 5) - (int(door.y * 5) - door.size_y / 2);
-                return sub_x >= 0 && sub_y >= 0 && sub_x < door.size_x && sub_y < door.size_y;
+            // Each unit by its collision pattern's own bits (rules::in_doorway); a player's is the plus.
+            auto in_door = [&](int pattern, float x, float y) {
+                return d2d::rules::in_doorway(pattern, int(x * 5), int(y * 5), int(door.x * 5), int(door.y * 5), door.size_x, door.size_y);
             };
-            bool occupied = in_door(actor->player.x, actor->player.y) || (actor->merc && in_door(actor->merc->unit.x, actor->merc->unit.y));
+            bool occupied = in_door(1, actor->player.x, actor->player.y) || (actor->merc && in_door(actor->merc->unit.shape.pattern, actor->merc->unit.x, actor->merc->unit.y));
             if (fight.mon_level == level)
-                for (const auto& monster : fight.monsters) occupied = occupied || (monster.alive() && in_door(monster.unit.x, monster.unit.y));
+                for (const auto& monster : fight.monsters) occupied = occupied || (monster.alive() && in_door(monster.unit.shape.pattern, monster.unit.x, monster.unit.y));
             // An 0x8000 object stamped in the doorway (the same rect, FUN_0064d800).
             bool blocker = false;
             for (int row = 0; row < door.size_y && !blocker; ++row)

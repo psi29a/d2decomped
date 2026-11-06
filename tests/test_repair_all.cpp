@@ -11,6 +11,7 @@
 #include <rules.hpp>
 
 #include <cassert>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -75,7 +76,7 @@ int main() {
     Item unknown = equipped;
     unknown.identified = false;
     unknown.props = { { .stat = d2d::d2s::kChargedSkill, .param = 54 << 6 | 3, .value = 10 << 8 | 5 } };
-    std::vector<Item> mixed{ unknown, equipped };
+    std::vector<Item> mixed{ std::move(unknown), std::move(equipped) };
     wallet.values[d2d::d2s::kGold] = kOne;
     assert(repair_all_cost(tables, smith, mixed) == kOne);
     assert(store_repair_all(tables, smith, mixed, wallet) == 1);

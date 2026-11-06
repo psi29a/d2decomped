@@ -135,10 +135,12 @@ struct DenQuest {
     // unless there).
     void took_part(int player) { if (state < 4 && active) participants.add(player); }
     // A monster died; `remaining` are the Den's left (level +0x2cc - +0x2d0)
-    // (FUN_00590260). 0: cleared (each player's credit follows).
+    // (FUN_00590260). 0: cleared (each player's credit follows). Only once
+    // `all_up`, every populatable Den room populated (its record +4 against
+    // FUN_00642be0's count); before that a death does nothing.
     enum class Kill { none, few, cleared };
-    Kill killed(int remaining) {
-        if (state >= 4) return Kill::none;        // its callback's gone once cleared
+    Kill killed(int remaining, bool all_up) {
+        if (state >= 4 || !all_up) return Kill::none;        // its callback's gone once cleared
         if (remaining > 0) {
             if (remaining < 6) log = 4;            // "Monsters remaining: N"
             return remaining < 6 ? Kill::few : Kill::none;
@@ -612,6 +614,9 @@ struct HoradricStaffQuest {
     bool cube_dropped = false;     // data+0x29: the Cube chest gave one
     bool staff_made = false;       // data+0x2a: transmuted (FUN_0059e5c0; the player's bit 11)
 
+    // A later player's +0xd8 (FUN_0059e970) counts the parts they carry
+    // (data +0x18..+0x24, not kept here) and, with data +0x2b set (not
+    // traced), resets the Tombs' data +0x10 when its +0xe isn't 1.
     // The player joins (FUN_0059e850): parts no longer carried are no
     // longer shown, unless all three are, the staff's made or placed.
     void join(QuestBits& quest_bits, const Items& items, bool staff_placed) {
@@ -1003,6 +1008,8 @@ struct SevenTombsQuest {
         if (!quest::bit(quest_bits, kQuest, 0) && state > 1) quest::set(quest_bits, kQuest, 2);
     }
     bool chain() { if (state == 0 && open) state = 1; return true; }   // FUN_0059d450, on to +0x10's
+    // A later player joins (+0xd8, LAB_0059d4d0): their word 10 bit 9 cleared.
+    static void join_more(QuestBits& quest_bits) { quest::set(quest_bits, 10, 9, false); }
     void join(QuestBits& quest_bits) {           // LAB_0059d4f0
         quest::set(quest_bits, 10, 9, false);
         if (quest::bit(quest_bits, 10, 0)) { later = true; staff_placed = true; }
@@ -1367,6 +1374,8 @@ struct CainQuest {
         if (state == 2) quest::set(quest_bits, kQuest, 2);
         else if (state > 2 && state < 6) quest::set(quest_bits, kQuest, 3);
     }
+    // A later player's +0xd8 (FUN_00592b90) only adds each scroll they carry
+    // to +0x7c, which the rewind left out above alone reads.
     // The player joins, carrying the scroll (bks) / the deciphered one (bkd) (FUN_00597030).
     void join(const QuestBits& quest_bits, bool bks, bool bkd) {
         active = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15);
@@ -1457,6 +1466,10 @@ struct CainQuest {
         if (akara_log) { log = 1; akara_log = false; mark(quest_bits); }
         if (decipher_log) { log = 3; mark(quest_bits); decipher_log = false; }
     }
+    // A Bark Scroll (bks / bkd, Items.txt quest 5: bound to this record)
+    // into the player's inventory (event 4, FUN_00592e20): with +9, their
+    // bits for the state (LAB_00592130). tools/emu/quest_item_events.py.
+    void item_event(QuestBits& quest_bits) const { if (active) mark(quest_bits); }
     // The player went from level `from` to `dest` (FUN_00596de0). True:
     // camp Cain's due in the camp (FUN_00592960).
     bool enter(QuestBits& quest_bits, int from, int dest, int player) {
@@ -1464,8 +1477,7 @@ struct CainQuest {
         const bool fresh = !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1);
         if (from == level_ids::kRogueEncampment) {
             rewarded.remove(player); missed.remove(player);
-            // ponytail: marked now, not at the next event 4 (FUN_00592e20)
-            if (fresh && state == 2) { state = 3; mark(quest_bits); }
+            if (fresh && state == 2) state = 3;          // the player's bit waits for item_event (0x596eef)
         }
         if (dest == level_ids::kRogueEncampment) return camp_spawn();
         if (dest == level_ids::kLutGholein && fresh && !resolved && state < 6) { rogues(quest_bits, player); tree_used = true; }
@@ -1558,6 +1570,14 @@ struct CainQuest {
     // Tristram Cain went through his portal (FUN_005944f0: +0x91, +0x52):
     // camp Cain's due (FUN_005940e0 → FUN_00592960).
     void portal_entered() { camp_due = true; }
+    // Cain's portal in Tristram (object 189: InitFn 61 FUN_00594290 mode 1,
+    // its event 7 FUN_005942c0 every 25 frames from its opening): 1 -> 2,
+    // 2 -> 3 at the first event once Cain's in (+0x91), 3 -> 4 the next.
+    // The frame, from its opening, it reaches mode 4, Cain in at `entered`.
+    static int portal_closed_frame(int entered) {
+        constexpr int kStep = 25;
+        return std::max(2 * kStep, (entered / kStep + 1) * kStep) + kStep;
+    }
     // The Cube's Cow Portal (output kind 1, FUN_00594140): none opened this
     // game yet (record 0xb's flag, FUN_00544760), the Cow King alive (bit
     // 10), the last act's boss down in this difficulty (expansion: quest
@@ -1734,6 +1754,7 @@ struct ToolsQuest {
     bool given = false, returned = false;   // data[2] / data[3]: the log waits for the talk to close
     bool game_returned = false;             // the game's flag 13 (FUN_00544720(3, 0xd))
     bool carried_in = false;                // data+0xa1: the player joined holding the malus
+    int carriers = 0;                       // data+0x9c: the players who joined holding it
 
     // A player's bits for the state (0x591340).
     void mark(QuestBits& quest_bits) const {
@@ -1745,9 +1766,15 @@ struct ToolsQuest {
     // closed turns it off for the game (FUN_00546270, FUN_00544410).
     void join(const QuestBits& quest_bits, bool holding = false) {
         carried_in = holding;
+        carriers = holding ? 1 : 0;
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) { active = false; return; }
         if (quest::bit(quest_bits, kQuest, 2)) { log = 1; state = 2; }
         else if (quest::bit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
+    }
+    // A later player joins (+0xd8, LAB_005919d0): holding the malus, with
+    // +9 and not returned, a carrier more; the first, the stand used: log 2.
+    void join_more(bool holding) {
+        if (holding && active && state != 5 && ++carriers == 1 && dropped) log = 2;
     }
     // The chain reached it (+0xf0, FUN_00591e40): open (Charsi's "!").
     // True: it passes on to the next (+0x10 = 6).
