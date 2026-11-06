@@ -16,7 +16,7 @@
 #include <monster_ids.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
-#include <string>
+#include <rules.hpp>
 #include <string_view>
 #include <vector>
 

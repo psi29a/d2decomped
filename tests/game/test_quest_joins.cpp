@@ -10,6 +10,10 @@
 #include <d2s_items.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <monsters.hpp>
+#include <object_ids.hpp>
+#include <quests.hpp>
+#include <quests_act3.hpp>
 #include <quests_act4.hpp>
 #include <rules.hpp>
 #include <world.hpp>
@@ -118,15 +122,15 @@ int main() try {
     {   // a4q2's +0xd8 (LAB_005b5030): in LoD, bit 9 without word 0x1c bit 0 cleared.
         World world(&*data, -1, -1);
         world.enter(make(kSorceress, "Lead"));                                   // LoD (new_character's expansion)
-        auto heard = make(kSorceress, "Heard"), on = make(kSorceress, "On");
+        auto heard = make(kSorceress, "Heard"), on_char = make(kSorceress, "On");
         auto& heard_bits = heard.header.quests[std::size_t(heard.header.active_difficulty())];
-        auto& on_bits = on.header.quests[std::size_t(on.header.active_difficulty())];
+        auto& on_bits = on_char.header.quests[std::size_t(on_char.header.active_difficulty())];
         d2d::rules::quest::set(heard_bits, 0x1a, 9);
         d2d::rules::quest::set(on_bits, 0x1a, 9); d2d::rules::quest::set(on_bits, 0x1c, 0);
         world.join(heard);
         const auto bits_of = [&](const World::Player& player) { return player.character.header.quests[std::size_t(player.character.header.active_difficulty())]; };
         assert(!d2d::rules::quest::bit(bits_of(*world.players.back()), 0x1a, 9));
-        world.join(on);
+        world.join(on_char);
         assert(d2d::rules::quest::bit(bits_of(*world.players.back()), 0x1a, 9));
     }
     {   // Act 5's +0xd8s: a5q2 clears bit 4 (LAB_00588450); a5q3 past state 4 with a5q4 open gives bit 14 (LAB_0058a1e0); a5q6 done: bit 10 (LAB_0058e3f0).

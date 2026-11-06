@@ -1275,9 +1275,9 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
 bool every_room_populated(const Spawning& spawning, const Level& level) {
     const auto found = spawning.levels.find(&level);
     if (found == spawning.levels.end()) return false;
-    const auto& up = found->second.up;
+    const auto& rooms_up = found->second.up;
     for (std::size_t i = 0; i < level.rooms.size(); ++i)
-        if (!ObjectRooms::none(level, i) && (i >= up.size() || !up[i])) return false;
+        if (!ObjectRooms::none(level, i) && (i >= rooms_up.size() || !rooms_up[i])) return false;
     return true;
 }
 

@@ -19,6 +19,8 @@
 #include <object_ids.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
+#include <quests_act4.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <sound_ids.hpp>

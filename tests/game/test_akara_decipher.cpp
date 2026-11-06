@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <string_view>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;

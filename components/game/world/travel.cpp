@@ -240,12 +240,12 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
             // or the other side's when only its own is taken, paired with the other hand's.
             const auto other = d2d::rules::other_side(slot);
             const bool taken = worn_in(slot) != actor->character.items.end(), other_taken = other && worn_in(other) != actor->character.items.end();
-            const int to = d2d::rules::corpse_slot(slot, taken, other_taken);
-            bool fits = slot >= body::kFirst && slot <= body::kLeftArmSwitch && to > 0
+            const int to_slot = d2d::rules::corpse_slot(slot, taken, other_taken);
+            bool fits = slot >= body::kFirst && slot <= body::kLeftArmSwitch && to_slot > 0
                         && d2d::rules::can_wear(game_data->rules, *item_it, base_slot, worn_by, required_level(*game_data, *item_it, worn_by.cls));
             if (fits && (base_slot == body::kRightArm || base_slot == body::kLeftArm))
-                if (const auto paired = worn_in(d2d::rules::other_side(to)); paired != actor->character.items.end()) fits = d2d::rules::hands_ok(game_data->rules, *item_it, *paired, worn_by);
-            if (fits) { item_it->slot = to; actor->character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
+                if (const auto paired = worn_in(d2d::rules::other_side(to_slot)); paired != actor->character.items.end()) fits = d2d::rules::hands_ok(game_data->rules, *item_it, *paired, worn_by);
+            if (fits) { item_it->slot = to_slot; actor->character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
             std::optional<Item> held_item = *item_it;
             held_item->location = d2d::d2s::item_location::kStored;
             std::vector<const Item*> inv;

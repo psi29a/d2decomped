@@ -8,7 +8,6 @@
 
 #include <quests_act5.hpp>
 
-#include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <optional>
@@ -25,11 +24,11 @@ const char* const kCases[] = {
 
 // One case line's script; the calls d2d makes, in the oracle's words.
 std::vector<std::string> run(const std::string& line) {
-    std::istringstream in(line);
+    std::istringstream fields(line);
     std::string word;
     int number = 0, room_x = 0, room_y = 0, width = 0, height = 0, marker_x = 0, marker_y = 0, delta_x = 0, delta_y = 0, make_ok = 0;
     std::string free_text, near_text;
-    in >> word >> number >> word >> room_x >> room_y >> width >> height >> word >> marker_x >> marker_y >> word >> free_text >> delta_x >> delta_y >> word >> near_text >> word >> make_ok;
+    fields >> word >> number >> word >> room_x >> room_y >> width >> height >> word >> marker_x >> marker_y >> word >> free_text >> delta_x >> delta_y >> word >> near_text >> word >> make_ok;
     const auto free_mask = std::stoull(free_text, nullptr, 16), near_mask = std::stoull(near_text, nullptr, 16);
     std::vector<std::string> trace;
     int free_calls = 0, near_calls = 0, make_calls = 0, made = -1;
