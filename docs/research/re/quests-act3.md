@@ -144,7 +144,9 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
 
 - **The chests** (objects 405 / 407 / 406, OperateFns 57 heart / 58 eye / 59
   brain: `FUN_005b8860` / `005b8940` / `005b8a20`): rand(5) + 5 gold piles on
-  the quest seed, the part for each player who needs it, a chest's drops
+  the quest seed, one part for each player in the game carrying neither it
+  nor Khalim's Will (`LAB_005b8810` counts them into record 0x10 data +0xc;
+  `FUN_00559a30(2)` each; no quest bit is read), a chest's drops
   (`FUN_00585b90`). In the sewers 2 (93), the Spider Cavern (85), the Flayer
   Dungeon 3 (91).
 - **The sewers' stairs** (366, InitFn 41 `FUN_005b8660`: the record's +8
