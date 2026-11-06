@@ -122,6 +122,12 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   (`FUN_006272b0` stat 7, 0x1400); else event 0x13. Picking it up wants bit 5
   (`FUN_0055cc90`).
 
+- **Item event** (+0xb0 `FUN_005ba6a0`, set at init 0x5baacf; event 4 on the
+  record's own items, `g34 ` / `j34 `): it also reads the item (event
+  +8 -> `FUN_006335f0` -> code at +0x80): bits 0 and 1 clear; `g34 ` state
+  3 (0x5ba721), log 3; `j34 ` log 1, state 1 (0x5ba76c), and bit 6 with
+  unit event 0x48 the first time (0x5ba794). No +9 test.
+
 d2d: `rules::GoldenBirdQuest`; the carrier is the first boss the World sees
 on an act 3 level; pickups polled. `tests/quests_d2d.py` plays it.
 

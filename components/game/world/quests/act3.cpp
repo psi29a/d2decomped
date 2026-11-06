@@ -195,7 +195,10 @@ auto World::act3_bind_new_bosses() -> void {
 auto World::act3_update(std::uint32_t now_ms) -> void {
         if (d2d::rules::quest::bit(quests(), d2d::rules::BlackenedTempleQuest::kQuest, 0)) guardian.chain();   // a3q5's +0xf0
         mephisto_bridge(now_ms);
-        // The Golden Bird's items picked up (FUN_005ba6a0). ponytail: pickups polled.
+        // The Golden Bird's items picked up (FUN_005ba6a0, event 4 on g34 / j34, bound to
+        // a3q4): the same transitions, polled from what's carried.
+        // ponytail: a stash or Cube move into the inventory raises event 4 in game.exe;
+        // carries() counts those already, so it doesn't fire here.
         if (const bool figurine = carries(d2d::rules::GoldenBirdQuest::kFigurine), bird = carries(d2d::rules::GoldenBirdQuest::kBird); !hosted_quests) {
             if (figurine && !actor->had_figurine && golden_bird.picked_up(quests(), false)) class_cue("act3_find_jade", now_ms);   // unit event 0x48
             if (bird && !actor->had_bird) golden_bird.picked_up(quests(), true);
