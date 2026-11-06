@@ -290,8 +290,9 @@ FUN_0044dad0 sets 500 ms ahead (LAB_00462022, LAB_0048168f; FUN_00467000 uses it
 Within 4 it sends at once (LAB_00462010); further it walks and queues 0x13 (LAB_00461fed,
 LAB_00461ffc). FUN_00548b00's case 5 (LAB_00548bdc) answers: over 0x32 nothing, over 4
 walk (FUN_00548a50), else FUN_005550b0 (LAB_00548c32). The test runs when a packet comes and
-when the walk ends, not on the way. This case has no held test, so a held button clicks
-again each 500 ms, and each click is two more walks.
+when the walk ends, not on the way. This case has no held test of its own, but FUN_00462930
+stops a held frame while the unit walks ("What a held frame sends"). So a held button clicks again
+after a stop, at most each 500 ms, and each click is two more walks.
 
 d2d (`World::use_warp`, compared on this branch, before fix/walk-blocked-centre and
 fix/interact-retry; neither changes `use_warp`):
