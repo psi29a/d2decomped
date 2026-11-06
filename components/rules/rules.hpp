@@ -964,11 +964,20 @@ inline bool store_perm(const Store& store, const std::string& code) {
 //   that can't goes to the inventory and ends it (FUN_0055e9b0 fails:
 //   param_8 cleared). Gold or room running out after one is bought: gold
 //   says no_gold (0x8d4), room says nothing (done).
-// ponytail: an item bound for the inventory isn't first offered to a body
-// slot (FUN_00562e00: auto_equip_slot, with its own rules for arrows and
-// bolts by the weapon held, 0x883e9c / 0x883ea0).
+// Given a wearer, an item bound for the inventory is first offered to a body
+// slot (0x577d10 .. FUN_00562e00 -> FUN_0055d710 mode 0: auto_equip_slot,
+// `required_level` the item's), unless a weapon is in hand (FUN_0063bef0,
+// either arm, ItemTypes 0x2d) and the item is a weapon too. Bolts (cqv,
+// 0x883e9c) go on only by a crossbow in hand (its wclass xbw, FUN_00623c60
+// 7), arrows (aqv, 0x883ea0) only by a bow (bow, 1), neither with nothing in
+// hand: in vanilla data every bow's wclass is bow and every crossbow's xbw,
+// so auto_equip_slot's own test (the hand's weapon shoots the quiver's type)
+// is the same one.
+struct Wearer;
+inline int auto_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, const Wearer& wearer,
+                           int required_level);
 inline Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::d2s::Item>& items, d2d::d2s::Stats& stats, int boxes = 4,
-                       bool fill = false) {
+                       bool fill = false, const Wearer* wearer = nullptr, int required_level = -1) {
     using d2d::d2s::Item;
     auto& tab = store.tabs[std::size_t(store.tab)];
     const auto item = tab[std::size_t(index)];
@@ -979,6 +988,14 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
         stats.values[d2d::d2s::kGoldBank] -= cost - from_inv;
     };
     const auto in_inventory = [](const Item& carried) { return carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory; };
+    const auto weapon = [&](const Item& carried) {
+        const auto found = tables.item_info.find(carried.code);
+        return found != tables.item_info.end() && type_is(tables, found->second.type, "weap");
+    };
+    const auto in_hand = [&](const Item& carried) {
+        return carried.location == d2d::d2s::item_location::kEquipped && weapon(carried)
+            && (carried.slot == d2d::d2s::body_location::kRightArm || carried.slot == d2d::d2s::body_location::kLeftArm);
+    };
     std::int64_t price = item_price(tables, item, store.npc_id, false, store.header, store.reduced);
     if (purse() < price) return Trade::no_gold;
     fill = fill && store_perm(store, item.code);
@@ -1028,6 +1045,10 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
         copy.quantity = quantity;
         if (const int box = belt_box(tables, items, copy, boxes); box >= 0) {
             copy.location = d2d::d2s::item_location::kBelt; copy.column = box; copy.row = 0; copy.panel = 0; copy.slot = 0;
+        } else if (const int slot = wearer && !(weapon(copy) && std::ranges::any_of(items, in_hand)) ? auto_equip_slot(tables, items, copy, *wearer, required_level) : -1;
+                   slot > 0) {
+            fill = false;
+            copy.location = d2d::d2s::item_location::kEquipped; copy.slot = slot; copy.column = 0; copy.row = 0; copy.panel = 0;
         } else {
             fill = false;
             std::vector<const Item*> inv;

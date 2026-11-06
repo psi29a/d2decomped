@@ -407,9 +407,20 @@ else rare.
   a free bottom box. Else the inventory's first free spot
   (`FUN_00560200` → `FUN_0063b950`); no room refunds it and answers 10
   (line 0x91c). d2d: `rules::store_buy` (`rules::belt_box`).
-  Not yet: before the inventory, the item is offered to a body slot
-  (`FUN_00562e00`, `auto_equip_slot`), with rules for arrows and bolts
-  by the bow or crossbow held (0x883e9c / 0x883ea0).
+- Before the inventory, the item is offered to a body slot (from
+  `LAB_00577d10`: `FUN_00562e00` → `FUN_0055d710` mode 0, as a pickup's
+  `auto_equip_slot`). The buy's own gates come first:
+  - With a weapon in hand (`FUN_0063bef0`, either arm, ItemTypes 0x2d),
+    a bought weapon isn't offered (`FUN_00629bb0(item, 0x2d)`).
+  - Bolts (`0x883e9c`, "cqv", set in `FUN_00536070`) only with a weapon
+    in hand whose wclass (`FUN_00623c60` → `FUN_00629fe0`, Items +0xc0)
+    is 7, xbw. Arrows (`0x883ea0`, "aqv") only with wclass 1, bow.
+    Neither with no weapon in hand.
+
+  In vanilla data every bow's wclass is bow and every crossbow's xbw, so
+  `auto_equip_slot`'s own test (a weapon in hand that shoots the
+  quiver's type) is the same one. d2d: `rules::store_buy`, given the
+  World's wearer.
 - Shift + right click fills (`FUN_004b2650`: mouse flag 4 and Items
   +0x1a5, Misc.txt multibuy: the potions, scrolls and keys, set C->S
   0x32's 0x80000000; the server, `FUN_0054bac0` → `FUN_00577830`, takes

@@ -71,8 +71,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (buy->tab >= 0 && buy->tab < 4) actor->store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
             if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
             const auto& belt = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))];
+            const auto worn_by = wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats);
+            const auto& stocked = actor->store.tabs[std::size_t(actor->store.tab)][std::size_t(buy->stock)];
             const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats)
-                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill);
+                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill,
+                                                                            &worn_by, required_level(*game_data, stocked, worn_by.cls));
             if (result != d2d::rules::Trade::done) actor->events.push_back(ev::TradeRefused{ result });   // a gamble's buy is a buy (C->S 0x32, FUN_00577830)
             return true;
         }
