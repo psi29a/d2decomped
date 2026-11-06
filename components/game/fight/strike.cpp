@@ -12,6 +12,7 @@
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <leap.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
@@ -811,17 +812,15 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 // state 0x12; it flies there (path type 9 at the class's run
                 // velocity, FUN_005d9f70), lands (FUN_005da120) and knocks back
                 // every monster within calc1 subtiles (result 9, FUN_0056bad0):
-                // Fight::leap.
-                // ponytail: the line tests sample the way at a fifth of a cell;
-                // FUN_005d9a10's two fallback spots aren't tried.
+                // Fight::leap. The clear line is FUN_0064e260's from the
+                // caster's subtile (mask 0x804, no sizes: rules::sight_blocked).
                 float target_x = actor->cast_x, target_y = actor->cast_y;
                 const int tgt = actor->attack_mon >= 0 && monsters[std::size_t(actor->attack_mon)].alive() ? actor->attack_mon : -1;
-                const auto clear_line = [&](float to_x, float to_y) {
-                    const float span = std::hypot(to_x - actor->player.x, to_y - actor->player.y);
-                    for (float along = 0.2f; along < span; along += 0.2f)
-                        if (level->unit_blocked(actor->player.x + (to_x - actor->player.x) * along / span, actor->player.y + (to_y - actor->player.y) * along / span)) return false;
-                    return true;
+                const int from_x = int(std::floor(actor->player.x * 5)), from_y = int(std::floor(actor->player.y * 5));
+                const auto clear_to = [&](int to_x, int to_y) {
+                    return !d2d::rules::sight_blocked(from_x, from_y, 0, to_x, to_y, 0, [&](int at_x, int at_y) { return level->blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x804); });
                 };
+                const auto clear_line = [&](float to_x, float to_y) { return clear_to(int(std::floor(to_x * 5)), int(std::floor(to_y * 5))); };
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight) {
                     if (tgt < 0) break;
                     const auto& target = monsters[std::size_t(tgt)];
@@ -830,10 +829,13 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     target_x = target.unit.x + dx / distance * 0.8f; target_y = target.unit.y + dy / distance * 0.8f;
                 }
                 if (skill.srvdofunc == ServerDoFunction::kLeap) {
-                    const float reach = float(calc(skill, skill.aurarange, lvl)) / 5, span = std::hypot(target_x - actor->player.x, target_y - actor->player.y);
-                    if (span > reach) { target_x = actor->player.x + (target_x - actor->player.x) * reach / span; target_y = actor->player.y + (target_y - actor->player.y) * reach / span; }
-                    std::tie(target_x, target_y) = level->nearest_free(target_x, target_y);
-                    if (in_town(level) || std::hypot(target_x - actor->player.x, target_y - actor->player.y) > reach + 0.2f || !clear_line(target_x, target_y)) break;
+                    if (in_town(level)) break;
+                    Crowd crowd_now;
+                    crowd(crowd_now);
+                    const auto landing = d2d::rules::leap_landing(from_x, from_y, int(std::floor(target_x * 5)), int(std::floor(target_y * 5)), calc(skill, skill.aurarange, lvl),
+                        [&](int at_x, int at_y) { return free_spot_near(*level, crowd_now, &actor->player, at_x, at_y, 2, 0x1c09); }, clear_to);
+                    if (!landing) break;
+                    target_x = (float(landing->first) + 0.5f) / 5; target_y = (float(landing->second) + 0.5f) / 5;
                     const float speed = cells_per_sec(float(game_data->run_velocity[std::size_t(std::max(actor->character.character_class, 0))]));
                     const auto flight = std::uint32_t(std::hypot(target_x - actor->player.x, target_y - actor->player.y) / std::max(speed, 0.1f) * 1000);
                     actor->leap = Leap{ actor->player.x, actor->player.y, target_x, target_y, now_ms, now_ms + flight, skill.id, lvl };

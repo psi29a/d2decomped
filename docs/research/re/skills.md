@@ -1098,7 +1098,17 @@ lines (missile names aren't passed in). What it does:
   type 9 at the class's run velocity, CharStats +0x41 << 8; a monster's
   MonStats Run), at the next it lands (FUN_005da120) and knocks back each
   monster within calc1 subtiles (result 9, FUN_0056bad0). d2d:
-  `Fight::leap`.
+  `Fight::leap`. FUN_005d9a10 (EAX the skill) in subtiles: range =
+  aurarangecalc; d = FUN_006417f0(caster, point) = (short + 2 × long) / 2,
+  at least 1; over range the point becomes caster + (point − caster) ×
+  range / d (C division, each axis). sx = point y − caster y, sy = caster
+  x − point x, each clamped as −2 below −1, 2 above 1 (−1..1 kept). Three
+  tries: the point, then (x + sx, y + sy), then (x − sx, y − sy) (from the
+  pulled point); each: the nearest free spot to it (FUN_0064e7b0, the
+  caster's size, 0x1c09), that spot free (FUN_0064d910, 0x1c09), the line
+  from the caster's subtile to it clear (FUN_00645910 -> FUN_0064e260,
+  0x804, no sizes) and FUN_006417f0 to it ≤ range. The first that passes
+  is the landing; none, no leap.
 - **Dragon Flight** (start 12, FUN_005c9030: the target within
   aurarangecalc, neither in town; do 52, FUN_005d7850): the flight is at
   once, to the free spot nearest the target (FUN_00554ea0), unless the
