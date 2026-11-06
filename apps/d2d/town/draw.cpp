@@ -80,10 +80,9 @@ auto Town::open_menu(int npc) -> void {
 // and everything else into its centre 800x600, as it always did.
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
     const int screen_w = fb_width(framebuffer);
-    const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open;
     if (screen_w == int(kScreenWidth)) {
         draw_view(framebuffer, nullptr, mouse, frame_ms);
-        draw_coop_portraits(framebuffer, left_open);
+        draw_coop_portraits(framebuffer, left_panel_open());
         return;
     }
     const int off = (screen_w - int(kScreenWidth)) / 2;
@@ -92,7 +91,7 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
     for (std::size_t y = 0; y < kScreenHeight; ++y)
         std::copy_n(ui_buffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4), kScreenWidth * 4,
                     framebuffer.begin() + std::ptrdiff_t((y * std::size_t(screen_w) + std::size_t(off)) * 4));
-    draw_coop_portraits(framebuffer, left_open);       // on the whole frame: widescreen's spare width
+    draw_coop_portraits(framebuffer, left_panel_open());       // on the whole frame: widescreen's spare width
 }
 
 auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms) -> void {
@@ -244,7 +243,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open, view.stamina_blue, view.stamina_shrine, belt_key_names }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, belt_key_names }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
@@ -294,9 +293,9 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             draw_trade(framebuffer, *scene, trade.state, with.empty() ? std::string("Another player") : with, character.name, theirs, trade.ours, trade.their_gold,
                        trade.our_gold, nullptr, held ? -1 : mouse.x, held ? -1 : mouse.y, nullptr);
         }
-        draw_portraits(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open);
+        draw_portraits(framebuffer, left_panel_open());
         if (gold_box) draw_gold_box(framebuffer, *scene, *gold_box, frame_ms);
-        draw_chat(framebuffer, char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open, inv_open || tree_open);
+        draw_chat(framebuffer, left_panel_open(), inv_open || tree_open);
         if (quest_log_was_open && !quest_log.open) {    // shut by any means (FUN_00455ae0 → FUN_004a28d0)
             quest_log.open = true;
             quest_log_close(quest_log, quest_bits(), quest_state());
@@ -311,7 +310,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
-        const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+        const bool left_open = left_panel_open();
         if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
         // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
         // action, then 0x1052 " (%s)" for each key bound to it, the second

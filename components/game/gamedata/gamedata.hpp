@@ -130,6 +130,7 @@ struct Npc {
     // 4 the gate guard; 0 = none.
     int palace = 0;
     int op_frames = 0;                   // objects.txt FrameCnt1 when it has an OP mode (Mode1)
+    bool mode2 = false;                  // objects.txt Mode2: event 1 can transition an operated object to ON
     int shrine = 0;                      // a shrine's Shrines.txt row (roll_shrine)
     int trap = 0;                        // a chest's trap type (roll_chest), 0 none
     bool locked = false;                 // a locked chest: takes a key
@@ -1058,7 +1059,7 @@ int mode_index(std::string_view mode);
 // written with Sync, else less its 1/16 plus a roll under its 1/8 on the
 // unit's seed, kept within 0..0x7fff.
 // ponytail: one roll on a seed from the object's spot, the same each time the
-// mode comes (what's drawn and op_ticks agree); game.exe rolls at each mode
+// mode comes (what's drawn and object_op_ticks agree); game.exe rolls at each mode
 // set on the client unit's seed ({its room's client seed step, 666},
 // FUN_00465fd0), whose room seed isn't kept.
 inline int object_frame_delta(int delta, bool sync, d2d::rules::Rng seed) {

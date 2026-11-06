@@ -7,7 +7,6 @@
 #include "ingame.hpp"
 #include "internal.hpp"
 #include "panels.hpp"
-#include "party.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
 #include "tile_blit.hpp"
@@ -177,6 +176,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.push_back({ monster.unit.x, monster.unit.y, &anim, monster.unit.dir, selectable ? &monster.npc.name : nullptr,
                         row ? now_ms - mpf * std::uint32_t(monster.seq_frame) - mpf / 2 : down && monster.mode != "S1" ? 0u : monster.unit.mode_ms, -10 - int(i) });
         out.back().reverse = down;
+        if (!row && !down && monster.mode != "GH") out.back().rate = float(100 + anim_rate_pct(monster, monster.mode)) / 100.f;   // as its mode's length (set_mode): auras, MonProp IAS / FCR; GH has get_hit_rate below
         out.back().hold = !row && monster.mode == "DT";             // a death outlasting its frames (the host's 1500 ms) stays on the last, not back to the first
         if (!row && !down && monster.mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(anim.speed ? anim.speed : anim.cof_speed), monster.props.fhr));   // struck: its frame steps at the get-hit rate (rules::get_hit_frame)
         out.back().overlay_class = monster.npc.overlay_class;
@@ -358,8 +358,7 @@ auto Town::automap_frame() -> void {
         automap.center = values[3] != 0;
         automap.party = values[4] != 0;
         automap.names = values[5] != 0;
-        const bool right_open = inv_open || tree_open, left_open = char_open || stash_open || cube_open || quest_log.open || waypoint.open || store.npc >= 0
-                                                                || party.open || hireling.open;   // FUN_00455f20: UI 0x16, 0x24 left too
+        const bool right_open = inv_open || tree_open, left_open = left_panel_open();
         automap.panel_side = right_open == left_open ? 0 : right_open ? 1 : 2;
         g_drawn.panel_side = automap.panel_side;
         automap.in_town = level && d2d::rules::level_ids::is_town(level->id);

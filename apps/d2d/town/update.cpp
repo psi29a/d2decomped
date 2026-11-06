@@ -324,7 +324,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             hud_click = true;
         } else {
             // The mini-panel's buttons (FUN_0047ec50) and the HUD's button for it.
-            const bool left_open = char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open;
+            const bool left_open = left_panel_open();
             int action = -1;
             hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, inv_open || tree_open, action);
             if (action == MiniPanel::kCharacter) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
