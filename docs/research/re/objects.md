@@ -327,6 +327,14 @@ burst, and "everyone" means everyone within 30 cells.
   subtiles — at the nearest free spot (`FUN_0056cf40`, mask 0xbe11); each
   unit linked to the other (`FUN_00621ce0`), the portal's +4 byte the other's
   level. A player's new portal closes their old pair.
+  The twin's spot (`FUN_0056cf40`): `FUN_0061b060(act, level, 0xb, .., 3)`
+  (0x56cf6e: the level's spawn tile of type 11, +3 subtiles), the room near
+  holding it (`FUN_00545830` / `FUN_00463740`), then `FUN_0064e7e0(room,
+  &xy, 3, 0xbe11, 5)` (0x56d017: test 3, `FUN_0064d4a0`, rings and steps
+  of 5), else `FUN_0061b060` again; made by `FUN_00555230` (0x56d092) in
+  mode 2. The Cairn Stones' portal (object 60, `FUN_0056d130` to level 38)
+  takes the same path: Tristram's twin stands by Tristram's one spawn tile
+  (type 11; drlg.md "Spawn tiles and the start spot"), not at a preset.
 - **The object:** OP 15 frames at FrameDelta 200 (768 ms), then ON looping
   (CycleAnim2); Lit1 18 / Lit2 19, (120, 120, 255); its COF's HD layer is
   transparent with draw effect 3 (additive), TR opaque. OperateRange 2.

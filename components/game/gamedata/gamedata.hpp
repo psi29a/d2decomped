@@ -1116,6 +1116,22 @@ std::pair<int, int> corpse_spot(int x, int y, Flags flags) {
     return nearest_spot(x, y, clear, 4).value_or(std::pair{ x, y });
 }
 
+// Where a portal's twin stands (FUN_0056cf40 -> FUN_0064e7e0(room, &xy, 3,
+// 0xbe11, 5)): from subtile (x, y), the level's type 11 spawn tile + 3, the
+// nearest spot, 5 apart, whose 3x3 square (FUN_0064d9b0 case 3) meets no
+// bit of 0xbe11 in `flags(x, y)` (0x27 off the rooms). None: (x, y)
+// (0x56d033). Checked against tools/emu/corpse_spot.py's twin mode.
+template <class Flags>
+std::pair<int, int> twin_spot(int x, int y, Flags flags) {
+    const auto clear = [&](int at_x, int at_y) {
+        for (int row = -1; row <= 1; ++row)
+            for (int column = -1; column <= 1; ++column)
+                if (flags(at_x + column, at_y + row) & 0xbe11) return false;
+        return true;
+    };
+    return nearest_spot(x, y, clear, 5).value_or(std::pair{ x, y });
+}
+
 // FUN_0064e810 -> nearest_spot with expfield.d2 (`field`): the free
 // subtile nearest (x, y) where something `size` across (FUN_0064d9b0: 0 / 1
 // the subtile, 2 the plus, 3 the 3 x 3 box) meets no bit of `mask` in

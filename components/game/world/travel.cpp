@@ -341,10 +341,22 @@ auto World::use_portal(std::uint32_t now_ms) -> void {
             actor->take_portal = -1;
             const Level* tristram = game_data->level(d2d::rules::CainQuest::kTristram);
             if (!tristram || tristram->ds1.width() == 0) { d2d::log::info("not implemented: level 38 (the Cairn Stones' portal)"); return; }
-            const auto back = std::ranges::find(tristram->npcs, 60, &Npc::object_id);
-            // ponytail: no object 60 among Tristram's presets (the server makes it); its twin stands at the map's centre (agent A's).
-            const float back_x = back == tristram->npcs.end() ? float(tristram->ds1.width()) / 2 : back->x, back_y = back == tristram->npcs.end() ? float(tristram->ds1.height()) / 2 : back->y;
-            if (portal[3].level != tristram) portal[3] = { tristram, back_x, back_y, now_ms };
+            // Its twin (object 60, FUN_0056d130 -> FUN_0056cf40): at Tristram's type 11 spawn
+            // tile (FUN_0061b060, + 3 subtiles; it has one, drlg.md "Spawn tiles and the start
+            // spot"), twin_spot round it; the map's centre if d2d found none.
+            if (portal[3].level != tristram) {
+                float back_x = float(tristram->ds1.width()) / 2, back_y = float(tristram->ds1.height()) / 2;
+                if (!tristram->starts.empty()) {
+                    const int width = tristram->ds1.width() * 5, height = tristram->ds1.height() * 5;
+                    const auto flags = [&](int sub_x, int sub_y) -> int {
+                        if (sub_x < 0 || sub_y < 0 || sub_x >= width || sub_y >= height || tristram->walk.empty()) return 0x27;
+                        return tristram->walk[std::size_t(sub_y) * std::size_t(width) + std::size_t(sub_x)];
+                    };
+                    const auto [spot_x, spot_y] = twin_spot(tristram->starts.front().first * 5 + 3, tristram->starts.front().second * 5 + 3, flags);
+                    back_x = (float(spot_x) + 0.5f) / 5; back_y = (float(spot_y) + 0.5f) / 5;
+                }
+                portal[3] = { tristram, back_x, back_y, now_ms };
+            }
             arrive(tristram, portal[3].x, portal[3].y + 0.6f, "the Cairn Stones' portal");
             return;
         }
