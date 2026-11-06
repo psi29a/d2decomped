@@ -35,6 +35,9 @@ auto World::act3_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBit
 
 auto World::act3_join() -> void {
         fight.spawning.orb_smashed = d2d::rules::quest::bit(quests(), 0x12, 0);   // a3q5's join (FUN_005bb480): Khalim's Will done
+        // a3q7's join (LAB_005bd2c0): seen him (word 0x20 bit 0): the game's bit 13 (FUN_00544720) and no Dark Wanderer.
+        fight.spawning.wanderer_seen = d2d::rules::quest::bit(quests(), 0x20, 0);
+        if (fight.spawning.wanderer_seen) d2d::rules::quest::set(game_bits, 0x20, 13);
         d2d::rules::HratliGreeting::join(quests(), game_bits);
         lam_esen = {};
         lam_esen.join(quests(), game_bits, carries(d2d::rules::LamEsenQuest::kTome));

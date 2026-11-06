@@ -14,6 +14,7 @@
 #include <rules.hpp>
 #include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -81,6 +82,38 @@ int main() try {
         world.join(joiner);
         const auto& joined = world.players.back()->character.header;
         assert(!d2d::rules::quest::bit(joined.quests[std::size_t(joined.active_difficulty())], 10, 9));
+    }
+    {   // a3q1's +0xd8 (LAB_005b7bc0): a tome carried, one more about.
+        World world(&*data, -1, -1);
+        world.enter(make(kSorceress, "Lead"));
+        auto joiner = make(kSorceress, "Joiner");
+        d2d::d2s::Item tome;
+        tome.code = d2d::rules::LamEsenQuest::kTome; tome.identified = true;
+        tome.location = d2d::d2s::item_location::kStored; tome.panel = d2d::d2s::item_panel::kInventory;
+        joiner.items.push_back(tome);
+        const int before = world.lam_esen.holders;
+        world.join(joiner);
+        assert(world.lam_esen.holders == before + 1);
+    }
+    {   // a3q7's +0xd4 (LAB_005bd2c0): a first player who's seen the Dark Wanderer: the game's bit 13, none made.
+        World world(&*data, -1, -1);
+        auto seen = make(kSorceress, "Seen");
+        d2d::rules::quest::set(seen.header.quests[std::size_t(seen.header.active_difficulty())], 0x20, 0);
+        world.enter(seen);
+        assert(world.fight.spawning.wanderer_seen && d2d::rules::quest::bit(world.game_bits, 0x20, 13));
+        const auto* jungle = data->level(76);                                     // the Spider Forest: object 368's InitFn 43
+        assert(jungle);
+        const auto marker = std::ranges::find_if(jungle->units, [](const auto& unit) { return unit.type == d2d::rules::unit_type::kObject && unit.id == 368; });
+        const int wanderer = int(data->mon_bin[0x170]);
+        const auto wanderers = [&] { return std::ranges::count(world.fight.spawning.levels[jungle].spawns, wanderer, &d2d::rules::Spawn::type); };
+        const bool has_marker = marker != jungle->units.end();
+        if (has_marker) populate_level(*data, world.fight.spawning, *jungle);
+        assert(wanderers() == 0);                                                 // seen: none
+        world.enter(make(kSorceress, "Unseen"));
+        assert(!world.fight.spawning.wanderer_seen && !d2d::rules::quest::bit(world.game_bits, 0x20, 13));
+        if (has_marker) populate_level(*data, world.fight.spawning, *jungle);
+        assert(!has_marker || wanderers() == 1);                                  // unseen: him
+        if (!has_marker) std::printf("SKIP: no object 368 in the Spider Forest this seed\n");
     }
     std::printf("OK: quest joins\n");
     return 0;

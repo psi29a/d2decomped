@@ -67,6 +67,7 @@ struct ObjectRooms {
     d2d::rules::Rng game;                               // the game seed (game +0xd0): a step per unit made
     std::array<std::uint8_t, 96> game_quests{};         // Spawning's
     bool orb_smashed = false;                            // Spawning's
+    bool wanderer_seen = false;                          // Spawning's
     std::bitset<128> superuniques;                      // made (game +0x1d30)
     std::vector<std::array<int, 3>> rescue_cages;       // Spawning's
     int tomb_symbols = 0;                               // Spawning's
@@ -901,10 +902,11 @@ struct ObjectRooms {
                 if ((init == 49 && !hratli_moved) || (init == 50 && hratli_moved)) monster_or_npc(0xfd, unit, 0, false);
                 if (init == 52 && !d2d::rules::quest::bit(game_quests, 0x16, 13)) monster_or_npc(0x129, unit, 3, false);
                 // InitFn 43 (FUN_005bd1f0, a3q7, object 368 by the jungle's head): the Dark
-                // Wanderer (0x170) 7 subtiles east of it, its spot only; a3q7's init (FUN_005bd300)
-                // leaves him due in every game.
+                // Wanderer (0x170) 7 subtiles east of it, its spot only, while a3q7's data +1
+                // (0x5bd207): its init (FUN_005bd300) sets it, its +0xd4 (LAB_005bd2c0) clears it
+                // when the game's first player has seen him (Spawning::wanderer_seen).
                 // His walk: ai.cpp's DarkWanderer.
-                if (init == 43) { auto east = unit; east.x += 7; monster_or_npc(0x170, east, 0, false); }
+                if (init == 43 && !wanderer_seen) { auto east = unit; east.x += 7; monster_or_npc(0x170, east, 0, false); }
                 // Harrogath's markers (a new game's quest records): InitFn 71 (FUN_00587840,
                 // object 543, record 0x1f) Larzuk (0x1ff) within 5 of FUN_00545340's spot
                 // round it (size 2, mask 0x100, 100 rings; none: no Larzuk); InitFn 68
@@ -1174,6 +1176,7 @@ void ObjectRooms::load(Spawning& spawning, std::size_t room_index) {
     tomb_symbols = spawning.tomb_symbols;
     game_quests = spawning.game_quests;
     orb_smashed = spawning.orb_smashed;
+    wanderer_seen = spawning.wanderer_seen;
     region = std::size_t(level.id) < spawning.regions.size() ? spawning.regions[std::size_t(level.id)] : d2d::rules::Region{};
     auto& state = spawning.levels[&level];
     rooms_up(spawning);
