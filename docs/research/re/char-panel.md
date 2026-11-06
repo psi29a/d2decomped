@@ -333,9 +333,13 @@ items' part (`item_max`) and Battle Orders' (`bo_life` / `bo_mana`).
   draw mode 0 (25 % over what's there): `DAT_007bcad8[kind]` = nearest palette colour of
   (0x80,0,0) red, (0,0x80,0) green, (0,0,0x80) blue, (0x80,0x80,0), (0x80,0x40,0x40)
   (`FUN_00483960`: 0x08, 0x76, 0xea, 0x7e, 0x4d). Kind 0 when `FUN_0062eaf0` (requirements)
-  fails, item flag 4, `FUN_004c2240`, or flags 0x100 / 0x4000 (`FUN_0062a4e0`); 4 when
-  unidentified (flag 0x10 clear); 2 otherwise, but 0 for a used quest consumable
-  (items +0x12a, `FUN_00483f80`: ass / xyz / tr2 by their quest's bit); 1 the picked item.
+  fails, item flag 4, `FUN_004c2240` (a sub stat list with flag 2 on the item,
+  `FUN_00625760`, or the player in state 0x36 uninterruptable), or flags 0x100 / 0x4000
+  (`FUN_0062a4e0`); 4 when unidentified (flag 0x10 clear); 2 otherwise, but 0 for a spent
+  quest consumable (items +0x12a set and `FUN_00483f80`, on the client's quest words,
+  `FUN_004b32d0` / `FUN_0065c310`: `ass` the Book of Skill unless word 9 bit 5, `xyz` the
+  Potion of Life unless word 0x14 bit 5, `tr2` the Scroll of Resistance unless word 0x25
+  has bit 8 and not bit 7); 1 the picked item.
   Measured: red (42,6,6) / blue (12,6,32) over (8,8,8), i.e. RGB 25 %.
 - **800x600 border** (`FUN_00499450`, mode 2): `PANEL\800BorderFrame` frames 0..4 round a
   left panel (`FUN_00498630`), 5..9 a right one (`FUN_00498700`), before the panels.

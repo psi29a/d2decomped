@@ -38,11 +38,13 @@ namespace d2d::client {
 // (the Cube: draw_storage)
 void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Scene::InvLayout& layout,
                     const std::vector<d2d::d2s::Item>& items, int mouse_x = -1, int mouse_y = -1, const d2d::rules::Wearer* wearer = nullptr,
-                    const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr, bool weapon_set_two = false);
+                    const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr, bool weapon_set_two = false,
+                    const d2d::d2s::Header* header = nullptr);   // the player's quest words (tint_cells)
 
 // A grid item's cells under their colour: red when `wearer` can't use it,
 // dull red unidentified, else blue (FUN_00483ff0; inventory and store).
-void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect);
+void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer, const std::array<int, 4>& rect,
+                const d2d::d2s::Header* header = nullptr);
 
 // Character panel (left of the inventory: 800x600 puts the left panels
 // at 80..400). Art: invchar6.dc6 frames 0..3. Label and value boxes are
@@ -116,7 +118,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // (state 0x18 / 0x88), no Show HP / MP Text toggles (a globe click,
 // DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
 struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;
-             std::array<std::string, 4> belt_keys{}; };   // the keys bound to Use Belt 1..4, by name (draw_belt)   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's
+             std::array<std::string, 4> belt_keys{};     // the keys bound to Use Belt 1..4, by name (draw_belt)   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's
+             const d2d::d2s::Header* header = nullptr; };   // the player's: its quest words (the grid's tint, tint_cells)
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
 // The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by
