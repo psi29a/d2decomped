@@ -523,8 +523,8 @@ struct EnergyShield {
 // record by record in landing order. The physical field is taken from `raw` as absorb_blows leaves it (Bone Armor first).
 // What a blow carries that no field accounts for (a record built without them: Corpse Explosion, a Fire Golem's burn) is taken
 // from as it stands, as the shield used to take everything.
-// ponytail: a state absorb registered later runs first in game.exe (FUN_005c0ad0); the armor-before-shield order of Fight::absorb
-// is kept, and a Cyclone Armor cut is not put back through the resistance. Magic has no percent resistance on a monster blow here
+// The state cast later runs first (FUN_005c0ad0: Fight::absorb).
+// ponytail: a Cyclone Armor cut is not put back through the resistance. Magic has no percent resistance on a monster blow here
 // (monster_blow), so its field goes through the flat reduction only.
 // A field the shield did not touch keeps monster_blow's value, which has the same order (reduction, resistance, a negative kept in the total).
 inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shield) {

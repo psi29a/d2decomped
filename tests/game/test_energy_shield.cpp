@@ -253,6 +253,45 @@ int main() try {
                         assert((life >> 8) == (want.life >> 8) && mana_left == want.mana);
                         ++cases;
                     }
+    // Bone Armor and Energy Shield together: the state cast later takes from the record first (FUN_005c0ad0, 0x5c0ad0, puts
+    // its event node at the head of the unit's list; a re-cast, FUN_005c9480 / FUN_005c9c10, re-registers it there).
+    {
+        int bone_id = -1;
+        for (int id = 0; id < 400 && bone_id < 0; ++id)
+            if (const auto* skill = data->skills.get(id); skill && skill->aurastate == "bonearmor") bone_id = id;
+        assert(bone_id >= 0);
+        int es_level = 1;   // the first level that takes at least 40 %
+        while (es_level < 60 && fight.calc(*es_skill, es_skill->calc[0], es_level) < 40) ++es_level;
+        const int pct = std::clamp(fight.calc(*es_skill, es_skill->calc[0], es_level), 0, 95);
+        assert(pct >= 40 && pct < 95);
+        auto both = [&](bool shield_last) {
+            rules::MonStats attacker;
+            attacker.level = 1;
+            for (auto& element_row : attacker.elements) element_row.type = -1;
+            attacker.a1_min = attacker.a1_max = 100;
+            Foe foe = fight.player_foe(now);
+            foe.fighter.dr_pct = 0; foe.fighter.dr_flat = 0; foe.fighter.mdr = 0;
+            rules::Rng rng(12345);
+            foe.take(rules::monster_blow(foe.fighter, 1, rules::Motion::running, attacker, false, rng, false, true, true));
+            hero.self_states = states;
+            using SelfState = decltype(hero.self_states)::value_type;
+            const SelfState shield{ es_id, es_level, ~0u }, bone{ bone_id, 1, ~0u };
+            hero.self_states.push_back(shield_last ? bone : shield);
+            hero.self_states.push_back(shield_last ? shield : bone);
+            hero.absorb_pool = 70; hero.absorb_frac = 0; hero.absorb_skill = bone_id;
+            hero.character.stats.values[d2d::d2s::kMana] = 600 * 256;
+            hero.self_hurt = 0;
+            hero.pmode = -1;
+            return std::pair{ fight.absorb(foe, now), hero.absorb_pool };
+        };
+        // The shield cast last: it takes pct % of the 100 first, the pool (70) all the rest.
+        const auto [shield_life, shield_pool] = both(true);
+        assert(shield_life == 0 && shield_pool > 0);
+        // The armor cast last: its pool takes 70 first, the shield pct % of the 30 left.
+        const auto [bone_life, bone_pool] = both(false);
+        std::printf("Bone Armor and Energy Shield (%d %%): shield last %d life %d pool, armor last %d life %d pool\n", pct, shield_life, shield_pool, bone_life, bone_pool);
+        assert(bone_life > 0 && bone_life < 30 && bone_pool == 0);
+    }
     hero.self_states = std::move(states);
     std::printf("OK: Energy Shield through the real Fight::absorb, %d cases, life and mana as game.exe's order\n", cases);
     return 0;

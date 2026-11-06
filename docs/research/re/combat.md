@@ -238,6 +238,14 @@ d2d matches both, and the one-poison-at-a-time rule.
   least 50), 10 a random one of 1..10; 11 fire with burn length [6] ≥ 50,
   12 cold with freeze length [0xd] ≥ 50. d2d: `player_blow`.
 
+The absorb events run newest first: FUN_005c0ad0 (0x5c0ad0, SUnitEvent.cpp)
+puts each new event node at the head of the unit's list (+0x90), and a buff's
+cast first drops its state's old nodes (FUN_005c0b50(1, state): do 18
+FUN_005c9480, do 23 FUN_005c9c10) before FUN_0056e740 registers them again. So
+on each record the state cast last takes first: Energy Shield cast after Bone /
+Cyclone Armor takes its percent before the armor's pool sees the field; the
+armor cast after the shield goes first (as d2d always did).
+
 ## Corrections applied (phase 0)
 
 1. Hit chance rounds as game.exe does: percent first, then × 2 × alvl /
