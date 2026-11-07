@@ -43,3 +43,36 @@ language byte, the expiry frame or the list link.
 
 Re-check: `python3 tools/ghidra/fn.py 00661110`, and `grep -n 00661110
 docs/research/re/game-srcfiles.tsv`.
+
+## Small functions in the same work package (cited)
+
+None of these is in `Chat/Chat.cpp`; they came with the seed's callee list.
+
+- `FUN_00413750` (162 bytes) is the CRT `strlen`: a null pointer calls
+  `FUN_0041c340(0x57)` (the invalid-parameter path) and returns 0; otherwise
+  it counts with the word-at-a-time zero-byte test. Not game-specific.
+- `FUN_0044b7b0` (12 bytes) returns the dword at `DAT_007a0438 + 0x225`
+  (`DAT_007a0438` is the client-state block whose +0x1ef flag 0x20 marks an
+  expansion character, `tcpip-menu.md`). Callers: `FUN_0044cf20`,
+  `FUN_00477ee0`, `FUN_0047bdf0`, `FUN_0047c100`, `FUN_0047c1f0`. What the
+  field means is not traced here.
+- `FUN_006b1350` (6 bytes) is the import thunk for `DirectDrawCreate`
+  (ddraw.dll); the decompile is a self-call because the jump is indirect.
+  Callers `FUN_00511d0e`, `FUN_006b42f0`, `FUN_006b59a0`.
+- `FUN_0046dbf0` (69 bytes, `ECX` unused, `EDX` = path, `EDI` = out) copies the
+  base name of a path: if the byte 4 before the end is `.`, it walks back to
+  the last `\`, and copies the characters between (via `_strncpy`) with a 0.
+  It does not check that a `\` exists, so a path with an extension and no `\`
+  reads before the string. Other paths leave the output untouched.
+- `FUN_0046dc40(table)` (121 bytes, `Gfx.cpp` callers `FUN_0046dcc0`,
+  `FUN_0046e740`, `FUN_0046f650`) looks up a loaded graphic by file name: it
+  zeroes a 0x104-byte local, takes the base name (`FUN_0046dbf0`), lower-cases
+  it (`__strlwr`), hashes it with `FUN_0046db90` (`FUN_00413ce0` mixed down and
+  masked with 0x1ff: 512 buckets; a name of 8 or more characters is fatal:
+  message `FUN_00408090(0x79)`, `FUN_00681e09(-1)`), and walks the chain from
+  `table + 0xc + hash * 4`. A node's next pointer is at +0, its name is the 8
+  bytes at +0xc and +0x10, compared as two dwords. It returns the node or 0.
+
+d2d: not ported (no name-hash cache for graphics).
+
+Re-check: `python3 tools/ghidra/fn.py 0046dc40`, and the same for each address.
