@@ -799,6 +799,9 @@ struct Fight {
     // and its aip1's element, within its aip4 (fight/).
     void suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
     [[nodiscard]] bool blast_reaches(const Monster& monster, const Foe& foe, int radius) const;
+    // MonUMod 22's death hook (rules::killself_hooks): killself on the
+    // monsters about the boss; Radament's and Mephisto's death missiles.
+    void quest_death(Monster& boss, std::uint32_t now_ms);
 
     // Monster i died (the player's or the merc's doing): the player gets the
     // experience, its pack may scatter, it drops its loot.

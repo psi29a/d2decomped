@@ -37,6 +37,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_005a30e0` mod 24 | thief (MonUMod 24) on a hit | unreachable | MonUMod disables it; `FUN_005a49b0` skips it for Lord De Seis | not ported | monsters.md |
 | `FUN_005dd140` | counts uber Mephisto / Diablo / Baal, 0x2c7, 0x2c8, 731..733 in a radius | orphan | — | not ported | same |
 | `FUN_005df2a0` | a step of n subtiles toward a unit on each axis (sign of the difference), started as move mode 2 (`FUN_005a7e60` / `FUN_005a7c20`) | orphan (no call, jump or pointer) | — | not ported | — |
+| `FUN_005e0060` | MonUMod 22's death hook for the Ancients (class 0x21c..0x21e, 0x5a32ed) | stub (`ret`) | nothing happens about them as each dies | nothing | superuniques.md "MonUMod 22" |
 | `FUN_005e2d80` +0x1c | a riding imp's two extra draws when its AI control +0x1c is set | unreachable | the init (FUN_005e2cd0) copies 0x6e34e0's flags, both 0 | not ported | monster-ai.md "The imps' ride and skills" |
 | `FUN_005e9750` | AiThink4.cpp: a player search by rooms with class weights and a cached pick at AI control +0x14 (1.13 uber Diablo's, beside `FUN_005e9dd0`) | orphan (no call, jump or pointer) | — | not ported | bugs.md #26 |
 | `FUN_005e9dd0` | makes 0x2c7 (demonhole) at a unit, mode 1, flags 0x40 | orphan | — | not ported | monster-ai.md, as above |

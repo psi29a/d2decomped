@@ -91,6 +91,21 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
             // Scarab (FUN_005a2eb0 / FUN_005a2ee0): into GH or DT, 2 frames on,
             // 8 buglightning (4 ways x 2) at its level, steered as lightning enchanted's.
             if (scarab && monster.mode != monster.fx_mode && (monster.mode == "GH" || monster.mode == "DT")) monster.scarab_due.push_back(now_ms + 2 * 40);
+            const bool questcomplete = std::ranges::contains(monster.mods, d2d::rules::umod::questcomplete) || std::ranges::contains(family, d2d::rules::umod::questcomplete);
+            if (questcomplete && monster.mode != monster.fx_mode && monster.mode == "DT") quest_death(monster, now_ms);
+            // Killself's event (FUN_005a3aa0): alive, 3 frames on while
+            // uninterruptable (state 0x36), else into death (FUN_005a7c20 mode 0:
+            // no credit). Its player-owner branch (FUN_005750e0) needs a pet,
+            // which FUN_005dfbf0's evil-only pick never gives it.
+            if (monster.killself_at && now_ms >= monster.killself_at) {
+                monster.killself_at = 0;
+                if (monster.uninterruptable()) monster.killself_at = now_ms + 3 * 40;
+                else if (monster.alive()) {
+                    monster.hit_points = 0;
+                    set_mode(*game_data, monster, "DT", now_ms);
+                    killed(std::size_t(&monster - monsters.data()), now_ms, false);
+                }
+            }
             monster.fx_mode = monster.mode;
             while (!monster.scarab_due.empty() && now_ms >= monster.scarab_due.front()) {
                 monster.scarab_due.erase(monster.scarab_due.begin());
@@ -133,6 +148,31 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 }
             }
             monster.last_hp = monster.hit_points;
+        }
+    }
+
+// FUN_005dfbf0: each monster the unit finder takes within radius subtiles
+// of the boss (flags 0x583: alive, unit +0xc4 & 4 and & 8, d2d's
+// targetable(); not in town, which no boss here is), evil (FUN_006259b0)
+// and not diabloclone (0x14d), gets killself (MonUMod 21, FUN_005a4850(0x15,
+// 0)), its event 7 first + rand(end - first) frames on. Mephisto's
+// (FUN_005dfdb0) is mephistodeathcontrol (299) on himself; Radament's also
+// radamentdeath (347) at his spot (FUN_0056ede0).
+// ponytail: the draws go in monsters order, not the near rooms' unit lists; the two death missiles
+// (client do 26 / 32: Mephisto's fire walls and rocks, Radament's) aren't made, d2d has neither do.
+auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
+        const auto row = [&](int bin_row) { return std::size_t(bin_row) < game_data->mon_bin.size() ? int(game_data->mon_bin[std::size_t(bin_row)]) : -1; };
+        const auto radament = game_data->missiles.find("radamentdeath");
+        const auto subtile = [](float value) { return int(std::floor(value * 5)); };
+        for (const auto& hook : d2d::rules::killself_hooks(radament != game_data->missiles.end() ? radament->second.range : 0)) {
+            if (boss.type != row(hook.monstats_row)) continue;
+            for (auto& other : monsters) {
+                const int off_x = subtile(other.unit.x) - subtile(boss.unit.x), off_y = subtile(other.unit.y) - subtile(boss.unit.y);
+                if (!other.targetable() || other.align != 0 || other.type == row(0x14d) || off_x * off_x + off_y * off_y > hook.radius * hook.radius) continue;
+                const std::uint32_t due = now_ms + std::uint32_t(hook.first + boss.seed(hook.end - hook.first)) * 40;
+                if (!other.killself_at || due < other.killself_at) other.killself_at = due;
+            }
+            d2d::log::info("{} is dead: those about it die with it", boss.npc.name);
         }
     }
 

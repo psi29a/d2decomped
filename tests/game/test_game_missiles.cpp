@@ -472,6 +472,35 @@ int main() try {
         world.fight.pending.clear();
         world.fight.monsters.pop_back();
         std::printf("OK: Lightning Enchanted struck in GH lets off its bolts 2 frames on\n");
+
+        // Andariel dead (MonUMod 22, FUN_005dfe00 -> FUN_005dfbf0(35, 1, 51)):
+        // the monsters within 35 subtiles get killself 1..50 frames on, and die.
+        Monster andariel;
+        andariel.type = int(data->mon_bin[0x9c]);
+        andariel.id = 0x7ffff2;
+        andariel.mods = { d2d::rules::umod::questcomplete };
+        andariel.unit.x = world.actor->player.x + 3; andariel.unit.y = world.actor->player.y;
+        Monster near_one, far_one;
+        for (auto* minion : { &near_one, &far_one }) {
+            minion->type = 0;
+            minion->hit_points = 100;
+            minion->unit.y = andariel.unit.y;
+        }
+        near_one.id = 0x7ffff3; near_one.unit.x = andariel.unit.x + 6;   // 30 subtiles
+        far_one.id = 0x7ffff4; far_one.unit.x = andariel.unit.x - 8;     // 40
+        andariel.mode = "DT";
+        const std::size_t first = world.fight.monsters.size();
+        world.fight.monsters.push_back(std::move(andariel));
+        world.fight.monsters.push_back(std::move(near_one));
+        world.fight.monsters.push_back(std::move(far_one));
+        world.fight.boss_events({}, 8000 * kTickMs);
+        const std::uint32_t due = world.fight.monsters[first + 1].killself_at;
+        assert(due > 8000 * kTickMs && due <= 8050 * kTickMs && world.fight.monsters[first + 2].killself_at == 0);
+        world.fight.boss_events({}, due);
+        assert(!world.fight.monsters[first + 1].alive() && world.fight.monsters[first + 1].mode == "DT" && world.fight.monsters[first + 2].alive());
+        world.fight.monsters.resize(first);
+        world.fight.pending.clear();
+        std::printf("OK: Andariel's death takes the monsters about her with her\n");
     }
 
     // UberIzual's Chilling Armor (do 18): skill_armor_percent on its defense
