@@ -357,7 +357,11 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             if (net_chat_npc && (!host_npc || host_npc->id != net_chat_npc)) { net_game->send_items({ c2s::npc_chat(false, 1, net_chat_npc) }); net_chat_npc = 0; }
             if (host_npc && host_npc->id != net_chat_npc) { net_chat_npc = host_npc->id; net_game->send_items({ c2s::npc_chat(true, 1, net_chat_npc) }); }
         }
-        for (const auto& command : input(mouse, over_ui)) send(command);
+        if (mouse.press_this_frame || !mouse.down) hold_interact = false;
+        for (const auto& command : input(mouse, over_ui)) {
+            if (mouse.press_this_frame && std::holds_alternative<cmd::Interact>(command)) hold_interact = true;   // set before the tick applies it
+            send(command);
+        }
         // The screen's pad plays the screen's player (local co-op: a partner's while they have it).
         const Send to_world = [this](const Command& command) { send(command); };
         const bool field = pad_field() && !game_menu.open && !chat_typing && !gold_box;
@@ -385,6 +389,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             world_ms += kTickMs;
             ticked = true;
         }
+        if (ticked && focused().interact_npc < 0) hold_interact = false;   // talked, gone, or nothing queued (a portal, corpse or non-menu unit sets none)
         if (!ticked && view.level == world.level) return;
         if (ticked && g_unit_slide && view.level == world.level) remember_slides(view, slide_from);   // where the View had them: the slide's start
         else slide_from.clear();
