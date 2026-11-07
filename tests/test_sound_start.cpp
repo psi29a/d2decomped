@@ -64,6 +64,8 @@ int main() try {
     assert(menu == 5 && d2d::rules::menu_duck_step(menu, true) == 0 && d2d::rules::menu_duck_step(0, true) == 0);
     assert(d2d::rules::menu_duck_step(98, false) == 100);
     // Applied to the volume: the menu spares cursor, ambience and music rows; Solo spares Solo rows.
+    assert(d2d::rules::sound_ticks_due(39, false) == 0 && d2d::rules::sound_ticks_due(85, false) == 2 && d2d::rules::sound_ticks_due(10000, false) == 100);
+    assert(d2d::rules::sound_ticks_due(0, true) == 1 && d2d::rules::sound_ticks_due(85, true) == 1);   // paused: one a loop pass (FUN_00482c20)
     assert(d2d::rules::master_scaled(255, 100) == 255 && d2d::rules::master_scaled(255, 55) == 140 && d2d::rules::master_scaled(255, 0) == 0);   // 0x4dfca1
     assert(d2d::rules::ducked_volume(200, 500, false, 50, 100) == 100);
     assert(d2d::rules::ducked_volume(200, 0x40, false, 0, 100) == 200);      // scene_* ambience

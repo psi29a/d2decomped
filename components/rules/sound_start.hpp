@@ -92,6 +92,13 @@ constexpr int menu_duck_step(int percent, bool paused) {
 constexpr bool menu_exempt(int row) {
     return (row >= 1 && row <= 0xf) || (row >= 0x34 && row <= 0x47) || (row >= 0x1231 && row <= 0x125a);
 }
+// The sound ticks a client frame runs (FUN_00482c20: no clock of its own,
+// DAT_007bc9bc + 1 a call): one each 40 ms frame in play, at most 100 to
+// catch up; under the paused game menu one each pass of the message loop
+// (menu.md "The pause"), so one each frame, however short.
+constexpr std::uint64_t sound_ticks_due(std::uint64_t elapsed_ms, bool paused) {
+    return paused ? 1 : std::min<std::uint64_t>(elapsed_ms / 40, 100);
+}
 // A sound's 0..255 volume under the master slider (0x4dfca1, FUN_00514cc0:
 // whole percent, truncated), before the ducks. Nothing else takes the master:
 // a cinematic's sound (Bink) plays at its own level.

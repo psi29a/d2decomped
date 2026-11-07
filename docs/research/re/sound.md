@@ -63,6 +63,16 @@ Each sound tick `FUN_004ba020` (0x4ba68f) steps two volume percentages:
   instances keep running: under the pause the world's sounds fade out
   while the ambience and the music play on, and fade back in after.
 
+The sound tick (`FUN_00482c20`: `FUN_004e42e0`, `FUN_004dcaa0`,
+`FUN_00482b40`, `FUN_004ba020`, `FUN_004df890`, then `DAT_007bc9bc` + 1
+and `Sleep(0)`) has no clock of its own: `FUN_004df870` is only the
+sound-on flag (`DAT_007c8c78`). `FUN_004ba020` steps the ducks once per
+new `DAT_007bc9bc`, so they move once per call. In play the 40 ms frame
+paces the calls; under the pause (menu.md "The pause") the client calls
+it every pass of its message loop, whose `Sleep(10)` is skipped while
+the window is active, so the menu's duck (20 steps of 5) runs out in 20
+passes, a few ms on a fast machine.
+
 Both are applied in `FUN_004dfc20`, on the instance's 0..255 volume
 (+0x1c), in this order, each a whole percent with the product truncated
 (`* 0x51eb851f, sar 5`): Music Vol rows x music / 100 (0x4dfc84), every
