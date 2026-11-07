@@ -237,7 +237,15 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                 break;
             case ServerDoFunction::kMirrorImage: pet.mirror = true; break;          // Shadow Warrior / Master (FUN_005d6e70): the owner's level and gear
             case ServerDoFunction::kRaven: pet.hits = std::max(skill.par[4], 1); break;   // Raven: its attacks
-            case ServerDoFunction::kBoneWall: case ServerDoFunction::kBonePrison: pet.idle = true; pet.until = now_ms + 24000; break;   // bone: it stands (24 s: ponytail, the published time)
+            case ServerDoFunction::kBoneWall: case ServerDoFunction::kBonePrison: {
+                // It stands. BoneWall's init (FUN_005e0390) keeps the frame + its Skill1's Param2 (Bone Wall's 600; both
+                // skills' Param2 is 600); its first think past that (25 frames after it's made, then every 15: FUN_005e0400)
+                // puts it in DT, at frame 610.
+                const int last = skill.par[1];
+                pet.idle = true;
+                pet.until = now_ms + std::uint32_t(last < 25 ? 25 : 25 + ((last - 25) / 15 + 1) * 15) * 40;
+                break;
+            }
             case ServerDoFunction::kVine: monster.stats.level = std::max(calc(skill, skill.calc[1], lvl), 1); break;   // Vines (FUN_005c6a80): calc2 is its level
             default: break;
         }

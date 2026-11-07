@@ -69,6 +69,7 @@ int main() try {
     world.fight.summon(skill, 1, point_x, point_y, now);
     const auto pieces = [&] { return std::ranges::count_if(world.actor->pets, [&](const auto& pet) { return pet.skill == skill.id; }); };
     assert(pieces() == 1 && world.fight.pending.size() == 2);
+    assert(world.actor->pets.back().until == now + 610 * kTickMs);   // FUN_005e0390 / FUN_005e0400: the first think past frame 600
     std::size_t after_first_frame = 0;
     for (int frame = 0; frame < 40; ++frame) {
         now += kTickMs;
