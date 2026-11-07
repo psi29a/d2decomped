@@ -702,15 +702,11 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         Level glow_level;
         add(glow_level, 131, 0, 0);                           // the afterglow (InitFn 59, FUN_005bd390): plays mode 1
         if (!glow_level.npcs.empty()) { game_data.afterglow = std::move(glow_level.npcs[0]); game_data.afterglow.mode = "OP"; }
-        Level portal_level;
-        add(portal_level, 59, 0, 0);                          // the town portal
-        add(portal_level, 60, 0, 0);                          // the permanent (red) one
-        add(portal_level, 189, 0, 0);                         // Cain's
-        if (portal_level.npcs.size() == 3) {
-            game_data.town_portal = std::move(portal_level.npcs[0]);
-            game_data.red_portal = std::move(portal_level.npcs[1]);
-            game_data.cain_portal = std::move(portal_level.npcs[2]);
-        }
+        // Each look on its own: a row missing from objects.txt loses only that one.
+        const auto portal = [&](int oid, Npc& look) { Level one; add(one, oid, 0, 0); if (!one.npcs.empty()) look = std::move(one.npcs[0]); };
+        portal(59, game_data.town_portal);                    // the town portal
+        portal(60, game_data.red_portal);                     // the permanent (red) one
+        portal(189, game_data.cain_portal);                   // Cain's
     }
     for (const auto& object : game_data.town.ds1.objects())
         if (object.type == d2d::rules::unit_type::kObject && object.id >= 0 && object.id < 150) add(game_data.town, kObjPreset[0][std::size_t(object.id)], object.x, object.y);   // act 1
