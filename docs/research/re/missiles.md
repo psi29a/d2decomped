@@ -518,3 +518,22 @@ and no damage (returns 0; game.exe's decompile also returns 0 on the filter-pass
 aurastats of `FUN_005c6cc0` was not checked, and game.exe's decompile shows
 no floor on the length (d2d takes at least 1). No difference proven; no
 oracle run.
+
+## Ring of eight — FUN_005ab700 (helper of hit 25)
+
+Cited. Makes up to eight missiles round a unit. Rejects a row index outside
+the table (`PTR_DAT_00744304 + 0xb6c`). Param block (zeroed 0x5c bytes) for
+`FUN_0059fa30`: flags **0x1f** (start subtile, relative target, velocity
+given), [1] owner (EDX), [2] the start unit, [4] the row, [5] / [6] the
+start unit's subtile (as in `FUN_005ab2a0`), [7] / [8] the offset from the
+tables `0x6e2618` / `0x6e25f8`, [10] the row's field `+0x38` << 7 as the
+velocity, skill and level in [0xb] / [0xc] and the level - 1 in [0xd]. The
+offset index steps `param_7 * 4` bytes over 0x20, so a step of 1 makes 8
+(the 8 table entries), 2 makes 4. The return paths I read in the decompile return 1. The order of the register and stack arguments is
+not settled from the decompile, so the skill / level / step roles are the
+most likely reading, not proven.
+
+Re-check: `python3 tools/ghidra/fn.py 005ab700`,
+`python3 tools/ghidra/fn.py 0059fa30`.
+
+d2d: not ported (no mention of the tables or of 0x6e2618).
