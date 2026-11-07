@@ -745,6 +745,14 @@ struct ArcaneQuest {
         if (state == 4 && (log == 2 || log == 3)) quest::set(quest_bits, kQuest, 4);
         if (state == 4 && log == 4) quest::set(quest_bits, kQuest, 5);
     }
+    // A joined client's palace guard on his "!" (S->C 0x8a, FUN_004b3380):
+    // "Halt" (Sounds.txt 3983 guard_halt) with no talk open (FUN_004b1620,
+    // a talk with anyone), the player's bits 8 and 1 both clear
+    // (FUN_0065c310) and no harem blocker (object 318) in mode 2.
+    [[nodiscard]] static bool guard_halts(bool talk_open, const QuestBits& quest_bits, bool harem_open) {
+        return !talk_open && !harem_open && !quest::bit(quest_bits, kQuest, 8) && !quest::bit(quest_bits, kQuest, 1);
+    }
+    static constexpr int kGuardHalt = 3983, kHaremBlocker = 318;
     // The guard stands aside (FUN_0059aef0).
     void let_in(QuestBits& quest_bits) {
         guard_in = true;

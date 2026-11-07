@@ -526,9 +526,22 @@ ids).
   `NetGame::npc_alerts` → an independent balloon start at the packet's
   arrival, AnimRate 9 at 25 ticks/s; the existing local expiration after
   16 * 111 ms remains an approximation (quests.md).
-  Class 0x216 closes the UI (`FUN_004b9a00`); if it isn't the unit being
-  talked to, the player resets (`FUN_00470390(3)`); class 0x14b runs
-  quest checks.
+  In full (asm 0x4b3380..0x4b346c):
+  - class 0x216 (act5pow, the Act 5 prisoners) gets no "!": a sound on it
+    (`FUN_004b9a00`, the sound player, EDX the unit): 0x11fb
+    (wussie_cheer_1) when `FUN_004ae130` (a monster's data +0x14 → +0x3c)
+    isn't -1, else 0x11ff (wussie_help_me);
+  - any other unit but the one being talked to (`DAT_007c0d29` on,
+    `DAT_007c0d25` its id) gets the "!" (`FUN_00470390`, ECX the unit,
+    EDX 0x48, kind 3);
+  - then class 0x14b (act2guard2, the palace guard), with no talk open
+    (`FUN_004b1620`), the client's quest record `DAT_007c0d43` there and
+    quest 12 (the Arcane Sanctuary) bits 8 and 1 both clear
+    (`FUN_0065c310`): the client's objects (hash 0x7a6270,
+    `FUN_004649d0` → `FUN_00463c90`) are searched for class 0x13e (318,
+    the eunuch harem blocker `ss`) in mode 2 (`LAB_004b3360` sets
+    `DAT_007c0dda`); none found, sound 0xf8f (3983 guard_halt) on the
+    guard.
 - **0x58 open UI** (7; `0x45e490`): +1 u32 unit id, +5 u8 UI (0 open;
   1 / 4 / 5 / 6 / 7 close variants) **(?)** which is which.
 - **0x77 button action** (2; `FUN_004b8cf0`): +1 u8 action on the trade

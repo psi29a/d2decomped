@@ -529,6 +529,19 @@ int main() try {
     // Sanctuary, the journal (done for a player there), its 396 in the
     // journal's room opens the way to the Canyon once.
     QuestBits sanctuary{}, sanctuary_game{};
+    {   // The guard's "Halt" on his "!" (FUN_004b3380): no talk, bits 8 and 1 clear, the harem shut.
+        QuestBits guard_bits{};
+        assert(ArcaneQuest::guard_halts(false, guard_bits, false));
+        assert(!ArcaneQuest::guard_halts(true, guard_bits, false) && !ArcaneQuest::guard_halts(false, guard_bits, true));
+        quest::set(guard_bits, ArcaneQuest::kQuest, 8);
+        assert(!ArcaneQuest::guard_halts(false, guard_bits, false));
+        guard_bits = {};
+        quest::set(guard_bits, ArcaneQuest::kQuest, 1);
+        assert(!ArcaneQuest::guard_halts(false, guard_bits, false));
+        guard_bits = {};
+        quest::set(guard_bits, ArcaneQuest::kQuest, 7);   // the first line heard: still halts
+        assert(ArcaneQuest::guard_halts(false, guard_bits, false));
+    }
     ArcaneQuest arcane;
     arcane.staff_made(sanctuary);
     assert(arcane.state == 1 && arcane.log == 1 && arcane.alert(sanctuary, ArcaneQuest::kDrognan));
