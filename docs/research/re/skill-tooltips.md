@@ -16,6 +16,19 @@ SkillDesc.txt. Port: `components/game/skill_text.hpp`.
 
 Every builder appends to one wide string, **bottom line first**, lines
 split by 0xf9e "\n"; `FUN_00502280` draws it centred, last line on top.
+
+Where the skill tree's box goes (`FUN_004abf60` → `FUN_004eef00`, asm
+0x4ef3ce..0x4ef3fb): `FUN_00502520` measures the text (width, height),
+then `FUN_00502280(text, x = icon left − 0x18, y = icon bottom + height
++ 3, 0, 0)` keeps it for the frame's hover draw, `FUN_00503000`. That one
+(stack argument 4 is 0: not centred) puts the box's left at x and its
+bottom at y + 2, the box text width + 8 wide and the text's height
+tall; the left clamped to 0 .. screen width − box width, the bottom to at
+least height − 5 and at most screen height − 5; the box darkened
+(`FUN_004f6300` mode 2) and the lines centred in it (`FUN_00501a80`, 1).
+A text taller than the screen less 10 is redrawn in font 0, then 6. So
+the tree's box hangs below the icon, 5 px under it, from 24 px left of
+it.
 `FUN_004521c0(buffer, n)` puts colour code n in front of a block; codes
 carry on through what follows, so a coloured block is followed by a
 newline in the line's own colour.
