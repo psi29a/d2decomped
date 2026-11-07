@@ -309,6 +309,7 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     if (ambient < 0) ambient = view.level->light >= 0 ? view.level->light : view.day.intensity();
     const auto [player_x, player_y] = player_at ? *player_at : std::pair{ cam_x, cam_y };
     lighting.ambient = ambient;
+    lighting.environment = view.day.environment;
     if (g_light_grid) lighting.grid.reset(int(cam_x * 5), int(cam_y * 5), ambient, half * 2);
     else lighting.grid.reset(int(player_x * 5), int(player_y * 5), ambient);
     for (int j = 0; j < lighting.grid.grid_size; ++j)                            // what walls light (FUN_004756d0)

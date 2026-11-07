@@ -539,12 +539,13 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         // Roof — hoist by the DT1's own roof_height.
         auto [iso_x, iso_y] = iso(roof.cell_x, roof.cell_y);
         iso_y -= tile.roof_height;
-        // A raised roof takes the ambient alone (FUN_004dea70 hands its
-        // roof_height to FUN_004ddef0, which then fills the table with
-        // the environment's light, no lamps); a flat one is lit as a floor.
+        // A raised roof takes the environment's intensity alone
+        // (FUN_004dea70 hands its roof_height to FUN_004ddef0, which then
+        // fills the table from FUN_0061c0e0): no lamps, and not the level's
+        // own light (FUN_00474550 isn't called). A flat one is lit as a floor.
         const Hole* cutout = g_roof_cutout ? &hole : nullptr;
         if (floor_drawn(iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH))) g_drawn.cells.push_back({ roof.cell_x, roof.cell_y, roof.source });
-        if (light && tile.roof_height) blit_dt1_tile(framebuffer, tile, (*light->pal)[std::size_t(std::clamp(light->ambient, 0, 255) >> 3)], iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), 255, cutout);
+        if (light && tile.roof_height) blit_dt1_tile(framebuffer, tile, (*light->pal)[std::size_t(std::clamp(light->environment, 0, 255) >> 3)], iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), 255, cutout);
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), roof.cell_x, roof.cell_y, 255, cutout);
         else blit_dt1_tile(framebuffer, tile, pal, iso_x - kIsoW / 2, iso_y - (std::abs(tile.height) - kIsoH), 255, cutout);
     }

@@ -98,6 +98,58 @@ int main() try {
         sky.set(2, 0, false);
         assert(!sky.eclipse && sky.intensity() == 128);
     }
+    // The environment's intensity (+0xc), what raised roofs take
+    // (FUN_0061bb80, game.exe's numbers under the emulator). Act 4 has no
+    // sun: each level has a target, reached one a frame from above or below.
+    constexpr std::array<std::pair<int, int>, 8> kAct4Targets{ { { 102, 16 }, { 103, 0x80 }, { 104, 0x40 }, { 105, 0x38 },
+                                                                 { 106, 0x30 }, { 107, 16 }, { 108, 16 }, { 109, 16 } } };
+    for (const auto& [level, target] : kAct4Targets) {
+        assert(act4_light(level) == target);
+        for (const int start : { 255, 1 }) {
+            Day fortress;
+            fortress.environment = start;
+            int settled = 0;
+            for (int frame = 1; frame <= 300; ++frame) {
+                const int before = fortress.environment;
+                fortress.step(3, level);
+                assert(std::abs(fortress.environment - before) <= 1);    // a step a frame
+                if (fortress.environment == target && !settled) settled = frame;
+            }
+            assert(fortress.environment == target && settled == std::abs(start - target));
+        }
+    }
+    {   // From full light, Pandemonium Fortress's roofs reach 128 in 127
+        // frames, though its level light is 140; the clock and the eclipse
+        // aren't read there (200 gives 199, 198 either way).
+        Day fortress;
+        fortress.environment = 255;
+        for (int frame = 0; frame < 126; ++frame) fortress.step(3, 103);
+        assert(fortress.environment == 129);
+        fortress.step(3, 103);
+        assert(fortress.environment == 128);
+        for (const bool dark : { false, true }) {
+            Day held;
+            held.eclipse = dark;
+            held.time = 90 * kDayScale;
+            held.environment = 200;
+            held.step(3, 103);
+            assert(held.environment == 199);
+            held.step(3, 103);
+            assert(held.environment == 198);
+        }
+    }
+    {   // Elsewhere it's the sun: 128 at sunrise, 255 at noon, 64 at
+        // midnight, whatever Act 4 left.
+        for (const auto& [degrees, want] : { std::pair{ 0, 128 }, std::pair{ 90, 255 }, std::pair{ 270, 64 } }) {
+            Day sky;
+            sky.environment = 0x30;
+            const bool night = degrees >= 200;                     // phase 5: two frames a frame
+            sky.phase = night ? 5 : 2;
+            sky.time = degrees * kDayScale - (night ? 2 : 1);
+            sky.step(0, 1);
+            assert(sky.environment == sky.intensity() && sky.environment == want);
+        }
+    }
     std::puts("test_light: ok");
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_light: %s\n", error.what());

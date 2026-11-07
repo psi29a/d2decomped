@@ -245,7 +245,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         // The day moves a frame a tick (40 ms); a stall doesn't fast-forward it.
         if (now_ms - day_at > 1000) day_at = now_ms;
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
-            day.step(act());
+            day.step(act(), level ? level->id : 0);
             credit_party([&] { act1_tick(); act2_tick(); });
             each_player([&](Player&) { stamina_frame(); footstep_frame(day_at); find_voice(day_at); });
         }
