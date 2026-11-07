@@ -402,5 +402,21 @@ int main() {
         const Config loaded = load_config(lookup, problems);
         assert(!problems.empty() && !loaded.skill_buttons && loaded.bindings == Bindings{});
     }
+    // A held d-pad repeats in a panel after the delay, and the field's belt does not.
+    {
+        Mapper field;
+        Sample right = with(Button::DpadRight);
+        int belts = 0;
+        for (int frame = 0; frame < 20; ++frame) if (has(field.step(right, Context::Game, 0.05f), Key::Belt4)) ++belts;
+        assert(belts == 1 && field.step(right, Context::Game, 0.05f).snap_x == 0);
+        field.step(Sample{}, Context::Panel, 0.05f);
+        Mapper panel;
+        assert(panel.step(right, Context::Panel, 0.05f).snap_x == 1);
+        int extra = 0;
+        for (int frame = 0; frame < 5; ++frame) extra += panel.step(right, Context::Panel, 0.05f).snap_x;
+        assert(extra == 0);
+        assert(panel.step(right, Context::Panel, 0.10f).snap_x == 1);
+        assert(panel.step(Sample{}, Context::Panel, 0.05f).snap_x == 0);
+    }
     return 0;
 }

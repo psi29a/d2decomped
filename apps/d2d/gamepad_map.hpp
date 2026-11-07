@@ -53,6 +53,11 @@ enum class Action { Primary, Secondary, Back, GameMenu, Inventory, Character, Sk
 // How long a left-trigger press may be and still count as a tap (weapon
 // swap). Longer than this, or a press that also casts, is the second skill set.
 inline constexpr float kSwapTapSeconds = 0.20f;
+// A held d-pad outside the field: the first step is immediate, the next
+// waits this long, and later steps are this far apart. The field's belt
+// does not use it.
+inline constexpr float kDpadRepeatDelay = 0.35f;
+inline constexpr float kDpadRepeatEvery = 0.12f;
 
 namespace where {
 inline constexpr unsigned kField = 1, kPanel = 2, kShop = 4, kDialog = 8, kAll = 15;
@@ -367,15 +372,16 @@ public:
         held[std::size_t(Button::LeftTrigger)] = left_trigger_;
         held[std::size_t(Button::RightTrigger)] = right_trigger_;
         const auto pressed = [&](Button which) { return held[std::size_t(which)] && !prev_[std::size_t(which)]; };
+        std::array<bool, 4> dpad_on{};             // up, down, left, right: edge, then the hold repeat
         const auto snap = [&] {
-            out.snap_x = int(pressed(Button::DpadRight)) - int(pressed(Button::DpadLeft));
-            out.snap_y = int(pressed(Button::DpadDown)) - int(pressed(Button::DpadUp));
+            out.snap_x = int(dpad_on[3]) - int(dpad_on[2]);
+            out.snap_y = int(dpad_on[1]) - int(dpad_on[0]);
         };
         const auto dpad_keys = [&] {
-            if (pressed(Button::DpadUp)) out.keys.push_back(Key::Up);
-            if (pressed(Button::DpadDown)) out.keys.push_back(Key::Down);
-            if (pressed(Button::DpadLeft)) out.keys.push_back(Key::Left);
-            if (pressed(Button::DpadRight)) out.keys.push_back(Key::Right);
+            if (dpad_on[0]) out.keys.push_back(Key::Up);
+            if (dpad_on[1]) out.keys.push_back(Key::Down);
+            if (dpad_on[2]) out.keys.push_back(Key::Left);
+            if (dpad_on[3]) out.keys.push_back(Key::Right);
         };
         const unsigned here = context == Context::Game ? where::kField : context == Context::Panel ? where::kPanel
                             : context == Context::Shop ? where::kShop : context == Context::Dialog ? where::kDialog : 0;
@@ -397,6 +403,24 @@ public:
         };
         const auto key = [&](Action action, Key press) { if (hit(action)) out.keys.push_back(press); };
         const bool game = here != 0;
+        const bool repeat_pad = wheel || skill_ui == SkillUi::Strip || !game || (here & kDpadHops) != 0;
+        if (!repeat_pad) dpad_hold_.fill(0.f);
+        else {
+            const std::array<Button, 4> directions = { Button::DpadUp, Button::DpadDown, Button::DpadLeft, Button::DpadRight };
+            const auto slot_of = [](float held_for) {
+                if (held_for < kDpadRepeatDelay) return 0;
+                return 1 + int((held_for - kDpadRepeatDelay) / kDpadRepeatEvery);
+            };
+            for (int index = 0; index < 4; ++index) {
+                const Button direction = directions[std::size_t(index)];
+                float& time = dpad_hold_[std::size_t(index)];
+                if (!held[std::size_t(direction)]) { time = 0.f; continue; }
+                const float before = time;
+                if (seconds > 0.f) time += seconds;
+                const bool edge = !prev_[std::size_t(direction)];
+                if (edge || (before > 0.f && slot_of(time) > slot_of(before))) dpad_on[std::size_t(index)] = true;
+            }
+        }
         const Button confirm = config_.swap_confirm ? Button::East : Button::South, cancel = config_.swap_confirm ? Button::South : Button::East;
 
         // The left button: Primary in the game; the confirm button or the right trigger in the menus.
@@ -473,7 +497,7 @@ public:
             out.aim_x = face_x; out.aim_y = face_y;
             out.cursor_dx = 0;
             out.cursor_dy = 0;
-            out.wheel_step = int(pressed(Button::DpadRight) || pressed(Button::DpadDown)) - int(pressed(Button::DpadLeft) || pressed(Button::DpadUp));
+            out.wheel_step = int(dpad_on[3] || dpad_on[1]) - int(dpad_on[2] || dpad_on[0]);
             out.click_down = false;
             out.click_press = false;
             out.click_release = false;
@@ -501,7 +525,7 @@ public:
             out.snap_x = 0;
             out.snap_y = 0;
             click_prev_ = false;
-            out.strip_step = int(pressed(Button::DpadDown)) - int(pressed(Button::DpadUp));
+            out.strip_step = int(dpad_on[1]) - int(dpad_on[0]);
             out.confirm = pressed(Button::South);
             out.cancel = pressed(Button::East) || pressed(Button::Start);
         }
@@ -540,6 +564,7 @@ private:
     Config config_;
     std::array<bool, std::size_t(Button::Count)> prev_{};
     bool click_prev_ = false, secondary_prev_ = false, left_trigger_ = false, right_trigger_ = false;
+    std::array<float, 4> dpad_hold_{};             // up, down, left, right, while a menu d-pad is repeating
     float swap_hold_ = 0.f;                        // how long the left trigger has been down
     bool swap_cast_ = false;                       // a skill fired during that press
     bool swap_down_ = false;                       // the trigger was down last frame, in the field or the wheel
