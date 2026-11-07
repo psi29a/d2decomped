@@ -898,7 +898,7 @@ std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d:
             level.picks[std::size_t(tile.y) * std::size_t(width) + std::size_t(tile.x)].push_back(
                 { std::uint8_t(tile.layer), std::uint8_t(tile.orient), drawn,
                   tile.layer != 2 && (tile.word & 0x80000000u) != 0,
-                  cell, stamp });
+                  cell, stamp, Level::never_fades(tile.word, drawn->material_flags) });
         }
     return built;
 }
