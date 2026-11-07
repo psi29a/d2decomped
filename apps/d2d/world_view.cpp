@@ -60,7 +60,9 @@ std::uint32_t get_hit_elapsed(const Unit& unit, std::uint32_t elapsed) {
 
 // An object's FrameCnt past its COF's frames (the Act 3 magic shrine: 13 in a 1-frame COF):
 // game.exe's frame runs on, its DCCs have no cell there (FUN_005feb80), nothing draws, its shadow neither.
-// ponytail: blank outright, not the COF priority game.exe reads past its table.
+// Blank outright: game.exe reads its priority bytes past the frame's row (FUN_004db110), but no layer has
+// a cell there (each such object's DCCs end by the COF's last frame), so nothing draws either
+// (cof-draw-order.md "A layer shorter than its COF").
 bool past_cof(const Unit& unit, std::uint32_t elapsed) {
     return unit.frames && elapsed / std::max<std::uint32_t>(unit.anim->ms_per_frame(), 1) >= std::uint32_t(unit.anim->cof.frames_per_direction());
 }
