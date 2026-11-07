@@ -10,13 +10,13 @@
 #include <gamedata_load.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <think_scratch.hpp>
 
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
-#include <vector>
 
 using namespace d2d::game;
 
@@ -46,11 +46,8 @@ int main() try {
     d2d::rules::ThinkIn input{ .aip = { 100, 0, 0, 100, 7, 3 }, .state = &state };
     input.in_melee = true; input.state2 = &state2; input.frame = frame; input.next_event = end_event;
     input.skill[0] = true;
-    int pace = 0, command = 0, state3 = 0, steps = 0, cast_word = 0;
-    bool rally = false;
-    std::vector<d2d::rules::ThinkEffect> effects;
-    input.pace = &pace; input.command = &command; input.state3 = &state3; input.steps = &steps;
-    input.cast_word = &cast_word; input.rally = &rally; input.effects = &effects;
+    ThinkScratch scratch;
+    scratch.point(input);
     d2d::rules::Rng roll{ 5 };
     const auto act = d2d::rules::mon_think("ThornHulk", input, roll, [](int, bool) { return false; });
     assert(act.act == d2d::rules::MonAct::skill && act.n == 0);
