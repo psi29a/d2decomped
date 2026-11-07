@@ -1140,6 +1140,23 @@ lines (missile names aren't passed in). What it does:
   random points round the target.
 - Do **60** (FUN_005c58b0, Bone Wall): a bonewall on the point, then two
   srvmissilea makers carrying calc2 / 2 (missile do 13 lays the rest).
+  With P the first piece's spot (where FUN_0056d940 put it) and (dx, dy)
+  = caster - P in subtiles ((1, 0) when both are 0): outside town and
+  only when count = calc2 / 2 (C division) is above 1, one maker from P
+  toward (P.x - dy, P.y + dx), the other toward (P.x + dy, P.y - dx)
+  (0x5c5b04..0x5c5b96), each carrying the first piece's id
+  (FUN_0064a710) and the count (FUN_0064a760). Missile do 13
+  (FUN_005aeda0, table 0x73c768 + 13 x 4): while its count is above 0,
+  on a frame whose move entered a new subtile (path +0x34 & 8, set by
+  FUN_00650150 when it crossed one or more), with the first piece still
+  there (FUN_00552f60), a piece at the maker's spot (FUN_0056d940,
+  joined to the first one's group FUN_0058f030 / FUN_0058f100, its
+  stats FUN_005c4470); only a piece made spends one of the count. Then
+  it flies on (FUN_005ae1f0): Vel 12, Range 7 + 2 a level, it stops on
+  collision (CollideType 8).
+  d2d: `rules::bone_wall_makers` (V: `tools/emu/bone_wall.py`, 2000
+  casts in `tests/bone_wall_cases.inc`, `test_bone_wall`) and
+  `Fight::missile_tick`'s do 13 (`test_bone_wall_lay`).
   **62** (FUN_005c5d00, Bone Prison): twelve round the point (0x6e304c /
   0x6e307c: (-1,-4) (1,-4) (3,-3) (4,-1) (4,1) (3,3) (-1,4) (1,4) (-3,3)
   (-4,-1) (-4,1) (-3,-3)).

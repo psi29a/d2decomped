@@ -500,6 +500,20 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                         burn(i, damage, now_ms);
                     }
             }
+            // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
+            // (FUN_00552f60 on its id) stands, one at its own subtile on a frame it entered a new one
+            // (path +0x34 & 8), at the skill's level; its flight stops at a wall (CollideType 8).
+            if (missile_info.srv_do == 13 && missile.hops > 0) {
+                const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
+                const bool first_stands = std::ranges::any_of(actor->pets, [&](const auto& pet) { return pet.monster.id == missile.target_id && pet.monster.alive(); });
+                if ((at_x != missile.subtile_x || at_y != missile.subtile_y) && first_stands) {
+                    missile.subtile_x = at_x; missile.subtile_y = at_y;
+                    if (const int type = game_data->monsters.row(skill->summon); type >= 0) {
+                        summon_one(*skill, type, missile.level, calc_env(), (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, now_ms);
+                        --missile.hops;
+                    }
+                }
+            }
             // The Range runs out: the hit function goes off with no unit.
             static constexpr int kEnd[] = { 1, 3, 4, 9, 13, 14, 20, 22, 26, 29, 36, 48, 56 };
             if (now_ms + 40 >= missile.dies && missile.frame < 0 && std::ranges::contains(kEnd, missile_info.hit_func)) burst(missile, now_ms);
