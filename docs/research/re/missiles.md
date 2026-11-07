@@ -590,3 +590,27 @@ decompile (hidden register arguments).
 Re-check: `python3 tools/ghidra/fn.py 005aba10`.
 
 d2d: not ported. `Fight::burst` / `strike` have no case 28.
+
+## Server hit function 29 — FUN_005abb00 (Frozen Orb's burst)
+
+Cited. Slot 29 (`0x73c8b4`). ECX game, EDX the missile.
+
+- No data block, a row sub-missile id (short +0x24) < 0 or no row: returns 1.
+- The missile's **remaining frames** (`FUN_0064a380`, data +0x10) non-zero:
+  returns **2** (hit handled, the missile flies on); nothing is made.
+- No owner (`FUN_00552fd0`): returns 1.
+- Else 64 / step missiles: `FUN_0059fa30` flags **2** (relative target),
+  [1] owner, [2] the missile as start unit, [4] the sub-missile row, [7] / [8]
+  = `0x6e2738[k]` / `0x6e2638[k]`, [0xb] / [0xc] skill and level. `k`
+  steps `sHitPar1 * 4` bytes (at least 1 entry) over 0x100 bytes. Each new
+  missile gets that same vector stored in its data block at `+0x28` /
+  `+0x2c` (`FUN_0064a710` / `FUN_0064a760`: the spin direction). Returns **3**.
+
+Re-check: `python3 tools/ghidra/fn.py 005abb00`,
+`python3 tools/ghidra/fn.py 0064a380`.
+
+d2d: reads the same on the burst, cited from the decompile, no oracle run: `Fight::burst` case 29 launches
+`kNovaRing[k]` for `k += max(hit_par1, 1)` over 64. Not modelled: the
+return 2 while the orb still has frames (d2d returns false for hit 29 in
+`strike`, missiles.cpp:609, which passes over units too), and the stored
+vector at +0x28 / +0x2c. No oracle run.
