@@ -602,7 +602,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             actor->attack_mon = actor->pick_item = -1;
             actor->take_warp = -1;                                                  // a click on a warp: go through it
             for (std::size_t i = 0; i < level->warps.size(); ++i)
-                if (std::hypot(level->warps[i].x + 0.5f - x, level->warps[i].y + 0.5f - y) < 2.f) actor->take_warp = int(i);
+                if (warp_clicked(level->warps[i], x, y)) actor->take_warp = int(i);
             if (actor->take_warp >= 0) {                                            // toward its tile unit (FUN_00548a50)
                 actor->target_x = level->warps[std::size_t(actor->take_warp)].unit_x;
                 actor->target_y = level->warps[std::size_t(actor->take_warp)].unit_y;

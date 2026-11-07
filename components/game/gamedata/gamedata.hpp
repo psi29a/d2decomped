@@ -345,7 +345,9 @@ struct Level {
     // then walks ExitWalk on from there (FUN_005550b0).
     // pair: its Levels.txt slot's rank among the row's slots to the same
     // level (FUN_0066c220 links the k-th one to the other side's k-th back).
-    struct Warp { float x, y; int destination; float exit_x, exit_y, unit_x, unit_y; int slot = 0, pair = 0; };
+    // select: LvlWarp's SelectX / SelectY / SelectDX / SelectDY, the client's
+    // click box in world pixels from the tile unit (World::warp_clicked).
+    struct Warp { float x, y; int destination; float exit_x, exit_y, unit_x, unit_y; int slot = 0, pair = 0; std::array<int, 4> select{}; };
     std::vector<Warp> warps;
     // Its rooms' preset units (drlg level_room_tiles, proven against
     // game.exe): level-relative subtiles; load_npcs / load_monsters make
