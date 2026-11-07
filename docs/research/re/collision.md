@@ -427,6 +427,10 @@ By reading both are small, a few subtiles of where a walk ends; neither was meas
   room, so an edge cell lands in the next room's grid; one with no room
   holding it is skipped. d2d: reads the same, cited from the decompile, no oracle run (this is the plus of the table above;
   `shrines.hpp` `in_doorway` uses it).
+- **Point, `FUN_0064ddb0`** (room and subtile in registers, bits): the same
+  block once, for the one subtile. `FUN_0064ea90` uses it for the 0x1000 /
+  0x2000 footprint on the unit's own subtile. d2d: reads the same, cited from the decompile, no oracle run (collision.md
+  table: "0x1000 / 0x2000 on the subtile").
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
