@@ -119,22 +119,61 @@ The inventory record (magic `0x1020304`) keeps a **wielded id** at `+0x1c`
   `FUN_0063bef0` is 0, not a weapon, or ItemTypes row 0x26 (tpot);
   otherwise (another real weapon is wielded) it clears `+0x1c` if that is the
   item's id. Callers: `FUN_004c12f0`, `FUN_004c1350`, `FUN_004c2e90`,
-  `FUN_004c3070`, `FUN_004c35f0`.
+  `FUN_004c3070`, `FUN_004c35f0` (the client's), and on the server the
+  handlers below.
+- `FUN_0063d2b0(inventory, item)` is the other half, for a weapon coming
+  off: it clears `+0x1c` if that is the item's id, then, the item's data
+  byte 4 or 5 naming its hand, the other hand's item (`FUN_0063bde0`), if
+  usable (`FUN_0062a4e0`; any item, a shield too), takes `+0x1c`. The
+  item is still in its cell when it's called.
+- `FUN_0063d190` sets or clears `+0x1c` by a flag; nothing calls it.
 
-d2d: reads the same, cited from the decompile, no oracle run, as `components/game/fight.hpp` (`throw_ready` ponytail:
-the primary is `+0x1c`) and `components/game/world/objects.cpp` (Khalim's
-Will in either arm). One refinement for that ponytail: the "primary" is
-the selected id, tested in cell 5 then cell 4. `FUN_0063add0` and
-`FUN_0063d1d0` are not ported.
+Among game.exe's `mov [reg+0x1c], reg` writes these are the only ones in
+the inventory code (0x63xxxx); the others were not each read. On the
+server each item move calls them in this order:
+
+| Server function | What moves | Calls |
+|---|---|---|
+| `FUN_005606b0` (code 1) | into an empty hand | `FUN_0063d1d0` |
+| `FUN_00563d20` (code 2) | the other hand's to the cursor, the new one in | `FUN_0063d2b0`, `FUN_0063d1d0` |
+| `FUN_00560f00` (code 5) | a swap | `FUN_0063d2b0` (the other hand still full), `FUN_0063d1d0` |
+| `FUN_00561220` (code 7) | the other hand's to the inventory, this hand's to the cursor, the new one in | `FUN_0063d2b0` twice (the other hand's first, while this hand's is still in), `FUN_0063d1d0` |
+| `FUN_00560cd0` | a hand's item to the cursor (and a sale, `FUN_00579510`) | `FUN_0063d2b0` |
+| `FUN_005616a0` | the switch: hands 4 / 5 to 0xb / 0xc, then 0xb / 0xc to 4 / 5 | `FUN_0063d2b0` right then left, then `FUN_0063d1d0` right then left |
+| `FUN_00562e00` | an item worn from the ground or a store (`FUN_0055d710`) | `FUN_0063d1d0` |
+| `FUN_00562a30` | the next stack into an emptied hand | `FUN_0063d1d0` |
+| `FUN_00562f30` | the corpse's items back on | `FUN_0063d1d0` |
+| `FUN_0055f850` | an item breaks (flag 0x100) | `FUN_0063d2b0` |
+| `FUN_0055f900` (from `FUN_005761c0`, a repair of a broken item) | the break mended | `FUN_0063d1d0` |
+
+So the first weapon in gets the id and keeps it while it stays, and a
+swap of the wielded weapon in a dual-wield hands the id to the other
+hand's. `FUN_0055dbc0` (the stats redone) calls the pair only for a
+body item whose requirements stop or start being met (flag 0x4000 set,
+then `FUN_0063d2b0`; cleared, then `FUN_0063d1d0`) and, in its first
+pass, for charms (ItemTypes row 0xd, char: `FUN_0062ff70`); how a loaded save
+sets `+0x1c` was not found.
+
+d2d: the item's `wielded` (d2s_items.hpp, not saved; the View carries
+it) is the id. `rules::wielded_weapon` is `FUN_0063bef0`,
+`rules::wield_enters` `FUN_0063d1d0`, `rules::wield_leaves`
+`FUN_0063d2b0`, called where the table's moves are made
+(`rules::equip`, `store_buy`, `pick_up`, `store_repair_all`, the World's
+sale, repair, switch, cursor and corpse, `Fight`'s breaks and refill).
+ponytail: a loaded character's hands take the id in the save's item order
+(`rules::wield_settle`). `components/game/world/objects.cpp` (Khalim's
+Will in either arm) doesn't use it. `FUN_0063add0` is not ported, nor the
+0x4000 requirement flag's moves.
 
 ### The other hand and the dual-wield stats (`FUN_0063bf90`, `FUN_00535e20`, `FUN_004e9260`, `FUN_004e9300`)
 
 Cited. `FUN_0063bf90(inventory)` is the weapon **not** in hand: it reads
 cells 5 and 4 of the body grid as `FUN_0063bef0` does (weap items only);
-when one has id `+0x1c` it returns the other; no wielded id gives 0. This
-is the "other hand" the `throw_ready` ponytail names (it calls it
-`FUN_00643d60`, which this trace did not read: unchecked whether it is
-this function or a wrapper of it).
+when one has id `+0x1c` it returns the other; no wielded id gives 0.
+Throw doesn't use it: its "other hand" is `FUN_00643d60` (EAX the
+inventory, the argument a hand's body slot), the item in the other body
+slot (`FUN_0063bde0(inventory, 4)` for 5, else 5), whatever it is.
+throw.md has how Throw picks.
 
 `FUN_00535e20(unit, flag)` (flag non-zero): for the wielded weapon, if
 `FUN_00625820(item, 0)` (the item's data record `+0x34` has bit 0x80000000;

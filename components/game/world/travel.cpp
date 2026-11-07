@@ -261,7 +261,13 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
                         && d2d::rules::can_wear(game_data->rules, *item_it, base_slot, worn_by, required_level(*game_data, *item_it, worn_by.cls));
             if (fits && (base_slot == body::kRightArm || base_slot == body::kLeftArm))
                 if (const auto paired = worn_in(d2d::rules::other_side(to_slot)); paired != actor->character.items.end()) fits = d2d::rules::hands_ok(game_data->rules, *item_it, *paired, worn_by);
-            if (fits) { item_it->slot = to_slot; actor->character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
+            if (fits) {
+                item_it->slot = to_slot;
+                actor->character.items.push_back(std::move(*item_it));
+                d2d::rules::wield_enters(game_data->rules, actor->character.items, actor->character.items.back());   // FUN_00562f30 -> FUN_0063d1d0
+                item_it = corpse.items.erase(item_it);
+                continue;
+            }
             std::optional<Item> held_item = *item_it;
             held_item->location = d2d::d2s::item_location::kStored;
             std::vector<const Item*> inv;
