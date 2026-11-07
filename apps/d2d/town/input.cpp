@@ -631,6 +631,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
             const auto worn_by = d2d::game::wearer(*world.game_data, save_cls, character.items, character.stats);
             query.equippable = d2d::rules::bag_equip_slot(scene->rules, character.items, held, item->id, worn_by, level_needed) >= 0;
         }
+        query.equippable = pad_hold_can_equip(net_game != nullptr, query.equippable);
         PadHoldKind kind = pad_hold_button(query, pad_south_down, pad_rt_down);
         if (!pad_south_down && !pad_rt_down && pad_hold.armed) kind = PadHoldKind(pad_hold.context);
         const bool eligible = kind != PadHoldKind::None;
@@ -651,7 +652,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         const bool can_equip = query.equippable && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
         const bool can_sell = query.sellable && query.bag && query.hand_empty && query.shop && !query.gamble && !query.identify && !query.imbue
                               && query.store_mode != 1 && query.store_mode != 3;
-        if (can_potion || can_equip || can_sell) {
+        if (pad_shows_hold_cue(pad_playing, can_potion, can_equip, can_sell)) {
             if (tracking) pad_hold_fraction = pad_hold.fraction();
             const std::string_view aye = pad::label(pad_family, pad::Button::South);
             const std::string_view trigger = pad::label(pad_family, pad::Button::RightTrigger);

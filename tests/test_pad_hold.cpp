@@ -16,7 +16,9 @@
 using d2d::client::PadHoldKind;
 using d2d::client::PadHoldQuery;
 using d2d::client::pad_drops_from_bag;
+using d2d::client::pad_hold_can_equip;
 using d2d::client::pad_hold_kind;
+using d2d::client::pad_shows_hold_cue;
 using d2d::client::potion_code;
 
 int main() {
@@ -83,6 +85,18 @@ int main() {
     items[0].location = d2d::d2s::item_location::kStored;
     assert(d2d::rules::auto_belt(tables, items, 9, 4));
     assert(items[4].location == d2d::d2s::item_location::kBelt);
+
+    // A joined game does not equip, and does not pick a bag item up and drop it.
+    // The hold line is only for the pad.
+    assert(pad_hold_can_equip(false, true) && !pad_hold_can_equip(true, true) && !pad_hold_can_equip(false, false));
     assert(pad_drops_from_bag(false) && !pad_drops_from_bag(true));
+    assert(pad_shows_hold_cue(true, true, false, false));
+    assert(!pad_shows_hold_cue(false, true, true, true));
+    assert(!pad_shows_hold_cue(true, false, false, false));
+    PadHoldQuery joined;
+    joined.hand_empty = true;
+    joined.bag = true;
+    joined.equippable = pad_hold_can_equip(true, true);
+    assert(pad_hold_kind(joined) == PadHoldKind::None);
     return 0;
 }

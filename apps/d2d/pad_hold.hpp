@@ -49,10 +49,19 @@ struct PadHoldQuery {
     return PadHoldKind::None;
 }
 
+// EquipFromBag stays on this machine. A joined game must not classify, cue,
+// or perform it: Town::send drops the command before the World applies it.
+[[nodiscard]] inline bool pad_hold_can_equip(bool joined, bool equippable) { return !joined && equippable; }
+
 // The drop packet is built from the cursor. A bag pickup has not filled that
 // cursor yet, so a joined game must not pick up and drop in the same turn.
 // An item already in hand still drops.
 [[nodiscard]] inline bool pad_drops_from_bag(bool joined) { return !joined; }
+
+// The line is a pad prompt. Mouse and keyboard play must not show it.
+[[nodiscard]] inline bool pad_shows_hold_cue(bool pad_playing, bool can_potion, bool can_equip, bool can_sell) {
+    return pad_playing && (can_potion || can_equip || can_sell);
+}
 
 // A is the full hold. Right trigger alone, on a potion, belts that one potion.
 // Right trigger does not sell or equip.
