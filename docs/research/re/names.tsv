@@ -654,6 +654,7 @@ address	name	evidence
 0062e410	saved_item_header_60	FUN_0062ae20(..., 0x60)
 0062e7e0	itemtype_byte_11	ItemTypes +0x11
 0062e830	itemtype_byte_12	ItemTypes +0x12
+0062e830	item_type_byte_12	ItemTypes record (table +0xbf8, stride 0xe4) +0x12 of an item unit's type, 0 if none; FUN_00580030 calls FUN_0057ff70 when nonzero (column likely ReEquip)
 0062e920	itemtype_cel_variant	ItemTypes +0x23 count, +0x24 + 32 n
 0062ea80	itemtype_bytes_a_b	ItemTypes +0xa / +0xb
 00633540	items_tables_free	ItemTbls.cpp 0x1c8, 0x1cb
