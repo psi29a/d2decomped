@@ -656,6 +656,7 @@ address	name	evidence
 0062beb0	item_is_type35	FUN_00629bb0(item, 0x35)
 0062c9f0	item_stat_floor	maxac +0xd0, mindam/maxdam +0xfe..+0x103
 0062e410	saved_item_header_60	FUN_0062ae20(..., 0x60)
+0062e430	item_read_bitstream	(unit, buffer, bytes, check_jm, sockets_out, version, err_out): reads the optional JM mark and 32 flag bits, resets item data, then the compact reader FUN_0062a970 (flag 0x200000) or the full FUN_0062cbe0; returns bytes used (FUN_00410e90)
 0062e7e0	itemtype_byte_11	ItemTypes +0x11
 0062e830	itemtype_byte_12	ItemTypes +0x12
 0062e830	item_type_byte_12	ItemTypes record (table +0xbf8, stride 0xe4) +0x12 of an item unit's type, 0 if none; FUN_00580030 calls FUN_0057ff70 when nonzero (column likely ReEquip)
