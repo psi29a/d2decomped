@@ -4,6 +4,7 @@
 #include "town.hpp"
 
 #include "audio.hpp"
+#include "belt_popup.hpp"
 #include "common.hpp"
 #include "controls.hpp"
 #include "cursor.hpp"
@@ -98,6 +99,13 @@ auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
             && !skillbar.picking && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
+    }
+
+auto Town::mini_right() const -> bool {
+        if (inv_open || tree_open) return true;
+        if (!scene) return false;
+        const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
+        return belt_popup::moves_mini_panel(belt_up, belt_open, boxes);
     }
 
 // What the pad's A would act on now: a monster in reach in the facing (the
