@@ -197,6 +197,7 @@ address	name	evidence
 00646d60	skill_passive_refresh	(unit, skill): fills the passivestate (+0x94) stat list from passivestat/passivecalc at the skill level, layer passiveitype, stats 0x15e / 0x15f = skill / level; with the +0x80 state on it removes the list instead; skills.md "Skill accessors"
 00646fd0	skill_remove	(skill, drop_level), unit in EBX: passivestate off, the three selected-skill pointers at list header +8 / +0xc / +0x10 cleared when they are this base entry, then the base entry loses a level or is unlinked and freed (Skills.cpp line 0x4ac); FUN_00646d60 refresh
 00647110	skill_grant	(unit, skill) -> entry: passivestate on; an existing base entry (+0x34 == -1) gets +0x28 += 1 (player: below FUN_004aa8b0(); monster: always), else a new 0x40-byte node (level 1, mode from record +0x10 / +0x11) joins the +0xa8 list's tail; then FUN_00646d60; Skills.cpp line 0x539
+00648480	monster_path_mask	(unit in EAX): MonStats row flag +0xd & 0x40 flying 0x1804, else +0xc & 8 opendoors 0x3401, else 0x3c01; no null check on the row (collision.md "Building a path")
 00648c30	path_restamp_bits	(path, bits): lifts the stamp at path +0x4c (FUN_0064eba0 for an owner of type 3, else FUN_0064ec10), stores bits, stamps them (FUN_0064ea00 / FUN_0064ea90) (collision.md "The stamp family")
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0

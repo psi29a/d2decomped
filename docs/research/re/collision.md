@@ -467,6 +467,22 @@ By reading both are small, a few subtiles of where a walk ends; neither was meas
   `FUN_0046ccd0`, `FUN_0046d310`, `FUN_004ae8d0`, `FUN_00649f70`. d2d: not
   ported; no disagreement found. The unit-type and field readings come from
   the decompile only (not run).
+
+## Building a path: FUN_00649d00 and its helpers
+
+Re-check each with `python3 tools/ghidra/fn.py <addr>`. Cited, not run in the
+emulator. The register arguments are hidden in the decompile (fastcall /
+EAX); read the asm for them.
+
+- **Monster mask, `FUN_00648480`** (unit in EAX): the monster's MonStats row
+  (class id at unit +4, table `PTR_DAT_00744304` +0xa78, 0x1a8 a row, count
+  at +0xa80) gives the path mask (path +0x50): row +0xd bit 0x40 (flying)
+  0x1804; else row +0xc bit 8 (opendoors) 0x3401, else 0x3c01. Only caller
+  `FUN_00649d00` (a unit of type 1, not the 0x26 class). d2d: reads the same, cited from the decompile, no oracle run, as
+  `UnitShape::monster` (gamedata.hpp:60-69, masks 0x1804 / 0x3401 / 0x3c01
+  in that precedence: flying first). A unit of 0, or a class id out of
+  range, makes the row pointer 0 and the next line reads address 0xd: no
+  null check (bugs.md 52).
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
