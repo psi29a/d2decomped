@@ -554,7 +554,10 @@ EAX); read the asm for them.
   stamp (`FUN_00649560(unit, 1)`) and, after the store, stamps the new one
   (`FUN_00649400`); with no room it only stores. So a size or town flag
   that changes on a placed unit moves its footprint. Callers
-  `FUN_0045d160`, `FUN_00463c00`, `FUN_004d946c`, `FUN_00554340`,
+  `FUN_0045d160`, `FUN_00463c00`, a call at 0x4d946c (not a function
+  entry: `python3 tools/ghidra/fn.py 004d946c` reports it missing, and
+  game-functions.tsv has no entry there; which function holds the call was
+  not traced), `FUN_00554340`,
   `FUN_005c07a0`. d2d: not ported (d2d builds the shape once, at spawn).
 - **Add to the room's list, `FUN_0064c350`** (unit, room): `FUN_0064c2c0`
   with a third argument 1. That one (drlg.md:1299) asserts a non-null unit
