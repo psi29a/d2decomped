@@ -211,3 +211,14 @@ they stand; the class), and when the item's type has a Quiver
 `bow`, `xboq` / `mxbq` `xbow`), the right hand's item (or the left's,
 when the quiver is the right's) must be of that type (`FUN_00629bb0`).
 A quiver with no bow beside it is flagged.
+
+d2d: the flag in the item's flag word (`Item::flags`, written back to
+the d2s as read). `rules::requirements_hold` (`FUN_0055db00`),
+`rules::settle_requirements` (passes 2 and 3), run by
+`game::settle_requirements` with `game::wearer` after each of the
+World's item commands (`cmd::ToBody`, `ToCursor`, `ToGrid`,
+`SwapWeapons`, `Buy`, `Sell`, `Repair`), a pickup, `Fight`'s breaks and
+refill, the corpse and `World::take_character`. A flagged item's stats
+are off like a broken one's (`game::gear_active`, `panel_stats`,
+`rules::make_fighter`'s weapon). Pass 1 (the charms) isn't ported: d2d
+counts every inventory charm, its level requirement unchecked.

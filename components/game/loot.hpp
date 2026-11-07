@@ -237,6 +237,7 @@ struct Loot {
                 if (class_voice) class_voice(kCantCarry[std::size_t(std::clamp(character->character_class, 0, 6))], now_ms);
             }
             if (taken != d2d::rules::Pickup::kGone) return;
+            settle_requirements(*game_data, *character);   // FUN_00563560 -> FUN_0055dbc0
             cues.cue("item_pickup", 0, player->x, player->y);
         }
         ground.erase(ground.begin() + std::ptrdiff_t(index));

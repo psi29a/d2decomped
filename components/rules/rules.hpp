@@ -1365,6 +1365,57 @@ inline void wield_settle(const Tables& tables, std::vector<d2d::d2s::Item>& item
     for (auto& item : items) item.wielded = false;
     for (auto& item : items) wield_enters(tables, items, item);
 }
+// FUN_0055db00: worn `item` (one of `items`) meets its requirements:
+// FUN_0062eaf0's (identified, class, strength, dexterity, level), and a
+// quiver (its ItemTypes Quiver, +0xe: FUN_0062e740) only with an item of
+// its bow's type (FUN_00629bb0) in the right hand, or the left when the
+// quiver is the right hand's.
+inline bool requirements_hold(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, const Wearer& wearer,
+                              int required_level = -1) {
+    if (!item.identified || !meets_requirements(tables, item, wearer, required_level)) return false;
+    const auto type = tables.types.find(info_of(tables, item)->type);
+    if (type == tables.types.end() || type->second.quiver.empty()) return true;
+    int other = hand_index(items, d2d::d2s::body_location::kRightArm);
+    if (other >= 0 && &items[std::size_t(other)] == &item) other = hand_index(items, d2d::d2s::body_location::kLeftArm);
+    if (other < 0) return false;
+    const auto& bow = items[std::size_t(other)];
+    const auto* bow_info = info_of(tables, bow);
+    const auto base = tables.item_base.find(bow.code);
+    return (bow_info && type_is(tables, bow_info->type, type->second.quiver))
+        || (base != tables.item_base.end() && type_is(tables, base->second.type2, type->second.quiver));
+}
+// FUN_0055dbc0's worn passes (body slots 1..10; the weapon switch's 11 / 12
+// aren't walked). `wearer()` is the strength, dexterity and level with the
+// gear's stats on, which a flagged item's no longer are; `level(item)` its
+// required level. First, in slot order, an unbroken unflagged item that
+// fails gets flag 0x4000 (its stats off, FUN_0055c730) and FUN_0063d2b0.
+// Then, repeated while one changed (one's stats can let another pass), an
+// unbroken flagged item that meets them loses 0x4000 and gets FUN_0063d1d0
+// (its stats on, FUN_0055c2c0). A flagged item's own stats don't count
+// toward its own requirements; an unflagged one's do.
+template <class WearerOf, class LevelOf>
+inline void settle_requirements(const Tables& tables, std::vector<d2d::d2s::Item>& items, WearerOf&& wearer, LevelOf&& level) {
+    const auto worn = [](const d2d::d2s::Item& item) {
+        return item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst
+            && item.slot <= d2d::d2s::body_location::kLast;
+    };
+    for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot)
+        for (auto& item : items)
+            if (worn(item) && item.slot == slot && item_usable(item) && !requirements_hold(tables, items, item, wearer(), level(item))) {
+                item.flags |= 0x4000u;
+                wield_leaves(tables, items, item);
+            }
+    for (bool changed = true; changed;) {
+        changed = false;
+        for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot)
+            for (auto& item : items)
+                if (worn(item) && item.slot == slot && !broken(item) && (item.flags & 0x4000u) && requirements_hold(tables, items, item, wearer(), level(item))) {
+                    item.flags &= ~0x4000u;
+                    wield_enters(tables, items, item);
+                    changed = true;
+                }
+    }
+}
 // The item Throw takes (FUN_0056f460; the gate FUN_00647640 for skill 2):
 // the first usable weapon in hand (FUN_0063c9b0: the right hand's, then
 // the left's); when that isn't the wielded one (FUN_0063bef0), the other

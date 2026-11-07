@@ -9,6 +9,7 @@
 #include "fight.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
+#include "inventory.hpp"
 #include "log.hpp"
 #include "protocol.hpp"
 
@@ -296,6 +297,14 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 if (std::holds_alternative<cmd::Resurrect>(command)) continue;
                 if (actor->ghost && !std::holds_alternative<cmd::Move>(command) && !std::holds_alternative<cmd::Run>(command)) continue;   // a ghost only walks
                 apply(command, now_ms);
+                // ItemMode.cpp's server moves end with FUN_0055dbc0: a hand's or body
+                // slot's item off (FUN_00560cd0) or on (FUN_005606b0 ..), into the
+                // inventory (FUN_00560200), the weapon switch (FUN_005616a0), a mend
+                // (FUN_0055f900).
+                if (std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToCursor>(command) || std::holds_alternative<cmd::ToGrid>(command)
+                    || std::holds_alternative<cmd::SwapWeapons>(command) || std::holds_alternative<cmd::Buy>(command) || std::holds_alternative<cmd::Sell>(command)
+                    || std::holds_alternative<cmd::Repair>(command))
+                    settle_requirements(*game_data, actor->character);
             }
             // In reach as the server's interact has it (FUN_005b0f50): an
             // object by rules::object_reach (a player's size 2) with no wall
