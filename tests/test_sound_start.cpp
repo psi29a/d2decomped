@@ -44,6 +44,15 @@ int main() try {
     // Neither flag: no clash.
     assert(!d2d::rules::start_clash(cry, { 202, 200, 0, false, false }, kZombie, true).other);
 
+    // A Compound merge adds the asking unit to the instance's list (FUN_004b9760):
+    // Defer and the speech test then find it on that unit too (FUN_005169d0).
+    const std::vector<std::uint64_t> joined{ kHero };
+    const std::vector<SoundInstance> merged{ { 200, 200, kZombie, 10, false, joined } };
+    assert(merged[0].plays_on(kZombie) && merged[0].plays_on(kHero) && !merged[0].plays_on(kHero + kZombie));
+    assert(d2d::rules::start_clash(merged, defer, kHero, true).other == 0u);
+    const std::vector<SoundInstance> merged_talk{ { 0xb80, 0xb80, kZombie, 3, false, joined } };
+    assert(d2d::rules::start_clash(merged_talk, { 0xd00, 0xd00, 0, false, false }, kHero, true).other == 0u);
+
     // Speech: any line the unit is saying, whatever group or flags; dropped unless Stop Inst.
     const std::vector<SoundInstance> talk{ { 0xb80, 0xb80, kHero, 3, false }, { 0xc00, 0xc00, kZombie, 2, false } };
     clash = d2d::rules::start_clash(talk, { 0xd00, 0xd00, 0, false, false }, kHero, true);

@@ -32,7 +32,11 @@ at load. Times below are sound ticks: `DAT_007bc9bc`, +1 per
   group (record +0x60) that isn't stopping (instance +0x3d). Compound < 0
   takes any; otherwise one started (instance +0x34) at most Compound ticks
   ago. If there is one, no new instance is made: the play returns that
-  one, with the new unit added to its unit list (+0x28). 590 rows have
+  one, with the new unit added to its unit list (+0x28). That list is
+  what "on a unit" means below: the speech test (`FUN_004b9700`, 0x4b9721)
+  and Defer / Stop Inst's same-unit search (`FUN_004b9690`) both ask
+  `FUN_005169d0(instance +0x28, unit)`, a walk of the list, so a merged
+  sound counts as playing on every unit that asked for it. 590 rows have
   one (8 ticks for 380 of them, −1 for 49).
 - The instance's priority is Priority (+0x4e), +0x50 when the unit is the
   local player.
@@ -93,13 +97,13 @@ sound plays at Bink's own level whatever the master slider says.
 d2d: rules/sound_start.hpp has the rules and the ducks; `ducked_mix`
 ducks a world sound's volume before its distance mix, as above. Sounds
 not placed in the world (UI, voice, ambience, music) carry a float gain
-with their fades and take the ducks as a multiplier, and master / music
-are the listener's and the music channel's gains, not this chain's
-integer steps. audio.hpp keeps
+with their fades and take the ducks, master and music as multipliers,
+not this chain's integer steps (a placed sound takes master in its
+integer volume). audio.hpp keeps
 a sound tick per 40 ms and, per channel, the group's first row and the
 unit it plays on (`unit_key` in game/cues.hpp: the hero, a monster, an
-object or a missile). Compound joins the playing instance without adding
-the unit to a list.
+object or a missile). Compound joins the playing instance and adds the
+unit to its list (`Channel::merged`).
 
 ## Level music and ambience
 
