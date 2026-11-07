@@ -171,9 +171,10 @@ Cited, read from the decompile.
    The sibling links (+0x2c / +0x30) are spliced out and the old +4
    (the unit it hung on) is kept and cleared.
 2. A list with flag 0x2000 stops here (only unlinked).
-3. Otherwise, if expanded and flag 0x20000000: up to 16 keys whose
+3. Otherwise, if expanded and flag 0x20000000: the keys whose
    ItemStatCost row +0x53 is set are collected from its expanded array
-   and each refreshed (`FUN_006266c0`, ctx 0).
+   into a 16-int stack buffer with no count check (more than 16 write
+   past it, bugs.md #53) and each refreshed (`FUN_006266c0`, ctx 0).
 4. If it had a parent: the entries' values are pushed up negated
    (`FUN_00626920(-value, owner)`; with flag 0x40000000 only the rows
    whose +4 bit 2 is clear).
@@ -198,7 +199,8 @@ call returns if the new list is the unit's list or one of its parents
 A 0x2000 list goes to the head of the unit list's +0x40 chain and
 stops. Any other goes to the head of its +0x3c chain (+0x34 = unit
 list, +4 = the unit). If the new list is expanded its owner (+0x44) is
-kept; with flag 0x20000000 up to 16 keys whose row +0x53 is set are
+kept; with flag 0x20000000 the keys whose row +0x53 is set are
+collected (no count check, so more than 16 write past the buffer) and
 refreshed (`FUN_0045c4f0`, `FUN_006266c0`; same 16-int buffer, bugs.md
 #53; the decompile does not show which list's array `FUN_00624f40` reads,
 read by analogy with `FUN_006269f0` as the new list's). Then, `enable` 0: flag 0x40000000 is set and the
@@ -292,3 +294,20 @@ one (flags 2, expiry = game +0xa8 + length, callback `FUN_0056e900`,
 Which missile record carries hit 16 was not looked up.
 d2d: not ported (no mention of 16 in `skills.md`, `ai.hpp`, `fight.hpp`).
 Re-check: `python3 tools/ghidra/fn.py 005aae10`, `python3 tools/ghidra/fn.py 005ab110`.
+
+### Missile hit 19 — FUN_005ab110
+
+Entry 19 of the same table (0x73c88c). Read against `skills.md:955`: the
+state is skill +0x82, the length the +0x60 calc (`FUN_00646ca0`) with a
+floor of 5, the list found or made as for hit 16 (flags 2, callback
+`FUN_0056e900`), aurastats by `FUN_005c6cc0`, expiry renewed by
+`FUN_006260b0`, event 0xc queued, and it returns 3; a missing skill,
+source unit, target or an out-of-range state returns 1. The points read in
+`skills.md:955` and `ai.hpp:969` (`foe.marked`, hit 19) read the same, cited from the decompile, no
+oracle run. What the
+doc leaves out and this adds: the state's stat list is flagged 2, has the
+removal callback `FUN_0056e900`, and the new state bit is also set in a
+second mask (`FUN_00639e30`) for hit 19 and 16 but not in
+`FUN_00570590`.
+d2d: reads the same, cited from the decompile, no oracle run.
+Re-check: `python3 tools/ghidra/fn.py 005ab110`, `git grep -n FUN_005ab110 components docs/research/re/skills.md`.
