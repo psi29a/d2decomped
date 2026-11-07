@@ -26,6 +26,18 @@ DruidWolf, DruidBear, ShadowWarrior and ShadowMaster with their inits
 (`components/rules/pets.hpp`, "The other thinks" and "The Shadows").
 InvisoPet, 7TIllusion and Buffy aren't any player skill's summon.
 
+The player's other summons have AIs outside that list: Decoy's dopplezon
+is MonAI 1 Idle (think 0x5b0cd0: stand 200 frames, FUN_005de080(0xc8))
+and Bone Wall's / Bone Prison's bonewall MonAI 84 BoneWall (row
+0x73ca18 + 84 x 16: init `FUN_005e0390`, think `FUN_005e0400`). The init
+sets AI control +0x14 to the frame + its Skill1's Param2 (skill record
++0x14c; bonewall's Skill1 is Bone Wall, Param2 600; the frame alone
+when Skill1 has no record); the think, once the frame is past it, puts
+it in mode 0 (DT, `FUN_005ddfc0(0, 0, 0)`), else stands 15. Its first
+think is 25 frames after it's made (`FUN_0056d940`, 0x56d9..:
+`FUN_005417d0(2, frame + 0x19)`), so it dies on the first think after
+600 frames: frame 25 + 15 x 39 = 610. Neither ever fights.
+
 ## NecroPet (FUN_005e4cf0)
 
 `FUN_005e4cf0(ECX game, EDX pet, [8] AI params)` drops the pet's events of
