@@ -19,16 +19,20 @@ struct State {
 }
 
 // One frame. `kept` is UI 0x1f (the belt key's toggle), `menu` UI 9 (the
-// game menu), `can_hover` the mouse-move handler's gates (FUN_00499bb0:
-// a live player, FUN_00463df0 not mode 0x11; d2d: the HUD shown),
-// `on_popup` the mouse inside the shown popup's boxes (FUN_00498dc0).
+// game menu), `hud` d2d's HUD shown (local co-op hides it, belt and all),
+// `alive` the mouse-move handler's gate (FUN_00499bb0: FUN_00463df0, not
+// mode 0x11), `on_popup` the mouse inside the shown popup's boxes
+// (FUN_00498dc0).
 // - UI 0x1f shows it (FUN_00456ee0 -> FUN_00498e90, each frame);
 // - shut, the mouse on the strip, the menu not up: shown and hovered;
 // - shown, the mouse off the popup: no longer hovered (FUN_00499bb0);
+// - dead: the handler returns first, so a hover stays as it was;
+// - the HUD hidden (d2d only): no longer hovered, as no belt is drawn;
 // - neither 0x1f nor hovered, or the menu up: shut (FUN_00499040).
-inline void step(State& state, bool kept, bool menu, bool can_hover, bool on_strip, bool on_popup) {
+inline void step(State& state, bool kept, bool menu, bool hud, bool alive, bool on_strip, bool on_popup) {
+    if (!hud) state.hovered = false;
     if (kept) state.shown = true;
-    if (can_hover && !menu) {
+    if (hud && alive && !menu) {
         if (!state.shown && on_strip) state.shown = state.hovered = true;
         else if (state.shown && !on_popup) state.hovered = false;
     }

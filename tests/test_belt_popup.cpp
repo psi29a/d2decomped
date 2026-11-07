@@ -22,36 +22,50 @@ int main() try {
     // Hover: the mouse onto the strip brings it up, staying on the popup
     // keeps it, off the popup takes it down.
     belt_popup::State state;
-    belt_popup::step(state, false, false, true, false, false);
+    belt_popup::step(state, false, false, true, true, false, false);
     assert(!state.shown);
-    belt_popup::step(state, false, false, true, true, true);
+    belt_popup::step(state, false, false, true, true, true, true);
     assert(state.shown && state.hovered);
-    belt_popup::step(state, false, false, true, false, true);       // up into the upper rows
+    belt_popup::step(state, false, false, true, true, false, true);       // up into the upper rows
     assert(state.shown);
-    belt_popup::step(state, false, false, true, false, false);      // off the popup
+    belt_popup::step(state, false, false, true, true, false, false);      // off the popup
     assert(!state.shown && !state.hovered);
 
     // The key (UI 0x1f) keeps it up off the popup; let go, it comes down.
-    belt_popup::step(state, true, false, true, false, false);
+    belt_popup::step(state, true, false, true, true, false, false);
     assert(state.shown && !state.hovered);
-    belt_popup::step(state, false, false, true, false, false);
+    belt_popup::step(state, false, false, true, true, false, false);
     assert(!state.shown);
     // Brought up by hover, the key toggled on then off: down only once the
     // mouse is off the popup (0x7bef9c cleared there, FUN_00499bb0).
-    belt_popup::step(state, false, false, true, true, true);
-    belt_popup::step(state, true, false, true, false, true);
-    belt_popup::step(state, false, false, true, false, true);
+    belt_popup::step(state, false, false, true, true, true, true);
+    belt_popup::step(state, true, false, true, true, false, true);
+    belt_popup::step(state, false, false, true, true, false, true);
     assert(state.shown);
-    belt_popup::step(state, false, false, true, false, false);
+    belt_popup::step(state, false, false, true, true, false, false);
     assert(!state.shown);
 
     // No hover with the menu up (UI 9), and the menu takes it down, key or not.
-    belt_popup::step(state, false, true, true, true, true);
+    belt_popup::step(state, false, true, true, true, true, true);
     assert(!state.shown);
-    belt_popup::step(state, true, true, true, false, false);
+    belt_popup::step(state, true, true, true, true, false, false);
     assert(!state.shown);
     // No hover while the handler's gates fail (a dead player: FUN_00463df0).
-    belt_popup::step(state, false, false, false, true, true);
+    belt_popup::step(state, false, false, true, false, true, true);
+    assert(!state.shown);
+    // Up by hover, then dead: FUN_00499bb0 returns first, so it stays up,
+    // the mouse off the popup or not.
+    belt_popup::step(state, false, false, true, true, true, true);
+    belt_popup::step(state, false, false, true, false, false, false);
+    assert(state.shown && state.hovered);
+    // Up by hover, then the HUD hidden (local co-op, d2d only): no belt
+    // drawn, so it comes down; the key still keeps it up.
+    belt_popup::step(state, false, false, false, true, true, true);
+    assert(!state.shown && !state.hovered);
+    belt_popup::step(state, false, false, true, true, true, true);
+    belt_popup::step(state, true, false, false, true, false, false);
+    assert(state.shown && !state.hovered);
+    belt_popup::step(state, false, false, false, true, true, true);
     assert(!state.shown);
 
     // The mini-panel moves left while the popup is up or its key is on,
