@@ -22,6 +22,7 @@ WANT = {"act4-eclipse": [199, 198], "act4-noon": [199, 198], "sun-0": [128], "su
 
 
 def frames(e, env, level, act, count):
+    """FUN_0061bb80 run `count` frames on `env` in `level` / `act`: +0xc after each."""
     seen = []
     for _ in range(count):
         e.call(0x61bb80, ecx=level, regs={"esi": env, "edi": act})
@@ -30,6 +31,7 @@ def frames(e, env, level, act, count):
 
 
 def case(e, label, level, act, start, count, degrees=0, eclipse=0):
+    """One environment set up and run against WANT[label]; True if it differs."""
     env = e.alloc(ENV_SIZE)
     e.w32(env + INTENSITY, start)
     e.w32(env + TIME, degrees * DAY_SCALE)
@@ -43,6 +45,7 @@ def case(e, label, level, act, start, count, degrees=0, eclipse=0):
 
 
 def main():
+    """Act 4's targets and fades, then the WANT cases; 1 if any differs from lighting.md."""
     if sys.argv[1:]:
         sys.exit("usage: env_light.py")
     e, bad = emu.Emu(), 0

@@ -37,6 +37,7 @@ ACT4_BORDERS = {(106, 105), (105, 104), (104, 103)}
 
 
 def boot():
+    """game.exe with Levels.txt's lights and the day's colour and intensity hooked in."""
     e = emu.Emu()
     rows = list(csv.DictReader(io.StringIO(e.mpq_file("data\\global\\excel\\Levels.txt").decode("latin-1")), delimiter="\t"))
     lights = {int(row["Id"]): tuple(int(row[key] or 0) for key in ("Intensity", "Red", "Green", "Blue")) for row in rows if row["Id"]}
@@ -44,6 +45,7 @@ def boot():
         raise SystemExit(f"level_ambient: Levels.txt row {CHAOS} reads {lights[CHAOS]}")
 
     def put_bytes(e, addresses, values):
+        """Write each value as one byte to its address (the hooks' out-parameters)."""
         for address, value in zip(addresses, values):
             e.mu.mem_write(address, bytes([value]))
 
@@ -68,6 +70,7 @@ def check(label, got, want):
 
 
 def main():
+    """The fills with and without events 12 / 13, then the dip; 1 if any differs from lighting.md."""
     e, bad = boot(), 0
     e.w32(RED_COUNT, 0xffffffff)
     for level in (RIVER, CHAOS, BLOOD_MOOR, FORTRESS):
@@ -100,6 +103,7 @@ def main():
 
 
 def borders():
+    """Act 4's touching levels whose fills differ, against ACT4_BORDERS; 1 if they differ."""
     e = drlg.boot()
     rows = csv.DictReader(io.StringIO(e.mpq_file("data\\global\\excel\\Levels.txt").decode("latin-1")), delimiter="\t")
     # a level with a colour has its Intensity, the rest the day's (None)
