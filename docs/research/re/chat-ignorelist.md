@@ -169,3 +169,20 @@ two list nodes at `this+4` and `this+0xc` (each: if linked, patch the
 previous link and clear both words). So `0060ed30` is the destructor of an
 Ignorelist string-list element built on Storm's template list (`stpl.h`).
 
+## SMemFree callers that only delete
+
+Cited; d2d: not ported. Four callers complete the chain and add nothing
+beyond a delete wrapper:
+
+- `FUN_004053f0` (27 bytes): `if (p) SMemFree(p, "delete", -1, 0)`.
+- `FUN_0040fe60`: runs `FUN_0040faa0` (destructor), then if bit 0 of the flag
+  and the object are set, `SMemFree(this, "delete", -1, 0)`; returns this.
+- `FUN_00426e20`: unlinks the node (same two-word list unlink as above), and
+  with flag bit 0 deletes the object the same way.
+- `FUN_00426f20`: unlinks the node, then
+  `SMemFree(node, <string at 007088d8>, -2, 0)`; the file argument is a tag
+  string, not a source path, and the line is -2 (-1 for `"delete"`).
+  `FUN_0040fed0` does the same in a loop with the string at `00708124`
+  until `dword [this+8]` is 0. Ghidra labels the two strings
+  `s___AUBREAKCMD___` and `s___AUMessage_LogManager___`; their exact bytes
+  were not read from `game-strings.tsv`.
