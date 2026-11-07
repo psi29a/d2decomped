@@ -485,7 +485,13 @@ else rare.
     of it with room, worn then backpack (`FUN_00577700`), with as many
     as the gold buys (none: 12, line 0x89a); with none carried, one
     stack of that many, at most its most (`FUN_006295b0`);
-  - anything else is bought again while the belt takes it; the first it
-    doesn't goes to the inventory and ends it. Gold running out after
-    one answers 12 (0x8d4); room running out says nothing.
+  - anything else is bought again while the belt takes it (upper rows too:
+    `FUN_0055e9b0`, a column's lowest free box). The first copy the belt
+    doesn't take, after one was bought, is offered to a body slot
+    (`FUN_00562e00`), else dropped: 0x577d9c tests the bought flag
+    (`[EBP-0x10]`) and jumps to `LAB_00577e68`, which puts the gold back
+    (`FUN_0053ff00`), frees the copy (`FUN_00557fd0`) and returns with
+    nothing said. Only a first copy goes to the inventory
+    (`FUN_00560200`), so a fill doesn't spill there. Gold running out
+    after one answers 12 (0x8d4).
   d2d: `rules::store_buy`'s `fill`, `cmd::Buy::fill`.
