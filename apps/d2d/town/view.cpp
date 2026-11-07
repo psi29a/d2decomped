@@ -433,7 +433,9 @@ auto Town::automap_frame() -> void {
         }
         // The top right (FUN_0045ad60): the level's name, the version, the
         // difficulty past Normal (0x1057 of 0x1423 / 0x1422), EXPANSION (0x58ca).
-        // ponytail: a joined game's name and password lines aren't shown.
+        // No game name / password lines: game.exe's (FUN_00459e90) show only
+        // Battle.net's (config +0x1f / +0x245), empty in a TCP/IP or
+        // single-player game (automap.md "The top right").
         automap.lines.clear();
         if (level) automap.lines.push_back(level->name);
         automap.lines.emplace_back("v 1.14d");
