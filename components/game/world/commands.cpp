@@ -99,6 +99,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             const bool worn = found->location == d2d::d2s::item_location::kEquipped;
             if (found->location == d2d::d2s::item_location::kBelt || (worn && actor->held)) return true;
             const bool belt = worn && found->slot == d2d::d2s::body_location::kBelt;
+            d2d::rules::wield_leaves(item_rules, actor->character.items, *found);   // FUN_00560cd0 -> FUN_0063d2b0
             if (const auto over = d2d::rules::store_sell(item_rules, actor->store, std::size_t(found - actor->character.items.begin()), actor->character.items, actor->character.stats); over > 0) {
                 loot.enter(level);
                 loot.put({ .code = "gld", .gold = int(over) }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
@@ -116,8 +117,12 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                 return true;
             }
             const auto found = std::ranges::find(actor->character.items, repair->item, &d2d::d2s::Item::id);
-            if (found != actor->character.items.end() && d2d::rules::store_repair(item_rules, actor->store, *found, actor->character.stats))
+            if (found == actor->character.items.end()) return true;
+            const bool was_broken = d2d::rules::broken(*found);
+            if (d2d::rules::store_repair(item_rules, actor->store, *found, actor->character.stats)) {
                 cues.cue(d2d::rules::sound_ids::kCursorRepairItem, now_ms, actor->player.x, actor->player.y);
+                if (was_broken) d2d::rules::wield_enters(item_rules, actor->character.items, *found);   // FUN_0055f900 -> FUN_0063d1d0
+            }
             return true;
         }
         // Cain's identify (FUN_00578460): 100 gold an item, all at once, unless
@@ -361,11 +366,23 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         if (std::holds_alternative<cmd::SwapWeapons>(command)) {
             namespace body = d2d::d2s::body_location;
             if (!actor->character.expansion || fight.dead()) return;
-            for (auto& item : actor->character.items) {
-                if (item.location != d2d::d2s::item_location::kEquipped) continue;
-                if (item.slot == body::kRightArm || item.slot == body::kLeftArm) item.slot += body::kRightArmSwitch - body::kRightArm;
-                else if (item.slot == body::kRightArmSwitch || item.slot == body::kLeftArmSwitch) item.slot -= body::kRightArmSwitch - body::kRightArm;
-            }
+            // The hands come off first, right then left (FUN_0063d2b0 each),
+            // then the switch's go in, right then left (FUN_0063d1d0 each).
+            auto& items = actor->character.items;
+            const auto& rules_tables = game_data->rules;
+            const auto worn_at = [&](int slot) { return d2d::rules::hand_index(items, slot); };
+            const int hands[2] = { worn_at(body::kRightArm), worn_at(body::kLeftArm) };
+            const int spares[2] = { worn_at(body::kRightArmSwitch), worn_at(body::kLeftArmSwitch) };
+            for (const int index : hands)
+                if (index >= 0) {
+                    d2d::rules::wield_leaves(rules_tables, items, items[std::size_t(index)]);
+                    items[std::size_t(index)].slot += body::kRightArmSwitch - body::kRightArm;
+                }
+            for (const int index : spares)
+                if (index >= 0) {
+                    items[std::size_t(index)].slot -= body::kRightArmSwitch - body::kRightArm;
+                    d2d::rules::wield_enters(rules_tables, items, items[std::size_t(index)]);
+                }
             auto& header = actor->character.header;
             if (header.right_skill == std::uint32_t(kResurrectSkill)) header.right_skill = actor->right_before;   // co-op's Resurrect stays with no set
             header.weapon_set ^= 1;
@@ -483,6 +500,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         if (const auto* to_cursor = std::get_if<cmd::ToCursor>(&command)) {
             const auto found = std::ranges::find(actor->character.items, to_cursor->item, &d2d::d2s::Item::id);
             const bool belt = found != actor->character.items.end() && found->location == d2d::d2s::item_location::kEquipped && found->slot == d2d::d2s::body_location::kBelt;
+            if (!actor->held && found != actor->character.items.end()) d2d::rules::wield_leaves(tables, actor->character.items, *found);   // FUN_00560cd0 -> FUN_0063d2b0
             if (!actor->held && found != actor->character.items.end()
                 && d2d::rules::pick_up(actor->character.items, actor->held, std::size_t(found - actor->character.items.begin()))) {
                 item_cue(*actor->held, true);
