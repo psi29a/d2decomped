@@ -677,7 +677,7 @@ d2d: `d2s::item`'s simple branch (components/d2s/d2s_items.hpp:284) reads the sa
 (cited from the decompile, no oracle run) on the version gates (> 92 quest difficulty, > 86 realm, > 93 third word), the
 32/12 gold read and the ear fields. Two differences, neither one a save
 bug: d2d reads gold only on the wire (`net`) and only for code `gld`, where
-the game tests the item type (saves never hold gold), and d2d applies no
+the game tests the item type (a save is not expected to hold gold; unchecked), and d2d applies no
 `<< (row +0x18)` shift to the quest difficulty, which is right only while
 that column of row 0x164 is 0 (not checked here; needs Itemstatcost.txt).
 The `tsc ` / `isc ` fix-ups are not ported.
