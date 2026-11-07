@@ -106,3 +106,14 @@ the {array, count} pair the walks below read (callers `FUN_00626e10`,
 `FUN_00627860`, `FUN_00627a40`). Evidence: 17 bytes, one
 flag test. d2d: not ported (d2d keeps stats in `d2s::Stats`).
 Re-check: `python3 tools/ghidra/fn.py 00624f40`, `python3 tools/ghidra/calls.py 00626e10`.
+
+### ItemStatCost row — FUN_0045c4f0 (ECX stat id)
+
+Returns `stat * 0x144 + *(tables + 0xbcc)`, or 0 when the id is negative
+or not below `*(tables + 0xbd4)` (`tables` = `PTR_DAT_00744304`). The
+walks named here repeat this bounds test inline (`FUN_006269f0`,
+`FUN_00626920`, `FUN_006266c0`) or calls it (`FUN_00626e10`,
+`FUN_00626200`). Callers include `FUN_00565010`, `FUN_005665f0`,
+`FUN_005beda0`, `FUN_005c37c0`, `FUN_005c3f20`. d2d: not ported (its
+tables are vectors indexed with their own checks).
+Re-check: `python3 tools/ghidra/fn.py 0045c4f0`, `python3 tools/ghidra/calls.py 0045c4f0`.

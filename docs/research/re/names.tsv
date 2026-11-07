@@ -2,6 +2,7 @@ address	name	evidence
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
+0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
 0046dbf0	path_base_name	copies the base name between the last \ and the extension via _strncpy (chat.md)
 0046dc40	gfx_find_by_name	Gfx.cpp graphic lookup: base name, __strlwr, 512-bucket hash chain (chat.md)
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
