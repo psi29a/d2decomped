@@ -86,3 +86,23 @@ it is not below `DAT_007326b4`, then `FUN_0057eb10(DAT_006e1520[n])` runs.
 The 256 factor is the 8-bit fixed point of life, mana and stamina.
 
 Re-check: `python3 tools/ghidra/fn.py 005706d0`.
+
+## Stat list helpers (cited, read from the decompile, no oracle)
+
+Layout as the code below uses it (list = what `unit +0x5c` points to):
++0x04 the unit it hangs on, +0x10 flags, +0x24 / +0x28 the plain
+entry array and its count (short), +0x2c next / +0x30 previous sibling,
++0x34 parent list, +0x38 removal callback, +0x3c first child, +0x40 first
+child of kind 0x2000, +0x44 the owning unit, +0x48 / +0x4c the expanded
+array and count (short). Flag bits seen: 0x80000000 expanded (has
+children, uses +0x48), 0x40000000 switched off, 0x20000000 holds a stat
+whose ItemStatCost +0x53 is set, 0x2000 a list the walks below skip.
+ItemStatCost rows are 0x144 bytes at `tables +0xbcc`, count at `+0xbd4`.
+
+### Stat array of a list — FUN_00624f40 (EAX list)
+
+Returns `list + 0x48` when flag 0x80000000 is set, else `list + 0x24`:
+the {array, count} pair the walks below read (callers `FUN_00626e10`,
+`FUN_00627860`, `FUN_00627a40`). Evidence: 17 bytes, one
+flag test. d2d: not ported (d2d keeps stats in `d2s::Stats`).
+Re-check: `python3 tools/ghidra/fn.py 00624f40`, `python3 tools/ghidra/calls.py 00626e10`.
