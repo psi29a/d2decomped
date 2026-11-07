@@ -574,9 +574,10 @@ struct Fight {
     // calc1 (FUN_005d5970).
     bool start_swing(std::uint32_t now_ms);
     // Short of mana for a skill (the client's FUN_00647960 reason 1:
-    // FUN_00647540's cost, FUN_006440f0's minmana) the class says so: message
+    // FUN_00647540's cost, FUN_006440f0's startmana) the class says so: message
     // 0x15 (table 0x711ddc) -> FUN_004cb9c0, the class table's +0xc,
-    // <class>_needmana_1 (class_voice).
+    // <class>_needmana_1 (class_voice). d2d tests the cost only (`cost_of`), no startmana:
+    // todo.md row 53.
     void need_mana(std::uint32_t now_ms);
     // Reason 0x13 (status 2, skill_refused): the class table's +8,
     // <class>_impossible_1 (amazon 0xb89), as need_mana.
