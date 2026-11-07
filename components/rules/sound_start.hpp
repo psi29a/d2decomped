@@ -24,8 +24,8 @@ struct SoundInstance {
     // The units a Compound merge added (the list at +0x28 past the first,
     // FUN_004b9760): it counts as playing on them too.
     std::span<const std::uint64_t> merged{};
-    // Playing on `on` (FUN_005169d0: a walk of the list).
-    [[nodiscard]] bool plays_on(std::uint64_t on) const { return unit == on || std::ranges::find(merged, on) != merged.end(); }
+    // Playing on `asking` (FUN_005169d0: a walk of the list).
+    [[nodiscard]] bool plays_on(std::uint64_t asking) const { return unit == asking || std::ranges::find(merged, asking) != merged.end(); }
 };
 
 // The row being started.
