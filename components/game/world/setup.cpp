@@ -198,12 +198,13 @@ auto World::take_character(const Character& entering) -> void {
         actor->character.fresh = entering.fresh;
         d2d::rules::wield_settle(game_data->rules, actor->character.items);
         settle_requirements(*game_data, actor->character);   // the join: FUN_0052d440 -> FUN_0055df00 -> FUN_0055dbc0
-        // A new game starts at full life, mana and stamina, whatever the
-        // save held (D2's "save and exit to heal").
-        static constexpr std::pair<d2d::d2s::StatId, d2d::d2s::StatId> kRefill[] = {
-            { d2d::d2s::kLife, d2d::d2s::kMaxLife }, { d2d::d2s::kMana, d2d::d2s::kMaxMana }, { d2d::d2s::kStamina, d2d::d2s::kMaxStamina } };
-        for (const auto& [cur, max] : kRefill)
-            actor->character.stats.values[cur] = actor->character.stats.values[max];
+        // A new game keeps the life and mana the save held, exactly, fraction
+        // and all, even above the maximum: game.exe's loader FUN_0056b180 reads
+        // stats 6 and 8 after the stat block (0x56b283, 0x56b28f) and sets them
+        // back at its end (FUN_0056af80, 0x56b0ff, 0x56b10d) with no clamp. The
+        // client's copy is whole points (its 0x18 packet, `value << 8`). The
+        // same function sets stamina (0xa) to the maximum (0xb), 0x56b01d.
+        actor->character.stats.values[d2d::d2s::kStamina] = actor->character.stats.values[d2d::d2s::kMaxStamina];
         // The save's maxima are its own (Fight::own_stats): the last game's
         // gear and Battle Orders shares go, or the next refresh adds none and
         // the next save takes them off again.
