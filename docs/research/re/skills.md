@@ -552,6 +552,34 @@ lines (missile names aren't passed in). What it does:
   LAB_004c9280), the skill picker by SkillsPal.cpp (FUN_004c9b40); icons
   are `Spells\<Cl>Skillicon` (already loaded for the tree).
 
+### Can the skill go now (FUN_00647960, traced 2026-11-07)
+`FUN_00647960(unit, entry)` (stdcall, SKILLS/Skills.cpp) answers 0 or the
+first reason it can't, in this order (the Skills.txt flag bits are the
+loader's, `FUN_00613f80`: dword +4 bit n, n from 0x20 on in dword +8):
+1. no row (entry +0), or the row's InGame flag clear (bit 0xa, +5 & 4): 3.
+2. level 0 (`FUN_006442a0(unit, entry, 1)`): 7.
+3. aura (bit 5, +4 & 0x20, `0x6ce27c`): 6. passive (bit 4, +4 & 0x10): 5.
+4. `FUN_00647640` (scrolls and tomes: the entry's count +0x30 above 0 with
+   an inventory; Throw, Left Hand Throw / Swing: their hands; else 1),
+   then the weapon-type gate `FUN_00643f80` for every skill: 2.
+5. mana (`FUN_00647540`): 1. An item's entry (+0x34 not -1) asks only for
+   its charges (+0x38 above 0); blood_mana (state 0x72) asks life (stat 6)
+   instead of mana (stat 8); srvdofunc 116 passes when `FUN_0063a400`.
+6. restrict (`FUN_00644060`, +0x228): 0 refuses a unit in a state with
+   States.txt restrict (wolf, bear, delerium; `FUN_0063a510`), 2 asks
+   one of State1..3 (+0x22a), 1 and others pass: 4.
+7. startmana (`FUN_006440f0`, a player only): 1.
+8. an item's entry (+0x34 not -1) whose item is in the inventory with no
+   charges left, its stat 0xcc (layer skill << 6 | level) 0 in the low byte
+   (`FUN_00647840`): 2. An item not found passes (cases item_held_charges /
+   item_held_no_charges, item_charges).
+9. a player in state skilldelay (0x79) with the skill's delay calc
+   (+0x190, `FUN_00646ca0`) above 0 (`FUN_006478f0`): 8; else 0.
+
+So an aura or passive at level 0 is 7, a passive with no weapon 5, a
+skill with no weapon and no mana 2. Oracle: `tools/emu/skill_status.py`
+(31 cases, the real rows and helpers; `ok`).
+
 ### Item charges (traced 2026-10-28)
 - Stat 0xcc (204, item_charged_skill): param skill << 6 | level, value
   max << 8 | left.
@@ -587,7 +615,8 @@ lines (missile names aren't passed in). What it does:
   0x13, 0x13): 0x13 the class table's +8, `<class>_impossible_1`
   (amazon 0xb89). After an item change FUN_004c1350 -> FUN_004c1200 puts
   a remembered hand skill back unless its status is 2 or 7. d2d:
-  `skill_refused` (Throw's weapon gate only), `Fight::impossible`.
+  `skill_refused` (the weapon-type gate, Throw's own), `Fight::impossible`;
+  "Can the skill go now" has the statuses.
   ponytail: the remembered hands (FUN_004c1200) aren't kept.
 - Tooltip: the button's and the picker's (FUN_004a8d50 -> FUN_004ef990:
   unit, skill, level, calc, draw mode, x, y) is the plain skill tooltip at
