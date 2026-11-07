@@ -218,18 +218,11 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 rate = float(d2d::rules::moving_anim_rate(mode == kModeRN, view.walk_percent)) / float(walk_anim.speed ? walk_anim.speed : walk_anim.cof_speed);
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, frame_ms); rate = 1.f; }   // an SQ skill's frame
         const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, den_ambient(), extra, &player_look, frame_ms, &hero_at);
-        // A pad in the field shows no cursor: it hovers what A would act on
-        // instead (its name, and a monster's life bar), a spot up its body.
-        // ponytail: a spot, not its box: something drawn in front can take the hover.
+        // A pad in the field shows no cursor. The highlight is the same PadPick the
+        // press uses, by id. A screen point would let a sprite in front take it.
         int hover_x = held ? -1 : mouse.x, hover_y = held ? -1 : mouse.y;
-        if (pad_cue) {
-            hover_x = hover_y = -1;
-            if (const auto pick = pad_pick(pad, focused().player, true); pick.kind != PadPick::kNone && focus_id() == hero.id) {
-                const float dx = pick.x - cam_x, dy = pick.y - cam_y;
-                hover_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
-                hover_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2))) - (pick.kind == PadPick::kItem ? 4 : 24);
-            }
-        }
+        const bool pad_target = pad_playing && pad_field() && focus_id() == hero.id;
+        if (pad_target) hover_x = hover_y = -1;
         automap_frame();
         const bool pad_bar = skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
         auto belt_names = belt_key_names;
@@ -287,6 +280,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                     blit_at_anchor(framebuffer, art->second.frame(0, frame), pal, fb_width(framebuffer) / 2 - 1 - width / 2 + int(frame) * 0x100, int(kScreenHeight) / 2 - 0x8c);
             }
         }
+        if (pad_target) hovered_npc = pad_hover_npc(pad_action_pick());
         view_overlays(framebuffer, *scene, view, hovered_monster());
         if (!coop_hud_hidden() || skillbar.picking) skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
@@ -449,8 +443,25 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
 
 // The field's pad prompt over the control panel: the button A is bound to,
 // and what it does to the thing it hovers. A d2d extra: game.exe has no pad.
-auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const -> void {
-    const auto pick = pad_pick(pad, view.player, true);
+auto Town::pad_action_pick() -> PadPick {
+        const UnitState& unit = focused().player;
+        if (pad_config.skill_buttons) return pad_pick(pad, unit, true, {}, false);
+        return pad_pick(pad, unit, true, pad_aim(skillbar.left, pad.move.aim || pad.move.active));
+    }
+
+auto Town::pad_hover_npc(const PadPick& pick) const -> int {
+        if (pick.kind == PadPick::kMonster) {
+            for (std::size_t index = 0; index < view.monsters.size(); ++index)
+                if (view.monsters[index].id == pick.id) return -10 - int(index);
+        } else if (pick.kind == PadPick::kItem) {
+            for (std::size_t index = 0; index < view.ground.size(); ++index)
+                if (view.ground[index].id == pick.id) return -1000 - int(index);
+        } else if (pick.kind == PadPick::kThing) return pick.id;
+        return -1;
+    }
+
+auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
+    const auto pick = pad_action_pick();
     if (pick.kind == PadPick::kNone) return;
     // A town portal (-2000 - which) is used, a corpse (-3000 - which) picked up, as an object / ground item.
     const bool portal = pick.kind == PadPick::kThing && pick.id <= -2000 && pick.id > -3000;
