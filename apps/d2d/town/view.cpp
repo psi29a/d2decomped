@@ -22,6 +22,7 @@
 #include <monsters.hpp>
 #include <object_ids.hpp>
 #include <overlays.hpp>
+#include <quests.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>
 #include <userdir.hpp>
@@ -94,7 +95,26 @@ namespace {
 // permanent pairs, else the town portal's (World::portal_object).
 // ponytail: the true tomb's way down (object 100, SJ) is drawn as a town portal.
 const Npc& portal_look(const Scene& scene, int which) {
+    if (which == int(d2d::game::World::kGamePortals)) return scene.cain_portal;
     return d2d::game::World::portal_object(std::size_t(which)) == 60 ? scene.red_portal : scene.town_portal;
+}
+
+// A portal's mode and when it began: a town portal OP for its 768 ms, then
+// ON; object 189 by its events (rules::CainQuest::portal_mode: OP 25
+// frames, ON, S1 the 25 before its mode 4, then S2 held).
+std::pair<std::string_view, std::uint32_t> portal_mode(const View::Portal& portal, std::uint32_t now_ms) {
+    if (portal.which != int(d2d::game::World::kGamePortals)) {
+        const bool opening = now_ms - portal.born < kPortalOpenMs;
+        return { opening ? "OP" : "ON", opening ? portal.born : portal.born + kPortalOpenMs };
+    }
+    constexpr std::uint32_t kStepMs = 25 * 40;
+    const int closed = portal.closed_ms ? int((portal.closed_ms - portal.born) / 40) : 0;
+    switch (d2d::rules::CainQuest::portal_mode(int((now_ms - portal.born) / 40), closed)) {
+    case 1: return { "OP", portal.born };
+    case 2: return { "ON", portal.born + kStepMs };
+    case 3: return { "S1", portal.closed_ms - kStepMs };
+    default: return { "S2", portal.closed_ms };
+    }
 }
 
 }  // namespace
@@ -131,9 +151,9 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
     // being case-blind) has no name: Selectable0..2 all 0.
     for (const auto& portal : view.portals) {
         const Level* destination = portal.which < int(d2d::game::World::kGamePortals) ? scene.level(portal.destination) : nullptr;
-        const bool opening = now_ms - portal.born < kPortalOpenMs;
-        out.push_back({ portal.x, portal.y, &scene.npc_anim(portal_look(scene, portal.which), opening ? "OP" : "ON"), 0, destination ? &destination->name : nullptr,
-                        opening ? portal.born : portal.born + kPortalOpenMs, -2000 - portal.which });
+        const auto [mode, mode_ms] = portal_mode(portal, now_ms);
+        out.push_back({ portal.x, portal.y, &scene.npc_anim(portal_look(scene, portal.which), mode), 0, destination ? &destination->name : nullptr,
+                        mode_ms, -2000 - portal.which });
         out.back().shadow = false;
     }
     if (view.merc) {
@@ -339,8 +359,8 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
     for (const auto& neighbour : view.level->nearby)                  // the torches over the level's edge
         for (const auto& npc : neighbour.level->npcs) stamp(npc.x + float(neighbour.dx), npc.y + float(neighbour.dy), lit(npc, {}), true);
     for (const auto& monster : view.monsters) if (monster.alive()) lamp(4ull << 32 | std::uint32_t(monster.id), monster.unit.x + kHalf, monster.unit.y + kHalf, monster.npc.light, false);
-    for (const auto& portal : view.portals)                        // Lit1 (OP) while it opens, then Lit2 (ON)
-        lamp(5ull << 32 | std::uint32_t(portal.which), portal.x, portal.y, int(portal_look(scene, portal.which).lit[now - portal.born < kPortalOpenMs ? 1 : 2]) >> 1, true);
+    for (const auto& portal : view.portals)                        // its mode's Lit (Lit1 while it opens, then Lit2 ...)
+        lamp(5ull << 32 | std::uint32_t(portal.which), portal.x, portal.y, int(portal_look(scene, portal.which).lit[std::size_t(d2d::game::mode_index(portal_mode(portal, now).first))]) >> 1, true);
     for (const auto& missile : view.missiles) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
     for (const auto& missile : effects) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
     // States' overlays light their unit (Overlay.txt: InitRadius growing to

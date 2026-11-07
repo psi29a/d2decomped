@@ -138,7 +138,8 @@ struct View {
     std::vector<Fire> fires;
     // The player's town portal where they stand (which 0: where it was cast,
     // 1: its twin in town), leading to level `to`.
-    struct Portal { float x = 0, y = 0; int destination = 0; std::uint32_t born = 0; int which = 0; };
+    // closed_ms: an object 189's mode 4 (rules::CainQuest::portal_mode), 0 not due.
+    struct Portal { float x = 0, y = 0; int destination = 0; std::uint32_t born = 0; int which = 0; std::uint32_t closed_ms = 0; };
     std::vector<Portal> portals;
     // The player's corpses where they stand: their look when they fell.
     struct Corpse { float x = 0, y = 0; int dir = 0; GameData::Appearance gfx{}; int which = 0; };
