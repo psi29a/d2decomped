@@ -13,6 +13,7 @@
 #include "hireling.hpp"
 #include "hold_confirm.hpp"
 #include "netgame.hpp"
+#include "pad_hold.hpp"
 #include "panels.hpp"
 #include "party.hpp"
 #include "platform.hpp"

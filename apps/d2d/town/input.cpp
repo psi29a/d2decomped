@@ -11,10 +11,10 @@
 #include "gamepad_map.hpp"
 #include "hold_confirm.hpp"
 #include "ingame.hpp"
-#include "pad_hold.hpp"
 #include "internal.hpp"
 #include "keyconfig.hpp"
 #include "load.hpp"
+#include "pad_hold.hpp"
 #include "panels.hpp"
 #include "party.hpp"
 #include "platform.hpp"
@@ -27,6 +27,8 @@
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
+#include <inventory.hpp>
+#include <item_text.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
 #include <monsters.hpp>
@@ -663,20 +665,20 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
             if (kind == PadHoldKind::Sell) send(cmd::Sell{ item->id });
             else if (kind == PadHoldKind::Equip) send(cmd::EquipFromBag{ item->id });
             else if ((kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne) && scene) {
-            auto trial = character.items;
-            const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
-            std::vector<int> moved;
-            const auto try_item = [&](int carried_id) {
-                if (d2d::rules::auto_belt(scene->rules, trial, carried_id, boxes)) moved.push_back(carried_id);
-            };
-            const auto is_potion = [&](std::string_view code) {
-                return potion_code(code) || scene->rules.potions.contains(std::string(code));
-            };
-            try_item(item->id);
-            if (kind == PadHoldKind::Fill)
-                for (const auto& carried : character.items)
-                    if (carried.id != item->id && is_potion(carried.code)) try_item(carried.id);
-            for (const int carried_id : moved) send(cmd::AutoBelt{ carried_id });
+                auto trial = character.items;
+                const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
+                std::vector<int> moved;
+                const auto try_item = [&](int carried_id) {
+                    if (d2d::rules::auto_belt(scene->rules, trial, carried_id, boxes)) moved.push_back(carried_id);
+                };
+                const auto is_potion = [&](std::string_view code) {
+                    return potion_code(code) || scene->rules.potions.contains(std::string(code));
+                };
+                try_item(item->id);
+                if (kind == PadHoldKind::Fill)
+                    for (const auto& carried : character.items)
+                        if (carried.id != item->id && is_potion(carried.code)) try_item(carried.id);
+                for (const int carried_id : moved) send(cmd::AutoBelt{ carried_id });
             }
         }
     }

@@ -444,6 +444,23 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
 
 // The field's pad prompt over the control panel: the button A is bound to,
 // and what it does to the thing it hovers. A d2d extra: game.exe has no pad.
+auto Town::pad_action_pick() -> PadPick {
+        const UnitState& unit = focused().player;
+        if (pad_config.skill_buttons) return pad_pick(pad, unit, true, {}, false);
+        return pad_pick(pad, unit, true, pad_aim(skillbar.left, pad.move.aim || pad.move.active));
+    }
+
+auto Town::pad_hover_npc(const PadPick& pick) const -> int {
+        if (pick.kind == PadPick::kMonster) {
+            for (std::size_t index = 0; index < view.monsters.size(); ++index)
+                if (view.monsters[index].id == pick.id) return -10 - int(index);
+        } else if (pick.kind == PadPick::kItem) {
+            for (std::size_t index = 0; index < view.ground.size(); ++index)
+                if (view.ground[index].id == pick.id) return -1000 - int(index);
+        } else if (pick.kind == PadPick::kThing) return pick.id;
+        return -1;
+    }
+
 auto Town::draw_hold_cue(std::vector<std::uint8_t>& framebuffer) const -> void {
         if (!scene || pad_hold_text.empty()) return;
         const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
@@ -462,23 +479,6 @@ auto Town::draw_hold_cue(std::vector<std::uint8_t>& framebuffer) const -> void {
                 pixel[1] = filled_here ? 179 : 32;
                 pixel[2] = filled_here ? 119 : 24;
             }
-    }
-
-auto Town::pad_action_pick() -> PadPick {
-        const UnitState& unit = focused().player;
-        if (pad_config.skill_buttons) return pad_pick(pad, unit, true, {}, false);
-        return pad_pick(pad, unit, true, pad_aim(skillbar.left, pad.move.aim || pad.move.active));
-    }
-
-auto Town::pad_hover_npc(const PadPick& pick) const -> int {
-        if (pick.kind == PadPick::kMonster) {
-            for (std::size_t index = 0; index < view.monsters.size(); ++index)
-                if (view.monsters[index].id == pick.id) return -10 - int(index);
-        } else if (pick.kind == PadPick::kItem) {
-            for (std::size_t index = 0; index < view.ground.size(); ++index)
-                if (view.ground[index].id == pick.id) return -1000 - int(index);
-        } else if (pick.kind == PadPick::kThing) return pick.id;
-        return -1;
     }
 
 auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
