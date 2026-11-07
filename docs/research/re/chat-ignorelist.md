@@ -126,3 +126,12 @@ the code alone (bit 2 looks like "already free", the word like an end marker
 written when bit 1 is set); the allocator side that sets them was not traced
 here. Callers: `004122f0`, `00412650`, `00412760`, `004127e0`, `00412a60`.
 
+## FUN_00411c20: wipe, then release the chunk
+
+Cited; d2d: not ported. 67 bytes. EAX is the chunk header (user pointer
+minus 8: `ushort [0]` total size, `byte [2]` pad, `byte [3]` flags). If
+`DAT_007788cc` is set (the same switch SMemAlloc uses to fill with 0xee) and
+flag 4 of `byte [3]` is clear, `FUN_0041d2c0` fills `ushort[0] - 2*(flag 1) -
+byte[2] - 8` bytes with `0xdd`. Then `FUN_00411aa0` unlinks the chunk.
+Callers: `00412650`, `00412a60`, `00412f30`.
+
