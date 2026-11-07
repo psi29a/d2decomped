@@ -35,6 +35,7 @@ int main() try {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data);
+    if (!data->patched) { std::printf("SKIP: these checks are 1.14d's (set D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
     assert(data->town_portal.code == "TP" && data->red_portal.code == "PP");
 
     d2d::rules::Rng rng(7);
