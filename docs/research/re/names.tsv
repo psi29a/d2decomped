@@ -643,6 +643,7 @@ address	name	evidence
 0062ae20	saved_item_header	'JM', 'ear ', 'nec ' -> 'neg ' before 0x5d
 0062af50	bits_write_clamped	FUN_00410eb0, (1 << n) - 1
 0062b3a0	item_setitems_2e	SetItems +0x2e
+0062b400	item_unit_type	item unit (type 4): FUN_00628700(unit +4) = ItemTypes index; 0 for another unit type; assert id 0x67d for a null unit
 0062b450	sockets_stat_sum	children in mode 1, FUN_00625480
 0062b560	item_62b4d0	FUN_0062b4d0 of unit +4 (Items.cpp 0x78c)
 0062ba60	item_required_level_wrap	d2d_item_text_required_level
