@@ -458,3 +458,37 @@ flag 1 is clear: `FUN_0045adf0` / `FUN_0045ae20` of it).
 
 d2d: not ported on its own; `Fight::burst` case 20 (fight/missiles.cpp)
 inlines it (see the next section for what differs).
+
+## Server hit function 20 — FUN_005ab370 (Lightning Fury)
+
+Cited. Slot 20 of the pSrvHitFunc table 0x73c840 (`0x73c890`, the only
+reference to it that I found). ECX game, EDX the missile unit.
+
+- The missile's row (Missiles.txt, 0x1a4 each) must have a sub-missile id
+  (short at +0x24) >= 0, the skill (`FUN_0064a280` id, `FUN_0064a210`
+  level, from the missile's data block) must be in the skills table, and
+  the owner (`FUN_00552fd0`) must exist. Otherwise it returns 1.
+- Radius: the missile row's sHitPar1 (+0x4c) when >= 1, else
+  `FUN_00646ca0(owner, skill +0x64 (aurarange), id, level)`; at least 1 only
+  on the calc path (`iVar3 < 1 -> 1`).
+- Count: sHitPar2 (+0x50) when >= 1, else calc1 (skill +0x138); at least 1.
+- Filter: the skill's +0x50 (aurafilter), 0xa783 when that is 0.
+- `FUN_0056b7e0(x, y of the missile, radius, filter, FUN_005ab2a0, &ctx, 1,
+  ".\MISSILES\MissMode.cpp", 0xec3)` walks the units in range and makes one
+  sub-missile each (FUN_005ab2a0) until the count is served. Returns **3**
+  (damage, end).
+- The walker skips only the missile unit itself (`piVar5 != local_c`); the
+  callback has no test for the unit the missile struck. That is only how
+  the code reads, cited from the decompile, no oracle run.
+
+Re-check: `python3 tools/ghidra/fn.py 005ab370`, `python3 tools/ghidra/fn.py 0056b7e0`.
+
+d2d: **DISAGREES** on one point. `Fight::burst` case 20 skips
+`missile.target` (`int(j) != missile.target`), the monster the bolt struck;
+game.exe's walk and callback have no such exclusion, so the struck unit gets
+a sub-missile too when it passes the filter (a difference in d2d; nothing
+shows that game.exe meant otherwise, so this is not recorded as a bug). Radius and count (sHitPar1 /
+sHitPar2 else aurarange / calc1, count at least 1) read the same, cited from
+the decompile, no oracle run. d2d ignores the
+skill's aurafilter. Confidence: medium (read from the code, no oracle;
+the walker's counter at state +8 is not shown incrementing in the decompile).
