@@ -103,6 +103,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                 loot.enter(level);
                 loot.put({ .code = "gld", .gold = int(over) }, actor->player.x, actor->player.y, 1, fight.spawning.game, now_ms);
             }
+            cues.cue("item_gold", now_ms, actor->player.x, actor->player.y);
             if (belt) spill_belt(now_ms);                                          // FUN_00560cd0 -> FUN_005608c0
             return true;
         }
