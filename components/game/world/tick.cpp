@@ -11,6 +11,7 @@
 #include "internal.hpp"
 #include "inventory.hpp"
 #include "log.hpp"
+#include "npc_talk.hpp"
 #include "protocol.hpp"
 
 #include <combat.hpp>
@@ -175,6 +176,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         // Levels: finished builds come in; the ones next to the player's
         // start building when it changes (GameData::level).
         game_data->poll_levels();
+        if (!in_town(level)) each_player([](Player& player) { player.greeted.clear(); });   // FUN_004b3e10: out of town, all greet again
         fight.spawning.game_quests = game_bits;          // the town markers' inits read them as rooms come up
         // a3q7: the Dark Wanderer gone (ai.cpp) marks every player in act 3 (FUN_005bd260: word 0x20 bit 0, if missing).
         if (d2d::rules::level_act(level->id) == 2
@@ -343,9 +345,15 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                             if (quest::bit(quest_bits, d2d::rules::DenQuest::kQuest, 0) && !quest::bit(quest_bits, kRespec, 1) && !quest::bit(quest_bits, kRespec, 0)) { d2d::rules::quest::set(quest_bits, kRespec, 13); d2d::rules::quest::set(quest_bits, kRespec, 1); }
                         }
                         auto lines = quest_talk(npc.hc_idx);
-                        // Its greeting as the menu opens (FUN_004b66b0, kind 0), unless it has news to tell.
-                        // ponytail: kind 2's "return" (the talk record's +0x12 flag) isn't traced.
-                        if (!std::ranges::any_of(lines, &d2d::rules::QuestMsg::greet)) cues.cue_on(unit_key(kSoundOnMonster, -1 - actor->interact_npc), greet_sound(npc, 0), now_ms, actor->player.x, actor->player.y);
+                        // Its greeting as the menu opens (FUN_004b66b0, kind 0), unless it has news to tell;
+                        // one with a talk record only once a stay in town (its +0x15, Player::greeted).
+                        // ponytail: kind 2's "return" (+0x12, from S->C 0x91: FUN_00545100's per-class
+                        // quest callbacks via FUN_00572470) isn't played.
+                        const bool gated = has_talk_record(npc.hc_idx);
+                        if (!std::ranges::any_of(lines, &d2d::rules::QuestMsg::greet) && !(gated && std::ranges::contains(actor->greeted, npc.hc_idx))) {
+                            if (gated) actor->greeted.push_back(npc.hc_idx);
+                            cues.cue_on(unit_key(kSoundOnMonster, -1 - actor->interact_npc), greet_sound(npc, 0), now_ms, actor->player.x, actor->player.y);
+                        }
                         actor->events.push_back(ev::OpenUI{ ev::OpenUI::talk, actor->interact_npc, std::move(lines) });
                     }
                     actor->player.walking = false; actor->interact_npc = -1;
