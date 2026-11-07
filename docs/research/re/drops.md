@@ -312,6 +312,14 @@ A preset 580 (FUN_0054f370) is a sparkling chest; a gold placeholder
   magic rounds, 3 magic items enough; < 6200 up to 10, 2 magic enough,
   then 7 - plain gold piles (FUN_00585970); else, or when those find
   nothing, 10 tries for magic, at least 4 rounds, 5 gold, 2 hp3, 2 mp3.
+- "Magic" in both is FUN_0062a0f0 on the round's first made item (the
+  item FUN_00585b90 returns): its quality (item data +0) 4..9. The
+  quality is the one the item was made at (FUN_00557450): a unique with
+  no row (FUN_005566b0 fails) is made rare (FUN_005573f0, x3 durability
+  first), a set with none (FUN_005c2940 fails) magic (FUN_00557380, x2);
+  rare falls to magic, magic to superior (FUN_00557320) and normal
+  (FUN_005572a0) only when no affix fits (FUN_005c21a0 / FUN_005565e0
+  fail). So a unique or set that finds no row still counts as magic.
 - Casket (1, FUN_00586410): a round; nothing, it stays shut; then the
   undead roll (`(next % 10000) & ~0x1fff`). Urn (3, FUN_005866c0): a round
   at rand(100) < 21. Barrel (5, FUN_005868a0): the undead roll, then the
