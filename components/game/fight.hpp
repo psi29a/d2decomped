@@ -149,9 +149,11 @@ inline bool weapon_gate(const GameData& game_data, const Character& character, c
 // impossible_1 (FUN_004610c0, reason 0x13 at 0x711ddc).
 // ponytail: a skill with AttackNoMana swings Attack instead, with no voice (LAB_00461101): todo.md row 52.
 // The weapon-type gate (FUN_00643f80), Throw's its own (FUN_00647640: a throwable, or stat 125).
-// ponytail: FUN_00647960's other statuses (1 mana, 4, 5, 6) aren't kept, nor whether FUN_00643f80
-// also runs on Throw (a stat-125 weapon isn't of type thro). Throw's gate takes a dual-wielder's
-// primary hand (FUN_006235a0).
+// FUN_00643f80 runs on Throw too (LAB_006479f8; itypea1 thro): no 1.14d item has stat 125, so
+// throw_ready alone answers the same. skills.md "Can the skill go now".
+// ponytail: of FUN_00647960's other statuses only the mana cost (`cost_of`), no row (3) and level 0
+// (7) are kept; not startmana or blood mana (1), restrict (4), passive (5), aura (6), an item's
+// stat 0xcc charges (2) or skilldelay (8). Throw's gate takes a dual-wielder's primary hand (FUN_006235a0).
 inline bool skill_refused(const GameData& game_data, const Character& character, int id) {
     const auto* skill = game_data.skills.get(id);
     if (!skill) return false;
