@@ -42,7 +42,7 @@ Ranked by Seen, then by how much play it touches.
 | 47 | A walk to a warp has no two-walk limit (FUN_00548a50, FUN_00580c20): it re-plans while it steps | exact | hardly | collision.md "The server's pending interact"; world/tick.cpp, world/travel.cpp `use_warp` |
 | 48 | `use_warp` takes a warp mid-walk at reach; a single click in game.exe tests when the walk ends (LAB_00580e73), up to 4 subtiles later | exact | hardly | collision.md "The server's pending interact"; world/travel.cpp `use_warp` |
 | 49 | A held button over a warp forgets it after a stop; game.exe clicks again after a stop (LAB_00461fb7; FUN_00462930 stops a held frame while it walks), and refuses warp clicks inside that time | exact | hardly | collision.md "The server's pending interact"; world/commands.cpp `walk_to` |
-| 50 | A held button re-aims each tick, and a joined game sends C->S 0x01 / 0x03 each drawn frame; game.exe's walking player sends every 7 client frames, 280 ms (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; town/input.cpp, netgame.cpp `move_to` |
+| 50 | A held button re-aims each tick, and a joined game sends C->S 0x01 / 0x03 each drawn frame the aim moves to a new subtile (`NetGame::send` drops a repeat within 200 ms, as FUN_00478350); game.exe's walking player sends every 7 client frames, 280 ms (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; town/input.cpp, netgame.cpp `move_to` |
 | 51 | A click nearer than 3 subtiles (held 4, a run 5) walks only that far; game.exe's spot goes out to that distance (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; world/commands.cpp `walk_to` |
 
 ## Sounds

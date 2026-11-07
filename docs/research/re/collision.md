@@ -379,5 +379,7 @@ Read from the code, no oracle or packet log.
 
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
-joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known) against about 3.6.
+joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
+that aims at a new subtile, against about 3.6. A packet the same as the last one sent within 200 ms
+is dropped (`NetGame::send`, as FUN_00478350 does), so a held button on one spot sends about 5 a second.
 By reading both are small, a few subtiles of where a walk ends; neither was measured.
