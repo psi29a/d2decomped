@@ -194,10 +194,10 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   (monster-ai.md).
 - **d2d.** `follow_path` (ai.cpp), for the player, merc, pets and town NPCs,
   stops for a wall and the crowd alike, as game.exe does, on a step that stops
-  short of its next point; one that reaches a point tests nothing. It leaves the unit
-  where it was, not on the centre: off-centre after a crowd stops it part way, or when a new path from
-  the middle of a subtile clips a blocked one on its first leg. Neither needs
-  `debug warp`. In game.exe no stop stays off-centre. A
+  short of its next point; one that reaches a point tests nothing. A stop puts the
+  unit on the centre of the subtile it stands on and clears its path, as game.exe's
+  does (#226). A walk with no route at all doesn't snap, though game.exe's does
+  (LAB_006508ff, the same stop): `follow_path`'s loop doesn't run on an empty path. A
   hostile monster walks by `move_frame`, which snaps already.
 
 ### What keeps a walk to a unit going: the client
@@ -256,9 +256,9 @@ So a blocked walk to an NPC re-plans the frame after it stops, from the
 snapped centre, whether or not it moved. This is a reading of the code; no
 packet log has been taken of 0x02 going out each frame.
 
-d2d differs (`tick.cpp`): a walk that stops without moving drops the interact
-("blocked on the way"), and one that moved re-plans. game.exe keeps trying
-from both.
+d2d does the same since #227 (`tick.cpp`, "Queued, a walk that stopped tries
+again"): the interact stays queued, the walk re-plans the tick after each stop, and the player
+stands while no step is possible.
 
 ### The server's pending interact: one more walk
 
@@ -294,13 +294,12 @@ when the walk ends, not on the way. This case has no held test of its own, but F
 stops a held frame while the unit walks ("What a held frame sends"). So a held button clicks again
 after a stop, at most each 500 ms, and each click is two more walks.
 
-d2d (`World::use_warp`, compared on this branch, before fix/walk-blocked-centre and
-fix/interact-retry; neither changes `use_warp`):
+d2d (`World::use_warp`):
 
 - Same reach: `warp_close`, under 5 by `unit_distance`.
 - No two-walk limit here: "Short of the target with a step made" re-plans with no
-  count, and it drops `take_warp` only when a walk stops without a step. With
-  fix/walk-blocked-centre any block ends the walk, so one walk where game.exe has two.
+  count, and `take_warp` goes when the walk ends short of reach. Since #226 a block
+  ends it, as does a stop with no step, so a blocked walk is one walk where game.exe has two.
 - It tests every tick, so it takes the warp on the way at reach 4; a single click in
   game.exe walks on to the path's end first. Up to 4 subtiles early.
 - A held button sets `take_warp` only on the press, so after a stop it's gone.
@@ -344,8 +343,9 @@ d2d's held button (`input.cpp`, `cmd::Move` not fresh) walks again after a stop 
 the press on an NPC drops the interact, yet a normal click on a far NPC talks in play. What
 keeps it wasn't found, and no test holds a press: devctl's `click` sends down and up together.
 
-d2d re-plans a walk to a spot too while it moves ("Short of the target with a
-step made", `tick.cpp`), so one click can walk farther than game.exe's does.
+d2d re-plans a walk to a spot that runs out short while it moves ("Short of the
+target with a step made", `tick.cpp`), so one click can walk farther than game.exe's
+does. A blocked one ends there since #226.
 
 ### What a held frame sends
 
