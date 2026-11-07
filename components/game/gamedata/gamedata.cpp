@@ -1063,17 +1063,19 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
             const int wid = d2d::drlg::to_int(assets.levels.get(*row, "Warp" + std::to_string(warp.slot)), -1);
             if (destination <= 0 || wid < 0) continue;
             float exit_x = 0, exit_y = 0;
+            std::array<int, 4> select{};
             for (std::size_t k = 0; k < assets.lvl_warp.size(); ++k)
                 if (d2d::drlg::to_int(assets.lvl_warp.get(k, "Id"), -1) == wid) {
                     exit_x = float(d2d::drlg::to_int(assets.lvl_warp.get(k, "ExitWalkX"))) / 5;
                     exit_y = float(d2d::drlg::to_int(assets.lvl_warp.get(k, "ExitWalkY"))) / 5;
+                    for (std::size_t edge = 0; const char* column : { "SelectX", "SelectY", "SelectDX", "SelectDY" }) select[edge++] = d2d::drlg::to_int(assets.lvl_warp.get(k, column));
                     break;
                 }
             const auto& slot = slots[std::size_t(warp.slot)];
             int pair = 0;
             for (int k = 0; k < warp.slot; ++k) pair += d2d::drlg::to_int(assets.levels.get(*row, "Vis" + std::to_string(k))) == destination;
             level.warps.push_back({ float(warp.x), float(warp.y), destination, exit_x, exit_y,
-                                    (float(warp.x * 5 + slot.off_x) + 0.5f) / 5, (float(warp.y * 5 + slot.off_y) + 0.5f) / 5, warp.slot, pair });
+                                    (float(warp.x * 5 + slot.off_x) + 0.5f) / 5, (float(warp.y * 5 + slot.off_y) + 0.5f) / 5, warp.slot, pair, select });
         }
     // 0x800000 also: a room whose warp leads into a town, the town's room on
     // its near list (FUN_0066bd50, FUN_006426a0) — the Sewers' ways up.

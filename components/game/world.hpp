@@ -778,9 +778,16 @@ struct World {
     // (merc, pets) comes along; the automap and monsters are the new level's.
     // Close (FUN_00548b00 case 5): warp_close; a click further off walks
     // toward its tile unit (drlg.md "Taking a warp").
-    // ponytail: a click picks the warp within 2 cells of its cell, not by
-    // LvlWarp's Select box (the client's click target).
     void use_warp();
+    // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
+    // FUN_00463ee0): its world pixel within LvlWarp's Select box from the
+    // tile unit's subtile ((x - y) * 16, (x + y) * 8, FUN_00643260), edges in.
+    [[nodiscard]] static bool warp_clicked(const Level::Warp& warp, float x, float y) {
+        const int unit_x = int(std::floor(warp.unit_x * 5)), unit_y = int(std::floor(warp.unit_y * 5));
+        const float pixel_x = (x - y) * 80 - float((unit_x - unit_y) * 16), pixel_y = (x + y) * 40 - float((unit_x + unit_y) * 8);
+        const auto [select_x, select_y, select_dx, select_dy] = warp.select;
+        return pixel_x >= float(select_x) && pixel_x <= float(select_x + select_dx) && pixel_y >= float(select_y) && pixel_y <= float(select_y + select_dy);
+    }
     // Within reach of the warp's tile unit: rules::unit_distance (the
     // player's size 2, a warp unit's 0) under 5 (FUN_00641530).
     [[nodiscard]] static bool warp_close(const Level::Warp& warp, float x, float y) {
