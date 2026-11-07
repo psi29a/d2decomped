@@ -66,6 +66,11 @@ int main() {
     sheet.main = kShowItems;
     const Sheet actions = d2d::client::skillpad::read(d2d::client::skillpad::write(sheet));
     assert(actions.slot(false, 2) == kInteract && actions.main == kShowItems);
+    // Resurrect's sentinel (0x7ffe) is not a Skills.txt id. The sidecar keeps it.
+    // This does not run Town::apply_skill_pad or body_near.
+    sheet.set_slot(true, 4, 0x7ffe);
+    const Sheet raised = d2d::client::skillpad::read(d2d::client::skillpad::write(sheet));
+    assert(raised.slot(true, 4) == 0x7ffe);
 
     // An older file has one RT skill. Both triggers use it, and the other slots stay.
     const Sheet shared = d2d::client::skillpad::read("main 36\ns0 4\na0 8\n");

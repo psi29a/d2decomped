@@ -95,6 +95,7 @@ auto Town::present_skill_pad() -> void {
     };
     const auto shown_id = [&](int skill) {
         if (skillpad::binds_action(skill)) return skill;
+        if (skill == kResurrectSkill) return skillbar.coop ? skill : skillpad::kEmpty;
         if (skill == skillpad::kUnset) skill = int(who.header.right_skill);
         return skill_known(who.name, skill) ? skill : skillpad::kEmpty;
     };
@@ -271,13 +272,20 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
     const auto perform = [&](int id, bool press, bool button_down) {
         if (id == skillpad::kInteract) { if (press) interact(); return; }
         if (id == skillpad::kShowItems) { if (press || button_down) pad_show_items = true; return; }
+        // Co-op only. Same reach as pad_act. Not SelectSkill: 0x7ffe stays out of the save's right-hand skill.
+        if (id == kResurrectSkill) {
+            if (press && skillbar.coop)
+                if (const auto* body = body_near(unit.x, unit.y, 4.f)) out(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
+            return;
+        }
         cast(id, press, button_down);
     };
     const int trigger_set = player_pad.trigger_hold.set_for(actions.main_skill, actions.main_skill_down, actions.modifier_held);
     if (trigger_set >= 0) {
         int skill = sheet.trigger(trigger_set == 1);
         if (skill == skillpad::kUnset) skill = right_skill;
-        perform(skillpad::binds_action(skill) || skill_known(name, skill) ? skill : skillpad::kEmpty, actions.main_skill, actions.main_skill_down);
+        const bool keep = skillpad::binds_action(skill) || skill == kResurrectSkill || skill_known(name, skill);
+        perform(keep ? skill : skillpad::kEmpty, actions.main_skill, actions.main_skill_down);
     }
     for (int index = 0; index < skillpad::kSlots; ++index) {
         const bool press = actions.skill_slot == index;
