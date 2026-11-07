@@ -15,6 +15,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
@@ -230,6 +231,16 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             }
         }
         automap_frame();
+        const bool pad_bar = skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
+        auto belt_names = belt_key_names;
+        if (pad_bar) {
+            const auto name = [&](pad::Action action) {
+                const auto& pair = pad_config.bindings[action];
+                const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
+                return button == pad::Bindings::kNone ? std::string{} : std::string(pad::label(pad_family, button));
+            };
+            belt_names = { name(pad::Action::Belt1), name(pad::Action::Belt2), name(pad::Action::Belt3), name(pad::Action::Belt4) };
+        }
         render_ingame(framebuffer, *scene, *view.level, ui_cls,
                       view.gfx,
                       character.name, character.hardcore,
@@ -241,9 +252,9 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       cube_open ? (transmute_down ? 2 : 1) : 0, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, &rain,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
-                      &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
+                      &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, belt_key_names, &character.header, frame_ms / 40 }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, belt_names, &character.header, frame_ms / 40, pad_bar }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
@@ -311,11 +322,11 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = left_panel_open();
-        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y);
+        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y, !pad_bar);
         // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
         // action, then 0x1052 " (%s)" for each key bound to it, the second
         // slot first; FUN_00502280 at (x - 3, H - 0x32 - 0x1a). Menu has no key.
-        if (int button_x = 0; !coop_hud_hidden())
+        if (int button_x = 0; !coop_hud_hidden() && !pad_bar)
             if (const int kind = mini.hovered(left_open, inv_open || tree_open, mouse.x, mouse.y, button_x); kind >= 0) {
                 static constexpr std::array<int, 7> kKeys = { keys::kCharacter, keys::kInventory, keys::kSkillTree, keys::kParty, keys::kAutomap, keys::kMessageLog, keys::kQuestLog };
                 std::string tip = string_id(*scene, std::uint16_t(0x1049 + kind));

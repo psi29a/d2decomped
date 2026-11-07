@@ -375,7 +375,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms);
         if (hud_stats && !hud.hidden) draw_hud(framebuffer, scene, *hud_stats, hud, mouse_x, mouse_y);
         if (belt && !hud.hidden) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hover_wearer,
-                            belt_popup, hud.belt_keys);
+                            belt_popup, hud.belt_keys, hud.pad_bar);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int center_x = int(cam_x * 5), center_y = int(cam_y * 5);

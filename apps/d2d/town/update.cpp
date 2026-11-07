@@ -58,6 +58,7 @@ namespace d2d::client {
 auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mouse, const std::vector<SDL_Keycode>& frame_keys,
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         now_ms = frame_ms;
+        pad_show_items = false;
         skillbar.coop = world.players.size() > 1;           // Resurrect on the right-hand picker
         if (skillbar.right == kResurrectSkill && !skillbar.usable(kResurrectSkill, false)) skillbar.right = 0;   // co-op over: Attack
         skillbar.drop_gone();                                       // a charged entry used up or taken off

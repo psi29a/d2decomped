@@ -26,6 +26,7 @@
 // no entry for the bound item (or 0 charges); nothing clears 0x7c06c8 then.
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <optional>
 #include <string>
@@ -33,6 +34,7 @@
 #include "common.hpp"
 #include "items.hpp"
 #include "scene.hpp"
+#include "skillpad.hpp"
 #include "ui.hpp"
 
 #include <character.hpp>
@@ -45,6 +47,7 @@
 #include <SDL3/SDL_keycode.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -167,6 +170,7 @@ struct SkillBar {
     // A click: on a button, open (or close) its picker; in an open picker,
     // choose; elsewhere, close it. True when the bar took the click.
     bool click(const Mouse& mouse) {
+        if (picking == 3) { if (mouse.press_this_frame) picking = 0; return true; }   // the wheel: a click closes it
         if (!mouse.press_this_frame) return picking != 0;
         if (const auto pick = picked(mouse.x, mouse.y); pick.skill >= 0) {
             choose(picking == 1, pick);
@@ -222,6 +226,15 @@ struct SkillBar {
     int last_slot = 0;                             // 0x7c0708: the hotkey last used
     std::array<int, 16> hotkey_items = [] { std::array<int, 16> none{}; none.fill(-1); return none; }();   // each slot's charged entry item, -1 none
     std::array<std::string, 16> hotkey_names{ "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8" };
+    // The opt-in skill-button mode, filled by Town::present_skill_pad. The
+    // mouse fan (picking 1 and 2) does not use these.
+    bool mode_on = false, mode_modifier = false, wheel_on = false, strip_on = false, legend_on = false;
+    int mode_main = -1, mode_aura = 0, wheel_at = 0, wheel_page = 0, strip_at = 0;
+    std::array<int, 6> mode_slots{};
+    std::array<std::string, 6> mode_labels{};
+    std::string mode_main_label, mode_set, mode_hint, wheel_close, wheel_prompt, strip_prompt;
+    std::vector<int> wheel_ids;
+    std::vector<std::string> strip_rows;
 
     // The buttons, the open picker (hotkey labels on its icons) and the
     // hovered skill's name.
@@ -260,6 +273,102 @@ struct SkillBar {
         };
         icon(hand(true), kButtonLeftX, int(kScreenHeight));
         icon(hand(false), kButtonRightX, int(kScreenHeight));
+        const bool tray = mode_on && skillpad::tray_visible(legend_on, strip_on, wheel_on, picking);
+        if (mode_on) {
+            const auto& small = scene->font_small.line_height() > 0 ? scene->font_small : scene->font;
+            const auto caption = [&](const std::string& words, int x, int y) {
+                small.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, y - small.line_height(), words, 199, 179, 119);
+            };
+            if (tray) {
+                // On the flat stone fill (panels.cpp): the real bar is the bottom
+                // 55px, the fill is 74 above that. Icons sit in the fill with
+                // the glyph row under them, centered in x 165..635.
+                constexpr int kPitch = 48, kTrayLeft = 232, kTrayBottom = int(kScreenHeight) - 55 - 20;
+                auto plot = [&](int pixel_x, int pixel_y) {
+                    if (pixel_x < 0 || pixel_y < 0 || pixel_x >= int(kScreenWidth) || pixel_y >= int(kScreenHeight)) return;
+                    auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+                    pixel[0] = 199; pixel[1] = 179; pixel[2] = 119; pixel[3] = 255;
+                };
+                // Active aura: a closed box. The wheel's highlighted skill, when it
+                // is not that aura: corners. An empty slot: a short dash. A skill
+                // the character cannot use now (skill_refused): a slash across the icon.
+                const int focused = wheel_on && !wheel_ids.empty() ? wheel_ids[std::size_t(std::clamp(wheel_at, 0, int(wheel_ids.size()) - 1))] : -1;
+                const auto box = [&](int column_x) {
+                    const int top = kTrayBottom - kIcon - 2, edge = column_x + kIcon + 1;
+                    for (int pixel_x = column_x - 2; pixel_x <= edge; ++pixel_x) { plot(pixel_x, top); plot(pixel_x, kTrayBottom + 1); }
+                    for (int pixel_y = top; pixel_y <= kTrayBottom + 1; ++pixel_y) { plot(column_x - 2, pixel_y); plot(edge, pixel_y); }
+                };
+                const auto corners = [&](int column_x) {
+                    const int top = kTrayBottom - kIcon, edge = column_x + kIcon - 1;
+                    constexpr int arm = 6;
+                    for (int step = 0; step < arm; ++step) {
+                        plot(column_x + step, top); plot(column_x, top + step);
+                        plot(edge - step, top); plot(edge, top + step);
+                        plot(column_x + step, kTrayBottom - 1); plot(column_x, kTrayBottom - 1 - step);
+                        plot(edge - step, kTrayBottom - 1); plot(edge, kTrayBottom - 1 - step);
+                    }
+                };
+                const auto column = [&](int index, int skill, const std::string& button) {
+                    const int column_x = kTrayLeft + index * kPitch;
+                    const bool aura = mode_aura > 0 && skill == mode_aura;
+                    if (skillpad::binds_action(skill)) {
+                        const std::string words(skillpad::action_label(skill, false));
+                        caption(words, column_x + (kIcon - small.measure(words)) / 2, kTrayBottom - kIcon / 2 + small.line_height() / 2);
+                    } else if (skill >= 0) icon({ skill, -1 }, column_x, kTrayBottom);
+                    else for (int pixel_x = column_x + 16; pixel_x < column_x + 32; ++pixel_x) plot(pixel_x, kTrayBottom - kIcon / 2);
+                    if (skill >= 0 && skill_refused(*scene, character, skill))
+                        for (int step = 4; step < kIcon - 4; ++step) plot(column_x + step, kTrayBottom - kIcon + step);
+                    if (aura) box(column_x);
+                    else if (focused >= 0 && skill == focused) corners(column_x);
+                    caption(button, column_x + (kIcon - small.measure(button)) / 2, kTrayBottom + 16);
+                };
+                for (int index = 0; index < 6; ++index)
+                    column(index, mode_slots[std::size_t(index)], mode_labels[std::size_t(index)]);
+                column(6, mode_main, mode_main_label);
+                if (mode_modifier) {
+                    const int rule = kTrayBottom - kIcon - 2;
+                    const int rule_right = kTrayLeft + 6 * kPitch + kIcon;
+                    for (int pixel_x = kTrayLeft - 2; pixel_x <= rule_right + 1; ++pixel_x) plot(pixel_x, rule);
+                }
+                if (!mode_set.empty())
+                    caption(mode_set, kTrayLeft - small.measure(mode_set) - 8, kTrayBottom - kIcon / 2 + small.line_height() / 2);
+                if (!wheel_on && !mode_hint.empty())
+                    caption(mode_hint, (int(kScreenWidth) - small.measure(mode_hint)) / 2, kTrayBottom - kIcon - 6);
+            }
+            if (strip_on && !strip_rows.empty()) {
+                if (!strip_prompt.empty()) caption(strip_prompt, 280, 148);
+                const int row = std::clamp(strip_at, 0, int(strip_rows.size()) - 1);
+                for (int index = 0; index < int(strip_rows.size()); ++index)
+                    caption(std::string(index == row ? "> " : "  ") + strip_rows[std::size_t(index)], 280, 160 + index * small.line_height());
+            }
+            if (wheel_on && !wheel_ids.empty()) {
+                const int count = int(wheel_ids.size());
+                const int highlight = std::clamp(wheel_at, 0, count - 1);
+                const auto page = skillpad::wheel_page(count, highlight, skillpad::kWheelShown, wheel_page);
+                for (int slot = 0; slot < page.shown; ++slot) {
+                    const int index = page.start + slot;
+                    const float angle = skillpad::wedge_center(slot, page.shown);
+                    const int x = int(kScreenWidth) / 2 + int(std::lround(std::cos(angle) * 120.f)) - kIcon / 2;
+                    const int y = 200 + int(std::lround(std::sin(angle) * 100.f));
+                    const int shown_id = wheel_ids[std::size_t(index)];
+                    if (const auto label = skillpad::action_label(shown_id, false); !label.empty()) caption(std::string(label), x, y);
+                    else icon({ shown_id, -1 }, x, y);
+                    if (index == highlight) {
+                        const int shown = shown_id;
+                        if (shown == kResurrectSkill) caption("Resurrect", x, y + 16);
+                        else if (const auto full = skillpad::action_label(shown, true); !full.empty()) caption(std::string(full), x, y + 16);
+                        else {
+                            const auto* info = shown >= 0 && scene ? scene->skills.get(shown) : nullptr;
+                            caption(info ? info->name : "Clear", x, y + 16);
+                        }
+                    }
+                }
+                const std::string line = wheel_prompt.empty() ? "Hit " + wheel_close + " to close" : wheel_prompt;
+                const int line_x = std::max(4, (int(kScreenWidth) - small.measure(line)) / 2);
+                caption(line, line_x, 330);
+            }
+        }
+        if (picking == 3) return;
         if (!picking) {
             if (on_button(mouse_x, mouse_y, kButtonLeftX)) tip(hand(true), kButtonLeftX, int(kScreenHeight));
             if (on_button(mouse_x, mouse_y, kButtonRightX)) tip(hand(false), kButtonRightX, int(kScreenHeight));

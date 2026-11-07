@@ -47,7 +47,12 @@ struct Sample {                       // one frame of a pad: sticks -1..1, trigg
 // where they never both work. The menus outside the game keep a fixed
 // layout: the confirm button clicks, the other one backs out, the d-pad steps.
 enum class Action { Primary, Secondary, Back, GameMenu, Inventory, Character, SkillTree, QuestLog, Automap, ToggleRun,
-                    SwapWeapons, SkillPicker, Recentre, Belt1, Belt2, Belt3, Belt4, Trade, TabPrev, TabNext, Count };
+                    SwapWeapons, SkillPicker, Recentre, Belt1, Belt2, Belt3, Belt4, Trade, TabPrev, TabNext,
+                    SkillSouth, SkillEast, SkillWest, SkillNorth, SkillLeft, SkillRight, MainSkill, Interact, Count };
+
+// How long a left-trigger press may be and still count as a tap (weapon
+// swap). Longer than this, or a press that also casts, is the second skill set.
+inline constexpr float kSwapTapSeconds = 0.20f;
 
 namespace where {
 inline constexpr unsigned kField = 1, kPanel = 2, kShop = 4, kDialog = 8, kAll = 15;
@@ -65,6 +70,8 @@ inline constexpr std::array<unsigned, std::size_t(Action::Count)> kWhere = {
     where::kPanel | where::kShop | where::kDialog, // Recentre: the cursor to the screen's middle
     where::kField, where::kField, where::kField, where::kField,   // Belt1..4
     where::kShop, where::kShop, where::kShop,      // Trade, TabPrev, TabNext
+    where::kField, where::kField, where::kField, where::kField, where::kField, where::kField,   // the six skill slots
+    where::kField, where::kField,                  // MainSkill (RT), Interact
 };
 // Where the d-pad is the cursor's hops, so no action can have it.
 inline constexpr unsigned kDpadHops = where::kPanel | where::kShop | where::kDialog;
@@ -74,7 +81,8 @@ inline constexpr std::array<std::string_view, std::size_t(Button::Count)> kButto
     "dpad_up", "dpad_down", "dpad_left", "dpad_right", "left_trigger", "right_trigger" };
 inline constexpr std::array<std::string_view, std::size_t(Action::Count)> kActionNames = {
     "primary", "secondary", "back", "game_menu", "inventory", "character", "skill_tree", "quest_log", "automap", "toggle_run",
-    "swap_weapons", "skill_picker", "recentre", "belt_1", "belt_2", "belt_3", "belt_4", "trade", "tab_prev", "tab_next" };
+    "swap_weapons", "skill_picker", "recentre", "belt_1", "belt_2", "belt_3", "belt_4", "trade", "tab_prev", "tab_next",
+    "skill_south", "skill_east", "skill_west", "skill_north", "skill_left", "skill_right", "main_skill", "interact" };
 
 // The pad's family, for the labels printed on its buttons.
 enum class Family { Xbox, PlayStation, Nintendo, Deck };
@@ -107,6 +115,9 @@ struct Bindings {
         put(Action::Belt1, DpadUp);                 put(Action::Belt2, DpadDown);       put(Action::Belt3, DpadLeft);
         put(Action::Belt4, DpadRight);              put(Action::Trade, West);
         put(Action::TabPrev, LeftShoulder);         put(Action::TabNext, RightShoulder);
+        put(Action::SkillSouth, kNone);             put(Action::SkillEast, kNone);      put(Action::SkillWest, kNone);
+        put(Action::SkillNorth, kNone);             put(Action::SkillLeft, kNone);      put(Action::SkillRight, kNone);
+        put(Action::MainSkill, kNone);              put(Action::Interact, kNone);
     }
     [[nodiscard]] const Pair& operator[](Action action) const { return buttons[std::size_t(action)]; }
     Pair& operator[](Action action) { return buttons[std::size_t(action)]; }
@@ -115,17 +126,33 @@ struct Bindings {
 
 [[nodiscard]] inline bool is_dpad(Button button) { return button >= Button::DpadUp && button <= Button::DpadRight; }
 
+// With skill buttons on, the field belongs to the slots. Attack, the right
+// skill and the panel keys keep their other screens, so a face button can
+// be a skill in the field and a click in a panel.
+[[nodiscard]] inline unsigned where_of(std::size_t action, bool skill_buttons) {
+    unsigned mask = kWhere[action];
+    if (!skill_buttons) return mask;
+    switch (Action(action)) {
+        case Action::Primary: case Action::Secondary: case Action::Inventory: case Action::Character:
+        case Action::SkillTree: case Action::QuestLog: case Action::Automap: case Action::SwapWeapons:
+            mask &= ~where::kField;
+            break;
+        default: break;
+    }
+    return mask;
+}
+
 // The actions that clash: a button two actions share where both work, or a
 // d-pad direction where it hops. Each clash once, as (action, other); other is
-// Action::Count for the d-pad's hops.
-[[nodiscard]] inline std::vector<std::pair<Action, Action>> clashes(const Bindings& bindings) {
+// Action::Count for the d-pad's hops. `skill_buttons` uses where_of.
+[[nodiscard]] inline std::vector<std::pair<Action, Action>> clashes(const Bindings& bindings, bool skill_buttons = false) {
     std::vector<std::pair<Action, Action>> out;
     for (std::size_t first = 0; first < std::size_t(Action::Count); ++first)
         for (const Button button : bindings.buttons[first]) {
             if (button == Bindings::kNone) continue;
-            if (is_dpad(button) && (kWhere[first] & kDpadHops) != 0) out.emplace_back(Action(first), Action::Count);
+            if (is_dpad(button) && (where_of(first, skill_buttons) & kDpadHops) != 0) out.emplace_back(Action(first), Action::Count);
             for (std::size_t second = first + 1; second < std::size_t(Action::Count); ++second)
-                if ((kWhere[first] & kWhere[second]) != 0 && std::ranges::contains(bindings.buttons[second], button))
+                if ((where_of(first, skill_buttons) & where_of(second, skill_buttons)) != 0 && std::ranges::contains(bindings.buttons[second], button))
                     out.emplace_back(Action(first), Action(second));
         }
     return out;
@@ -138,9 +165,42 @@ struct Config {
     float walk_reach = 6.f;           // tiles ahead a held stick walks towards
     bool  swap_sticks = false;        // left-handed: the right stick walks, the left one aims and moves the cursor
     bool  swap_confirm = false;       // the menus' confirm on east, back on south (a Nintendo pad's A / B)
+    bool  skill_buttons = false;      // opt-in: face and shoulder slots, RT a skill, RS click interacts
     Bindings bindings;
     bool operator==(const Config&) const = default;
 };
+
+// The skill-button layout on top of `keep`'s feel settings. The default
+// Bindings() stay as they are; this is a separate preset. RT is the main
+// skill, not Attack / Use. The right stick's click interacts and does not
+// open the fan. View opens the wheel. The left trigger is a hold (second
+// set) and a short tap (weapon swap), so Swap Weapons is unbound.
+[[nodiscard]] inline Config skill_buttons_config(const Config& keep) {
+    Config config;
+    config.deadzone = keep.deadzone;
+    config.cursor_speed = keep.cursor_speed;
+    config.swap_sticks = keep.swap_sticks;
+    config.swap_confirm = keep.swap_confirm;
+    config.skill_buttons = true;
+    config.bindings = Bindings{};
+    config.bindings[Action::Primary] = { Button::South, Bindings::kNone };
+    config.bindings[Action::SwapWeapons] = { Bindings::kNone, Bindings::kNone };
+    config.bindings[Action::Inventory] = { Bindings::kNone, Bindings::kNone };
+    config.bindings[Action::Character] = { Bindings::kNone, Bindings::kNone };
+    config.bindings[Action::SkillTree] = { Bindings::kNone, Bindings::kNone };
+    config.bindings[Action::QuestLog] = { Bindings::kNone, Bindings::kNone };
+    config.bindings[Action::Automap] = { Bindings::kNone, Bindings::kNone };
+    config.bindings[Action::SkillPicker] = { Button::Back, Bindings::kNone };
+    config.bindings[Action::SkillSouth] = { Button::South, Bindings::kNone };
+    config.bindings[Action::SkillEast] = { Button::East, Bindings::kNone };
+    config.bindings[Action::SkillWest] = { Button::West, Bindings::kNone };
+    config.bindings[Action::SkillNorth] = { Button::North, Bindings::kNone };
+    config.bindings[Action::SkillLeft] = { Button::LeftShoulder, Bindings::kNone };
+    config.bindings[Action::SkillRight] = { Button::RightShoulder, Bindings::kNone };
+    config.bindings[Action::MainSkill] = { Button::RightTrigger, Bindings::kNone };
+    config.bindings[Action::Interact] = { Button::RightStick, Bindings::kNone };
+    return config;
+}
 
 // d2d.cfg's `pad_*` keys. Names it doesn't know, or bindings that clash, are
 // put in `problems` and left at their defaults.
@@ -156,7 +216,8 @@ struct Config {
         { "pad_deadzone", std::to_string(int(std::lround(config.deadzone * 100))) },
         { "pad_cursor_speed", std::to_string(int(std::lround(config.cursor_speed))) },
         { "pad_swap_sticks", config.swap_sticks ? "1" : "0" },
-        { "pad_swap_confirm", config.swap_confirm ? "1" : "0" } };
+        { "pad_swap_confirm", config.swap_confirm ? "1" : "0" },
+        { "pad_skill_buttons", config.skill_buttons ? "1" : "0" } };
     for (std::size_t action = 0; action < std::size_t(Action::Count); ++action)
         out.emplace_back("pad_" + std::string(kActionNames[action]), button_list(config.bindings.buttons[action]));
     return out;
@@ -177,6 +238,11 @@ template <class Lookup>
     number("pad_cursor_speed", 50, 3000, [&](int value) { config.cursor_speed = float(value); });
     number("pad_swap_sticks", 0, 1, [&](int value) { config.swap_sticks = value != 0; });
     number("pad_swap_confirm", 0, 1, [&](int value) { config.swap_confirm = value != 0; });
+    number("pad_skill_buttons", 0, 1, [&](int value) { config.skill_buttons = value != 0; });
+    // An older cfg can turn the mode on without the slot keys. Seed the
+    // preset first, then let any keys that are present override it. Missing
+    // keys keep the preset, so Attack / Use is not simply switched off.
+    if (config.skill_buttons) config.bindings = skill_buttons_config(config).bindings;
     const Bindings defaults;
     for (std::size_t action = 0; action < std::size_t(Action::Count); ++action) {
         const std::string key = "pad_" + std::string(kActionNames[action]);
@@ -195,9 +261,10 @@ template <class Lookup>
         if (bad) problems.push_back(key + " = " + *value + ": not up to two of " + button_list({ Button::South, Button::East }) + ", ...");
         else config.bindings.buttons[action] = pair;
     }
-    if (const auto clashing = clashes(config.bindings); !clashing.empty()) {
+    if (const auto clashing = clashes(config.bindings, config.skill_buttons); !clashing.empty()) {
         problems.push_back(std::string("pad bindings clash (") + std::string(kActionNames[std::size_t(clashing.front().first)]) + "): the default layout instead");
         config.bindings = defaults;
+        config.skill_buttons = false;
     }
     return config;
 }
@@ -216,8 +283,23 @@ struct Actions {
     bool  trade_press = false;                     // a store's X: buy or sell what's under the cursor
     int   tab_step = 0;                            // a store's shoulders: the tab before (-1) or after (1)
     int   focus_step = 0;                          // the menus' shoulders: the screen's button before (-1) or after (1)
+    bool  modifier_held = false;                   // skill buttons: the second set
+    bool  main_skill = false, main_skill_down = false;   // RT, just pressed / held
+    bool  interact_press = false;                  // use what is aimed at, no skill
+    bool  swap_tap = false;                        // a short left trigger, with no cast during it
+    bool  panel_strip = false;                     // Start opens the panel list
+    bool  skill_busy = false;                      // a skill button, the modifier or the strip is down
+    int   skill_slot = -1;                         // 0..5 just pressed, or -1
+    int   wheel_step = 0;                          // the wheel's d-pad, -1 or 1
+    int   strip_step = 0;                          // the panel list's d-pad, -1 or 1
+    bool  confirm = false, cancel = false;        // the panel list: South, and East or Start
+    std::array<bool, 6> slot_down{};               // those slots held
     std::vector<Key> keys;
 };
+
+// What the pad is doing with the skill-button screens, on top of Context.
+// None is every screen the default layout plays.
+enum class SkillUi { None, Wheel, Strip };
 
 // A screen direction as a world one: the inverse of the isometric projection
 // the cursor's click uses (Town::input), normalised, times `reach` tiles.
@@ -275,8 +357,9 @@ public:
     explicit Mapper(const Config& config = {}) : config_(config) {}
 
     // `seconds` since the last frame. A pad that went away is a default
-    // Sample: every button lets go, so nothing stays held.
-    Actions step(const Sample& sample, Context context, float seconds) {
+    // Sample: every button lets go, so nothing stays held. `skill_ui` is
+    // the wheel or the panel strip; None is every other screen.
+    Actions step(const Sample& sample, Context context, float seconds, SkillUi skill_ui = SkillUi::None) {
         Actions out;
         left_trigger_ = hysteresis(sample.left_trigger, left_trigger_);
         right_trigger_ = hysteresis(sample.right_trigger, right_trigger_);
@@ -297,8 +380,15 @@ public:
         const unsigned here = context == Context::Game ? where::kField : context == Context::Panel ? where::kPanel
                             : context == Context::Shop ? where::kShop : context == Context::Dialog ? where::kDialog : 0;
         const auto& bindings = config_.bindings;
+        const bool skills = config_.skill_buttons;
+        const bool wheel = skill_ui == SkillUi::Wheel;
         // An action is on here, and held / just pressed on one of its buttons.
-        const auto works_here = [&](Action action) { return (kWhere[std::size_t(action)] & here) != 0; };
+        // The wheel reads the skill buttons even though the field is closed.
+        const auto works_here = [&](Action action) {
+            if (wheel && (action == Action::SkillPicker || action == Action::MainSkill ||
+                          (action >= Action::SkillSouth && action <= Action::SkillRight))) return true;
+            return (where_of(std::size_t(action), skills) & here) != 0;
+        };
         const auto down = [&](Action action) {
             return works_here(action) && std::ranges::any_of(bindings[action], [&](Button button) { return button != Bindings::kNone && held[std::size_t(button)]; });
         };
@@ -339,7 +429,8 @@ public:
             out.aim_active = context == Context::Game && tilt_aim > 0;
             out.aim_x = face_x; out.aim_y = face_y;
 
-            key(Action::GameMenu, Key::Escape);
+            if (skills && context == Context::Game && skill_ui == SkillUi::None && hit(Action::GameMenu)) out.panel_strip = true;
+            else key(Action::GameMenu, Key::Escape);
             key(Action::Back, Key::Escape);
             key(Action::Inventory, Key::Inventory);
             key(Action::QuestLog, Key::QuestLog);
@@ -354,6 +445,17 @@ public:
             key(Action::Belt4, Key::Belt4);
             out.trade_press = hit(Action::Trade);
             out.tab_step = int(hit(Action::TabNext)) - int(hit(Action::TabPrev));
+            if (skills && (context == Context::Game || wheel)) {
+                static constexpr std::array<Action, 6> kSkillSlots = { Action::SkillSouth, Action::SkillEast, Action::SkillWest,
+                                                                       Action::SkillNorth, Action::SkillLeft, Action::SkillRight };
+                for (int index = 0; index < 6; ++index) {
+                    out.slot_down[std::size_t(index)] = down(kSkillSlots[std::size_t(index)]);
+                    if (hit(kSkillSlots[std::size_t(index)])) out.skill_slot = index;
+                }
+                out.main_skill_down = down(Action::MainSkill);
+                out.main_skill = hit(Action::MainSkill);
+                if (!wheel) out.interact_press = hit(Action::Interact);
+            }
             if (here & kDpadHops) {
                 snap();
                 if (context == Context::Dialog) dpad_keys();   // the game menu steps its rows and sliders by key
@@ -364,6 +466,59 @@ public:
             if (context == Context::Menu && pressed(cancel)) out.keys.push_back(Key::Escape);
             snap();
             dpad_keys();                             // char select steps its roster by key
+        }
+        if (wheel) {
+            const auto [face_x, face_y, tilt_aim] = dead(aim_x, aim_y);
+            out.aim_active = tilt_aim > 0;
+            out.aim_x = face_x; out.aim_y = face_y;
+            out.cursor_dx = 0;
+            out.cursor_dy = 0;
+            out.wheel_step = int(pressed(Button::DpadRight) || pressed(Button::DpadDown)) - int(pressed(Button::DpadLeft) || pressed(Button::DpadUp));
+            out.click_down = false;
+            out.click_press = false;
+            out.click_release = false;
+            out.rclick_press = false;
+            out.keys.clear();
+            out.snap_x = 0;
+            out.snap_y = 0;
+            out.trade_press = false;
+            out.tab_step = 0;
+            if (pressed(Button::Start)) out.panel_strip = true;
+        } else if (skill_ui == SkillUi::Strip) {
+            // South confirms and East or Start cancels, whatever screen
+            // context the caller passed. The d-pad step does not depend on
+            // the panel hop, and neither does cancel depend on a key event.
+            out.cursor_dx = 0;
+            out.cursor_dy = 0;
+            out.skill_picker = false;
+            out.trade_press = false;
+            out.tab_step = 0;
+            out.keys.clear();
+            out.click_down = false;
+            out.click_press = false;
+            out.click_release = false;
+            out.rclick_press = false;
+            out.snap_x = 0;
+            out.snap_y = 0;
+            click_prev_ = false;
+            out.strip_step = int(pressed(Button::DpadDown)) - int(pressed(Button::DpadUp));
+            out.confirm = pressed(Button::South);
+            out.cancel = pressed(Button::East) || pressed(Button::Start);
+        }
+        if (skills) {
+            const bool field = context == Context::Game && skill_ui == SkillUi::None;
+            const bool watching = field || wheel;
+            const bool down_trigger = left_trigger_;
+            if (watching && down_trigger) {
+                swap_hold_ += std::max(seconds, 0.f);
+                if (out.skill_slot >= 0 || out.main_skill) swap_cast_ = true;
+                out.modifier_held = true;
+            }
+            if (swap_down_ && !down_trigger && field && swap_hold_ > 0.f && swap_hold_ <= kSwapTapSeconds && !swap_cast_) out.swap_tap = true;
+            if (!down_trigger || !watching) { swap_hold_ = 0.f; swap_cast_ = false; }
+            swap_down_ = watching && down_trigger;
+            out.skill_busy = out.modifier_held || out.main_skill_down || out.skill_slot >= 0 || out.interact_press || out.panel_strip || out.swap_tap
+                             || std::ranges::any_of(out.slot_down, [](bool held_slot) { return held_slot; });
         }
         prev_ = held;
         return out;
@@ -385,6 +540,9 @@ private:
     Config config_;
     std::array<bool, std::size_t(Button::Count)> prev_{};
     bool click_prev_ = false, secondary_prev_ = false, left_trigger_ = false, right_trigger_ = false;
+    float swap_hold_ = 0.f;                        // how long the left trigger has been down
+    bool swap_cast_ = false;                       // a skill fired during that press
+    bool swap_down_ = false;                       // the trigger was down last frame, in the field or the wheel
 };
 
 // Local co-op's seats (docs/design/local-coop.md): pads take seats 0..3 in
