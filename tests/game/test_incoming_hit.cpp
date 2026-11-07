@@ -14,12 +14,14 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <rules.hpp>
 #include <sound_ids.hpp>
 #include <sound_mix.hpp>
 #include <world.hpp>
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -27,7 +29,6 @@
 #include <string>
 #include <string_view>
 #include <tuple>
-#include <utility>
 
 using namespace d2d::game;
 
@@ -120,7 +121,7 @@ int main() try {
     int miss = 0, blocked = 0, dodged = 0, hit = 0, eligible = 0;
     d2d::rules::Taken first_hit;
     bool have_hit = false;
-    for (int n = 0; n < 1000; ++n) {
+    for (int roll = 0; roll < 1000; ++roll) {
         const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, d2d::rules::Motion::standing, fallen.stats, false, rng);
         if (taken.blocked) ++blocked;
         else if (taken.dodged) ++dodged;
