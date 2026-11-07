@@ -590,18 +590,10 @@ auto Town::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
         return nullptr;
     }
 
-// A store's X: the stock under the cursor bought, the inventory item under
-// it sold, or the one held sold (as a drop on the stock grid).
+// A store's X buys the stock under the cursor. Selling is Hold A, so X does not sell.
 auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
         if (store.npc < 0 || !scene) return;
-        if (held) { net.send(cmd::Sell{ held->id }); return; }
-        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y); stock >= 0) { send(cmd::Buy{ stock, store.tab }); return; }
-        const auto& inv = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
-        for (const auto& item : character.items) {
-            if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
-            const auto rect = grid_rect(*scene, inv, item);
-            if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { send(cmd::Sell{ item.id }); return; }
-        }
+        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y); stock >= 0) send(cmd::Buy{ stock, store.tab });
     }
 
 // Skill buttons, inventory only. A shop's X stays Buy. The item in hand drops.
@@ -627,14 +619,19 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         query.hand_empty = !held;
         query.bag = item != nullptr;
         query.store_mode = store.mode;
-        if (item && scene) query.potion = potion_code(item->code) || scene->rules.potions.contains(item->code);
+        if (item && scene) {
+            query.sellable = d2d::rules::sellable(scene->rules, *item);
+            query.potion = potion_code(item->code) || scene->rules.potions.contains(item->code);
+        }
         PadHoldKind kind = pad_hold_button(query, pad_south_down, pad_rt_down);
-        if (kind != PadHoldKind::Fill && kind != PadHoldKind::FillOne) kind = PadHoldKind::None;
-        if (!pad_south_down && !pad_rt_down && pad_hold.armed && (pad_hold.context == int(PadHoldKind::Fill) || pad_hold.context == int(PadHoldKind::FillOne)))
+        if (kind != PadHoldKind::Fill && kind != PadHoldKind::FillOne && kind != PadHoldKind::Sell) kind = PadHoldKind::None;
+        if (!pad_south_down && !pad_rt_down && pad_hold.armed
+            && (pad_hold.context == int(PadHoldKind::Fill) || pad_hold.context == int(PadHoldKind::FillOne) || pad_hold.context == int(PadHoldKind::Sell)))
             kind = PadHoldKind(pad_hold.context);
-        const bool eligible = kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne;
+        const bool eligible = kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne || kind == PadHoldKind::Sell;
         const int item_id = item ? item->id : -1;
-        pad_hold.delay = pad::kHoldFillSeconds;
+        if (kind == PadHoldKind::Sell) pad_hold.delay = pad::kHoldSellSeconds;
+        else pad_hold.delay = pad::kHoldFillSeconds;
         const bool button_down = pad_south_down || (pad_rt_down && kind == PadHoldKind::FillOne);
         const bool edge = pad_south_down ? pad_south_edge : pad_rt_edge;
         if (!inv_open || (pad_hold.armed && !button_down && pad_hold.context != int(kind))) {
@@ -645,17 +642,22 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         const bool tracking = pad_hold.armed && !pad_hold.cancelled;
         if (tracking || step == hold_confirm::Step::Click || step == hold_confirm::Step::Act) mouse.press_this_frame = false;
         const bool can_potion = query.potion && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
-        if (can_potion) {
+        const bool can_sell = query.sellable && query.bag && query.hand_empty && query.shop && !query.gamble && !query.identify && !query.imbue
+                              && query.store_mode != 1 && query.store_mode != 3;
+        if (can_potion || can_sell) {
             if (tracking) pad_hold_fraction = pad_hold.fraction();
             const std::string_view aye = pad::label(pad_family, pad::Button::South);
             const std::string_view trigger = pad::label(pad_family, pad::Button::RightTrigger);
-            pad_hold_text = std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
+            if (can_potion) pad_hold_text = std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
+            else pad_hold_text = std::string("Hold ") + std::string(aye) + " to sell";
         }
         if (step == hold_confirm::Step::Click && scene) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                     { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
             if (click.cmd) send(*click.cmd);
-        } else if (step == hold_confirm::Step::Act && item && (kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne) && scene) {
+        } else if (step == hold_confirm::Step::Act && item) {
+            if (kind == PadHoldKind::Sell) send(cmd::Sell{ item->id });
+            else if ((kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne) && scene) {
             auto trial = character.items;
             const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
             std::vector<int> moved;
@@ -670,6 +672,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
                 for (const auto& carried : character.items)
                     if (carried.id != item->id && is_potion(carried.code)) try_item(carried.id);
             for (const int carried_id : moved) send(cmd::AutoBelt{ carried_id });
+            }
         }
     }
 

@@ -59,6 +59,7 @@ inline constexpr float kSwapTapSeconds = 0.20f;
 inline constexpr float kDpadRepeatDelay = 0.35f;
 inline constexpr float kDpadRepeatEvery = 0.12f;
 inline constexpr float kHoldFillSeconds = 0.35f;
+inline constexpr float kHoldSellSeconds = 0.55f;
 
 namespace where {
 inline constexpr unsigned kField = 1, kPanel = 2, kShop = 4, kDialog = 8, kAll = 15;
