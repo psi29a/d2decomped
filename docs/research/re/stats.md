@@ -148,3 +148,17 @@ row's +0xe0 op entries; d2d cites it in merc.cpp / strike.cpp), so ECX is the li
 
 d2d: not ported (no stat lists). Re-check: `python3 tools/ghidra/fn.py 006266c0`,
 `python3 tools/ghidra/calls.py 006266c0`.
+
+### Push a change up the lists — FUN_00626920 (ECX list, EDX key, stack delta, ctx)
+
+Called by `SetStat` (`FUN_006270b0`, see above) and the other setters
+with the change. Does nothing for a delta of 0, a stat id (key >> 16)
+out of range or a list with flag 0x2000. Otherwise it starts at the
+list itself when flag 0x80000000 is set, else at its parent (+0x34), and
+for each list up the parent chain: a stat whose row has +0x51 and +0x52
+both 0 gets the delta added (`FUN_006250b0`: add, flag 0x20000000,
+removal at 0, callback); any other is refreshed (`FUN_006266c0`). It
+stops after a list with 0x2000, and after any list with 0x40000000 when
+the stat's row +4 has bit 2.
+d2d: not ported. Re-check: `python3 tools/ghidra/fn.py 00626920`,
+`python3 tools/ghidra/fn.py 006250b0`.
