@@ -96,11 +96,12 @@ struct Audio {
     int voice_sound() const { return voice.sound; }
     // The game menu's sliders, 0..100 ("Master Volume" 0x8817b0, "Music
     // Volume" 0x8817b4): 0x4dfc84 scales a sound's volume by music / 100
-    // if it's a Music Vol one, then everything by master / 100.
-    // ponytail: master is the listener's gain, so it scales cinematics too.
+    // if it's a Music Vol one, then everything by master / 100: each sound's
+    // own gain, not the listener's, so a cinematic's (vsrc) isn't scaled, as
+    // game.exe's Bink isn't (sound.md "The master volume reaches nothing else").
     int master_volume = 100, music_volume = 50;
     [[nodiscard]] float out_gain(const Channel& channel, float gain) const {
-        return (&channel == &music || &channel == &music_old ? gain * float(music_volume) / 100.f : gain) * duck(channel);
+        return (&channel == &music || &channel == &music_old ? gain * float(music_volume) / 100.f : gain) * float(master_volume) / 100.f * duck(channel);
     }
     // The ducks (FUN_004ba020, 0x4dfcb2 / 0x4dfd0b): under a Solo row the
     // rest at down to 70%, under the paused game menu all but the cursor,
@@ -120,9 +121,16 @@ struct Audio {
         return float(d2d::rules::ducked_volume(10000, channel.sound, channel.solo, menu_percent, solo_percent)) / 10000.f;
     }
     void apply_volume() {
-        if (!ok) return;
-        alListenerf(AL_GAIN, float(master_volume) / 100.f);
-        for (auto* channel : { &music, &music_old }) set_gain(*channel, channel->gain);
+        if (ok) regain();
+    }
+    // Every playing sound's gain again, under the sliders and ducks as they are now.
+    void regain() {
+        for (auto& channel : sfx) {
+            if (!channel.src) continue;
+            if (channel.placed) (void)apply_mix(channel, channel.screen_x, channel.screen_y2);
+            else set_gain(channel, channel.gain);
+        }
+        for (auto* channel : { &voice, &ui_sounds, &ambience, &ambience_old, &rain, &quake_loop, &music, &music_old }) set_gain(*channel, channel->gain);
     }
     // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
     // own MPQ handles (StormLib handles aren't shared across threads).
@@ -321,9 +329,10 @@ struct Audio {
         channel.screen_x = screen_x;
         channel.screen_y2 = screen_y2;
         // played by path, no Sounds.txt row: never ducked (as `duck`)
+        const int volume = d2d::rules::master_scaled(channel.volume, master_volume);
         const auto mix = channel.sound > 0
-            ? d2d::rules::ducked_mix(channel.volume, channel.falloff, screen_x, screen_y2, channel.sound, channel.solo, menu_percent, solo_percent)
-            : d2d::rules::sound_mix_pixels(channel.volume, channel.falloff, screen_x, screen_y2);
+            ? d2d::rules::ducked_mix(volume, channel.falloff, screen_x, screen_y2, channel.sound, channel.solo, menu_percent, solo_percent)
+            : d2d::rules::sound_mix_pixels(volume, channel.falloff, screen_x, screen_y2);
         if (!mix.audible) return false;
         if (channel.right_src) {
             const auto speakers = d2d::rules::speakers(mix);
@@ -665,13 +674,7 @@ struct Audio {
             solo_percent = d2d::rules::solo_duck_step(solo_percent, solo_playing);
             menu_percent = d2d::rules::menu_duck_step(menu_percent, menu_paused);
         }
-        if (solo_percent == was_solo && menu_percent == was_menu) return;
-        for (auto& channel : sfx) {
-            if (!channel.src) continue;
-            if (channel.placed) (void)apply_mix(channel, channel.screen_x, channel.screen_y2);
-            else set_gain(channel, channel.gain);
-        }
-        for (auto* channel : { &voice, &ui_sounds, &ambience, &ambience_old, &rain, &quake_loop, &music, &music_old }) set_gain(*channel, channel->gain);
+        if (solo_percent != was_solo || menu_percent != was_menu) regain();
     }
     // Land a finished music job; free one-shots that have played out.
     void update() {

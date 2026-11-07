@@ -174,5 +174,6 @@ the World doesn't tick while the menu is open without a host.
   the colour (unverified). Gamma's and 3DBias's starting values aren't
   traced: they start at 0.
 - The volumes persist as `master_volume` / `music_volume` in
-  `<user dir>/d2d.cfg`. The master is OpenAL's listener gain, so it
-  also scales the cinematics.
+  `<user dir>/d2d.cfg`. The master scales each game sound, not the
+  cinematics, as game.exe (sound.md "The master volume reaches nothing
+  else").
