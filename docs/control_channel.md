@@ -37,8 +37,8 @@ name order. A new sub-verb goes in its area's file where its name sorts.
 | `screenshot <path>`         | `ok <bytes>`           | Writes current framebuffer to `<path>` as PNG. Relative paths land in `<user dir>/screenshots/` (e.g. `~/Library/Preferences/d2d/screenshots/`). |
 | `info`                      | `w=… h=… frame=…\nok`  | Framebuffer dimensions + current frame counter.           |
 | `quit`                      | `ok`                   | Main loop exits after this pump completes.                |
-| `click <x> <y>`             | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. |
-| `rclick <x> <y>`            | `ok`                   | Same with the right button (opens the Horadric Cube item). |
+| `click <x> <y> [down\|up]`  | `ok`                   | Pushes real SDL motion + left down/up at window coords; handled next frame. `down` or `up` pushes only that one, to hold a press across frames. |
+| `rclick <x> <y> [down\|up]` | `ok`                   | Same with the right button (opens the Horadric Cube item). |
 | `pad [n] axis <stick> <v>` | `ok`                   | Virtual pad n (0..3, default 0): a stick axis (`leftx`, `lefty`, `rightx`, `righty`) at -1..1. |
 | `pad <n> plug [deck]` / `pad <n> unplug` | `ok`     | Plug virtual pad n in (`deck`: with the Steam Deck's own controls' ids, 0x28de / 0x1205) or pull it out (co-op seats). |
 | `debug players`            | `<id>\t<name>\t<x>\t<y>\t<seat>\t<pmode>\t<ghost>` per player, `ok` | The game's players (local co-op): cell, co-op seat (-1: the first player), mode (-1 none), a ghost (1). |

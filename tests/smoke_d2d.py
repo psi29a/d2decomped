@@ -217,6 +217,22 @@ try:
                 if state()["menu"] != "0":
                     return
             raise AssertionError(f"{name}'s menu did not open")
+        def held_near(name):
+            """From about 3.5 cells off, press on a town NPC, drag the mouse to
+            the hero's far side and hold 8 frames: the hold doesn't drop the
+            talk (LAB_00462b1d); wait for its menu. Up to four tries, each
+            from another side."""
+            for off_x, off_y in ((3.5, 0.2), (0.2, 3.5), (-3.5, 0.2), (-2.5, -2.5)):
+                cx, cy = (float(v) for v in state()["cam"].split(","))
+                x, y = npc_at(name)
+                u, v = (x - 400) / 80, (y - 292) / 40
+                cmd(f"debug warp {cx + (u + v) / 2 + off_x:.2f} {cy + (v - u) / 2 + off_y:.2f}"); frames(6)
+                x, y = npc_at(name)
+                cmd(f"move {x} {y - 40}"); frames(2); cmd(f"click {x} {y - 40} down"); frames(1)
+                cmd(f"move {800 - x} {624 - y}"); frames(8); cmd(f"click {800 - x} {624 - y} up"); frames(120)
+                if state()["menu"] != "0":
+                    return
+            raise AssertionError(f"a held click on {name} did not open the menu")
         def pick(text):
             x, y = menu_line(text)
             cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(6)
@@ -227,6 +243,10 @@ try:
         walk_to("Charsi", lambda st: st["menu"] != "0")
         assert menu_line("trade/repair"), "didn't walk to Charsi"
         cmd("key Escape"); frames()
+
+        held_near("Charsi")                      # she stands at the forge
+        cmd("key Escape"); frames()
+        assert state()["menu"] == "0"
 
         # Gamble at Gheed: a rolled item lands in the inventory.
         cmd("debug clearinv"); frames(2)        # room for it, whatever the save carries
