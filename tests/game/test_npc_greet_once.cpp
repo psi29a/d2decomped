@@ -22,12 +22,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
 
-int main() {
+int main() try {
     assert(has_talk_record(d2d::rules::monster_ids::kCharsi) && has_talk_record(d2d::rules::monster_ids::kFlavie) && !has_talk_record(0));
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
@@ -83,4 +84,7 @@ int main() {
     assert(talk() == 1);
     std::printf("OK: a talk record greets once a stay in town\n");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_npc_greet_once: %s\n", error.what());
+    return 1;
 }
