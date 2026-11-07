@@ -270,3 +270,25 @@ written to the list (`FUN_005c6cc0`). Returns the list. Only caller
 (hits 16 and 19 do and renew it).
 d2d: not ported by name; `skills.md` describes the state side per skill.
 Re-check: `python3 tools/ghidra/fn.py 00570590`, `python3 tools/ghidra/calls.py 00570590`.
+
+### Missile hit 16 — FUN_005aae10 (ECX game, EDX missile, stack target)
+
+Cited. Entry 16 of the pSrvHitFunc table (0x73c840, 4-byte entries:
+0x73c880 holds this address); `skills.md` lists hits 9-21 but not this
+one. Same shape as hit 19 (`FUN_005ab110`, `skills.md:955`): skill id
+`FUN_0064a280`, level `FUN_0064a210`, a source unit `FUN_00552fd0`
+(returns 1, "not handled", when the skill or the unit is missing), the
+skill's auratargetstate (+0x82, must be below `tables +0xc4`), a length
+at least 5, the target's list for that state (`FUN_006256b0`) or a new
+one (flags 2, expiry = game +0xa8 + length, callback `FUN_0056e900`,
+`FUN_00626e10(target, list, 1)`, `FUN_00639db0`), then aurastats
+(`FUN_005c6cc0`), `FUN_00639e30(target, state, 1)`, the expiry renewed
+(`FUN_006260b0`) and event 0xc queued. Differences from hit 19:
+- the length is the skill's calc at **+0x144** (calc4, `skills.md:79`),
+  hit 19 uses +0x60 (auralen);
+- no target (stack arg 0) returns 0 after the row and unit checks, hit 19
+  returns 1;
+- it returns 0 when done, hit 19 returns 3 (damage, end).
+Which missile record carries hit 16 was not looked up.
+d2d: not ported (no mention of 16 in `skills.md`, `ai.hpp`, `fight.hpp`).
+Re-check: `python3 tools/ghidra/fn.py 005aae10`, `python3 tools/ghidra/fn.py 005ab110`.

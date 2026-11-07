@@ -28,6 +28,7 @@ address	name	evidence
 0058f6c0	ai_leader_died	when leader dies, elects new leader via FUN_0058f530 or disbands pack; AiGeneral.cpp
 0058f710	ai_control_get_spawn_class	reads spawn monster class from AI control +0x3c; AiGeneral.cpp
 0058f810	ai_control_free	destructor for AI control: frees commands, minions (+0x34), and struct; AiGeneral.cpp line 0x19d
+005aae10	srv_hit_16_put_state	pSrvHitFunc entry 16 (0x73c880): auratargetstate for the skill's +0x144 calc frames (min 5), returns 0
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
 005dd0b0	unit_search	mode table at 0x6e3300: kind 1 FUN_005dcee0, 2 FUN_005dcf70, 3 FUN_005dd050, else FUN_005dce60
 005de330	ai_speech_trigger	formats line %d, gets chat node (FUN_00661110), sets flag 0x100 (+0xc4), plays sound event 6; AiTatics.cpp
