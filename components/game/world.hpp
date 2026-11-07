@@ -227,6 +227,10 @@ struct World {
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
         // as it greets, FUN_004b3e10 sets all again as the player leaves town.
         std::vector<int> greeted;
+        // When the Countess's death (unit event 0x25) held the player's
+        // complete_tower line (FUN_004dcd40, its fifth argument 0): her
+        // treasure's end (0x5c) plays it within 60 s (World::tower_treasure).
+        std::optional<std::uint32_t> tower_line_held;
         std::vector<Event> events;             // for the client, since it last looked
         std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock
