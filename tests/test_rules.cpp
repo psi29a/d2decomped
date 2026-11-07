@@ -458,9 +458,9 @@ int main() try {
         // loses it (FUN_0063d1d0), repeated while one changed.
         auto worn = [](const char* code, int slot) { Item worn_item = item(code); worn_item.location = 1; worn_item.slot = slot; return worn_item; };
         auto plus_strength = [](Item gear_item) { gear_item.props.push_back({ .stat = d2d::d2s::kStr, .value = 10 }); return gear_item; };
-        const auto strength_of = [](const std::vector<Item>& items) {   // 20 own, plus the unflagged worn gear's
+        const auto strength_of = [](const std::vector<Item>& gear) {   // 20 own, plus the unflagged worn gear's
             Wearer self{ .cls = d2d::d2s::kSorceress, .str = 20, .dex = 30, .lvl = 10 };
-            for (const auto& each : items)
+            for (const auto& each : gear)
                 if (each.location == 1 && item_usable(each))
                     for (const auto& prop : each.props) if (prop.stat == d2d::d2s::kStr) self.str += prop.value;
             return self;
@@ -468,7 +468,7 @@ int main() try {
         const auto base_level = [](const Item&) { return -1; };
         const auto flagged = [](const Item& gear_item) { return (gear_item.flags & 0x4000u) != 0; };
         std::vector<Item> gear = { worn("ssd", 4), plus_strength(worn("cap", 1)) };
-        const auto settle = [&](std::vector<Item>& items) { settle_requirements(cursor_tables, items, [&] { return strength_of(items); }, base_level); };
+        const auto settle = [&](std::vector<Item>& worn_gear) { settle_requirements(cursor_tables, worn_gear, [&] { return strength_of(worn_gear); }, base_level); };
         wield_settle(cursor_tables, gear);
         settle(gear);
         assert(!flagged(gear[0]) && gear[0].wielded);                     // 30 strength: the sword's 25 met
