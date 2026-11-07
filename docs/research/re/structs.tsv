@@ -51,11 +51,11 @@ skill	0x186	u16	minmana	Skills.txt minmana (in points: the payment's floor is mi
 skill	0x188	u8	manashift	Skills.txt manashift: the price is shifted left by it	tools/emu/sk_mana.py:86
 skill	0x18a	u16	mana	Skills.txt mana (the level 1 price)	tools/emu/sk_mana.py:87
 skill	0x18c	u16	lvlmana	Skills.txt lvlmana (added per level above 1)	tools/emu/sk_mana.py:87
-skill_entry	0x00	ptr	row	its Skills.txt record (FUN_00647960 reads +4 / +5 off it)	tools/emu/skill_status.py:104
-skill_entry	0x28	u32	level	the stored base level (FUN_006442a0, FUN_00647540)	tools/emu/skill_status.py:105
-skill_entry	0x30	u32	quantity	a scroll or tome's count (FUN_00647640: usable above 0)	tools/emu/skill_status.py:106
-skill_entry	0x34	i32	item	the charged item's id, -1 for the character's own skill	tools/emu/skill_status.py:107
-skill_entry	0x38	u32	charges	an item entry's charges (FUN_00647540: usable above 0)	tools/emu/skill_status.py:108
+skill_entry	0x00	ptr	row	its Skills.txt record (FUN_00647960 reads +4 / +5 off it)	tools/emu/skill_status.py:117
+skill_entry	0x28	u32	level	the stored base level (FUN_006442a0, FUN_00647540)	tools/emu/skill_status.py:118
+skill_entry	0x30	u32	quantity	a scroll or tome's count (FUN_00647640: usable above 0)	tools/emu/skill_status.py:119
+skill_entry	0x34	i32	item	the charged item's id, -1 for the character's own skill	tools/emu/skill_status.py:120
+skill_entry	0x38	u32	charges	an item entry's charges (FUN_00647540: usable above 0)	tools/emu/skill_status.py:121
 unit	0x00	u32	type	0 player, 1 monster, 2 object, 3 missile, 4 item, 5 warp	components/rules/object_ids.hpp:10
 unit	0x04	u32	class	its row: MonStats, objects.txt, Missiles, ...	tools/emu/life_apply.py:50
 unit	0x10	u32	mode	animation mode	components/rules/monsters.hpp:1253
