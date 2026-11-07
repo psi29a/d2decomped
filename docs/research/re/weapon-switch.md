@@ -64,12 +64,16 @@ ponytail: another player's switch (0x9d action 0x17) isn't followed.
 ## What two hands can hold (`FUN_0063dbc0`, from `FUN_0063dd90`)
 
 `FUN_0063de60(player, body loc, item, …)` asks of a hand slot (4, 5, or
-the switch's 11, 12) `FUN_0063dd90(other hand's item, new item, item in
-the slot)`: 1 the empty hand takes it, 2 it takes it but the other hand's
-item doesn't pair (it comes off), 5 a swap, 6 a stack, 7 a swap that
-also unseats the other hand, 0 never. The client's hand handlers
+the switch's 11, 12) `FUN_0063dd90` (EAX the item in the slot, ECX the
+other hand's, EDX the cursor's; the disassembly at 0x63dee5..0x63deff).
+With an item on the cursor: 1 the empty hand takes it, 2 it takes it but
+the other hand's item doesn't pair (that one goes to the cursor), 5 a
+swap, 6 a stack, 7 a swap whose other hand's item goes to the inventory,
+0 never. With none: 3 the hand's item is picked up, 4 an empty hand
+beside a two-hander picks the two-hander up. items.md "Into a hand" has
+the table and the server function for each. The client's hand handlers
 `FUN_00490780` / `FUN_00490ba0` (body-loc table `0x721e58`) send codes
-1, 2, 5, 6, 7 on; the other slots' `FUN_00490fc0` only 1, 3, 5.
+1 to 7 on; the other slots' `FUN_00490fc0` only 1, 3, 5.
 
 The pairing, `FUN_0063dbc0` (ESI, EDI the two items, EBX the unit):
 
