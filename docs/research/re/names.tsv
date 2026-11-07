@@ -626,6 +626,7 @@ address	name	evidence
 00629860	item_strbonus	Items +0x106, 100 when 1
 006298a0	item_dexbonus	Items +0x108, 100 when 1
 006298e0	class_hasinv	Items +0x137
+00629900	item_has_inventory	item unit: Items record (FUN_006335f0 of unit +4) +0x137 (hasinv, the item takes sockets); 0 for no unit or another type
 00629990	class_gemsockets	Items +0x138
 00629a00	class_gemapplytype	Items +0x13e (Items.cpp 0xf28)
 00629a40	item_gemapplytype	FUN_00629a00 (Items.cpp 0xf3d)
