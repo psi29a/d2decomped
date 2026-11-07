@@ -319,7 +319,8 @@ A preset 580 (FUN_0054f370) is a sparkling chest; a gold placeholder
   first), a set with none (FUN_005c2940 fails) magic (FUN_00557380, x2);
   rare falls to magic, magic to superior (FUN_00557320) and normal
   (FUN_005572a0) only when no affix fits (FUN_005c21a0 / FUN_005565e0
-  fail). So a unique or set that finds no row still counts as magic.
+  fail). So a unique or set that finds no row still counts as magic,
+  unless no affix fits it either (then superior or normal: not magic).
 - Casket (1, FUN_00586410): a round; nothing, it stays shut; then the
   undead roll (`(next % 10000) & ~0x1fff`). Urn (3, FUN_005866c0): a round
   at rand(100) < 21. Barrel (5, FUN_005868a0): the undead roll, then the
