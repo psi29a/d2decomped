@@ -571,3 +571,22 @@ the 2 / 4 / 36 / 51 arm: `sub_at(x, y, 0, 0)` with the sub row's own
 `range + lev_range * level` frames. game.exe overrides the range with
 sHitPar1, else calc1 (at least 5). Confidence: medium; the d2d side is read
 from the code, with no oracle run.
+
+## Server hit function 28 — FUN_005aba10
+
+Cited. Slot 28 (`0x73c8b0`). ECX game, EDX the missile, stack the struck
+unit. The returns I read in the decompile are 1. It acts only with a skill in range, an owner
+(`FUN_00552fd0`) and a struck **monster** (type 1). The unit it measures
+from is the one whose id sits in the missile data's `+0x28` (`FUN_0064a730`,
+the slot `FUN_0064a710` writes) looked up by `FUN_00552f60`. If that unit is
+found and the squared distance (`FUN_006492a0`) of two positions is below
+`FUN_004e6ca0(skill, level)^2`, with `FUN_004e6ca0` = `(level - 1) *
+skill[+0x14c] + skill[+0x148]`, it runs `FUN_005ddd00` (the Howl / Terror
+run, missiles.cpp:623) on the struck monster with the skill's `+0x158`
+and `+0x15c` values (`FUN_004e6c70`, `FUN_004f4110`). Which two positions
+are compared, and which skill uses slot 28, are not settled from the
+decompile (hidden register arguments).
+
+Re-check: `python3 tools/ghidra/fn.py 005aba10`.
+
+d2d: not ported. `Fight::burst` / `strike` have no case 28.
