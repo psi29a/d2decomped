@@ -912,9 +912,8 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // frame, once a frame for the cast (they share `struck`), its row's
         // element in 256ths less magic damage reduction, then resistance
         // (FUN_0057bf80); the MDR scaled by the row's DamageRate / 1024
-        // (FUN_0057c1e0, rules::frame_rate_flat).
-        // ponytail: the 256ths a burn leaves over round up by chance, not
-        // kept on the foe's life.
+        // (FUN_0057c1e0, rules::frame_rate_flat). The life takes the record
+        // total in 256ths (0057c852): the fraction is kept (Foe::frac), no draw.
         // A monster's maker (do 31: Baal's cold missiles) lays SubMissile1
         // where it is each frame, going its way; the maker strikes nothing.
         if (missile.info && missile.info->srv_do == 31) {
@@ -962,9 +961,9 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 const auto& row = *missile.row;
                 const int burn = d2d::rules::resisted_fine(rng.range(row.elo, row.ehi) - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
                                                            foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]);
-                const int dealt = (burn >> 8) + (int(rng(256)) < (burn & 255) ? 1 : 0);
-                foe.damage += dealt; foe.elemental += dealt;
-                foe.blows.push_back({ dealt, 0, true, 0, dealt });   // its own record, for its get-hit
+                const int dealt = burn >> 8;
+                foe.damage += dealt; foe.elemental += dealt; foe.frac += burn & 255;
+                foe.blows.push_back({ dealt, 0, true, 0, dealt, false, burn & 255 });   // its own record, for its get-hit
             }
             return false;
         }
