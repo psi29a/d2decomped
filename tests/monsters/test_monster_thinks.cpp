@@ -447,6 +447,17 @@ int main() try {
         // to, 3 subtiles a think (FUN_005de4e0's split); 2 off it's greeted,
         // then again 60 thinks on; past 16 from home the NPC goes home first.
         assert(d2d::rules::npc_reach(10, 10, 20, 13, 2) == 8);
+        {   // FUN_005dde80: the nearest player under 16 with a "!" for them, the first on a tie
+            using d2d::rules::NpcCandidate;
+            const std::array<NpcCandidate, 3> both{ { { 20, 10, true }, { 15, 10, true }, { 25, 10, true } } };
+            assert(d2d::rules::npc_visitor_pick(10, 10, both) == 1);
+            const std::array<NpcCandidate, 2> far_alert{ { { 20, 10, true }, { 15, 10, false } } };
+            assert(d2d::rules::npc_visitor_pick(10, 10, far_alert) == 0);
+            const std::array<NpcCandidate, 2> tie{ { { 15, 10, true }, { 5, 10, true } } };
+            assert(d2d::rules::npc_visitor_pick(10, 10, tie) == 0);
+            const std::array<NpcCandidate, 1> beyond{ { { 10 + 2 + 16, 10, true } } };   // reach 16: not under it
+            assert(d2d::rules::npc_visitor_pick(10, 10, beyond) == -1);
+        }
         assert(d2d::rules::npc_step_toward(10, 10, 20, 13, 8, 3, 2) == std::pair(13, 11));
         d2d::rules::NpcBrain host;
         host.homed = true; host.home_x = 10; host.home_y = 10;

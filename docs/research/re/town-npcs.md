@@ -116,7 +116,13 @@ word heads the list FUN_00572c10 adds a talking player to).
   NPC's size, FUN_00620510: MonStats2 +8, 2 for the camp's; then the larger
   plus half the smaller) and, for an NPC with the interact flags, only one
   FUN_00544590 says yes to: the NPC has a quest message for them (the "!"
-  balloon, quests.md). None: the NPC itself.
+  balloon, quests.md). None: the NPC itself. Among several players
+  (FUN_005dde80, ECX/EDX the NPC, the candidate, the best so far
+  {unit, distance}): for an NPC with the interact flags (class record
+  +0xd & `DAT_006ce26c`) a candidate replaces the best only when it has
+  the "!" and is strictly nearer, so the nearest such player wins, the
+  first met on a tie; for one without the flags every player under 16
+  replaces it, so the last met wins.
 - **Talking** when the list has a player (FUN_00572dc0), the visitor is in
   it (FUN_00572de0), or the visitor is busy (FUN_00535060: in an
   interaction), or AI control +0x14 > 0. Then: with +0x14 over 36 and the

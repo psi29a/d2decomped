@@ -218,7 +218,7 @@ void file_first_think(UnitState& state, std::uint32_t now_ms) {
 }
 
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t now_ms, float elapsed, const Crowd& crowd, const UnitState* player, bool guard_aside) {
+                std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::span<const UnitState* const> visitors, bool guard_aside) {
     constexpr std::uint32_t kFrameMs = 40;
     for (std::size_t i = 0; i < npcs.size() && i < level.npcs.size(); ++i) {
         const auto& npc = level.npcs[i];
@@ -251,7 +251,7 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
             points.push_back({ k < npc.actions.size() ? npc.actions[k] : 0, int(npc.path[k].first * 5), int(npc.path[k].second * 5) });
         const int x = int(std::floor(state.x * 5)), y = int(std::floor(state.y * 5));
         d2d::rules::NpcVisitor visitor{ .talking = listed };
-        if (player && state.alert) {                            // FUN_005dde80: within 16, with a "!" for them
+        if (const UnitState* player = i < visitors.size() ? visitors[i] : nullptr) {   // FUN_005dde80: within 16, with a "!" for them
             visitor.x = int(std::floor(player->x * 5)); visitor.y = int(std::floor(player->y * 5));
             visitor.distance = d2d::rules::npc_reach(x, y, visitor.x, visitor.y, 2);
             visitor.present = visitor.distance < 16;
