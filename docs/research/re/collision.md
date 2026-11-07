@@ -526,6 +526,15 @@ EAX); read the asm for them.
   word at path +6 (subtile y); null path raises the same error with line
   0x69d. Callers include `FUN_0045ae20`, `FUN_0045b1e0`, `FUN_00460830`,
   `FUN_00649400`. d2d: agrees (same citations as the x getter).
+- **An object's footprint, `FUN_0064de30`** (room, x, y, width, height,
+  bits as `FUN_00649400` pushes them; the C reads only stack words 4 to 6,
+  the size and the bits, and passes the bits on; how the first three reach
+  the callees was not read): a 1 x 1 footprint calls `FUN_0064caf0`
+  (one subtile), any other `FUN_0064d060` (the rect box above). Callers
+  `FUN_00620a70`, `FUN_00649400` (unit type 2, size from `FUN_00620510` /
+  `FUN_006205a0`), `FUN_00649f70`. d2d: reads the same, cited from the decompile, no oracle run, as
+  `set_footprint` (gamedata.hpp:1051), which cites it; `FUN_0064caf0` was
+  not read here.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)

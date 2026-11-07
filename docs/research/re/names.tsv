@@ -210,6 +210,7 @@ address	name	evidence
 0064d060	grid_set_rect_bits	fastcall (room, rect, bits): room holding the rect, split by FUN_0064cdf0, bits ORed into the first piece (FUN_0064cd70), recursion for the rest (collision.md "The stamp family")
 0064dc80	grid_set_plus_bits	(room, bits; subtile in registers): ORs bits into (x-1,y), (x,y), (x+1,y), (x,y-1), (x,y+1), each cell finding its own room (collision.md "The stamp family")
 0064ddb0	grid_set_point_bits	(room, x, y, bits): ORs bits into the one subtile's grid word if a room holds it (collision.md "The stamp family")
+0064de30	grid_set_footprint_bits	(room, x, y, w, h, bits): 1 x 1 FUN_0064caf0 (one subtile), else FUN_0064d060 (the box); an object's footprint, from FUN_00649400 (collision.md "Building a path")
 0064ea00	grid_set_shape_bits	(room, x, y, shape, bits): shape 1 point (FUN_0064ddb0), 2 plus (FUN_0064dc80), 3 box (FUN_0064d060) (collision.md "The stamp family")
 0064ea90	grid_set_pattern_bits	(room, x, y, pattern, bits): 1 / 3 plus then, if bits != 0, point 0x1000 / 0x2000; 2 / 4 3x3 square then plus; 5 plus only (collision.md "The stamp family")
 0064eba0	grid_clear_shape_bits	(room, x, y, shape, bits): the clear twin of FUN_0064ea00; shape 1 FUN_0064db70, 2 FUN_0064da40, 3 FUN_0064dbc0 (collision.md "The stamp family")
