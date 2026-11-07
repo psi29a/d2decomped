@@ -605,9 +605,9 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
     const char* init_mode = nullptr;
     if (objects.get(row, "InitFn") == "34" && (rgn.next() & 1)) init_mode = "OP";
     if (objects.get(row, "InitFn") == "26") init_mode = "OP";
-    // The fissures (InitFn 58, FUN_0054fdb0): a step, their first eruption (event 8) that % 250 + 25 frames on.
-    // ponytail: the eruptions themselves aren't played.
-    if (objects.get(row, "InitFn") == "58") rgn.next();
+    // The fissures (InitFn 58, FUN_0054fdb0): a step, their first eruption (event 8) that % 250 + 25 frames on
+    // (World::fissures plays them).
+    if (objects.get(row, "InitFn") == "58") npc.erupts = int(rgn.next() % 250) + 25;
     if (objects.get(row, "InitFn") == "22" && objects.get(row, "Mode2") == "1" && objects.get(row, "Mode0") != "1") init_mode = "ON";
     npc.preoperated = objects.get(row, "PreOperate") == "1" && rgn(14) == 0;
     npc.env_effect = objects.get(row, "EnvEffect") == "1";

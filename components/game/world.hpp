@@ -373,6 +373,13 @@ struct World {
     bool  autoloot_gold = true;            // d2d: gold walked over goes into the purse (deviations.md #5, --toggle autoloot)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
+    // The fissures' eruptions (object 399, event 8 FUN_00581250): the next
+    // one due, and when the one under way goes ON (event 1, FUN_00581490);
+    // `stopped` once one fell in OP (bugs.md #52). Started as the player
+    // first ticks on its level, from Npc::erupts.
+    struct Fissure { std::uint32_t next_ms = 0, on_ms = 0; bool stopped = false; };
+    std::map<std::pair<const Level*, int>, Fissure> fissures;
+    void fissure_frame(std::uint32_t now_ms);
     struct Door { int mode = 0; std::uint32_t when = 0; };
     std::map<std::pair<const Level*, int>, Door> doors;   // doors used: their mode (0..7), when it changed
     struct Fire { const Level* level; const Npc* npc; float x, y; std::uint32_t born = 0, gone = 0; };
