@@ -101,6 +101,36 @@ auto World::greet_sound(const Npc& npc, int kind) -> int {
 // material, else the level's SoundEnviron Material 1), each at least two
 // thirds of a step after the last. The animation's rate is the walk's
 // (rules::moving_anim_rate), as the client's footsteps read it (unit +0x4c).
+// A fissure's eruption (event 8, FUN_00581250, class 399): in NU or ON the
+// object seed steps, the next one is queued that % 250 + 25 frames on, and it
+// goes OP till event 1 at FrameCnt1 + 1 frames takes it ON (FUN_00581490);
+// one that comes while it's still OP queues nothing more (bugs.md #52).
+// Event 1 first when both fall on a frame. Only on the player's level.
+// ponytail: the object seed's steps fall in d2d's order of the game's object
+// rolls (levels built on demand), and the first is timed from the player's
+// first tick on the level, not the room's coming up.
+auto World::fissure_frame(std::uint32_t now_ms) -> void {
+        for (std::size_t index = 0; index < level->npcs.size() && index < npc_states.size(); ++index) {
+            const auto& npc = level->npcs[index];
+            if (npc.erupts < 0) continue;
+            auto [entry, fresh] = fissures.try_emplace({ level, int(index) });
+            auto& fissure = entry->second;
+            auto& state = npc_states[index];
+            if (fresh) fissure.next_ms = now_ms + std::uint32_t(npc.erupts) * kTickMs;
+            if (fissure.on_ms && now_ms >= fissure.on_ms) {
+                state.mode = "ON";
+                state.mode_ms = std::exchange(fissure.on_ms, 0);
+            }
+            if (fissure.stopped || now_ms < fissure.next_ms) continue;
+            if (state.mode == "OP") { fissure.stopped = true; continue; }
+            const std::uint32_t at_ms = fissure.next_ms;
+            fissure.next_ms = at_ms + std::uint32_t(fight.spawning.objects.next() % 250 + 25) * kTickMs;
+            fissure.on_ms = at_ms + std::uint32_t(npc.op_frames + 1) * kTickMs;
+            state.mode = "OP";
+            state.mode_ms = at_ms;
+        }
+    }
+
 auto World::footstep_frame(std::uint32_t tick_ms) -> void {
         using namespace d2d::rules::sound_ids;
         const int cls = actor->character.character_class;
@@ -248,6 +278,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             }
             entry = back ? operated.erase(entry) : std::next(entry);
         }
+        fissure_frame(now_ms);
         for (const auto& [key, door] : doors)                  // doors in the mode they were left in
             if (key.first == level && std::size_t(key.second) < npc_states.size())
                 std::tie(npc_states[std::size_t(key.second)].mode, npc_states[std::size_t(key.second)].mode_ms) = std::pair{ kObjectModes[std::size_t(door.mode)], door.when };

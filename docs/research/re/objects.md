@@ -130,6 +130,15 @@ the object's flag byte:
   (`FUN_005417d0(4, frame + 0x23)`) and sends the opener unit event 0xd
   (`FUN_00553380`, EDX 0xd; the client's `FUN_004cb9c0` has no sound for
   it). The trap only fires at the event.
+- **The fissures** (399, `fh`, Act 4's River of Flame): InitFn 58
+  (`FUN_0054fdb0`) steps the object seed and queues event 8 at that
+  `% 250 + 25` frames on. Event 8 (`FUN_00581250`, class 399's branch): in
+  mode 0 or 2 it steps the object seed again, queues the next event 8 at
+  `% 250 + 25` frames, sets mode 1 (OP: FrameCnt1 49 at FrameDelta 256)
+  and queues event 1 at FrameCnt1 + 1 (`objects.bin +0xdc >> 8`), which
+  takes it to mode 2 (`FUN_00581490`, Mode2 1). In mode 1 it does nothing
+  and queues nothing (bugs.md #52). It sets modes only: no missile, no
+  damage in this code.
 - Object events go through the table at 0x6e19b0 (event 1
   `FUN_00581490`: only if the unit is still in mode 1 and has Mode2, then
   mode 1 → 2 and the footprint changes when Mode2's collision differs;
