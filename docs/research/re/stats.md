@@ -209,3 +209,33 @@ Callers include `FUN_00643620`, `FUN_00570590`, `FUN_005aae10`,
 d2d: reads the same, cited from the decompile, no oracle run, as `components/rules/rules.hpp:682` (a socketed item's
 properties count as the parent's own); d2d has no flag 0x40000000.
 Re-check: `python3 tools/ghidra/fn.py 00626e10`, `python3 tools/ghidra/calls.py 00626e10`.
+
+### A new item's base stats — FUN_00557ab0 (ECX ctx, &unit, drop row, made)
+
+(Ghidra names it `d2d_d2s_items_quest_difficulty_of`, after d2d's header
+function that only mirrors its last step; the 1071 bytes do much more.)
+Cited, read from the decompile; the random draws (`FUN_0045c390`,
+`FUN_0045c3e0`) are not checked here.
+- Item class `FUN_0062b400(unit) == 4` (gold, per `drops.hpp:114`):
+  stat 0xe = `FUN_0045c390() + drop[+0xc]`, at least 1, replaced by
+  `drop[+0x54]` when that is positive; set through `FUN_00627260`. A branch
+  that zeroes the stat for a unit of type 0 above `FUN_00622e70` cannot
+  be taken by an item unit (type 4), so it is dead here.
+- Other classes: stat 0x46 (quantity) = draw + `FUN_006296f0` (at least 1,
+  `drop[+0x54]` overrides), for a stackable; weapon / armor branch:
+  stat 0x14 from base +0x111 (shield block), 0x43 and 0x44 as
+  `-base[+0xd8]`, 0x48 durability = draw + (base +0x112 >> 1) capped 255
+  and 0x49 max durability = base +0x112 capped 255. Type 0xb also runs
+  `FUN_0065e8e0`.
+- If `FUN_0062e8d0(unit)` is nonzero, `FUN_00628420(unit, FUN_00472280(it))`
+  runs.
+- With `made` and a drop row: returns `d2d_drops_made_quality(drop)`, else
+  1. For a base whose row has +0x12a and +0x12b set (quest item with a
+  difficulty): the item's kind-0x40 list (`FUN_00625790`) or a new one
+  (`FUN_006251f0(unit +8, 0x40, 0, 4, unit +0xc)` attached by
+  `FUN_00626e10`), stat 0x164 (356, d2d `kQuestItemDifficulty`) = byte
+  `ctx +0x6d` (`FUN_00627150`), and item flag 0x10 (`FUN_006280d0`).
+d2d: reads the same, cited from the decompile, no oracle run, on the quest difficulty stat (`rules.hpp:1850`) and the
+gold draw (`drops.hpp:114`); the other branches are described in
+`rules.hpp:1715-1730` and not re-checked here.
+Re-check: `python3 tools/ghidra/fn.py 00557ab0`, `git grep -n 00557ab0 components`.
