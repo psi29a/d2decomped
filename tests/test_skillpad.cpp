@@ -18,6 +18,13 @@ int main() {
     using d2d::client::skillpad::kUnset;
     using d2d::client::skillpad::swings;
     using d2d::client::skillpad::wedge;
+    using d2d::client::skillpad::start_respawns;
+    assert(start_respawns(true, true, false, false));
+    assert(start_respawns(true, true, true, true));
+    assert(!start_respawns(true, true, true, false));
+    assert(!start_respawns(false, true, false, false));
+    assert(!start_respawns(true, false, false, false));
+
     assert(swings({ true, false, "h2h" }));
     assert(!swings({ true, true, "h2h" }));
     assert(!swings({ true, false, "none" }));

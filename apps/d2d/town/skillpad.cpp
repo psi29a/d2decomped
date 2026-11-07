@@ -139,6 +139,13 @@ auto Town::present_skill_pad() -> void {
 
 auto Town::drive_skill_ui(const pad::Actions& actions) -> bool {
     if (!pad_config.skill_buttons) return false;
+    const bool start = actions.panel_strip || (skill_strip >= 0 && actions.cancel);
+    if (skillpad::start_respawns(start, view.dead, view.ghost, view.all_dead)) {
+        skillbar.picking = 0;
+        skill_strip = -1;
+        send(cmd::Resurrect{});
+        return true;
+    }
     if (skillbar.picking == 3) { drive_wheel(actions); return true; }
     if (skill_strip >= 0) { drive_strip(actions); return true; }
     if (actions.panel_strip && pad_field()) { skill_strip = 0; return true; }

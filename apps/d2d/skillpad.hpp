@@ -122,6 +122,13 @@ struct TriggerHold {
     return legend && !strip && (picking == 0 || wheel);
 }
 
+// Escape respawns once the death screen is up. Skill buttons use Start for
+// the panel list, so that press respawns instead. A ghost with a partner
+// still alive keeps the list.
+[[nodiscard]] inline bool start_respawns(bool start_pressed, bool dead, bool ghost, bool all_dead) {
+    return start_pressed && dead && (!ghost || all_dead);
+}
+
 // What the right-hand skill becomes when an aura button is pressed.
 // `active` is the aura the world is running (0 none). `pressed` is an aura.
 // The same aura toggles off, back to the non-aura skill remembered earlier.
