@@ -278,9 +278,10 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             });
             std::vector<Command> cmds;                  // this player's
             for (const auto& order : orders) if (order.player == player.id) cmds.push_back(order.command);
+            // A skill command this tick means the button is still down, left or
+            // right. A spell was ignored here, so a held cast stopped after one.
             const bool button = std::ranges::any_of(cmds, [](const Command& command) {
-                const auto* use_skill = std::get_if<cmd::UseSkill>(&command);
-                return std::holds_alternative<cmd::Move>(command) || (use_skill && use_skill->left);
+                return std::holds_alternative<cmd::Move>(command) || std::holds_alternative<cmd::UseSkill>(command);
             });
             const bool resurrect = std::ranges::any_of(cmds, [](const Command& command) { return std::holds_alternative<cmd::Resurrect>(command); });
             // Back in camp after dying: alone, or in co-op once no one's left alive.
