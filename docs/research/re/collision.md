@@ -548,6 +548,24 @@ EAX); read the asm for them.
   `FUN_00649d00`. d2d: reads the same as the table at the top, cited from the decompile, no oracle run (units stamp by
   pattern, objects by box; world.hpp:681); a null unit is dereferenced at
   the end (the first test only skips the dispatch), not checked for callers.
+- **Re-pattern a unit, `FUN_00649ca0`** (unit): with a path (unit +0x2c) it
+  takes the pattern `FUN_00648580(unit, path +0x44)` (the SizeX) into path
+  +0x48. If the unit is in a room (`FUN_00620bb0`) it first lifts the old
+  stamp (`FUN_00649560(unit, 1)`) and, after the store, stamps the new one
+  (`FUN_00649400`); with no room it only stores. So a size or town flag
+  that changes on a placed unit moves its footprint. Callers
+  `FUN_0045d160`, `FUN_00463c00`, `FUN_004d946c`, `FUN_00554340`,
+  `FUN_005c07a0`. d2d: not ported (d2d builds the shape once, at spawn).
+- **Add to the room's list, `FUN_0064c350`** (unit, room): `FUN_0064c2c0`
+  with a third argument 1. That one (drlg.md:1299) asserts a non-null unit
+  (line 0x48) and room (0x49), fails (lines 0x52, 0x57) when
+  `FUN_0064bf60(1)` or `FUN_00619f60()` gives nothing, pushes the unit on
+  the list the latter returns (the old head goes to unit +0xe8), runs
+  `FUN_0064c040(unit)`, and for a player (type 0) or a monster with
+  `FUN_006259b0` = 2 calls `FUN_00619ee0(room)`. Callers `FUN_00463bc0`,
+  `FUN_00465fd0`, `FUN_004bc720`, `FUN_004c1910`, `FUN_00554850`,
+  `FUN_00649d00`. d2d: not ported. The `FUN_0064c2c0` reading is from the
+  decompile only; its exact meaning for `FUN_00619ee0` was not traced.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)

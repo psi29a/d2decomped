@@ -206,8 +206,11 @@ address	name	evidence
 00648900	path_get_y	(path): the word at path +6 (subtile y); null path raises the internal error, line 0x69d (collision.md "Building a path")
 00648c30	path_restamp_bits	(path, bits): lifts the stamp at path +0x4c (FUN_0064eba0 for an owner of type 3, else FUN_0064ec10), stores bits, stamps them (FUN_0064ea00 / FUN_0064ea90) (collision.md "The stamp family")
 00649400	unit_stamp_footprint	(unit): type 0 / 1 FUN_0064ea90 by path pattern +0x48, type 2 FUN_0064de30, others FUN_0064ea00 by shape (collision.md "Building a path")
+00649ca0	unit_path_repattern	(unit): path +0x48 = FUN_00648580(unit, path +0x44); lifts the old stamp (FUN_00649560) and restamps (FUN_00649400) when in a room (collision.md "Building a path")
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
+0064c350	unit_link_in	(unit, room): FUN_0064c2c0(unit, room, 1), which asserts both, pushes the unit on a list (drlg.md:1299) (collision.md "Building a path")
+0064c350	unit_link_in	(unit, room): FUN_0064c2c0(unit, room, 1), which asserts both, pushes the unit on a list (drlg.md:1299) (collision.md "Building a path")
 0064d060	grid_set_rect_bits	fastcall (room, rect, bits): room holding the rect, split by FUN_0064cdf0, bits ORed into the first piece (FUN_0064cd70), recursion for the rest (collision.md "The stamp family")
 0064dc80	grid_set_plus_bits	(room, bits; subtile in registers): ORs bits into (x-1,y), (x,y), (x+1,y), (x,y-1), (x,y+1), each cell finding its own room (collision.md "The stamp family")
 0064ddb0	grid_set_point_bits	(room, x, y, bits): ORs bits into the one subtile's grid word if a room holds it (collision.md "The stamp family")
