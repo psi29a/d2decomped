@@ -94,3 +94,15 @@ Cited from the decompile; it takes the file name in ESI and the line in EBX
   This function stores the four values but has no write to `DAT_00708340`
   itself (its other writers were not searched), so whether the cache hits is
   not established here.
+
+## FUN_004117a0: Storm memory error report
+
+Cited from the decompile (no oracle run); d2d: not ported. 42 bytes. The
+message and code arrive in registers (the decompile shows ESI as an unnamed
+input). It calls `FUN_0041c340` (stores the code in `DAT_007790f4` and
+`SetLastError`), then, if `DAT_007784c0` is non-zero, `FUN_0041caf0(.., 0, 1,
+1)` (the error report; `FUN_00411620` calls the same function with 0, 0, 1 and
+then `ExitProcess`). It returns to its caller, so a bad free is reported, not
+fatal. Callers: `00411910`, `00411f00`, `004122f0`, `004124b0`, `00412650`
+(which passes `"SMemFree()"` and -1).
+
