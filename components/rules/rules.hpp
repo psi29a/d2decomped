@@ -1356,10 +1356,11 @@ inline void wield_leaves(const Tables& tables, std::vector<d2d::d2s::Item>& item
     const int other = d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - leaving.slot;
     if (const int index = hand_index(items, other); index >= 0 && item_usable(items[std::size_t(index)])) wield(items, items[std::size_t(index)]);
 }
-// A loaded character's hands: each weapon in hand enters in the items'
-// order.
-// ponytail: how game.exe sets +0x1c when a save loads isn't traced; the
-// first usable weapon in the save's order is taken.
+// A loaded character's hands: each item enters in the save's order
+// (FUN_005335e0 -> FUN_00531210, a worn one through FUN_005606b0 with the
+// requirements skipped, which calls FUN_0063d1d0 for slots 4 / 5); a new
+// character's starting gear the same way, in CharStats order (FUN_00534d60
+// -> FUN_00534bb0 -> FUN_005606b0).
 inline void wield_settle(const Tables& tables, std::vector<d2d::d2s::Item>& items) {
     for (auto& item : items) item.wielded = false;
     for (auto& item : items) wield_enters(tables, items, item);

@@ -143,6 +143,7 @@ server each item move calls them in this order:
 | `FUN_00562e00` | an item worn from the ground or a store (`FUN_0055d710`) | `FUN_0063d1d0` |
 | `FUN_00562a30` | the next stack into an emptied hand | `FUN_0063d1d0` |
 | `FUN_00562f30` | the corpse's items back on | `FUN_0063d1d0` |
+| `FUN_005606b0` from `FUN_00531210` (a save's items, `FUN_005335e0` mode 0) or `FUN_00534bb0` (a new character's gear, `FUN_00534d60`) | a worn item, requirements skipped (its 5th argument 1) | `FUN_0063d1d0` for slots 4 / 5, not 0xb / 0xc |
 | `FUN_0055f850` | an item breaks (flag 0x100) | `FUN_0063d2b0` |
 | `FUN_0055f900` (from `FUN_005761c0`, a repair of a broken item) | the break mended | `FUN_0063d1d0` |
 
@@ -151,8 +152,16 @@ swap of the wielded weapon in a dual-wield hands the id to the other
 hand's. `FUN_0055dbc0` (the stats redone) calls the pair only for a
 body item whose requirements stop or start being met (flag 0x4000 set,
 then `FUN_0063d2b0`; cleared, then `FUN_0063d1d0`) and, in its first
-pass, for charms (ItemTypes row 0xd, char: `FUN_0062ff70`); how a loaded save
-sets `+0x1c` was not found.
+pass, for charms (ItemTypes row 0xd, char: `FUN_0062ff70`).
+
+A save's items go in in the file's order: all four readers of the player's
+list (`FUN_00533c70`, `FUN_00534020`, `FUN_00566cc0`, `FUN_0056a7e0`) call
+`FUN_005337f0` with mode 0 (the 4th stack argument, pushed as 0 at
+0x533f05, 0x534235, 0x566d37 and 0x56a7f1), so each item goes through
+`FUN_00531210`; a worn one (item mode 1) through `FUN_005606b0`. Mode 1
+(`FUN_00531520`, placed with no `FUN_0063d1d0`) is only the corpse's own
+list (`FUN_00533850`). So a loaded character's wielded weapon is the
+first usable one in a hand in the save's order.
 
 d2d: the item's `wielded` (d2s_items.hpp, not saved; the View carries
 it) is the id. `rules::wielded_weapon` is `FUN_0063bef0`,
@@ -160,10 +169,11 @@ it) is the id. `rules::wielded_weapon` is `FUN_0063bef0`,
 `FUN_0063d2b0`, called where the table's moves are made
 (`rules::equip`, `store_buy`, `pick_up`, `store_repair_all`, the World's
 sale, repair, switch, cursor and corpse, `Fight`'s breaks and refill).
-ponytail: a loaded character's hands take the id in the save's item order
-(`rules::wield_settle`). `components/game/world/objects.cpp` (Khalim's
-Will in either arm) doesn't use it. `FUN_0063add0` is not ported, nor the
-0x4000 requirement flag's moves.
+A loaded or new character's hands take it in the items' order
+(`rules::wield_settle`, from `World::take_character`). The 0x4000 flag
+`FUN_0055dbc0` sets after each of those (requirements not met) isn't
+kept. `components/game/world/objects.cpp` (Khalim's
+Will in either arm) doesn't use it. `FUN_0063add0` is not ported.
 
 ### The other hand and the dual-wield stats (`FUN_0063bf90`, `FUN_00535e20`, `FUN_004e9260`, `FUN_004e9300`)
 
