@@ -666,6 +666,7 @@ address	name	evidence
 0062beb0	item_is_type35	FUN_00629bb0(item, 0x35)
 0062c9f0	item_stat_floor	maxac +0xd0, mindam/maxdam +0xfe..+0x103
 0062e410	saved_item_header_60	FUN_0062ae20(..., 0x60)
+0062e430	item_read_bitstream	(unit, buffer, bytes, check_jm, sockets_out, version, err_out): reads the optional JM mark and 32 flag bits, resets item data, then the compact reader FUN_0062a970 (flag 0x200000) or the full FUN_0062cbe0; returns bytes used (FUN_00410e90)
 0062c100	item_colour_tint	(owner unit, item unit, tint out, second-colour flag): colour from the unit's states, then quality 7 / 5 / 4,6 / other, gem rule gate (hasinv +0x137, FUN_0062bc20); tint byte via FUN_0062a250 = Transform * 32 + (colour & 31) (items.md)
 0062e430	item_read_bitstream	(unit, buffer, bytes, check_jm, sockets_out, version, err_out): reads the optional JM mark and 32 flag bits, resets item data, then the compact reader FUN_0062a970 (flag 0x200000) or the full FUN_0062cbe0; returns bytes used (FUN_00410e90)
 0062e7e0	itemtype_byte_11	ItemTypes +0x11
