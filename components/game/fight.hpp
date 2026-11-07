@@ -123,11 +123,11 @@ inline bool throw_ready(const GameData& game_data, const Character& character) {
 // the flags 0x4000 / 0x100 items (skill 0 only) aren't kept: those pass.
 inline bool hand_fits(const GameData& game_data, const std::string& type, const std::array<std::string, 3>& itypes,
                       const std::array<std::string, 2>& etypes, bool neither_weapon) {
-    const auto is = [&](std::string_view want) { return !want.empty() && d2d::rules::type_is(game_data.rules, type, want); };
+    const auto of_type = [&](std::string_view want) { return !want.empty() && d2d::rules::type_is(game_data.rules, type, want); };
     if (type.empty())
         return (itypes[0].empty() && etypes[0].empty()) || ((itypes[0] == "weap" || itypes[0] == "mele" || itypes[0] == "h2h") && neither_weapon);
-    if (std::ranges::any_of(etypes, is)) return false;
-    return itypes[0].empty() || std::ranges::any_of(itypes, is);
+    if (std::ranges::any_of(etypes, of_type)) return false;
+    return itypes[0].empty() || std::ranges::any_of(itypes, of_type);
 }
 // FUN_00643f80, the skills' weapon-type gate (FUN_00647960's status 2): no itypea1 and no etypea1 passes; else one
 // hand (right, left: FUN_0063bde0(inv, 4 / 5)) fits set a and the other set b, either way round.

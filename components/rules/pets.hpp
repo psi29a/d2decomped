@@ -254,7 +254,7 @@ inline int run_percent(int walk_velocity, int run_velocity) {
 // Bone Wall's makers (FUN_005c58b0, do 60), in subtiles: none in a town or when calc2 / 2 (C division) is 1 or less; else two
 // bonewallmaker missiles from the first piece's subtile P, each carrying count = calc2 / 2 and the piece's id: with dx, dy the
 // caster less P (dx 1 when both are 0), one toward (P.x - dy, P.y + dx), the other toward (P.x + dy, P.y - dx).
-struct BoneWallMakers { int count = 0; std::array<std::pair<int, int>, 2> to{}; };
+struct BoneWallMakers { int count = 0; std::array<std::pair<int, int>, 2> aims{}; };
 inline BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int piece_y, int calc2, bool town) {
     const int count = calc2 / 2;
     if (town || count <= 1) return {};

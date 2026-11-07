@@ -24,11 +24,11 @@ int main() {
     for (const auto& one : kCases) {
         const auto makers = d2d::rules::bone_wall_makers(one.caster_x, one.caster_y, one.piece_x, one.piece_y, one.calc2, one.town != 0);
         const bool same = makers.count == one.count
-                       && (one.count == 0 || (makers.to[0] == std::pair{ one.a_x, one.a_y } && makers.to[1] == std::pair{ one.b_x, one.b_y }));
+                       && (one.count == 0 || (makers.aims[0] == std::pair{ one.a_x, one.a_y } && makers.aims[1] == std::pair{ one.b_x, one.b_y }));
         if (!same && ++bad <= 5)
             std::printf("FAIL: caster %d,%d piece %d,%d calc2 %d town %d: d2d %d (%d,%d) (%d,%d), game.exe %d (%d,%d) (%d,%d)\n", one.caster_x, one.caster_y,
-                        one.piece_x, one.piece_y, one.calc2, one.town, makers.count, makers.to[0].first, makers.to[0].second, makers.to[1].first,
-                        makers.to[1].second, one.count, one.a_x, one.a_y, one.b_x, one.b_y);
+                        one.piece_x, one.piece_y, one.calc2, one.town, makers.count, makers.aims[0].first, makers.aims[0].second, makers.aims[1].first,
+                        makers.aims[1].second, one.count, one.a_x, one.a_y, one.b_x, one.b_y);
     }
     if (bad) { std::printf("%d of %zu differ\n", bad, std::size(kCases)); return 1; }
     std::printf("OK: %zu Bone Wall casts as FUN_005c58b0 launches them\n", std::size(kCases));

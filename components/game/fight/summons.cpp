@@ -117,7 +117,7 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             const auto maker = game_data->missiles.find(skill.srvmissilea);
             if (makers.count <= 0 || maker == game_data->missiles.end()) return;
             const float from_x = (float(piece_x) + 0.5f) / 5, from_y = (float(piece_y) + 0.5f) / 5;
-            for (const auto& [to_x, to_y] : makers.to) {
+            for (const auto& [to_x, to_y] : makers.aims) {
                 const float aim_x = (float(to_x) + 0.5f) / 5, aim_y = (float(to_y) + 0.5f) / 5;
                 auto& made = launch(maker->second, skill, lvl, from_x, from_y, aim_x - from_x, aim_y - from_y, maker->second.range + maker->second.lev_range * lvl, now_ms);
                 made.to = std::pair{ aim_x, aim_y };
