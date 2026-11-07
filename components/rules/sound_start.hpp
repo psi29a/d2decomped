@@ -92,6 +92,10 @@ constexpr int menu_duck_step(int percent, bool paused) {
 constexpr bool menu_exempt(int row) {
     return (row >= 1 && row <= 0xf) || (row >= 0x34 && row <= 0x47) || (row >= 0x1231 && row <= 0x125a);
 }
+// A sound's 0..255 volume under the master slider (0x4dfca1, FUN_00514cc0:
+// whole percent, truncated), before the ducks. Nothing else takes the master:
+// a cinematic's sound (Bink) plays at its own level.
+constexpr int master_scaled(int volume, int master_percent) { return volume * master_percent / 100; }
 // A sound's 0..255 volume under the ducks (0x4dfcb2 / 0x4dfd0b: integer percent).
 constexpr int ducked_volume(int volume, int row, bool solo_row, int menu_percent, int solo_percent) {
     if (menu_percent != 100 && !menu_exempt(row)) volume = menu_percent * volume / 100;

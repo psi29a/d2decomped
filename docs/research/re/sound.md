@@ -71,6 +71,15 @@ speaker-mode step and the distance falloff (from 0x4dfeb5) then work on
 that volume. At 255 under menu 50 and Solo 70 that is 255 -> 127 -> 88,
 not 255 x 0.5 x 0.7 = 89.25.
 
+The master volume reaches nothing else. Its getter (`FUN_00514cc0`) has
+five callers: the game menu's slider (`FUN_0047cdc0`), the speech box
+(`FUN_004a0770`) and the two sound ticks (`FUN_004ba020` 0x4ba141,
+`FUN_004dcaa0` 0x4dcaf8), which only test it for > 0, and `FUN_004dfc20`
+above. The cinematics play through Bink on the game's DirectSound
+(`_BinkSetSoundSystem` / `_BinkOpenDirectSound`), and game.exe imports
+no Bink volume call (no `BinkSetVolume`, game-imports.tsv), so a video's
+sound plays at Bink's own level whatever the master slider says.
+
 d2d: rules/sound_start.hpp has the rules and the ducks; `ducked_mix`
 ducks a world sound's volume before its distance mix, as above. Sounds
 not placed in the world (UI, voice, ambience, music) carry a float gain
