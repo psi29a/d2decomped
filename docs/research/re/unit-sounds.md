@@ -173,6 +173,22 @@ the jade figurine (0x48, FUN_005ba6a0, quest 20 bit 6). Act 1's
 `act1_find_cairn` is event 0x27, throttled to every 64th Cairn Stone use
 without the scroll.
 
+**A held quest line and event 0x5c.** Some quest events start the
+client's quest-line sequence (FUN_004dcd40; ECX, EDX, then five on the
+stack): the music off (FUN_004ba8f0), sound ECX at now + EDX, the event's
+line kept (`DAT_007c89f4`) and played at now + the fourth stack argument
+if the fifth is set, the music back at now + the first stack argument;
+the sound tick (FUN_004dcaa0, 0x4dcb6a..0x4dcc16) runs it, a line playing
+on the player (EDX) unless FUN_00464820 says no. Event 0x25 (the Tower,
+0x4cbaad) passes ECX 0, EDX 0, 0x5dc, line, 0, 0: the music off for 1500
+ticks (60 s) and **the line not scheduled**. It's the Countess's treasure
+that plays it: the towerchestspawner (FUN_005af300) at 1 frame left sends
+unit event 0x5c on its chest (0x5af381), and the client's 0x5c
+(FUN_004cbde0 → FUN_004dce10, ECX 0x19, EDX 1), while a sequence runs,
+schedules the kept line at now + 25 ticks (1 s) and the music back 50
+ticks after that. No 0x5c within the 60 s: the music comes back with no
+line.
+
 **Find lines (client, FUN_004cc270).** The other `find` lines never go
 through the server: the client's sound tick (FUN_004dcaa0) notes when the
 player's level (FUN_00481780) changes, and once it has stayed 62 ticks
