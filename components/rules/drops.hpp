@@ -72,8 +72,10 @@ inline int roll_quality(const Tables& tables, const std::string& code, int ilvl,
 // an always-magic type's quest base unique, else magic at least; no rare
 // where the type can't be; an only-unique base unique; an always-normal
 // type (or none) normal.
-// ponytail: a unique / set that finds no row falls back to magic / rare,
-// read as still magic or better.
+// A unique / set answers as asked even with no row; game.exe makes it rare /
+// magic (FUN_005573f0 / FUN_00557380), and the only reader (open_container:
+// FUN_00585f60's FUN_0062a0f0, quality 4..9) counts both alike. It falls
+// under 4 only when no affix fits the base, not checked base by base.
 inline int made_quality(const Tables& tables, const std::string& code, int quality) {
     const auto info = tables.item_info.find(code);
     const auto base = tables.item_base.find(code);
