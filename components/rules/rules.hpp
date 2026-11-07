@@ -1393,6 +1393,8 @@ inline bool requirements_hold(const Tables& tables, const std::vector<d2d::d2s::
 // unbroken flagged item that meets them loses 0x4000 and gets FUN_0063d1d0
 // (its stats on, FUN_0055c2c0). A flagged item's own stats don't count
 // toward its own requirements; an unflagged one's do.
+// ponytail: pass 1 (the inventory's charms, FUN_0062ff70) isn't ported:
+// every inventory charm counts, its level requirement unchecked.
 template <class WearerOf, class LevelOf>
 inline void settle_requirements(const Tables& tables, std::vector<d2d::d2s::Item>& items, WearerOf&& wearer, LevelOf&& level) {
     const auto worn = [](const d2d::d2s::Item& item) {

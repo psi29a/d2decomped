@@ -144,7 +144,12 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
         if (int(rng(100)) >= chance) return;
         if (item.durability - 1 >= 1) { item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item)); return; }
-        if (armor) { item.flags |= 0x100u; item.durability = 0; cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y); return; }
+        if (armor) {
+            item.flags |= 0x100u; item.durability = 0;
+            settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
+            cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
+            return;
+        }
         const auto base = tables.item_base.find(item.code);
         if (base == tables.item_base.end() || !base->second.stackable) {
             item.durability = 0;
