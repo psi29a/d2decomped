@@ -6,11 +6,11 @@
 #include "gamepad_map.hpp"
 #include "skillpad.hpp"
 
+#include <level_ids.hpp>
 #include <log.hpp>
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -233,14 +233,14 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
     const auto found = skill_sheets.find(sheet_key(std::string(name)));
     const skillpad::Sheet sheet = found == skill_sheets.end() ? skillpad::Sheet{} : found->second;
     const auto fire = [&](int skill, bool press, bool button_down) {
-        // A held swing repeats only while a monster stays picked, as pad_act
-        // does. A ground cast is the press alone, so a render frame is not
-        // another command once the target is gone.
+        // Holding the button keeps sending the skill. The world continues the
+        // attack only while a skill command is still arriving.
         if (skill < 0 || !scene || (!press && !button_down) || !skill_known(name, skill)) return;
         const auto* info = scene->skills.get(skill);
         if (!info || info->passive) return;
+        // A hold in town would repeat the "not in town" line every tick.
+        if (!press && level && d2d::rules::level_ids::is_town(level->id)) return;
         const bool swing = skillpad::swings({ info->leftskill, !info->srvmissile.empty(), info->range });
-        if (!swing && !press) return;
         const PadPick pick = pad_pick(player_pad, unit, true, pad_aim(skill, move.aim || move.active));
         if (pick.kind == PadPick::kMonster) {
             player_pad.target = pick.id;
@@ -248,11 +248,6 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
             return;
         }
         player_pad.target = -1;
-        if (!press) return;
-        const bool foe_near = std::ranges::any_of(view.monsters, [&](const auto& foe) {
-            return foe.alive() && !foe.ally_not_interact(*scene, level ? level->id : 0) && std::hypot(foe.unit.x - unit.x, foe.unit.y - unit.y) < 10.f;
-        });
-        if (swing && !foe_near) return;
         out(cmd::UseSkill{ skill, unit.x + player_pad.face_x * 3.f, unit.y + player_pad.face_y * 3.f, -1, swing, -1 });
     };
     const auto cast = [&](int skill, bool press, bool button_down) {
