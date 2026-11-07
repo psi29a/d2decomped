@@ -9,6 +9,7 @@
 #include "cursor.hpp"
 #include "gamepad.hpp"
 #include "gamepad_map.hpp"
+#include "hold_confirm.hpp"
 #include "ingame.hpp"
 #include "internal.hpp"
 #include "keyconfig.hpp"
@@ -611,6 +612,11 @@ auto Town::pad_drop(int mouse_x, int mouse_y) -> void {
             send(cmd::ToCursor{ item->id });
             send(cmd::Drop{ item->id });
         }
+    }
+
+auto Town::drive_pad_hold(Mouse&, float) -> void {
+        pad_hold_text.clear();
+        pad_hold_fraction = 0.f;
     }
 
 auto Town::tip_env() const -> d2d::rules::CalcEnv {

@@ -291,6 +291,8 @@ struct Actions {
     int   snap_x = 0, snap_y = 0;                  // a panel's d-pad press: hop the cursor this way (-1..1 each)
     bool  trade_press = false;                     // a store's X: buy the stock under the cursor
     bool  drop_press = false;                      // skill buttons: X drops the inventory item under the cursor
+    bool  south_down = false, south_press = false;
+    bool  right_trigger_down = false, right_trigger_press = false;
     int   tab_step = 0;                            // a store's shoulders: the tab before (-1) or after (1)
     int   focus_step = 0;                          // the menus' shoulders: the screen's button before (-1) or after (1)
     bool  modifier_held = false;                   // skill buttons: the second set
@@ -372,6 +374,7 @@ public:
     Actions step(const Sample& sample, Context context, float seconds, SkillUi skill_ui = SkillUi::None) {
         Actions out;
         left_trigger_ = hysteresis(sample.left_trigger, left_trigger_);
+        const bool right_was = right_trigger_;
         right_trigger_ = hysteresis(sample.right_trigger, right_trigger_);
         auto held = sample.held;
         held[std::size_t(Button::LeftTrigger)] = left_trigger_;
@@ -407,6 +410,10 @@ public:
             return works_here(action) && std::ranges::any_of(bindings[action], [&](Button button) { return button != Bindings::kNone && pressed(button); });
         };
         const auto key = [&](Action action, Key press) { if (hit(action)) out.keys.push_back(press); };
+        out.south_down = held[std::size_t(Button::South)];
+        out.south_press = pressed(Button::South);
+        out.right_trigger_down = right_trigger_;
+        out.right_trigger_press = right_trigger_ && !right_was;
         const bool game = here != 0;
         const bool repeat_pad = wheel || skill_ui == SkillUi::Strip || !game || (here & kDpadHops) != 0;
         if (!repeat_pad) dpad_hold_.fill(0.f);

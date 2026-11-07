@@ -1058,10 +1058,15 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 }
             }
             town.pad_a_edge = town.pad_a_down = town.pad_a_up = false;
+            town.pad_south_down = town.pad_south_edge = town.pad_rt_down = town.pad_rt_edge = false;
             if (!mouse_took_over && !pad_field) {
                 town.pad_a_edge = pad_actions.click_press;
                 town.pad_a_down = pad_actions.click_down;
                 town.pad_a_up = pad_actions.click_release;
+                town.pad_south_down = pad_actions.south_down;
+                town.pad_south_edge = pad_actions.south_press;
+                town.pad_rt_down = pad_actions.right_trigger_down;
+                town.pad_rt_edge = pad_actions.right_trigger_press;
             }
             if (pad_actions.trade_press) town.pad_trade(mouse.x, mouse.y);
             if (pad_actions.drop_press) town.pad_drop(mouse.x, mouse.y);

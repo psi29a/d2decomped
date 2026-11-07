@@ -11,6 +11,7 @@
 #include "gamepad_map.hpp"
 #include "help.hpp"
 #include "hireling.hpp"
+#include "hold_confirm.hpp"
 #include "netgame.hpp"
 #include "panels.hpp"
 #include "party.hpp"
@@ -281,6 +282,9 @@ struct Town {
     bool pad_cue = false;                         // the field plays by pad: the cursor's hover is A's pick (main sets it)
     bool pad_playing = false;                     // the pad was the last input: the bottom bar shows the bound skills (main sets it)
     bool pad_a_edge = false, pad_a_down = false, pad_a_up = false;   // Primary outside the field (main sets them)
+    bool pad_south_down = false, pad_south_edge = false;             // the south button, outside the field
+    bool pad_rt_down = false, pad_rt_edge = false;                   // the right trigger, outside the field
+    hold_confirm::Hold pad_hold;
     std::string pad_hold_text;
     float pad_hold_fraction = 0.f;
     pad::Family pad_family = pad::Family::Xbox;   // the screen's pad's button labels (main sets it)
@@ -398,6 +402,7 @@ struct Town {
     [[nodiscard]] const d2d::d2s::Item* bag_at(int mouse_x, int mouse_y) const;
     void pad_trade(int mouse_x, int mouse_y);
     void pad_drop(int mouse_x, int mouse_y);
+    void drive_pad_hold(Mouse& mouse, float seconds);
     // The pad's Secondary (B) is Back with the gold box up, or where the stash
     // or Cube is up (no key toggles them) and the cursor's on no item: true when it's taken.
     [[nodiscard]] bool pad_back(int mouse_x, int mouse_y) const;

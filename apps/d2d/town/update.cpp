@@ -409,6 +409,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // menu or speech up). Held over the store's stock, a click
         // sells the item.
         bool item_click = false;
+        drive_pad_hold(mouse, frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
         // With an identify scroll picked, a click names the item for it and ends the pick.
         if (identify_with >= 0 && mouse.press_this_frame) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
