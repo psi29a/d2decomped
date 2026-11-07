@@ -452,6 +452,59 @@ int main() {
         wield_leaves(cursor_tables, guard, guard[0]);
         assert(guard[1].wielded && !wielded_weapon(cursor_tables, guard));
     }
+    {   // FUN_0055dbc0: worn gear short of its requirements gets flag 0x4000
+        // (its stats off, FUN_0063d2b0); flagged gear that meets them again
+        // loses it (FUN_0063d1d0), repeated while one changed.
+        auto worn = [](const char* code, int slot) { Item worn_item = item(code); worn_item.location = 1; worn_item.slot = slot; return worn_item; };
+        auto plus_strength = [](Item gear_item) { gear_item.props.push_back({ .stat = d2d::d2s::kStr, .value = 10 }); return gear_item; };
+        const auto strength_of = [](const std::vector<Item>& items) {   // 20 own, plus the unflagged worn gear's
+            Wearer self{ .cls = d2d::d2s::kSorceress, .str = 20, .dex = 30, .lvl = 10 };
+            for (const auto& each : items)
+                if (each.location == 1 && item_usable(each))
+                    for (const auto& prop : each.props) if (prop.stat == d2d::d2s::kStr) self.str += prop.value;
+            return self;
+        };
+        const auto base_level = [](const Item&) { return -1; };
+        const auto flagged = [](const Item& gear_item) { return (gear_item.flags & 0x4000u) != 0; };
+        std::vector<Item> gear = { worn("ssd", 4), plus_strength(worn("cap", 1)) };
+        const auto settle = [&](std::vector<Item>& items) { settle_requirements(cursor_tables, items, [&] { return strength_of(items); }, base_level); };
+        wield_settle(cursor_tables, gear);
+        settle(gear);
+        assert(!flagged(gear[0]) && gear[0].wielded);                     // 30 strength: the sword's 25 met
+        gear[1].location = 0;                                              // the cap off
+        settle(gear);
+        assert(flagged(gear[0]) && !wielded_weapon(cursor_tables, gear));   // 20: flagged, and no longer wielded
+        gear[1].location = 1;                                              // back on
+        settle(gear);
+        assert(!flagged(gear[0]) && wielded_weapon(cursor_tables, gear) == &gear[0]);
+        // Its own stats: unflagged, they count toward its own requirements;
+        // flagged, they're off, so it stays flagged.
+        std::vector<Item> own = { plus_strength(worn("ssd", 4)) };
+        settle(own);
+        assert(!flagged(own[0]));
+        own[0].flags |= 0x4000u;
+        settle(own);
+        assert(flagged(own[0]));
+        // Repeated: the left hand's shield (+10) is cleared after the right's
+        // sword was passed over, and then the sword passes too.
+        std::vector<Item> pair = { worn("ssd", 4), plus_strength(worn("buc", 5)) };
+        pair[0].flags |= 0x4000u;
+        pair[1].flags |= 0x4000u;
+        settle(pair);
+        assert(!flagged(pair[0]) && !flagged(pair[1]) && wielded_weapon(cursor_tables, pair) == &pair[0]);
+        // FUN_0055db00: a quiver needs its bow in the other hand.
+        std::vector<Item> quiver = { worn("aqv", 5) };
+        settle(quiver);
+        assert(flagged(quiver[0]));
+        quiver.push_back(worn("sbw", 4));
+        settle(quiver);
+        assert(!flagged(quiver[0]));
+        // A broken item is left alone; the weapon switch's slots aren't walked.
+        std::vector<Item> spare = { worn("ssd", 4), worn("ssd", 11) };
+        spare[0].flags |= 0x100u;
+        settle(spare);
+        assert(!flagged(spare[0]) && !flagged(spare[1]));
+    }
     // FUN_0063dbc0: a quiver joins only the bow it's for (issue #139: arrows
     // beside a staff). Into the free hand it takes the other one's place.
     std::vector<Item> staff;

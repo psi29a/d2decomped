@@ -114,7 +114,7 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     const auto weapon_stat = [&](int id) { return weapon_sum[std::size_t(id)]; };
     const std::int64_t clvl = std::max<std::int64_t>(stats.get(kLevel), 1), str = stats.get(kStr), dex = stats.get(kDex);
     const ItemBase* weapon_base = nullptr;
-    if (weapon && !broken(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken one's stats are off (FUN_0055f850)
+    if (weapon && item_usable(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken or 0x4000 one's stats are off (FUN_0055f850, FUN_0055dbc0)
     if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end() && found->second.hit_class) fighter.hit_class = found->second.hit_class;
     // In 256ths, as game.exe keeps them.
     // `thrown`: the weapon's throw damage (FUN_0064b860: stats 0x9f / 0xa0, minmisdam / maxmisdam).

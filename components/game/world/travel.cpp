@@ -277,6 +277,7 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
                 && d2d::rules::put_in_grid(game_data->rules, actor->character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) { item_it = corpse.items.erase(item_it); continue; }
             ++item_it;
         }
+        settle_requirements(*game_data, actor->character);   // FUN_00562f30 -> FUN_0055dbc0
         if (corpse.items.empty()) actor->corpses.erase(actor->corpses.begin() + std::ptrdiff_t(corpse_index));
         cues.cue("item_pickup", now_ms, actor->player.x, actor->player.y);
     }

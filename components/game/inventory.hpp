@@ -5,6 +5,7 @@
 
 #include "character.hpp"
 #include "gamedata.hpp"
+#include "item_text.hpp"
 
 #include <d2s_items.hpp>
 #include <drops.hpp>
@@ -29,6 +30,17 @@ inline d2d::rules::Wearer wearer(const GameData& game_data, int save_cls, const 
         if (prop.stat == d2d::d2s::kDex) wearer.dex += prop.value;
     }
     return wearer;
+}
+
+// FUN_0055dbc0 on the character's worn gear (rules::settle_requirements),
+// with the strength, dexterity and level an equip check sees. ItemMode.cpp's
+// server moves end with it (a hand's item off or on, a break, a mend, a
+// swap, into the inventory, a pickup, a stack refill, the corpse), and so
+// does a join (FUN_0052d440 -> FUN_0055df00).
+inline void settle_requirements(const GameData& game_data, Character& character) {
+    const int cls = character.header.cls;
+    d2d::rules::settle_requirements(game_data.rules, character.items, [&] { return wearer(game_data, cls, character.items, character.stats); },
+                                    [&](const d2d::d2s::Item& item) { return required_level(game_data, item, cls); });
 }
 
 // Puts a held item back when the game is left: the first free inventory
