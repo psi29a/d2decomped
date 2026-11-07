@@ -546,10 +546,11 @@ auto Town::take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> lines, std:
 // as it sends them (0x27 mode 1) — the one we're talking to takes them
 // now, one that comes first waits for d2d's menu — and its "!" (0x8a):
 // npcalert over that NPC, as game.exe's client puts the looping overlay
-// on (FUN_004b3380 -> FUN_00470390, overlay 0x48).
-// ponytail: 0x8a's palace guard check (class 0x14b, FUN_004b1620) isn't
-// here, and its alert still expires locally after 16 * 111 ms. It reads
-// the client's talk state (DAT_007c0d29, FUN_004b3380).
+// on (FUN_004b3380 -> FUN_00470390, overlay 0x48). The palace guard's
+// then says "Halt" (ArcaneQuest::guard_halts, net-packets.md 0x8a).
+// ponytail: the alert expires locally after 16 * 111 ms, and the guard's
+// harem blocker check (object 318 in mode 2, LAB_004b3360) is taken as
+// shut: the client keeps no host object's mode but a door's.
 auto Town::net_quests(std::uint32_t frame_ms) -> void {
         for (auto& host_quest : net_game->npc_quests) {
             const auto* host_npc = npc_menu.npc >= 0 ? net_npc(npc_menu.npc) : nullptr;
@@ -568,12 +569,17 @@ auto Town::net_quests(std::uint32_t frame_ms) -> void {
         if (std::exchange(net_game->cube_opened, false)) { cube_open = net_cube_open = true; inv_open = true; stash_open = char_open = false; }
         if (net_cube_open && !cube_open) { net_game->send_items({ d2d::net::d2gs::c2s::button(0x17) }); net_cube_open = false; }
         for (const std::uint32_t id : net_game->npc_alerts) net_alert_ms[id] = world_ms;
-        net_game->npc_alerts.clear();
+        const bool talk_open = npc_menu.npc >= 0 || speech.npc >= 0 || store.npc >= 0;   // FUN_004b1620: a talk with anyone
+        const auto& quest_bits = hero.character.header.quests[std::size_t(std::clamp(hero.character.header.active_difficulty(), 0, 2))];
         for (std::size_t i = 0; level && i < view.npc_states.size() && i < level->npcs.size(); ++i) {
             const auto* host_npc = level->npcs[i].root != "objects" ? net_npc(int(i)) : nullptr;
+            if (host_npc && level->npcs[i].hc_idx == d2d::rules::ArcaneQuest::kGuard && std::ranges::contains(net_game->npc_alerts, host_npc->id)
+                && d2d::rules::ArcaneQuest::guard_halts(talk_open, quest_bits, false))
+                cues.cue_on(d2d::game::unit_key(d2d::game::kSoundOnMonster, -1 - int(i)), d2d::rules::ArcaneQuest::kGuardHalt, frame_ms, view.npc_states[i].x, view.npc_states[i].y);
             const auto shown = host_npc ? net_alert_ms.find(host_npc->id) : net_alert_ms.end();
             view.npc_states[i].alert = shown != net_alert_ms.end() && world_ms - shown->second < 16 * 111;
         }
+        net_game->npc_alerts.clear();
     }
 
 }  // namespace d2d::client
