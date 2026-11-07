@@ -220,9 +220,23 @@ d2d matches both, and the one-poison-at-a-time rule.
   sums (V run, no shield: 100 fire at 50 % with mdr 10 deals 45);
   `rules::monster_blow` and the shield path both do that now (the fields in
   256ths, one field a type, the total clamped once; `test_combat`).
-  Not covered (U): Cyclone Armor's fractions, the
-  flat's +0x54 / 1024 scale, elements, a missile's
+  Not covered (U): Cyclone Armor's fractions, elements, a missile's
   `FUN_005a89a0` roll.
+- **The flat's frame rate.** `FUN_0057c1e0` takes the defender's stat 34
+  (normal_damage_reduction) and 35 (magic_damage_reduction) `<< 8`, and
+  when the record's +0x54 is above 0 scales each by it / 1024
+  (`FUN_00483360(flat << 8, +0x54, 0x400)`, 0x57c26a / 0x57c291) before
+  `FUN_0057bf80` takes them off. +0x54 is a missile's: its maker
+  (`FUN_0059fa30`) puts Missiles.txt DamageRate (record +0x19c) in the
+  missile's stat 327 damage_framerate, and its hit on a unit
+  (`FUN_005ad730`) copies that stat into the record (`param_4[0x15]`)
+  before `FUN_0057c6c0`. DamageRate is set only on the burners (fire
+  walls, Inferno and the other per-frame flames: 41, 82, 205), so their
+  per-frame damage loses DR / MDR x rate / 1024, not the whole flat; any
+  other hit's +0x54 is 0 and takes the flat whole. d2d:
+  `rules::frame_rate_flat` on a monster burner's hit (srv_do 5, the MDR
+  first, then the resistance); V: `tools/emu/frame_rate_flat.py`, 2000
+  records frozen in `tests/frame_rate_flat_cases.inc` (`test_frame_rate_flat`).
 - **The pair percent** (`FUN_0057c060`, EAX the hit context: +4 ?, +8
   attacker, +0xc defender; 100 when either is missing or they are one).
   On a player: 17 (0x11) from a player, a hireling (`FUN_0063ee90`: classes

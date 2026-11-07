@@ -266,21 +266,28 @@ inline int mul_div(int value, int times, int over) {
     }
     return int(std::int64_t(value) * times / over);
 }
+// FUN_0057c1e0 (0x57c252..0x57c2a4): the flat (stat 34 or 35, whole points) in 256ths, scaled by the record's +0x54 / 1024
+// (FUN_00483360) when that is above 0. +0x54 is the missile's stat 327 damage_framerate, Missiles.txt DamageRate (FUN_0059fa30,
+// copied by its hit FUN_005ad730): set only on the burners, so any other hit takes the flat whole.
+inline int frame_rate_flat(int flat, int rate) {
+    const int fine = flat * 256;
+    return fine > 0 && rate > 0 ? mul_div(fine, rate, 0x400) : fine;
+}
 // FUN_0057bf80 on a damage record's physical field, in 256ths: the flat
 // reduction (stat 34, whole points) comes off first, then the percent (stat 36)
 // of what is left; a field already at 0 stays 0, the product through MulDiv
 // (FUN_00483360: over 0x100000 it divides first). reduce_fine clamps a result under 0; game.exe stores it, sums it into the
 // record total and only ignores a total not above 0 (0057c852): reduce_fine_signed keeps it.
 // FUN_0057c1e0 scales the whole record by FUN_0057c060's pair percent
-// first (monster_blow: a prime evil's on a pet).
-// ponytail: it also scales the flat by the record's +0x54 / 1024 when that
-// is above 0; not modelled.
-inline int reduce_fine_signed(int fine, int percent, int flat) {
+// first (monster_blow: a prime evil's on a pet). A burner's hit scales the
+// flat first: frame_rate_flat. reduce_fine_by takes the flat in 256ths.
+inline int reduce_fine_by(int fine, int percent, int flat_fine) {
     if (fine <= 0) return 0;
-    fine -= flat * 256;
+    fine -= flat_fine;
     if (fine > 0 && percent != 0) fine = mul_div(fine, 100 - std::clamp(percent, -100, 100), 100);
     return fine;
 }
+inline int reduce_fine_signed(int fine, int percent, int flat) { return reduce_fine_by(fine, percent, flat * 256); }
 inline int reduce_fine(int fine, int percent, int flat) { return std::max(reduce_fine_signed(fine, percent, flat), 0); }
 // One landed blow on a unit this frame, as game.exe keeps one damage record a
 // hit: its damage (whole points), hit class and element mark (an element or
