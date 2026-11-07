@@ -626,6 +626,32 @@ address is passed as `&err`); the ref struct is read before that.
 d2d: not ported by name. The nearest is `d2s::item` / `parse_net_item`,
 which parse the stream into an `Item` value, not a unit. Agrees on the
 stream; the replenish arming in step 6 has no d2d counterpart (see above).
+
+### The stream entry (`FUN_0062e430`)
+
+Cited. `item_read_bitstream(unit, buffer, bytes, check_jm, sockets_out,
+version, err_out)`:
+
+1. `FUN_00410e40` starts a reader. With `check_jm` set, 16 bits must be
+   `0x4d4a` ("JM"), else `*err = 1` and 0 is returned. `*err = 0` otherwise.
+2. 32 flag bits are read. Bit 0x2000000 (the header-only flag) is kept apart
+   and stripped from the flags.
+3. For an item unit (type 4 with data), item data +0x18 (the flags) is
+   cleared, the stream flags OR-ed in, then bit 0x80000 cleared; +0x2c is
+   set to 1 and the halfwords +0x38, +0x3e, +0x3a, +0x40, +0x3c, +0x42,
+   +0x32, +0x34 zeroed.
+4. Flag 0x200000 clear: `FUN_0062cbe0(unit, reader, check_jm, header_only,
+   sockets_out, version)`. Set: `FUN_0062a970(check_jm, version)` (the
+   reader is passed in a register) and `*sockets_out = 0` when given.
+5. A result below 1 sets `*err = 1`. The result is `FUN_00410e90(reader)`,
+   the bytes used.
+
+d2d: reads the same as `d2s::item` (components/d2s/d2s_items.hpp:249; cited from the decompile, no oracle run) and
+net-packets.md "Items": JM only for saves, header-only stops after the code,
+compact has no socket count. The `check_jm` argument is the d2d `net == null`
+case; `FUN_00558cb0` passes its own flag word there. Not recorded in d2d:
+the game also zeroes the unit-side fields in step 3 (d2d builds a fresh
+`Item`).
 `rules::make_fighter`'s weapon).
 
 Pass 1 sets no 0x4000: a charm short of its requirements just gets no
