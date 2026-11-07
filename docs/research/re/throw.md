@@ -39,6 +39,19 @@ implementation").
   (`FUN_006235a0`), and the weapon lookup `FUN_0063c9b0`. A selected
   weapon can qualify through `FUN_0062ba80` (Throwable) or stat 125.
   The opposite-hand path for dual-wield characters uses `FUN_00643d60`.
+  In full: `FUN_0063c9b0` gives the first usable weapon in hand, the
+  right's (cell 4) then the left's, and whether it is the wielded one
+  (`FUN_0063bef0`, inventory `+0x1c`; weapon-switch.md "The wielded
+  weapon"). Not a dual-wielder: that weapon, only when wielded. A
+  dual-wielder: that weapon when wielded, else the other hand's item
+  (`FUN_00643d60(slot)`: `FUN_0063bde0` on the other body slot, any
+  item). Skill 4 (Left Hand Throw) takes the other one the other way
+  round, and skill 5 (Left Hand Swing) wants it a weapon; d2d uses
+  neither.
+- `FUN_0056f460` (Throw's srvdofunc 3) takes its item the same way, the
+  other hand's whenever the first weapon isn't wielded, and throws it
+  (`FUN_0056ecb0`; a throwing potion, ItemTypes row 0x26, through
+  `FUN_0056ee90`).
 - `FUN_00647960` first reads the skill level with `FUN_006442a0`. A zero
   level yields status 7. The later equipment gate is `FUN_00647640`;
   failure reaches status 2. Further checks follow a successful equipment
@@ -140,15 +153,16 @@ with an isolated oracle check, not a claim of full d2d parity.
 ## Follow-up implementation
 
 Done in #125. Throw stays at level 1 (`skill_base_level`), and the weapon
-is `throw_ready` (`components/game/fight.hpp`): the right hand's, else the
-left's, usable weapon (`FUN_0063c9b0`, `FUN_0062a4e0` flags 0x100 /
-0x4000) is Throwable or has stat 125. Without one the skill is refused
+is `throw_ready` (`components/game/fight.hpp`): the item
+`rules::throw_hand` takes (the first usable weapon in hand, right then
+left, `FUN_0063c9b0`, `FUN_0062a4e0` flags 0x100 / 0x4000, if wielded;
+else, for a barbarian or an assassin, the other hand's) is Throwable or
+has stat 125. The launch (`Fight`, `ServerDoFunction::kThrow`) throws and
+spends that item. Without one the skill is refused
 (`skill_refused`): the picker still lists it and the buttons show it, both
 in text colour 1 (`FUN_004aa3a0`, `FUN_004a8d30`), and a cast stops with
 the class's `impossible_1` (`FUN_004610c0`). The picker, cast and voice
 paths are in skills.md "Item charges"; `test_game` covers the gate.
 
-Still open (`ponytail:` in `throw_ready` / `skill_refused`): a
-dual-wielder with two weapons uses the primary one (`FUN_0063bef0`), else
-the other hand (`FUN_00643d60`), where d2d takes either; and the other
-statuses of `FUN_00647960`.
+Still open (`ponytail:` in `skill_refused`): the other statuses of
+`FUN_00647960`.

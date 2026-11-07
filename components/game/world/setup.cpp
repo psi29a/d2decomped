@@ -19,6 +19,7 @@
 #include <monster_ids.hpp>
 #include <object_ids.hpp>
 #include <quests.hpp>
+#include <rules.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
@@ -195,6 +196,7 @@ auto World::take_character(const Character& entering) -> void {
         actor->character.appearance = entering.appearance; actor->character.items = entering.items; actor->character.stats = entering.stats; actor->character.panel = entering.panel;
         actor->character.expansion = entering.expansion; actor->character.header = entering.header; actor->character.merc_items = entering.merc_items;
         actor->character.fresh = entering.fresh;
+        d2d::rules::wield_settle(game_data->rules, actor->character.items);
         // A new game starts at full life, mana and stamina, whatever the
         // save held (D2's "save and exit to heal").
         static constexpr std::pair<d2d::d2s::StatId, d2d::d2s::StatId> kRefill[] = {

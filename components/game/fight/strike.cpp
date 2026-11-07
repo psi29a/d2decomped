@@ -939,18 +939,19 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // last argument 1 -> FUN_0056c3f0) and toht (stat 19, FUN_006449f0);
             // none left, none flies.
             // ponytail: both hands throw at once, not one an SQ event (FUN_00535bc0's hand).
-            // Throw (do 3, FUN_0056f460): the throwable in hand flies as its
-            // missile (weapons.txt missiletype) and one of it is spent. Its
+            // Throw (do 3, FUN_0056f460): the item rules::throw_hand takes (the
+            // wielded weapon, or the other hand's) flies as its missile
+            // (weapons.txt missiletype) and one of it is spent. Its
             // FUN_0056c600 puts the throw mastery on the missile (stat 0x13 +
             // FUN_00645720 kind 0, stat 0x19 = kind 1), no skill bonus: here the
             // player's fighter carries it while throwing (player_fighter), as it
             // does the weapon's throw damage (minmisdam / maxmisdam).
             case ServerDoFunction::kThrow:
-                if (const int index = ammo_index(); index >= 0)
+                if (const int index = d2d::rules::throw_hand(game_data->rules, actor->character.items); index >= 0 && actor->character.items[std::size_t(index)].quantity > 0)
                     if (const auto found_thrown = game_data->thrown.find(actor->character.items[std::size_t(index)].code); found_thrown != game_data->thrown.end())
                         if (const auto found = game_data->missiles.find(found_thrown->second); found != game_data->missiles.end()) {
                             launch(found->second, skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y, found->second.range + found->second.lev_range * lvl, now_ms);
-                            spend_ammo();
+                            spend_ammo(index);
                         }
                 break;
             case ServerDoFunction::kDoubleThrow:

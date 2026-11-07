@@ -83,7 +83,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
                 out.push_back(cmd::UseSkill{ view.attack_skill, world_x, world_y, view.attack, true, view.attack_skill == skillbar.left ? skillbar.left_item : -1 });
             else if (function_held(keys::kStandStill))
                 out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true, skillbar.left_item });
-            else
+            else if (!hold_interact)                         // with an interact queued the hold does nothing (FUN_00462a20, LAB_00462b1d)
                 out.push_back(cmd::Move{ world_x, world_y, false });
         }
         if (mouse.rpress_this_frame && skillbar.right == kResurrectSkill) {   // co-op: the body nearest the click
