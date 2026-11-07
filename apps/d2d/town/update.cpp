@@ -404,7 +404,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         const auto& first_box = belt.box[0];
         const auto& fourth_box = belt.box[3];
         const auto& top_box = belt.box[std::size_t(std::max(belt.boxes - 4, 0))];
-        belt_popup::step(belt_up, belt_open, game_menu.open, !coop_hud_hidden() && !view.dead,
+        belt_popup::step(belt_up, belt_open, game_menu.open, !coop_hud_hidden(), !view.dead,
                          belt_popup::on_strip(mouse.x, mouse.y, int(kScreenWidth), int(kScreenHeight)),
                          mouse.x >= top_box[0] && mouse.x <= fourth_box[1] && mouse.y >= top_box[2] && mouse.y <= fourth_box[3]);
         const bool over_belt = !coop_hud_hidden() &&
