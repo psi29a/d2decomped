@@ -79,7 +79,10 @@ CASES = [
 
 
 class Oracle:
+    """game.exe booted with FUN_00647960's inputs hooked to the current case."""
+
     def __init__(self):
+        """Boot game.exe (skill_tips.boot), allocate the unit, entry and item, and hook the inputs."""
         import skill_tips
         self.e = e = skill_tips.boot()
         tables = e.r32(0x744304)
@@ -112,6 +115,7 @@ class Oracle:
         return 1
 
     def status(self, skill, case):
+        """FUN_00647960 on Skills.txt row `skill` (None for no row) under `case`: its status."""
         self.case = case
         entry = self.e.view("skill_entry", self.entry)
         entry.row = 0 if skill is None else self.skills + skill * RECORD
@@ -159,6 +163,7 @@ def client(oracle):
 
 
 def main():
+    """Run CASES (or `client`) and return 1 if any differs from skills.md, else 0."""
     if sys.argv[1:] not in ([], ["client"]):
         sys.exit("usage: skill_status.py [client]")
     if sys.argv[1:] == ["client"]:
