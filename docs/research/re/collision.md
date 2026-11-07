@@ -522,6 +522,10 @@ EAX); read the asm for them.
   `FUN_0045b1e0`, `FUN_00460830`, `FUN_00649400` (its type 0 / 1 branch).
   d2d: reads the same, cited from the decompile, no oracle run; the subtile x of the stamp (act1-end.md, monster-ai.md
   cite it); the assert line 0x692 is the same as in missiles.md.
+- **Path y, `FUN_00648900`** (path): the twin of `FUN_006488c0` for the
+  word at path +6 (subtile y); null path raises the same error with line
+  0x69d. Callers include `FUN_0045ae20`, `FUN_0045b1e0`, `FUN_00460830`,
+  `FUN_00649400`. d2d: agrees (same citations as the x getter).
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
