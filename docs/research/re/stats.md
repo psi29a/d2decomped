@@ -239,3 +239,15 @@ d2d: reads the same, cited from the decompile, no oracle run, on the quest diffi
 gold draw (`drops.hpp:114`); the other branches are described in
 `rules.hpp:1715-1730` and not re-checked here.
 Re-check: `python3 tools/ghidra/fn.py 00557ab0`, `git grep -n 00557ab0 components`.
+
+### Switch a state's list on or off — FUN_00643620 (stack on, EDI unit, EBX state)
+
+Cited. Looks the unit's list for `state` (`FUN_006256b0`). `on` = 0:
+if found, `FUN_006277e0` (detach through `FUN_006269f0`) then
+`FUN_00626cd0` (free it); returns 0. `on` set and none found: a list is
+made with `FUN_006251f0(unit +8, 0, 0, unit type, unit +0xc)` (for no
+unit: 0, 0, 0, 6, -1), its state word (+0x14) set by `FUN_006252d0`, and
+hung on the unit by `FUN_00626e10(unit, list, 1)`; returns the list (the
+existing one when found). Its only caller is `FUN_00646d60`.
+d2d: not ported (d2d has no per-state stat lists).
+Re-check: `python3 tools/ghidra/fn.py 00643620`, `python3 tools/ghidra/calls.py 00643620`.
