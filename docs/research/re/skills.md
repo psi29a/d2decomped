@@ -596,6 +596,24 @@ or Bash out of mana swings a plain attack, with no voice. Oracle:
 reach it, and which `FUN_00467880` (status 0 only, no fallback), isn't
 traced: todo.md row 52.
 
+Skill delay. At the end of a skill's do (`FUN_0056f7f0`, from
+LAB_0056fa93) the skill's delay calc (+0x190, Skills.txt `delay`, in
+frames) above 0 puts a player in state skilldelay (0x79) until the game
+frame (+0xa8) plus the delay (`FUN_0056ef90`: the state made or kept,
+its end event 0xc through `FUN_005417d0`); an SQ skill (anim +0x10 0x12)
+only when unit +0x38 & 0xffffff00 is 0. Shapeshift sets it through
+`FUN_0056f020`. While it's on, every skill with a delay above 0 is status
+8 (`FUN_006478f0`), the others are not: Meteor (30 frames) blocks Meteor,
+Blizzard (45), Fire Wall (35), Hydra (40), Frozen Orb (25), Fist of the
+Heavens (25), Valkyrie (150), Poison (15) / Plague Javelin (100),
+Immolation Arrow (25), but not Fire Bolt. The server's skill packet asks
+too (the call at 0x549b0a in `FUN_00549ad0`). The client keeps its own,
+for its player only: `FUN_004c6680` sets 0x7a04fc (`FUN_0044ce40`) to its
+frame clock 0x7a0498 plus min(delay, 12), and `FUN_004d9fc0` turns a 0
+into 8 before then. Status 8 voices nothing; the buttons draw it as not
+usable. Cases delay_meteor, delay_meteor_off, delay_fire_bolt,
+delay_meteor_no_mana. d2d keeps no delay: todo.md row 54.
+
 ### Item charges (traced 2026-10-28)
 - Stat 0xcc (204, item_charged_skill): param skill << 6 | level, value
   max << 8 | left.
