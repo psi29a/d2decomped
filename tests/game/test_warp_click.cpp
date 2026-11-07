@@ -13,12 +13,13 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
 
-int main() {
+int main() try {
     // The unit on subtile (50, 30): world pixel (320, 640); a box 10..30 x -20..-10 from it.
     Level::Warp warp{ .x = 10, .y = 6, .destination = 8, .exit_x = 0, .exit_y = 0, .unit_x = 50.5f / 5, .unit_y = 30.5f / 5, .select = { 10, -20, 20, 10 } };
     const auto click = [&](float pixel_x, float pixel_y) {   // a world pixel back to cells
@@ -44,4 +45,7 @@ int main() {
     }
     std::printf("OK: a warp's click box is LvlWarp's Select box from its tile unit\n");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_warp_click: %s\n", error.what());
+    return 1;
 }

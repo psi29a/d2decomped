@@ -19,12 +19,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
 
-int main() {
+int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
@@ -97,4 +98,7 @@ int main() {
     assert(world.npc_states[0].mode == "ON" && stuck.stopped);
     std::printf("OK: one that falls in OP stops for good (bugs.md #52)\n");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_fissure_eruptions: %s\n", error.what());
+    return 1;
 }
