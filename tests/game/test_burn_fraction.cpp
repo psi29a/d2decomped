@@ -5,8 +5,10 @@
 // total as it is (0057c852): the fraction stays (Foe::frac, the blow's frac), no draw rounds it.
 
 #include <ai.hpp>
+#include <combat.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
+#include <rules.hpp>
 
 #include <array>
 #include <cassert>
