@@ -5,6 +5,7 @@
 #include "common.hpp"
 #include "scene.hpp"
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -14,5 +15,8 @@ namespace d2d::client {
 // `top` instead when it would leave the screen), on a darkened backdrop.
 void draw_hover_text(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<TextLine>& lines,
                      int left, int right, int top, int bottom);
+// The same lines in a box placed already (rules::hover_box: {left, top,
+// right, bottom}), darkened, each line centred in it.
+void draw_hover_lines(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<TextLine>& lines, const std::array<int, 4>& box);
 
 }  // namespace d2d::client
