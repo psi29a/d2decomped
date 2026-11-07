@@ -135,3 +135,24 @@ flag 4 of `byte [3]` is clear, `FUN_0041d2c0` fills `ushort[0] - 2*(flag 1) -
 byte[2] - 8` bytes with `0xdd`. Then `FUN_00411aa0` unlinks the chunk.
 Callers: `00412650`, `00412a60`, `00412f30`.
 
+## FUN_00412650: SMemFree(ptr, file, line, flags)
+
+Cited; d2d: not ported (mpq-archives.md and gateway-ini.md already name it
+from call sites; `tools/emu/text_box.py:42` only stubs it). 179 bytes.
+
+1. If `DAT_007788d0` is 0 run `FUN_00411cd0` (the one-time init above); still
+   0: `FUN_004117a0("SMemFree()", -1)` and return 0.
+2. `FUN_00411910` validates the pointer; 0 returns 0 (a null pointer is
+   therefore not an error to free, it is reported only through 00411910).
+3. Header = ptr - 8; if `byte [ptr-5] & 8`, the header is instead the pointer
+   stored at `ptr - 0xc` (an aligned allocation).
+4. Block base = `ushort [header+4] << 16` (blocks are 64 KB, see
+   `FUN_004117f0`); bucket = `dword [base+8]`. Enter the `CRITICAL_SECTION` at
+   `DAT_00776cc0 + bucket * 0x18`, call `FUN_00411c20`, leave it (skipped when
+   bucket is -1). Return 1.
+
+The file, line and flags arguments are not read in this body; they are
+the same four-argument shape as SMemAlloc. 192 caller rows in
+`game-calls.tsv`; the `delete`
+operator passes `"delete"` and -1 (`004053f0`, `0040fe60`, `00426e20`).
+
