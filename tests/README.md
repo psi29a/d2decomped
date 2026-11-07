@@ -9,6 +9,10 @@ one touches no shared file. No fixtures, no
 framework — a `main()` that returns 0 on success, checking with plain
 `assert` (CMakeLists.txt keeps NDEBUG off for this directory, so asserts
 stay on in Release builds); nothing fancier is warranted yet.
+`main` is `int main() try { ... } catch (const std::exception& error)`
+(tests/.clang-tidy checks it). A `mon_think` test points the `ThinkIn`
+scratch with `ThinkScratch` (think_scratch.hpp), or a checker reads a
+null write in another AI.
 
 Tests that need real assets (D2 ISOs, extracted MPQs, game.exe) locate
 them at runtime; when they're absent the test prints a `SKIP:` line and

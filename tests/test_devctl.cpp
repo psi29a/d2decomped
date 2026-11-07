@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -24,7 +25,7 @@
 #include <unistd.h>
 #endif
 
-int main() {
+int main() try {
     using namespace d2d::devctl;
 
     // --- tokenize ---------------------------------------------------------
@@ -152,4 +153,7 @@ int main() {
     std::printf("OK\n");
     return 0;
 #endif
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_devctl: %s\n", error.what());
+    return 1;
 }

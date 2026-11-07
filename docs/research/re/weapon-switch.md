@@ -171,8 +171,8 @@ it) is the id. `rules::wielded_weapon` is `FUN_0063bef0`,
 sale, repair, switch, cursor and corpse, `Fight`'s breaks and refill).
 A loaded or new character's hands take it in the items' order
 (`rules::wield_settle`, from `World::take_character`). The 0x4000 flag
-`FUN_0055dbc0` sets after each of those (requirements not met) isn't
-kept. `components/game/world/objects.cpp` (Khalim's
+`FUN_0055dbc0` sets after each of those (requirements not met) is
+`rules::settle_requirements` (items.md "Requirements kept"). `components/game/world/objects.cpp` (Khalim's
 Will in either arm) doesn't use it. `FUN_0063add0` is not ported.
 
 ### The other hand and the dual-wield stats (`FUN_0063bf90`, `FUN_00535e20`, `FUN_004e9260`, `FUN_004e9300`)

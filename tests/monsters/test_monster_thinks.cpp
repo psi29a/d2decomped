@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -23,7 +24,7 @@
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     // The MonAI thinks: each rand(100) one seed step, a wander four, a circle one.
     {
         auto steps = [](std::uint32_t seed, Rng& stepped) { Rng count{ seed }; int step_count = 0; while (count.low != stepped.low || count.high != stepped.high) { (void)count.next(); ++step_count; } return step_count; };
@@ -480,4 +481,7 @@ int main() {
         assert(!d2d::rules::has_other_think("Baal"));
     }
     std::puts("ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_monster_thinks: %s\n", error.what());
+    return 1;
 }

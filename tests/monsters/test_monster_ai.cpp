@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -25,7 +26,7 @@
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     // Andariel (MonAI 34): distances, facing, her think's draws, the spray's sweep.
     {
         assert(ai_distance(3, -4) == 5 && ai_distance(0, 0) == 0);
@@ -908,4 +909,7 @@ int main() {
         assert(andariel_spray_aim(56, 8) == std::pair(3, 0) && andariel_spray_aim(0, 0) == andariel_spray_aim(0, 4));
     }
     std::puts("ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_monster_ai: %s\n", error.what());
+    return 1;
 }

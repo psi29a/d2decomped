@@ -9,11 +9,13 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
+#include <exception>
 #include <vector>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     GameData game_data;
     auto& row = game_data.missiles["centre"];
     row.name = "centre"; row.range = 25;
@@ -29,4 +31,7 @@ int main() {
     assert(missiles[1].velocity_x > 0 && std::abs(missiles[1].velocity_x - missiles[1].velocity_y) < 1e-4f);
     assert(missiles[1].to && missiles[1].to->first > 13 && missiles[1].to->second > 18);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_target_missile: %s\n", error.what());
+    return 1;
 }

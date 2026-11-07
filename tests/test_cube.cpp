@@ -7,9 +7,10 @@
 
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <vector>
 
-int main() {
+int main() try {
     using namespace d2d::rules;
     Tables tables;
     for (const char* code : { "msf", "vip", "hst", "gcr", "gfr" }) {
@@ -55,4 +56,7 @@ int main() {
     const auto crafted = compile_cube_output(tables, "\"usetype,crf,pre=5,rep\"");
     assert(crafted.kind == cube_out::kUseType && crafted.quality == 8 && crafted.prefixes.size() == 1 && (crafted.flags & cube_out::kRepair));
     std::puts("test_cube: ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_cube: %s\n", error.what());
+    return 1;
 }

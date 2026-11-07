@@ -7,11 +7,12 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <utility>
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     Day day;
     assert(day.phase == 2 && day.intensity() == 128);            // sunrise
     day.time = 90 * kDayScale;
@@ -98,4 +99,7 @@ int main() {
         assert(!sky.eclipse && sky.intensity() == 128);
     }
     std::puts("test_light: ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_light: %s\n", error.what());
+    return 1;
 }

@@ -9,6 +9,7 @@
 #include <quests_act5.hpp>
 
 #include <cstdio>
+#include <exception>
 #include <fstream>
 #include <optional>
 #include <sstream>
@@ -75,7 +76,7 @@ int diff(const std::vector<std::string>& lines) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     std::vector<std::string> lines;
     if (argc == 3 && std::string_view(argv[1]) == "--marker-npc") {
         std::ifstream file(argv[2]);
@@ -84,4 +85,7 @@ int main(int argc, char** argv) {
         for (const char* line : kCases) lines.emplace_back(line);
     }
     return diff(lines) == 0 && !lines.empty() ? 0 : 1;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_marker_npc: %s\n", error.what());
+    return 1;
 }

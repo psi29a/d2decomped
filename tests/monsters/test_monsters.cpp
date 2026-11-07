@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -145,7 +146,7 @@ static void monster_prop_rolls() {
     assert(monster_props(tables, quill, 0, seed).thorns == 0 && seed.low == 5);   // none in normal
 }
 
-int main() {
+int main() try {
     missile_flights();
     monster_prop_rolls();
     diablo_scores();
@@ -400,4 +401,7 @@ int main() {
         assert(throttled_picks.empty());
     }
     std::puts("ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_monsters: %s\n", error.what());
+    return 1;
 }

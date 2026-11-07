@@ -197,6 +197,7 @@ auto World::take_character(const Character& entering) -> void {
         actor->character.expansion = entering.expansion; actor->character.header = entering.header; actor->character.merc_items = entering.merc_items;
         actor->character.fresh = entering.fresh;
         d2d::rules::wield_settle(game_data->rules, actor->character.items);
+        settle_requirements(*game_data, actor->character);   // the join: FUN_0052d440 -> FUN_0055df00 -> FUN_0055dbc0
         // A new game starts at full life, mana and stamina, whatever the
         // save held (D2's "save and exit to heal").
         static constexpr std::pair<d2d::d2s::StatId, d2d::d2s::StatId> kRefill[] = {

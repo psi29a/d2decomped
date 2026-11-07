@@ -7,11 +7,12 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <utility>
 
 using namespace d2d::drlg;
 
-int main() {
+int main() try {
     const LevelDefs defs = {
         { 1, { 56, 40 } }, { 2, { 80, 80, 0, 0, true } }, { 3, { 80, 80, 0, 0, true } },
         { 4, { 80, 80, 1000, 1000, true } }, { 17, { 40, 48, 0, 0, true } },
@@ -116,4 +117,7 @@ int main() {
     }
     assert(steppes_flips[0] > 0 && steppes_flips[1] > 0);
     std::puts("test_drlg: ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_drlg: %s\n", error.what());
+    return 1;
 }

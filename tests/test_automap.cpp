@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -26,7 +27,7 @@ static std::uint32_t u32(const std::vector<unsigned char>& bytes, std::size_t of
     return std::uint32_t(bytes[offset]) | std::uint32_t(bytes[offset + 1]) << 8 | std::uint32_t(bytes[offset + 2]) << 16 | std::uint32_t(bytes[offset + 3]) << 24;
 }
 
-int main() {
+int main() try {
     using namespace d2d::d2s;
     const auto dir = fs::temp_directory_path() / "d2d_test_automap";
     fs::remove_all(dir);
@@ -90,4 +91,7 @@ int main() {
     fs::remove_all(dir);
     std::printf("OK\n");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_automap: %s\n", error.what());
+    return 1;
 }

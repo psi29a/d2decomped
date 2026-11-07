@@ -9,10 +9,12 @@
 #include <skills.hpp>
 
 #include <cassert>
+#include <cstdio>
+#include <exception>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     d2d::rules::MonStats stats;
     stats.a1_min = 1; stats.a1_max = 2; stats.s1_min = 8; stats.s1_max = 12; stats.to_hit = 50; stats.to_hit_s1 = 90;
     stats.elements[0] = { 0, 100, 3, 4, 0, "S1" };
@@ -24,4 +26,7 @@ int main() {
     assert(stats.a1_min == 8 && stats.a1_max == 12 && stats.to_hit == 90 + 20 + 3 * 10);
     assert(stats.elements[0].mode == "A1" && stats.elements[1].mode.empty());
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_s1_strike: %s\n", error.what());
+    return 1;
 }

@@ -14,6 +14,7 @@
 #include <gamedata_load.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <think_scratch.hpp>
 #include <world.hpp>
 
 #include <cassert>
@@ -51,6 +52,8 @@ int main() try {
         int state = 0;
         d2d::rules::ThinkIn input{ .aip = { 0, 0, 100, 10, 0, 0, 0, 100 }, .dist = 5, .state = &state };
         input.skill[2] = true; input.skill45[0] = true;
+        ThinkScratch scratch;
+        scratch.point(input);
         input.target_player = true; input.target_life_pct = 100; input.self_life_pct = 100;
         input.target_max_life = foe.max_life; input.target_max_mana = foe.max_mana;
         d2d::rules::Rng roll{ 5 };

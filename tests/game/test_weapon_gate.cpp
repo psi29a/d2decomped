@@ -36,7 +36,7 @@ int main() try {
         for (const auto& [code, slot] : worn) {
             d2d::d2s::Item item;
             item.code = code; item.location = d2d::d2s::item_location::kEquipped; item.slot = slot;
-            character.items.push_back(item);
+            character.items.push_back(std::move(item));
         }
         return weapon_gate(*data, character, *data->skills.get(data->skills.by_name.at(skill)));
     };

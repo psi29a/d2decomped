@@ -8,10 +8,12 @@
 #include "mini_panel.hpp"
 
 #include <cassert>
+#include <cstdio>
+#include <exception>
 
 using namespace d2d::client;
 
-int main() {
+int main() try {
     assert(mini_panel::opens(""));                                    // no value yet: open
     assert(mini_panel::opens(mini_panel::saved(true)));
     assert(!mini_panel::opens(mini_panel::saved(false)));              // shut as the menu opened: shut next game
@@ -22,4 +24,7 @@ int main() {
     mini_panel::messages(belt_open, message_log);
     assert(!belt_open && !message_log);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_mini_panel: %s\n", error.what());
+    return 1;
 }

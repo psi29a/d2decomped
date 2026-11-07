@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <string_view>
 #include <vector>
 
@@ -33,7 +34,7 @@ int dump() {
 }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     if (argc > 1 && std::string_view(argv[1]) == "--dump") return dump();
     const Table start = defaults();
     // The defaults: whole, Inventory on I then B, the wheel on the skill steps.
@@ -90,4 +91,7 @@ int main(int argc, char** argv) {
     // The screen's rows: 0x33 classic, 0x3e expansion.
     assert(rows(false).size() == 0x33 && rows(true).size() == 0x3e);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_keyconfig: %s\n", error.what());
+    return 1;
 }

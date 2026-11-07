@@ -175,3 +175,50 @@ answers.
 d2d: `rules::equip`, called by the World's `cmd::ToBody` with the class's
 inventory grid. A joined client sends 0x1b / 0x1e the same way
 (`c2s::equip`'s `other_off`), and nothing when the move is refused.
+
+## Requirements kept (`FUN_0055dbc0`, flag 0x4000)
+
+`FUN_0055dbc0(player, …)` (ItemMode.cpp, the item's stats redone) runs
+at the end of ItemMode.cpp's server moves: a body item off
+(`FUN_00560cd0`) or on (`FUN_005606b0`, `FUN_00563d20`, `FUN_00560f00`,
+`FUN_00561220`), into the inventory (`FUN_00560200`), a pickup
+(`FUN_00563560`), the weapon switch (`FUN_005616a0`), a break
+(`FUN_0055f850`), a mend (`FUN_0055f900`), a stack refill
+(`FUN_00562a30`), the corpse (`FUN_00562f30`); and on a join
+(`FUN_0052d440` → `FUN_0055df00`, client states 3 and 5). In order:
+
+1. The inventory list's items with item data `+0x69` 1 (`FUN_0063e020`)
+   that `FUN_0062ff70` takes (a charm, ItemTypes 0xd, not broken nor
+   flagged, item data `+0x45` 0, its requirements met) whose stats
+   aren't on (`FUN_00625820`) and that pass `FUN_0055db00`: flag 0x4000
+   cleared, `FUN_0055d970` (stats on).
+2. Body slots 1..10 (`FUN_0063bde0`; the switch's 0xb / 0xc aren't
+   walked), in order: an item not broken nor flagged (or with its stats
+   on) that fails `FUN_0055db00` gets 0x4000 (`FUN_006280d0`), then
+   `FUN_0063d2b0`, and in item mode 1 its stats come off
+   (`FUN_0055c730`). The checks see the stats as they are then: an item
+   flagged earlier in the pass no longer counts, one still unflagged
+   counts toward its own requirements.
+3. Repeated while one changed: an item in slots 1..10, not broken,
+   flagged (or its stats off), that passes `FUN_0055db00`: 0x4000
+   cleared, `FUN_0063d1d0` (not for 0xb / 0xc), its stats on
+   (`FUN_0055c2c0`). One item's stats can let another pass.
+
+`FUN_0055db00(player, item)`: `FUN_0062eaf0`'s requirements (identified
+flag 0x10; strength, dexterity and level, with the player's stats as
+they stand; the class), and when the item's type has a Quiver
+(`FUN_0062e740`: ItemTypes `+0xe`, the 1.14d rows `bowq` / `mboq`
+`bow`, `xboq` / `mxbq` `xbow`), the right hand's item (or the left's,
+when the quiver is the right's) must be of that type (`FUN_00629bb0`).
+A quiver with no bow beside it is flagged.
+
+d2d: the flag in the item's flag word (`Item::flags`, written back to
+the d2s as read). `rules::requirements_hold` (`FUN_0055db00`),
+`rules::settle_requirements` (passes 2 and 3), run by
+`game::settle_requirements` with `game::wearer` after each of the
+World's item commands (`cmd::ToBody`, `ToCursor`, `ToGrid`,
+`SwapWeapons`, `Buy`, `Sell`, `Repair`), a pickup, `Fight`'s breaks and
+refill, the corpse and `World::take_character`. A flagged item's stats
+are off like a broken one's (`game::gear_active`, `panel_stats`,
+`rules::make_fighter`'s weapon). Pass 1 (the charms) isn't ported: d2d
+counts every inventory charm, its level requirement unchecked.

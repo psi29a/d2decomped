@@ -28,7 +28,7 @@ int main() try {
     std::uint32_t seed = 1;
     while (d2d::rules::Rng(seed).next() % 100 < 20) ++seed;
     vendor.seed = d2d::rules::Rng(seed);
-    level.npcs.push_back(std::move(vendor));
+    level.npcs.push_back(vendor);
     auto states = npc_start(level);
     assert(!states[0].filed && states[0].wait_until == 0);
 

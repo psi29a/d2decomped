@@ -8,10 +8,11 @@
 
 #include <cassert>
 #include <cstdio>
+#include <exception>
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     UMods umods;
     MonType type;
     type.diff[0].res = { 0, 0, 100, 100, 0, 0 };               // already fire and lightning immune
@@ -22,4 +23,7 @@ int main() {
     const auto resistant = boss_stats(umods, type, Boss::unique, { 8 }, 0);
     assert(resistant.res_add[4] == 40 && resistant.res_add[2] == 40 && resistant.res_add[3] == 0);   // cold, fire immune: lightning skipped
     std::puts("test_boss_resists: ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_boss_resists: %s\n", error.what());
+    return 1;
 }

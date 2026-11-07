@@ -115,6 +115,7 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
             d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_0063d2b0
             item.flags |= 0x100u;
             item.durability = 0;
+            settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
             return;
         }
         const std::string code = item.code;
@@ -129,6 +130,7 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
             next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
             d2d::rules::wield_enters(game_data->rules, actor->character.items, *next);   // FUN_00562a30 -> FUN_0063d1d0
         }
+        settle_requirements(*game_data, actor->character);   // FUN_00562a30 -> FUN_0055dbc0
     }
 
 auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
@@ -142,7 +144,12 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
         if (int(rng(100)) >= chance) return;
         if (item.durability - 1 >= 1) { item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item)); return; }
-        if (armor) { item.flags |= 0x100u; item.durability = 0; cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y); return; }
+        if (armor) {
+            item.flags |= 0x100u; item.durability = 0;
+            settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
+            cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
+            return;
+        }
         const auto base = tables.item_base.find(item.code);
         if (base == tables.item_base.end() || !base->second.stackable) {
             item.durability = 0;
@@ -197,6 +204,7 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
                     if (item.durability <= 0) {
                         d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
                         item.durability = 0; item.flags |= 0x100u;             // FUN_0055f850: it breaks
+                        settle_requirements(*game_data, actor->character);
                         cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
                     }
                 }
@@ -259,6 +267,7 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
                     continue;
                 d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_0063d2b0
                 item.flags |= 0x100u;
+                settle_requirements(*game_data, actor->character);
                 cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
             }
             actor->attack_mon = -1;

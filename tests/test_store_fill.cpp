@@ -12,6 +12,8 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
+#include <exception>
 #include <utility>
 #include <vector>
 
@@ -38,7 +40,7 @@ Item carried(const char* code, int quantity) {
 
 }  // namespace
 
-int main() {
+int main() try {
     Tables tables;
     tables.npc_prices["Akara"].max_buy = { 100000, 100000, 100000 };
     tables.types["scro"] = {};
@@ -134,4 +136,7 @@ int main() {
     stats.values[d2d::d2s::kGold] = 100000;
     assert(store_buy(tables, shop, 2, items, stats, 4, true) == Trade::done && items.size() == 5 && items[4].column == 3 && gold() == 100000 - potion);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_store_fill: %s\n", error.what());
+    return 1;
 }

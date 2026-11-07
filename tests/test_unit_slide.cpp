@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 
 using namespace d2d::client;
 
@@ -106,9 +107,12 @@ void loose_units() {
 
 }  // namespace
 
-int main() {
+int main() try {
     keyed_units();
     loose_units();
     std::puts("unit slide ok");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_unit_slide: %s\n", error.what());
+    return 1;
 }

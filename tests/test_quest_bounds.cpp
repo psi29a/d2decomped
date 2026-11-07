@@ -9,6 +9,8 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
+#include <exception>
 
 using namespace d2d::game;
 using namespace d2d::rules;
@@ -18,7 +20,7 @@ static_assert(kQuestLogCount > GuardianQuest::kQuest);
 static_assert(kQuestFlagCount == QuestBits{}.size() / 2);
 static_assert(kQuestFlagCount > kRespecQuest);
 
-int main() {
+int main() try {
     World world(nullptr, -1, -1);
     Level level{};
     level.id = level_ids::kKurastDocks;
@@ -32,4 +34,7 @@ int main() {
                              BladeQuest::kQuest, KhalimQuest::kQuest,
                              BlackenedTempleQuest::kQuest, GuardianQuest::kQuest })
         assert(log[std::size_t(quest)] != 0xff);
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_quest_bounds: %s\n", error.what());
+    return 1;
 }

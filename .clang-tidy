@@ -1,7 +1,9 @@
 # Names say what they hold (docs/PLAN.md "Code style"): no one- or two-letter
 # variables or parameters beyond the conventional few. Every file includes
-# the headers it uses, no more (misc-include-cleaner). CI runs this on Linux.
-Checks: '-*,readability-identifier-length,misc-include-cleaner'
+# the headers it uses, no more (misc-include-cleaner). A moved-from object
+# isn't used again, a const isn't "moved" (a copy), and a copy nobody
+# changes is a reference: the move bugs Coverity kept finding. CI runs this on Linux.
+Checks: '-*,readability-identifier-length,misc-include-cleaner,bugprone-use-after-move,performance-move-const-arg,performance-unnecessary-copy-initialization'
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(apps|components|tests|tools)/'
 CheckOptions:
@@ -12,6 +14,9 @@ CheckOptions:
   readability-identifier-length.IgnoredVariableNames: '^(x|y|dx|dy|id|ok)$'
   readability-identifier-length.IgnoredParameterNames: '^(x|y|dx|dy|id)$'
   readability-identifier-length.IgnoredLoopCounterNames: '^[ijkxy]$'
+  # House rule: move on a value's last use, whatever its type (a trivially-
+  # copyable one too: the type may grow), so don't flag those moves.
+  performance-move-const-arg.CheckTriviallyCopyableMove: false
   # OS and C headers (their symbols move between headers per platform),
   # libraries reached through one umbrella header, and the client's two
   # boundary headers (apps/d2d/.clang-tidy adds the game's headers).
