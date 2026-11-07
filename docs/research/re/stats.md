@@ -117,3 +117,34 @@ walks named here repeat this bounds test inline (`FUN_006269f0`,
 `FUN_005beda0`, `FUN_005c37c0`, `FUN_005c3f20`. d2d: not ported (its
 tables are vectors indexed with their own checks).
 Re-check: `python3 tools/ghidra/fn.py 0045c4f0`, `python3 tools/ghidra/calls.py 0045c4f0`.
+
+### Refresh a derived stat — FUN_006266c0 (ECX list, EDX key, stack ItemStatCost row, ctx)
+
+The Ghidra signature is wrong about the first two arguments: ECX and EDX
+pass through unchanged into `FUN_00626200` (the value of the key from the
+row's +0xe0 op entries; d2d cites it in merc.cpp / strike.cpp), so ECX is the list and EDX the key; the recursive calls
+`FUN_006266c0(row, ctx)` push a dependent's row and ctx.
+
+- Row byte +0x51 is 0: the computed value is stored (`FUN_00625150`, a
+  set: value 0 with row +0x50 clear removes the entry, a nonzero value
+  sets list flag 0x20000000 when row +0x53 is set, and the list's
+  change callback (+0x5c) runs when the value changed and row +5 bit 3
+  is set). Returns the value.
+- Row +0x51 set (the stat has dependents): with a computed 0 it first
+  stores 0. It then walks up to 3 dependents (`ushort` ids at row +0x58,
+  stops at 0xffff; the matching shorts at +0xde, stride 3 shorts),
+  recomputing each through itself and storing it with
+  `FUN_00625150(id << 16, ...)`. When a dependent's value is nonzero,
+  the row byte +0x54 decides whether the parent's own value may stand:
+  0, 8-0xb never block; 2/3 block when the owner type (list +8) is 0 or 1
+  and the id at +0xde is not 0xffff and that stat reads positive
+  (`FUN_00624f60`); 4/5 the same for the unit at list +4 (when non-null)
+  through `FUN_00625480`; 6/7 block when the owner
+  type is 0 or 1; 0xd blocks when the owner type is 4; any other value
+  blocks (switch default). If nothing blocked and the value is nonzero it
+  stores the value again and recomputes the up to 64 stats at row +0x5e.
+  The op byte's names are not resolved: cited, read from the decompile.
+- It returns the computed value in every path.
+
+d2d: not ported (no stat lists). Re-check: `python3 tools/ghidra/fn.py 006266c0`,
+`python3 tools/ghidra/calls.py 006266c0`.
