@@ -191,7 +191,12 @@ hammers about, +0x14 gems per round, +0x1c the soulstone given.
   item)`): it goes only to the records on the item's own list (item +0x74,
   `FUN_005439a0`; bound as the item's made, `FUN_00555d20` at 0x555d82:
   Items.txt quest − 1). That's `hfh ` (the Hellforge Hammer) for a4q3;
-  `mss ` is a4q1's (record 0x16). It takes state 0 → 1 (bits 0 / 13 / 1
+  `mss ` is a4q1's (record 0x16), and a4q1 has no item event: its init
+  (`FUN_005b42b0`) sets +0xa0, +0xa8, +0xac, +0xc0, +0xc8, +0xcc, +0xd4,
+  +0xec and +0xf0 but not +0xb0, the records come zeroed (the maker:
+  `FUN_0040b430`, then `_memset(record, 0, 0xf8)`), and the dispatcher
+  (`FUN_005439a0`) skips a null slot: picking up the soulstone runs
+  nothing. a4q3's takes state 0 → 1 (bits 0 / 13 / 1
   clear, +9, +0xb not 13; tools/emu/quest_item_events.py);
   +0xc4 / +0xd8 count hammers about.
 - **Join** (`FUN_005b64e0`): `mss ` not carried → state 1 (`FUN_00558110('mss ')` 0, the push at 0x5b654d); carried: bit 5 → state 2,
