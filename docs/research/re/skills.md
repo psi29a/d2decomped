@@ -25,6 +25,26 @@ What a skill is, column by column (the ones that matter first):
   `etypea1..2` (weapon types allowed / excluded), `TargetableOnly`,
   `SearchEnemyXY`, `SearchEnemyNear`, `TargetCorpse`, `LineOfSight`,
   `leftskill` (can go on the left button), `InTown`.
+  The weapon-type gate is `FUN_00643f80` (from the usability chain
+  `FUN_00647960`, status 2 when it fails): a skill with no itypea1 (+0x18)
+  and no etypea1 (+0x24) passes. Else, with h4 / h5 the right / left
+  hand items (`FUN_0063bde0(inv, 4 / 5)`; for Left Hand Throw / Swing
+  (ids 4 / 5) the active hand's item is dropped, `FUN_0063bef0`), it
+  passes when one hand fits set a (itypea1..3 / etypea1..2) and the other
+  set b (itypeb / etypeb), either way round:
+  `(D_a(h4, h5) && D_b(h5, h4)) || (D_b(h4, h5) && D_a(h5, h4))` (EAX the
+  set, 0x644009 / 0x644013). `FUN_00643d90` D(item, other): no item:
+  true when the set has no itype and no etype, or (itype1 weap 0x2d /
+  mele 0x2e / 0x43, no itype2... , neither hand a weapon,
+  `FUN_00629bb0(.., 0x2d)`); an item of an etype: false; no itype: true;
+  an item of none of the itypes: false; of one: true, except the ammo
+  tests (a bow / crossbow needs its quiver in the other hand with stat 70
+  above 0, unless stat 0x9d; flags 0x4000 / 0x100 items only for skill 0).
+  So Holy Shield and Smite (itypea1 shld, no set b) need a shield in
+  either hand: the other hand passes set b's empty test.
+  d2d: `weapon_gate` / `hand_fits` (fight.hpp, through `skill_refused`;
+  `test_weapon_gate`); not kept: the ammo tests, the 0x4000 / 0x100
+  items, Left Hand Throw / Swing's dropped hand; Throw keeps its own gate.
 - **Damage**: `ToHit` + `LevToHit`, or `ToHitCalc`; `SrcDam` (128 = all of
   the weapon damage); physical `MinDam` / `MaxDam` with `MinLevDam1..5`,
   elemental `EType`, `EMin` / `EMax` with `EMinLev1..5` / `EMaxLev1..5`,

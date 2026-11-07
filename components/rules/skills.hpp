@@ -407,6 +407,9 @@ struct Skill {
     ServerDoFunction srvdofunc = ServerDoFunction::kNone;         // srvdofunc: the server do function
     std::string anim, range;               // anim (A1, SC, KK, ...), range (h2h, rng, both, none)
     std::string itypea1;                   // +0x18: the first weapon type it takes ("" none)
+    // The weapon-type gate's two sets (FUN_00643f80): itypea1..3 / etypea1..2 (taken / excluded), itypeb1..3 / etypeb1..2.
+    std::array<std::string, 3> itype_a, itype_b;
+    std::array<std::string, 2> etype_a, etype_b;
     std::string monanim;                   // +0x11: a monster's mode for it (FUN_00647110; xx: SQ)
     int aitype = 0, aibonus = 0;           // +0x230 / +0x232: how the Shadows' AIs score it (pet-ai.md)
     int attack_rank = 0;                   // attackrank (+0x18e): Diablo's target score weighs it (FUN_005e8530)
