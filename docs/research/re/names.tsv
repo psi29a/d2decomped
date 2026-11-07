@@ -185,6 +185,7 @@ address	name	evidence
 0063d430	inventory_set_owner_id	inventory (magic 0x1020304 at +0) +0x24 = arg 2; anything else untouched
 0063e860	unit_is_town_or_owned	(unit in ECX): type 1 whose MonStats row +0xd has npc (1) or inTown (4), else unit +0xc4 bit 31 (a player's pet) (collision.md "Building a path")
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
+00643290	pair_project	(int *a, int *b) in place: a = (a - b) >> 1, b = (a + b) >> 2 from the old values; path +8 / +0xc from the position >> 11 (collision.md "Building a path")
 00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
 00643690	skill_passivestate	(skill id) -> Skills record +0x94 passivestate if > 0, else 0 (also for an id outside [0, [0x744304]+0xba0)); skills.md "Skill accessors"
 006438f0	skill_node_next	(node) -> node +4, 0 for a null node; same body as FUN_00643910; skills.md "Skill accessors"
@@ -198,6 +199,7 @@ address	name	evidence
 00646d60	skill_passive_refresh	(unit, skill): fills the passivestate (+0x94) stat list from passivestat/passivecalc at the skill level, layer passiveitype, stats 0x15e / 0x15f = skill / level; with the +0x80 state on it removes the list instead; skills.md "Skill accessors"
 00646fd0	skill_remove	(skill, drop_level), unit in EBX: passivestate off, the three selected-skill pointers at list header +8 / +0xc / +0x10 cleared when they are this base entry, then the base entry loses a level or is unlinked and freed (Skills.cpp line 0x4ac); FUN_00646d60 refresh
 00647110	skill_grant	(unit, skill) -> entry: passivestate on; an existing base entry (+0x34 == -1) gets +0x28 += 1 (player: below FUN_004aa8b0(); monster: always), else a new 0x40-byte node (level 1, mode from record +0x10 / +0x11) joins the +0xa8 list's tail; then FUN_00646d60; Skills.cpp line 0x539
+00648300	unit_path_pair	(unit, &a, &b): 0 / 0 without a unit, FUN_00622d00, or path +0x28; else the dwords at path +0x72 / +0x76 >> 11 through FUN_00643290 (collision.md "Building a path")
 00648480	monster_path_mask	(unit in EAX): MonStats row flag +0xd & 0x40 flying 0x1804, else +0xc & 8 opendoors 0x3401, else 0x3c01; no null check on the row (collision.md "Building a path")
 00648c30	path_restamp_bits	(path, bits): lifts the stamp at path +0x4c (FUN_0064eba0 for an owner of type 3, else FUN_0064ec10), stores bits, stamps them (FUN_0064ea00 / FUN_0064ea90) (collision.md "The stamp family")
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
