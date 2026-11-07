@@ -432,16 +432,15 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     // type rune with a gems.txt row adds its letter, in the socket list's
     // order, between RuneQuotes (20506). Under the name: FUN_0048dd90 puts
     // its buffer (ebp-0x2434) last but the name's into the bottom-up
-    // string (0x48ebb1), so it's drawn just under the name lines.
-    // ponytail: the line has no colour code of its own (20506 is a bare
-    // "'"); the colour it carries from the string before it isn't traced:
-    // white here.
+    // string (0x48ebb1), so it's drawn just under the name lines. Gold:
+    // 20506 is a bare "'", but FUN_0048dd90 puts colour code 4 in front as
+    // it joins the buffer (FUN_004521c0, EDX 4 at 0x48ebac).
     {
         std::string letters;
         for (const auto& socketed : item.socketed_items)
             if (const auto rune_info = game_data.rules.item_info.find(socketed.code); rune_info != game_data.rules.item_info.end() && d2d::rules::type_is(game_data.rules, rune_info->second.type, "rune"))
                 if (const auto letter = game_data.gem_letters.find(socketed.code); letter != game_data.gem_letters.end()) letters += letter->second;
-        if (!letters.empty()) out.push_back({ string_id(game_data, 20506) + letters + string_id(game_data, 20506), kTxtWhite });
+        if (!letters.empty()) out.push_back({ string_id(game_data, 20506) + letters + string_id(game_data, 20506), kTxtGold });
     }
 
     // Defense: armorclass with its +% (16, on the base) and flat adds.
