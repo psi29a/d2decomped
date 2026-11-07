@@ -619,18 +619,20 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         query.hand_empty = !held;
         query.bag = item != nullptr;
         query.store_mode = store.mode;
-        if (item && scene) {
+        if (item && scene && world.game_data) {
             query.sellable = d2d::rules::sellable(scene->rules, *item);
             query.potion = potion_code(item->code) || scene->rules.potions.contains(item->code);
+            const int save_cls = std::max(character.character_class, 0);
+            const int level_needed = d2d::game::required_level(*world.game_data, *item, save_cls);
+            const auto worn_by = d2d::game::wearer(*world.game_data, save_cls, character.items, character.stats);
+            query.equippable = d2d::rules::bag_equip_slot(scene->rules, character.items, held, item->id, worn_by, level_needed) >= 0;
         }
         PadHoldKind kind = pad_hold_button(query, pad_south_down, pad_rt_down);
-        if (kind != PadHoldKind::Fill && kind != PadHoldKind::FillOne && kind != PadHoldKind::Sell) kind = PadHoldKind::None;
-        if (!pad_south_down && !pad_rt_down && pad_hold.armed
-            && (pad_hold.context == int(PadHoldKind::Fill) || pad_hold.context == int(PadHoldKind::FillOne) || pad_hold.context == int(PadHoldKind::Sell)))
-            kind = PadHoldKind(pad_hold.context);
-        const bool eligible = kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne || kind == PadHoldKind::Sell;
+        if (!pad_south_down && !pad_rt_down && pad_hold.armed) kind = PadHoldKind(pad_hold.context);
+        const bool eligible = kind != PadHoldKind::None;
         const int item_id = item ? item->id : -1;
         if (kind == PadHoldKind::Sell) pad_hold.delay = pad::kHoldSellSeconds;
+        else if (kind == PadHoldKind::Equip) pad_hold.delay = pad::kHoldEquipSeconds;
         else pad_hold.delay = pad::kHoldFillSeconds;
         const bool button_down = pad_south_down || (pad_rt_down && kind == PadHoldKind::FillOne);
         const bool edge = pad_south_down ? pad_south_edge : pad_rt_edge;
@@ -642,14 +644,16 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         const bool tracking = pad_hold.armed && !pad_hold.cancelled;
         if (tracking || step == hold_confirm::Step::Click || step == hold_confirm::Step::Act) mouse.press_this_frame = false;
         const bool can_potion = query.potion && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
+        const bool can_equip = query.equippable && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
         const bool can_sell = query.sellable && query.bag && query.hand_empty && query.shop && !query.gamble && !query.identify && !query.imbue
                               && query.store_mode != 1 && query.store_mode != 3;
-        if (can_potion || can_sell) {
+        if (can_potion || can_equip || can_sell) {
             if (tracking) pad_hold_fraction = pad_hold.fraction();
             const std::string_view aye = pad::label(pad_family, pad::Button::South);
             const std::string_view trigger = pad::label(pad_family, pad::Button::RightTrigger);
             if (can_potion) pad_hold_text = std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
-            else pad_hold_text = std::string("Hold ") + std::string(aye) + " to sell";
+            else if (can_sell) pad_hold_text = std::string("Hold ") + std::string(aye) + " to sell";
+            else pad_hold_text = std::string("Hold ") + std::string(aye) + " to equip";
         }
         if (step == hold_confirm::Step::Click && scene) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
@@ -657,6 +661,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
             if (click.cmd) send(*click.cmd);
         } else if (step == hold_confirm::Step::Act && item) {
             if (kind == PadHoldKind::Sell) send(cmd::Sell{ item->id });
+            else if (kind == PadHoldKind::Equip) send(cmd::EquipFromBag{ item->id });
             else if ((kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne) && scene) {
             auto trial = character.items;
             const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
