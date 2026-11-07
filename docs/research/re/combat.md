@@ -220,7 +220,8 @@ d2d matches both, and the one-poison-at-a-time rule.
   sums (V run, no shield: 100 fire at 50 % with mdr 10 deals 45);
   `rules::monster_blow` and the shield path both do that now (the fields in
   256ths, one field a type, the total clamped once; `test_combat`).
-  Not covered (U): Cyclone Armor's fractions, elements, a missile's
+  Cyclone Armor works on the unresisted 256ths fields the same way (skills.md
+  row 25, `test_cyclone_armor`). Not covered (U): elements, a missile's
   `FUN_005a89a0` roll.
 - **The flat's frame rate.** `FUN_0057c1e0` takes the defender's stat 34
   (normal_damage_reduction) and 35 (magic_damage_reduction) `<< 8`, and

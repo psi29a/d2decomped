@@ -1068,7 +1068,18 @@ lines (missile names aren't passed in). What it does:
     calc2) (FUN_00483360 at 0x5ca7e1 / 0x5ca7f3): no cap on calc1 in the
     function; Skills.txt's calc1 is `min(edmn,95)`, so it never passes 95.
   - **25** Cyclone Armor (FUN_005c87a0): the pool takes fire, lightning
-    and cold (+0x10, +0x1c, +0x24; FUN_005c8780 each).
+    and cold (+0x10, +0x1c, +0x24; FUN_005c8780 each). In that order:
+    fire (+0x10), cold (+0x24), lightning (+0x1c), each only when above
+    0; FUN_005c8780 (EAX the pool, in 256ths as the stat at skill +0x54
+    holds it): a field at least the pool loses the pool (pool 0), else the
+    field goes to 0 and the pool keeps the rest. It runs in event 0xb, so
+    on the unresisted 256ths fields, before FUN_0057c1e0's flat MDR and
+    resistances. Pool 0 after: the state goes (FUN_00639db0 / FUN_006277e0);
+    else stat 0x54 (the client's shown share, MulDiv of skill +0x56's stat)
+    is resent when it moves by 5 or more.
+    d2d: `rules::absorb_blows` on each part's raw field (`cyclone_take`,
+    then `elemental_fine`); V: `tools/emu/cyclone_armor.py`, 3000 records
+    in `tests/cyclone_armor_cases.inc` (`test_cyclone_armor`).
   d2d: `buff_events` (Foe::fired_by, damaged_by), `absorb` (Taken::physical
   / elemental).
 - Built: `self_cast` (all of the above), `start_state`, `state_of`,
