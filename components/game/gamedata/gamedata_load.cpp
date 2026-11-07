@@ -705,9 +705,11 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         Level portal_level;
         add(portal_level, 59, 0, 0);                          // the town portal
         add(portal_level, 60, 0, 0);                          // the permanent (red) one
-        if (portal_level.npcs.size() == 2) {
+        add(portal_level, 189, 0, 0);                         // Cain's
+        if (portal_level.npcs.size() == 3) {
             game_data.town_portal = std::move(portal_level.npcs[0]);
             game_data.red_portal = std::move(portal_level.npcs[1]);
+            game_data.cain_portal = std::move(portal_level.npcs[2]);
         }
     }
     for (const auto& object : game_data.town.ds1.objects())

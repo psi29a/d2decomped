@@ -1586,6 +1586,16 @@ struct CainQuest {
         constexpr int kStep = 25;
         return std::max(2 * kStep, (entered / kStep + 1) * kStep) + kStep;
     }
+    // The portal's mode at `frame` from its opening, mode 4 at `closed`
+    // (portal_closed_frame; 0 not due): 1 (OP) till the first event 7, 2
+    // (ON), 3 (S1, the closing loop) the 25 frames before mode 4, then 4
+    // (S2, one frame held for good: nothing removes it).
+    [[nodiscard]] static int portal_mode(int frame, int closed) {
+        constexpr int kStep = 25;
+        if (closed > 0 && frame >= closed) return 4;
+        if (closed > 0 && frame >= closed - kStep) return 3;
+        return frame < kStep ? 1 : 2;
+    }
     // The Cube's Cow Portal (output kind 1, FUN_00594140): none opened this
     // game yet (record 0xb's flag, FUN_00544760), the Cow King alive (bit
     // 10), the last act's boss down in this difficulty (expansion: quest

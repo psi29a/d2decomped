@@ -462,12 +462,11 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // (FUN_00463740); none does: the spot moves on 3 subtiles on each axis
 // and no portal opens. Then back to the portal (FUN_00594450: his own
 // spot when there's none) for up to 6 more thinks, stepping in
-// (FUN_005944f0: camp Cain due). The portal's drawn till its mode 4
-// (rules::CainQuest::portal_closed_frame); nothing removes the object.
+// (FUN_005944f0: camp Cain due). The portal closes (S1) and stays in its
+// mode 4 (S2): nothing removes the object (rules::CainQuest::portal_mode).
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
-// tick; its mode 3 (closing) is drawn as open.
+// tick.
 auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
-        if (cain_portal_closes && now_ms >= cain_portal_closes) { cain_portal = {}; cain_portal_closes = 0; }
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
         auto& unit = npc_states[std::size_t(cain_walk.npc)];
