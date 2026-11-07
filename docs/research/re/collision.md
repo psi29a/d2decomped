@@ -251,6 +251,11 @@ object or player going is the client, every game frame, until it stands in reach
     calls FUN_004b3830.
 
   Nothing here is a timer or a count: a queue ends on input, a packet or its target.
+- **A town portal gone.** A new portal from the same player closes the old
+  pair first (FUN_00535430): each end gets a room event 2 with its unit id
+  (FUN_0061a270, the room's list +0x18) and is freed (FUN_00555600), so the
+  client loses the unit and a walk queued to either end is a target gone
+  (LAB_00481697): it stops. Read, not run.
 
 So a blocked walk to an NPC re-plans the frame after it stops, from the
 snapped centre, whether or not it moved. This is a reading of the code; no

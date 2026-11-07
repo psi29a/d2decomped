@@ -879,7 +879,8 @@ struct World {
     // no portal (false).
     void open_portal(std::uint32_t now_ms);
     // A town portal pair `pair` closes (FUN_00535430 / FUN_00584870): an end
-    // on the Summit counts out of the Rite (RiteQuest::portal_closed).
+    // on the Summit counts out of the Rite (RiteQuest::portal_closed); a
+    // player walking to either end stops taking it (take_portal -1).
     void close_portal_pair(std::size_t pair);
     bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms, int pair = -1);   // -1: the actor's own pair
     // FUN_0056d130's spot (FUN_0064e810, field_spot): from (x, y) cells, a

@@ -289,8 +289,6 @@ auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint3
         if (in_town(level) || (level && level->id == d2d::rules::level_ids::kUberTristram) || fight.dead() || fight.uninterruptable() || actor->held) return;
         const bool book = scroll->code == "tbk";
         if (book && scroll->quantity <= 0) return;
-        // ponytail: a click on the old portal still pending (take_portal) is kept. FUN_00535430 only unlinks the pair and
-        // writes nothing to the player; the walk to a clicked portal is the client's, which the oracle doesn't have.
         close_portal_pair(std::size_t(actor->portal_pair));   // FUN_00535430, before the new one
         if (!open_portal_at(actor->player.x, actor->player.y, now_ms)) return;
         if (level->id == d2d::rules::RiteQuest::kSummit && rite.portal_opened()) rite_put_back(now_ms);   // FUN_0058cf00
@@ -304,6 +302,9 @@ auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(actor->pl
 auto World::close_portal_pair(std::size_t pair) -> void {
         for (const std::size_t end : { pair, pair + 1 })
             if (portal[end].level && portal[end].level->id == d2d::rules::RiteQuest::kSummit) rite.portal_closed();
+        // Both ends are freed (FUN_00555600): a walk queued to either has lost its target (LAB_00481697).
+        for (const auto& player : players)
+            if (player->take_portal == int(pair) || player->take_portal == int(pair + 1)) player->take_portal = -1;
         portal[pair] = portal[pair + 1] = {};
     }
 
