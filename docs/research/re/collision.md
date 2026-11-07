@@ -446,6 +446,14 @@ By reading both are small, a few subtiles of where a walk ends; neither was meas
   tests/doorway_cases.inc); the "only when `bits` is not 0" gate is not
   in that table (not checked against d2d's code). The ai.cpp
   `ponytail:` notes (a flight is a line) still stand.
+- **Clear by shape, `FUN_0064eba0`** (room, x, y, shape, bits): the twin of
+  `FUN_0064ea00`. With a room, shape 1 calls `FUN_0064db70`, 2 `FUN_0064da40`
+  and 3 `FUN_0064dbc0` (point, plus, box clears; the same order as the set).
+  No room or another shape: nothing. Callers: `FUN_00648c30`, `FUN_00649560`,
+  `FUN_005adf10`, `FUN_005b01f0`, `FUN_0064ed20`. The pairing of 1 / 2 / 3 to
+  point / plus / box is read from the set side and from `FUN_0064ec10`
+  (plus `FUN_0064da40` and point `FUN_0064db70` for patterns 1 / 3); the
+  bodies of the three clears were not read here. d2d: not ported.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
