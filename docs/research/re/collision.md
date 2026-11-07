@@ -566,6 +566,33 @@ EAX); read the asm for them.
   `FUN_00465fd0`, `FUN_004bc720`, `FUN_004c1910`, `FUN_00554850`,
   `FUN_00649d00`. d2d: not ported. The `FUN_0064c2c0` reading is from the
   decompile only; its exact meaning for `FUN_00619ee0` was not traced.
+- **Make a unit's path, `FUN_00649d00`** (unit, room, x, y, flag; the C's
+  parameter order is shuffled by the register arguments, so the roles are
+  read from the stores): allocates 0x200 bytes (`FUN_0040b430`,
+  `.\PATH\Path.cpp` line 0x453), zeroes them and links unit +0x2c to it,
+  with the owner back at path +0x30. Stores: shape +0x44 (`FUN_00620510`),
+  pattern +0x48 (`FUN_00648580` on it), x and y as 16.16 at +0 / +4 (the
+  subtile x 0x10000 + 0x8000: the cell's centre), the room at +0x1c, the
+  entered-subtile list at +0x1d8 / +0x1da with count +0x1d4 = 1, velocity
+  +0x7c = 0x800, +0x93 = 0. Then by unit type:
+
+  | unit | own bits +0x4c | mask +0x50 | other |
+  |---|---|---|---|
+  | 0 player | 0x80 | 0x1c09 | type 7 (`FUN_00648cf0`), steps +0x91 = 0x49, +0x92 = 0x46 |
+  | 1 monster | 0x100 | `FUN_00648480` (class 0x26: 0x804 and the path's +0x48 is forced to 5) | path type +0x3c = 2, flags +0x34 & 0xfff800ff, steps +0x91 = 0xe |
+  | 3 missile | 0 | 0 | type 4 (`FUN_00648cf0`) |
+
+  With a room it then stamps the unit (`FUN_00649400`), links it in
+  (`FUN_0064c350`), and sets path +0x8 / +0xc by `FUN_00643290` from the
+  position >> 11; a non-zero last argument ORs 0x10 into the flags +0x34.
+  Other unit types get the zeroed fields only. A monster whose path type
+  were 8 or 0xb would hit the internal error (lines 0x871 / 0x872), and
+  one whose owner type is 0 line 0x861; the memset path type is 0, so these
+  are not reachable here. Callers `FUN_00460bf0`, `FUN_004ae8d0`,
+  `FUN_004cd0a0`, `FUN_00554850`, `FUN_00554a30`. d2d: reads the same, cited from the decompile, no oracle run, on what
+  collision.md and monsters.hpp:909 already cite (player mask 0x1c09, steps
+  0x49, type 7); monster steps 0xe, +0x92 = 0x46 and the missile row are
+  not ported, no disagreement found.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
