@@ -274,13 +274,14 @@ inline std::array<std::uint8_t, 16> look(const std::vector<Entry>& table, const 
                                          const std::vector<Worn>& worn) {
     std::array<std::uint8_t, 16> tints;
     tints.fill(0xff);
-    for (int lit_layer : { 1, 2, 3, 4, 8, 9 }) tints[std::size_t(lit_layer)] = 1;
+    for (int lit_layer : { 1, 2, 3, 4, 8, 9 }) tints[std::size_t(lit_layer)] = 1;   // FUN_0064f420's layers
     auto index = [&](const std::string& gfx) -> std::uint8_t {
         for (std::size_t i = 1; i < table.size() && i < 0xff; ++i) if (table[i].code == gfx) return std::uint8_t(i);
         return 0xff;
     };
     each_layer(pcs, worn, [&](int layer, const Worn&, const Piece& piece) {
         if (piece.component == 1) {
+            // FUN_0064f500: TR torso, LG legs, RA rArm, LA lArm, S1 rSPad, S2 lSPad (Piece::tiers' order)
             static constexpr int kTier[10] = { 0, 0, 1, 2, 3, 0, 0, 0, 4, 5 };   // TR LG RA LA .. S1 S2
             tints[std::size_t(layer)] = std::uint8_t(1 + piece.tiers[std::size_t(kTier[layer])]);
         } else tints[std::size_t(layer)] = index(piece.gfx);
