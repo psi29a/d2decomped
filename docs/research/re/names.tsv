@@ -128,7 +128,8 @@ address	name	evidence
 00625d60	unit_max_mana	stat 9 (maxmana, ItemStatCost row 9 at tables +0xbcc + 0xb64) through FUN_00624f60, 0 for no unit / stats list
 006266c0	stat_refresh_derived	ECX list, EDX key, row, ctx: FUN_00626200 value stored by FUN_00625150, dependents at row+0x58 / +0x5e recomputed
 00626920	stat_delta_up_lists	ECX list, EDX key, delta, ctx: adds the delta (FUN_006250b0) or refreshes (FUN_006266c0) on the list and its parents (+0x34)
-00642860drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
+006269f0	stat_list_detach	unlinks the list from its parent, pushes its values up negated, then calls the removal callback +0x38
+00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00665f40	ds1_cache_acquire	thiscall (out, path): finds path in the list at DAT_0096d60c (byte-exact compare) and bumps the refcount, else loads via FUN_00665950; ".\DRLG\Preset.cpp" lines 0x4e0, 0x4e1
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)
