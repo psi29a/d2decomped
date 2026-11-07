@@ -20,7 +20,13 @@ implementation").
 - `FUN_00647ee0` looks for the character's own Attack entry. When absent,
   it adds Attack and walks ten skill identifiers at CharStats record
   `+0xae`, adding each valid identifier through `FUN_00647110`. This
-  path contains no inventory or weapon-eligibility check.
+  path contains no inventory or weapon-eligibility check. The ten
+  (CharStats `Skill 1`..`Skill 10`) are, for every class: Throw, Kick,
+  Scroll of Identify, Book of Identify, Scroll of Townportal, Book of
+  Townportal, then Unsummon; the Barbarian has Left Hand Throw and Left
+  Hand Swing before Unsummon, the Assassin Left Hand Swing. Each is an
+  ordinary entry at level 1, with or without a tome or scroll carried.
+  `StartSkill` (Fire Bolt, Raise Skeleton) is not among them.
 - `FUN_00647110` creates an ordinary skill entry with level 1 at `+0x28`
   and item identifier -1 at `+0x34`. Its existing-entry path increments
   the stored level; it is not an unconditional reset to level 1.

@@ -1614,6 +1614,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         auto& start = game_data.class_start[class_index];
         start = { per("str"), per("dex"), per("int"), per("vit"), per("stamina"), per("hpadd"), {}, std::string(charstats.get(class_index, "StartSkill")) };
         for (int i = 1; i <= 10; ++i)
+            if (std::string name(charstats.get(class_index, "Skill " + std::to_string(i))); !name.empty()) start.skills.push_back(std::move(name));
+        for (int i = 1; i <= 10; ++i)
             if (const std::string code(charstats.get(class_index, "item" + std::to_string(i))); !code.empty() && code != "0")
                 start.items.push_back({ code, std::string(charstats.get(class_index, "item" + std::to_string(i) + "loc")),
                                      std::atoi(std::string(charstats.get(class_index, "item" + std::to_string(i) + "count")).c_str()) });
