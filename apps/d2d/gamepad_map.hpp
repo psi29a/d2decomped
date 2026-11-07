@@ -446,11 +446,11 @@ public:
             out.trade_press = hit(Action::Trade);
             out.tab_step = int(hit(Action::TabNext)) - int(hit(Action::TabPrev));
             if (skills && (context == Context::Game || wheel)) {
-                static constexpr std::array<Action, 6> kSlots = { Action::SkillSouth, Action::SkillEast, Action::SkillWest,
-                                                                   Action::SkillNorth, Action::SkillLeft, Action::SkillRight };
+                static constexpr std::array<Action, 6> kSkillSlots = { Action::SkillSouth, Action::SkillEast, Action::SkillWest,
+                                                                       Action::SkillNorth, Action::SkillLeft, Action::SkillRight };
                 for (int index = 0; index < 6; ++index) {
-                    out.slot_down[std::size_t(index)] = down(kSlots[std::size_t(index)]);
-                    if (hit(kSlots[std::size_t(index)])) out.skill_slot = index;
+                    out.slot_down[std::size_t(index)] = down(kSkillSlots[std::size_t(index)]);
+                    if (hit(kSkillSlots[std::size_t(index)])) out.skill_slot = index;
                 }
                 out.main_skill_down = down(Action::MainSkill);
                 out.main_skill = hit(Action::MainSkill);

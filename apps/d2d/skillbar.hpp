@@ -327,8 +327,8 @@ struct SkillBar {
                 column(6, mode_main, mode_main_label);
                 if (mode_modifier) {
                     const int rule = kTrayBottom - kIcon - 2;
-                    const int right = kTrayLeft + 6 * kPitch + kIcon;
-                    for (int pixel_x = kTrayLeft - 2; pixel_x <= right + 1; ++pixel_x) plot(pixel_x, rule);
+                    const int rule_right = kTrayLeft + 6 * kPitch + kIcon;
+                    for (int pixel_x = kTrayLeft - 2; pixel_x <= rule_right + 1; ++pixel_x) plot(pixel_x, rule);
                 }
                 if (!mode_set.empty())
                     caption(mode_set, kTrayLeft - small.measure(mode_set) - 8, kTrayBottom - kIcon / 2 + small.line_height() / 2);

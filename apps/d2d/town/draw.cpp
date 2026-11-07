@@ -15,6 +15,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
