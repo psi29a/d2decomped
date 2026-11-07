@@ -492,3 +492,29 @@ sHitPar2 else aurarange / calc1, count at least 1) read the same, cited from
 the decompile, no oracle run. d2d ignores the
 skill's aurafilter. Confidence: medium (read from the code, no oracle;
 the walker's counter at state +8 is not shown incrementing in the decompile).
+
+## Server hit function 21 — FUN_005ab500 (Battle Cry)
+
+Cited. Slot 21 (`0x73c894`). ECX game, EDX the missile, stack the struck
+unit. Returns 1 (nothing, go on) when there is no owner (`FUN_00552fd0`)
+or no struck unit; otherwise, with the skill (`FUN_0064a280` / `a210`) in
+range and its auratargetstate (skill +0x82) a valid state (>= 0 and <= the
+states count at `PTR_DAT_00744304 + 0xc4`):
+
+1. the target filter test `FUN_0056b3e0` on the struck unit (the decompile
+   shows the flags as 0xa783 when skill +0x50 is non-zero, else 0; the
+   register arguments are hidden, so the exact flag is not settled);
+2. the length `FUN_00646ca0(owner, skill +0x60 (auralen), id, level)`;
+3. `put_state` (`FUN_005c6cc0`'s caller chain, `d2d_states_put_state`)
+   and, when it takes, `FUN_005c6cc0(skill, id, level)` (the aurastats).
+
+Returns **0** when the filter passed, else 1.
+
+Re-check: `python3 tools/ghidra/fn.py 005ab500`.
+
+d2d: reads the same in part, cited from the decompile, no oracle run. `Fight::strike` hit_func 21 (fight/missiles.cpp:629)
+puts the auratargetstate for auralen frames (at least 1) on the monster
+and no damage (returns 0; game.exe's decompile also returns 0 on the filter-passed path, cited, no oracle run). Whether d2d's state carries the
+aurastats of `FUN_005c6cc0` was not checked, and game.exe's decompile shows
+no floor on the length (d2d takes at least 1). No difference proven; no
+oracle run.
