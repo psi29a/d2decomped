@@ -76,6 +76,7 @@ struct Audio {
         // unit it plays on, the sound tick it started, Solo.
         int group_base = 0;
         std::uint64_t unit = 0;
+        std::vector<std::uint64_t> merged;       // units a Compound merge added (rules::SoundInstance::merged)
         std::int64_t start_tick = 0;
         bool solo = false;
     };
@@ -284,8 +285,8 @@ struct Audio {
         return found != sfx.end() ? *found : sfx[sfx_next++ % sfx.size()];
     }
     // Whether `index` starts against the world sounds playing (rules/sound_start.hpp):
-    // Compound merges it into one of its group (nothing new starts; ponytail: the
-    // new unit isn't added to that one's list), Defer / Stop Inst and a unit's
+    // Compound merges it into one of its group (nothing new starts; the new
+    // unit joins that one's list, FUN_004b9760), Defer / Stop Inst and a unit's
     // speech drop it or stop the one it clashes with. game.exe checks Compound
     // at the play and the rest at the start; a cue plays when due, so both here.
     bool may_start(const GameData& game_data, int index, std::uint64_t unit, bool positioned) {
@@ -297,11 +298,14 @@ struct Audio {
             ALint state = AL_STOPPED;
             alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
             if (state != AL_PLAYING && state != AL_PAUSED) continue;
-            playing.push_back({ channel.sound, channel.group_base, channel.unit, channel.start_tick, false });
+            playing.push_back({ channel.sound, channel.group_base, channel.unit, channel.start_tick, false, channel.merged });
             on_channel.push_back(&channel);
         }
         const d2d::rules::SoundRule rule{ index, snd.group_base, snd.compound, snd.defer, snd.stop_inst };
-        if (d2d::rules::compound_into(playing, rule, sound_tick)) return false;
+        if (const auto into = d2d::rules::compound_into(playing, rule, sound_tick)) {
+            if (unit != 0 && !playing[*into].plays_on(unit)) on_channel[*into]->merged.push_back(unit);
+            return false;
+        }
         const auto clash = d2d::rules::start_clash(playing, rule, unit, positioned);
         if (clash.other && clash.stop_other) stop(*on_channel[*clash.other]);
         return clash.play;
@@ -309,7 +313,7 @@ struct Audio {
     // One of `unit`'s speech lines playing (FUN_004b9700 on it: rules::speech_row).
     bool speaking(std::uint64_t unit) {
         return unit != 0 && std::ranges::any_of(sfx, [&](const Channel& channel) {
-            if (!channel.src || channel.unit != unit || !d2d::rules::speech_row(channel.sound)) return false;
+            if (!channel.src || (channel.unit != unit && !std::ranges::contains(channel.merged, unit)) || !d2d::rules::speech_row(channel.sound)) return false;
             ALint state = AL_STOPPED;
             alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
             return state == AL_PLAYING || state == AL_PAUSED;
@@ -318,6 +322,7 @@ struct Audio {
     void started(Channel& channel, const GameData& game_data, int index, std::uint64_t unit) {
         channel.group_base = game_data.sounds[std::size_t(index)].group_base;
         channel.unit = unit;
+        channel.merged.clear();
         channel.start_tick = sound_tick;
     }
     // AL_SOFT_direct_channels: a split world sound's two buffers go each

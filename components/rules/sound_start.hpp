@@ -21,6 +21,11 @@ struct SoundInstance {
     std::uint64_t unit = 0;         // the unit it plays on, 0 for none (instance +0x28)
     std::int64_t start_tick = 0;    // instance +0x34
     bool stopping = false;          // told to stop (instance +0x3d)
+    // The units a Compound merge added (the list at +0x28 past the first,
+    // FUN_004b9760): it counts as playing on them too.
+    std::span<const std::uint64_t> merged{};
+    // Playing on `on` (FUN_005169d0: a walk of the list).
+    [[nodiscard]] bool plays_on(std::uint64_t on) const { return unit == on || std::ranges::find(merged, on) != merged.end(); }
 };
 
 // The row being started.
@@ -59,14 +64,14 @@ inline SoundClash start_clash(std::span<const SoundInstance> playing, const Soun
     if (rule.defer || rule.stop_inst) {   // the oldest of its group, on its unit when it has one (FUN_004b9690)
         for (std::size_t k = 0; k < playing.size(); ++k) {
             const auto& other = playing[k];
-            if (other.group_base != rule.group_base || (unit != 0 && other.unit != unit)) continue;
+            if (other.group_base != rule.group_base || (unit != 0 && !other.plays_on(unit))) continue;
             if (!clash.other || other.start_tick < playing[*clash.other].start_tick) clash.other = k;
         }
     }
     if (unit != 0 && speech_row(rule.row)) {   // a unit's speech: any of its lines playing (FUN_004b9700)
         clash.other.reset();
         for (std::size_t k = 0; k < playing.size() && !clash.other; ++k)
-            if (playing[k].unit == unit && speech_row(playing[k].row)) clash.other = k;
+            if (playing[k].plays_on(unit) && speech_row(playing[k].row)) clash.other = k;
     }
     if (rule.defer && unit == 0 && positioned) clash.other.reset();   // plays over whatever plays
     if (clash.other) {
