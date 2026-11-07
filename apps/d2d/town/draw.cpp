@@ -282,6 +282,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         }
         if (pad_target) hovered_npc = pad_hover_npc(pad_action_pick());
         view_overlays(framebuffer, *scene, view, hovered_monster(), cam_x, cam_y, unit.x, unit.y, &light);
+        draw_hold_cue(framebuffer);
         if (!coop_hud_hidden() || skillbar.picking) skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
         if (net_game && net_game->trade.state != 0) {
@@ -443,6 +444,26 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
 
 // The field's pad prompt over the control panel: the button A is bound to,
 // and what it does to the thing it hovers. A d2d extra: game.exe has no pad.
+auto Town::draw_hold_cue(std::vector<std::uint8_t>& framebuffer) const -> void {
+        if (!scene || pad_hold_text.empty()) return;
+        const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
+        const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+        const int text_x = std::max(4, (int(kScreenWidth) - font.measure(pad_hold_text)) / 2);
+        const int text_y = int(kScreenHeight) - 0x88;
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, text_x, text_y, pad_hold_text, 199, 179, 119);
+        if (pad_hold_fraction <= 0.f) return;
+        const int width = 96, left = (int(kScreenWidth) - width) / 2, top = text_y + font.line_height() + 2;
+        const int filled = int(float(width) * std::clamp(pad_hold_fraction, 0.f, 1.f));
+        for (int y = top; y < top + 4 && y < int(kScreenHeight); ++y)
+            for (int x = left; x < left + width && x < int(kScreenWidth); ++x) {
+                auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];
+                const bool filled_here = x - left < filled;
+                pixel[0] = filled_here ? 199 : 40;
+                pixel[1] = filled_here ? 179 : 32;
+                pixel[2] = filled_here ? 119 : 24;
+            }
+    }
+
 auto Town::pad_action_pick() -> PadPick {
         const UnitState& unit = focused().player;
         if (pad_config.skill_buttons) return pad_pick(pad, unit, true, {}, false);
