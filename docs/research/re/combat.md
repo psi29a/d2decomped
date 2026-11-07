@@ -430,7 +430,12 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   stat 67 (100; running run × 100 / walk), at least 25, on the walk
   velocity and on the walk's animation (RN 0x65, WL / TW 0xd5, char-select.md
   "Unit animation timing"); attack % = effective IAS + stat 68, 15..175 (attack_ticks'
-  eias, chill as −50 SIAS). A monster (0x623f50 on): its cast mode (SC, 7:
+  eias, chill as −50 SIAS). Only stat 93 (item_fasterattackrate, by the
+  table 0x6e8e24's row: `FUN_00621740`) goes through 120 v / (120 + v);
+  stat 68 (attackrate: a weapon's speed as its own stat 68, the auras' and
+  skills' SIAS, chill's −50) is added as it is (0x6241e7..). So an aura's
+  attackrate (Fanaticism) is SIAS, not IAS (d2d: `Fighter::sias`; V:
+  `tools/emu/player_attack_rate.py`, `test_player_attack_rate`). A monster (0x623f50 on): its cast mode (SC, 7:
   `FUN_006216e0`) runs at min(100 + effective FCR, 175) % of its AnimData
   speed, stat 68 / 69 not read; an attack mode (`FUN_00621580`: A1 / A2,
   and S1..S4 / SQ while the unit's current skill has UseAttackRate) at effective IAS + stat 68

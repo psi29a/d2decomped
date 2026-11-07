@@ -65,6 +65,7 @@ struct Fighter {
     int hit_class = 1;                              // the weapon's (Weapons.txt hit class; 1 hand to hand), FUN_00623c20
     int life_steal = 0, mana_steal = 0;             // %
     int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0, fcr = 0;
+    int sias = 0;           // stat 68 attackrate the states give (auras, skills): added raw, not diminished (FUN_00623f50, 0x6241e7)
     int velocity_pct = 0;   // stat 0x43 velocitypercent on top of the 100 (Vigor, Burst of Speed, ...)
     int defense = 0, block = 0;                     // block %, standing still
     int def_melee = 0, def_missile = 0;             // stats 33 / 32: extra defense vs each
