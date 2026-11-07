@@ -1,10 +1,9 @@
 name: Coverity Scan
 
 on:
-  # A merged PR updates main, so this also scans every PR merge.
-  push:
-    branches:
-      - main
+  # Twice a day on main (08:00 and 16:00 UTC), not per merge: Scan's build quota is a few a day.
+  schedule:
+    - cron: '0 8,16 * * *'
   workflow_dispatch:
 
 permissions:
