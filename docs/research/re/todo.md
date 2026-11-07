@@ -38,7 +38,7 @@ Ranked by Seen, then by how much play it touches.
 | 38 | A walk to an NPC or object that stops without moving drops the interact; game.exe's client keeps it and re-plans each frame until another action | exact | yes | collision.md "What keeps a walk to a unit going"; world/tick.cpp "blocked on the way" |
 | 39 | A walk to an NPC ends at the server's reach (under 7, no line test), not the client's melee range with a clear line (FUN_00480c80 → FUN_00622c40) | exact | yes | collision.md "How near the client walks"; world/tick.cpp `in_reach` |
 | 40 | One click on the ground re-plans after a blocked or short path while it moves; game.exe's walk to a spot ends there | exact | maybe | collision.md "A walk to a spot just ends"; world/tick.cpp "Short of the target with a step made" |
-| 41 | `follow_path` tests each frame's end point, its own subtile too; game.exe tests only a new subtile and every one crossed (FUN_00650150 from LAB_006501c0), so with a blocker come onto its footprint d2d's unit can't move inside its subtile and game.exe's can | exact | hardly | collision.md "A walk's stop"; ai.cpp `follow_path` |
+| 41 | `follow_path` tests the end of a step short of its next point, its own subtile too, and not a point it reaches; game.exe tests only a new subtile and every one crossed (FUN_00650150 from LAB_006501c0), so with a blocker come onto its footprint d2d's unit can't make a short step inside its subtile and game.exe's can | exact | hardly | collision.md "A walk's stop"; ai.cpp `follow_path` |
 
 ## Sounds
 
