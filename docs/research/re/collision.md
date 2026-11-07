@@ -515,6 +515,13 @@ EAX); read the asm for them.
   not interact test at gamedata.cpp:151 and the pet case on the caller's
   side. The register arguments of the `FUN_00457490` call were not read in
   the asm, so "bit 1 of +0xd" is taken from the earlier "Pattern" text.
+- **Path x, `FUN_006488c0`** (path): the word at path +2 (the subtile x;
+  a position is a 16.16 dword at +0, so +2 is its integer part). A null
+  path raises the "Unrecoverable internal error" (`FUN_00408090(0x692)`,
+  `FUN_00408a60`, `FUN_00681e09(-1)`). Callers include `FUN_0045adf0`,
+  `FUN_0045b1e0`, `FUN_00460830`, `FUN_00649400` (its type 0 / 1 branch).
+  d2d: reads the same, cited from the decompile, no oracle run; the subtile x of the stamp (act1-end.md, monster-ai.md
+  cite it); the assert line 0x692 is the same as in missiles.md.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
