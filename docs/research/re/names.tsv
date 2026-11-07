@@ -275,6 +275,7 @@ address	name	evidence
 0055fde0	itemmode_refresh	FUN_0055dbc0(0), FUN_00621000
 0055fe00	item_flag10_refresh	flag 0x10, FUN_0062ff70
 0055fe60	itemmode_55c2c0_0	FUN_0055c2c0(arg, 0)
+0055fe80	item_recharge	(owner, item): every stat 0xcc (item_charged_skill) entry whose low byte is below its max (value >> 8) is set back to max through FUN_0065c940; for a player owner also sends the stat update (FUN_0053d130); returns whether any changed
 00560420	c2s_19_to_cursor	ItemMode.cpp 0x936..0x978
 00561b00	c2s_1f_grid_swap	box code, ItemMode.cpp 0xec0..0xf4b
 00561e70	item_tell_and_back	ItemMode.cpp 0xf94, FUN_0055ed30
