@@ -420,6 +420,13 @@ By reading both are small, a few subtiles of where a walk ends; neither was meas
   further piece. Callers: `FUN_0064ea00` (shape 3), `FUN_0064ddf0` (the 3x3
   square), `FUN_0064de30`. The register arguments are hidden in the C; the
   rect layout is read from `FUN_0064cd70` (+0 x0, +4 y0, +8 x1, +0xc y1).
+- **Plus, `FUN_0064dc80`** (room, bits; the subtile in registers): five
+  blocks in a row, each `FUN_00463740` for the cell, then its room's grid
+  (`FUN_0061a010`), then `word[(y - y0) * w - x0 + x] |= bits`: (x - 1, y),
+  (x, y), (x + 1, y), (x, y - 1), (x, y + 1). Each cell finds its own
+  room, so an edge cell lands in the next room's grid; one with no room
+  holding it is skipped. d2d: reads the same, cited from the decompile, no oracle run (this is the plus of the table above;
+  `shrines.hpp` `in_doorway` uses it).
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
