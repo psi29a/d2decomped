@@ -434,3 +434,27 @@ d2d: **DISAGREES.** fight/missiles.cpp:701 treats stat 328 as a percent:
 `pierce && rng(100) < psum[kPierceIndex]` on the shooter's summed
 passives, drawing one rng per hit. game.exe draws none and counts down a
 stat on the missile, gated on the owner's stats 0xa6 / skill 0x9c.
+
+## Server hit function 20 helper — FUN_005ab2a0 (area callback)
+
+Cited. The per-unit callback `FUN_005ab370` (hit 20) hands to the area
+walker `FUN_0056b7e0`. ECX is the walker's state (+8 the units handled so
+far, +0xc a context block of six words), EDX the struck unit. Context:
+[0] owner unit, [1] the missile unit, [2] skill id, [3] skill level,
+[4] the most units to serve, [5] the Missiles.txt row to make.
+
+It returns 0 (stop) once `ctx[4] <= state[+8]`. Otherwise it fills a
+`FUN_0059fa30` param block (0x5c bytes, zeroed): flags **0x20** (aim at a
+subtile, start from unit [2]), [1] owner, [2] the missile unit, [4] the
+row, [7] / [8] the unit's subtile x / y (`FUN_006488c0` / `FUN_00648900`
+for monsters and players and missiles; the data block's +0xc / +0x10 for
+objects, items and tiles: types 2, 4, 5), [0xb] skill, [0xc] level. It
+makes the missile and returns 1. The result is not tested, and it does
+not skip the unit that the missile struck.
+
+Re-check: `python3 tools/ghidra/fn.py 005ab2a0`,
+`python3 tools/ghidra/fn.py 0059fa30` (param [2] is the start unit when
+flag 1 is clear: `FUN_0045adf0` / `FUN_0045ae20` of it).
+
+d2d: not ported on its own; `Fight::burst` case 20 (fight/missiles.cpp)
+inlines it (see the next section for what differs).
