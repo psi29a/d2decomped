@@ -164,5 +164,12 @@ in text colour 1 (`FUN_004aa3a0`, `FUN_004a8d30`), and a cast stops with
 the class's `impossible_1` (`FUN_004610c0`). The picker, cast and voice
 paths are in skills.md "Item charges"; `test_game` covers the gate.
 
-Still open (`ponytail:` in `skill_refused`): the other statuses of
-`FUN_00647960`.
+Throw passes the weapon-type gate too (traced 2026-11-07): after
+`FUN_00647640` says yes, `FUN_00647960` calls `FUN_00643f80` for every
+skill, Throw included (from LAB_006479f8), and Throw's itypea1 is `thro`.
+So a weapon must be Throwable (or stat 125) and of type thro in a hand;
+a stat-125 weapon of another type is still status 2. No 1.14d item has
+stat 125, so d2d's `throw_ready` alone answers the same. Oracle:
+`tools/emu/skill_status.py` cases throw_throwable,
+throw_throwable_weapon_gate, throw_not_throwable. The other statuses are
+in skills.md "Can the skill go now".
