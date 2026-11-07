@@ -203,6 +203,7 @@ address	name	evidence
 00648480	monster_path_mask	(unit in EAX): MonStats row flag +0xd & 0x40 flying 0x1804, else +0xc & 8 opendoors 0x3401, else 0x3c01; no null check on the row (collision.md "Building a path")
 00648580	unit_path_pattern	(unit, SizeX): table 0x6eb3dc (0, 1, 1, 2; over 3: 1); 1 / 2 become 3 / 4 for a town or owned unit (FUN_0063e860) that isn't interact (collision.md "Building a path")
 006488c0	path_get_x	(path): the word at path +2 (subtile x); null path raises the internal error, line 0x692 (collision.md "Building a path")
+00648900	path_get_y	(path): the word at path +6 (subtile y); null path raises the internal error, line 0x69d (collision.md "Building a path")
 00648c30	path_restamp_bits	(path, bits): lifts the stamp at path +0x4c (FUN_0064eba0 for an owner of type 3, else FUN_0064ec10), stores bits, stamps them (FUN_0064ea00 / FUN_0064ea90) (collision.md "The stamp family")
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
