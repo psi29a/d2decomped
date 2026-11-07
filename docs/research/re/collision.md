@@ -454,6 +454,19 @@ By reading both are small, a few subtiles of where a walk ends; neither was meas
   point / plus / box is read from the set side and from `FUN_0064ec10`
   (plus `FUN_0064da40` and point `FUN_0064db70` for patterns 1 / 3); the
   bodies of the three clears were not read here. d2d: not ported.
+- **Restamp a path's bits, `FUN_00648c30`** (path, new bits): the path is
+  the unit's +0x2c record: room +0x1c, x +2, y +6 (words), the owner
+  at +0x30 (its first dword is the unit type), shapes +0x44 and +0x48, the
+  bits now stamped +0x4c. With a room it first lifts the old bits: for an
+  owner of type 3 `FUN_0064eba0` with the shape at +0x44, otherwise
+  `FUN_0064ec10` (the pattern clear, collision.md "Pathing") with the
+  pattern at +0x48. Then it stores the new bits at +0x4c and, with a room,
+  stamps them: type 3 `FUN_0064ea00` with +0x44, otherwise `FUN_0064ea90`
+  with +0x48. So a type 3 owner (a missile) stamps by point / plus / box,
+  every other owner, or none (null +0x30), by pattern. Callers: `FUN_0045d160`, `FUN_00460bf0`,
+  `FUN_0046ccd0`, `FUN_0046d310`, `FUN_004ae8d0`, `FUN_00649f70`. d2d: not
+  ported; no disagreement found. The unit-type and field readings come from
+  the decompile only (not run).
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
