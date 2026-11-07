@@ -100,8 +100,8 @@ auto Fight::needs_ammo(const d2d::rules::Skill& skill) const -> bool {
         return skill.decquant || skill.srvdofunc == ServerDoFunction::kThrow || skill.srvstfunc == ServerStartFunction::kCheckAmmo;
     }
 
-auto Fight::spend_ammo() -> void {
-        const int index = ammo_index();
+auto Fight::spend_ammo(int index) -> void {
+        if (index < 0) index = ammo_index();
         if (index < 0) return;
         if (--actor->character.items[std::size_t(index)].quantity <= 0) out_of_ammo(std::size_t(index));
     }

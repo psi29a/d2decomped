@@ -98,23 +98,22 @@ inline bool throwable(const GameData& game_data, const std::string& code) {
     const auto found = game_data.rules.item_base.find(code);
     return game_data.thrown.contains(code) && found != game_data.rules.item_base.end() && found->second.stackable;
 }
-// Throw's weapon gate (FUN_00647640, skill 2): the weapon in hand
-// (FUN_0063c9b0: the right hand's, else the left's, of type weap 0x2d and
-// usable, not flag 0x100 broken / 0x4000: FUN_0062a4e0) is a throwable or
-// has stat 125 (item_throwable). A spent magic stack stays in hand broken
+// Throw's weapon gate (FUN_00647640, skill 2): the item Throw takes
+// (rules::throw_hand: the first usable weapon in hand, right then left, or
+// when that isn't the wielded one, the other hand's item) is a throwable
+// or has stat 125 (item_throwable). Only a dual-wielder (FUN_006235a0:
+// barbarian, assassin) may take the other hand's; anyone else's first
+// weapon must be the wielded one. A spent magic stack stays in hand broken
 // (Fight::out_of_ammo), so it can't throw. docs/research/re/throw.md.
-// No 1.14d item rolls stat 125 (stubs.md), so Fight::ammo_index and the
-// launch take only a throwable.
-// ponytail: a dual-wielder (FUN_006235a0: barbarian, assassin) with two
-// weapons: either counts here; game.exe takes the primary (FUN_0063bef0,
-// inventory +0x1c), else the other hand's (FUN_00643d60).
+// No 1.14d item rolls stat 125 (stubs.md), so the launch takes only a
+// throwable.
 inline bool throw_ready(const GameData& game_data, const Character& character) {
-    return std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) {
-        if (item.location != d2d::d2s::item_location::kEquipped || (item.slot != d2d::d2s::body_location::kRightArm && item.slot != d2d::d2s::body_location::kLeftArm)) return false;
-        const auto info = game_data.rules.item_info.find(item.code);
-        if (info == game_data.rules.item_info.end() || !d2d::rules::type_is(game_data.rules, info->second.type, "weap") || (item.flags & 0x4100u) != 0) return false;
-        return throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; });
-    });
+    bool wielded = false;
+    const int index = d2d::rules::throw_hand(game_data.rules, character.items, &wielded);
+    const int cls = character.header.cls;
+    if (index < 0 || (!wielded && cls != d2d::d2s::kBarbarian && cls != d2d::d2s::kAssassin)) return false;
+    const auto& item = character.items[std::size_t(index)];
+    return throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; });
 }
 // FUN_00643d90: one hand's item type ("" none) against one of a skill's sets. No item: the set is empty, or its
 // itype1 is weap / mele / h2h (ItemTypes 0x2d / 0x2e / 0x43) and neither hand holds a weapon (FUN_00629bb0(.., 0x2d)).
@@ -890,7 +889,7 @@ struct Fight {
     // FUN_0056f070's 0x1b), a skill with decquant (FUN_0056f7f0), Throw
     // (FUN_0056f460); the ammo checks (srvstfunc 4, FUN_005da8b0) too.
     [[nodiscard]] bool needs_ammo(const d2d::rules::Skill& skill) const;
-    void spend_ammo();
+    void spend_ammo(int index = -1);   // that item, or ammo_index()'s
     // Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
     // (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
     // the inventory's first of its code (not broken) takes its slot if it

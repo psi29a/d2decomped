@@ -1056,13 +1056,13 @@ int main(int argc, char** argv) try {
         std::erase_if(thrower.character.items, [](const d2d::d2s::Item& item) { return item.location == loc::kEquipped && (item.slot == body::kRightArm || item.slot == body::kLeftArm); });
         assert(skill_base_level(*data, thrower.character, skill) == 1 && skill_refused(*data, thrower.character, skill));
         d2d::d2s::Item axe;
-        axe.code = "hax"; axe.location = loc::kEquipped; axe.slot = body::kRightArm; axe.id = 9101;
+        axe.code = "hax"; axe.location = loc::kEquipped; axe.slot = body::kRightArm; axe.id = 9101; axe.wielded = true;
         thrower.character.items.push_back(axe);
         assert(skill_refused(*data, thrower.character, skill));                        // a weapon, not a throwable
         thrower.character.items.back().props = { { .stat = 125, .value = 1 } };
         assert(!skill_refused(*data, thrower.character, skill));                       // stat 125 lets it throw
         d2d::d2s::Item javelins;
-        javelins.code = "jav"; javelins.location = loc::kEquipped; javelins.slot = body::kLeftArm; javelins.id = 9102; javelins.quantity = 5;
+        javelins.code = "jav"; javelins.location = loc::kEquipped; javelins.slot = body::kLeftArm; javelins.id = 9102; javelins.quantity = 5; javelins.wielded = true;
         thrower.character.items.back() = javelins;
         assert(skill_base_level(*data, thrower.character, skill) == 1 && !skill_refused(*data, thrower.character, skill));
         thrower.character.items.back().flags |= 0x100u;                                // a spent magic stack, broken in hand (FUN_0062a4e0)
@@ -1098,6 +1098,24 @@ int main(int argc, char** argv) try {
         thrower.character.items.push_back(javelins);                                   // javelins back: it throws
         assert(world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 120) && thrower.pmode >= 0);
         thrower.pmode = -1;
+        {   // A dual-wielder (FUN_006235a0): Throw takes the first usable weapon
+            // in hand, right then left (FUN_0063c9b0), when it's the wielded
+            // one (inventory +0x1c), else the other hand's (FUN_00643d60).
+            const auto cls_before = thrower.character.header.cls;
+            thrower.character.header.cls = d2d::d2s::kBarbarian;
+            auto right_axe = axe;
+            right_axe.props.clear();
+            thrower.character.items.push_back(right_axe);
+            auto& left = thrower.character.items[thrower.character.items.size() - 2];
+            auto& right = thrower.character.items.back();
+            assert(left.code == "jav" && right.code == "hax");
+            left.wielded = false; right.wielded = true;
+            assert(skill_refused(*data, thrower.character, skill));                    // the wielded axe isn't a throwable
+            left.wielded = true; right.wielded = false;
+            assert(!skill_refused(*data, thrower.character, skill));                   // the axe isn't wielded: the javelins
+            thrower.character.items.pop_back();
+            thrower.character.header.cls = cls_before;
+        }
         if (data->patched) assert(data->sound_index.at("amazon_impossible_1") == 0xb89);
         // Utrans 255 (necroskeleton) on a monster that isn't a pet: 0 (FUN_004791b0, 0x46665c).
         Monster skeleton;
