@@ -274,8 +274,9 @@ paths I read in the decompile return 1.
   server skill function number sHitPar1 at the missile's skill and level.
 
 d2d: not ported as a hit function (`git grep` for hit_func 23 finds no
-case). The general FUN_0056d810 table dispatch is not ported either; only
-the `srv_do == 14` case with Param2 = the curse function is (fight/missiles.cpp:535).
+case). The general FUN_0056d810 table dispatch is not ported either. d2d
+handles one case only: `srv_do == 14` with Param2 = the curse function
+(fight/missiles.cpp:535); no other table index is dispatched.
 
 ## Server damage functions 1, 2, 4 and 12 — FUN_005ad050, FUN_005ad1b0, FUN_005ad290, FUN_005ad0f0
 
