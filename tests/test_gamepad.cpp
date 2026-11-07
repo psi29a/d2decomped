@@ -418,5 +418,17 @@ int main() {
         assert(panel.step(right, Context::Panel, 0.10f).snap_x == 1);
         assert(panel.step(Sample{}, Context::Panel, 0.05f).snap_x == 0);
     }
+    // Skill buttons: X drops in the inventory and buys in a shop. The normal layout's X is still Character.
+    {
+        Mapper skill{ skill_buttons_config({}) };
+        const Actions dropped = skill.step(with(Button::West), Context::Panel, 0.016f);
+        assert(dropped.drop_press && !has(dropped, Key::Character));
+        skill.step(Sample{}, Context::Shop, 0.016f);
+        const Actions bought = skill.step(with(Button::West), Context::Shop, 0.016f);
+        assert(bought.trade_press && !bought.drop_press);
+        Mapper normal;
+        const Actions character = normal.step(with(Button::West), Context::Panel, 0.016f);
+        assert(has(character, Key::Character) && !character.drop_press && !character.trade_press);
+    }
     return 0;
 }

@@ -569,6 +569,18 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
         return points;
     }
 
+// The inventory item under the cursor, or nullptr. Not the stash, the cube or the belt.
+auto Town::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
+        if (!scene || !inv_open) return nullptr;
+        const auto& inventory = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+        for (const auto& item : character.items) {
+            if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
+            const auto rect = grid_rect(*scene, inventory, item);
+            if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) return &item;
+        }
+        return nullptr;
+    }
+
 // A store's X: the stock under the cursor bought, the inventory item under
 // it sold, or the one held sold (as a drop on the stock grid).
 auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
@@ -580,6 +592,17 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
             if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
             const auto rect = grid_rect(*scene, inv, item);
             if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { send(cmd::Sell{ item.id }); return; }
+        }
+    }
+
+// Skill buttons, inventory only. A shop's X stays Buy. The item in hand drops.
+// A bag item is picked up and dropped in that order: if the pick-up is refused the drop matches nothing.
+auto Town::pad_drop(int mouse_x, int mouse_y) -> void {
+        if (!pad_config.skill_buttons || store.npc >= 0 || !inv_open) return;
+        if (held) { send(cmd::Drop{ held->id }); return; }
+        if (const d2d::d2s::Item* item = bag_at(mouse_x, mouse_y)) {
+            send(cmd::ToCursor{ item->id });
+            send(cmd::Drop{ item->id });
         }
     }
 

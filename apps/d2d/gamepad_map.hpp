@@ -48,7 +48,7 @@ struct Sample {                       // one frame of a pad: sticks -1..1, trigg
 // layout: the confirm button clicks, the other one backs out, the d-pad steps.
 enum class Action { Primary, Secondary, Back, GameMenu, Inventory, Character, SkillTree, QuestLog, Automap, ToggleRun,
                     SwapWeapons, SkillPicker, Recentre, Belt1, Belt2, Belt3, Belt4, Trade, TabPrev, TabNext,
-                    SkillSouth, SkillEast, SkillWest, SkillNorth, SkillLeft, SkillRight, MainSkill, Interact, Count };
+                    SkillSouth, SkillEast, SkillWest, SkillNorth, SkillLeft, SkillRight, MainSkill, Interact, DropItem, Count };
 
 // How long a left-trigger press may be and still count as a tap (weapon
 // swap). Longer than this, or a press that also casts, is the second skill set.
@@ -77,6 +77,7 @@ inline constexpr std::array<unsigned, std::size_t(Action::Count)> kWhere = {
     where::kShop, where::kShop, where::kShop,      // Trade, TabPrev, TabNext
     where::kField, where::kField, where::kField, where::kField, where::kField, where::kField,   // the six skill slots
     where::kField, where::kField,                  // MainSkill (RT), Interact
+    where::kPanel,                                 // DropItem: the inventory, not a shop
 };
 // Where the d-pad is the cursor's hops, so no action can have it.
 inline constexpr unsigned kDpadHops = where::kPanel | where::kShop | where::kDialog;
@@ -87,7 +88,8 @@ inline constexpr std::array<std::string_view, std::size_t(Button::Count)> kButto
 inline constexpr std::array<std::string_view, std::size_t(Action::Count)> kActionNames = {
     "primary", "secondary", "back", "game_menu", "inventory", "character", "skill_tree", "quest_log", "automap", "toggle_run",
     "swap_weapons", "skill_picker", "recentre", "belt_1", "belt_2", "belt_3", "belt_4", "trade", "tab_prev", "tab_next",
-    "skill_south", "skill_east", "skill_west", "skill_north", "skill_left", "skill_right", "main_skill", "interact" };
+    "skill_south", "skill_east", "skill_west", "skill_north", "skill_left", "skill_right", "main_skill", "interact",
+    "drop_item" };
 
 // The pad's family, for the labels printed on its buttons.
 enum class Family { Xbox, PlayStation, Nintendo, Deck };
@@ -123,6 +125,7 @@ struct Bindings {
         put(Action::SkillSouth, kNone);             put(Action::SkillEast, kNone);      put(Action::SkillWest, kNone);
         put(Action::SkillNorth, kNone);             put(Action::SkillLeft, kNone);      put(Action::SkillRight, kNone);
         put(Action::MainSkill, kNone);              put(Action::Interact, kNone);
+        put(Action::DropItem, kNone);
     }
     [[nodiscard]] const Pair& operator[](Action action) const { return buttons[std::size_t(action)]; }
     Pair& operator[](Action action) { return buttons[std::size_t(action)]; }
@@ -204,6 +207,7 @@ struct Config {
     config.bindings[Action::SkillRight] = { Button::RightShoulder, Bindings::kNone };
     config.bindings[Action::MainSkill] = { Button::RightTrigger, Bindings::kNone };
     config.bindings[Action::Interact] = { Button::RightStick, Bindings::kNone };
+    config.bindings[Action::DropItem] = { Button::West, Bindings::kNone };
     return config;
 }
 
@@ -285,7 +289,8 @@ struct Actions {
     bool  move_active = false;                     // the left stick walks the hero...
     float move_x = 0, move_y = 0;                  // ...towards this screen direction (unit length); walk or run is the run toggle's
     int   snap_x = 0, snap_y = 0;                  // a panel's d-pad press: hop the cursor this way (-1..1 each)
-    bool  trade_press = false;                     // a store's X: buy or sell what's under the cursor
+    bool  trade_press = false;                     // a store's X: buy the stock under the cursor
+    bool  drop_press = false;                      // skill buttons: X drops the inventory item under the cursor
     int   tab_step = 0;                            // a store's shoulders: the tab before (-1) or after (1)
     int   focus_step = 0;                          // the menus' shoulders: the screen's button before (-1) or after (1)
     bool  modifier_held = false;                   // skill buttons: the second set
@@ -468,6 +473,7 @@ public:
             key(Action::Belt3, Key::Belt3);
             key(Action::Belt4, Key::Belt4);
             out.trade_press = hit(Action::Trade);
+            out.drop_press = hit(Action::DropItem);
             out.tab_step = int(hit(Action::TabNext)) - int(hit(Action::TabPrev));
             if (skills && (context == Context::Game || wheel)) {
                 static constexpr std::array<Action, 6> kSkillSlots = { Action::SkillSouth, Action::SkillEast, Action::SkillWest,

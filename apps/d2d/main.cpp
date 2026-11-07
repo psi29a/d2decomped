@@ -1058,6 +1058,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 }
             }
             if (pad_actions.trade_press) town.pad_trade(mouse.x, mouse.y);
+            if (pad_actions.drop_press) town.pad_drop(mouse.x, mouse.y);
             if (pad_actions.tab_step != 0) town.pad_tab(pad_actions.tab_step);
             if (pad_actions.click_press && !pad_field)   { mouse.down = true;  mouse.press_this_frame = true; }
             if (pad_actions.click_release && mouse.down) { mouse.down = false; mouse.release_this_frame = true; }

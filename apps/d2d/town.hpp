@@ -388,7 +388,9 @@ struct Town {
     struct PadFocus { int key = 0, x = 0, y = 0; };
     [[nodiscard]] std::optional<PadFocus> pad_focus() const;
     [[nodiscard]] std::vector<pad::Point> pad_snap_points() const;
+    [[nodiscard]] const d2d::d2s::Item* bag_at(int mouse_x, int mouse_y) const;
     void pad_trade(int mouse_x, int mouse_y);
+    void pad_drop(int mouse_x, int mouse_y);
     // The pad's Secondary (B) is Back with the gold box up, or where the stash
     // or Cube is up (no key toggles them) and the cursor's on no item: true when it's taken.
     [[nodiscard]] bool pad_back(int mouse_x, int mouse_y) const;
