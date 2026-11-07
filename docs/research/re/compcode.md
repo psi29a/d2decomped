@@ -84,6 +84,19 @@ necromancer's head, 16 none):
 
 Checked against all 20 real saves (test_d2s). d2d rebuilds the look each
 tick (`GameData::look_of`), so equipping changes it.
+
+The body-armour layers and their tiers, in `FUN_0063e510` (the save's look)
+and `FUN_004db7b0`'s COF parameters: `FUN_0064f420(layer)` is 1 for TR, LG,
+RA, LA, S1, S2 (layers 1, 2, 3, 4, 8, 9) only. `FUN_0063d690` copies the
+armour's ItemsTxt bytes +0x116..+0x11b, which `FUN_006315d0`'s column list
+names rArm, lArm, torso, legs, rspad, lspad, in that order (six zeros for no
+item). `FUN_0064f500(layer, bytes)` takes TR torso, LG legs, RA rArm, LA
+lArm, S1 rspad, S2 lspad; any other layer is fatal (`Composit.cpp` line
+0x274, 0x265 for 16 and up). d2d's `compcode::look` uses the same layers
+and columns (`kTier`). Verified by `tools/emu/composit_layers.py`, which
+also reads both tables from compcode.hpp, and checks that
+`each_layer`'s `kLayer` lists the same layers.
+
 ### Tints (+0x98)
 
 Each drawn layer's tint = ((its armor / weapons.txt Transform x 32) + 1 +
