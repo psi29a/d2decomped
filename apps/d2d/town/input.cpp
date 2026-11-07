@@ -628,29 +628,34 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         query.bag = item != nullptr;
         query.store_mode = store.mode;
         if (item && scene) query.potion = potion_code(item->code) || scene->rules.potions.contains(item->code);
-        PadHoldKind kind = pad_hold_button(query, pad_south_down, false);
-        if (kind != PadHoldKind::Fill) kind = PadHoldKind::None;
-        if (!pad_south_down && pad_hold.armed && pad_hold.context == int(PadHoldKind::Fill)) kind = PadHoldKind::Fill;
-        const bool eligible = kind == PadHoldKind::Fill;
+        PadHoldKind kind = pad_hold_button(query, pad_south_down, pad_rt_down);
+        if (kind != PadHoldKind::Fill && kind != PadHoldKind::FillOne) kind = PadHoldKind::None;
+        if (!pad_south_down && !pad_rt_down && pad_hold.armed && (pad_hold.context == int(PadHoldKind::Fill) || pad_hold.context == int(PadHoldKind::FillOne)))
+            kind = PadHoldKind(pad_hold.context);
+        const bool eligible = kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne;
         const int item_id = item ? item->id : -1;
         pad_hold.delay = pad::kHoldFillSeconds;
-        if (!inv_open || (pad_hold.armed && !pad_south_down && pad_hold.context != int(kind))) {
+        const bool button_down = pad_south_down || (pad_rt_down && kind == PadHoldKind::FillOne);
+        const bool edge = pad_south_down ? pad_south_edge : pad_rt_edge;
+        if (!inv_open || (pad_hold.armed && !button_down && pad_hold.context != int(kind))) {
             pad_hold.clear();
             return;
         }
-        const hold_confirm::Step step = pad_hold.step(pad_south_edge, pad_south_down, eligible, item_id, int(kind), seconds);
+        const hold_confirm::Step step = pad_hold.step(edge, button_down, eligible, item_id, int(kind), seconds);
         const bool tracking = pad_hold.armed && !pad_hold.cancelled;
         if (tracking || step == hold_confirm::Step::Click || step == hold_confirm::Step::Act) mouse.press_this_frame = false;
         const bool can_potion = query.potion && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
         if (can_potion) {
             if (tracking) pad_hold_fraction = pad_hold.fraction();
-            pad_hold_text = std::string("Hold ") + std::string(pad::label(pad_family, pad::Button::South)) + " to fill belt.";
+            const std::string_view aye = pad::label(pad_family, pad::Button::South);
+            const std::string_view trigger = pad::label(pad_family, pad::Button::RightTrigger);
+            pad_hold_text = std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
         }
         if (step == hold_confirm::Step::Click && scene) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                     { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
             if (click.cmd) send(*click.cmd);
-        } else if (step == hold_confirm::Step::Act && item && kind == PadHoldKind::Fill && scene) {
+        } else if (step == hold_confirm::Step::Act && item && (kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne) && scene) {
             auto trial = character.items;
             const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
             std::vector<int> moved;
@@ -661,8 +666,9 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
                 return potion_code(code) || scene->rules.potions.contains(std::string(code));
             };
             try_item(item->id);
-            for (const auto& carried : character.items)
-                if (carried.id != item->id && is_potion(carried.code)) try_item(carried.id);
+            if (kind == PadHoldKind::Fill)
+                for (const auto& carried : character.items)
+                    if (carried.id != item->id && is_potion(carried.code)) try_item(carried.id);
             for (const int carried_id : moved) send(cmd::AutoBelt{ carried_id });
         }
     }
