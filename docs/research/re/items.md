@@ -475,6 +475,18 @@ an item with hasinv, with a free socket) and the item-text builders
 d2d: reads the same, cited from the decompile, no oracle run. `rules.hpp:99` names the same field (`hasinv (+0x137)`) and
 item_text.hpp:430 cites `FUN_00629900` for the rune-letter line.
 
+### Does the item take sockets (`FUN_00629900`)
+
+Cited. For an item unit (type 4), returns the Items record's byte +0x137
+(`FUN_006335f0(unit +4)`), the `hasinv` column; 0 for no unit, another unit
+type or no record. Callers include `FUN_00562660` (a filler goes only into
+an item with hasinv, with a free socket) and the item-text builders
+(`FUN_00483ff0`, `FUN_004843e0`, `FUN_004845a0`, `FUN_0048b540`,
+`FUN_0048dd90`).
+
+d2d: reads the same, cited from the decompile, no oracle run. `rules.hpp:99` names the same field (`hasinv (+0x137)`) and
+item_text.hpp:430 cites `FUN_00629900` for the rune-letter line.
+
 ## Ground items sent to a client (`FUN_0055bed0` chain)
 
 In call order, callee first. Status: cited, not proven; no oracle was run.
