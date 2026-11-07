@@ -59,6 +59,14 @@ inline constexpr int kHellgate = 46;        // the red portal to the Pandemonium
 // boss, FUN_005b6b70..), Tyrael's last portal to Harrogath (FUN_005b5880).
 inline constexpr int kBurningSoul = 48, kHellforge = 49, kSeal = 52, kSealInfector = 54, kSealDeSeis = 55, kSealVizier = 56, kLastPortal = 73;
 inline constexpr int kCubeChest = 39, kScrollChest = 40, kShaftChest = 41;   // the Horadric Staff's chests (FUN_00599df0 / FUN_00599c10 / FUN_00599cf0)
+// More that queue event 1 themselves (objects.md, the table at 0x732d18).
+inline constexpr int kPortal = 15;          // FUN_00584870: the town portals (objects 59 / 60)
+inline constexpr int kSlimeDoor = 29;       // FUN_005821a0: objects 229 / 230
+inline constexpr int kWirtBody = 33;        // FUN_00583e70: object 268
+inline constexpr int kStairs = 47;          // FUN_00581f60: objects 194 / 195
+inline constexpr int kGate = 61;            // FUN_00582080: the town gate (449), the pen door (508)
+inline constexpr int kAncientsDoor = 66;    // FUN_0058d400: to the Worldstone Keep (547)
+inline constexpr int kEvilUrn = 68;         // FUN_00586520: object 466
 }  // namespace operate_fn
 
 // objects.txt rows (Id).

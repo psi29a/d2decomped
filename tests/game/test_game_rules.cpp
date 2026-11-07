@@ -151,6 +151,18 @@ int main() try {
         object.operate_fn = d2d::rules::operate_fn::kChest;
         object.mode2 = true;
         assert(object_op_ticks(object) == 11);
+        // The rest of the table at 0x732d18 (objects.md): the stairs' (47,
+        // 0x582068) at FrameCnt1 + 1, the Hellforge's (49, 0x5b5e46) at
+        // FrameCnt1, the seals' (52, 0x5b5672: shr 7) at 2 x FrameCnt1; a
+        // door's (8) queues none.
+        object.operate_fn = d2d::rules::operate_fn::kStairs;
+        assert(object_op_ticks(object) == 11);
+        object.operate_fn = d2d::rules::operate_fn::kHellforge;
+        assert(object_op_ticks(object) == 10);
+        object.operate_fn = d2d::rules::operate_fn::kSeal;
+        assert(object_op_ticks(object) == 20);
+        object.operate_fn = d2d::rules::operate_fn::kDoor;
+        assert(object_op_ticks(object) == -1);
     }
     {
         // MonProp's stats on a monster: IAS on A1 / A2, FCR on SC (120 x v /
