@@ -96,7 +96,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
     }
 
 auto Town::pad_field() const -> bool {
-        return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open && !hireling.open && !help.open && !party.open
+        return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !belt_up.shown && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
             && !skillbar.picking && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
     }
