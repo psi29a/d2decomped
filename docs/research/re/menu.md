@@ -153,6 +153,30 @@ them times master/100.
   - press `0x499621` plays sound 4; release `0x499a82` toggles the
     mini-panel.
 
+## The belt popup
+
+The popup (the belt's upper rows) is up while `DAT_007bef98` is set.
+Two things set it:
+
+- UI 0x1f, the Show Belt key's toggle: `FUN_00456ee0` sets 0x7bef98
+  each frame while it's on (`FUN_00498e90`).
+- The mouse. The HUD's mouse-move handler `FUN_00499bb0` does nothing
+  for a dead player (`FUN_00463df0`: mode 0x11) or with either of two
+  client flags set (`DAT_007a0620` by `FUN_0044da30`, `DAT_007a066c`
+  by `FUN_0044bfe0`; not traced, d2d doesn't test them). With the popup shut, the mouse
+  inside x [W/2+0x17, W/2+0x91], y [H-0x27, H-10] (423..545 ×
+  561..590 at 800×600), and UI 9 off (0x499ca5), it sets 0x7bef98 and
+  0x7bef9c (brought up by the mouse). With it up, the mouse outside
+  the popup's boxes (`FUN_00498dc0`: box n-4's left and top to box 3's
+  right and bottom) clears 0x7bef9c, and 0x7bef98 too unless UI 0x1f
+  is on.
+
+The belt's draw (`FUN_00499040`) clears 0x7bef98 when neither UI 0x1f
+nor 0x7bef9c is set (0x4990ce), or UI 9 is up (0x4990e2). A click on
+the strip (`FUN_004996a0`, the mouse-up handler) uses or takes the
+box's item (`FUN_00498870`); it doesn't toggle the popup. d2d:
+`apps/d2d/belt_popup.hpp`, `Town::belt_up`.
+
 ## The pause
 
 A local game pauses under the menu: the client's frame (`FUN_0044efa0`)

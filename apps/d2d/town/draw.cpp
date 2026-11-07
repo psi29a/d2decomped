@@ -237,7 +237,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       unit.dir, frame_ms, hover_x, hover_y, said_npcs.empty() ? std::span<const UnitState>(view.npc_states) : std::span<const UnitState>(said_npcs),
                       inv_open ? &character.items : nullptr,
                       char_open ? &character.stats : nullptr, &character.stats, &character.panel, mode_ms, &character.items,
-                      &hovered_npc, stash_open || cube_open ? &character.items : nullptr, character.expansion, belt_open,
+                      &hovered_npc, stash_open || cube_open ? &character.items : nullptr, character.expansion, belt_up.shown,
                       cube_open ? (transmute_down ? 2 : 1) : 0, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, &rain,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead

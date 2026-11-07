@@ -5,6 +5,7 @@
 #pragma once
 
 #include "audio.hpp"
+#include "belt_popup.hpp"
 #include "common.hpp"
 #include "controls.hpp"
 #include "gamemenu.hpp"
@@ -409,7 +410,8 @@ struct Town {
     int   skill_pressed = -1;              // skill icon held down
     std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open (the View's)
     std::string merc_label;
-    bool  belt_open = false;               // belt popup (` key or a click on the belt)
+    bool  belt_open = false;               // UI 0x1f: the belt popup kept up (its key, ` by default)
+    belt_popup::State belt_up;             // the popup up: belt_open, or the mouse onto the belt
     bool  cube_open = false;               // right-click the Horadric Cube item
     bool  transmute_down = false;          // its Transmute button held (FUN_0048a190)
     bool  net_cube_open = false;           // a joined game: the host has our Cube open (0x77 0x15; 0x4f 0x17 shuts it)
