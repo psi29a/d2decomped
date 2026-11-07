@@ -273,6 +273,15 @@ inline int frame_rate_flat(int flat, int rate) {
     const int fine = flat * 256;
     return fine > 0 && rate > 0 ? mul_div(fine, rate, 0x400) : fine;
 }
+// A fine damage (256ths) through a resistance as FUN_0057bf80 does it: nothing
+// at or under 0 (LAB_0057bf94) or at 100 % or more, untouched at 0 %, else
+// MulDiv (FUN_00483360), which over 0x100000 divides first and multiplies in
+// 32 bits; a wrapped (negative) result deals nothing.
+inline int resisted_fine(int fine, int res) {
+    if (fine <= 0 || res >= 100) return 0;
+    if (res == 0) return fine;
+    return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
+}
 // FUN_0057bf80 on a damage record's physical field, in 256ths: the flat
 // reduction (stat 34, whole points) comes off first, then the percent (stat 36)
 // of what is left; a field already at 0 stays 0, the product through MulDiv
@@ -332,6 +341,24 @@ inline void store_total(StruckBlow& blow, std::int64_t total) {
     blow.frac = int(total & 255);
 }
 
+// FUN_005c8780, Cyclone Armor's pool on one field in 256ths (FUN_005c87a0 calls it on fire, cold, then lightning): only a field
+// above 0; the pool takes all of it it can. Returns the cut.
+inline int cyclone_take(int& pool, int field) {
+    if (field <= 0 || pool <= 0) return 0;
+    const int cut = std::min(pool, field);
+    pool -= cut;
+    return cut;
+}
+// FUN_0057bf80 on an elemental or magic field in 256ths after the absorb: one at or under 0 is stored as 0; else the flat magic
+// reduction comes off FIRST (and may leave it under 0, which is stored and summed), then the resistance on what is still above 0
+// (magic has none on a monster blow here: `resist` false).
+inline int elemental_fine(int field, int mdr_fine, int res, bool resist) {
+    if (field <= 0) return 0;
+    field -= mdr_fine;
+    if (field > 0 && resist) field = resisted_fine(field, res);
+    return field;
+}
+
 // Puts a blow's reduced physical (`physical`, and its share of the total) back in line with `raw`; `old` is the physical field it had
 // (physical_now before `raw` changed).
 inline void settle_blow(StruckBlow& blow, std::int64_t old) {
@@ -356,11 +383,29 @@ inline void settle_blow(StruckBlow& blow, std::int64_t old) {
 // of the unreduced field.
 // Its oracle for the pool in 256ths and the absorb before the reduction is tools/emu/monster_damage.py (sets absorb and
 // both); hit_absorb.py, the older whole-point one, was never committed.
-// ponytail: the physical reduction is put back after the absorb (raw); fire / lightning / cold are already resisted in d2d's blows, game.exe resists after.
-// ponytail: Cyclone Armor's fields are whole points here (no elemental fraction), so it takes whole points from the pool.
+// Cyclone Armor works on each part's unresisted field (raw x 256) in 256ths and puts what is left back through the flat magic
+// reduction and the resistance (elemental_fine); a blow with no parts (built by hand) loses whole points of its elemental total.
 inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) {
     int taken = 0;
     for (auto& blow : blows) {
+        if (elemental && std::ranges::any_of(std::array{ 0, 1, 2 }, [&](int type) { return blow.parts[std::size_t(type)].raw > 0; })) {
+            std::int64_t total = blow_total(blow);
+            for (const int type : { 0, 2, 1 }) {   // fire, cold, lightning
+                auto& part = blow.parts[std::size_t(type)];
+                const int field = part.raw * 256;
+                const int cut = cyclone_take(pool, field);
+                if (cut <= 0) continue;
+                const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, true);
+                total += fine - part_fine(part);
+                blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
+                part.dealt = std::max(fine, 0) >> 8;
+                part.fine = fine;
+                taken += cut;
+            }
+            store_total(blow, total);
+            if (blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
+            continue;
+        }
         if (elemental) {
             const int cut = std::min({ pool >> 8, blow.elemental, blow.damage });
             if (cut <= 0) continue;
@@ -498,15 +543,6 @@ struct Blow {
     bool prevent_heal = false;           // the to-hit roll passed with stat 117 (FUN_0057d9b0 -> FUN_0057d810), blocked or not
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
-// A fine damage (256ths) through a resistance as FUN_0057bf80 does it: nothing
-// at or under 0 (LAB_0057bf94) or at 100 % or more, untouched at 0 %, else
-// MulDiv (FUN_00483360), which over 0x100000 divides first and multiplies in
-// 32 bits; a wrapped (negative) result deals nothing.
-inline int resisted_fine(int fine, int res) {
-    if (fine <= 0 || res >= 100) return 0;
-    if (res == 0) return fine;
-    return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
-}
 // Energy Shield (FUN_005ca6c0, the state's absorb event 0xb like Bone Armor's): the pool of mana and the two numbers of the
 // state, calc1 (the percent of a field it takes; the data caps it at 95) and calc2 (`per16`: 16ths of mana per point absorbed, at least 1).
 struct EnergyShield {
@@ -534,8 +570,7 @@ struct EnergyShield {
 // What a blow carries that no field accounts for (a record built without them: Corpse Explosion, a Fire Golem's burn) is taken
 // from as it stands, as the shield used to take everything.
 // The state cast later runs first (FUN_005c0ad0: Fight::absorb).
-// ponytail: a Cyclone Armor cut is not put back through the resistance. Magic has no percent resistance on a monster blow here
-// (monster_blow), so its field goes through the flat reduction only.
+// Magic has no percent resistance on a monster blow here (monster_blow), so its field goes through the flat reduction only.
 // A field the shield did not touch keeps monster_blow's value, which has the same order (reduction, resistance, a negative kept in the total).
 inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shield) {
     constexpr std::array<int, 4> kElementOrder{ 0, 1, 2, 4 };
@@ -558,13 +593,7 @@ inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shiel
             const int field = part.raw * 256;
             const int cut = shield.take(field);
             if (cut <= 0) continue;
-            // FUN_0057bf80: a field at or under 0 is stored as 0; else the flat magic reduction comes off FIRST (and may leave it under 0,
-            // which is stored and summed), then the resistance on what is still above 0.
-            int fine = field - cut;
-            if (fine > 0) {
-                fine -= blow.mdr * 256;
-                if (fine > 0 && type != 4) fine = resisted_fine(fine, part.res);
-            }
+            const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, type != 4);
             total += fine - part_fine(part);
             if (type != 4) {
                 blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
