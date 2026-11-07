@@ -467,11 +467,11 @@ struct Monster {
 // auras) + its MonProp IAS, clamped 15..175; its cast mode (SC,
 // FUN_006216e0) at 100 + its FCR, at most 175, no attackrate /
 // other_animrate; IAS and FCR each 120 x v / (120 + v) (FUN_00621740's
-// table at 0x6e8e24). A moving mode (WL, RN: FUN_006214a0), GH and DD keep
-// their own; any other (a skill's sequence plays as SQ) at 100 + anim_pct
-// (other_animrate), clamped 15..175.
-// ponytail: S1..S4 / SQ are attack modes too for a monster holding a
-// weapon (FUN_00621580), never here.
+// table at 0x6e8e24). S1..S4 and SQ (a skill's sequence) are attack modes
+// too while the monster's current skill has UseAttackRate (FUN_00621580:
+// the mode row's +8, Skills record byte +6 & 8; `skill_attack_rate`). A
+// moving mode (WL, RN: FUN_006214a0), GH and DD keep their own; any other
+// at 100 + anim_pct (other_animrate), clamped 15..175.
 // A get-hit's length in ms: rules::get_hit_ticks on the mode's AnimData
 // record (frames and speed, the COF's for a mode animdata lacks) and the
 // unit's FHR, a tick 40 ms.
@@ -480,11 +480,17 @@ inline std::uint32_t get_hit_ms(const GameData::AnimTiming& timing, int fhr) {
     return std::uint32_t(d2d::rules::get_hit_ticks(frames, speed, fhr)) * 40u;
 }
 
-inline int anim_rate_pct(const Monster& monster, std::string_view mode) {
-    if (mode == "A1" || mode == "A2") return std::clamp(100 + monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias), 15, 175) - 100;
+inline int anim_rate_pct(const Monster& monster, std::string_view mode, bool skill_attack_rate = false) {
+    const bool skill_mode = mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4" || mode == "SQ";
+    if (mode == "A1" || mode == "A2" || (skill_attack_rate && skill_mode)) return std::clamp(100 + monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias), 15, 175) - 100;
     if (mode == "SC") return std::min(100 + d2d::rules::effective_speed(monster.props.fcr), 175) - 100;
     if (mode == "WL" || mode == "RN" || mode == "GH" || mode == "DD") return monster.anim_pct;
     return std::clamp(100 + monster.anim_pct, 15, 175) - 100;
+}
+// The same with the monster's current skill (monster.skill: the one its mode plays) read for its UseAttackRate.
+inline int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string_view mode) {
+    const auto* skill = game_data.skills.get(monster.skill);
+    return anim_rate_pct(monster, mode, skill && skill->use_attack_rate);
 }
 
 // Whoever the monsters are after (the player, the merc), and what they

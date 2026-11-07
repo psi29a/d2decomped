@@ -186,11 +186,11 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
     // unit's full stat 99, but no Skills.txt aurastat / passivestat gives it.
     monster.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0
         : mode == "GH"                                                ? now_ms + get_hit_ms(game_data.npc_timing(monster.npc, mode), monster.props.fhr)
-                                                                      : now_ms + game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, mode));
+                                                                      : now_ms + game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode));
 }
 
 int mode_end_event(const GameData& game_data, const Monster& monster, std::string_view mode, int frame) {
-    return frame + int(game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, mode)) / 40) + 1;
+    return frame + int(game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode)) / 40) + 1;
 }
 
 std::vector<UnitState> npc_start(const Level& level) {
@@ -1655,7 +1655,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const SeqRows* seq = skill_seq(game_data, type_info, lay);
                 const std::string_view played = seq ? std::string_view(seq->front().mode) : std::string_view(type_info.sk_mode[0]);
                 use(played, lay);
-                if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
+                if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
                 monster.skill_x = lay_x; monster.skill_y = lay_y;
                 monster.nesting = true;
                 return true;
@@ -1820,7 +1820,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // the first row's mode stands for it in the logic.
             const std::string_view played = seq ? std::string_view(seq->front().mode) : std::string_view(type_info.sk_mode[slot]);
             use(played, id);
-            if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
+            if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
             // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
             // on the takeoff and landing events), the strike on the next
             // (FUN_005da660).
@@ -1831,7 +1831,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 monster.leap_to_x = (float(landing->first) + 0.5f) / 5; monster.leap_to_y = (float(landing->second) + 0.5f) / 5;
             }
             if (const auto* leap = game_data.skills.get(id); landing && leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack) {
-                monster.leap_until = unit.mode_ms + 11 * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
+                monster.leap_until = unit.mode_ms + 11 * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
             }
             // Whirlwind (srvstfunc 38, FUN_005d8f50; Talic's seq_ancientwhirlwind):
             // in reach a plain attack (FUN_0056e230); else a path to its point
@@ -2131,7 +2131,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         // runs its skill; a plain mode strikes on its action frame.
         int due = 0;
         if (seq) {
-            const int reached = std::min(int((now_ms - unit.mode_ms) / std::max<std::uint32_t>(timing.ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct), 1)), int(seq->size()) - 1);
+            const int reached = std::min(int((now_ms - unit.mode_ms) / std::max<std::uint32_t>(timing.ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1)), int(seq->size()) - 1);
             monster.seq_mode = (*seq)[std::size_t(reached)].mode;
             monster.seq_frame = (*seq)[std::size_t(reached)].frame;
             for (; monster.seq_done <= reached; ++monster.seq_done) {
@@ -2143,7 +2143,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     ++monster.seq_sounds;
                 }
             }
-        } else if (!monster.struck && now_ms >= unit.mode_ms + timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, monster.mode))) {
+        } else if (!monster.struck && now_ms >= unit.mode_ms + timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, monster.mode))) {
             monster.struck = true;
             due = 1;
         }
