@@ -162,3 +162,28 @@ stops after a list with 0x2000, and after any list with 0x40000000 when
 the stat's row +4 has bit 2.
 d2d: not ported. Re-check: `python3 tools/ghidra/fn.py 00626920`,
 `python3 tools/ghidra/fn.py 006250b0`.
+
+### Take a list off its parent — FUN_006269f0 (stack list)
+
+Cited, read from the decompile.
+1. Parent (+0x34) cleared; when the parent is expanded and its +0x3c or
+   +0x40 head is this list, the head moves to this list's next (+0x2c).
+   The sibling links (+0x2c / +0x30) are spliced out and the old +4
+   (the unit it hung on) is kept and cleared.
+2. A list with flag 0x2000 stops here (only unlinked).
+3. Otherwise, if expanded and flag 0x20000000: up to 16 keys whose
+   ItemStatCost row +0x53 is set are collected from its expanded array
+   and each refreshed (`FUN_006266c0`, ctx 0).
+4. If it had a parent: the entries' values are pushed up negated
+   (`FUN_00626920(-value, owner)`; with flag 0x40000000 only the rows
+   whose +4 bit 2 is clear).
+5. If the old +4 was set and the callback (+0x38) exists, it is called
+   with the list in ECX and EDX (unit, state): so a state's end hook runs
+   only for a list that was attached.
+
+d2d: reads the same, cited from the decompile, no oracle run, as
+`components/game/fight/states.cpp:43` and
+`components/rules/monsters.hpp:3869` (the callback runs when the stat
+list comes off); `weapon-switch.md:142` cites it too. Step 3's buffer
+is 16 ints with no count check: bugs.md #53.
+Re-check: `python3 tools/ghidra/fn.py 006269f0`.
