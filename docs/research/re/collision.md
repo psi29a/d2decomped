@@ -431,6 +431,12 @@ By reading both are small, a few subtiles of where a walk ends; neither was meas
   block once, for the one subtile. `FUN_0064ea90` uses it for the 0x1000 /
   0x2000 footprint on the unit's own subtile. d2d: reads the same, cited from the decompile, no oracle run (collision.md
   table: "0x1000 / 0x2000 on the subtile").
+- **By shape, `FUN_0064ea00`** (room, x, y, shape, bits): shape 1 the point
+  (`FUN_0064ddb0`), 2 the plus (`FUN_0064dc80`), 3 the box
+  (`FUN_0064d060`); any other shape does nothing. This is not the unit
+  pattern of `FUN_0064ea90`: `FUN_00648c30` picks it for a path whose owner
+  is type 3 (see below). Callers: `FUN_00648c30`, `FUN_00649400`,
+  `FUN_005ae520`, `FUN_0064ed20`, `FUN_0064ee70`. d2d: not ported.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
