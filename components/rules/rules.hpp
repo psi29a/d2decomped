@@ -976,10 +976,11 @@ inline bool store_perm(const Store& store, const std::string& code) {
 //   FUN_0063c2f0, FUN_0063c200), with as many as the gold buys (none:
 //   no_gold, 0x89a); with none carried, it buys one stack of that many,
 //   at most its most;
-// - anything else is bought again while it goes to the belt: the first
-//   that can't goes to the inventory and ends it (FUN_0055e9b0 fails:
-//   param_8 cleared). Gold or room running out after one is bought: gold
-//   says no_gold (0x8d4), room says nothing (done).
+// - anything else is bought again while it goes to the belt (every row,
+//   FUN_0055e9b0): the first copy that can't is dropped unpaid and ends it
+//   (0x577d9c -> LAB_00577e68: the gold put back, nothing said) unless a
+//   body slot takes it; only the first copy goes to the inventory. Gold
+//   running out after one is bought says no_gold (0x8d4).
 // Given a wearer, an item bound for the inventory is first offered to a body
 // slot (0x577d10 .. FUN_00562e00 -> FUN_0055d710 mode 0: auto_equip_slot,
 // `required_level` the item's), unless a weapon is in hand (FUN_0063bef0,
@@ -1066,12 +1067,15 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
             fill = false;
             copy.location = d2d::d2s::item_location::kEquipped; copy.slot = slot; copy.column = 0; copy.row = 0; copy.panel = 0;
         } else {
+            // One already bought: this copy is dropped and nothing paid
+            // (0x577d9c -> LAB_00577e68), so a fill never spills over.
+            if (bought) return Trade::done;
             fill = false;
             std::vector<const Item*> inv;
             for (const auto& carried : items) if (in_inventory(carried)) inv.push_back(&carried);
             const auto [width, height] = item_size(tables, item.code);
             const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
-            if (column < 0) return bought ? Trade::done : Trade::no_room;
+            if (column < 0) return Trade::no_room;
             copy.column = column; copy.row = row; copy.location = d2d::d2s::item_location::kStored; copy.panel = d2d::d2s::item_panel::kInventory;
         }
         items.push_back(std::move(copy));
