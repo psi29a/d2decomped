@@ -305,6 +305,14 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   a UniqueSuffix then a UniquePrefix into string 0x6b9 ("%0 %1"); then
   `rand(100) < 50` builds it again from an appellation, a suffix and a
   prefix into 0x6ba ("%0 %1 %2"): "Bane Poison the Hunter".
+  The formatted client text is installed by FUN_0063e810: for a nonnull
+  monster unit with MonsterData and a nonnull input string, it allocates and
+  copies a NUL-terminated UTF-16 name into MonsterData +0x2c. Other unit types
+  and null inputs leave that slot unchanged (`tools/emu/monster_name_slot.py`,
+  including a no-op mutation control).
+  The corresponding d2d name is stored directly in `Monster::npc.name` by
+  `make_boss` (`components/game/ai.cpp`);
+  its unique path builds the display string in `unique_name`.
 - Loot: champions MonStats TreasureClass2, uniques TreasureClass3,
   superuniques their SuperUniques TC (by difficulty).
 - **The label under the name** (client FUN_004adea0, from FUN_00452580,
