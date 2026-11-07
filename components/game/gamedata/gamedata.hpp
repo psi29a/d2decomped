@@ -758,6 +758,7 @@ struct GameData {
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
                          int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, param4 = 0, hit_par2 = 0;
+                         int damage_rate = 0;   // DamageRate (+0x19c, stat 327 damage_framerate on the missile): a burner's flat DR / MDR x it / 1024 (rules::frame_rate_flat)
                          int dmg_func = 0, dmg_par1 = 0, dmg_par2 = 0;   // pSrvDmgFunc (5: Blessed Hammer's bonus, FUN_005ad2f0), dParam1 (undead %) and dParam2 (demon %)
                          bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames
                          bool last_collide = false;                   // LastCollide (+4 bit 0): it passes the unit it last struck by
