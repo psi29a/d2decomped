@@ -611,12 +611,15 @@ struct GameData {
     InvLayout merc_layout{};                          // inventory.txt "Hireling2": the Hireling screen's body slots
     std::array<d2d::rules::ClassGains, 7> class_gains{};   // by d2s class (CharStats)
     // A new character's start (CharStats.txt): str, dex, int (energy), vit,
-    // stamina, hpadd; item1..10 with their loc and count; StartSkill.
+    // stamina, hpadd; item1..10 with their loc and count; StartSkill;
+    // Skill 1..10 (record +0xae), the general skills every one of the class
+    // has at level 1 (FUN_00647ee0), by Skills.txt name.
     struct ClassStart {
         int str = 0, dex = 0, ene = 0, vit = 0, stamina = 0, hpadd = 0;
         struct Item { std::string code, loc; int count = 0; };
         std::vector<Item> items;
         std::string start_skill;
+        std::vector<std::string> skills;
     };
     std::array<ClassStart, 7> class_start{};
     // D2's three-tier string tables. Lookup order per D2's own convention:

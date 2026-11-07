@@ -137,22 +137,22 @@ inline bool finisher(const d2d::rules::Skill* skill) {
 
 // The character's level in a skill (the World's for the fight, the skill
 // bar's for show): points (a class skill's from the save's skill bytes in
-// Skills.txt order; Attack and Throw, which every class starts with
-// (FUN_00647ee0 -> FUN_00647110), and a tome's skill with the tome carried, 1),
-// then with what the gear gives (gear_props: worn, socketed, set bonuses,
-// charms) and `extra` (the skill shrine's +all skills) — on skills that
-// have points or that an item grants (rules::item_grants_skill).
-// ponytail: other general skills don't count yet. A charged entry is
-// cast at its own level (World's fight.skill_level, Hero::charge).
+// Skills.txt order; Attack and the class's CharStats Skill 1..10 (Throw,
+// Kick, the scrolls and tomes, Unsummon, ...), which every one of the class
+// has (FUN_00647ee0 -> FUN_00647110, item or not), 1), then with what the
+// gear gives (gear_props: worn, socketed, set bonuses, charms) and `extra`
+// (the skill shrine's +all skills) — on skills that have points or that an
+// item grants (rules::item_grants_skill). A charged entry is cast at its
+// own level (World's fight.skill_level, Hero::charge).
 inline int skill_base_level(const GameData& game_data, const Character& character, int id) {
-    const auto& ids = game_data.skills.class_ids[std::size_t(std::max(character.character_class, 0))];
+    const auto cls = std::size_t(std::clamp(character.character_class, 0, 6));
+    const auto& ids = game_data.skills.class_ids[cls];
     if (const auto found = std::ranges::find(ids, id); found != ids.end()) return character.stats.skills[std::size_t(found - ids.begin())];
     if (id == 0) return 1;
-    const auto* skill = game_data.skills.get(id);
-    if (!skill) return 0;
-    if (skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow) return 1;   // the weapon is skill_refused's
-    const char* tome = skill->name == "Book of Townportal" ? "tbk" : skill->name == "Book of Identify" ? "ibk" : nullptr;
-    return tome && std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.code == tome && item.location == d2d::d2s::item_location::kStored; }) ? 1 : 0;
+    return std::ranges::any_of(game_data.class_start[cls].skills, [&](const std::string& name) {
+        const auto found = game_data.skills.by_name.find(name);
+        return found != game_data.skills.by_name.end() && found->second == id;
+    }) ? 1 : 0;   // the weapon is skill_refused's
 }
 inline int skill_level(const GameData& game_data, const Character& character, int id, const std::vector<d2d::d2s::ItemProp>& extra) {
     const auto* skill = game_data.skills.get(id);
