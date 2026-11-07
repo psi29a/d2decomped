@@ -607,6 +607,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* interact = std::get_if<cmd::Interact>(&command)) {               // walk to it; operate or talk on arrival
+            actor->raising = -1;
             if (interact->npc <= -3000 && interact->npc > -3000 - int(actor->corpses.size())) {   // one's corpse (-3000 - k)
                 const auto& body = actor->corpses[std::size_t(-3000 - interact->npc)];
                 if (body.level != level) return;

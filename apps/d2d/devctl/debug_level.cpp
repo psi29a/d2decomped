@@ -232,6 +232,7 @@ void DebugVerbs::add_level() {
         const bool inside = town.level && town.player.x >= 0 && town.player.y >= 0 && town.player.x < float(town.level->ds1.width()) && town.player.y < float(town.level->ds1.height());
         if (inside) { std::tie(town.player.x, town.player.y) = town.level->nearest_free(town.player.x, town.player.y); town.target_x = town.player.x; town.target_y = town.player.y; }
         town.player.walking = false;
+        town.hero.interact_npc = -1;
         return std::string("ok\n");
     });
     add("warps", [this](const Args& /*args*/) -> Reply {   // the level's warps: index, cell, where to

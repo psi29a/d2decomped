@@ -4,8 +4,8 @@
 // on the tick it's blocked, on a subtile's centre (FUN_00650150), with no new
 // path from there (FUN_00650840 stops the same frame, LAB_006508ff). A walk to
 // an NPC stays queued while it's walled in, standing, and talks once the way
-// opens (FUN_00481600 -> FUN_004812e0, LAB_004813c3); another action or the NPC
-// gone ends it. Needs the data; SKIPs without it.
+// opens (FUN_00481600 -> FUN_004812e0, LAB_004813c3); a new click, the NPC gone
+// or dying ends it, and a hit only delays it. Needs the data; SKIPs without it.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -15,6 +15,7 @@
 #include <rules.hpp>
 #include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -136,8 +137,31 @@ int main() {
         now += kTickMs;
     }
     assert(actor->interact_npc == -1 && !actor->player.walking);
-    const auto* talk = actor->events.empty() ? nullptr : std::get_if<ev::OpenUI>(&actor->events.back());
-    assert(talk && talk->kind == ev::OpenUI::talk && talk->npc == npc);
+    const auto talks = [&] {
+        return std::ranges::count_if(actor->events, [&](const auto& event) {
+            const auto* open = std::get_if<ev::OpenUI>(&event);
+            return open && open->kind == ev::OpenUI::talk && open->npc == npc;
+        });
+    };
+    assert(talks() == 1);
+
+    // In reach, a hit waits: no talk during the flinch, and it talks after.
+    world.apply(cmd::Interact{ npc }, now);
+    world.fight.set_pmode(kModeGH, now);
+    world.tick({}, now + kTickMs, now);
+    now += kTickMs;
+    assert(actor->pmode == kModeGH && actor->interact_npc == npc && talks() == 1);
+    for (int tick = 0; tick < 200 && actor->interact_npc >= 0; ++tick) {
+        world.tick({}, now + kTickMs, now);
+        now += kTickMs;
+    }
+    assert(actor->interact_npc == -1 && talks() == 2);
+
+    // Dying drops it: a ghost or a respawned player doesn't go on to talk.
+    world.apply(cmd::Interact{ npc }, now);
+    world.fight.die(now);
+    world.tick({}, now + kTickMs, now);
+    assert(actor->pmode == kModeDT && actor->interact_npc == -1 && talks() == 2);
     std::printf("ok: the walk ended on a centre, the interact kept trying\n");
     return 0;
 }
