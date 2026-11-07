@@ -433,7 +433,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
             auto& room = rooms[std::size_t(index)];
             room.special = true; room.def = hell_arm.def; room.file = hell_arm.file;
         }
-        const auto listed = list;
+        const auto listed = list;   // NOLINT(performance-unnecessary-copy-initialization): a copy, add() grows list
         for (const int other_index : listed)
             for (int side = 0; side < 8; ++side) {
                 const int index = alloc(maze.width, maze.height);
@@ -551,7 +551,7 @@ inline std::vector<Outdoor::RoomSeed> generate_maze(const OutdoorData& data, con
                 bridge = index;
             }
             special(seed.next() & 1 ? Special{ 838, 854, -1, 0 } : Special{ 837, 853, -1, 2 });   // 0x6f0474: Forge W / E
-            const auto listed = list;                    // FUN_00671320; a copy: add() grows list
+            const auto listed = list;   // NOLINT(performance-unnecessary-copy-initialization): FUN_00671320; a copy, add() grows list
             for (const int other_index : listed) {
                 if (other_index == bridge) continue;
                 for (int side = 0; side < 8; ++side) {
