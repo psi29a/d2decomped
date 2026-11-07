@@ -346,8 +346,9 @@ struct Audio {
             alSourcef(channel.right_src, AL_GAIN, speakers.right);
             return true;
         }
-        // ponytail: without direct channels OpenAL pans the mono source by
-        // its angle, not game.exe's far-side-down law.
+        // Without direct channels (no AL_SOFT_direct_channels) OpenAL pans the
+        // mono source by its angle, not FUN_00515890's far-side-down law:
+        // deviations.md "Approximations" #13.
         const float pan = std::clamp(float(mix.pan - 128) / 128.f, -1.f, 1.f);
         alSourcef(channel.src, AL_GAIN, float(mix.volume) / 255.f);
         alSource3f(channel.src, AL_POSITION, pan, 0.f, -std::sqrt(std::max(0.f, 1.f - pan * pan)));
