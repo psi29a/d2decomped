@@ -3,6 +3,7 @@
 // frame. The rest is in this directory.
 #include "town.hpp"
 
+#include "bar_pick.hpp"
 #include "common.hpp"
 #include "ingame.hpp"
 #include "internal.hpp"
@@ -221,9 +222,23 @@ void draw_raise_aura(std::vector<std::uint8_t>& framebuffer, int centre_x, int c
     }
 }
 
-void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered) {
-    if (hovered >= 0) draw_monster_bar(framebuffer, scene, view.monsters[std::size_t(hovered)]);
-    else if (const int attacked = view.monster(view.attack); attacked >= 0) draw_monster_bar(framebuffer, scene, view.monsters[std::size_t(attacked)]);
+void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered,
+                   float camera_x, float camera_y, float hero_x, float hero_y, const Lighting* light) {
+    int chosen = hovered;
+    if (chosen < 0) chosen = view.monster(view.attack);
+    if (chosen < 0 && light && view.level) {
+        std::vector<BarFoe> drawn;
+        for (const auto& monster : view.monsters) {
+            if (!monster.alive() || monster.buried || monster.corpse_used) continue;
+            const float dx = monster.unit.x - camera_x, dy = monster.unit.y - camera_y;
+            const float screen_x = (dx - dy) * (kIsoW / 2.f), screen_y = (dx + dy) * (kIsoH / 2.f);
+            if (!bar_on_screen(screen_x, screen_y)) continue;
+            drawn.push_back({ monster.id, monster.unit.x, monster.unit.y,
+                              !monster.ally_not_interact(scene, view.level->id), light->unit_at(monster.unit.x, monster.unit.y), true });
+        }
+        chosen = view.monster(bar_monster(-1, -1, drawn, hero_x, hero_y));
+    }
+    if (chosen >= 0 && std::size_t(chosen) < view.monsters.size()) draw_monster_bar(framebuffer, scene, view.monsters[std::size_t(chosen)]);
     // The death screen (FUN_00453100): youdiedhardcore then youdiedinst,
     // centred, from H/2 - 94 down 48 px each; then in Font30, red, centred,
     // 48 px apart: string 0x13e8 "Your deeds of valor..." (hardcore) or

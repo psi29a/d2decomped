@@ -136,7 +136,8 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                 StateClock* clk = nullptr);
 // Over the world: the hovered (else attacked) monster's life bar, the
 // death message.
-void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered);
+void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered,
+                   float camera_x, float camera_y, float hero_x, float hero_y, const Lighting* light);
 // An SQ skill's frame now: the mode and when it started, as Fight::seq_view.
 std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& view, std::uint32_t now_ms);
 

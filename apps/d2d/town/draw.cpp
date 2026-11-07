@@ -281,7 +281,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             }
         }
         if (pad_target) hovered_npc = pad_hover_npc(pad_action_pick());
-        view_overlays(framebuffer, *scene, view, hovered_monster());
+        view_overlays(framebuffer, *scene, view, hovered_monster(), cam_x, cam_y, unit.x, unit.y, &light);
         if (!coop_hud_hidden() || skillbar.picking) skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
         if (net_game && net_game->trade.state != 0) {
