@@ -537,3 +537,17 @@ Re-check: `python3 tools/ghidra/fn.py 005ab700`,
 `python3 tools/ghidra/fn.py 0059fa30`.
 
 d2d: not ported (no mention of the tables or of 0x6e2618).
+
+## Server hit function 25 — FUN_005ab820
+
+Cited. Slot 25 (`0x73c8a4`). ECX game, EDX the missile, stack an optional
+unit. Returns 1 if the missile has no data, its row's sub-missile id
+(short +0x24) is negative, or there is no owner (`FUN_00552fd0`). The
+start unit is the stack unit, or the missile itself when 0. The step is
+the row's sHitPar1 (+0x4c), at least 1. Calls `FUN_005ab700` (the ring of
+eight, step 1 = 8 missiles, 2 = 4) with the missile's skill and level
+(`FUN_0064a280` / `a210`) and returns **3** (damage, end).
+
+Re-check: `python3 tools/ghidra/fn.py 005ab820`.
+
+d2d: not ported. `Fight::burst` has no case 25.
