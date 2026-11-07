@@ -17,6 +17,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -36,13 +37,15 @@ int main() try {
     sword.identified = true; sword.socketed = true; sword.sockets = 3; sword.quality = 2; sword.defense = -1;
     d2d::d2s::Item tal, eth, ruby;
     tal.code = "r07"; eth.code = "r05"; ruby.code = "gsr";
-    sword.socketed_items = { tal, eth };
+    sword.socketed_items.push_back(std::move(tal));
+    sword.socketed_items.push_back(std::move(eth));
     const auto lines = item_lines(*data, sword, 1);
     assert(lines.size() >= 2 && lines[1].text == quote + "TalEth" + quote);
     data->gem_letters.erase("r05");                 // a rune with no letters row adds nothing
     const auto tal_only = item_lines(*data, sword, 1);
     assert(tal_only.size() >= 2 && tal_only[1].text == quote + "Tal" + quote);
-    sword.socketed_items = { ruby };
+    sword.socketed_items.clear();
+    sword.socketed_items.push_back(std::move(ruby));
     const auto gem_lines = item_lines(*data, sword, 1);
     assert(std::ranges::none_of(gem_lines, [&](const TextLine& line) { return line.text.starts_with(quote); }));
     std::printf("rune letters: ok\n");

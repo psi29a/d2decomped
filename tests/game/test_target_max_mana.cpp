@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <vector>
 
 using namespace d2d::game;
 
@@ -51,6 +52,13 @@ int main() try {
         int state = 0;
         d2d::rules::ThinkIn input{ .aip = { 0, 0, 100, 10, 0, 0, 0, 100 }, .dist = 5, .state = &state };
         input.skill[2] = true; input.skill45[0] = true;
+        int state2 = 0;
+        input.state2 = &state2;
+        int pace = 0, command = 0, state3 = 0, steps = 0, cast_word = 0;
+        bool rally = false;
+        std::vector<d2d::rules::ThinkEffect> effects;
+        input.pace = &pace; input.command = &command; input.state3 = &state3; input.steps = &steps;
+        input.cast_word = &cast_word; input.rally = &rally; input.effects = &effects;
         input.target_player = true; input.target_life_pct = 100; input.self_life_pct = 100;
         input.target_max_life = foe.max_life; input.target_max_mana = foe.max_mana;
         d2d::rules::Rng roll{ 5 };

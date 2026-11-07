@@ -13,6 +13,7 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -30,7 +31,8 @@ int main() {
         fire.x = fire.y = 4.f;
         fire.born = 0; fire.dies = 100000;
         fire.row = d2d::rules::MissileDamage{ .etype = 0, .elo = 0x1a0, .ehi = 0x1a0 };
-        std::vector<Missile> missiles{ fire };
+        std::vector<Missile> missiles;
+        missiles.push_back(std::move(fire));
         std::array<Foe, 1> foes{};
         foes[0].x = foes[0].y = 4.f;
         foes[0].fighter.mdr = mdr;

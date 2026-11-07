@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <variant>
 
@@ -36,7 +37,7 @@ bool on_centre(float value) {
 
 }  // namespace
 
-int main() {
+int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq (D2_MPQ_DIR)\n"); return D2D_TEST_SKIPPED; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
@@ -164,4 +165,7 @@ int main() {
     assert(actor->pmode == kModeDT && actor->interact_npc == -1 && talks() == 2);
     std::printf("ok: the walk ended on a centre, the interact kept trying\n");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_walk_stop: %s\n", error.what());
+    return 1;
 }

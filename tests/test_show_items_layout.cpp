@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
             std::istringstream fields(line);
             int scene = 0, width = 0, height = 0, min_x = 0, max_x = 0, count = 0;
             fields >> scene >> width >> height >> min_x >> max_x >> count;
+            if (count < 0 || count > 1024) continue;        // a scene line is at most a screen of labels
             std::vector<d2d::rules::LabelRect> placed;
             for (int item = 0; item < count; ++item) {
                 int x = 0, y = 0, text_w = 0, text_h = 0;
