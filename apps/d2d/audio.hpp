@@ -105,9 +105,10 @@ struct Audio {
     }
     // The ducks (FUN_004ba020, 0x4dfcb2 / 0x4dfd0b): under a Solo row the
     // rest at down to 70%, under the paused game menu all but the cursor,
-    // ambience and music rows down to 0, stepped each sound tick.
-    // ponytail: game.exe's paused frame runs the sound tick unpaced, so its
-    // fade is quicker than these 40 ms ticks.
+    // ambience and music rows down to 0, stepped each sound tick: under the
+    // pause one each frame (rules::sound_ticks_due).
+    // ponytail: d2d's frames are vsync-paced, game.exe's paused loop spins
+    // (its Sleep(10) skipped), so its fade is quicker still.
     int solo_percent = 100, menu_percent = 100;
     bool menu_paused = false;                    // a local game paused under the game menu (Town)
     std::int64_t sound_tick = 0;                 // DAT_007bc9bc: +1 each 40 ms
@@ -657,9 +658,9 @@ struct Audio {
     void step_ducks() {
         const auto now_ms = SDL_GetTicks();
         if (tick_mark_ms == 0) tick_mark_ms = now_ms;
-        const auto ticks = std::min<std::uint64_t>((now_ms - tick_mark_ms) / kTickMs, 100);
+        const auto ticks = d2d::rules::sound_ticks_due(now_ms - tick_mark_ms, menu_paused);
         if (ticks == 0) return;
-        tick_mark_ms += ticks * kTickMs;
+        tick_mark_ms = menu_paused ? now_ms : tick_mark_ms + ticks * kTickMs;
         sound_tick += std::int64_t(ticks);
         const auto playing = [](const Channel& channel) {
             ALint state = AL_STOPPED;
