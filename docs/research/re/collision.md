@@ -490,6 +490,20 @@ EAX); read the asm for them.
   `FUN_006483a0`, `FUN_00648580`. d2d: reads the same, cited from the decompile, no oracle run (the rule is in the
   "Pattern" paragraph above and `UnitShape::monster(.., town_unit, ..)`);
   the pet bit is set by the summon code listed there.
+- **Project a pair, `FUN_00643290`** (int *a, int *b, in place): from the
+  old values, a = (a - b) >> 1 and b = (a + b) >> 2 (arithmetic shifts, so
+  they floor for negatives). `FUN_00649d00` feeds it the path's position
+  (path +0 / +4, 16.16 fixed) shifted right by 11 and stores the result at
+  path +8 / +0xc. Callers `FUN_004da350`, `FUN_00648300`, `FUN_00649d00`,
+  `FUN_0064fb90`. d2d: not ported; no disagreement found. What the pair
+  means on screen was not checked.
+- **A path's projected pair, `FUN_00648300`** (unit, &a, &b): a null unit,
+  or one for which `FUN_00622d00` (combat.hpp:886) is 0, gives 0 / 0. Else
+  with the path (unit +0x2c) +0x28 clear it gives 0 / 0 too; otherwise it
+  reads two dwords at path +0x72 and +0x76 (byte offsets, not 4-aligned),
+  shifts each right by 11 and runs `FUN_00643290` on them. Sole caller
+  `FUN_004c9990`. d2d: not ported. What path +0x28 / +0x72 / +0x76 hold
+  was not traced.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
