@@ -35,4 +35,12 @@ inline void step(State& state, bool kept, bool menu, bool can_hover, bool on_str
     if ((!kept && !state.hovered) || menu) state.shown = state.hovered = false;
 }
 
+// The popup moves the mini-panel left, as a panel on the right does
+// (FUN_0047eb50 at 0x47ebbe): UI 0x1f, or the popup drawn (0x7befa0,
+// FUN_004979e0), with a belt of more than one row (FUN_004979f0).
+// `boxes` is the worn belt's (4 with none).
+[[nodiscard]] inline bool moves_mini_panel(const State& state, bool kept, int boxes) {
+    return (kept || state.shown) && boxes / 4 > 1;
+}
+
 }  // namespace d2d::client::belt_popup

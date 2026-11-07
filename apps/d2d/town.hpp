@@ -307,6 +307,9 @@ struct Town {
     [[nodiscard]] bool left_panel_open() const {
         return char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open || hireling.open;
     }
+    // A panel on the right, for the mini-panel (FUN_0047eb50): the inventory
+    // or skill tree, or the belt popup up (belt_popup::moves_mini_panel).
+    [[nodiscard]] bool mini_right() const;
     // The keyboard's Enter on that name: the new character is made, as the pad's A.
     void coop_enter();
     // A seat's pad this frame: its field play, as that player's orders.

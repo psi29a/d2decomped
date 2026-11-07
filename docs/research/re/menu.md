@@ -136,7 +136,11 @@ them times master/100.
   - "left" is FUN_0047ea60: UI 2 character, 0xf quests, 0x14 waypoint,
     0x24 hire, 0xc store, 0x19 stash, 0x1a cube, 0x17 trade, ...;
     "right" is FUN_0047eb50: UI 1 inventory, 4 skill tree, and the
-    store / stash / cube / trade (they open the inventory too).
+    store / stash / cube / trade (they open the inventory too). The
+    belt popup counts as one too (0x47ebbe): UI 0x1f, or the popup
+    drawn (`FUN_004979e0`: 0x7befa0, set by `FUN_00499040`), with a
+    belt of more than one row (`FUN_004979f0`: 1 with none). So the
+    bar moves left while the popup is up.
     The bar moves to stay centred over the HUD strip the panels leave.
 - Buttons (`PANEL\minipanelbtn`):
   - x0 = W/2-0x4a (R: W/2-0xca, L: W/2+0x39), step 0x15, bottom H-0x32;
@@ -175,7 +179,8 @@ The belt's draw (`FUN_00499040`) clears 0x7bef98 when neither UI 0x1f
 nor 0x7bef9c is set (0x4990ce), or UI 9 is up (0x4990e2). A click on
 the strip (`FUN_004996a0`, the mouse-up handler) uses or takes the
 box's item (`FUN_00498870`); it doesn't toggle the popup. d2d:
-`apps/d2d/belt_popup.hpp`, `Town::belt_up`.
+`apps/d2d/belt_popup.hpp`, `Town::belt_up`; the mini-panel's move:
+`belt_popup::moves_mini_panel`, `Town::mini_right`.
 
 ## The pause
 

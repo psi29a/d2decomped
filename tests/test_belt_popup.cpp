@@ -53,6 +53,17 @@ int main() try {
     // No hover while the handler's gates fail (a dead player: FUN_00463df0).
     belt_popup::step(state, false, false, false, true, true);
     assert(!state.shown);
+
+    // The mini-panel moves left while the popup is up or its key is on,
+    // with a belt of more than one row (FUN_0047eb50 at 0x47ebbe).
+    belt_popup::State shut;
+    belt_popup::State popped;
+    popped.shown = true;
+    assert(!belt_popup::moves_mini_panel(shut, false, 16));
+    assert(belt_popup::moves_mini_panel(popped, false, 16) && belt_popup::moves_mini_panel(popped, false, 8));
+    assert(belt_popup::moves_mini_panel(shut, true, 12));
+    // No belt (4 boxes, one row: FUN_004979f0 = 1): it stays.
+    assert(!belt_popup::moves_mini_panel(popped, false, 4) && !belt_popup::moves_mini_panel(shut, true, 4));
     std::puts("ok");
     return 0;
 } catch (const std::exception& error) {

@@ -327,7 +327,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // The mini-panel's buttons (FUN_0047ec50) and the HUD's button for it.
             const bool left_open = left_panel_open();
             int action = -1;
-            hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, inv_open || tree_open, action);
+            hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, mini_right(), action);
             if (action == MiniPanel::kCharacter) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
             if (action == MiniPanel::kInventory) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (action == MiniPanel::kSkills) { tree_open = !tree_open; if (tree_open) inv_open = false; }
