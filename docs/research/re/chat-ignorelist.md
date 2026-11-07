@@ -1,7 +1,7 @@
 # Chat/Ignorelist.cpp and the allocator it uses
 
 Traced from game.exe 1.14d (cited, no oracle run). d2d has no ignore list and
-no Storm allocator port: every row below is `not ported`.
+no Storm allocator port: the functions below are `not ported`.
 
 ## IgnoreList singleton (`.\Chat\Ignorelist.cpp`)
 
@@ -56,10 +56,10 @@ mpq-archives.md already name it from call sites; this is the body).
   The block becomes the new bucket head.
 - `FUN_00412000` (125 bytes) sweep: clears `DAT_007788c8`, and for each of
   the 256 buckets whose flag in `DAT_007784c8[]` is set, under that bucket's
-  critical section clears the flag and releases (`FUN_00411a80`) every block
+  critical section clears the flag and releases (`FUN_00411a80`) each block
   with dword 5 == 0 and hash < 0x80000000.
 - `FUN_00411620` (22 bytes) fatal path: `FUN_0041caf0(..., 0, 0, 1)` (the
-  error report) then `ExitProcess(1)`. It never returns.
+  error report) then `ExitProcess(1)`. The decompile shows no return path.
 - `FUN_00412e40` (236 bytes): hash >= 0x80000000 is fatal; otherwise gets
   memory from the block with `FUN_00412ba0` (flags 0x40 / 0x80 come from
   `flags & 0x4000000 / 0x8000000`); on failure leaves the section and is
