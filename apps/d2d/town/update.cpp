@@ -442,8 +442,10 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         if (mouse.press_this_frame && over_belt && mouse.y >= first_box[2] && !item_click) belt_open = !belt_open;
         // A right-click on a carried item uses it: a potion in the inventory,
-        // stash or belt is drunk.
-        if (mouse.rpress_this_frame && !held && store.npc < 0 && npc_menu.npc < 0 && speech.npc < 0) {
+        // stash or belt is drunk. A store open doesn't stop it: the inventory's
+        // right-click (FUN_004917c0) uses the item (FUN_00487740, C->S 0x20)
+        // whatever panel is up.
+        if (mouse.rpress_this_frame && !held && npc_menu.npc < 0 && speech.npc < 0) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                 { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
             const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
