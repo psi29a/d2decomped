@@ -252,6 +252,7 @@ add_executable(d2d
     party.cpp
     roster.cpp
     scene.cpp
+    scene/render.cpp
     skilltree.cpp
     store.cpp
     tile_blit.cpp

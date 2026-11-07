@@ -331,6 +331,9 @@ from the code, no oracle.
   (`Day::environment`, +0xc), last; walls through
   `blit_dt1_wall_lit` (the six lights, the wall block's flat / ramp). Units take the level at their
   feet; additive missiles and overlays aren't lit.
+  `test_roof_light` checks the real renderer with synthetic tiles and
+  distinct environment, level and local-grid palettes: raised roofs use
+  the environment, while flat roofs keep the grid's light.
 
 - Tile shadows keep a quarter of the ground (`blit_dt1_shadow`), drawn
   after every floor; players', NPCs'
