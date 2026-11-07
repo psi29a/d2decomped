@@ -377,6 +377,35 @@ d2d: `d2s::item`'s simple branch (components/d2s/d2s_items.hpp:284) reads the sa
 on the version gates (> 92 quest difficulty, > 86 realm, > 93 third word), the
 32/12 gold read and the ear fields. Two differences, neither one a save
 bug: d2d reads gold only on the wire (`net`) and only for code `gld`, where
+the game tests the item type (saves never hold gold), and d2d applies no
+`<< (row +0x18)` shift to the quest difficulty, which is right only while
+that column of row 0x164 is 0 (not checked here; needs Itemstatcost.txt).
+The `tsc ` / `isc ` fix-ups are not ported.
+
+### The compact reader (`FUN_0062a970`)
+
+Cited. Args: `param_1` the is-save word (`check_jm` above), `param_2` the
+version the caller passes (0x60 in `FUN_00558cb0`'s callers); the item unit
+comes in a register. Read in this order:
+
+| Bits | Into |
+|---|---|
+| 10 | item version (`FUN_0062a6c0`, item data +0x30) |
+| 3 | location: 3 or 5 (ground / socketed) read x, y as 16 + 16 bits (`FUN_00620470`, `FUN_006204c0`); else 4 bits to data +0x44, x 4, y 4, 3 bits - 1 to data +0x45 |
+| (ear flag 0x10000 set) | 3 bits ear class, 7 bits level to +0x48, then 7-bit name characters to +0x4a until a zero |
+| 32 | otherwise the item code, then `FUN_00633680` finds the base row into unit +4 |
+| 1, then 32 or 12 | if the item is of type 4 (`FUN_00629bb0(unit, 4)`, gold): the amount, stat 0xe through `FUN_00627260` |
+| (type 0x16, codes `tsc ` / `isc `) | `tsc `: data +0x3e = 0; `isc `: `FUN_00627fb0(unit, 1, 0)` |
+| `stat bits` | version > 0x5c, item row +0x12a and +0x12b nonzero (quest difficulty check): ItemStatCost row 0x164's save bits (row +0x19), minus its save add (+0x1c), shifted by the row's +0x18 & 31, stored as stat 0x164. Fewer than 0x165 rows exits with assert id 0x1607 |
+| 1 (+ 32, 32, and a third 32 when version > 0x5d) | is-save only and version > 0x56: when the bit is set, realm words via `FUN_00629ea0` |
+
+It ends with unit +0x28 = 0, `FUN_00650e40`, item data +0x2c = 1 and data
++0 = 2, and returns 1 (-1 when the base row isn't found).
+
+d2d: `d2s::item`'s simple branch (components/d2s/d2s_items.hpp:284) reads the same, cited from the decompile, no oracle run,
+on the version gates (> 92 quest difficulty, > 86 realm, > 93 third word), the
+32/12 gold read and the ear fields. Two differences, neither one a save
+bug: d2d reads gold only on the wire (`net`) and only for code `gld`, where
 the game tests the item type (a save is not expected to hold gold; unchecked), and d2d applies no
 `<< (row +0x18)` shift to the quest difficulty, which is right only while
 that column of row 0x164 is 0 (not checked here; needs Itemstatcost.txt).
