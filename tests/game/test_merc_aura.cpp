@@ -127,11 +127,11 @@ int main() try {
     actor.merc.reset();
     fight.monsters.clear();
     fight.update_fighters(4000);
-    const int pace = actor.player_combat.velocity_pct, rate = actor.player_combat.ias;
+    const int pace = actor.player_combat.velocity_pct, rate = actor.player_combat.sias;
     fight.monsters.push_back(make_monster(*data, int(zombie), actor.player.x + 1, actor.player.y, make_rng, 0));
     fight.monsters.back().aura = holy_freeze; fight.monsters.back().aura_lvl = 6;
     fight.update_fighters(4000);
-    assert(actor.player_combat.velocity_pct < pace && actor.player_combat.ias < rate);
+    assert(actor.player_combat.velocity_pct < pace && actor.player_combat.sias < rate);
     fight.monsters.back().aura = data->skills.by_name.at("Fanaticism");
     std::vector<Foe> foes(1);
     fight.monster_auras(foes, 4000);

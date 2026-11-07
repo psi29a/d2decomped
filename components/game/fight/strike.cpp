@@ -201,7 +201,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         for (std::size_t k = 0; k < 4; ++k)
             if (const auto value = st_sum[std::size_t(kRes[k])], more = st_sum[std::size_t(kRes[k] + 1)]; value != 0 || more != 0)
                 actor->player_combat.res[k] = int(std::min<std::int64_t>(actor->player_combat.res[k] + value, std::min<std::int64_t>(actor->character.panel.res_cap[kPanelRes[k]] + more, 95)));
-        actor->player_combat.ias += int(st_sum[kAttackRate]);
+        actor->player_combat.sias += int(st_sum[kAttackRate]);   // SIAS, raw (FUN_00623f50 adds stat 68 as it is)
         actor->player_combat.velocity_pct += int(st_sum[kVelocityPercent]);
         for (const auto& passive : passives) if (passive.stat == kVelocityPercent && passive.itype.empty()) actor->player_combat.velocity_pct += passive.value;   // Increased Speed
         actor->player_combat.defense += int(actor->player_combat.defense * st_sum[kSkillArmorPercent] / 100);
@@ -339,7 +339,7 @@ auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         if (actor->seq.empty()) return;
         const auto& attack_anim = player_anim(kModeA1);
         start_move(*game_data->skills.get(actor->swing_skill), now_ms);
-        const auto ticks = d2d::rules::attack_ticks(int(actor->seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms));
+        const auto ticks = d2d::rules::attack_ticks(int(actor->seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
         actor->pmode_until = now_ms + std::uint32_t(ticks) * 40;
         actor->seq_frame_ms = std::max<std::uint32_t>(std::uint32_t(ticks) * 40 / std::uint32_t(actor->seq.size()), 1);
         actor->prate = 1.f;
@@ -1055,7 +1055,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < actor->whirl_next) return;
             const auto& attack_anim = player_anim(kModeA1);
-            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms));
+            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
             actor->whirl_next = now_ms + std::uint32_t(d2d::rules::whirlwind_gap(ticks)) * 40;
             const int hands = int(std::ranges::count_if(actor->character.items, [&](const d2d::d2s::Item& item) {
                 return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)

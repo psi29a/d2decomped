@@ -527,8 +527,9 @@ struct Fight {
     // they join the item stats, so toblock (20), damageresist (36) and
     // the rest go through make_fighter; defense % (171 skill_armor_percent,
     // 182 armor_override_percent after it) applies to the panel defense.
-    // ponytail: attackrate (68) is taken as IAS and velocitypercent (67) as
-    // FRW; other stats make_fighter doesn't read do nothing.
+    // attackrate (68) is SIAS (Fighter::sias, raw) and velocitypercent (67)
+    // is added after the FRW's diminishing (FUN_00623f50).
+    // ponytail: other stats make_fighter doesn't read do nothing.
     void update_fighters(std::uint32_t now_ms);
 
     // What calcs ask of the player (skills.hpp).

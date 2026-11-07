@@ -387,14 +387,14 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         const auto& anim = player_anim(mode);
         std::uint32_t len = anim.length_ms();
         if (attack_mode(mode) && anim.frames) {
-            const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms));
+            const auto ticks = d2d::rules::attack_ticks(int(anim.frames), int(anim.speed ? anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
             len = std::uint32_t(ticks) * 40;
             // The swing (FUN_004cc5b0: A1 / A2, a Barbarian's S3, an Assassin's S4): its weapon_* that many frames in.
             // A sequence plays in SQ (0x12), which the dispatcher leaves silent (the table at 0x4cc74c).
             const int cls = actor->character.character_class;
             if (skill_sequence().empty() && (mode == kModeA1 || mode == kModeA2 || (mode == kModeS3 && cls == d2d::d2s::kBarbarian) || (mode == kModeS4 && cls == d2d::d2s::kAssassin))) {
                 const auto swing = d2d::rules::sound_ids::kSwing[std::size_t(actor->player_combat.hit_class & 0xf)];
-                const int speed = d2d::rules::attack_speed(int(anim.speed ? anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms));
+                const int speed = d2d::rules::attack_speed(int(anim.speed ? anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), swing.sound, now_ms + std::uint32_t((swing.frames * 256 + 128) / speed) * 40, actor->player.x, actor->player.y);
             }
         } else if (mode == kModeSC && anim.frames) {
@@ -441,7 +441,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             static constexpr std::array<std::string_view, 7> kClassCode = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
             const auto swing = d2d::rules::sound_ids::kSwing[std::size_t(actor->player_combat.hit_class & 0xf)];
             const int rate = int(anim.speed ? anim.speed : 256);
-            const int speed = attack_mode(mode) ? d2d::rules::attack_speed(rate, actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms)) : rate;
+            const int speed = attack_mode(mode) ? d2d::rules::attack_speed(rate, actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms)) : rate;
             const int swing_ticks = (swing.frames * 256 + 128) / speed;
             const std::uint32_t start_at = now_ms + (skill->st_sound_delay ? std::uint32_t(std::max(swing_ticks - 3, 0)) * 40 : 0);
             const bool item = from_charges(skill->id) && skill->item_cast_sound > 0;   // a charged entry (its owner's guid, FUN_004c6140)
