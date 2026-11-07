@@ -568,7 +568,11 @@ loader's, `FUN_00613f80`: dword +4 bit n, n from 0x20 on in dword +8):
 6. restrict (`FUN_00644060`, +0x228): 0 refuses a unit in a state with
    States.txt restrict (wolf, bear, delerium; `FUN_0063a510`), 2 asks
    one of State1..3 (+0x22a), 1 and others pass: 4.
-7. startmana (`FUN_006440f0`, a player only): 1.
+7. startmana (`FUN_006440f0`, a player only): 1 when +0x184 (startmana,
+   not minmana +0x186) is above 0, mana is below startmana x 256 and the
+   unit isn't in state inferno (0xc). Only Inferno (6), Arctic Blast and
+   Blade Fury have one: Inferno needs 6 mana to start, its 36 << 2 price
+   alone 0.56 (cases inferno_start_5 / _6 / inferno_burning_5).
 8. an item's entry (+0x34 not -1) whose item is in the inventory with no
    charges left, its stat 0xcc (layer skill << 6 | level) 0 in the low byte
    (`FUN_00647840`): 2. An item not found passes (cases item_held_charges /

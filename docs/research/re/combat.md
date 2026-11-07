@@ -124,7 +124,7 @@ client game frame in FUN_0044c790: 75 frames, 3 s) is skipped.
 Message 0x15 is the client's own: FUN_004610c0 asks FUN_004d9fc0 →
 FUN_00647960 whether the skill can go; reason 1 (short of mana:
 FUN_00647540's cost `(mana + lvlmana × (lvl − 1)) << manashift` against
-stat 8, or FUN_006440f0's minmana × 256) voices table 0x711ddc[reason]
+stat 8, or FUN_006440f0's startmana × 256, Skills +0x184) voices table 0x711ddc[reason]
 (0, 0x15, 0x13, 0x13, 0x13): `<class>_needmana_1` (amazon 0xb8d). A skill
 with AttackNoMana (Skills +7 & 0x10) on status 1, 2 or 4 (not only mana:
 LAB_00461101) swings Attack instead, silently (skills.md "Can the skill
