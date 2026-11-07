@@ -300,6 +300,58 @@ d2d: pSrvDmgFunc is read only for 5 (`dmg_func` in gamedata.hpp); 1, 2, 4
 and 12 are **not ported**. Which Missiles.txt rows use them needs the game's
 table, not read here.
 
+## Server damage function 3 — FUN_005ad220 (flag 0x4000 roll)
+
+Slot 3 of pSrvDmgFunc (`0x73c96c`, data xref only). Cited from the decompile
+(the decompile drops ECX / EDX, so the operands are a reading); no oracle run.
+
+- Gate: the missile (second operand) non-null, its class (+4) in
+  `0 <= class < *(game + 0xb6c)` (half-open) with a record at `*(game + 0xb64) + class × 0x1a4`.
+- Then the missile's 64-bit seed (+0x20 low, +0x24 high) steps
+  `seed = low × 0x6ac690c5 + high` (the D2 seed step, stored back), and when
+  `(uint32)seed & 0x7f` < the record's **dParam1 (+0x78)**, the damage
+  record's word at +4 gets **0x4000** OR-ed in. So a percentage in 128ths
+  (immolationfire 19 / 128, see skills.md); it changes no damage itself.
+- The stepped seed is stored even when the roll fails.
+
+d2d: **not ported** (components/game/fight.hpp:1043 `ponytail:` says so); no `dmg_func == 3`
+case exists (`git grep -n "dmg_func" components`).
+
+## Server damage function 10 — FUN_005ad2b0
+
+Slot 10 of pSrvDmgFunc (`0x73c988`). Cited from the decompile, no oracle run.
+
+- Same class / record gate as slot 2.
+- Then damage record +0x34 = +0x30. Unlike slot 4 (FUN_005ad290) it does
+  **not** clear +0x30, and unlike slot 2 it calls nothing.
+
+d2d: **not ported**.
+
+## Server damage function 5 — FUN_005ad2f0 (Blessed Hammer)
+
+Slot 5 (`0x73c974`); also called directly by FUN_005ad5c0
+(`0x73c994`, slot 13), which first scales the record's +8 by the owner's stat 0x19 percent
+(`+8 += +8 × stat / 100`) when FUN_00552fd0 finds an owner. Read from the
+decompile: class gate; FUN_005a8c70 rolls the missile's element; then for dParam1 (+0x78) > 0 and
+FUN_0063e990(unit) (undead) and for dParam2 (+0x7c) > 0 and FUN_0063e940(unit)
+(demon) FUN_005a9270 adds FUN_00483360(100) (roll × dParam / 100) more.
+
+d2d: reads the same, cited from the decompile, no oracle run in this pass
+(ported at fight/missiles.cpp:718 and components/rules/combat.hpp:699; an existing
+tools/emu/hammer_hit.py and tests/game/test_hammer_hit.cpp are not part of
+this change). The
+slot-13 wrapper (FUN_005ad5c0) is not ported.
+
+## Server damage function 6 — FUN_005ad3a0
+
+Slot 6 (`0x73c978`). Cited from the decompile. FUN_00552fd0 finds the
+missile's owner; when there is one and bit 9 (0x200) of its flags (+0xc4) is
+clear, and the stack unit is non-null, the unit's flags (+0xc4) get 0x20000
+OR-ed in. Which flag 0x20000 / 0x200 are is not read here; which operand is
+the unit (a __thiscall in the decompile) is a reading.
+
+d2d: **not ported**.
+
 ## Server hit function 56 — FUN_005acc50 (Armageddon, Diablogeddon)
 
 Slot 56 of the table (`0x73c920`). Cited from the decompile; the return
