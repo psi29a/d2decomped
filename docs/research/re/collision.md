@@ -483,6 +483,13 @@ EAX); read the asm for them.
   in that precedence: flying first). A unit of 0, or a class id out of
   range, makes the row pointer 0 and the next line reads address 0xd: no
   null check (bugs.md 52).
+- **Town or owned unit, `FUN_0063e860`** (unit in ECX): false unless the
+  unit is type 1 with a class id in range and a MonStats row; true when
+  the row's +0xd has bit 1 (npc) or bit 4 (inTown); else true when the
+  unit's +0xc4 is negative (bit 31, a player's pet). Callers
+  `FUN_006483a0`, `FUN_00648580`. d2d: reads the same, cited from the decompile, no oracle run (the rule is in the
+  "Pattern" paragraph above and `UnitShape::monster(.., town_unit, ..)`);
+  the pet bit is set by the summon code listed there.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
