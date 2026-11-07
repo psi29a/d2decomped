@@ -433,11 +433,21 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   eias, chill as −50 SIAS). A monster (0x623f50 on): its cast mode (SC, 7:
   `FUN_006216e0`) runs at min(100 + effective FCR, 175) % of its AnimData
   speed, stat 68 / 69 not read; an attack mode (`FUN_00621580`: A1 / A2,
-  and S1..S4 / SQ for one holding a weapon) at effective IAS + stat 68
+  and S1..S4 / SQ while the unit's current skill has UseAttackRate) at effective IAS + stat 68
   (attackrate, 100 base), clamped 15..175; a moving mode (`FUN_006214a0`)
   at stat 67 + effective FRW, at least 25; any other (not GH / DD, which
   have their own) at stat 69 (other_animrate) clamped 15..175. The speed ×
   pct / 100 is at least 1 when not 0 and at most 0x7fff.
+  `FUN_00621580` (ECX mode, EDX unit type, stack unit, class): a monster's
+  row is 0x6e8b90 + mode x 0x14 (class < 0x19a, else 0x6e8cd0, the same
+  for these columns). +0xc set (A1, A2): an attack mode. +8 set (S1..S4,
+  SQ): an attack mode when the unit's current skill (`FUN_00620250` ->
+  `FUN_006439a0`, unit skill list +0x10; its id `FUN_00643ce0`) has record
+  byte +6 & 8 (`DAT_006ce274`): flags bit 0x13, which the Skills.txt loader
+  (0x6169d5: {"UseAttackRate", .., 0x13}) sets from UseAttackRate. 45
+  non-class rows have it, among them Fire Hit, MonFrenzy,
+  BloodLordFrenzy, Teleport 2, Cry Help, Overseer Whip, Suck Blood, the
+  Baal / Imp teleports, Vine Attack and the druid auras' S1 / SQ casts.
 - Ported: `chill_length` / `monster_blow` (combat.hpp), `Fight::land`
   (monsters), `Fight::chill_rate`; the merc and the chill's 0x6b roll aren't.
 
