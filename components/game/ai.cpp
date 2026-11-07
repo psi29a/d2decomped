@@ -638,8 +638,9 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
     const bool second = monster.type == int(game_data.mon_bin[std::size_t(d2d::rules::monster_ids::kDuriel)]) || monster.type == int(game_data.mon_bin[0x49]);
     const std::string_view mode = second ? "A2" : "A1";
     monster.unit.dir = direction16(foe.x - monster.unit.x, foe.y - monster.unit.y);
+    monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
     set_mode(game_data, monster, mode, now_ms);
-    monster.skill = skill; monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
+    monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
     monster.skill_frame = 0; monster.skill_x = subtile(foe.x); monster.skill_y = subtile(foe.y);
     attack_starts(game_data, monster, mode, rng);
 }
@@ -1495,8 +1496,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
         monster.chase = int(target - foes.data());
         unit.dir = direction16(dx, dy);
+        monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
         set_mode(game_data, monster, mode, now_ms);
-        monster.skill = skill; monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
+        monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
         monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y; monster.at_point = false;
         attack_starts(game_data, monster, mode, rng);
         // srvst 59 (FUN_005d1280, Imp Inferno): its end calc1 frames from the start (the roll on its seed now), state 0xc on.
