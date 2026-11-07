@@ -279,6 +279,37 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    // `--load-stats CASES`: the life, mana and stamina a character enters a game
+    // with (World::enter), as tools/emu/fl_load.py prints game.exe's loader
+    // FUN_0056b180's. A case is `id life maxlife mana maxmana stamina
+    // maxstamina` (256ths); per case `id life mana stamina maxlife maxmana
+    // maxstamina`.
+    if (argc > 2 && std::string_view(argv[1]) == "--load-stats") {
+        std::ifstream cases(argv[2]);
+        d2d::rules::Rng made_rng(7);
+        auto made = new_character(*data, 4, "Headless", false, true, made_rng);
+        std::string id;
+        std::array<std::int64_t, 6> given{};
+        while (cases >> id >> given[0] >> given[1] >> given[2] >> given[3] >> given[4] >> given[5]) {
+            using namespace d2d::d2s;
+            Character saved;
+            saved.character_class = 4;
+            saved.name = "Headless";
+            saved.header = made.header;
+            saved.stats = made.stats;
+            saved.items = made.items;
+            saved.panel = panel_stats(*data, saved.header, saved.items, saved.stats);
+            const std::array<StatId, 6> ids{ kLife, kMaxLife, kMana, kMaxMana, kStamina, kMaxStamina };
+            for (std::size_t i = 0; i < ids.size(); ++i) saved.stats.values[ids[i]] = given[i];
+            World world(&*data, -1, -1);
+            world.enter(saved);
+            const auto& got = world.actor->character.stats.values;
+            std::printf("%s %lld %lld %lld %lld %lld %lld\n", id.c_str(), static_cast<long long>(got[kLife]), static_cast<long long>(got[kMana]),
+                        static_cast<long long>(got[kStamina]), static_cast<long long>(got[kMaxLife]), static_cast<long long>(got[kMaxMana]),
+                        static_cast<long long>(got[kMaxStamina]));
+        }
+        return 0;
+    }
     // `--waypoint-refuse CASES`: the camp's waypoint used to the Cold Plains
     // (cmd::Waypoint, C->S 0x49), the cases of tools/emu/wp_refuse.py
     // (game.exe's FUN_0054d750 -> FUN_0054c5d0). Each level change is an
@@ -1256,6 +1287,24 @@ int main(int argc, char** argv) try {
         assert(std::ranges::count(world.cues.due, jab->do_sound_b, &Cues::Cue::sound) == sound_rows && duriel.seq_sounds == 0);
         world.cues.due.clear();
         std::printf("OK: Duriel's Jab plays dosound b on its %td event-3 rows\n", sound_rows);
+    }
+    // A saved character keeps its life and mana on entering a game, exactly
+    // (game.exe's FUN_0056b180 -> FUN_0056af80), and starts with full stamina.
+    {
+        const auto before = hero.character;
+        auto saved = before;
+        using namespace d2d::d2s;
+        saved.stats.values[kMaxLife] = 91 * 256; saved.stats.values[kLife] = 89 * 256 + 138;   // 89.54
+        saved.stats.values[kMaxMana] = 4992;      saved.stats.values[kMana] = 4992;             // 19.5 of 19.5
+        saved.stats.values[kMaxStamina] = 102 * 256; saved.stats.values[kStamina] = 50 * 256;
+        world.take_character(saved);
+        assert(hero.character.stats.values[kLife] == 89 * 256 + 138);
+        assert(hero.character.stats.values[kMana] == 4992 && hero.character.stats.values[kMaxMana] == 4992);
+        assert(hero.character.stats.values[kStamina] == 102 * 256);
+        saved.stats.values[kLife] = 95 * 256; world.take_character(saved);   // above the maximum: kept, as the loader does
+        assert(hero.character.stats.values[kLife] == 95 * 256);
+        hero.character = before;
+        std::printf("OK: a save's life and mana are kept on entering a game\n");
     }
     const auto poisoned = [&] { return std::ranges::any_of(hero.regen, &Fight::Regen::poison); };
     hero.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
