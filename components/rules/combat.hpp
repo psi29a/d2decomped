@@ -251,10 +251,25 @@ inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, b
     return true;
 }
 
+// game.exe's MulDiv (FUN_00483360): value x times / over, truncated, 0 over
+// 0. Up to 0x100000 with times up to 0x10000 it multiplies in 32 bits (the
+// product wraps); a bigger times over at most times / 16 divides it first,
+// as a bigger value over at most value / 16 does the value (each multiply
+// wrapping); else 64 bits.
+inline int mul_div(int value, int times, int over) {
+    if (over == 0) return 0;
+    if (value <= 0x100000) {
+        if (times <= 0x10000) return int(std::uint32_t(value) * std::uint32_t(times)) / over;
+        if (over <= times >> 4) return int(std::uint32_t(times / over) * std::uint32_t(value));
+    } else if (over <= value >> 4) {
+        return int(std::uint32_t(value / over) * std::uint32_t(times));
+    }
+    return int(std::int64_t(value) * times / over);
+}
 // FUN_0057bf80 on a damage record's physical field, in 256ths: the flat
 // reduction (stat 34, whole points) comes off first, then the percent (stat 36)
-// of what is left; a field already at 0 stays 0, the product truncates toward
-// zero (FUN_00483360). reduce_fine clamps a result under 0; game.exe stores it, sums it into the
+// of what is left; a field already at 0 stays 0, the product through MulDiv
+// (FUN_00483360: over 0x100000 it divides first). reduce_fine clamps a result under 0; game.exe stores it, sums it into the
 // record total and only ignores a total not above 0 (0057c852): reduce_fine_signed keeps it.
 // FUN_0057c1e0 scales the whole record by FUN_0057c060's pair percent
 // first (monster_blow: a prime evil's on a pet).
@@ -263,7 +278,7 @@ inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, b
 inline int reduce_fine_signed(int fine, int percent, int flat) {
     if (fine <= 0) return 0;
     fine -= flat * 256;
-    if (fine > 0 && percent != 0) fine = int(std::int64_t(fine) * (100 - std::clamp(percent, -100, 100)) / 100);
+    if (fine > 0 && percent != 0) fine = mul_div(fine, 100 - std::clamp(percent, -100, 100), 100);
     return fine;
 }
 inline int reduce_fine(int fine, int percent, int flat) { return std::max(reduce_fine_signed(fine, percent, flat), 0); }
@@ -476,21 +491,6 @@ struct Blow {
     bool prevent_heal = false;           // the to-hit roll passed with stat 117 (FUN_0057d9b0 -> FUN_0057d810), blocked or not
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
-// game.exe's MulDiv (FUN_00483360): value x times / over, truncated, 0 over
-// 0. Up to 0x100000 with times up to 0x10000 it multiplies in 32 bits (the
-// product wraps); a bigger times over at most times / 16 divides it first,
-// as a bigger value over at most value / 16 does the value (each multiply
-// wrapping); else 64 bits.
-inline int mul_div(int value, int times, int over) {
-    if (over == 0) return 0;
-    if (value <= 0x100000) {
-        if (times <= 0x10000) return int(std::uint32_t(value) * std::uint32_t(times)) / over;
-        if (over <= times >> 4) return int(std::uint32_t(times / over) * std::uint32_t(value));
-    } else if (over <= value >> 4) {
-        return int(std::uint32_t(value / over) * std::uint32_t(times));
-    }
-    return int(std::int64_t(value) * times / over);
-}
 // A fine damage (256ths) through a resistance as FUN_0057bf80 does it: nothing
 // at or under 0 (LAB_0057bf94) or at 100 % or more, untouched at 0 %, else
 // MulDiv (FUN_00483360), which over 0x100000 divides first and multiplies in
