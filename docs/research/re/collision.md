@@ -339,9 +339,10 @@ ignores the hold (LAB_00461df2, LAB_00461ee5), a monster needs the press
 What a held frame sends is in "What a held frame sends" below.
 
 d2d's held button (`input.cpp`, `cmd::Move` not fresh) walks again after a stop too.
-`walk_to` clears `interact_npc` before it tests `fresh`, which reads as if a held frame after
-the press on an NPC drops the interact, yet a normal click on a far NPC talks in play. What
-keeps it wasn't found, and no test holds a press: devctl's `click` sends down and up together.
+Before #231 it also drops a queued interact: `walk_to` clears `interact_npc` before it tests
+`fresh`, so a click on a far NPC held past a frame walks there and doesn't talk. Seen in
+play, and with real X button events on Warriv: held 120 ms, 2 of 8 talked; 0 ms, 8 of 8.
+#231 sends no held walk while the press's interact is queued.
 
 d2d re-plans a walk to a spot that runs out short while it moves ("Short of the
 target with a step made", `tick.cpp`), so one click can walk farther than game.exe's
