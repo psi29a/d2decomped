@@ -53,6 +53,29 @@ Range `0x004fa9b0–0x004fb100` (thin C++ wrappers around Storm).
 | `0x4fb0c0` | `void* SlotAt(int)`                                              | `return &DAT_007d6468 + i * 256;` — 256-byte slot lookup into the read-pool array.                       |
 | `0x4fb0d0` | `void MaybeReleasePool()`                                        | Timed pool release: if 0x7d1 (2001 ms) since last use, decrement refcount and free.                     |
 
+## The client's DC6 loaders — `.\CORE\ARCHIVE.CPP`
+
+Three helpers, the file string at `0x6d723c`, in address order:
+
+| addr | in | does |
+|---|---|---|
+| `0x4788b0` | name ECX, flag EDX | Copies the name to a 260-byte stack buffer, appends `FUN_005fe1f0(flag)`'s extension, reads the file with `FUN_00517079(FUN_004fac80(), name, NULL, ARCHIVE.CPP, 0x53)`, builds the cel file with `FUN_00601340(bytes, &out, ARCHIVE.CPP, 0x56, -1, name)` and returns `out`. |
+| `0x478950` | name ECX, size pointer EDX, flag on the stack (`ret 4`) | The same, passing the caller's size pointer to the read; lines 0x68 / 0x6b. Only `FUN_00472890`'s weather overlays call it (8 calls). |
+| `0x478a00` | cel file ECX | `FUN_00601a50(cel)`, which runs for null too; then, when non-null, the debug free `FUN_0040b3c0(cel, ARCHIVE.CPP, 0x7a, 0)`. |
+
+`FUN_005fe1f0` gives `".dcc"` (`0x6e3598`) when the flag and `DAT_00741efc`
+are both set, else `".dc6"` (`0x6e3590`); `DAT_00741efc` is written only
+by `FUN_005fe280`, the registry setter (the store is at `0x5fe29f`). Every call to the two loaders passes
+flag 0 (68 calls `xor edx, edx`, the 8 weather calls `push 0`), so stock
+always loads `<name>.dc6`. d2d does the same where it loads these files: it
+appends `.dc6` itself (`apps/d2d/load.cpp`, `apps/d2d/scene.cpp`), reads
+through `Mpqs::try_read` and parses with `d2d::dc6::Sprite`, which frees
+with its owner; there is no one-to-one function. What `FUN_00517079` and
+`FUN_00601340` do with a missing or bad file isn't traced here.
+
+Verified by `tools/emu/archive_dc6.py` against stock 1.14d: the file read,
+cel build and free are captured, not run.
+
 ## Storm entry points (already recovered by name)
 
 Grep `game-strings.tsv` around `0x006ced04–0x006cee1c` for the full set.
