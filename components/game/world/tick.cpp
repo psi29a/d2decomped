@@ -25,6 +25,7 @@
 #include <shrines.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
+#include <town_npcs.hpp>
 
 #include <algorithm>
 #include <array>
@@ -439,10 +440,30 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         std::array<int, 3> talking{ -1, -1, -1 };    // the NPCs a player has a menu, speech or store open with
         for (const auto& player : players)
             for (std::size_t k = 0; k < talking.size(); ++k) if (player->talking[k] >= 0) talking[k] = player->talking[k];
-        // ponytail: an NPC with news greets the first player.
-        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, &lead().player, arcane.guard_state == 2);
+        // The "!" (FUN_00544590, from the NPC's think): only the NPC's own act's
+        // quests are asked, and objects have no think.
+        using ActAlert = bool (World::*)(int);
+        static constexpr std::array<ActAlert, 5> kActAlerts{ &World::act1_alert, &World::act2_alert, &World::act3_alert, &World::act4_alert, &World::act5_alert };
+        const ActAlert act_alert = kActAlerts[std::size_t(act())];
+        // Each NPC heeds the nearest player with a "!" for them (FUN_005dde80, rules::npc_visitor_pick).
+        std::vector<const UnitState*> visitors(npc_states.size(), nullptr);
+        {
+            std::vector<std::vector<d2d::rules::NpcCandidate>> candidates(npc_states.size());
+            each_player([&](Player& player) {
+                for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
+                    if (level->npcs[i].root != "objects")
+                        candidates[i].push_back({ int(std::floor(player.player.x * 5)), int(std::floor(player.player.y * 5)), (this->*act_alert)(level->npcs[i].hc_idx) });
+            });
+            for (std::size_t i = 0; i < npc_states.size(); ++i)
+                if (const int pick = d2d::rules::npc_visitor_pick(int(std::floor(npc_states[i].x * 5)), int(std::floor(npc_states[i].y * 5)), candidates[i]); pick >= 0)
+                    visitors[i] = &players[std::size_t(pick)]->player;
+        }
+        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, visitors, arcane.guard_state == 2);
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            if (std::exchange(npc_states[i].greets, false)) cues.cue_on(unit_key(kSoundOnMonster, -1 - int(i)), greet_sound(level->npcs[i], 1), now_ms, lead().player.x, lead().player.y);
+            if (std::exchange(npc_states[i].greets, false)) {   // unit sound 0x12 to the visitor, at its spot
+                const UnitState& heard = visitors[i] ? *visitors[i] : lead().player;
+                cues.cue_on(unit_key(kSoundOnMonster, -1 - int(i)), greet_sound(level->npcs[i], 1), now_ms, heard.x, heard.y);
+            }
         cain_step(now_ms, elapsed);
         for (const auto& neighbour : level->nearby) {           // over the edge, still in play
             auto& states = other_npcs[neighbour.level];
@@ -450,11 +471,6 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             grow_states(states, *neighbour.level);
             npc_patrol(*game_data, *neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
-        // The "!" (FUN_00544590, from the NPC's think): only the NPC's own act's
-        // quests are asked, and objects have no think.
-        using ActAlert = bool (World::*)(int);
-        static constexpr std::array<ActAlert, 5> kActAlerts{ &World::act1_alert, &World::act2_alert, &World::act3_alert, &World::act4_alert, &World::act5_alert };
-        const ActAlert act_alert = kActAlerts[std::size_t(act())];
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             npc_states[i].alert = level->npcs[i].root != "objects" && (this->*act_alert)(level->npcs[i].hc_idx);
         // The player's mode as the merc's think reads it: 2 walk, 3 run, 6 walk in town.

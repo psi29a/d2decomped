@@ -107,14 +107,15 @@ void file_first_think(UnitState& state, std::uint32_t now_ms);
 
 // Town NPCs with the Npc AI think (rules::npc_think on their unit seed)
 // when due: a stand thinks again n frames on, a walk at its end, a special
-// mode (S1, S2) aidel (15) frames after it ends. An NPC with a "!" walks
-// up to `player` within 16 and greets it; one in `busy` (menu, speech or
+// mode (S1, S2) aidel (15) frames after it ends. An NPC with a visitor
+// (by its index in `visitors`: rules::npc_visitor_pick, a player within 16
+// with a "!" for them) walks up to it and greets it; one in `busy` (menu, speech or
 // store open on it) stops and stands (rules::npc_think's visitor).
 // The walk is a monster's (set_off / walk_on: toward 0xd, wall 0xf) at
 // Velocity. Its first think comes 2 frames after the first call that
 // meets it, unless file_first_think filed it already.
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, const UnitState* player = nullptr, bool guard_aside = false);
+                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, std::span<const UnitState* const> visitors = {}, bool guard_aside = false);
 
 // A player's walk from (x, y) to (gx, gy), in cells: game.exe's path type 7
 // (rules::player_path: the toward pather, the search when close) over
