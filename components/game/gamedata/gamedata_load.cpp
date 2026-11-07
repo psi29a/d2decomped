@@ -704,7 +704,11 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         if (!glow_level.npcs.empty()) { game_data.afterglow = std::move(glow_level.npcs[0]); game_data.afterglow.mode = "OP"; }
         Level portal_level;
         add(portal_level, 59, 0, 0);                          // the town portal
-        if (!portal_level.npcs.empty()) game_data.town_portal = std::move(portal_level.npcs[0]);
+        add(portal_level, 60, 0, 0);                          // the permanent (red) one
+        if (portal_level.npcs.size() == 2) {
+            game_data.town_portal = std::move(portal_level.npcs[0]);
+            game_data.red_portal = std::move(portal_level.npcs[1]);
+        }
     }
     for (const auto& object : game_data.town.ds1.objects())
         if (object.type == d2d::rules::unit_type::kObject && object.id >= 0 && object.id < 150) add(game_data.town, kObjPreset[0][std::size_t(object.id)], object.x, object.y);   // act 1

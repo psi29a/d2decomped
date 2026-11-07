@@ -619,7 +619,7 @@ auto World::take_carried(std::string_view code) -> void {
 // Cain walks out (cain_step); with no room for him (FUN_00593290) a town
 // portal pair (FUN_0056d130, object 0x3b) opens at x + 6, y + 6, linked only
 // to its twin in the camp: nobody's own, the player's own portal stays.
-// ponytail: CairnStones' missile and the portal's red look aren't drawn.
+// ponytail: CairnStones' missile isn't drawn.
 auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         using Cain = d2d::rules::CainQuest;
         const auto& object = level->npcs[std::size_t(npc_index)];

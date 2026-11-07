@@ -404,6 +404,13 @@ struct World {
     // A portal's other end is k ^ 1.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
     static constexpr std::size_t kGamePortals = 14, kTemplePortal = 8, kCowPortal = 10, kGibbetPortal = 12;
+    // A slot's objects.txt row: 60 (PP, red) for [2..5] and [8..11]
+    // (FUN_005a9930, FUN_0056d130, FUN_0058af90, FUN_00594140 make object
+    // 60), 100 (SJ) for [6], else 59 (TP, blue).
+    [[nodiscard]] static constexpr int portal_object(std::size_t which) {
+        if (which == 6) return 100;
+        return (which >= 2 && which <= 5) || (which >= 8 && which <= 11) ? 60 : 59;
+    }
     bool cow_portal_opened = false;        // this game's (quest record 0xb's flag, FUN_00544720)
     // a5q2's cages' portals (FUN_005888d0: object 189, as Cain's): the freed
     // prisoners' way out, no twin, not selectable.
