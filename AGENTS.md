@@ -66,7 +66,7 @@ We promise:
 | `tools/ghidra/import.sh` | Ghidra on their `game.exe` | `tools/ghidra/project/`, `docs/research/re/game-*.tsv` | nothing |
 | `tools/ghidra/decompile.sh` | `tools/gaps.py`, Ghidra on their `game.exe` | `build/gaps/`, `tools/ghidra/project/` | nothing |
 | `tools/emu`: `uv sync`, then `uv run` | Unicorn on their `game.exe` | `tools/emu/.venv`, `tools/emu/.cache` | PyPI, during `uv sync` |
-| The build (README "Build and run") | CMake, the compiler | `build/` | GitHub (CLI11, sentry-native, StormLib), ffmpeg.org (FFmpeg's source) |
+| The build (README "Build and run") | CMake, the compiler | `build/` | GitHub (CLI11, sentry-native, StormLib), deb.debian.org then ffmpeg.org (FFmpeg's source) |
 | d2d and the launcher | the game | the settings and saves folder (apps/d2d/README.md) | only what they choose: `--join` to a LAN host, crash reports if they turn them on |
 
 ## 4. The work
