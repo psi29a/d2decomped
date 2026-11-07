@@ -54,6 +54,8 @@ namespace d2d::client {
 // belt, item moves, stat and skill points aren't sent: net-join-plan.md M9.
 auto Town::send(const Command& command) -> void {
         if (!net_game || !level) { net.send(command); return; }
+        // No D2GS form. Applying it here would equip on this machine while the host kept the old gear.
+        if (std::holds_alternative<cmd::EquipFromBag>(command)) return;
         auto subtile_x = [&](float cell_x) { return (cell_x + float(level->world_x)) * 5.f; };
         auto subtile_y = [&](float cell_y) { return (cell_y + float(level->world_y)) * 5.f; };
         if (const auto* move = std::get_if<cmd::Move>(&command)) {

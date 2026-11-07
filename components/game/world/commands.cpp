@@ -512,6 +512,18 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // Refused, the class says so (FUN_00490fc0 and the other body-slot
         // handlers -> FUN_004cb9c0): "can't use this yet" (voice 0x14) when
         // only the stats / level are short, else "impossible" (0x13).
+        if (const auto* from_bag = std::get_if<cmd::EquipFromBag>(&command)) {
+            const auto found = std::ranges::find(actor->character.items, from_bag->item, &d2d::d2s::Item::id);
+            if (found != actor->character.items.end() && !actor->held) {
+                const auto sound = item_sound(*game_data, *found, false);
+                const int level_needed = required_level(*game_data, *found, cls);
+                const auto& layout = game_data->inv_layout[std::size_t(cls)];
+                if (d2d::rules::equip_from_bag(tables, actor->character.items, actor->held, from_bag->item,
+                                               wearer(*game_data, cls, actor->character.items, actor->character.stats), level_needed, layout.cols, layout.rows))
+                    sound_cue(sound);
+            }
+            return;
+        }
         if (const auto* to_body = std::get_if<cmd::ToBody>(&command)) {
             if (actor->held && to_body->slot >= d2d::d2s::body_location::kFirst && to_body->slot <= d2d::d2s::body_location::kLast) {
                 const auto sound = item_sound(*game_data, *actor->held, false);
