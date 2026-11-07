@@ -531,7 +531,7 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
         }
         if (net_game && net_game->trade.state != 0)                     // a trade's buttons, gold and our offer's cells
             for (const auto& box : trade_boxes(*scene, net_game->trade.state)) centre(box[0], box[1], box[2] - box[0], box[3] - box[1]);
-        if (belt_open) {                                                // the belt's boxes
+        if (belt_up.shown) {                                            // the belt's boxes
             const auto& belt = scene->belts[std::size_t(belt_index(*scene, character.items))];
             for (int box = 0; box < belt.boxes; ++box) {
                 const auto& edges = belt.box[std::size_t(box)];
@@ -585,7 +585,7 @@ auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
         if (gold_box) return true;                                   // the gold box: B is its Cancel
         if (!scene || held || !(stash_open || cube_open)) return false;
         const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                            { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse_x, mouse_y);
+                                            { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse_x, mouse_y);
         return !(click.cmd && std::holds_alternative<cmd::ToCursor>(*click.cmd));
     }
 
