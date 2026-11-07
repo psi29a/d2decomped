@@ -15,6 +15,7 @@
 
 using d2d::client::PadHoldKind;
 using d2d::client::PadHoldQuery;
+using d2d::client::pad_drops_from_bag;
 using d2d::client::pad_hold_kind;
 using d2d::client::potion_code;
 
@@ -82,5 +83,6 @@ int main() {
     items[0].location = d2d::d2s::item_location::kStored;
     assert(d2d::rules::auto_belt(tables, items, 9, 4));
     assert(items[4].location == d2d::d2s::item_location::kBelt);
+    assert(pad_drops_from_bag(false) && !pad_drops_from_bag(true));
     return 0;
 }

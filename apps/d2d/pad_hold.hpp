@@ -49,6 +49,11 @@ struct PadHoldQuery {
     return PadHoldKind::None;
 }
 
+// The drop packet is built from the cursor. A bag pickup has not filled that
+// cursor yet, so a joined game must not pick up and drop in the same turn.
+// An item already in hand still drops.
+[[nodiscard]] inline bool pad_drops_from_bag(bool joined) { return !joined; }
+
 // A is the full hold. Right trigger alone, on a potion, belts that one potion.
 // Right trigger does not sell or equip.
 [[nodiscard]] inline PadHoldKind pad_hold_button(const PadHoldQuery& query, bool south, bool trigger) {

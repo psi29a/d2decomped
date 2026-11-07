@@ -600,9 +600,11 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
 
 // Skill buttons, inventory only. A shop's X stays Buy. The item in hand drops.
 // A bag item is picked up and dropped in that order: if the pick-up is refused the drop matches nothing.
+// A joined game skips that pair. The drop packet needs a cursor the pickup has not filled yet.
 auto Town::pad_drop(int mouse_x, int mouse_y) -> void {
         if (!pad_config.skill_buttons || store.npc >= 0 || !inv_open) return;
         if (held) { send(cmd::Drop{ held->id }); return; }
+        if (!pad_drops_from_bag(net_game != nullptr)) return;
         if (const d2d::d2s::Item* item = bag_at(mouse_x, mouse_y)) {
             send(cmd::ToCursor{ item->id });
             send(cmd::Drop{ item->id });
