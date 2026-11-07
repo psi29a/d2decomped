@@ -289,9 +289,12 @@ try:
         press("b")
         # Configure Controls (Esc, Options, Configure Controls): Inventory's
         # first key to Y, Accept; <name>.key and default.key keep it (0x59).
+        # Down: Right-hand Skill, over the gap to Character Screen, Inventory
+        # (the click rows head the list: deviations.md improvement 15).
         cmd("key Escape"); frames(3); cmd("key Up"); cmd("key Up"); frames(2); cmd("key Return"); frames(3)
         cmd("key Up"); frames(2); cmd("key Return"); frames(5)
-        cmd("key Down"); cmd("key Return"); frames(2); cmd("key y"); frames(3)
+        for _ in range(3): cmd("key Down")
+        cmd("key Return"); frames(2); cmd("key y"); frames(3)
         cmd("move 476 438"); frames(2); cmd("click 476 438"); frames(5)
         name = state()["name"]
         with open(os.path.join(saves, name + ".key"), "rb") as f:

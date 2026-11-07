@@ -162,3 +162,116 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 - ponytail: FUN_0056d8d0 skips bit 31 for a summon record with flag 8;
   no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
   d2d pet takes 3 / 4.
+
+## A walk's stop
+
+Read from the code; `objdump -d -M intel --start-address=0x64eda0
+--stop-address=0x650910 game.exe` shows the first three paragraphs.
+
+- **The stop.** FUN_00650840 calls FUN_00650660, which calls FUN_00650150
+  (LAB_0065073c). A blocked subtile: FUN_00650150 writes the centre of the
+  last free walked point (LAB_0065025f, `and edi,0xffff0000`, then adding 0x8000) and
+  returns 1, and FUN_00650660 sets idx = count (LAB_0065076c). FUN_00650840
+  puts the unit there (LAB_006508ca), sees idx ≥ count and calls FUN_006507b0
+  (LAB_006508ff), which snaps again (LAB_006507b5), clears flag 0x20 and sets
+  idx and count to 0. No path means the same stop, from the same label.
+- **Steps don't count.** The walk starts at the unit's own position
+  (LAB_0065017c) and no step made earlier decides the snap: path +0x1d4 starts
+  at 0 each call, and only its cap of 10 subtiles a call (LAB_00650236) leaves
+  without a snap. Blocked on the first step, the unit goes to the centre of
+  the subtile it stands on. A velocity of 0 snaps too (LAB_006506a8).
+- **Wall or unit, the same.** A walker (no path flag 0x40000) tests a new
+  subtile through FUN_0064ff90 → FUN_0064eda0: its own stamp off
+  (FUN_0064ec10), then FUN_0064d870 against the mask (path +0x50). Any bit
+  blocks (LAB_0065005f, `or` into path +0x54, then LAB_00650070), so a wall,
+  an object and the units' 0x1000 take one path. Only a change of subtile is
+  tested (LAB_006501c0 on).
+- **Who.** Player, monster and merc share this stop; the merc differs only in
+  what it stamps (0x2000, "The grid" above). What follows differs: FUN_00554ca0
+  turns the stop into 2, a player's FUN_00580c20 then goes idle or takes its
+  pending interact, a monster's walk update (LAB_005a84c4) thinks at
+  once (FUN_005a8030). Only a client-side monster re-paths from the stop
+  (monster-ai.md).
+- **d2d.** `follow_path` (ai.cpp), for the player, merc, pets and town NPCs,
+  stops for a wall and the crowd alike, as game.exe does, on a step that stops
+  short of its next point; one that reaches a point tests nothing. It leaves the unit
+  where it was, not on the centre: off-centre after a crowd stops it part way, or when a new path from
+  the middle of a subtile clips a blocked one on its first leg. Neither needs
+  `debug warp`. In game.exe no stop stays off-centre. A
+  hostile monster walks by `move_frame`, which snaps already.
+
+### What keeps a walk to a unit going: the client
+
+The server re-issues a walk once at most (below). What keeps a walk to an NPC,
+object or player going is the client, every game frame, until it stands in reach:
+
+- **Queued at the click.** FUN_00461dc0 starts the walk (LAB_0046213f; an NPC
+  over 2 away, LAB_0046204e, LAB_0046212a) and queues the interact: pending
+  (player data +0x150) = 1, action +0x154 = 0x13, target +0x158 / +0x15c
+  (LAB_00462159). A stop leaves it queued, the mode unchanged (FUN_00463390,
+  LAB_004636ae).
+- **Run each frame.** FUN_0044efa0 calls FUN_00481600 (LAB_0044f126), which
+  clears the queue (LAB_00481672, FUN_0045c470) and asks FUN_00480c80 about
+  a player, monster or object target (LAB_004816f5, LAB_004816ea,
+  LAB_004816d8).
+- **Out of reach,** FUN_004812e0 runs the walk command (LAB_0048136b,
+  FUN_00480c10 → FUN_00461250 → FUN_00480780: a new path from where the unit is) and, with a
+  path, sends C→S 0x02 or 0x04 (LAB_0048137a). Path or no path it queues the
+  action again (LAB_004813c3), with no count, no timer and no test of the
+  steps made. With no path the unit goes neutral, nothing is sent, and the
+  next frame tries again.
+- **In reach,** FUN_00481030 (LAB_00481709) sends 0x13 and clears the queue.
+- **Abandoned** by any other action (FUN_00481030 clears the queue,
+  LAB_00481240), a target gone (LAB_00481697, the queue already cleared), or a
+  target dead or not selectable (FUN_00467a70), and by the clears at
+  LAB_0045c9e5, LAB_004622db, LAB_004b3c45 and LAB_004b6e1f, which weren't
+  followed further.
+
+So a blocked walk to an NPC re-plans the frame after it stops, from the
+snapped centre, whether or not it moved. This is a reading of the code; no
+packet log has been taken of 0x02 going out each frame.
+
+d2d differs (`tick.cpp`): a walk that stops without moving drops the interact
+("blocked on the way"), and one that moved re-plans. game.exe keeps trying
+from both.
+
+### The server's pending interact: one more walk
+
+FUN_00548a50 walks a player at a target out of FUN_00548b00's reach (mode 3,
+FUN_00580a70) and sets pending (+0x150, LAB_00641f37). When the walk ends,
+blocked or not, FUN_00580c20 goes idle and calls FUN_00548b00 again
+(LAB_00580e73). Out of reach, that starts another walk and sets pending, and
+FUN_00580c20 then clears pending (LAB_00580e88). So the second walk ends in
+plain idle: one re-issue, then nothing. C→S 0x02 / 0x04 (`549890`, `549920`)
+never set it.
+
+An item or a warp is where this shows. FUN_00481600 sends those with no range
+test (LAB_004816b1 to LAB_00481709), once, as FUN_00480930's 0x16 or 0x13, so
+a blocked walk to one gets the two walks and stops. That the 0x16 handler ends
+in FUN_00548b00 is inferred, not read. An NPC farther than 8 gets no walk at
+all from FUN_00548b00 (LAB_00548d7d): 7 and 8 walk, 6 or less talks.
+
+d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit; warps
+weren't compared.
+
+### How near the client walks
+
+FUN_00480c80, FUN_00481600's test, for an interact (action 0x13) stops the
+walking for a player or monster only at FUN_00622c40: within melee range + 1 (+ 1 for a moving target) with no
+0x804 between (LAB_00480d0f), and an object at FUN_00623660 with no 0x804
+(LAB_00480cde). The click sends at once only for an NPC within 2. So the
+server's reach of 6 (FUN_00548b00) isn't what ends a client's walk to an NPC.
+
+d2d's `tick.cpp` talks at the server's reach, `unit_distance` under 7, with no
+line test: sooner than game.exe's client, and through a wall.
+
+### A walk to a spot just ends
+
+A click on the ground queues nothing, so a player's walk to a spot that runs
+out or is blocked stops there: FUN_00650840 stops the same frame (LAB_006508ff),
+the server goes idle (FUN_00580c20) and the client goes neutral (FUN_00463390).
+FUN_006503f0's re-path at idx ≥ count isn't reached from this. A held button
+goes through the queued click (FUN_0044c000), which wasn't traced.
+
+d2d re-plans a walk to a spot too while it moves ("Short of the target with a
+step made", `tick.cpp`), so one click can walk farther than game.exe's does.

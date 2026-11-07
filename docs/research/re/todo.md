@@ -35,6 +35,10 @@ Ranked by Seen, then by how much play it touches.
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
 | 15 | A town portal opens 0.6 cells south of its caster, not at game.exe's nearest free spot (collision 0x3e01, size 3) | exact | hardly | deviations.md approximation 8 |
 | 37 | The get-hit oracles `hit_rule.py`, `hit_absorb.py` and `hit_render.py` were cited but never committed: get-hit, absorb and get-hit frames are cited, not re-checkable | trace | no | combat.md, combat.hpp `get_hit` / `absorb_blows`, `test_combat --get-hit*` |
+| 38 | A walk to an NPC or object that stops without moving drops the interact; game.exe's client keeps it and re-plans each frame until another action | exact | yes | collision.md "What keeps a walk to a unit going"; world/tick.cpp "blocked on the way" |
+| 39 | A walk to an NPC ends at the server's reach (under 7, no line test), not the client's melee range with a clear line (FUN_00480c80 → FUN_00622c40) | exact | yes | collision.md "How near the client walks"; world/tick.cpp `in_reach` |
+| 40 | One click on the ground re-plans after a blocked or short path while it moves; game.exe's walk to a spot ends there | exact | maybe | collision.md "A walk to a spot just ends"; world/tick.cpp "Short of the target with a step made" |
+| 41 | `follow_path` tests the end of a step short of its next point, its own subtile too, and not a point it reaches; game.exe tests only a new subtile and every one crossed (FUN_00650150 from LAB_006501c0), so with a blocker come onto its footprint d2d's unit can't make a short step inside its subtile and game.exe's can | exact | hardly | collision.md "A walk's stop"; ai.cpp `follow_path` |
 
 ## Sounds
 
