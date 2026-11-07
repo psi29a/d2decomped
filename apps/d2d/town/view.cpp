@@ -88,6 +88,17 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(label) / 2, top + height + 2, label);
 }
 
+namespace {
+
+// A portal's look and light: the red one (object 60, PP) for the game's
+// permanent pairs, else the town portal's (World::portal_object).
+// ponytail: the true tomb's way down (object 100, SJ) is drawn as a town portal.
+const Npc& portal_look(const Scene& scene, int which) {
+    return d2d::game::World::portal_object(std::size_t(which)) == 60 ? scene.red_portal : scene.town_portal;
+}
+
+}  // namespace
+
 void view_units(const Scene& scene, const View& view, float camera_x, float camera_y, const std::string* merc_label, std::vector<Unit>& out,
                 std::span<const View::Shot> effects , std::uint32_t now_ms , const std::string* corpse_name , int cls ,
                 StateClock* clk) {
@@ -121,7 +132,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
     for (const auto& portal : view.portals) {
         const Level* destination = portal.which < int(d2d::game::World::kGamePortals) ? scene.level(portal.destination) : nullptr;
         const bool opening = now_ms - portal.born < kPortalOpenMs;
-        out.push_back({ portal.x, portal.y, &scene.npc_anim(scene.town_portal, opening ? "OP" : "ON"), 0, destination ? &destination->name : nullptr,
+        out.push_back({ portal.x, portal.y, &scene.npc_anim(portal_look(scene, portal.which), opening ? "OP" : "ON"), 0, destination ? &destination->name : nullptr,
                         opening ? portal.born : portal.born + kPortalOpenMs, -2000 - portal.which });
         out.back().shadow = false;
     }
@@ -329,7 +340,7 @@ Lighting frame_light(const Scene& scene, const View& view, float cam_x, float ca
         for (const auto& npc : neighbour.level->npcs) stamp(npc.x + float(neighbour.dx), npc.y + float(neighbour.dy), lit(npc, {}), true);
     for (const auto& monster : view.monsters) if (monster.alive()) lamp(4ull << 32 | std::uint32_t(monster.id), monster.unit.x + kHalf, monster.unit.y + kHalf, monster.npc.light, false);
     for (const auto& portal : view.portals)                        // Lit1 (OP) while it opens, then Lit2 (ON)
-        lamp(5ull << 32 | std::uint32_t(portal.which), portal.x, portal.y, int(scene.town_portal.lit[now - portal.born < kPortalOpenMs ? 1 : 2]) >> 1, true);
+        lamp(5ull << 32 | std::uint32_t(portal.which), portal.x, portal.y, int(portal_look(scene, portal.which).lit[now - portal.born < kPortalOpenMs ? 1 : 2]) >> 1, true);
     for (const auto& missile : view.missiles) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
     for (const auto& missile : effects) if (missile.info) stamp(missile.x, missile.y, missile.info->light, false);
     // States' overlays light their unit (Overlay.txt: InitRadius growing to

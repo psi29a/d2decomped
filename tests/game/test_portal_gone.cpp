@@ -2,7 +2,8 @@
 // test-links: game
 // A town portal pair closes (FUN_00535430, a new read's old pair): both ends
 // are freed (FUN_00555600), so a walk queued to either loses its target
-// (LAB_00481697); a walk to another pair's portal is kept.
+// (LAB_00481697); a walk to another pair's portal is kept. And which
+// object each of the game's own portals is.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -20,6 +21,12 @@
 namespace fs = std::filesystem;
 using namespace d2d::game;
 
+// The game's permanent pairs are object 60 (PP, red): the Cairn Stones'
+// (FUN_005a9930), the Sanctuary's (FUN_0056d130), Anya's (FUN_0058af90) and
+// the Cow Portal (FUN_00594140); [6] is object 100; the rest town portals (59).
+static_assert(World::portal_object(2) == 60 && World::portal_object(5) == 60 && World::portal_object(8) == 60 && World::portal_object(11) == 60);
+static_assert(World::portal_object(6) == 100 && World::portal_object(0) == 59 && World::portal_object(World::kGibbetPortal) == 59 && World::portal_object(14) == 59);
+
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
@@ -28,6 +35,7 @@ int main() try {
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data);
+    assert(data->town_portal.code == "TP" && data->red_portal.code == "PP");
 
     d2d::rules::Rng rng(7);
     constexpr int kSorceress = 1;
