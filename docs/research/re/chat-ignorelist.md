@@ -106,3 +106,23 @@ then `ExitProcess`). It returns to its caller, so a bad free is reported, not
 fatal. Callers: `00411910`, `00411f00`, `004122f0`, `004124b0`, `00412650`
 (which passes `"SMemFree()"` and -1).
 
+## FUN_00411910: is this a live Storm block?
+
+Cited; d2d: not ported. 132 bytes, `__fastcall`; the pointer arrives in EAX,
+the other two inputs in ECX and EDX (EDX non-zero means "report"). Returns 0
+or 1. Fields are read below the user pointer:
+
+| test | result |
+|---|---|
+| pointer is 0 | report, return 0 |
+| `short [ptr-2]` != `0x6f6d` (`'mo'`, the tag in block header dword 3) | report, return 0 |
+| `byte [ptr-5] & 2` | report, return 0 |
+| `byte [ptr-5] & 1` and `short [ptr + ushort[ptr-8] - byte[ptr-6] - 10]` != `0x12b1` | report if asked, **return 1** |
+| otherwise | return 1 |
+
+So a bad tag and the `& 2` bit refuse the free; a bad trailing word at
+`0x12b1` is only reported. What bit 2 and the trailing word mean is read from
+the code alone (bit 2 looks like "already free", the word like an end marker
+written when bit 1 is set); the allocator side that sets them was not traced
+here. Callers: `004122f0`, `00412650`, `00412760`, `004127e0`, `00412a60`.
+
