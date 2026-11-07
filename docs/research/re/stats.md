@@ -187,3 +187,25 @@ d2d: reads the same, cited from the decompile, no oracle run, as
 list comes off); `weapon-switch.md:142` cites it too. Step 3's buffer
 is 16 ints with no count check: bugs.md #53.
 Re-check: `python3 tools/ghidra/fn.py 006269f0`.
+
+### Hang a list on a unit — FUN_00626e10 (unit, list, enable)
+
+(d2d name `d2d_rules_socket_props`.) Cited, read from the decompile.
+The unit's own list (`unit +0x5c`) must exist and be expanded, else
+nothing happens. The new list is first detached (`FUN_006269f0`); the
+call returns if the new list is the unit's list or one of its parents
+(a loop on +0x34). A new list with flag 4 sets flag 2 on the unit's list.
+A 0x2000 list goes to the head of the unit list's +0x40 chain and
+stops. Any other goes to the head of its +0x3c chain (+0x34 = unit
+list, +4 = the unit). If the new list is expanded its owner (+0x44) is
+kept; with flag 0x20000000 up to 16 keys whose row +0x53 is set are
+refreshed (`FUN_0045c4f0`, `FUN_006266c0`; same 16-int buffer, bugs.md
+#53; the decompile does not show which list's array `FUN_00624f40` reads,
+read by analogy with `FUN_006269f0` as the new list's). Then, `enable` 0: flag 0x40000000 is set and the
+entries whose row +4 bit 2 is clear are pushed up (`FUN_00626920`);
+`enable` nonzero: the flag is cleared and the entries are pushed up.
+Callers include `FUN_00643620`, `FUN_00570590`, `FUN_005aae10`,
+`FUN_005ab110` and `FUN_00557ab0`, each with enable 1.
+d2d: reads the same, cited from the decompile, no oracle run, as `components/rules/rules.hpp:682` (a socketed item's
+properties count as the parent's own); d2d has no flag 0x40000000.
+Re-check: `python3 tools/ghidra/fn.py 00626e10`, `python3 tools/ghidra/calls.py 00626e10`.
