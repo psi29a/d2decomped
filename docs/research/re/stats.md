@@ -251,3 +251,22 @@ hung on the unit by `FUN_00626e10(unit, list, 1)`; returns the list (the
 existing one when found). Its only caller is `FUN_00646d60`.
 d2d: not ported (d2d has no per-state stat lists).
 Re-check: `python3 tools/ghidra/fn.py 00643620`, `python3 tools/ghidra/calls.py 00643620`.
+
+### Put a skill's state on a unit — FUN_00570590 (ECX game, source, on, state, skill, level)
+
+Cited. The Ghidra parameter names are shifted by the register args;
+read by use: `skill` indexes the Skills rows (0x23c bytes at
+`tables +0xb98`, count `+0xba0`), else it returns 0. The length is
+`FUN_00646ca0(source, row +0x60, skill, level)` (the skill's length
+calc); the list is `FUN_006251f0(ECX +0x1c, 2, ECX +0xa8 + length,
+source type, source +0xc)`: flags 2, expiry = ECX +0xa8 plus the length
+(not clamped to 5, unlike hits 16 and 19 below). Then its state word is
+`state` (`FUN_006252d0`), its removal callback (+0x38) `FUN_0056e900`
+(`FUN_00625ce0`), it is hung on `on` (`FUN_00626e10(on, list, 1)`), the
+state bit is set (`FUN_00639db0(on, state, 1)`), an event 0xc is queued
+for the expiry frame (`FUN_005417d0`) and the skill's aurastats are
+written to the list (`FUN_005c6cc0`). Returns the list. Only caller
+`FUN_005d26f0`. Its decompile has no lookup of a list already holding the state
+(hits 16 and 19 do and renew it).
+d2d: not ported by name; `skills.md` describes the state side per skill.
+Re-check: `python3 tools/ghidra/fn.py 00570590`, `python3 tools/ghidra/calls.py 00570590`.
