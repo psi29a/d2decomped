@@ -437,6 +437,32 @@ stats it checks that are 204 below max to `max << 8 | max` and returns whether a
 cube (cube.hpp:362) and the repair use it. d2d omits the client stat packet
 (step 4) and the 1..255 guard, neither visible in play.
 
+### Recharging charged skills (`FUN_0055fe80`)
+
+Cited. `(owner in ecx, edx unused, item)`; 0 unless the item is an item unit.
+
+1. `FUN_006261d0(item, 0xcc, buf, 0x40)` lists the item's stat 0xcc
+   (item_charged_skill) entries: each a param (skill id and level, split by
+   the shift / mask at tables +0xc6c / +0xc70) and a value.
+2. Per entry: current = value & 0xff, max = value >> 8. If current < max,
+   `FUN_0065c940(item, param >> shift, param & mask, max)` writes
+   `max << 8 | min(max, request)`, i.e. max / max, to the entry (it returns
+   0 and writes nothing when max is not 1..255, and tries the item's
+   socketed items when the item itself has no such entry).
+3. The result is 1 if any entry was below max (set whether or not
+   `FUN_0065c940` wrote it).
+4. When the owner is a player (type 0) with a client (`FUN_005531c0`), the
+   new value is also sent: `FUN_0053d130(1, 0xcc, ...)`.
+
+Callers: `FUN_00562660` (when its flag argument is set, after a socket),
+`FUN_00565ab0` (the cube's recharge flag 0x400), `FUN_005761c0` (repair),
+`FUN_005e0070` (the Torch / Standard drop).
+
+d2d: reads the same, cited from the decompile, no oracle run. `rules::recharge` (components/rules/rules.hpp:731) sets the
+stats it checks that are 204 below max to `max << 8 | max` and returns whether any was; the
+cube (cube.hpp:362) and the repair use it. d2d omits the client stat packet
+(step 4) and the 1..255 guard, neither visible in play.
+
 ### Does the item take sockets (`FUN_00629900`)
 
 Cited. For an item unit (type 4), returns the Items record's byte +0x137
