@@ -16,6 +16,8 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <exception>
 
 using namespace d2d::game;
 
@@ -27,7 +29,7 @@ int start_skill_props(const d2d::d2s::Item& item) {
 
 }  // namespace
 
-int main() {
+int main() try {
     constexpr int kSorceress = 1, kBarbarian = 4, kFireBolt = 36;
     GameData game_data;
     auto& tables = game_data.rules;
@@ -61,4 +63,7 @@ int main() {
         assert(start_skill_props(barbarian.items.front()) == 0);                    // no StartSkill
     }
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_new_character_start_skill: %s\n", error.what());
+    return 1;
 }

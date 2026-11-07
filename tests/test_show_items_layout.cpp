@@ -9,6 +9,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -23,7 +24,7 @@ d2d::rules::LabelRect built(int x, int y, int text_w, int text_h) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     if (argc > 1) {
         std::ifstream input(argv[1]);
         for (std::string line; std::getline(input, line);) {
@@ -58,4 +59,7 @@ int main(int argc, char** argv) {
     }
     std::printf("OK: %zu labels as game.exe's\n", sizeof(cases) / sizeof(cases[0]));
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_show_items_layout: %s\n", error.what());
+    return 1;
 }

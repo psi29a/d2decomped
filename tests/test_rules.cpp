@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <optional>
 #include <span>
 #include <utility>
@@ -30,7 +31,7 @@ static Item item(const char* code, int quality = 2) {
     return item;
 }
 
-int main() {
+int main() try {
     {   // FUN_0056bd10's pick: the next id up, else the lowest up to the last (itself too).
         const std::array ids{ 7, 3, 12, 5 };
         assert(ring_pick(ids, 5) == 7 && ring_pick(ids, 7) == 12 && ring_pick(ids, 12) == 3 && ring_pick(ids, 2) == 3);
@@ -913,4 +914,7 @@ int main() {
     assert(!auto_belt(pick_tables, clicked, 8, 4) && clicked[7].location == 0 && clicked[7].panel == 1);   // no box: stays in the pack
 
     std::puts("test_rules: ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_rules: %s\n", error.what());
+    return 1;
 }

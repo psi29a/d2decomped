@@ -12,6 +12,8 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
+#include <exception>
 #include <utility>
 #include <vector>
 
@@ -33,7 +35,7 @@ Item worn_axe(int location, int panel) {
 
 }  // namespace
 
-int main() {
+int main() try {
     Tables tables;
     tables.npc_prices["Charsi"].rep = 1024;
     tables.types["axe"].repair = true;
@@ -112,4 +114,7 @@ int main() {
     small.values[d2d::d2s::kGold] = 1000;
     assert(pay(small, -500) && small.get(d2d::d2s::kGold) == 1500);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_repair_all: %s\n", error.what());
+    return 1;
 }

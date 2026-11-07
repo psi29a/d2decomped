@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <ratio>
 #include <vector>
 
@@ -255,7 +256,7 @@ std::vector<std::uint8_t> make_framebuffer(Random& random, int width) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     Random random{ 12345 };
     const auto pals = make_palettes(random);
     int cases = 0;
@@ -367,4 +368,7 @@ int main(int argc, char** argv) {
         time("current", current_floor, current_wall);
     }
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_tile_blit: %s\n", error.what());
+    return 1;
 }

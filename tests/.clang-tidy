@@ -1,0 +1,4 @@
+# A test's main catches what it throws (Coverity's "uncaught exception"):
+# int main() try { ... } catch (const std::exception& error) { ... }.
+InheritParentConfig: true
+Checks: 'bugprone-exception-escape'

@@ -9,6 +9,8 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
+#include <exception>
 
 using namespace d2d::game;
 
@@ -18,7 +20,7 @@ bool near_value(float value, float expected) { return std::abs(value - expected)
 
 }  // namespace
 
-int main() {
+int main() try {
     const Level walled{};                             // no grid: every subtile is blocked
     UnitState unit;
     unit.x = 21.0f; unit.y = 13.4f;                   // on a corner of subtile (105, 67)
@@ -42,4 +44,7 @@ int main() {
     assert(!follow_path(walled, unit, 0.1f, {}, &blocked));
     assert(!blocked && near_value(unit.x, 21.05f));
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_walk_blocked_centre: %s\n", error.what());
+    return 1;
 }

@@ -11,13 +11,14 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 
 #define CHECK(x) do { if (!(x)) { \
     std::fprintf(stderr, "FAIL: %s (line %d)\n", #x, __LINE__); return 1; } \
 } while (0)
 
-int main() {
+int main() try {
     namespace fs = std::filesystem;
     const char* home = std::getenv("HOME");
     if (!home) { std::puts("SKIP: no HOME"); return D2D_TEST_SKIPPED; }
@@ -59,4 +60,7 @@ int main() {
     }
     std::puts("test_iso9660: OK (no small file to round-trip, still valid)");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_iso9660: %s\n", error.what());
+    return 1;
 }

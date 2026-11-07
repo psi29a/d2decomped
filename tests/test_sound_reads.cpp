@@ -5,8 +5,10 @@
 #include "sound_reads.hpp"
 
 #include <cassert>
+#include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     using d2d::client::sound_reads;
     const auto den = sound_reads(R"(act1\denofevilaction.wav)", false);
     assert(den.size() == 3);
@@ -21,4 +23,7 @@ int main() {
     assert(!song[2].from_music && song[2].path == R"(data\global\sfx\act1\wild.wav)");
     assert(!song[3].from_music && song[3].path == R"(data\local\sfx\act1\wild.wav)");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_sound_reads: %s\n", error.what());
+    return 1;
 }

@@ -8,12 +8,13 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <vector>
 
 using d2d::rules::SoundInstance;
 using d2d::rules::SoundRule;
 
-int main() {
+int main() try {
     constexpr std::uint64_t kHero = 1, kZombie = 2;
     // Compound: a playing member of the group started within Compound ticks takes the play.
     const std::vector<SoundInstance> hits{ { 100, 100, kZombie, 40, false }, { 101, 100, kHero, 45, false } };
@@ -85,4 +86,7 @@ int main() {
     assert(!ducked_mix(255, 1, 800.f, 0.f, 500, false, 50, 70).audible);       // past Falloff 1's 700 px
     std::puts("test_sound_start: ok");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_sound_start: %s\n", error.what());
+    return 1;
 }

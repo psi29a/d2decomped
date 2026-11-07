@@ -12,12 +12,13 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <utility>
 #include <vector>
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     QuestBits quest_bits{};
     DenQuest den;
     auto akara = [&] { return den.talk(quest_bits, 148); };
@@ -574,4 +575,7 @@ int main() {
     // A cage's portal (FUN_005888d0): the dead door's subtile + 2 on x, never a free-spot search.
     assert(RescueQuest::portal_spot(100, 40) == std::pair(102.5f / 5, 40.5f / 5));
     std::puts("ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_quests: %s\n", error.what());
+    return 1;
 }

@@ -11,6 +11,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <fstream>
 #include <string>
 
@@ -27,7 +28,7 @@ struct Run {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     Run run;
     if (argc > 1) {
         std::ifstream input(argv[1]);
@@ -51,4 +52,7 @@ int main(int argc, char** argv) {
     }
     std::printf("OK: %zu glide calls as game.exe's\n", sizeof(cases) / sizeof(cases[0]));
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_globe_glide: %s\n", error.what());
+    return 1;
 }

@@ -6,6 +6,8 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
+#include <exception>
 #include <format>
 #include <initializer_list>
 #include <iostream>
@@ -48,7 +50,7 @@ void expect_ignored(const d2d::switches::Translated& translated, std::initialize
 
 }  // namespace
 
-int main() {
+int main() try {
     {
         // The same required-value parsing that d2d uses: a leading dash
         // is legal in a path/name, even when it spells a legacy switch.
@@ -172,4 +174,7 @@ int main() {
         expect_ignored(act, {ignored_exact("-act")});
     }
     std::cout << "test_switches: ok\n";
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_switches: %s\n", error.what());
+    return 1;
 }

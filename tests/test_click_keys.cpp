@@ -10,10 +10,12 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
+#include <exception>
 
 using namespace d2d::client::keys;
 
-int main() {
+int main() try {
     Table table = defaults();
     Clicks clicks = kNoClicks;
     std::uint16_t message = 0;
@@ -65,4 +67,7 @@ int main() {
     assert(loaded[kClickAttack] == (std::array<std::uint16_t, 2>{ kMouse5, kMouse4 }));
     assert(loaded[kClickSkill] == (std::array<std::uint16_t, 2>{ kNone, 'Q' }));
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_click_keys: %s\n", error.what());
+    return 1;
 }

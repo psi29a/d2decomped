@@ -10,6 +10,8 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
+#include <exception>
 #include <map>
 #include <string>
 #include <vector>
@@ -21,7 +23,7 @@ bool has(const Actions& actions, Key key) { return std::ranges::find(actions.key
 Sample with(Button which) { Sample sample; sample.held[std::size_t(which)] = true; return sample; }
 }
 
-int main() {
+int main() try {
     // Inside the dead zone nothing moves.
     {
         Mapper mapper;
@@ -286,4 +288,7 @@ int main() {
         assert(has(south, Key::Escape) && !south.click_press);
     }
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_gamepad: %s\n", error.what());
+    return 1;
 }

@@ -13,12 +13,13 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <utility>
 #include <vector>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     GameData::MissileInfo burner;
     burner.srv_do = 5;
     burner.damage_rate = 41;
@@ -48,4 +49,7 @@ int main() {
     assert(burn(3) == 0x1a0 - 3 * 256 * 41 / 1024);   // MDR 3 at DamageRate 41: 30 of the 256ths off
     std::puts("OK: a burn keeps its 256ths (0057c852), its MDR at DamageRate / 1024");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_burn_fraction: %s\n", error.what());
+    return 1;
 }

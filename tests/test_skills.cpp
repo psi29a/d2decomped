@@ -12,13 +12,14 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     SkillTables skill_tables;
     skill_tables.names.operands = { "ln12", "dm12", "ln34", "dm34", "ln56", "dm56", "ln78", "dm78", "par1", "par2", "par3", "par4",
                          "par5", "par6", "par7", "par8", "lvl", "edmn", "edmx", "edln", "toht", "mana", "mps" };
@@ -248,4 +249,7 @@ int main() {
         assert(line.attack_rating == 0);
     }
     std::puts("ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_skills: %s\n", error.what());
+    return 1;
 }
