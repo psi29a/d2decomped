@@ -234,7 +234,9 @@ address	name	evidence
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
+00558530	item_arm_replenish_durability	stat 0xfc (item_replenish_durability) via FUN_00625480; if set and no event 3 is pending (FUN_005415a0), queues event 3 at game +0xa8 + 2500 / rate + 1 (FUN_005417d0)
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
+00558580	item_arm_replenish_quantity	same as FUN_00558530 for stat 0xfd (item_replenish_quantity)
 00558a10	ground_item_lifetime	30000 / 45000 / 15000 frames by quality and gold
 00558b90	ground_items_expire	item data +0x24 against the frame, per act room
 00558c50	item_clear_4000000	flag 0x4000000, state 0xab stat list
