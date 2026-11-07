@@ -599,6 +599,33 @@ mention at line 285 uses it for the owner's class.
 belt potion / javelin / durability never regrows in play. Not a
 disagreement, a gap: it needs the event-3 handler for items (not traced:
 the handler is whatever event 3 calls on an item unit).
+
+### The item maker (`FUN_00558cb0`)
+
+Cited. Fastcall: ecx the game, edx the second argument `FUN_00555230`
+takes; the stack carries the bitstream (buffer, length, flag), `param_6` the
+record ref, `param_7` an out word and `param_8` the version.
+
+1. No game (ecx 0): return 0.
+2. The record ref `*param_6` must be >= 0 and below the item-table count
+   (`FUN_00633590` returns `&DAT_0096ca58`, whose first word is the count).
+   Otherwise `*param_7 = 0` and the result is 0.
+3. `FUN_00555230(short ref[1], short ref[+6], game, edx, 1, char ref[2], 0)`
+   makes the item unit; 0 returns 0.
+4. `FUN_0062e430(unit, buffer, length, flag, 0, version, &err)` fills it from
+   the bitstream; its result (bytes used) goes to `*param_7`.
+5. If it used 0 bytes or `err` is set, the unit is freed (`FUN_00555600`)
+   and 0 returned.
+6. Else item flag 0x80000 is set and 0x2000 cleared (`FUN_006280d0`, item
+   data +0x18), the replenish events are armed (`FUN_00558530`,
+   `FUN_00558580`) and the unit is returned.
+
+Note the decompile reuses `param_6` as the error word after the call (its
+address is passed as `&err`); the ref struct is read before that.
+
+d2d: not ported by name. The nearest is `d2s::item` / `parse_net_item`,
+which parse the stream into an `Item` value, not a unit. Agrees on the
+stream; the replenish arming in step 6 has no d2d counterpart (see above).
 `rules::make_fighter`'s weapon).
 
 Pass 1 sets no 0x4000: a charm short of its requirements just gets no
