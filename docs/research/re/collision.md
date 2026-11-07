@@ -32,6 +32,18 @@ Bits: 0x01 blocks walking, 0x08 blocks the player. An object's bits
 else 0x400 (on in the modes HasCollision says, off as it opens). An item
 0x200, a warp tile 1. Outside every room reads 0x27.
 
+`FUN_0064ca10` releases a room's `room1` allocation: with a non-null room
+and non-null `room1` at +0x20, it calls the debug allocator free entry
+`FUN_0040b480` with the caller's original ECX, the `room1` pointer, and
+`Collisn.cpp:0x1c1`, then sets `room + 0x20` to null (`game114d.asm`
+0x64ca10..0x64ca47; the file string is at 0x6eb730). A null room or null
+`room1` does nothing; a repeated release sees null and does not free again.
+Verified by `tools/emu/collisn_release.py` against stock 1.14d, with the
+allocator entry captured rather than invoked. d2d has no one-to-one function:
+`components/game/gamedata/gamedata.hpp` stores the whole-level grid in
+`Level::walk`, and `components/game/gamedata/gamedata.cpp` builds it in
+`set_level_tiles`; the vector is released with its owning `Level`.
+
 Units stamp their own (`FUN_00649400`, off with `FUN_00649560`; the mover's
 own lifted while it paths, `FUN_00649970`) by pattern (`FUN_0064ea90`):
 
