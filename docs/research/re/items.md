@@ -602,6 +602,9 @@ no checks; callers `FUN_00470ec0`, `FUN_0048a990`, `FUN_00497e00`,
 Evidence: `python3 tools/ghidra/fn.py 00451f60`, `python3 tools/ghidra/calls.py 00451f60`.
 d2d: not ported as a function (a unit's class is a plain field); the pet-ai.md
 mention at line 285 uses it for the owner's class.
+belt potion / javelin / durability never regrows in play. Not a
+disagreement, a gap: it needs the event-3 handler for items (not traced:
+the handler is whatever event 3 calls on an item unit).
 `rules::make_fighter`'s weapon).
 
 Pass 1 sets no 0x4000: a charm short of its requirements just gets no
