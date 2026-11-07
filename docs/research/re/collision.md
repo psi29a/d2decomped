@@ -437,6 +437,15 @@ By reading both are small, a few subtiles of where a walk ends; neither was meas
   pattern of `FUN_0064ea90`: `FUN_00648c30` picks it for a path whose owner
   is type 3 (see below). Callers: `FUN_00648c30`, `FUN_00649400`,
   `FUN_005ae520`, `FUN_0064ed20`, `FUN_0064ee70`. d2d: not ported.
+- **By unit pattern, `FUN_0064ea90`** (room, x, y, pattern, bits): 0 nothing;
+  1 / 3 the plus with `bits` (`FUN_0064dc80`), then, only when `bits` is not
+  0, the point with 0x1000 / 0x2000 (`FUN_0064ddb0`); 2 / 4 the 3x3 square
+  (`FUN_0064ddf0`) with `bits`, then the plus with 0x1000 / 0x2000; 5 the
+  plus only; above 5 nothing. d2d: reads the same as the table in "The grid", cited from the decompile, no oracle run;
+  (components/game/gamedata/gamedata.hpp:58, objgroups.cpp:558,
+  tests/doorway_cases.inc); the "only when `bits` is not 0" gate is not
+  in that table (not checked against d2d's code). The ai.cpp
+  `ponytail:` notes (a flight is a line) still stand.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
