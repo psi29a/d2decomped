@@ -667,6 +667,11 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // ponytail: a blow's damage is its whole points; the rolls take d2d's rng, not the player's own seed.
         const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), rng);
         if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && !attack_mode(actor->pmode) && actor->pmode != kModeBL) set_pmode(kModeGH, now_ms);
+        // Too small for mode 4 (FUN_0057cb00 returns 1): the server only sets
+        // flag 0x8000. The client still plays the struck sounds, command 0x13
+        // calling FUN_004cc5b0 with mode 0x13 (LAB_00461439). A miss or a block
+        // never gets here (hits stays 0). An attack in progress is not cancelled.
+        else if (!died && foe.hits > 0 && actor->pmode != kModeGH && actor->pmode != kModeDT && actor->pmode != kModeDD) play_player_hit(now_ms);
     }
 
 auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void {

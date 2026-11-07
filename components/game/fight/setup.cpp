@@ -378,6 +378,18 @@ auto Fight::player_anim(int mode) const -> const GameData::AnimTiming& {
         return game_data->composite_timing(std::max(actor->character.character_class, 0), mode, gfx());
     }
 
+auto Fight::play_player_hit(std::uint32_t now_ms) -> void {
+        const bool dying = actor->pmode == kModeDT || actor->pmode == kModeDD;
+        const auto impact = d2d::rules::sound_ids::impact(actor->struck_class, dying);
+        const auto key = unit_key(kSoundOnPlayer, actor->id);
+        cues.cue_on(key, impact.impact, now_ms, actor->player.x, actor->player.y);
+        cues.cue_on(key, impact.element, now_ms, actor->player.x, actor->player.y);
+        if (const int cls = actor->character.character_class; cls >= 0 && cls < 7) {
+            const auto& voice = d2d::rules::sound_ids::kPlayerVoice[std::size_t(cls)];
+            cues.cue_on(key, dying ? voice.death : voice.hit, now_ms, actor->player.x, actor->player.y, 0, dying ? 0 : Cues::kHush);
+        }
+    }
+
 auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->pmode = mode;
         if (mode != kModeSC && mode != kModeA1) actor->owed = {};   // a cast cut off before its action frame pays nothing
@@ -414,17 +426,10 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         if (mode == kModeSC && anim.frames && anim.action >= 0)
             actor->action_ms = std::uint32_t(d2d::rules::cast_action_ticks(anim.action, int(anim.speed ? anim.speed : 256), actor->player_combat.fcr)) * 40;
         actor->pmode_until = mode == kModeDD ? 0 : now_ms + len;
-        // Struck or dying (FUN_004cc410's player branch): the hit's impact, then the class's own cry,
-        // the get-hit one (modes 4 / 0x13) none while one of its speech lines plays (FUN_004b9e90: hush).
+        // Struck or dying (FUN_004cc410). The get-hit cry is hushed while a speech line plays.
         if (mode == kModeGH || mode == kModeDT) {
-            const auto impact = d2d::rules::sound_ids::impact(actor->struck_class, mode == kModeDT);
-            cues.cue_on(unit_key(kSoundOnPlayer, actor->id), impact.impact, now_ms, actor->player.x, actor->player.y);
-            cues.cue_on(unit_key(kSoundOnPlayer, actor->id), impact.element, now_ms, actor->player.x, actor->player.y);
+            play_player_hit(now_ms);
             actor->struck_class = 0;
-            if (const int cls = actor->character.character_class; cls >= 0 && cls < 7) {
-                const auto& voice = d2d::rules::sound_ids::kPlayerVoice[std::size_t(cls)];
-                cues.cue_on(unit_key(kSoundOnPlayer, actor->id), mode == kModeDT ? voice.death : voice.hit, now_ms, actor->player.x, actor->player.y, 0, mode == kModeGH ? Cues::kHush : 0);
-            }
         }
         // A block (FUN_004cb860): by the hit class the client last had (unit +0xb0), the
         // last landed hit's. A blocked hit clears its flag 1 (FUN_0057ec10), so FUN_0057cee0
