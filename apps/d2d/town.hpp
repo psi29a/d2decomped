@@ -18,6 +18,7 @@
 #include "roster.hpp"
 #include "scene.hpp"
 #include "skillbar.hpp"
+#include "skillpad.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
 #include "ui.hpp"
@@ -260,6 +261,10 @@ struct Town {
         bool walking = false;                     // last frame's stick walk, to send a fresh walk once
         float face_x = 0.707f, face_y = 0.707f;   // the facing the pad last pointed (world, south at first)
         int target = -1;                          // the monster the held button stays on
+        skillpad::HoldSet slot_hold;              // the set a held skill button started on
+        skillpad::TriggerHold trigger_hold;       // the set RT started on
+        int aura_return = 0;                      // the non-aura right skill to restore when an aura toggles off
+        bool wants_strip = false;                 // this pad's Start asked for the panel list
     };
     PadPlayer pad;                                // the first player's
     using Send = std::function<void(const Command&)>;
@@ -267,12 +272,13 @@ struct Town {
     // panel or menu is up), the commands out through `out`.
     void pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, const Send& out);
     struct PadPick { enum Kind { kNone, kMonster, kItem, kThing } kind = kNone; int id = -1; float x = 0, y = 0; };
-    [[nodiscard]] PadPick pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim = {}) const;
+    [[nodiscard]] PadPick pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim = {}, bool monsters = true) const;
     // The pad's reach for `skill`: a ranged one's (it fires a missile, srvmissile, or its Skills.txt
     // range is "range") locks on across the screen, the nearest any way round unless the stick
     // (`steering`) points it; a swing's is in reach in the facing.
     [[nodiscard]] pad::Aim pad_aim(int skill, bool steering) const;
     bool pad_cue = false;                         // the field plays by pad: the cursor's hover is A's pick (main sets it)
+    bool pad_playing = false;                     // the pad was the last input: the bottom bar shows the bound skills (main sets it)
     pad::Family pad_family = pad::Family::Xbox;   // the screen's pad's button labels (main sets it)
     void draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const;
     void pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out, int left_item = -1, int right_item = -1);   // the items: the hands' charged entries
@@ -394,6 +400,28 @@ struct Town {
     bool menu_press = false;                       // an NPC menu took this press: the store ignores it till it's let go   // Use Belt 1..4's keys by name (update_hotkey_names)
     void pad_tab(int step);
     void pad_open_picker();
+    // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
+    // an empty key_dir (--no-save) keeps it in memory only.
+    pad::Actions skill_actions;
+    std::map<std::string, skillpad::Sheet> skill_sheets;
+    int skill_strip = -1;                         // the panel list's row, or -1 closed
+    skillpad::MenuHandoff menu_handoff;           // the South press that closed the list is not the next screen's click
+    int wheel_at = 0;
+    int wheel_page = 0;                           // first icon of the wheel's visible window
+    std::vector<int> wheel_ids;
+    [[nodiscard]] std::string sheet_key(const std::string& name) const;
+    void load_skill_sheet(const std::string& name);
+    void save_skill_sheet(const std::string& name) const;
+    void rebuild_wheel();
+    void present_skill_pad();
+    // The wheel and the panel list. True when this frame's clicks and keys
+    // belong to that screen.
+    bool drive_skill_ui(const pad::Actions& actions);
+    void apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, std::string_view name, int right_skill,
+                         bool expansion, const pad::Actions& actions, const Send& out);
+    [[nodiscard]] bool skill_known(std::string_view name, int skill) const;
+    void drive_wheel(const pad::Actions& actions);
+    void drive_strip(const pad::Actions& actions);
     std::unordered_map<int, Automap> other_automaps;   // other Layers' maps, while elsewhere
     std::uint32_t level_ms = 0;            // when the player entered `level`
     bool have_world = false;
@@ -440,6 +468,7 @@ struct Town {
     std::uint32_t now_ms = 0;              // this frame's ms (devctl)   // shrines / chests used: when
     bool  player_walked = false;           // `walking` as of the last frame
     bool alt_held = false;                 // devctl `debug alt on`: "Show Items" held
+    bool pad_show_items = false;           // a skill slot bound to Show Items is held this frame
     StateClock state_clock;                // when each unit's states were first seen (their cast overlays)
     std::vector<d2d::rules::OverlayClock> alert_clocks;
     const Level* alert_level = nullptr;     // reset on a level change and on enter (Town is reused between games)

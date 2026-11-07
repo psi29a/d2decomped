@@ -680,11 +680,11 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state) {
 }
 
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys) {
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys, bool pad_bar) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const auto& belt = scene.belts[std::size_t(belt_index(scene, items))];
     const int rows = belt.boxes / 4;
-    if (popup && scene.popbelt.frames_per_direction() > 0) {
+    if (popup && !pad_bar && scene.popbelt.frames_per_direction() > 0) {
         const auto& frame = scene.popbelt.frame(0, 0);
         for (int i = 0; i + 1 < rows; ++i)
             blit_sprite(framebuffer, frame, pal, int(kScreenWidth) / 2 + 21, int(kScreenHeight) - 41 - 32 * i - int(frame.height) + 1);
@@ -693,8 +693,9 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
     std::array<int, 4> hover_box{};
     for (const auto& item : items) {
         if (item.location != d2d::d2s::item_location::kBelt || item.column < 0 || item.column >= belt.boxes || (!popup && item.column > 3)) continue;
-        const auto& box = belt.box[std::size_t(item.column)];
-        if (box[1] <= box[0]) continue;
+        const auto& cell = belt.box[std::size_t(item.column)];
+        if (cell[1] <= cell[0]) continue;
+        const std::array<int, 4> box = { cell[0], cell[1], cell[2], cell[3] };
         if (const auto* spr = scene.item_sprite(item); spr && spr->frames_per_direction() > 0) {
             const auto& frame = spr->frame(0, 0);
             blit_sprite(framebuffer, frame, scene.item_pal(item, pal), box[0] + (box[1] - box[0] + 1 - int(frame.width)) / 2,

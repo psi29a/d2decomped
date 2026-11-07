@@ -122,7 +122,8 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;
              std::array<std::string, 4> belt_keys{};     // the keys bound to Use Belt 1..4, by name (draw_belt)   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's
              const d2d::d2s::Header* header = nullptr;    // the player's: its quest words (the grid's tint, tint_cells)
-             std::uint32_t frame = 0; };                  // the client's frame (the shown values' glide)
+             std::uint32_t frame = 0;                     // the client's frame (the shown values' glide)
+             bool pad_bar = false; };                    // the pad is playing: the mini-panel strip stays hidden until the mouse or keyboard returns
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);
 // The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by
@@ -189,7 +190,7 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state);
 // Use Belt (0x722404; keys::label_key) in font 1, gold (4), cut to
 // 28 px, at its box's left + 2, baseline bottom - 2 (FUN_00499040).
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys = {});
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys = {}, bool pad_bar = false);
 
 // The automap (UI\automap.cpp). Each revealed tile adds one cell
 // (FUN_00457cf0): its cel from AutoMap.txt (FUN_0061fff0) at the tile's

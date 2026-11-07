@@ -257,6 +257,7 @@ add_executable(d2d
     town/input.cpp
     town/net.cpp
     town/setup.cpp
+    town/skillpad.cpp
     town/update.cpp
     town/view.cpp
     town/walk.cpp

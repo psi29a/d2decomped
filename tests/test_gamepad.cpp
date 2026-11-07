@@ -285,5 +285,122 @@ int main() {
         const Actions south = mapper.step(with(Button::South), Context::Menu, 0.016f);
         assert(has(south, Key::Escape) && !south.click_press);
     }
+    // Skill buttons are a preset. The default layout still has no clashes,
+    // and the preset only stops clashing once the field belongs to the slots.
+    {
+        const Config skill = skill_buttons_config({});
+        assert(!Config{}.skill_buttons);
+        assert(skill.skill_buttons);
+        assert(clashes(Bindings{}).empty());
+        assert(clashes(skill.bindings, false).size() > 0);
+        assert(clashes(skill.bindings, true).empty());
+        std::map<std::string, std::string> cfg;
+        for (const auto& [key, value] : save_config(skill)) cfg[key] = value;
+        const auto lookup = [&](const char* key) { const auto found = cfg.find(key); return found == cfg.end() ? nullptr : &found->second; };
+        std::vector<std::string> problems;
+        assert(load_config(lookup, problems) == skill && problems.empty());
+    }
+    // In the field the preset's A is a slot, RT is the main skill, the right
+    // stick's click interacts, and View opens the wheel. A panel still clicks with A.
+    {
+        Mapper mapper{ skill_buttons_config({}) };
+        const Actions south = mapper.step(with(Button::South), Context::Game, 0.016f);
+        assert(south.skill_slot == 0 && !south.click_press && !has(south, Key::Inventory));
+        (void)mapper.step(Sample{}, Context::Game, 0.016f);
+        Sample trigger; trigger.right_trigger = 1.f;
+        const Actions main_skill = mapper.step(trigger, Context::Game, 0.016f);
+        assert(main_skill.main_skill && main_skill.main_skill_down && !main_skill.click_press);
+        (void)mapper.step(Sample{}, Context::Game, 0.016f);
+        const Actions interact = mapper.step(with(Button::RightStick), Context::Game, 0.016f);
+        assert(interact.interact_press && !interact.skill_picker);
+        (void)mapper.step(Sample{}, Context::Game, 0.016f);
+        const Actions wheel = mapper.step(with(Button::Back), Context::Game, 0.016f);
+        assert(wheel.skill_picker && !wheel.interact_press);
+        (void)mapper.step(Sample{}, Context::Game, 0.016f);
+        assert(mapper.step(with(Button::South), Context::Panel, 0.016f).click_press);
+        (void)mapper.step(Sample{}, Context::Panel, 0.016f);
+        assert(mapper.step(with(Button::RightShoulder), Context::Shop, 0.016f).tab_step == 1);
+    }
+    // A left trigger shorter than the tap threshold swaps weapons. A longer
+    // one, or one that cast, does not. Holding it selects the second set and
+    // does not change RT.
+    {
+        const Config skill = skill_buttons_config({});
+        Sample held; held.left_trigger = 1.f;
+        const float slice = kSwapTapSeconds / 4.f;
+        Mapper tap{ skill };
+        assert(tap.step(held, Context::Game, slice).modifier_held);
+        assert(tap.step(held, Context::Game, slice).modifier_held);
+        assert(tap.step(held, Context::Game, slice).modifier_held);
+        const Actions released = tap.step(Sample{}, Context::Game, slice);
+        assert(released.swap_tap && !released.modifier_held && !has(released, Key::SwapWeapons));
+        Mapper longer{ skill };
+        assert(longer.step(held, Context::Game, kSwapTapSeconds + 0.05f).modifier_held);
+        assert(!longer.step(Sample{}, Context::Game, 0.016f).swap_tap);
+        Mapper leave{ skill };
+        assert(leave.step(held, Context::Game, slice).modifier_held);
+        assert(!leave.step(held, Context::Panel, slice).swap_tap);
+        assert(!leave.step(Sample{}, Context::Game, slice).swap_tap);
+        Mapper casting{ skill };
+        assert(casting.step(held, Context::Game, 0.05f).modifier_held);
+        Sample both = held;
+        both.held[std::size_t(Button::South)] = true;
+        const Actions fired = casting.step(both, Context::Game, 0.05f);
+        assert(fired.skill_slot == 0 && fired.modifier_held && !fired.swap_tap);
+        assert(!casting.step(Sample{}, Context::Game, 0.05f).swap_tap);
+        Mapper main_held{ skill };
+        Sample trigger = held;
+        trigger.right_trigger = 1.f;
+        const Actions together = main_held.step(trigger, Context::Game, 0.05f);
+        assert(together.main_skill && together.modifier_held);
+        assert(!main_held.step(Sample{}, Context::Game, 0.05f).swap_tap);
+    }
+    // The panel list does not use the panel hop or an Escape key. South
+    // confirms, East and Start cancel, and the d-pad steps in either context.
+    {
+        const Config skill = skill_buttons_config({});
+        for (const Context context : { Context::Panel, Context::Game }) {
+            Mapper mapper{ skill };
+            const Actions down = mapper.step(with(Button::DpadDown), context, 0.016f, SkillUi::Strip);
+            assert(down.strip_step == 1 && !down.confirm && !down.cancel && down.keys.empty() && down.snap_y == 0);
+            (void)mapper.step(Sample{}, context, 0.016f, SkillUi::Strip);
+            const Actions north = mapper.step(with(Button::DpadUp), context, 0.016f, SkillUi::Strip);
+            assert(north.strip_step == -1);
+            (void)mapper.step(Sample{}, context, 0.016f, SkillUi::Strip);
+            const Actions south = mapper.step(with(Button::South), context, 0.016f, SkillUi::Strip);
+            assert(south.confirm && !south.click_press && !south.cancel);
+            (void)mapper.step(Sample{}, context, 0.016f, SkillUi::Strip);
+            const Actions east = mapper.step(with(Button::East), context, 0.016f, SkillUi::Strip);
+            assert(east.cancel && !east.rclick_press && east.keys.empty());
+            (void)mapper.step(Sample{}, context, 0.016f, SkillUi::Strip);
+            const Actions start = mapper.step(with(Button::Start), context, 0.016f, SkillUi::Strip);
+            assert(start.cancel && start.keys.empty());
+        }
+    }
+    // A cfg that only sets the flag gets the preset, including RT and the
+    // slots. It does not leave Attack / Use unbound in the field.
+    {
+        std::map<std::string, std::string> cfg{ { "pad_skill_buttons", "1" } };
+        const auto lookup = [&](const char* key) { const auto found = cfg.find(key); return found == cfg.end() ? nullptr : &found->second; };
+        std::vector<std::string> problems;
+        const Config loaded = load_config(lookup, problems);
+        const Config preset = skill_buttons_config({});
+        assert(problems.empty() && loaded.skill_buttons);
+        assert(loaded.bindings == preset.bindings);
+        assert(loaded.bindings[Action::MainSkill][0] == Button::RightTrigger);
+        assert(loaded.bindings[Action::Primary][0] == Button::South);
+        cfg["pad_skill_buttons"] = "0";
+        assert(!load_config(lookup, problems).skill_buttons);
+        assert(load_config(lookup, problems).bindings == Bindings{});
+    }
+    // Skill buttons off, but a slot still on Attack / Use's button. That
+    // clashes, so load stays on the default layout with the mode off.
+    {
+        std::map<std::string, std::string> cfg{ { "pad_skill_buttons", "0" }, { "pad_skill_south", "south" } };
+        const auto lookup = [&](const char* key) { const auto found = cfg.find(key); return found == cfg.end() ? nullptr : &found->second; };
+        std::vector<std::string> problems;
+        const Config loaded = load_config(lookup, problems);
+        assert(!problems.empty() && !loaded.skill_buttons && loaded.bindings == Bindings{});
+    }
     return 0;
 }

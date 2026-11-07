@@ -406,8 +406,9 @@ int MiniPanel::hovered(bool left, bool right, int mouse_x, int mouse_y, int& but
     return -1;
 }
 
-void MiniPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, bool left, bool right, int mouse_x, int mouse_y) const {
-    if (open && !(left && right)) {                        // FUN_0047f710
+void MiniPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, bool left, bool right, int mouse_x, int mouse_y, bool show_strip) const {
+    const bool contents = open && show_strip && !(left && right);   // FUN_0047f710. The pad hides the strip; open is kept.
+    if (contents) {
         const int panel_x = right ? kWidth / 2 - 0xcd : left ? kWidth / 2 + 0x38 - 2 : kWidth / 2 - 0x4a - 3;
         cel(framebuffer, scene, scene.minipanel, 0, panel_x, kHeight - 0x2f, false);
         const int buttons_x = mini_x0(left, right);
@@ -415,7 +416,7 @@ void MiniPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
             cel(framebuffer, scene, scene.minipanel_btn, 2 * kMiniActions[i] + (down[i] ? 1 : 0), buttons_x + 0x15 * int(i), kHeight - 0x32, false);
     }
     // FUN_004977c0: frames 0 / 1 closed, 2 / 3 open, the odd one held down.
-    const int frame = (open ? 2 : 0) + (button_down && on_menu_button(mouse_x, mouse_y) ? 1 : 0);
+    const int frame = (contents ? 2 : 0) + (button_down && on_menu_button(mouse_x, mouse_y) ? 1 : 0);
     cel(framebuffer, scene, scene.menu_button, frame, kWidth / 2 - 8, kHeight - 16, false);
 }
 

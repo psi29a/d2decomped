@@ -828,6 +828,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
             gamepads.handle_event(event);
             if (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) { pad_in_use = false; mouse_took_over = true; }
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) pad_in_use = false;
             // The click keys (deviations.md improvement 15): a key or mouse button bound to
             // Attack / Use clicks the left button (held while it's held), Right-hand Skill
             // the right; not while typing or in Configure Controls, where it's a key to bind.
@@ -963,16 +964,37 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             for (std::size_t button = 0; button < std::size_t(pad::Button::Count); ++button)
                 pad_capture_held[button] = button == std::size_t(pad::Button::LeftTrigger) ? first.left_trigger >= 0.5f
                                          : button == std::size_t(pad::Button::RightTrigger) ? first.right_trigger >= 0.5f : first.held[button];
-            pad::Actions pad_actions = pad_capture ? (void(pad_mapper.step(first, pad_context, pad_dt)), pad::Actions{})
-                                                         : pad_mapper.step(first, pad_context, pad_dt);
+            const bool controls_pad = screen == Screen::InGame && town.controls.open;
+            const pad::SkillUi skill_ui = controls_pad || !town.pad_config.skill_buttons ? pad::SkillUi::None
+                                         : town.skillbar.picking == 3 ? pad::SkillUi::Wheel
+                                         : town.skill_strip >= 0 ? pad::SkillUi::Strip : pad::SkillUi::None;
+            pad::Actions pad_actions = pad_capture ? (void(pad_mapper.step(first, pad_context, pad_dt, skill_ui)), pad::Actions{})
+                                                         : pad_mapper.step(first, pad_context, pad_dt, skill_ui);
             const int pad_side = (win.view_w - int(kScreenWidth)) / 2;   // widescreen's world beyond the 800x600 UI
             const bool pad_active = pad_actions.move_active || pad_actions.click_press || pad_actions.click_down || pad_actions.rclick_press
                                     || pad_actions.cursor_dx != 0 || pad_actions.cursor_dy != 0 || !pad_actions.keys.empty()
                                     || pad_actions.snap_x != 0 || pad_actions.snap_y != 0 || pad_actions.trade_press || pad_actions.tab_step != 0
-                                    || pad_actions.skill_picker || pad_actions.recentre_cursor || pad_actions.focus_step != 0;
+                                    || pad_actions.skill_picker || pad_actions.recentre_cursor || pad_actions.focus_step != 0 || pad_actions.skill_busy;
             if (pad_active && !pad_in_use) d2d::log::info("gamepad: in use (screen {})", int(screen));
             if (pad_active) pad_in_use = true;
-            if (pad_actions.skill_picker) town.pad_open_picker();
+            town.skill_actions = pad_actions;
+            if (town.drive_skill_ui(pad_actions)) {
+                pad_actions.click_press = false;
+                pad_actions.click_down = false;
+                pad_actions.click_release = false;
+                pad_actions.rclick_press = false;
+                pad_actions.keys.clear();
+                pad_actions.snap_x = 0;
+                pad_actions.snap_y = 0;
+                pad_actions.skill_picker = false;
+                pad_actions.trade_press = false;
+                pad_actions.tab_step = 0;
+            } else if (pad_actions.skill_picker) town.pad_open_picker();
+            if (town.menu_handoff.drop(pad_capture_held[std::size_t(pad::Button::South)])) {
+                pad_actions.click_press = false;
+                pad_actions.click_down = false;
+                pad_actions.click_release = false;
+            }
             // In the field a pad plays without a cursor: its buttons hit what is in reach (Town::pad_act).
             const bool pad_field = screen == Screen::InGame && pad_in_use && town.pad_field();
             if (pad_field != pad_was_field && !mouse_took_over) { mouse.x = int(kScreenWidth) / 2; mouse.y = int(kScreenHeight) / 2; }   // the cursor comes back centred
@@ -982,7 +1004,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_focus && pad_focus->key != pad_focus_key) { mouse.x = pad_focus->x; mouse.y = pad_focus->y; }
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             pad_cursor_hidden = pad_field;
-            town.pad_cue = pad_field;
+            town.pad_playing = pad_in_use;
+            town.pad_cue = pad_field && !town.pad_config.skill_buttons;
             // The button labels of the pad playing the UI: a co-op partner's while they have the screen.
             const int label_pad = seats.label_pad(coop_game, ui_seat);
             town.pad_family = label_pad >= 0 ? gamepads.family(SDL_JoystickID(label_pad))
