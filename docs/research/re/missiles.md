@@ -551,3 +551,23 @@ eight, step 1 = 8 missiles, 2 = 4) with the missile's skill and level
 Re-check: `python3 tools/ghidra/fn.py 005ab820`.
 
 d2d: not ported. `Fight::burst` has no case 25.
+
+## Server hit function 26 — FUN_005ab8d0 (Grim Ward's start)
+
+Cited. Slot 26 (`0x73c8a8`). ECX the missile, EDX unit. With a missile
+data block, its row's sub-missile id (short +0x24) >= 0, an owner
+(`FUN_00552fd0`) and a skill in range, it makes one missile with
+`FUN_0059fa30`: flags **0x8001** (start subtile given, range given), [1]
+owner, [4] the sub-missile row, [5] / [6] the missile's own subtile,
+[0xb] / [0xc] skill and level, and [0x13] the **range in frames**:
+sHitPar1 (row +0x4c) when >= 1, else calc1 (skill +0x138) raised to **at
+least 5** (the floor applies only on the calc path). The return paths I read in the decompile return 1.
+
+Re-check: `python3 tools/ghidra/fn.py 005ab8d0`; the flag 0x8000 branch is
+in `python3 tools/ghidra/fn.py 0059fa30` (range = param [0x13]).
+
+d2d: **DISAGREES.** `Fight::burst` case 26 (fight/missiles.cpp:788) shares
+the 2 / 4 / 36 / 51 arm: `sub_at(x, y, 0, 0)` with the sub row's own
+`range + lev_range * level` frames. game.exe overrides the range with
+sHitPar1, else calc1 (at least 5). Confidence: medium; the d2d side is read
+from the code, with no oracle run.
