@@ -91,6 +91,6 @@ Cited from the decompile; it takes the file name in ESI and the line in EBX
   `DAT_007768b0` (line), `DAT_007768ac` (first dword at the name pointer),
   `DAT_007768a8` (hash). A hit needs the same pointer, same line and same
   first dword; otherwise the flag is cleared and the hash recomputed.
-  This function stores the four values but never sets `DAT_00708340`
+  This function stores the four values but has no write to `DAT_00708340`
   itself (its other writers were not searched), so whether the cache hits is
   not established here.
