@@ -327,7 +327,8 @@ from the code, no oracle.
 - `render_world` draws floors and flat roofs through `blit_dt1_tile_lit`
   (the 8 × 8 table and block callback above; a pixel's block from where
   it lies under the diamond's top, tall floors' pixels past the 5 × 5 in
-  the nearest block), raised roofs at the ambient, last; walls through
+  the nearest block), raised roofs at the environment's intensity
+  (`Day::environment`, +0xc), last; walls through
   `blit_dt1_wall_lit` (the six lights, the wall block's flat / ramp). Units take the level at their
   feet; additive missiles and overlays aren't lit.
 
