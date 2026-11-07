@@ -430,5 +430,13 @@ int main() {
         const Actions character = normal.step(with(Button::West), Context::Panel, 0.016f);
         assert(has(character, Key::Character) && !character.drop_press && !character.trade_press);
     }
+    // A on the character list starts that save. A on a button does not.
+    assert(starts_character(true, false, 2, 0, 4));
+    assert(starts_character(true, false, -1, 1, 4));
+    assert(!starts_character(true, true, 2, 1, 4));
+    assert(!starts_character(true, true, -1, 1, 4));
+    assert(!starts_character(false, false, 2, 1, 4));
+    assert(!starts_character(true, false, -1, -1, 4));
+    assert(!starts_character(true, false, -1, 0, 0));
     return 0;
 }

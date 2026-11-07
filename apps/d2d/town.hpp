@@ -279,6 +279,7 @@ struct Town {
     [[nodiscard]] pad::Aim pad_aim(int skill, bool steering) const;
     bool pad_cue = false;                         // the field plays by pad: the cursor's hover is A's pick (main sets it)
     bool pad_playing = false;                     // the pad was the last input: the bottom bar shows the bound skills (main sets it)
+    bool pad_a_edge = false, pad_a_down = false, pad_a_up = false;   // Primary outside the field (main sets them)
     pad::Family pad_family = pad::Family::Xbox;   // the screen's pad's button labels (main sets it)
     void draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const;
     void pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, int left_skill, int right_skill, const Send& out, int left_item = -1, int right_item = -1);   // the items: the hands' charged entries

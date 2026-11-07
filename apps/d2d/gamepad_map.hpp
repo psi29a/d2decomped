@@ -630,4 +630,13 @@ private:
     std::array<Seat, kMost> seats_{};
 };
 
+// Controller A starts the character under the cursor, or the one the d-pad
+// highlighted when the cursor is on neither a slot nor a button. A on
+// Create, Delete, Exit, OK or the scrollbar stays a click.
+[[nodiscard]] inline bool starts_character(bool pad_a, bool on_control, int save_under_cursor, int selected, int count) {
+    if (!pad_a || on_control || count <= 0) return false;
+    if (save_under_cursor >= 0) return true;
+    return selected >= 0 && selected < count;
+}
+
 }  // namespace d2d::client::pad

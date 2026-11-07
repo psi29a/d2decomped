@@ -1057,6 +1057,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     mouse.x = points[std::size_t(next)].x; mouse.y = points[std::size_t(next)].y;
                 }
             }
+            town.pad_a_edge = town.pad_a_down = town.pad_a_up = false;
+            if (!mouse_took_over && !pad_field) {
+                town.pad_a_edge = pad_actions.click_press;
+                town.pad_a_down = pad_actions.click_down;
+                town.pad_a_up = pad_actions.click_release;
+            }
             if (pad_actions.trade_press) town.pad_trade(mouse.x, mouse.y);
             if (pad_actions.drop_press) town.pad_drop(mouse.x, mouse.y);
             if (pad_actions.tab_step != 0) town.pad_tab(pad_actions.tab_step);
@@ -1346,6 +1352,20 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     }
                 }
                 csu.scroll = std::clamp(csu.scroll + 2 * rows, 0, max_scroll);
+                const bool pad_start = town.pad_a_edge && csu.popup.empty() && !csu.confirm_delete && !csu.pick_difficulty;
+                if (pad_start) {
+                    const auto over = [&](const Button& button) {
+                        return mouse.x >= button.x && mouse.x < button.x + button.width && mouse.y >= button.y && mouse.y < button.y + button.height;
+                    };
+                    const bool on_button = over(csu.create_btn) || over(csu.convert_btn) || over(csu.delete_btn) || over(csu.cancel_btn) || over(csu.ok_btn);
+                    const bool on_scroll = max_scroll > 0 && mouse.x >= kScrollX && mouse.x < kScrollX + 12
+                        && ((mouse.y >= kScrollUpTop && mouse.y < kScrollUpTop + kScrollArrow)
+                            || (mouse.y >= kScrollDownTop && mouse.y < kScrollDownTop + kScrollArrow));
+                    const int slot = charselect_slot_at(mouse.x, mouse.y);
+                    const int under = slot >= 0 && csu.scroll + slot < count ? csu.scroll + slot : -1;
+                    if (under >= 0) csu.selected = under;
+                    if (pad::starts_character(true, on_button || on_scroll, under, csu.selected, count)) play = true;
+                }
                 // Keyboard, as LoD's FUN_00439e90: Home/End jump to the
                 // ends, Left/Right only move within the row (2 columns),
                 // Up/Down a whole row; the list scrolls to keep the pick
