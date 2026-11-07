@@ -165,6 +165,12 @@ int main() try {
         assert(object_op_ticks(object) == -1);
     }
     {
+        // A tile's flag 4 (FUN_0066dc50) keeps a wall in front from fading
+        // (FUN_004dd180): the DS1 word's bit 3 or 26, or DT1 material bit 0.
+        assert(Level::never_fades(0x8, 0) && Level::never_fades(0x4000000, 0) && Level::never_fades(0, 1));
+        assert(!Level::never_fades(0x80000004u, 2));
+    }
+    {
         // MonProp's stats on a monster: IAS on A1 / A2, FCR on SC (120 x v /
         // (120 + v)); knock and crush on its seed (FUN_005bf960, FUN_005bffc0).
         Monster monster;

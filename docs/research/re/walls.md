@@ -32,8 +32,11 @@ In 1.14d it is a static 1 that nothing writes (read live under Wine:
 
 A wall in front fades from alpha 0xff to 0x80 at 0x7f per 500 ms, one
 that no longer is fades back; the tile's alpha byte (+0x28) is drawn
-through `FUN_004f6950` when it isn't 0xff. Tiles with flag 4 (word bit
-3, DT1 material bit 0) never fade (`FUN_004dd180`).
+through `FUN_004f6950` when it isn't 0xff. Tiles with flag 4 never fade
+(`FUN_004dd180` skips `FUN_004dd060` when tile +0x14 & 4). The DRLG sets
+flag 4 as it makes the tile (`FUN_0066dc50`): the DS1 word's bit 3
+(0x8), its bit 26 (0x4000000, which sets 0x20c), or the DT1 tile's
+material flags (+6, `FUN_00604bc0`) bit 0.
 
 d2d: `wall_alpha` in `render_world`, over `Level::room_areas`
 (drlg `logic_areas`).

@@ -206,7 +206,14 @@ struct Level {
     // flags 2 / 0x40 / 0x80 as FUN_0064c790 stamps them: 0x10, 0x01, 0x04).
     // `stamp`: what collision took of it (set_level_tiles): the tile as it
     // was when the room it lies in came up, none if that was before its own.
-    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; const d2d::dt1::Tile* stamp = nullptr; };
+    // no_fade: the tile's flag 4 (never_fades): a wall in front stays opaque.
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; const d2d::dt1::Tile* stamp = nullptr; bool no_fade = false; };
+    // A tile's flag 4 as the DRLG makes it (FUN_0066dc50): the DS1 word's bit 3
+    // or bit 26, or the DT1 tile's material flags bit 0; FUN_004dd180 then
+    // never fades it (walls.md).
+    [[nodiscard]] static constexpr bool never_fades(std::uint32_t word, std::uint16_t material_flags) {
+        return (word & 0x8u) != 0 || (word & 0x4000000u) != 0 || (material_flags & 1u) != 0;
+    }
     std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
     // What the screen shows: game.exe's client brings each batch of rooms up
     // in the order they were made (the near list and the ring past it, oldest
