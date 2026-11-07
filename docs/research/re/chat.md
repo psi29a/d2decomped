@@ -39,7 +39,9 @@ first. It returns the destination. Nothing in it is specific to the game.
 `apps/d2d/town/draw.cpp:148` and
 `components/game/world/tick.cpp:242` use "length x 8 + 125 frames" (a shrine's
 4-digit string id: 157 frames), which is this formula. d2d does not keep the
-language byte, the expiry frame or the list link.
+language byte, the expiry frame or the list link. d2d also does not clamp the
+length: the original uses at most 254 characters (2157 frames), so a
+255-character message gets 2165 frames in d2d.
 
 Re-check: `python3 tools/ghidra/fn.py 00661110`, and `grep -n 00661110
 docs/research/re/game-srcfiles.tsv`.
@@ -58,7 +60,7 @@ None of these is in `Chat/Chat.cpp`; they came with the seed's callee list.
   field means is not traced here.
 - `FUN_006b1350` (6 bytes) is the import thunk for `DirectDrawCreate`
   (ddraw.dll); the decompile is a self-call because the jump is indirect.
-  Callers `FUN_00511d0e`, `FUN_006b42f0`, `FUN_006b59a0`.
+  Callers `LAB_00511d0e` (inside another function), `FUN_006b42f0`, `FUN_006b59a0`.
 - `FUN_0046dbf0` (69 bytes, `ECX` unused, `EDX` = path, `EDI` = out) copies the
   base name of a path: if the byte 4 before the end is `.`, it walks back to
   the last `\`, and copies the characters between (via `_strncpy`) with a 0.
