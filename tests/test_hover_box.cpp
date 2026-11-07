@@ -9,8 +9,9 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     using d2d::rules::hover_box;
     using Box = std::array<int, 4>;
     // The tree: an icon at left 400, bottom 200, a 100 x 32 text: from 24 px
@@ -23,4 +24,7 @@ int main() {
     assert(hover_box(400, 100, true, 100, 32, 800, 600) == (Box{ 346, 70, 454, 102 }));      // centred
     std::puts("test_hover_box: ok");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_hover_box: %s\n", error.what());
+    return 1;
 }
