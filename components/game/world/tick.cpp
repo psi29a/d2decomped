@@ -50,9 +50,10 @@ namespace d2d::game {
 
 // The client's OP counter runs from Start1 at its OP rate (FUN_00624390:
 // object_frame_delta, as the client draws it) to FrameCnt1 - 1 (FUN_004bcbb0).
-// These known operation functions also queue event 1 (FUN_005417d0); the altar
-// and Moldy Tome schedule it at FrameCnt1, the others at FrameCnt1 + 1.
-// ponytail: map the other event-1 callers to their operate functions.
+// The operate functions that queue event 1 themselves (FUN_005417d0, on the
+// branch that sets mode 1; objects.md has each call's address): at FrameCnt1
+// + 1, at FrameCnt1, or (the seals, 0x5b5672) at 2 x FrameCnt1. One that
+// reaches FUN_005417d0 through a helper (14's 0x586800) is listed by hand.
 int object_op_ticks(const Npc& npc) {
     if (!npc.op_frames) return 0;
     int client = -1;
@@ -64,17 +65,21 @@ int object_op_ticks(const Npc& npc) {
     }
     if (!npc.mode2) return client;
     using namespace d2d::rules::operate_fn;
-    int delay = 0;
+    int server = 0;
     switch (npc.operate_fn) {
-    case kShrine: case kCasket: case kUrn: case kChest: case kBarrel: case kCorpse: case kTrapObject: case kWaypoint:
-        delay = 1;
+    case kCasket: case kShrine: case kUrn: case kChest: case kBarrel: case kExplodingBarrel: case kCorpse: case kPortal: case kSecretDoor:
+    case kWaypoint: case kSlimeDoor: case kTrapObject: case kWirtBody: case kSanctuaryPortal: case kStairs: case kBurningSoul: case kGate: case kEvilUrn:
+        server = npc.op_frames + 1;
         break;
-    case kMoldyTome: case kGidbinnAltar:
+    case kMoldyTome: case kGibbet: case kGidbinnAltar: case kJournal: case kSewerLever: case kHellforge: case kCompellingOrb: case kAncientsDoor:
+        server = npc.op_frames;
+        break;
+    case kSeal:
+        server = npc.op_frames * 2;
         break;
     default:
         return client;
     }
-    const int server = npc.op_frames + delay;
     return client < 0 ? server : std::min(server, client);
 }
 
