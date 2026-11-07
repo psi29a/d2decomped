@@ -193,7 +193,8 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
   once (FUN_005a8030). Only a client-side monster re-paths from the stop
   (monster-ai.md).
 - **d2d.** `follow_path` (ai.cpp), for the player, merc, pets and town NPCs,
-  stops for a wall and the crowd alike, as game.exe does. It leaves the unit
+  stops for a wall and the crowd alike, as game.exe does, on a step that stops
+  short of its next point; one that reaches a point tests nothing. It leaves the unit
   where it was, not on the centre: off-centre after a crowd stops it part way, or when a new path from
   the middle of a subtile clips a blocked one on its first leg. Neither needs
   `debug warp`. In game.exe no stop stays off-centre. A
@@ -201,8 +202,8 @@ Read from the code; `objdump -d -M intel --start-address=0x64eda0
 
 ### What keeps a walk to a unit going: the client
 
-Nothing on the server re-plans a walk to an NPC, object or player. The client
-does, every game frame, until it stands in reach:
+The server re-issues a walk once at most (below). What keeps a walk to an NPC,
+object or player going is the client, every game frame, until it stands in reach:
 
 - **Queued at the click.** FUN_00461dc0 starts the walk (LAB_0046213f; an NPC
   over 2 away, LAB_0046204e, LAB_0046212a) and queues the interact: pending
