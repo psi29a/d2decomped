@@ -1074,7 +1074,7 @@ struct Fight {
     [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
     void pet_buffs(Pet& pet);
     void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
-    void summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);
+    int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);   // the pet's id
     // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
     // aidel ticks, with a monster within aip4 subtiles, it shoots its skill
     // at the nearest — the skill's missile, whose row names the player's

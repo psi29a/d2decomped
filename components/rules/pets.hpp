@@ -251,6 +251,18 @@ inline int run_percent(int walk_velocity, int run_velocity) {
 
 // The pet AIs whose thinks are traced (tools/emu/pet_ais.py) and that d2d
 // summons: rules::PetBrain runs them (NecroPet has necropet_think).
+// Bone Wall's makers (FUN_005c58b0, do 60), in subtiles: none in a town or when calc2 / 2 (C division) is 1 or less; else two
+// bonewallmaker missiles from the first piece's subtile P, each carrying count = calc2 / 2 and the piece's id: with dx, dy the
+// caster less P (dx 1 when both are 0), one toward (P.x - dy, P.y + dx), the other toward (P.x + dy, P.y - dx).
+struct BoneWallMakers { int count = 0; std::array<std::pair<int, int>, 2> to{}; };
+inline BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int piece_y, int calc2, bool town) {
+    const int count = calc2 / 2;
+    if (town || count <= 1) return {};
+    int across = caster_x - piece_x;
+    const int down = caster_y - piece_y;
+    if (across == 0 && down == 0) across = 1;
+    return { count, { std::pair{ piece_x - down, piece_y + across }, std::pair{ piece_x + down, piece_y - across } } };
+}
 inline bool traced_pet_ai(std::string_view ai_name) {
     static constexpr std::array<std::string_view, 11> kTraced{ "Hydra", "AssassinSentry", "DeathSentry", "Raven", "DruidWolf", "Totem", "Vines", "CycleOfLife", "DruidBear",
                                                                "ShadowWarrior", "ShadowMaster" };
