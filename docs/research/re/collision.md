@@ -504,6 +504,17 @@ EAX); read the asm for them.
   shifts each right by 11 and runs `FUN_00643290` on them. Sole caller
   `FUN_004c9990`. d2d: not ported. What path +0x28 / +0x72 / +0x76 hold
   was not traced.
+- **Pattern from a size, `FUN_00648580`** (unit, SizeX): SizeX over 3
+  gives 1; else the table `DAT_006eb3dc` (0, 1, 1, 2). For a type 1 unit
+  that `FUN_0063e860` accepts and for which `FUN_00457490` (the MonStats
+  flag test, fed the row's +0xd bit 1, interact) is 0, a 1 becomes 3 and a
+  2 becomes 4. Callers `FUN_00649ca0`, `FUN_00649d00`, `FUN_00649ff0`. d2d:
+  reads the same, cited from the decompile, no oracle run:
+  `UnitShape::monster` (gamedata.hpp:60) makes the same 0 / 1 / 2
+  from the size and `owned()` the 1 / 2 to 3 / 4, with the npc / inTown and
+  not interact test at gamedata.cpp:151 and the pet case on the caller's
+  side. The register arguments of the `FUN_00457490` call were not read in
+  the asm, so "bit 1 of +0xd" is taken from the earlier "Pattern" text.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
