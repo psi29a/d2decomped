@@ -504,7 +504,9 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.id = id;
         skill_row.name = text("skill"); skill_row.cls = text("charclass"); skill_row.desc = text("skilldesc");
         skill_row.srvstfunc = d2d::rules::ServerStartFunction(number("srvstfunc")); skill_row.srvdofunc = d2d::rules::ServerDoFunction(number("srvdofunc"));
-        skill_row.anim = text("anim"); skill_row.range = text("range"); skill_row.itypea1 = text("itypea1"); skill_row.monanim = text("monanim");
+        skill_row.anim = text("anim"); skill_row.range = text("range"); skill_row.itypea1 = text("itypea1");
+        for (std::size_t k = 0; k < 3; ++k) { skill_row.itype_a[k] = text("itypea" + std::to_string(k + 1)); skill_row.itype_b[k] = text("itypeb" + std::to_string(k + 1)); }
+        for (std::size_t k = 0; k < 2; ++k) { skill_row.etype_a[k] = text("etypea" + std::to_string(k + 1)); skill_row.etype_b[k] = text("etypeb" + std::to_string(k + 1)); } skill_row.monanim = text("monanim");
         skill_row.aitype = number("aitype"); skill_row.attack_rank = number("attackrank"); skill_row.aibonus = number("aibonus"); skill_row.delay = calc("delay"); skill_row.progressive = text("progressive") == "1";
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";

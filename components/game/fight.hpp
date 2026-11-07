@@ -26,6 +26,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -115,16 +116,46 @@ inline bool throw_ready(const GameData& game_data, const Character& character) {
         return throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; });
     });
 }
+// FUN_00643d90: one hand's item type ("" none) against one of a skill's sets. No item: the set is empty, or its
+// itype1 is weap / mele / h2h (ItemTypes 0x2d / 0x2e / 0x43) and neither hand holds a weapon (FUN_00629bb0(.., 0x2d)).
+// An item of an excluded etype fails; a set with no itype takes any other; else the item must be of one of them.
+// ponytail: the ammo tests (a bow / crossbow needs its quiver in the other hand, stat 70 above 0, unless stat 0x9d) and
+// the flags 0x4000 / 0x100 items (skill 0 only) aren't kept: those pass.
+inline bool hand_fits(const GameData& game_data, const std::string& type, const std::array<std::string, 3>& itypes,
+                      const std::array<std::string, 2>& etypes, bool neither_weapon) {
+    const auto is = [&](std::string_view want) { return !want.empty() && d2d::rules::type_is(game_data.rules, type, want); };
+    if (type.empty())
+        return (itypes[0].empty() && etypes[0].empty()) || ((itypes[0] == "weap" || itypes[0] == "mele" || itypes[0] == "h2h") && neither_weapon);
+    if (std::ranges::any_of(etypes, is)) return false;
+    return itypes[0].empty() || std::ranges::any_of(itypes, is);
+}
+// FUN_00643f80, the skills' weapon-type gate (FUN_00647960's status 2): no itypea1 and no etypea1 passes; else one
+// hand (right, left: FUN_0063bde0(inv, 4 / 5)) fits set a and the other set b, either way round.
+// ponytail: Left Hand Throw / Swing (ids 4 / 5) drop the active hand's item (FUN_0063bef0) first; not kept.
+inline bool weapon_gate(const GameData& game_data, const Character& character, const d2d::rules::Skill& skill) {
+    if (skill.itype_a[0].empty() && skill.etype_a[0].empty()) return true;
+    std::array<std::string, 2> hands{};   // right, left: the item types
+    for (const auto& item : character.items)
+        if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
+            if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end())
+                hands[item.slot == d2d::d2s::body_location::kRightArm ? 0 : 1] = info->second.type;
+    const bool neither_weapon = std::ranges::none_of(hands, [&](const std::string& type) { return !type.empty() && d2d::rules::type_is(game_data.rules, type, "weap"); });
+    const auto fits_a = [&](const std::string& type) { return hand_fits(game_data, type, skill.itype_a, skill.etype_a, neither_weapon); };
+    const auto fits_b = [&](const std::string& type) { return hand_fits(game_data, type, skill.itype_b, skill.etype_b, neither_weapon); };
+    return (fits_a(hands[0]) && fits_b(hands[1])) || (fits_b(hands[0]) && fits_a(hands[1]));
+}
 // A known skill the character can't use now (FUN_00647960 says 2): the
 // picker and the button draw it in text colour 1 (FUN_004aa3a0 /
 // FUN_004a8d30 on FUN_004d9fc0), and a cast stops with the class's
 // impossible_1 (FUN_004610c0, reason 0x13 at 0x711ddc).
-// ponytail: only Throw's weapon gate; FUN_00647960's other statuses (1
-// mana, 4, 5, 6, the other weapon gates) aren't kept. Its weapon gate
-// (FUN_00647640) takes a dual-wielder's primary hand (FUN_006235a0).
+// The weapon-type gate (FUN_00643f80), Throw's its own (FUN_00647640: a throwable, or stat 125).
+// ponytail: FUN_00647960's other statuses (1 mana, 4, 5, 6) aren't kept, nor whether FUN_00643f80
+// also runs on Throw (a stat-125 weapon isn't of type thro). Throw's gate takes a dual-wielder's
+// primary hand (FUN_006235a0).
 inline bool skill_refused(const GameData& game_data, const Character& character, int id) {
     const auto* skill = game_data.skills.get(id);
-    return skill && skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow && !throw_ready(game_data, character);
+    if (!skill) return false;
+    return skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow ? !throw_ready(game_data, character) : !weapon_gate(game_data, character, *skill);
 }
 inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK || mode == kModeS1 || mode == kModeS3 || mode == kModeS4; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
@@ -1122,8 +1153,7 @@ struct Fight {
     // ticks, its aurastats (toblock dm56) on the player.
     // Its row has no auraevent and no passivestat, so the aura events
     // (+0x84) and the passive part (FUN_005c6dc0) add nothing (skills.md).
-    // ponytail: a shield is assumed (itypea1 shld isn't checked: the
-    // skills' weapon-type gate isn't traced).
+    // Without a shield it is refused before this (weapon_gate: itypea1 shld).
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost (FUN_0056bfe0): a charged entry's (Hero::charge, for
     // that skill) is a charge and no mana, else the skill's mana.
