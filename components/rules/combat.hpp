@@ -182,9 +182,10 @@ inline Fighter simple_fighter(int min, int max, int attack_rating, int defense =
     return fighter;
 }
 
-// Diminishing returns on the speed stats: IAS / FHR / FBR count
-// 120 x v / (120 + v), FRW 150 x v / (150 + v).
-inline int effective_speed(int speed, int cap = 120) { return speed > 0 ? cap * speed / (cap + speed) : speed; }
+// Diminishing returns on the speed stats (FUN_00621740, table 0x6e8e24): IAS / FHR / FBR count
+// 120 x v / (120 + v), FRW 150 x v / (150 + v), for any v but 0, a negative too (truncated toward zero).
+// At v = -cap game.exe's IDIV divides by zero; d2d keeps v (deviations.md #13, as get_hit_rate).
+inline int effective_speed(int speed, int cap = 120) { return speed != 0 && speed != -cap ? cap * speed / (cap + speed) : speed; }
 
 // A player's walk / run / town-walk animation rate, 1/256 frames a tick
 // (FUN_00623f50 on a PlrMode +4 mode): FUN_006213d0's base, RN 0x65, WL and
