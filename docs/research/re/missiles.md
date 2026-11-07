@@ -213,11 +213,14 @@ slot 59 is `0x73c92c` = FUN_005acf20). Baal Taunt's lightning control
   FUN_00650e40 stores `{arg, 0x29a}`.
 
 d2d: `Missiles` `hit_spawn` (ai.hpp) reads the same, cited from the decompile, no oracle run,
-on the gate, the radius clamp, the
+on the radius clamp, the
 sub missile, the start and the flags-0x20 aim, and keeps its own rng
 (ponytail already noted). It differs in one case: when both draws land on the
 missile's own subtile, game.exe aims (+1, +1) subtiles away, d2d at that
-subtile's centre.
+subtile's centre. The gates do not match: game.exe's also needs an owner
+(FUN_00552fd0) and a class inside the table; `hit_spawn` itself checks only the
+sub missile and hit function number (58 / 59), and its caller checks expiry
+(`now_ms >= dies`) before calling it. No owner lookup in d2d.
 
 ## Server hit function 59 — FUN_005acf20 (ECX game, EDX the missile)
 
@@ -271,7 +274,8 @@ paths I read in the decompile return 1.
   server skill function number sHitPar1 at the missile's skill and level.
 
 d2d: not ported as a hit function (`git grep` for hit_func 23 finds no
-case); FUN_0056d810 itself is ported (fight/missiles.cpp:531).
+case). The general FUN_0056d810 table dispatch is not ported either; only
+the `srv_do == 14` case with Param2 = the curse function is (fight/missiles.cpp:535).
 
 ## Server damage functions 1, 2, 4 and 12 — FUN_005ad050, FUN_005ad1b0, FUN_005ad290, FUN_005ad0f0
 
@@ -470,28 +474,29 @@ reference to it that I found). ECX game, EDX the missile unit.
   the owner (`FUN_00552fd0`) must exist. Otherwise it returns 1.
 - Radius: the missile row's sHitPar1 (+0x4c) when >= 1, else
   `FUN_00646ca0(owner, skill +0x64 (aurarange), id, level)`; at least 1 only
-  on the calc path (`iVar3 < 1 -> 1`).
+  on the calc path (a result below 1 becomes 1).
 - Count: sHitPar2 (+0x50) when >= 1, else calc1 (skill +0x138); at least 1.
 - Filter: the skill's +0x50 (aurafilter), 0xa783 when that is 0.
 - `FUN_0056b7e0(x, y of the missile, radius, filter, FUN_005ab2a0, &ctx, 1,
   ".\MISSILES\MissMode.cpp", 0xec3)` walks the units in range and makes one
   sub-missile each (FUN_005ab2a0) until the count is served. Returns **3**
   (damage, end).
-- The walker skips only the missile unit itself (`piVar5 != local_c`); the
+- The walker skips only the missile unit itself (a pointer comparison with the missile); the
   callback has no test for the unit the missile struck. That is only how
   the code reads, cited from the decompile, no oracle run.
 
 Re-check: `python3 tools/ghidra/fn.py 005ab370`, `python3 tools/ghidra/fn.py 0056b7e0`.
 
-d2d: **DISAGREES** on one point. `Fight::burst` case 20 skips
+d2d: **DISAGREES** on two points. First, `Fight::burst` case 20 skips
 `missile.target` (`int(j) != missile.target`), the monster the bolt struck;
 game.exe's walk and callback have no such exclusion, so the struck unit gets
-a sub-missile too when it passes the filter (a difference in d2d; nothing
-shows that game.exe meant otherwise, so this is not recorded as a bug). Radius and count (sHitPar1 /
-sHitPar2 else aurarange / calc1, count at least 1) read the same, cited from
-the decompile, no oracle run. d2d ignores the
-skill's aurafilter. Confidence: medium (read from the code, no oracle;
-the walker's counter at state +8 is not shown incrementing in the decompile).
+a sub-missile too when it passes the filter (a difference in d2d only; the
+sub-missile on the struck unit may well be intended in game.exe, so this is
+not claimed as a defect of game.exe). Radius and
+count (sHitPar1 / sHitPar2 else aurarange / calc1, count at least 1) read the
+same, cited from the decompile, no oracle run. Second, d2d ignores the
+skill's aurafilter. Confidence: medium (read from the code, no oracle; the walker's counter at
+state +8 is not shown incrementing in the decompile).
 
 ## Server hit function 21 — FUN_005ab500 (Battle Cry)
 
@@ -512,7 +517,7 @@ Returns **0** when the filter passed, else 1.
 
 Re-check: `python3 tools/ghidra/fn.py 005ab500`.
 
-d2d: reads the same in part, cited from the decompile, no oracle run. `Fight::strike` hit_func 21 (fight/missiles.cpp:629)
+d2d: reads the same in part, cited from the decompile, no oracle run. `Fight::skill_missile_hits` hit_func 21 (fight/missiles.cpp:629)
 puts the auratargetstate for auralen frames (at least 1) on the monster
 and no damage (returns 0; game.exe's decompile also returns 0 on the filter-passed path, cited, no oracle run). Whether d2d's state carries the
 aurastats of `FUN_005c6cc0` was not checked, and game.exe's decompile shows
@@ -599,7 +604,7 @@ Cited. Slot 29 (`0x73c8b4`). ECX game, EDX the missile.
 - The missile's **remaining frames** (`FUN_0064a380`, data +0x10) non-zero:
   returns **2** (hit handled, the missile flies on); nothing is made.
 - No owner (`FUN_00552fd0`): returns 1.
-- Else 64 / step missiles: `FUN_0059fa30` flags **2** (relative target),
+- Else `ceil(64 / step)` missiles (step 3 gives 22): `FUN_0059fa30` flags **2** (relative target),
   [1] owner, [2] the missile as start unit, [4] the sub-missile row, [7] / [8]
   = `0x6e2738[k]` / `0x6e2638[k]`, [0xb] / [0xc] skill and level. `k`
   steps `sHitPar1 * 4` bytes (at least 1 entry) over 0x100 bytes. Each new
@@ -612,5 +617,5 @@ Re-check: `python3 tools/ghidra/fn.py 005abb00`,
 d2d: reads the same on the burst, cited from the decompile, no oracle run: `Fight::burst` case 29 launches
 `kNovaRing[k]` for `k += max(hit_par1, 1)` over 64. Not modelled: the
 return 2 while the orb still has frames (d2d returns false for hit 29 in
-`strike`, missiles.cpp:609, which passes over units too), and the stored
+`skill_missile_hits`, missiles.cpp:609, which passes over units too), and the stored
 vector at +0x28 / +0x2c. No oracle run.
