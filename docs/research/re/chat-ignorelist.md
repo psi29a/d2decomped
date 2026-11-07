@@ -156,3 +156,16 @@ the same four-argument shape as SMemAlloc. 192 caller rows in
 `game-calls.tsv`; the `delete`
 operator passes `"delete"` and -1 (`004053f0`, `0040fe60`, `00426e20`).
 
+## FUN_0060ed30: Ignorelist.cpp free-and-reset
+
+Cited; d2d: not ported (d2d has no ignore list). 33 bytes, `__fastcall`, no
+caller in the table (virtual). If `dword [this+0x18]` is set it frees it with
+`SMemFree(ptr, ".\\Chat\\Ignorelist.cpp", 0x11, 0)`, then runs
+`FUN_0060ea10` on the same object. The assert string and `game-srcfiles.tsv`
+(`0060ed30 Chat/Ignorelist.cpp`) tie it to the file. `FUN_0060ea10` (134
+bytes, source `stpl.h`) frees `dword [this+0x14]` with file
+`d:\diablo2\Diablo2\3rdparty\storm\h\stpl.h` line `0x5e4`, then unlinks the
+two list nodes at `this+4` and `this+0xc` (each: if linked, patch the
+previous link and clear both words). So `0060ed30` is the destructor of an
+Ignorelist string-list element built on Storm's template list (`stpl.h`).
+
