@@ -535,6 +535,19 @@ EAX); read the asm for them.
   `FUN_006205a0`), `FUN_00649f70`. d2d: reads the same, cited from the decompile, no oracle run, as
   `set_footprint` (gamedata.hpp:1051), which cites it; `FUN_0064caf0` was
   not read here.
+- **Stamp a unit, `FUN_00649400`** (unit): by the unit's type (first
+  dword). Types 0 and 1 (player, monster): `FUN_0064ea90(room, x, y,
+  pattern, bits)` with the room of `FUN_00620bb0`, x / y the path's
+  (`FUN_006488c0` / `FUN_00648900` on unit +0x2c) and the pattern the path's
+  +0x48. Type 2 (object): `FUN_0064de30` with its size. Anything else
+  (missile, item, tile; also an unknown type): `FUN_0064ea00(room, x, y,
+  shape from FUN_00620510, bits)`; for types 2, 4 and 5 x / y are read raw
+  from the +0x2c field's +0xc / +0x10 instead of the getters. The bits are
+  from the function d2d's decompile names `stamp_footprints`. Callers
+  `FUN_005a7c20`, `FUN_00622b50`, `FUN_00649970`, `FUN_00649ca0`,
+  `FUN_00649d00`. d2d: reads the same as the table at the top, cited from the decompile, no oracle run (units stamp by
+  pattern, objects by box; world.hpp:681); a null unit is dereferenced at
+  the end (the first test only skips the dispatch), not checked for callers.
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
