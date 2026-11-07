@@ -25,6 +25,7 @@
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
+#include <level_ids.hpp>
 #include <log.hpp>
 #include <monsters.hpp>
 #include <object_sounds.hpp>
@@ -168,7 +169,13 @@ auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool
             return;
         }
         player_pad.target = -1;
-        if (move.attack_down && !move.attack && !move.alt) return;   // held with nothing left to hit
+        // A hold keeps sending the skill, so the attack continues after this swing.
+        // It does not pick up or talk.
+        if (move.attack_down && !move.attack && !move.alt) {
+            if (!(level && d2d::rules::level_ids::is_town(level->id)))
+                out(cmd::UseSkill{ skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item });
+            return;
+        }
         if (pick.kind == PadPick::kItem) { out(cmd::Pickup{ pick.id }); return; }
         if (pick.kind == PadPick::kThing) { out(cmd::Interact{ pick.id }); return; }
         // Nothing in reach: the left skill swings only with a monster about (in camp A never just walks); the right one always casts (buffs, teleport).
