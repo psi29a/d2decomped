@@ -126,7 +126,9 @@ FUN_00647960 whether the skill can go; reason 1 (short of mana:
 FUN_00647540's cost `(mana + lvlmana × (lvl − 1)) << manashift` against
 stat 8, or FUN_006440f0's minmana × 256) voices table 0x711ddc[reason]
 (0, 0x15, 0x13, 0x13, 0x13): `<class>_needmana_1` (amazon 0xb8d). A skill
-with AttackNoMana (Skills +7 & 0x10) swings Attack instead, silently. The
+with AttackNoMana (Skills +7 & 0x10) on status 1, 2 or 4 (not only mana:
+LAB_00461101) swings Attack instead, silently (skills.md "Can the skill
+go now"; `tools/emu/skill_status.py client`). The
 server (FUN_0056f640) just drops a skill it can't pay for. d2d:
 `Fight::need_mana`.
 d2d: rules::pick_up, Loot::take. ponytail: no step 4; stacks match by

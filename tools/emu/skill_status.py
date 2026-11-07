@@ -2,6 +2,7 @@
 """Whether a skill can be used now, as game.exe says: FUN_00647960's status.
 
     uv run python skill_status.py           # every case: `name status`, then ok / FAIL
+    uv run python skill_status.py client    # FUN_004610c0 on each status: `skill status go skill_used voice`
 
 FUN_00647960(unit, entry) answers 0 (usable) or why not, in this order:
 3 (no row, or the row's InGame flag clear), 7 (level 0), 6 (an aura),
@@ -21,8 +22,20 @@ states), FUN_0063a510 (a restrict state on: wolf / bear), FUN_0063a400,
 FUN_00644180 (no bonus levels), FUN_0063b2c0 / FUN_0063dfd0 / FUN_0063dfa0
 (the inventory: the case's item, or none), and for Throw FUN_006235a0 / FUN_0063c9b0 / FUN_0062ba80 as
 throw.md's harness does.
+
+`client`: the client's check before a skill is sent, FUN_004610c0 (EDI the
+unit, EBX the entry's slot): a status 1, 2 or 4 on a skill with
+AttackNoMana (Skills.txt bit 0x1c, +7 & 0x10) puts Attack's entry
+(FUN_006439f0(unit, 0)) in the slot and asks again; 0 or 5 goes (1), else
+nothing goes and FUN_00461070 voices table 0x711ddc[status] (0x15
+needmana, 0x13 impossible, 0 none). Runs for real: FUN_004610c0,
+FUN_00644140, FUN_00461070. Hooked: FUN_004d9fc0 (the status: the case's
+for the skill, 0 for Attack), FUN_006439f0 (Attack's entry), FUN_004cb9c0
+(the voice: recorded).
 """
 import sys
+
+from unicorn.x86_const import UC_X86_REG_EDX
 
 RECORD = 0x23c
 FIRE_BOLT, INFERNO, METEOR, MIGHT, CRITICAL_STRIKE, THROW, BOOK_OF_TOWNPORTAL = 36, 41, 56, 98, 9, 2, 220
@@ -110,7 +123,46 @@ class Oracle:
         return self.e.call(0x647960, self.unit, self.entry, limit=200000) & 0xFFFFFFFF
 
 
+JAB = 10
+# skill, status, game.exe's (go, the skill that goes, the voice message)
+CLIENT = [(skill, status, want) for skill, wants in (
+    (FIRE_BOLT, {0: (1, 36, 0), 1: (0, 36, 0x15), 2: (0, 36, 0x13), 3: (0, 36, 0x13), 4: (0, 36, 0x13),
+                 5: (1, 36, 0), 6: (0, 36, 0), 7: (0, 36, 0), 8: (0, 36, 0)}),
+    (JAB, {0: (1, 10, 0), 1: (1, 0, 0), 2: (1, 0, 0), 3: (0, 10, 0x13), 4: (1, 0, 0),
+           5: (1, 10, 0), 6: (0, 10, 0), 7: (0, 10, 0), 8: (0, 10, 0)}),
+) for status, want in wants.items()]
+
+
+def client(oracle):
+    """FUN_004610c0 for each skill and status: what goes, and the voice."""
+    e, bad = oracle.e, 0
+    entry, attack, slot = oracle.entry, e.alloc(0x40), e.alloc(4)
+    e.w32(attack, oracle.skills)                              # Attack, row 0
+    e.w32(0x7a6a70, oracle.unit)                              # FUN_00463dd0: the player
+    told = []
+    now = {}
+    e.hook(0x4d9fc0, lambda e: now["status"] if e.mu.reg_read(UC_X86_REG_EDX) == entry else 0, 0)
+    e.hook(0x6439f0, lambda e: attack if e.mu.reg_read(UC_X86_REG_EDX) == 0 else 0, 0)
+    e.hook(0x4cb9c0, lambda e: told.append(e.mu.reg_read(UC_X86_REG_EDX)), 0)
+    for skill, status, want in CLIENT:
+        now["status"] = status
+        told.clear()
+        e.w32(entry, oracle.skills + skill * RECORD)
+        e.w32(slot, entry)
+        go = e.call(0x4610c0, 0, limit=100000, regs={"edi": oracle.unit, "ebx": slot}) & 0xFFFFFFFF
+        used = (e.r32(e.r32(slot)) - oracle.skills) // RECORD
+        got = (go, used, told[0] if told else 0)
+        bad += got != want
+        print(f"{skill} {status} {got[0]} {got[1]} {got[2]:#x}" + ("" if got == want else f"  FAIL: skills.md says {want}"))
+    print("ok" if not bad else f"FAIL: {bad} of {len(CLIENT)}")
+    return 1 if bad else 0
+
+
 def main():
+    if sys.argv[1:] not in ([], ["client"]):
+        sys.exit("usage: skill_status.py [client]")
+    if sys.argv[1:] == ["client"]:
+        return client(Oracle())
     oracle, bad = Oracle(), 0
     for name, skill, case, want in CASES:
         got = oracle.status(skill, case)

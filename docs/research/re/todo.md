@@ -43,6 +43,7 @@ Ranked by Seen, then by how much play it touches.
 | 49 | A held button over a warp forgets it after a stop; game.exe clicks again after a stop (LAB_00461fb7; FUN_00462930 stops a held frame while it walks), and refuses warp clicks inside that time | exact | hardly | collision.md "The server's pending interact"; world/commands.cpp `walk_to` |
 | 50 | A held button re-aims each tick, and a joined game sends C->S 0x01 / 0x03 each drawn frame the aim moves to a new subtile (`NetGame::send` drops a repeat within 200 ms, as FUN_00478350); game.exe's walking player sends every 7 client frames, 280 ms (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; town/input.cpp, netgame.cpp `move_to` |
 | 51 | A click nearer than 3 subtiles (held 4, a run 5) walks only that far; game.exe's spot goes out to that distance (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; world/commands.cpp `walk_to` |
+| 52 | A skill with AttackNoMana refused for its weapon (Jab with no spear, Smite with no shield, Bash with a bow): game.exe's client check swings Attack instead, silently (FUN_004610c0, LAB_00461101); d2d voices impossible and doesn't swing. Which click paths reach FUN_004610c0 rather than FUN_00467880 (status 0 only) is the open part | check | maybe | skills.md "Can the skill go now"; world/commands.cpp and town/net.cpp `skill_refused` |
 
 ## Sounds
 

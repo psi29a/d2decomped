@@ -580,6 +580,18 @@ So an aura or passive at level 0 is 7, a passive with no weapon 5, a
 skill with no weapon and no mana 2. Oracle: `tools/emu/skill_status.py`
 (31 cases, the real rows and helpers; `ok`).
 
+The client asks before it sends a skill (`FUN_004610c0`: EDI the unit,
+EBX the entry's slot in the input record +0x1c; `FUN_004d9fc0` wraps the
+status). On status 1, 2 or 4 a skill with AttackNoMana (bit 0x1c, +7 &
+0x10) has Attack's entry (`FUN_006439f0(unit, 0)`) put in the slot and is
+asked again (LAB_00461101). Then 0 or 5 goes; anything else sends nothing
+and voices 0x711ddc[status] (`FUN_00461070`): 1 needmana (0x15), 2..4
+impossible (0x13), 6..8 none. So Jab with no spear, Smite with no shield
+or Bash out of mana swings a plain attack, with no voice. Oracle:
+`tools/emu/skill_status.py client` (18 cases; `ok`). Which click paths
+reach it, and which `FUN_00467880` (status 0 only, no fallback), isn't
+traced: todo.md row 52.
+
 ### Item charges (traced 2026-10-28)
 - Stat 0xcc (204, item_charged_skill): param skill << 6 | level, value
   max << 8 | left.
