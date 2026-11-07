@@ -142,8 +142,10 @@ from call sites; `tools/emu/text_box.py:42` only stubs it). 179 bytes.
 
 1. If `DAT_007788d0` is 0 run `FUN_00411cd0` (the one-time init above); still
    0: `FUN_004117a0("SMemFree()", -1)` and return 0.
-2. `FUN_00411910` validates the pointer; 0 returns 0 (a null pointer is
-   therefore not an error to free, it is reported only through 00411910).
+2. `FUN_00411910` validates the pointer; 0 returns 0 and SMemFree returns 0
+   without freeing. The report (last error set) happens only if the "report"
+   input (EDX) is non-zero; the value SMemFree passes there is not visible in
+   the decompile and is not traced.
 3. Header = ptr - 8; if `byte [ptr-5] & 8`, the header is instead the pointer
    stored at `ptr - 0xc` (an aligned allocation).
 4. Block base = `ushort [header+4] << 16` (blocks are 64 KB, see
@@ -171,8 +173,9 @@ Ignorelist string-list element built on Storm's template list (`stpl.h`).
 
 ## SMemFree callers that only delete
 
-Cited; d2d: not ported. Four callers complete the chain and add nothing
-beyond a delete wrapper:
+Cited; d2d: not ported. These five work-list callers are
+delete wrappers or list-node cleanups; `FUN_004101c0` and `FUN_0041e0ed` were
+not traced:
 
 - `FUN_004053f0` (27 bytes): `if (p) SMemFree(p, "delete", -1, 0)`.
 - `FUN_0040fe60`: runs `FUN_0040faa0` (destructor), then if bit 0 of the flag
