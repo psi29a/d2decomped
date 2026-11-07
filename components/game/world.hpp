@@ -223,6 +223,10 @@ struct World {
         std::bitset<1024> voice_found;         // levels whose row has come up this game (0x7c78b8)
         std::uint32_t voice_at = 0;            // when the class last spoke
         std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
+        // Talk records (by hc_idx) whose menu greeting has played since the
+        // player was last out of town: FUN_004b66b0 clears the record's +0x15
+        // as it greets, FUN_004b3e10 sets all again as the player leaves town.
+        std::vector<int> greeted;
         std::vector<Event> events;             // for the client, since it last looked
         std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock

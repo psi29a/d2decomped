@@ -314,6 +314,32 @@ one. Kind 1 is the town NPC's think greeting a player near it (S→C unit sound
 0x12, on the player); kind 0 / 2 as its menu opens (FUN_004b66b0, from the
 talk record's flags at 0x726850).
 
+The menu-open greeting (FUN_004b66b0, asm 0x4b68c8..0x4b6964) looks the
+NPC's class up in the talk table (0x726850, npc-talk.md): no record, it
+greets (kind 0). With one:
+
+- +0x12 set: cleared, and the greeting is kind 2 (the return line); after
+  playing it FUN_004785b0(0x4d, ...) and `DAT_007c0db4` = 1.
+- +0x15 clear: **no greeting at all.** Set: cleared, and it greets.
+
++0x15 is 1 in every record of the binary, and FUN_004b3e10 sets it in
+every record again (re-picking gossip for those talked to, +0x11) when the
+player's own room goes from a town to not a town (FUN_00460e70 on the room
+change, FUN_0061ab00). So each NPC greets at the first menu open, then
+not again until the player has left town and come back. FUN_004b4fd0 (the
+menu again from FUN_004b6dd0) plays the kind 0 greeting under the same
++0x15 gate.
+
++0x12 comes from S→C 0x91 (26 bytes, handler FUN_0045e580 →
+FUN_004b3510): up to 12 u16 classes at +2 (0xffff unused); each one under
+MonStats' count marks its record. FUN_004b32f0 clears +0x11 / +0x12 at a
+game's start. The host sends 0x91 from FUN_00545100 (in FUN_00537340, the
+level change, for acts 1, 2, 3, 5: the town NPC lists 0x7318b0 (6),
+0x7318c8 (11), 0x7318f4 (7), 0x731910 (7)), listing those for which
+FUN_00572470 says so: a per-class callback from the table 0x732738
+({class, fn}, `DAT_00732734` rows) run on the player's quest record.
+Those callbacks aren't followed.
+
 ## Distance (FUN_004b9a00, FUN_004ba020, FUN_004dfc20)
 
 A sound started on a unit (`FUN_004b9a00`, unit given) keeps its offset from

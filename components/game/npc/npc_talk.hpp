@@ -9,6 +9,8 @@
 // Dumped verbatim (NPCs with topics only) — see docs/research/re/npc-talk.md.
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -62,5 +64,14 @@ inline const std::vector<NpcTalk> kNpcTalk = {
     { 538, 4, false, { { 20014, 0, 1, 28, 7 }, { 20014, 0, 1, 28, 7 }, { 20015, 0, 1, 28, 7 }, { 20016, 0, 1, 28, 7 }, { 20017, 0, 1, 28, 7 }, { 20018, 0, 1, 28, 7 }, { 20019, 0, 1, 28, 7 }, { 20020, 0, 1, 28, 7 }, { 20021, 0, 1, 28, 7 }, { 20022, 0, 1, 28, 7 }, { 20023, 0, 1, 28, 7 }, { 20024, 0, 1, 28, 7 } } },   // ancientstatue2
     { 539, 4, false, { { 20014, 0, 1, 28, 7 }, { 20014, 0, 1, 28, 7 }, { 20015, 0, 1, 28, 7 }, { 20016, 0, 1, 28, 7 }, { 20017, 0, 1, 28, 7 }, { 20018, 0, 1, 28, 7 }, { 20019, 0, 1, 28, 7 }, { 20020, 0, 1, 28, 7 }, { 20021, 0, 1, 28, 7 }, { 20022, 0, 1, 28, 7 }, { 20023, 0, 1, 28, 7 }, { 20024, 0, 1, 28, 7 } } },   // ancientstatue3
 };
+
+// The table's records with no topics, not dumped above: Flavie (266), the
+// palace guard (331), Hadriel (408).
+inline constexpr std::array<int, 3> kTalkNoTopics{ 266, 331, 408 };
+// The NPC has a talk record (FUN_004b1d70 finds one): its menu greeting is
+// gated by the record's +0x15 (FUN_004b66b0).
+[[nodiscard]] inline bool has_talk_record(int hc_idx) {
+    return std::ranges::contains(kTalkNoTopics, hc_idx) || std::ranges::contains(kNpcTalk, hc_idx, &NpcTalk::hc_idx);
+}
 
 }  // namespace d2d::game
