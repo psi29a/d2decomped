@@ -1548,6 +1548,23 @@ Cited from the decompile (no oracle run); re-check with
   changed. Used by 80+ callers (game-calls.tsv `grep 00627150`). d2d:
   agrees with the "set, not add" reading in drops.md:193 and
   objects.md:81 (no code port needed).
+- **FUN_0056e520**(unit in ECX, value in EDX) (83 bytes,
+  `.\SKILLS\Skills.cpp`): makes a stat list with FUN_006251f0(owner 0,
+  kind 4, no length, the unit's type and id; type 6 / id -1 for a null
+  unit), links it with `d2d_rules_socket_props(unit, list, 1)`,
+  sets **stat 0x44 (attackrate) = value** (FUN_00627150) and calls
+  FUN_00623f50 (the rate recompute, whose body asserts `.\UNITS\Units.cpp`)
+  with the Skills.cpp file / line 0x12ab at the call site (the decompile
+  shows three arguments; FUN_00623f50's body reads only the unit, so the
+  extra two are not confirmed from asm). Callers: Dragon Tail's kick
+  start FUN_005d7090 and Bash's start FUN_005d7ea0, both just before the
+  to-hit roll (FUN_0057ec10). d2d: **not ported** as such; the nearest is
+  the SIAS term (combat.hpp:68), which the kick/bash paths do not add.
+  The list is never freed here (kind 4, no length), so its attackrate
+  stays until the unit's lists are torn down: **unverified** whether the
+  caller removes it; not claimed.
+- **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5; callers
+  FUN_004c7cf0 and two sites at 0x4f26f3 / 0x4f2706. d2d: not ported.
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
