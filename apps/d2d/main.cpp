@@ -377,6 +377,8 @@ static std::string   g_join_host;           // the game.exe TCP/IP host char-sel
 static std::string   g_cli_join;            // --join's own, what SINGLE PLAYER goes back to
 static std::string   g_lan_connect;        // --connect: char-select's OK joins this d2d host (lan-host.md)
 static int           g_lan_host_port = 0;   // --host: d2d players join this game over the LAN (lan-host.md); 0 off
+static std::string   g_cli_lan_connect;    // --connect's and --host's own, what SINGLE PLAYER goes back to
+static int           g_cli_lan_host_port = 0;
 static std::string   g_last_tcp_ip;         // d2d.cfg last_tcp_ip: the join box's start (game.exe's LastTcpIp)
 static fs::path      g_game_exe;            // --game-exe: its tables (the codec's, read at runtime)
 static bool          g_seed_fixed = false;  // --seed
@@ -1274,7 +1276,11 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (std::exchange(video_return, Screen::Title) == Screen::Endgame) { screen = Screen::Endgame; break; }
                 }
                 for (auto& button : title.buttons) update_button(button, mouse, screen, quit);
-                if (screen == Screen::CharSelect) g_join_host = g_cli_join;   // SINGLE PLAYER
+                if (screen == Screen::CharSelect) {           // SINGLE PLAYER
+                    g_join_host = g_cli_join;
+                    g_lan_connect = g_cli_lan_connect;
+                    g_lan_host_port = g_cli_lan_host_port;
+                }
                 render_title(framebuffer, *scene, title.buttons, now_ms);
                 break;
             case Screen::OtherMultiplayer:
@@ -1312,7 +1318,13 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         if (!d2d::userdir::save_cfg(g_user_dir / "d2d.cfg", { { "last_tcp_ip", g_last_tcp_ip } }))
                             d2d::log::warn("d2d.cfg: last_tcp_ip not saved");
                         tcpip.box_open = false;
-                        if (auto test = d2d::net::TcpConnection::connect(tcpip.address, 4000, 5000); !test) {
+                        g_lan_host_port = 0;
+                        g_lan_connect.clear();
+                        g_join_host.clear();
+                        if (auto lan_test = d2d::net::TcpConnection::connect(tcpip.address, d2d::net::lan::kDefaultPort, 1500)) {   // a d2d host (lan-host.md)
+                            g_lan_connect = tcpip.address;
+                            screen = Screen::CharSelect;
+                        } else if (auto test = d2d::net::TcpConnection::connect(tcpip.address, 4000, 5000); !test) {
                             d2d::log::warn("join {}: {}", tcpip.address, test.error());
                             tcpip.popup = tcpip.no_connect;
                         } else {
@@ -1322,7 +1334,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     }
                 } else {
                     const bool join = clicked(tcpip.join) && tcpip.has_ip;
-                    clicked(tcpip.host);
+                    if (clicked(tcpip.host) && tcpip.has_ip) {   // d2d hosts d2d players (lan-host.md)
+                        g_lan_host_port = d2d::net::lan::kDefaultPort;
+                        g_lan_connect.clear();
+                        g_join_host.clear();
+                        screen = Screen::CharSelect;
+                    }
                     update_button(tcpip.cancel, mouse, screen, quit);
                     if (escape) screen = Screen::OtherMultiplayer;
                     if (join) { tcpip.box_open = true; tcpip.address = g_last_tcp_ip; }
@@ -1500,6 +1517,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         if (!welcome || welcome->info.size() < 6) {
                             d2d::log::error("lan: join failed: {}", refused.empty() ? "no welcome from the host" : refused);
                             screen = Screen::CharSelect;
+                            csu.popup = join_error_text(*scene, { .what = refused.empty() ? "Cannot Connect to Server" : refused, .no_connect = refused.empty() || !joined }, header.expansion());
+                            csu.popup_return = g_cli_lan_connect.empty() ? Screen::TcpIp : Screen::CharSelect;
                         } else {
                             std::uint32_t seed = 0;
                             for (int shift = 0; shift < 32; shift += 8) seed |= std::uint32_t(welcome->info[std::size_t(shift / 8)]) << shift;
@@ -1515,6 +1534,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                         }
                     } else if (g_join_host.empty()) {
                         set_map_seed(*scene, game_seed(character.header), character.header.active_difficulty());
+                        if (g_lan_host_port > 0 && !town.lan_host) {   // TCP/IP's HOST GAME
+                            if (auto listening = d2d::net::lan::Host::listen(std::uint16_t(g_lan_host_port))) {
+                                town.lan_host.emplace(std::move(*listening));
+                                d2d::log::info("lan: hosting on port {} ({})", g_lan_host_port, d2d::net::own_address());
+                            } else d2d::log::warn("lan: can't host on port {}: {}", g_lan_host_port, listening.error());
+                        }
                         town.enter();                            // the World takes the character
                     } else {
                         // --join: the host's game, at its map seed. d2d's World saves
@@ -1617,6 +1642,23 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     town.world.hosted_quests = false;
                     town.world.host_warps = false;
                     town.world.characters = g_no_save ? nullptr : &characters;
+                }
+                if (town.lan_client && !town.lan_lost.empty()) {        // the d2d host's gone: back to the characters
+                    d2d::log::warn("lan: {}; leaving the game", town.lan_lost);
+                    csu.popup = join_error_text(*scene, { .what = town.lan_lost, .no_connect = true }, character.expansion);
+                    csu.popup_return = Screen::CharSelect;
+                    town.lan_client.reset();
+                    screen = Screen::CharSelect;
+                }
+                if (screen == Screen::CharSelect && (town.lan_client || town.lan_store || town.lan_host)) {   // a LAN game left
+                    town.lan_client.reset();
+                    town.lan_lost.clear();
+                    town.lan_resyncing = false;
+                    town.lan_views = 0;
+                    if (town.lan_store) town.world.characters = g_no_save ? nullptr : &characters;
+                    town.lan_store = nullptr;
+                    town.lan_host.reset();                         // the joiners get Lost (their saves went at Town::save)
+                    town.lan_players.clear();
                 }
                 if (screen == Screen::CharSelect && scene) {         // left the game (saved): the roster again,
                     load_saves(*scene, save_dir);                      // the character just played first
@@ -2072,6 +2114,8 @@ int main(int argc, char** argv) {
     g_last_tcp_ip    = cfg["last_tcp_ip"];
     g_lan_connect = lan_connect;
     g_lan_host_port = lan_host_port;
+    g_cli_lan_connect = lan_connect;
+    g_cli_lan_host_port = lan_host_port;
     if (!game_exe.empty()) g_game_exe = game_exe;
     else if (const char* env = std::getenv("D2_GAME_EXE")) g_game_exe = env;
     else g_game_exe = fs::exists(data_dir / "game.exe") ? data_dir / "game.exe" : data_dir / "bin" / "game.exe";
