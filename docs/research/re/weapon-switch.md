@@ -207,6 +207,7 @@ d2d: not ported (no mention under `components/` or `apps/`).
 
 ### A hand skill that wants a ranged weapon (`FUN_0055c560`)
 
+### A hand skill that wants a ranged weapon (`FUN_0055c560`)
 `FUN_0055c560(unit, entry)` (the unit in EDI, the entry in a register the
 decompile does not show) is false for a null unit. Otherwise it takes the
 entry's Skills record (`FUN_00644140`: `*entry`; false if that is null) and is

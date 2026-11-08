@@ -260,6 +260,7 @@ address	name	evidence
 0055c4d0	skill_still_usable	FUN_00647960 not 2 or 7
 0055c4f0	kept_skill_restore	FUN_00623060 / FUN_006230c0, FUN_005701b0
 0055c560	skill_type30_mode2	skill +0x18 is-a 0x30, +0x14 == 2
+0055c560	skill_wants_ranged_type	(unit in EDI): Skills record itypea1 (+0x18) is ItemTypes 0x30 or a child, record byte +0x14 is 2, and FUN_0055c4d0 says usable (weapon-switch.md)
 0055c6e0	book_item_remove	FUN_0055c110(0) (ItemMode.cpp 0x394)
 0055ca00	code_pair_match	Items +0x80 pair either way
 0055ca40	quest_item_duplicate	UniqueItems +0x2c bit 2, Items +0x12a, j34/g34 bks/bkd d33/g33 hst/msf/vip qf1/qf2
