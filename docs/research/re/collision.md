@@ -397,6 +397,12 @@ Read from the code, no oracle or packet log.
     (LAB_004627cc); otherwise flag 0x20 casts (LAB_0046289c).
   - FUN_00643860 failing: LAB_004628a8, as "A walk to a spot just ends" has it.
 
+d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
+wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
+joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
+that aims at a new subtile, against about 3.6. A packet the same as the last one sent within 200 ms
+is dropped (`NetGame::send`, as FUN_00478350 does), so a held button on one spot sends about 5 a second.
+By reading both are small, a few subtiles of where a walk ends; neither was measured.
 
 ## The stamp family (`FUN_0064d060` .. `FUN_0064eba0`, 1.14d)
 
@@ -406,15 +412,10 @@ the room's grid through `FUN_0061a010` (`{x0, y0, w, h, .., +0x20 words}`,
 "The grid" above) and does nothing when there is no room, grid or word
 array. d2d: reads the same as "Rects and units" above, cited from the decompile, no oracle run; none is ported by name.
 
-d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
-wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
-joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
-that aims at a new subtile, against about 3.6. A packet the same as the last one sent within 200 ms
-is dropped (`NetGame::send`, as FUN_00478350 does), so a held button on one spot sends about 5 a second.
-By reading both are small, a few subtiles of where a walk ends; neither was measured.
-- **Box, `FUN_0064d060`** (room, a rect `{x0, y0, x1, y1}`, bits): takes the
-  room holding the rect's second field (`FUN_00463740`, rect +4) and its
-  grid, splits the rect across rooms with `FUN_0064cdf0` (a piece count; 0
+- **Box, `FUN_0064d060`** (room, a rect `{x0, y0, x1, y1}`, bits): looks up the
+  room with `FUN_00463740(room, x, y)` (fastcall: the room and x are in registers the
+  decompile hides and are not traced; the stack argument y is rect +4, the rect's
+  second field, so which x it passes is unproven) and its grid, splits the rect across rooms with `FUN_0064cdf0` (a piece count; 0
   for an empty rect or no grid), ORs the bits into the first piece with
   `FUN_0064cd70` and, for a count over 1, calls itself again once per
   further piece. Callers: `FUN_0064ea00` (shape 3), `FUN_0064ddf0` (the 3x3
@@ -482,10 +483,10 @@ EAX); read the asm for them.
   `UnitShape::monster` (gamedata.hpp:60-69, masks 0x1804 / 0x3401 / 0x3c01
   in that precedence: flying first). A unit of 0, or a class id out of
   range, makes the row pointer 0 and the next line reads address 0xd: no
-  null check (bugs.md 52).
+  null check (bugs.md #58).
 - **Town or owned unit, `FUN_0063e860`** (unit in ECX): false unless the
   unit is type 1 with a class id in range and a MonStats row; true when
-  the row's +0xd has bit 1 (npc) or bit 4 (inTown); else true when the
+  the row's +0xd has mask 0x01 (npc) or 0x04 (inTown); else true when the
   unit's +0xc4 is negative (bit 31, a player's pet). Callers
   `FUN_006483a0`, `FUN_00648580`. d2d: reads the same, cited from the decompile, no oracle run (the rule is in the
   "Pattern" paragraph above and `UnitShape::monster(.., town_unit, ..)`);
@@ -507,14 +508,14 @@ EAX); read the asm for them.
 - **Pattern from a size, `FUN_00648580`** (unit, SizeX): SizeX over 3
   gives 1; else the table `DAT_006eb3dc` (0, 1, 1, 2). For a type 1 unit
   that `FUN_0063e860` accepts and for which `FUN_00457490` (the MonStats
-  flag test, fed the row's +0xd bit 1, interact) is 0, a 1 becomes 3 and a
+  flag test, fed the row's +0xd mask 0x02, interact) is 0, a 1 becomes 3 and a
   2 becomes 4. Callers `FUN_00649ca0`, `FUN_00649d00`, `FUN_00649ff0`. d2d:
   reads the same, cited from the decompile, no oracle run:
   `UnitShape::monster` (gamedata.hpp:60) makes the same 0 / 1 / 2
   from the size and `owned()` the 1 / 2 to 3 / 4, with the npc / inTown and
   not interact test at gamedata.cpp:151 and the pet case on the caller's
   side. The register arguments of the `FUN_00457490` call were not read in
-  the asm, so "bit 1 of +0xd" is taken from the earlier "Pattern" text.
+  the asm, so "+0xd & 2" is taken from the earlier "Pattern" text.
 - **Path x, `FUN_006488c0`** (path): the word at path +2 (the subtile x;
   a position is a 16.16 dword at +0, so +2 is its integer part). A null
   path raises the "Unrecoverable internal error" (`FUN_00408090(0x692)`,
@@ -525,7 +526,7 @@ EAX); read the asm for them.
 - **Path y, `FUN_00648900`** (path): the twin of `FUN_006488c0` for the
   word at path +6 (subtile y); null path raises the same error with line
   0x69d. Callers include `FUN_0045ae20`, `FUN_0045b1e0`, `FUN_00460830`,
-  `FUN_00649400`. d2d: agrees (same citations as the x getter).
+  `FUN_00649400`. d2d: reads the same, cited from the decompile, no oracle run (same citations as the x getter).
 - **An object's footprint, `FUN_0064de30`** (room, x, y, width, height,
   bits as `FUN_00649400` pushes them; the C reads only stack words 4 to 6,
   the size and the bits, and passes the bits on; how the first three reach
@@ -596,9 +597,3 @@ EAX); read the asm for them.
   collision.md and monsters.hpp:909 already cite (player mask 0x1c09, steps
   0x49, type 7); monster steps 0xe, +0x92 = 0x46 and the missile row are
   not ported, no disagreement found.
-d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
-wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
-joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
-that aims at a new subtile, against about 3.6. A packet the same as the last one sent within 200 ms
-is dropped (`NetGame::send`, as FUN_00478350 does), so a held button on one spot sends about 5 a second.
-By reading both are small, a few subtiles of where a walk ends; neither was measured.
