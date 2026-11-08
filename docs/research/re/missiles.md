@@ -1017,3 +1017,20 @@ d2d: **not ported** for the bonus term (a gap, not shown to disagree: whether a
 missile unit carries the mastery stats, or the skill calc already adds them, is
 not settled here). The min / max / zero rules **agree** with `missile_blow`
 (components/rules/combat.hpp:694).
+
+## Monster class test: demon — FUN_0063e940
+
+Cited. One unit pointer. False unless the unit is non-null, its type (`*unit`) is
+**1** (monster), its class id (`unit[1]`) is in `0 <= id < *(game + 0xa80)` (upper end exclusive) and the
+MonStats record (`class * 0x1a8 + *(game + 0xa78)`) is non-null. Then
+`(record[0xd] & 0x20) != 0`. A player (type 0) is never a demon here.
+Callers (the work list's, from `game-calls.tsv`): FUN_00454ad0, FUN_004cf3c0,
+FUN_0057b630, FUN_0057b7d0, FUN_0057c1e0; FUN_005a8c70 also calls it (its
+decompile, below).
+
+Re-check: `python3 tools/ghidra/fn.py 0063e940`,
+`python3 tools/ghidra/calls.py 0063e940`.
+
+d2d: **agrees**. `Target::demon` (components/rules/combat.hpp:531, "MonStats
+demon") is the same bit; components/game/fight/missiles.cpp:626 uses it for the
+dParam2 bonus. Cited, no oracle run for this change.
