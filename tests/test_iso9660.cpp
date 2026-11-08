@@ -17,16 +17,30 @@
 #include <random>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 #define CHECK(x) do { if (!(x)) { \
     std::fprintf(stderr, "FAIL: %s (line %d)\n", #x, __LINE__); return 1; } \
 } while (0)
 
 namespace {
+namespace fs = std::filesystem;
 using namespace std::string_view_literals;
 constexpr std::uint32_t kSector = 2048;
 constexpr std::uint32_t kBlocks = 24;
 constexpr auto kContents = "ISO test payload\n"sv;
+
+struct ScratchDirectory {
+    fs::path path;
+    fs::path image;
+
+    ~ScratchDirectory() {
+        if (path.empty()) return;
+        std::error_code error;
+        if (!image.empty()) fs::remove(image, error);
+        fs::remove(path, error);
+    }
+};
 
 void both_endian(unsigned char* target, std::uint32_t value, std::size_t width) {
     for (std::size_t i = 0; i < width; ++i) {
@@ -50,7 +64,6 @@ std::size_t record(unsigned char* target, std::uint32_t extent, std::uint32_t si
 }
 
 int check_generated_image(bool joliet) {
-    namespace fs = std::filesystem;
     std::array<unsigned char, kBlocks * kSector> image{};
     const auto block = [&](std::size_t sector) { return image.data() + sector * kSector; };
     const auto descriptor = [&](std::size_t sector, unsigned char type, std::uint32_t root) {
@@ -80,14 +93,22 @@ int check_generated_image(bool joliet) {
     }
     std::memcpy(block(23), kContents.data(), kContents.size());
 
-    const auto scratch = fs::temp_directory_path() / ("d2d-test-iso-" + std::to_string(std::random_device{}()));
-    CHECK(fs::create_directory(scratch));
-    const auto path = scratch / "fixture.iso";
-    {
-        std::ofstream file(path, std::ios::binary);
-        file.write(reinterpret_cast<const char*>(image.data()), static_cast<std::streamsize>(image.size()));
+    ScratchDirectory scratch;
+    const auto temp = fs::temp_directory_path();
+    std::random_device entropy;
+    for (int attempt = 0; attempt < 16 && scratch.path.empty(); ++attempt) {
+        auto candidate = temp / ("d2d-test-iso-" + std::to_string(entropy()));
+        if (fs::create_directory(candidate)) scratch.path.swap(candidate);
     }
-    auto reader = iso9660::Reader::open(path);
+    CHECK(!scratch.path.empty());
+    scratch.image = scratch.path / "fixture.iso";
+    {
+        std::ofstream file(scratch.image, std::ios::binary);
+        file.write(reinterpret_cast<const char*>(image.data()), static_cast<std::streamsize>(image.size()));
+        file.close();
+        CHECK(file);
+    }
+    auto reader = iso9660::Reader::open(scratch.image);
     bool matches = false;
     if (reader && reader->entries().size() == (joliet ? 2u : 1u)) {
         const auto& entry = reader->entries().back();
@@ -96,21 +117,23 @@ int check_generated_image(bool joliet) {
             && entry.path == (joliet ? "/DATA/\xc3\xa9.DAT" : "/README.DAT") && !entry.directory
             && bytes.size() == kContents.size() && std::memcmp(bytes.data(), kContents.data(), bytes.size()) == 0;
     }
-    reader.reset();
-    fs::remove(path);
-    fs::remove(scratch);
     CHECK(matches);
     return 0;
 }
 
 int check_install_disc() {
-    namespace fs = std::filesystem;
     const char* home = std::getenv("HOME");
-    if (!home) return 0;
+    if (!home || !*home) {
+        std::puts("SKIP: HOME unset, install-disc check skipped");
+        return 0;
+    }
 
     const fs::path iso = fs::path(home) / "Downloads"
         / "Diablo II + LoD" / "1. INSTALL DISC.ISO";
-    if (!fs::exists(iso)) return 0;
+    if (!fs::exists(iso)) {
+        std::printf("SKIP: no install disc at %s\n", iso.string().c_str());
+        return 0;
+    }
 
     auto reader = iso9660::Reader::open(iso);
     CHECK(reader.has_value());

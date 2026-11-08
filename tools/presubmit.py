@@ -150,6 +150,7 @@ RUFF_HARD = ("F", "E9", "B")                # the rest (unchecked subprocess, br
 
 
 def check_python(tree, changed, numbers):
+    """Check Python syntax, run tool tests and report Ruff findings on added lines."""
     scripts = [path for path in changed if path.endswith(".py") and (tree / path).is_file()]
     if not scripts:
         return
@@ -174,6 +175,7 @@ def check_python(tree, changed, numbers):
 
 
 def report_ruff_result(tree, scripts, numbers, run):
+    """Validate Ruff output and report findings that fall on the branch's added lines."""
     if run.returncode not in (0, 1):
         report("FAIL", "ruff", f"exit {run.returncode}: {(run.stderr or run.stdout).strip()[:300]}")
         return
@@ -198,6 +200,7 @@ def report_ruff_result(tree, scripts, numbers, run):
 
 
 def tool_test_variants(real, linked):
+    """Prepare the ordinary and symlinked temp setups supported by this host."""
     variants = [("", {})]
     try:
         linked.symlink_to(real, target_is_directory=True)

@@ -24,6 +24,7 @@ class SelectionTests(unittest.TestCase):
         self.check_selection(False, ["src/a.cpp", "src/b.cpp"])
 
     def check_selection(self, complete, expected):
+        """Run selection with complete or partial Ninja dependency records."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "build").mkdir()

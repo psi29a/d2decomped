@@ -3023,8 +3023,9 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.unit.shape = monster.npc.shape;
     monster.unit.wait_until = std::uint32_t(rng(4000));
     if (stats) monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng, 0, players, area_monster_level(game_data, level_id, difficulty));
-    // Scripted units such as Baal on the stairs can have zero life. Keep their
-    // ordinary spawn active for the AI, which uses positive life as its gate.
+    // ponytail: FUN_00573cb0 keeps zero life for units such as Baal on the stairs.
+    // Ordinary spawns need one point here because d2d gates their AI on positive
+    // life. make_boss preserves zero-life rolls.
     monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
     monster.hit_points = monster.last_hp = monster.stats.hit_points;
     monster.difficulty = std::clamp(difficulty, 0, 2);
