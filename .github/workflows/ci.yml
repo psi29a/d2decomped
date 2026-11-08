@@ -19,8 +19,53 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Docs, research notes, the Python RE tools and C++ comments don't touch
+  # the build: a change to only those skips build, tidy and flatpak (tools.yml tests the
+  # Python). tests/*.py drive the d2d binary and tidy-pr-select.py picks
+  # tidy's files, so those still build; a tag always does.
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Anything that builds?
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]] || ! files=$(git diff --name-only "$BASE...$HEAD"); then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=$(grep -vE '^docs/|\.md$|^tools/[^/]+\.py$|^tools/(emu|ghidra)/|^\.github/workflows/(cache-cleanup|coverity|gaps|guard|tools)\.yml$' <<<"$files" || true)
+          # A comment-only edit to engine or app C++ doesn't build either:
+          # compare each side with comments and whitespace stripped. Not
+          # tests/: their // test-links: comments are CMake's.
+          base=$(git merge-base "$BASE" "$HEAD")
+          stripped() { git show "$1:$2" | gcc -fpreprocessed -dD -E -P -x c++ - 2>/dev/null | tr -d ' \t\n'; }
+          for file in $code; do
+            if [[ "$file" =~ ^(components|apps)/.*\.(c|cc|cpp|h|hpp)$ ]] && old=$(stripped "$base" "$file") \
+                && [[ -n "$old" && "$old" == "$(stripped "$HEAD" "$file" || true)" ]]; then
+              code=$(grep -vxF "$file" <<<"$code" || true)
+            fi
+          done
+          if [[ -n "$code" ]] || grep -qx 'tools/tidy-pr-select.py' <<<"$files"; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     env:
@@ -242,12 +287,6 @@ jobs:
         run: cmake --build build --config RelWithDebInfo -- -k 0
 
       # No game data on the runners: tests that need MPQs print SKIP and pass.
-      - name: Tooling regression tests
-        if: runner.os != 'Windows'
-        run: |
-          python3 -m unittest tools/test_tidy_pr_select.py tools/test_gaps.py tools/test_pr_guard.py
-          (cd tools/emu && python3 -m unittest test_tooling.py)
-
       - name: Test (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
@@ -355,6 +394,8 @@ jobs:
   # headers (cached) and the launcher's main.moc need building first.
   tidy:
     name: Names and includes
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     steps:
@@ -451,6 +492,10 @@ jobs:
 
   flatpak:
     name: Flatpak (${{ matrix.arch }})
+    needs: changes
+    # main and tags only: the slowest jobs, and a pull request rarely breaks
+    # only the Flatpak. One that does shows on main after the merge.
+    if: needs.changes.outputs.code == 'true' && github.event_name == 'push'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     container:
@@ -515,6 +560,19 @@ jobs:
           npx --yes @sentry/cli@3.8.0 debug-files upload --include-sources --wait-for 60 \
             --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" \
             "$d2d_binary" "$crashpad_handler"
+
+  # The one check the main ruleset requires: green when every job above
+  # passed or was skipped for a docs-only change.
+  ci-ok:
+    name: CI ok
+    needs: [changes, build, tidy, flatpak]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or skipped
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo ok
 
   release:
     name: Publish release assets

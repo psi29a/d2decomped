@@ -788,7 +788,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         for (auto& foe : foes) if (foe.alive) { target = &foe; break; }
     // Diablo's (FUN_005e8f20, once his search found someone): the unit
     // lists' best by his score (FUN_005e8530), above 0, the first on a tie.
-    // Lists 0..7: a player of his act under 0x3fc (FUN_005e8eb0: FUN_005dc530)
+    // Lists 0..7: a player of his act under 0x3fc (FUN_005e8eb0: FUN_005dc530;
+    // Baal's FUN_005fc000: the same act byte, under 0x3fc)
     // and the pets after it (a dead player scores 0); list 8, the good
     // monsters of his act. List 9's best (neutral: Confuse, Attract) is the
     // fallback: within 5 of him, with the best out of reach (FUN_00622c40)
@@ -922,17 +923,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     if (!target) {
         monster.chase = -1;
-        // FUN_005de890 with none found: with a WL mode (MonStats2 mode bits,
-        // FUN_0046c140(class, 2)), one just hit (its last mode GH,
-        // FUN_005dd2b0) or standing on collision bit 0x40 (FUN_0064d910)
-        // wanders 5 (FUN_005de200); else it stands.
         const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
-        if (has_walk && (monster.left_mode == "GH" || level.blocked(unit.x, unit.y, 0x40))) {
+        const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.left_mode == "GH", level.blocked(unit.x, unit.y, 0x40), nearest);
+        if (miss.wander) {
             const auto wander = d2d::rules::think_wander(monster.seed, 5);
             walk_to(wander.x, wander.y, false);
             return true;
         }
-        idle(nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25);
+        idle(miss.stand);
         return true;
     }
     // The driver's step 3 (FUN_005b13e0): first-sight speech, then the teleport mod.
@@ -1595,7 +1593,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (effect.kind == d2d::rules::ThinkEffect::mark) { monster.has_point = true; monster.point_x = effect.id; monster.point_y = effect.value; }
         if (effect.kind == d2d::rules::ThinkEffect::greet) monster.greeted = true;
         if (effect.kind == d2d::rules::ThinkEffect::mount && imp_found >= 0) pack[std::size_t(imp_found)].ai_state = monster.id;   // FUN_005e17e0
-        // Baal's Vile Effigy (FUN_005fc860): none while one lives; baalclone
+        // Baal's Vile Effigy (FUN_005fc860): none while one lives (FUN_005fc830
+        // counts each other unit not in mode 0 or 0xc); baalclone
         // +- 12 (two draws of his seed) about the unit he's at (FUN_00553540;
         // his own spot without one), a third of his life, no regen (stat 0x4a
         // 0), made in NU; his AI control +0x18 counts it. Unit flags 0x4020000
@@ -2528,7 +2527,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // Start 62 (FUN_005d2420 -> FUN_0056e620 -> FUN_0063ea70): the
                     // caster's MonStats spawn at its spot + spawnx / spawny, in
                     // spawnmode (out of 0..15: NU); no spawn row (Nihlathak's), the
-                    // class his think kept (AI control +0x3c: FUN_0063ec70, the
+                    // class his think kept (AI control +0x3c, read by FUN_0058f710: FUN_0063ec70, the
                     // level's own minion). Do 135 (FUN_005d2490) makes it through
                     // FUN_005b2f20: exactly there, else within 4.
                     // Flags 0x4020000 (no experience, no drop); MinionSpawner's Skills

@@ -324,6 +324,9 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // The compelling orb (OperateFn 53, FUN_005bb980): hit with Khalim's
         // Will in hand; the second hit breaks it: the Will goes, the orb
         // (0x16e) leaves, the object to mode 1. Else "I can't".
+        // ponytail: the break's FUN_005dfee0 isn't run: orbmist (368, flags 0x420) from the orb at the
+        // room's object 386 (Dummy stairsr), or with no missile made that object to mode 1, event 1 a
+        // FrameCnt on (its OperateFn 50 untraced).
         if (object.operate_fn == d2d::rules::operate_fn::kCompellingOrb) {
             if (hosted_quests || temple.orb_broken) return;
             // FUN_0063bef0: the weapon in hand (either arm, item type 0x2d;
@@ -745,6 +748,11 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, made);
             return;
         }
+        // Traps 1..4 / 6: the trap monster's one act (objects.md "Trap monsters"):
+        // Trap-Missile (FUN_005fb5b0) its A1 missile, Trap-Poison / Trap-Nova
+        // (FUN_005fb900 / FUN_005fb9b0) its Skill1, then it dies (aip2 is 1).
+        // ponytail: shot at once, at the player wherever it stands; there only a target its search
+        // finds within aip1 (25 / 20) gets it, a think after it's made.
         const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";
         const auto found = game_data->missiles.find(name);
         if (!*name || found == game_data->missiles.end()) { d2d::log::info("trap {}: not built", trap); return; }

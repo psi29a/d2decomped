@@ -633,10 +633,37 @@ MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
 - UberIzual (`FUN_005f8c80`): Izual's shape (aip by difficulty at MonStats
   +0x56.., +0x18 / +0x1c counters) with three skill slots; not traced
   further yet.
-- The Tristram ubers' death (mod 22, `FUN_005e0070`, via FUN_005a30e0):
+- The Tristram ubers' death (mod 22, `FUN_005e0070`, via the function at 0x5a3250):
   sets game +0x1df0 / +0x1dec / +0x1de8 for 0x2c0 / 0x2c1 / 0x2c5; all three
   set: drops `cm2` (the Hellfire Torch) through `FUN_00559a30(7)`, then a
   `std` (Standard of Heroes) per +0x8c; each four-byte code ends in a space.
+
+### Orphan AI helpers
+
+No rel32 call, jcc or absolute pointer anywhere in the image reaches these
+(tools/emu scan, 2026-11-08; stubs.md). The three in `AiThink4.cpp` /
+`AiBaal.cpp` are kin of live code, likely what the 1.13 uber thinks called.
+
+- `FUN_005df2a0` (ECX game, EDX unit, the target, n): from the unit's
+  subtile, n subtiles toward the target on each axis by the sign of the
+  difference (0 when level), started as move mode 2 (`FUN_005a7e60` /
+  `FUN_005a7c20`), its path flag 1 (`FUN_00649070`).
+- `FUN_005e9750`: an act chooser in the shape of Diablo's (`FUN_005e8810`,
+  above): a pending act (AI control +0x14) wins; no target: on collision
+  bit 0x40 (`FUN_0064d910`) 4 one time in 1000 on the unit seed, else
+  0xb, and 0x10 off it; then 17-act weight tables by reach, the target's
+  hands (skills 0x3b / 0x38, 0x33 over level 3, 0x1b over 7, as
+  `FUN_005fc0c0`), life under 20 %, state 0xb, the merc gap (0x55 / 0x69),
+  level 108 within 0x55 of the kept point.
+- `FUN_005f8010`: a player in the unit's level (`FUN_0061a1b0`), alive
+  (`FUN_005541b0`), within 0x3fc (`ai_distance`), drawn on the unit seed
+  with weights by class (0x23, 0x28, 0x1e, 0x14, 0x19, ...): beside
+  Mephisto's think, uber Mephisto's pick.
+- `FUN_005fc130` (weights, n; EAX a seed record): the weights' sum, one
+  draw of the seed at +0x20 (masked for a power of 2, else modulo), the
+  first index whose running sum passes it; 1 when none does. Beside Baal's
+  chooser (`FUN_005fc630`), which weighs in place.
+
 
 ## Turrets, traps and the rest (traced 2026-10-28)
 

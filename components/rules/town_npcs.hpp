@@ -174,9 +174,10 @@ inline NpcAct npc_think(NpcBrain& brain, Rng& seed, std::span<const NpcPoint> pa
         if (class_id == 0xb2 && seed(100) < 66) brain.special_mode = 8;
     }
     // FUN_005e7080: 66 in 100 a random point of the path, its action
-    // (table 0x741d74: 1 and 3 walk there and linger 12 thinks, 2 linger 20,
-    // 4 / 5 then S1 / S2 there); else (or already there) stand 8 (a
-    // towner 12).
+    // (table 0x741d74: 1 and 3 walk there and linger 12 thinks, FUN_005e6de0
+    // / FUN_005e6ef0; 2 linger 20 there or not, FUN_005e6e80; 4 / 5 then S1
+    // / S2 there, mode 1 without it, 4 tries, FUN_005e6f00 / FUN_005e6fc0);
+    // else (or already there) stand 8 (a towner 12).
     auto act = stand(towner ? 12 : 8);
     if (!path.empty() && seed(100) < 66) {
         const auto& point = path[std::size_t(seed(int(path.size())))];
