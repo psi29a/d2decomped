@@ -184,6 +184,12 @@ register arguments are partly dropped), so argument order is a reading.
   levels), `components/rules/monsters.hpp:469`; the cap is not modelled in
   d2d's `skill_level` users (`grep -n FUN_006442a0 components/rules/monsters.hpp`),
   harmless below level 98.
+- **`FUN_0044dcc0` (is_expansion, 6 bytes)**: returns the dword `DAT_007a04f4`.
+  `tools/emu/skill_tips.py:28` sets it to 1 for "an expansion game", and
+  `tools/emu/_hire_probe.py:25` does the same. Callers include
+  `FUN_00455f20`, `FUN_00456300`, `FUN_004567f0`, `FUN_00456970`,
+  `FUN_00456d80`, `FUN_004a7d00`. d2d: not ported by name (the panel's classic / expansion
+  resistance penalty split above is the likely use; not checked per call).
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
