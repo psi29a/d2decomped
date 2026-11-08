@@ -835,6 +835,17 @@ Re-check: `python3 tools/ghidra/fn.py 005abc40`, and compare with
 
 d2d: not ported. `Fight::burst` has no case 5 (fight/missiles.cpp:799).
 
+## Client missile spawn: FUN_0046b680
+
+Cited. No arguments, no callers recorded in `game-calls.tsv`. Three client
+missiles with `FUN_004cd540` from a zeroed 0x5c-byte block (flag word [0]
+left 0, [0x14] = 1): block word [4] (the row) **0x11c**, then 0x128, then
+0x125. Only the first is tagged: `FUN_0064a710(missile, 0x32)`.
+
+Re-check: `python3 tools/ghidra/fn.py 0046b680`.
+
+d2d: not ported (no mention of rows 0x11c / 0x128 / 0x125).
+
 ## Missile data setters — FUN_0064a710, FUN_0064a760
 
 Cited. Both take `(unit, value)` on the stack and do the same thing: when
