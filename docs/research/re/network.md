@@ -60,9 +60,9 @@ Names: the community's (d2-clientless, D2MOO) — unverified labels
 | 05 | 5 | 0x549d00 ✓ | left skill at x, y |
 | 06 | 9 | 0x549d80 ✓ | left skill on unit: pierce index + 1, then `FUN_00549ba0` |
 | 07, 09, 0a | 9 | 0x549e00, 0x549ee0, 0x549f40 | left skill on unit (variants) |
-| 08 | 5 | 0x549e80 ✓ | left skill at x, y (shift): range check, then 0x05's handler |
+| 08 | 5 | 0x549e80 ✓ | left skill at x, y (held): range check, then 0x05's handler |
 | 0c | 5 | 0x549fc0 ✓ | right skill at x, y: pierce index + 1, then `FUN_00549ad0` |
-| 0f | 5 | 0x54a140 ✓ | right skill at x, y (shift): range check, then 0x0c's handler |
+| 0f | 5 | 0x54a140 ✓ | right skill at x, y (held): range check, then 0x0c's handler |
 | 0d | 9 | 0x54a040 ✓ | right skill on unit: as 0x06 with the right skill |
 | 0e, 10, 11 | 9 | 0x54a0c0, 0x54a1a0, 0x54a200 | right skill on unit (variants) |
 | 13 | 9 | 0x54aa90 ✓ | interact with unit (type ≤ 5, id) |
