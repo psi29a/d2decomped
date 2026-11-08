@@ -633,7 +633,7 @@ MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
 - UberIzual (`FUN_005f8c80`): Izual's shape (aip by difficulty at MonStats
   +0x56.., +0x18 / +0x1c counters) with three skill slots; not traced
   further yet.
-- The Tristram ubers' death (mod 22, `FUN_005e0070`, via FUN_005a30e0):
+- The Tristram ubers' death (mod 22, `FUN_005e0070`, via the function at 0x5a3250):
   sets game +0x1df0 / +0x1dec / +0x1de8 for 0x2c0 / 0x2c1 / 0x2c5; all three
   set: drops `cm2` (the Hellfire Torch) through `FUN_00559a30(7)`, then a
   `std` (Standard of Heroes) per +0x8c; each four-byte code ends in a space.
