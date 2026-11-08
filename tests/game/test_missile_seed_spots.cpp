@@ -54,7 +54,7 @@ int main() try {
         taunt.info = &control;
         taunt.x = at_x; taunt.y = 4.f;
         taunt.born = 0; taunt.dies = 100000;
-        std::vector<Missile> missiles{ taunt };
+        std::vector<Missile> missiles{ std::move(taunt) };
         update(open, missiles, 400);
         assert(missiles.size() == 2);
         d2d::rules::Rng seed{ std::uint32_t(std::floor(at_x * 5)) };
@@ -70,7 +70,7 @@ int main() try {
     end.info = &lightning;
     end.x = 4.1f; end.y = 4.3f;                      // subtile (20, 21)
     end.born = 0; end.dies = 400;
-    std::vector<Missile> missiles{ end };
+    std::vector<Missile> missiles{ std::move(end) };
     update(open, missiles, 400);
     assert(missiles.size() == 1 && missiles[0].info == &bolt && missiles[0].to);
     d2d::rules::Rng seed{ 20 };

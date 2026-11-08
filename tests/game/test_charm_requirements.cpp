@@ -14,12 +14,14 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 using d2d::d2s::Item;
 
 int main() try {
-    d2d::rules::Tables tables;
+    d2d::game::GameData game_data;   // its rules are the tables settle() reads, built in place
+    auto& tables = game_data.rules;
     tables.types["misc"] = {};
     tables.types["char"] = { .equiv = { "misc", "" } };
     tables.types["helm"] = { .body = { 1, 1 } };
@@ -48,8 +50,6 @@ int main() try {
     assert(items[0].charm_short && (items[0].flags & 0x4000u) == 0);
     assert(!d2d::game::gear_active(items[0]));
     // Nor on the character panel (panel_stats): its +5 strength isn't there.
-    d2d::game::GameData game_data;
-    game_data.rules = tables;
     const auto panel_strength = [&] { return d2d::game::panel_stats(game_data, d2d::d2s::Header{}, items, d2d::d2s::Stats{}).bonus[d2d::d2s::kStr]; };
     assert(panel_strength() == 0);
     // The stash's charm isn't an inventory charm: never short, never active.
@@ -75,7 +75,7 @@ int main() try {
     Item cap = stored("cap", 0);
     cap.location = d2d::d2s::item_location::kEquipped;
     cap.slot = 1;
-    items.push_back(cap);
+    items.push_back(std::move(cap));
     settle();
     assert(!items.back().charm_short && d2d::game::gear_active(items.back()));
     std::printf("OK: worn gear isn't a charm\n");
