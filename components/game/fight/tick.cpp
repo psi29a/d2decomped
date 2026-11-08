@@ -476,7 +476,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         if (std::ranges::contains(*missile.struck, int(i))) continue;
                         if (skill_missile_hits(missile, i, now_ms)) return true;
                         // FUN_005ae1f0: one unit a frame, its hit ends the missile's frame.
-                        if (missile.info && missile.info->next_hit && missile.last_hit_ms == now_ms) return false;
+                        if (missile.info && (missile.info->next_hit || missile.info->last_unit_rule()) && missile.last_hit_ms == now_ms) return false;
                         continue;
                     }
                     auto blow = d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), target_of(i), missile.level, rng);

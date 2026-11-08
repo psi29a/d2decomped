@@ -540,6 +540,25 @@ changes the picture.
   (srvdofunc 1 never strikes at velocity 0; d2d's keep a 0.4-cell test),
   rooms not yet up (game.exe skips them).
 
+## One unit a frame, and the last unit skipped — FUN_005ae1f0, FUN_005a8730
+
+A missile of a srvdofunc 1 row (its handler at 0x73c768 entry 1 is FUN_005ae1f0)
+with LastCollide and neither NextHit nor Pierce is handed ONE unit a frame:
+FUN_005ae1f0 stops at the first unit FUN_00641cb0 finds in the subtiles the
+frame entered that FUN_005a8730 passes (every unit but the one the missile
+struck last, FUN_0064a470), and FUN_005adf10 makes that unit the last one
+(FUN_0064a400, 0x5adfae). So two monsters in one frame are struck on two frames
+at most, and a monster the missile left for another may be struck again. The
+player skills with such a row are Lightning, Lightning Fury, Inferno, Bone Spear
+and Arctic Blast. `Fight::skill_missile_hits` keeps `last_hit` for these rows as
+it does for NextHit rows (no `struck` list). The Pierce rows (arrows, javelins,
+Blessed Hammer) and the srvdofunc 3 rows (Blizzard shards, Poison Explosion and
+the javelin clouds, which stand at velocity 0) keep their `struck` list: the
+first need ToHit and the hit and damage functions in the oracle, the second take
+FUN_005ae480's standing path (FUN_0064cb90), not run. tools/emu/light_pierce.py
+and test_light_pierce check 1,192 casts a seed. Which unit of a frame goes first
+is d2d's monster order here; game.exe walks the subtiles in path order (not read).
+
 ## Pierce — FUN_005ada80 (ESI the missile; called from FUN_005adf10)
 
 Cited. Returns the hit-result mask local of `FUN_005adf10`: 3 (run

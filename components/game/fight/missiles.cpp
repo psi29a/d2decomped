@@ -678,11 +678,18 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             struck_unit.just_hit_until = now_ms + std::uint32_t(std::max(missile_info.next_delay, 1)) * 40;
             missile.last_hit = int(monster_index);
             missile.last_hit_ms = now_ms;
+        } else if (missile_info.last_unit_rule()) {
+            // Not NextHit but LastCollide (Lightning): FUN_005a8730 passes every unit but the one the missile
+            // struck last (FUN_0064a470), and FUN_005adf10 makes it the last (FUN_0064a400, 0x5adfae).
+            // ponytail: a Pierce row (arrows, javelins, Blessed Hammer) and a srvdofunc 3 row (standing clouds) keep the struck list.
+            if (missile.last_hit == int(monster_index)) return false;
+            missile.last_hit = int(monster_index);
+            missile.last_hit_ms = now_ms;
         }
         // 1 (FUN_005a9a70) and 13 (FUN_005aa8b0) go off here, the area taking in the unit.
         if (missile_info.hit_func == 1 || missile_info.hit_func == 13) { burst(missile, now_ms); return true; }
         strike(missile, monster_index, now_ms);
-        if (!missile_info.next_hit) missile.struck->push_back(int(monster_index));
+        if (!missile_info.next_hit && !missile_info.last_unit_rule()) missile.struck->push_back(int(monster_index));
         // Hit function 12 (FUN_005aa730, Chain Lightning): with hops left, on
         // from here at another monster within sHitPar1 (else aurarange)
         // subtiles, a hop fewer. FUN_0056bd10 (flags 0x8a783) over the units
