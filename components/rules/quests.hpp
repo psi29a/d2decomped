@@ -2033,14 +2033,15 @@ struct QuestLogPick { int slot = -1, shown = 2; bool fresh = false; };
     if (!listed) return -1;
     return remembered >= 0 ? remembered : under_way;
 }
-// The quest a message is about, for the Talk submenu's label (FUN_0049f900):
+// The quest a message is about, for the Talk submenu's label (FUN_0049f910):
 // its name's string id from the {u16 message, u16 name} table at 0x722678
-// (0x20f rows, as runs here), else 0xe8c. A message up to row 100's (164) is
-// looked for in rows 0..99 only, so 164 itself falls to 0xe8c (bugs.md 46).
+// (0x20f rows, as runs here), else 0xe8c. A message below row 100's (164) is
+// looked for in rows 0..99, any other in rows 100 on, so 164 is found at row
+// 100 (bugs.md 46: the old reading, 0xe8c, was wrong; tools/emu/quest_name.py).
 [[nodiscard]] inline int quest_name(int message) {
     struct Run { int first, last, name; };
-    static constexpr std::array<Run, 33> kRuns{ {
-        { 64, 80, 3714 }, { 81, 96, 3715 }, { 97, 126, 3717 }, { 127, 145, 3718 }, { 146, 163, 3716 }, { 165, 165, 3716 }, { 166, 184, 3719 },
+    static constexpr std::array<Run, 32> kRuns{ {
+        { 64, 80, 3714 }, { 81, 96, 3715 }, { 97, 126, 3717 }, { 127, 145, 3718 }, { 146, 165, 3716 }, { 166, 184, 3719 },
         { 304, 334, 923 }, { 335, 339, 924 }, { 340, 372, 925 }, { 373, 395, 926 }, { 397, 407, 926 }, { 408, 429, 927 }, { 430, 452, 928 },
         { 527, 542, 933 }, { 543, 548, 931 }, { 549, 570, 930 }, { 571, 593, 932 }, { 594, 627, 934 }, { 628, 635, 935 }, { 637, 663, 935 },
         { 670, 677, 937 }, { 678, 680, 939 }, { 681, 685, 938 }, { 20000, 20001, 938 }, { 20002, 20002, 22641 }, { 20077, 20095, 22618 },

@@ -25,7 +25,7 @@ Same menu machinery and layout as the NPC menu (npc-menu.md). Lines:
 - header: "talk" (0xd35), gold;
 - "introduction" (0xd47), only when `no_intro` is 0;
 - "gossip" (0xd43);
-- quest topics (`FUN_0049f900`);
+- quest topics (`FUN_0049f910`);
 - "about the merchants" (0xd40), Greiz only;
 - "Horadric Cube" (0x8b7), Cain when carrying one;
 - "cancel" (0xd48).
