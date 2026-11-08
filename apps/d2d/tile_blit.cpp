@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 namespace d2d::client {
@@ -64,6 +65,26 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
                    const d2d::dt1::Tile& tile,
                    const d2d::palette::Palette& pal,
                    int screen_x, int screen_y, int alpha_all , const Hole* hole) {
+    // Opaque through one palette (most floors): each index is a whole 32-bit
+    // pixel, alpha 0xFF as blit_tile_pixels writes it, so one store a pixel.
+    if (!hole && alpha_all >= 255) {
+        const int screen_w = fb_width(framebuffer);
+        const int x_begin = std::max(0, -screen_x), x_end = std::min(tile.width, screen_w - screen_x);
+        const int y_begin = std::max(0, -screen_y), y_end = std::min(std::abs(tile.height), int(kScreenHeight) - screen_y);
+        if (x_begin >= x_end) return;
+        std::array<std::uint32_t, 256> lut{};
+        const auto entries = pal.entries();
+        for (std::size_t i = 0; i < 256; ++i) { std::memcpy(&lut[i], &entries[i], 4); lut[i] |= 0xFF000000u; }
+        for (int y = y_begin; y < y_end; ++y) {
+            const auto* row = tile.pixels.data() + std::size_t(y) * std::size_t(tile.width);
+            auto* line = framebuffer.data() + (std::size_t(screen_y + y) * std::size_t(screen_w) + std::size_t(screen_x)) * 4;
+            for (int x = x_begin; x < x_end; ++x) {
+                const std::uint8_t idx = row[x];
+                if (idx) std::memcpy(line + std::size_t(x) * 4, &lut[idx], 4);
+            }
+        }
+        return;
+    }
     blit_tile_pixels(framebuffer, tile, screen_x, screen_y, alpha_all, hole, [&](int, int, std::uint8_t idx) { return pal[idx]; });
 }
 
