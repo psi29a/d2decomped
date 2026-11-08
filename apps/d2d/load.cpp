@@ -187,6 +187,12 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
         std::ranges::stable_sort(scene.automap_rules, {}, [](const Scene::AutomapRule& rule) { return std::pair(rule.level_type, rule.orientation); });
         if (auto bytes = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMap.dc6)")) scene.automap_cels = d2d::dc6::Sprite(*bytes);
         if (auto bytes = mpqs.try_read(R"(data\global\ui\AutoMap\MaxiMapS.dc6)")) scene.automap_cels_small = d2d::dc6::Sprite(*bytes);
+        static constexpr std::array<const char*, 4> kMiniatures{ "", "Act2Map", "Act4Map", "ExTnMap" };   // FUN_0045a2b0's cel files 1..3
+        for (std::size_t file = 1; file < kMiniatures.size(); ++file) {
+            const std::string base = std::string(R"(data\global\ui\AutoMap\)") + kMiniatures[file];
+            if (auto bytes = mpqs.try_read(base + ".dc6")) scene.automap_miniatures[file] = d2d::dc6::Sprite(*bytes);
+            if (auto bytes = mpqs.try_read(base + "S.dc6")) scene.automap_miniatures_small[file] = d2d::dc6::Sprite(*bytes);
+        }
     }
     sprite(R"(data\global\ui\menu\waygatebackground.dc6)", scene.wp_bg);
     sprite(R"(data\global\ui\menu\waygateicons.dc6)", scene.wp_icons);

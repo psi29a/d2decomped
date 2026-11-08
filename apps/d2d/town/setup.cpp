@@ -128,7 +128,7 @@ auto Town::enter() -> void {
         slide_from.clear();                          // a new View, not the next tick: nothing slides into it
         publish();
         if (scene && level) rain_join();
-        if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer, int(scene->automap_cels.frames_per_direction()));
+        if (scene && level) load_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer, automap_cel_counts(*scene));
     }
 
 // The automap's new cells go out with the save, as on leaving a game

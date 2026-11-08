@@ -7,10 +7,12 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <automap_miniature.hpp>
 #include <automap_scroll.hpp>
 #include <d2s.hpp>
 #include <d2s_automap.hpp>
 #include <d2s_items.hpp>
+#include <drlg.hpp>
 #include <font.hpp>
 #include <hud_glide.hpp>
 #include <item_text.hpp>
@@ -740,20 +742,44 @@ bool Automap::add(const Cell& cell) {
     return true;
 }
 
-void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer, int cel_count) {
+std::array<int, 4> automap_cel_counts(const Scene& scene) {
+    // A file not there: unchecked (else every record of its cells cut).
+    const auto count = [](const d2d::dc6::Sprite& cels) { return cels.frames_per_direction() > 0 ? int(cels.frames_per_direction()) : -1; };
+    return { count(scene.automap_cels), count(scene.automap_miniatures[1]), count(scene.automap_miniatures[2]), count(scene.automap_miniatures[3]) };
+}
+
+void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer,
+                  const std::array<int, 4>& cel_counts) {
     if (dir.empty() || name.empty()) return;
     const auto file = d2d::d2s::automap_file(dir, name, map_seed);
     if (file.empty()) return;
-    const auto loaded = d2d::d2s::read_automap(file, layer, game::object_seed(map_seed).low,
-                                                { cel_count > 0 ? cel_count : -1, -1, -1, -1 });   // no MaxiMap: unchecked (else every record cut); no miniatures: list 3 unchecked
+    const auto loaded = d2d::d2s::read_automap(file, layer, game::object_seed(map_seed).low, cel_counts);
+    if (loaded.cel_file != 0 && loaded.cel_file < 4) automap.cel_file = int(loaded.cel_file);
     for (std::size_t list = 0; list < loaded.lists.size(); ++list)
         for (const auto& cell : loaded.lists[list]) automap.add({ cell.cel, cell.x, cell.y, int(list), true });
+}
+
+void automap_town(Automap& automap, const GameData& game_data, int layer) {
+    for (const int town_id : { d2d::rules::level_ids::kLutGholein, d2d::rules::level_ids::kPandemoniumFortress, d2d::rules::level_ids::kHarrogath }) {
+        const auto built = game_data.levels.find(town_id);
+        if (built == game_data.levels.end() || !built->second || built->second->layer != layer) continue;
+        const auto& layout = game_data.layout_of(town_id);
+        const auto placed = std::ranges::find(layout, town_id, &d2d::drlg::Placed::level);
+        if (placed == layout.end()) continue;
+        // FUN_00668100: the level's middle, x + w / 2, y + h / 2; its preset's file (Lut Gholein's by the Rocky Waste).
+        const int preset_file = town_id == d2d::rules::level_ids::kLutGholein ? d2d::drlg::lut_gholein_file(game_data.act2_layout) : 0;
+        automap.cel_file = d2d::rules::miniature_cel_file(town_id);
+        const auto& town = *built->second;                       // where d2d draws it: its act tiles
+        for (const auto& cell : d2d::rules::automap_miniature(town_id, preset_file, town.world_x + placed->width / 2, town.world_y + placed->height / 2))
+            automap.add({ cell.cel, cell.x, cell.y, 3 });
+    }
 }
 
 void save_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer) {
     if (dir.empty() || name.empty()) return;
     d2d::d2s::AutomapLayer fresh;
     fresh.object_seed = game::object_seed(map_seed).low;
+    fresh.cel_file = std::uint32_t(automap.cel_file);
     for (const auto& cell : automap.cells)
         if (!cell.saved) fresh.lists[std::size_t(cell.list)].push_back({ std::int16_t(cell.cel), std::int16_t(cell.x), std::int16_t(cell.y) });
     if (std::all_of(fresh.lists.begin(), fresh.lists.end(), [](const auto& list) { return list.empty(); })) return;
@@ -898,14 +924,22 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
         const int distance = (down < across ? down + across * 2 : across + down * 2) / 2;
         return distance >= 0x96 ? 5 : distance < 50 ? 0 : distance < 100 ? 1 : 2;
     };
-    for (int list = 0; list < 3; ++list)                            // a pass a list, as FUN_00459700
+    // List 3, a town's miniature, takes the layer's cel file (FUN_00459700's
+    // fourth pass); the centre fade is MaxiMap's alone (FUN_00459440:
+    // *param_2 == 0x7a5168), the other fades every file's.
+    const auto& miniature = automap.cel_file > 0 && automap.cel_file < 4
+                                ? (mini && scene.automap_miniatures_small[std::size_t(automap.cel_file)].frames_per_direction() > 0
+                                       ? scene.automap_miniatures_small[std::size_t(automap.cel_file)] : scene.automap_miniatures[std::size_t(automap.cel_file)])
+                                : scene.automap_miniatures[0];
+    for (int list = 0; list < 4; ++list)                            // a pass a list, as FUN_00459700
     for (const auto& cell : automap.cells) {
-        if (cell.list != list || cell.cel < 0 || std::uint32_t(cell.cel) >= cels.frames_per_direction()) continue;   // list 3, the miniatures: another cel file
-        const auto& frame = cels.frame(0, std::uint32_t(cell.cel));
+        const auto& list_cels = list == 3 ? miniature : cels;
+        if (cell.list != list || cell.cel < 0 || std::uint32_t(cell.cel) >= list_cels.frames_per_direction()) continue;
+        const auto& frame = list_cels.frame(0, std::uint32_t(cell.cel));
         const int x = cell.x * 10 / divisor - scroll_x, bottom = cell.y * 10 / divisor - scroll_y;
         const int top = bottom - int(frame.height) + 1;
         if (x > clip_x1 || x + int(frame.width) < clip_x0 || bottom < clip_y0 || top > clip_y1) continue;
-        const int mode = mode_of(x, bottom);
+        const int mode = list == 3 && fade == 1 ? 5 : mode_of(x, bottom);
         const int seen = mode == 5 ? 4 : mode + 1;                   // quarters of the cel over what's there
         for (int row = 0; row < int(frame.height); ++row)
             for (int column = 0; column < int(frame.width); ++column) {
