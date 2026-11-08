@@ -745,6 +745,11 @@ auto World::spring_trap(int trap, float x, float y, int alvl, std::uint32_t now_
             d2d::log::info("trap 8: {} x{}", game_data->monsters.types[std::size_t(type)].id, made);
             return;
         }
+        // Traps 1..4 / 6: the trap monster's one act (objects.md "Trap monsters"):
+        // Trap-Missile (FUN_005fb5b0) its A1 missile, Trap-Poison / Trap-Nova
+        // (FUN_005fb900 / FUN_005fb9b0) its Skill1, then it dies (aip2 is 1).
+        // ponytail: shot at once, at the player wherever it stands; there only a target its search
+        // finds within aip1 (25 / 20) gets it, a think after it's made.
         const auto* name = std::size_t(trap) < d2d::rules::kTrapMissile.size() ? d2d::rules::kTrapMissile[std::size_t(trap)] : "";
         const auto found = game_data->missiles.find(name);
         if (!*name || found == game_data->missiles.end()) { d2d::log::info("trap {}: not built", trap); return; }
