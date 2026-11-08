@@ -214,6 +214,8 @@ address	name	evidence
 00649ca0	unit_path_repattern	(unit): path +0x48 = FUN_00648580(unit, path +0x44); lifts the old stamp (FUN_00649560) and restamps (FUN_00649400) when in a room (collision.md "Building a path")
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a640	missile_activate_left	missile data +8 (Range less Activate) as a short; 0 for a non-missile or no data (missiles.md "Standing missiles")
+0064a710	missile_set_data_28	(unit, value): stores value at the missile data block +0x28 when the unit is a missile (type 3) with data (missiles.md "Missile data setters")
+0064a760	missile_set_data_2c	(unit, value): the same for data +0x2c (missiles.md "Missile data setters")
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
 0064c350	unit_link_in	(unit, room): FUN_0064c2c0(unit, room, 1), which asserts both, pushes the unit on a list (drlg.md:1299) (collision.md "Building a path")
 00649d00	unit_path_make	(unit, room, x, y, flag): Path.cpp line 0x453, 0x200 bytes at unit +0x2c; own bits, mask, type and steps by unit type 0 / 1 / 3 (collision.md "Building a path")
