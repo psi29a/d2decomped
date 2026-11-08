@@ -36,6 +36,9 @@ levels	0x04	u8	teleport	the Levels row's Teleport column (0 none, 1 and 2 allowe
 path	0x1c	ptr	room	the room the unit is in	docs/research/re/missiles.md:33
 path	0x50	u32	collide_mask	what it collides with: a player 0x1c09, a monster 0x3c01	docs/research/re/collision.md:51
 path	0x54	u32	collided	this frame's collision bits, masked	docs/research/re/missiles.md:54
+path	0x7c	u32	velocity	a missile's velocity, 0 standing (FUN_006486c0)	docs/research/re/missiles.md:392
+path	0x1d4	u32	step_count	subtiles entered this move (FUN_00648f40)	docs/research/re/missiles.md:402
+path	0x1d8	ptr	step_list	{short x, short y} each, inline (FUN_00648f40)	docs/research/re/missiles.md:402
 room	0x4c	u32	x	the room's first subtile column	docs/research/re/act1-end.md:737
 room	0x50	u32	y	its first subtile row	docs/research/re/act1-end.md:737
 room	0x54	u32	w	its width in subtiles	docs/research/re/act1-end.md:737
