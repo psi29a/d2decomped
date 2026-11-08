@@ -56,6 +56,7 @@ class Captures:
     """Hooks for the callees, recording their arguments."""
 
     def __init__(self, machine):
+        """Hook the five callees on `machine`, with empty records."""
         self.machine = machine
         self.reads = []
         self.builds = []
