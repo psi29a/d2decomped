@@ -24,6 +24,7 @@
 #include "frontend.hpp"
 #include "gamepad.hpp"
 #include "gamepad_map.hpp"
+#include "hw_cursor.hpp"
 #include "keyconfig.hpp"
 #include "load.hpp"
 #include "lobby.hpp"

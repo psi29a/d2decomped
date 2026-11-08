@@ -5,6 +5,9 @@
 // the pixel blit_sprite puts on the mouse, at any scale.
 #include "hw_cursor.hpp"
 
+#include <dc6.hpp>
+#include <palette.hpp>
+
 #include <array>
 #include <cassert>
 #include <cstdio>
