@@ -50,6 +50,9 @@ patch = os.environ.get("D2_PATCH_INSTALLER")
 if patch and os.path.exists(patch):
     with open(os.path.join(user, "d2d.cfg"), "w") as f:
         f.write(f"patch = {patch}\n")
+        # The first-hire Hireling popup (FUN_004939b0) seen: else a save with
+        # a live merc opens on that screen and it takes the stash click.
+        f.write("popup_hireling = 1\n")
 else:
     patch = None
 
