@@ -1461,6 +1461,13 @@ Cited from the decompile (no oracle run); re-check with
   of 006438f0: 004a9a90..004a9df0 (five), of 00643910: 004c7990, 0053c5d0,
   0056dfa0, 00575900, 005eb970. d2d: **not ported** (the shadow oracle only
   stubs them, `tools/emu/shadow_master.py:350`).
+- **FUN_00643ce0**(node) -> `*(short *)node[0]`: the skill id, i.e. the
+  first short of the node's record pointer (record +0), 0 for a null node
+  (a node with a null record would fault: no check). The body reads only
+  its one parameter; the file-name / line arguments Ghidra shows at call
+  sites (`".\PLAYER\PlrMsg.cpp"`) are not used by it. Callers include 00461180,
+  00462560..00462c20, FUN_0054c0e0 (PlrMsg.cpp lines 0x1209 / 0x120e) and
+  FUN_0056dfa0. d2d: **agrees**, combat.md:452 already reads it as the id.
  / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
