@@ -1700,6 +1700,18 @@ Cited from the decompile (no oracle run); re-check with
   already in reach (FUN_00622c40): the start returns this 1 and does not run
   the rest. Also called by FUN_004c8d90, FUN_004c9120. d2d: **not ported**
   (the client's own click-to-command path is not modelled).
+- **FUN_004c7950**(target in ECX) (63 bytes): like FUN_0056e520 it makes a
+  stat list with FUN_006251f0 (`+0` 0, `+0x10` **6**, `+0x18` **0x32**, the
+  target's type and id in `+8` / `+0xc`, 6 / -1 for a null target), sets the
+  list's callback (`+0x38`, FUN_00625ce0) to **FUN_004c7890** and links it
+  with `d2d_rules_socket_props(target, list, 1)`; nothing if the list is not
+  made. FUN_004c7890 (callback, `.\SKILLS\Skills.cpp` line 0x93d) acts on the
+  unit's current skill (FUN_00620250) unless it has state 0x12 (FUN_00639df0)
+  or skill-flag bit 2 (FUN_006446a0 `& 2`): by the skill record's `+0x2e` short
+  0x43 -> FUN_004ca000, 0x4c -> FUN_004c9420, 0x4d / 0x4e -> FUN_004c8b80.
+  Callers: FUN_004c83c0, FUN_004c8d90, FUN_004c9120, FUN_004c9b40 (its last
+  call, after the skill-list header is set). What kind 6 or the 0x32 stand
+  for is not read here (cited). d2d: **not ported** (a client-side list).
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
