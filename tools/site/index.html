@@ -67,6 +67,26 @@ td .bar { height: 12px; min-width: 140px; }
 .chart { display: block; width: 100%; height: auto; background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; }
 .chart text { fill: var(--dim); font: 13px var(--font-ui); }
 .chart .grid { stroke: var(--faint); }
+.onboard { justify-self: center; margin: 0 0 24px; padding: 10px 26px; border: 1px solid var(--gold); border-radius: 999px;
+  background: rgba(5, 4, 3, .7); color: var(--gold); font: 600 18px var(--font-sign); letter-spacing: .04em; cursor: pointer; }
+.onboard:hover, .onboard:focus-visible { background: var(--gold); color: var(--bg); }
+#onboard { width: min(640px, calc(100vw - 32px)); margin: auto; padding: 22px 24px; background: var(--panel); color: var(--text);
+  border: 1px solid var(--dim); border-radius: 6px; box-shadow: 0 0 40px #000; }
+#onboard::backdrop { background: rgba(0, 0, 0, .6); }
+#onboard h3 { font: 700 22px var(--font-sign); color: var(--gold); margin: 0 0 6px; }
+#onboard h4 { font: 600 14px var(--font-sign); color: var(--dim); letter-spacing: .14em; text-transform: uppercase;
+  margin: 20px 0 8px; padding-top: 14px; border-top: 1px solid var(--edge); }
+#onboard .close { position: absolute; top: 12px; right: 14px; background: none; border: 0; color: var(--dim); font-size: 20px; cursor: pointer; }
+.copyrow { display: flex; border: 1px solid var(--edge); background: var(--bg); }
+.copyrow pre { flex: 1; margin: 0; padding: 12px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font: 15px/1.5 ui-monospace, Menlo, monospace; }
+.copy { border: 0; border-left: 1px solid var(--edge); background: var(--faint); color: var(--gold); padding: 0 16px; font: 600 16px var(--font-ui); cursor: pointer; }
+.copy:hover, .copy:focus-visible { background: var(--gold); color: var(--bg); }
+.big-copy { min-width: 96px; }
+.tabs { display: flex; flex-wrap: wrap; }
+.tabs button { background: none; border: 1px solid transparent; border-bottom: 0; color: var(--dim); padding: 6px 14px; font: 600 16px var(--font-ui); cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--gold); border-color: var(--edge); background: var(--bg); }
+.tabpanel p { color: var(--dim); font-size: 16px; margin: 8px 0 0; }
+#onboard .links { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--edge); }
 footer { border-top: 1px solid var(--edge); padding-top: 14px; color: var(--dim); font-size: 15px; }
 </style>
 </head>
@@ -75,14 +95,37 @@ footer { border-top: 1px solid var(--edge); padding-top: 14px; color: var(--dim)
   <nav aria-label="Pages">
     <a href="#stat">PROGRESS</a><a href="#trend">TREND</a><a href="#modules">MODULES</a><a href="#board">CREDITS</a>
     <a href="gaps.html">GAP MAP</a><a href="https://github.com/psi29a/d2decomped/blob/main/CONTRIBUTING.md">CONTRIBUTE</a>
-    <a href="https://github.com/psi29a/d2decomped">GITHUB</a>
+    <a href="https://github.com/psi29a/d2decomped">GITHUB</a><a href="https://discord.gg/EJxctR2hqn">DISCORD</a>
     <span class="stamp" id="stamp">loading…</span>
   </nav>
   <header class="hero">
     <img src="hero.png" alt="D2Decomped">
     <p class="lede">An open-source, cross-platform reimplementation of the <b>Diablo II: Lord of Destruction</b> engine,
       checked function by function against <b>game.exe 1.14d</b>. All five acts play through, on Linux, macOS, Windows and the Steam Deck.</p>
+    <button class="onboard" popovertarget="onboard">Onboard your agent to D2Decomp <span aria-hidden="true">▾</span></button>
   </header>
+  <div id="onboard" popover>
+    <button class="close" popovertarget="onboard" popovertargetaction="hide" aria-label="Close">✕</button>
+    <h3>Onboard your agent</h3>
+    <p>Paste this into Claude Code, Codex, Cursor, Copilot or any agent. It reads <a href="https://github.com/psi29a/d2decomped/blob/main/AGENTS.md">AGENTS.md</a>,
+      shows you what we ask and what we promise, and asks before anything leaves your machine. You need your own Diablo II with the 1.14d patch.</p>
+    <div class="copyrow"><pre>Clone https://github.com/psi29a/d2decomped, then read its AGENTS.md and follow it, starting with section 1.</pre><button class="copy big-copy">Copy</button></div>
+    <h4>Or set it up by hand</h4>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="claude">Claude Code</button><button role="tab" aria-selected="false" data-tab="codex">Codex</button><button role="tab" aria-selected="false" data-tab="ide">Cursor / Copilot</button>
+    </div>
+    <div class="tabpanel" data-tab="claude"><div class="copyrow"><pre>git clone https://github.com/psi29a/d2decomped
+cd d2decomped
+claude "/contribute"</pre><button class="copy">Copy</button></div><p>The repo's <code>contribute</code> skill walks you through AGENTS.md.</p></div>
+    <div class="tabpanel" data-tab="codex" hidden><div class="copyrow"><pre>git clone https://github.com/psi29a/d2decomped
+cd d2decomped
+codex "Help me contribute: follow AGENTS.md from section 1"</pre><button class="copy">Copy</button></div><p>Codex reads AGENTS.md on its own.</p></div>
+    <div class="tabpanel" data-tab="ide" hidden><div class="copyrow"><pre>git clone https://github.com/psi29a/d2decomped</pre><button class="copy">Copy</button></div><p>Open the folder, then ask the agent chat: <i>Help me contribute: follow AGENTS.md from section 1.</i></p></div>
+    <p class="links"><a href="https://github.com/psi29a/d2decomped/blob/main/AGENTS.md">AGENTS.md</a>
+      <a href="https://github.com/psi29a/d2decomped/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>
+      <a href="https://github.com/psi29a/d2decomped/blob/main/.claude/skills/contribute/SKILL.md">contribute skill</a>
+      <a href="gaps.html">Gap map</a><a href="https://discord.gg/EJxctR2hqn">Discord</a></p>
+  </div>
   <section id="stat">
     <h2>PROGRESS <small>game.exe 1.14d, by code bytes</small></h2>
     <div class="big" id="big"></div>
@@ -124,6 +167,21 @@ footer { border-top: 1px solid var(--edge); padding-top: 14px; color: var(--dim)
 <script>
 (function () {
   var LEVELS = ['verified', 'ported', 'cited', 'untouched'];
+  var onboard = document.getElementById('onboard');
+  onboard.addEventListener('click', function (e) {
+    var button = e.target.closest('button');
+    if (button && button.classList.contains('copy')) {
+      navigator.clipboard.writeText(button.previousElementSibling.textContent).then(function () {
+        button.textContent = 'Copied';
+        setTimeout(function () { button.textContent = 'Copy'; }, 1500);
+      });
+    } else if (button && button.dataset.tab) {
+      onboard.querySelectorAll('[data-tab]').forEach(function (node) {
+        if (node.getAttribute('role') === 'tab') node.setAttribute('aria-selected', node === button);
+        else node.hidden = node.dataset.tab !== button.dataset.tab;
+      });
+    }
+  });
   function fmt(n) { return n.toLocaleString('en-US'); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function bar(counts, key) {
