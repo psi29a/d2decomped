@@ -788,7 +788,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         for (auto& foe : foes) if (foe.alive) { target = &foe; break; }
     // Diablo's (FUN_005e8f20, once his search found someone): the unit
     // lists' best by his score (FUN_005e8530), above 0, the first on a tie.
-    // Lists 0..7: a player of his act under 0x3fc (FUN_005e8eb0: FUN_005dc530)
+    // Lists 0..7: a player of his act under 0x3fc (FUN_005e8eb0: FUN_005dc530;
+    // Baal's FUN_005fc000: the same act byte, under 0x3fc)
     // and the pets after it (a dead player scores 0); list 8, the good
     // monsters of his act. List 9's best (neutral: Confuse, Attract) is the
     // fallback: within 5 of him, with the best out of reach (FUN_00622c40)
@@ -1595,7 +1596,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (effect.kind == d2d::rules::ThinkEffect::mark) { monster.has_point = true; monster.point_x = effect.id; monster.point_y = effect.value; }
         if (effect.kind == d2d::rules::ThinkEffect::greet) monster.greeted = true;
         if (effect.kind == d2d::rules::ThinkEffect::mount && imp_found >= 0) pack[std::size_t(imp_found)].ai_state = monster.id;   // FUN_005e17e0
-        // Baal's Vile Effigy (FUN_005fc860): none while one lives; baalclone
+        // Baal's Vile Effigy (FUN_005fc860): none while one lives (FUN_005fc830
+        // counts each other unit not in mode 0 or 0xc); baalclone
         // +- 12 (two draws of his seed) about the unit he's at (FUN_00553540;
         // his own spot without one), a third of his life, no regen (stat 0x4a
         // 0), made in NU; his AI control +0x18 counts it. Unit flags 0x4020000
