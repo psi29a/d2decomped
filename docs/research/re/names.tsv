@@ -8,6 +8,7 @@ address	name	evidence
 00410e90	bitreader_bytes_used	reader +8, plus 1 when +0xc is nonzero (a partly read byte counts); FUN_0062e430 returns it
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
+00451f80	monstats_row	(id): 0 when id < 0 or >= count at [0x744304]+0xa80, else [0x744304]+0xa78 + id * 0x1a8; no assert (items.md)
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 0044dcc0	is_expansion	returns DAT_007a04f4; skill_tips.py:28 sets it to 1 for an expansion game
 00451f70	unit_mode	ECX unit: +0x10 (structs.tsv unit.mode); null 0
