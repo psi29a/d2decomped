@@ -284,6 +284,10 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
             if (sounds) play(sounds->flee, now_ms);
             monster.flee_sound = false;
         }
+        if (monster.taunt_sound) {                                     // FUN_004cbde0 event 0x10: Taunt
+            if (sounds) play(sounds->taunt, now_ms);
+            monster.taunt_sound = false;
+        }
         // Jab's event-3 rows (FUN_004f4590): a monster's dosound b, none once it's dead.
         if (monster.alive())
             for (int row = 0; row < monster.seq_sounds; ++row) play(monster.seq_sound, now_ms);

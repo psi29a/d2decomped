@@ -428,6 +428,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         level_mon.umin = { num(text("MonUMin")), num(text("MonUMin(N)")), num(text("MonUMin(H)")) };
         level_mon.umax = { num(text("MonUMax")), num(text("MonUMax(N)")), num(text("MonUMax(H)")) };
         level_mon.wander = text("MonWndr") == "1";
+        level_mon.spc_walk = num(text("MonSpcWalk"));
         level_mon.ranged_first = text("rangedspawn") == "1";
         level_mon.num_mon = num(text("NumMon"));
         for (int i = 1; i <= 25; ++i) {
