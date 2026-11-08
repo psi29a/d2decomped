@@ -71,8 +71,8 @@ first, end, flag)` (EBX the boss, EDI the game) asks the unit finder
 and & 8, not in town) for the units within radius subtiles of the boss.
 Each monster of them evil (`FUN_006259b0` 0), not diabloclone (0x14d),
 gets MonUMod 21 killself (`FUN_005a4850(0x15, 0)`) with event 7 at game
-frame + first + rand(end - first) on the boss's seed (`FUN_0045c3e0`); the
-flag (0 in every caller) would also need `FUN_0063e990`.
+frame + first + rand(end - first) on the boss's seed (`FUN_0045c3e0`); with
+the flag set (Blood Raven's only) it must also be undead (`FUN_0063e990`).
 
 | class | hook | radius, first, end | besides |
 |---|---|---|---|
@@ -80,12 +80,16 @@ flag (0 in every caller) would also need `FUN_0063e990`.
 | 0xe5 radament | FUN_005dfe20 | 35, 40, radamentdeath's Range (missile row +0x96, 400) - 100, at least 100 | missile 347 radamentdeath at his spot (`FUN_0056ede0`) |
 | 0xf2 mephisto | FUN_005dfdb0 | — | missile 299 mephistodeathcontrol on him (`FUN_0059fa30`, flags 0x8000) |
 | 0x100 izual | FUN_005e0020 | 105, 1, 2 | |
+| 0x10b bloodraven | `0x5dfd90` | 35, 25, 125, the undead only (flag 1) | |
 | 0x1df overseer1 | FUN_005e0040 | 35, 25, 125 | |
 | 0x21c..0x21e the Ancients | FUN_005e0060 | — | a bare ret (stubs.md) |
 
-So for every Act 1 superunique, mod 22 does nothing (Shenk, overseer1, is Act 5's).
+So for every Act 1 superunique, mod 22 does nothing (Shenk, overseer1, is Act 5's);
+of Act 1's bosses, Blood Raven (not a superunique) takes the undead about her
+with her: 6 to 22 in reach at spawn on map seeds 1, 2, 3, 4 and 7.
 d2d: `Fight::quest_death` (fight/deaths.cpp, `rules::killself_hooks`).
-Checked by `test_game_missiles` (Andariel's).
+Checked by `test_game_missiles` (Andariel's, Blood Raven's) and in game.exe
+by `tools/emu/boss_deaths.py`.
 
 ## Act bosses at spawn: FUN_005b1cf0 (from FUN_005b2a00)
 
