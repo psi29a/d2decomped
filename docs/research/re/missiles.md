@@ -144,6 +144,56 @@ life and sets as its frame (+0x44 = start << 8). An ExplosionMissile
 (`FUN_004cdba0`, flags 0x20) and a server missile (`FUN_0059fa30`) never
 read it, so an explosion starts at frame 0.
 
+## Client missile callbacks — `UNIT/Missile.cpp`
+
+The flight and hit path above does not cover the callbacks reached through
+the missile data's client-function pointers. In stock `Game.exe` 1.14d
+(SHA-256 `631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf`),
+the callback-related code includes the following routines. These are static
+traces of the shipped x86 binary; they have not been replayed as end-to-end
+client scenarios.
+
+- **`FUN_004d33e0`** checks whether the missile is locally active, initializes
+  its animation state when needed, and compares its current subtile against
+  the client view bounds. In bounds it sets path flag `0x80` and advances the
+  normal client missile step (`FUN_004d30c0`); out of bounds it dispatches
+  the generic client handler (`FUN_004d2d70`, no hit, `ended` 0). The address
+  `0x72a3a0` contains a pointer table beginning with this routine and
+  `FUN_004d3460`; this is indirect dispatch, not a direct call site.
+- **`FUN_004d55c0`** validates the missile class and its data row, then
+  compares the missile's stored skill value with the skill on a related
+  unit. When the values agree and a path exists, it creates the row's
+  follow-up missile and redirects that missile toward the current path
+  target; otherwise it removes the current missile. The routine is present
+  in the callback pointer tables at `0x72a420` and `0x72a448`.
+- **`FUN_004d6fa0`** is a state-driven path callback. It obtains the
+  callback state and path, handles missing paths by returning to the ordinary
+  client step, and branches on states 0 through 4. Those branches test the
+  associated unit and its state, advance the missile seed, change path flags
+  (`0x80`, `0x200`, or `0x300`), and in some branches move the path endpoint
+  or create a missile. The function is referenced from the pointer table at
+  `0x72a420`.
+- **`FUN_004d7e00`** is another state-driven path callback. State 0 uses the
+  missile seed for a periodic random transition; state 1 derives an endpoint
+  from the associated unit; state 2 redirects toward the fixed subtile
+  `(0x170c, 0x3b1f)`, sometimes offset by one cell. It sets path flags
+  `0xf00` for those redirects and then resumes the ordinary client step.
+  The pointer table at `0x72a49c` begins with this routine.
+- **`FUN_004d2760`** builds a set of missiles around a unit/path origin. Its
+  offset list includes the origin and neighboring cells; it calls the client
+  missile constructor for each selected offset and adjusts the resulting
+  missile's direction/seed state. No direct code caller was recovered, so
+  its runtime entry point remains unresolved even though its body is in the
+  stock `UNIT/Missile.cpp` function range.
+
+The tables establish indirect reachability, but their consumers and exact
+Missiles.txt callback indices are not fully resolved here. In particular,
+the state names and intent of `FUN_004d6fa0` and `FUN_004d7e00` remain
+unknown; the behaviors above describe their observed branches rather than
+assigning gameplay names. The generic per-frame movement, collision and hit
+handling remain the separately documented `FUN_004d30c0` and
+`FUN_004d2d70` paths.
+
 ## A nova's 64 — FUN_0056d400
 
 Nova, Frost Nova, war cries, charge releases (FUN_005d4db0), Arcane Tower
