@@ -984,3 +984,36 @@ Re-check: `python3 tools/ghidra/fn.py 0045c3e0`,
 d2d: **agrees**. `Rng::operator()` (components/rules/rules.hpp:164) has the
 same step, the same power-of-two mask, `%` otherwise, and 0 without a step
 for n < 1. Cited, no oracle run for this change.
+
+## The roll helper — FUN_005a8910 (stack: a stat id, a bonus stat id)
+
+Cited from the decompile, no oracle run. The decompile drops ECX / EDX, so
+which operand each call got is a reading. Three direct callers: FUN_005a89a0,
+FUN_005a8c70 and FUN_005a9fb0. Shape:
+
+- Two stat reads on the missile (`FUN_00625480`, layer 0): the first from a
+  register operand (the other end of the pair), the second from the stack stat
+  id. Either one under 1 returns 0.
+- The lower of the two is the base (the ends are swapped when the first is
+  lower), as the "min > max" note under "The roll" says.
+- A third stack argument other than -1 names a bonus stat (FUN_005a8c70 passes
+  0x149 / 0x14a / 0x165 / 0x14b / 0x14c, the fire, lightning, magic, cold and
+  poison masteries, skills.md line 344 and 694 for 329 / 330 / 331): when the missile has that stat
+  non-zero, `FUN_00483360(100)` (a × b / 100 on hidden operands) is added to
+  the base. A second `FUN_00483360(100)` call right after has its result thrown
+  away.
+- Then `FUN_0045c3e0` (the seed draw, on the missile's seed) is added to the
+  base and returned. The draw's range (the hidden EDX) is not visible here; "The
+  roll" above reads it as max − min.
+
+So the roll has a mastery term that "The roll" does not mention. `rules::missile_blow`
+takes its min / max (`elo`, `ehi`) from the skill's calc and does not read a
+mastery stat of the missile at this point.
+
+Re-check: `python3 tools/ghidra/fn.py 005a8910`,
+`python3 tools/ghidra/calls.py 005a8910`.
+
+d2d: **not ported** for the bonus term (a gap, not shown to disagree: whether a
+missile unit carries the mastery stats, or the skill calc already adds them, is
+not settled here). The min / max / zero rules **agree** with `missile_blow`
+(components/rules/combat.hpp:694).
