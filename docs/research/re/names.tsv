@@ -164,6 +164,8 @@ address	name	evidence
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
 00643690	skill_passivestate	(skill id) -> Skills record +0x94 passivestate if > 0, else 0 (also for an id outside [0, [0x744304]+0xba0)); skills.md "Skill accessors"
+006438f0	skill_node_next	(node) -> node +4, 0 for a null node; same body as FUN_00643910; skills.md "Skill accessors"
+00643910	skill_list_first	(list header) -> header +4 (the first node), 0 for null; same body as FUN_006438f0; skills.md "Skill accessors"
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
 006505c0	path_flag_8	path +0x34 & 8; null 0
