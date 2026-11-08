@@ -3100,9 +3100,11 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.unit.shape = monster.npc.shape;
     monster.unit.wait_until = std::uint32_t(rng(4000));
     if (stats) monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng, 0, players, area_monster_level(game_data, level_id, difficulty));
-    // ponytail: FUN_00573cb0 keeps zero life for units such as Baal on the stairs.
-    // Ordinary spawns need one point here because d2d gates their AI on positive
-    // life. make_boss preserves zero-life rolls.
+    // FUN_00573cb0 keeps a zero roll (the town folk, critters, traps, Baal on
+    // the stairs). game.exe's dead test is the mode (FUN_005541b0: DT / DD),
+    // so it lives and thinks; d2d's is life, so it holds one point, `lifeless`:
+    // any landed hit kills it, as life <= 0 after one does (0x57c8e2).
+    monster.lifeless = monster.stats.hit_points <= 0;
     monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
     monster.hit_points = monster.last_hp = monster.stats.hit_points;
     monster.difficulty = std::clamp(difficulty, 0, 2);
@@ -3166,7 +3168,8 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     int life = monster.stats.hit_points * 256;
     life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.hp_pct, 100)));
     life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.life_after_pct, 100)));
-    monster.set_life_fine(life);
+    monster.lifeless = life <= 0;                                       // as make_monster's
+    monster.set_life_fine(std::max(life, 256));
     monster.stats.hit_points = monster.hit_points;
     monster.max_life_frac = monster.life_frac;
     monster.stats.armor_class += monster.stats.armor_class * boss.defense_pct / 100;
@@ -3225,7 +3228,7 @@ int soak(Monster& monster, int physical, int damage) {
 }
 
 bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction, int hit_class, bool marked) {
-    if (!monster.targetable() || (damage <= 0 && fraction <= 0)) return false;
+    if (!monster.targetable() || (damage <= 0 && fraction <= 0 && !monster.lifeless)) return false;
     // This blow's own size in 256ths, for its get-hit, before the carried
     // part of a point joins it.
     const std::int64_t blow_fine = (std::int64_t(std::max(damage, 0)) << 8) + std::max(fraction, 0);
@@ -3235,7 +3238,7 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
     damage += monster.life_frac >> 8;
     monster.life_frac &= 255;
     monster.hit_points -= damage;
-    if (monster.hit_points < 1 || (monster.hit_points == 1 && monster.life_frac > 0)) { monster.hit_points = 0; monster.life_frac = 0; }   // dead is 0 (0057c86c)
+    if (monster.hit_points < 1 || (monster.hit_points == 1 && monster.life_frac > 0) || monster.lifeless) { monster.hit_points = 0; monster.life_frac = 0; }   // dead is 0 (0057c86c)
     monster.aware = true;
     if (!monster.alive()) set_mode(game_data, monster, "DT", now_ms);
     // Its get-hit (FUN_0057cb00 from FUN_0057cee0's monster branch): the share of
