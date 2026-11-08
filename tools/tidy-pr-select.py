@@ -22,6 +22,10 @@ def ninja_deps(build_dir: str) -> dict[str, set[str]]:
     getcwd() resolves symlinks (macOS's /var is /private/var), while
     compile_commands.json keeps the path the build was configured with."""
     text = subprocess.check_output(["ninja", "-C", build_dir, "-t", "deps"], text=True)
+    return parse_ninja_deps(build_dir, text)
+
+
+def parse_ninja_deps(build_dir: str, text: str) -> dict[str, set[str]]:
     out: dict[str, set[str]] = {}
     current: str | None = None
     for line in text.splitlines():

@@ -170,6 +170,10 @@ def check_python(tree, changed, numbers):
         return
     run = subprocess.run([*ruff, "check", "--no-cache", "--output-format", "json", "--select", RUFF_RULES, *scripts],
                          cwd=tree, capture_output=True, text=True, check=False)
+    report_ruff_result(tree, scripts, numbers, run)
+
+
+def report_ruff_result(tree, scripts, numbers, run):
     if run.returncode not in (0, 1):
         report("FAIL", "ruff", f"exit {run.returncode}: {(run.stderr or run.stdout).strip()[:300]}")
         return
@@ -193,6 +197,19 @@ def check_python(tree, changed, numbers):
         report("WARN", "ruff", text)
 
 
+def tool_test_variants(real, linked):
+    variants = [("", {})]
+    try:
+        linked.symlink_to(real, target_is_directory=True)
+    except OSError as error:
+        if sys.platform != "win32" or getattr(error, "winerror", None) != 1314:
+            raise
+        report("WARN", "tool-tests", "symlinked TMPDIR skipped: Windows denied symlink creation")
+    else:
+        variants.append((" (symlinked TMPDIR)", {"TMPDIR": str(linked)}))
+    return variants
+
+
 def check_tool_tests(tree):
     """Run tracked tool tests with normal and symlinked temporary directories."""
     tests = tool_tests(tree)
@@ -201,15 +218,7 @@ def check_tool_tests(tree):
         # (#91: abspath against a resolved getcwd() picked every TU on the macOS leg)
         with tempfile.TemporaryDirectory() as real:
             linked = Path(real + "-link")
-            variants = [("", {})]
-            try:
-                linked.symlink_to(real, target_is_directory=True)
-            except OSError as error:
-                if sys.platform != "win32" or getattr(error, "winerror", None) != 1314:
-                    raise
-                report("WARN", "tool-tests", "symlinked TMPDIR skipped: Windows denied symlink creation")
-            else:
-                variants.append((" (symlinked TMPDIR)", {"TMPDIR": str(linked)}))
+            variants = tool_test_variants(real, linked)
             try:
                 for test in tests:
                     for label, extra in variants:
