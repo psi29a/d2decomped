@@ -1,6 +1,6 @@
 # Chat/Chat.cpp: overhead message nodes
 
-Traced from game.exe 1.14d. `FUN_00661110` and `FUN_006611a0` are run in `tools/emu/chat_node.py`; the rest of the file is cited, no oracle run.
+Traced from game.exe 1.14d. `FUN_00661110` and `FUN_006611a0` are run in `tools/emu/chat_node.py`, the IME helpers in `tools/emu/chat_ime.py`; the rest of the file is cited, no oracle run.
 
 ## Overhead message node (`FUN_00661110`, 138 bytes, `.\Chat\Chat.cpp`)
 
@@ -86,3 +86,28 @@ None of these is in `Chat/Chat.cpp`; they came with the seed's callee list.
 d2d: not ported (no name-hash cache for graphics).
 
 Re-check: `python3 tools/ghidra/fn.py 0046dc40`, and the same for each address.
+
+## Chat input IME helpers (`.\UI\chat.cpp`)
+
+Run in `tools/emu/chat_ime.py` (123 cases; the Imm and language imports and
+the allocator hooked). d2d has no IME support: not ported.
+
+- `FUN_0047ad60` (EDI = the IME context; 148 bytes) refreshes the candidate
+  list at `0x7bb5f4`. `ImmGetCandidateListCountA` gives the byte size and
+  `ImmGetCandidateListA(context, 0, NULL, 0)` the list's size; both must be
+  non-zero or nothing changes. Then it frees the old list (line 0xeb),
+  allocates the first size (line 0xed), fills it with
+  `ImmGetCandidateListA(context, 0, list, size)`, and when the list's style
+  (+4) is 2 and its count (+8) is 1 frees it again (line 0xf2) and clears the
+  pointer. (The redivivus decompile names the two values the other way round;
+  the disassembly allocates the `CountA` result.)
+- `FUN_0047b010` (86 bytes) is "is the IME language in use": the mode at
+  `0x7bb5dc` 9 wants the system default language 0x404 or 0xc04 (Traditional
+  Chinese), 8 wants 0x804 or 0x1004 (Simplified); any other mode asks
+  `ImmIsIME(GetKeyboardLayout(0))`.
+- `FUN_0047b070` (24 bytes, `ret 4`) sets the message's +0x18 to 1 and +0x1c
+  to 0 (handled, result 0).
+
+Not traced here: `FUN_0047ae00`, `FUN_0047b090` (the composition and key
+handlers) and `FUN_0047b2e0` (IME shutdown: unregisters the handler tables
+through `FUN_00451e10`, closes the IME, frees the list, line 0x29d).
