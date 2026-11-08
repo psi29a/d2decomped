@@ -773,6 +773,17 @@ Evidence: `python3 tools/ghidra/fn.py 00629b50`, `python3 tools/ghidra/fn.py 006
 d2d: reads the same on the answer (cited from the decompile, no oracle run; `d2d::rules::type_is` walks the Equiv chain); the
 matrix itself is not ported.
 
+### A unit's class id (`FUN_00451f60`)
+
+`FUN_00451f60(unit)` (ECX) returns `-1` for a null unit, else the dword at
+unit `+4` (the class id: Items row, MonStats id, player class). A getter with
+no checks; callers `FUN_00470ec0`, `FUN_0048a990`, `FUN_00497e00`,
+`FUN_004a7d00`, `FUN_004abf10`, `FUN_004ac4d0`, `FUN_004ed480`, and
+`FUN_0062c100` and `FUN_0063e510` call it (game-calls.tsv).
+Evidence: `python3 tools/ghidra/fn.py 00451f60`, `python3 tools/ghidra/calls.py 00451f60`.
+d2d: not ported as a function (a unit's class is a plain field); the pet-ai.md
+mention at line 285 uses it for the owner's class.
+
 ### A unit's look tints (`FUN_00537a40`)
 
 `FUN_00537a40` is `FUN_005379d0` with the two arrays swapped: assert string
