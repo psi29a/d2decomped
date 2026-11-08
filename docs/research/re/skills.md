@@ -1651,6 +1651,25 @@ Cited from the decompile (no oracle run); re-check with
   and strike.cpp:415 on the kick at toht + stat 325 and the 0x80 default;
   unlike Bash it has no town refusal. **Not ported**: the attackrate list.
 
+### Skill record and skill-list accessors (work package 004c9460, cited)
+
+- **FUN_004c9460**(skill id in ECX) (43 bytes) -> the record's **Param1**
+  (`+0x148`, skills.md above: par1..par8 at `+0x148..0x164`): 0 when the id
+  is outside `[0, [0x744304]+0xba0)` or the record pointer
+  (`+0xb98 + id*0x23c`) is 0. It is the body of skillcalc operand 8
+  (`d2d_skills_calc_operand`, FUN_00646460 `case 8`; operands 8..15 are
+  par1..par8, the others of them read `+0x160` / `+0x164` inline). Its two other
+  callers read it as a speed share: FUN_004c9b40 (SkillsPal.cpp, cltstfunc 25)
+  and FUN_005cf6b0 (the Charge start, "SkilPal.cpp" line 0x330 in its own
+  spelling) call it after the stat 0x43 read (FUN_00625480) and feed the
+  result to FUN_00483360 and FUN_00648690. The decompile shows a file and
+  line (0x1ca, 0x330) beside the call; the function itself takes the id only
+  (no assert in its body), so the pair is not its. The decompile drops the
+  fastcall registers, so what each call passes is inferred. d2d: **agrees**: `skills.hpp:723` returns
+  `params[code - 8]` for operand 8 (the table's Param1); the list has no
+  separate Par1 reader for the two starts, which are not ported
+  (`FUN_004c9b40`: cited only).
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
