@@ -113,7 +113,9 @@ JPN/KOR use a different glyph pipeline entirely (multi-byte).
 
 | addr       | ghidra name  | role |
 |------------|--------------|------|
-| `0x525920` | `FUN_00525920` | Opens a TBL through `FUN_00517079`, checks its CRC and node offsets. |
+| `0x525350` | `FUN_00525350` | Formats an unsigned 32-bit number with comma separators. |
+| `0x525490` | `FUN_00525490` | Formats a signed 64-bit number with comma separators. |
+| `0x5255c0` | `FUN_005255c0` | Formats an unsigned 64-bit number with a K/M/B/T short-form suffix. |
 | `0x5259c0` | `FUN_005259c0` | Loads the selected language's tables, allocates offset and decoded-data arrays, and populates the globals below. |
 | `0x525fb0` | `FUN_00525fb0` | Sibling helper: formats an integer with comma separators. |
 | `0x526100` | `FUN_00526100` | Decodes one UTF-8 sequence to one 16-bit unit and returns its byte length. |
@@ -180,4 +182,33 @@ hash `0x52_49e0`, `0x524d30` calls `0x524c60`, and `0x524ac0` calls the count
 - `0x524e40`: cdecl, no arguments. Does nothing when no string table is loaded. Otherwise it counts `0x8829d8` down, and only at zero frees the string, patch and expansion tables and the cache nodes (decoded text, key copy, node, in that order), clears their globals (when the offsets pointer at `0x8829b8` is null, the string data pointer at `0x8829c4` is neither freed nor cleared), and tail-jumps to `0x52_7720`.
 - `0x525770`: cdecl, no arguments. Halts `0x246` when no string table is loaded. Fills the four words `0x730510`, `0x730514`, `0x730518`, `0x73051c` with `K`, `M`, `B`, `T` from string ids `0x14d0` to `0x14d3`: the first character of the first four characters of the string when that is one character or none (`0` for none), else the default letter.
 
-Not covered: `0x525350` (signed 32-bit number with separators), `0x525490` (signed 64-bit) and `0x5255c0` (unsigned 64-bit short form with the suffix letter; its switch table at `0x525754` is not decoded), and `0x525920` (the TBL opener, which reads a file through `0x51_7079`).
+## Number formatting
+
+The three number formatters were run in stock `Game.exe` 1.14d (SHA-256
+`631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf`).
+`tools/emu/strtable_formatters.py` runs the formatter boundary cases.
+
+- `0x525350`: stdcall 3, `(u16* out, u32 value, capacity)`. It calls the
+  unsigned decimal converter, so `0xffffffff` formats as `4,294,967,295`; it
+  inserts a comma after each group of three digits from the right. `capacity`
+  counts UTF-16 units; the routine reserves one slot beyond the output and its
+  terminator. A capacity at or below 2 halts at `0x4ed`; an output that does
+  not fit takes the decoded fallback at `0x6d5830`.
+- `0x525490`: stdcall 4, `(u16* out, low, high, capacity)`, with a signed
+  64-bit value formed from `high:low`. It inserts commas the same way and
+  prepends `-` for negative values. The INT64_MIN path negates the value
+  through the signed decimal converter after writing its own minus sign;
+  stock execution therefore returns `--9,223,372,036,854,775,808` for that
+  one input. It reserves one slot beyond the output and its terminator, halts
+  at `0x519` for capacity at or below 2, and uses the decoded fallback at
+  `0x6d5830` when the formatted result does not fit.
+- `0x5255c0`: stdcall 4, `(u16* out, low, high, capacity)`, with an unsigned
+  64-bit value. Up to six digits stay unscaled. At seven or more digits it
+  keeps the leading one-to-four digit groups, inserts commas, and uses the
+  suffix word at `0x730510`, `0x730514`, `0x730518` or `0x73051c` (K, M, B,
+  T); the scale is capped at T. For example, one million is `1,000K` and
+  1,234,567,890 is `1,234M`. The capacity includes the suffix and terminator,
+  with one extra slot reserved. It halts at `0x54b` for capacity at or below
+  2 and uses the decoded fallback at `0x6d5830` when the result does not fit.
+  The switch table at `0x525754` maps suffix groups 1–4 to the four words;
+  group 0 writes no suffix.
