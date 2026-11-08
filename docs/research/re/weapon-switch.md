@@ -205,3 +205,20 @@ returns the wielded one (else it still toggles the wielded with 1 when
 usable). The ids `+0x1c` are not changed by either.
 
 d2d: not ported (no mention under `components/` or `apps/`).
+
+## Dropping hand skills a change of gear made unusable (`FUN_0055c5c0` chain)
+
+Cited, not proven. Several of these take arguments in registers the
+decompile does not show (the asm was not read), so a hand's mapping to a
+local is read from the order of the calls only.
+
+### The wielded weapon and the other hand's weapon (`FUN_0055c470`)
+
+`FUN_0055c470(unit)` (unit in EAX, two outputs in EBX and EDI) zeroes both
+outputs and, for a unit with an inventory (`unit+0x60`), sets EDI to the
+wielded weapon (`FUN_0063bef0`, d2d `wielded_weapon`) and EBX to the
+item in body slot 4 or 5 (`FUN_0063bde0`) that is not that weapon: slot 5's
+when the wielded one is slot 4's, else slot 4's. EBX is cleared unless
+it is of ItemTypes row 0x2d (`FUN_00629bb0`, weap).
+Evidence: `python3 tools/ghidra/fn.py 0055c470`, `python3 tools/ghidra/calls.py 0055c470`.
+d2d: not ported; no mention in `components/` or `apps/`.
