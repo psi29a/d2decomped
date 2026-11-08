@@ -32,6 +32,7 @@ address	name	evidence
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
+0056dfa0	skills_refresh_passives	fastcall (unit): for each node of the unit +0xa8 skill list whose passivestate > 0: state on (FUN_00639db0) and FUN_00646d60; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
 0058ebc0	ai_control_alloc	allocates 0x40 bytes zeroed; sets flags +0x10 = 1, +0x30 = 1, target +0xc = -1, owner +0x2c = -1; AiGeneral.cpp line 0x1b

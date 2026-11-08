@@ -1487,6 +1487,17 @@ Cited from the decompile (no oracle run); re-check with
   list. d2d: **agrees** with skills.hpp:765-774 and skills.md:674; this adds
   the invalid-stat break, level 0 removing the list, and the removal while the
   aura state is on.
+- **FUN_0056dfa0**(unit, in ECX): for every node of the list at unit +0xa8
+  (FUN_00643910 / FUN_006438f0): id = FUN_00643ce0(node); if
+  FUN_00643690(id) > 0, FUN_00639db0(unit, passivestate, 1) then
+  FUN_00646d60(unit, id). So for each node whose FUN_00643690 value is
+  above 0 it turns that passivestate on and refreshes that skill, with no
+  check of the level (the only loop in the function; nodes with 0 are skipped). Called from FUN_0054c0e0 (its
+  unit `+0x10 == 0x11` branch, after FUN_0053fdf0 and before the max life /
+  mana / stamina stats are written back and state 0x36 is set then cleared;
+  `tick.cpp:572` cites it) and FUN_0055b800. d2d: **not ported**: d2d
+  derives passives on read (`rules::passive_stats`, skills.hpp:765) and
+  does not replay this refresh; whether that differs in play is untested.
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
