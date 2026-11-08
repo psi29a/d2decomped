@@ -281,7 +281,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kAutomap)) automap.open = !automap.open;
             if (fires(keys::kCharacter)) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false; }
             if (fires(keys::kQuestLog)) toggle_quest_log();
-            if (key == SDLK_ESCAPE && view.dead && (!view.ghost || view.all_dead)) { send(cmd::Resurrect{}); continue; }
+            if (key == SDLK_ESCAPE && view.dead && (!view.ghost || view.all_dead) && !game_menu.open) { send(cmd::Resurrect{}); continue; }
             for (int belt = 0; belt < 4; ++belt)
                 if (fires(keys::kBelt1 + belt)) net.send(cmd::UseBelt{ belt, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 });
             for (int phrase = 0; phrase < 8; ++phrase)
@@ -364,7 +364,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         for (std::size_t index = 0; index < world.players.size(); ++index) {
             auto& leaving = *world.players[index];
             if (!std::exchange(leaving.out, false)) continue;
-            if (const auto seat = std::ranges::find(coop, leaving.id, &CoopPlayer::id); seat != coop.end()) {
+            if (const auto lan_player = std::ranges::find(lan_players, leaving.id, &LanPlayer::id); lan_player != lan_players.end()) {
+                lan_send_save(*lan_player);              // a joiner: its dead save home, then out with game.exe's deeds line
+                lan_host->kick(lan_player->client, string_id(*scene, 0x13e8));
+                lan_remove(*lan_player, "dead in hardcore");
+                lan_players.erase(lan_player);
+            } else if (index == 0 && !lan_players.empty()) {
+                if (!game_menu.open) open_game_menu();   // a dead host keeps the game up; its Save and Exit ends it
+            } else if (const auto seat = std::ranges::find(coop, leaving.id, &CoopPlayer::id); seat != coop.end()) {
                 partner_left = seat->seat;
                 coop_leave(partner_left);
             } else if (index == 0 && (handed_over = lead_leaves()) < 0) {

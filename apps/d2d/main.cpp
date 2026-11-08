@@ -1514,7 +1514,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             }
                             if (!welcome) std::this_thread::sleep_for(std::chrono::milliseconds(10));
                         }
-                        if (!welcome || welcome->info.size() < 6) {
+                        if (!welcome || !refused.empty() || welcome->info.size() < 6) {   // a Refuse can come with the Welcome (a hardcore check, a full game)
                             d2d::log::error("lan: join failed: {}", refused.empty() ? "no welcome from the host" : refused);
                             screen = Screen::CharSelect;
                             csu.popup = join_error_text(*scene, { .what = refused.empty() ? "Cannot Connect to Server" : refused, .no_connect = refused.empty() || !joined }, header.expansion());

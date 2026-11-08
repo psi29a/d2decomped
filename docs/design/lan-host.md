@@ -1,6 +1,6 @@
 # d2d hosting d2d over a LAN
 
-A fork-side route to d2d hosting d2d clients, ahead of net-host.md's
+A stopgap route to d2d hosting d2d clients, ahead of net-host.md's
 game.exe-compatible host. It is net-host.md option (a): the in-process wire
 forms (`Command`, protocol.hpp; `View`, replication.hpp) carried over TCP.
 d2d clients only; game.exe can't join it. When the D2GS host (option (b))
@@ -37,3 +37,12 @@ a LAN of d2d machines lacks is only the transport.
   send it back (on leave only, or periodically)?
 - View size with four players on four levels: today's deltas are about
   0.4 KB a tick for one player (PLAN.md "Views as deltas").
+
+## Hardcore
+
+The host makes game.exe's join checks (FUN_00539760, net-join.md): a dead
+hardcore character, softcore into a hardcore game and hardcore into a
+softcore one are refused with game.exe's texts (0x14ef, 0x14f2, 0x14f1). A
+joiner who dies in hardcore gets its dead save back and is dropped with
+"Your deeds of valor will be remembered" (0x13e8); a dead host keeps the
+game up behind the game menu, and its Save and Exit ends it.

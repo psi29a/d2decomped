@@ -53,6 +53,11 @@ auto Town::lan_poll() -> void {
                 auto joining = character_of_bytes(*scene, std::as_bytes(std::span(event.hello.save)));
                 if (!joining) { lan_host->kick(event.client, "the host couldn't read your character"); continue; }
                 if (world.players.size() >= 4) { lan_host->kick(event.client, "the game is full"); continue; }
+                // game.exe's join checks (FUN_00539760, net-join.md): a dead hardcore character (0x15),
+                // softcore into hardcore (0x13), hardcore into softcore (0x14); their texts (tcpip-menu.md).
+                const bool hardcore_game = hero.character.header.hardcore();
+                if (joining->header.hardcore() && joining->header.died()) { lan_host->kick(event.client, string_id(*scene, 0x14ef)); continue; }
+                if (joining->header.hardcore() != hardcore_game) { lan_host->kick(event.client, string_id(*scene, hardcore_game ? 0x14f2 : 0x14f1)); continue; }
                 auto& seated = world.join(*joining);
                 seated.own_screen = true;                 // on their own machine: their own level (World::split_levels), the host's party stays one screen
                 const int seat_id = seated.id;
