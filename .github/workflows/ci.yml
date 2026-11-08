@@ -1,12 +1,31 @@
 name: CI
 
+# Docs, research notes and the Python RE tools don't touch the build: a push
+# or pull request that changes only those skips CI (tools.yml tests the
+# Python). Tags ignore path filters, so a release always builds.
+# tests/*.py drive the d2d binary and tidy-pr-select.py picks tidy's files,
+# so those still run CI.
 on:
   push:
     branches:
       - main
     tags:
       - '*'
+    paths: &build-paths
+      - '**'
+      - '!docs/**'
+      - '!**/*.md'
+      - '!tools/*.py'
+      - 'tools/tidy-pr-select.py'
+      - '!tools/emu/**'
+      - '!tools/ghidra/**'
+      - '!.github/workflows/cache-cleanup.yml'
+      - '!.github/workflows/coverity.yml'
+      - '!.github/workflows/gaps.yml'
+      - '!.github/workflows/guard.yml'
+      - '!.github/workflows/tools.yml'
   pull_request:
+    paths: *build-paths
 
 permissions:
   contents: read
@@ -242,12 +261,6 @@ jobs:
         run: cmake --build build --config RelWithDebInfo -- -k 0
 
       # No game data on the runners: tests that need MPQs print SKIP and pass.
-      - name: Tooling regression tests
-        if: runner.os != 'Windows'
-        run: |
-          python3 -m unittest tools/test_tidy_pr_select.py tools/test_gaps.py tools/test_pr_guard.py
-          (cd tools/emu && python3 -m unittest test_tooling.py)
-
       - name: Test (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
