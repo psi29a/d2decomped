@@ -647,8 +647,9 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         for (; frame_ms - rain_ms >= 40; rain_ms += 40) {
             den_tick(frame_ms);
             critter_tick(frame_ms);
-            const float dx = cam_x - rain_cam_x, dy = cam_y - rain_cam_y;
-            rain_cam_x = cam_x; rain_cam_y = cam_y;
+            // The weather keeps to the unshifted view (0x7a520c); its draw moves it by the panel's quarter.
+            const float dx = cam_x - panel_cam_x - rain_cam_x, dy = cam_y - panel_cam_y - rain_cam_y;
+            rain_cam_x = cam_x - panel_cam_x; rain_cam_y = cam_y - panel_cam_y;
             ++rain.clock;                                 // the client frame (0x7a0498)
             if (level->mud) rain.tick_bubbles(int(std::lround((dx - dy) * (kIsoW / 2))), int(std::lround((dx + dy) * (kIsoH / 2))));
             else rain.bubbles.clear();

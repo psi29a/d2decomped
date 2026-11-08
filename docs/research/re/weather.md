@@ -93,7 +93,8 @@ Levels.txt Mud level when 25 have. Each drawn material-2 floor rolls
 rand(1000) once for both: a bubble (`FUN_00472ec0`: bubble3, y 30 higher,
 a frame every 2 ticks; ticked by `FUN_00472d10` in Mud levels) under 100.
 Splashes and bubbles draw moved by ∓W/4 with a side panel open (bugs.md
-#38).
+#38). The world moves by the same quarter (menu.md "The view with panels
+open"), so in d2d they stay on their tiles.
 
 ## Lightning
 

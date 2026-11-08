@@ -23,6 +23,7 @@
 #include <monsters.hpp>
 #include <object_ids.hpp>
 #include <overlays.hpp>
+#include <panel_view.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <uniques.hpp>
@@ -407,8 +408,8 @@ auto Town::automap_frame() -> void {
         automap.center = values[3] != 0;
         automap.party = values[4] != 0;
         automap.names = values[5] != 0;
-        const bool right_open = inv_open || tree_open, left_open = left_panel_open();
-        automap.panel_side = right_open == left_open ? 0 : right_open ? 1 : 2;
+        const int side_state = view_state();
+        automap.panel_side = side_state == d2d::rules::panel_view::kRightOpen || side_state == d2d::rules::panel_view::kLeftOpen ? side_state : 0;
         g_drawn.panel_side = automap.panel_side;
         automap.in_town = level && d2d::rules::level_ids::is_town(level->id);
         automap.portraits = portraits_shown;
