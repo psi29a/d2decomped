@@ -745,6 +745,18 @@ revalidates on every call. Callers include `FUN_0052c410`, `FUN_0052c500`, `FUN_
 Evidence: `python3 tools/ghidra/fn.py 00537860`.
 d2d: not ported (no mention in `components/` or `apps/`); act1-end.md already
 names it as "client =" in the act-change walk, which agrees.
+
+### The MonStats row by id (`FUN_00451f80`)
+
+`FUN_00451f80(id)` (fastcall, ECX): returns 0 when `id < 0` or
+`id >= [DAT_00744304 + 0xa80]` (the row count), else
+`[DAT_00744304 + 0xa78] + id * 0x1a8`. That is the MonStats row accessor of
+monsters.md "Tables" (rows of 0x1a8 bytes at `+0xa78`, count at `+0xa80`).
+It does not assert on a bad id. Callers include `FUN_00454ad0`, `FUN_00461dc0`
+and `FUN_00571f90`, which is in this work package.
+Evidence: `python3 tools/ghidra/fn.py 00451f80`.
+d2d: reads the same as monsters.md (cited from the decompile, no oracle run); no d2d function names it (the oracles
+`tools/emu/freeze_rules.py` and `freeze_resume.py` call it).
 `rules::make_fighter`'s weapon).
 
 Pass 1 sets no 0x4000: a charm short of its requirements just gets no
