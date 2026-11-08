@@ -397,6 +397,29 @@ Read from the code, no oracle or packet log.
     (LAB_004627cc); otherwise flag 0x20 casts (LAB_0046289c).
   - FUN_00643860 failing: LAB_004628a8, as "A walk to a spot just ends" has it.
 
+
+## The stamp family (`FUN_0064d060` .. `FUN_0064eba0`, 1.14d)
+
+Cited (read in Ghidra, not run in the oracle). A unit's own bits go on the
+room grids in three shapes, set and cleared by twin functions. Each reads
+the room's grid through `FUN_0061a010` (`{x0, y0, w, h, .., +0x20 words}`,
+"The grid" above) and does nothing when there is no room, grid or word
+array. d2d: reads the same as "Rects and units" above, cited from the decompile, no oracle run; none is ported by name.
+
+d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
+wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
+joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
+that aims at a new subtile, against about 3.6. A packet the same as the last one sent within 200 ms
+is dropped (`NetGame::send`, as FUN_00478350 does), so a held button on one spot sends about 5 a second.
+By reading both are small, a few subtiles of where a walk ends; neither was measured.
+- **Box, `FUN_0064d060`** (room, a rect `{x0, y0, x1, y1}`, bits): takes the
+  room holding the rect's second field (`FUN_00463740`, rect +4) and its
+  grid, splits the rect across rooms with `FUN_0064cdf0` (a piece count; 0
+  for an empty rect or no grid), ORs the bits into the first piece with
+  `FUN_0064cd70` and, for a count over 1, calls itself again once per
+  further piece. Callers: `FUN_0064ea00` (shape 3), `FUN_0064ddf0` (the 3x3
+  square), `FUN_0064de30`. The register arguments are hidden in the C; the
+  rect layout is read from `FUN_0064cd70` (+0 x0, +4 y0, +8 x1, +0xc y1).
 d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
 wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
 joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
