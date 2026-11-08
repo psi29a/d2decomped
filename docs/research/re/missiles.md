@@ -1093,3 +1093,32 @@ missile unit carries those stats (they would have to be copied from the
 owner when it is made) is not shown here, so this is a gap to check, not
 a proven disagreement. The element rows agree with `missile_blow`'s
 min / max reading, apart from the bonus stat discussed under FUN_005a8910.
+
+## Hit function FUN_005abd70 (the owner's life by a missile's roll)
+
+Cited from the decompile, no oracle run; the decompile drops ECX / EDX
+(game, the missile) so the operand roles are a reading. **No caller and no table
+entry** was found for it in `game-calls.tsv` (the pSrvHitFunc table at 0x73c840
+has no entry for 0x73c8b8 .. 0x73c8c8 in that file), so which Missiles.txt row
+uses it was not checked.
+
+- Gate (returns **1**): no missile, class out of range or no Missiles.txt
+  record (`PTR_DAT_00744304 + 0xb64`, 0x1a4 per row, count at +0xb6c), no owner
+  (`FUN_00552fd0`), or the stack unit is 0.
+- Else a 0x70-byte zeroed record is filled by FUN_005a8c70 for the missile (the
+  unit goes with it), and the returned number (0 when negative) is added to
+  the owner's life, stat 6 (`FUN_00625480`), limited to the owner's maximum
+  life (`FUN_00625d10`, named `d2d_unit_max_life`), and stored with
+  `FUN_00627260(owner, 6, life, 0)`. The number is in the record's units
+  (256ths for the elements), the same units as the life stat.
+- Returns **3** (damage, end) when the row's CollideKill (+0x186) is set, else
+  **2** (damage, the missile flies on).
+
+So it heals the missile's owner by what the missile just rolled against the
+struck unit, and does no damage itself.
+
+Re-check: `python3 tools/ghidra/fn.py 005abd70`,
+`python3 tools/ghidra/calls.py 005abd70`.
+
+d2d: **not ported**; no d2d code names it (`git grep -n 005abd70` finds only this
+note).
