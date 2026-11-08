@@ -1669,6 +1669,17 @@ Cited from the decompile (no oracle run); re-check with
   `params[code - 8]` for operand 8 (the table's Param1); the list has no
   separate Par1 reader for the two starts, which are not ported
   (`FUN_004c9b40`: cited only).
+- **FUN_00483360**(a in ECX, b in EDX, c on the stack) (122 bytes) -> a × b /
+  c, the "MulDiv" of every percent in the skills code: 0 when c is 0. When a ≤
+  0x100000 and b ≤ 0x10000 it multiplies in **32 bits** and divides (the
+  product is signed and wraps past 2^31, e.g. a = 0x100000, b = 0x10000 gives
+  2^36); else when c ≤ b >> 4 it divides first (`(b / c) * a`, wrapping), and
+  for a > 0x100000 when c ≤ a >> 4 `(a / c) * b`; else it widens (`__alldiv`
+  of the 64-bit product by c sign-extended). The tests are signed, so a
+  negative a or b takes the 32-bit branch. d2d: **agrees**,
+  `rules::mul_div` (`combat.hpp:261`) is the same branch for branch (its
+  comment names FUN_00483360); callers in ai.cpp, strike.cpp and
+  gamedata.hpp use it. The only wart is the 32-bit wrap (bugs.md 53).
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
