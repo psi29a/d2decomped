@@ -1545,9 +1545,8 @@ Cited from the decompile (no oracle run); re-check with
   start FUN_005d7090 and Bash's start FUN_005d7ea0, both just before the
   to-hit roll (FUN_0057ec10). d2d: **not ported** as such; the nearest is
   the SIAS term (combat.hpp:68), which the kick/bash paths do not add.
-  The list is never freed here (kind 4, no length), so its attackrate
-  stays until the unit's lists are torn down: **unverified** whether the
-  caller removes it; not claimed.
+  This function does not free the list (kind 4, no length):
+  **unverified** whether anything removes it later; not claimed.
 - **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5; callers
   FUN_004c7cf0 and two sites at 0x4f26f3 / 0x4f2706. d2d: not ported.
 - **FUN_0056ff10**(unit in EDI, skill in the stack arg; only caller
