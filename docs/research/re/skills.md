@@ -1439,6 +1439,13 @@ Cited from the decompile (no oracle run); re-check with
   state 0x76 / 0xc, and `FUN_00625a70`'s bit is cited by
   `tools/emu/freeze_rules.py:249`. d2d has no one function for the
   bounded set; each caller writes its flag.
+- **FUN_00643910**(list) and **FUN_006438f0**(node): both are `p ? p[+4] : 0`
+  (byte-identical bodies). A skill list header's +4 is the first node
+  (FUN_00647110 reads `list+4` too), a node's +4 the next one. FUN_0056dfa0
+  walks `for (n = FUN_00643910(unit+0xa8); n; n = FUN_006438f0(n))`. Callers
+  of 006438f0: 004a9a90..004a9df0 (five), of 00643910: 004c7990, 0053c5d0,
+  0056dfa0, 00575900, 005eb970. d2d: **not ported** (the shadow oracle only
+  stubs them, `tools/emu/shadow_master.py:350`).
  / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
