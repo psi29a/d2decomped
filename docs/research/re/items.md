@@ -855,6 +855,25 @@ d2d: reads the same on the result encoding (cited from the decompile, no oracle 
 none: `compcode::tints`); d2d builds the look from the worn list
 (`GameData::look_of`) and does not run this walk. Cited, not proven.
 
+### The look codes of a unit (`FUN_005379d0`)
+
+`FUN_005379d0(_, unit, out, size)` (fastcall: unit in EDX, `out` and `size`
+on the stack) asserts (string 0x3d4) when `size < 0x10` or the unit is null,
+sets the 16 bytes at `out` to 0xff, and calls `FUN_0063e510(unit, out,
+scratch)`: `out` gets the per-layer codes and the tints go to a stack buffer.
+No caller in the call table (reached through a table or a callback).
+Evidence: `python3 tools/ghidra/fn.py 005379d0`, `python3 tools/ghidra/calls.py 005379d0`.
+d2d: not ported; no mention in `components/` or `apps/`.
+
+### A unit's look tints (`FUN_00537a40`)
+
+`FUN_00537a40` is `FUN_005379d0` with the two arrays swapped: assert string
+0x3df, `out` pre-set to 0xff and passed as `FUN_0063e510`'s tints (third)
+argument, the codes going to the scratch buffer. No caller in the call table.
+Evidence: `python3 tools/ghidra/fn.py 00537a40`, `python3 tools/ghidra/calls.py 00537a40`.
+d2d: not ported; its result is what `compcode::tints` builds from the worn
+list, in the same encoding.
+
 ### A unit's class id (`FUN_00451f60`)
 
 `FUN_00451f60(unit)` (ECX) returns `-1` for a null unit, else the dword at
