@@ -158,8 +158,8 @@ client scenarios.
   the client view bounds. In bounds it sets path flag `0x80` and advances the
   normal client missile step (`FUN_004d30c0`); out of bounds it dispatches
   the generic client handler (`FUN_004d2d70`, no hit, `ended` 0). The address
-  `0x72a3a0` contains a pointer table beginning with this routine and
-  `FUN_004d3460`; this is indirect dispatch, not a direct call site.
+  `0x72a3a0` contains a pointer table beginning with this routine and the
+  entry at `0x004d3460`; this is indirect dispatch, not a direct call site.
 - **`FUN_004d55c0`** validates the missile class and its data row, then
   compares the missile's stored skill value with the skill on a related
   unit. When the values agree and a path exists, it creates the row's
