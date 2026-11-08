@@ -472,8 +472,12 @@ using SeqRows = std::vector<GameData::MonSeqFrame>;
 // missiles (139) and tentacles (140), the imps' Inferno (126), Teleport
 // (129) and Fire Missile (132), the overseer's Cry Help (128) and Whip
 // (131), Impregnate (133), Siege Beast Stomp (134: its mode, nothing else),
-// a war cry (68: Madawc's Shout).
-// ponytail: other do-funcs stand.
+// a war cry (68: Madawc's Shout). Any other stands, and no think casts one:
+// of every traced AI's MonStats Skill1..8 not in a MonSeq sequence, with no
+// srvmissile and none of the above, the rest are BaalThrone's Corpse Explode
+// (its own path), the wisps' Chain Lightning (they fire MissC), FetishAura
+// and Duriel's Holy Freeze (auras), Self-resurrect (at death) and
+// Diablogeddon (the unplaced clone's; UberDiablo's think is `ret 4`).
 bool castable(const d2d::rules::Skill& skill) {
     using enum d2d::rules::ServerDoFunction;
     return !skill.srvmissile.empty() || std::ranges::contains(std::array{ kNova, kMissileWall, kCurse, kScatteredBolts, kMissileAtTarget, kMonsterBreath, kBestow,
