@@ -18,7 +18,13 @@ Frozen (state 1), FUN_005a7f80 drops the unit's events of types 0, 1, 2,
 6, 7, 9 and 10 as they come due. The freeze's end (its callback
 0x57b170) removes its event 2s and files one at the end + aidel
 (MonStats +0x4f, plus the difficulty when game +0x6a or +0x74 is set;
-0: 15), so it thinks aidel frames after it thaws.
+0: 15), so it thinks aidel frames after it thaws. FUN_0057b230 sets no
+mode, so a frozen swing or cast holds: its strike or sequence row (event
+0) and its end (event 1) coming due are dropped, the swing never lands,
+and an end inside the freeze never comes; the think after the thaw
+replaces the mode. A breath's re-run (event 0, Imp Inferno's 1) is dropped
+too, so the breath ends. d2d: monster_update's `mode_over`
+(`tests/game/test_freeze_hold.cpp`); a walk still stops at the freeze.
 It fills a params block (AI control at monster data +0x28, MonStats row)
 and goes, stopping at the first step that acts:
 

@@ -1939,6 +1939,15 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     const bool own_think = type_info.ai_name == "Andariel" || monster.special == 10 || monster.special == 11 || d2d::rules::traced_ai(type_info.ai_name);
     const bool frozen = now_ms < monster.stun_until && monster.stun_until != monster.stunned_until;
     const auto think_due = [&] { return own_think && monster.think_pending() && now_ms >= monster.next_act && !monster.uninterruptable() && !frozen; };
+    // Frozen, a mode's events due are dropped (FUN_005a7f80: 0 its strike or
+    // sequence row, 1 its end): an end inside the freeze never comes, so the
+    // mode holds till the think after the thaw replaces it.
+    const auto mode_over = [&] {
+        if (now_ms < monster.mode_until) return false;
+        if (!frozen || !own_think) return true;   // an untraced AI has no think to replace it
+        monster.mode_until = std::numeric_limits<std::uint32_t>::max();
+        return false;
+    };
     const auto mode_ends = [&] {
         set_mode(game_data, monster, "NU", now_ms);
         if (monster.think_pending() && monster.next_act > now_ms) return;
@@ -1953,8 +1962,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // and the next think is filed at the end + MonStats aidel (0: 15); the
     // thinks due while frozen were dropped (FUN_005a7f80). A stun's end
     // (state 21, callback 0x56e900) files none.
-    // ponytail: the other events FUN_005a7f80 drops while frozen (types 0,
-    // 1, 6, 7, 9, 10) aren't kept, nor a freeze that ends under a longer stun.
+    // ponytail: a freeze that ends under a longer stun files nothing (one
+    // stun_until holds both).
     if (monster.stun_until != 0 && now_ms >= monster.stun_until) {
         if (monster.stun_until != monster.stunned_until) {
             const int aidel = type_info.diff[std::size_t(monster.difficulty)].aidel;
@@ -1971,8 +1980,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // The others' (FUN_005cc4e0, DiabLight's FUN_005cc690 -> FUN_005cc2e0):
     // calc1 frames, or under 1 its row's Param2 + lvl - 1; 1..255.
     // The others' animation rate is AnimLen << 8 / range (FUN_00621780).
+    // Frozen, its re-run (event 0 / 1) is dropped and the breath ends.
     if (monster.breath >= 0) {
-        if (now_ms >= monster.breath_until) monster.breath = -1;
+        if (now_ms >= monster.breath_until || (frozen && now_ms >= monster.breath_next)) monster.breath = -1;
         else if (now_ms >= monster.breath_next) {
             if (const auto* cast = game_data.skills.get(monster.breath)) {
                 const int lvl = skill_level(game_data, monster, monster.breath);
@@ -2004,13 +2014,18 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         } else set_mode(game_data, monster, "GH", now_ms);
         return false;
     }
-    if (now_ms < monster.stun_until && monster.mode != "GH" && monster.mode != "BL") {   // stunned: stands (a get-hit plays out first)
+    // Stunned, it stands (a get-hit plays out first); frozen, a get-hit,
+    // block, attack or cast holds (FUN_0057b230 sets no mode).
+    const bool attack = monster.mode == "A1" || monster.mode == "A2";
+    const bool casting = attack || monster.mode == "S1" || monster.mode == "S2" || monster.mode == "SC" || (monster.mode == "S3" && monster.skill >= 0)
+                      || (monster.mode == "DT" && monster.skill >= 0);   // DT alive: a sequence (the egg's hatch)
+    if (now_ms < monster.stun_until && monster.mode != "GH" && monster.mode != "BL" && !(frozen && casting)) {
         if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
         return false;
     }
     if (monster.mode == "GH" || monster.mode == "BL") {
         monster.leaping = false;                                       // struck mid-leap: it stays where it is
-        if (now_ms >= monster.mode_until) mode_ends();
+        if (mode_over()) mode_ends();
         else if (!think_due()) return false;
         else if (now_ms < monster.stunned_until) {                     // stunned (state 0x15): the driver's first step stands 3 (FUN_005b10e0)
             monster.thought_ms = now_ms;
@@ -2136,19 +2151,17 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         const int frame = int((now_ms - unit.mode_ms) / game_data.npc_timing(monster.npc, "SC").ms_per_frame());
         const int x = subtile(unit.x), y = subtile(unit.y);
         while (monster.skill_frame < std::min(frame, 12))
-            if (++monster.skill_frame >= 4) {
+            if (++monster.skill_frame >= 4 && !frozen) {
                 const auto [aim_x, aim_y] = d2d::rules::andariel_spray_aim(d2d::rules::direction64(x, y, monster.skill_x, monster.skill_y), monster.skill_frame);
                 andariel_missile(game_data, monster, "andarielspray", float(aim_x) / 5, float(aim_y) / 5, now_ms, missiles, skill_level(game_data, monster, kAndrialSpray));
             }
-        if (now_ms >= monster.mode_until) { mode_ends(); monster.skill = -1; }
+        if (mode_over()) { mode_ends(); monster.skill = -1; }
         else if (!think_due()) return false;
     }
     // An attack, a taunt (the Fallen's S2), a skill's sequence (MonSeq: its
     // event rows), a young one coming out (spawnmode S1), a skill cast in S3
     // (Diablo's Wall, Prison and Prime Firewall: Sk*mode S3).
-    const bool attack = monster.mode == "A1" || monster.mode == "A2";
-    if (attack || monster.mode == "S1" || monster.mode == "S2" || (monster.mode == "SC" && monster.skill != kAndrialSpray) || (monster.mode == "S3" && monster.skill >= 0)
-        || (monster.mode == "DT" && monster.skill >= 0)) {   // DT alive: a sequence (the egg's hatch)
+    if (casting && !(monster.mode == "SC" && monster.skill == kAndrialSpray)) {
         const auto& timing = game_data.npc_timing(monster.npc, monster.mode);
         const SeqRows* seq = skill_seq(game_data, type_info, monster.skill);
         if (seq && seq->front().mode == "WL") seq = nullptr;               // a charge's swing: one hit (its flag 0x40 after the first)
@@ -2174,6 +2187,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             monster.struck = true;
             due = 1;
         }
+        if (frozen) due = 0;
         for (; due > 0; --due) {
             const bool s1_shot = monster.mode == "S1" && monster.skill < 0;   // the Council's S1 (MonAct::s1)
             const auto& shot = monster.mode == "A1" ? type_info.miss_a1 : monster.mode == "SC" ? type_info.miss_c : s1_shot ? type_info.miss_s1 : type_info.miss_a2;   // MissA1 / MissA2 / MissC / MissS1
@@ -2890,7 +2904,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (monster.leaping && monster.leap_until && now_ms >= monster.leap_until) {   // Leap Attack down at row 11
             monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y;
         }
-        if (now_ms >= monster.mode_until) {
+        if (mode_over()) {
             if (monster.leaping) { monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y; }
             mode_ends();
             monster.skill = -1;
