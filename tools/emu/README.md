@@ -39,6 +39,9 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | SoundHdr table loader (FUN_00481950) | `uv run python sound_hdr_tables.py` | `ok: synthetic SoundHdr table descriptors, group bases, block counts and song range` |
 | SoundHdr cache eviction (FUN_004824a0) | `uv run python sound_hdr_evict.py` | `ok: SoundHdr eviction pass, age and active-sound cases` |
 | SoundHdr group choice (FUN_00482680) | `uv run python sound_hdr_group.py` | `ok: SoundHdr group selection and history retry cases` |
+| Stat-list field getters and setters, wrappers and the named-stat getters (StatsEx.cpp FUN_00625250 ... FUN_00626d10; `--mutation-check` breaks the model 8 ways) | `uv run python stats_list_fields.py` | `ok: 10041 stat-list field accessor, wrapper and named-stat getter cases` |
+| Stat-list array primitives: insert, remove, queue, sums, add, set, chains, queued-stat callbacks, layer copy (FUN_00624c80 ... FUN_006261b0; `--mutation-check` 10 ways) | `uv run python stats_array_ops.py` | `ok: 33425 stat-list array primitive cases` |
+| Stat change push-up and derived-stat refresh (FUN_00626920, FUN_006266c0; `--mutation-check` 8 ways) | `uv run python stats_propagate.py` | `ok: 3000 stat refresh and change push-up cases` |
 | SoundHdr sample-load dispatcher (FUN_00482970) | `uv run python sound_hdr_load.py` | `ok: SoundHdr loading guards, cache rejection, sync and async cases` |
 | Application mode from the command line (Main.cpp, FUN_00406340: split on `-`, case-sensitive name prefix, client never stored, last match wins) | `uv run python app_mode.py` | `ok` |
 | Every level, all cores | `./sweep.sh 1-50 monsters objgroups` | every level matching |
