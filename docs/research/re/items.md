@@ -795,8 +795,9 @@ has the colour rules; checked here against the decompile:
   (`FUN_00629bb0`), colour = its gems record `+0x2f`.
 - `*tint_out` = `FUN_0062a250(Transform, colour)`: `Transform * 32 + (colour &
   31)` for Transform 1..8 and colour under 21, else 0. This is the in-memory
-  byte, with no +1 and 0 for none; the d2s header's `(Transform * 32 + colour +
-  1)`, 0xff for none (compcode.md) is made from it elsewhere, not traced here.
+  byte, with no +1 and 0 for none; its callers `FUN_0063e510` / `FUN_0063da70`
+  add 1 on a colour and store 0xff on none, which is the d2s header's
+  `(Transform * 32 + colour + 1)`, 0xff for none (compcode.md).
 Evidence: `python3 tools/ghidra/fn.py 0062c100 0062a250`.
 d2d: reads the same on the colour rules traced here, cited from the decompile, no oracle run (`compcode::Colours::of`,
 `components/compcode/compcode.hpp:310`); the gem and the hasinv/socket gate are
@@ -820,6 +821,39 @@ with no argument of its own, which fits the row (its `+4` read, > 0 to go on).
 Callers: `FUN_004da790`, `FUN_0063e510`. What the table is was not traced.
 Evidence: `python3 tools/ghidra/fn.py 0065b620`, `python3 tools/ghidra/calls.py 0065b620`.
 d2d: not ported; no mention in `components/` or `apps/`.
+
+### The worn look: codes and tints (`FUN_0063e510`)
+
+`FUN_0063e510(unit, codes, tints)` fills two 16-byte arrays, one byte per
+look layer, from what the unit wears. Both are pre-set to 0xff by its
+wrappers (below). Steps, all from the decompile:
+- Needs the unit's inventory (`unit+0x60`, magic `0x1020304`), then walks its
+  item list from `+0xc` along each item's data `+0x64`. It takes only items
+  of unit type 4 in mode 1 (`piVar6[4] == 1`, worn). A class with no Items
+  record reports string 0x1446 and exits. It stops at a non-item or an item
+  without data (a data pointer of -0x5c also stops it, an odd guard).
+- The worn spot is `FUN_00627d40(item)` (the byte at item data `+0x44`,
+  weapon-switch.md). Spots 1, 4 and 5 (when the item is not ItemTypes row
+  0x4b, `FUN_00629b50`) go to `FUN_0063da70`: the layer is `FUN_00628660(item)`,
+  forced to 5 or 6 when the item is what `FUN_0063c050` gives for 5 or 6;
+  the code is `FUN_0063d900`'s, 0xff (both arrays) when it has none; the tint
+  is `FUN_0062c100(unit, item, &tint, 0)` + 1, or 0xff when that returns 0.
+- Spot 3 (the torso) fills layers 0..15 that `FUN_0064f420` accepts (1, 2, 3,
+  4, 8, 9): `FUN_0063d690` copies six bytes at the armor record `+0x116..0x11b`
+  and `FUN_0064f500` picks one per layer (1 → byte 2, 2 → 3, 3 → 0, 4 → 1,
+  8 → 4, 9 → 5; another layer under 16 asserts string 0x274, 16 or more
+  0x265). That byte goes through `FUN_0065b620` and `FUN_00451f60`, and a
+  result over 0 asks `FUN_0063d900` for the code; the tint is as above. A
+  layer without one gets 0xff in both arrays.
+`FUN_0063d900` takes its two arguments in registers (not read) and searches
+the table at `DAT_0096cc68` (pairs, 255 at most) built once by `FUN_0063d710`
+from the Items records (code `+0x90`, else `+0x80`; first three rows
+`lit `, `med `, `hvy `); it returns the pair index, 0 for none.
+Evidence: `python3 tools/ghidra/fn.py 0063e510 0063da70 0063d900 0063d710`,
+`python3 tools/ghidra/calls.py 0063e510`.
+d2d: reads the same on the result encoding (cited from the decompile, no oracle run; tint = Transform * 32 + colour + 1, 0xff for
+none: `compcode::tints`); d2d builds the look from the worn list
+(`GameData::look_of`) and does not run this walk. Cited, not proven.
 
 ### A unit's class id (`FUN_00451f60`)
 

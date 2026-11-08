@@ -678,6 +678,7 @@ address	name	evidence
 00633540	items_tables_free	ItemTbls.cpp 0x1c8, 0x1cb
 00633590	items_count_ptr	returns &0x96ca58
 006335a0	items_index	0x96ca78 word (ItemTbls.cpp 0x1e2)
+0063e510	unit_worn_look	(unit, codes, tints): walks the worn items (unit type 4, mode 1) and fills two 16-byte per-layer arrays; tint = FUN_0062c100 + 1, 0xff for none (items.md)
 00633680	item_code_to_class	FUN_006bd130(DAT_0096bcc4, code, 0): FUN_0062cbe0 stores the result as the item class (d2s-items.md)
 006336a0	column_name_or_number	_atol or skills / montype / states links
 00633730	magic_affixes_load	magicsuffix, magicprefix, automagic 0x90 (ItemTbls.cpp 0x297)
