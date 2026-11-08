@@ -140,6 +140,24 @@ rating attblue / attred (FUN_004e9040 / FUN_004e8ec0); red wins.
 Not done: descdam 2..4, 6, 8..24, descatt 3 / 4, dual wield, stat 325, the usability gate, the K formats, barehanded strength,
 tooltips.
 
+## Attack-rating getter and its helpers (FUN_004eda80, cited)
+
+Traced from the decompile alone (no emulator run): every claim below is
+cited, not proven. Calling conventions are as Ghidra shows them (fastcall
+register arguments are partly dropped), so argument order is a reading.
+
+- **`FUN_004a89d0` (skill_desc_record, 69 bytes)**: a Skills.txt row index
+  -> its SkillDesc record. Rejects an index outside `[0, [0x744304]+0xba0)`
+  or a zero record, reads the short at Skills record `+0x194` (record =
+  `[0x744304]+0xb98 + index*0x23c`; the same field skills.md:1486 names
+  `SkillDesc`), rejects it outside `[0, [0x744304]+0xb94)` and returns
+  `[0x744304]+0xb8c + desc*0x120`, else 0. Callers: `FUN_004ab7e0`,
+  `FUN_004abc30`, `FUN_004e7120`, `FUN_004e85c0`, `FUN_004ea010`,
+  `FUN_004eda80`, `FUN_004ec040`. The oracle `tools/emu/skill_tips.py:48`
+  already uses it as "no SkillDesc row" (0). d2d: not ported; it
+  joins Skills.txt `skilldesc` to SkillDesc.txt by name (`components/rules/skills.hpp:405`,
+  `:472`), which gives the same row, so nothing disagrees.
+
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
 Shown while stat 4 (unspent stat points) is non-zero. Table at `0x724a48`,
