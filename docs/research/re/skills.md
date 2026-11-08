@@ -1468,7 +1468,28 @@ Cited from the decompile (no oracle run); re-check with
   sites (`".\PLAYER\PlrMsg.cpp"`) are not used by it. Callers include 00461180,
   00462560..00462c20, FUN_0054c0e0 (PlrMsg.cpp lines 0x1209 / 0x120e) and
   FUN_0056dfa0. d2d: **agrees**, combat.md:452 already reads it as the id.
- / srvdofunc body beyond Attack, [2] and Bash's
+- **FUN_00646d60**(unit, skill): the outline is in "Passives and masteries"
+  above. Guards: skill in `[0, +0xba0)`, record non-null, `passivestate`
+  (+0x94) in `[1, +0xc4)`, and FUN_00643810 (unit in EAX, skill in ESI: the
+  unit's +0xa8 list entry with that id, flag +0x3c clear, preferring the base
+  entry +0x34 == -1, else the higher +0x28 level) non-zero. If the record's
+  +0x80 is below 1 or that state is **not** on the unit (FUN_00639df0):
+  level = FUN_006442a0(unit, entry, 1); FUN_00643620(level) (unit and state
+  in EDI / EBX; argument 0 removes the passivestate's stat list, non-zero
+  finds or creates it) returns 0 for level 0, and then the function returns;
+  if stat 0x15f already equals the level -> return.
+  Else for up to 5 slots, stop at a passivestat short outside
+  `[0, [0x744304]+0xbd4)`: value = FUN_00646ca0 (calc +0xa4+4k, skill,
+  level), layer = passiveitype (+0x96), or 0 when that is below 1;
+  FUN_00627150 sets it in the list. Then stats 0x15e = skill, 0x15f = level
+  and FUN_00639e30(unit, passivestate, 1). If the +0x80 state **is** on, the
+  tail FUN_006256b0 -> FUN_006277e0 + FUN_00626cd0 removes the passivestate's
+  list. d2d: **agrees** with skills.hpp:765-774 and skills.md:674; this adds
+  the invalid-stat break, level 0 removing the list, and the removal while the
+  aura state is on.
+
+### Still unknown
+- Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
 - Which `FUN_` reads stat 105 into the SC animation's `frames_shown` (the
