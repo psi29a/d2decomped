@@ -303,11 +303,12 @@ try:
         at = [l for l in cmd("items").splitlines() if l.startswith("[") and "panel=1 " in l][-1]
         col, row = (int(v) for v in at.split("at=")[1].rstrip("]").split(","))
         cmd(f"move {419 + 29 * col + 14} {315 + 29 * row + 14}"); frames(2)
-        cmd("pad a down")                                      # a sale is a held A (kHoldSellSeconds, 0.55 s)
-        held_from = time.time()
+        cmd("pad a down"); frames(2)                           # a sale is a held A (kHoldSellSeconds, 0.55 s)
+        held_from = time.time()                                # timed from when the game has seen A down
         while time.time() - held_from < 1.0: frames(2)
         cmd("pad a up"); frames(4)
         assert int(state()["items"]) == n0, "a held pad A didn't sell the inventory item"
+        assert state()["held"] == "-", "a held pad A picked the item up instead of selling it"
         press("b")
         assert state()["store"] == "-1", "pad B didn't leave the store"
         # An NPC's menu on a pad: the d-pad steps its lines, A picks one, B leaves.
