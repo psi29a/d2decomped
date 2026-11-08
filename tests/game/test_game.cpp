@@ -1983,8 +1983,10 @@ int main(int argc, char** argv) try {
             };
             std::tie(second.player.x, second.player.y) = blood_moor->nearest_free(lead.player.x + 1, lead.player.y);
             const auto items = second.character.items.size();
+            assert(!second.character.header.died());
             die(second);
             assert(second.ghost && second.body && second.character.items.size() == items && second.corpses.empty());
+            assert(second.character.header.died() && !second.character.header.hardcore());   // softcore too (FUN_00580ec0)
             const float body_x = second.body->x, body_y = second.body->y;
             const auto [step_x, step_y] = blood_moor->nearest_free(body_x + 2, body_y);
             const std::vector<Order> float_on{ { second.id, cmd::Move{ step_x, step_y, true } } };

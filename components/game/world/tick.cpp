@@ -329,7 +329,11 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             // Back in camp after dying: alone, or in co-op once no one's left alive.
             if (fight.player_modes(button, now_ms, elapsed) && resurrect && (players.size() == 1 || !anyone_alive())) respawn(now_ms);
             if (actor->pmode != actor->last_pmode) {                 // death's stages: the penalty as it starts, the corpse as it ends
-                if (actor->pmode == kModeDT) { death_penalty(now_ms); actor->interact_npc = -1; }
+                if (actor->pmode == kModeDT) {
+                    death_penalty(now_ms);
+                    actor->interact_npc = -1;
+                    actor->character.header.status |= 0x08;   // the save's died bit (FUN_00580ec0: FUN_00538650 with 8 at 00580f7c)
+                }
                 if (actor->pmode == kModeDD) { if (players.size() > 1) become_ghost(player); else make_corpse(); }   // co-op: a ghost, the gear kept
                 actor->last_pmode = actor->pmode;
             }
