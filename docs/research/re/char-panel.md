@@ -162,8 +162,8 @@ register arguments are partly dropped), so argument order is a reading.
   to the log at `DAT_006cc837`, and exits through `FUN_00681e09(-1)`. Otherwise
   it tail-calls `FUN_00643930` (the left skill, list +8; named in
   names.tsv:122). d2d agrees on the result (`components/game/world/commands.cpp:364`,
-  `components/rules/pets.hpp:289`); it has no fatal path, a missing player never
-  gets that far. The register that carries the argument is not in the decompile
+  `components/rules/pets.hpp:289`); it has no fatal path (its callers check the
+  player first, as far as read). The register that carries the argument is not in the decompile
   (a unit whose skill list `FUN_00643930` reads is likely; not seen).
 - **`FUN_006201d0` (right_skill, 56 bytes)**: the same shape as `FUN_00620190`
   with string 0x64a, tail-calling `FUN_00643960` (the right skill, list +0xc;
