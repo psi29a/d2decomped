@@ -164,6 +164,7 @@ address	name	evidence
 00611560	ignorelist_get	lazy IgnoreList getter: DAT_0096bc20, SMemAlloc(0x188, Chat/Ignorelist.cpp, 0x48) (chat-ignorelist.md)
 00620190	left_skill	FUN_00643930: the skill list's +8
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
+00620250	unit_skill_list	fastcall (unit) -> unit +0x10 skill-list header via FUN_006439a0 (0 if none); a null unit asserts (message 0x65c) and exits -1; skills.md "Skill record and skill-list accessors"
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
 00624f40	stat_array_of	EAX list: list+0x48 when flag 0x80000000 is set, else list+0x24 (the {array, count} pair)
 00625250	stat_list_owner_type	stat list +8; null 6

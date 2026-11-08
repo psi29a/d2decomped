@@ -1697,6 +1697,15 @@ Cited from the decompile (no oracle run); re-check with
   Callers: FUN_004c83c0, FUN_004c8d90, FUN_004c9120, FUN_004c9b40 (its last
   call, after the skill-list header is set). What kind 6 or the 0x32 stand
   for is not read here (cited). d2d: **not ported** (a client-side list).
+- **FUN_00620250**(unit) (56 bytes) -> the unit's skill-list header (unit
+  `+0x10`; FUN_006439a0 returns `+0x10`, 0 for a null header). A null **unit**
+  is fatal: it formats message 0x65c (FUN_00408090 / FUN_00408a60) and calls
+  FUN_00681e09(-1) (the exit), so no caller gets 0 for a null unit; a unit
+  with no header gives 0, and every caller tests that (FUN_004c9b40,
+  FUN_005cf6b0 do). Callers include FUN_004611f0, FUN_00463390, FUN_004645b0,
+  FUN_00465070, FUN_004654c0. d2d: **agrees** with combat.md "unit skill list
+  +0x10" (cited there); the fatal null is not modelled (d2d's units are
+  never null here).
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
