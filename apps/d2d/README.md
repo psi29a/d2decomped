@@ -29,6 +29,7 @@ Or use [the launcher](../launcher/README.md), which finds them for you.
 | Straight into a new character | `--start-screen charcreate --start-class 1 --start-name Test` (class 0..6: Amazon, Sorceress, Necromancer, Paladin, Barbarian, Druid, Assassin) |
 | Don't touch your saves | `--no-save` |
 | Turn a d2d extra off | `--toggle autoloot=off,trans_roof=off,autoparty=off` |
+| Draw the hand into the frame, as game.exe (not the OS cursor) | `--toggle hwcursor=off` |
 | Attack or cast from a mouse's extra buttons | Configure Controls' first two rows, Attack / Use and Right-hand Skill (`--toggle click_keys=off` hides them) |
 | Cap the frame rate (default: the display's refresh; 60 where no refresh is known) | `--fps-cap 60` (or `fps_cap = 60` in `d2d.cfg`) |
 | More log detail | `--log-level debug` |
