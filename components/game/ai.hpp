@@ -882,8 +882,10 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // The client's do 55 (FUN_004d8260, "ancient death center"): every
         // third frame of its age an "ancient death cloud" (`sub`, flags 0x21)
         // from a subtile -1..0 off it each way, sent at that start's -10..9
-        // off (x the first draw, y the second).
-        // ponytail: the update's rng, not the missile's seed.
+        // off (x the first draw, y the second), the start x then y by the
+        // third and fourth's bit 0: four steps of the missile's seed (+0x20).
+        // ponytail: the update's rng, not the missile's seed: the client unit's
+        // first seed (FUN_004cd540 -> FUN_00466730) isn't traced.
         if (missile.info && missile.info->clt_do == 55 && missile.sub && missile.frame != frame && (int(now_ms - missile.born) / 40) % 3 == 0) {
             missile.frame = frame;
             const int off_x = int(rng.next() % 20) - 10, off_y = int(rng.next() % 20) - 10;

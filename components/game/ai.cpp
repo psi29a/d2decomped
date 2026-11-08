@@ -337,7 +337,11 @@ namespace {
 
 // A move's path to subtile (to_x, to_y) (FUN_00649970): rules::monster_path,
 // the toward pather then the wall pather (FUN_00650350, FUN_005a6290).
-// ponytail: FUN_006483a0 and path flag 0x1000 left out.
+// FUN_006483a0 refuses a monster that isn't npc / inTown / a pet a path
+// whose end room is in town; a thinking monster here is never in a town
+// level, and its path stays in its level, so none is refused.
+// ponytail: path flag 0x1000 (the end tested with FUN_0064d910, then
+// FUN_00648120 walks it back) left out: its setter isn't found.
 bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd) {
     auto& unit = monster.unit;
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
@@ -2384,9 +2388,11 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 if (cast->srvdofunc == ServerDoFunction::kCryHelp) {
                     // Cry Help (do 128, FUN_005d1800): its group (FUN_0058f730: its
                     // leader's members) gets AI command 1 at the unit it's at till
-                    // calc1 (at least 1) frames on; srvoverlay curseattract on it.
-                    // ponytail: the unit is the foe it's at, not the think's second
-                    // target; the overlay isn't drawn.
+                    // calc1 (at least 1) frames on; srvoverlay curseattract on it. The
+                    // unit is its path's (+0x58, FUN_00553540): the think's second
+                    // target, which `use` made the foe.
+                    // ponytail: the overlay isn't drawn (a player has no one-shot
+                    // overlay, only its states'; Monster::flash_overlay is a monster's).
                     const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl), 1);
                     const int group = monster.leader >= 0 ? monster.leader : int(self_index);
                     for (std::size_t k = 0; k < pack.size(); ++k)
