@@ -1550,6 +1550,25 @@ Cited from the decompile (no oracle run); re-check with
   caller removes it; not claimed.
 - **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5; callers
   FUN_004c7cf0 and two sites at 0x4f26f3 / 0x4f2706. d2d: not ported.
+- **FUN_0056ff10**(unit in EDI, skill in the stack arg; only caller
+  FUN_005701b0) (354 bytes): returns at once unless the Skills record
+  (stride 0x23c at tables +0xb98) has flag +4 & 0x20 and a valid
+  `aurastate` short (+0x80, below the States count at +0xc4), and the
+  unit has a level (FUN_006439f0 entry, FUN_006442a0(unit, entry, 1) > 0).
+  If record +5 & 0x80 is clear: state +0x80 on (FUN_00639db0), find or
+  create the state's list (FUN_006256b0 / FUN_006251f0 kind 0), tag it
+  with the state (FUN_006252d0), skill (FUN_006260d0) and level
+  (FUN_006260f0), link it (`d2d_rules_socket_props`) and set **stats 0x15e
+  = skill, 0x15f = level**. If +5 & 0x80 is set it calls
+  `d2d_ai_castable(skill, level, 1, 0, 0)` instead. Both end in
+  FUN_0056cda0(skill, level, 1). d2d: **not ported**; the 0x15e / 0x15f
+  pair agrees with the passive refresh above (FUN_00646d60).
+- **FUN_005a2d80** (124 bytes, no caller in game-calls.tsv, so reached
+  through a table or pointer): reads stats 0x15 and 0x16; when 0x16 > 0
+  and the unit's class id (+4) is not 0x10f, sets stat 0x15 = max(0, s15
+  - 1 + s17) and 0x16 = max(0, s16 - 1 + s18) in the unit's list for flag 1
+  (FUN_00625760). Stat names by ItemStatCost row (21..24 = min / max /
+  secondary min / max damage) are not checked here. d2d: not ported.
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's

@@ -35,6 +35,7 @@ address	name	evidence
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
 0056dfa0	skills_refresh_passives	fastcall (unit): for each node of the unit +0xa8 skill list whose passivestate > 0: state on (FUN_00639db0) and FUN_00646d60; skills.md "Skill accessors"
 0056e520	unit_add_attackrate_list	fastcall (unit, value): kind-4 stat list (FUN_006251f0) linked to the unit, stat 0x44 = value, then FUN_00623f50; Skills.cpp line 0x12ab; skills.md "Stat-list helpers and skill starts"
+0056ff10	skill_state_list_apply	(unit in EDI, skill): record flag +4 & 0x20 needed; state +0x80 on, list tagged state / skill / level, stats 0x15e / 0x15f set, or d2d_ai_castable when +5 & 0x80; then FUN_0056cda0; skills.md "Stat-list helpers and skill starts"
 00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
@@ -56,6 +57,7 @@ address	name	evidence
 0058f710	ai_control_get_spawn_class	reads spawn monster class from AI control +0x3c; AiGeneral.cpp
 0058f810	ai_control_free	destructor for AI control: frees commands, minions (+0x34), and struct; AiGeneral.cpp line 0x19d
 005a0260	umod_count	ECX: the non-zero bytes before the first 0, at most 9 (a monster mod list)
+005a2d80	unit_damage_shift	fastcall (_, unit): when stat 0x16 > 0 and class id (+4) != 0x10f, stat 0x15 = max(0, s15 - 1 + s17), 0x16 = max(0, s16 - 1 + s18) in the flag-1 list; no direct caller; skills.md "Stat-list helpers and skill starts"
 005aae10	srv_hit_16_put_state	pSrvHitFunc entry 16 (0x73c880): auratargetstate for the skill's +0x144 calc frames (min 5), returns 0
 005ab110	srv_hit_19_put_state	pSrvHitFunc entry 19 (0x73c88c): auratargetstate for the skill's +0x60 calc frames (min 5) on the target, returns 3
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
