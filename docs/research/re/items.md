@@ -795,6 +795,27 @@ decompile, so the client reaches `FUN_0055bed0` in a register this function
 does not set (the asm was not read). Its one caller is `FUN_0053a500`.
 Evidence: `python3 tools/ghidra/fn.py 0055bf30`, `python3 tools/ghidra/calls.py 0055bf30`.
 d2d: not ported; no mention in `components/` or `apps/`.
+
+## Is-a by type index and the equipment look (`FUN_00629b50` chain)
+
+Traced in call order, callee first. Every claim is cited, not proven (no
+oracle run). The state is the data-tables block at `[0x744304]`.
+
+### Is-a between two ItemTypes indices (`FUN_00629b50`)
+
+`FUN_00629b50(type, want)` is true when ItemTypes row `type` is `want` or
+derives from it. It reads one bit of a precomputed matrix: 0 unless both
+indices are in `0 .. [state+0xbfc]` (the ItemTypes count, structs.tsv
+`item_type_count`), else the dword at `[state+0xc04] + ([state+0xc00] * type +
+(want >> 5)) * 4` masked with `1 << (want & 31)` (`DAT_006ce268`); the row
+stride is `[state+0xc00]` dwords. `FUN_00629bb0` is the same test on an item
+unit (its type from `FUN_00628700`), and `FUN_00504a20` is the Equiv1/Equiv2
+walk (compcode.md) that answers the same question without the matrix.
+Callers: `FUN_0055c560`, `FUN_0063d710`, `FUN_0063e510`, `FUN_00645720`. How
+the matrix is filled was not read.
+Evidence: `python3 tools/ghidra/fn.py 00629b50`, `python3 tools/ghidra/fn.py 00629bb0`.
+d2d: reads the same on the answer (cited from the decompile, no oracle run; `d2d::rules::type_is` walks the Equiv chain); the
+matrix itself is not ported.
 `rules::make_fighter`'s weapon).
 
 Pass 1 sets no 0x4000: a charm short of its requirements just gets no
