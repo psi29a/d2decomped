@@ -88,6 +88,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
 | Ignore list account mapping and node teardown (Chat/Ignorelist.cpp: FUN_00611320, FUN_0060edf0, FUN_00610690, FUN_0060ef60, FUN_0060ef30, FUN_0060edb0, FUN_0060eef0) | `uv run python ignorelist.py` | `9910 cases: 244 accounts mapped; ...`, then `ok` |
 | Ignore list remaining helpers (FUN_0060ed30, FUN_0060ed70, FUN_0060ee60, FUN_006114e0, FUN_00611560) | `uv run python ignorelist_remaining.py` | `ok: node cleanup, hash deletion, empty and populated table clear, eager and lazy singleton` |
+| String table leaves (StrTable/strtable.cpp: FUN_00524fd0, 00524fe0, 00525020, 00524e20, 00525090, 00525100, 00525260, 005251c0, 00524c60, 00524ac0, 00524e40, 00525770; 525350, 525490, 5255c0, 525920 not yet) | `uv run python strtable_leaves.py` (`--mutation-check`) | `ok: 6560 string table leaf cases` |
 
 ## When it breaks
 
