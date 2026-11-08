@@ -391,4 +391,4 @@ dropped, otherwise the cel decides.
   `FUN_00457b00`, against every cell at (x, y) rather than the tree's
   search path. A file's miniature cells are cut at their cel file's
   count, as `FUN_00458750` does. No subdirectory
-  try, no cut at a bad cel. test_automap checks the format.
+  try. test_automap checks the format.

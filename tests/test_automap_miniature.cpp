@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdio>
+#include <exception>
 #include <vector>
 
 namespace {
@@ -24,7 +25,7 @@ bool same(const std::vector<MiniatureCell>& got, const std::vector<MiniatureCell
 
 }  // namespace
 
-int main() {
+int main() try {
     using d2d::rules::automap_miniature;
     using d2d::rules::miniature_cel_file;
     static_assert(miniature_cel_file(0x28) == 1 && miniature_cel_file(0x67) == 2 && miniature_cel_file(0x6d) == 3);
@@ -57,4 +58,7 @@ int main() {
     assert(automap_miniature(0x67, 0, 0, 3).front().x == -24 - 133 && automap_miniature(0x67, 0, 0, 3).front().y == 12 - 40);
     std::printf("OK: placed round the level's middle\n");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_automap_miniature: %s\n", error.what());
+    return 1;
 }
