@@ -35,10 +35,10 @@ drawing. The stock image checked here is game.exe 1.14d, SHA-256
 and grid-coordinate helper on bounded synthetic inputs. It hooks only the item
 dimension and viewport-adjustment helpers in the grid-coordinate cases. The
 other routines above are static traces from the hash-checked Ghidra analysis
-and their cited d2d callers/tests. This PR leaves mouse event sequences, rendering, timing and equipment-panel
-state combinations unmodeled beyond the cases in the table.
+and their cited d2d callers/tests. Mouse event sequences, rendering, timing,
+and equipment-panel state combinations are not modeled beyond the cases in the table.
 
 ```sh
 cd tools/emu
-python d2common_item_ui.py
+uv run python d2common_item_ui.py
 ```
