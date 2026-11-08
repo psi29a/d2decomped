@@ -141,7 +141,8 @@ auto Host::poll() -> std::vector<Event> {
     // Newcomers: one a poll is plenty; a full game turns them away.
     if (auto accepted = listener_.accept(0); accepted && *accepted) {
         Client client{ .number = next_id_++, .connection = std::move(**accepted), .reader = {}, .joined = false, .heard = now, .pinged = now };
-        if (int(clients_.size()) >= kMaxClients) {
+        const auto seated = std::count_if(clients_.begin(), clients_.end(), [](const Client& other) { return !other.leaving; });
+        if (seated >= kMaxClients) {   // one saying goodbye has given up its seat
             refuse(client.connection, "the game is full");
             retire(std::move(client.connection));
         } else {
