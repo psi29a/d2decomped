@@ -669,3 +669,83 @@ d2d: reads the same on the burst, cited from the decompile, no oracle run: `Figh
 return 2 while the orb still has frames (d2d returns false for hit 29 in
 `skill_missile_hits`, missiles.cpp:609, which passes over units too), and the stored
 vector at +0x28 / +0x2c. No oracle run.
+
+## MissMode.cpp, the 44 functions — `tools/emu/missmode.py`
+
+`MISSILES/MissMode.cpp` is FUN_005ab630 to FUN_005adcc0. Its 44 functions
+run for real in the emulator on a synthetic Missiles.txt / Skills.txt table
+(sgptDataTable at `0x744304`: missiles base +0xb64, count +0xb6c, row 0x1a4;
+skills base +0xb98, count +0xba0, row 0x23c). The calls it makes out of the
+module (unit accessors, stat reads and writes, `FUN_0059fa30`, skill calcs,
+rooms, spawns) are hooked and logged, with `FUN_0059fa30`'s whole 0x5c-byte
+argument block, and a model written from the disassembly predicts the return
+value, the log and the memory written. The oracle does not play a game: it
+shows what each function asks of its neighbours, not what they then do.
+Mutating the model (an off-by-one in a clamp, a threshold, a count) fails it.
+
+Slots: the server hit table is at `0x73c840` (slot = (address − it) / 4), the
+damage table at `0x73c960`, the server do table at `0x73c768`. Row fields used:
++4 / +5 flag bytes (mask 2 / 3 of Fog's bit table at `0x6ce268`), +0xc srvdo,
++0xe srvhit, +0x24 / +0x26 / +0x28 HitSubMissile1..3, +0x36 ProgOverlay, +0x38
+Param1, +0x44 Param4, +0x4c / +0x50 sHitPar1 / 2, +0x78 / +0x7c dParam1 / 2,
++0x90 DmgCalc1, +0x186 CollideKill; Skills.txt +0x138 calc1, +0x144 calc4,
++0x14c Param2. The functions that read a row reject a null unit and a class outside
+`[0, count)` first (`005ad9d0` and `005ada80` do not check, and the oracle
+only gives them valid classes); the columns below leave that out.
+
+| Function | Slot | What it does (ECX game, EDX the missile; target on the stack) |
+|---|---|---|
+| `005ab630` | area callback | Not a table slot: its address is stored by `Missiles_SrvHitFunc_SpawnSubMissileInvertFrameInArea` (code at `0x5aded3`). ECX a context (game, hit count at +8, argument block at +0xc), EDX the unit found. Stops (0) when the cap (block +0x10) is positive and the hit count reached it. Else one `FUN_0059fa30`, flags 0x20, owner, missile, skill and level from the block, sub-missile (+0x14), start = the unit's position. Returns 1 |
+| `005ab700` | helper | ECX game, EDX owner, stack target, row, skill, level, stride. Row outside the table: returns 0. Else flags 0x1f, the target as missile and target position, velocity Param1 << 7, level − 1 as loop count, and one missile per entry of the eight-vector table at `0x6e25f8` / `0x6e2618`, stepping `stride` entries. Returns 1 |
+| `005ab820` | 25 | HitSubMissile1 ≥ 0; no owner: returns 1; the target defaults to the missile; stride = sHitPar1 (at least 1); `005ab700`. Returns 3 |
+| `005ab8d0` | 26 | HitSubMissile1 ≥ 0, owner, skill in range. One stationary sub-missile (flags 0x8001) at the missile's position; lifetime sHitPar1, or when that is 0 or less the skill's calc1, at least 5 (the decompile's order, calc before the zeroed block, is the compiler's). Returns 1 |
+| `005aba10` | 28 | Target is a monster, `FUN_00552f60` finds the minion named by the missile's target X; target within `range(skill, level)` subtiles of it (squared distances): `FUN_005ddd00` applies terror to it with the skill's Param5 and Param4. Returns 1 |
+| `005abc40` | 5 | A fan of 64 (steps of sHitPar1 × 4 bytes over 0x100 of the tables `0x6e2838` / `0x6e2938`): flags 2, owner, the missile as start; a new missile also gets that vector as its spin direction (`FUN_0064a710` / `FUN_0064a760`). No owner: 1. Returns 3 |
+| `005abd70` | 31 | Life leech: damage from `FUN_005a8c70`, negative taken as 0, added to the owner's life and capped at its max. No owner or target: 1. Returns 2, 3 when CollideKill |
+| `005abe50` | 32 | Called with no unit hit and the missile's target X still 0: `FUN_005a9930` opens a portal of the row's Param4 kind. Returns 0 |
+| `005abeb0` | 33 | No unit hit: sets the room's portal flag (`FUN_0061aed0`). Returns 0 |
+| `005abee0` | 35 | No unit hit: finds the object named by target X, sets its room's flag and, when its mode is 0, flags it for update and sets a timer event at `ObjectTbls line +0xdc >> 8` + the game frame (`FUN_005417d0`). Returns 1 (0 with a unit hit or no object) |
+| `005ac020` | 37 | Returns 2 when a unit is hit, else 0 (pierce through units) |
+| `005ac0a0` | 38 | A star at the missile's position: flags 3, count = (level − 1) × sHitPar2 + sHitPar1, or when that is 0 or less the skill's calc4, at least 1, path callback `0x5ac040`; `FUN_0056d4e0`. No owner: 1. Returns 1 |
+| `005ac1d0` | 39 | `FUN_005b3570` spawns a random monster at the missile's position in its room. Returns 1 |
+| `005ac250` | 40 | Same count as 38, then `FUN_005d5bf0` scatter (count, count / 4). Returns 1 |
+| `005ac350` | 43 | Heal the target: random between `FUN_00647bc0` and `FUN_00647d00` of the owner's skill, the target's life capped at its max; ProgOverlay when it was not full. A skill outside the table: 1 (no heal). Returns CollideKill |
+| `005ac480` | 45 | Star of sHitPar1 missiles at the missile's position (sHitPar1 > 0), path callback only when sHitPar2 ≠ 0. Returns 1 |
+| `005ac800` | 50 | With a unit hit: returns 2 when remaining frames < total − sHitPar1, else 0; no unit hit: 0 |
+| `005ac870` | 51 | HitSubMissile1, 2, 3 (each ≥ 0): `FUN_0059fa30` with the missile as start. No owner check. Returns 1 |
+| `005ac940` | 52 | Eight vectors (`0x6e2a38` / `0x6e2a58`) as 005abc40. **It does not write the missile row**: the argument block's row stays 0 (the decompile agrees: no `HitSubMissile1` store). Returns 1 |
+| `005aca50` | 53 | Aura on the unit hit: frames left (target X − game frame) at least 10 and within `FUN_00644f20`: `FUN_005c7db0`. Returns 2, else 1 |
+| `005acaf0` | 54 | No unit hit: `FUN_006439f0` finds the owner's skill, `FUN_006444a0` its Param1: `FUN_0054e600` spawns that monster at the missile. Returns 1 |
+| `005acb60` | 55 | Only players: mana drained by sHitPar1 % (clamped 1..100, at least 1, at most the mana left). Not a player or no unit: 2; invalid row, sHitPar1 < 1 or no mana: 1; else 2 |
+| `005acf20` | 59 | `FUN_005a9370` radial pattern (documented above); no owner: 1. Returns 1 |
+| `005acfc0` | 23 | `FUN_0056d810` dispatch (documented above) |
+| `005ad8f0`, `005ad910` | event callbacks | Not hit functions. Three stack arguments (a, b, c; c unused): `FUN_005d0c40(a, 0x7c, b, 0)` and `(…, 1)`. Their addresses are pushed as data in the function that holds `0x5b099f` (named SrvDoFn19 in Ghidra; 0x7c is skill 124, which the decompile names Redemption). Ghidra's five-argument prototype is wrong |
+| `005ad970` | 57 | No unit hit and target X 0: sets it to 1, and when the quest flag (`FUN_005444b0(game, 0x24)`) is set `FUN_0058e920` spawns Tyrael; sets the room flag. Returns 0 |
+| `005ad9d0` | unreferenced | Runs the row's srvhit slot (when `0 < slot < size`) with no unit, then frees the unit (`FUN_00555600`). No reference to it in the 1.14d image |
+| `005ada80` | pierce | Documented above (Pierce). Returns 3, or 2 with a pierce charge left |
+| `005adbb0` | server do | **EDI the missile, the game on the stack.** srvdo slot `0 < n < size` else nothing. Frees the missile (`FUN_00555600`) when: a block-in-town missile's owner stands in a town room; an owner that is a player stands in town; the missile has no keep-in-town bit and its room (or the nearest one, `FUN_00463740`, when it has none) is town; or the srvdo function returns 2 |
+| `005adcc0` | timers | ECX game, EDX missile, one stack argument ignored: `005adbb0`. Called from `EVENT_DispatchMissileTimers` (`0x54129f`, `0x5412f6`) |
+
+Damage functions (ECX game, EDX missile, stack target and a `D2DamageStrc`;
+fields +4 flags word, +8 physical, +0x28 / +0x2c poison damage and length,
++0x30 cold length, +0x34 freeze length, +0x44 stun length, +0x60 hit class):
+
+| Function | Slot | What it does |
+|---|---|---|
+| `005ad050` | 1 | DmgCalc1 (`FUN_0064b7c0`) = a percentage, 1..100: that share of the physical moves to elemental (`FUN_005a9270`) |
+| `005ad0f0` | 12 | The same share, but the elemental damage is recalculated: `FUN_005a8c70`, the record cleared (`FUN_005a91c0`), then the sum added back |
+| `005ad1b0` | 2 | Freeze length = the missile's cold-length stat (0x38) × dParam1 % (negative as 0); cold length 0 |
+| `005ad220` | 3 | One step of the missile's seed (`lo × 0x6ac690c5 + hi`); if its low 7 bits are below dParam1, result flag 0x4000 |
+| `005ad290` | 4 | Freeze length = cold length; cold length 0 |
+| `005ad3a0` | 6 | The target gets unit flag 0x20000 when the owner's flag bit 9 is clear |
+| `005ad3e0` | 7 | Stun length = dParam1, or when that is 0 or less the skill's range; hit class 0x60 |
+| `005ad450` | 8 | ProgOverlay (> 0) on the target |
+| `005ad4a0` | 9 | Stun length = dParam1, or the skill's Param2 (0 for a skill outside the table); hit class 0x60 |
+| `005ad2b0` | 10 | Freeze length = cold length (kept) |
+| `005ad530` | 11 | Poison length = frames left (target X − game frame) when at least 10 and within `FUN_00644f20`; else poison damage and length 0 (also with no owner or target) |
+| `005ad5c0` | 13 | Monster targets only: physical += physical × owner stat 0x19 / 100 (C division), then `FUN_005ad2f0` |
+| `005ad630` | 14 | Knockback roll (result flag 0x8) on a 100-sided roll of the missile's seed; chance dParam2, tripled / doubled / kept by the target's MonStats2 small (bit 10) and large (bit 11) flags and dParam1: players need dParam1 ≥ 1; 0: small monsters only; 1: small ×2, large never, else ×1; 2 or more: small ×3, large ×1, else ×2. Chance ≤ 0: no roll |
+
+Re-check: `cd tools/emu && D2_MPQ_DIR=<mpq folder> uv run python missmode.py`.
+Not covered: the callees' own effects, and which Missiles.txt rows select
+each slot.
