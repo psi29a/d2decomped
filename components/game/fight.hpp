@@ -1049,18 +1049,26 @@ struct Fight {
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
     // hitpoints heal the player (Prayer: edns, 256ths); an enemy one
     // (srvdofunc 66, FUN_005cf3a0; 81, FUN_005d0920) strikes each monster
-    // within aurarangecalc subtiles (FUN_0056b7e0 with aurafilter) with the
-    // skill's element (FUN_0056e0c0, the mastery in; Holy Fire, Holy Shock,
-    // Holy Freeze's cold) — its aurastats ride the target state (+0x82)
-    // and target_of applies them while the monster is in range.
+    // within aurarangecalc subtiles that its aurafilter takes (FUN_0056b7e0
+    // -> FUN_0056b3e0, aura_takes: Sanctuary undead only, Holy Freeze no
+    // prime evil) with the skill's element (FUN_0056e0c0, the mastery in;
+    // Holy Fire, Holy Shock, Holy Freeze's cold) — its aurastats ride the
+    // target state (+0x82) and target_of applies them while the monster is
+    // in range.
     // ponytail: perdelay taken as ticks (its reader isn't traced); the
-    // aurafilter bits aren't read (every monster counts); Sanctuary and
-    // Redemption's own callbacks aren't built; no mana is drawn
-    // (FUN_00644b10).
+    // aurafilter's unit-flag, town and sight bits aren't read
+    // (aura_filter.hpp); Sanctuary and Redemption's own callbacks aren't
+    // built; no mana is drawn (FUN_00644b10).
     void aura_pulse(std::uint32_t now_ms);
     // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
     // perdelay frames, on the player and the merc within its aurarange.
     void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y);
+    // Whether the skill's aurafilter takes the monster (aura_filter.hpp). A
+    // monster here is no side of the player's, so a friendly aura's never
+    // does (0x12003 needs an ally: FUN_00554de0).
+    [[nodiscard]] bool aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const;
+    // The player's aura over the monster: in range and taken by its filter,
+    // so its auratargetstate shows (Conviction's; never Might's).
     [[nodiscard]] bool in_aura(const Monster& monster);
     // Monster i as the player's blows see it: an enemy aura's aurastats
     // while it's in range (Conviction: resistances and defense down;

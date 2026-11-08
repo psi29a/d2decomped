@@ -824,9 +824,40 @@ delay_meteor_no_mana. d2d keeps no delay: todo.md row 54.
   `aura_pulse` (Prayer's hitpoints heal; 66 / 81 strike monsters in
   range), `target_of` (the target state's resistances / defense while in
   range), thorns_percent (131) on melee hits. Not yet: perdelay's reader
-  (taken as ticks), aurafilter, the merc in the aura, Sanctuary /
-  Redemption's callbacks, Holy Freeze's slow (its cold chills), mana
-  (FUN_00644b10), the aura overlays.
+  (taken as ticks), aurafilter's unit-flag, town and sight bits (below),
+  the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
+  slow (its cold chills), mana (FUN_00644b10), the aura overlays.
+- **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
+  (SkilPal.cpp lines 0x1f6, 0x2ba, 0x6ba), which runs the callback only on
+  a unit within range that FUN_0056b3e0 takes (a filter of 0 is 0x583).
+  The bits on a monster, as read from the decompile (no oracle):
+  - 0x2: monsters at all;
+  - 0x1000: set, a monster in mode 0xc (dead); clear, one in neither 0xc
+    nor 0;
+  - 0x4: undead (FUN_0063e990: MonStats +0xd & 8 or & 0x10);
+  - 0x4000: no MonStats boss (FUN_0063e9f0, +0xc & 0x40);
+  - 0x40000: no prime evil (FUN_0063edc0, +0xc & 0x80);
+  - 0x8000: an enemy (FUN_00554200: FUN_00650d70 is 0);
+  - 0x10000: an ally (FUN_00554de0: a monster stands for its owner,
+    FUN_0058f0d0, then FUN_00650d70).
+
+  For a monster, 0x8000 and 0x10000 take FUN_00650d70's opposite answers,
+  so one an enemy aura strikes fails a friendly one's 0x10000. The 1.14d
+  rows:
+  - Might, Prayer, the resists, Thorns, Defiance, Blessed Aim, Cleansing,
+    Concentration, Vigor, Fanaticism, Salvation 0x12003, Meditation 0x12001
+    (no monster bit), the totems 0x10103: allies only;
+  - Holy Fire, Holy Shock 0xa783 and Conviction 0xa583: living enemies;
+  - Sanctuary 0xe786: undead that aren't bosses;
+  - Holy Freeze 0x4a283: no prime evil.
+
+  d2d: `rules::aura_filter_takes` (`Fight::aura_takes`) in `enemy_pulse`
+  and `in_aura`, so a friendly aura's auratargetstate isn't drawn on a
+  monster. Not read: 0x80 / 0x400 (unit flags +0xc4 & 4 / & 8), 0x100 and
+  FUN_0056b7e0's 0x2000 (town rooms), 0x200 (line of sight,
+  FUN_0064e260), 0x20000 (FUN_00622c40), 0x80000 (state 0x56).
+  Re-check: `python3 tools/ghidra/fn.py 0056b3e0` (and 0056b7e0, 005cf010,
+  005cf3a0, 005d0920); the rows from Skills.txt's aurafilter column.
 - A monster's curse or enemy-aura lowering of a resistance whose base is
   100 or more counts a fifth, truncated toward 0 (FUN_005c3540, from the
   callbacks of do 30, 65 and 66): `apply_target_stats` takes the base.

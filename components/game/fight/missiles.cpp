@@ -9,6 +9,7 @@
 #include "inventory.hpp"
 #include "item_text.hpp"
 
+#include <aura_filter.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
@@ -933,15 +934,22 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (monsters[i].alive() && std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach) {
+            if (aura_takes(skill, monsters[i]) && std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach) {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
                 if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
     }
 
+auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const -> bool {
+        if (monster.type < 0 || std::size_t(monster.type) >= game_data->monsters.types.size()) return false;
+        const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+        return d2d::rules::aura_filter_takes(skill.aura_filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
+                                                                  .prime_evil = type_info.prime_evil, .ally = false });
+    }
+
 auto Fight::in_aura(const Monster& monster) -> bool {
         const auto* skill = game_data->skills.get(actor->aura);
-        if (!skill || !skill->aura) return false;
+        if (!skill || !skill->aura || !aura_takes(*skill, monster)) return false;
         const int radius = d2d::rules::eval_calc(game_data->skills, skill->aurarange, calc_env(), skill->id, skill_level ? skill_level(actor->aura) : 1);
         return std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(radius);
     }
