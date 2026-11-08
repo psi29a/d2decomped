@@ -69,11 +69,20 @@ open they stand at 3W/4. This also casts doubt on bugs.md #38's "the
 software modes don't shift the world".
 
 In state 3 nothing of the world is drawn (`FUN_0044c990` skips
-`FUN_00476bc0`).
+`FUN_00476bc0`), and neither is the automap (below).
 
 Opening or shutting one of these from a key (the call's third argument)
 also moves the cursor by W/4 (`FUN_00468770`, `SetCursorPos`), so it
 stays over the same spot in the world.
+
+**Draw order** (`FUN_00456ee0`, the in-game UI each frame):
+1. the automap (`FUN_0045ad60`, UI 10), only while the state isn't 3;
+2. the level's entry art;
+3. the panels;
+4. the border (`FUN_00499450`);
+5. the HUD.
+
+The panels therefore cover the map.
 
 d2d (`rules/panel_view.hpp`, `Town::view_state`):
 - It works the state out from what's open, not from the last open or
@@ -81,6 +90,8 @@ d2d (`rules/panel_view.hpp`, `Town::view_state`):
 - The camera moves by the shift (`Town::draw_view`, as the shake does).
 - The weather scrolls with the unshifted view, since its own draw moves
   it (weather.md).
+- `render_ingame` draws the automap before the border and the panels,
+  and not at all in state 3.
 - The cursor move isn't kept: a ponytail.
 
 ## Menu tables

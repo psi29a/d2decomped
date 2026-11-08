@@ -410,6 +410,7 @@ auto Town::automap_frame() -> void {
         automap.names = values[5] != 0;
         const int side_state = view_state();
         automap.panel_side = side_state == d2d::rules::panel_view::kRightOpen || side_state == d2d::rules::panel_view::kLeftOpen ? side_state : 0;
+        automap.covered = side_state == d2d::rules::panel_view::kCovered;
         g_drawn.panel_side = automap.panel_side;
         automap.in_town = level && d2d::rules::level_ids::is_town(level->id);
         automap.portraits = portraits_shown;
