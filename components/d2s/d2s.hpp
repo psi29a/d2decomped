@@ -3,8 +3,8 @@
 //
 // Reads only the fixed header the char-select screen needs: name, class,
 // level, status flags. Stable from 1.09 (version 92) through 1.14d (96).
-// unverified (source: the Phrozen Keep d2s spec): the layout; the data
-// agrees (19 real 1.14d saves, test_d2s). game.exe's reader not traced.
+// game.exe writes it with FUN_00568f20 and reads it with FUN_0056a090
+// (docs/research/re/d2s-header.md); 21 real 1.14d saves agree (test_d2s).
 //   +0x00 u32  magic 0xAA55AA55
 //   +0x04 u32  version
 //   +0x08 u32  file size
@@ -12,23 +12,33 @@
 //   +0x10 u32  the weapon switch's set showing: 0 I, 1 II (the hands in
 //              body slots 4 / 5 are always the set in use)
 //   +0x14 char name[16], NUL-padded
-//   +0x24 u8   status  (0x04 hardcore, 0x08 died, 0x20 expansion)
+//   +0x24 u8   status  (0x04 hardcore, 0x08 died, 0x20 expansion, 0x40
+//              not single player); u32 in game.exe, whose low 16 bits are
+//              the client's file flags
 //   +0x25 u8   progression (acts/difficulties beaten; drives the title)
-//   +0x28 u8   class   (0 AM, 1 SO, 2 NE, 3 PA, 4 BA, 5 DZ, 6 AS)
+//   +0x28 u8   class   (0 AM, 1 SO, 2 NE, 3 PA, 4 BA, 5 DZ, 6 AS; above 7
+//              is refused)
+//   +0x29 u8   0x10, +0x2A u8 the skills per class (30)
 //   +0x2B u8   level
+//   +0x2C u32  creation time (0 in every save seen)
 //   +0x30 u32  last-played time (unix seconds) — char-select sort key
-//   +0x38 u32  hotkeys[16]: Skills.txt id, 0xffff none, | 0x8000 = to the left button
-//   +0x78 u32  left skill, +0x7C right skill, +0x80 / +0x84 the weapon-swap pair
+//   +0x34 u32  0xffffffff
+//   +0x38 u32  hotkeys[16]: u16 Skills.txt id (0xffff none, | 0x8000 = to
+//              the left button), u16 the index of the item giving it
+//   +0x78 u32  left skill, +0x7C right skill, +0x80 / +0x84 the weapon-swap
+//              pair, each u16 skill and u16 item index as the hotkeys
 //   +0x88 u8   appearance[16]: per composite layer (HD TR LG RA LA RH LH
 //              SH S1..S8), an index into D2's component table (see
 //              components/compcode), 0xff = empty
 //   +0x98 u8   tints[16]: per-layer item colormap, 0xff = none
 //   +0xAB u32  map id: the last game's map seed (a single-player game
 //              reuses it on the difficulty last played, FUN_0056a090)
-//   +0xB1 u16  mercenary dead, +0xB3 u32 its seed (0 = no merc), +0xB7 u16
-//              name index, +0xB9 u16 type (hireling.txt Id), +0xBB u32 exp
+//   +0xAF u32  mercenary flags (0x10000 dead: d2d reads +0xB1 bit 0), +0xB3
+//              u32 its seed (0 = no merc), +0xB7 u16 name index (less the
+//              row's NameFirst), +0xB9 u16 type (hireling.txt Id), +0xBB u32
+//              exp; +0xCF u8 guild rank, then zeros to +0x14F
 //   +0xA8 u8   difficulty[3]: normal/nightmare/hell; 0x80 = the one the
-//              character was last played on, low 3 bits = act
+//              character was last played on, low 7 bits = act (5 or more: act 1)
 //   +0x14F "Woo!" u32 version (6) u16 size (298), then per difficulty 96
 //              bytes of quest flags: 16 bits per quest, bit 0 = done —
 //              the game's own flag block (FUN_0065c310 tests bit
@@ -109,9 +119,11 @@ struct Header {
         for (int i = 0; i < 3; ++i) if (difficulty[std::size_t(i)] & 0x80) return i;
         return 0;
     }
-    // 0..4: the act the character was last in, on that difficulty.
+    // 0..4: the act the character was last in, on that difficulty: the low
+    // 7 bits, and 5 or more is act 1 (FUN_0056a090).
     [[nodiscard]] int active_act() const noexcept {
-        return std::min(difficulty[std::size_t(active_difficulty())] & 0x07, 4);
+        const int act = difficulty[std::size_t(active_difficulty())] & 0x7f;
+        return act >= 5 ? 0 : act;
     }
 
     [[nodiscard]] bool hardcore()  const noexcept { return status & 0x04; }

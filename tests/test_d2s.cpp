@@ -91,6 +91,12 @@ int main() try {
     assert(!header.waypoint(0, 0));                       // no "WS" block
     assert(header.hotkeys[0] == (0x8000u | 254) && header.hotkeys[1] == 0xffff);
     assert(header.left_skill == 251 && header.right_skill == 261 && header.left_swap == 0 && header.right_swap == 264);
+    // The act: the low 7 bits of the played difficulty's byte; 5 or more is act 1 (FUN_0056a090).
+    for (const auto& [byte, act] : { std::pair{ 0x83, 3 }, std::pair{ 0x84, 4 }, std::pair{ 0x85, 0 }, std::pair{ 0x8b, 0 } }) {
+        d2d::d2s::Header played;
+        played.difficulty = { std::uint8_t(byte), 0, 0 };
+        assert(played.active_act() == act);
+    }
 
     // Full 16 bytes with no NUL must not read past the field.
     auto full = make_save(96, "ABCDEFGHIJKLMNOP", 0, 0, 1);
@@ -283,11 +289,16 @@ int main() try {
                     if (item.quality == 5) assert(item.set_id >= 0);
                 }
                 assert(items.size() > 0 && (equipped > 0 || d2d::d2s::parse_corpse(bytes, item_tables).has));   // a death leaves the worn on the corpse
-                // Written back (d2s_write.hpp), the same bytes.
+                // Written back (d2s_write.hpp), the same bytes. d2d's own saves
+                // from before d2d wrote game.exe's +0x34 (0xffffffff) mend.
                 const auto again = d2d::d2s::write_save(bytes, hdr, stats, items, item_tables);
-                if (again.size() != bytes.size() || !std::equal(again.begin(), again.end(), bytes.begin())) {
+                std::vector<std::byte> expected(bytes.begin(), bytes.end());
+                std::memset(expected.data() + 0x34, 0xff, 4);
+                const std::uint32_t checksum = d2d::d2s::save_checksum(expected);
+                std::memcpy(expected.data() + 0x0C, &checksum, 4);
+                if (again.size() != expected.size() || !std::equal(again.begin(), again.end(), expected.begin())) {
                     std::size_t offset = 0;
-                    while (offset < std::min(again.size(), bytes.size()) && again[offset] == bytes[offset]) ++offset;
+                    while (offset < std::min(again.size(), expected.size()) && again[offset] == expected[offset]) ++offset;
                     std::printf("%s: written back differs at 0x%zx (sizes %zu / %zu)\n", entry.path().filename().string().c_str(),
                                 offset, again.size(), bytes.size());
                     assert(false);
@@ -304,7 +315,7 @@ int main() try {
                     for (std::size_t k = 0; k < worn.size(); ++k) assert(corpse.items[k].code == worn[k].code);
                     const std::vector<d2d::d2s::Item> none;
                     const auto without = d2d::d2s::write_save(with, hdr, stats, items, item_tables, had.has ? &had.items : &none);
-                    assert(without.size() == bytes.size() && std::equal(without.begin(), without.end(), bytes.begin()));
+                    assert(without.size() == expected.size() && std::equal(without.begin(), without.end(), expected.begin()));
                     assert(d2d::d2s::parse_items(with, item_tables).size() == items.size());
                 }
                 // Changed (gold, a level, an item moved, a new one), written
@@ -332,6 +343,7 @@ int main() try {
                 axe.identified = true; axe.max_durability = axe.durability = 28;
                 const auto written = d2d::d2s::write_save({}, fresh_header, fresh_stats, { axe }, item_tables);
                 const auto reparsed = d2d::d2s::parse_header(written);
+                assert(std::uint8_t(written[0x34]) == 0xff && std::uint8_t(written[0x37]) == 0xff);   // FUN_00568f20's constant
                 const auto items = d2d::d2s::parse_items(written, item_tables);
                 assert(reparsed.name == "Fresh" && reparsed.cls == 4 && reparsed.expansion() && reparsed.active_difficulty() == 0);
                 assert(d2d::d2s::parse_stats(written, item_tables).get(d2d::d2s::kStr) == 30);
