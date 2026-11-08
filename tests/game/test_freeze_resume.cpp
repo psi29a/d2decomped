@@ -90,6 +90,7 @@ int main(int argc, char** argv) try {
         const auto source = data->monsters.by_id.find(row);
         if (source == data->monsters.by_id.end()) { std::printf("%d NOROW\n", id); continue; }
         body.diff[std::size_t(difficulty)].aidel = data->monsters.types[source->second].diff[std::size_t(difficulty)].aidel;
+        const int aidel = body.diff[std::size_t(difficulty)].aidel;
         body.boss_column = kind == 5;
         d2d::rules::Rng spawn_rng{ std::uint32_t(0x5eed0000u + std::uint32_t(id)) };
         Monster monster = make_monster(*data, int(zombie->second), 10.f, 10.f, spawn_rng, difficulty);
@@ -97,9 +98,9 @@ int main(int argc, char** argv) try {
         monster.stats.hit_points = monster.hit_points = 1000000;
         monster.life_frac = 0;
         monster.aware = true;
+        // The oracle calls FUN_0057b230 after resistance has been applied.
+        monster.boss_res[4] = -monster.target(*data).res[4];
         const std::uint32_t now = kFreezeFrame * kTickMs;
-        monster.next_act = now + std::uint32_t(pending) * kTickMs;
-        monster.stun_until = prior > 0 ? now + std::uint32_t(prior) * kTickMs : 0;
         world.fight.game_difficulty = difficulty;
         world.fight.monsters.clear();
         world.fight.add_monster(std::move(monster));
@@ -108,22 +109,36 @@ int main(int argc, char** argv) try {
         missile.skill = int(spike->second);
         missile.fixed = 0;
         missile.friendly = true;
-        world.fight.strike(missile, 0, now, length);
+        const int divisor = data->freeze_divisor[std::size_t(difficulty)];
+        const auto freeze = [&](int frames, std::uint32_t when) {
+            world.fight.strike(missile, 0, when, frames * divisor);
+        };
+        auto& struck = world.fight.monsters[0];
+        // Cases give post-divisor frames. Apply the prior hit too so a
+        // monster that can only be chilled never starts out frozen.
+        if (prior > 0) freeze(prior + 1, now - kTickMs);
+        struck.next_act = now + std::uint32_t(pending) * kTickMs;
+        freeze(length, now);
         std::array<Foe, 1> foes{};
         foes[0].x = 10.4f;
         foes[0].y = 10.f;
         d2d::rules::Rng think_rng{ std::uint32_t(0x7e570000u + std::uint32_t(id)) };
         int first = -1, second = -1;
-        auto& struck = world.fight.monsters[0];
         for (int tick = 1; tick <= kHorizon && (first < 0 || (second_at > 0 && second < 0)); ++tick) {
             const std::uint32_t tick_ms = now + std::uint32_t(tick) * kTickMs;
-            if (tick == second_at) world.fight.strike(missile, 0, tick_ms, second_length);
+            if (tick == second_at) freeze(second_length, tick_ms);
             const std::string_view before = struck.mode;
             foes[0].alive = true;
             monster_update(*data, here, struck, foes, think_rng, tick_ms, 0.04f, crowd, shots, world.fight.monsters);
             const bool swung = struck.mode != before && (struck.mode == "A1" || struck.mode == "A2");
             if (swung && first < 0) first = tick;
             if (swung && second_at > 0 && tick >= second_at && second < 0) second = tick;
+            if (swung) {
+                // The oracle records the think and files another after aidel.
+                // It doesn't run the attack animation or its end event.
+                set_mode(*data, struck, "NU", tick_ms);
+                struck.next_act = tick_ms + std::uint32_t(aidel > 0 ? aidel : 15) * kTickMs;
+            }
         }
         const auto out = [](int frame) { return frame < 0 ? std::string("-") : std::to_string(frame); };
         std::printf("%d %s %s\n", id, out(first).c_str(), second_at > 0 ? out(second).c_str() : "-");

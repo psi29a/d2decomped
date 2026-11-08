@@ -48,7 +48,9 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
         if (const auto* skill = game_data.skills.get(slot.skill); skill && skill->auratarget == "conversion") {
             monster.hit_points = std::max(int(std::int64_t(monster.hit_points) * monster.own_max_life / std::max(monster.stats.hit_points, 1)), 1);
             monster.stats.level = monster.own_level; monster.stats.hit_points = monster.own_max_life;
-            monster.own_level = monster.own_max_life = 0;
+            monster.max_life_frac = monster.own_max_life_frac;
+            if (monster.hit_points == monster.stats.hit_points) monster.life_frac = std::max(monster.life_frac, monster.max_life_frac);
+            monster.own_level = monster.own_max_life = monster.own_max_life_frac = 0;
         }
     }
     slot = {};

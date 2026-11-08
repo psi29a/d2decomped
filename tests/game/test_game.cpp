@@ -1819,6 +1819,12 @@ int main(int argc, char** argv) try {
                 assert(fine.hit_points == 5 && fine.life_frac == 128);
                 heal(fine, 1);
                 assert(fine.hit_points == 5 && fine.life_frac == 0);
+                fine.hit_points = 4;
+                fine.max_life_frac = 64;
+                heal(fine, 1);
+                assert(fine.max_life_fine() == 1216 && fine.hit_points == 5 && fine.life_frac == 64);
+                heal(fine, 1);
+                assert(fine.hit_points == 5 && fine.life_frac == 64);
                 // A pet or a monster takes its blows one record at a time (Fight::world): two class-2 blows of 6
                 // on 64 life are each under max / 8, no get-hit; the one blow of 32 is sure (FUN_0057cb00).
                 fine = pet.monster;

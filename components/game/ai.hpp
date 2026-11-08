@@ -224,6 +224,7 @@ struct Monster {
     // finer than game.exe's own client, which only ever sees life / 128 of
     // the maximum (net-packets.md "Monster life"; 0x0c / 0x0d / 0xab). The
     // server is authoritative.
+    int max_life_frac = 0;                    // the same deficit from stats.hit_points for a boss's max life
     int life_frac = 0;                        // 256ths of a point already taken off hit_points (life = hit_points x 256 - life_frac)
     int leader = -1;                          // index of its group's leader
     int difficulty = 0;
@@ -300,7 +301,7 @@ struct Monster {
     bool afraid = false;
     // Converted from a higher level (state 0x6d): its own level and life
     // (stats 0xb0 / 0xb1), put back as Conversion ends (FUN_005d01a0).
-    int own_level = 0, own_max_life = 0;
+    int own_level = 0, own_max_life = 0, own_max_life_frac = 0;
     // Its alignment (stat 0xac: 0 evil, 1 neutral while Confuse or Attract
     // is on it, 2 good while Conversion is: in its caster's list, FUN_005b1900) and its skill-set target (monster data +0x38 kind, +0x34
     // value, FUN_00573090: 2 a monster by id, Attract's; 3 Confuse's
@@ -425,6 +426,12 @@ struct Monster {
     int row_align = 0;                        // its MonStats Align (+0x4c), as made (align is its side now)
     bool classic = false;                     // made in a classic game (game +0x70 0: Fight::add_monster)
     int level_id = -1;                        // the Levels.txt id it was made in (-1: unknown): Nightmare / Hell start at that level's MonLvl (rules::start_level)
+    [[nodiscard]] int life_fine() const { return int(std::int64_t(hit_points) * 256 - life_frac); }
+    void set_life_fine(int life) {
+        hit_points = int((std::int64_t(life) + 255) >> 8);
+        life_frac = int(std::int64_t(hit_points) * 256 - life);
+    }
+    [[nodiscard]] int max_life_fine() const { return int(std::int64_t(stats.hit_points) * 256 - max_life_frac); }
     [[nodiscard]] bool alive() const { return hit_points > 0 && !gone; }
     // A corpse the corpse searches take (FUN_0063a770, 0x63a770: no `udead`
     // state on it): dead, in DD, not used (raised, eaten, exploded: corpse_used

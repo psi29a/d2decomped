@@ -410,7 +410,7 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     const auto& per_difficulty = type_info.diff[std::size_t(difficulty_index)];
     auto pct = [&](int base, int percent) { return type_info.no_ratio ? percent : base * percent / 100; };
     const int hit_points = spawn_row.hit_points[std::size_t(difficulty_index)];
-    stats.hit_points  = std::max(rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp)), 1);
+    stats.hit_points  = rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp));
     stats.hit_points = int(std::min<std::int64_t>(stats.hit_points + std::int64_t(stats.hit_points) * player_life_pct(players) / 100, 0x7fffff));
     // Stat 0x4a from that life in 256ths x DamageRegen / 4096, past
     // 0x7fffffff / DamageRegen shifted first (a boss's mods come after).

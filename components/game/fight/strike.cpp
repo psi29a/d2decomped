@@ -570,12 +570,14 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
             // less poison and bleeding; a gain held back under state 0x34 and at full life.
             const double net = (now_ms < monster.poison_until ? monster.poison_rate : 0) + (now_ms < monster.bleed_until ? monster.bleed_rate : 0)
                              - monster.stats.regen / (256.0 * 40);
-            if (net <= 0 && (now_ms < monster.no_heal_until || monster.hit_points >= monster.stats.hit_points)) { monster.dot_acc = 0; continue; }
+            const bool full = monster.hit_points == monster.stats.hit_points && monster.life_frac == monster.max_life_frac;
+            if (net <= 0 && (now_ms < monster.no_heal_until || full)) { monster.dot_acc = 0; continue; }
             monster.dot_acc += net * elapsed * 1000;
             const int whole = int(monster.dot_acc);
             if (whole == 0) continue;
             monster.dot_acc -= whole;
-            monster.hit_points = std::min(monster.hit_points - whole, monster.stats.hit_points);
+            if (whole < 0) heal(monster, -whole);
+            else monster.hit_points -= whole;
             if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(i, now_ms); }
         }
     }
@@ -661,8 +663,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         // proportion (state 0x6d keeps its own, stats 0xb0 / 0xb1): MulDiv of
         // the whole points by clvl / mlvl (FUN_00483360: ECX life, EDX clvl,
         // mlvl on the stack; 0x5d05ed / 0x5d0600), back in 256ths (the part of
-        // a point dropped), life 1..max; a max under 1 is a 256th there, a
-        // point here (d2d keeps whole maxes).
+        // a point dropped), life 1..max; d2d applies a minimum of one whole point during Conversion.
         if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kConversion && monsters[target].alive() && monsters[target].align == 0
             && swaps_ai(*game_data, monsters[target])) {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
@@ -672,9 +673,10 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
                 turned.align = 2; turned.set_kind = 0; turned.chase = -1;
                 if (const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel)); turned.stats.level > clvl && turned.own_level == 0) {
                     turned.own_level = turned.stats.level; turned.own_max_life = turned.stats.hit_points;
-                    turned.stats.hit_points = std::max(d2d::rules::mul_div(turned.stats.hit_points, clvl, turned.own_level), 1);
+                    turned.own_max_life_frac = turned.max_life_frac;
+                    turned.stats.hit_points = std::max(d2d::rules::mul_div(turned.max_life_fine() >> 8, clvl, turned.own_level), 1);
                     turned.hit_points = std::clamp(d2d::rules::mul_div(turned.hit_points - (turned.life_frac > 0), clvl, turned.own_level), 1, turned.stats.hit_points);
-                    turned.life_frac = 0;
+                    turned.max_life_frac = turned.life_frac = 0;
                     turned.stats.level = clvl;
                 }
             }
@@ -775,7 +777,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 within(actor->player.x, actor->player.y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
                     const auto& struck = monsters[monster_index];
                     const int res = target_of(monster_index).res[3];
-                    const int fine = d2d::rules::static_field_fine(struck.hit_points * 256 - struck.life_frac, struck.stats.hit_points << 8, pct, low, floor_pct, res);
+                    const int fine = d2d::rules::static_field_fine(struck.life_fine(), struck.max_life_fine(), pct, low, floor_pct, res);
                     if (fine < 0) return;
                     const int got = d2d::rules::resisted_fine(fine, res < 100 ? std::max(res - ltng_pierce, -100) : res);
                     d2d::rules::Blow blow{ .hit = true };

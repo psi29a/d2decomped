@@ -705,7 +705,8 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
                             + (target.demon && damage.demon_pct > 0 ? mul_div(roll, damage.demon_pct, 100) : 0);
     if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
     int res = target.res[std::size_t(kRes[damage.etype])];
-    if (damage.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(damage.etype)], -100);
+    if (damage.etype < 4 && res < 100) res -= pierce[std::size_t(damage.etype)];
+    res = std::max(res, -100);   // FUN_0057be00 also floors magic, which has no pierce stat.
     if (damage.etype == 3) {
         blow.poison += resisted(int(std::int64_t(rolled) * std::max(damage.elen, 1) >> 8), res);
         blow.poison_ticks = std::max(blow.poison_ticks, std::max(damage.elen, 1));

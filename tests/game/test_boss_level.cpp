@@ -3,7 +3,7 @@
 // `--boss-level CASES`: a champion's, unique's, superunique's or minion's
 // stats through the REAL make_boss (rules::boss_stats, rules::monster_stats),
 // the cases of tools/emu/boss_level.py (game.exe's FUN_00573cb0,
-// FUN_005a2120, FUN_005a4f50): `id | lvl life def exp ar dmg_lo dmg_hi vel`,
+// FUN_005a2120, FUN_005a4f50): `id | lvl life256 def exp ar dmg_lo dmg_hi vel`,
 // one line each, to diff. An optional last field is the Levels.txt id the
 // unit is made in (Nightmare / Hell start at that level's MonLvl); kind p is a
 // plain monster, made by make_monster alone.
@@ -70,8 +70,10 @@ int main(int argc, char** argv) try {
             // the same call on the seed, the rest from make_monster itself.
             const Monster plain = make_monster(*data, row, 0, 0, look_rng, difficulty, true, 1, level_id);
             const auto rolled = d2d::rules::monster_stats(data->monsters, row, difficulty, rng, 0, 1, area_monster_level(*data, level_id, difficulty));
+            // Scripted zero-life rows still need to run their ordinary spawn's AI.
+            if (rolled.hit_points == 0) assert(plain.alive());
             const auto& stats = plain.stats;
-            std::printf("%s | %d %d %d %d %d %d %d %d\n", id.c_str(), stats.level, rolled.hit_points, stats.armor_class, stats.exp, stats.to_hit,
+            std::printf("%s | %d %d %d %d %d %d %d %d\n", id.c_str(), stats.level, rolled.hit_points * 256, stats.armor_class, stats.exp, stats.to_hit,
                         stats.a1_min, stats.a1_max, 0);
             continue;
         }
@@ -80,7 +82,8 @@ int main(int argc, char** argv) try {
         Monster monster = make_monster(*data, row, 0, 0, look_rng, difficulty, false, 1, level_id);
         make_boss(*data, monster, boss, mods, -1, 0, difficulty, rng);
         const auto& stats = monster.stats;
-        std::printf("%s | %d %d %d %d %d %d %d %d\n", id.c_str(), stats.level, monster.hit_points, stats.armor_class, stats.exp, stats.to_hit,
+        assert(monster.life_fine() == monster.max_life_fine());
+        std::printf("%s | %d %d %d %d %d %d %d %d\n", id.c_str(), stats.level, monster.max_life_fine(), stats.armor_class, stats.exp, stats.to_hit,
                     stats.a1_min, stats.a1_max, monster.boss_speed);
     }
     return 0;

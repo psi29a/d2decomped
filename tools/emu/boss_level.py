@@ -40,13 +40,9 @@ in FUN_005a4f50 FUN_0056e050 (no bonus), FUN_00625760 / FUN_00627340 (the
 list), FUN_006259b0 (1: no player scaling), FUN_00451f60 (elements: not
 compared). Rows 0x137 / 0x138 (their own extra roll) are left out.
 
-`compare` keys a life at most 2 points off as `life~2` (game.exe keeps life in
-256ths through the percent inits; d2d in whole points: not this claim).
-
-Output `id | lvl life def exp ar dmg_lo dmg_hi vel`: life whole points
-(stat 7 >> 8), def with item_armor_percent folded in as d2d does, ar and
-damage with the to-hit / damage percent added as d2d's make_boss does (the
-hit applies them to its roll: not compared), vel what the mods add to stat
+Output `id | lvl life256 def exp ar dmg_lo dmg_hi vel`: life is stat 7 in
+256ths, def includes item_armor_percent, ar and damage include the to-hit
+and damage percentages, and vel is what the mods add to stat
 0x43 (FUN_00573cb0 sets it first).
 """
 import csv
@@ -58,7 +54,7 @@ sys.path.insert(0, os.getcwd())
 
 UPICK = (5, 6, 7, 8, 9, 17, 18, 25, 26, 27, 28, 29, 30)
 CHAMP = (16, 36, 37, 38, 39)
-FIELDS = "lvl life def exp ar dmg_lo dmg_hi vel".split()
+FIELDS = "lvl life256 def exp ar dmg_lo dmg_hi vel".split()
 SKIP_ROWS = (0x137, 0x138)
 
 
@@ -138,8 +134,9 @@ class Game:
             e.call(0x5a2120, self.game, u, 0)
         e.call(0x5a4f50, ecx=u, edx=4)
         g = lambda s: self.stats.get((u, s), 0)
+        assert g(6) == g(7), (row, diff, kind, mods, seed)
         pct = lambda v, p: v + int(v * p / 100)
-        return [g(0xc), g(7) >> 8, pct(g(0x1f), g(0x10)), g(0xd), pct(self.hit.get(0x13, 0), g(0x77)),
+        return [g(0xc), g(7), pct(g(0x1f), g(0x10)), g(0xd), pct(self.hit.get(0x13, 0), g(0x77)),
                 pct(self.hit.get(0x15, 0), g(0x19)), pct(self.hit.get(0x16, 0), g(0x19)), g(0x43) - velocity]
 
 
@@ -222,89 +219,49 @@ def game(path):
         print(i, "|", *g.run(int(row), int(diff), kind, mods, int(seed) & 0xFFFFFFFF, int(f[7]) if area else 0))
 
 
-def claim(field, kind, mods):
-    """The commit a mismatch belongs to: D1 a boss's life / defence / experience
-    row, D2 a minion's level, D3 ghostly speed, B a berserker's level."""
-    if field == "vel" and kind == "c" and mods == "36": return "D3"
-    leveled = field in ("lvl", "exp", "ar", "dmg_lo", "dmg_hi")
-    if kind == "c" and mods == "39" and leveled: return "B"
-    if kind == "m" and leveled: return "D2"
-    if kind in "cus" and field in ("life", "def", "exp"): return "D1"
-    return "other"
-
-
-def residual(field, name, a, b, kind="", mods=""):
-    """The mismatches that are not the level: PR 157's named residuals. life within 2 points
-    (256ths against whole points); a row game.exe gives no life; S1 a unique's / superunique's
-    stone skin (mod 28 in the case's mods), game.exe's defence twice d2d's; H1 the willowisp
-    family's damage (FUN_00463900 halves the champion / strong / berserker percent, d2d's
-    ponytail)."""
-    a, b = int(a), int(b)
-    if field == "life": return "life 256ths" if abs(a - b) <= 2 else "life 0 in game.exe" if a == 0 else None
-    if field == "def" and kind in ("u", "s") and "28" in mods.split(".") and abs(a - 2 * b) <= 2: return "S1 stone skin"
-    if field in ("dmg_lo", "dmg_hi") and name.startswith("willowisp"): return "H1 willowisp damage"
-    return None
-
-
 def compare(cases_path, game_path, d2d_path):
-    cases = {l.split()[0]: l.split() for l in open(cases_path)}
-    want = {l.split()[0]: l.split()[2:] for l in open(game_path)}
-    bad, examples, total, differ, skipped = {}, {}, 0, 0, 0
-    claims = {}
-    answered = set()
-    level_counts, named, unexplained = [0, 0, 0], {}, {}
-    for line in open(d2d_path):
-        got = line.split()
-        if not got or got[0] not in want: continue
-        answered.add(got[0])
-        if got[2:] == ["no-type"]:
-            skipped += 1
+    with open(cases_path) as stream:
+        cases = {fields[0]: fields[1:] for line in stream if (fields := line.split())}
+
+    if not cases:
+        sys.exit(f"{cases_path}: no cases")
+
+    def read_rows(path, allow_no_type=False):
+        rows = {}
+        with open(path) as stream:
+            for line in stream:
+                fields = line.split()
+                if not fields or fields[1:2] != ["|"] or fields[0] not in cases:
+                    continue
+                case_id = fields[0]
+                if case_id in rows:
+                    sys.exit(f"{path}: duplicate answer for case {case_id}")
+                values = fields[2:]
+                if len(values) != len(FIELDS) and not (allow_no_type and values == ["no-type"]):
+                    sys.exit(f"{path}: invalid answer for case {case_id}")
+                rows[case_id] = values
+        return rows
+
+    want, got = read_rows(game_path), read_rows(d2d_path, allow_no_type=True)
+    missing = cases.keys() - (want.keys() & got.keys())
+    skipped = sum(row == ["no-type"] for row in got.values())
+    mismatches, bad = 0, {}
+    for case_id, original in want.items():
+        port = got.get(case_id)
+        if port is None or port == ["no-type"]:
             continue
-        total += 1
-        case = cases[got[0]]
-        kind, mods = case[4], case[5]
-        mods_key = mods if kind == "c" or "." not in mods else "multi"
-        one = False
-        for field, a, b in zip(FIELDS, want[got[0]], got[2:], strict=True):
-            if a == b: continue
-            one = True
-            cls = residual(field, case[1], a, b, kind, mods)
-            level_counts[0 if field == "lvl" else 1 if cls is None else 2] += 1
-            if field != "lvl" and cls is None: unexplained.setdefault((field, case[3], kind), (case[1], a, b))
-            if cls: named[cls] = named.get(cls, 0) + 1
-            # game.exe keeps life in 256ths through the percent inits (and over
-            # 4096 points FUN_005a0d20 divides first); d2d in whole points.
-            rounding = field == "life" and abs(int(a) - int(b)) <= 2
-            key = (field + ("~2" if rounding else ""), kind, mods_key)
-            bad[key] = bad.get(key, 0) + 1
-            slice_ = "life within 2 (256ths)" if rounding else "life 0 in game.exe" if field == "life" and a == "0" else claim(field, kind, mods)
-            claims[slice_] = claims.get(slice_, 0) + 1
-            examples.setdefault(key, (case[1], case[3], a, b))
-        differ += one
-    missing = len(want) - len(answered)
-    by = {}
-    for line in open(d2d_path):
-        got = line.split()
-        if not got or got[0] not in want or got[2:] == ["no-type"]: continue
-        case = cases[got[0]]
-        row = by.setdefault((case[3], case[4]), [0, 0])
-        row[0] += 1
-        row[1] += any(a != b and (f == "lvl" or residual(f, case[1], a, b, case[4], case[5]) is None) for f, a, b in zip(FIELDS, want[got[0]], got[2:], strict=True))
-    print(f"level field mismatches {level_counts[0]}; other fields not a named residual {level_counts[1]}; named residuals {level_counts[2]} {named}")
-    for key, (mon, a, b) in sorted(unexplained.items())[:20]:
-        print(f"  not named: {key[0]} difficulty {key[1]} kind {key[2]} e.g. {mon}: game {a} d2d {b}")
-    for (diff, kind), (cnt, bad_cnt) in sorted(by.items()):
-        print(f"difficulty {diff} kind {kind}: {cnt} cases, {bad_cnt} differ (level or an unnamed field)")
-    print(f"cases {total}, mismatching cases {differ}, not d2d's row {skipped}, no d2d answer {missing}")
-    print(f"apart from life within 2 points: {sum(v for k, v in bad.items() if not k[0].endswith('~2'))} field mismatches")
-    for name in ("D1", "D2", "D3", "B", "other", "life within 2 (256ths)", "life 0 in game.exe"):
-        print(f"claim {name}: {claims.get(name, 0)} field mismatches")
-    for key in sorted(bad, key=lambda k: -bad[k]):
-        mon, diff, a, b = examples[key]
-        print(f"{bad[key]:7d}  {key[0]:6s} kind {key[1]} mods {key[2]:6s}  e.g. {mon} diff {diff}: game {a} d2d {b}")
-    # Field mismatches stay in the report: the classified residuals (S1, H1)
-    # are expected, so only a case d2d did not answer fails the run.
-    return 1 if missing else 0
+        if original == port:
+            continue
+        mismatches += 1
+        name, _, diff, kind, mods, *_ = cases[case_id]
+        for field, a, b in zip(FIELDS, original, port, strict=True):
+            if a != b:
+                count, example = bad.get(field, (0, f"{name} diff {diff} kind {kind} mods {mods}: game {a} d2d {b}"))
+                bad[field] = count + 1, example
+    print(f"cases {len(cases)}, mismatching cases {mismatches}, no d2d row {skipped}, missing answers {len(missing)}")
+    for field, (count, example) in sorted(bad.items()):
+        print(f"  {field}: {count} mismatches, e.g. {example}")
+    return int(bool(mismatches or missing or skipped))
 
 
 def main():

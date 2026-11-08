@@ -25,6 +25,10 @@ installer) prints a `SKIP` line for that part and still passes.
 test_game and test_game_tables skip without d2data.mpq; the game's checks
 that need no data are in test_game_rules, which always runs.
 
+`test_iso9660` generates primary ISO 9660 and Joliet images with a known
+payload. It checks the real install disc too when present at the usual
+Downloads path. The generated fixtures need no game files.
+
 Run: `ctest --test-dir build --output-on-failure`.
 
 `test_overlays` needs no assets: its 288 frame cases were captured from

@@ -1,14 +1,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Run with: python3 -m unittest tools/test_tidy_pr_select.py"""
+import importlib.util
+import io
 import json
 import os
-import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 
-SCRIPT = Path(__file__).with_name("tidy-pr-select.py")
+SPEC = importlib.util.spec_from_file_location("tidy_pr_select", Path(__file__).with_name("tidy-pr-select.py"))
+tidy_pr_select = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(tidy_pr_select)
 
 
 class SelectionTests(unittest.TestCase):
@@ -29,13 +34,21 @@ class SelectionTests(unittest.TestCase):
                        {"directory": str(root / "build"), "file": str(root / "src" / "b.cpp"), "output": str(root / "build" / "b.o")}]
             (root / "build/compile_commands.json").write_text(json.dumps(entries))
             (root / "changed.txt").write_text("src/changed.hpp\n")
-            (root / "ninja").write_text("#!/bin/sh\n" +
-                "printf 'a.o: #deps 1\\n    ../src/changed.hpp\\n'\n" +
-                ("printf 'b.o: #deps 0\\n'\n" if complete else ""))
-            (root / "ninja").chmod(0o755)
-            env = dict(os.environ, PATH=f"{root}:{os.environ['PATH']}")
-            result = subprocess.run(["python3", str(SCRIPT)], cwd=root, env=env, capture_output=True, text=True, check=True)
-            self.assertEqual(result.stdout.splitlines(), [str(root / path) for path in expected])
+            deps = "a.o: #deps 1\n    ../src/changed.hpp\n"
+            if complete:
+                deps += "b.o: #deps 0\n"
+            stdout = io.StringIO()
+            original_dir = Path.cwd()
+            try:
+                os.chdir(root)
+                with (patch.object(tidy_pr_select.subprocess, "check_output", return_value=deps) as ninja,
+                      patch.dict(os.environ, BUILD_DIR="build"),
+                      redirect_stdout(stdout)):
+                    self.assertEqual(tidy_pr_select.main(), 0)
+            finally:
+                os.chdir(original_dir)
+            ninja.assert_called_once_with(["ninja", "-C", "build", "-t", "deps"], text=True)
+            self.assertEqual(stdout.getvalue().splitlines(), [str(root / path) for path in expected])
 
 
 if __name__ == "__main__":

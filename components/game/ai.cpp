@@ -674,7 +674,7 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
         const int try_x = room_seed(width) + left, try_y = room_seed(height) + top;
         int at_x = 0, at_y = 0;
         if (!spawn_spot(game_data, level, crowd, rooms_in_play, monster.type, try_x, try_y, -1, room, at_x, at_y)) continue;
-        if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) monster.hit_points = std::min(monster.stats.hit_points, monster.hit_points + monster.stats.level);
+        if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) heal(monster, monster.stats.level);
         monster.skill = teleport;
         monster.skill_x = at_x; monster.skill_y = at_y; monster.at_point = true;
         monster.unit.walking = false;
@@ -2342,7 +2342,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // MagottDown (srvdofunc 86, FUN_005cb300): calc1 % of its life back, once (flag 0x40).
                 const int lvl = skill_level(game_data, monster, monster.skill);
                 const int back = d2d::rules::eval_calc(game_data.skills, done->calc[0], {}, monster.skill, lvl);
-                if (back > 0) monster.hit_points = std::min(monster.hit_points + monster.stats.hit_points * back / 100, monster.stats.hit_points);
+                if (back > 0) heal(monster, monster.stats.hit_points * back / 100);
                 monster.seq_once = true;
             } else if (done && done->srvdofunc == d2d::rules::ServerDoFunction::kBestow) {
                 // Bestow (srvdofunc 96, FUN_005cc840): the one it's at gets
@@ -2366,6 +2366,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (raised.usable_corpse()) {
                         raised.no_exp = raised.no_drop = true;
                         raised.hit_points = raised.last_hp = raised.stats.hit_points;
+                        raised.life_frac = raised.max_life_frac;
                         raised.ai_state = raised.ai_command = 0; raised.skill = -1; raised.left_mode = "NU";
                         set_mode(game_data, raised, "NU", now_ms);
                     }
@@ -2614,10 +2615,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         if (auto& eaten = pack[std::size_t(monster.skill_unit)]; eaten.usable_corpse()) {
                             eaten.corpse_used = true;
                             const int pct = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
-                            const int max_life = monster.stats.hit_points * 256;
-                            const int life = monster.hit_points * 256 - monster.life_frac + d2d::rules::mul_div(eaten.stats.hit_points * 256, pct, 100);
-                            const int now = life >= max_life ? max_life : std::max(life, 1);
-                            monster.hit_points = (now + 255) >> 8; monster.life_frac = monster.hit_points * 256 - now;
+                            const int max_life = monster.max_life_fine();
+                            const auto life = std::int64_t(monster.life_fine()) + d2d::rules::mul_div(eaten.max_life_fine(), pct, 100);
+                            monster.set_life_fine(int(std::min<std::int64_t>(std::max<std::int64_t>(life, 1), max_life)));
                         }
                 } else if (cast->srvdofunc == ServerDoFunction::kMonsterBreath || cast->srvdofunc == ServerDoFunction::kDiabLight || cast->srvdofunc == ServerDoFunction::kImpInferno) {
                     // DiabLight: the same start (srvst 53) and its bolts while state 0xc's on (FUN_005cc690).
@@ -3023,6 +3023,9 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.unit.shape = monster.npc.shape;
     monster.unit.wait_until = std::uint32_t(rng(4000));
     if (stats) monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng, 0, players, area_monster_level(game_data, level_id, difficulty));
+    // Scripted units such as Baal on the stairs can have zero life. Keep their
+    // ordinary spawn active for the AI, which uses positive life as its gate.
+    monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
     monster.hit_points = monster.last_hp = monster.stats.hit_points;
     monster.difficulty = std::clamp(difficulty, 0, 2);
     // Its MonProp row; spawn_monsters takes it again on the unit seed. Here
@@ -3081,8 +3084,13 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     monster.mods = mods;
     monster.super = super;
     monster.name_seed = name_seed;
-    monster.stats.hit_points += monster.stats.hit_points * boss.hp_pct / 100;
-    monster.stats.hit_points = std::max(monster.stats.hit_points + monster.stats.hit_points * boss.life_after_pct / 100, 1);
+    // FUN_005a0d20 scales max life in 256ths, first for hpmultiply and then for the champion kind.
+    int life = monster.stats.hit_points * 256;
+    life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.hp_pct, 100)));
+    life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.life_after_pct, 100)));
+    monster.set_life_fine(life);
+    monster.stats.hit_points = monster.hit_points;
+    monster.max_life_frac = monster.life_frac;
     monster.stats.armor_class += monster.stats.armor_class * boss.defense_pct / 100;
     if (boss.phys_resist >= 0) monster.boss_res[0] = boss.phys_resist - type_info.diff[std::size_t(std::clamp(difficulty, 0, 2))].res[0];
     monster.stats.exp *= boss.exp_mult;
@@ -3116,7 +3124,6 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
         monster.aura = aura.skill; monster.aura_lvl = aura.level;
     }
     if (super == 6) { monster.half_freeze = true; monster.special = 0xd; }   // FUN_005a49b0 case 6, the Countess: FUN_00639db0(0x76) (state 118), FUN_005b0e00(0xd)
-    monster.hit_points = monster.stats.hit_points;
     monster.last_hp = monster.hit_points;
     if (super >= 0 && std::size_t(super) < game_data.superuniques.size()) monster.npc.name = game_data.superuniques[std::size_t(super)].name;
     else if (kind == d2d::rules::Boss::unique) monster.npc.name = unique_name(game_data, name_seed);
@@ -3158,7 +3165,7 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
     // MonStats2's mGH; a stunned one (state 0x15) takes it without the roll (0057d0b9).
     else if (now_ms < monster.stun_until
              || (game_data.monsters.types[std::size_t(monster.type)].can_get_hit
-                 && d2d::rules::get_hit(std::int64_t(monster.stats.hit_points) << 8, blow_fine, hit_class, marked, monster.seed)))
+                 && d2d::rules::get_hit(monster.max_life_fine(), blow_fine, hit_class, marked, monster.seed)))
         set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
 }
@@ -3166,8 +3173,9 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
 void heal(Monster& monster, int points) {
     if (points <= 0 || !monster.alive()) return;
     const int healed = monster.hit_points + points;
-    if (healed > monster.stats.hit_points) { monster.hit_points = monster.stats.hit_points; monster.life_frac = 0; }
-    else monster.hit_points = healed;
+    monster.hit_points = std::min(healed, monster.stats.hit_points);
+    if (healed > monster.stats.hit_points) monster.life_frac = monster.max_life_frac;
+    else if (healed == monster.stats.hit_points) monster.life_frac = std::max(monster.life_frac, monster.max_life_frac);
 }
 
 bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd, bool* blocked) {
