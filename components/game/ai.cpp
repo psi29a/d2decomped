@@ -1142,6 +1142,26 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (mummy) { input.corpse = corpse >= 0; input.aid = aid >= 0; }
         else { input.kin = kin >= 0; input.kin_dist = kin_dist; }
     }
+    // The Fetish Shaman's (FUN_005f9a80: FUN_005dd0b0 mode 1, filter
+    // FUN_005f99a0): the closest corpse (DD) by squared distance within
+    // aip5 squared, selectable, of BaseId 0x8d (or 0x18c unless aip2 is 1),
+    // not neutral, not special (data +0x16 & 8) unless aip2 is over 2, of
+    // its own group unless aip2 is set.
+    if (type_info.ai_name == "FetishShaman") {
+        const int any_group = input.aip[1], reach = input.aip[4] * input.aip[4];
+        int closest = std::numeric_limits<int>::max();
+        for (const int pack_index : near_order([&](const Monster& other) { return &other != &monster && other.usable_corpse(); })) {
+            const auto& other = pack[std::size_t(pack_index)];
+            const int base = game_data.monsters.types[std::size_t(other.type)].base;
+            const int off_x = subtile(other.unit.x) - x, off_y = subtile(other.unit.y) - y, squared = off_x * off_x + off_y * off_y;
+            if ((base != 0x8d && (base != 0x18c || any_group == 1)) || other.align == 1 || (any_group <= 2 && other.boss != Boss::none && other.boss != Boss::minion)
+                || (any_group == 0 && other.leader != int(self)) || squared > reach || squared >= closest) continue;
+            corpse = pack_index;
+            closest = squared;
+        }
+        input.kin_dist = closest;
+        input.corpse = corpse >= 0;
+    }
     // The Vulture's: the spots, the rooms, a weak unit within 11 (squared
     // 0x79) at most aip3 % life (FUN_005f30f0: a player or a monster, not
     // itself, alive, life <= max / 100 x aip3), its group, the free spot
@@ -1593,7 +1613,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // clear line. Not in town (FUN_0061ab00): a think here never is.
         const auto& name = type_info.ai_name;
         const auto wallc01 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0xc01); };
-        if ((name == "FallenShaman" || name == "GreaterMummy") && corpse >= 0) {
+        if ((name == "FallenShaman" || name == "GreaterMummy" || name == "FetishShaman") && corpse >= 0) {
             const auto& body = pack[std::size_t(corpse)].unit;
             UnitShape place = body.shape;
             place.mask = 0x3c01;
