@@ -732,16 +732,18 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         }
         const std::string_view mode = running && has_run ? "RN" : "WL";
         if (monster.mode != mode) set_mode(game_data, monster, mode, now_ms);
-        monster.next_act = now_ms;                                 // its end thinks at once (FUN_005a8030)
         return true;
     };
     // A move runs to its end (move_frame), then it thinks: a walk or run's
-    // end does so at once (FUN_005a8030: DAT_0073c6d0 flags WL and RN).
+    // end does so at once (FUN_005a8030: DAT_0073c6d0 flags WL and RN),
+    // whatever think is pending (that one still comes).
+    bool move_ended = false;
     if (monster.mode == "WL" || monster.mode == "RN") {
         const Foe* chased = monster.chase >= 0 && std::size_t(monster.chase) < foes.size() && foes[std::size_t(monster.chase)].alive ? &foes[std::size_t(monster.chase)] : nullptr;
         if (move_frame(level, monster, monster.wandering ? nullptr : chased, monster.wandering, type_info.size, monster.mode == "RN" ? run : walk, crowd)) return true;
         set_mode(game_data, monster, "NU", now_ms);
         monster.wandering = false;
+        move_ended = true;
         // A charge's end (srvdofunc 67, FUN_005cf900): at its target it
         // swings with the skill (charge_swing).
         if (const int with = std::exchange(monster.charging, -1); with >= 0 && chased && std::hypot(chased->x - unit.x, chased->y - unit.y) <= kMeleeReach + 0.3f) {
@@ -749,7 +751,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             return true;
         }
     }
-    if (now_ms < monster.next_act) return true;
+    if (now_ms < monster.next_act && !move_ended) return true;
+    monster.thought_ms = now_ms;
     // The driver's first step (FUN_005b10e0 → FUN_005b0f50): with opendoors
     // (MonStats flags +0xc & 8) and the monster bit 0x800 under it
     // (FUN_00648eb0), its door (OpenDoor) operated, it stands 5.
@@ -1618,18 +1621,21 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     const Monster* at_unit = act.unit == ThinkUnit::kin ? (kin >= 0 ? &pack[std::size_t(kin)] : corpse >= 0 ? &pack[std::size_t(corpse)] : nullptr)
                            : act.unit == ThinkUnit::aid && aid >= 0 ? &pack[std::size_t(aid)] : nullptr;
-    // FUN_005de0f0 / FUN_005de130: its next think (unit event 2) n frames on.
-    // ponytail: d2d thinks at the later of that and the mode's end. game.exe
-    // counts from now and runs the think when it comes, mid-mode or not
-    // (FUN_005b1740 reads no mode; a busy start's retry is FUN_005a73e0);
-    // only WL / RN think at their end (FUN_005a8030, table 0x73c6d0).
-    if (act.wait > 0 || act.event > 0) monster.next_act = std::max(monster.next_act, now_ms + std::uint32_t(std::max(act.wait, act.event)) * 40);
+    // After the act, its next think (unit event 2) n frames on: `wait`
+    // (FUN_005de0f0) replaces the pending one, `event` (FUN_005de130) only
+    // when none is pending or it'd come sooner. It comes mid-mode or not
+    // (FUN_005b1740 reads no mode; monster_update).
+    const auto file_think = [&monster, now_ms, wait = act.wait, event = act.event] {
+        if (wait > 0) monster.next_act = now_ms + std::uint32_t(wait) * 40;
+        else if (event > 0 && (!monster.think_pending() || now_ms + std::uint32_t(event) * 40 <= monster.next_act))
+            monster.next_act = now_ms + std::uint32_t(event) * 40;
+    };
     // FUN_0058f730 / FUN_0058ef40: its leader's group, itself too. One made
     // outside a group (leader -1) has none to look up, so nothing is sent.
     if (rally && monster.leader >= 0)
         for (auto& other : pack)
             if (other.alive() && other.leader == monster.leader) other.ai_command = 1;
-    for (;;) switch (act.act) {
+    const bool acted = [&] { for (;;) switch (act.act) {
         case MonAct::idle: idle(act.n); return true;
         case MonAct::a1: use("A1", -1); return true;
         case MonAct::a2: use("A2", -1); return true;
@@ -1873,7 +1879,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             set_mode(game_data, monster, "DT", now_ms);
             return true;
         case MonAct::none: case MonAct::untraced: return true;
-    }
+    } }();
+    file_think();
+    return acted;
 }
 
 // The Countess's firewall at (skill_x, skill_y) subtiles (srvdofunc 24,
@@ -1922,6 +1930,21 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     if (monster.chase >= 0 && std::size_t(monster.chase) < foes.size() && foes[std::size_t(monster.chase)].alive) pick = &foes[std::size_t(monster.chase)];
     Foe& foe = *pick;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
+    // Its think event comes due mid-mode too (FUN_005b1740 reads no mode) and
+    // its act replaces the mode (FUN_005a7c20 stops none), but not under
+    // state 0x36 (FUN_005a7c20's error 0x753) or frozen (FUN_005a7f80 drops
+    // it). A mode's end (FUN_005a8030: not WL / RN) goes to NU, whose start
+    // FUN_005a73e0 files the think aidel on (0: 15; stunned 0x2d) unless one
+    // is pending later.
+    const bool own_think = type_info.ai_name == "Andariel" || monster.special == 10 || monster.special == 11 || d2d::rules::traced_ai(type_info.ai_name);
+    const bool frozen = now_ms < monster.stun_until && monster.stun_until != monster.stunned_until;
+    const auto think_due = [&] { return own_think && monster.think_pending() && now_ms >= monster.next_act && !monster.uninterruptable() && !frozen; };
+    const auto mode_ends = [&] {
+        set_mode(game_data, monster, "NU", now_ms);
+        if (monster.think_pending() && monster.next_act > now_ms) return;
+        const int aidel = type_info.diff[std::size_t(monster.difficulty)].aidel;
+        monster.next_act = now_ms + std::uint32_t(now_ms < monster.stunned_until ? 0x2d : aidel > 0 ? aidel : 15) * 40;
+    };
     if (!monster.alive()) {
         if (monster.mode == "DT" && now_ms >= monster.mode_until) set_mode(game_data, monster, "DD", now_ms);
         return false;
@@ -1987,8 +2010,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     }
     if (monster.mode == "GH" || monster.mode == "BL") {
         monster.leaping = false;                                       // struck mid-leap: it stays where it is
-        if (now_ms < monster.mode_until) return false;
-        set_mode(game_data, monster, "NU", now_ms);
+        if (now_ms >= monster.mode_until) mode_ends();
+        else if (!think_due()) return false;
+        else if (now_ms < monster.stunned_until) {                     // stunned (state 0x15): the driver's first step stands 3 (FUN_005b10e0)
+            monster.thought_ms = now_ms;
+            set_mode(game_data, monster, "NU", now_ms);
+            monster.next_act = now_ms + 3 * 40;
+            return false;
+        }
     }
     // DiabRun's sequence (seq_diablorun, RN rows; FUN_005cd380 on its event
     // rows): rows 0..Param3 - 1 wind up; at Param3 (5) he runs at the spot
@@ -2111,16 +2140,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const auto [aim_x, aim_y] = d2d::rules::andariel_spray_aim(d2d::rules::direction64(x, y, monster.skill_x, monster.skill_y), monster.skill_frame);
                 andariel_missile(game_data, monster, "andarielspray", float(aim_x) / 5, float(aim_y) / 5, now_ms, missiles, skill_level(game_data, monster, kAndrialSpray));
             }
-        if (now_ms < monster.mode_until) return false;
-        set_mode(game_data, monster, "NU", now_ms);
-        monster.skill = -1;
-        monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
+        if (now_ms >= monster.mode_until) { mode_ends(); monster.skill = -1; }
+        else if (!think_due()) return false;
     }
     // An attack, a taunt (the Fallen's S2), a skill's sequence (MonSeq: its
     // event rows), a young one coming out (spawnmode S1), a skill cast in S3
     // (Diablo's Wall, Prison and Prime Firewall: Sk*mode S3).
     const bool attack = monster.mode == "A1" || monster.mode == "A2";
-    if (attack || monster.mode == "S1" || monster.mode == "S2" || monster.mode == "SC" || (monster.mode == "S3" && monster.skill >= 0)
+    if (attack || monster.mode == "S1" || monster.mode == "S2" || (monster.mode == "SC" && monster.skill != kAndrialSpray) || (monster.mode == "S3" && monster.skill >= 0)
         || (monster.mode == "DT" && monster.skill >= 0)) {   // DT alive: a sequence (the egg's hatch)
         const auto& timing = game_data.npc_timing(monster.npc, monster.mode);
         const SeqRows* seq = skill_seq(game_data, type_info, monster.skill);
@@ -2863,11 +2890,11 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (monster.leaping && monster.leap_until && now_ms >= monster.leap_until) {   // Leap Attack down at row 11
             monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y;
         }
-        if (now_ms < monster.mode_until) return false;
-        if (monster.leaping) { monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y; }
-        set_mode(game_data, monster, "NU", now_ms);
-        monster.skill = -1;
-        monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
+        if (now_ms >= monster.mode_until) {
+            if (monster.leaping) { monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y; }
+            mode_ends();
+            monster.skill = -1;
+        } else if (!think_due()) return false;
     }
     // A monster's velocitypercent (stat 0x43) starts at 75, not 100: its
     // stat initialiser FUN_00573cb0 ends in SetStat(unit, 0x43, 0x4b)
