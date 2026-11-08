@@ -64,7 +64,7 @@ def main():
         """ImmGetCandidateListA(context, index, buffer, length): the size, or fills the buffer."""
         if machine.arg(2) == 0:
             return state["size"]
-        log["fill"].append((machine.arg(0), machine.arg(1), machine.arg(3)))
+        log["fill"].append((machine.arg(0), machine.arg(1), machine.arg(2), machine.arg(3)))
         machine.mu.mem_write(machine.arg(2) + 4, struct.pack("<II", state["style"], state["count"]))
         return machine.arg(3)
 
@@ -78,8 +78,9 @@ def main():
 
     def alloc(current):
         """Game alloc (ECX size, EDX file; line, flag on the stack)."""
-        log["alloc"].append((current.mu.reg_read(UC_X86_REG_ECX), current.mu.reg_read(UC_X86_REG_EDX), current.arg(0), current.arg(1)))
-        return current.alloc(current.mu.reg_read(UC_X86_REG_ECX))
+        block = current.alloc(current.mu.reg_read(UC_X86_REG_ECX))
+        log["alloc"].append((current.mu.reg_read(UC_X86_REG_ECX), current.mu.reg_read(UC_X86_REG_EDX), current.arg(0), current.arg(1), block))
+        return block
 
     def free(current):
         """Game free (ECX block, EDX file; line, flag on the stack)."""
@@ -109,12 +110,12 @@ def main():
             require(got == previous and not log["alloc"] and not log["free"] and not log["fill"], f"{needed},{size}: touched the list")
         else:
             frees = [(previous, FILE_NAME, 0xEB, 0)] if previous else []
-            require(len(log["alloc"]) == 1 and log["alloc"][0][1:] == (FILE_NAME, 0xED, 0) and log["alloc"][0][0] == needed,
+            require(len(log["alloc"]) == 1 and log["alloc"][0][:4] == (needed, FILE_NAME, 0xED, 0),
                     f"alloc {log['alloc']}")
-            block = machine.r32(LIST_POINTER) if style != 2 or count != 1 else None
-            require(log["fill"] == [(CONTEXT, 0, needed)], f"fill {log['fill']}")
+            block = log["alloc"][0][4]
+            require(log["fill"] == [(CONTEXT, 0, block, needed)], f"fill {log['fill']}")
             if style == 2 and count == 1:
-                require(got == 0 and log["free"] == frees + [(log["free"][-1][0], FILE_NAME, 0xF2, 0)], f"free {log['free']}")
+                require(got == 0 and log["free"] == frees + [(block, FILE_NAME, 0xF2, 0)], f"free {log['free']}")
             else:
                 require(got != 0 and got == block and log["free"] == frees, f"kept {log['free']}")
         cases += 1

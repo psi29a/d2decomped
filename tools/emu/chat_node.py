@@ -9,7 +9,8 @@ allocates nothing. Otherwise it allocates 0x110 bytes (line 0x32, file
 `.\\Chat\\Chat.cpp`) and fills +0 the time on screen, length x 8 + 125 frames
 with the length clamped to 254, +4 now + that time, +8 the language byte
 (FUN_00525150, hooked), +0xc 0 and +0x10 the text: strncpy copies the clamped
-length + 1 bytes (so up to 255 characters), and a 0 goes at +0x10f. Nothing
+length + 1 bytes (so up to 255 characters), and a 0 goes at +0x10 plus the
+clamped length plus 1. Nothing
 else is written. FUN_006611a0 (pool, node; ret 8) frees a non-null node
 (line 0x44). The allocator is hooked and poisons its block with 0xab, so a
 stray write shows. A text up to 254 characters is stored whole; one of 255 or
@@ -85,32 +86,37 @@ def main():
     machine.hook(FREE, free, 3)
     machine.hook(LANGUAGE, lambda current: LANGUAGE_ID, 0)
 
+    def run(address, *args):
+        """Call game code and reject a stop at the instruction cap."""
+        result = machine.call(address, *args, limit=LIMIT)
+        require(machine.mu.reg_read(UC_X86_REG_EIP) == emu.RET_MAGIC, f"{address:#x}: stopped at the cap")
+        return result
+
     cases = 0
     lengths = (1, 2, 4, 5, 100, 253, 254, 255, 256, 300)
     for length in lengths:
         for now in (0, 1000, 0xFFFFFF00):
             text = ("0123456789" * 30)[:length]
             log["alloc"].clear()
-            node = machine.call(MAKE, POOL, machine.put(text.encode() + b"\0"), now, limit=LIMIT)
-            require(machine.mu.reg_read(UC_X86_REG_EIP) == emu.RET_MAGIC, f"{length}: stopped at the cap")
+            node = run(MAKE, POOL, machine.put(text.encode() + b"\0"), now)
             require(log["alloc"] == [(POOL, NODE_SIZE, FILE_NAME, 0x32, 0)], f"{length}: alloc {log['alloc']}")
             got = machine.read(node, NODE_SIZE)
             want = expected_node(text, now)
             require(got == want, f"length {length} now {now:#x}: node {got.hex()}, expected {want.hex()}")
             cases += 1
     log["alloc"].clear()
-    require(machine.call(MAKE, POOL, machine.put(b"\0"), 5, limit=LIMIT) == 0 and not log["alloc"], "empty text makes a node")
+    require(run(MAKE, POOL, machine.put(b"\0"), 5) == 0 and not log["alloc"], "empty text makes a node")
 
-    time_254 = machine.r32(machine.call(MAKE, POOL, machine.put(b"x" * 254 + b"\0"), 0, limit=LIMIT))
-    time_300 = machine.r32(machine.call(MAKE, POOL, machine.put(b"x" * 300 + b"\0"), 0, limit=LIMIT))
+    time_254 = machine.r32(run(MAKE, POOL, machine.put(b"x" * 254 + b"\0"), 0))
+    time_300 = machine.r32(run(MAKE, POOL, machine.put(b"x" * 300 + b"\0"), 0))
     require(time_254 == time_300 == 254 * 8 + 125 == 2157, f"clamped time {time_254}, {time_300}")
 
-    node = machine.call(MAKE, POOL, machine.put(b"3684\0"), 10, limit=LIMIT)
+    node = run(MAKE, POOL, machine.put(b"3684\0"), 10)
     log["free"].clear()
-    machine.call(FREE_NODE, POOL, node, limit=LIMIT)
+    run(FREE_NODE, POOL, node)
     require(log["free"] == [(POOL, node, FILE_NAME, 0x44, 0)], f"free {log['free']}")
     log["free"].clear()
-    machine.call(FREE_NODE, POOL, 0, limit=LIMIT)
+    run(FREE_NODE, POOL, 0)
     require(not log["free"], "a null node is freed")
     print(f"{cases} nodes: time = min(length, 254) x 8 + 125 ({time_254} frames at 254 and above), "
           "up to 255 characters kept; empty makes none; free line 0x44")
