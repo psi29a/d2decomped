@@ -9,6 +9,7 @@ address	name	evidence
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 00451f70	unit_mode	ECX unit: +0x10 (structs.tsv unit.mode); null 0
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
+0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")

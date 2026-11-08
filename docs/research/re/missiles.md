@@ -966,3 +966,21 @@ Re-check: `python3 tools/ghidra/fn.py 0064a710`,
 
 d2d: not ported. d2d keeps no missile data block; the only mention of the
 slots is the "not modelled" note under hit 29. Not a disagreement.
+
+## The seed draw — FUN_0045c3e0 (ECX seed, EDX n)
+
+Cited. Read from the decompile: the seed is two dwords {low, high}. With n
+under 1 it returns 0 and leaves the seed alone. Otherwise one step,
+`(low * 0x6ac690c5 + high)` as 64 bits stored back whole (new low = the low
+half, new high = the carry word), and the result is `new low & (n - 1)` when
+n is a power of two, else `new low % n` (unsigned). n = 1 therefore still
+steps the seed. Five direct callers (`0045e6d0`, `0046c460`, `00470390`,
+`004ae8d0`, `004aedd0`) and the roll helper FUN_005a8910 below; the missile
+roll draws on the missile's own seed (+0x20).
+
+Re-check: `python3 tools/ghidra/fn.py 0045c3e0`,
+`python3 tools/ghidra/calls.py 0045c3e0`.
+
+d2d: **agrees**. `Rng::operator()` (components/rules/rules.hpp:164) has the
+same step, the same power-of-two mask, `%` otherwise, and 0 without a step
+for n < 1. Cited, no oracle run for this change.
