@@ -158,7 +158,34 @@ int main() try {
         assert(reason.find("protocol") != std::string::npos);
         assert(host->clients().size() == 2);
     }
-    // 6. Leaving on purpose and dropping both show on the host.
+    // 6. A goodbye waits for the host's last Save, then the host closes.
+    {
+        auto leaver = net::lan::Client::join("127.0.0.1", { .name = "Purple", .save = Bytes(10, 1) }, port);
+        assert(leaver);
+        std::vector<net::lan::Client*> just{ &*leaver };
+        std::vector<std::vector<net::lan::Client::Event>> leaver_events;
+        int purple = -1;
+        assert(pump(*host, just, host_events, leaver_events, [&] {
+            for (const auto& event : host_events) if (event.type == net::lan::Host::Event::Type::Joined && event.hello.name == "Purple") purple = event.client;
+            return purple > 0;
+        }));
+        leaver->leave();
+        bool goodbye = false;
+        assert(pump(*host, just, host_events, leaver_events, [&] {
+            for (const auto& event : host_events)
+                if (event.type == net::lan::Host::Event::Type::Left && event.client == purple && event.goodbye && !goodbye) {
+                    goodbye = true;
+                    assert(host->send_save(purple, Bytes(2048, 0x5a)));   // still connected for this
+                    host->close(purple);
+                }
+            for (const auto& event : leaver_events[0]) if (event.type == net::lan::Client::Event::Type::Save) return true;
+            return false;
+        }));
+        bool saved = false;
+        for (const auto& event : leaver_events[0]) if (event.type == net::lan::Client::Event::Type::Save) saved = event.view.size() == 2048;
+        assert(saved);
+    }
+    // 7. Leaving on purpose and dropping both show on the host.
     host_events.clear();
     clients[0].leave();
     { auto gone = std::move(clients[1]); }   // the socket closes without a goodbye

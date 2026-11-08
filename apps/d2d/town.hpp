@@ -326,15 +326,26 @@ struct Town {
     // --host (docs/design/lan-host.md): d2d players joined over the LAN, each a World
     // player with its own View stream. lan_poll takes their joins, commands and
     // leaves (once a frame); lan_publish sends each their View after the ticks.
-    struct LanPlayer { int client = -1, id = 0; ViewEncoder view_enc; std::vector<Command> orders; };
+    struct LanPlayer {
+        int client = -1, id = 0; ViewEncoder view_enc; std::vector<Command> orders;
+        std::vector<std::byte> save;            // their .d2s as last sent (the Hello's, then each Save): the next one's base
+        std::uint32_t saved_ms = 0;             // when it was last sent (every kLanSaveMs while they play)
+    };
     std::optional<d2d::net::lan::Host> lan_host;
     std::vector<LanPlayer> lan_players;
     void lan_poll();
     void lan_publish();
+    // A joiner's character, built and sent to them (their machine keeps it). False if it couldn't be.
+    bool lan_send_save(LanPlayer& lan_player);
+    // A joiner gone: out of the World, never saved on this machine.
+    void lan_remove(LanPlayer& lan_player, const std::string& why);
     // --connect: this d2d plays in a d2d host's game. Its World doesn't tick; the host's Views
     // come in and are taken as publish takes the local one, its commands go out over the socket.
     std::optional<d2d::net::lan::Client> lan_client;
     std::string lan_lost;                         // why the host's game ended for us ("" while it's on)
+    const CharacterStore* lan_store = nullptr;    // where the host's Saves of our character go
+    // Goodbye to the host: its last Save of our character written, then out (Town::save on leaving).
+    void lan_leave();
     void lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms);
     // A View's bytes taken as the screen's (publish's second half; the client's every View).
     // `local`: the World's own View when it made these (a local game keeps its merc's FHR).

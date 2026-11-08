@@ -1508,6 +1508,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             set_map_seed(*scene, seed, difficulty);
                             character.header.difficulty = {};
                             character.header.difficulty[std::size_t(difficulty)] = 0x80;
+                            town.lan_store = town.world.characters;  // the host's Saves of the character go here
                             town.world.characters = nullptr;          // the host writes the save
                             town.lan_client = std::move(*joined);
                             town.enter();

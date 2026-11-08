@@ -36,8 +36,10 @@
 #include <array>
 #include <bitset>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <ctime>
+#include <expected>
 #include <initializer_list>
 #include <map>
 #include <memory>
@@ -668,6 +670,12 @@ struct World {
     // game changed (level, when last played, the gear's look), its stats and
     // items. "" when it's written, else why not.
     std::string save();
+    // The acting player's character as a whole .d2s built on `raw` (the save it came from),
+    // what save() would write: a LAN joiner's, sent back to its own machine (lan-host.md).
+    std::expected<std::vector<std::byte>, std::string> save_bytes(std::span<const std::byte> raw);
+    // save()'s header: the level, when last played, the map seed, the look; held items stowed.
+    d2d::d2s::Header save_header();
+    const std::vector<d2d::d2s::Item>* saved_corpse();   // the corpse's items a save keeps
     void set_act(int act);
     void show_palace();
 

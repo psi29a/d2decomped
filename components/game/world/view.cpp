@@ -14,6 +14,7 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <d2s_write.hpp>
 #include <light.hpp>
 #include <merc.hpp>
 #include <monsters.hpp>
@@ -28,6 +29,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <exception>
+#include <expected>
 #include <format>
 #include <memory>
 #include <optional>
@@ -201,8 +204,7 @@ auto World::view() const -> View {
         return view;
     }
 
-auto World::save() -> std::string {
-        if (!characters) return "no character store";
+auto World::save_header() -> d2d::d2s::Header {
         stow_held(*game_data, actor->character.items, actor->held);                  // the item in hand goes back first
         auto header = actor->character.header;
         if (header.right_skill == std::uint32_t(kResurrectSkill)) header.right_skill = actor->right_before;   // co-op's only: never in a save
@@ -212,14 +214,41 @@ auto World::save() -> std::string {
         header.map_id = game_data->map_seed;
         if (actor->character.appearance)   // the save's tints leave states out (FUN_0062c100's state loop sets no tint byte)
             header.set_look(game_data->item_pieces.empty() || game_data->comp.empty() ? *actor->character.appearance : game_data->look_of(actor->character.items));
-        // The corpse list holds one (PlrSave2.cpp): rules::corpse_to_save's, by its repair at Malah.
-        const std::vector<d2d::d2s::Item> no_corpse;
+        return header;
+    }
+
+// The corpse list holds one (PlrSave2.cpp): rules::corpse_to_save's, by its repair at Malah.
+auto World::saved_corpse() -> const std::vector<d2d::d2s::Item>* {
+        static const std::vector<d2d::d2s::Item> no_corpse;
         std::vector<const std::vector<d2d::d2s::Item>*> corpses;
         for (const auto& corpse : actor->corpses) corpses.push_back(&corpse.items);
         constexpr int kMalah = 0x201;
         const int kept = d2d::rules::corpse_to_save(game_data->rules, corpses, game_data->mon_npc[std::size_t(game_data->mon_bin[kMalah])].id, actor->character.header, reduced_prices());
-        const auto err = characters->save(header, fight.own_stats(), actor->character.items, kept < 0 ? &no_corpse : corpses[std::size_t(kept)],
-                                          &actor->character.merc_items);
+        return kept < 0 ? &no_corpse : corpses[std::size_t(kept)];
+    }
+
+auto World::save_bytes(std::span<const std::byte> raw) -> std::expected<std::vector<std::byte>, std::string> {
+        if (!game_data->item_tables) return std::unexpected("no item tables");
+        // A save mid game (a joiner's every few minutes): the item in hand stays in hand.
+        auto items = actor->character.items;
+        auto held = actor->held;
+        const auto header = save_header();
+        std::swap(items, actor->character.items);
+        actor->held = std::move(held);
+        try {
+            auto out = d2d::d2s::write_save(raw, header, fight.own_stats(), items, *game_data->item_tables,
+                                            saved_corpse(), &actor->character.merc_items);
+            actor->character.header.last_played = header.last_played;
+            return out;
+        } catch (const std::exception& error) {
+            return std::unexpected(std::string("write failed: ") + error.what());
+        }
+    }
+
+auto World::save() -> std::string {
+        if (!characters) return "no character store";
+        const auto header = save_header();
+        const auto err = characters->save(header, fight.own_stats(), actor->character.items, saved_corpse(), &actor->character.merc_items);
         if (err.empty()) actor->character.header.last_played = header.last_played;
         d2d::log::info("save {}: {}", header.name, err.empty() ? "written" : err);
         return err;

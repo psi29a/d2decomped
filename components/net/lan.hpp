@@ -25,7 +25,7 @@ namespace d2d::net::lan {
 using Bytes = std::vector<std::uint8_t>;
 
 // Bumped whenever a frame or payload changes shape: a host refuses other versions.
-inline constexpr std::uint32_t kProtocolVersion = 1;
+inline constexpr std::uint32_t kProtocolVersion = 2;   // 2: Save, the goodbye that waits for it
 inline constexpr std::uint16_t kDefaultPort = 6113;      // game.exe hosts on 4000; this is a different protocol
 inline constexpr std::size_t kMaxPayload = 8u << 20;     // a View or a save is far smaller
 inline constexpr int kMaxClients = 3;                    // the host plays too: four players
@@ -40,7 +40,8 @@ enum class Kind : std::uint8_t {
     View = 5,      // host -> client: the client's View, encoded
     Ping = 6,      // either way: u64 send time (ms); the other side echoes it as Pong (a silent side is dropped)
     Pong = 7,
-    Bye = 8,       // either way: leaving on purpose (the host's: on its way out)
+    Bye = 8,       // either way: leaving on purpose (a joiner's: the host answers with a Save, then closes; the host's: on its way out)
+    Save = 9,      // host -> client: the joiner's character, a whole .d2s
 };
 
 struct Frame { Kind kind{}; Bytes payload; };
@@ -72,6 +73,7 @@ public:
         Hello hello;                // Joined
         Bytes command;              // Command: one encoded Command
         std::string reason;         // Left: why
+        bool goodbye = false;       // Left by Bye: still connected, for a last send_save, then close()
     };
     static auto listen(std::uint16_t port = kDefaultPort, const std::string& bind_address = "0.0.0.0") -> std::expected<Host, std::string>;
     Host(Host&&) noexcept = default;
@@ -83,6 +85,9 @@ public:
     // The client's latest View. False when that client has gone.
     auto send_view(int client, std::span<const std::uint8_t> view) -> bool;
     auto kick(int client, const std::string& reason) -> void;
+    auto send_save(int client, std::span<const std::uint8_t> save) -> bool;
+    // Ends a connection without a word (after a goodbye's last Save, which gets there first).
+    auto close(int client) -> void;
     // Sent with each Welcome after the player id: what a joiner needs to make the same game (lan-host.md).
     Bytes welcome_info;
     [[nodiscard]] auto clients() const -> std::vector<int>;
@@ -92,6 +97,7 @@ private:
         TcpConnection connection;
         FrameReader reader;
         bool joined = false;
+        bool leaving = false;       // said Bye: kept for a last Save until close()
         std::chrono::steady_clock::time_point heard, pinged;
     };
     explicit Host(TcpListener listener) : listener_(std::move(listener)) {}
@@ -110,16 +116,17 @@ private:
 class Client {
 public:
     struct Event {
-        enum class Type { Welcome, View, Refused, Lost } type{};
+        enum class Type { Welcome, View, Save, Refused, Lost } type{};
         int player = -1;            // Welcome
         Bytes info;                 // Welcome: the host's welcome_info
-        Bytes view;                 // View
+        Bytes view;                 // View; Save: the .d2s
         std::string reason;         // Refused / Lost
     };
     // Connects and says hello (`hello.version` is set here).
     static auto join(const std::string& host, Hello hello, std::uint16_t port = kDefaultPort, int timeout_ms = 3000) -> std::expected<Client, std::string>;
     auto poll() -> std::vector<Event>;
     auto send_command(std::span<const std::uint8_t> command) -> bool;
+    // Says goodbye; poll on for the host's last Save, then the host closes (Lost).
     auto leave() -> void;
     [[nodiscard]] auto connected() const -> bool { return connected_; }
 private:

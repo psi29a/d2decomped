@@ -154,8 +154,11 @@ auto Town::enter() -> void {
 // (FUN_0045a5c0).
 auto Town::save() -> std::string {
         if (scene && level) save_automap(automap, automap_dir(world), character.name, scene->map_seed, level->layer);
+        if (lan_client) { lan_leave(); return ""; }      // a joined game: the host's Save is ours
+        for (auto& lan_player : lan_players) lan_send_save(lan_player);
         world.each_player([&](World::Player& other) {    // the other co-op players' characters too
             if (&other == &hero) return;
+            if (std::ranges::contains(lan_players, other.id, &LanPlayer::id)) return;   // a LAN joiner's is on their machine
             if (const auto why = world.save(); !why.empty()) d2d::log::warn("{}: {}", other.character.name, why);
         });
         return world.save();

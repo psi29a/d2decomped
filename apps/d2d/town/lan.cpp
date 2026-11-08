@@ -14,12 +14,28 @@
 #include <replication.hpp>
 
 #include <algorithm>
+#include <chrono>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <span>
+#include <thread>
 #include <variant>
 #include <vector>
 
 namespace d2d::client {
+
+namespace {
+// A joiner's save goes back this often while they play, so a dead machine loses little.
+// D2D_LAN_SAVE_SECONDS shortens it (tests).
+auto lan_save_ms() -> std::uint32_t {
+    if (const char* seconds = std::getenv("D2D_LAN_SAVE_SECONDS")) return std::uint32_t(std::max(1, std::atoi(seconds))) * 1000u;
+    return 5u * 60u * 1000u;
+}
+auto steady_ms() -> std::uint32_t {
+    return std::uint32_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+}
+}  // namespace
 
 auto Town::lan_poll() -> void {
         if (!lan_host || !scene) return;
@@ -35,7 +51,10 @@ auto Town::lan_poll() -> void {
                 if (!joining) { lan_host->kick(event.client, "the host couldn't read your character"); continue; }
                 if (world.players.size() >= 4) { lan_host->kick(event.client, "the game is full"); continue; }
                 const int seat_id = world.join(*joining).id;
-                lan_players.push_back({ .client = event.client, .id = seat_id, .view_enc = {}, .orders = {} });
+                const auto& raw = event.hello.save;
+                lan_players.push_back({ .client = event.client, .id = seat_id, .view_enc = {}, .orders = {},
+                                        .save = std::vector<std::byte>(reinterpret_cast<const std::byte*>(raw.data()), reinterpret_cast<const std::byte*>(raw.data()) + raw.size()),
+                                        .saved_ms = steady_ms() });
                 d2d::log::info("lan: {} joined as player {} (client {})", joining->name, seat_id, event.client);
             } else if (event.type == Type::Command) {
                 const auto found = std::ranges::find(lan_players, event.client, &LanPlayer::client);
@@ -45,12 +64,54 @@ auto Town::lan_poll() -> void {
             } else if (event.type == Type::Left) {
                 const auto found = std::ranges::find(lan_players, event.client, &LanPlayer::client);
                 if (found == lan_players.end()) continue;
-                // ponytail: the save isn't sent back yet; the World's leave writes it here, the host's side.
-                const auto saved = world.leave(found->id);
-                d2d::log::info("lan: player {} left ({}){}", found->id, event.reason, saved.empty() ? "" : "; save: " + saved);
+                if (event.goodbye) {                  // still connected: their last save, then close
+                    lan_send_save(*found);
+                    lan_host->close(event.client);
+                }
+                lan_remove(*found, event.reason);
                 lan_players.erase(found);
             }
         }
+        const auto now = steady_ms();
+        for (auto& lan_player : lan_players)
+            if (now - lan_player.saved_ms >= lan_save_ms()) lan_send_save(lan_player);
+    }
+
+auto Town::lan_send_save(LanPlayer& lan_player) -> bool {
+        lan_player.saved_ms = steady_ms();
+        const auto found = std::ranges::find_if(world.players, [&](const auto& seated) { return seated->id == lan_player.id; });
+        if (found == world.players.end()) return false;
+        world.act_as(**found);
+        auto bytes = world.save_bytes(lan_player.save);
+        world.act_as(world.lead());
+        if (!bytes) { d2d::log::warn("lan: player {}'s save: {}", lan_player.id, bytes.error()); return false; }
+        const auto sent = lan_host->send_save(lan_player.client, std::span(reinterpret_cast<const std::uint8_t*>(bytes->data()), bytes->size()));
+        if (sent) lan_player.save = std::move(*bytes);
+        d2d::log::info("lan: player {}'s save sent ({} bytes){}", lan_player.id, lan_player.save.size(), sent ? "" : ": not delivered");
+        return sent;
+    }
+
+auto Town::lan_remove(LanPlayer& lan_player, const std::string& why) -> void {
+        const auto* saved_store = std::exchange(world.characters, nullptr);   // their save is theirs: none written here
+        world.leave(lan_player.id);
+        world.characters = saved_store;
+        d2d::log::info("lan: player {} left ({})", lan_player.id, why);
+    }
+
+auto Town::lan_leave() -> void {
+        if (!lan_client || !lan_client->connected()) return;
+        lan_client->leave();
+        // The host answers with our last save and closes; wait a little for it.
+        for (int wait = 0; wait < 300 && lan_client->connected(); ++wait) {
+            for (auto& event : lan_client->poll()) {
+                if (event.type == d2d::net::lan::Client::Event::Type::Save && lan_store) {
+                    const auto why = lan_store->save_bytes(character.name, std::as_bytes(std::span(event.view)));
+                    d2d::log::info("lan: the host's save of {}: {}", character.name, why.empty() ? "written" : why);
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        lan_client.reset();
     }
 
 auto Town::lan_publish() -> void {
@@ -81,6 +142,9 @@ auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t fram
                     if (const auto* refused = std::get_if<ev::TradeRefused>(&said); refused && store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, refused->result, mouse.x, mouse.y);
                     handle(said, audio, frame_ms);
                 }
+            } else if (event.type == Type::Save) {
+                const auto why = lan_store ? lan_store->save_bytes(character.name, std::as_bytes(std::span(event.view))) : std::string("no save folder");
+                d2d::log::info("lan: the host's save of {}: {}", character.name, why.empty() ? "written" : why);
             } else if (event.type == Type::Refused || event.type == Type::Lost) {
                 lan_lost = event.reason;
                 d2d::log::warn("lan: out of the host's game: {}", event.reason);

@@ -35,7 +35,7 @@ auto get_u32(std::span<const std::uint8_t> bytes, std::size_t offset) -> std::ui
 auto now_ms() -> std::uint64_t {
     return std::uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count());
 }
-auto known(std::uint8_t kind) -> bool { return kind >= std::uint8_t(Kind::Hello) && kind <= std::uint8_t(Kind::Bye); }
+auto known(std::uint8_t kind) -> bool { return kind >= std::uint8_t(Kind::Hello) && kind <= std::uint8_t(Kind::Save); }
 
 auto send_frame(TcpConnection& connection, Kind kind, std::span<const std::uint8_t> payload) -> bool {
     return connection.send(encode_frame(kind, payload)).has_value();
@@ -130,7 +130,7 @@ auto Host::retire(TcpConnection&& connection) -> void {
 }
 
 auto Host::drop(std::size_t index, const std::string& reason, std::vector<Event>& events) -> void {
-    if (clients_[index].joined) events.push_back({ .type = Event::Type::Left, .client = clients_[index].number, .reason = reason });
+    if (clients_[index].joined && !clients_[index].leaving) events.push_back({ .type = Event::Type::Left, .client = clients_[index].number, .reason = reason });
     clients_.erase(clients_.begin() + std::ptrdiff_t(index));
 }
 
@@ -179,12 +179,15 @@ auto Host::poll() -> std::vector<Event> {
                     break;
                 case Kind::Ping: send_frame(client.connection, Kind::Pong, frame->payload); break;
                 case Kind::Pong: break;   // heard: that's what it's for
-                case Kind::Bye: gone = true; break;
-                default: gone = true; break;   // Welcome, View, Refuse: not a client's to send
+                case Kind::Bye:
+                    if (client.joined && !client.leaving) { client.leaving = true; events.push_back({ .type = Event::Type::Left, .client = client.number, .reason = "left", .goodbye = true }); }
+                    break;
+                default: gone = true; break;   // Welcome, View, Refuse, Save: not a client's to send
             }
             if (gone) break;
         }
         if (gone) { drop(index, "left", events); continue; }
+        if (client.leaving) { if (now - client.heard > kTimeout) clients_.erase(clients_.begin() + std::ptrdiff_t(index)); else ++index; continue; }
         if (now - client.heard > kTimeout) { drop(index, "timed out", events); continue; }
         if (client.joined && now - client.pinged >= kPingEvery) {
             client.pinged = now;
@@ -209,9 +212,22 @@ auto Host::kick(int client, const std::string& reason) -> void {
     clients_.erase(found);
 }
 
+auto Host::send_save(int client, std::span<const std::uint8_t> save) -> bool {
+    const auto found = std::ranges::find(clients_, client, &Client::number);
+    if (found == clients_.end() || !found->joined) return false;
+    return send_frame(found->connection, Kind::Save, save);
+}
+
+auto Host::close(int client) -> void {
+    const auto found = std::ranges::find(clients_, client, &Client::number);
+    if (found == clients_.end()) return;
+    retire(std::move(found->connection));
+    clients_.erase(found);
+}
+
 auto Host::clients() const -> std::vector<int> {
     std::vector<int> joined;
-    for (const auto& client : clients_) if (client.joined) joined.push_back(client.number);
+    for (const auto& client : clients_) if (client.joined && !client.leaving) joined.push_back(client.number);
     return joined;
 }
 
@@ -243,6 +259,7 @@ auto Client::poll() -> std::vector<Event> {
                     events.push_back({ .type = Event::Type::Welcome, .player = int(get_u32(frame->payload, 0)), .info = Bytes(frame->payload.begin() + 4, frame->payload.end()) });
                 break;
             case Kind::View: events.push_back({ .type = Event::Type::View, .view = std::move(frame->payload) }); break;
+            case Kind::Save: events.push_back({ .type = Event::Type::Save, .view = std::move(frame->payload) }); break;
             case Kind::Refuse:
                 connected_ = false;
                 events.push_back({ .type = Event::Type::Refused, .reason = std::string(frame->payload.begin(), frame->payload.end()) });
@@ -266,8 +283,7 @@ auto Client::send_command(std::span<const std::uint8_t> command) -> bool {
 
 auto Client::leave() -> void {
     if (!connected_) return;
-    send_frame(connection_, Kind::Bye, {});
-    connected_ = false;
+    if (!send_frame(connection_, Kind::Bye, {})) connected_ = false;
 }
 
 }  // namespace d2d::net::lan
