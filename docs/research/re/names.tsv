@@ -651,6 +651,7 @@ address	name	evidence
 0062a490	item_setitems_row	SetItems 0x1b8 rows at +0xc18
 0062a670	item_data_30	item data word +0x30 (Items.cpp 0x1504..0x1507)
 0062a900	item_socketed_count	hasinv, FUN_0063b2c0 walk
+00629b50	itemtype_is_a	(type, want): both in 0..[0x744304]+0xbfc, else bit want of row type in the dword matrix at +0xc04 (row stride dwords at +0xc00); 0 out of range (items.md)
 0062a970	item_read_compact	compact item (flag 0x200000) reader, version in the second arg: 10-bit version, 3-bit location, code, gold amount, quest difficulty (version > 0x5c), save realm words (version > 0x56 / 0x5d); no socket count
 0062ac80	saved_stat_read	FUN_00411020, version 0x5a / 0x5d remaps
 0062ae20	saved_item_header	'JM', 'ear ', 'nec ' -> 'neg ' before 0x5d
