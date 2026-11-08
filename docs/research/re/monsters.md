@@ -260,8 +260,12 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
     FUN_005a0d20 uses the same integer multiply/divide as FUN_00483360 on
     life in 256ths, and the possessed or berserker modifier applies to
     the resulting value. The boss_level.py oracle compares the raw stat 7 value.
-    Ordinary scripted spawns such as Baal on the stairs keep a one-point
-    minimum in d2d so they can run their AI.
+    A zero roll lives and thinks: game.exe's dead test is the mode
+    (FUN_005541b0: DT or DD), and a landed hit kills it whatever its
+    damage (life <= 0 after it, 0x57c8e2; a hit of no damage skips the life
+    write at 0x57c857). d2d's dead test is life, so such a unit holds one
+    point and `Monster::lifeless` makes any landed hit kill it (`hurt`;
+    `tests/game/test_zero_life.cpp`).
   - 4 leveladd (FUN_005a0e40): level + 3, experience × 5;
   - 16 champion (FUN_005a0e80): level − 1 (net + 2), experience − 2/5 (×
     3), +dmg% (stat 0x19) and +tohit% (0x77) from rows 11 / 10 scaled by
