@@ -227,9 +227,10 @@ struct Automap {
     // Set each frame by the game: the side a panel is open on (0x7a5210:
     // 1 right, 2 left, 0 none or both), in town, portraits shown, the
     // units' marks (FUN_00459bc0's colour as (R, G, B), a name over it in
-    // name_rgb) and the top right's lines (FUN_0045ad60).
+    // name_rgb) and the top right's lines (FUN_0045ad60). `covered`: both
+    // sides or a store / stash / cube (0x7a5210 3), when it isn't drawn.
     int panel_side = 0;
-    bool in_town = false, portraits = false;
+    bool in_town = false, portraits = false, covered = false;
     struct Mark { float x = 0, y = 0; std::array<int, 3> rgb{}; std::string name; std::array<std::uint8_t, 3> name_rgb{}; };
     std::vector<Mark> marks;
     std::vector<std::string> lines;

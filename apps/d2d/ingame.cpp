@@ -323,6 +323,14 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         std::optional<d2d::rules::Wearer> wearer_value;
         if (inventory && hud_stats && class_idx >= 0 && class_idx < 7) wearer_value = d2d::game::wearer(scene, kUiToSaveClass[class_idx], *inventory, *hud_stats);
         const d2d::rules::Wearer* hover_wearer = wearer_value ? &*wearer_value : nullptr;
+        // The automap, under the border and every panel, and not at all with
+        // both sides covered (FUN_00456ee0: FUN_0045ad60 first, while
+        // FUN_0045ae90 isn't 3). Round the camera less the panel's quarter, which
+        // the map makes its own (rules::automap_scroll).
+        if (automap && !automap->covered) {
+            const float unshift = float(d2d::rules::panel_view_shift(automap->panel_side, world_w)) / kIsoW;
+            draw_automap(framebuffer, scene, *automap, cam_x - unshift + float(level.world_x), cam_y + unshift + float(level.world_y));
+        }
         // The 800x600 border round an open side panel, under the panels
         // (FUN_00499450: FUN_00498630 left, FUN_00498700 right; bottom-left
         // anchored at these spots).
@@ -371,12 +379,6 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                              mouse_x, mouse_y, hover_wearer);
                 if (hud_stats) draw_stash_gold(framebuffer, scene, *hud_stats, mouse_x, mouse_y);
             }
-        }
-        // The automap round the camera less the panel's quarter, which the
-        // map makes its own (rules::automap_scroll).
-        if (automap) {
-            const float unshift = float(d2d::rules::panel_view_shift(automap->panel_side, world_w)) / kIsoW;
-            draw_automap(framebuffer, scene, *automap, cam_x - unshift + float(level.world_x), cam_y + unshift + float(level.world_y));
         }
         if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms);
