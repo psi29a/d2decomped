@@ -68,6 +68,65 @@ token maps to the same id through `{code, n}` pairs at 0x72ef68 and
   WL RN GH TN TW A1 ..), layers (HD TR LG RA LA RH LH SH S1..S8), armour
   tiers (lit med hvy), weapon classes (count 15).
 
+## The COF name: `FUN_0064f5b0`, `FUN_0064f380`, `FUN_0064fa00`
+
+`.\COMPOSIT\Composit.cpp`. Verified by `tools/emu/composit_cof.py` (callees
+hooked and logged, 2372 cases; `--mutation-check` breaks the model 9 ways and
+each is caught).
+
+**`FUN_0064f5b0(unit, class, mode, type, inv, out, &wclass, full, special)`**
+(stdcall, `ret 0x24`) writes the COF name into `out`. `type` 0 player, 1
+monster, 2 object, anything else: returns, nothing written or called. Three
+tokens, type / mode / weapon class, each a dword whose first three bytes are
+used, **each 0x20 byte turned into NUL** (so `"a b "` prints as `a`; the
+fourth byte is ignored). Output `"%s%s%s"` (type, mode, wclass) or, when
+`full`, `<dir>\<type>\COF\<type><mode><wclass>.COF` with dir
+`DATA\GLOBAL\CHARS`, `MONSTERS` or `OBJECTS`.
+- Player: type token = the line at `FUN_0065b480(class, 0)`, mode token =
+  `FUN_0065b480(mode, 1)` (+0x20 of each record; names are Redivivus leads).
+  With `special` set: mode 0 or 0x11 → `hth `, else `FUN_0064f060(unit, 0,
+  class, mode, inv, &index)`; the result is stored to `*wclass`. **With
+  `special` 0 the caller's `*wclass` is used as it stands.** Then the
+  override table (`0x745900`, count `0x745910`, entries `{token, mode}`;
+  game.exe ships `"gh  "` for modes 0x12 and 0x13, so those two names end in
+  `gh`): a matching mode replaces the mode token, the last match wins. Last,
+  mode 0xb keeps `*wclass` only if it is `1hs 1ht 1js 1jt 1ss 1st`, else
+  `hth ` is stored.
+- Monster: class outside `0..nTxtMonStats` (signed) returns untouched. Type
+  token = MonStats +0x10 (`Code`) of row `class` directly; mode token =
+  `FUN_0065b500(mode, 1)`. Modes 0 and 0xc call `FUN_004638a0(class, 0x10)`
+  (MonStats2 flag bit 16, Redivivus "compositeDeath"); clear → `hth `, set →
+  the resolver `FUN_0064f060(unit, 1, ...)`; other modes resolve. Its
+  own override table (`0x745914`, count `0x74591c`; shipped: `"gh  "` for
+  mode 0xd). No mode-0xb rule.
+- Object: `FUN_0065b570(class, 0)` / `(mode, 1)`, resolves on each call with
+  unit type 2; no overrides, no 0xb rule.
+- The resolver's index cell is the caller's own argument slot (arg 6, the
+  `&wclass` slot, for players; arg 4, the `inv` slot, for monsters and
+  objects), harmless as both are read first.
+
+**`FUN_0064f380(unit, inv, &index, mode, flag)`** returns the weapon-class
+token (index through `&index`). Null unit → `hth ` (`0x20687468`) with
+nothing called. Mode -1 → `FUN_00621190(unit)`. If unit +0xc8 bit 3 (a
+transform state) is set, `FUN_00645270` may replace unit type, class and mode
+(`Composit.cpp` line 0x236). **`flag` is not "ignore the transform" as
+Redivivus names it: flag 0 restores the original mode (type and class stay
+transformed), non-zero keeps the transformed mode.** Then
+`FUN_0064f060(unit, type, class, mode, inv, &index)`.
+
+**`FUN_0064fa00(unit, out, &wclass, full, special, inv, mode)`** (`ret 0x1c`):
+null unit is fatal (assert line 0x106). Always runs `FUN_00621190` and then
+`FUN_00645270` (line 0x10c, no flag test of its own), uses `mode` unless it
+is -1 (then the transformed mode), and tail-calls `FUN_0064f5b0(unit, class,
+mode, type, inv, out, &wclass, full, special)` with the transformed type and
+class.
+
+Not covered: the callees run as hooks (the resolver `FUN_0064f060`, the state
+transform, the token-line getters and the table contents behind them), so what
+tokens the real tables hold is not checked; the fatal exit is intercepted;
+a null token-line record (index past the table) would fault in game.exe and
+is not run.
+
 ## The look from what's worn
 
 The header's 16 bytes follow from the worn items (body locations 1 head,
