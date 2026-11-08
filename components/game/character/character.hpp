@@ -102,11 +102,13 @@ inline std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, cons
 }
 
 // An item whose stats reach the character: worn (slots 1..10, the weapon
-// set in use) or an inventory charm, and usable: not broken (0x100) nor
+// set in use) or an inventory charm that met its requirements at the last
+// settle (FUN_0062ff70: `charm_short`), and usable: not broken (0x100) nor
 // short of its requirements (0x4000, rules::settle_requirements).
 inline bool gear_active(const d2d::d2s::Item& item) {
     const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
-    const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
+    const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3")
+        && !item.charm_short;
     return (worn || charm) && d2d::rules::item_usable(item);
 }
 
@@ -215,10 +217,7 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
     };
     std::int64_t item_def = 0, per_level = 0;
     for (const auto& item : items) {
-        const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
-        const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory
-                        && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
-        if ((!worn && !charm) || !d2d::rules::item_usable(item)) continue;
+        if (!gear_active(item)) continue;                 // worn, or a charm meeting its requirements
         add(item.props);
         for (const auto& socketed : item.socketed_items) add(socket_props(game_data, item, socketed));
         const auto bonus = set_bonus_props(game_data, items, item);

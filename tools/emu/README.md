@@ -49,6 +49,10 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Object operate and event handlers (FUN_00582610, 00584420, 005845d0, 00584d00, 005852e0, 00585580, 00585a80, 00585ce0; `--mutation-check` 8 ways) | `uv run python objects_mode_operate.py` | `ok: 7600 object operate and event handler cases` |
 | SoundHdr sample-load dispatcher (FUN_00482970) | `uv run python sound_hdr_load.py` | `ok: SoundHdr loading guards, cache rejection, sync and async cases` |
 | Application mode from the command line (Main.cpp, FUN_00406340: split on `-`, case-sensitive name prefix, client never stored, last match wins) | `uv run python app_mode.py` | `ok` |
+| MONSTER data-field accessors (FUN_005730e0, 00573100, 005734c0, 005734e0, 00573500, 00573520, 00573540, 00573570; `--mutation-check` 6 ways) | `uv run python monster_data_fields.py` | `ok: 3200 monster-data accessor cases` |
+| MONSTER pool allocate / release helpers (FUN_00547b50, 00572ba0, 00572bc0, 005a6490, 005a64d0; `--mutation-check` 8 ways) | `uv run python monster_pools.py` | `ok: 130 MONSTER pool allocate and release cases` |
+| NPC talker chain (FUN_00572c10, 00572da0, 00572de0, 00572e00, 00572e60, 00572ea0, 00572ee0, 00573020, 00573180; `--mutation-check` 13 ways) | `uv run python monster_talk.py` | `ok: 1260 NPC talker list cases` |
+| Monster bind, animation call and announce (FUN_00573270, 005735a0, 00597d70; `--mutation-check` 11 ways) | `uv run python monster_bind.py` | `ok: 1500 monster bind, animation and announce cases` |
 | Every level, all cores | `./sweep.sh 1-50 monsters objgroups` | every level matching |
 | Every level's collision vs libd2's engine captures (200 seeds × 3 difficulties, ~8 min) | `D2_BUILD=build-release uv run python libd2_crc.py` | `N/131 levels match on all 200 seeds` |
 | Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `objects`, `stands`) | `N/N ... match game.exe` |
@@ -63,6 +67,9 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Body-armour layers and tiers (FUN_0064f420, FUN_0064f500, FUN_0063d690) vs compcode.hpp | `uv run python composit_layers.py` | `ok: lit layers TR=torso LG=legs RA=rArm LA=lArm S1=rspad S2=lspad; 10 other layers fatal; d2d's compcode tables match` |
 | COF name builder and its wrappers (FUN_0064f5b0, FUN_0064f380, FUN_0064fa00; callees hooked and logged) | `uv run python composit_cof.py` (`--mutation-check` for the model defects) | `ok: FUN_0064f5b0 1772 cases, FUN_0064f380 392, FUN_0064fa00 208; e.g. 1h1js` |
 | Screen shake and quest control frames | `uv run python shake.py > ../../tests/shake_cases.inc`; `uv run python shake.py --controls > ../../tests/quake_control_cases.inc` | `test_shake` matches both captured fixtures |
+| Dungeon.cpp field accessors and forwarding wrappers (52 functions, FUN_00619550 ... FUN_0061afa0; null asserts, callee arguments; `--mutation-check` 5 ways) | `uv run python dungeon_accessors.py` | `ok: 1248 Dungeon.cpp accessor and wrapper cases` |
+| Dungeon.cpp room1 geometry, searches, near-array build and creation (FUN_00619800 ... FUN_00619d00; `--mutation-check` 4 ways) | `uv run python dungeon_rooms.py` | `ok: 720 Dungeon.cpp room1 geometry, search and creation cases` |
+| Dungeon.cpp room1 node list, sorted set, teardown and bit table (FUN_0061a270 ... FUN_0061afd0; `--mutation-check` 4 ways) | `uv run python dungeon_lifecycle.py` | `ok: 312 Dungeon.cpp room1 node, set, teardown and bit-table cases` |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
 | Waypoint refusal window (C->S 0x49: refused or travels) | `uv run python wp_refuse.py gen 100000 7 --solo > cases.txt; uv run python wp_refuse.py game cases.txt > g.txt; ../../build/tests/test_game --waypoint-refuse cases.txt \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Stock waypoint allocation/release (stock-only lifecycle check; allocator, diagnostic and fatal boundaries intercepted) | `uv run python waypoint_lifecycle.py`; `uv run python -m unittest test_waypoint_lifecycle.py` | `ok: 9 allocations, 63 releases/rejections`; 8 tests pass with game data |
@@ -99,6 +106,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
 | Ignore list account mapping and node teardown (Chat/Ignorelist.cpp: FUN_00611320, FUN_0060edf0, FUN_00610690, FUN_0060ef60, FUN_0060ef30, FUN_0060edb0, FUN_0060eef0) | `uv run python ignorelist.py` | `9910 cases: 244 accounts mapped; ...`, then `ok` |
 | Ignore list remaining helpers (FUN_0060ed30, FUN_0060ed70, FUN_0060ee60, FUN_006114e0, FUN_00611560) | `uv run python ignorelist_remaining.py` | `ok: node cleanup, hash deletion, empty and populated table clear, eager and lazy singleton` |
+| String table leaves (StrTable/strtable.cpp: FUN_00524fd0, 00524fe0, 00525020, 00524e20, 00525090, 00525100, 00525260, 005251c0, 00524c60, 00524ac0, 00524e40, 00525770; 525350, 525490, 5255c0, 525920 not yet) | `uv run python strtable_leaves.py` (`--mutation-check`) | `ok: 6560 string table leaf cases` |
 
 ## When it breaks
 

@@ -66,14 +66,15 @@ inline UnitState unit(In& input) {
     unit.says = input.get<std::uint16_t>();
     return unit;
 }
-// Items as their save form (d2s_write.hpp), then their unit ids and
-// which is the wielded one (inventory +0x1c).
+// Items as their save form (d2s_write.hpp), then their unit ids and a byte:
+// 1 the wielded one (inventory +0x1c), 2 a charm short of its requirements
+// (rules::settle_requirements' pass 1).
 inline void items(Out& out, const std::vector<d2d::d2s::Item>& list, const d2d::d2s::ItemTables& item_tables) {
     d2d::d2s::detail::BitWriter writer;
     for (const auto& item : list) d2d::d2s::detail::write_item(writer, item, item_tables);
     out.u16(int(list.size())).u32(std::uint32_t(writer.out.size()));
     for (const auto byte : writer.out) out.u8(int(byte));
-    for (const auto& item : list) out.i32(item.id).u8(item.wielded ? 1 : 0);
+    for (const auto& item : list) out.i32(item.id).u8((item.wielded ? 1 : 0) | (item.charm_short ? 2 : 0));
 }
 inline std::vector<d2d::d2s::Item> items(In& input, const d2d::d2s::ItemTables& item_tables) {
     const int count = input.get<std::uint16_t>();
@@ -87,7 +88,9 @@ inline std::vector<d2d::d2s::Item> items(In& input, const d2d::d2s::ItemTables& 
     input.offset += bytes;
     for (auto& item : out) {
         item.id = input.get<std::int32_t>();
-        item.wielded = input.get<std::uint8_t>() != 0;
+        const auto transient = input.get<std::uint8_t>();
+        item.wielded = (transient & 1) != 0;
+        item.charm_short = (transient & 2) != 0;
     }
     return out;
 }
