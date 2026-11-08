@@ -211,10 +211,10 @@ def check_crc(machine, harness, rng, table_word, cases):
     """0x524fd0, 0x524fe0 and 0x525020: the word init, one byte step and the range CRC."""
     cell = machine.alloc(4)
     for _ in range(300):
-        before = rng.getrandbits(16)
-        machine.w32(cell, before | 0x10000 * rng.getrandbits(1))
+        upper = rng.getrandbits(16)
+        machine.w32(cell, rng.getrandbits(16) | upper << 16)
         harness.call(0x524FD0, cell)
-        require(machine.r16(cell) == 0xFFFF and machine.r16(cell + 2) == machine.r16(cell + 2), "init word")
+        require(machine.r16(cell) == 0xFFFF and machine.r16(cell + 2) == upper, "init word")
         cases += 1
     for _ in range(3000):
         crc = rng.getrandbits(16)
@@ -342,9 +342,7 @@ def check_lookup(machine, harness, rng, cases):
         tbl, base, entries = write_tbl(machine, rng, count1, size, count, keys)
         arr = machine.alloc(4 * size)
         for i in range(size):
-            machine.w32(arr + 4 * i, 0x9000 + i if rng.random() < 0.9 or not broken("x") else 0)
-        for i, _ in entries:
-            machine.w32(arr + 4 * i, 0x9000 + i)
+            machine.w32(arr + 4 * i, 0x9000 + i if rng.random() < 0.9 else 0)
         outp = machine.alloc(4)
         for probe in [k for _, k in entries] + [b"nope", b"zz"]:
             key_buf = machine.put(probe + b"\0")
@@ -535,6 +533,8 @@ def main():
     exe = Path(emu.data_path()) / "bin" / "game.exe"
     require(hashlib.sha256(exe.read_bytes()).hexdigest() == GAME_SHA256, "requires stock game.exe 1.14d (1.14.3.71)")
     if options.mutation_check:
+        baseline = emu.Emu(str(exe))
+        run_all(baseline, Harness(baseline))  # the unmutated model must pass before any defect is attributed
         for name in MUTATIONS:
             MUTATION = name
             machine = emu.Emu(str(exe))
