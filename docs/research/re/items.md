@@ -601,6 +601,44 @@ does not set (the asm was not read). Its one caller is `FUN_0053a500`.
 Evidence: `python3 tools/ghidra/fn.py 0055bf30`, `python3 tools/ghidra/calls.py 0055bf30`.
 d2d: not ported; no mention in `components/` or `apps/`.
 
+### A ground item sent to a client (`FUN_0055bed0`, `FUN_0053ec90`, `FUN_0053ecf0`)
+
+`FUN_0055bed0(unit, client)` (fastcall; the client is the second argument, as
+the decompile's `FUN_00537860(param_2, 0)` shows) does nothing unless all of:
+the unit is nonnull, `unit[+0xc4] & 0x10` is clear, and `unit[+0x10] == 3`
+(the mode field, structs.tsv). It then resolves the client's player unit with
+`FUN_00537860(client, 0)` (the result is not used in the decompile) and
+branches on `unit[+0xc4] & 0x1000`: set calls `FUN_0053ec90(unit, 0)`, clear
+calls `FUN_0053ecf0(unit, 0)`.
+
+Both callees have the same shape: `FUN_005531c0` is checked against the unit,
+and a mismatch exits through the assert path with id `0x7dd`
+(`FUN_0053ec90`) or `0x7e6` (`FUN_0053ecf0`); otherwise they call the 0x9c
+builder `FUN_0053eae0` with a literal 2 (`FUN_0053ec90`) or 3
+(`FUN_0053ecf0`). In net-packets.md the 0x9c action 2 is "dropped to the
+ground" and action 3 is "a ground item comes into view", so the pair reads as:
+a ground item (mode 3) whose flag 0x1000 is set is announced as dropped, one
+whose flag is clear as coming into view. What flag 0x1000 means in `+0xc4` is
+not traced; only the two-way split is read.
+
+Not resolved from the decompile (the asm was not read): which registers carry
+the client and item into `FUN_0053eae0`, whose first parameter reaches
+`FUN_00537860` as a client, so the literal 2 / 3 may sit in another slot than
+the action byte. Treat the action mapping as cited from net-packets.md's
+table, not from this chain.
+Evidence: `python3 tools/ghidra/fn.py 0055bed0`, `... 0053ec90`, `... 0053ecf0`.
+d2d: not ported; `git grep -n -E "0055bed0|0053ec90|0053ecf0" -- components apps`
+finds nothing.
+
+### The flag-1 wrapper (`FUN_0055bf30`)
+
+`FUN_0055bf30(unit)` calls `FUN_0055bed0` only when the unit is nonnull and
+`unit[+0xc4] & 1` is set; it passes no second argument of its own in the
+decompile, so the client reaches `FUN_0055bed0` in a register this function
+does not set (the asm was not read). Its one caller is `FUN_0053a500`.
+Evidence: `python3 tools/ghidra/fn.py 0055bf30`, `python3 tools/ghidra/calls.py 0055bf30`.
+d2d: not ported; no mention in `components/` or `apps/`.
+
 ## Is-a by type index and the equipment look (`FUN_00629b50` chain)
 
 Traced in call order, callee first. The claims here are cited from the
