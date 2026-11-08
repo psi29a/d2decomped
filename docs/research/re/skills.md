@@ -1706,6 +1706,24 @@ Cited from the decompile (no oracle run); re-check with
   FUN_00465070, FUN_004654c0. d2d: **agrees** with combat.md "unit skill list
   +0x10" (cited there); the fatal null is not modelled (d2d's units are
   never null here).
+- **FUN_00644560**(header, value) (51 bytes): sets skill-list header `+0x18`;
+  a null header formats message 0xa76 and exits (FUN_00681e09(-1)). Seen as
+  the first of the target pair `(+0x18, +0x1c)`: the target's type (FUN_004c9b40,
+  FUN_005cf6b0: `*target`, 6 for none) or, for a ground target, the x
+  (act1-end.md AndrialSpray), and Thunder Storm's last struck unit id
+  (above). `+0x1c` is set by FUN_006445a0. d2d: **agrees** with the Thunder
+  Storm use (`fight.hpp:347` `storm_last`); the other uses are not ported.
+- **FUN_006445e0**(header, value) (51 bytes): sets header `+0x20`; a null
+  header formats message 0xa88 and exits. FUN_004c9b40 writes 0 to it as its
+  last step before FUN_004c7950; other callers FUN_004c83c0, FUN_004c8d90,
+  FUN_004c9db0, FUN_004d9260 (not read). d2d: **not ported**.
+- **FUN_00644620**(header, value) (51 bytes): sets header `+0x24`; a null
+  header formats message 0xa91 and exits. FUN_004c9b40 and FUN_005cf6b0 set
+  it to 7 and then, only for a non-player unit (`*unit != 0`) of class 0xd3
+  (Duriel), to 0xf, both before the stat 0x43 read. Other callers FUN_004c6de0,
+  FUN_004c83c0, FUN_004c8d90, FUN_00549960. What the numbers mean is not read
+  (the unit-mode tables number differently for players and monsters; cited).
+  d2d: **not ported**.
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
