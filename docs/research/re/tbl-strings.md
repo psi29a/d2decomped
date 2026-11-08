@@ -152,3 +152,32 @@ containing functions when we need to trace the boot sequence.
 `components/tbl/tbl.hpp` parses the hash nodes into key and ID lookup maps.
 Values go through `d2d::tbl::utf8_units`, game.exe's UTF-8 decoder
 (`FUN_00526100`) described above.
+
+## String table leaves (traced)
+
+Checked by `tools/emu/strtable_leaves.py` (`uv run python strtable_leaves.py`,
+prints `ok: 6560 string table leaf cases`; `--mutation-check` must catch six model
+defects). Callees the oracle hooks or only reads are written `0x52_xxxx` here;
+the hooked ones are `0x52_4930` (string by id), `0x52_4d30` (patch lookup),
+`0x52_5150` (language id), `0x52_7720` (unload tail), and the allocator, free and
+fatal `0x40_b380`, `0x40_b3c0`, `0x40_8a60`. Argument notes are game.exe's
+stack order; the oracle runs each function for real.
+
+Call order for the four key helpers: `0x524c60` (TBL hash lookup) calls the
+hash `0x52_49e0`, `0x524d30` calls `0x524c60`, and `0x524ac0` calls the count
+`0x52_7d50` and the decoder `0x526320`.
+
+- `0x524fd0`: cdecl, `(u16* crc)`. Stores `0xffff`. No return value.
+- `0x524fe0`: cdecl, `(u16* crc, byte c)`. One CRC-16 step: the high byte of `crc` XOR `c` indexes the 256-word table at `0x7301d8`; the new word is `((crc & 0xff) << 8) ^ table[index]`.
+- `0x525020`: stdcall 4, `(u16* out, byte* data, start, end)`. Stores the CRC-16 of `data[start..end)` (init `0xffff`, the step above). Halts `0x3ea` when `start >= end`.
+- `0x524e20`: fastcall, ECX = key. Calls `0x52_4d30(key, &local)` and returns the pointer that call wrote to `local`.
+- `0x525090`: fastcall, ECX = buffer. If the buffer equals a row's key (+0), it is overwritten with that row's code (+4); otherwise with row 0's code, `ENG`. Writes in place. Thirteen rows, `0x7303d8`, 24 bytes each.
+- `0x525100`: fastcall, ECX = buffer. Returns the matching row's id (+0x14), or 0 when no key matches.
+- `0x525260`: stdcall 2, `(u32* out, mode)`. Calls `0x52_5150` for an id. The row is the one with that id; an id of 14 or more uses row 0; an id below 14 that no row carries uses row 13, which is the `K/M/B/T` word area, not a row (not exercised). Mode 1 copies the row's +8 string, mode 2 its +0xc string, mode 3 writes the dword at +0x10 to `*out`, and any other mode copies the +4 string. Halts `0x490` when row 0's id is not zero (not exercised).
+- `0x5251c0`: cdecl, no arguments. Opens `HKCU\Control Panel\International`, queries `sLanguage` into `0x8829f8` and returns `0x52_5100` of that text when it is 1 to 3 characters; else 0. Only the success path calls `RegCloseKey`. The buffer-size argument is the stack slot `[ebp-8]`, which the function does not write before the query.
+- `0x524c60`: stdcall 3, `(u32* arr, key, u32* out)`, with EDI = the TBL. Linear probing from `hash(key) % size` for at most `count` probes; a valid entry (type byte 1) with the key returns its u16 id (+1) and writes `arr[h]` to `*out`; no match returns `0xffff`. Halts `0x296` when the found `arr[h]` is 0.
+- `0x524ac0`: fastcall, ECX = key. Returns a u16 pointer to a cached decode of the key followed by the 23 bytes at `0x730520` (` -not xlated call ken w`). The decode writes one unit fewer than the counted length, so the final `w` is dropped. The cache is a list at `0x8829b0` with new nodes at the head; a hit returns the same pointer and allocates nothing.
+- `0x524e40`: cdecl, no arguments. Does nothing when no string table is loaded. Otherwise it counts `0x8829d8` down, and only at zero frees the string, patch and expansion tables and the cache nodes (decoded text, key copy, node, in that order), clears their globals, and tail-jumps to `0x52_7720`.
+- `0x525770`: cdecl, no arguments. Halts `0x246` when no string table is loaded. Fills the four words `0x730510`, `0x730514`, `0x730518`, `0x73051c` with `K`, `M`, `B`, `T` from string ids `0x14d0` to `0x14d3`: the first character of the first four characters of the string when that is one character or none (`0` for none), else the default letter.
+
+Not covered: `0x525350` (signed 32-bit number with separators), `0x525490` (signed 64-bit) and `0x5255c0` (unsigned 64-bit short form with the suffix letter; its switch table at `0x525754` is not decoded), and `0x525920` (the TBL opener, which reads a file through `0x51_7079`).
