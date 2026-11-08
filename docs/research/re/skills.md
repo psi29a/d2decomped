@@ -1680,6 +1680,16 @@ Cited from the decompile (no oracle run); re-check with
   `rules::mul_div` (`combat.hpp:261`) is the same branch for branch (its
   comment names FUN_00483360); callers in ai.cpp, strike.cpp and
   gamedata.hpp use it. The only wart is the 32-bit wrap (bugs.md 53).
+- **FUN_004833e0**(class in ECX) (36 bytes) -> the CharStats record
+  (`[0x744304]+0xbc4 + class*0xc4`; count at `+0xbc8`): 0 when the class is
+  negative or at least the count. No null test of its own (a missing table gives
+  a bad pointer, not 0). Callers: FUN_004c85b0, FUN_004c9120, FUN_004c9b40,
+  FUN_004e4d80, FUN_005cf6b0. FUN_005cf6b0 (Charge start) reads its byte
+  `+0x41` << 8 as the swing's pace when the unit is a player (`unit[0] == 0`);
+  a monster uses the short at MonStats `+0x34` << 8 instead, and the default is
+  0x100. What `+0x41` is in CharStats is not read here. The record walk
+  matches drops.md ("walks the class's CharStats row"). d2d: **not ported**
+  as a function (CharStats rows are `rules::` tables read by class).
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
