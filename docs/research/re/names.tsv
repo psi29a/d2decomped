@@ -14,6 +14,7 @@ address	name	evidence
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")
 0046b680	client_spawn_missiles_11c	no args: client missiles of rows 0x11c, 0x128, 0x125 via FUN_004cd540, the first tagged 0x32 at data +0x28 (missiles.md "Client missile spawn: FUN_0046b680")
+0046b850	client_spawn_near_object_182	ECX unit: finds a type-2 unit of class 0x182 in its room, client missile row 0x170 at its spot (else the caller's less 0xf), tagged with its id (missiles.md "Client missile spawn near an object")
 0046b9a0	client_spawn_missiles_12b	no args: client missiles of rows 0x12b, 0x166, 0x132 via FUN_004cd540, the first tagged 0x4b in data +0x28 and +0x2c (missiles.md "Client missile spawn: FUN_0046b9a0")
 0046dbf0	path_base_name	copies the base name between the last \ and the extension via _strncpy (chat.md)
 0046dc40	gfx_find_by_name	Gfx.cpp graphic lookup: base name, __strlwr, 512-bucket hash chain (chat.md)

@@ -887,6 +887,25 @@ Re-check: `python3 tools/ghidra/fn.py 0046b530`.
 
 d2d: not ported. No caller is recorded in `game-calls.tsv`.
 
+## Client missile spawn near an object: FUN_0046b850
+
+Cited. ECX a unit. It looks for a type-2 unit of class **0x182** in the
+unit's room (`FUN_0065a620(FUN_00620bb0(unit), 2, 0x182)`).
+
+- Found: it calls `FUN_004dcd40(0x15e, 0, 0, 0, 0)` (a 0x15e id, not
+  identified) and takes the found unit's two position words as the spot.
+- Not found: the spot is the caller's own two position words, each less
+  **0xf**.
+
+Then a block with flags **0x420**, row (word [4]) **0x170**, the caller as
+the unit words, the spot as words [0xb] / [0xc] and word [0x14] = 1 goes to
+`FUN_004cd540`. When a unit was found the missile is tagged
+`FUN_0064a710(it, found[3])`; with none found it is not tagged.
+
+Re-check: `python3 tools/ghidra/fn.py 0046b850`.
+
+d2d: not ported. No caller is recorded in `game-calls.tsv`.
+
 ## Missile data setters — FUN_0064a710, FUN_0064a760
 
 Cited. Both take `(unit, value)` on the stack and do the same thing: when
