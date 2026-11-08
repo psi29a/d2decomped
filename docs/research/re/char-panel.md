@@ -190,6 +190,24 @@ register arguments are partly dropped), so argument order is a reading.
   `FUN_00455f20`, `FUN_00456300`, `FUN_004567f0`, `FUN_00456970`,
   `FUN_00456d80`, `FUN_004a7d00`. d2d: not ported by name (the panel's classic / expansion
   resistance penalty split above is the likely use; not checked per call).
+- **`FUN_004eda80` (skill_attack_rating, 171 bytes)**: (player, hand) -> the
+  first attack-rating value the skill's `descatt` handler writes, 0 if none.
+  Null player -> 0. Hand 0 picks `d2d_right_skill`, non-zero
+  `d2d_left_skill` (so the flag reads "left?", the reverse of the call
+  order in `FUN_004eda20`). Then: skill record = `FUN_00644140(skill)`,
+  0 -> 0; SkillDesc = `FUN_004a89d0`, 0 -> 0; `descatt` = ushort at
+  SkillDesc `+0x14`. If it is below 0x48 and the table slot
+  `0x72d7f8 + descatt*4` is non-zero: level = `FUN_006442a0(player, skill, 1)`
+  (items counted) and the handler is called
+  `(record, level, &ar, &colour, &ar2, &colour2)`; the result is `ar`
+  (zero-initialised). This is the gate char-panel.md already gives
+  ("`descatt` (+0x14) with one in 0x72d7f8"), as a callable. Only caller:
+  `FUN_004a7d00`, twice (`:181` / `:183` in the decompile), each result
+  into `FUN_004a7340` (the chance-to-hit hover), then `FUN_004a7ae0`. d2d:
+  not ported as a function; `rules::attack_line` computes the same number
+  per skill (section above), the hover reuses it. The 0x48 bound is
+  loose (bugs.md 54). Which register holds which argument is read from d2d's
+  naming of the two skill wrappers, not from the asm.
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
