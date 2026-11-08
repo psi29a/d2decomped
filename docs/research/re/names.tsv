@@ -64,6 +64,7 @@ address	name	evidence
 005ab110	srv_hit_19_put_state	pSrvHitFunc entry 19 (0x73c88c): auratargetstate for the skill's +0x60 calc frames (min 5) on the target, returns 3
 005c3de0	confuse_unit	per-unit Confuse: FUN_005c3d50 test, d2d_states_put_state, descriptor stats set, alignment 1 (FUN_005543b0), list 9, kind 3, event 10; monster-ai.md "Confuse and Attract"
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
+005d7090	skill_start_dragon_tail	srvstfunc 27 (fastcall): FUN_0056e520, to-hit + stat 325 (FUN_0057ec10), on a hit kick damage FUN_005d54b0, FUN_0057dbf0 with HitClass +0x1a5 (0x80 if 0); skills.md "Stat-list helpers and skill starts"
 005d7ea0	skill_start_bash	srvstfunc 32 (fastcall): town refusal (FUN_0061ab00), calc3, FUN_0056e520, to-hit roll, flags, ED, element, aurastate list; skills.md "Melee skills" and "Stat-list helpers and skill starts"
 005dd0b0	unit_search	mode table at 0x6e3300: kind 1 FUN_005dcee0, 2 FUN_005dcf70, 3 FUN_005dd050, else FUN_005dce60
 005de330	ai_speech_trigger	formats line %d, gets chat node (FUN_00661110), sets flag 0x100 (+0xc4), plays sound event 6; AiTatics.cpp

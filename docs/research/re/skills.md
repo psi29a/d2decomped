@@ -1625,6 +1625,16 @@ Cited from the decompile (no oracle run); re-check with
   record's sound / overlay (+0x100 / +0x108 / +0x10a via FUN_004b9a00 and
   FUN_00470390) and restores the unit's +0x28 and the saved position.
   Cited only: the table's meaning is not read. d2d: not ported.
+- **FUN_005d7090** (Dragon Tail start, srvstfunc 27, 238 bytes, fastcall;
+  only reference 0x7321ac, the srvstfunc table): returns 0 for a skill
+  outside the Skills table or without a target (FUN_00553540). Otherwise
+  FUN_0056e520 (the temporary attackrate list above), to-hit
+  = `d2d_skills_skill_tohit` + stat 0x145 (325) into FUN_0057ec10; on a
+  hit (result & 1) FUN_005d54b0 builds the kick damage, then
+  FUN_0057dbf0 applies it with HitClass record +0x1a5 (0x80 when 0);
+  returns 1 (also on a miss). d2d: **agrees** with skills.md "Dragon Tail"
+  and strike.cpp:415 on the kick at toht + stat 325 and the 0x80 default;
+  unlike Bash it has no town refusal. **Not ported**: the attackrate list.
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
