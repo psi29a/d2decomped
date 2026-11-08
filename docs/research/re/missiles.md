@@ -871,6 +871,22 @@ Re-check: `python3 tools/ghidra/fn.py 0046b3c0`.
 
 d2d: not ported. No caller is recorded in `game-calls.tsv`.
 
+## Client missile spawn on an object: FUN_0046b530
+
+Cited. ECX a unit (an object: its class is read from `unit[1]`). Only three
+classes act: **0x21c** looks for class 0x1db, **0x21d** for 0x1dc and
+**0x21e** for 0x1da; any other returns. The lookup is
+`FUN_0065a620(FUN_00620bb0(unit), 2, class)` (the unit's room, type 2).
+When it finds a unit, a block is zeroed (0x5c bytes) with flags **0x420**,
+row (word [4]) **0x21d**, the caller as the two unit words ([1], [2]), the
+found unit's two position words as the start spot ([0xb], [0xc]) and word
+[0x14] = 1; `FUN_004cd540` makes the missile and `FUN_0064a710(it, found[3])`
+tags it with the found unit's word +0xc (its id).
+
+Re-check: `python3 tools/ghidra/fn.py 0046b530`.
+
+d2d: not ported. No caller is recorded in `game-calls.tsv`.
+
 ## Missile data setters — FUN_0064a710, FUN_0064a760
 
 Cited. Both take `(unit, value)` on the stack and do the same thing: when
