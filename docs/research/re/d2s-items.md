@@ -61,7 +61,11 @@ d2d reads only 1.14d's.
 - A tome's 5 bits belong to normal quality and come before the runeword.
   Normal tomes are never runewords or personalized, so the bits on disk
   are the same.
-- Durability is one 9-bit value; d2d keeps it as 8 + 1 (`dur_extra`).
+- Durability is one 9-bit value from save version 0x60 (8 bits before);
+  d2d keeps it as 8 + 1 (`dur_extra`), the extra bit only from 0x60.
+- Saves before 0x5d take a second set of Save Bits (ItemStatCost's
+  older column) for defence, durability, sockets and properties; d2d
+  reads 1.14d's only (`ponytail:` in `detail::item`).
 - Not ported (`ponytail:` in `detail::item`): a normal charm's affix and a
   monster body part's 10 bits. d2d has no ItemTypes hierarchy in the
   parser, and none of the 21 saves has one.

@@ -16,7 +16,8 @@
 //   extended (not simple): 32 seed | 7 ilvl | 4 quality | 1(+3) picture |
 //   1(+11) class affix | quality data (normal: a tome's 5) | runeword 16 |
 //   name 7-bit chars to 0 | 1 realm flag (+3 words) | armour: 11
-//   defence-10 | armour/weapon: 8 maxdur (+9 durability when non-zero) |
+//   defence-10 | armour/weapon: 8 maxdur (+9 durability when non-zero; 8
+//   before save version 0x60) |
 //   stackable: 9 qty | socketed: 4 | set: 5 list flags | property
 //   list(s), each ending in 0x1ff.
 // Property widths come from ItemStatCost.txt (Save Param Bits, Save Bits,
@@ -332,11 +333,12 @@ inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = null
             if (parsed.runeword) { parsed.runeword_id = int(bits.read(12)); parsed.rw_extra = int(bits.read(4)); }
             if (parsed.personalized) while (const auto letter = bits.read(7)) parsed.owner.push_back(char(letter));
             if (!net) realm(bits, parsed);
+            // ponytail: saves before 0x5d read ItemStatCost's older Save Bits column here and below; 1.14d's only
             if (item_tables.armor.contains(parsed.code)) parsed.defense = int(bits.read(11)) - 10;
             if (item_tables.armor.contains(parsed.code) || item_tables.weapons.contains(parsed.code))
-                if ((parsed.max_durability = int(bits.read(8)))) {   // max, then current (9 bits, ItemStatCost row 72)
+                if ((parsed.max_durability = int(bits.read(8)))) {   // max, then current (ItemStatCost row 72's 9 bits; 8 up to save version 0x5f)
                     parsed.durability = int(bits.read(8));
-                    parsed.dur_extra = int(bits.read(1));
+                    if (bits.file_version > 0x5f) parsed.dur_extra = int(bits.read(1));
                 }
             if (item_tables.stackable.contains(parsed.code)) parsed.quantity = int(bits.read(9));
             if (parsed.socketed) parsed.sockets = int(bits.read(4));

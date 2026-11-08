@@ -140,7 +140,10 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
             if (item_tables.armor.contains(item.code)) writer.write(std::uint32_t(item.defense + 10), 11);
             if (item_tables.armor.contains(item.code) || item_tables.weapons.contains(item.code)) {
                 writer.write(std::uint32_t(item.max_durability), 8);
-                if (item.max_durability) { writer.write(std::uint32_t(item.durability), 8); writer.write(std::uint32_t(item.dur_extra), 1); }
+                if (item.max_durability) {
+                    writer.write(std::uint32_t(item.durability), 8);
+                    if (file_version > 0x5f) writer.write(std::uint32_t(item.dur_extra), 1);   // 9 bits from 0x60, as the parser reads it
+                }
             }
             if (item_tables.stackable.contains(item.code)) writer.write(std::uint32_t(std::max(item.quantity, 0)), 9);
             if (item.socketed) writer.write(std::uint32_t(item.sockets), 4);

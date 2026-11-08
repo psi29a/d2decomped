@@ -211,6 +211,36 @@ int main() try {
         writer.align();
         assert(std::ranges::equal(writer.out, std::span(bytes).subspan(0x2FD + 4, first_end - (0x2FD + 4))));
     }
+    // Durability is 8 bits up to save version 0x5f, 9 from 0x60 (FUN_0062cbe0):
+    // a version 95 armour's next field starts right after the 8.
+    {
+        std::vector<std::byte> bytes(0x2FD + 4 + 32);
+        bytes[4] = std::byte{ 95 };
+        std::size_t bit = (0x2FD + 4) * 8;
+        auto put = [&](std::uint32_t value, int bits) {
+            for (int i = 0; i < bits; ++i, ++bit)
+                if (value >> i & 1) bytes[bit >> 3] |= std::byte(1 << (bit & 7));
+        };
+        std::memcpy(bytes.data() + 0x2FD, "JM\x01\x00", 4);
+        put(0x4d4a, 16);
+        put(1u << 23 | 1u << 4, 32);
+        put(101, 10);
+        put(1, 3); put(1, 4); put(0, 4); put(0, 4); put(0, 3);   // worn on the head
+        for (char letter : std::string("cap ")) put(std::uint8_t(letter), 8);
+        put(0, 3); put(7, 32); put(1, 7); put(2, 4); put(0, 1); put(0, 1);
+        put(0, 1);                           // no realm data
+        put(13, 11);                         // defence 3
+        put(12, 8); put(10, 8);              // max durability 12, durability 10: 8 bits
+        put(0x1ff, 9);
+        d2d::d2s::ItemTables item_tables;
+        item_tables.armor.insert("cap");
+        const auto items = d2d::d2s::parse_items(bytes, item_tables);
+        assert(items.size() == 1 && items[0].defense == 3 && items[0].max_durability == 12 && items[0].durability == 10);
+        d2d::d2s::detail::BitWriter writer;
+        d2d::d2s::detail::write_item(writer, items[0], item_tables, 95);
+        writer.align();
+        assert(std::ranges::equal(writer.out, std::span(bytes).subspan(0x2FD + 4, writer.out.size())));
+    }
     {
         const char* saves_env = std::getenv("D2_SAVES_DIR");
         const char* mpq_env = std::getenv("D2_MPQ_DIR");
