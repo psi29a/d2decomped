@@ -1034,3 +1034,19 @@ Re-check: `python3 tools/ghidra/fn.py 0063e940`,
 d2d: **agrees**. `Target::demon` (components/rules/combat.hpp:531, "MonStats
 demon") is the same bit; components/game/fight/missiles.cpp:626 uses it for the
 dParam2 bonus. Cited, no oracle run for this change.
+
+## Monster class test: undead — FUN_0063e990
+
+Cited. The same gate as FUN_0063e940 (non-null unit, type 1, class in range,
+MonStats record non-null), then true when `record[0xd] & 8` (lUndead) or
+`record[0xd] & 0x10` (hUndead) is set, else false (returns 0 / 1).
+Callers (the work list's): FUN_00454ad0, FUN_004c5960, FUN_004cf3c0,
+FUN_0056b3e0, FUN_0057b660; FUN_005a8c70 also calls it.
+
+Re-check: `python3 tools/ghidra/fn.py 0063e990`,
+`python3 tools/ghidra/calls.py 0063e990`.
+
+d2d: **agrees**. `Target::undead` (components/rules/combat.hpp:530) and
+`kUndead` (components/rules/aura_filter.hpp:17) are the same two bits; the
+dParam1 bonus (components/game/fight/missiles.cpp:626) and the AI check at
+components/game/ai.cpp:1041 use it. Cited, no oracle run for this change.
