@@ -296,6 +296,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 mouse.x = d2d::rules::panel_view_cursor_x(side_before, side_after, mouse.x + spare, g_view_width) - spare;
                 cursor_move = std::pair{ mouse.x, mouse.y };
             }
+            sync_panel_cam();   // this frame's clicks see the new view
         }
         if (audio_say >= 0) {                              // on the hero: one line at a time
             audio.play_sfx(*scene, audio_say, 1.f, int(rng.next() & 1), 0.f, 0, d2d::game::unit_key(d2d::game::kSoundOnPlayer, hero.id));
