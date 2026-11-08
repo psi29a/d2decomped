@@ -908,8 +908,22 @@ delay_meteor_no_mana. d2d keeps no delay: todo.md row 54.
   stats (+0x98 / +0xa4) and aurastats (+0x54 / +0x68, in a state with
   aurastate +0x80) onto the pet, life and max life + calc1 % (stats 6 /
   7), sumskill n at sumsk n calc levels (FUN_0056deb0), the aura events,
-  sumumod (FUN_005a4850), sumoverlay, then FUN_005d6b60 (the masteries'
-  share, not traced).
+  sumumod (FUN_005a4850), sumoverlay, then FUN_005d6b60 with the skill
+  level: the pet's MonEquip gear (below).
+- **FUN_005d6b60**(game, owner, pet, skill, level, ilvl, oninit): MonEquip
+  gear. The pet's MonStats row (0x1a8 bytes, tables +0xa78) gives a
+  MonEquip index at +0x2a (none when negative; rows of 0x1c bytes at
+  tables +0xbe0, `FUN_005d30a0`). With `oninit` set (a monster being
+  made) the first row must have its oninit byte (+4) set. A pet without an
+  inventory (+0x60) gets nothing. Rows for this monster are skipped while
+  their level (+2) is above `level`; from there every following row of the
+  same monster runs: count the item slots (+0x14 loc bytes, 1..10, up to
+  3), roll one with the unit's seed (a power of two masks, else modulo),
+  and if that body slot is empty equip the slot's item (+8, a code; four
+  spaces take the owner's item in the same slot, skipped if the owner has
+  none) at item level `ilvl` and quality from +0x17 (outside 0..7: 0),
+  through `FUN_00573b20`. So a summoned Valkyrie takes the rows from her
+  skill level on: the higher rows give better gear.
 - Built: `Fight::pets` (a Monster each), `summon_skill` / `cast_summon` /
   `summon` / `pets_turn` / `pet_foe`; monsters take pets as foes; Raise
   Skeleton uses a Blood Moor corpse (`Monster::corpse_used`).
