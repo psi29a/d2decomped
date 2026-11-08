@@ -84,12 +84,13 @@ int check_generated_image(bool joliet) {
     };
     descriptor(16, 1, 19);
     descriptor(joliet ? 18 : 17, 255, 0);
-    record(directory(19, 19), 23, kContents.size(), false, "README.DAT;1"sv);
+    constexpr auto payload_size = static_cast<std::uint32_t>(kContents.size());
+    record(directory(19, 19), 23, payload_size, false, "README.DAT;1"sv);
     if (joliet) {
         descriptor(17, 2, 20);
         std::memcpy(block(17) + 88, "%/E", 3);
         record(directory(20, 20), 21, kSector, true, "\0" "D\0" "A\0" "T\0" "A"sv);
-        record(directory(21, 20), 23, kContents.size(), false, "\0\xe9\0.\0D\0A\0T\0;\0" "1"sv);
+        record(directory(21, 20), 23, payload_size, false, "\0\xe9\0.\0D\0A\0T\0;\0" "1"sv);
     }
     std::memcpy(block(23), kContents.data(), kContents.size());
 
