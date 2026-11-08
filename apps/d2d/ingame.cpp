@@ -15,6 +15,7 @@
 
 #include <d2s_items.hpp>
 #include <palette.hpp>
+#include <panel_view.hpp>
 #include <rules.hpp>
 #include <show_items.hpp>
 #include <weather.hpp>
@@ -371,7 +372,12 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (hud_stats) draw_stash_gold(framebuffer, scene, *hud_stats, mouse_x, mouse_y);
             }
         }
-        if (automap) draw_automap(framebuffer, scene, *automap, cam_x + float(level.world_x), cam_y + float(level.world_y));
+        // The automap round the camera less the panel's quarter, which the
+        // map makes its own (rules::automap_scroll).
+        if (automap) {
+            const float unshift = float(d2d::rules::panel_view_shift(automap->panel_side, world_w)) / kIsoW;
+            draw_automap(framebuffer, scene, *automap, cam_x - unshift + float(level.world_x), cam_y + unshift + float(level.world_y));
+        }
         if (npc_menu) draw_npc_menu(framebuffer, scene, *npc_menu, mouse_x, mouse_y, elapsed_ms);
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms);
         if (hud_stats && !hud.hidden) draw_hud(framebuffer, scene, *hud_stats, hud, mouse_x, mouse_y);

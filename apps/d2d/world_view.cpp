@@ -341,8 +341,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // The rain's splashes and the mud's bubbles on the floor (FUN_00473c00 →
     // FUN_00473a70: draw mode 3, additive), each moved by the side panel's
     // quarter (-W/4 right open, +W/4 left) and drawn when that spot lies in
-    // the half the panel leaves, above the bottom 47 pixels. game.exe bug
-    // (bugs.md #38): the software modes don't shift the world, so they jump.
+    // the half the panel leaves, above the bottom 47 pixels. The world's
+    // shifted the same way (Town::draw_view), so they stay on their tiles
+    // (bugs.md #38 is in doubt: menu.md "The view with panels open").
     if (rain) {
         const int shift = g_drawn.panel_side == 1 ? -(screen_w / 4) : g_drawn.panel_side == 2 ? screen_w / 4 : 0;
         const int left = g_drawn.panel_side == 2 ? screen_w / 4 * 2 : 0, right = g_drawn.panel_side == 1 ? screen_w - screen_w / 4 * 2 : screen_w;

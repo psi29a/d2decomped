@@ -29,6 +29,7 @@
 #include <level_ids.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>
+#include <panel_view.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
@@ -136,6 +137,12 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         // world unit (including the local player) at its actual position.
         cam_x += float(shake.offset.first) / kIsoW + float(shake.offset.second) / kIsoH;
         cam_y += float(shake.offset.second) / kIsoH - float(shake.offset.first) / kIsoW;
+        // A side panel open: the world draws a quarter of the view over, so
+        // the player stands in the middle of the half left free
+        // (FUN_0045aea0; rules/panel_view.hpp). A screen x offset, as the shake's.
+        const int panel_shift = d2d::rules::panel_view_shift(view_state(), fb_width(wide ? *wide : framebuffer));
+        panel_cam_x = float(panel_shift) / kIsoW; panel_cam_y = -float(panel_shift) / kIsoW;
+        cam_x += panel_cam_x; cam_y += panel_cam_y;
         const std::pair<float, float> hero_at{ hero_x, hero_y };
         state_clock.now = frame_ms;
         view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, frame_ms, &character.name, std::max(character.character_class, 0), &state_clock);

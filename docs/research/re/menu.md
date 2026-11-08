@@ -31,6 +31,58 @@ the game's end `FUN_00456d80` calls `FUN_0047f130`, which writes
 the mini-panel's state as the game menu last opened (Save and Exit).
 d2d: d2d.cfg's `mini_panel` (`Town::game_ended`).
 
+## The view with panels open
+
+`FUN_0045aea0(state)` keeps the state in `0x7a5210` (`FUN_0045ae90`
+reads it). `FUN_00455f20` sets it when a UI opens or shuts, and
+`FUN_00456300` (Esc's close-all) does the same:
+
+| UI | state when it opens | state when it shuts |
+|---|---|---|
+| 1 inventory, 4 skill tree (right) | 1; 3 when a left one is up (flags `0x7a27c8`, `0x7a2810`, `0x7a27fc`, `0x7a2800`, `0x7a2850`, `0x7a2854`, `0x7a2818`) | 0; 2 when a left one is up |
+| 2, 0xf, 0x10, 0x14, 0x16, 0x24, 0x25 (left) | 2; 3 when UI 1 or 4 is up | 0; 1 when UI 1 or 4 is up |
+| 0xc, 0xe, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x20 | 3 | 0 |
+
+The inventory and tree checks are at 0x4560de..0x45613d. The left
+panels' checks are at 0x4561e8..0x456206.
+
+UI 0xc is the store (char-panel.md). 0xf is the quest log, 0x16 the
+party and 0x24 the hireling. 0x14, 0x19 and 0x1a are unverified (source:
+D2BS's UI enum): the waypoints, the stash and the cube.
+
+The state moves the world:
+- `FUN_0045aea0` sets `0x7a5214`: -W/4 for state 1, +W/4 for 2, 0
+  otherwise.
+- It sets the view's rect at `0x7a0640` (`FUN_00476000`): {-W/4, 0,
+  W - W/4, H - 40} for 1, {W/4, 0, W + W/4, H - 40} for 2, {0, 0, W,
+  H - 40} otherwise.
+- Units draw at x - (`0x7a520c` - `0x7a5214`) (`FUN_0045afc0`,
+  `FUN_00470ec0`).
+- The cursor maps back to the world through the same offset
+  (`FUN_0045aff0`).
+- The floor draw hands the state to the driver (`FUN_004dea70`'s
+  `local_10` → `FUN_004f68e0`).
+
+So with the inventory open the player stands at x = W/4 (200 at
+800 x 600), the middle of the free left half. With the character panel
+open they stand at 3W/4. This also casts doubt on bugs.md #38's "the
+software modes don't shift the world".
+
+In state 3 nothing of the world is drawn (`FUN_0044c990` skips
+`FUN_00476bc0`).
+
+Opening or shutting one of these from a key (the call's third argument)
+also moves the cursor by W/4 (`FUN_00468770`, `SetCursorPos`), so it
+stays over the same spot in the world.
+
+d2d (`rules/panel_view.hpp`, `Town::view_state`):
+- It works the state out from what's open, not from the last open or
+  shut.
+- The camera moves by the shift (`Town::draw_view`, as the shake does).
+- The weather scrolls with the unshifted view, since its own draw moves
+  it (weather.md).
+- The cursor move isn't kept: a ponytail.
+
 ## Menu tables
 
 A menu is `{count, step, hdr2, hdr3, hdr4}` then its rows:
