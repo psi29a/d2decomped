@@ -144,7 +144,7 @@ operations at `+0xa` and the room-membership test do not.
 | `FUN_005382b0` | byte `+0x1ac`: the client's current act | `FUN_005394a0` and `FUN_0053abe0` use it to index the game's per-act pointers at `game + 0xbc + act * 4` |
 | `FUN_00538590` | u32 `+0`: the client id | `FUN_0052caf0` reads it for the disconnect path |
 | `FUN_005385f0` | byte `+8`: the player class | `FUN_00532590` passes it as the class to `FUN_00555230`; `FUN_00538620` is its setter |
-| `FUN_00538650` | u16 `+0xa`: set mask `DX` when its stack argument is nonzero, else clear that mask | `FUN_0057fca0` and `FUN_00580ec0` set bit 0 |
+| `FUN_00538650` | u16 `+0xa`: set mask `DX` when its stack argument is nonzero, else clear that mask | `FUN_00580ec0` (`00580f7c`) and `FUN_0057fca0` (`0057fd3f`) set 8, the save's died bit (status `+0x24`), with EDX = 8 |
 | `FUN_00538670` | return `u16 +0xa & DX` | `FUN_0052d350` tests bit 0 in its client-timeout check; other callers supply their own masks |
 | `FUN_00538700` | u32 `+0x484`: store the restored unit id in `EDX` | `FUN_0056ae50` stores the unit made from the save's `0x666b` subsection, or `-1` for a null unit; `FUN_005394a0` later resolves values other than 0 and `-1` |
 | `FUN_00538760` | u32 `+0x488`: store `EDX` | `FUN_0056a090` copies save header `+0x2c` here at `0056a1ca..0056a1cf`; `FUN_00538790` reads it back for the save written by `FUN_00568f20`. What those four save bytes mean is not traced |

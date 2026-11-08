@@ -479,6 +479,11 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
 
 - **As the player dies** (the death mode, `FUN_00580ec0` → `FUN_00535ab0`;
   a monster's kill):
+  - the save's died bit: `FUN_00538650(client, 8, 1)` at `00580f7c` sets
+    0x08 in client `+0xa`, the save's status (`+0x24`), softcore or
+    hardcore. `FUN_0057fca0` sets it again when the death has played
+    (`0057fd3f`); with a realm (`DAT_00883d50`) and a hardcore character it
+    then saves at once (`FUN_00532400`);
   - experience (`FUN_005359f0`): DifficultyLevels DeathExpPenalty (0 / 5 /
     10) % of the level's span, exp_next[level] − exp_next[level − 1] (the
     Experience.txt thresholds, `FUN_00611800`), never below the level's
