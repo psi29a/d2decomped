@@ -29,6 +29,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 |---|---|---|
 | Level layouts, monsters, objects | `uv run python diff_drlg.py 1-20 2 [tiles\|monsters\|objgroups\|collision\|game\|npcs]` | `N/N seeds match game.exe` |
 | Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
+| The animated image control (D2WinAnimImage.cpp FUN_00500850: its fields, draw mode 0 stored as 5, on all 15 kind-3 screen records) | `uv run python anim_image.py` | `ok` |
 | The profile dump is dead (Logging\ProfCore.cpp FUN_006116b0: 23 rows, all 0; FUN_00611660 and 0x611730 never referenced) | `uv run python profile_dump.py` | `ok` |
 | SoundHdr falloff range getters (FUN_004825b0, FUN_00482610) | `uv run python sound_hdr_ranges.py` | `ok: 42 falloff minimum/maximum getter cases` |
 | SoundHdr path selection (FUN_00482710) | `uv run python sound_hdr_paths.py` | `ok: 28 sound path and length-boundary cases` |
