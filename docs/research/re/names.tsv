@@ -27,6 +27,10 @@ address	name	evidence
 00483440	set_items_row	ECX id: id*0x1b8 + tables+0xc18, 0 past tables+0xc1c: 127 rows loaded, SetItems.txt's count
 00483470	unique_items_row	ECX id: id*0x14c + tables+0xc24, 0 past tables+0xc28: 402 rows loaded, UniqueItems.txt's count with its Expansion row
 00499040	belt_key_labels	SetFont(1) at 0x499053, then the belt slots' key names
+004a9ae0	skill_count_search_2	fastcall (unit, skill id): the same list search as FUN_004a9a90 and always returns 0; bugs.md 24; skills.md "Skill list accessors and the hotkey sweep"
+004a9b30	skill_count_search_3	fastcall (unit, skill id): the same list search as FUN_004a9a90 and always returns 0; bugs.md 24; skills.md "Skill list accessors and the hotkey sweep"
+004a9d70	hotkeys_unbind_skill	(skill record, count): with count < 1 clears every hotkey slot (0x7c06c8 / 0x7c07b8 / 0x7c0768) bound to a skill id in the picker array 0x7c04e0 equal to the record's id, then FUN_004786a0(-1); skills.md "Skill list accessors and the hotkey sweep"
+004a9df0	hotkeys_unbind_empty	() sweeps the player's skill list, records with +8 & 0x10: FUN_004a9d70(record, node count); empty list asserts (line 0x47d); called by FUN_0048ffe0; skills.md "Skill list accessors and the hotkey sweep"
 004c6ac0	skill_client_start	fastcall (unit, ...), caller FUN_0045d5e0: state list + stat set to the level, start-function table 0x727ba8 per level; skills.md "Stat-list helpers and skill starts" (table meaning not read)
 004c7630	unit_command_on_target	fastcall (unit, target): builds the unit command {0, -1, target type, target id, 1, 0, 0} (type 6 / id -1 for none) and runs FUN_00480c10 with 1; returns 1; caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
 004c7950	target_stat_list_kind6	fastcall (target): stat list FUN_006251f0(0, 6, 0x32, target type, id) with callback FUN_004c7890, linked to the target (d2d_rules_socket_props); caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"

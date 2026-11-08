@@ -1750,6 +1750,31 @@ cited module, not a quoted assert.
   unit id, +0x38 charges). Callers: 00496be0, 004a9a00, 004a9bd0, 004a9fc0,
   004aa3a0. d2d: **not ported**; `skillbar.hpp` keeps the same four fields
   in its own entry type.
+- **FUN_004a9a90 / FUN_004a9ae0 / FUN_004a9b30** (and FUN_004a9b80, the
+  fourth; only 004edea0 calls the first three): fastcall (unit in ECX, skill
+  id in EDX). Four byte-identical bodies. A non-null unit: walk the list from
+  `FUN_00620150(unit)` with `FUN_006438f0`, stopping at the first node whose
+  record (`FUN_00644140`) is non-null, whose `FUN_006450f0` count is at
+  least 1 and whose record's first short equals the skill id. **The result is
+  never used: every path returns 0.** This confirms bugs.md 24 for all four
+  (the 24 row names the family; 004a9ae0 and 004a9b30 are the second and
+  third copies). d2d: **agrees** (`skill_text.hpp:389` shows 0, bugs.md 24).
+- **FUN_004a9d70**(record, count): the hotkey sweep. For each of the 60
+  ints at `0x7c04e0..0x7c05d0` (the picker's skill ids; `0x7c05d0` is the item
+  id array beside them, as `FUN_004aa0f0` shows) equal to `*(short *)record`,
+  each of the 16 hotkey slots k with `0x7c06c8[k]` equal to that value is
+  cleared when `count < 1`: `0x7c06c8[k]`, `0x7c07b8[k]` and `0x7c0768[k]`
+  all set to -1, then `FUN_004786a0(-1)`. The slot loop runs 16 times (its
+  counter 0xffff + k * 0x10000 stops at 0x10ffff).
+- **FUN_004a9df0**(): with the player (`FUN_00463dd0` = `[0x7a6a70]`) list from
+  `FUN_00620150` (an empty list asserts, line `0x47d`), for every node whose
+  record has `+8 & 0x10` it calls `FUN_004a9d70(record, FUN_006450f0(node))`.
+  So a hotkey bound to a scroll / tome-type skill whose node count is below 1
+  is unbound (the count `+0x30`, the real one, unlike the 004a9a90 family).
+  Called once, from `FUN_0048ffe0`. d2d: **not ported**. `skillbar.hpp:26`
+  says nothing clears `0x7c06c8` for a gone entry: that holds (a gone entry
+  is not visited), but a count-0 entry with the record flag does clear it.
+  Which skills have record `+8 & 0x10` was not read.
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
