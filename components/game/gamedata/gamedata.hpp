@@ -91,6 +91,7 @@ struct Npc {
     std::string code;                    // <root>\<code>\ ...
     std::string mode;                    // animation mode token (NU, ON...)
     std::string base_w;                  // weapon class ("hth" for objects)
+    bool composite_death = false;        // MonStats2 compositeDeath: DT and DD keep base_w (cof_weapon_class)
     std::array<std::string, 16> comp;    // per layer, "" = not present
     float x = 0, y = 0;
     int size_x = 0, size_y = 0;          // collision footprint, subtiles
@@ -978,6 +979,13 @@ CofAnim open_cof(const d2d::mpq::Stack& mpqs, const std::string& path);
 CofAnim player_cof(const d2d::mpq::Stack& mpqs, const std::vector<d2d::compcode::Entry>& comp, int cls, int mode,
                    const std::array<std::uint8_t, 32>& gfx);
 CofAnim npc_cof(const d2d::mpq::Stack& mpqs, const Npc& npc, std::string_view mode);
+// The weapon class in a monster's COF name (FUN_0064f5b0, its monster case):
+// death (DT) and dead (DD) are hth unless MonStats2 compositeDeath
+// (FUN_004638a0 bit 0x10, the MonStats2 loader names it at 0x658197); other modes BaseW.
+inline std::string_view cof_weapon_class(const Npc& npc, std::string_view mode) {
+    if (npc.root == "monsters" && !npc.composite_death && (mode == "DT" || mode == "DD")) return "hth";
+    return npc.base_w;
+}
 
 std::vector<std::string> split_variants(std::string_view text);
 std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& table);

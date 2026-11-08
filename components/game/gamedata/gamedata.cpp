@@ -80,9 +80,10 @@ CofAnim player_cof(const d2d::mpq::Stack& mpqs, const std::vector<d2d::compcode:
     if (auto cof = open_cof(mpqs, path(weapon_class.empty() ? "hth" : weapon_class)); cof.ok) return cof;
     return open_cof(mpqs, path("hth"));
 }
-// An NPC's or object's: <root>\<code>\COF\<code><mode><BaseW>.
+// An NPC's or object's: <root>\<code>\COF\<code><mode><weapon class>, the
+// class from cof_weapon_class (BaseW, or hth for a monster's death).
 CofAnim npc_cof(const d2d::mpq::Stack& mpqs, const Npc& npc, std::string_view mode) {
-    return open_cof(mpqs, std::format(R"(data\global\{}\{}\COF\{}{}{}.cof)", npc.root, npc.code, npc.code, mode, npc.base_w));
+    return open_cof(mpqs, std::format(R"(data\global\{}\{}\COF\{}{}{}.cof)", npc.root, npc.code, npc.code, mode, cof_weapon_class(npc, mode)));
 }
 // The timing lookups: the COF and animdata only (the World's).
 template <class Key, class Load>
@@ -95,8 +96,9 @@ const GameData::AnimTiming& timing_of(const GameData& game_data, std::map<Key, G
     }
     return found->second;
 }
+// A monster's or object's COF timing for a mode, cached by the COF it names.
 const GameData::AnimTiming& GameData::npc_timing(const Npc& npc, std::string_view mode) const {
-    auto key = npc.root + "/" + npc.code + "/" + std::string(mode) + "/" + npc.base_w;
+    auto key = npc.root + "/" + npc.code + "/" + std::string(mode) + "/" + std::string(cof_weapon_class(npc, mode));
     for (const auto& component : npc.comp) key += "/" + component;
     return timing_of(*this, npc_timings, key, [&] { return npc_cof(mpqs, npc, mode).timing; });
 }
@@ -125,8 +127,6 @@ std::unordered_map<std::string, std::size_t> id_rows(const d2d::txt::Table& tabl
     return out;
 }
 
-// A monster unit from its MonStats row and the MonStats2 row its
-// MonStatsEx names (the tables aren't row-aligned: 734 vs 609 rows).
 // A level's own light (FUN_00474550 via FUN_00619d70): when any of Levels.txt
 // Intensity / Red / Green / Blue is set its Intensity replaces the day's.
 int level_light(std::string_view intensity, std::string_view red, std::string_view green, std::string_view blue) {
@@ -134,6 +134,9 @@ int level_light(std::string_view intensity, std::string_view red, std::string_vi
     return number(intensity) || number(red) || number(green) || number(blue) ? number(intensity) : -1;
 }
 
+// A MonStats row as a composite: its code, MonStats2 BaseW, layers and flags,
+// from the MonStats2 row its MonStatsEx names (the tables aren't row-aligned:
+// 734 vs 609 rows).
 Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, const d2d::txt::Table& ms2,
                 const std::unordered_map<std::string, std::size_t>& ms2_rows, std::size_t row) {
     const auto found = ms2_rows.find(std::string(monstats.get(row, "MonStatsEx")));
@@ -146,6 +149,7 @@ Npc monster_npc(const GameData& game_data, const d2d::txt::Table& monstats, cons
     npc.id     = std::string(monstats.get(row, "Id"));
     npc.interact = monstats.get(row, "interact") == "1";
     npc.base_w = std::string(ms2.get(row2, "BaseW"));
+    npc.composite_death = ms2.get(row2, "compositeDeath") == "1";
     npc.size_x = std::atoi(std::string(ms2.get(row2, "SizeX")).c_str());
     npc.size_y = std::atoi(std::string(ms2.get(row2, "SizeY")).c_str());
     npc.shape = UnitShape::monster(npc.size_x, (monstats.get(row, "npc") == "1" || monstats.get(row, "inTown") == "1") && monstats.get(row, "interact") != "1",

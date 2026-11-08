@@ -121,6 +121,15 @@ is -1 (then the transformed mode), and tail-calls `FUN_0064f5b0(unit, class,
 mode, type, inv, out, &wclass, full, special)` with the transformed type and
 class.
 
+d2d: players try `<class><mode><weapon class>.cof` and fall back to hth
+(`player_cof`). Monsters use `cof_weapon_class` (`npc_cof`): hth for death (DT,
+DD) unless MonStats2 `compositeDeath` is set, else BaseW. Before it d2d named
+BaseW for death too, so goatmen (GM 2hs), fetishes (FE 1hs) and bone fetishes
+(FK 1hs) asked for a COF that doesn't exist, and skeleton archers (SK bow) and
+Act 5 barbarians (0A) played their weapon's death. Not done: d2d still names a
+monster's knockback COF `<code>KB<BaseW>`, which no MonStats row has, so
+`Fight::knock_back` never starts; game.exe names mode 13 `gh`.
+
 Not covered: the callees run as hooks (the resolver `FUN_0064f060`, the state
 transform, the token-line getters and the table contents behind them), so what
 tokens the real tables hold is not checked; the fatal exit is intercepted;
