@@ -438,7 +438,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (mouse.press_this_frame && !item_click && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
-                net.send(cmd::Sell{ held->id });
+                send(cmd::Sell{ held->id });               // Town::send: a joined game's host makes the sale
                 item_click = true;
             } else {
                 const auto mods = SDL_GetModState();
@@ -446,8 +446,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                                                     { inv_open, stash_open, cube_open, belt_up.shown, character.expansion, (mods & SDL_KMOD_SHIFT) != 0,
                                                       (mods & SDL_KMOD_CTRL) != 0, store.npc >= 0 },
                                                     mouse.x, mouse.y);
-                if (click.cmd) net.send(*click.cmd);
-                if (click.refused)                            // a Ctrl sale no vendor takes (ctrl_click.hpp)
+                if (click.cmd) {                              // a Ctrl sale through Town::send, as above
+                    if (std::holds_alternative<cmd::Sell>(*click.cmd)) send(*click.cmd);
+                    else net.send(*click.cmd);
+                }
+                if (click.refused)                           // a Ctrl sale no vendor takes (ctrl_click.hpp)
                     if (const auto found = scene->sound_index.find(std::string(ctrl_click::impossible_voice(int(character.header.cls)))); found != scene->sound_index.end()) audio_say = found->second;
                 item_click = click.consumed;
             }
