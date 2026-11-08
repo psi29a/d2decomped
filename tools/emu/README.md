@@ -54,6 +54,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Inventory panel decisions (FUN_00483c50, FUN_004844a0, FUN_00486d10, FUN_00486da0, FUN_00486e60, FUN_00486ef0, FUN_00487000) | `uv run python d2common_inventory_ui.py` | `ok: 6814 inventory-ui cases` |
 | SRP state allocation and interleaved dual SHA-1 helper (FUN_00528500, FUN_0052a120) | `uv run python srp_sha.py` | `ok: SRP constructor success/failure and 14 interleaved SHA-1 cases` |
 | Body-armour layers and tiers (FUN_0064f420, FUN_0064f500, FUN_0063d690) vs compcode.hpp | `uv run python composit_layers.py` | `ok: lit layers TR=torso LG=legs RA=rArm LA=lArm S1=rspad S2=lspad; 10 other layers fatal; d2d's compcode tables match` |
+| COF name builder and its wrappers (FUN_0064f5b0, FUN_0064f380, FUN_0064fa00; callees hooked and logged) | `uv run python composit_cof.py` (`--mutation-check` for the model defects) | `ok: FUN_0064f5b0 1772 cases, FUN_0064f380 392, FUN_0064fa00 208; e.g. 1h1js` |
 | Screen shake and quest control frames | `uv run python shake.py > ../../tests/shake_cases.inc`; `uv run python shake.py --controls > ../../tests/quake_control_cases.inc` | `test_shake` matches both captured fixtures |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
 | Waypoint refusal window (C->S 0x49: refused or travels) | `uv run python wp_refuse.py gen 100000 7 --solo > cases.txt; uv run python wp_refuse.py game cases.txt > g.txt; ../../build/tests/test_game --waypoint-refuse cases.txt \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
