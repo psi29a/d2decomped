@@ -1774,7 +1774,58 @@ cited module, not a quoted assert.
   Called once, from `FUN_0048ffe0`. d2d: **not ported**. `skillbar.hpp:26`
   says nothing clears `0x7c06c8` for a gone entry: that holds (a gone entry
   is not visited), but a count-0 entry with the record flag does clear it.
-  Which skills have record `+8 & 0x10` was not read.
+  Which skills have record `+8 & 0x10` was not read; `FUN_004aa3a0` below
+  pairs the same bit with a count above 0, so it marks the count-based
+  (scroll / tome) skills (likely).
+- **FUN_004d9fc0**(unit in ECX, skill in EDX) -> usable status: `FUN_00647960`
+  (unit, skill); when that is 0 and the unit is the client player
+  (`FUN_00463de0` = `[0x7a6a70]`) and the frame clock `FUN_0044da90`
+  (`[0x7a0498]`) is below `FUN_0044ce50` (`[0x7a04fc]`, the cast delay's end)
+  the result is 8, else the status unchanged. d2d: **agrees** with the
+  existing rows (above, "frame clock 0x7a0498 plus min(delay, 12)");
+  this adds the exact test: strict `<`, player only. Callers: 004610c0,
+  00467880, 004a8d30, 004aa3a0, 004c1200.
+- **FUN_004aa3a0**(three args from `FUN_004aa7e0`): the picker's list
+  builder. Ghidra shows five params, so the roles are read from the uses,
+  not proven. `param_3` (the stack word) is 0 in all of `FUN_004aa7e0`'s
+  calls, so its `!= 0` branches (the right-list record test `+7 & 0x40`,
+  x step +0x30) are not reached from there; `param_4` selects placing
+  (`FUN_004a8d50` / `FUN_004aa1f0`) instead of `FUN_004a9a00` + the icon
+  draw, `param_5` skips the icon draw. Per category 0..4, for
+  each node of `FUN_00620150(unit)` (next from `FUN_006438f0` read first):
+  record non-null; id in `[0, [0x744304]+0xba0)`; Skills row (+0xb98 + id *
+  0x23c) non-null; its SkillDesc index (row `+0x194`) in `[0, +0xb94)` with
+  the row (+0xb8c + idx * 0x120) non-null; for the right list the record
+  `+7 & 0x40`; record `+4 & 0x10` (passive) clear; `FUN_006446a0(node) & 8`
+  clear. `FUN_00643b00` gives the item id (and charges); for the left list a
+  non-item node with `FUN_006450f0(node) > 0` and record `+8 & 0x10` counts
+  as an item entry (the scroll / tome rows). Categories 0..3 take non-item
+  nodes whose SkillDesc byte `+5` equals the category; category 4 takes the
+  item entries (so five rows, as the HUD notes above say). A SkillDesc byte
+  `+6` (1..255) already seen is skipped (a 256-byte `seen` table), so two
+  skills sharing it show once. Status colour: `FUN_004d9fc0`: 0 -> 0, 6 -> 4,
+  other -> 1. The row's y starts at `[0x711470] - 0x56` and drops 0x30 for each
+  new category reached; the y of rows 1..4 is saved at `0x7c070c..0x7c0718`.
+  The icon is drawn by `FUN_004a9870`, an item entry by `FUN_004a8d50`
+  (level) or `FUN_004aa1f0` (count). d2d: **agrees** with `skillbar.hpp`
+  (categories, charged entries, passives and flag 0x6ce278 as the existing
+  rows say); the SkillDesc `+6` de-duplication and the count-based
+  (`+8 & 0x10`) entry were not found in d2d (`git grep` on skillbar.hpp:
+  no mention): **not ported**, untested whether it matters in play.
+- **FUN_004aa7e0**(): the picker rebuild. Zeroes `0x7c0300` (0x3c5 bytes),
+  sets the 60 ints at `0x7c05d0` to -1, zeroes `0x7c06c0`, then two passes,
+  each `FUN_00463dd0(a, b, 0)` and `FUN_004aa3a0(a, b, 0)`. With
+  `[0x7c07fc]` zero: (a=0, b=0) then (0, 1); non-zero: (1, 0) then (1, 1).
+  Only caller `FUN_00456ee0` (panel draw). d2d: **agrees** in outline with
+  `skillbar.hpp:7` (two lists); what a and b select was not compared.
+- **FUN_004aa160**(): with the list asserted non-empty (line `0x524`), for each
+  of the 60 picker slots whose entry lookup (`FUN_006439f0`, registers not
+  read) is non-null and whose record has `+4 & 0x10` clear (not a passive),
+  while fewer than 16 were bound, `FUN_004aa0f0` binds it to the next hotkey
+  slot (a free `0x7c06c8[k] == -1`; skill from `0x7c04e0[i]`, item from
+  `0x7c05d0[i]`, left flag from `[0x7c07fc]`). It looks like the default
+  hotkey fill. No caller in `game-calls.tsv` (called through a pointer, or
+  dead: not decided). d2d: **not ported**.
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
