@@ -197,6 +197,9 @@ address	name	evidence
 00639db0	unit_set_state_checked	(unit, state, on): only for 0 <= state < [0x744304]+0xc4; FUN_00625a70 sets or clears the bit, then FUN_0064c040 links the unit into a list once (flag 0x2000); skills.md "Skill accessors"
 0063d430	inventory_set_owner_id	inventory (magic 0x1020304 at +0) +0x24 = arg 2; anything else untouched
 0063e860	unit_is_town_or_owned	(unit in ECX): type 1 whose MonStats row +0xd has npc (1) or inTown (4), else unit +0xc4 bit 31 (a player's pet) (collision.md "Building a path")
+0063e940	monster_is_demon	unit type 1, class in range, MonStats record (0x1a8 each) byte +0xd & 0x20 (missiles.md "Monster class test: demon")
+0063e940	monster_is_demon	unit type 1, class in range, MonStats record (0x1a8 each) byte +0xd & 0x20 (missiles.md "Monster class test: demon")
+0063e990	monster_is_undead	unit type 1, class in range, MonStats record byte +0xd & 8 or & 0x10 (missiles.md "Monster class test: undead")
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00643290	pair_project	(int *a, int *b) in place: a = (a - b) >> 1, b = (a + b) >> 2 from the old values; path +8 / +0xc from the position >> 11 (collision.md "Building a path")
 00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
