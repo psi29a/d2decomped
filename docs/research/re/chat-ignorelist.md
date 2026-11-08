@@ -1,6 +1,6 @@
 # Chat/Ignorelist.cpp and the allocator it uses
 
-Traced from game.exe 1.14d (cited, no oracle run). d2d has no ignore list and
+Traced from game.exe 1.14d (cited; the sections "Account mapping" and "Node teardown" run in `tools/emu/ignorelist.py`, and the remaining five entries in `tools/emu/ignorelist_remaining.py`). d2d has no ignore list and
 no Storm allocator port: the functions below are `not ported`.
 
 ## IgnoreList singleton (`.\Chat\Ignorelist.cpp`)
@@ -160,7 +160,8 @@ operator passes `"delete"` and -1 (`004053f0`, `0040fe60`, `00426e20`).
 
 ## FUN_0060ed30: Ignorelist.cpp free-and-reset
 
-Cited; d2d: not ported (d2d has no ignore list). 33 bytes, `__fastcall`, no
+Run in `tools/emu/ignorelist_remaining.py` on unlinked nodes; d2d: not ported
+(d2d has no ignore list). 33 bytes, `__fastcall`, no
 caller in the table (virtual). If `dword [this+0x18]` is set it frees it with
 `SMemFree(ptr, ".\\Chat\\Ignorelist.cpp", 0x11, 0)`, then runs
 `FUN_0060ea10` on the same object. The assert string and `game-srcfiles.tsv`
@@ -189,3 +190,73 @@ not traced:
   until `dword [this+8]` is 0. Ghidra labels the two strings
   `s___AUBREAKCMD___` and `s___AUMessage_LogManager___`; their exact bytes
   were not read from `game-strings.tsv`.
+
+## Account mapping (`FUN_00611320`)
+
+Run in `tools/emu/ignorelist.py` (9910 cases with the table lookups and the
+Storm allocator hooked). `thiscall`, ECX the list, `(raw name, length)`, `ret 8`,
+returns 1 when it stored a mapping and 0 otherwise (the decompile shows void).
+d2d: not ported.
+
+- Nothing happens (0) for a null or empty name, or when the persistent
+  setting is 0: vtable slot +0x20 of the list object (the constructor reads it
+  from the registry value `"Persistent Ignore"`, above).
+- It zeroes two 256-byte buffers (account, character) and scans the name for
+  index below `length - 1` (unsigned: a length of 0 never stops it): a `(` at
+  index + 1 sets `open` to index + 1 and copies the first `open` bytes to
+  the account; a `)` at index + 1 copies the `index - open` bytes after the
+  `(` (the text between) to the character. So a `(` at index 0 is never seen.
+  It stops as soon as both are non-empty, or at the end of the string.
+- With both non-empty it looks the account up in the hash table at
+  `this + 0x54` (`FUN_0060f510`), creating it when missing (`FUN_00611170`),
+  frees the entry's old value at +0x18 (`SMemFree`, line 0x142), and stores
+  `SStrDup("*" + character)` there.
+- No bound on the copies: a `)` before any `(` copies the string from index 1
+  (`open` is 0), so a name over 256 characters would overflow the buffer.
+  Battle.net names are far shorter.
+
+## Node teardown (`FUN_0060edf0`, `FUN_00610690`, `FUN_0060ef60`)
+
+Same oracle. All three free the node's value at +0x18 (line 0x11,
+`.\Chat\Ignorelist.cpp`, only when set), run the stpl.h cleanup
+`FUN_0060ea10` (frees +0x14, line 0x5e4, when set; unlinks the node's two
+list links at +4 and +0xc when linked; the oracle covers unlinked nodes),
+and free the node:
+
+| Function | Last free | Returns |
+|---|---|---|
+| `FUN_0060edf0(this, flags)` (`ret 4`) | `"delete"` / -1, only when flags bit 0 | `this` |
+| `FUN_0060ef60(list, node)` (`ret 4`) | the node tag / -2 | the node's next link (at node + the list's link offset + 4) when it is positive as a signed value, else 0 |
+| `FUN_00610690(table, node)` (`ret 4`) | the node tag at `0x74362c` / -2 | nothing |
+
+`FUN_0060ef30(list, offset)` (`ret 4`) does nothing when the offset is the
+same; otherwise it unlinks every node (`FUN_0060ecb0`) and resets the
+terminator (prevlink points at itself, next = the complement of its address).
+`FUN_0060edb0` and its copy `FUN_0060eef0` unlink every node and then clear
+the terminator's two words. The oracle runs these on empty lists only.
+
+## Remaining table and singleton helpers
+
+Run in `tools/emu/ignorelist_remaining.py` with allocation, construction and
+virtual deletion hooked. The node cleanup and bucket unlinking run in game.exe.
+
+- `FUN_0060ed30` frees the node's +0x18 value if present, then tail-calls
+  `FUN_0060ea10` to free +0x14 and unlink its two list links. The oracle runs
+  all four combinations of value and cleanup pointer with unlinked nodes.
+- `FUN_0060ed70(table, node)` first reads the node's next link using the offset
+  at table +4, or table +0xc for a null node; only a positive signed link is
+  returned. It calls `FUN_0060e6e0(node)` and then virtual slot 0 with the node.
+  The oracle hooks both calls and checks their order and the link boundary.
+- `FUN_0060ee60(table, mode)` clears table +0x10, unlinks the list at +4,
+  then walks table +0x18 buckets, each 12 bytes at the array at +0x1c. For
+  mode 0 it invokes virtual slot 0 on each bucket node; otherwise it unlinks
+  each node without that callback. The oracle checks empty and populated
+  buckets in both modes, with one node per populated bucket and the virtual
+  callback performing its own unlink. The list at table +4 is empty in these
+  cases; its nonempty behavior is cited from the code.
+- `FUN_006114e0` eagerly allocates 0x188 bytes (`SMemAlloc`, line 0x41),
+  constructs the object and stores the constructor result at `0x96bc20`;
+  allocation failure stores 0. It allocates even when a singleton already
+  exists. `FUN_00611560` returns the existing pointer, or allocates and
+  constructs the same way (line 0x48) if it is null. The oracle checks the
+  allocation-failure and existing-singleton paths as well as success.

@@ -8,7 +8,17 @@
 #include <cmath>
 #include <cstdio>
 
+// Check the original falloff bounds and the world-mix oracle cases.
 int main() {
+    // FUN_004825b0 / FUN_00482610: tools/emu/sound_hdr_ranges.py.
+    constexpr d2d::rules::Falloff kBounds[] = { { 60.f, 400.f }, { 60.f, 700.f }, { 200.f, 1000.f },
+                                                { 400.f, 1500.f }, { 2000.f, 2000.f }, { 60.f, 700.f } };
+    for (int falloff = 0; falloff < 6; ++falloff) {
+        const auto actual = d2d::rules::falloff_range(falloff);
+        assert(actual.near_px == kBounds[falloff].near_px && actual.far_px == kBounds[falloff].far_px);
+    }
+    const auto negative = d2d::rules::falloff_range(-1);
+    assert(negative.near_px == 60.f && negative.far_px == 700.f);
     struct Case { int dx, dy, volume, pan; };
     constexpr Case kOracle[] = {
         { 0, 0, 255, 128 }, { 0, 50, 251, 128 }, { 0, -200, 216, 128 }, { 0, 500, 137, 128 },
