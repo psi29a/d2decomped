@@ -85,6 +85,7 @@ auto World::become_ghost(Player& player) -> void {
 }
 
 auto World::revive(Player& player, std::uint32_t now_ms) -> void {
+    if (player.character.header.hardcore() && player.character.header.died()) return;   // a hardcore ghost stays one
     Player& was = *actor;
     act_as(player);
     player.ghost = false;

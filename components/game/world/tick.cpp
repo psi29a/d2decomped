@@ -326,8 +326,14 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 return std::holds_alternative<cmd::Move>(command) || std::holds_alternative<cmd::UseSkill>(command);
             });
             const bool resurrect = std::ranges::any_of(cmds, [](const Command& command) { return std::holds_alternative<cmd::Resurrect>(command); });
-            // Back in camp after dying: alone, or in co-op once no one's left alive.
-            if (fight.player_modes(button, now_ms, elapsed) && resurrect && (players.size() == 1 || !anyone_alive())) respawn(now_ms);
+            // Back in camp after dying: alone, or in co-op once no one's left alive. A dead
+            // hardcore character leaves the game instead (FUN_0054c0e0: flag 4 at 0054c12c,
+            // then FUN_0052caf0 drops the client).
+            if (fight.player_modes(button, now_ms, elapsed) && resurrect) {
+                const auto& header = actor->character.header;
+                if (header.hardcore() && header.died()) actor->out = true;
+                else if (players.size() == 1 || !anyone_alive()) respawn(now_ms);
+            }
             if (actor->pmode != actor->last_pmode) {                 // death's stages: the penalty as it starts, the corpse as it ends
                 if (actor->pmode == kModeDT) {
                     death_penalty(now_ms);

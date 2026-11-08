@@ -2024,6 +2024,15 @@ int main(int argc, char** argv) try {
             coop.arrive(&data->town, data->town.start.first, data->town.start.second, "a test");
             coop.tick({}, now_ms + kTickMs, now_ms); now_ms += kTickMs;
             assert(!second.ghost && !second.body);
+            // Hardcore (FUN_0054c0e0): the ghost stays one, in town too; its Resurrect takes it out of the game.
+            second.character.header.status |= 0x04;
+            die(second);
+            coop.tick({}, now_ms + kTickMs, now_ms); now_ms += kTickMs;
+            assert(second.ghost && second.character.header.died() && !second.out);
+            const std::vector<Order> give_up{ { second.id, cmd::Resurrect{} } };
+            for (int frame = 0; frame < 50 && !second.out; ++frame, now_ms += kTickMs) coop.tick(frame == 0 ? std::span<const Order>(give_up) : std::span<const Order>{}, now_ms + kTickMs, now_ms);
+            assert(second.out && second.ghost);
+            second.out = false;
         }
 
         assert(coop.leave(second.id) == "no character store" && coop.players.size() == 1 && coop.fight.heroes.size() == 1);
