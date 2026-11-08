@@ -1,0 +1,188 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- The Pages landing page: reads gaps.json (tools/gaps.py) beside it; .github/workflows/gaps.yml copies it in. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D2Decomp progress</title>
+<meta name="description" content="How much of Diablo II 1.14d's game.exe D2Decomp has ported and verified, from the gap map.">
+<link rel="icon" href="d2d.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Barlow+Condensed:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #050403; --panel: #0e0b08; --edge: #3a2c1a;
+  --gold: #c7b377;      /* unique items */
+  --dim: #8a7a55; --faint: #2a2115;
+  --blood: #b01e14; --mana: #6969ff; --set: #3fbf3f; --text: #d8d0c0;
+  --verified: var(--set); --ported: var(--gold); --cited: var(--mana); --untouched: #3b3329;
+  --font-sign: "Cinzel", Georgia, serif;
+  --font-ui: "Barlow Condensed", "Arial Narrow", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 18px/1.45 var(--font-ui); }
+a { color: var(--gold); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px 48px; }
+nav { display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 14px 0; border-bottom: 1px solid var(--edge);
+  font: 600 15px var(--font-sign); letter-spacing: .12em; }
+nav a { color: var(--dim); text-decoration: none; }
+nav a:hover, nav a:focus-visible { color: var(--gold); }
+nav .stamp { margin-left: auto; color: var(--dim); font: 15px var(--font-ui); letter-spacing: 0; }
+.hero { position: relative; margin: 24px 0 40px; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden;
+  background: #000 url(screenshot.png) center / cover; min-height: clamp(260px, 40vw, 440px); display: grid; align-content: end; }
+.hero::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(5,4,3,.15), rgba(5,4,3,.92) 78%); }
+.hero > * { position: relative; }
+.hero img { width: min(560px, 90%); justify-self: center; filter: drop-shadow(0 0 18px #000); }
+.hero .lede { text-align: center; max-width: 62ch; margin: 10px auto 22px; padding: 0 16px; font-size: clamp(17px, 2.2vw, 21px); }
+.hero .lede b { color: var(--gold); font-weight: 600; }
+h2 { font: 700 22px var(--font-sign); color: var(--gold); letter-spacing: .1em; margin: 0 0 14px;
+  border-bottom: 1px solid var(--edge); padding-bottom: 6px; }
+h2 small { font: 16px var(--font-ui); color: var(--dim); letter-spacing: 0; margin-left: 10px; }
+section { margin-bottom: 44px; }
+.big { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.cell { background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; padding: 12px 16px; }
+.cell b { display: block; font: 700 clamp(30px, 4vw, 40px) var(--font-sign); color: var(--gold); line-height: 1.1; }
+.cell span { color: var(--dim); }
+.cell.main b { color: var(--blood); text-shadow: 0 0 14px rgba(176, 30, 20, .6); }
+.bar { display: flex; height: 22px; border: 1px solid var(--edge); border-radius: 3px; overflow: hidden; background: var(--untouched); }
+.bar i { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 8px 0 4px; color: var(--dim); }
+.legend i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border-radius: 2px; }
+.note { color: var(--dim); font-size: 16px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 5px 10px; border-bottom: 1px solid var(--faint); text-align: left; white-space: nowrap; }
+th { color: var(--dim); font-weight: 400; }
+.r { text-align: right; font-variant-numeric: tabular-nums; }
+td .bar { height: 12px; min-width: 140px; }
+.chart { display: block; width: 100%; height: auto; background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; }
+.chart text { fill: var(--dim); font: 13px var(--font-ui); }
+.chart .grid { stroke: var(--faint); }
+footer { border-top: 1px solid var(--edge); padding-top: 14px; color: var(--dim); font-size: 15px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav aria-label="Pages">
+    <a href="#stat">PROGRESS</a><a href="#trend">TREND</a><a href="#modules">MODULES</a><a href="#board">CREDITS</a>
+    <a href="gaps.html">GAP MAP</a><a href="https://github.com/psi29a/d2decomped/blob/main/CONTRIBUTING.md">CONTRIBUTE</a>
+    <a href="https://github.com/psi29a/d2decomped">GITHUB</a>
+    <span class="stamp" id="stamp">loading…</span>
+  </nav>
+  <header class="hero">
+    <img src="hero.png" alt="D2Decomped">
+    <p class="lede">An open-source, cross-platform reimplementation of the <b>Diablo II: Lord of Destruction</b> engine,
+      checked function by function against <b>game.exe 1.14d</b>. All five acts play through, on Linux, macOS, Windows and the Steam Deck.</p>
+  </header>
+  <section id="stat">
+    <h2>PROGRESS <small>game.exe 1.14d, by code bytes</small></h2>
+    <div class="big" id="big"></div>
+    <div class="bar" id="bar" role="img"></div>
+    <div class="legend" id="legend"></div>
+    <p class="note"><b>Verified</b>: an oracle in <code>tools/emu</code> runs game.exe's own code beside d2d's, or a test pins it.
+      <b>Ported</b>: d2d's code cites it. <b>Cited</b>: someone wrote the address down.
+      Library code and stubs are not counted. <span id="remaining"></span></p>
+  </section>
+  <section id="trend">
+    <h2>TREND <small>share of code bytes, at main's last commit each day</small></h2>
+    <svg class="chart" id="trendChart" viewBox="0 0 760 300" role="img" aria-label="Share of game.exe code bytes verified, ported and cited, day by day"></svg>
+  </section>
+  <section id="modules">
+    <h2>MODULES <small>the 20 biggest, from the source file an assert names; all of them on the <a href="gaps.html#by-module">gap map</a></small></h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Module</th><th>Done</th><th class="r">Verified</th><th class="r">Ported</th><th class="r">Cited</th><th class="r">Untouched</th></tr></thead>
+      <tbody id="moduleRows"></tbody>
+    </table></div>
+  </section>
+  <section id="board">
+    <h2>CREDITS <small>commits, plus Reported-by: and Traced-by:</small></h2>
+    <div class="scroll"><table>
+      <thead><tr><th class="r">#</th><th>Name</th><th class="r">Commits</th><th class="r">Reported</th><th class="r">Traced</th></tr></thead>
+      <tbody id="creditRows"></tbody>
+    </table></div>
+  </section>
+  <footer>
+    <p>Numbers come from <code>tools/gaps.py</code> (<a href="gaps.json">gaps.json</a>, <a href="functions.tsv">functions.tsv</a>):
+      where each game.exe function's address is cited in the repo.</p>
+    <p>Fan research and preservation project, not affiliated with or endorsed by Blizzard Entertainment; Diablo is their trademark.
+      This site publishes progress numbers only: no game code or assets. You need your own copy of Diablo II to play.
+      <a href="https://github.com/psi29a/d2decomped/blob/main/LEGAL.md">LEGAL.md</a></p>
+  </footer>
+</div>
+<script>
+(function () {
+  var LEVELS = ['verified', 'ported', 'cited', 'untouched'];
+  function fmt(n) { return n.toLocaleString('en-US'); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function bar(counts, key) {
+    var total = LEVELS.reduce(function (sum, s) { return sum + (key ? counts[s][key] : counts[s]); }, 0) || 1;
+    return LEVELS.slice(0, 3).map(function (s) {
+      var n = key ? counts[s][key] : counts[s];
+      return '<i title="' + s + ' ' + fmt(n) + '" style="width:' + (100 * n / total) + '%;background:var(--' + s + ')"></i>';
+    }).join('');
+  }
+  fetch('gaps.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) {
+    var t = d.totals, bytes = 0, fns = 0;
+    LEVELS.forEach(function (s) { bytes += t[s].bytes; fns += t[s].functions; });
+    var done = 100 * (t.verified.bytes + t.ported.bytes) / bytes;
+    document.getElementById('stamp').textContent = d.generated.date + ' · ' + d.generated.commit;
+    document.getElementById('big').innerHTML =
+      '<div class="cell main"><b>' + done.toFixed(1) + '%</b><span>ported or verified</span></div>' +
+      '<div class="cell"><b>' + fmt(t.verified.functions) + '</b><span>functions verified</span></div>' +
+      '<div class="cell"><b>' + fmt(t.ported.functions) + '</b><span>functions ported</span></div>' +
+      '<div class="cell"><b>' + fmt(fns) + '</b><span>functions in game.exe</span></div>';
+    var barEl = document.getElementById('bar');
+    barEl.innerHTML = bar(t, 'bytes');
+    barEl.setAttribute('aria-label', done.toFixed(1) + '% of code bytes ported or verified');
+    document.getElementById('legend').innerHTML = LEVELS.map(function (s) {
+      return '<span><i style="background:var(--' + s + ')"></i>' + s + ' ' + (100 * t[s].bytes / bytes).toFixed(1) + '%</span>';
+    }).join('');
+    var left = Object.keys(d.remaining).filter(function (k) { return d.remaining[k]; });
+    document.getElementById('remaining').textContent = left.length
+      ? 'Left: ' + left.map(function (k) { return fmt(d.remaining[k]) + ' ' + k; }).join(', ') + '.' : 'Nothing left: every function ported or verified.';
+    document.getElementById('moduleRows').innerHTML = Object.keys(d.modules).map(function (name) {
+      var c = d.modules[name], n = LEVELS.reduce(function (sum, s) { return sum + c[s]; }, 0);
+      return [name, c, n, (c.verified + c.ported) / (n || 1)];
+    }).sort(function (a, b) { return b[2] - a[2]; }).slice(0, 20).map(function (m) {
+      return '<tr><td>' + esc(m[0]) + '</td><td><div class="bar" title="' + (100 * m[3]).toFixed(1) + '%">' + bar(m[1]) + '</div></td>' +
+        LEVELS.map(function (s) { return '<td class="r">' + fmt(m[1][s]) + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    document.getElementById('creditRows').innerHTML = d.credits.map(function (p, i) {
+      return '<tr><td class="r">' + (i + 1) + '</td><td>' + esc(p.name) + '</td><td class="r">' + fmt(p.commits) +
+        '</td><td class="r">' + fmt(p.reported) + '</td><td class="r">' + fmt(p.traced) + '</td></tr>';
+    }).join('');
+  }).catch(function (e) { document.getElementById('stamp').textContent = 'gaps.json failed to load (' + e.message + ')'; });
+
+  // Stacked areas, bottom up: verified, then ported, then cited, as a share of all counted code bytes.
+  fetch('history.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (points) {
+    var svg = document.getElementById('trendChart'), left = 44, right = 744, top = 16, bottom = 270;
+    if (points.length < 2) { document.getElementById('trend').hidden = true; return; }
+    function xAt(i) { return left + (right - left) * i / (points.length - 1); }
+    function yAt(share) { return bottom - (bottom - top) * share; }
+    var html = '';
+    [0, .25, .5, .75, 1].forEach(function (share) {
+      html += '<line class="grid" x1="' + left + '" x2="' + right + '" y1="' + yAt(share) + '" y2="' + yAt(share) + '"/>' +
+        '<text x="' + (left - 6) + '" y="' + (yAt(share) + 4) + '" text-anchor="end">' + share * 100 + '%</text>';
+    });
+    var below = points.map(function () { return 0; });
+    LEVELS.slice(0, 3).forEach(function (s) {
+      var above = points.map(function (p, i) {
+        var t = p.totals, all = LEVELS.reduce(function (sum, l) { return sum + t[l].bytes; }, 0);
+        return below[i] + t[s].bytes / all;
+      });
+      var path = above.map(function (v, i) { return xAt(i) + ',' + yAt(v); })
+        .concat(below.map(function (v, i) { return xAt(i) + ',' + yAt(v); }).reverse());
+      html += '<polygon points="' + path.join(' ') + '" fill="var(--' + s + ')" opacity=".85"><title>' + s + '</title></polygon>';
+      below = above;
+    });
+    var step = Math.ceil(points.length / 8);
+    points.forEach(function (p, i) {
+      if (i % step === 0 || i === points.length - 1) html += '<text x="' + xAt(i) + '" y="290" text-anchor="middle">' + p.date.slice(5) + '</text>';
+    });
+    svg.innerHTML = html;
+  }).catch(function () { document.getElementById('trend').hidden = true; });
+})();
+</script>
+</body>
+</html>

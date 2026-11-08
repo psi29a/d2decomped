@@ -7,7 +7,8 @@ Usage: tools/gaps.py [--out DIR] [--issues]   (from the repo root; default DIR b
 Writes, from the repo alone (no game files, no Ghidra):
   gaps.json      totals, per-module counts, every listed gap, the frontier, credits
   functions.tsv  one row per game.exe function: status, module, callers ported, ...
-  index.md       the summary page (published with GitHub Pages)
+  history.json   with --history: the totals at main's last commit of each day, for the trend chart
+  gaps.md        the gap map page (GitHub Pages; tools/site/index.html is the landing page)
   _includes/head-custom.html  the Pages theme's head hook: dark colours when the system asks
   symbols.tsv    d2d's names and citations, for tools/ghidra/decompile.sh to put in Ghidra
                  (names: docs/research/re/names.tsv, else a C++ function citing one FUN_)
@@ -32,7 +33,7 @@ Credits count commit authors plus Reported-by: / Traced-by: trailers.
 Done means nothing left: no listed gap, and every counted function ported or
 verified. The last line says DONE, or what remains; gaps.json has it too.
 """
-import argparse, bisect, collections, datetime, hashlib, json, os, re, subprocess, sys
+import argparse, bisect, collections, datetime, hashlib, json, os, re, subprocess, sys, tempfile
 
 RE_DIR = "docs/research/re"
 LEVELS = ("untouched", "cited", "ported", "verified")
@@ -472,11 +473,35 @@ def write(out, summary, records, frontier):
            "| Name | Commits | Reported | Traced |", "|---|---|---|---|"]
     for p in summary["credits"]:
         md.append(f"| {p['name']} | {p['commits']} | {p['reported']} | {p['traced']} |")
-    with open(os.path.join(out, "index.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(out, "gaps.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(md) + "\n")
     os.makedirs(os.path.join(out, "_includes"), exist_ok=True)
     with open(os.path.join(out, "_includes", "head-custom.html"), "w", encoding="utf-8") as f:
         f.write(HEAD_CUSTOM)
+
+
+def history(out):
+    """This script's totals at main's last commit of each day since game-functions.tsv came in."""
+    first = git("log", "--diff-filter=A", "--format=%H", "--", f"{RE_DIR}/game-functions.tsv").split()[-1]
+    days = {}
+    for line in git("log", "--first-parent", "--format=%H %cs", f"{first}^..HEAD").split("\n"):
+        if line:
+            days.setdefault(line.split()[1], line.split()[0])   # newest first: the day's last commit
+    points = []
+    # ponytail: a checkout and a run per day (about a second each); cache old days in the Pages artifact if it gets slow
+    for day, commit in sorted(days.items()):
+        with tempfile.TemporaryDirectory() as tree:
+            subprocess.run(["git", "worktree", "add", "--detach", "-q", tree, commit], check=True)
+            try:
+                run = subprocess.run([sys.executable, os.path.abspath(__file__), "--out", os.path.join(tree, "out")],
+                                     cwd=tree, capture_output=True, text=True)
+                if run.returncode == 0:   # an old tree today's script can't read is left out
+                    with open(os.path.join(tree, "out", "gaps.json"), encoding="utf-8") as f:
+                        points.append({"date": day, "commit": commit[:8], "totals": json.load(f)["totals"]})
+            finally:
+                subprocess.run(["git", "worktree", "remove", "--force", tree], check=True)
+    with open(os.path.join(out, "history.json"), "w", encoding="utf-8") as f:
+        json.dump(points, f, indent=1)
 
 
 def done_line(remaining):
@@ -488,9 +513,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", default="build/gaps")
     parser.add_argument("--issues", action="store_true", help="add the open GitHub issues (needs gh)")
+    parser.add_argument("--history", action="store_true", help="also write history.json (a run per day of main)")
     options = parser.parse_args()
     summary, records, frontier = build(options.issues)
     write(options.out, summary, records, frontier)
+    if options.history:
+        history(options.out)
     t = summary["totals"]
     print(" ".join(f"{s} {t[s]['functions']}" for s in reversed(LEVELS)), f"-> {options.out}")
     print(done_line(summary["remaining"]))

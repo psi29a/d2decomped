@@ -28,7 +28,12 @@ jobs:
       - name: Build the gap map
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 tools/gaps.py --issues --out site
+        run: python3 tools/gaps.py --issues --history --out site
+
+      - name: Add the landing page
+        run: |
+          cp tools/site/index.html assets/icon/hero.png assets/icon/d2d.png site/
+          cp docs/screenshots/widescreen-act1.png site/screenshot.png
 
       - uses: actions/configure-pages@v5
 
