@@ -94,6 +94,8 @@ std::array<int, 4> composite_bounds(const Scene::PlayerAnim& anim, int dir_want,
     return bounds;
 }
 
+// Draws the level's floors, walls, roofs and units into the framebuffer
+// (world_view.hpp); raised roofs at the environment's intensity.
 void render_world(std::vector<std::uint8_t>& framebuffer,
                   const Scene& scene,
                   const Level& level,

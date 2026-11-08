@@ -199,6 +199,8 @@ auto World::stamina_frame() -> void {
         stamina = d2d::rules::stamina_regen(stamina, actor->character.stats.values[kMaxStamina], mode, int(actor->psum[kStaminaRecoveryBonus]));
     }
 
+// Runs one game frame with these orders; it also steps the day and the environment's
+// intensity for the player's act and level (FUN_0061bb80).
 auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         const float elapsed = float(now_ms - last_ms) / 1000.f;
         now = now_ms;

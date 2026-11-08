@@ -296,6 +296,8 @@ std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& 
     return { frame.mode, now_ms - mpf * frame.frame - mpf / 2 };
 }
 
+// The frame's light (FUN_00475800, town.hpp), with the environment's
+// intensity the raised roofs take.
 Lighting frame_light(const Scene& scene, const View& view, float cam_x, float cam_y, std::span<const View::Shot> effects , int ambient ,
                      std::span<const Unit> units , const Unit* player_look , std::uint32_t now, const std::pair<float, float>* player_at) {
     Lighting lighting;
