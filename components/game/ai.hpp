@@ -271,8 +271,9 @@ struct Monster {
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
     bool shatter = false;                     // state 107 (FUN_0057af80's roll on a chill)
     std::uint32_t no_heal_until = 0;          // ms: state 0x34 (preventheal, FUN_0057d810)
-    std::uint32_t stunned_until = 0;          // ms: a stun's end (state 21); a stand (below) ending at another time is a freeze's (state 1)
-    std::uint32_t stun_until = 0;             // ms: stunned, it stands
+    std::uint32_t stunned_until = 0;          // ms: a stun's end (state 21)
+    std::uint32_t frozen_until = 0;           // ms: a freeze's end (state 1)
+    std::uint32_t stun_until = 0;             // ms: stunned or frozen, it stands (the later end)
     std::uint32_t just_hit_until = 0;         // ms: state 0x56 justhit (FUN_005adb00), NextHit missiles pass it by
     // Aura Enchanted (uniques.hpp boss_aura): its aura, level, next pulse;
     // and the damage / to-hit % it gets from bosses' auras this frame.
@@ -1150,6 +1151,11 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
 // Life back (FUN_0057a980): `points` whole points, capped at max life; a heal
 // the cap cuts leaves it at full life, no 256ths taken off.
 void heal(Monster& monster, int points);
+// A freeze (FUN_0057b230: state 1 to `until`, a longer one kept): it stands till then.
+inline void freeze(Monster& monster, std::uint32_t until) {
+    monster.frozen_until = std::max(monster.frozen_until, until);
+    monster.stun_until = std::max(monster.stun_until, until);
+}
 // Bone Armor's absorb on a monster (event 22, FUN_005c6370): the pool takes
 // the hit's physical; at 0 the state goes. All in 256ths: the damage left.
 int soak(Monster& monster, int physical, int damage);

@@ -1937,7 +1937,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // FUN_005a73e0 files the think aidel on (0: 15; stunned 0x2d) unless one
     // is pending later.
     const bool own_think = type_info.ai_name == "Andariel" || monster.special == 10 || monster.special == 11 || d2d::rules::traced_ai(type_info.ai_name);
-    const bool frozen = now_ms < monster.stun_until && monster.stun_until != monster.stunned_until;
+    const bool frozen = now_ms < monster.frozen_until;
     const auto think_due = [&] { return own_think && monster.think_pending() && now_ms >= monster.next_act && !monster.uninterruptable() && !frozen; };
     // Frozen, a mode's events due are dropped (FUN_005a7f80: 0 its strike or
     // sequence row, 1 its end): an end inside the freeze never comes, so the
@@ -1962,15 +1962,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // and the next think is filed at the end + MonStats aidel (0: 15); the
     // thinks due while frozen were dropped (FUN_005a7f80). A stun's end
     // (state 21, callback 0x56e900) files none.
-    // ponytail: a freeze that ends under a longer stun files nothing (one
-    // stun_until holds both).
-    if (monster.stun_until != 0 && now_ms >= monster.stun_until) {
-        if (monster.stun_until != monster.stunned_until) {
-            const int aidel = type_info.diff[std::size_t(monster.difficulty)].aidel;
-            monster.next_act = monster.stun_until + std::uint32_t(aidel > 0 ? aidel : 15) * 40;
-        }
-        monster.stun_until = monster.stunned_until = 0;
+    // Under a longer stun too: a think due while stunned stands 3 (below).
+    if (monster.frozen_until != 0 && now_ms >= monster.frozen_until) {
+        const int aidel = type_info.diff[std::size_t(monster.difficulty)].aidel;
+        monster.next_act = monster.frozen_until + std::uint32_t(aidel > 0 ? aidel : 15) * 40;
+        monster.frozen_until = 0;
     }
+    if (monster.stun_until != 0 && now_ms >= monster.stun_until) monster.stun_until = monster.stunned_until = 0;
     // A riding imp sits on its mount (FUN_00621ce0's bind).
     if (monster.riding && monster.bound >= 0 && std::size_t(monster.bound) < pack.size()) { unit.x = pack[std::size_t(monster.bound)].unit.x; unit.y = pack[std::size_t(monster.bound)].unit.y; }
     // A breath under way (FUN_005cc4e0 re-run, FUN_005417d0 type 0): a flame
@@ -2021,6 +2019,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                       || (monster.mode == "DT" && monster.skill >= 0);   // DT alive: a sequence (the egg's hatch)
     if (now_ms < monster.stun_until && monster.mode != "GH" && monster.mode != "BL" && !(frozen && casting)) {
         if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
+        if (now_ms < monster.stunned_until && think_due()) {          // stunned (state 0x15): the driver's first step stands 3 (FUN_005b10e0)
+            monster.thought_ms = now_ms;
+            monster.next_act = now_ms + 3 * 40;
+        }
         return false;
     }
     if (monster.mode == "GH" || monster.mode == "BL") {

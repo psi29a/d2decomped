@@ -54,7 +54,7 @@ int main() try {
     const std::uint32_t end = monster.mode_until;
     assert(end > kStart);
     const std::uint32_t thaw = end + 10 * kFrameMs;              // past the swing's strike and end
-    monster.stun_until = thaw;                                   // frozen: no stun (state 21) of the same length
+    freeze(monster, thaw);
     monster.thought_ms = kStart;
     monster.next_act = thaw + kFrameMs;                          // FUN_0057b230 files the think a frame past the thaw
     const std::uint32_t think_at = thaw + std::uint32_t(aidel > 0 ? aidel : 15) * kFrameMs;
@@ -67,7 +67,23 @@ int main() try {
     assert(monster.mode == "A1" && monster.unit.mode_ms == kStart);   // still held till the thaw's think
     monster_update(*data, here, monster, foes, rng, think_at, 0.04f, crowd, shots, pack);
     assert((monster.mode == "A1" || monster.mode == "A2") && monster.unit.mode_ms == think_at);
-    std::puts("OK: a frozen swing holds, its strike and end dropped, till the thaw's think");
+
+    // A freeze inside a longer stun (state 21): the thaw still files its think
+    // (end + aidel, 0x57b170); due while stunned, it stands 3 (FUN_005b10e0).
+    std::vector<Monster> stood{ make_monster(*data, int(zombie->second), 10.f, 10.f, spawn, 0) };
+    auto& held = stood[0];
+    held.aware = true;
+    const std::uint32_t thawed = kStart + 10 * kFrameMs, unstunned = thawed + 40 * kFrameMs;
+    freeze(held, thawed);
+    held.stun_until = held.stunned_until = unstunned;
+    held.thought_ms = kStart;
+    held.next_act = thawed + kFrameMs;
+    for (now = kStart; now <= thawed; now += kFrameMs) monster_update(*data, here, held, foes, rng, now, 0.04f, crowd, shots, stood);
+    const std::uint32_t due = thawed + std::uint32_t(aidel > 0 ? aidel : 15) * kFrameMs;
+    assert(held.frozen_until == 0 && held.next_act == due && due < unstunned);
+    for (; now <= due; now += kFrameMs) monster_update(*data, here, held, foes, rng, now, 0.04f, crowd, shots, stood);
+    assert(held.mode == "NU" && held.next_act == due + 3 * kFrameMs);
+    std::puts("OK: a frozen swing holds, its strike and end dropped, till the thaw's think; a thaw under a stun thinks");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_freeze_hold: %s\n", error.what());
