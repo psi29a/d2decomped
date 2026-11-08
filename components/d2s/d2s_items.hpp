@@ -103,6 +103,7 @@ struct Item {
     // `props` and how long each set list is; an ear's class, level and name.
     int id = -1;                       // the game's unit id while it's in play (not saved)
     bool wielded = false;              // the inventory's wielded id (+0x1c) is this item's (not saved)
+    bool charm_short = false;          // an inventory charm short of its requirements at the last settle (not saved)
     std::uint32_t flags = 0;
     int version = 101, class_affix = -1, rw_extra = 0, tome = -1, bit_after = 0, dur_extra = 0, set_lists = 0;
     std::size_t main_props = 0;
