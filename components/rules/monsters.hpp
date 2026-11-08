@@ -1365,7 +1365,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 107> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 108> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1377,7 +1377,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
                                                                "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt", "UberIzual", "UberMephisto", "UberDiablo", "UberBaal", "SiegeTower",
-                                                               "HellMeteor", "Sarcophagus", "Spirit", "ArcaneTower", "Trap-RightArrow", "Trap-LeftArrow", "DesertTurret" };
+                                                               "HellMeteor", "Sarcophagus", "Spirit", "ArcaneTower", "Trap-RightArrow", "Trap-LeftArrow", "Trap-Melee", "DesertTurret" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3792,6 +3792,14 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             if (input.skill[0]) { *input.state3 = aip[3] + input.frame; return cast(0); }
         }
         return { MonAct::idle, 30 };
+    }
+    // Trap-Melee (87, FUN_005fba60; trap-melee, an Act 3 MonPreset): out of
+    // melee it stands 40; in melee, a step of its seed % 100 under aip1 an A1
+    // at the target, else it stands aip2.
+    if (ai_name == "Trap-Melee") {
+        if (!input.in_melee) return { MonAct::idle, 40 };
+        if (roll() < aip[0]) return { MonAct::a1 };
+        return { MonAct::idle, aip[1] };
     }
     // DesertTurret (94, FUN_005e0980; the fire towers): with Skill1 and no
     // frame yet it casts it where it stands (state3 0, state the frame);

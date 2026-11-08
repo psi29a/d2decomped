@@ -209,6 +209,10 @@ aip1..3 by difficulty) all run the same way:
   (`FUN_005dead0`); aip1 20, aip3 15. Monster skills are given at Sk*lvl
   (+0x198) + MonsterSkillBonus (`FUN_00573cb0` with `FUN_00573930`): level
   1 / 4 / 8 again.
+- Trap-Melee (87, `FUN_005fba60`; trap-melee, an Act 3 MonPreset row, no
+  chest makes it): search type 1; out of melee stand 40, in melee a step of
+  its seed % 100 under aip1 an A1 at the target, else stand aip2. d2d:
+  `rules::mon_think`.
 
 **What each one does**, at missile level L = 1 / 4 / 8. A missile's
 elemental damage (`FUN_0064b860` → `FUN_0064b100` / `FUN_0064b1d0`) is

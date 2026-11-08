@@ -43,6 +43,15 @@ int main() try {
                 assert(act.act == want && roll.low == mirror.low && (want != MonAct::idle || act.n == 15));
             }
         }
+        for (std::uint32_t seed = 1; seed < 50; ++seed) {           // Trap-Melee (FUN_005fba60): out of melee stand 40; in it aip1 % A1, else stand aip2
+            for (const bool in_melee : { false, true }) {
+                ThinkIn trap_in{ .aip = { 50, 12 }, .in_melee = in_melee, .state = &state };
+                Rng roll{ seed }, mirror{ seed };
+                const auto act = mon_think("Trap-Melee", trap_in, roll, no_away);
+                const bool swing = in_melee && mirror(100) < 50;
+                assert(roll.low == mirror.low && act.act == (swing ? MonAct::a1 : MonAct::idle) && (swing || act.n == (in_melee ? 12 : 40)));
+            }
+        }
         int zombie_pace = 0;
         think_in = { .aip = { 30, 10, 0, 20 }, .dist = 12, .state = &state, .pace = &zombie_pace };   // Zombie: out of aip2, wanders 3 (4 steps), in the Burial Grounds runs
         Rng roll{ 5 };
