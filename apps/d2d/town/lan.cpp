@@ -8,10 +8,12 @@
 #include "load.hpp"
 #include "ui.hpp"
 
+#include <cues.hpp>
 #include <lan.hpp>
 #include <log.hpp>
 #include <protocol.hpp>
 #include <replication.hpp>
+#include <sound_mix.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -122,7 +124,17 @@ auto Town::lan_publish() -> void {
             world.act_as(**found);
             auto out = world.view();
             world.act_as(world.lead());
-            // ponytail: the World's sound cues are the screen's (publish takes them); a joiner hears none yet.
+            // The tick's sounds (publish takes them after) that this joiner could hear where it stands,
+            // as delays from now: its clock isn't ours, it adds its own (lan_client_frame).
+            for (const auto& cue : world.cues.due) {
+                if (cue.sound <= 0 || std::size_t(cue.sound) >= world.game_data->sounds.size()) continue;
+                const auto& row = world.game_data->sounds[std::size_t(cue.sound)];
+                const auto [screen_x, screen_y2] = d2d::rules::screen_offset(cue.x - out.player.x, cue.y - out.player.y);
+                if (!d2d::rules::sound_mix_pixels(std::clamp(row.volume, 0, 255), row.falloff, screen_x, screen_y2).audible) continue;
+                auto heard = cue;
+                heard.when_ms = cue.when_ms > world_ms ? cue.when_ms - world_ms : 0;
+                out.sounds.push_back(heard);
+            }
             out.events = std::move((*found)->events);
             (*found)->events.clear();
             const auto bytes = encode_view(*scene, out, lan_player.view_enc);
@@ -137,7 +149,10 @@ auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t fram
             if (event.type == Type::View) {
                 // ponytail: a View that doesn't apply leaves this client behind the host's encoder
                 // (no resync request yet); TCP keeps them in order, so it means a bug.
+                const auto queued = cues.due.size();
                 if (!take_view(event.view, nullptr)) continue;
+                for (auto cue = cues.due.begin() + std::ptrdiff_t(queued); cue != cues.due.end(); ++cue) cue->when_ms += frame_ms;   // the host's delays, on our clock
+                if (std::getenv("D2D_LAN_SOUNDS") && cues.due.size() > queued) d2d::log::info("lan: {} sounds from the host", cues.due.size() - queued);
                 for (const auto& said : view.events) {
                     if (const auto* refused = std::get_if<ev::TradeRefused>(&said); refused && store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, refused->result, mouse.x, mouse.y);
                     handle(said, audio, frame_ms);
