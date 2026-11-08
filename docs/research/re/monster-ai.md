@@ -25,6 +25,9 @@ and an end inside the freeze never comes; the think after the thaw
 replaces the mode. A breath's re-run (event 0, Imp Inferno's 1) is dropped
 too, so the breath ends. d2d: monster_update's `mode_over`
 (`tests/game/test_freeze_hold.cpp`); a walk still stops at the freeze.
+The thaw files its think under a longer stun (state 21) too; that think,
+due while stunned, stands 3 (FUN_005b10e0). d2d keeps the freeze's end
+apart (`Monster::frozen_until`, `freeze()`).
 It fills a params block (AI control at monster data +0x28, MonStats row)
 and goes, stopping at the first step that acts:
 

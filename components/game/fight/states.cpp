@@ -231,7 +231,7 @@ auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
                     struck.chill_until = std::max(struck.chill_until, now_ms + std::uint32_t(ticks) * 40);
                     struck.shatter = struck.seed.next() % 100 < 20 && !struck.npc.dead_col;
                 } else if (const int divisor = game_data->freeze_divisor[difficulty]; length > 0 && !special && cold_effect < 0 && divisor != 0 && length / divisor > 0) {
-                    struck.stun_until = std::max(struck.stun_until, now_ms + std::uint32_t(length / divisor) * 40);
+                    freeze(struck, now_ms + std::uint32_t(length / divisor) * 40);
                 }
             }
             if (const auto* shiver_armor = state_of("shiverarmor")) {
@@ -276,7 +276,7 @@ auto Fight::merc_buff_events(Foe& foe, std::uint32_t now_ms) -> void {
             const int found = this->monster_index(striker);
             if (found < 0 || !monsters[std::size_t(found)].alive() || monsters[std::size_t(found)].uninterruptable()) continue;   // state 0x36: FUN_0057b230's first test
             const auto monster_index = std::size_t(found);
-            monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frames) * 40);
+            freeze(monsters[monster_index], now_ms + std::uint32_t(frames) * 40);
             monsters[monster_index].chill_until = std::max(monsters[monster_index].chill_until, now_ms + std::uint32_t(frames) * 40);
         }
     }

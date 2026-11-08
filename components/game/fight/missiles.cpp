@@ -773,7 +773,7 @@ auto Fight::stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, s
         // MonsterFreezeDivisor 0 is game.exe's assert (0x254); 1.14d has none.
         // Its think event at the end + 1 (FUN_005417d0 2) is dropped by the
         // thaw (0x57b170), which files the end + aidel one (mon_think).
-        if (frozen.freeze_ticks > 0) monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frozen.freeze_ticks) * 40);
+        if (frozen.freeze_ticks > 0) freeze(monsters[monster_index], now_ms + std::uint32_t(frozen.freeze_ticks) * 40);
     }
 
 auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze, bool one_roll) -> void {
