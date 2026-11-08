@@ -526,7 +526,7 @@ byte rows whose base is the pointer in `DAT_0096d4e8`) and, when that sum is 0,
 reports string id 0x150 (`FUN_00408090` / `FUN_00408a60`) and exits with
 `FUN_00681e09(-1)`. It tests the row's address, not the base or the row's
 content, so it fires only when the address is 0: base 0 with index 0, or a
-wrap (bugs.md #54); base 0 with another index passes. The decompile
+wrap (bugs.md #59); base 0 with another index passes. The decompile
 returns nothing; the asm was not read, so whether the row address stays in EAX
 for the caller is unverified: `FUN_0063e510` calls `FUN_00451f60` right after it
 with no argument of its own, which fits the row (its `+4` read, > 0 to go on).
@@ -845,6 +845,20 @@ Evidence: `python3 tools/ghidra/fn.py 0062c100 0062a250`.
 d2d: reads the same on the colour rules traced here, cited from the decompile, no oracle run (`compcode::Colours::of`,
 `components/compcode/compcode.hpp:310`); the gem and the hasinv/socket gate are
 approximated by the caller's socketed-item code. Cited, not proven.
+
+### A 0x34-byte row check (`FUN_0065b620`)
+
+`FUN_0065b620(index)` computes `index * 0x34 + DAT_0096d4e8` (a table of 0x34
+byte rows whose base is the pointer in `DAT_0096d4e8`) and, when that sum is 0,
+reports string id 0x150 (`FUN_00408090` / `FUN_00408a60`) and exits with
+`FUN_00681e09(-1)`. It tests the row's address, not the base or the row's
+content, so it fires only if the address wraps to 0 (bugs.md #59). The decompile
+returns nothing; the asm was not read, so whether the row address stays in EAX
+for the caller is unverified: `FUN_0063e510` calls `FUN_00451f60` right after it
+with no argument of its own, which fits the row (its `+4` read, > 0 to go on).
+Callers: `FUN_004da790`, `FUN_0063e510`. What the table is was not traced.
+Evidence: `python3 tools/ghidra/fn.py 0065b620`, `python3 tools/ghidra/calls.py 0065b620`.
+d2d: not ported; no mention in `components/` or `apps/`.
 
 ### A unit's class id (`FUN_00451f60`)
 
