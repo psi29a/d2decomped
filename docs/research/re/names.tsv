@@ -6,6 +6,8 @@ address	name	evidence
 00410b50	bits_clear	ANDs byte arg1[n >> 3] with the mask table 0x6ce2e8[n & 7]
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
+0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
+00451f70	unit_mode	ECX unit: +0x10 (structs.tsv unit.mode); null 0
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
@@ -13,10 +15,14 @@ address	name	evidence
 0046dc40	gfx_find_by_name	Gfx.cpp graphic lookup: base name, __strlwr, 512-bucket hash chain (chat.md)
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
 004795a0	roster_next	ECX roster entry: +0x80; null gives the first (DAT_007bb5c0)
+004795c0	roster_name	ECX roster entry: entry + 0x66 (the name); null is fatal, line 0x174
 00479b90	roster_level	ECX roster entry: u16 +0x20; null 0
+00479ba0	roster_class	ECX roster entry: +0x1c; null 0
 0047a0c0	roster_unit_id	ECX roster entry: +0x10; null -1
+0047a1e0	roster_area	ECX roster entry: +0x24; null 0
 00481860	sound_row	ECX id: id*0x8e + DAT_007bc9a0, 0 when id < 0 or >= DAT_007bc9a4 (Sounds.txt's records, music.md)
 004833e0	char_stats_row	ECX class: class*0xc4 + tables+0xbc4, 0 past tables+0xbc8 (the 0xc4-byte class record FUN_005706d0 reads)
+00483410	sets_row	ECX id: id*0x128 + tables+0xc0c, 0 past tables+0xc10: 32 rows loaded, Sets.txt's count
 00483440	set_items_row	ECX id: id*0x1b8 + tables+0xc18, 0 past tables+0xc1c: 127 rows loaded, SetItems.txt's count
 00483470	unique_items_row	ECX id: id*0x14c + tables+0xc24, 0 past tables+0xc28: 402 rows loaded, UniqueItems.txt's count with its Expansion row
 00499040	belt_key_labels	SetFont(1) at 0x499053, then the belt slots' key names
@@ -45,6 +51,7 @@ address	name	evidence
 0058f6c0	ai_leader_died	when leader dies, elects new leader via FUN_0058f530 or disbands pack; AiGeneral.cpp
 0058f710	ai_control_get_spawn_class	reads spawn monster class from AI control +0x3c; AiGeneral.cpp
 0058f810	ai_control_free	destructor for AI control: frees commands, minions (+0x34), and struct; AiGeneral.cpp line 0x19d
+005a0260	umod_count	ECX: the non-zero bytes before the first 0, at most 9 (a monster mod list)
 005aae10	srv_hit_16_put_state	pSrvHitFunc entry 16 (0x73c880): auratargetstate for the skill's +0x144 calc frames (min 5), returns 0
 005ab110	srv_hit_19_put_state	pSrvHitFunc entry 19 (0x73c88c): auratargetstate for the skill's +0x60 calc frames (min 5) on the target, returns 3
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
@@ -152,9 +159,12 @@ address	name	evidence
 00626920	stat_delta_up_lists	ECX list, EDX key, delta, ctx: adds the delta (FUN_006250b0) or refreshes (FUN_006266c0) on the list and its parents (+0x34)
 006269f0	stat_list_detach	unlinks the list from its parent, pushes its values up negated, then calls the removal callback +0x38
 00633680	item_code_to_class	FUN_006bd130(DAT_0096bcc4, code, 0): FUN_0062cbe0 stores the result as the item class (d2s-items.md)
+0063d430	inventory_set_owner_id	inventory (magic 0x1020304 at +0) +0x24 = arg 2; anything else untouched
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
+0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
+006505c0	path_flag_8	path +0x34 & 8; null 0
 00665f40	ds1_cache_acquire	thiscall (out, path): finds path in the list at DAT_0096d60c (byte-exact compare) and bumps the refcount, else loads via FUN_00665950; ".\DRLG\Preset.cpp" lines 0x4e0, 0x4e1
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)
