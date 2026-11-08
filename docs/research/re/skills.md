@@ -1420,8 +1420,16 @@ and per-class base frames, not a table. What's stored:
   end test above). The Druid's SC runs at speed 208, so its row does not hold:
   `cast_ticks(15, 208, 0)` is 18 ticks at 0 FCR, not 14.
 
-### Still unknown
-- Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
+### Skill accessors and the passive refresh (work package 00643690)
+Cited from the decompile (no oracle run); re-check with
+`python3 tools/ghidra/fn.py <address>`.
+
+- **FUN_00643690**(skill id) -> the skill's `passivestate` (record +0x94,
+  short): 0 when the id is outside `[0, [0x744304]+0xba0)`, the record
+  pointer (`+0xb98 + id*0x23c`) is 0, or the short is below 1. Callers:
+  FUN_0056dfa0, FUN_00570080, FUN_00646fd0, FUN_00647110 (each then sets
+  that state on the unit with FUN_00639db0).
+ / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
 - Which `FUN_` reads stat 105 into the SC animation's `frames_shown` (the
