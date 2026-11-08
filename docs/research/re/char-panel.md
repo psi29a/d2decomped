@@ -165,6 +165,10 @@ register arguments are partly dropped), so argument order is a reading.
   `components/rules/pets.hpp:289`); it has no fatal path, a missing player never
   gets that far. The register that carries the argument is not in the decompile
   (a unit whose skill list `FUN_00643930` reads is likely; not seen).
+- **`FUN_006201d0` (right_skill, 56 bytes)**: the same shape as `FUN_00620190`
+  with string 0x64a, tail-calling `FUN_00643960` (the right skill, list +0xc;
+  names.tsv:123). d2d reads the same, cited from the decompile, no oracle run (`components/rules/pets.hpp:289`); same note on
+  the fatal path.
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
