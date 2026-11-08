@@ -3,6 +3,7 @@
 #include "cursor.hpp"
 
 #include "common.hpp"
+#include "ctrl_click.hpp"
 #include "panels.hpp"
 #include "scene.hpp"
 
@@ -49,6 +50,13 @@ CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::
             if (item.location != d2d::d2s::item_location::kStored || item.panel != panel) continue;
             const auto rect = grid_rect(scene, *layout, item);
             if (!inside(rect[0], rect[1], rect[2], rect[3])) continue;
+            // Ctrl, before Shift: sold with a store open, else nothing (ctrl_click.hpp).
+            if (open.ctrl)
+                switch (ctrl_click::outcome(open.store, d2d::rules::sellable(tables, item))) {
+                    case ctrl_click::Outcome::sell: return { true, cmd::Sell{ item.id } };
+                    case ctrl_click::Outcome::refused: return { .consumed = true, .refused = true };
+                    case ctrl_click::Outcome::none: return { true, {} };
+                }
             // Shift: a Beltable inventory item to the belt, the host picks
             // the box; nothing goes into the hand (FUN_0048ffe0, 0x49029d).
             if (open.shift && panel == d2d::d2s::item_panel::kInventory && d2d::rules::beltable(tables, item)) return { true, cmd::AutoBelt{ item.id } };

@@ -228,6 +228,16 @@ The base y is 539 (= 60 + 255 + 224):
 - Buying and selling:
   - right-click stock buys; Buy or Sell toggled on makes a left click
     buy the stock item or sell the clicked inventory item;
+  - Ctrl + left click on a grid item, the hand empty, sells it
+    (`FUN_0048ffe0`: `GetAsyncKeyState(VK_CONTROL)` at `0x4901f4`, before
+    Shift's belt at `0x49029d`). A store open (`FUN_004b3230`, its NPC
+    `FUN_00463990`): if `FUN_0062a130` takes the item, C->S 0x33 at
+    `FUN_0062fdc0`'s price (`0x490261`); if not, the hero's "impossible"
+    (`FUN_004cb9c0` message 0x13, `0x490283`), nothing sent. No store: the
+    click is taken and nothing happens (`0x4902f8`), so Ctrl + click picks
+    up nothing. The branch reads no page; `FUN_004912a0` calls it from
+    three sites (`0x49144d`, `0x4916e7`, `0x491750`), so d2d applies it on
+    each open grid. d2d: `ctrl_click.hpp`;
   - buying needs a free 10×4 inventory spot (column-major first fit) and
     enough carried + stash gold (carried first, a guess); perm items
     stay in stock;

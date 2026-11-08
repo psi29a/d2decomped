@@ -6,6 +6,7 @@
 #include "belt_popup.hpp"
 #include "common.hpp"
 #include "controls.hpp"
+#include "ctrl_click.hpp"
 #include "cursor.hpp"
 #include "gamepad_map.hpp"
 #include "ingame.hpp"
@@ -440,10 +441,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 net.send(cmd::Sell{ held->id });
                 item_click = true;
             } else {
+                const auto mods = SDL_GetModState();
                 const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                                    { inv_open, stash_open, cube_open, belt_up.shown, character.expansion, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 },
+                                                    { inv_open, stash_open, cube_open, belt_up.shown, character.expansion, (mods & SDL_KMOD_SHIFT) != 0,
+                                                      (mods & SDL_KMOD_CTRL) != 0, store.npc >= 0 },
                                                     mouse.x, mouse.y);
                 if (click.cmd) net.send(*click.cmd);
+                if (click.refused)                            // a Ctrl sale no vendor takes (ctrl_click.hpp)
+                    if (const auto found = scene->sound_index.find(std::string(ctrl_click::impossible_voice(int(character.header.cls)))); found != scene->sound_index.end()) audio_say = found->second;
                 item_click = click.consumed;
             }
         }
