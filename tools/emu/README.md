@@ -67,6 +67,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | HUD life / mana / stamina glide (FUN_00496dd0) | `uv run python globe_glide.py gen 2000 1 > cases.tsv; uv run python globe_glide.py game cases.tsv > g.txt; ../../build/tests/test_globe_glide g.txt \| diff g.txt -` | no output |
 | Show Items label layout (FUN_004c0640's 12 tries in FUN_004c0810's loop) | `uv run python show_items_layout.py gen 5000 1 > cases.tsv; uv run python show_items_layout.py game cases.tsv > g.txt; ../../build/tests/test_show_items_layout cases.tsv \| diff g.txt -` | no output |
 | Monster display-name slot (FUN_0063e810: UTF-16 copy to MonsterData +0x2c, with null/type guards) | `uv run python monster_name_slot.py` | copied names including supplementary Unicode, guard cases unchanged, and the no-op mutation detected |
+| Overhead message node (Chat/Chat.cpp: FUN_00661110, FUN_006611a0) | `uv run python chat_node.py` | `30 nodes: time = min(length, 254) x 8 + 125 (2157 frames at 254 and above), ...`, then `ok` |
 | Ignore list account mapping and node teardown (Chat/Ignorelist.cpp: FUN_00611320, FUN_0060edf0, FUN_00610690, FUN_0060ef60, FUN_0060ef30, FUN_0060edb0, FUN_0060eef0) | `uv run python ignorelist.py` | `9910 cases: 244 accounts mapped; ...`, then `ok` |
 
 ## When it breaks
