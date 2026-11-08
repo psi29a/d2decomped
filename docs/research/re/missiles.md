@@ -906,6 +906,43 @@ Re-check: `python3 tools/ghidra/fn.py 0046b850`.
 
 d2d: not ported. No caller is recorded in `game-calls.tsv`.
 
+## Client skill missile, short form: FUN_004e3720
+
+Cited. ECX the caster, EDX the skill id, stack the level; called through
+the data reference at `0x727c14`. Returns 0 when the skill id is outside
+the skills table (count at tables `+0xba0`, rows of 0x23c at `+0xb98`) or
+`FUN_004f21b0()` is not a valid missile row index (table `+0xb64`/`+0xb6c`).
+Otherwise it ORs **0x40** into the caster's flags (`+0xc4`), computes
+`FUN_00646ca0(caster, skill +0x138, skill, level)` (the skill's calc1
+value), makes a missile with `FUN_004c5420(skill, level)`, tags it
+`FUN_0064a710(it, calc1 value)` and returns 1 (0 if no missile).
+
+Re-check: `python3 tools/ghidra/fn.py 004e3720`.
+
+d2d: not ported (no mention of the address). Decompile arguments of
+`FUN_004f21b0` are hidden registers, so what it returns is not settled.
+
+## Client skill missile, long form: FUN_004e1b10
+
+Cited. ECX the caster, EDX the skill id, stack the level; called through
+the data reference at `0x727c8c`. Returns 0 when the skill id is out of
+the skills table or the skill's missile row (short +0xea) is outside the
+missiles table. Otherwise it ORs **0x40** into the caster's flags
+(`+0xc4`) and fills a block: word [0] **3**, [1] / [2] the caster,
+[4] the row, [5] / [6] the caster's position (`FUN_0045adf0` /
+`FUN_0045ae20`), [0xe] the level, [0xf] the skill id, [0xd]
+`FUN_00646ca0(caster, skill +0x138, skill, level)`. Words [7] / [8] are the
+offset from the caster to a target spot: from `FUN_00648a00` /
+`FUN_00648a10` of the caster's data (`+0x2c`) less its position, or, when
+`FUN_004648f0()` is non-zero, from the position after `FUN_00649ef0`
+adjusted it. `FUN_004cd540` makes the missile, tagged with the level
+(`FUN_0064a710(it, level)`); returns 1.
+
+Re-check: `python3 tools/ghidra/fn.py 004e1b10`.
+
+d2d: not ported (no mention of the address). The meaning of
+`FUN_004648f0` is not settled.
+
 ## Missile data setters — FUN_0064a710, FUN_0064a760
 
 Cited. Both take `(unit, value)` on the stack and do the same thing: when
