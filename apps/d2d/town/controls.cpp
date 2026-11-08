@@ -59,6 +59,7 @@ auto Town::load_keys() -> void {
             }
         }
         update_hotkey_names();
+        load_skill_sheet(character.name);
     }
 
 // <name>.key, and with `shared` the save folder's default.key (Accept,
@@ -98,8 +99,10 @@ auto Town::accept_controls() -> void {
         }
         update_hotkey_names();
         if (!(controls.pad == pad_config)) {
+            const bool leave_skills = pad_config.skill_buttons && !controls.pad.skill_buttons;
             set_pad_config(controls.pad);
             pad_config_changed = true;
+            if (leave_skills) { skillbar.picking = 0; skill_strip = -1; }   // a wheel or panel list must not keep the field closed
             if (!cfg_file.empty() && !d2d::userdir::save_cfg(cfg_file, pad::save_config(pad_config))) d2d::log::warn("d2d.cfg: the pad's settings not saved");
         }
     }

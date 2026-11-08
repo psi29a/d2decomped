@@ -3,8 +3,8 @@
 
     uv run python boss_deaths.py
 
-The handler table of superuniques.md "MonUMod 22" (#249), plus Blood Raven's
-row it lacks (class 0x10b, 0x5dfd90: undead only), run in game.exe's own code:
+The handler table of superuniques.md "MonUMod 22", with Blood Raven's row
+(class 0x10b, 0x5dfd90: undead only), run in game.exe's own code:
 - dispatch: mod 22's event-1 hook (0x5a3250) on a death (mode 0) by MonStats
   class, with the handlers hooked to see which one runs;
 - parameters: each handler with FUN_005dfbf0 hooked: radius, the delay's

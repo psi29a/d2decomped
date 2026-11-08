@@ -85,6 +85,39 @@ On a match the field is written by kind:
 The command line runs after the ini load, so it overrides the same
 field. This pass does not write `D2.ini`.
 
+## The application mode
+
+`FUN_00406340` (`0x00406340`, `.\Main.cpp` at `0x006cca30`) reads a
+mode from the same command line before the switch pass. `FUN_004064c0`
+sets the mode to 4 (launcher), calls it with the line in EAX and the
+mode's address on the stack, and passes the mode to `FUN_00405c30`,
+which stores it at `0x0074c704`.
+
+- The line is copied (alloc at line `0x1ba`, freed at `0x1e0`) and the
+  copy is split on `-` with `strtok`. The caller's line is not changed.
+- Each piece is compared with `strncmp` over the length of each of the
+  six names at `0x007065c4`, in order: `modstate0` (0), `client` (1),
+  `server` (2), `multiplayer` (3), `launcher` (4), `expand` (5).
+- A piece that starts with a name stores that name's index, except
+  `client`, which is never stored. Case matters: `-Expand` is no mode.
+  A longer word still matches (`-servername` is server), a shorter one
+  doesn't (`-exp`).
+- The last match on the line wins. No match leaves launcher. The
+  function returns 1.
+
+`-server`, `-multiplayer` and `-modstate0` also reach the switch pass as
+`-s`, `-m` and `-m` with the rest of the word as the argument.
+`-expand`, `-client` and `-launcher` match no switch. Checked by
+`tools/emu/app_mode.py`. What each mode changes after `0x0074c704` was
+not traced.
+
+d2d has no application mode. Its switch pre-pass (`components/switches`)
+drops a word that starts with a mode name and matches no switch, with
+a warning, as it does an unsupported switch. Before, CLI11 refused
+`-expand`, `-client` and `-launcher`, and d2d didn't start.
+A two-dash `--expand` is still CLI11's: two dashes are d2d's own, though
+game.exe's `strtok` would skip the second dash and read the mode.
+
 ## The 58 switches
 
 Ini default below is the `+0x58` dword for a bool or an int. A string's
@@ -203,7 +236,8 @@ From `docs/PLAN.md` and the notes on
   -direct` names a directory, and `--start-name -NOSAVE` names a character.
   Nonempty inline values (`--data=-direct`) need no following word;
   flags do not consume one. Unknown options and missing/invalid values
-  remain CLI11 errors. A standalone `--` ends legacy translation too.
+  remain CLI11 errors, except a one-dash word that starts with a game.exe
+  mode name (The application mode), which is dropped with a warning. A standalone `--` ends legacy translation too.
 
 d2d parses with CLI11 2.6.2. `allow_non_standard_option_names()` stays
 off. Turned on, CLI11 can take a one-dash name (`-nosave`, `-seed=7`).

@@ -2,7 +2,7 @@
 """A unique Fallen Shaman's corpse test: game.exe's own callback FUN_005f1380 on random candidates, against d2d's rule.
 
     uv run python mon_shaman_corpse.py gen N SEED > cases.tsv       (class flags corpse_bit mode dx dy aip4 game_accepts)
-    c++ -std=c++26 -Icomponents/rules -Icomponents/d2s -Icomponents/txt -include cmake/no_near_far.hpp -o harness tools/emu/mon_shaman_corpse_harness.cpp
+    c++ -std=c++23 -Icomponents/rules -Icomponents/d2s -Icomponents/txt -include cmake/no_near_far.hpp -o harness tools/emu/mon_shaman_corpse_harness.cpp
     harness [--old] < cases.tsv > d2d.tsv ; uv run python mon_shaman_corpse.py compare cases.tsv d2d.tsv
 
 The callback (the room search FUN_005dd0b0 calls it for every unit near; the shaman picks that search when its monster flags

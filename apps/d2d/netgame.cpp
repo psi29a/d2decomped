@@ -681,6 +681,10 @@ auto NetGame::set_running(bool run) -> void {
     if (session.state() == d2d::net::JoinState::InGame) send({ d2d::net::d2gs::c2s::set_running(run) });
 }
 
+auto NetGame::hand(int skill, bool left) -> void {
+    if (session.state() == d2d::net::JoinState::InGame) select(skill, left, 0xffffffff);
+}
+
 auto NetGame::select(int skill, bool left, std::uint32_t item) -> void {
     auto& held = hand_skill[left ? 1 : 0];
     if (held == std::pair{ skill, item }) return;

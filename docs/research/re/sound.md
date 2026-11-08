@@ -6,12 +6,21 @@ from ../thirdeye). WAVs are decoded with SDL; headless runs use
 
 ## Sounds.txt
 
-Rows are keyed by `Index`. `FileName` is relative to:
+Rows are keyed by `Index`. d2d resolves `FileName` relative to:
 - `data\global\music\` when `Music Vol` is 1, tried there first;
 - otherwise `data\global\sfx\`, or `data\local\sfx\` for speech
   (d2speech/d2xtalk).
 A name missing from those sfx folders is tried in the music archive
 too. The Den's jingle is Music Vol off and lives only in d2music.
+
+`FUN_00482710` builds an original path from a row's filename: sound ids
+0xb76..0x1230 use `DATA\\LOCAL\\SFX\\`, ids 0x1231..0x125a use
+`DATA\\GLOBAL\\MUSIC\\`, and other ids use `DATA\\GLOBAL\\SFX\\`.
+It terminates with a fatal diagnostic (0x3ab) if the prefix and filename
+are 80 bytes or more. `tools/emu/sound_hdr_paths.py` checks the boundaries
+of both id ranges and the 79/80-byte boundary with synthetic rows; it hooks
+the fatal diagnostic and does not open files. The music-id range here is
+independent of a row's Music Vol flag.
 
 `Volume` runs 0..255, and `Loop` marks looping sounds.
 
@@ -23,6 +32,108 @@ Stream +0x4f, Stereo +0x50, Tracking +0x51, Solo +0x52, Music Vol +0x53,
 Block 1..3 +0x54 / +0x58 / +0x5c; +0x60 is the group's first row, set
 at load. Times below are sound ticks: `DAT_007bc9bc`, +1 per
 `FUN_00482c20` (40 ms).
+
+`FUN_00481950` loads Sounds.txt and SoundEnviron.txt, allocating rows of
+0x8e and 0x58 bytes respectively. Starting at sound row 1, it sets each
+group member's +0x60 to its group's first row; a zero Group Size becomes 1
+after that assignment. It also stores at +0x80 the number of leading Block
+entries before the first -1, capped at three. It scans positive Song values
+in the environment table for a minimum (initially the sound-row count) and
+maximum (initially 0), then allocates four bytes per id in that inclusive
+range. `tools/emu/sound_hdr_tables.py` executes the loader on one synthetic
+pair of tables and checks these fields, sizes and requested paths. File reads
+and parsing are hooked; those checks do not establish parser correctness or
+cover empty and malformed tables.
+
+### Falloff bounds (`FUN_004825b0`, `FUN_00482610`)
+
+The minimum and maximum distance getters read the dword at record +0x47.
+For falloff values 0, 1, 2, 3 and 4 their respective bounds are 60/400,
+60/700, 200/1000, 400/1500 and 2000/2000 client pixels. Other values use
+60/700. Each getter indexes the table at `DAT_007bc9a0` using 0x8e-byte
+records and the count at `DAT_007bc9a4`; an invalid index or absent table
+leads to a null dereference, not a default. `tools/emu/sound_hdr_ranges.py`
+runs both stock getters on three synthetic rows and seven falloff values,
+including an out-of-range and a negative value (42 getter calls). The
+invalid-index path is read from the instructions, not run by this oracle.
+The corresponding d2d bounds are `rules::falloff_range` in `sound_mix.hpp`.
+
+### Group reference counts (`FUN_004822b0`, `FUN_00482370`)
+
+`FUN_004822b0` takes the sound id in ECX and an adjustment in EDX. For a
+valid nonzero id it uses that row's group start (+0x60) and byte group size
+(+0x3d), adding the adjustment to the count at +0x8a of each group member.
+If the selected row has count zero and the adjustment is -1, it does nothing.
+Otherwise, decrementing a group member whose count is zero reaches a fatal
+diagnostic (0x1dc), after earlier group members have already been changed.
+Other adjustments use 32-bit arithmetic. `FUN_00482370` clears those group
+counts. Both ignore sound id zero, an absent table and an out-of-range outer
+id; neither checks group-member bounds before dereferencing them.
+
+`tools/emu/sound_hdr_refs.py` checks grouped increments, decrements, clear,
+outer-id guards and the partial decrement before an underflow diagnostic;
+the diagnostic is intercepted, and malformed group membership is not tested.
+d2d records each group's first row (`gamedata_load.cpp`) but does not port
+this original grouped lifetime operation.
+
+### Lifecycle and cache touch
+
+`FUN_00482260` checks `FUN_00513b50` before initializing the sound table and
+five sound subsystems in order, then clears the sound tick and three adjacent
+counters. It passes its ECX argument to `FUN_004e0050` and 255 to
+`FUN_00515ce0`. `FUN_00482940` performs four shutdown calls and then
+`FUN_004828b0`, also only when that getter is nonzero.
+
+`FUN_00482860` stores the current sound tick at record +0x7c, removes the id
+from the list at `DAT_007bc9b8`, then adds it back. A missing table or bad id
+leads to a null write. `FUN_004828b0` frees the environment table if present,
+calls `FUN_004823e0` on sound ids 1 through count - 1, frees the sound table,
+clears its pointer and count, then clears two range globals. It is safe to
+call again after that cleanup.
+
+`tools/emu/sound_hdr_lifecycle.py` runs these four routines, with their
+subsystem, list, individual record release and allocator calls hooked. It
+checks the getter guard, call order, timestamp and repeated cleanup; it does
+not test the hooked subsystem internals or invalid touch ids.
+
+`FUN_004823e0` releases a loaded sound record: it refuses an active sound
+with a fatal diagnostic (0x259), subtracts the recorded size from the cache
+total, removes the id from the list, and frees either its asynchronous request
+or synchronous sample, then clears the relevant pointers, timestamp and load
+state. An unloaded row is left alone. `tools/emu/sound_hdr_release.py` checks
+the unloaded, synchronous, asynchronous and active paths with the active
+query, removal and free operations hooked.
+
+`FUN_004824a0` tries to free a requested number of cached bytes. Its first
+pass skips records with a nonzero reference count or Cache flag; an optional
+second pass considers those records too. An optional age check skips records
+used fewer than 750 sound ticks ago. In either pass an active sound is skipped;
+an eligible sound is released and the search starts again until the target
+is met or no more can be freed. `tools/emu/sound_hdr_evict.py` checks these
+choices using three synthetic list nodes, with the active query and release
+hooked; the release hook updates the list and byte total. The target uses
+unsigned subtraction: requesting more than the current byte count wraps the
+target and returns success without evicting anything.
+
+`FUN_00482970` dispatches a row's sample load. A missing-file flag or load
+state 2 returns immediately. State 1 waits only for a synchronous request.
+State 0 builds the path, probes the file and size, and requests eviction if
+the new bytes exceed the cache limit. A missing file marks +0x81; unsuccessful
+eviction records the current tick at `DAT_007bc9c4`. A successful synchronous
+read stores the buffer and size, changes state to 2, touches the row and
+invokes audio setup; asynchronous creation stores a request and size, changes
+state to 1 and increments the pending count. `tools/emu/sound_hdr_load.py`
+checks those paths and the synchronous read failure diagnostic with file,
+eviction, touch and audio boundaries hooked; it does not play or decode audio.
+
+`FUN_00482680` chooses within a group. Sizes 0 and 1 return the supplied id;
+otherwise it chooses an offset below the size and retries when the chosen id
+matches one of the active history entries at +0x64 and +0x68. For groups of
+two or three a preliminary random draw can reduce the number of entries it
+avoids; larger groups avoid two. An absent table returns the supplied id.
+`tools/emu/sound_hdr_group.py` checks these choices with scripted random
+values, including retries. It hooks the RNG and does not test RNG quality or
+the caller that updates the history.
 
 ## Starting a sound: Volume, Compound, Defer / Stop Inst
 

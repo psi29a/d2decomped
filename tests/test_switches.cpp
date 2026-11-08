@@ -50,6 +50,7 @@ void expect_ignored(const d2d::switches::Translated& translated, std::initialize
 
 }  // namespace
 
+// Each block runs translate() on one command line and checks argv and the warnings.
 int main() try {
     {
         // The same required-value parsing that d2d uses: a leading dash
@@ -172,6 +173,19 @@ int main() try {
         const auto act = run({"d2d", "-act", "-2"});
         expect_argv(act, {"d2d"});
         expect_ignored(act, {ignored_exact("-act")});
+    }
+    {
+        // game.exe's application modes (FUN_00406340). The three that match
+        // no switch are dropped; -server is still read as -s, as game.exe's
+        // switch pass does. -Expand is no mode (strncmp) and stays for CLI11.
+        const auto modes = run({"d2d", "-expand", "-client", "-launcher", "-expandable", "-server"});
+        expect_argv(modes, {"d2d"});
+        expect_ignored(modes, {"game.exe mode -expand ignored (not supported yet)", "game.exe mode -client ignored (not supported yet)",
+                               "game.exe mode -launcher ignored (not supported yet)", "game.exe mode -expandable ignored (not supported yet)",
+                               ignored_as("-server", "-s")});
+        const auto not_modes = run({"d2d", "-Expand", "-exp"});
+        expect_argv(not_modes, {"d2d", "-Expand", "-exp"});
+        expect_ignored(not_modes, {});
     }
     std::cout << "test_switches: ok\n";
 } catch (const std::exception& error) {

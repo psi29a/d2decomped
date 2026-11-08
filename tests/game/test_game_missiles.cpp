@@ -42,6 +42,7 @@
 namespace fs = std::filesystem;
 using namespace d2d::game;
 
+// Boss and missile cases against the real data; skips without D2_MPQ_DIR.
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
@@ -501,6 +502,39 @@ int main() try {
         world.fight.monsters.resize(first);
         world.fight.pending.clear();
         std::printf("OK: Andariel's death takes the monsters about her with her\n");
+
+        // Blood Raven dead (0x5dfd90 -> FUN_005dfbf0(35, 25, 125, 1)): only the
+        // undead within 35 subtiles get killself, 25..124 frames on.
+        const auto& types = data->monsters.types;
+        const auto undead_type = std::ranges::find_if(types, [](const auto& type) { return type.undead; });
+        const auto living_type = std::ranges::find_if(types, [](const auto& type) { return !type.undead; });
+        assert(undead_type != types.end() && living_type != types.end());
+        Monster raven;
+        raven.type = int(data->mon_bin[0x10b]);
+        raven.id = 0x7ffff5;
+        raven.mods = { d2d::rules::umod::bloodraven, d2d::rules::umod::questcomplete };
+        raven.unit.x = world.actor->player.x + 3; raven.unit.y = world.actor->player.y;
+        Monster zombie, fallen;
+        for (auto* minion : { &zombie, &fallen }) {
+            minion->hit_points = 100;
+            minion->unit.x = raven.unit.x + 6;                          // 30 subtiles
+            minion->unit.y = raven.unit.y;
+        }
+        zombie.id = 0x7ffff6; zombie.type = int(undead_type - types.begin());
+        fallen.id = 0x7ffff7; fallen.type = int(living_type - types.begin());
+        raven.mode = "DT";
+        const std::size_t raven_at = world.fight.monsters.size();
+        world.fight.monsters.push_back(std::move(raven));
+        world.fight.monsters.push_back(std::move(zombie));
+        world.fight.monsters.push_back(std::move(fallen));
+        world.fight.boss_events({}, 9000 * kTickMs);
+        const std::uint32_t raven_due = world.fight.monsters[raven_at + 1].killself_at;
+        assert(raven_due >= 9025 * kTickMs && raven_due < 9125 * kTickMs && world.fight.monsters[raven_at + 2].killself_at == 0);
+        world.fight.boss_events({}, raven_due);
+        assert(!world.fight.monsters[raven_at + 1].alive() && world.fight.monsters[raven_at + 2].alive());
+        world.fight.monsters.resize(raven_at);
+        world.fight.pending.clear();
+        std::printf("OK: Blood Raven's death takes the undead about her, not the rest\n");
     }
 
     // UberIzual's Chilling Armor (do 18): skill_armor_percent on its defense

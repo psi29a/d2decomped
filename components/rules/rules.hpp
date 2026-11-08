@@ -1494,6 +1494,63 @@ inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std:
     return true;
 }
 
+// A bag item worn in one step. The slot is only head, neck, torso, feet or
+// gloves: one body location, so a weapon, a shield, a ring or a belt is
+// refused. The hand must be empty. The old piece moves into the inventory
+// only when a free cell remains after the new item has left its own cells.
+// Any refusal leaves `items` and `held` as they were.
+inline int bag_equip_slot(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const std::optional<d2d::d2s::Item>& held,
+                          int id, const Wearer& wearer, int required_level = -1) {
+    if (held) return -1;
+    const auto found = std::ranges::find(items, id, &d2d::d2s::Item::id);
+    if (found == items.end() || found->location != d2d::d2s::item_location::kStored || found->panel != d2d::d2s::item_panel::kInventory) return -1;
+    const auto* info = info_of(tables, *found);
+    const auto type = info ? tables.types.find(info->type) : tables.types.end();
+    if (type == tables.types.end()) return -1;
+    const int first = type->second.body[0], second = type->second.body[1];
+    if (first != 0 && second != 0 && first != second) return -1;
+    const int slot = first != 0 ? first : second;
+    const bool allowed = slot == d2d::d2s::body_location::kHead || slot == d2d::d2s::body_location::kNeck || slot == d2d::d2s::body_location::kTorso
+                         || slot == d2d::d2s::body_location::kFeet || slot == d2d::d2s::body_location::kGloves;
+    if (!allowed || !can_wear(tables, *found, slot, wearer, required_level)) return -1;
+    return slot;
+}
+
+inline bool equip_from_bag(const Tables& tables, std::vector<d2d::d2s::Item>& items, const std::optional<d2d::d2s::Item>& held,
+                           int id, const Wearer& wearer, int required_level, int cols, int rows) {
+    const int slot = bag_equip_slot(tables, items, held, id, wearer, required_level);
+    if (slot < 0) return false;
+    const auto found = std::ranges::find(items, id, &d2d::d2s::Item::id);
+    int worn = -1;
+    for (std::size_t index = 0; index < items.size(); ++index)
+        if (items[index].location == d2d::d2s::item_location::kEquipped && items[index].slot == slot) worn = int(index);
+    int column = 0, row = 0;
+    if (worn >= 0) {
+        std::vector<const d2d::d2s::Item*> placed;
+        for (const auto& carried : items)
+            if (&carried != &*found && carried.location == d2d::d2s::item_location::kStored && carried.panel == d2d::d2s::item_panel::kInventory)
+                placed.push_back(&carried);
+        const auto [width, height] = item_size(tables, items[std::size_t(worn)].code);
+        const auto spot = free_spot(tables, placed, cols, rows, width, height, true);
+        if (spot.first < 0) return false;
+        column = spot.first;
+        row = spot.second;
+    }
+    if (worn >= 0) {
+        auto& old_item = items[std::size_t(worn)];
+        old_item.location = d2d::d2s::item_location::kStored;
+        old_item.panel = d2d::d2s::item_panel::kInventory;
+        old_item.column = column;
+        old_item.row = row;
+        old_item.slot = 0;
+    }
+    auto& put = *found;
+    put.location = d2d::d2s::item_location::kEquipped;
+    put.slot = slot;
+    put.panel = put.column = put.row = 0;
+    return true;
+}
+
 // An empty hand clicked with nothing held, beside a two-hander (Items
 // +0x11c, FUN_006289c0): FUN_0063dd90's code 4, and the client takes the
 // two-hander (C->S 0x1c with the other hand's slot, FUN_00490780 /

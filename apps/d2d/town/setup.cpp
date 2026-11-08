@@ -156,6 +156,7 @@ auto Town::game_ended() -> void {
     }
 
 auto Town::open_game_menu() -> void {
+        skill_strip = -1;                             // Esc or the mini-panel must not leave the pad on a hidden strip
         if (help.open) toggle_help();                 // first: it may have brought the mini-panel up
         game_menu.restore_automap = automap.open;
         game_menu.restore_mini = mini.open;

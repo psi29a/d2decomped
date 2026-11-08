@@ -52,6 +52,9 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `0x5f81c0` | UberMephisto think (MonAI 146) | stub (`ret 4`) | uber Mephisto stands | same | same |
 | `FUN_005fc130` | AiBaal.cpp: a weighted pick over n weights from the seed at EAX +0x20 (1 when none hits) | orphan (no call, jump or pointer) | — | not ported | monster-ai.md "Orphan AI helpers" |
 | `0x5fd200` | UberBaal think (MonAI 145) | stub (`ret 4`) | uber Baal stands after his target search | `mon_think` returns none | monster-ai.md "AncientStatue and the ubers' MonAIs", bugs.md #26 |
+| `FUN_00611660` | ProfCore.cpp: adds the QueryPerformanceCounter ticks since a start to profile row n (the 64-bit time at +0x68, of which the low dword is logged; count +0x70) | orphan (no call, jump or pointer) | the 23 rows at `0x743800` stay 0 | not ported | "Profile dump" below |
+| `FUN_006116b0` | ProfCore.cpp: logs the profile rows (D2ProfileDump) | dead (its rows are never written) | runs on leaving the client mode (0x44b980), but logs only zeros, and only with a log file open | not ported | same |
+| `0x611730` | ProfCore.cpp: `FUN_006116b0`, then zeroes each row's time and count | orphan (no call, jump or pointer) | — | not ported | same |
 | `FUN_00622e90` | Units.cpp callback | stub (`ret 8`) | the call returns without a Units action | not ported | "Units stub" below |
 | `FUN_0063be30` | Inventory.cpp callback | stub (`ret 8`) | 26 calls return without an Inventory action | not ported | "Inventory stub" below |
 | `FUN_00647640` / `FUN_0056f460` stat 125 | Throw with an item_throwable weapon (stat 125, Properties `throw`): the gate takes it and the do-func throws it as its missiletype | unreachable | no UniqueItems, SetItems, Sets, Runes, Magic prefix / suffix, AutoMagic, CubeMain, Gems or QualityItems row has the `throw` property | the gate (`throw_ready`) takes it; `ammo_index` and the launch don't | throw.md, skills.md "Throw (do 3" |
@@ -64,6 +67,22 @@ the doc with the details. Add a row whenever a trace ends in one.
 `FUN_0055f4f0`'s whole body is `RET 4`, discarding one stack argument.
 Its eight call sites are in `FUN_00533c70`, `FUN_005380d0`, `FUN_0054bd90`,
 `FUN_0054ced0` (two), `FUN_0054d130`, `FUN_0056ac10` and `FUN_00597890`.
+
+### Profile dump
+
+`FUN_006116b0` (Logging\ProfCore.cpp) logs "PROFILING DUMP FREQUENCY %d:"
+with `QueryPerformanceFrequency` (line 0x4e), then "FUNCTION: %30s, TIME
+%12d, COUNT %5d" (line 0x54) for each of the 23 0x78-byte rows at
+`0x743800`: the name at +0, the 64-bit time at +0x68 (the low
+dword is logged), the count at +0x70, from
+"Sample" and "Server Loop" to "Com Find Path" and "Com Path Step". Both
+lines go through `FUN_006248e0`, which writes only while a log file is
+open. Only `FUN_00611660` adds to a row and only `0x611730` resets them (no
+other instruction operand or data dword points into the rows); neither has
+a call, jump or pointer in the image, so every row is 0. The
+client calls the dump at 0x44b980, on its way out of the client mode.
+Checked by `tools/emu/profile_dump.py`. d2d has no profiler of game.exe's
+rows; nothing to port.
 
 ### Units stub
 

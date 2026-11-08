@@ -116,7 +116,7 @@ Completed build-system work:
 2. `D2D_FFMPEG_SOURCE_DIR` supplies a prepared FFmpeg tree; CMake builds the
    static libraries out of tree without running its download or install
    steps.
-3. The C++26 project builds with warnings-as-errors and optimized release
+3. The C++23 project builds with warnings-as-errors and optimized release
    settings in the KDE 6.11 SDK.
 4. Flatpak install rules omit Qt deployment and developer tools, and include
    the launcher, game binary, desktop/AppStream metadata, icon, and license.

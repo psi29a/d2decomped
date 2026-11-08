@@ -63,6 +63,29 @@ the cursor speed, as `pad_*` lines in `d2d.cfg`. The same screen sets
 the keyboard's keys, as game.exe does (kept beside the saves as
 `<name>.key` and `default.key`).
 
+Skill buttons is a third preset on that page (`pad_skill_buttons`).
+The layout above stays the default. With the preset on, A, B, X, Y, LB
+and RB each cast a skill, and holding LT uses a second set. RT casts
+one skill, and holding LT casts a second one on RT. A file that only
+saved the first uses it for both until the second is assigned. The right stick's click
+talks, picks up and uses, and does not cast. A short LT tap swaps
+weapons. View opens a wheel of the existing skill icons, eight at a time:
+highlight one, press a button to assign it, and press it again to
+leave it there. The line under the wheel says to hit that same button
+to close. Clear is its own wedge, and so are Interact (talk, use, or
+pick up) and Show Items (held, like Alt). Charged items stay on the
+mouse fan. A skill the character no longer has does not cast. An aura selects that skill on the right hand, which is how the aura turns on, and pressing it again restores the previous right-hand skill. Start opens a list of the panels (character,
+inventory, skill tree, automap, quests, party, hireling, help and the
+game menu). South confirms that list and East closes it. The button
+layout is `d2d.cfg`, for every character. Which skill is on a button is
+`<name>.padskills` beside the save, and only for that character. While
+the pad is the last input, the seven slots sit above the original bar,
+between the orbs, with the button name under each icon. A mouse move,
+a click, or a key brings the classic panel back, and the mini-panel's
+option row with it. Restore default controller, on the Gamepad page,
+turns the preset off and puts the normal bindings back. Accept keeps
+that. The mouse fan and the keyboard are unchanged.
+
 Settings live in `d2d.cfg`: `~/Library/Preferences/d2d` (macOS),
 `~/.config/d2d` (Linux), `Documents\My Games\d2d` (Windows). The log,
 `d2d.log`, is in the same folder.

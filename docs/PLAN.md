@@ -1,7 +1,7 @@
 # D2Decomp — Plan
 
 Reverse-engineer Diablo II (2000, LoD 2001) into a cross-platform, modern
-C++26 engine. game.exe 1.14d is the ground truth: Ghidra and an emulator
+C++23 engine. game.exe 1.14d is the ground truth: Ghidra and an emulator
 of its own code (tools/emu) drive the work; other projects only check our
 reading ("Reference projects" below).
 
@@ -171,7 +171,7 @@ level generator `d2d::drlg`, the game server `d2d::game`
 
 ## Toolchain
 
-- C++26 (`-std=c++2c` / `/std:c++latest`), CMake ≥ 3.28, Ninja.
+- C++23 (`-std=c++23` / `/std:c++latest`), CMake ≥ 3.28, Ninja.
 - System packages: SDL3 (window, input, WAV decode), OpenAL (openal-soft),
   FFmpeg (Bink cinematics), zlib, Qt6 ≥ 6.5 (launcher only).
 - StormLib (MPQ): the system package, else `FetchContent`; CLI11: `FetchContent`.

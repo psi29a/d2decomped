@@ -154,8 +154,9 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
 // FUN_005dfbf0: each monster the unit finder takes within radius subtiles
 // of the boss (flags 0x583: alive, unit +0xc4 & 4 and & 8, d2d's
 // targetable(); not in town, which no boss here is), evil (FUN_006259b0)
-// and not diabloclone (0x14d), gets killself (MonUMod 21, FUN_005a4850(0x15,
-// 0)), its event 7 first + rand(end - first) frames on. Mephisto's
+// and not diabloclone (0x14d), undead (FUN_0063e990) when the hook asks
+// (Blood Raven's), gets killself (MonUMod 21, FUN_005a4850(0x15, 0)), its
+// event 7 first + rand(end - first) frames on. Mephisto's
 // (FUN_005dfdb0) is mephistodeathcontrol (299) on himself; Radament's also
 // radamentdeath (347) at his spot (FUN_0056ede0).
 // ponytail: the draws go in monsters order, not the near rooms' unit lists; the two death missiles
@@ -169,6 +170,7 @@ auto Fight::quest_death(Monster& boss, std::uint32_t now_ms) -> void {
             for (auto& other : monsters) {
                 const int off_x = subtile(other.unit.x) - subtile(boss.unit.x), off_y = subtile(other.unit.y) - subtile(boss.unit.y);
                 if (!other.targetable() || other.align != 0 || other.type == row(0x14d) || off_x * off_x + off_y * off_y > hook.radius * hook.radius) continue;
+                if (hook.undead_only && !(other.type >= 0 && std::size_t(other.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(other.type)].undead)) continue;
                 const std::uint32_t due = now_ms + std::uint32_t(hook.first + boss.seed(hook.end - hook.first)) * 40;
                 if (!other.killself_at || due < other.killself_at) other.killself_at = due;
             }

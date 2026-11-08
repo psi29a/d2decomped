@@ -2,15 +2,10 @@
 cmake_minimum_required(VERSION 3.28)
 project(D2Decomp LANGUAGES C CXX) # Bundled StormLib contains both C and C++ sources.
 
-# MSVC: CMake has no C++26 flag for it; 23 maps to /std:c++latest, the
-# newest dialect MSVC offers.
-# -DCMAKE_CXX_STANDARD=23 overrides it (the Coverity scan: its 2024.12
-# front end reads -std=c++26 as C++17).
-if(DEFINED CMAKE_CXX_STANDARD)
-elseif(MSVC)
+# C++23: nothing here uses C++26, and 23 is what MSVC (/std:c++latest) and
+# Coverity's front end can read. -DCMAKE_CXX_STANDARD=... still overrides it.
+if(NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 23)
-else()
-    set(CMAKE_CXX_STANDARD 26)
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
