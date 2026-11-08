@@ -157,6 +157,14 @@ register arguments are partly dropped), so argument order is a reading.
   already uses it as "no SkillDesc row" (0). d2d: not ported; it
   joins Skills.txt `skilldesc` to SkillDesc.txt by name (`components/rules/skills.hpp:405`,
   `:472`), which gives the same row, so nothing disagrees.
+- **`FUN_00620190` (left_skill, 56 bytes)**: a null argument is fatal, not a
+  0: it fetches string 0x641 (`FUN_00408090`), prints it with `FUN_00408a60`
+  to the log at `DAT_006cc837`, and exits through `FUN_00681e09(-1)`. Otherwise
+  it tail-calls `FUN_00643930` (the left skill, list +8; named in
+  names.tsv:122). d2d agrees on the result (`components/game/world/commands.cpp:364`,
+  `components/rules/pets.hpp:289`); it has no fatal path, a missing player never
+  gets that far. The register that carries the argument is not in the decompile
+  (a unit whose skill list `FUN_00643930` reads is likely; not seen).
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
