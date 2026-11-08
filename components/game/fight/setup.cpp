@@ -119,7 +119,12 @@ auto Fight::merc_level_stats() -> void {
 
 auto Fight::revive(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
-        actor->character.stats.values[kLife] = actor->character.stats.values[kMaxLife];
+        // The respawn handler (client packet 0x41, FUN_0054c0e0, only for a dead
+        // unit) sets stats 6, 8 and 0xa to the maxima of stats 7, 9 and 0xb
+        // (FUN_00625d10 / 25d60 / 25db0): 0x54c17c, 0x54c18a, 0x54c198.
+        static constexpr std::pair<StatId, StatId> kRefill[] = { { kLife, kMaxLife }, { kMana, kMaxMana }, { kStamina, kMaxStamina } };
+        for (const auto& [cur, max] : kRefill)
+            actor->character.stats.values[cur] = actor->character.stats.values[max];
         actor->regen.clear();
         actor->stamina_pot = {};
         actor->potion_states = {};
