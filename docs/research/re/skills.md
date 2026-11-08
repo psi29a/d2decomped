@@ -1498,6 +1498,30 @@ Cited from the decompile (no oracle run); re-check with
   no oracle run, on the new node's level 1, mode and tail append (`pets.cpp:942`, pet-ai.md:269, throw.md:30). Not in
   d2d: the +1 on an existing base entry (capped for a player) and the
   class 6 / skill 5 mode 0x10 case; `shadow_give` sets the level directly.
+- **FUN_00646fd0**(skill, drop_level): the removing twin of FUN_00647110.
+  The unit comes in EBX (Ghidra shows `unaff_EBX`; the asm was not read, so
+  the register use is cited, not proven). With a list at unit +0xa8 and a
+  first node: passivestate (FUN_00643690) off (FUN_00639db0(unit, ps, 0)).
+  The list header holds three selected-skill pointers: +8 (cleared with
+  FUN_00643bc0(unit, 0, -1)), +0xc (FUN_00643c50(unit, 0, -1)) and +0x10
+  (zeroed); each is cleared if it is the base entry (+0x34 == -1) of this
+  skill, **whether or not the level then reaches 0**. Then it finds the base
+  entry in the chain: with `drop_level` 0, or when `+0x28 -= 1` leaves less
+  than 1, the node is unlinked and freed (FUN_0040b480, Skills.cpp line
+  0x4ac); finally FUN_00646d60 refreshes the passive. d2d: **not ported**.
+  Callers: 006470f0, 00647280.
+- **FUN_00570080**(player, skill) -> 1 when learned: spends skill points.
+  Guards as above (skill in range, record non-null). Cost 1, or when record
+  +0x170 is not -1 the calc at that offset (FUN_00646ca0; level from
+  FUN_006442a0 on the current entry, 0 when there is none; +0x170 is likely
+  `skpoints`, unconfirmed). If stat 5 (the unspent skill points) is at least
+  the cost: stat 5 -= cost (FUN_006272b0), FUN_00647110 grants the level,
+  FUN_00646f20 refreshes all passives, and for a player-type unit
+  (`unit[0] == 0`) FUN_00554010 and FUN_00575900 run. On success it calls
+  FUN_005531c0(0xd73) and FUN_0053c4a0, then sets the passivestate on and
+  FUN_00646d60, and returns 1. When FUN_00647110 returns 0 the stat 5 cost is
+  given back and the result is 0. d2d: **not ported** (grep of
+  `components/` and `apps/` for 00570080 finds nothing).
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's

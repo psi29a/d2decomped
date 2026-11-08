@@ -33,6 +33,7 @@ address	name	evidence
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
 0056dfa0	skills_refresh_passives	fastcall (unit): for each node of the unit +0xa8 skill list whose passivestate > 0: state on (FUN_00639db0) and FUN_00646d60; skills.md "Skill accessors"
+00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
 0058ebc0	ai_control_alloc	allocates 0x40 bytes zeroed; sets flags +0x10 = 1, +0x30 = 1, target +0xc = -1, owner +0x2c = -1; AiGeneral.cpp line 0x1b
@@ -169,6 +170,7 @@ address	name	evidence
 00643910	skill_list_first	(list header) -> header +4 (the first node), 0 for null; same body as FUN_006438f0; skills.md "Skill accessors"
 00643ce0	skill_node_id	(node) -> *(short *)node[0], the skill id from the node's record; 0 for a null node; skills.md "Skill accessors"
 00646d60	skill_passive_refresh	(unit, skill): fills the passivestate (+0x94) stat list from passivestat/passivecalc at the skill level, layer passiveitype, stats 0x15e / 0x15f = skill / level; with the +0x80 state on it removes the list instead; skills.md "Skill accessors"
+00646fd0	skill_remove	(skill, drop_level), unit in EBX: passivestate off, the three selected-skill pointers at list header +8 / +0xc / +0x10 cleared when they are this base entry, then the base entry loses a level or is unlinked and freed (Skills.cpp line 0x4ac); FUN_00646d60 refresh
 00647110	skill_grant	(unit, skill) -> entry: passivestate on; an existing base entry (+0x34 == -1) gets +0x28 += 1 (player: below FUN_004aa8b0(); monster: always), else a new 0x40-byte node (level 1, mode from record +0x10 / +0x11) joins the +0xa8 list's tail; then FUN_00646d60; Skills.cpp line 0x539
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
