@@ -1442,7 +1442,8 @@ Cited from the decompile (no oracle run); re-check with
 - **FUN_00643910**(list) and **FUN_006438f0**(node): both are `p ? p[+4] : 0`
   (byte-identical bodies). A skill list header's +4 is the first node
   (FUN_00647110 reads `list+4` too), a node's +4 the next one. FUN_0056dfa0
-  walks `for (n = FUN_00643910(unit+0xa8); n; n = FUN_006438f0(n))`. Callers
+  walks `for (n = FUN_00643910(*(unit+0xa8)); n; n = FUN_006438f0(n))`
+  (the header pointer at unit `+0xa8`, tested non-null first). Callers
   of 006438f0: 004a9a90..004a9df0 (five), of 00643910: 004c7990, 0053c5d0,
   0056dfa0, 00575900, 005eb970. d2d: **not ported** (the shadow oracle only
   stubs them, `tools/emu/shadow_master.py:350`).
@@ -1631,7 +1632,8 @@ Cited from the decompile (no oracle run); re-check with
   FUN_0056e520 (the temporary attackrate list above), to-hit
   = `d2d_skills_skill_tohit` + stat 0x145 (325) into FUN_0057ec10; on a
   hit (result & 1) FUN_005d54b0 builds the kick damage, then
-  FUN_0057dbf0 applies it with HitClass record +0x1a5 (0x80 when 0);
+  FUN_0057dbf0 applies it with SrcDam, record +0x1a5 (0x80 when 0;
+  HitClass is the separate field at +0x134);
   returns 1 (also on a miss). d2d: **agrees** with skills.md "Dragon Tail"
   and strike.cpp:415 on the kick at toht + stat 325 and the 0x80 default;
   unlike Bash it has no town refusal. **Not ported**: the attackrate list.
@@ -1661,18 +1663,21 @@ Cited from the decompile (no oracle run); re-check with
   2^36); else when c ≤ b >> 4 it divides first (`(b / c) * a`, wrapping), and
   for a > 0x100000 when c ≤ a >> 4 `(a / c) * b`; else it widens (`__alldiv`
   of the 64-bit product by c sign-extended). The tests are signed, so a
-  negative a or b takes the 32-bit branch. d2d: **agrees**,
+  negative a or b passes its own bound, but the 32-bit branch needs both
+  (a ≤ 0x100000 and b ≤ 0x10000); one over its bound takes the other paths. d2d: **agrees**,
   `rules::mul_div` (`combat.hpp:261`) is the same branch for branch (its
   comment names FUN_00483360); callers in ai.cpp, strike.cpp and
-  gamedata.hpp use it. The only wart is the 32-bit wrap (bugs.md 53).
+  gamedata.hpp use it. The only wart is the 32-bit wrap (bugs.md #61).
 - **FUN_004833e0**(class in ECX) (36 bytes) -> the CharStats record
   (`[0x744304]+0xbc4 + class*0xc4`; count at `+0xbc8`): 0 when the class is
   negative or at least the count. No null test of its own (a missing table gives
   a bad pointer, not 0). Callers: FUN_004c85b0, FUN_004c9120, FUN_004c9b40,
   FUN_004e4d80, FUN_005cf6b0. FUN_005cf6b0 (Charge start) reads its byte
-  `+0x41` << 8 as the swing's pace when the unit is a player (`unit[0] == 0`);
+  `+0x41` << 8 (the class's run velocity, as at the Charge row above and
+  char-select.md; it goes to FUN_00648690, the movement speed, not a swing
+  pace) when the unit is a player (`unit[0] == 0`);
   a monster uses the short at MonStats `+0x34` << 8 instead, and the default is
-  0x100. What `+0x41` is in CharStats is not read here. The record walk
+  0x100. The record walk
   matches drops.md ("walks the class's CharStats row"). d2d: **not ported**
   as a function (CharStats rows are `rules::` tables read by class).
 - **FUN_004c7630**(unit in ECX, target in EDX) (102 bytes) -> always 1: builds
@@ -1697,14 +1702,16 @@ Cited from the decompile (no oracle run); re-check with
   Callers: FUN_004c83c0, FUN_004c8d90, FUN_004c9120, FUN_004c9b40 (its last
   call, after the skill-list header is set). What kind 6 or the 0x32 stand
   for is not read here (cited). d2d: **not ported** (a client-side list).
-- **FUN_00620250**(unit) (56 bytes) -> the unit's skill-list header (unit
-  `+0x10`; FUN_006439a0 returns `+0x10`, 0 for a null header). A null **unit**
+- **FUN_00620250**(unit) (56 bytes) -> the unit's selected (current) skill
+  node: FUN_006439a0 returns field `+0x10` of the skill-list header (unit
+  `+0xa8`; the register it gets is dropped by the decompile, inferred), 0 for
+  a null header, and also 0 when the header has no selected skill. A null **unit**
   is fatal: it formats message 0x65c (FUN_00408090 / FUN_00408a60) and calls
   FUN_00681e09(-1) (the exit), so a null unit never returns 0; a unit
-  with no header gives 0, which FUN_004c9b40 and FUN_005cf6b0 test. Callers include FUN_004611f0, FUN_00463390, FUN_004645b0,
+  with no header (or no selected skill) gives 0, which FUN_004c9b40 and FUN_005cf6b0 test. Callers include FUN_004611f0, FUN_00463390, FUN_004645b0,
   FUN_00465070, FUN_004654c0. d2d: **agrees** with combat.md "unit skill list
-  +0x10" (cited there); the fatal null is not modelled (d2d's units are
-  never null here).
+  +0x10" (cited there); the fatal null is not modelled (not checked
+  whether any d2d caller can pass a null unit).
 - **FUN_00644560**(header, value) (51 bytes): sets skill-list header `+0x18`;
   a null header formats message 0xa76 and exits (FUN_00681e09(-1)). Seen as
   the first of the target pair `(+0x18, +0x1c)`: the target's type (FUN_004c9b40,
@@ -1739,8 +1746,9 @@ cited module, not a quoted assert.
   004a9b30, 004a9b80, 004a9df0, 004aa3a0, 0055c070 and others (see
   `game-calls.tsv`). d2d: **not ported** (only the always-0 result of the
   count's search is, `skill_text.hpp:389`).
-- **FUN_00620150**(unit) -> `FUN_00643910(unit +0xa8)`, the first node of the
-  unit's skill list; a null unit asserts with line `0x638` and exits. d2d:
+- **FUN_00620150**(unit) -> `FUN_00643910(*(unit +0xa8))`: the header pointer
+  stored at unit `+0xa8` is passed, and `FUN_00643910` reads header `+4`, the
+  first node of the unit's skill list; a null unit asserts with line `0x638` and exits. d2d:
   **not ported** (it holds the list directly).
 - **FUN_00643b00**(node, &item, &skill, &level, &charges) -> 0 when node
   `+0x34` is -1 (a base entry), else 1 with each non-null out written:
@@ -1760,8 +1768,9 @@ cited module, not a quoted assert.
   (the 24 row names the family; 004a9ae0 and 004a9b30 are the second and
   third copies). d2d: **agrees** (`skill_text.hpp:389` shows 0, bugs.md 24).
 - **FUN_004a9d70**(record, count): the hotkey sweep. For each of the 60
-  ints at `0x7c04e0..0x7c05d0` (the picker's skill ids; `0x7c05d0` is the item
-  id array beside them, as `FUN_004aa0f0` shows) equal to `*(short *)record`,
+  ints from `0x7c04e0` up to but not including `0x7c05d0` (the picker's skill
+  ids; the 60 ints starting at `0x7c05d0` are the item ids beside them, as
+  `FUN_004aa0f0` shows: skill `0x7c04e0[i]`, item `0x7c05d0[i]`) equal to `*(short *)record`,
   each of the 16 hotkey slots k with `0x7c06c8[k]` equal to that value is
   cleared when `count < 1`: `0x7c06c8[k]`, `0x7c07b8[k]` and `0x7c0768[k]`
   all set to -1, then `FUN_004786a0(-1)`. The slot loop runs 16 times (its

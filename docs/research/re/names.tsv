@@ -22,7 +22,6 @@ address	name	evidence
 0047a1e0	roster_area	ECX roster entry: +0x24; null 0
 00481860	sound_row	ECX id: id*0x8e + DAT_007bc9a0, 0 when id < 0 or >= DAT_007bc9a4 (Sounds.txt's records, music.md)
 004833e0	char_stats_row	ECX class: class*0xc4 + tables+0xbc4, 0 past tables+0xbc8 (the 0xc4-byte class record FUN_005706d0 reads)
-004833e0	charstats_record	fastcall (class) -> CharStats record [0x744304]+0xbc4 + class*0xc4, 0 for a class < 0 or >= [+0xbc8]; skills.md "Skill record and skill-list accessors"
 00483410	sets_row	ECX id: id*0x128 + tables+0xc0c, 0 past tables+0xc10: 32 rows loaded, Sets.txt's count
 00483440	set_items_row	ECX id: id*0x1b8 + tables+0xc18, 0 past tables+0xc1c: 127 rows loaded, SetItems.txt's count
 00483470	unique_items_row	ECX id: id*0x14c + tables+0xc24, 0 past tables+0xc28: 402 rows loaded, UniqueItems.txt's count with its Expansion row
