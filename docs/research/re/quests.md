@@ -194,10 +194,25 @@ States: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded.
     and under 6 left, the log's count is resent (state flag 0x20,
     `FUN_00544300(0, FUN_0058fbe0, 1)`), and again at +0xb 4 with 6 or
     more (a monster back up).
-  - 0 remaining → state 4 and the game flag. Participants (the list at
-    +0x18, `FUN_005455f0`) get bits 13 and 1. Others get bit 14 and the
-    0xd82 message.
-  - Participants play unit event 0x23 (`FUN_00553380`). After 8 ticks
+  - 0 remaining → state 4 and the game flag, then four passes in call
+    order (0x590387..0x5903bd; the last three walk the game's players,
+    `FUN_005537d0`: the 128 buckets at game +0x1120, passing over a unit
+    `FUN_00639df0(unit, 7)` holds for, not traced):
+    1. Participants (the list at +0x18: each Den monster's killer,
+       0x5902c4, `FUN_00545200`) get bits 13 and 1 (`FUN_005455f0`).
+    2. Each player with bit 13 in a party (`FUN_00554630` not 0xffff)
+       passes it to the party (`LAB_00590190` → `FUN_00540510`): each
+       member in Act 1 (its room's level's act 0) neither done nor due
+       gets bits 13 and 1 (`LAB_00590120`).
+    3. Each player neither done nor due gets bit 14 and the 0xd82
+       message (`LAB_00590080`).
+    4. Each player with bit 13 plays unit event 0x23 (`LAB_005900e0`,
+       `FUN_00553380`).
+
+    So a player who killed none of the Den's monsters gets the clear
+    only through a party; out of one, it is bit 14. d2d's World is one
+    party (local co-op, and a d2d host's joiners), as `World::kill_credit`.
+  - After 8 ticks
     (`FUN_00543f10`, `LAB_00590230`) the log goes to 5, "Return to Akara".
   - Under 6 remaining → log 4, "Monsters remaining: N".
 - **A1Q1SuccessfulAkara (76) heard while bit 1 is set:** state 5. Bit 0

@@ -693,9 +693,14 @@ auto World::den_count(std::uint32_t now_ms) -> void {
                 d2d::log::info("Den of Evil: cleared");
                 music_cue("music_quest_den");
                 den_log_at = now_ms + 8 * kTickMs;     // the log's "Return to Akara" 8 ticks on (LAB_00590230)
-                each_player([&](Player& player) {
-                    if (d2d::rules::DenQuest::credit(quests(), den.participants.has(player.id))) class_cue("act1_complete_den", now_ms);   // unit event 0x23
-                });
+                // FUN_00590260 at 0x590387..0x5903bd, as Blood Raven's (kill_credit):
+                // the participants (FUN_005455f0); each player with bit 13 brings
+                // their party in Act 1 (LAB_00590190 → FUN_00540510 → LAB_00590120;
+                // local co-op is one party); the rest bit 14 (LAB_00590080); each
+                // with bit 13 says the line (LAB_005900e0).
+                using Den = d2d::rules::DenQuest;
+                kill_credit(Den::kQuest, 0, { 13, 1 }, [&](const Player& player) { return den.participants.has(player.id); }, [&](Player&) { Den::credit(quests(), true); }, [&](Player&) { Den::credit(quests(), false); });
+                each_player([&](Player&) { if (d2d::rules::quest::bit(quests(), Den::kQuest, 13)) class_cue("act1_complete_den", now_ms); });   // unit event 0x23
             }
         }
         den_left = left;

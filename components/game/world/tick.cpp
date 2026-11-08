@@ -526,7 +526,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         for (auto& player : players)
             player->owner_mode = !player->player.walking ? 1 : player->running && player->character.stats.values[d2d::d2s::kStamina] > 0 ? 3 : in_moor ? 2 : 6;
         fight.world(in_moor, now_ms, elapsed, crowd);
-        den_count(now_ms);                                       // each player's credit its own (DenQuest::credit)
+        den_count(now_ms);                                       // the killers' credit, then their party's (den_count)
         if (den_log_at && now_ms >= den_log_at) { den.log = 5; den_log_at = 0; }
         each_player([&](Player& player) {
             if (std::exchange(player.reassigned, false)) player.events.push_back(ev::Reassigned{});
