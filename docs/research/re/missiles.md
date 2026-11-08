@@ -857,6 +857,20 @@ Re-check: `python3 tools/ghidra/fn.py 0046b9a0`.
 
 d2d: not ported (no mention of rows 299 / 0x166 / 0x132).
 
+## Client unit spawn at a unit's spot: FUN_0046b3c0
+
+Cited. ECX the unit; nothing happens for a null unit. It reads the unit's
+two position words: for unit types 2, 4 and 5 from the unit's data block
+(`unit[0xb]`, +0xc and +0x10), else (when a data block exists) through
+`FUN_006488c0` / `FUN_00648900`. It makes a unit with
+`FUN_004cdb40(+0xc word, +0x10 word, 0, 1)` and, when that returns one,
+tags it `FUN_0064a710(it, 0x19)`. The tag setter only acts on a missile
+(type 3), so the result is a missile (the setter ignores anything else).
+
+Re-check: `python3 tools/ghidra/fn.py 0046b3c0`.
+
+d2d: not ported. No caller is recorded in `game-calls.tsv`.
+
 ## Missile data setters — FUN_0064a710, FUN_0064a760
 
 Cited. Both take `(unit, value)` on the stack and do the same thing: when
