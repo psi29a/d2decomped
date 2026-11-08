@@ -27,7 +27,7 @@ runs), `re/net-packets.md` (layouts; what the client does itself),
 - **Never Blizzard servers.** Only an address the user types; no default
   host, no gateway list, no BNCS / MCP here (battlenet.md, PvPGN only).
   Live checks run only against hosts on Bret's LAN.
-- **C++26** (MSVC /std:c++latest) in PLAN.md's style: meaningful names,
+- **C++23** (MSVC /std:c++latest) in PLAN.md's style: meaningful names,
   `auto Class::name() -> Ret` out of line, self-contained headers,
   clang-tidy clean, assert + `int main` tests. Namespaces `d2d::net::d2gs`
   (codec, sans-IO) and `d2d::net`. No game logic in socket code (rule 3).

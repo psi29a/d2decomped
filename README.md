@@ -103,7 +103,7 @@ keyboard in Gaming Mode; if one doesn't, press STEAM + X.
 
 ## Build and run
 
-You'll need a C++26 compiler, CMake 3.28+, Ninja, SDL3, OpenAL, zlib, libcurl
+You'll need a C++23 compiler, CMake 3.28+, Ninja, SDL3, OpenAL, zlib, libcurl
 and Qt 6.5+ for the launcher. The build fetches CLI11 and Sentry itself. On Linux
 and macOS it also builds a small Bink-only FFmpeg. StormLib comes from your
 system if it has one, or from source if not.
