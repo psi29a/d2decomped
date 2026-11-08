@@ -1397,6 +1397,17 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     update_button(*button, mouse, screen, quit);
                 if (play && csu.selected >= 0 && csu.selected < count) screen = Screen::InGame;
                 if (chosen_difficulty >= 0) screen = Screen::InGame;
+                // A dead hardcore character (FUN_00439840: status 4 and 8 at 00439a36, single player or
+                // hosting): game.exe's popup 0x14b8 and no game. A joiner's goes on; the host refuses it.
+                if (screen == Screen::InGame && g_join_host.empty() && csu.selected >= 0 && csu.selected < count
+                    && scene->saves[std::size_t(csu.selected)].hardcore() && scene->saves[std::size_t(csu.selected)].died()) {
+                    screen = Screen::CharSelect;
+                    chosen_difficulty = -1;
+                    const auto text = lookup_string(*scene, 0x14b8);
+                    csu.popup = text ? u16_to_latin1(*text) : "You cannot create or join games with a dead hardcore character.";
+                    csu.popup_return = Screen::CharSelect;
+                    d2d::log::info("charselect: {}", csu.popup);
+                }
                 // Past Normal, game.exe asks first (FUN_00439840); joining, the host's game sets it.
                 if (screen == Screen::InGame && chosen_difficulty < 0 && g_join_host.empty() && csu.selected >= 0 && csu.selected < count
                     && asks_difficulty(scene->saves[std::size_t(csu.selected)])) {

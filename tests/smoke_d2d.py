@@ -41,8 +41,9 @@ if real:
 else:
     make_save("Alpha", 0x24, 0, 10)   # hardcore expansion Amazon
     make_save("Beta",  0x20, 3, 20)   # expansion Paladin
-    for i in range(3, 12):            # 11 saves total: 6 rows -> scrollbar
+    for i in range(3, 12):            # 12 saves total: 6 rows -> scrollbar
         make_save(f"Char{i:02}", 0x20, i % 7, i)
+    make_save("Zed", 0x2C, 1, 30)     # a dead hardcore Sorceress, sorted last
 
 # The 1.14d patch installer (D2_PATCH_INSTALLER) brings the town objects
 # the stash step needs; without it that step is skipped.
@@ -139,6 +140,17 @@ try:
         assert st["save"] == str(n - 1) and st["scroll"] == str(max_scroll)
         cmd("key Home"); frames(3)
         assert state()["save"] == "0" and state()["scroll"] == "0"
+
+    # A dead hardcore character: OK shows game.exe's popup 0x14b8 and
+    # stays (FUN_00439840); the popup's OK closes it.
+    if not real:
+        cmd("key End"); frames(3)
+        assert state()["name"] == "Zed"
+        cmd("click 690 555"); frames()
+        assert state()["screen"] == "charselect", "a dead hardcore character went in"
+        cmd("key Return"); frames()
+        assert state()["screen"] == "charselect"
+        cmd("key Home"); frames(3)
 
     cmd("click 690 555")              # OK -> InGame as that save
     frames()
