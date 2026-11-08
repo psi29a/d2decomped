@@ -31,6 +31,7 @@ namespace cmd = game::cmd;
 namespace ev = game::ev;
 namespace wire = game::wire;
 
+using game::add_price_line;
 using game::Character;
 using game::CharacterStore;
 using game::Command;

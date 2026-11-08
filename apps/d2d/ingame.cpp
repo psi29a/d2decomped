@@ -332,15 +332,16 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 if (frame < 5 ? hud.left_open : hud.right_open)
                     blit_at_anchor(framebuffer, scene.border_frame.frame(0, std::uint32_t(frame)), scene.act_pal.entries().empty() ? scene.pal : scene.act_pal, kSpots[frame][0], kSpots[frame][1]);
         }
+        // With a store open, your items show what the vendor pays ("Sell value: ", 0xd03):
+        // the inventory's and the belt's (FUN_0048dd90, FUN_00497a40).
+        std::function<std::string(const d2d::d2s::Item&)> sell_price;
+        if (store && store->npc >= 0)
+            sell_price = [&](const d2d::d2s::Item& item) {
+                return string_id(scene, 0xd03) + std::to_string(d2d::rules::item_price(scene.rules, item, store->npc_id, true, store->header));
+            };
         auto draw_inventory_panel = [&] {
             if (inventory && class_idx >= 0 && class_idx < 7)
             {
-                // With a store open, your items show what the vendor pays ("Sell value: ", 0xd03).
-                std::function<std::string(const d2d::d2s::Item&)> sell_price;
-                if (store && store->npc >= 0)
-                    sell_price = [&](const d2d::d2s::Item& item) {
-                        return string_id(scene, 0xd03) + std::to_string(d2d::rules::item_price(scene.rules, item, store->npc_id, true, store->header));
-                    };
                 draw_inventory(framebuffer, scene, scene.inv_layout[std::size_t(kUiToSaveClass[class_idx])], *inventory,
                                mouse_x, mouse_y, hover_wearer, &sell_price, hud.weapon_set_two, hud.header);
                 if (hud_stats) draw_gold(framebuffer, scene, *hud_stats, false);
@@ -375,7 +376,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (speech) draw_speech(framebuffer, scene, *speech, elapsed_ms);
         if (hud_stats && !hud.hidden) draw_hud(framebuffer, scene, *hud_stats, hud, mouse_x, mouse_y);
         if (belt && !hud.hidden) draw_belt(framebuffer, scene, *belt, mouse_x, mouse_y, hover_wearer,
-                            belt_popup, hud.belt_keys);
+                            belt_popup, hud.belt_keys, &sell_price);
         // Dev overlay: a red dot on every blocked subtile around the camera.
         if (g_debug_collision) {
             const int center_x = int(cam_x * 5), center_y = int(cam_y * 5);

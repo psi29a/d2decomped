@@ -143,7 +143,12 @@ The base y is 539 (= 60 + 255 + 224):
 - Cain's identify fee and other payments take the purse first, then the
   stash (`FUN_00576d90`).
 - Prices (hover: "Cost: " 0xd01 in the store, "Sell value: " 0xd03 on
-  your own items while it is open), per FUN_0062efb0:
+  your own items while it is open, the inventory's and the belt's). The
+  line (`FUN_004b2ad0`) goes after the name in the bottom-up hover string
+  (`FUN_0048dd90` -> `FUN_0048cea0` at `0x48ec27`; the belt's
+  `FUN_00497a40` at `0x497bf1`), so it shows on top, and it carries no
+  colour code, so it keeps the name's: blue over a magic item, gold over
+  a unique (d2d `add_price_line`). Per FUN_0062efb0:
   1. base = the item's cost column (armor/weapons/misc.txt); an armor
      (ItemTypes armo, `0062f0f2`) is cost x its own defence (stat 31)
      / maxac, for buy, sell and repair alike. Two kinds

@@ -184,7 +184,7 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     }
     if (hover) {
         auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer);
-        if (price && *price) lines.push_back({ (*price)(*hover), kTxtWhite });
+        if (price && *price) add_price_line(lines, (*price)(*hover));
         draw_hover_text(framebuffer, scene, lines, hover_box[0], hover_box[0] + hover_box[2],
                         hover_box[1] + hover_box[3], hover_box[1]);
     }
@@ -680,7 +680,8 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state) {
 }
 
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys) {
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys,
+               const std::function<std::string(const d2d::d2s::Item&)>* price) {
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     const auto& belt = scene.belts[std::size_t(belt_index(scene, items))];
     const int rows = belt.boxes / 4;
@@ -707,7 +708,11 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
         }
         if (mouse_x >= box[0] && mouse_x <= box[1] && mouse_y >= box[2] && mouse_y <= box[3]) { hover = &item; hover_box = box; }
     }
-    if (hover) draw_hover_text(framebuffer, scene, item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer), hover_box[0], hover_box[1] + 1, hover_box[3] + 1, hover_box[2]);
+    if (hover) {
+        auto lines = item_lines(scene, *hover, wearer ? wearer->lvl : 1, wearer);
+        if (price && *price) add_price_line(lines, (*price)(*hover));
+        draw_hover_text(framebuffer, scene, lines, hover_box[0], hover_box[1] + 1, hover_box[3] + 1, hover_box[2]);
+    }
 }
 
 int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash) {
