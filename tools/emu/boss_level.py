@@ -111,6 +111,7 @@ class Game:
     def level(self, row, diff): return self.e.r16(self.rec(row) + 0xaa + 2 * diff)
 
     def run(self, row, diff, kind, mods, seed, area=0):
+        """Run the stock stat initializer and boss modifiers for one seeded unit."""
         e, u = self.e, self.unit
         e.mu.mem_write(u, b"\0" * 0x100); e.mu.mem_write(self.data, b"\0" * 0x40)
         e.mu.mem_write(self.game + 0x6d, bytes([diff]))
@@ -220,6 +221,7 @@ def game(path):
 
 
 def compare(cases_path, game_path, d2d_path):
+    """Compare each requested case and fail on any mismatch or missing result."""
     with open(cases_path) as stream:
         cases = {fields[0]: fields[1:] for line in stream if (fields := line.split())}
 
@@ -227,6 +229,7 @@ def compare(cases_path, game_path, d2d_path):
         sys.exit(f"{cases_path}: no cases")
 
     def read_rows(path, allow_no_type=False):
+        """Read result rows by case ID while ignoring unrelated build output."""
         rows = {}
         with open(path) as stream:
             for line in stream:

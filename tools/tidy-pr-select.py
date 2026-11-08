@@ -26,6 +26,7 @@ def ninja_deps(build_dir: str) -> dict[str, set[str]]:
 
 
 def parse_ninja_deps(build_dir: str, text: str) -> dict[str, set[str]]:
+    """Map each object file to the absolute paths of its recorded headers."""
     out: dict[str, set[str]] = {}
     current: str | None = None
     for line in text.splitlines():

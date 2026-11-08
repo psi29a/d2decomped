@@ -145,6 +145,7 @@ def resisted_fine(fine, res):
 
 
 def port_line(elem, b, v, p, r):
+    """Return the adjustment, effective resistance and damage for one port case."""
     adj = -(-v // 5) if v < 0 and b >= 100 else v
     res = b + adj
     if 2 <= elem <= 5 and res < 100:
