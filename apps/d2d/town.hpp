@@ -331,6 +331,14 @@ struct Town {
     std::vector<LanPlayer> lan_players;
     void lan_poll();
     void lan_publish();
+    // --connect: this d2d plays in a d2d host's game. Its World doesn't tick; the host's Views
+    // come in and are taken as publish takes the local one, its commands go out over the socket.
+    std::optional<d2d::net::lan::Client> lan_client;
+    std::string lan_lost;                         // why the host's game ended for us ("" while it's on)
+    void lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms);
+    // A View's bytes taken as the screen's (publish's second half; the client's every View).
+    // `local`: the World's own View when it made these (a local game keeps its merc's FHR).
+    bool take_view(std::span<const std::uint8_t> bytes, const View* local);
     int lead_colour = 0;                          // the first player's seat colour (pad::Seats::colour)
     // A pad took seat `seat` (its colour `colour`): its roster comes up (a held seat's player stays).
     // `pad_now`: the pad as it is, so what it holds (the Start that seated it) isn't pressed in the roster.

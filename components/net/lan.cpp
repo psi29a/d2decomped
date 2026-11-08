@@ -169,6 +169,7 @@ auto Host::poll() -> std::vector<Event> {
                     }
                     client.joined = true;
                     Bytes player; put_u32(player, std::uint32_t(client.number));
+                    player.insert(player.end(), welcome_info.begin(), welcome_info.end());
                     send_frame(client.connection, Kind::Welcome, player);
                     events.push_back({ .type = Event::Type::Joined, .client = client.number, .hello = std::move(*hello) });
                     break;
@@ -238,7 +239,8 @@ auto Client::poll() -> std::vector<Event> {
     while (auto frame = reader_.next()) {
         switch (frame->kind) {
             case Kind::Welcome:
-                if (frame->payload.size() == 4) events.push_back({ .type = Event::Type::Welcome, .player = int(get_u32(frame->payload, 0)) });
+                if (frame->payload.size() >= 4)
+                    events.push_back({ .type = Event::Type::Welcome, .player = int(get_u32(frame->payload, 0)), .info = Bytes(frame->payload.begin() + 4, frame->payload.end()) });
                 break;
             case Kind::View: events.push_back({ .type = Event::Type::View, .view = std::move(frame->payload) }); break;
             case Kind::Refuse:

@@ -367,6 +367,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             if (host_npc && host_npc->id != net_chat_npc) { net_chat_npc = host_npc->id; net_game->send_items({ c2s::npc_chat(true, 1, net_chat_npc) }); }
         }
         if (mouse.press_this_frame || !mouse.down) hold_interact = false;
+        if (lan_client) for (const auto& command : net.receive()) send(command);   // the UI's (belt, items, points, waypoints) go to the host, in order
         for (const auto& command : input(mouse, over_ui)) {
             if (mouse.press_this_frame && std::holds_alternative<cmd::Interact>(command)) hold_interact = true;   // set before the tick applies it
             send(command);
@@ -394,6 +395,11 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         // sounds, the server's frame (FUN_0052fc20) doesn't run. A hosted
         // game goes on, as a joined one does: its joiners are playing.
         if (!net_game && !lan_host && (game_menu.open || controls.open)) world_ms = frame_ms;
+        if (lan_client) {
+            for (const auto& command : net.receive()) send(command);
+            lan_client_frame(mouse, audio, frame_ms);
+            return;
+        }
         lan_poll();
         bool ticked = false;
         for (int ticks = 0; frame_ms - world_ms >= kTickMs && ticks < 5; ++ticks) {

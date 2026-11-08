@@ -69,6 +69,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <expected>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -374,6 +375,7 @@ static int         g_start_cam_y = -1;
 // improvement 2; game.exe takes it as the seed).
 static std::string   g_join_host;           // the game.exe TCP/IP host char-select joins: --join, or TCP/IP's JOIN GAME
 static std::string   g_cli_join;            // --join's own, what SINGLE PLAYER goes back to
+static std::string   g_lan_connect;        // --connect: char-select's OK joins this d2d host (lan-host.md)
 static int           g_lan_host_port = 0;   // --host: d2d players join this game over the LAN (lan-host.md); 0 off
 static std::string   g_last_tcp_ip;         // d2d.cfg last_tcp_ip: the join box's start (game.exe's LastTcpIp)
 static fs::path      g_game_exe;            // --game-exe: its tables (the codec's, read at runtime)
@@ -1460,7 +1462,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     d2d::log::info("charselect: {}", csu.popup);
                 }
                 // Past Normal, game.exe asks first (FUN_00439840); joining, the host's game sets it.
-                if (screen == Screen::InGame && chosen_difficulty < 0 && g_join_host.empty() && csu.selected >= 0 && csu.selected < count
+                if (screen == Screen::InGame && chosen_difficulty < 0 && g_join_host.empty() && g_lan_connect.empty() && csu.selected >= 0 && csu.selected < count
                     && asks_difficulty(scene->saves[std::size_t(csu.selected)])) {
                     screen = Screen::CharSelect;
                     csu.pick_difficulty = true;
@@ -1476,7 +1478,41 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     if (chosen_difficulty >= 0)   // the pick is now the save's current difficulty, its act kept
                         for (int index = 0; index < 3; ++index)
                             character.header.difficulty[std::size_t(index)] = std::uint8_t((character.header.difficulty[std::size_t(index)] & 0x7f) | (index == chosen_difficulty ? 0x80 : 0));
-                    if (g_join_host.empty()) {
+                    if (!g_lan_connect.empty()) {
+                        // --connect: a d2d host's game. The host plays the character and keeps it;
+                        // this World only draws what the host's Views say (lan-host.md).
+                        std::ifstream save_file(save_dir / (header.name + ".d2s"), std::ios::binary);
+                        std::vector<std::uint8_t> save{ std::istreambuf_iterator<char>(save_file), {} };
+                        std::expected<d2d::net::lan::Client, std::string> joined = std::unexpected(std::string("the character's save didn't read"));
+                        if (save_file) {
+                            d2d::log::info("lan: joining {} as {}", g_lan_connect, header.name);
+                            joined = d2d::net::lan::Client::join(g_lan_connect, { .name = header.name, .save = std::move(save) });
+                        }
+                        std::optional<d2d::net::lan::Client::Event> welcome;
+                        std::string refused = joined ? "" : joined.error();
+                        for (int wait = 0; joined && !welcome && refused.empty() && wait < 500; ++wait) {
+                            for (auto& reply : joined->poll()) {
+                                if (reply.type == d2d::net::lan::Client::Event::Type::Welcome) welcome = std::move(reply);
+                                else if (reply.type != d2d::net::lan::Client::Event::Type::View) refused = reply.reason;
+                            }
+                            if (!welcome) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                        }
+                        if (!welcome || welcome->info.size() < 6) {
+                            d2d::log::error("lan: join failed: {}", refused.empty() ? "no welcome from the host" : refused);
+                            screen = Screen::CharSelect;
+                        } else {
+                            std::uint32_t seed = 0;
+                            for (int shift = 0; shift < 32; shift += 8) seed |= std::uint32_t(welcome->info[std::size_t(shift / 8)]) << shift;
+                            const int difficulty = std::clamp(int(welcome->info[4]), 0, 2);
+                            d2d::log::info("lan: in {}'s game as player {}: act {}, map seed {:#x}, difficulty {}", g_lan_connect, welcome->player, welcome->info[5] + 1, seed, difficulty);
+                            set_map_seed(*scene, seed, difficulty);
+                            character.header.difficulty = {};
+                            character.header.difficulty[std::size_t(difficulty)] = 0x80;
+                            town.world.characters = nullptr;          // the host writes the save
+                            town.lan_client = std::move(*joined);
+                            town.enter();
+                        }
+                    } else if (g_join_host.empty()) {
                         set_map_seed(*scene, game_seed(character.header), character.header.active_difficulty());
                         town.enter();                            // the World takes the character
                     } else {
@@ -1889,6 +1925,8 @@ int main(int argc, char** argv) {
     app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
     app.add_option("--join", join_host, "Join a game.exe TCP/IP game at this address (your own network only)");
     int lan_host_port = 0;
+    std::string lan_connect;
+    app.add_option("--connect", lan_connect, "Join a d2d game hosted with --host at this address (your LAN)");
     app.add_option("--host", lan_host_port, "Host this game for d2d players on your LAN, on this port (6113 is the usual)")->check(CLI::Range(1, 65535));
     app.add_option("--game-exe", game_exe, "Your 1.14d game.exe, for --join (else $D2_GAME_EXE, game.exe or bin/game.exe beside the MPQs)");
     int start_cam_x = -1, start_cam_y = -1;
@@ -2031,6 +2069,7 @@ int main(int argc, char** argv) {
     g_join_host      = join_host;
     g_cli_join       = join_host;
     g_last_tcp_ip    = cfg["last_tcp_ip"];
+    g_lan_connect = lan_connect;
     g_lan_host_port = lan_host_port;
     if (!game_exe.empty()) g_game_exe = game_exe;
     else if (const char* env = std::getenv("D2_GAME_EXE")) g_game_exe = env;

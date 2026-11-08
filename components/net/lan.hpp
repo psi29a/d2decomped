@@ -83,6 +83,8 @@ public:
     // The client's latest View. False when that client has gone.
     auto send_view(int client, std::span<const std::uint8_t> view) -> bool;
     auto kick(int client, const std::string& reason) -> void;
+    // Sent with each Welcome after the player id: what a joiner needs to make the same game (lan-host.md).
+    Bytes welcome_info;
     [[nodiscard]] auto clients() const -> std::vector<int>;
 private:
     struct Client {
@@ -110,6 +112,7 @@ public:
     struct Event {
         enum class Type { Welcome, View, Refused, Lost } type{};
         int player = -1;            // Welcome
+        Bytes info;                 // Welcome: the host's welcome_info
         Bytes view;                 // View
         std::string reason;         // Refused / Lost
     };

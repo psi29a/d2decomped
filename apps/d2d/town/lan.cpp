@@ -4,19 +4,30 @@
 // its own View goes back each tick. The rest is in this directory.
 #include "town.hpp"
 
+#include "audio.hpp"
 #include "load.hpp"
+#include "ui.hpp"
 
+#include <lan.hpp>
 #include <log.hpp>
 #include <protocol.hpp>
 #include <replication.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <span>
+#include <variant>
+#include <vector>
 
 namespace d2d::client {
 
 auto Town::lan_poll() -> void {
         if (!lan_host || !scene) return;
+        d2d::net::lan::Bytes info(9);
+        for (int shift = 0; shift < 32; shift += 8) info[std::size_t(shift / 8)] = std::uint8_t(scene->map_seed >> shift);
+        info[4] = std::uint8_t(scene->difficulty);
+        info[5] = std::uint8_t(world.act());
+        lan_host->welcome_info = std::move(info);
         for (auto& event : lan_host->poll()) {
             using Type = d2d::net::lan::Host::Event::Type;
             if (event.type == Type::Joined) {
@@ -55,6 +66,25 @@ auto Town::lan_publish() -> void {
             (*found)->events.clear();
             const auto bytes = encode_view(*scene, out, lan_player.view_enc);
             if (!lan_host->send_view(lan_player.client, bytes)) lan_player.view_enc.reset();   // gone: lan_poll drops it
+        }
+    }
+
+auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms) -> void {
+        if (!lan_client) return;
+        for (auto& event : lan_client->poll()) {
+            using Type = d2d::net::lan::Client::Event::Type;
+            if (event.type == Type::View) {
+                // ponytail: a View that doesn't apply leaves this client behind the host's encoder
+                // (no resync request yet); TCP keeps them in order, so it means a bug.
+                if (!take_view(event.view, nullptr)) continue;
+                for (const auto& said : view.events) {
+                    if (const auto* refused = std::get_if<ev::TradeRefused>(&said); refused && store.npc >= 0) npc_menu = open_trade_refused(*scene, store.npc, refused->result, mouse.x, mouse.y);
+                    handle(said, audio, frame_ms);
+                }
+            } else if (event.type == Type::Refused || event.type == Type::Lost) {
+                lan_lost = event.reason;
+                d2d::log::warn("lan: out of the host's game: {}", event.reason);
+            }
         }
     }
 

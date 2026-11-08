@@ -58,16 +58,19 @@ auto Town::publish() -> void {
         net.to_client = encode_view(*scene, out, view_enc);
         // D2D_VIEW_STATS=1: each View's size in the log (the replication budget).
         if (std::getenv("D2D_VIEW_STATS")) d2d::log::info("VIEWSTAT total={} monsters={} ground={} items={}", net.to_client.size(), out.monsters.size(), out.ground.size(), out.items.size());
-        if (!apply_view(*scene, net.to_client, view)) {         // lost track: the next one is whole
-            d2d::log::warn("a View didn't apply ({} bytes)", net.to_client.size());
-            view_enc.reset();
-            return;
+        if (!take_view(net.to_client, &out)) view_enc.reset();   // lost track: the next one is whole
+    }
+
+auto Town::take_view(std::span<const std::uint8_t> bytes, const View* local) -> bool {
+        if (!apply_view(*scene, bytes, view)) {
+            d2d::log::warn("a View didn't apply ({} bytes)", bytes.size());
+            return false;
         }
-        if (!net_game && out.merc && view.merc) view.merc->fhr = out.merc->fhr;   // the wire has none: a local game keeps what World::view() computed
+        if (local && !net_game && local->merc && view.merc) view.merc->fhr = local->merc->fhr;   // the wire has none: a local game keeps what World::view() computed
         level = view.level;
         if (net_game) net_overlay();
         cues.due.insert(cues.due.end(), view.sounds.begin(), view.sounds.end());
-        if (!view.has_character) return;
+        if (!view.has_character) return true;
         const auto hotkeys = character.header.hotkeys;  // client-owned bindings, not replicated gameplay state
         character.header = view.header;
         character.header.hotkeys = hotkeys;
@@ -99,6 +102,7 @@ auto Town::publish() -> void {
         hire_offers = view.hire_offers;
         if (const auto found = scene->mercs.find(character.header.merc_type); view.merc && found != scene->mercs.end())
             merc_label = merc_name(*scene, found->second, character.header.merc_name);
+        return true;
     }
 
 // Where the automap's files go: beside the save (none with saving off).
