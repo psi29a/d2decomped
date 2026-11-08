@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Run the stock TBL number formatters on boundary values.
+"""Run stock TBL formatters and opener on boundary and synthetic-file cases.
 
     uv run python strtable_formatters.py [--exe /path/to/Game.exe]
 
 The optional executable avoids needing MPQs; otherwise emu.Emu uses its
-configured 1.14d install. Results exercise FUN_00525350, FUN_00525490 and
-FUN_005255c0.
+configured 1.14d install. Results exercise FUN_00525350, FUN_00525490,
+FUN_005255c0 and FUN_00525920.
 """
 import argparse
 import hashlib
@@ -16,6 +16,11 @@ import emu
 
 GAME_SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 SUFFIXES = (0x730510, 0x730514, 0x730518, 0x73051C)
+CRC_TABLE = 0x7301D8
+
+
+class FatalError(Exception):
+    """The hooked game fatal path was reached for an invalid synthetic TBL."""
 
 
 def text_units(machine, address):
@@ -35,6 +40,57 @@ def formatter(machine, address, *arguments):
     machine.mu.mem_write(destination, b"\0" * 256)
     machine.call(address, destination, *arguments)
     return text_units(machine, destination)
+
+
+def tbl_crc(machine, data, start, end):
+    """Compute the stock TBL CRC-16 over a byte range."""
+    crc = 0xFFFF
+    for byte in data[start:end]:
+        crc = ((crc & 0xFF) << 8) ^ machine.r16(CRC_TABLE + 2 * (((crc >> 8) ^ byte) & 0xFF))
+    return crc
+
+
+def check_tbl_open(machine):
+    """Check success and each early error in FUN_00525920's CRC/offset checks."""
+    address = machine.alloc(41)
+    machine.hook(0x517079, lambda _emu: address, 3)
+    fatal_line = [None]
+
+    def make_tbl(key_offset=38, value_offset=39, corrupt_crc=False):
+        """Build one TBL with caller-selected offsets and a valid CRC by default."""
+        raw = bytearray(41)
+        struct.pack_into("<H", raw, 2, 1)       # node count
+        struct.pack_into("<I", raw, 4, 1)       # hash table size
+        struct.pack_into("<I", raw, 9, 9)       # CRC start
+        struct.pack_into("<I", raw, 17, len(raw))
+        record = 21 + 2
+        struct.pack_into("<I", raw, record + 7, key_offset)
+        struct.pack_into("<I", raw, record + 11, value_offset)
+        raw[38:41] = b"k\0v"
+        crc = tbl_crc(machine, raw, 9, len(raw)) ^ int(corrupt_crc)
+        struct.pack_into("<H", raw, 0, crc)
+        machine.mu.mem_write(address, bytes(raw))
+
+    def fatal(_emu):
+        """Stop instead of executing the game's process-fatal handler."""
+        fatal_line[0] = _emu.arg(1)
+        raise FatalError
+
+    machine.hook(0x408090, lambda hook: hook.arg(0), 1)
+    machine.hook(0x408A60, fatal, 0)
+    make_tbl()
+    assert machine.call(0x525920) == address
+
+    for expected_line, options in ((0xCE, {"corrupt_crc": True}),
+                                   (0xE0, {"key_offset": 41}),
+                                   (0xE1, {"value_offset": 41})):
+        make_tbl(**options)
+        try:
+            machine.call(0x525920)
+        except FatalError:
+            assert fatal_line[0] == expected_line, (fatal_line[0], expected_line)
+        else:
+            raise AssertionError(f"FUN_00525920 accepted invalid TBL error case {expected_line:#x}")
 
 
 def run(executable=None):
@@ -70,7 +126,8 @@ def run(executable=None):
         actual = formatter(machine, 0x5255C0, low, high, 32)
         assert actual == expected, ("FUN_005255c0", high, low, actual, expected)
 
-    print("ok: stock TBL unsigned, signed, and K/M/B/T formatter cases")
+    check_tbl_open(machine)
+    print("ok: stock TBL formatters and CRC-checked opener cases")
 
 
 if __name__ == "__main__":
