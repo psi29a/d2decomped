@@ -1523,6 +1523,17 @@ Cited from the decompile (no oracle run); re-check with
   given back and the result is 0. d2d: **not ported** (grep of
   `components/` and `apps/` for 00570080 finds nothing).
 
+### Stat-list helpers and skill starts (work package 0056e520, cited)
+
+- **FUN_00627150**(list, stat, value, layer) (32 bytes): `if (list != 0)
+  FUN_006270b0(list, stat, value, layer)`. A null-safe SetStat on a stat
+  list; FUN_006270b0 finds the stat's entry (FUN_00624b90) or, for a
+  non-zero value, creates it (FUN_00624c80), stores `value` at entry +4
+  (value 0 deletes the entry, FUN_00624d10), and returns 0 when nothing
+  changed. Used by 80+ callers (game-calls.tsv `grep 00627150`). d2d:
+  agrees with the "set, not add" reading in drops.md:193 and
+  objects.md:81 (no code port needed).
+
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
