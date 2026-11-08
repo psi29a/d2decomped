@@ -189,11 +189,10 @@ slot 59 is `0x73c92c` = FUN_005acf20). Baal Taunt's lightning control
   none: nothing is laid.
 - Radius: the record's sHitPar1 (+0x4c), or 1 when that is 0 or less.
 - Spot: the missile's subtile (FUN_0045adf0 / FUN_0045ae20: x, y) plus
-  `rand(n) - radius` on each axis, FUN_0045c390 on a stack seed that
-  FUN_00650e40 sets to `{x, 666}` just before (the argument is read off the
-  call order; the decompile drops the register args, so n = 2 × radius + 1
-  is the same kind of reading, matching FUN_0045c390's range 0 .. n-1).
-  The missile's own seed is not used.
+  `rand(n) - radius` on each axis, x first, FUN_0045c390 on the missile's
+  own seed (+0x20) that FUN_00650e40 sets to `{x, 666}` just before
+  (0x5ace5f: `lea ecx, [esi + 0x20]`, EDX the subtile x; n = 2 × radius + 1,
+  0x5ace8f). `hit_spawn` in ai.hpp.
 - Made by FUN_0059fa30 with a zeroed 0x5c-byte params block: flags **0x20**
   (target at [7] / [8] absolute; no flag 1, so the start is the missile's own
   spot via [2]; no flag 4, so the velocity is the record's Vel + VelLev ×
