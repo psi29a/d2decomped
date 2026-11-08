@@ -1602,6 +1602,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // ponytail: frame 0 idle, the closed hand (7) while pressed;
             // D2 plays the grab frames in between.
             const int cursor_dx = (fb_width(framebuffer) - int(kScreenWidth)) / 2;
+            bool os_cursor = false;   // the OS shows the gauntlet this frame (hw_cursor.hpp)
             if (screen == Screen::InGame && town.held) {
                 draw_held(framebuffer, *scene, *town.held, mouse.x + cursor_dx, mouse.y);
             } else if (screen == Screen::InGame && town.identify_with >= 0 && scene->cursor_buysell.frames_per_direction() > 0) {
@@ -1620,9 +1621,14 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 // Co-op with two pads or more: the first player's cursor in their seat's colour.
                 const bool seat_colour = coop_game && std::ranges::count_if(gamepads.pads(), [](const Gamepads::Pad& pad) { return !pad.built_in; }) >= 2;
                 const auto& lead = kSeatColours[std::size_t(std::clamp(town.focus_colour(), 0, 3))];
-                blit_sprite(framebuffer, frame, seat_colour ? tinted(pal, lead[0], lead[1], lead[2]) : pal, mouse.x + cursor_dx + frame.offset_x,
-                            mouse.y + frame.offset_y - int(frame.height) + 1);
+                const auto& hand_pal = seat_colour ? tinted(pal, lead[0], lead[1], lead[2]) : pal;
+                // ponytail: the plain hand only; a held item or identify pick is drawn into the frame.
+                os_cursor = g_hw_cursor && win.pointer_at(mouse.x, mouse.y) && win.show_cursor(frame, hand_pal);
+                if (!os_cursor)
+                    blit_sprite(framebuffer, frame, hand_pal, mouse.x + cursor_dx + frame.offset_x,
+                                mouse.y + frame.offset_y - int(frame.height) + 1);
             }
+            if (!os_cursor) win.hide_cursor();
         } else {
             paint_test_pattern(framebuffer);
         }
@@ -1818,7 +1824,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide); scalemode=pixelart|nearest|linear");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor); scalemode=pixelart|nearest|linear");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int fps_cap = cfg.contains("fps_cap") ? std::atoi(cfg["fps_cap"].c_str()) : 0;
     app.add_option("--fps-cap", fps_cap, "Frames a second at most, 0 = the display's refresh (also `fps_cap =` in d2d.cfg)")
@@ -1940,6 +1946,7 @@ int main(int argc, char** argv) {
             { "light_grid", &g_light_grid },       // the light grid over the whole view, not game.exe's 48 x 48
             { "splash_centre", &g_splash_centre }, // rain splashes and mud bubbles centred on their water
             { "unit_slide", &g_unit_slide },       // units slide between ticks, not step at 25 Hz
+            { "hwcursor", &g_hw_cursor },          // the gauntlet as the OS cursor, not drawn into the frame
         };
         if (const auto mode = scale_mode_named(cfg["scalemode"])) g_scale_mode = *mode;
         std::string_view rest = toggles;
@@ -1956,7 +1963,7 @@ int main(int argc, char** argv) {
             }
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";
