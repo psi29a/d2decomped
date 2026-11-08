@@ -47,12 +47,9 @@ std::vector<std::pair<float, float>> player_walk(const Level& level, float x, fl
     const auto steps = d2d::rules::player_path(from.first, from.second, sub(goal_x), sub(goal_y), to_unit ? 1 : 0, to_unit, [&](int subtile_x, int subtile_y) {
         return level.unit_blocked(centre(subtile_x), centre(subtile_y), self ? self->shape : UnitShape{}) || crowd.at(centre(subtile_x), centre(subtile_y), self);
     });
-    // ponytail: a point given twice (the toward pather's cut-short subtile)
-    // is dropped; game.exe spends a frame on it (FUN_00650090).
+    // A point given twice (the toward pather's cut-short subtile) stays: follow_path spends a frame on it (FUN_00650660).
     std::vector<std::pair<float, float>> points;
-    std::pair last = from;
-    for (const auto& step : steps)
-        if (step != last) { points.emplace_back(centre(step.first), centre(step.second)); last = step; }
+    for (const auto& step : steps) points.emplace_back(centre(step.first), centre(step.second));
     return points;
 }
 
@@ -65,9 +62,7 @@ std::vector<std::pair<float, float>> monster_walk(const Level& level, const Unit
         return level.unit_blocked(centre(subtile_x), centre(subtile_y), unit.shape) || crowd.at(centre(subtile_x), centre(subtile_y), &unit);
     });
     std::vector<std::pair<float, float>> points;
-    std::pair last{ sub(unit.x), sub(unit.y) };
-    for (const auto& step : steps)                                // ponytail: a repeated point is dropped (game.exe: a frame on it)
-        if (step != last) { points.emplace_back(centre(step.first), centre(step.second)); last = step; }
+    for (const auto& step : steps) points.emplace_back(centre(step.first), centre(step.second));
     return points;
 }
 
@@ -3183,21 +3178,21 @@ bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& c
     auto& x = unit.x;
     auto& y = unit.y;
     auto& dir = unit.dir;
-    while (!path.empty() && step > 0) {
+    // FUN_00650660: one step a frame; landing on a point (FUN_00650090: within the step) ends the frame there.
+    if (!path.empty() && step > 0) {
         const auto [target_x, target_y] = path.front();
         const float dx = target_x - x, dy = target_y - y, dist = std::hypot(dx, dy);
         if (dist > 0.05f) dir = direction16(dx, dy);
-        if (dist <= step) { x = target_x; y = target_y; step -= dist; path.erase(path.begin()); continue; }
+        if (dist <= step) { x = target_x; y = target_y; path.erase(path.begin()); return !path.empty(); }
         const float next_x = x + dx / dist * step, next_y = y + dy / dist * step;
         if (level.unit_blocked(next_x, next_y, unit.shape) || crowd.at(next_x, next_y, &unit)) {
             // FUN_00650150: a blocked subtile ends the path on a subtile's centre, the one it's on here.
             x = (std::floor(x * 5) + 0.5f) / 5; y = (std::floor(y * 5) + 0.5f) / 5;
             path.clear();
             if (blocked) *blocked = true;
-            break;
+            return false;
         }
         x = next_x; y = next_y;
-        break;
     }
     return !path.empty();
 }

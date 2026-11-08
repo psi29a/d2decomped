@@ -165,8 +165,11 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 - Checked: `tools/emu/moves.py` runs FUN_0067b850, FUN_00679ed0 and
   FUN_0067c2d0 on random walls against the port (6,000 and 9,000 cases,
   all equal).
-- ponytail: d2d drops a repeated point (the toward pather's cut-short
-  subtile); game.exe spends a frame on it. A target that moves re-paths at
+- FUN_00650660 moves a unit one step a frame. FUN_00650090 tests the next
+  point: within the step on both axes, the unit lands on it and the frame
+  ends there, with the rest of the step unused. So a repeated point (the
+  toward pather's cut-short subtile) costs a frame (`follow_path`).
+- ponytail: A target that moves re-paths at
   0.3 cells (the player) or 1 cell (merc, pets: a fresh budget), not
   FUN_006503f0's 5 subtiles off SP2. Town NPCs walking up to the player go
   to a spot, not a unit. The merc's moves carry their own type, pace and
