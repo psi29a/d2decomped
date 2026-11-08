@@ -104,6 +104,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Ignore list remaining helpers (FUN_0060ed30, FUN_0060ed70, FUN_0060ee60, FUN_006114e0, FUN_00611560) | `uv run python ignorelist_remaining.py` | `ok: node cleanup, hash deletion, empty and populated table clear, eager and lazy singleton` |
 | String table leaves (StrTable/strtable.cpp: FUN_00524fd0, 00524fe0, 00525020, 00524e20, 00525090, 00525100, 00525260, 005251c0, 00524c60, 00524ac0, 00524e40, 00525770) | `uv run python strtable_leaves.py` (`--mutation-check`) | `ok: 6560 string table leaf cases` |
 | String table number formatters (FUN_00525350, 00525490, 005255c0) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: stock TBL unsigned, signed, and K/M/B/T formatter cases` |
+| String table file opener (FUN_00525920) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: CRC-checked synthetic TBL open and rejection cases` |
 
 ## When it breaks
 

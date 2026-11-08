@@ -116,6 +116,7 @@ JPN/KOR use a different glyph pipeline entirely (multi-byte).
 | `0x525350` | `FUN_00525350` | Formats an unsigned 32-bit number with comma separators. |
 | `0x525490` | `FUN_00525490` | Formats a signed 64-bit number with comma separators. |
 | `0x5255c0` | `FUN_005255c0` | Formats an unsigned 64-bit number with a K/M/B/T short-form suffix. |
+| `0x525920` | `FUN_00525920` | Opens a TBL through `FUN_00517079`, checks its CRC and node offsets. |
 | `0x5259c0` | `FUN_005259c0` | Loads the selected language's tables, allocates offset and decoded-data arrays, and populates the globals below. |
 | `0x525fb0` | `FUN_00525fb0` | Sibling helper: formats an integer with comma separators. |
 | `0x526100` | `FUN_00526100` | Decodes one UTF-8 sequence to one 16-bit unit and returns its byte length. |
@@ -212,3 +213,16 @@ The three number formatters were run in stock `Game.exe` 1.14d (SHA-256
   2 and uses the decoded fallback at `0x6d5830` when the result does not fit.
   The switch table at `0x525754` maps suffix groups 1–4 to the four words;
   group 0 writes no suffix.
+
+## TBL open
+
+`0x525920` has no arguments and returns the file buffer from
+`FUN_00517079(0, ".\\StrTable\\strtable.cpp", 0xc0)`. It computes the TBL
+CRC-16 over the header's `[start, end)` offsets at `+9` and `+0x11`, and
+compares the result with the u16 at `+0`. A mismatch halts at `0xce`. For each
+of the `hash_size` records (`+4`), it walks 17-byte records beginning at
+`21 + 2 * node_count`; key and value offsets at record `+7` and `+0xb` must
+each be below `end`, or it halts at `0xe0` and `0xe1` respectively. It returns
+the buffer after the loop. It does not check that those offsets point to
+terminated strings or validate the key/value contents. The oracle uses a
+synthetic one-node table and checks the valid path plus the three fatal lines.
