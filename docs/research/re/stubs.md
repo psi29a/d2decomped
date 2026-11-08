@@ -42,6 +42,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_005e9750` | AiThink4.cpp: a player search by rooms with class weights and a cached pick at AI control +0x14 (1.13 uber Diablo's, beside `FUN_005e9dd0`) | orphan (no call, jump or pointer) | — | not ported | bugs.md #26 |
 | `FUN_005e9dd0` | makes 0x2c7 (demonhole) at a unit, mode 1, flags 0x40 | orphan | — | not ported | monster-ai.md, as above |
 | `0x5e9df0` | UberDiablo think (MonAI 147) | stub (`ret 4`) | uber Diablo stands | same | same |
+| `FUN_005eb5c0` | MonAI 143 ShadowMasterNoInit's init (table 0x73ca18 + 143 x 16 + 4): AI control +0x1c the owner's skill level, Attack on both hands | unreachable | no MonStats row has AI 143 (MonStats +0x1e, every row read in game.exe's tables) | not ported | pet-ai.md "The Shadows" |
 | `FUN_005edc00` | AiThink4.cpp: stores x, y in AI control +0x18 / +0x1c (asserts on a null control) | orphan (no call, jump or pointer) | — | not ported | monster-ai.md "Additional think helpers" |
 | `FUN_005eeaa0` | AncientStatue think (MonAI 132): Rite awake → skill 302 | unreachable | ancientstatue1..3 are never placed or made | not ported | monster-ai.md, as above |
 | `FUN_005f1140`'s command branch | QuillRat (MonAI 14) shoots at a pending command's unit | unreachable | only QuillMother (75) of its kin sends one, to its own group of quillbears, which never read it; no group holding quillrats (packs, champions, Flamespike) has a sender | not ported | monster-ai.md "AI commands" |

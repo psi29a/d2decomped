@@ -830,6 +830,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         else if (ai_name == "AssassinSentry") d2d::rules::sentry_think(brain);
         else if (ai_name == "DeathSentry") d2d::rules::death_sentry_think(brain);
         else if (ai_name == "Raven") d2d::rules::raven_think(brain);
+        // DruidWolf's think (FUN_005ed710) by class: 0x1a4 the Spirit Wolf's, else Fenris's.
         else if (ai_name == "DruidWolf" && monster.npc.hc_idx == 0x1a4) d2d::rules::spirit_wolf_think(brain);
         else if (ai_name == "DruidWolf") d2d::rules::fenris_think(brain);
         else if (ai_name == "Totem") d2d::rules::totem_think(brain);

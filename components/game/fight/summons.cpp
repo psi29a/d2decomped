@@ -262,6 +262,10 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // hits, a trap's shots as d2d counts them).
         if (const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name; ai_name == "Hydra") pet.ctrl[0] = int(pet.until / 40);
         else if (ai_name == "Raven") pet.ctrl[0] = pet.hits;
+        // The sentries' init (FUN_005ea290, MonAI 101 / 104): +0x18 -1, the
+        // shots their first think takes from Skill1's calc (FUN_005ea2b0),
+        // here at once. Vines' and CycleOfLife's (FUN_005ec6a0): +0x14 0.
+        // ponytail: +0x14 starts at the game frame there, -1 here: a DeathSentry's last corpse, which no unit id should match.
         else if (ai_name == "AssassinSentry" || ai_name == "DeathSentry") pet.ctrl = { -1, pet.shots, lvl };
         // The Shadows' skills: their MonStats Skill1..8 at Sk*lvl +
         // MonsterSkillBonus, in Sk*mode (FUN_004ae8d0), then the Warrior's
