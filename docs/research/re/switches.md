@@ -111,6 +111,13 @@ which stores it at `0x0074c704`.
 `tools/emu/app_mode.py`. What each mode changes after `0x0074c704` was
 not traced.
 
+d2d has no application mode. Its switch pre-pass (`components/switches`)
+drops a word that starts with a mode name and matches no switch, with
+a warning, as it does an unsupported switch. Before, CLI11 refused
+`-expand`, `-client` and `-launcher`, and d2d didn't start.
+A two-dash `--expand` is still CLI11's: two dashes are d2d's own, though
+game.exe's `strtok` would skip the second dash and read the mode.
+
 ## The 58 switches
 
 Ini default below is the `+0x58` dword for a bool or an int. A string's
@@ -229,7 +236,8 @@ From `docs/PLAN.md` and the notes on
   -direct` names a directory, and `--start-name -NOSAVE` names a character.
   Nonempty inline values (`--data=-direct`) need no following word;
   flags do not consume one. Unknown options and missing/invalid values
-  remain CLI11 errors. A standalone `--` ends legacy translation too.
+  remain CLI11 errors, except a one-dash word that starts with a game.exe
+  mode name (The application mode), which is dropped with a warning. A standalone `--` ends legacy translation too.
 
 d2d parses with CLI11 2.6.2. `allow_non_standard_option_names()` stays
 off. Turned on, CLI11 can take a one-dash name (`-nosave`, `-seed=7`).
