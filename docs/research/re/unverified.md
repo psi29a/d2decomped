@@ -16,7 +16,6 @@ trust. `git grep -n "unverified (source"` lists them.
 | DCC format as a whole | components/dcc/dcc.hpp | OpenDiablo2's reader, Necrolis' notes | every DCC in the MPQs decodes and draws as the game shows it | the DCC decoder (D2Cmp part) |
 | DS1 layer stream order | components/ds1/ds1.hpp | OpenDiablo2's reader | every DS1 parses to its exact size | the DS1 loader (`FUN_00665950` area) |
 | .d2s header layout | components/d2s/d2s.hpp | the Phrozen Keep d2s spec | 19 real 1.14d saves (test_d2s) | the save reader |
-| .d2s item bitstream layout | components/d2s/d2s_items.hpp | the community d2s spec | 19 real saves: every list ends on the next "JM" | the item (de)serializer |
 | Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | handlers marked ✓ were read | names only; behaviour is from the handlers |
 | A converted monster's pick: a click on it walks there, a held attack drops it | components/game/world/commands.cpp `apply` (UseSkill) | d2d's own hover rule (cursor-units.md) | the hover is traced: outside town no monster of the player's alignment is under the cursor | the click path from the hovered unit (`FUN_00467a10`) |
 
@@ -40,3 +39,4 @@ trust. `git grep -n "unverified (source"` lists them.
 | PL2 table layout; additive matches, but d2d's `blend50` reads the max-component table instead of 50/50 alpha | `FUN_00606930`, `FUN_00605880`, `FUN_006059b0`, `FUN_00605b70`; oracle diff | ../formats/pl2.md |
 | DT1 block Y is signed and drawn directly; d2d's `max(0, -min(block.y))` is its own packed-buffer convention | `FUN_005fdea0`, `FUN_0060a4c0`, `FUN_005130a0`, `FUN_005131b0`, `FUN_00512f90` | dt1.md |
 | TBL values are UTF-8; d2d's byte zero-extension mismatches 12 non-ASCII English values | `FUN_005259c0`, `FUN_00526320`, `FUN_00526100`; all 8,949 installed ENG entries compared | tbl-strings.md |
+| .d2s item bitstream: the community spec's layout holds for 1.14d, except that its unused bit after the name is the realm flag (3 words follow when set) and the version checks read the save's version | `FUN_0062cbe0` (extended), `FUN_0062a970` (compact), read from the code; 21 real saves (test_d2s) | [d2s-items.md](d2s-items.md) |

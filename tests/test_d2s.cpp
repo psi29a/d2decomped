@@ -111,6 +111,7 @@ int main() try {
     // the belt), bit for bit, then the real saves when they're around.
     {
         std::vector<std::byte> bytes(0x2FD + 4 + 14);
+        bytes[4] = std::byte{ 0x60 };          // save version 96 (1.14d): the item reader's version checks
         std::size_t bit = (0x2FD + 4) * 8;
         auto put = [&](std::uint32_t value, int bits) {
             for (int i = 0; i < bits; ++i, ++bit)
@@ -133,6 +134,7 @@ int main() try {
     // count. Read, then written back bit for bit.
     {
         std::vector<std::byte> bytes(0x2FD + 4 + 14);
+        bytes[4] = std::byte{ 0x60 };          // save version 96 (1.14d): the item reader's version checks
         std::size_t bit = (0x2FD + 4) * 8;
         auto put = [&](std::uint32_t value, int bits) {
             for (int i = 0; i < bits; ++i, ++bit)
@@ -161,6 +163,47 @@ int main() try {
         auto expected = std::span(bytes).subspan(0x2FD + 4, writer.out.size());
         expected[4] |= std::byte{ 1 << 7 };  // write_item sets flag 23, as every real save has it
         assert(std::ranges::equal(writer.out, expected));
+    }
+    // An extended item's realm flag (FUN_0062cbe0, save version > 0x56): set,
+    // three words follow past 0x5d, and the next item still starts on its
+    // own "JM". Read, then written back bit for bit.
+    {
+        std::vector<std::byte> bytes(0x2FD + 4 + 64);
+        bytes[4] = std::byte{ 0x60 };
+        std::size_t bit = (0x2FD + 4) * 8;
+        auto put = [&](std::uint32_t value, int bits) {
+            for (int i = 0; i < bits; ++i, ++bit)
+                if (value >> i & 1) bytes[bit >> 3] |= std::byte(1 << (bit & 7));
+        };
+        auto align = [&] { bit = (bit + 7) & ~std::size_t(7); };
+        std::memcpy(bytes.data() + 0x2FD, "JM\x02\x00", 4);
+        put(0x4d4a, 16);
+        put(1u << 23 | 1u << 4, 32);         // extended, identified
+        put(101, 10);
+        put(0, 3); put(0, 4); put(2, 4); put(1, 4); put(1, 3);
+        for (char letter : std::string("hax ")) put(std::uint8_t(letter), 8);
+        put(0, 3);                           // no socketed items
+        put(0x12345678, 32);                 // seed
+        put(5, 7); put(2, 4);                // ilvl 5, normal
+        put(0, 1); put(0, 1);                // no picture, no class affix
+        put(1, 1);                           // realm data
+        put(0xaaaaaaaa, 32); put(0xbbbbbbbb, 32); put(0xcccccccc, 32);
+        put(0x1ff, 9);                       // no properties
+        align();
+        const std::size_t first_end = bit / 8;
+        put(0x4d4a, 16);
+        put(1u << 23 | 1u << 21 | 1u << 4, 32);
+        put(101, 10);
+        put(2, 3); put(0, 4); put(3, 4); put(0, 4); put(0, 3);
+        for (char letter : std::string("hp1 ")) put(std::uint8_t(letter), 8);
+        put(0, 1);                           // no realm data
+        const auto items = d2d::d2s::parse_items(bytes, d2d::d2s::ItemTables{});
+        assert(items.size() == 2 && items[0].code == "hax" && items[1].code == "hp1");
+        assert((items[0].realm == std::vector<std::uint32_t>{ 0xaaaaaaaa, 0xbbbbbbbb, 0xcccccccc }));
+        d2d::d2s::detail::BitWriter writer;
+        d2d::d2s::detail::write_item(writer, items[0], d2d::d2s::ItemTables{}, 0x60);
+        writer.align();
+        assert(std::ranges::equal(writer.out, std::span(bytes).subspan(0x2FD + 4, first_end - (0x2FD + 4))));
     }
     {
         const char* saves_env = std::getenv("D2_SAVES_DIR");
