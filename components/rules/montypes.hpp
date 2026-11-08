@@ -114,6 +114,7 @@ struct LevelMon {
     std::array<int, 3> density{};               // MonDen, (N), (H): chance in 100000 per 3x3 subtiles
     std::array<int, 3> umin{}, umax{};          // MonUMin/Max (FUN_005479c0: Levels +0x28 / +0x2b + difficulty)
     bool wander = false;                        // MonWndr
+    int spc_walk = 0;                           // MonSpcWalk (+0x2f): a melee walker's leash (FUN_005b13e0)
     int num_mon = 0;                            // NumMon
     bool ranged_first = false;                  // rangedspawn (level def +0x31)
     std::vector<int> mon, nmon;                 // mon1.., nmon1.. rows (normal / NM+hell)

@@ -9,6 +9,7 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
+#include <merc.hpp>
 #include <missiles.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
@@ -935,9 +936,44 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         idle(miss.stand);
         return true;
     }
-    // The driver's step 3 (FUN_005b13e0): first-sight speech, then the teleport mod.
-    // ponytail: the speech (FUN_005b1140) and the leash (the level's +0x2f) aren't run.
+    // The driver's step 3 (FUN_005b13e0). First sight (FUN_005b1140): a
+    // champion, unique or superunique (data +0x16 & 8), a MonStats boss
+    // (FUN_0063e9f0) or the Summoner (class 0xfa), its target a player under
+    // 20 off (the search's distance), AI flag 0x10 unset: unit event 0x10
+    // (FUN_00553380: the client plays its Taunt), the flag, stand 20.
+    using d2d::rules::Boss;
+    const bool special = (monster.boss != Boss::none && monster.boss != Boss::minion) || type_info.boss_column
+                      || monster.type == int(game_data.mon_bin[0xfa]);
+    if (special && best < 0x14 && !target->pet && !target->of && !monster.first_sight) {
+        monster.first_sight = monster.taunt_sound = true;
+        idle(0x14);
+        return true;
+    }
     if (teleport_mod(game_data, level, monster, best, crowd, rooms_in_play, now_ms)) return true;
+    // The leash: an isMelee monster (FUN_00457490 1) with a WL mode
+    // (FUN_0046c140 2), its level's MonSpcWalk (+0x2f) set and its target
+    // farther with no clear line (FUN_005dc640), takes the nearest other
+    // live enemy (FUN_00554200) under 49 (FUN_005dc380), threat over 1, in
+    // a clear line (FUN_005dd0b0 mode 0xb: 0x5dccc0); none, it wanders 4.
+    const int spc_walk = std::size_t(level.id) < game_data.level_mon.size() ? game_data.level_mon[std::size_t(level.id)].spc_walk : 0;
+    const auto wall805 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); };
+    const auto line_clear = [&](const Foe& foe) { return d2d::rules::pet_line_clear(x, y, type_info.size, subtile(foe.x), subtile(foe.y), wall805); };
+    if (type_info.melee && game_data.npc_timing(monster.npc, "WL").directions > 0 && spc_walk > 0 && best > spc_walk && !line_clear(*target)) {
+        Foe* leashed = nullptr;
+        int gap = 0x31;
+        for (auto& foe : foes) {
+            if (&foe == target || !foe.alive || foe.of == &monster || foe.threat <= 1 || d2d::rules::friends(monster.align, foe.of ? foe.of->align : 2)) continue;
+            const int foe_gap = d2d::rules::merc_gap(x, y, type_info.size, subtile(foe.x), subtile(foe.y));
+            if (foe_gap < gap && line_clear(foe)) { leashed = &foe; gap = foe_gap; }
+        }
+        if (!leashed) {
+            const auto wander = d2d::rules::think_wander(monster.seed, 4);
+            walk_to(wander.x, wander.y, false);
+            return true;
+        }
+        target = leashed;
+        best = gap;
+    }
     // MonAI 91, DarkWanderer (FUN_005ea130; a3q7's record 0x1c): his spot
     // (FUN_005bd0d0, from the marker's x + 7 he's made on) is 20 subtiles
     // north, else 11 north, 2 east or west of that, else 8 north, else 3
@@ -1330,7 +1366,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // target's state 0x20 aren't kept (no rider, state off); a command's last
     // frame is the frame after.
     {
-        const auto wall805 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); };
         input.lines_clear = d2d::rules::pet_line_clear(x, y, type_info.size, target_x, target_y, wall805);
         if (const auto* own = game_data.skills.get(skill_id(game_data, type_info.skill[0]))) input.skill1_range = own->par[0];
         input.self_dead = monster.mode == "DT" || monster.mode == "DD";
@@ -1485,7 +1520,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.trap_kind = level.trap_kind;
         }
         if (name == "DesertTurret") {
-            const auto wall805 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); };
             for (std::size_t step = 0; step < input.ray_clear.size(); ++step) {
                 const auto& [step_x, step_y] = d2d::rules::kTurretStep[step];
                 input.ray_clear[step] = !d2d::rules::sight_blocked(x, y, 0, x + step_x * input.aip[4], y + step_y * input.aip[4], 0, wall805);
