@@ -43,6 +43,10 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Stat-list field getters and setters, wrappers and the named-stat getters (StatsEx.cpp FUN_00625250 ... FUN_00626d10; `--mutation-check` breaks the model 8 ways) | `uv run python stats_list_fields.py` | `ok: 10041 stat-list field accessor, wrapper and named-stat getter cases` |
 | Stat-list array primitives: insert, remove, queue, sums, add, set, chains, queued-stat callbacks, layer copy (FUN_00624c80 ... FUN_006261b0; `--mutation-check` 10 ways) | `uv run python stats_array_ops.py` | `ok: 33425 stat-list array primitive cases` |
 | Stat change push-up and derived-stat refresh (FUN_00626920, FUN_006266c0; `--mutation-check` 8 ways) | `uv run python stats_propagate.py` | `ok: 3000 stat refresh and change push-up cases` |
+| Object region data (objrgn.cpp, Objects.cpp: FUN_00546e90, 00546fb0, 00546ff0, 00547080, 00547170, 00547210, 0054f520, 0054f580; `--mutation-check` 6 ways) | `uv run python objects_region.py` | `ok: 1562 object region data helper cases` |
+| Small ObjMode helpers (FUN_00582490 ... 005824f0, 005825b0, 00583bd0, 005843d0, 00584820, 00585120 ... 00585240, 005854d0, 00585550; `--mutation-check` 6 ways) | `uv run python objects_mode_small.py` | `ok: 1940 small ObjMode helper cases` |
+| Shrine-boost arithmetic (FUN_00582800, 00582940, 00583740, 00583840; `--mutation-check` 6 ways) | `uv run python objects_mode_calc.py` | `ok: 1600 shrine-boost arithmetic helper cases` |
+| Object operate and event handlers (FUN_00582610, 00584420, 005845d0, 00584d00, 005852e0, 00585580, 00585a80, 00585ce0; `--mutation-check` 8 ways) | `uv run python objects_mode_operate.py` | `ok: 7600 object operate and event handler cases` |
 | SoundHdr sample-load dispatcher (FUN_00482970) | `uv run python sound_hdr_load.py` | `ok: SoundHdr loading guards, cache rejection, sync and async cases` |
 | Application mode from the command line (Main.cpp, FUN_00406340: split on `-`, case-sensitive name prefix, client never stored, last match wins) | `uv run python app_mode.py` | `ok` |
 | Every level, all cores | `./sweep.sh 1-50 monsters objgroups` | every level matching |
