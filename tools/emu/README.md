@@ -29,6 +29,17 @@ Good: `level 2: 20/20 seeds match game.exe`.
 |---|---|---|
 | Level layouts, monsters, objects | `uv run python diff_drlg.py 1-20 2 [tiles\|monsters\|objgroups\|collision\|game\|npcs]` | `N/N seeds match game.exe` |
 | Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
+| The animated image control (D2WinAnimImage.cpp FUN_00500850: its fields, draw mode 0 stored as 5, on all 15 kind-3 screen records) | `uv run python anim_image.py` | `ok` |
+| The profile dump is dead (Logging\ProfCore.cpp FUN_006116b0: 23 rows, all 0; FUN_00611660 and 0x611730 never referenced) | `uv run python profile_dump.py` | `ok` |
+| SoundHdr falloff range getters (FUN_004825b0, FUN_00482610) | `uv run python sound_hdr_ranges.py` | `ok: 42 falloff minimum/maximum getter cases` |
+| SoundHdr path selection (FUN_00482710) | `uv run python sound_hdr_paths.py` | `ok: 28 sound path and length-boundary cases` |
+| SoundHdr grouped reference counts (FUN_004822b0, FUN_00482370) | `uv run python sound_hdr_refs.py` | `ok: grouped count adjustment, clearing, guards and underflow ordering` |
+| SoundHdr lifecycle wrappers (FUN_00482260, FUN_00482860, FUN_004828b0, FUN_00482940) | `uv run python sound_hdr_lifecycle.py` | `ok: SoundHdr initialize, touch, release and shutdown` |
+| SoundHdr loaded-record release (FUN_004823e0) | `uv run python sound_hdr_release.py` | `ok: unloaded, synchronous, asynchronous and active sound release` |
+| SoundHdr table loader (FUN_00481950) | `uv run python sound_hdr_tables.py` | `ok: synthetic SoundHdr table descriptors, group bases, block counts and song range` |
+| SoundHdr cache eviction (FUN_004824a0) | `uv run python sound_hdr_evict.py` | `ok: SoundHdr eviction pass, age and active-sound cases` |
+| SoundHdr group choice (FUN_00482680) | `uv run python sound_hdr_group.py` | `ok: SoundHdr group selection and history retry cases` |
+| SoundHdr sample-load dispatcher (FUN_00482970) | `uv run python sound_hdr_load.py` | `ok: SoundHdr loading guards, cache rejection, sync and async cases` |
 | Application mode from the command line (Main.cpp, FUN_00406340: split on `-`, case-sensitive name prefix, client never stored, last match wins) | `uv run python app_mode.py` | `ok` |
 | Every level, all cores | `./sweep.sh 1-50 monsters objgroups` | every level matching |
 | Every level's collision vs libd2's engine captures (200 seeds × 3 difficulties, ~8 min) | `D2_BUILD=build-release uv run python libd2_crc.py` | `N/131 levels match on all 200 seeds` |
@@ -38,6 +49,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Client DC6 load and free helpers (CORE\ARCHIVE.CPP: FUN_004788b0, FUN_00478950, FUN_00478a00) | `uv run python archive_dc6.py` | `ok: 9 DC6 load/free cases; 68 + 8 call sites pass flag 0` |
 | DC6 / DCC cel placement | `uv run python cel_anchor.py \| diff - ../../tests/cel_anchor_cases.inc`; then `test_cel_anchor` | no output; the test passes |
 | COF draw effects (which blend each is) | `uv run python cof_effects.py \| diff - ../../tests/cof_effect_cases.inc`; then `test_cof_effects` | no output; the test passes |
+| Inventory mode, grid-cell and panel hit-test helpers (FUN_00483e10, FUN_00486bd0, FUN_00486e10) | `uv run python d2common_item_ui.py` | `ok: 37 stock D2COMMON item UI helper cases` |
 | Body-armour layers and tiers (FUN_0064f420, FUN_0064f500, FUN_0063d690) vs compcode.hpp | `uv run python composit_layers.py` | `ok: lit layers TR=torso LG=legs RA=rArm LA=lArm S1=rspad S2=lspad; 10 other layers fatal; d2d's compcode tables match` |
 | Screen shake and quest control frames | `uv run python shake.py > ../../tests/shake_cases.inc`; `uv run python shake.py --controls > ../../tests/quake_control_cases.inc` | `test_shake` matches both captured fixtures |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
@@ -69,6 +81,10 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Monster display-name slot (FUN_0063e810: UTF-16 copy to MonsterData +0x2c, with null/type guards) | `uv run python monster_name_slot.py` | copied names including supplementary Unicode, guard cases unchanged, and the no-op mutation detected |
 | Talk-submenu quest names (FUN_0049f910, table 0x722678) vs `rules::quest_name` | `uv run python quest_name.py` | `65536 messages match d2d's 32 runs; 527 have a name; 164 (row 100) is 3716`, then `ok` |
 | NPC gossip text list (Text/Text.cpp: FUN_00661240..FUN_006616e0, 13 functions) | `uv run python text_list.py` | `929 cases: new / add / remove / free / getters / build / store / sort; ...`, then `ok` |
+| Overhead message node (Chat/Chat.cpp: FUN_00661110, FUN_006611a0) | `uv run python chat_node.py` | `30 nodes: time = min(length, 254) x 8 + 125 (2157 frames at 254 and above), ...`, then `ok` |
+| Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
+| Ignore list account mapping and node teardown (Chat/Ignorelist.cpp: FUN_00611320, FUN_0060edf0, FUN_00610690, FUN_0060ef60, FUN_0060ef30, FUN_0060edb0, FUN_0060eef0) | `uv run python ignorelist.py` | `9910 cases: 244 accounts mapped; ...`, then `ok` |
+| Ignore list remaining helpers (FUN_0060ed30, FUN_0060ed70, FUN_0060ee60, FUN_006114e0, FUN_00611560) | `uv run python ignorelist_remaining.py` | `ok: node cleanup, hash deletion, empty and populated table clear, eager and lazy singleton` |
 
 ## When it breaks
 

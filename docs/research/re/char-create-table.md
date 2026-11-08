@@ -183,7 +183,7 @@ Two runtime primitives own the pool:
 |------|---------------|-------------------------------|
 | 1    | `FUN_005001d0` | Kind-1 marker (name-field enter handler etc.) |
 | 2    | `FUN_004fd6c0` | Sprite / static background     |
-| 3    | `FUN_00500850` | Paired-anim (class silhouette, fire) |
+| 3    | `FUN_00500850` | The animated image (class silhouette, fire): see "Kind 3" below |
 | 4    | `FUN_004fc7a0` | Hitbox                         |
 | 5    | `FUN_005084f0` | (unknown — sub-menu marker?)    |
 | 6    | `FUN_00501290` | Button (chrome + label + click) |
@@ -198,6 +198,25 @@ So there is no "drawer that iterates the master table". Each kind's
 handler registers itself with the game's global draw/tick lists at
 create-time, and per-frame drawing runs off those subsystem lists —
 not off `DAT_00779350` directly.
+
+## Kind 3: the animated image (`FUN_00500850`)
+
+`FUN_004f93c0` passes a kind-3 record to `FUN_00500850`
+(`.\D2WinAnimImage.cpp`; fastcall, ECX x = record +4, EDX y = +8, then
++0xc / +0x10 the size, the DC6 the cell at +0x1c holds (0 without a cell),
++0x14 the frame delay, +0x20
+on-press, +0x24 the animation frames, +0x18 the draw mode, +0x28 notify).
+It allocates a 0x60-byte control (line 0x1c), zeroes it and sets type 2,
+state bits 0 and 2, the draw and push handlers (`0x5005b0`, `0x500790`),
+the animation handler `0x5003a0` only when there are frames, the start
+tick (`GetTickCount`), animate on, and the draw mode, **0 stored as 5**
+(opaque; 3 is additive, as in world_view.hpp's list). Then
+`FUN_004f9210` adds it to the control list.
+
+All 15 kind-3 records: the campfire (`0x70ae70`, `0x70aea0`) gives delay 1
+and draw mode 3, which d2d's frontend draws with `blit_additive`; the
+class records and the two at `0x708e30` / `0x708e60` give 0, so 5.
+Checked by `tools/emu/anim_image.py`.
 
 ## Char-create init — which records this screen actually shows
 

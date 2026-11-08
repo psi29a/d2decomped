@@ -90,6 +90,7 @@ struct NetGame {
     // Skills: the hand's skill first when it changed (0x3c), then 05 / 0c
     // at a point or 06 / 0d on a unit.
     // `item`: the host's id of a charged entry's item (0x3c's second dword; none -1).
+    auto hand(int skill, bool left) -> void;   // the host's right or left skill (0x3c), no cast
     auto skill_at(int skill, bool left, float subtile_x, float subtile_y, std::uint32_t item = 0xffffffff) -> void;
     auto skill_on(int skill, bool left, int type, std::uint32_t id, std::uint32_t item = 0xffffffff) -> void;
     auto interact(int type, std::uint32_t id) -> void;
