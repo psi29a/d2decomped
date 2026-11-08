@@ -1388,23 +1388,37 @@ inline bool requirements_hold(const Tables& tables, const std::vector<d2d::d2s::
     return (bow_info && type_is(tables, bow_info->type, type->second.quiver))
         || (base != tables.item_base.end() && type_is(tables, base->second.type2, type->second.quiver));
 }
-// FUN_0055dbc0's worn passes (body slots 1..10; the weapon switch's 11 / 12
-// aren't walked). `wearer()` is the strength, dexterity and level with the
-// gear's stats on, which a flagged item's no longer are; `level(item)` its
-// required level. First, in slot order, an unbroken unflagged item that
-// fails gets flag 0x4000 (its stats off, FUN_0055c730) and FUN_0063d2b0.
-// Then, repeated while one changed (one's stats can let another pass), an
-// unbroken flagged item that meets them loses 0x4000 and gets FUN_0063d1d0
-// (its stats on, FUN_0055c2c0). A flagged item's own stats don't count
-// toward its own requirements; an unflagged one's do.
-// ponytail: pass 1 (the inventory's charms, FUN_0062ff70) isn't ported:
-// every inventory charm counts, its level requirement unchecked.
+// An inventory charm, as FUN_0062ff70 has it before its requirements: an
+// item of ItemType 0xd (char) on page 0 (item data +0x45), not broken
+// (0x100) nor flagged 0x4000.
+inline bool inventory_charm(const Tables& tables, const d2d::d2s::Item& item) {
+    if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory || !item_usable(item)) return false;
+    const auto* info = info_of(tables, item);
+    return info && type_is(tables, info->type, "char");
+}
+// FUN_0055dbc0 (ItemMode.cpp). `wearer()` is the strength, dexterity and
+// level with the gear's stats on, which a flagged item's no longer are;
+// `level(item)` its required level.
+// - Pass 1, the inventory's charms (0x55dc07..0x55dc7b): one that passes
+//   FUN_0062ff70 (an inventory charm meeting FUN_0062eaf0's requirements)
+//   has its stats put on (FUN_0055d970 -> FUN_0063d1d0). One short of them
+//   gets nothing; game.exe flags no charm, so `charm_short` (not saved)
+//   says it. No caller of FUN_0055dbc0 is a level up, so a charm reached
+//   by levelling counts from the next item move.
+// - The worn passes (body slots 1..10; the weapon switch's 11 / 12 aren't
+//   walked). First, in slot order, an unbroken unflagged item that fails
+//   gets flag 0x4000 (its stats off, FUN_0055c730) and FUN_0063d2b0.
+//   Then, repeated while one changed (one's stats can let another pass), an
+//   unbroken flagged item that meets them loses 0x4000 and gets
+//   FUN_0063d1d0 (its stats on, FUN_0055c2c0). A flagged item's own stats
+//   don't count toward its own requirements; an unflagged one's do.
 template <class WearerOf, class LevelOf>
 inline void settle_requirements(const Tables& tables, std::vector<d2d::d2s::Item>& items, WearerOf&& wearer, LevelOf&& level) {
     const auto worn = [](const d2d::d2s::Item& item) {
         return item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst
             && item.slot <= d2d::d2s::body_location::kLast;
     };
+    for (auto& item : items) item.charm_short = inventory_charm(tables, item) && !requirements_hold(tables, items, item, wearer(), level(item));
     for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot)
         for (auto& item : items)
             if (worn(item) && item.slot == slot && item_usable(item) && !requirements_hold(tables, items, item, wearer(), level(item))) {

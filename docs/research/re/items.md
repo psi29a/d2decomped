@@ -220,5 +220,18 @@ World's item commands (`cmd::ToBody`, `ToCursor`, `ToGrid`,
 `SwapWeapons`, `Buy`, `Sell`, `Repair`), a pickup, `Fight`'s breaks and
 refill, the corpse and `World::take_character`. A flagged item's stats
 are off like a broken one's (`game::gear_active`, `panel_stats`,
-`rules::make_fighter`'s weapon). Pass 1 (the charms) isn't ported: d2d
-counts every inventory charm, its level requirement unchecked.
+`rules::make_fighter`'s weapon).
+
+Pass 1 sets no 0x4000: a charm short of its requirements just gets no
+`FUN_0055d970`, and `FUN_0062ff70` refuses it at the other attach sites
+(`FUN_00560200` into the inventory, and the rest of its 29 callers). None
+of `FUN_0055dbc0`'s 22 callers is a level up; `FUN_005380d0` calls it
+(through `FUN_0055df00`, 0x538146) only with unit flag `+0xc8 & 0x200000`,
+which only `FUN_00539760` (the join's player, 0x539939) sets. So a charm
+whose level the player reaches counts from the next item move or join,
+not at the level up. ItemTypes row 0xd is `char` (Charm).
+
+d2d: pass 1 is `rules::settle_requirements`' first loop. An inventory
+charm (`rules::inventory_charm`) failing `requirements_hold` gets
+`Item::charm_short` (not saved; sent in the replicated items' byte with
+`wielded`), and `game::gear_active` leaves its stats out.
