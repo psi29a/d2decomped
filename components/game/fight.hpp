@@ -483,7 +483,7 @@ struct Fight {
     void merc_joins();
     // The merc's stats and skill levels for its experience (FUN_00572840).
     void merc_level_stats();
-    // Back in camp after dying: full life, no potions or poison working.
+    // Back in camp after dying: full life, mana and stamina, no potions or poison working.
     void revive(std::uint32_t now_ms);
 
     // Keys 1-4 drink the belt's bottom-row potion in that column: healing
