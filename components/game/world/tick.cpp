@@ -199,6 +199,8 @@ auto World::stamina_frame() -> void {
         stamina = d2d::rules::stamina_regen(stamina, actor->character.stats.values[kMaxStamina], mode, int(actor->psum[kStaminaRecoveryBonus]));
     }
 
+// Runs one game frame with these orders; it also steps the day and the environment's
+// intensity for the player's act and level (FUN_0061bb80).
 auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         const float elapsed = float(now_ms - last_ms) / 1000.f;
         now = now_ms;
@@ -245,7 +247,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         // The day moves a frame a tick (40 ms); a stall doesn't fast-forward it.
         if (now_ms - day_at > 1000) day_at = now_ms;
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
-            day.step(act());
+            day.step(act(), level ? level->id : 0);
             credit_party([&] { act1_tick(); act2_tick(); });
             each_player([&](Player&) { stamina_frame(); footstep_frame(day_at); find_voice(day_at); });
         }
@@ -318,9 +320,10 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             });
             std::vector<Command> cmds;                  // this player's
             for (const auto& order : orders) if (order.player == player.id) cmds.push_back(order.command);
+            // A skill command this tick means the button is still down, left or
+            // right. A spell was ignored here, so a held cast stopped after one.
             const bool button = std::ranges::any_of(cmds, [](const Command& command) {
-                const auto* use_skill = std::get_if<cmd::UseSkill>(&command);
-                return std::holds_alternative<cmd::Move>(command) || (use_skill && use_skill->left);
+                return std::holds_alternative<cmd::Move>(command) || std::holds_alternative<cmd::UseSkill>(command);
             });
             const bool resurrect = std::ranges::any_of(cmds, [](const Command& command) { return std::holds_alternative<cmd::Resurrect>(command); });
             // Back in camp after dying: alone, or in co-op once no one's left alive.

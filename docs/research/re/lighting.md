@@ -185,9 +185,10 @@ callers: `FUN_00474550` (the grid's fill, which a level's light overrides),
 the RGB. Units, objects and their shadows don't read it: `FUN_004df1c0`
 (LAB_004df343, LAB_004df416) and `FUN_004df510` (LAB_004df572) hand
 `FUN_004dc7b0` the grid's entry from `FUN_00475aa0`. d2d's `Lighting::ambient`
-is read in one place besides the grid's fill, raised roofs (world_view.cpp),
-so in Acts 1 to 4 roofs are the only draw where +0xc and d2d can differ: level
-103, todo.md #42. Read from the code, no oracle. Act 5's cap of 170 and level
+was read in one place besides the grid's fill, raised roofs (world_view.cpp);
+they now take `Lighting::environment` (+0xc, `Day::environment`), so in Acts
+1 to 4 no draw differs from +0xc (level 103 was todo.md #42, #218). Read from
+the code; `test_roof_light` checks d2d's side. Act 5's cap of 170 and level
 120's 200 (`env_light.py`) aren't in d2d's `Day::sun`, which fills the grid
 there; Act 5 is outside todo.md.
 
@@ -208,7 +209,7 @@ there; Act 5 is outside todo.md.
   (`FUN_0061c0e0`), not `FUN_00474550`, so a level's own light doesn't reach
   them. Of the levels with their own light, only Pandemonium Fortress (103)
   places any: 57, all `Exterior.dt1`, at 128 settled where its level light is
-  140. d2d lights them from `Lighting::ambient`, the level's (todo.md #42). A floor whose DT1
+  140. d2d lights them from `Lighting::environment` (#218). A floor whose DT1
   material has 0x100 gets 0xff throughout. The block callback
   (`FUN_004f8b80`) takes block (bx, by) (its grid bytes, +6 / +7) with
   e = table + bx + 8·by: A = e[9], B = e[10], C = e[17], D = e[18]; flat
@@ -327,9 +328,13 @@ from the code, no oracle.
 - `render_world` draws floors and flat roofs through `blit_dt1_tile_lit`
   (the 8 × 8 table and block callback above; a pixel's block from where
   it lies under the diamond's top, tall floors' pixels past the 5 × 5 in
-  the nearest block), raised roofs at the ambient, last; walls through
+  the nearest block), raised roofs at the environment's intensity
+  (`Day::environment`, +0xc), last; walls through
   `blit_dt1_wall_lit` (the six lights, the wall block's flat / ramp). Units take the level at their
   feet; additive missiles and overlays aren't lit.
+  `test_roof_light` checks the real renderer with synthetic tiles and
+  distinct environment, level and local-grid palettes: raised roofs use
+  the environment, while flat roofs keep the grid's light.
 
 - Tile shadows keep a quarter of the ground (`blit_dt1_shadow`), drawn
   after every floor; players', NPCs'

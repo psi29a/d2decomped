@@ -34,13 +34,14 @@ constexpr int kShown = 15;                                                     /
 constexpr int kBarX = kWidth - kLeft - 0x1f;                                   // the scroll bar's left (679)
 constexpr std::array<std::array<std::uint8_t, 3>, 6> kRgb{ { { 255, 255, 255 }, { 255, 77, 77 }, { 0, 255, 0 }, { 105, 105, 255 }, { 199, 179, 119 }, { 105, 105, 105 } } };
 
-// The pad page (d2d): its settings, two presets, then the actions (the
+// The pad page (d2d): its settings, the presets, then the actions (the
 // game menu's Start is fixed, as Esc is in game.exe's list).
 enum PadRowKind { kSetting, kPreset, kPadAction, kGap };
 struct PadRow { PadRowKind kind; int index; std::string_view name; };
 constexpr PadRow kPadRows[] = {
     { kSetting, 0, "Left-handed sticks" }, { kSetting, 1, "Swap confirm and back" }, { kSetting, 2, "Dead zone" },
-    { kSetting, 3, "Cursor speed" }, { kPreset, 0, "Right-handed layout" }, { kPreset, 1, "Left-handed layout" }, { kGap, 0, "" },
+    { kSetting, 3, "Cursor speed" }, { kPreset, 0, "Right-handed layout" }, { kPreset, 1, "Left-handed layout" },
+    { kPreset, 2, "Skill buttons" }, { kPreset, 3, "Restore default controller" }, { kGap, 0, "" },
     { kPadAction, int(pad::Action::Primary), "Attack / Use" }, { kPadAction, int(pad::Action::Secondary), "Right-hand Skill" },
     { kPadAction, int(pad::Action::Back), "Back (store, dialog)" }, { kPadAction, int(pad::Action::Inventory), "Inventory Screen" },
     { kPadAction, int(pad::Action::Character), "Character Screen" }, { kPadAction, int(pad::Action::SkillTree), "Skill Tree" },
@@ -51,6 +52,10 @@ constexpr PadRow kPadRows[] = {
     { kPadAction, int(pad::Action::Belt3), "Use Belt 3" }, { kPadAction, int(pad::Action::Belt4), "Use Belt 4" },
     { kPadAction, int(pad::Action::Trade), "Buy / Sell (store)" }, { kPadAction, int(pad::Action::TabPrev), "Store Tab Before" },
     { kPadAction, int(pad::Action::TabNext), "Store Tab After" },
+    { kPadAction, int(pad::Action::SkillSouth), "Skill A" }, { kPadAction, int(pad::Action::SkillEast), "Skill B" },
+    { kPadAction, int(pad::Action::SkillWest), "Skill X" }, { kPadAction, int(pad::Action::SkillNorth), "Skill Y" },
+    { kPadAction, int(pad::Action::SkillLeft), "Skill LB" }, { kPadAction, int(pad::Action::SkillRight), "Skill RB" },
+    { kPadAction, int(pad::Action::MainSkill), "Main Skill" }, { kPadAction, int(pad::Action::Interact), "Interact" },
 };
 constexpr int kPadCount = int(std::size(kPadRows));
 
@@ -211,7 +216,7 @@ void ControlsUI::button(int which, Result& result) {
         else { table = keys::defaults(); if (click_rows) clicks = keys::kNoClicks; }
     }
     else if (which == 2) {
-        if (!pad::clashes(pad.bindings).empty()) { pad_message = "Two actions share a button"; message = 0; message_ms = now_; return; }
+        if (!pad::clashes(pad.bindings, pad.skill_buttons).empty()) { pad_message = "Two actions share a button"; message = 0; message_ms = now_; return; }
         result = kAccept;
     } else if (which == 3) {
         pad_page = !pad_page;
@@ -235,10 +240,13 @@ void ControlsUI::pad_edit(pad::Button pressed, std::uint32_t now_ms) {
     }
     if (row.kind == kPreset) {
         const pad::Config keep = pad;
-        pad = pad::Config{};
+        // 2 is Skill buttons. 0, 1 and 3 are the normal layout. 1 swaps the
+        // sticks. 3 is the same layout as 0, under its own name.
+        pad = row.index == 2 ? pad::skill_buttons_config(keep) : pad::Config{};
         pad.deadzone = keep.deadzone;
         pad.cursor_speed = keep.cursor_speed;
-        pad.swap_sticks = row.index == 1;
+        if (row.index != 2) pad.swap_sticks = row.index == 1;
+        if (row.index == 2) { pad_message = "Skills for this character are set on the wheel"; message = 0; message_ms = now_ms; }
         editing = false;
         return;
     }
@@ -254,7 +262,7 @@ void ControlsUI::pad_edit(pad::Button pressed, std::uint32_t now_ms) {
     const std::size_t slot = column == 1 ? 0 : 1;
     pad_message.clear();
     for (std::size_t other = 0; other < std::size_t(pad::Action::Count); ++other) {
-        if (other == std::size_t(action) || (pad::kWhere[other] & pad::kWhere[std::size_t(action)]) == 0) continue;
+        if (other == std::size_t(action) || (pad::where_of(other, pad.skill_buttons) & pad::where_of(std::size_t(action), pad.skill_buttons)) == 0) continue;
         for (auto& button : pad.bindings.buttons[other])
             if (button == pressed) {
                 button = pad::Bindings::kNone;
@@ -505,6 +513,8 @@ void ControlsUI::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
     const auto texts = button_texts(scene);
     const auto boxes = button_boxes(scene);
     for (std::size_t i = 0; i < texts.size(); ++i) text(texts[i], boxes[i][0] + 10, kTop + 0x15f, int(i) == hover_button ? kButtonColour[i] : 4);
+    if (pad_page && pad.skill_buttons && scene.font_small.line_height() > 0)
+        scene.font_small.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, kLeft + 0x1e, 6, "Button layout is every character. Skills are this character's wheel.", 199, 179, 119);
     // A refusal, 2 s, red, centred under the panel.
     if (now_ms < message_ms + 2000 && (message || !pad_message.empty())) {
         const std::string words = message ? string_id(scene, message) : pad_message;

@@ -15,6 +15,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
@@ -217,19 +218,22 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                 rate = float(d2d::rules::moving_anim_rate(mode == kModeRN, view.walk_percent)) / float(walk_anim.speed ? walk_anim.speed : walk_anim.cof_speed);
         if (!view.seq.empty() && attack_mode(pmode)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, frame_ms); rate = 1.f; }   // an SQ skill's frame
         const auto light = frame_light(*scene, view, cam_x, cam_y, den_beams, den_ambient(), extra, &player_look, frame_ms, &hero_at);
-        // A pad in the field shows no cursor: it hovers what A would act on
-        // instead (its name, and a monster's life bar), a spot up its body.
-        // ponytail: a spot, not its box: something drawn in front can take the hover.
+        // A pad in the field shows no cursor. The highlight is the same PadPick the
+        // press uses, by id. A screen point would let a sprite in front take it.
         int hover_x = held ? -1 : mouse.x, hover_y = held ? -1 : mouse.y;
-        if (pad_cue) {
-            hover_x = hover_y = -1;
-            if (const auto pick = pad_pick(pad, focused().player, true); pick.kind != PadPick::kNone && focus_id() == hero.id) {
-                const float dx = pick.x - cam_x, dy = pick.y - cam_y;
-                hover_x = int(kScreenWidth) / 2 + int(std::lround((dx - dy) * (kIsoW / 2)));
-                hover_y = kViewY + int(std::lround((dx + dy) * (kIsoH / 2))) - (pick.kind == PadPick::kItem ? 4 : 24);
-            }
-        }
+        const bool pad_target = pad_playing && pad_field() && focus_id() == hero.id;
+        if (pad_target) hover_x = hover_y = -1;
         automap_frame();
+        const bool pad_bar = skillbar.mode_on && skillpad::tray_visible(skillbar.legend_on, skillbar.strip_on, skillbar.wheel_on, skillbar.picking);
+        auto belt_names = belt_key_names;
+        if (pad_bar) {
+            const auto name = [&](pad::Action action) {
+                const auto& pair = pad_config.bindings[action];
+                const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
+                return button == pad::Bindings::kNone ? std::string{} : std::string(pad::label(pad_family, button));
+            };
+            belt_names = { name(pad::Action::Belt1), name(pad::Action::Belt2), name(pad::Action::Belt3), name(pad::Action::Belt4) };
+        }
         render_ingame(framebuffer, *scene, *view.level, ui_cls,
                       view.gfx,
                       character.name, character.hardcore,
@@ -241,9 +245,9 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       cube_open ? (transmute_down ? 2 : 1) : 0, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, &rain,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
-                      &player_look, alt_held || function_held(keys::kShowItems),   // the key config's Show Items (Alt)
+                      &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden(),
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, belt_key_names, &character.header, frame_ms / 40 }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, belt_names, &character.header, frame_ms / 40, pad_bar }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;
@@ -276,7 +280,9 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                     blit_at_anchor(framebuffer, art->second.frame(0, frame), pal, fb_width(framebuffer) / 2 - 1 - width / 2 + int(frame) * 0x100, int(kScreenHeight) / 2 - 0x8c);
             }
         }
-        view_overlays(framebuffer, *scene, view, hovered_monster());
+        if (pad_target) hovered_npc = pad_hover_npc(pad_action_pick());
+        view_overlays(framebuffer, *scene, view, hovered_monster(), cam_x, cam_y, unit.x, unit.y, &light);
+        draw_hold_cue(framebuffer);
         if (!coop_hud_hidden() || skillbar.picking) skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
         if (pad_cue && focus_id() == hero.id) draw_pad_hint(framebuffer);
         if (net_game && net_game->trade.state != 0) {
@@ -311,11 +317,11 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = left_panel_open();
-        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, mini_right(), mouse.x, mouse.y);
+        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, mini_right(), mouse.x, mouse.y, !pad_bar);
         // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
         // action, then 0x1052 " (%s)" for each key bound to it, the second
         // slot first; FUN_00502280 at (x - 3, H - 0x32 - 0x1a). Menu has no key.
-        if (int button_x = 0; !coop_hud_hidden())
+        if (int button_x = 0; !coop_hud_hidden() && !pad_bar)
             if (const int kind = mini.hovered(left_open, mini_right(), mouse.x, mouse.y, button_x); kind >= 0) {
                 static constexpr std::array<int, 7> kKeys = { keys::kCharacter, keys::kInventory, keys::kSkillTree, keys::kParty, keys::kAutomap, keys::kMessageLog, keys::kQuestLog };
                 std::string tip = string_id(*scene, std::uint16_t(0x1049 + kind));
@@ -438,8 +444,45 @@ auto Town::draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, boo
 
 // The field's pad prompt over the control panel: the button A is bound to,
 // and what it does to the thing it hovers. A d2d extra: game.exe has no pad.
-auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) const -> void {
-    const auto pick = pad_pick(pad, view.player, true);
+auto Town::pad_action_pick() -> PadPick {
+        const UnitState& unit = focused().player;
+        if (pad_config.skill_buttons) return pad_pick(pad, unit, true, {}, false);
+        return pad_pick(pad, unit, true, pad_aim(skillbar.left, pad.move.aim || pad.move.active));
+    }
+
+auto Town::pad_hover_npc(const PadPick& pick) const -> int {
+        if (pick.kind == PadPick::kMonster) {
+            for (std::size_t index = 0; index < view.monsters.size(); ++index)
+                if (view.monsters[index].id == pick.id) return -10 - int(index);
+        } else if (pick.kind == PadPick::kItem) {
+            for (std::size_t index = 0; index < view.ground.size(); ++index)
+                if (view.ground[index].id == pick.id) return -1000 - int(index);
+        } else if (pick.kind == PadPick::kThing) return pick.id;
+        return -1;
+    }
+
+auto Town::draw_hold_cue(std::vector<std::uint8_t>& framebuffer) const -> void {
+        if (!scene || pad_hold_text.empty()) return;
+        const auto& font = scene->font_chat.line_height() > 0 ? scene->font_chat : scene->font;
+        const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
+        const int text_x = std::max(4, (int(kScreenWidth) - font.measure(pad_hold_text)) / 2);
+        const int text_y = int(kScreenHeight) - 0x88;
+        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, text_x, text_y, pad_hold_text, 199, 179, 119);
+        if (pad_hold_fraction <= 0.f) return;
+        const int width = 96, left = (int(kScreenWidth) - width) / 2, top = text_y + font.line_height() + 2;
+        const int filled = int(float(width) * std::clamp(pad_hold_fraction, 0.f, 1.f));
+        for (int y = top; y < top + 4 && y < int(kScreenHeight); ++y)
+            for (int x = left; x < left + width && x < int(kScreenWidth); ++x) {
+                auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];
+                const bool filled_here = x - left < filled;
+                pixel[0] = filled_here ? 199 : 40;
+                pixel[1] = filled_here ? 179 : 32;
+                pixel[2] = filled_here ? 119 : 24;
+            }
+    }
+
+auto Town::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> void {
+    const auto pick = pad_action_pick();
     if (pick.kind == PadPick::kNone) return;
     // A town portal (-2000 - which) is used, a corpse (-3000 - which) picked up, as an object / ground item.
     const bool portal = pick.kind == PadPick::kThing && pick.id <= -2000 && pick.id > -3000;

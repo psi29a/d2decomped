@@ -66,7 +66,7 @@ struct MiniPanel {
     // A press / release on it (left / right: panels open on that side);
     // true if it took the click; `action` the button let go on, else -1.
     bool input(const Scene& scene, Audio& audio, const Mouse& mouse, bool left, bool right, int& action);
-    void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, bool left, bool right, int mouse_x, int mouse_y) const;
+    void draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene, bool left, bool right, int mouse_x, int mouse_y, bool show_strip = true) const;
     // The button under the mouse for its tooltip (0x47f650): its action,
     // else -1; `button_x` its left edge.
     [[nodiscard]] int hovered(bool left, bool right, int mouse_x, int mouse_y, int& button_x) const;

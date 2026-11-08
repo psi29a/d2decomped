@@ -252,6 +252,7 @@ add_executable(d2d
     party.cpp
     roster.cpp
     scene.cpp
+    scene/render.cpp
     skilltree.cpp
     store.cpp
     tile_blit.cpp
@@ -261,6 +262,7 @@ add_executable(d2d
     town/input.cpp
     town/net.cpp
     town/setup.cpp
+    town/skillpad.cpp
     town/update.cpp
     town/view.cpp
     town/walk.cpp

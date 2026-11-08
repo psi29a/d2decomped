@@ -12,8 +12,8 @@ namespace CLI { class App; }
 namespace d2d::switches {
 
 // `argv` is what CLI11 parses. A wired switch is renamed, and its value
-// is left for CLI11. `ignored` is one warning line per known switch that
-// d2d accepted and did not translate.
+// is left for CLI11. `ignored` is one warning line per known switch or
+// game.exe mode word (-expand) that d2d accepted and did not translate.
 struct Translated {
     std::vector<std::string> argv;
     std::vector<std::string> ignored;

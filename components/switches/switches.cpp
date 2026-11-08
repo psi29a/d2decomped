@@ -145,6 +145,17 @@ bool following_is_value(const Token& token, std::string_view leftover, std::stri
     return token.kind == Kind::integer && negative_integer(next);
 }
 
+// game.exe's application modes (FUN_00406340, the names at 0x007065c4).
+// A word that starts with one, case and all, is a mode, not a switch.
+constexpr std::string_view kModes[] = {"modstate0", "client", "server", "multiplayer", "launcher", "expand"};
+
+// True when game.exe reads `word` (after the dash) as an application mode.
+bool mode_word(std::string_view word) {
+    for (const std::string_view mode : kModes)
+        if (word.starts_with(mode)) return true;
+    return false;
+}
+
 std::string ignored_line(std::string_view typed, std::string_view token_name) {
     if (same_token(typed, token_name))
         return std::format("game.exe switch {} ignored (not supported yet)", typed);
@@ -153,6 +164,7 @@ std::string ignored_line(std::string_view typed, std::string_view token_name) {
 
 }  // namespace
 
+// Rewrite game.exe's one-dash switches and drop its mode words (switches.hpp).
 Translated translate(std::span<const std::string_view> arguments, const CLI::App& app) {
     Translated result;
     if (arguments.empty()) return result;
@@ -187,7 +199,12 @@ Translated translate(std::span<const std::string_view> arguments, const CLI::App
         std::string_view leftover;
         const Token* token = match_token(argument.substr(1), leftover);
         if (!token) {
-            result.argv.emplace_back(argument);
+            // -expand, -client, -launcher: a mode in game.exe and no switch.
+            // Dropped and logged, so a game.exe command line still starts.
+            if (mode_word(argument.substr(1)))
+                result.ignored.push_back(std::format("game.exe mode {} ignored (not supported yet)", argument));
+            else
+                result.argv.emplace_back(argument);
             continue;
         }
         const bool next_is_value = index + 1 < arguments.size()
