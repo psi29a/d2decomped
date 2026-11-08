@@ -607,6 +607,7 @@ address	name	evidence
 00628530	item_2handedwclass	Items +0xc4 (Items.cpp 0x608..0x60c)
 006285f0	item_gfx_code	Items +0x90 else +0x80 (Items.cpp 0x627..0x62b)
 00628660	item_component	Items +0x115 (Items.cpp 0x634..0x638)
+00628700	item_class_type	returns Items record (FUN_006335f0) +0x11e, the ItemTypes index (s16); exits with an assert id 0x68d for an unknown class
 006288a0	item_missiletype	Items +0xfa
 00628900	class_wclass_is	Items +0xc0 (Items.cpp 0x8eb)
 00628950	item_wclass_is	FUN_00628900 of unit +4
