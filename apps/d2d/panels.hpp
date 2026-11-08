@@ -200,9 +200,9 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
 // at cell - scroll, scroll = player's world pixels / 10 - screen / 2 +
 // (40, 15), with DC6's bottom-left anchoring.
 // ponytail: reveals tiles within 12 of the player (D2 reveals by room),
-// cel picked by a tile hash rather than the game's RNG, no fade near the
-// centre, no player/NPC marks; no unit icons or town miniatures of its own
-// (a game.exe file's are kept, the miniatures not drawn).
+// cel picked by a tile hash rather than the game's RNG.
+// The towns of acts 2, 4 and 5 add their miniature (list 3, in the
+// layer's cel_file; automap_town).
 // One automap per Levels.txt Layer: the town and the act 1 wilderness
 // share layer 0, so the map shows them together; cells sit in act
 // coordinates.
@@ -215,6 +215,7 @@ struct Automap {
     struct Cell { int cel, x, y; int list = 0; bool saved = false; };   // list: 0 floors, 1 walls, 2 units, 3 miniatures
     std::vector<Cell> cells;
     std::set<std::tuple<int, int, int, int>> placed;               // list, y, x, cel group (-1 none)
+    int cel_file = 0;                                              // list 3's: 0 none, 1..3 a town's miniature (layer +4)
     bool open = false;
     bool add(const Cell& cell);
     // The options (Options -> Automap and the key config's functions;
@@ -263,7 +264,15 @@ void draw_automap(std::vector<std::uint8_t>& framebuffer, const Scene& scene, co
 
 // The layer's saved cells into `automap` (FUN_00458750), and its new ones
 // out (FUN_004584c0); `dir` "" saves nothing.
-void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer, int cel_count);
+// `cel_counts`: MaxiMap's, then the miniatures' (read_automap's cut); -1 unchecked.
+void load_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer,
+                  const std::array<int, 4>& cel_counts);
+// The cel counts load_automap checks, from the scene's cel files.
+std::array<int, 4> automap_cel_counts(const Scene& scene);
+// The town on `layer`, once built (game.exe: as its level comes up), adds
+// its miniature: rules::automap_miniature's cells in list 3, and the
+// layer's cel file (FUN_004591a0).
+void automap_town(Automap& automap, const GameData& game_data, int layer);
 void save_automap(Automap& automap, const std::filesystem::path& dir, const std::string& name, std::uint32_t map_seed, int layer);
 
 // The waypoint panel (FUN_0049c9c0; hit tests FUN_0049c490/0049c510),

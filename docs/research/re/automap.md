@@ -64,10 +64,62 @@ So the map only ever gets tiles that have been on screen. Callers:
   keep the flag, so they come in at the next one.
 - `FUN_00459150`, the DRLG room callback: the whole room, `all` = 1.
 
-Cel sets: act 1 uses `UI\AutoMap\MaxiMap` (1499 cels of 16×32); act 2
-`Act2Map`; act 4 `Act4Map`; LoD town `ExTnMap`. The `…S` variants are
-used when the automap-size option is "small" (`DAT_007a5150` = 1,
-divisor 20 instead of 10).
+Cel files (`FUN_0045a2b0`; a layer's cel file is its `+4`):
+
+| File | DC6 | Cels | Used by |
+|---|---|---|---|
+| 0 | `UI\AutoMap\MaxiMap` (`0x7a5168`) | 1499 of 16×32 | every act's tiles and icons: lists 0..2 |
+| 1 | `Act2Map` (`0x7a516c`) | 40 of 160×100 | Lut Gholein's miniature, list 3 |
+| 2 | `Act4Map` (`0x7a5170`) | 4 of 136×90 | the Pandemonium Fortress's |
+| 3 | `ExTnMap` (`0x7a5174`) | 6 of 180×170 | Harrogath's (LoD only) |
+
+The `…S` versions, half the size, are used when the automap-size option
+is "small" (`DAT_007a5150` = 1, divisor 20 instead of 10). The counts
+are at `0x7a5178..0x7a5184` (the saved files' cut, below).
+
+## Town miniatures (`FUN_004591a0`)
+
+Lut Gholein, the Pandemonium Fortress and Harrogath show on the map as
+a picture. AutoMap.txt gives Lut Gholein ("2 Town") only 27 rows, all
+scattered rock floors (cels 257..259), with no walls or buildings.
+
+**When.** `FUN_0044e100` hands `FUN_004591a0` to the DRLG
+(`FUN_006194a0` → `FUN_00642da0`, drlg `+0x488`), beside the room
+callback `FUN_00459150` (`+0x454`). `FUN_00668100`, as a preset level
+comes up, calls it for levels 0x28, 0x67 and 0x6d with:
+- the level id;
+- the preset's file (`+4`): Lut Gholein's 1 LutW / 2 LutN
+  (`FUN_006772c0`);
+- the level's middle in act tiles: x + w / 2, y + h / 2 (`+0x1c` /
+  `+0x24`, `+0x20` / `+0x28`).
+
+**What.** It switches to the level's layer (`FUN_00458d40`), sets the
+layer's cel file, and adds a grid of cells to list 3:
+
+| Level | Cel file | Grid | Step (x, y) | Offset (x, y) | First cel |
+|---|---|---|---|---|---|
+| 0x28 Lut Gholein | 1 | 5 × 4 | 160, 100 | 0x35, -0x51 | 0 with file 1, else 20 |
+| 0x67 the Pandemonium Fortress | 2 | 2 × 2 | 136, 90 | -3, -0x32 | 0 |
+| 0x6d Harrogath | 3 | 2 × 2 | 180, 170 | -0x14, -0x9b | 0 |
+
+- The middle goes to client px (`FUN_00643310`: (x − y)·80,
+  (x + y)·80 >> 1) and over 10.
+- The grid's top left is (middle x − (step x · columns / 2 + offset x),
+  middle y − step y · rows / 2 − offset y). Cels run left to right,
+  then down, one step apart.
+- Lut Gholein skips the cels listed at `0x6d6608` (0, 10, 15, 16, 19,
+  20, 25, 30, 35, 36, 39; -1 ends it), keeping their places: the
+  pictures' blank corners.
+- Then it switches back to the layer it was on.
+
+**Drawing.** `FUN_00459700`'s fourth pass draws list 3 (layer `+0x14`)
+from the layer's cel file, at the same scroll and divisor as the other
+lists. Each file's clip is widened by its cel size.
+
+`FUN_00459440`'s centre fade (option 1) applies only when the cel file
+is `MaxiMap` (`*param_2 == 0x7a5168`, the full map). So a miniature is
+never faded by it. The "everything" and "auto" fades apply to every
+file.
 
 ## Drawing (`FUN_00459700` → `FUN_00459440`, four passes)
 
@@ -317,9 +369,15 @@ dropped, otherwise the cel decides.
     neighbour levels' objects too.
   - The top right's lines (above), but the game name / password and the
     game type 6 / 8 line.
-- Not yet: other players' pets' marks, the bank's name, the miniatures.
-  Cel lists draw a pass each (lists 0, 1, 2). The fade applies to every
-  cel list; game.exe's to one (`DAT_007a5168`, untraced which). The
+- The town miniatures: `rules::automap_miniature` (test_automap_miniature)
+  and `automap_town` (panels.cpp). Each frame (`Town::automap_frame`), a
+  town on the current layer adds its grid to list 3 once its level is
+  built, as game.exe adds it when the level comes up. Lut Gholein's
+  preset file is `drlg::lut_gholein_file`. The layer's cel file goes
+  out with the saved map.
+- Not yet: other players' pets' marks, the bank's name.
+  Cel lists draw a pass each (lists 0..3; list 3 from the layer's cel
+  file). The centre fade is `MaxiMap`'s alone, as game.exe's. The
   fade's inner distances read the octagon's half (`ECX` there, unverified).
   Center Automap does nothing: d2d's mini map box never moves.
 - The scroll is `rules::automap_scroll`, game.exe's to the pixel. Before
@@ -331,6 +389,6 @@ dropped, otherwise the cel decides.
   `load_automap` / `save_automap` (panels.cpp) run on entering the game,
   on a layer change and on saving. Cells are deduped like
   `FUN_00457b00`, against every cell at (x, y) rather than the tree's
-  search path. d2d makes no miniatures; a game.exe file's are kept and
-  written back, not drawn. No subdirectory
+  search path. A file's miniature cells are cut at their cel file's
+  count, as `FUN_00458750` does. No subdirectory
   try, no cut at a bad cel. test_automap checks the format.

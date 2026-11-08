@@ -413,6 +413,7 @@ auto Town::automap_frame() -> void {
         automap.covered = side_state == d2d::rules::panel_view::kCovered;
         g_drawn.panel_side = automap.panel_side;
         automap.in_town = level && d2d::rules::level_ids::is_town(level->id);
+        if (level) automap_town(automap, *world.game_data, level->layer);   // a town on this layer: its miniature (FUN_004591a0)
         automap.portraits = portraits_shown;
         automap.marks.clear();
         int own_party = 0xffff;
