@@ -147,21 +147,22 @@ cited, not proven. Calling conventions are as Ghidra shows them (fastcall
 register arguments are partly dropped), so argument order is a reading.
 
 - **`FUN_004a89d0` (skill_desc_record, 69 bytes)**: a Skills.txt row index
-  -> its SkillDesc record. Rejects an index outside `[0, [0x744304]+0xba0)`
-  or a zero record, reads the short at Skills record `+0x194` (record =
-  `[0x744304]+0xb98 + index*0x23c`; the same field skills.md:1486 names
-  `SkillDesc`), rejects it outside `[0, [0x744304]+0xb94)` and returns
-  `[0x744304]+0xb8c + desc*0x120`, else 0. Callers: `FUN_004ab7e0`,
+  -> its SkillDesc record. With `tables` = the pointer stored at 0x744304,
+  every `[tables+X]` below is the dword read there. Rejects an index outside
+  `[0, [tables+0xba0])` or a zero record, reads the short at Skills record
+  `+0x194` (record = `[tables+0xb98] + index*0x23c`; the same field
+  skills.md:1486 names `SkillDesc`), rejects it outside
+  `[0, [tables+0xb94])` and returns `[tables+0xb8c] + desc*0x120`, else 0. Callers: `FUN_004ab7e0`,
   `FUN_004abc30`, `FUN_004e7120`, `FUN_004e85c0`, `FUN_004ea010`,
   `FUN_004eda80`, `FUN_004ec040`. The oracle `tools/emu/skill_tips.py:48`
   already uses it as "no SkillDesc row" (0). d2d: not ported; it
-  joins Skills.txt `skilldesc` to SkillDesc.txt by name (`components/rules/skills.hpp:405`,
-  `:472`), which gives the same row, so nothing disagrees.
+  joins Skills.txt `skilldesc` to SkillDesc.txt by name (`components/game/gamedata/gamedata_load.cpp:488`,
+  `:509`, `:566`), which looks like the same row; no oracle run, so not proven.
 - **`FUN_00620190` (left_skill, 56 bytes)**: a null argument is fatal, not a
   0: it fetches string 0x641 (`FUN_00408090`), prints it with `FUN_00408a60`
   to the log at `DAT_006cc837`, and exits through `FUN_00681e09(-1)`. Otherwise
   it tail-calls `FUN_00643930` (the left skill, list +8; named in
-  names.tsv:122). d2d agrees on the result (`components/game/world/commands.cpp:364`,
+  names.tsv:122). d2d reads the same, cited from the decompile, no oracle run (`components/game/world/commands.cpp:364`,
   `components/rules/pets.hpp:289`); it has no fatal path (its callers check the
   player first, as far as read). The register that carries the argument is not in the decompile
   (a unit whose skill list `FUN_00643930` reads is likely; not seen).
@@ -171,9 +172,11 @@ register arguments are partly dropped), so argument order is a reading.
   the fatal path.
 - **`FUN_00644140` (skill_record, 10 bytes)**: a skill entry -> the dword at
   its +0, or 0 for a null entry. `tools/emu/cast_mana.py:86` hooks it as "the
-  Skills.txt record of that skill", and `FUN_004eda80` hands the result to
-  `FUN_004a89d0`, so that dword is the 0x23c-byte Skills record (id short at
-  +0, as `FUN_004ea010` reads `*param_3`). d2d: not ported (it keeps the
+  Skills.txt record of that skill", and `FUN_004eda80` calls
+  `FUN_004a89d0` right after it, but the decompile drops the register argument,
+  so what is passed (this dword, or a Skills row index read from it) is not
+  traced; `FUN_004a89d0` takes an index, not a record pointer (`FUN_004ea010`
+  passes the id short `*param_3`). d2d: not ported (it keeps the
   record by id).
 - **`FUN_006442a0` (skill_level, 94 bytes)**: (unit, skill entry, with_items).
   0 for a null unit or entry. Level = entry `+0x28`; when `with_items` is
@@ -183,7 +186,7 @@ register arguments are partly dropped), so argument order is a reading.
   with the use: `components/game/skill_text.hpp:467` (flag 1 vs 0 = item
   levels), `components/rules/monsters.hpp:469`; the cap is not modelled in
   d2d's `skill_level` users (`grep -n FUN_006442a0 components/rules/monsters.hpp`),
-  harmless below level 98.
+  probably harmless (the cap's value was not read here).
 - **`FUN_0044dcc0` (is_expansion, 6 bytes)**: returns the dword `DAT_007a04f4`.
   `tools/emu/skill_tips.py:28` sets it to 1 for "an expansion game", and
   `tools/emu/_hire_probe.py:25` does the same. Callers include
@@ -204,9 +207,11 @@ register arguments are partly dropped), so argument order is a reading.
   ("`descatt` (+0x14) with one in 0x72d7f8"), as a callable. Only caller:
   `FUN_004a7d00`, twice (`:181` / `:183` in the decompile), each result
   into `FUN_004a7340` (the chance-to-hit hover), then `FUN_004a7ae0`. d2d:
-  not ported as a function; `rules::attack_line` computes the same number
-  per skill (section above), the hover reuses it. The 0x48 bound is
-  loose (bugs.md 54). Which register holds which argument is read from d2d's
+  not ported as a function; `rules::attack_line` computes the number only
+  for descatt 1, 2 and 5 (`components/rules/skills.hpp:707`); for descatt 3
+  and 4, whose handlers are listed above, it leaves the rating 0. d2d draws no chance-to-hit hover (tooltips are
+  listed as not done above). The 0x48 bound is
+  loose (bugs.md 65). Which register holds which argument is read from d2d's
   naming of the two skill wrappers, not from the asm.
 - **`FUN_004e7120` (damage_add_listed_skills, 429 bytes)**: `(unit, &min, &max,
   &colour)`, always returns 1; adds skill-sourced damage onto the numbers
