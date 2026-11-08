@@ -1050,3 +1050,46 @@ d2d: **agrees**. `Target::undead` (components/rules/combat.hpp:530) and
 `kUndead` (components/rules/aura_filter.hpp:17) are the same two bits; the
 dParam1 bonus (components/game/fight/missiles.cpp:626) and the AI check at
 components/game/ai.cpp:1041 use it. Cited, no oracle run for this change.
+
+## The record fill — FUN_005a8c70 (ECX game, EDX the missile, stack unit, record)
+
+Cited from the decompile, no oracle run; the decompile drops ECX / EDX, so the
+operand roles below are a reading. It fills one 0x70-byte damage record
+(`param_4`) from the missile's stats and returns the number its caller adds
+(0 for a null missile). The switch is the byte FUN_0064b0c0 gives for the
+missile's class (the "element" in "Server damage functions 1, 2, 4 and 12"):
+
+| Case | Record field(s) | From |
+|---|---|---|
+| 0 physical | +0x08 | FUN_005a8910 with stat 0x15, no bonus stat (-1); see below |
+| 1 fire | +0x10 | FUN_005a8910 with 0x30, bonus 0x149 |
+| 2 lightning | +0x1c | 0x32, bonus 0x14a |
+| 3 magic | +0x20 | 0x34, bonus 0x165 |
+| 4 cold | +0x24, +0x30 | 0x36, bonus 0x14b; +0x30 = stat 0x38 (length) |
+| 5 poison | +0x28, +0x2c | 0x39, bonus 0x14c; +0x2c = stat 0x3b; divided by stat 0x146 when that is over 1; returns +0x28 × 0x19 |
+| 6 / 7 / 8 / 9 | +0x38 / +0x3c / +0x40 / +0x44 | stat 0x3c / 0x3e / 0x40 / 0x42, plain; 7, 8, 9 return 0 |
+| 0xb | +0x14, +0x18 | 0x13c, bonus 0x149; +0x18 = stat 0x13b; returns +0x14 × 0x19 |
+| 0xc | +0x24, +0x34 | as 4 but the length goes to +0x34 |
+
+Case 0, with a unit given (`param_3`): the roll is scaled by
+`pct = stat 0x19 (+ stat 0x79 if the unit is a demon, FUN_0063e940) (+ stat 0x7a
+if undead, FUN_0063e990)`, floored at −90 (`< −0x59` becomes −0x5a), as
+`roll += roll × pct / 100` (C division). Then, whatever the unit, a non-zero
+stat 0x8d sets bit 0x2000 of the record's word at +4 and doubles +0x08. Both
+the scale and the doubling come from stats of the missile itself (the first
+argument of FUN_00625480 is the missile).
+
+Callers: FUN_005a9a70, FUN_005aa250, FUN_005aa8b0, FUN_005abd70 and
+FUN_005ad0f0 (once per burst or hit), plus the Blessed Hammer slot.
+
+Re-check: `python3 tools/ghidra/fn.py 005a8c70`,
+`python3 tools/ghidra/calls.py 005a8c70`.
+
+d2d: **not ported** for the physical case. `rules::missile_blow`
+(components/rules/combat.hpp:677) rolls the physical from `phys_lo` / `phys_hi`
+and applies neither the 0x19 / 0x79 / 0x7a percent nor the 0x8d doubling; the
+undead / demon bonus d2d has is the Blessed Hammer slot's (FUN_005ad2f0). Whether a
+missile unit carries those stats (they would have to be copied from the
+owner when it is made) is not shown here, so this is a gap to check, not
+a proven disagreement. The element rows agree with `missile_blow`'s
+min / max reading, apart from the bonus stat discussed under FUN_005a8910.
