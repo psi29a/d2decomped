@@ -12,6 +12,7 @@ address	name	evidence
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
 0046b680	client_spawn_missiles_11c	no args: client missiles of rows 0x11c, 0x128, 0x125 via FUN_004cd540, the first tagged 0x32 at data +0x28 (missiles.md "Client missile spawn: FUN_0046b680")
+0046b9a0	client_spawn_missiles_12b	no args: client missiles of rows 0x12b, 0x166, 0x132 via FUN_004cd540, the first tagged 0x4b in data +0x28 and +0x2c (missiles.md "Client missile spawn: FUN_0046b9a0")
 0046dbf0	path_base_name	copies the base name between the last \ and the extension via _strncpy (chat.md)
 0046dc40	gfx_find_by_name	Gfx.cpp graphic lookup: base name, __strlwr, 512-bucket hash chain (chat.md)
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
