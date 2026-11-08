@@ -301,6 +301,20 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (std::exchange(world.save_due, false)) save();
         // Classic Terror's End: the game closed under the player (FUN_00530590).
         if (world.game_closed) { world.game_closed = false; save(); screen = Screen::CharSelect; return; }
+        // A dead hardcore character's Resurrect: out of the game, as Save and Exit (FUN_0054c0e0).
+        for (std::size_t index = 0; index < world.players.size(); ++index) {
+            auto& leaving = *world.players[index];
+            if (!std::exchange(leaving.out, false)) continue;
+            if (const auto seat = std::ranges::find(coop, leaving.id, &CoopPlayer::id); seat != coop.end()) {
+                partner_left = seat->seat;
+                coop_leave(partner_left);
+            } else if (index == 0 && (handed_over = lead_leaves()) < 0) {
+                save();
+                screen = Screen::CharSelect;
+                return;
+            }
+            break;                                        // the players changed: the rest next frame
+        }
         // The game menu takes every click while it's up; Exit saves and goes
         // to the roster. Its volumes go to d2d.cfg.
         bool hud_click = false;

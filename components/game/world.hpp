@@ -250,6 +250,7 @@ struct World {
         std::optional<Body> body;              // raised: the channel's share done (0..1); raisers: those channelling now
         int raising = -1;                      // the body they're channelling on (its player's id), -1 none
         std::uint32_t right_before = 0;        // the right skill Resurrect took the place of (saved instead of it)
+        bool out = false;                      // hardcore, dead, Resurrect pressed: the screen takes them out of the game (FUN_0054c0e0)
     };
     using Corpse = Player::Corpse;
     // The players, in join order; [0] is there from the start. `actor` is the
