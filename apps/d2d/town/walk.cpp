@@ -391,8 +391,10 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         if (world_ms == 0 || frame_ms - world_ms > 1000) world_ms = frame_ms - std::min<std::uint32_t>(frame_ms - last_ms, kTickMs);
         // A local game pauses under the game menu (FUN_0044efa0: game mode
         // 0 / 1, UI 9 or 0xb up, the player in a room): it draws and plays
-        // sounds, the server's frame (FUN_0052fc20) doesn't run.
-        if (!net_game && (game_menu.open || controls.open)) world_ms = frame_ms;
+        // sounds, the server's frame (FUN_0052fc20) doesn't run. A hosted
+        // game goes on, as a joined one does: its joiners are playing.
+        if (!net_game && !lan_host && (game_menu.open || controls.open)) world_ms = frame_ms;
+        lan_poll();
         bool ticked = false;
         for (int ticks = 0; frame_ms - world_ms >= kTickMs && ticks < 5; ++ticks) {
             prev_x = view.player.x; prev_y = view.player.y;
@@ -404,12 +406,17 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
                 for (auto& command : coop_player.orders) orders.push_back({ coop_player.id, std::move(command) });
                 coop_player.orders.clear();
             }
+            for (auto& lan_player : lan_players) {          // the LAN joiners'
+                for (auto& command : lan_player.orders) orders.push_back({ lan_player.id, std::move(command) });
+                lan_player.orders.clear();
+            }
             world.tick(orders, world_ms + kTickMs, world_ms);
             world_ms += kTickMs;
             ticked = true;
         }
         if (ticked && focused().interact_npc < 0) hold_interact = false;   // talked, gone, or nothing queued (a portal, corpse or non-menu unit sets none)
         if (!ticked && view.level == world.level) return;
+        if (ticked) lan_publish();
         if (ticked && g_unit_slide && view.level == world.level) remember_slides(view, slide_from);   // where the View had them: the slide's start
         else slide_from.clear();
         publish();

@@ -1034,7 +1034,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             return std::nullopt;
         });
         audio.pause_world(false);                  // a cinematic's hold ends
-        audio.menu_paused = !net_game && (game_menu.open || controls.open);   // the world's sounds fade out (Audio::step_ducks)
+        audio.menu_paused = !net_game && !lan_host && (game_menu.open || controls.open);   // the world's sounds fade out (Audio::step_ducks); a hosted game plays on
         draw(framebuffer, mouse, frame_ms);
         // Screen Shot (FUN_004fa7a0): at most one a second, Screenshot%03d,
         // the first number free. d2d writes PNG in its screenshots folder

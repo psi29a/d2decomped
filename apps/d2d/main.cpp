@@ -45,6 +45,7 @@
 #include <devctl.hpp>
 #include <install.hpp>
 #include <join.hpp>
+#include <lan.hpp>
 #include <log.hpp>
 #include <mpq.hpp>
 #include <screenshot.hpp>
@@ -373,6 +374,7 @@ static int         g_start_cam_y = -1;
 // improvement 2; game.exe takes it as the seed).
 static std::string   g_join_host;           // the game.exe TCP/IP host char-select joins: --join, or TCP/IP's JOIN GAME
 static std::string   g_cli_join;            // --join's own, what SINGLE PLAYER goes back to
+static int           g_lan_host_port = 0;   // --host: d2d players join this game over the LAN (lan-host.md); 0 off
 static std::string   g_last_tcp_ip;         // d2d.cfg last_tcp_ip: the join box's start (game.exe's LastTcpIp)
 static fs::path      g_game_exe;            // --game-exe: its tables (the codec's, read at runtime)
 static bool          g_seed_fixed = false;  // --seed
@@ -711,6 +713,12 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
     town.set_pad_config(g_pad_config);
     town.touch_enabled = g_touch_controls;
+    if (g_lan_host_port > 0) {
+        if (auto listening = d2d::net::lan::Host::listen(std::uint16_t(g_lan_host_port))) {
+            town.lan_host.emplace(std::move(*listening));
+            d2d::log::info("lan: hosting on port {} ({})", g_lan_host_port, d2d::net::own_address());
+        } else d2d::log::warn("lan: can't host on port {}: {}", g_lan_host_port, listening.error());
+    }
     // The left button is down while a source holds it: the physical button or an Attack / Use key.
     const auto attack_key_held = [&] { return std::ranges::any_of(town.click_keys[keys::kClickAttack], key_held); };
     // A pad's seat; a new seat's player picks their character (Town::coop_seat's roster).
@@ -1880,6 +1888,8 @@ int main(int argc, char** argv) {
     std::string join_host, game_exe, log_level = "info";
     app.add_option("--log-level", log_level, "error, warning, info, debug or trace");
     app.add_option("--join", join_host, "Join a game.exe TCP/IP game at this address (your own network only)");
+    int lan_host_port = 0;
+    app.add_option("--host", lan_host_port, "Host this game for d2d players on your LAN, on this port (6113 is the usual)")->check(CLI::Range(1, 65535));
     app.add_option("--game-exe", game_exe, "Your 1.14d game.exe, for --join (else $D2_GAME_EXE, game.exe or bin/game.exe beside the MPQs)");
     int start_cam_x = -1, start_cam_y = -1;
     app.add_option("--start-cam-x", start_cam_x,
@@ -2021,6 +2031,7 @@ int main(int argc, char** argv) {
     g_join_host      = join_host;
     g_cli_join       = join_host;
     g_last_tcp_ip    = cfg["last_tcp_ip"];
+    g_lan_host_port = lan_host_port;
     if (!game_exe.empty()) g_game_exe = game_exe;
     else if (const char* env = std::getenv("D2_GAME_EXE")) g_game_exe = env;
     else g_game_exe = fs::exists(data_dir / "game.exe") ? data_dir / "game.exe" : data_dir / "bin" / "game.exe";

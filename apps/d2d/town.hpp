@@ -34,6 +34,7 @@
 
 #include <ambient_dip.hpp>
 #include <d2s_items.hpp>
+#include <lan.hpp>
 #include <overlays.hpp>
 #include <panel_view.hpp>
 #include <quests.hpp>
@@ -322,6 +323,14 @@ struct Town {
     // screen (take_focus).
     struct CoopPlayer { int seat = 0, id = 0, colour = 0; PadPlayer pad; pad::Mapper mapper; std::vector<Command> orders; std::optional<Roster> roster; };
     std::vector<CoopPlayer> coop;
+    // --host (docs/design/lan-host.md): d2d players joined over the LAN, each a World
+    // player with its own View stream. lan_poll takes their joins, commands and
+    // leaves (once a frame); lan_publish sends each their View after the ticks.
+    struct LanPlayer { int client = -1, id = 0; ViewEncoder view_enc; std::vector<Command> orders; };
+    std::optional<d2d::net::lan::Host> lan_host;
+    std::vector<LanPlayer> lan_players;
+    void lan_poll();
+    void lan_publish();
     int lead_colour = 0;                          // the first player's seat colour (pad::Seats::colour)
     // A pad took seat `seat` (its colour `colour`): its roster comes up (a held seat's player stays).
     // `pad_now`: the pad as it is, so what it holds (the Start that seated it) isn't pressed in the roster.
