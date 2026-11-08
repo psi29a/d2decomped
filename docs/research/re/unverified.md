@@ -15,7 +15,7 @@ trust. `git grep -n "unverified (source"` lists them.
 |---|---|---|---|---|
 | DCC format as a whole | components/dcc/dcc.hpp | OpenDiablo2's reader, Necrolis' notes | every DCC in the MPQs decodes and draws as the game shows it | the DCC decoder (D2Cmp part) |
 | DS1 layer stream order | components/ds1/ds1.hpp | OpenDiablo2's reader | every DS1 parses to its exact size | the DS1 loader (`FUN_00665950` area) |
-| Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | handlers marked ✓ were read | names only; behaviour is from the handlers |
+| Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | C → S: every id's handler from game.exe's table (`DAT_006e0d18`); 24 marked ✓ were read and agree. S → C: names only | the C → S handlers without ✓; the S → C handlers (`DAT_007114d0`) |
 | A converted monster's pick: a click on it walks there, a held attack drops it | components/game/world/commands.cpp `apply` (UseSkill) | d2d's own hover rule (cursor-units.md) | the hover is traced: outside town no monster of the player's alignment is under the cursor | the click path from the hovered unit (`FUN_00467a10`) |
 
 ## Traced

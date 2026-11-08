@@ -54,53 +54,61 @@ Names: the community's (d2-clientless, D2MOO) — unverified labels
 | Id | Size | Handler | What |
 |---|---|---|---|
 | 01 | 5 | 0x5497e0 ✓ | walk to x, y (`FUN_005809d0`, mode 2) |
-| 02 | 9 | 0x549890 | walk to unit |
-| 03 | 5 | 0x5498d0 | run to x, y |
-| 04 | 9 | 0x549920 | run to unit |
+| 02 | 9 | 0x549890 ✓ | walk to unit (`FUN_00549830` checks it, then mode 2) |
+| 03 | 5 | 0x5498d0 ✓ | run to x, y (mode 3) |
+| 04 | 9 | 0x549920 ✓ | run to unit (mode 3) |
 | 05 | 5 | 0x549d00 ✓ | left skill at x, y |
-| 06, 07, 09, 0a | 9 | 0x549d80.. | left skill on unit (variants) |
-| 08 | 5 | 0x549e80 | left skill at x, y (shift) |
-| 0c, 0f | 5 | 0x549fc0, 0x54a140 | right skill at x, y |
-| 0d, 0e, 10, 11 | 9 | 0x54a040.. | right skill on unit |
+| 06 | 9 | 0x549d80 ✓ | left skill on unit: pierce index + 1, then `FUN_00549ba0` |
+| 07, 09, 0a | 9 | 0x549e00, 0x549ee0, 0x549f40 | left skill on unit (variants) |
+| 08 | 5 | 0x549e80 ✓ | left skill at x, y (shift): range check, then 0x05's handler |
+| 0c | 5 | 0x549fc0 ✓ | right skill at x, y: pierce index + 1, then `FUN_00549ad0` |
+| 0f | 5 | 0x54a140 ✓ | right skill at x, y (shift): range check, then 0x0c's handler |
+| 0d | 9 | 0x54a040 ✓ | right skill on unit: as 0x06 with the right skill |
+| 0e, 10, 11 | 9 | 0x54a0c0, 0x54a1a0, 0x54a200 | right skill on unit (variants) |
 | 13 | 9 | 0x54aa90 ✓ | interact with unit (type ≤ 5, id) |
-| 14, 15 | var | 0x54a290, 0x54a5d0 | overhead / chat message |
+| 14 | var | 0x54a290 ✓ | overhead message (4..0x113 bytes): the unit's hover text, language code |
+| 15 | var | 0x54a5d0 ✓ | chat message: copied, sent on to the clients (`FUN_0052ded0`) |
 | 16 | 13 | 0x54aad0 ✓ | pick up item (type, id, action) |
-| 17 | 5 | 0x54ab40 | drop item: the cursor's item (its id at +1) at the nearest free spot to the player (`FUN_00563c00` → `FUN_00555da0`); refused while dead or trading. d2d: `cmd::Drop` |
-| 18..1f | | 0x54abb0.. | item to buffer / body / swap / switch |
+| 17 | 5 | 0x54ab40 ✓ | drop item: the cursor's item (its id at +1) at the nearest free spot to the player (`FUN_00563c00` → `FUN_00555da0`); refused while dead or trading. d2d: `cmd::Drop` |
+| 18 | 17 | 0x54abb0 ✓ | cursor item to a buffer (page < 5; `FUN_00560200`) |
+| 19..1f | | 0x54acd0.. | item to cursor / body / swap / switch (net-packets.md "Items") |
 | 20 | 13 | 0x54b1e0 | use item |
 | 21..26 | | | stack; belt: to, remove, switch, use |
 | 27 | 9 | 0x54b280 | identify item |
 | 28 | 9 | 0x54b650 | socket an item |
-| 29, 2a | 9 | | scroll to book; item to cube |
+| 29, 2a | 9 | 0x54b710, 0x54b790 | scroll to book; item to cube |
 | 2f, 30 | 9 | 0x54b930, 0x54b9f0 ✓ | start / end NPC chat |
-| 31 | 9 | | quest message |
-| 32, 33 | 17 | | buy / sell |
-| 34 | 5 | | Cain identifies |
-| 35 | 17 | | repair |
-| 36 | 9 | | hire merc |
-| 38 | 13 | | NPC action (gamble, trade menu) |
+| 31 | 9 | 0x54ba90 ✓ | quest message to an NPC (`FUN_005443b0`) |
+| 32, 33 | 17 | 0x54bac0, 0x54bb20 | buy / sell |
+| 34 | 5 | 0x54bba0 | Cain identifies |
+| 35 | 17 | 0x54bb60 ✓ | repair (`FUN_00578050`: flag 0x80000000 repairs all) |
+| 37 | 5 | 0x54bc30 | the remembered unidentified item through `FUN_00562590` (the gamble buy **(?)**) |
+| 36 | 9 | 0x54bbd0 | hire merc |
+| 38 | 13 | 0x54bca0 | NPC action (gamble, trade menu) |
 | 3a | 3 | 0x54bd10 | add stat point |
 | 3b | 3 | 0x54bd90 ✓ | add skill point (a skill lookup, `FUN_006439b0`) |
 | 3c | 9 | 0x54be70 | select skill (let through when busy) |
 | 3d | 5 | 0x54bf10 | object action (`FUN_005845d0`) |
-| 3f | 3 | | character phrase |
-| 40 | 1 | | update quests |
+| 3f | 3 | 0x54c070 | character phrase |
+| 40 | 1 | 0x54c0c0 | update quests |
 | 41 | 1 | 0x54c0e0 | resurrect (only when dead) |
 | 44..47 | | | staff in orifice; merc interact / move |
-| 48 | 1 | | busy state off |
+| 48 | 1 | 0x54c590 | busy state off |
 | 49 | 9 | 0x54c5d0 | waypoint |
 | 4b | 9 | 0x54c6d0 | request unit update |
 | 4c | 5 | 0x54c760 | transmute (cube) |
 | 4f | 7 | 0x54c7c0 | click button (trade, stash, ...) |
 | 50 | 9 | 0x54c800 | drop gold |
 | 51 | 9 | 0x54c870 | bind hotkey |
-| 53, 54 | 1 | | stamina on / off (run) |
-| 58 | 3 | | quest completed |
-| 59 | 17 | | move unit |
-| 5d, 5e | 7, 6 | | squelch / hostile; party |
+| 53 | 1 | 0x54c940 ✓ | run on: a walking player with stamina left goes to run (update flag 3) |
+| 54 | 1 | 0x54c990 ✓ | run off: a running player walks (update flag 2) |
+| 58 | 3 | 0x54c9c0 | quest completed |
+| 59 | 17 | 0x54ca10 | move unit |
+| 5d | 7 | 0x54c2a0 ✓ | party screen action ≤ 10 with a player id and a byte (`FUN_005a6000`; refused when `FUN_0053fd10` says so) |
+| 5e | 6 | 0x54c300 ✓ | party screen action ≤ 10 with a player id (`FUN_005a6000`) |
 | 5f | 5 | 0x54cd50 | update player position |
 | 60 | 1 | 0x54ce70 | swap weapons |
-| 61, 62 | 3, 5 | | merc item; resurrect merc |
+| 61, 62 | 3, 5 | 0x54d430, 0x54bc00 | merc item; resurrect merc |
 | 63 | 5 | 0x54d520 | item to belt |
 | 66 | var | 0x54d740 | warden |
 | 67, 68 | 46, 37 | (not in the table) | join game |
