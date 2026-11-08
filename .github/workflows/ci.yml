@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Docs, research notes, the Python RE tools and C++ comments don't touch
+  # Docs, research notes, the Python RE tools, the Pages site and C++ comments don't touch
   # the build: a change to only those skips build, tidy and flatpak (tools.yml tests the
   # Python). tests/*.py drive the d2d binary and tidy-pr-select.py picks
   # tidy's files, so those still build; a tag always does.
@@ -44,7 +44,7 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          code=$(grep -vE '^docs/|\.md$|^tools/[^/]+\.py$|^tools/(emu|ghidra)/|^\.github/workflows/(cache-cleanup|coverity|gaps|guard|tools)\.yml$' <<<"$files" || true)
+          code=$(grep -vE '^docs/|\.md$|^tools/[^/]+\.py$|^tools/(emu|ghidra|site)/|^\.github/workflows/(cache-cleanup|coverity|gaps|guard|tools)\.yml$' <<<"$files" || true)
           # A comment-only edit to engine or app C++ doesn't build either:
           # compare each side with comments and whitespace stripped. Not
           # tests/: their // test-links: comments are CMake's.
