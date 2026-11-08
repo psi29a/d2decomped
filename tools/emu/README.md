@@ -67,6 +67,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | HUD life / mana / stamina glide (FUN_00496dd0) | `uv run python globe_glide.py gen 2000 1 > cases.tsv; uv run python globe_glide.py game cases.tsv > g.txt; ../../build/tests/test_globe_glide g.txt \| diff g.txt -` | no output |
 | Show Items label layout (FUN_004c0640's 12 tries in FUN_004c0810's loop) | `uv run python show_items_layout.py gen 5000 1 > cases.tsv; uv run python show_items_layout.py game cases.tsv > g.txt; ../../build/tests/test_show_items_layout cases.tsv \| diff g.txt -` | no output |
 | Monster display-name slot (FUN_0063e810: UTF-16 copy to MonsterData +0x2c, with null/type guards) | `uv run python monster_name_slot.py` | copied names including supplementary Unicode, guard cases unchanged, and the no-op mutation detected |
+| Talk-submenu quest names (FUN_0049f910, table 0x722678) vs `rules::quest_name` | `uv run python quest_name.py` | `65536 messages match d2d's 32 runs; 527 have a name; 164 (row 100) is 3716`, then `ok` |
 
 ## When it breaks
 

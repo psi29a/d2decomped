@@ -228,7 +228,7 @@ The unmarked entries are kind 2.
 **Client side:**
 - On clicking the NPC, the first kind-0 message plays at once (`FUN_00661400`, then `FUN_004a10e0`).
 - Kind-2 messages become Talk submenu entries (`FUN_00661390` / `FUN_006613c0`).
-- Each entry is labelled with its quest's name from the `{u16 message, u16 name}` table at `0x722678` (0x20f rows, `FUN_0049f900`): messages 64..80 → 3714 "Den of Evil", the rest per act (`rules::quest_name`); a message not found gets 0xe8c, as does 164 (bugs.md 46).
+- Each entry is labelled with its quest's name from the `{u16 message, u16 name}` table at `0x722678` (0x20f rows, `FUN_0049f910`): messages 64..80 → 3714 "Den of Evil", the rest per act (`rules::quest_name`); a message not found gets 0xe8c (164 is found: bugs.md 46).
 
 ## Player voice events
 
