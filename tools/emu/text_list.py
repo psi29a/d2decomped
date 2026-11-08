@@ -172,7 +172,7 @@ def main():
         cases += 1
 
     # remove: head, middle, last, absent, and an empty list
-    for target in (0xFFFF, 7, 0x0E8C, 0x2345, 0x0E8C):
+    for target in (0xFFFF, 7, 0x1111, 0x0E8C, 0x2345, 0x0E8C):
         before = harness.nodes(header)
         harness.call(REMOVE, header, target)
         after = harness.nodes(header)
@@ -193,8 +193,8 @@ def main():
 
     # getters and the count, against a model on random lists
     for _ in range(300):
-        nodes = [(rng.choice((0, 1, 2, 3, 0xE8C)), rng.choice((0, 1, 2, 3))) for _ in range(rng.randint(0, 7))]
-        nodes = [(rng.randrange(0x10000), kind) for _, kind in nodes]
+        nodes = [(rng.choice((0, 1, 2, 3, 0xE8C, 0xFFFF, rng.randrange(0x10000))),
+                  rng.choice((0, 1, 2, 3))) for _ in range(rng.randint(0, 7))]
         lst = harness.make(nodes)
         require(harness.call(COUNT2, lst) == sum(1 for _, k in nodes if k == 2), f"count2 {nodes}")
         for kind, address, none in ((2, BY_INDEX2, 0xE8C), (0, BY_INDEX0, 0xFFFF), (1, BY_INDEX1, 0xFFFF)):
