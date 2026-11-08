@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+// Print the table's sorted keys and UTF-16 values as hexadecimal text.
 int main() try {
     const std::vector<char> input(std::istreambuf_iterator<char>(std::cin), {});
     std::vector<std::byte> bytes;
@@ -24,7 +25,8 @@ int main() try {
     for (const auto& key : keys) {
         for (const unsigned char value : key) std::printf("%02x", value);
         std::printf("=");
-        for (const char16_t value : *table.get(key)) std::printf("%04x", unsigned(value));
+        const auto text = table.get(key);
+        for (const char16_t value : *text) std::printf("%04x", unsigned(value));
         std::printf("\n");
     }
     return 0;
