@@ -70,6 +70,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Overhead message node (Chat/Chat.cpp: FUN_00661110, FUN_006611a0) | `uv run python chat_node.py` | `30 nodes: time = min(length, 254) x 8 + 125 (2157 frames at 254 and above), ...`, then `ok` |
 | Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
 | Ignore list account mapping and node teardown (Chat/Ignorelist.cpp: FUN_00611320, FUN_0060edf0, FUN_00610690, FUN_0060ef60, FUN_0060ef30, FUN_0060edb0, FUN_0060eef0) | `uv run python ignorelist.py` | `9910 cases: 244 accounts mapped; ...`, then `ok` |
+| Ignore list remaining helpers (FUN_0060ed30, FUN_0060ed70, FUN_0060ee60, FUN_006114e0, FUN_00611560) | `uv run python ignorelist_remaining.py` | `ok: node cleanup, hash deletion, empty and populated table clear, eager and lazy singleton` |
 
 ## When it breaks
 
