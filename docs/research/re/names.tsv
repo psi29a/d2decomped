@@ -70,6 +70,7 @@ address	name	evidence
 005a2d80	unit_damage_shift	fastcall (_, unit): when stat 0x16 > 0 and class id (+4) != 0x10f, stat 0x15 = max(0, s15 - 1 + s17), 0x16 = max(0, s16 - 1 + s18) in the flag-1 list; no direct caller; skills.md "Stat-list helpers and skill starts"
 005aae10	srv_hit_16_put_state	pSrvHitFunc entry 16 (0x73c880): auratargetstate for the skill's +0x144 calc frames (min 5), returns 0
 005ab110	srv_hit_19_put_state	pSrvHitFunc entry 19 (0x73c88c): auratargetstate for the skill's +0x60 calc frames (min 5) on the target, returns 3
+005abc40	srv_hit_5_ring	pSrvHitFunc entry 5 (0x73c854): ring of ceil(64/step) sub-missiles from tables 0x6e2938 / 0x6e2838, like entry 29 without the frames-left test, returns 3 (missiles.md "Server hit function 5")
 005ae400	missile_do_calc_then_strike	when the row's skill (+0x18) is set: Missiles.txt calc FUN_0064b7c0 into FUN_005a9720, then FUN_005ae1f0; no caller or data ref recorded (missiles.md "Standing missiles")
 005ae480	missile_do_stamp_then_strike	path velocity 0: ORs 0x40 into its subtile's room word (FUN_0064cb90), then FUN_005ae1f0; called by FUN_005b04a0 (missiles.md "Standing missiles")
 005ae520	missile_do_burn_footprint	missile do 5 (data ref 0x73c77c): stamps 0x40 on its footprint (FUN_0064ea00), steps its animation frame by range left, then FUN_005ae1f0 (missiles.md "Standing missiles")

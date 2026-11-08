@@ -807,6 +807,34 @@ fields +4 flags word, +8 physical, +0x28 / +0x2c poison damage and length,
 Re-check: `cd tools/emu && D2_MPQ_DIR=<mpq folder> uv run python missmode.py`.
 Not covered: the callees' own effects, and which Missiles.txt rows select
 each slot.
+## Server hit function 5 — FUN_005abc40 (a ring like Frozen Orb's burst)
+
+Cited. Slot 5 of the pSrvHitFunc table (`0x73c854`; the only reference to
+it is that table entry, `game-calls.tsv` "data"). ECX game, EDX the missile.
+It is hit 29 (`FUN_005abb00`) without the "frames left" test:
+
+- No data block, a row sub-missile id (short +0x24) < 0 or no row, or no
+  owner (`FUN_00552fd0`): returns 1.
+- Else `ceil(64 / step)` missiles with `FUN_0059fa30` (named
+  `d2d_ai_andariel_missile` in the decompile): flags **2** (relative
+  target), [1] owner, [2] the missile as start unit, [4] the sub-missile row,
+  [7] / [8] = `0x6e2938[k]` / `0x6e2838[k]`, [0xb] / [0xc] the missile's
+  skill and level (`FUN_0064a280` / `FUN_0064a210`). `k` steps `sHitPar1 *
+  4` bytes (at least 1 entry) while below 0x100, as hit 29 does.
+- Each new missile gets the same two table words in its data block at
+  `+0x28` / `+0x2c` (`FUN_0064a710` / `FUN_0064a760`).
+- Returns **3** (damage, end). It never returns 2.
+
+The tables `0x6e2938` / `0x6e2838` are not the ones hit 29 uses
+(`0x6e2738` / `0x6e2638`) nor the spin ones (`0x6e2b78` / `0x6e2a78`); I did
+not read their values, so whether they hold the same 64 circle points is
+not settled. Which Missiles.txt row uses hit function 5 was not checked.
+
+Re-check: `python3 tools/ghidra/fn.py 005abc40`, and compare with
+`python3 tools/ghidra/fn.py 005abb00`.
+
+d2d: not ported. `Fight::burst` has no case 5 (fight/missiles.cpp:799).
+
 ## Missile data setters — FUN_0064a710, FUN_0064a760
 
 Cited. Both take `(unit, value)` on the stack and do the same thing: when
