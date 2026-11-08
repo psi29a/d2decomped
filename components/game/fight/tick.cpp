@@ -800,8 +800,18 @@ auto Fight::enter(const Level* destination) -> void {
         }
         mon_level = destination;
         missiles.clear();
+        kept_missiles.erase(destination);   // what a turn of its own left in flight (take_turn): nothing follows here either
         actor->attack_mon = actor->merc_target = -1;
         for (auto& pet : actor->pets) pet.target = -1;
+    }
+
+auto Fight::take_turn(const Level* destination) -> void {
+        if (in_town(destination) || destination == mon_level) return;
+        if (mon_level) { kept[mon_level] = std::move(monsters); kept_missiles[mon_level] = std::move(missiles); }
+        monsters.clear(); missiles.clear();
+        if (const auto found = kept.find(destination); found != kept.end()) { monsters = std::move(found->second); kept.erase(found); }
+        if (const auto found = kept_missiles.find(destination); found != kept_missiles.end()) { missiles = std::move(found->second); kept_missiles.erase(found); }
+        mon_level = destination;
     }
 
 auto Fight::rooms_up(const Level& here, float x, float y, bool arrived) -> void {

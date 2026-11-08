@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <format>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -402,6 +403,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         }
         lan_poll();
         bool ticked = false;
+        lan_cue_from = 0;                                   // the frame's cues (publish takes them after its ticks): each turn sends from where the last left off
         for (int ticks = 0; frame_ms - world_ms >= kTickMs && ticks < 5; ++ticks) {
             prev_x = view.player.x; prev_y = view.player.y;
             std::vector<Order> orders;
@@ -416,13 +418,14 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
                 for (auto& command : lan_player.orders) orders.push_back({ lan_player.id, std::move(command) });
                 lan_player.orders.clear();
             }
+            world.split_levels = lan_host.has_value();     // hosting: each player on their own level (lan-host stage 9)
+            world.turn_done = world.split_levels ? std::function<void()>([this] { lan_publish(); }) : std::function<void()>{};
             world.tick(orders, world_ms + kTickMs, world_ms);
             world_ms += kTickMs;
             ticked = true;
         }
         if (ticked && focused().interact_npc < 0) hold_interact = false;   // talked, gone, or nothing queued (a portal, corpse or non-menu unit sets none)
         if (!ticked && view.level == world.level) return;
-        if (ticked) lan_publish();
         if (ticked && g_unit_slide && view.level == world.level) remember_slides(view, slide_from);   // where the View had them: the slide's start
         else slide_from.clear();
         publish();

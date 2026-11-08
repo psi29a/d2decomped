@@ -53,7 +53,9 @@ auto Town::lan_poll() -> void {
                 auto joining = character_of_bytes(*scene, std::as_bytes(std::span(event.hello.save)));
                 if (!joining) { lan_host->kick(event.client, "the host couldn't read your character"); continue; }
                 if (world.players.size() >= 4) { lan_host->kick(event.client, "the game is full"); continue; }
-                const int seat_id = world.join(*joining).id;
+                auto& seated = world.join(*joining);
+                seated.own_screen = true;                 // on their own machine: their own level (World::split_levels), the host's party stays one screen
+                const int seat_id = seated.id;
                 const auto& raw = event.hello.save;
                 lan_players.push_back({ .client = event.client, .id = seat_id, .view_enc = {}, .orders = {},
                                         .save = std::vector<std::byte>(reinterpret_cast<const std::byte*>(raw.data()), reinterpret_cast<const std::byte*>(raw.data()) + raw.size()),
@@ -126,13 +128,13 @@ auto Town::lan_publish() -> void {
         if (!lan_host || !scene) return;
         for (auto& lan_player : lan_players) {
             const auto found = std::ranges::find_if(world.players, [&](const auto& seated) { return seated->id == lan_player.id; });
-            if (found == world.players.end()) continue;
+            if (found == world.players.end() || !world.here(**found)) continue;   // split levels: this turn's level only (a leaver: on its new level's)
             world.act_as(**found);
             auto out = world.view();
             world.act_as(world.lead());
             // The tick's sounds (publish takes them after) that this joiner could hear where it stands,
             // as delays from now: its clock isn't ours, it adds its own (lan_client_frame).
-            for (const auto& cue : world.cues.due) {
+            for (const auto& cue : std::span(world.cues.due).subspan(std::min(lan_cue_from, world.cues.due.size()))) {   // this turn's
                 if (cue.sound <= 0 || std::size_t(cue.sound) >= world.game_data->sounds.size()) continue;
                 const auto& row = world.game_data->sounds[std::size_t(cue.sound)];
                 const auto [screen_x, screen_y2] = d2d::rules::screen_offset(cue.x - out.player.x, cue.y - out.player.y);
@@ -146,6 +148,7 @@ auto Town::lan_publish() -> void {
             const auto bytes = encode_view(*scene, out, lan_player.view_enc);
             if (!lan_host->send_view(lan_player.client, bytes)) lan_player.view_enc.reset();   // gone: lan_poll drops it
         }
+        lan_cue_from = world.cues.due.size();
     }
 
 auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms) -> void {

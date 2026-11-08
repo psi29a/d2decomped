@@ -474,6 +474,7 @@ struct Fight {
     bool remote_monsters = false;                    // a game joined on a game.exe host: its monsters (S->C 0xac), none made here
 
     std::unordered_map<const Level*, std::vector<Monster>> kept;   // the other levels', while the player is away
+    std::unordered_map<const Level*, std::vector<Missile>> kept_missiles;   // a level's in flight while another has its turn (World::swap_to)
     Spawning spawning;                                   // the game's rooms in play and what they spawned (new_game)
     std::vector<Missile> missiles;         // in flight in the Blood Moor
     int missile_sounds = 0;                // the last Missile::sound handed out
@@ -1304,6 +1305,9 @@ struct Fight {
     // last one's are kept as they were; nothing in flight follows.
     // Its monsters come as its rooms come into play (rooms_up).
     void enter(const Level* destination);
+    // Another level's turn (lan-host stage 9, World::swap_to): its monsters
+    // and missiles in, this one's kept, nobody's target dropped.
+    void take_turn(const Level* destination);
     // The player at (x, y) in `here`: the rooms coming into play round
     // the player populate (player_moved), their monsters joining `monsters`
     // or the level's `kept`. `arrived`: just came in through a warp.

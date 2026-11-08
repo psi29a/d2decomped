@@ -71,12 +71,17 @@ void DebugVerbs::add_level() {
         town.hero.take_warp = int(npc_index);
         return std::string("ok\n");
     });
-    add("goto", [this](const Args& args) -> Reply {   // arrive on level id, at a free spot by its middle (quest tests)
+    add("goto", [this](const Args& args) -> Reply {   // arrive on level id, at a free spot by its middle (quest tests); [player]: that one (a host's joiner)
         if (args.size() < 3 || !town.world.game_data) return std::nullopt;
         const auto* destination = town.world.game_data->level(std::atoi(args[2].c_str()));
         if (!destination || destination->ds1.width() == 0) return std::string("err no such level\n");
         const auto [spot_x, spot_y] = destination->nearest_free(float(destination->ds1.width()) / 2, float(destination->ds1.height()) / 2);
-        town.world.arrive(destination, spot_x, spot_y, "debug goto");
+        auto& world = town.world;
+        const auto who = args.size() >= 4 ? std::ranges::find_if(world.players, [&](const auto& player) { return player->character.name == args[3]; }) : world.players.begin();
+        if (who == world.players.end()) return std::string("err no such player\n");
+        world.act_as(**who);
+        world.arrive(destination, spot_x, spot_y, "debug goto");
+        world.act_as(world.lead());
         return std::format("ok {:.1f} {:.1f}\n", spot_x, spot_y);
     });
     add("grid", [this](const Args& args) -> Reply {   // the level, n spots a cell (subtiles: 5): '#' where a unit can't stand, a row a line

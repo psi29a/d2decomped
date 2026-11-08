@@ -335,6 +335,7 @@ struct Town {
     std::vector<LanPlayer> lan_players;
     void lan_poll();
     void lan_publish();
+    std::size_t lan_cue_from = 0;                          // split levels: this turn's sounds start here in cues.due
     // A joiner's character, built and sent to them (their machine keeps it). False if it couldn't be.
     bool lan_send_save(LanPlayer& lan_player);
     // A joiner gone: out of the World, never saved on this machine.

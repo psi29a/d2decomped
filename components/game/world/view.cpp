@@ -95,7 +95,7 @@ auto World::view() const -> View {
                                       pet.monster.flash_overlay, pet.monster.flash_at });
             }
         for (const auto& player : players) {                  // the party's mercs and summons, as ours
-            if (player.get() == actor) continue;
+            if (player.get() == actor || !here(*player)) continue;   // split levels: this level's party
             if (player->merc && player->merc_npc)                  // its life isn't shown (our own pets' portraits only)
                 view.party_pets.push_back({ player->merc->npc, player->merc->unit, player->merc->mode, "hireable" });
             for (const auto& pet : player->pets)
@@ -108,7 +108,7 @@ auto World::view() const -> View {
         // Run on draws RN only while they walk and have stamina (FUN_0057f090), as our own player.
         const auto running = [](const Player& player) { return player.running && player.player.walking && player.character.stats.values[d2d::d2s::kStamina] > 0; };
         for (const auto& player : players)                    // the others in the game, as their client draws them
-            if (player.get() != actor) {
+            if (player.get() != actor && here(*player)) {
                 const int cls = std::max(player->character.character_class, 0);
                 std::vector<std::string_view> states;
                 for (const auto& state : player->self_states)
@@ -123,7 +123,7 @@ auto World::view() const -> View {
                 view.bodies.push_back({ player->body->x, player->body->y, player->body->dir, player->body->gfx, player->id, std::max(player->character.character_class, 0),
                                         player->body->raised, player->body->raisers });
         view.ghost = actor->ghost;
-        view.all_dead = players.size() > 1 && !anyone_alive();
+        view.all_dead = shared_screen() && !anyone_alive();
         if (level == fight.mon_level) {
             // What's near the player (D2 sends the units of the rooms round
             // each player). ponytail: a radius of 28 cells, not rooms; waits for
