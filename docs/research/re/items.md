@@ -740,7 +740,7 @@ the game pointer, so `+0x170` is most likely the client's game; the type and
 id arguments are in registers the decompile hides (net-join.md has the
 player unit id at `+0x1a8`), and were not read from the asm. So `+0x174` is a
 cached player unit pointer that a client without flag `+0x3d4 & 1`
-revalidates on every call. Callers include `FUN_0052c410`, `FUN_0052c500`, `FUN_0053eae0`
+revalidates when called without `force`. Callers include `FUN_0052c410`, `FUN_0052c500`, `FUN_0053eae0`
 (the 0x9c builder, net-packets.md), `FUN_0054da10` and `FUN_00571740`.
 Evidence: `python3 tools/ghidra/fn.py 00537860`.
 d2d: not ported (no mention in `components/` or `apps/`); act1-end.md already
