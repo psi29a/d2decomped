@@ -551,6 +551,18 @@ Evidence: `python3 tools/ghidra/fn.py 00451f80`.
 d2d: reads the same as monsters.md (cited from the decompile, no oracle run); no d2d function names it (the oracles
 `tools/emu/freeze_rules.py` and `freeze_resume.py` call it).
 
+### The MonStats row by id (`FUN_00451f80`)
+
+`FUN_00451f80(id)` (fastcall, ECX): returns 0 when `id < 0` or
+`id >= [DAT_00744304 + 0xa80]` (the row count), else
+`[DAT_00744304 + 0xa78] + id * 0x1a8`. That is the MonStats row accessor of
+monsters.md "Tables" (rows of 0x1a8 bytes at `+0xa78`, count at `+0xa80`).
+It does not assert on a bad id. Callers include `FUN_00454ad0`, `FUN_00461dc0`
+and `FUN_00571f90`, which is in this work package.
+Evidence: `python3 tools/ghidra/fn.py 00451f80`.
+d2d: reads the same as monsters.md (cited from the decompile, no oracle run); no d2d function names it (the oracles
+`tools/emu/freeze_rules.py` and `freeze_resume.py` call it).
+
 ### A ground item sent to a client (`FUN_0055bed0`, `FUN_0053ec90`, `FUN_0053ecf0`)
 
 `FUN_0055bed0(unit, client)` (fastcall; the client is the second argument, as
