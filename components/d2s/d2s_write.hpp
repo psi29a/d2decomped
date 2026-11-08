@@ -47,6 +47,14 @@ struct BitWriter {
 
 // One property list: runs of stats that travel together (17/18, the
 // elemental min / max / length) are written under their first id.
+// The realm data after a save's item (d2s_items.hpp detail::realm).
+inline void write_realm(BitWriter& writer, const Item& item, std::uint32_t file_version) {
+    if (file_version <= 86) return;
+    writer.write(!item.realm.empty(), 1);
+    if (!item.realm.empty())
+        for (std::size_t word = 0; word < (file_version > 93 ? 3u : 2u); ++word) writer.write(word < item.realm.size() ? item.realm[word] : 0, 32);
+}
+
 inline void write_props(BitWriter& writer, const ItemTables& item_tables, const ItemProp* all_props, std::size_t all_count) {
     // Only stats with Save Bits go in (poison_count, 326, is the game's
     // alone: it's left out), in stat order as the game's stat list keeps
@@ -80,7 +88,8 @@ inline void write_props(BitWriter& writer, const ItemTables& item_tables, const 
     writer.write(0x1ff, 9);
 }
 
-inline void write_item(BitWriter& writer, const Item& original, const ItemTables& item_tables) {
+// `file_version`: the save's (header +4), which decides the realm data's words.
+inline void write_item(BitWriter& writer, const Item& original, const ItemTables& item_tables, std::uint32_t file_version = 0x60) {
     writer.write(0x4d4a, 16);
     Item item = original;
     if (item_tables.compact.contains(item.code)) item.simple = true;   // potions, scrolls, gems, runes: always short
@@ -101,15 +110,11 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
     } else {
         for (std::size_t i = 0; i < 4; ++i) writer.write(i < item.code.size() ? std::uint8_t(item.code[i]) : std::uint8_t(' '), 8);
         if (item.simple) {                                    // as d2s_items.hpp reads a compact item
-            if (item.version > 92 && item_tables.quest_difficulty.contains(item.code) && item_tables.stats.size() > kQuestItemDifficulty) {
+            if (file_version > 92 && item_tables.quest_difficulty.contains(item.code) && item_tables.stats.size() > kQuestItemDifficulty) {
                 const auto& stat = item_tables.stats[kQuestItemDifficulty];
                 writer.write(std::uint32_t(std::max(quest_difficulty_of(item), 0) + stat.save_add), stat.save_bits);
             }
-            if (item.version > 86) {                       // the version's word count, as the parser reads it back
-                writer.write(!item.realm.empty(), 1);
-                if (!item.realm.empty())
-                    for (std::size_t word = 0; word < (item.version > 93 ? 3u : 2u); ++word) writer.write(word < item.realm.size() ? item.realm[word] : 0, 32);
-            }
+            write_realm(writer, item, file_version);
         } else writer.write(std::uint32_t(item.socketed_items.size()), 3);
         if (!item.simple) {
             writer.write(item.uid, 32); writer.write(std::uint32_t(item.ilvl), 7); writer.write(std::uint32_t(item.quality), 4);
@@ -124,12 +129,14 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
                     writer.write(std::uint32_t(item.rare1), 8); writer.write(std::uint32_t(item.rare2), 8);
                     for (const int affix : item.affixes) { writer.write(affix != 0, 1); if (affix) writer.write(std::uint32_t(affix), 11); }
                     break;
+                case 2:
+                    if (item.code == "tbk" || item.code == "ibk") writer.write(std::uint32_t(std::max(item.tome, 0)), 5);
+                    break;
                 default: break;
             }
             if (item.runeword) { writer.write(std::uint32_t(item.runeword_id), 12); writer.write(std::uint32_t(item.rw_extra), 4); }
             if (item.personalized) { for (const char letter : item.owner) writer.write(std::uint8_t(letter), 7); writer.write(0, 7); }
-            if (item.code == "tbk" || item.code == "ibk") writer.write(std::uint32_t(std::max(item.tome, 0)), 5);
-            writer.write(std::uint32_t(item.bit_after), 1);
+            write_realm(writer, item, file_version);
             if (item_tables.armor.contains(item.code)) writer.write(std::uint32_t(item.defense + 10), 11);
             if (item_tables.armor.contains(item.code) || item_tables.weapons.contains(item.code)) {
                 writer.write(std::uint32_t(item.max_durability), 8);
@@ -147,7 +154,7 @@ inline void write_item(BitWriter& writer, const Item& original, const ItemTables
         }
     }
     writer.align();
-    for (const auto& socketed : item.socketed_items) write_item(writer, socketed, item_tables);
+    for (const auto& socketed : item.socketed_items) write_item(writer, socketed, item_tables, file_version);
 }
 }  // namespace detail
 
@@ -179,7 +186,8 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
     auto w32 = [&](std::size_t off, std::uint32_t value) { std::memcpy(bytes.data() + off, &value, 4); };
     auto w16 = [&](std::size_t off, std::uint16_t value) { std::memcpy(bytes.data() + off, &value, 2); };
     w32(0x00, kMagic);
-    w32(0x04, header.version ? header.version : kMaxVersion);
+    const std::uint32_t version = header.version ? header.version : kMaxVersion;
+    w32(0x04, version);
     std::memset(bytes.data() + 0x14, 0, 16);
     std::memcpy(bytes.data() + 0x14, header.name.data(), std::min<std::size_t>(header.name.size(), 15));
     bytes[0x24] = std::byte(header.status); bytes[0x25] = std::byte(header.progression);
@@ -231,7 +239,7 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
     bytes.push_back(std::byte{ 'J' }); bytes.push_back(std::byte{ 'M' });
     bytes.push_back(std::byte(items.size() & 0xff)); bytes.push_back(std::byte(items.size() >> 8));
     detail::BitWriter item_writer;
-    for (const auto& item : items) detail::write_item(item_writer, item, item_tables);
+    for (const auto& item : items) detail::write_item(item_writer, item, item_tables, version);
     bytes.insert(bytes.end(), item_writer.out.begin(), item_writer.out.end());
 
     // The rest as it was: where the original's player list ended.
@@ -240,7 +248,7 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
         try {
             const auto ost = parse_stats(original, item_tables);
             const int count = int(std::uint8_t(original[ost.items_at + 2])) | int(std::uint8_t(original[ost.items_at + 3])) << 8;
-            detail::Bits bits{ original, (ost.items_at + 4) * 8 };
+            detail::Bits bits{ original, (ost.items_at + 4) * 8, detail::save_version(original) };
             for (int i = 0; i < count; ++i) detail::item(bits, item_tables);
             tail = bits.pos / 8;
         } catch (const std::runtime_error&) { tail = original.size(); }   // a header-only template: nothing after it
@@ -253,7 +261,7 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
         bytes.push_back(std::byte{ 'J' }); bytes.push_back(std::byte{ 'M' });
         bytes.push_back(std::byte(corpse->size() & 0xff)); bytes.push_back(std::byte(corpse->size() >> 8));
         detail::BitWriter corpse_writer;
-        for (const auto& item : *corpse) detail::write_item(corpse_writer, item, item_tables);
+        for (const auto& item : *corpse) detail::write_item(corpse_writer, item, item_tables, version);
         bytes.insert(bytes.end(), corpse_writer.out.begin(), corpse_writer.out.end());
     };
     auto merc_list = [&] {                                   // "jf", then the merc's "JM" <count> and items
@@ -263,7 +271,7 @@ inline std::vector<std::byte> write_save(std::span<const std::byte> original, co
         bytes.push_back(std::byte{ 'J' }); bytes.push_back(std::byte{ 'M' });
         bytes.push_back(std::byte(count & 0xff)); bytes.push_back(std::byte(count >> 8));
         detail::BitWriter merc_writer;
-        if (merc) for (const auto& item : *merc) detail::write_item(merc_writer, item, item_tables);
+        if (merc) for (const auto& item : *merc) detail::write_item(merc_writer, item, item_tables, version);
         bytes.insert(bytes.end(), merc_writer.out.begin(), merc_writer.out.end());
     };
     if (tail < original.size()) {                            // the corpse and merc lists anew, the rest as it was

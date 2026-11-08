@@ -5,18 +5,20 @@
 // as "JM" <u16 count>, then `count` items. Each item is an LSB-first
 // bitstream starting with its own "JM", padded to a byte; items with
 // filled sockets are followed by those socketed items (not counted).
-// unverified (source: the community d2s spec): the layout; the data agrees
-// (19 real 1.14d saves, every list ends exactly on the next "JM" — test_d2s):
+// The layout, as game.exe reads a save's item (FUN_0062cbe0, compact items
+// FUN_0062a970; docs/research/re/d2s-items.md), checked on 19 real 1.14d
+// saves (every list ends exactly on the next "JM" — test_d2s):
 //   16 "JM" | 32 flags (bit 4 identified, 11 socketed, 16 ear, 21 simple,
 //   22 ethereal, 24 personalized, 26 runeword) | 10 version | 3 location
 //   (0 stored, 1 equipped, 2 belt, 4 cursor, 6 socketed) | 4 body slot |
 //   4 column | 4 row | 3 panel (1 inventory, 4 cube, 5 stash) |
 //   32 code (4 chars) | 3 filled sockets
-//   extended (not simple): 32 uid | 7 ilvl | 4 quality | 1(+3) picture |
-//   1(+11) class affix | quality data | runeword 12+4 | name 7-bit chars
-//   to 0 | tome 5 | 1 | armour: 11 defence-10 | armour/weapon: 8 maxdur
-//   (+9 durability when non-zero) | stackable: 9 qty | socketed: 4 |
-//   set: 5 list flags | property list(s), each ending in 0x1ff.
+//   extended (not simple): 32 seed | 7 ilvl | 4 quality | 1(+3) picture |
+//   1(+11) class affix | quality data (normal: a tome's 5) | runeword 16 |
+//   name 7-bit chars to 0 | 1 realm flag (+3 words) | armour: 11
+//   defence-10 | armour/weapon: 8 maxdur (+9 durability when non-zero) |
+//   stackable: 9 qty | socketed: 4 | set: 5 list flags | property
+//   list(s), each ending in 0x1ff.
 // Property widths come from ItemStatCost.txt (Save Param Bits, Save Bits,
 // Save Add); some stats pull the next ones along (17/18 enhanced damage,
 // elemental min/max/length runs).
@@ -91,26 +93,25 @@ struct Item {
     std::array<int, 6> affixes{};      // rare/crafted: prefix, suffix, prefix, ... (0 = none)
     int  runeword_id = -1;
     std::string owner;                 // personalized
-    std::uint32_t uid = 0;
+    std::uint32_t uid = 0;                    // the item's seed (FUN_0062cbe0 seeds the unit with it); 0 in a packet
     std::vector<ItemProp> props;       // main list, runeword list appended
     std::vector<ItemProp> set_props;   // set bonus lists (active by pieces worn)
     std::vector<Item>     socketed_items;
     // What the writer needs to put the item back bit for bit (d2s_write.hpp):
     // the flag word as read (the named flags above win over it), the item
     // version, the class-specific affix (-1 none), the runeword's 4 extra
-    // bits, a tome's 5 bits (-1 none), the bit after them, durability's
-    // extra bit, the set's list flags, where the runeword list starts in
+    // bits, a tome's 5 bits (-1 none), durability's top bit, the set's list flags, where the runeword list starts in
     // `props` and how long each set list is; an ear's class, level and name.
     int id = -1;                       // the game's unit id while it's in play (not saved)
     bool wielded = false;              // the inventory's wielded id (+0x1c) is this item's (not saved)
     bool charm_short = false;          // an inventory charm short of its requirements at the last settle (not saved)
     std::uint32_t flags = 0;
-    int version = 101, class_affix = -1, rw_extra = 0, tome = -1, bit_after = 0, dur_extra = 0, set_lists = 0;
+    int version = 101, class_affix = -1, rw_extra = 0, tome = -1, dur_extra = 0, set_lists = 0;
     std::size_t main_props = 0;
     std::vector<std::size_t> set_list_sizes;
     int ear_class = 0, ear_level = 0;
     // A compact questdiffcheck item's difficulty (stat 0x164, -1 none) and
-    // the realm data a save may give a compact item (2 or 3 words).
+    // the realm data a save may give an item (2 or 3 words).
     int quest_difficulty = -1;
     std::vector<std::uint32_t> realm;
 };
@@ -220,6 +221,9 @@ namespace detail {
 struct Bits {
     std::span<const std::byte> bytes;
     std::size_t pos = 0;   // in bits
+    // The save's version (header +4), what game.exe's version checks read
+    // (FUN_0062cbe0's last argument); a client reads packets as 0x60.
+    std::uint32_t file_version = 0x60;
     std::uint32_t read(int count) {
         std::uint32_t value = 0;
         for (int i = 0; i < count; ++i, ++pos) {
@@ -251,11 +255,23 @@ inline void props(Bits& bits, const ItemTables& item_tables, std::vector<ItemPro
 // `net`: the item as a game.exe host sends it (0x9c / 0x9d, FUN_0062e430
 // with is_save 0; net-packets.md "The item bitstream on the wire"): no JM,
 // ground items (modes 3 / 5) at x 16, y 16 bits in place of the grid
-// fields, no uid, no bit after the quality fields, no stat lists while
+// fields, no seed, no realm flag after the name, no stat lists while
 // unidentified, gold's amount right after a simple gld's code (1 bit: 32
 // or 12; no socket count, FUN_0062a970), its
 // socketed items in packets of their own. Ground x / y go to `ground`.
 struct NetPlace { int x = -1, y = -1, gold = 0; };
+// The save's version (header +4); 0x60 (1.14d) when it's too short to say.
+inline std::uint32_t save_version(std::span<const std::byte> save) {
+    if (save.size() < 8) return 0x60;
+    return std::uint32_t(std::uint8_t(save[4])) | std::uint32_t(std::uint8_t(save[5])) << 8
+         | std::uint32_t(std::uint8_t(save[6])) << 16 | std::uint32_t(std::uint8_t(save[7])) << 24;
+}
+// A save's realm data: a bit, then 2 words past save version 86, a third
+// past 93 (FUN_0062cbe0, FUN_0062a970).
+inline void realm(Bits& bits, Item& parsed) {
+    if (bits.file_version > 86 && bits.read(1))
+        for (std::uint32_t word = 0; word < (bits.file_version > 93 ? 3u : 2u); ++word) parsed.realm.push_back(bits.read(32));
+}
 inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = nullptr) {
     if (!net && (bits.pos % 8 || bits.read(16) != 0x4d4a)) throw std::runtime_error("d2s items: missing JM");
     Item parsed;
@@ -285,16 +301,14 @@ inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = null
         }
         // A compact item (FUN_0062a970) has no socket count: gold's amount
         // follows its code (1 bit: 32 or 12), then a questdiffcheck quest
-        // item's difficulty (version > 92), then in a save a bit and, set,
-        // realm data (version > 86; a third word past 93).
+        // item's difficulty (save version > 92), then the realm data.
         if (parsed.simple) {
             if (net && parsed.code == "gld") net->gold = int(bits.read(bits.read(1) ? 32 : 12));
-            if (parsed.version > 92 && item_tables.quest_difficulty.contains(parsed.code) && item_tables.stats.size() > kQuestItemDifficulty) {
+            if (bits.file_version > 92 && item_tables.quest_difficulty.contains(parsed.code) && item_tables.stats.size() > kQuestItemDifficulty) {
                 const auto& stat = item_tables.stats[kQuestItemDifficulty];
                 parsed.quest_difficulty = int(bits.read(stat.save_bits)) - stat.save_add;
             }
-            if (!net && parsed.version > 86 && bits.read(1))
-                for (int word = 0; word < (parsed.version > 93 ? 3 : 2); ++word) parsed.realm.push_back(bits.read(32));
+            if (!net) realm(bits, parsed);
         } else filled = int(bits.read(3));
         if (!parsed.simple) {
             if (!net) parsed.uid = bits.read(32);
@@ -310,15 +324,17 @@ inline Item item(Bits& bits, const ItemTables& item_tables, NetPlace* net = null
                     parsed.rare1 = int(bits.read(8)); parsed.rare2 = int(bits.read(8));
                     for (auto& affix : parsed.affixes) affix = bits.read(1) ? int(bits.read(11)) : 0;
                     break;
+                case 2:   // ponytail: a normal charm's affix and a monster part's 10 bits come here too (no ItemTypes yet)
+                    if (parsed.code == "tbk" || parsed.code == "ibk") parsed.tome = int(bits.read(5));   // scrolls and books
+                    break;
                 default: break;
             }
             if (parsed.runeword) { parsed.runeword_id = int(bits.read(12)); parsed.rw_extra = int(bits.read(4)); }
             if (parsed.personalized) while (const auto letter = bits.read(7)) parsed.owner.push_back(char(letter));
-            if (parsed.code == "tbk" || parsed.code == "ibk") parsed.tome = int(bits.read(5));
-            if (!net) parsed.bit_after = int(bits.read(1));
+            if (!net) realm(bits, parsed);
             if (item_tables.armor.contains(parsed.code)) parsed.defense = int(bits.read(11)) - 10;
             if (item_tables.armor.contains(parsed.code) || item_tables.weapons.contains(parsed.code))
-                if ((parsed.max_durability = int(bits.read(8)))) {   // max, then current (8 bits + 1 unused)
+                if ((parsed.max_durability = int(bits.read(8)))) {   // max, then current (9 bits, ItemStatCost row 72)
                     parsed.durability = int(bits.read(8));
                     parsed.dur_extra = int(bits.read(1));
                 }
@@ -404,7 +420,7 @@ inline std::vector<Item> parse_items(std::span<const std::byte> save, const Item
     }
     if (offset + 4 > save.size()) throw std::runtime_error("d2s items: no item list");
     const int count = int(std::uint8_t(save[offset + 2])) | int(std::uint8_t(save[offset + 3])) << 8;
-    detail::Bits bits{ save, (offset + 4) * 8 };
+    detail::Bits bits{ save, (offset + 4) * 8, detail::save_version(save) };
     std::vector<Item> out;
     for (int i = 0; i < count; ++i) out.push_back(detail::item(bits, item_tables));
     return out;
@@ -419,7 +435,7 @@ inline CorpseList parse_corpse(std::span<const std::byte> save, const ItemTables
     CorpseList corpse;
     const auto items_at = parse_stats(save, item_tables).items_at;
     const int count = int(std::uint8_t(save[items_at + 2])) | int(std::uint8_t(save[items_at + 3])) << 8;
-    detail::Bits bits{ save, (items_at + 4) * 8 };
+    detail::Bits bits{ save, (items_at + 4) * 8, detail::save_version(save) };
     for (int i = 0; i < count; ++i) detail::item(bits, item_tables);
     corpse.begin = corpse.end = bits.pos / 8;
     if (corpse.begin + 4 > save.size() || save[corpse.begin] != std::byte{'J'} || save[corpse.begin + 1] != std::byte{'M'}) return corpse;
@@ -429,7 +445,7 @@ inline CorpseList parse_corpse(std::span<const std::byte> save, const ItemTables
         corpse_offset += 12;
         if (corpse_offset + 4 > save.size() || save[corpse_offset] != std::byte{'J'}) throw std::runtime_error("d2s: corpse without items");
         const int item_count = int(std::uint8_t(save[corpse_offset + 2])) | int(std::uint8_t(save[corpse_offset + 3])) << 8;
-        detail::Bits corpse_bits{ save, (corpse_offset + 4) * 8 };
+        detail::Bits corpse_bits{ save, (corpse_offset + 4) * 8, detail::save_version(save) };
         for (int i = 0; i < item_count; ++i) corpse.items.push_back(detail::item(corpse_bits, item_tables));
         corpse_offset = corpse_bits.pos / 8;
         corpse.has = true;
@@ -453,7 +469,7 @@ inline MercList parse_merc(std::span<const std::byte> save, const ItemTables& it
     merc.end = start + 2;
     if (start + 6 > save.size() || save[start + 2] != std::byte{'J'} || save[start + 3] != std::byte{'M'}) return merc;
     const int count = int(std::uint8_t(save[start + 4])) | int(std::uint8_t(save[start + 5])) << 8;
-    detail::Bits bits{ save, (start + 6) * 8 };
+    detail::Bits bits{ save, (start + 6) * 8, detail::save_version(save) };
     for (int i = 0; i < count; ++i) merc.items.push_back(detail::item(bits, item_tables));
     merc.end = bits.pos / 8;
     return merc;
