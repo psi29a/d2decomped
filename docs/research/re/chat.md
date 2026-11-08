@@ -38,8 +38,8 @@ first. It returns the destination. Nothing in it is specific to the game.
 `FUN_006611a0(pool, node)` (31 bytes, `ret 8`) frees a non-null node through
 `FUN_0040b480(".\\Chat\\Chat.cpp", 0x44, 0)` and does nothing for a null one.
 
-**Oracle:** `uv run python chat_node.py` (tools/emu) makes nodes for texts of 1
-to 300 characters at three `now` values and compares all 0x110 bytes
+**Oracle:** `uv run python chat_node.py` (tools/emu) makes nodes for selected
+text lengths from 1 to 300 characters at three `now` values and compares all 0x110 bytes
 (poisoned with 0xab) with the table above, then frees one and a null.
 
 **d2d:** the same formula. `apps/d2d/town/draw.cpp:148` and
@@ -47,9 +47,10 @@ to 300 characters at three `now` values and compares all 0x110 bytes
 4-digit string id: 157 frames), which is this formula. d2d does not keep the
 language byte, the expiry frame or the list link. d2d also does not clamp the
 length: the original uses at most 254 characters (2157 frames), so a
-255-character message would get 2165 frames in d2d. It is not reachable:
-d2d shows only a shrine's string id (a decimal of at most 5 digits,
-`draw.cpp` skips any other text), so the clamp never applies.
+255-character message would get 2165 frames in d2d. Normal shrine messages
+carry a short decimal string id. The network path accepts all-digit strings
+whose numeric value is 1..65535, including longer strings with leading zeroes,
+so it does not itself enforce the original length clamp.
 
 Re-check: `python3 tools/ghidra/fn.py 00661110`, and `grep -n 00661110
 docs/research/re/game-srcfiles.tsv`.
