@@ -277,7 +277,7 @@ try:
         pick("trade")
         assert state()["store_tab"] == "1", "Akara's store didn't open on her staves (tab 1)"
         # A pad in a store (a virtual SDL pad): the shoulders step the tabs,
-        # the d-pad hops the cursor onto stock, X buys it / sells your item.
+        # the d-pad hops the cursor onto stock, X buys it, a held A sells your item.
         def press(button):
             cmd(f"pad {button} down"); frames(2); cmd(f"pad {button} up"); frames(2)
         press("rightshoulder")
@@ -291,8 +291,11 @@ try:
         at = [l for l in cmd("items").splitlines() if l.startswith("[") and "panel=1 " in l][-1]
         col, row = (int(v) for v in at.split("at=")[1].rstrip("]").split(","))
         cmd(f"move {419 + 29 * col + 14} {315 + 29 * row + 14}"); frames(2)
-        press("x"); frames(4)
-        assert int(state()["items"]) == n0, "pad X didn't sell the inventory item"
+        cmd("pad a down")                                      # a sale is a held A (kHoldSellSeconds, 0.55 s)
+        held_from = time.time()
+        while time.time() - held_from < 1.0: frames(2)
+        cmd("pad a up"); frames(4)
+        assert int(state()["items"]) == n0, "a held pad A didn't sell the inventory item"
         press("b")
         assert state()["store"] == "-1", "pad B didn't leave the store"
         # An NPC's menu on a pad: the d-pad steps its lines, A picks one, B leaves.
@@ -330,7 +333,7 @@ try:
         cmd("key Escape"); frames(3); cmd("key Up"); cmd("key Up"); frames(2); cmd("key Return"); frames(3)
         cmd("key Up"); frames(2); cmd("key Return"); frames(5)
         cmd("move 631 438"); frames(2); cmd("click 631 438"); frames(3)
-        for _ in range(9): cmd("key Down")
+        for _ in range(11): cmd("key Down")                   # past 4 settings, 4 layouts (the gap skipped), 3 actions
         cmd("key Return"); frames(2); press("back"); frames(2)
         cmd("move 476 438"); frames(2); cmd("click 476 438"); frames(5)
         with open(os.path.join(user, "d2d.cfg")) as f:
