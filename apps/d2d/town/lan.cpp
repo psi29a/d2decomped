@@ -155,12 +155,12 @@ auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t fram
             if (event.type == Type::View) {
                 // A View that doesn't apply (TCP keeps them in order, so a bug) leaves us behind the
                 // host's encoder: ask once for a whole one, drop the rest until one applies.
-                // D2D_LAN_DROP_VIEW=n (tests): the nth View is lost, as a bug would lose it.
-                static const int drop_view = std::getenv("D2D_LAN_DROP_VIEW") ? std::atoi(std::getenv("D2D_LAN_DROP_VIEW")) : 0;
-                if (++lan_views == drop_view) { d2d::log::info("lan: View {} dropped (D2D_LAN_DROP_VIEW)", lan_views); continue; }
+                // D2D_LAN_BAD_VIEW=n (tests): the nth View arrives cut in half, as a bug would send it.
+                static const int bad_view = std::getenv("D2D_LAN_BAD_VIEW") ? std::atoi(std::getenv("D2D_LAN_BAD_VIEW")) : 0;
+                if (++lan_views == bad_view) { event.view.resize(event.view.size() / 2); d2d::log::info("lan: View {} cut (D2D_LAN_BAD_VIEW)", lan_views); }
                 const auto queued = cues.due.size();
                 if (!take_view(event.view, nullptr)) {
-                    if (!std::exchange(lan_resyncing, true)) lan_client->send_resync();
+                    if (!std::exchange(lan_resyncing, true)) { d2d::log::info("lan: asking the host for a whole View"); lan_client->send_resync(); }
                     continue;
                 }
                 lan_resyncing = false;
