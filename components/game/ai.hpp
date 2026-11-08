@@ -938,8 +938,8 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // A control (do 34, FUN_005b04a0: Baal Taunt's): from its Param1'th
         // frame, each frame one of SubMissile1 / 2 by rand (those with a
         // delay, Param2 / Param3), laid where it is when its age divides by
-        // that delay.
-        // ponytail: the update's rng, not the missile's seed.
+        // that delay. The pick is on its seed (+0x20) set each frame to {its
+        // subtile x, 666} (0x5b0561).
         if (missile.info && missile.info->srv_do == 34) {
             const int age = int(now_ms - missile.born) / 40;
             if (missile.frame == frame || age < missile.info->param1) return false;
@@ -947,7 +947,8 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             const std::array delays{ missile.info->param2, missile.info->param3 };
             const int ways = !missile.info->subs[0] || delays[0] < 1 ? 0 : !missile.info->subs[1] || delays[1] < 1 ? 1 : 2;
             if (ways == 0) return true;
-            if (const int pick = int(rng(std::uint32_t(ways))); age % delays[std::size_t(pick)] == 0)
+            d2d::rules::Rng seed{ std::uint32_t(int(std::floor(missile.x * 5))) };
+            if (const int pick = seed(ways); age % delays[std::size_t(pick)] == 0)
                 laid.push_back(missile_from(missile, *missile.info->subs[std::size_t(pick)], missile.x, missile.y, 0, 0, now_ms));
             return false;
         }
@@ -999,18 +1000,20 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
     // ponytail: one that flies on through units (CollideKill 0) doesn't
     // burst at each; a guided one losing its owner bursts as a hit.
     // At its end Baal Taunt's lightning control (hit 58, FUN_005acdf0) sends
-    // HitSubMissile1 at a random subtile within sHitPar1 (at least 1) of it;
+    // HitSubMissile1 at a random subtile within sHitPar1 (at least 1) of it,
+    // drawn x then y on its seed (+0x20) set to {its subtile x, 666};
     // the poison one (hit 59, FUN_005acf20 -> FUN_005a9370) sends it the 8
     // ways of 0x6e2510 / 0x6e24d0's even entries at Param1 << 7, and every
     // sHitPar1'th odd one at Param2 << 7 (FUN_0059fa30 flags 0x14: x 75 / 100).
-    // ponytail: the update's rng, not the missile's seed.
     const auto hit_spawn = [&](const Missile& missile) {
         const auto* sub = missile.info ? missile.info->hit_sub_info : nullptr;
         if (!sub || (missile.info->hit_func != 58 && missile.info->hit_func != 59)) return;
         const int spread = std::max(missile.info->hit_par1, 1);
         if (missile.info->hit_func == 58) {
-            const float to_x = float(int(std::floor(missile.x * 5)) - spread + int(rng(std::uint32_t(2 * spread + 1)))) + 0.5f;
-            const float to_y = float(int(std::floor(missile.y * 5)) - spread + int(rng(std::uint32_t(2 * spread + 1)))) + 0.5f;
+            const int at_x = int(std::floor(missile.x * 5));
+            d2d::rules::Rng spot{ std::uint32_t(at_x) };
+            const float to_x = float(at_x - spread + spot(2 * spread + 1)) + 0.5f;
+            const float to_y = float(int(std::floor(missile.y * 5)) - spread + spot(2 * spread + 1)) + 0.5f;
             const float dx = to_x / 5 - missile.x, dy = to_y / 5 - missile.y, span = std::max(std::hypot(dx, dy), 0.01f), speed = missile_speed(*sub, missile.level);
             laid.push_back(missile_from(missile, *sub, missile.x, missile.y, dx / span * speed, dy / span * speed, now_ms));
             laid.back().to = { missile.x + dx, missile.y + dy };
