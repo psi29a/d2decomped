@@ -8,6 +8,7 @@
 #include <character.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
+#include <gamedata.hpp>
 #include <rules.hpp>
 
 #include <cassert>
@@ -46,6 +47,11 @@ int main() try {
     settle();
     assert(items[0].charm_short && (items[0].flags & 0x4000u) == 0);
     assert(!d2d::game::gear_active(items[0]));
+    // Nor on the character panel (panel_stats): its +5 strength isn't there.
+    d2d::game::GameData game_data;
+    game_data.rules = tables;
+    const auto panel_strength = [&] { return d2d::game::panel_stats(game_data, d2d::d2s::Header{}, items, d2d::d2s::Stats{}).bonus[d2d::d2s::kStr]; };
+    assert(panel_strength() == 0);
     // The stash's charm isn't an inventory charm: never short, never active.
     assert(!items[1].charm_short && !d2d::game::gear_active(items[1]));
     std::printf("OK: a charm above the level gives nothing\n");
@@ -56,6 +62,7 @@ int main() try {
     assert(items[0].charm_short);
     settle();
     assert(!items[0].charm_short && d2d::game::gear_active(items[0]));
+    assert(panel_strength() == 5);
     std::printf("OK: it counts from the next settle once the level is met\n");
 
     // Unidentified: FUN_0062eaf0 wants it identified.

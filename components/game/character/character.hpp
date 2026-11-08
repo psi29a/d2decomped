@@ -217,10 +217,7 @@ inline PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header&
     };
     std::int64_t item_def = 0, per_level = 0;
     for (const auto& item : items) {
-        const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;
-        const bool charm = item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory
-                        && (item.code == "cm1" || item.code == "cm2" || item.code == "cm3");
-        if ((!worn && !charm) || !d2d::rules::item_usable(item)) continue;
+        if (!gear_active(item)) continue;                 // worn, or a charm meeting its requirements
         add(item.props);
         for (const auto& socketed : item.socketed_items) add(socket_props(game_data, item, socketed));
         const auto bonus = set_bonus_props(game_data, items, item);
