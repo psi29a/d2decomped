@@ -3145,7 +3145,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         int word_x = input.word_x, word_y = input.word_y;
         if (!input.has_word) { word_x = input.self_x; word_y = input.self_y; effect(ThinkEffect::mark, word_x, word_y); }
         const auto apart = point_apart;
-        const bool casting = [&] {                                                  // FUN_005fc0c0: the target's right hand, then its left
+        const bool casting = [&] {                                                  // FUN_005fc0c0: the target's right hand, then its left (FUN_005fc070)
             for (const auto& [id, level] : { std::pair{ input.right_skill, input.right_level }, std::pair{ input.left_skill, input.left_level } })
                 if (id == 0x3b || id == 0x38 || (id == 0x33 && level > 3) || (id == 0x1b && level > 7)) return true;
             return false;
