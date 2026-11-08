@@ -41,13 +41,14 @@ class SelectionTests(unittest.TestCase):
             original_dir = Path.cwd()
             try:
                 os.chdir(root)
-                with (patch.object(tidy_pr_select.subprocess, "check_output", return_value=deps) as ninja,
+                parsed = tidy_pr_select.parse_ninja_deps("build", deps)
+                with (patch.object(tidy_pr_select, "ninja_deps", return_value=parsed) as ninja,
                       patch.dict(os.environ, BUILD_DIR="build"),
                       redirect_stdout(stdout)):
                     self.assertEqual(tidy_pr_select.main(), 0)
             finally:
                 os.chdir(original_dir)
-            ninja.assert_called_once_with(["ninja", "-C", "build", "-t", "deps"], text=True)
+            ninja.assert_called_once_with("build")
             self.assertEqual(stdout.getvalue().splitlines(), [str(root / path) for path in expected])
 
 

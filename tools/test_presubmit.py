@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -184,14 +185,11 @@ class PresubmitTests(unittest.TestCase):
     def test_tool_tests_run_when_windows_denies_symlinks(self):
         denied = OSError("symlink privilege is unavailable")
         denied.winerror = 1314
-        result = subprocess.CompletedProcess([], 0, "", "OK")
-        with (patch.object(presubmit, "tool_tests", return_value=["tools/test_mine.py"]),
-              patch.object(presubmit.sys, "platform", "win32"),
-              patch.object(Path, "symlink_to", side_effect=denied),
-              patch.object(presubmit.subprocess, "run", return_value=result) as run):
-            presubmit.check_tool_tests(Path.cwd())
-        run.assert_called_once()
-        self.assertEqual(self.levels("tool-tests"), ["WARN", "ok"])
+        with (patch.object(presubmit.sys, "platform", "win32"),
+              patch.object(Path, "symlink_to", side_effect=denied)):
+            variants = presubmit.tool_test_variants("real", Path("linked"))
+        self.assertEqual(variants, [("", {})])
+        self.assertEqual(self.levels("tool-tests"), ["WARN"])
 
     def test_ruff_failure_does_not_pass(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -222,10 +220,8 @@ class PresubmitTests(unittest.TestCase):
             source = root / "scripts/sample.py"
             source.write_text("value = 1\n")
             findings = [{"filename": str(source), "location": {"row": 1}, "code": "F821", "message": "test finding"}]
-            result = subprocess.CompletedProcess([], 1, json.dumps(findings), "")
-            with (patch.object(presubmit.shutil, "which", return_value="ruff"),
-                  patch.object(presubmit.subprocess, "run", return_value=result)):
-                presubmit.check_python(root, ["scripts/sample.py"], {"scripts/sample.py": {1}})
+            result = SimpleNamespace(returncode=1, stdout=json.dumps(findings), stderr="")
+            presubmit.report_ruff_result(root, ["scripts/sample.py"], {"scripts/sample.py": {1}}, result)
             self.assertEqual(self.levels("ruff"), ["FAIL"])
 
     def test_tool_tests_run_without_ruff(self):
