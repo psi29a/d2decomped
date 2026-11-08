@@ -846,6 +846,17 @@ Re-check: `python3 tools/ghidra/fn.py 0046b680`.
 
 d2d: not ported (no mention of rows 0x11c / 0x128 / 0x125).
 
+## Client missile spawn: FUN_0046b9a0
+
+Cited. No arguments; called from `0x4ad37a`. Same shape as `FUN_0046b680`:
+three client missiles with `FUN_004cd540` from a zeroed block (word [0x14] =
+1), rows **299 (0x12b)**, **0x166**, **0x132**. Only the first is tagged,
+`0x4b` in both data slots (`FUN_0064a710` and `FUN_0064a760`).
+
+Re-check: `python3 tools/ghidra/fn.py 0046b9a0`.
+
+d2d: not ported (no mention of rows 299 / 0x166 / 0x132).
+
 ## Missile data setters — FUN_0064a710, FUN_0064a760
 
 Cited. Both take `(unit, value)` on the stack and do the same thing: when
