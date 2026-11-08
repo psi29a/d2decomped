@@ -49,15 +49,23 @@ The environment struct is 0x38 bytes. `FUN_0061be40` makes it, and
 - **Intensity** (`FUN_0061bb80`): angle a = time / scale degrees;
   intensity = (int)(sin(a) × 128 + 128 + 0.5), the sine halved for
   a ≥ 180°, clamped to 0 and to 255 (170 in Act 5). Sunrise 128, noon
-  255 (256 clamped), midnight 64. Level 120 is fixed at 200. Act 4 levels
-  103..106 step toward 0x80 / 0x40 / 0x38 / 0x30. The eclipse drops by 8
-  down to 32.
+  255 (256 clamped), midnight 64. Level 120 is fixed at 200. The eclipse
+  drops by 8 down to 32.
+- **Act 4's intensity** has no sun: `FUN_0061bb80` tests the act first, so
+  the clock, the eclipse and level 120's rule are never read there. Each
+  frame +0xc moves one step toward its level's target: 103 0x80, 104 0x40,
+  105 0x38, 106 0x30, any other 16 (act + 13), so 107 and 108 settle at 16.
+  It starts from whatever the last act left, so entering Act 4 is a fade of
+  up to 239 frames. `tools/emu/env_light.py` runs it. The ambient most things
+  use doesn't show this: all six levels have their own light (below), and
+  only what reads +0xc itself does (raised roofs, "Floors and roofs").
 - **Colour** (`FUN_0061bce0`): blended from the phase's RGB toward the
   next phase's by how far the time is between them. Level 120 is fixed at
   (245, 240, 255).
 - **The level's own light:** `FUN_00619d70` gives the level's Levels.txt
-  Intensity / Red / Green / Blue. When any is non-zero, its Intensity
-  replaces the day's (`FUN_00474550`). Act 1's caves (8..): 0, (255, 255,
+  Intensity / Red / Green / Blue. When any of the colours is non-zero, its
+  Intensity replaces the day's (`FUN_00474550` doesn't test the Intensity; no
+  Levels.txt row sets one without a colour). Act 1's caves (8..): 0, (255, 255,
   255): dark but for the lights.
 - **Ambient sound:** day while the phase index is 1..3 (`FUN_004e42e0`
   via `FUN_0061c220`), so 0° to 180°; else night.
@@ -112,8 +120,76 @@ The environment lookup was hooked; no d2d parity claim is made.
   subtiles, spread it outward ring by ring (`FUN_00474b50` /
   `FUN_00474c00`: each subtile takes a blend of the two nearer to the
   light), and scale the light by (8 − blocked / 2) / 8.
+- **Light Quality** (`FUN_00475780`, each frame from `FUN_00475800`): it starts
+  at 2. The Video Options row sets 0x72da50 on Low only (LAB_0047cfcf; Medium and
+  High clear it, LAB_0047cfc1, LAB_0047cfb1), and with 0x72a348 clear, as Low leaves it, the answer is
+  0 (LAB_004757a7). Then the frame rate, 0x7a04a8, the frames of the last 3 s over 3
+  (`FUN_0044cce0`): 9 or less 0, 10 to 12 gives 1, 13 to 15 keeps a level of 1 or more
+  (LAB_004757ba) or gives 1, more keeps the option's. A change waits 2000 ms from the
+  last (LAB_004757da). Read from the code, no oracle. d2d has the row (`gamemenu.cpp`), which
+  changes nothing here, and no drop by frame rate.
 - **Sampling:** `FUN_00475aa0(x, y)` reads the entry at (x >> 3, y >> 3),
   clamped to 0..47.
+
+### What fills it
+
+`FUN_00474610` calls `FUN_00474550` with its last argument 1, so
+`FUN_0046bdd0` answers first and any colour from it beats the level's light
+and the day's:
+
+- **Level 8:** the Den's flash (quests.md "The Den lights up").
+- **Levels 107, 108: Diablo's release.** The server's `FUN_005b5230` sends
+  S→C 0x89 event 12 (`FUN_00545760`) to the game when the sanctuary is
+  cleared. Its client entry, 0x46b290 in the table at 0x7129d8, sets 0x7a7460 in
+  any level. While it's set and 0x7129d0 is −1: intensity 160, (255, 64, 48), so River
+  of Flame goes from 120 to 160 and the Chaos Sanctuary from 80 to 160. Event
+  13 (0x46b3a0) sets the count 0x7129d0 to 0, which ends the red at once;
+  `FUN_0046beb0` clears both 30 frames on. Diablo's death sends 13 only in a
+  classic game (LAB_005b5369, game +0x70 zero), so in Lord of Destruction it holds
+  until the next game (`FUN_0046bf90`).
+- **A dip to black, in any level but 8, 107 and 108** (`level_ambient.py`: 107 and 108 keep their light through one): `FUN_0046bdd0`
+  returns the bytes `FUN_0046ad10` keeps at 0x7a7430: the fill's own light and
+  RGB, an intensity that falls on the cosine over the fade in, is 0 for the
+  hold, and rises over the fade back. While it runs (0x7a742c), floors, walls
+  and units follow; raised roofs don't. `FUN_0046ae50(in, hold, back, level,
+  force)` starts it; a change of level ends it. Two callers: States.txt
+  setfunc 2 (`FUN_004d87e0`, from the state's table at 0x72a690), which only
+  `cloak_of_shadows` (state 153) has: in 5, hold 3/5 of the skill's auralen,
+  back 2/5, so level 1's 200 frames are about 5 s black then 3 s back. And
+  event 1 in level 4 (0x46aee0, sent by `FUN_00593710` as the Cairn Stones
+  open): in 40, hold 220, back 40, from missile `cairnstones` (288).
+
+`tools/emu/level_ambient.py` runs events 12 and 13 and Cloak's dip with Levels.txt's
+values; the Den's flash and the Cairn Stones' event 1 aren't run. d2d fills
+from the level's light (`frame_light`) with only the Den's case: todo.md #43
+and #44.
+
+The fill runs over the whole grid for the player's room, then for each other
+room in its near list (`FUN_00619790`, `FUN_00619730`) over the cells under
+that room, with that room's level. So across an edge each level keeps its own
+ambient, where d2d's single fill gives the player's level's (todo.md #45). In
+Act 4, whose list from `FUN_006194a0` holds five of its six levels (not 107,
+River of Flame), three pairs touch and differ: 103 / 104 (140, 120), 104 / 105
+(120, 80), 105 / 106 (80, 40). River of Flame (120) between 106 (40) and 108
+(80) likely makes two more.
+`level_ambient.py borders` lists these; the other acts' lists hold only some of
+their levels, so they aren't counted. Read from the code, the fill by room
+not run; a border's cells only.
+
+### Who reads the intensity
+
++0xc goes out through `FUN_0061c0e0` alone (`FUN_0061bb80` is its writer). Its
+callers: `FUN_00474550` (the grid's fill, which a level's light overrides),
+`FUN_004ddef0` (raised roofs, software), `FUN_004de070` and `FUN_004de260`
+(3D modes), `FUN_004ded20` (bytes nothing reads). `FUN_0044c990` takes only
+the RGB. Units, objects and their shadows don't read it: `FUN_004df1c0`
+(LAB_004df343, LAB_004df416) and `FUN_004df510` (LAB_004df572) hand
+`FUN_004dc7b0` the grid's entry from `FUN_00475aa0`. d2d's `Lighting::ambient`
+is read in one place besides the grid's fill, raised roofs (world_view.cpp),
+so in Acts 1 to 4 roofs are the only draw where +0xc and d2d can differ: level
+103, todo.md #42. Read from the code, no oracle. Act 5's cap of 170 and level
+120's 200 (`env_light.py`) aren't in d2d's `Day::sun`, which fills the grid
+there; Act 5 is outside todo.md.
 
 ## Drawing with it (DirectDraw, video mode 3; GDI, mode 1, the same)
 
@@ -128,7 +204,11 @@ The environment lookup was hooked; no d2d parity claim is made.
   (`FUN_004ddef0`), entry (col, row) the grid at subtile (x − 1 + col,
   y − 1 + row) from the tile's cell. A roof with a roof height hands it
   in as the third argument and the table is all the environment's light:
-  raised roofs take the ambient alone, no lamps. A floor whose DT1
+  raised roofs take the ambient alone, no lamps. That is +0xc itself
+  (`FUN_0061c0e0`), not `FUN_00474550`, so a level's own light doesn't reach
+  them. Of the levels with their own light, only Pandemonium Fortress (103)
+  places any: 57, all `Exterior.dt1`, at 128 settled where its level light is
+  140. d2d lights them from `Lighting::ambient`, the level's (todo.md #42). A floor whose DT1
   material has 0x100 gets 0xff throughout. The block callback
   (`FUN_004f8b80`) takes block (bx, by) (its grid bytes, +6 / +7) with
   e = table + bx + 8·by: A = e[9], B = e[10], C = e[17], D = e[18]; flat
@@ -143,6 +223,21 @@ The environment lookup was hooked; no d2d parity claim is made.
   32)). Iso blocks go through `FUN_004f6bb0`, RLE ones `FUN_004f71a0`,
   the same way. A floor tile's diamond is at its buffer's top (block
   (0, 0) at x 64, y 0).
+- **The 3D path** (`FUN_004de070`, `FUN_004de260`, and for a 0x100 material
+  `FUN_004ddfd0`, `FUN_004de190`): floors (LAB_004de507) and roofs
+  (LAB_004dec42) take these only when `DAT_00712ccc` is 4 or more. It starts
+  at 3 (.data); `FUN_0044d9f0` runs the option setters at 0x70f488: window 1,
+  3dfx 4, opengl 5, d3d 6, rave 7. So neither software mode gets here. They
+  fill 6 × 6 vertices of 12 bytes, the raised-roof rule the same: a non-zero
+  height gives each +0xc and the environment's RGB. `FUN_004de260` adds
+  `FUN_004f6760`, which asserts driver 4 or more and perspective on. d2d copies
+  the software path, so it isn't affected. The driver has its own test
+  (`FUN_00405c30`: 3dfx 4, window 1, d3d 6, else 3), so opengl, rave or d3d
+  with window send this table to a software driver. A default setup doesn't: the config starts
+  zeroed, D2.ini's VIDEO keys default to 0 (switches.md), and the registry's `Render` is
+  only written (`FUN_006b2f60`, its one reference LAB_006b2fe6, RegSetValueExA). It
+  takes `-opengl`, `-rave` or `-d3d` with `-w`, by switch or D2.ini key. What the driver does
+  with the table wasn't followed. Read from the code, no oracle.
 - **Walls** (`FUN_004df1c0`) and **lower walls** (`FUN_004dedf0`, from
   `FUN_004df480`) take 0x6db9d8[direction] lights (6 for DT1 directions 1..9) at spots
   from the tile's cell origin (its subtile, not where it's drawn), by
@@ -179,6 +274,19 @@ The environment lookup was hooked; no d2d parity claim is made.
 - **Colour** isn't drawn here: the software path reads the intensity
   only. The RGB is for Glide / Direct3D (coloured light is on by default,
   0x712b8c, a debug key toggles it).
+
+### The bytes nothing reads
+
+`FUN_004ded20` (from the scene's draw, LAB_00476c62) writes the environment's
+RGB and +0xc to 0x7c8a6f, 0x7c8a6d, 0x7c8a6c and 0x7c8a6e, then the level's own
+light over them when it has a colour. Nothing reads them: searching game.exe's
+file for those four addresses as immediates finds only that function's
+own writes, and the same search for 0x7c8a70 (read at LAB_004dfb10) finds both
+its uses, so the search works. Nothing addresses them from below: 0x7c8a60..0x7c8a6b
+have no reference, and 0x7c8a28, the floor pass's struct (`FUN_004ded10`),
+is read only to +0x40 (`FUN_004de410`, `FUN_004de730`, `FUN_004dde80`), which
+leaves +0x44, the first of them, untouched. d2d has no equivalent and needs none. Read
+from the code, no oracle.
 
 ## Shadows
 
@@ -237,7 +345,14 @@ The environment lookup was hooked; no d2d parity claim is made.
   `FUN_004ae210`: a hireling with a light-radius item) type 0; missiles
   (0x470555) and MonStats2 lights (0x4c56d7, 0x4cdac5) type 1; objects
   (0x4bc5bc, `FUN_004bc580`) and 0x4d6f85 type 2 (cached shadows,
-  `FUN_004750f0`).
+  `FUN_004750f0`). `FUN_004d6d40`'s 0x4d6f85 wasn't followed; 0x4accef, 0x4acd2c (type 0) and
+  0x4f3630 (type 1) are three more callers, not followed.
+- Type 2 is shaded at any quality (`FUN_004755a0`): `FUN_004750f0` fills its table once
+  (+0x2c, LAB_0047540b), `FUN_00475420` stamps from it, and a new radius frees it
+  (LAB_004755ff). Type 0 is shaded only above quality 1 (LAB_00475661); otherwise it's a plain
+  `FUN_004748d0`. d2d shades objects' lights by reading the map each frame (`stamp_shadowed`),
+  so at quality 2 only the cache differs: a blocked subtile that changes after the first stamp.
+  How many lights have a door or the like in reach wasn't measured. Read from the code, no oracle.
 - Checked live (Lut Gholein, game.exe under Wine, light grid at
   0x7b0e68 vs `debug light` with `--toggle light_grid=off`, the same
   spot and time of day): all 48 × 48 entries and the blocked subtiles
@@ -248,8 +363,7 @@ The environment lookup was hooked; no d2d parity claim is made.
 
 - The Den of Evil's light once cleared: quests.md "The Den lights up".
 
-ponytail, not yet: type 2's cached shadows, lights easing to a new radius,
-Act 4's day.
+ponytail, not yet: type 2's cached shadows (deviations.md approximation 5).
 
 ## The unit under the cursor
 

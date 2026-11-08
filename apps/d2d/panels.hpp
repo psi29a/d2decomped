@@ -190,7 +190,8 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state);
 // Use Belt (0x722404; keys::label_key) in font 1, gold (4), cut to
 // 28 px, at its box's left + 2, baseline bottom - 2 (FUN_00499040).
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
-               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys = {}, bool pad_bar = false);
+               int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys = {}, bool pad_bar = false,
+               const std::function<std::string(const d2d::d2s::Item&)>* price = nullptr);   // price: a store's sell value, on top of the hover
 
 // The automap (UI\automap.cpp). Each revealed tile adds one cell
 // (FUN_00457cf0): its cel from AutoMap.txt (FUN_0061fff0) at the tile's

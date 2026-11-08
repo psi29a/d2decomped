@@ -7,6 +7,8 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
+#include <exception>
 #include <optional>
 #include <string>
 #include <vector>
@@ -36,7 +38,7 @@ int count_id(const std::vector<Item>& items, int id) {
 }
 }
 
-int main() {
+int main() try {
     Tables tables;
     tables.item_info["aar"] = { .width = 2, .height = 2, .type = "tors", .req_str = 20 };
     tables.item_info["old"] = { .width = 2, .height = 3, .type = "tors" };
@@ -112,4 +114,7 @@ int main() {
     tables.types["tors"].cls = "bar";
     assert(!equip_from_bag(tables, items, hand, 1, hero, -1, 10, 4));
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_equip_bag: %s\n", error.what());
+    return 1;
 }

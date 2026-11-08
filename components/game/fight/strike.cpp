@@ -201,7 +201,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         for (std::size_t k = 0; k < 4; ++k)
             if (const auto value = st_sum[std::size_t(kRes[k])], more = st_sum[std::size_t(kRes[k] + 1)]; value != 0 || more != 0)
                 actor->player_combat.res[k] = int(std::min<std::int64_t>(actor->player_combat.res[k] + value, std::min<std::int64_t>(actor->character.panel.res_cap[kPanelRes[k]] + more, 95)));
-        actor->player_combat.ias += int(st_sum[kAttackRate]);
+        actor->player_combat.sias += int(st_sum[kAttackRate]);   // SIAS, raw (FUN_00623f50 adds stat 68 as it is)
         actor->player_combat.velocity_pct += int(st_sum[kVelocityPercent]);
         for (const auto& passive : passives) if (passive.stat == kVelocityPercent && passive.itype.empty()) actor->player_combat.velocity_pct += passive.value;   // Increased Speed
         actor->player_combat.defense += int(actor->player_combat.defense * st_sum[kSkillArmorPercent] / 100);
@@ -339,7 +339,7 @@ auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         if (actor->seq.empty()) return;
         const auto& attack_anim = player_anim(kModeA1);
         start_move(*game_data->skills.get(actor->swing_skill), now_ms);
-        const auto ticks = d2d::rules::attack_ticks(int(actor->seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms));
+        const auto ticks = d2d::rules::attack_ticks(int(actor->seq.size()), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
         actor->pmode_until = now_ms + std::uint32_t(ticks) * 40;
         actor->seq_frame_ms = std::max<std::uint32_t>(std::uint32_t(ticks) * 40 / std::uint32_t(actor->seq.size()), 1);
         actor->prate = 1.f;
@@ -570,12 +570,14 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
             // less poison and bleeding; a gain held back under state 0x34 and at full life.
             const double net = (now_ms < monster.poison_until ? monster.poison_rate : 0) + (now_ms < monster.bleed_until ? monster.bleed_rate : 0)
                              - monster.stats.regen / (256.0 * 40);
-            if (net <= 0 && (now_ms < monster.no_heal_until || monster.hit_points >= monster.stats.hit_points)) { monster.dot_acc = 0; continue; }
+            const bool full = monster.hit_points == monster.stats.hit_points && monster.life_frac == monster.max_life_frac;
+            if (net <= 0 && (now_ms < monster.no_heal_until || full)) { monster.dot_acc = 0; continue; }
             monster.dot_acc += net * elapsed * 1000;
             const int whole = int(monster.dot_acc);
             if (whole == 0) continue;
             monster.dot_acc -= whole;
-            monster.hit_points = std::min(monster.hit_points - whole, monster.stats.hit_points);
+            if (whole < 0) heal(monster, -whole);
+            else monster.hit_points -= whole;
             if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(i, now_ms); }
         }
     }
@@ -661,8 +663,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         // proportion (state 0x6d keeps its own, stats 0xb0 / 0xb1): MulDiv of
         // the whole points by clvl / mlvl (FUN_00483360: ECX life, EDX clvl,
         // mlvl on the stack; 0x5d05ed / 0x5d0600), back in 256ths (the part of
-        // a point dropped), life 1..max; a max under 1 is a 256th there, a
-        // point here (d2d keeps whole maxes).
+        // a point dropped), life 1..max; d2d applies a minimum of one whole point during Conversion.
         if (blow.hit && skill && skill->srvdofunc == ServerDoFunction::kConversion && monsters[target].alive() && monsters[target].align == 0
             && swaps_ai(*game_data, monsters[target])) {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
@@ -672,9 +673,10 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
                 turned.align = 2; turned.set_kind = 0; turned.chase = -1;
                 if (const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel)); turned.stats.level > clvl && turned.own_level == 0) {
                     turned.own_level = turned.stats.level; turned.own_max_life = turned.stats.hit_points;
-                    turned.stats.hit_points = std::max(d2d::rules::mul_div(turned.stats.hit_points, clvl, turned.own_level), 1);
+                    turned.own_max_life_frac = turned.max_life_frac;
+                    turned.stats.hit_points = std::max(d2d::rules::mul_div(turned.max_life_fine() >> 8, clvl, turned.own_level), 1);
                     turned.hit_points = std::clamp(d2d::rules::mul_div(turned.hit_points - (turned.life_frac > 0), clvl, turned.own_level), 1, turned.stats.hit_points);
-                    turned.life_frac = 0;
+                    turned.max_life_frac = turned.life_frac = 0;
                     turned.stats.level = clvl;
                 }
             }
@@ -775,7 +777,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 within(actor->player.x, actor->player.y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
                     const auto& struck = monsters[monster_index];
                     const int res = target_of(monster_index).res[3];
-                    const int fine = d2d::rules::static_field_fine(struck.hit_points * 256 - struck.life_frac, struck.stats.hit_points << 8, pct, low, floor_pct, res);
+                    const int fine = d2d::rules::static_field_fine(struck.life_fine(), struck.max_life_fine(), pct, low, floor_pct, res);
                     if (fine < 0) return;
                     const int got = d2d::rules::resisted_fine(fine, res < 100 ? std::max(res - ltng_pierce, -100) : res);
                     d2d::rules::Blow blow{ .hit = true };
@@ -939,18 +941,19 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // last argument 1 -> FUN_0056c3f0) and toht (stat 19, FUN_006449f0);
             // none left, none flies.
             // ponytail: both hands throw at once, not one an SQ event (FUN_00535bc0's hand).
-            // Throw (do 3, FUN_0056f460): the throwable in hand flies as its
-            // missile (weapons.txt missiletype) and one of it is spent. Its
+            // Throw (do 3, FUN_0056f460): the item rules::throw_hand takes (the
+            // wielded weapon, or the other hand's) flies as its missile
+            // (weapons.txt missiletype) and one of it is spent. Its
             // FUN_0056c600 puts the throw mastery on the missile (stat 0x13 +
             // FUN_00645720 kind 0, stat 0x19 = kind 1), no skill bonus: here the
             // player's fighter carries it while throwing (player_fighter), as it
             // does the weapon's throw damage (minmisdam / maxmisdam).
             case ServerDoFunction::kThrow:
-                if (const int index = ammo_index(); index >= 0)
+                if (const int index = d2d::rules::throw_hand(game_data->rules, actor->character.items); index >= 0 && actor->character.items[std::size_t(index)].quantity > 0)
                     if (const auto found_thrown = game_data->thrown.find(actor->character.items[std::size_t(index)].code); found_thrown != game_data->thrown.end())
                         if (const auto found = game_data->missiles.find(found_thrown->second); found != game_data->missiles.end()) {
                             launch(found->second, skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y, found->second.range + found->second.lev_range * lvl, now_ms);
-                            spend_ammo();
+                            spend_ammo(index);
                         }
                 break;
             case ServerDoFunction::kDoubleThrow:
@@ -1055,7 +1058,7 @@ auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < actor->whirl_next) return;
             const auto& attack_anim = player_anim(kModeA1);
-            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, chill_rate(now_ms));
+            const int ticks = d2d::rules::attack_ticks(int(attack_anim.frames ? attack_anim.frames : 16), int(attack_anim.speed ? attack_anim.speed : 256), actor->player_combat.ias, actor->player_combat.wsm, actor->player_combat.sias + chill_rate(now_ms));
             actor->whirl_next = now_ms + std::uint32_t(d2d::rules::whirlwind_gap(ticks)) * 40;
             const int hands = int(std::ranges::count_if(actor->character.items, [&](const d2d::d2s::Item& item) {
                 return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)

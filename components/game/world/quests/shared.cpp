@@ -370,15 +370,16 @@ auto World::kashya_merc() -> void {
     }
 
 // The Countess's death hook (FUN_00595710): each player in cellar 5 takes
-// part (FUN_00594f10: bits 13 and 0, their complete_tower line, unit event
-// 0x25), the rest bit 14; then the party of any who took part, anywhere in
-// Act 1 and lacking bit 0, bits 13 and 0 (LAB_005953d0 -> LAB_00595370).
+// part (FUN_00594f10: bits 13 and 0, unit event 0x25: their complete_tower
+// line held for the treasure's end, Player::tower_line_held), the rest bit
+// 14; then the party of any who took part, anywhere in Act 1 and lacking
+// bit 0, bits 13 and 0 (LAB_005953d0 -> LAB_00595370).
 // Her drop is her SuperUniques TC's (negative picks: an item and a rune roll).
 auto World::countess_died(std::uint32_t now_ms) -> void {
         bool quest_kill = false;
         each_player([&](Player& player) {
             if (!tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar, player.id)) return;
-            class_cue("act1_complete_tower", now_ms);
+            player.tower_line_held = now_ms;
             quest_kill = true;
         });
         if (quest_kill && act() == 0)
@@ -414,9 +415,12 @@ auto World::tower_treasure_made() -> void {
 // FUN_005584c0), then mode 2. From then on every Param2 * 4 frames a gold
 // pile at the area level, rand(2r + 1) - r subtiles off (r = Param3).
 // The rounds roll off the chest's unit seed (chest_round), the piles' offsets
-// off the spawner's own.
-// ponytail: it runs only while the player's on its level (game.exe: while its room's up); the end
-// event (unit event 0x5c at 1 left) isn't sent.
+// off the spawner's own. At 1 left, unit event 0x5c on the chest (0x5af381):
+// the client (FUN_004cbde0 -> FUN_004dce10) plays the line the Countess's
+// 0x25 held, 25 sound ticks (1 s) on, if that came under 1500 ticks (60 s)
+// ago (FUN_004dcaa0); later, the line's dropped.
+// ponytail: it runs only while the player's on its level (game.exe: while its room's up); the
+// music's 60 s hush round the line (FUN_004ba8f0 / FUN_004ba890) isn't played.
 auto World::tower_treasure(std::uint32_t now_ms) -> void {
         using Tower = d2d::rules::TowerQuest;
         for (auto& spawner : treasure) {
@@ -442,24 +446,28 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
                 const auto [spot_x, spot_y] = level->nearest_free(chest.x + off_x, chest.y + off_y);
                 loot.put({ .code = "gld" }, spot_x, spot_y, here, fight.spawning.game, now_ms);
             }
+            if (spawner.left == 1)
+                each_player([&](Player& player) {
+                    if (const auto held = std::exchange(player.tower_line_held, std::nullopt); held && now_ms - *held < 60'000) class_cue("act1_complete_tower", now_ms + 1'000);
+                });
             --spawner.left;
         }
     }
 
 // Tristram Cain's AI (FUN_005e7880), a think each time he stops: the
-// first notes where he stands (FUN_005944b0) and heads 3 subtiles on
-// (x + 3, y + 3); up to 6 goes while more than 1 off; then the town
+// first (FUN_005e77a0, AI command 3 still empty) notes where he stands
+// (FUN_005944b0) and heads 3 subtiles on (x + 3, y + 3), stand 1; up to 6 goes while more than 1 off; then the town
 // portal (FUN_005943b0: object 189, ECX 2 / EDX 0xbd to FUN_00555230)
 // at the noted spot, in the room near his own that holds it
 // (FUN_00463740); none does: the spot moves on 3 subtiles on each axis
 // and no portal opens. Then back to the portal (FUN_00594450: his own
 // spot when there's none) for up to 6 more thinks, stepping in
-// (FUN_005944f0: camp Cain due). The portal's drawn till its mode 4
-// (rules::CainQuest::portal_closed_frame); nothing removes the object.
+// (FUN_005944f0: camp Cain due). The portal closes (S1) and stays in its
+// mode 4 (S2): nothing removes the object (rules::CainQuest::portal_mode).
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
-// tick; its mode 3 (closing) is drawn as open.
+// tick. FUN_005e77a0's spot-already-noted branch (FUN_005944f0, stat 6 0,
+// mode 0xc at his spot) isn't kept: d2d's Cain takes his first think once.
 auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
-        if (cain_portal_closes && now_ms >= cain_portal_closes) { cain_portal = {}; cain_portal_closes = 0; }
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
         auto& unit = npc_states[std::size_t(cain_walk.npc)];
@@ -611,7 +619,7 @@ auto World::take_carried(std::string_view code) -> void {
 // Cain walks out (cain_step); with no room for him (FUN_00593290) a town
 // portal pair (FUN_0056d130, object 0x3b) opens at x + 6, y + 6, linked only
 // to its twin in the camp: nobody's own, the player's own portal stays.
-// ponytail: CairnStones' missile and the portal's red look aren't drawn.
+// ponytail: CairnStones' missile isn't drawn.
 auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         using Cain = d2d::rules::CainQuest;
         const auto& object = level->npcs[std::size_t(npc_index)];

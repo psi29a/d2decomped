@@ -9,6 +9,7 @@
 #include <d2s_items.hpp>
 #include <dc6.hpp>
 #include <font.hpp>
+#include <hover_box.hpp>
 #include <rules.hpp>
 #include <skill_text.hpp>
 #include <skills.hpp>
@@ -101,7 +102,9 @@ void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
         const int points = levels[std::size_t(hover)];
         const bool learned = std::ranges::any_of(levels, [](std::uint8_t level) { return level > 0; });   // FUN_004ed480: points in any class skill
         const auto lines = d2d::game::skill_tree_tip(scene, env, skill, lvl, points >= list[std::size_t(hover)].max_level, points == 0 && lvl > 0, learned);
-        draw_hover_text(framebuffer, scene, lines, icon_x, icon_x + 0x30, icon_y, icon_y - 0x30);
+        int text_w = 0;
+        for (const auto& line : lines) text_w = std::max(text_w, scene.font.measure(line.text));
+        draw_hover_lines(framebuffer, scene, lines, d2d::rules::skill_tree_tip_box(icon_x, icon_y, text_w, 16 * int(lines.size()), int(kScreenWidth), int(kScreenHeight)));
     }
 }
 

@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <optional>
 #include <span>
 #include <utility>
@@ -30,7 +31,7 @@ static Item item(const char* code, int quality = 2) {
     return item;
 }
 
-int main() {
+int main() try {
     {   // FUN_0056bd10's pick: the next id up, else the lowest up to the last (itself too).
         const std::array ids{ 7, 3, 12, 5 };
         assert(ring_pick(ids, 5) == 7 && ring_pick(ids, 7) == 12 && ring_pick(ids, 12) == 3 && ring_pick(ids, 2) == 3);
@@ -401,6 +402,109 @@ int main() {
         assert(thrower[0].quantity == 50 && thrower[0].durability == 5);                     // all of it, the lower durability
         held = item("jav"); held->quantity = 5; held->quality = 3;
         assert(equip(cursor_tables, thrower, held, 4, sorc) && held && held->quality == 2);   // superior isn't normal: swapped, not stacked
+    }
+    {   // The wielded weapon (inventory +0x1c, weapon-switch.md): one goes in
+        // (FUN_0063d1d0) when none is wielded; one comes off (FUN_0063d2b0)
+        // and the other hand's usable item takes it.
+        std::vector<Item> hands;
+        bool first_wielded = false;
+        held = item("jav"); held->quantity = 10;
+        assert(equip(cursor_tables, hands, held, 5, barb) && wielded_weapon(cursor_tables, hands) == item_at(hands, 1, 5));   // the first one in
+        held = item("ssd");
+        assert(equip(cursor_tables, hands, held, 4, barb) && wielded_weapon(cursor_tables, hands) == item_at(hands, 1, 5));   // stays the left's
+        // Throw (FUN_0056f460): the right's sword first (FUN_0063c9b0), not
+        // the wielded one, so the other hand's javelins (FUN_00643d60).
+        int thrown = throw_hand(cursor_tables, hands, &first_wielded);
+        assert(thrown >= 0 && hands[std::size_t(thrown)].code == "jav" && !first_wielded);
+        // The javelins swapped for a sword (code 5, FUN_00560f00): they come
+        // off beside the right's sword, which is wielded from then on.
+        held = item("ssd");
+        assert(equip(cursor_tables, hands, held, 5, barb) && held && held->code == "jav" && !held->wielded);
+        assert(wielded_weapon(cursor_tables, hands) == item_at(hands, 1, 4));
+        thrown = throw_hand(cursor_tables, hands, &first_wielded);
+        assert(thrown >= 0 && &hands[std::size_t(thrown)] == item_at(hands, 1, 4) && first_wielded);
+        // The right's to the cursor (FUN_00560cd0): the left's sword takes it.
+        std::optional<Item> cursor;
+        const auto right = std::ranges::find_if(hands, [](const Item& worn) { return worn.slot == 4; });
+        wield_leaves(cursor_tables, hands, *right);
+        assert(pick_up(hands, cursor, std::size_t(right - hands.begin())) && !cursor->wielded);
+        assert(wielded_weapon(cursor_tables, hands) == item_at(hands, 1, 5));
+        // Broken (FUN_0055f850): off, and nothing beside to take it.
+        wield_leaves(cursor_tables, hands, hands[0]);
+        hands[0].flags |= 0x100u;
+        assert(!wielded_weapon(cursor_tables, hands) && throw_hand(cursor_tables, hands) == -1);
+        // Mended (FUN_0055f900): back in, wielded again.
+        hands[0].flags &= ~0x100u;
+        wield_enters(cursor_tables, hands, hands[0]);
+        assert(wielded_weapon(cursor_tables, hands) == &hands[0]);
+        // A loaded pair: the first weapon in the items' order.
+        std::vector<Item> loaded = { item("ssd"), item("jav") };
+        loaded[0].location = loaded[1].location = d2d::d2s::item_location::kEquipped;
+        loaded[0].slot = 5; loaded[1].slot = 4;
+        wield_settle(cursor_tables, loaded);
+        assert(wielded_weapon(cursor_tables, loaded) == &loaded[0] && !loaded[1].wielded);
+        // A shield takes the mark from a sword coming off (FUN_0063d2b0: any
+        // usable item), but isn't a wielded weapon (FUN_0063bef0: weap only).
+        std::vector<Item> guard;
+        held = item("ssd");
+        assert(equip(cursor_tables, guard, held, 4, sorc));
+        held = item("buc");
+        assert(equip(cursor_tables, guard, held, 5, sorc) && wielded_weapon(cursor_tables, guard) == item_at(guard, 1, 4));
+        wield_leaves(cursor_tables, guard, guard[0]);
+        assert(guard[1].wielded && !wielded_weapon(cursor_tables, guard));
+    }
+    {   // FUN_0055dbc0: worn gear short of its requirements gets flag 0x4000
+        // (its stats off, FUN_0063d2b0); flagged gear that meets them again
+        // loses it (FUN_0063d1d0), repeated while one changed.
+        auto worn = [](const char* code, int slot) { Item worn_item = item(code); worn_item.location = 1; worn_item.slot = slot; return worn_item; };
+        auto plus_strength = [](Item gear_item) { gear_item.props.push_back({ .stat = d2d::d2s::kStr, .value = 10 }); return gear_item; };
+        const auto strength_of = [](const std::vector<Item>& gear) {   // 20 own, plus the unflagged worn gear's
+            Wearer self{ .cls = d2d::d2s::kSorceress, .str = 20, .dex = 30, .lvl = 10 };
+            for (const auto& each : gear)
+                if (each.location == 1 && item_usable(each))
+                    for (const auto& prop : each.props) if (prop.stat == d2d::d2s::kStr) self.str += prop.value;
+            return self;
+        };
+        const auto base_level = [](const Item&) { return -1; };
+        const auto flagged = [](const Item& gear_item) { return (gear_item.flags & 0x4000u) != 0; };
+        std::vector<Item> gear = { worn("ssd", 4), plus_strength(worn("cap", 1)) };
+        const auto settle = [&](std::vector<Item>& worn_gear) { settle_requirements(cursor_tables, worn_gear, [&] { return strength_of(worn_gear); }, base_level); };
+        wield_settle(cursor_tables, gear);
+        settle(gear);
+        assert(!flagged(gear[0]) && gear[0].wielded);                     // 30 strength: the sword's 25 met
+        gear[1].location = 0;                                              // the cap off
+        settle(gear);
+        assert(flagged(gear[0]) && !wielded_weapon(cursor_tables, gear));   // 20: flagged, and no longer wielded
+        gear[1].location = 1;                                              // back on
+        settle(gear);
+        assert(!flagged(gear[0]) && wielded_weapon(cursor_tables, gear) == &gear[0]);
+        // Its own stats: unflagged, they count toward its own requirements;
+        // flagged, they're off, so it stays flagged.
+        std::vector<Item> own = { plus_strength(worn("ssd", 4)) };
+        settle(own);
+        assert(!flagged(own[0]));
+        own[0].flags |= 0x4000u;
+        settle(own);
+        assert(flagged(own[0]));
+        // Repeated: the left hand's shield (+10) is cleared after the right's
+        // sword was passed over, and then the sword passes too.
+        std::vector<Item> pair = { worn("ssd", 4), plus_strength(worn("buc", 5)) };
+        pair[0].flags |= 0x4000u;
+        pair[1].flags |= 0x4000u;
+        settle(pair);
+        assert(!flagged(pair[0]) && !flagged(pair[1]) && wielded_weapon(cursor_tables, pair) == &pair[0]);
+        // FUN_0055db00: a quiver needs its bow in the other hand.
+        std::vector<Item> quiver = { worn("aqv", 5) };
+        settle(quiver);
+        assert(flagged(quiver[0]));
+        quiver.push_back(worn("sbw", 4));
+        settle(quiver);
+        assert(!flagged(quiver[0]));
+        // A broken item is left alone; the weapon switch's slots aren't walked.
+        std::vector<Item> spare = { worn("ssd", 4), worn("ssd", 11) };
+        spare[0].flags |= 0x100u;
+        settle(spare);
+        assert(!flagged(spare[0]) && !flagged(spare[1]));
     }
     // FUN_0063dbc0: a quiver joins only the bow it's for (issue #139: arrows
     // beside a staff). Into the free hand it takes the other one's place.
@@ -810,4 +914,7 @@ int main() {
     assert(!auto_belt(pick_tables, clicked, 8, 4) && clicked[7].location == 0 && clicked[7].panel == 1);   // no box: stays in the pack
 
     std::puts("test_rules: ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_rules: %s\n", error.what());
+    return 1;
 }

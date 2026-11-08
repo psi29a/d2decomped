@@ -26,6 +26,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -97,34 +98,66 @@ inline bool throwable(const GameData& game_data, const std::string& code) {
     const auto found = game_data.rules.item_base.find(code);
     return game_data.thrown.contains(code) && found != game_data.rules.item_base.end() && found->second.stackable;
 }
-// Throw's weapon gate (FUN_00647640, skill 2): the weapon in hand
-// (FUN_0063c9b0: the right hand's, else the left's, of type weap 0x2d and
-// usable, not flag 0x100 broken / 0x4000: FUN_0062a4e0) is a throwable or
-// has stat 125 (item_throwable). A spent magic stack stays in hand broken
+// Throw's weapon gate (FUN_00647640, skill 2): the item Throw takes
+// (rules::throw_hand: the first usable weapon in hand, right then left, or
+// when that isn't the wielded one, the other hand's item) is a throwable
+// or has stat 125 (item_throwable). Only a dual-wielder (FUN_006235a0:
+// barbarian, assassin) may take the other hand's; anyone else's first
+// weapon must be the wielded one. A spent magic stack stays in hand broken
 // (Fight::out_of_ammo), so it can't throw. docs/research/re/throw.md.
-// No 1.14d item rolls stat 125 (stubs.md), so Fight::ammo_index and the
-// launch take only a throwable.
-// ponytail: a dual-wielder (FUN_006235a0: barbarian, assassin) with two
-// weapons: either counts here; game.exe takes the primary (FUN_0063bef0,
-// inventory +0x1c), else the other hand's (FUN_00643d60).
+// No 1.14d item rolls stat 125 (stubs.md), so the launch takes only a
+// throwable.
 inline bool throw_ready(const GameData& game_data, const Character& character) {
-    return std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) {
-        if (item.location != d2d::d2s::item_location::kEquipped || (item.slot != d2d::d2s::body_location::kRightArm && item.slot != d2d::d2s::body_location::kLeftArm)) return false;
-        const auto info = game_data.rules.item_info.find(item.code);
-        if (info == game_data.rules.item_info.end() || !d2d::rules::type_is(game_data.rules, info->second.type, "weap") || (item.flags & 0x4100u) != 0) return false;
-        return throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; });
-    });
+    bool wielded = false;
+    const int index = d2d::rules::throw_hand(game_data.rules, character.items, &wielded);
+    const int cls = character.header.cls;
+    if (index < 0 || (!wielded && cls != d2d::d2s::kBarbarian && cls != d2d::d2s::kAssassin)) return false;
+    const auto& item = character.items[std::size_t(index)];
+    return throwable(game_data, item.code) || std::ranges::any_of(item.props, [](const d2d::d2s::ItemProp& prop) { return prop.stat == 125 && prop.value > 0; });
+}
+// FUN_00643d90: one hand's item type ("" none) against one of a skill's sets. No item: the set is empty, or its
+// itype1 is weap / mele / h2h (ItemTypes 0x2d / 0x2e / 0x43) and neither hand holds a weapon (FUN_00629bb0(.., 0x2d)).
+// An item of an excluded etype fails; a set with no itype takes any other; else the item must be of one of them.
+// ponytail: the ammo tests (a bow / crossbow needs its quiver in the other hand, stat 70 above 0, unless stat 0x9d) and
+// the flags 0x4000 / 0x100 items (skill 0 only) aren't kept: those pass.
+inline bool hand_fits(const GameData& game_data, const std::string& type, const std::array<std::string, 3>& itypes,
+                      const std::array<std::string, 2>& etypes, bool neither_weapon) {
+    const auto of_type = [&](std::string_view want) { return !want.empty() && d2d::rules::type_is(game_data.rules, type, want); };
+    if (type.empty())
+        return (itypes[0].empty() && etypes[0].empty()) || ((itypes[0] == "weap" || itypes[0] == "mele" || itypes[0] == "h2h") && neither_weapon);
+    if (std::ranges::any_of(etypes, of_type)) return false;
+    return itypes[0].empty() || std::ranges::any_of(itypes, of_type);
+}
+// FUN_00643f80, the skills' weapon-type gate (FUN_00647960's status 2): no itypea1 and no etypea1 passes; else one
+// hand (right, left: FUN_0063bde0(inv, 4 / 5)) fits set a and the other set b, either way round.
+// ponytail: Left Hand Throw / Swing (ids 4 / 5) drop the active hand's item (FUN_0063bef0) first; not kept.
+inline bool weapon_gate(const GameData& game_data, const Character& character, const d2d::rules::Skill& skill) {
+    if (skill.itype_a[0].empty() && skill.etype_a[0].empty()) return true;
+    std::array<std::string, 2> hands{};   // right, left: the item types
+    for (const auto& item : character.items)
+        if (item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm))
+            if (const auto info = game_data.rules.item_info.find(item.code); info != game_data.rules.item_info.end())
+                hands[item.slot == d2d::d2s::body_location::kRightArm ? 0 : 1] = info->second.type;
+    const bool neither_weapon = std::ranges::none_of(hands, [&](const std::string& type) { return !type.empty() && d2d::rules::type_is(game_data.rules, type, "weap"); });
+    const auto fits_a = [&](const std::string& type) { return hand_fits(game_data, type, skill.itype_a, skill.etype_a, neither_weapon); };
+    const auto fits_b = [&](const std::string& type) { return hand_fits(game_data, type, skill.itype_b, skill.etype_b, neither_weapon); };
+    return (fits_a(hands[0]) && fits_b(hands[1])) || (fits_b(hands[0]) && fits_a(hands[1]));
 }
 // A known skill the character can't use now (FUN_00647960 says 2): the
 // picker and the button draw it in text colour 1 (FUN_004aa3a0 /
 // FUN_004a8d30 on FUN_004d9fc0), and a cast stops with the class's
 // impossible_1 (FUN_004610c0, reason 0x13 at 0x711ddc).
-// ponytail: only Throw's weapon gate; FUN_00647960's other statuses (1
-// mana, 4, 5, 6, the other weapon gates) aren't kept. Its weapon gate
-// (FUN_00647640) takes a dual-wielder's primary hand (FUN_006235a0).
+// ponytail: a skill with AttackNoMana swings Attack instead, with no voice (LAB_00461101): todo.md row 52.
+// The weapon-type gate (FUN_00643f80), Throw's its own (FUN_00647640: a throwable, or stat 125).
+// FUN_00643f80 runs on Throw too (LAB_006479f8; itypea1 thro): no 1.14d item has stat 125, so
+// throw_ready alone answers the same. skills.md "Can the skill go now".
+// ponytail: of FUN_00647960's other statuses only the mana cost (`cost_of`), no row (3) and level 0
+// (7) are kept; not startmana or blood mana (1), restrict (4), passive (5), aura (6), an item's
+// stat 0xcc charges (2) or skilldelay (8). Throw's gate takes a dual-wielder's primary hand (FUN_006235a0).
 inline bool skill_refused(const GameData& game_data, const Character& character, int id) {
     const auto* skill = game_data.skills.get(id);
-    return skill && skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow && !throw_ready(game_data, character);
+    if (!skill) return false;
+    return skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow ? !throw_ready(game_data, character) : !weapon_gate(game_data, character, *skill);
 }
 inline bool attack_mode(int mode) { return mode == kModeA1 || mode == kModeKK || mode == kModeS1 || mode == kModeS3 || mode == kModeS4; }
 // A finishing move releases charges (FUN_005d5220 runs after Attack's
@@ -137,22 +170,22 @@ inline bool finisher(const d2d::rules::Skill* skill) {
 
 // The character's level in a skill (the World's for the fight, the skill
 // bar's for show): points (a class skill's from the save's skill bytes in
-// Skills.txt order; Attack and Throw, which every class starts with
-// (FUN_00647ee0 -> FUN_00647110), and a tome's skill with the tome carried, 1),
-// then with what the gear gives (gear_props: worn, socketed, set bonuses,
-// charms) and `extra` (the skill shrine's +all skills) — on skills that
-// have points or that an item grants (rules::item_grants_skill).
-// ponytail: other general skills don't count yet. A charged entry is
-// cast at its own level (World's fight.skill_level, Hero::charge).
+// Skills.txt order; Attack and the class's CharStats Skill 1..10 (Throw,
+// Kick, the scrolls and tomes, Unsummon, ...), which every one of the class
+// has (FUN_00647ee0 -> FUN_00647110, item or not), 1), then with what the
+// gear gives (gear_props: worn, socketed, set bonuses, charms) and `extra`
+// (the skill shrine's +all skills) — on skills that have points or that an
+// item grants (rules::item_grants_skill). A charged entry is cast at its
+// own level (World's fight.skill_level, Hero::charge).
 inline int skill_base_level(const GameData& game_data, const Character& character, int id) {
-    const auto& ids = game_data.skills.class_ids[std::size_t(std::max(character.character_class, 0))];
+    const auto cls = std::size_t(std::clamp(character.character_class, 0, 6));
+    const auto& ids = game_data.skills.class_ids[cls];
     if (const auto found = std::ranges::find(ids, id); found != ids.end()) return character.stats.skills[std::size_t(found - ids.begin())];
     if (id == 0) return 1;
-    const auto* skill = game_data.skills.get(id);
-    if (!skill) return 0;
-    if (skill->srvdofunc == d2d::rules::ServerDoFunction::kThrow) return 1;   // the weapon is skill_refused's
-    const char* tome = skill->name == "Book of Townportal" ? "tbk" : skill->name == "Book of Identify" ? "ibk" : nullptr;
-    return tome && std::ranges::any_of(character.items, [&](const d2d::d2s::Item& item) { return item.code == tome && item.location == d2d::d2s::item_location::kStored; }) ? 1 : 0;
+    return std::ranges::any_of(game_data.class_start[cls].skills, [&](const std::string& name) {
+        const auto found = game_data.skills.by_name.find(name);
+        return found != game_data.skills.by_name.end() && found->second == id;
+    }) ? 1 : 0;   // the weapon is skill_refused's
 }
 inline int skill_level(const GameData& game_data, const Character& character, int id, const std::vector<d2d::d2s::ItemProp>& extra) {
     const auto* skill = game_data.skills.get(id);
@@ -450,7 +483,7 @@ struct Fight {
     void merc_joins();
     // The merc's stats and skill levels for its experience (FUN_00572840).
     void merc_level_stats();
-    // Back in camp after dying: full life, no potions or poison working.
+    // Back in camp after dying: full life, mana and stamina, no potions or poison working.
     void revive(std::uint32_t now_ms);
 
     // Keys 1-4 drink the belt's bottom-row potion in that column: healing
@@ -492,6 +525,10 @@ struct Fight {
     // speed; a cast takes cast_ticks (FCR), get-hit and block recover
     // faster with FHR / FBR (rules::speed_frames on the base frame count).
     void set_pmode(int mode, std::uint32_t now_ms);
+    // Impact and the class cry (FUN_004cc410). A hit too small for mode 4 still
+    // plays them: the client's command 0x13 calls FUN_004cc5b0 with mode 0x13,
+    // and that slot is the same struck handler. It does not change pmode.
+    void play_player_hit(std::uint32_t now_ms);
     void do_sounds(std::uint32_t now_ms);           // the skill's do: its dosound, and tgtsound on its target
     [[nodiscard]] bool dead() const;
     // State 0x36 (uninterruptable, FUN_005544b0) on the player: a Whirlwind,
@@ -527,8 +564,9 @@ struct Fight {
     // they join the item stats, so toblock (20), damageresist (36) and
     // the rest go through make_fighter; defense % (171 skill_armor_percent,
     // 182 armor_override_percent after it) applies to the panel defense.
-    // ponytail: attackrate (68) is taken as IAS and velocitypercent (67) as
-    // FRW; other stats make_fighter doesn't read do nothing.
+    // attackrate (68) is SIAS (Fighter::sias, raw) and velocitypercent (67)
+    // is added after the FRW's diminishing (FUN_00623f50).
+    // ponytail: other stats make_fighter doesn't read do nothing.
     void update_fighters(std::uint32_t now_ms);
 
     // What calcs ask of the player (skills.hpp).
@@ -542,9 +580,10 @@ struct Fight {
     // calc1 (FUN_005d5970).
     bool start_swing(std::uint32_t now_ms);
     // Short of mana for a skill (the client's FUN_00647960 reason 1:
-    // FUN_00647540's cost, FUN_006440f0's minmana) the class says so: message
+    // FUN_00647540's cost, FUN_006440f0's startmana) the class says so: message
     // 0x15 (table 0x711ddc) -> FUN_004cb9c0, the class table's +0xc,
-    // <class>_needmana_1 (class_voice).
+    // <class>_needmana_1 (class_voice). d2d tests the cost only (`cost_of`), no startmana:
+    // todo.md row 53.
     void need_mana(std::uint32_t now_ms);
     // Reason 0x13 (status 2, skill_refused): the class table's +8,
     // <class>_impossible_1 (amazon 0xb89), as need_mana.
@@ -760,6 +799,9 @@ struct Fight {
     // and its aip1's element, within its aip4 (fight/).
     void suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
     [[nodiscard]] bool blast_reaches(const Monster& monster, const Foe& foe, int radius) const;
+    // MonUMod 22's death hook (rules::killself_hooks): killself on the
+    // monsters about the boss; Radament's and Mephisto's death missiles.
+    void quest_death(Monster& boss, std::uint32_t now_ms);
 
     // Monster i died (the player's or the merc's doing): the player gets the
     // experience, its pack may scatter, it drops its loot.
@@ -858,7 +900,7 @@ struct Fight {
     // FUN_0056f070's 0x1b), a skill with decquant (FUN_0056f7f0), Throw
     // (FUN_0056f460); the ammo checks (srvstfunc 4, FUN_005da8b0) too.
     [[nodiscard]] bool needs_ammo(const d2d::rules::Skill& skill) const;
-    void spend_ammo();
+    void spend_ammo(int index = -1);   // that item, or ammo_index()'s
     // Ammo run out (FUN_00580310 -> FUN_00580030): a magic or better weapon
     // (quality 4..9, FUN_0062a0f0) breaks and stays; anything else goes, and
     // the inventory's first of its code (not broken) takes its slot if it
@@ -1014,18 +1056,26 @@ struct Fight {
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
     // hitpoints heal the player (Prayer: edns, 256ths); an enemy one
     // (srvdofunc 66, FUN_005cf3a0; 81, FUN_005d0920) strikes each monster
-    // within aurarangecalc subtiles (FUN_0056b7e0 with aurafilter) with the
-    // skill's element (FUN_0056e0c0, the mastery in; Holy Fire, Holy Shock,
-    // Holy Freeze's cold) — its aurastats ride the target state (+0x82)
-    // and target_of applies them while the monster is in range.
+    // within aurarangecalc subtiles that its aurafilter takes (FUN_0056b7e0
+    // -> FUN_0056b3e0, aura_takes: Sanctuary undead only, Holy Freeze no
+    // prime evil) with the skill's element (FUN_0056e0c0, the mastery in;
+    // Holy Fire, Holy Shock, Holy Freeze's cold) — its aurastats ride the
+    // target state (+0x82) and target_of applies them while the monster is
+    // in range.
     // ponytail: perdelay taken as ticks (its reader isn't traced); the
-    // aurafilter bits aren't read (every monster counts); Sanctuary and
-    // Redemption's own callbacks aren't built; no mana is drawn
-    // (FUN_00644b10).
+    // aurafilter's unit-flag, town and sight bits aren't read
+    // (aura_filter.hpp); Sanctuary and Redemption's own callbacks aren't
+    // built; no mana is drawn (FUN_00644b10).
     void aura_pulse(std::uint32_t now_ms);
     // A friendly aura's life (Prayer, aurastat hitpoints) on a pulse: every
     // perdelay frames, on the player and the merc within its aurarange.
     void prayer_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rules::CalcEnv& env, float from_x, float from_y);
+    // Whether the skill's aurafilter takes the monster (aura_filter.hpp). A
+    // monster here is no side of the player's, so a friendly aura's never
+    // does (0x12003 needs an ally: FUN_00554de0).
+    [[nodiscard]] bool aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const;
+    // The player's aura over the monster: in range and taken by its filter,
+    // so its auratargetstate shows (Conviction's; never Might's).
     [[nodiscard]] bool in_aura(const Monster& monster);
     // Monster i as the player's blows see it: an enemy aura's aurastats
     // while it's in range (Conviction: resistances and defense down;
@@ -1074,7 +1124,7 @@ struct Fight {
     [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
     void pet_buffs(Pet& pet);
     void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
-    void summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);
+    int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);   // the pet's id
     // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
     // aidel ticks, with a monster within aip4 subtiles, it shoots its skill
     // at the nearest — the skill's missile, whose row names the player's
@@ -1101,8 +1151,9 @@ struct Fight {
     // attack rating against the monster's defense), and otherwise follows
     // the player. A dead one plays its death and is gone.
     // The traced AIs (rules::traced_pet_ai) run their own thinks instead.
-    // ponytail: an untraced pet fights in melee with A1 on this
-    // Hireable-style think (none of Act 1's summons is untraced).
+    // No 1.14d player summon reaches this think: every summon's MonStats AI
+    // is traced, and Decoy's (Idle, 0x5b0cd0) and Bone Wall's / Prison's
+    // (BoneWall, FUN_005e0400) only stand (pet.idle); it stays as a guard.
     void pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
@@ -1120,8 +1171,7 @@ struct Fight {
     // ticks, its aurastats (toblock dm56) on the player.
     // Its row has no auraevent and no passivestat, so the aura events
     // (+0x84) and the passive part (FUN_005c6dc0) add nothing (skills.md).
-    // ponytail: a shield is assumed (itypea1 shld isn't checked: the
-    // skills' weapon-type gate isn't traced).
+    // Without a shield it is refused before this (weapon_gate: itypea1 shld).
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost (FUN_0056bfe0): a charged entry's (Hero::charge, for
     // that skill) is a charge and no mana, else the skill's mana.

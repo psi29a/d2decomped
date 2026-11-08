@@ -4,7 +4,8 @@
 // 0x80000000) fills, for a perm item only (FUN_00577830, FUN_00576ed0): a
 // scroll fills its tome, keys (AutoStack) top up a carried stack or come
 // as one stack of what the gold buys, and potions are bought while the
-// belt takes them, then one for the inventory. No game data: a scroll,
+// belt takes them, the first it can't dropped unpaid (0x577d9c ->
+// LAB_00577e68), so none spills into the inventory. No game data: a scroll,
 // a tome, keys and a potion typed in.
 
 #include <d2s_items.hpp>
@@ -12,6 +13,8 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
+#include <exception>
 #include <utility>
 #include <vector>
 
@@ -38,7 +41,7 @@ Item carried(const char* code, int quantity) {
 
 }  // namespace
 
-int main() {
+int main() try {
     Tables tables;
     tables.npc_prices["Akara"].max_buy = { 100000, 100000, 100000 };
     tables.types["scro"] = {};
@@ -100,12 +103,29 @@ int main() {
     items = { carried("key", 7) };
     assert(store_buy(tables, shop, 1, items, stats) == Trade::done && items.size() == 2 && items[0].quantity == 7 && items[1].quantity == 12);
 
-    // Potions: bought while the belt takes them (8 boxes), then one for the inventory.
+    // Potions: bought while the belt takes them (8 boxes); the ninth is
+    // dropped unpaid (0x577d9c -> LAB_00577e68), not put in the inventory.
     items.clear();
     stats.values[d2d::d2s::kGold] = 100000;
-    assert(store_buy(tables, shop, 2, items, stats, 8, true) == Trade::done && items.size() == 9);
+    assert(store_buy(tables, shop, 2, items, stats, 8, true) == Trade::done && items.size() == 8);
     for (std::size_t i = 0; i < 8; ++i) assert(items[i].location == location::kBelt);
-    assert(items[8].location == location::kStored && gold() == 100000 - 9 * potion);
+    assert(gold() == 100000 - 8 * potion);
+    // A bottom row of them already: the upper row fills (FUN_0055e9b0, a
+    // column's lowest free box), and nothing more.
+    items.clear();
+    for (int box = 0; box < 4; ++box) {
+        auto worn = carried("hp1", -1);
+        worn.location = location::kBelt;
+        worn.column = box;
+        items.push_back(std::move(worn));
+    }
+    stats.values[d2d::d2s::kGold] = 100000;
+    assert(store_buy(tables, shop, 2, items, stats, 8, true) == Trade::done && items.size() == 8 && gold() == 100000 - 4 * potion);
+    for (std::size_t i = 4; i < 8; ++i) assert(items[i].location == location::kBelt && items[i].column == int(i));
+    // The belt already full: the first one goes to the inventory, and that's all.
+    stats.values[d2d::d2s::kGold] = 100000;
+    assert(store_buy(tables, shop, 2, items, stats, 8, true) == Trade::done && items.size() == 9);
+    assert(items[8].location == location::kStored && gold() == 100000 - potion);
     // The gold runs out first: those bought stay, and no_gold (0x8d4).
     items.clear();
     stats.values[d2d::d2s::kGold] = 3 * potion;
@@ -118,7 +138,7 @@ int main() {
     shop.header.status = 0x20;
     items.clear();
     stats.values[d2d::d2s::kGold] = 100000;
-    assert(store_buy(tables, shop, 3, items, stats, 8, true) == Trade::done && items.size() == 9 && shop.tabs[3].size() == 4);
+    assert(store_buy(tables, shop, 3, items, stats, 8, true) == Trade::done && items.size() == 8 && shop.tabs[3].size() == 4);
     shop.header.status = 0;
     assert(store_buy(tables, shop, 3, items, stats, 8, true) == Trade::done && shop.tabs[3].size() == 3);   // classic: one, then gone
     // The belt and the inventory full after one: done, nothing more said.
@@ -134,4 +154,7 @@ int main() {
     stats.values[d2d::d2s::kGold] = 100000;
     assert(store_buy(tables, shop, 2, items, stats, 4, true) == Trade::done && items.size() == 5 && items[4].column == 3 && gold() == 100000 - potion);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_store_fill: %s\n", error.what());
+    return 1;
 }

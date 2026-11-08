@@ -229,6 +229,16 @@ constexpr std::array<std::uint8_t, 3> kTxtWhite{ 255, 255, 255 }, kTxtBlue{ 105,
     kTxtGreen{ 0, 255, 0 }, kTxtGold{ 199, 179, 119 }, kTxtYellow{ 255, 255, 100 },
     kTxtOrange{ 255, 168, 0 }, kTxtGrey{ 105, 105, 105 }, kTxtRed{ 255, 77, 77 };
 
+// A store's price on an item's hover text ("Cost: " / "Sell value: ",
+// FUN_004b2ad0): FUN_0048dd90 adds it after the name (FUN_0048cea0 at
+// 0x48ec27), and the belt's hover after its lines (FUN_00497a40 at
+// 0x497bf1). The string is drawn bottom-up, so it shows on top, and it
+// sets no colour of its own, so it keeps the one the top line ends in.
+inline void add_price_line(std::vector<TextLine>& lines, std::string text) {
+    const auto rgb = lines.empty() ? kTxtWhite : lines.front().split != std::string::npos ? lines.front().tail : lines.front().rgb;
+    lines.insert(lines.begin(), TextLine{ std::move(text), rgb });
+}
+
 // game.exe's attack speed bands (DAT_00721f10, FUN_004861d0): row speed
 // 10..27 (frames, below), column by class and bow/crossbow (0x722078);
 // 1 Very Fast .. 5 Very Slow. Under 10 is 1, 28 and over 5.
@@ -432,16 +442,15 @@ inline std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2
     // type rune with a gems.txt row adds its letter, in the socket list's
     // order, between RuneQuotes (20506). Under the name: FUN_0048dd90 puts
     // its buffer (ebp-0x2434) last but the name's into the bottom-up
-    // string (0x48ebb1), so it's drawn just under the name lines.
-    // ponytail: the line has no colour code of its own (20506 is a bare
-    // "'"); the colour it carries from the string before it isn't traced:
-    // white here.
+    // string (0x48ebb1), so it's drawn just under the name lines. Gold:
+    // 20506 is a bare "'", but FUN_0048dd90 puts colour code 4 in front as
+    // it joins the buffer (FUN_004521c0, EDX 4 at 0x48ebac).
     {
         std::string letters;
         for (const auto& socketed : item.socketed_items)
             if (const auto rune_info = game_data.rules.item_info.find(socketed.code); rune_info != game_data.rules.item_info.end() && d2d::rules::type_is(game_data.rules, rune_info->second.type, "rune"))
                 if (const auto letter = game_data.gem_letters.find(socketed.code); letter != game_data.gem_letters.end()) letters += letter->second;
-        if (!letters.empty()) out.push_back({ string_id(game_data, 20506) + letters + string_id(game_data, 20506), kTxtWhite });
+        if (!letters.empty()) out.push_back({ string_id(game_data, 20506) + letters + string_id(game_data, 20506), kTxtGold });
     }
 
     // Defense: armorclass with its +% (16, on the base) and flat adds.

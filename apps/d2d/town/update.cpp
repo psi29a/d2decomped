@@ -3,8 +3,10 @@
 #include "town.hpp"
 
 #include "audio.hpp"
+#include "belt_popup.hpp"
 #include "common.hpp"
 #include "controls.hpp"
+#include "ctrl_click.hpp"
 #include "cursor.hpp"
 #include "gamepad_map.hpp"
 #include "ingame.hpp"
@@ -327,7 +329,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // The mini-panel's buttons (FUN_0047ec50) and the HUD's button for it.
             const bool left_open = left_panel_open();
             int action = -1;
-            hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, inv_open || tree_open, action);
+            hud_click = !coop_hud_hidden() && mini.input(*scene, audio, mouse, left_open, mini_right(), action);
             if (action == MiniPanel::kCharacter) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = false; }
             if (action == MiniPanel::kInventory) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (action == MiniPanel::kSkills) { tree_open = !tree_open; if (tree_open) inv_open = false; }
@@ -395,16 +397,22 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                       && mouse.y >= lay.panel_y && mouse.y < lay.panel_y + 432) ||
             ((char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open) && mouse.x >= kCharPanelX && mouse.x < kCharPanelX + 320
                        && mouse.y >= kCharPanelY && mouse.y < kCharPanelY + 432);
-        // The belt: its HUD strip (row 1's boxes) toggles the popup;
-        // strip and open popup take the click instead of the world.
+        // The belt popup: its key (UI 0x1f, belt_open) keeps it up, the
+        // mouse onto the HUD's belt strip brings it up until it leaves the
+        // popup (belt_popup.hpp: FUN_00499bb0, FUN_00499040). A click on the
+        // strip uses or takes the box's item (FUN_004996a0), doesn't toggle it.
+        // Strip and shown popup take the click instead of the world.
         const auto& belt = scene->belts[std::size_t(belt_index(*scene, character.items))];
         const auto& first_box = belt.box[0];
         const auto& fourth_box = belt.box[3];
+        const auto& top_box = belt.box[std::size_t(std::max(belt.boxes - 4, 0))];
+        belt_popup::step(belt_up, belt_open, game_menu.open, !coop_hud_hidden(), !view.dead,
+                         belt_popup::on_strip(mouse.x, mouse.y, int(kScreenWidth), int(kScreenHeight)),
+                         mouse.x >= top_box[0] && mouse.x <= fourth_box[1] && mouse.y >= top_box[2] && mouse.y <= fourth_box[3]);
         const bool over_belt = !coop_hud_hidden() &&
             mouse.x >= first_box[0] && mouse.x <= fourth_box[1]
             && ((mouse.y >= first_box[2] && mouse.y <= first_box[3])
-                || (belt_open && mouse.y >= belt.box[std::size_t(std::max(belt.boxes - 1, 0))][2]
-                              && mouse.y <= first_box[3]));
+                || (belt_up.shown && mouse.y >= top_box[2] && mouse.y <= first_box[3]));
         // The item cursor (not with a trade button toggled on, or a
         // menu or speech up). Held over the store's stock, a click
         // sells the item.
@@ -413,7 +421,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // With an identify scroll picked, a click names the item for it and ends the pick.
         if (identify_with >= 0 && mouse.press_this_frame) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                                { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
+                                                { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
             if (const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr) net.send(cmd::IdentifyWith{ identify_with, to_cursor->item });
             identify_with = -1;
             item_click = true;
@@ -421,7 +429,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // With Charsi's Imbue chosen, a click on an item takes it up and imbues it.
         if (imbue_with >= 0 && mouse.press_this_frame && !item_click) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                                { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
+                                                { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
             if (click.cmd && std::holds_alternative<cmd::ToCursor>(*click.cmd)) {
                 net.send(*click.cmd);
                 net.send(cmd::Imbue{ imbue_with });
@@ -432,22 +440,30 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         if (mouse.press_this_frame && !item_click && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
             if (held && store.npc >= 0 && !pad_a_edge && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
-                net.send(cmd::Sell{ held->id });
+                send(cmd::Sell{ held->id });               // Town::send: a joined game's host makes the sale
                 item_click = true;
             } else {
+                const auto mods = SDL_GetModState();
                 const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                                    { inv_open, stash_open, cube_open, belt_open, character.expansion, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 },
+                                                    { inv_open, stash_open, cube_open, belt_up.shown, character.expansion, (mods & SDL_KMOD_SHIFT) != 0,
+                                                      (mods & SDL_KMOD_CTRL) != 0, store.npc >= 0 },
                                                     mouse.x, mouse.y);
-                if (click.cmd) net.send(*click.cmd);
+                if (click.cmd) {                              // a Ctrl sale through Town::send, as above
+                    if (std::holds_alternative<cmd::Sell>(*click.cmd)) send(*click.cmd);
+                    else net.send(*click.cmd);
+                }
+                if (click.refused)                           // a Ctrl sale no vendor takes (ctrl_click.hpp)
+                    if (const auto found = scene->sound_index.find(std::string(ctrl_click::impossible_voice(int(character.header.cls)))); found != scene->sound_index.end()) audio_say = found->second;
                 item_click = click.consumed;
             }
         }
-        if (mouse.press_this_frame && over_belt && mouse.y >= first_box[2] && !item_click) belt_open = !belt_open;
         // A right-click on a carried item uses it: a potion in the inventory,
-        // stash or belt is drunk.
-        if (mouse.rpress_this_frame && !held && store.npc < 0 && npc_menu.npc < 0 && speech.npc < 0) {
+        // stash or belt is drunk. A store open doesn't stop it: the inventory's
+        // right-click (FUN_004917c0) uses the item (FUN_00487740, C->S 0x20)
+        // whatever panel is up.
+        if (mouse.rpress_this_frame && !held && npc_menu.npc < 0 && speech.npc < 0) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                                { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
+                                                { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
             const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
             const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
             if (imbue_with >= 0) imbue_with = -1;                             // a right-click drops the imbue pick too

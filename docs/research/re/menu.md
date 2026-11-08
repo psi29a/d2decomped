@@ -136,7 +136,11 @@ them times master/100.
   - "left" is FUN_0047ea60: UI 2 character, 0xf quests, 0x14 waypoint,
     0x24 hire, 0xc store, 0x19 stash, 0x1a cube, 0x17 trade, ...;
     "right" is FUN_0047eb50: UI 1 inventory, 4 skill tree, and the
-    store / stash / cube / trade (they open the inventory too).
+    store / stash / cube / trade (they open the inventory too). The
+    belt popup counts as one too (0x47ebbe): UI 0x1f, or the popup
+    drawn (`FUN_004979e0`: 0x7befa0, set by `FUN_00499040`), with a
+    belt of more than one row (`FUN_004979f0`: 1 with none). So the
+    bar moves left while the popup is up.
     The bar moves to stay centred over the HUD strip the panels leave.
 - Buttons (`PANEL\minipanelbtn`):
   - x0 = W/2-0x4a (R: W/2-0xca, L: W/2+0x39), step 0x15, bottom H-0x32;
@@ -152,6 +156,31 @@ them times master/100.
   - hit `FUN_00497780`: x [W/2-8, W/2+5], y [H-0x27, H-0xd];
   - press `0x499621` plays sound 4; release `0x499a82` toggles the
     mini-panel.
+
+## The belt popup
+
+The popup (the belt's upper rows) is up while `DAT_007bef98` is set.
+Two things set it:
+
+- UI 0x1f, the Show Belt key's toggle: `FUN_00456ee0` sets 0x7bef98
+  each frame while it's on (`FUN_00498e90`).
+- The mouse. The HUD's mouse-move handler `FUN_00499bb0` does nothing
+  for a dead player (`FUN_00463df0`: mode 0x11) or with either of two
+  client flags set (`DAT_007a0620` by `FUN_0044da30`, `DAT_007a066c`
+  by `FUN_0044bfe0`; not traced, d2d doesn't test them). With the popup shut, the mouse
+  inside x [W/2+0x17, W/2+0x91], y [H-0x27, H-10] (423..545 ×
+  561..590 at 800×600), and UI 9 off (0x499ca5), it sets 0x7bef98 and
+  0x7bef9c (brought up by the mouse). With it up, the mouse outside
+  the popup's boxes (`FUN_00498dc0`: box n-4's left and top to box 3's
+  right and bottom) clears 0x7bef9c, and 0x7bef98 too unless UI 0x1f
+  is on.
+
+The belt's draw (`FUN_00499040`) clears 0x7bef98 when neither UI 0x1f
+nor 0x7bef9c is set (0x4990ce), or UI 9 is up (0x4990e2). A click on
+the strip (`FUN_004996a0`, the mouse-up handler) uses or takes the
+box's item (`FUN_00498870`); it doesn't toggle the popup. d2d:
+`apps/d2d/belt_popup.hpp`, `Town::belt_up`; the mini-panel's move:
+`belt_popup::moves_mini_panel`, `Town::mini_right`.
 
 ## The pause
 
@@ -174,5 +203,6 @@ the World doesn't tick while the menu is open without a host.
   the colour (unverified). Gamma's and 3DBias's starting values aren't
   traced: they start at 0.
 - The volumes persist as `master_volume` / `music_volume` in
-  `<user dir>/d2d.cfg`. The master is OpenAL's listener gain, so it
-  also scales the cinematics.
+  `<user dir>/d2d.cfg`. The master scales each game sound, not the
+  cinematics, as game.exe (sound.md "The master volume reaches nothing
+  else").

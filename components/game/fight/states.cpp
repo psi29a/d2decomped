@@ -48,7 +48,9 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
         if (const auto* skill = game_data.skills.get(slot.skill); skill && skill->auratarget == "conversion") {
             monster.hit_points = std::max(int(std::int64_t(monster.hit_points) * monster.own_max_life / std::max(monster.stats.hit_points, 1)), 1);
             monster.stats.level = monster.own_level; monster.stats.hit_points = monster.own_max_life;
-            monster.own_level = monster.own_max_life = 0;
+            monster.max_life_frac = monster.own_max_life_frac;
+            if (monster.hit_points == monster.stats.hit_points) monster.life_frac = std::max(monster.life_frac, monster.max_life_frac);
+            monster.own_level = monster.own_max_life = monster.own_max_life_frac = 0;
         }
     }
     slot = {};
@@ -162,13 +164,13 @@ auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
         // Energy Shield (FUN_005ca6c0, an absorb event like the armors') takes calc1 % of each record field while the mana lasts,
         // BEFORE the resistance pass: rules::energy_shield_blows works on the unresisted fields and puts what is left back through
         // the resistances. The mana is in 256ths. Damage no blow carries (loose) is taken from as it stands.
-        // ponytail: calc1 is clamped to 0..95 where FUN_005ca6c0 has no cap (no effect at levels 1..30).
+        // calc1 goes in as is (FUN_005ca6c0 has no cap): Skills.txt's own calc1 is min(edmn,95), and one <= 0 takes nothing.
         const auto shield_pass = [&] {
             const auto* energy_shield = state_of("energyshield");   // after the armor's pass, which may drop its state
             if (!energy_shield) return;
             const std::int64_t before_shield = blows_fine();
             const auto* skill = game_data->skills.get(energy_shield->skill);
-            d2d::rules::EnergyShield shield{ std::clamp(calc(*skill, skill->calc[0], energy_shield->level), 0, 95), std::max(calc(*skill, skill->calc[1], energy_shield->level), 1),
+            d2d::rules::EnergyShield shield{ calc(*skill, skill->calc[0], energy_shield->level), std::max(calc(*skill, skill->calc[1], energy_shield->level), 1),
                                              actor->character.stats.values[kMana] };
             const std::int64_t loose = fine - blows_fine();
             d2d::rules::energy_shield_blows(foe.blows, shield);

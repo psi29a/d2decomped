@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cstdio>
+#include <exception>
 #include <fstream>
 #include <string_view>
 #include <vector>
@@ -21,7 +22,7 @@ constexpr std::array<int, 8> kCases[] = {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     std::vector<std::array<int, 8>> cases(std::begin(kCases), std::end(kCases));
     if (argc == 3 && std::string_view(argv[1]) == "--doorway") {
         cases.clear();
@@ -35,4 +36,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "pattern %d unit %d,%d door %d,%d %dx%d: game.exe %d\n", pattern, unit_x, unit_y, door_x, door_y, size_x, size_y, occupied);
     std::printf("%zu cases, %d differ\n", cases.size(), bad);
     return bad == 0 && !cases.empty() ? 0 : 1;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_doorway: %s\n", error.what());
+    return 1;
 }

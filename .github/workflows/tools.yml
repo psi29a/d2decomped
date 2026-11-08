@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Python tools' regression tests: seconds on one runner, no build. CI
+# skips pull requests that change only tools, so these run here instead.
+name: Tools
+
+on:
+  push:
+    branches: [main]
+    paths: &tool-paths
+      - 'tools/**.py'
+      - '.github/workflows/tools.yml'
+  pull_request:
+    paths: *tool-paths
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tools-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Tooling regression tests
+        run: |
+          python3 -m unittest tools/test_tidy_pr_select.py tools/test_gaps.py tools/test_pr_guard.py
+          (cd tools/emu && python3 -m unittest test_tooling.py)

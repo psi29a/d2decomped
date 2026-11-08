@@ -8,12 +8,13 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <vector>
 
 using d2d::rules::SoundInstance;
 using d2d::rules::SoundRule;
 
-int main() {
+int main() try {
     constexpr std::uint64_t kHero = 1, kZombie = 2;
     // Compound: a playing member of the group started within Compound ticks takes the play.
     const std::vector<SoundInstance> hits{ { 100, 100, kZombie, 40, false }, { 101, 100, kHero, 45, false } };
@@ -43,6 +44,15 @@ int main() {
     // Neither flag: no clash.
     assert(!d2d::rules::start_clash(cry, { 202, 200, 0, false, false }, kZombie, true).other);
 
+    // A Compound merge adds the asking unit to the instance's list (FUN_004b9760):
+    // Defer and the speech test then find it on that unit too (FUN_005169d0).
+    const std::vector<std::uint64_t> joined{ kHero };
+    const std::vector<SoundInstance> merged{ { 200, 200, kZombie, 10, false, joined } };
+    assert(merged[0].plays_on(kZombie) && merged[0].plays_on(kHero) && !merged[0].plays_on(kHero + kZombie));
+    assert(d2d::rules::start_clash(merged, defer, kHero, true).other == 0u);
+    const std::vector<SoundInstance> merged_talk{ { 0xb80, 0xb80, kZombie, 3, false, joined } };
+    assert(d2d::rules::start_clash(merged_talk, { 0xd00, 0xd00, 0, false, false }, kHero, true).other == 0u);
+
     // Speech: any line the unit is saying, whatever group or flags; dropped unless Stop Inst.
     const std::vector<SoundInstance> talk{ { 0xb80, 0xb80, kHero, 3, false }, { 0xc00, 0xc00, kZombie, 2, false } };
     clash = d2d::rules::start_clash(talk, { 0xd00, 0xd00, 0, false, false }, kHero, true);
@@ -63,6 +73,9 @@ int main() {
     assert(menu == 5 && d2d::rules::menu_duck_step(menu, true) == 0 && d2d::rules::menu_duck_step(0, true) == 0);
     assert(d2d::rules::menu_duck_step(98, false) == 100);
     // Applied to the volume: the menu spares cursor, ambience and music rows; Solo spares Solo rows.
+    assert(d2d::rules::sound_ticks_due(39, false) == 0 && d2d::rules::sound_ticks_due(85, false) == 2 && d2d::rules::sound_ticks_due(10000, false) == 100);
+    assert(d2d::rules::sound_ticks_due(0, true) == 1 && d2d::rules::sound_ticks_due(85, true) == 1);   // paused: one a loop pass (FUN_00482c20)
+    assert(d2d::rules::master_scaled(255, 100) == 255 && d2d::rules::master_scaled(255, 55) == 140 && d2d::rules::master_scaled(255, 0) == 0);   // 0x4dfca1
     assert(d2d::rules::ducked_volume(200, 500, false, 50, 100) == 100);
     assert(d2d::rules::ducked_volume(200, 0x40, false, 0, 100) == 200);      // scene_* ambience
     assert(d2d::rules::ducked_volume(200, 0x1240, false, 0, 100) == 200);    // music
@@ -85,4 +98,7 @@ int main() {
     assert(!ducked_mix(255, 1, 800.f, 0.f, 500, false, 50, 70).audible);       // past Falloff 1's 700 px
     std::puts("test_sound_start: ok");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_sound_start: %s\n", error.what());
+    return 1;
 }

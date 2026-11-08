@@ -65,6 +65,7 @@ struct Fighter {
     int hit_class = 1;                              // the weapon's (Weapons.txt hit class; 1 hand to hand), FUN_00623c20
     int life_steal = 0, mana_steal = 0;             // %
     int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0, fcr = 0;
+    int sias = 0;           // stat 68 attackrate the states give (auras, skills): added raw, not diminished (FUN_00623f50, 0x6241e7)
     int velocity_pct = 0;   // stat 0x43 velocitypercent on top of the 100 (Vigor, Burst of Speed, ...)
     int defense = 0, block = 0;                     // block %, standing still
     int def_melee = 0, def_missile = 0;             // stats 33 / 32: extra defense vs each
@@ -113,7 +114,7 @@ inline Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, 
     const auto weapon_stat = [&](int id) { return weapon_sum[std::size_t(id)]; };
     const std::int64_t clvl = std::max<std::int64_t>(stats.get(kLevel), 1), str = stats.get(kStr), dex = stats.get(kDex);
     const ItemBase* weapon_base = nullptr;
-    if (weapon && !broken(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken one's stats are off (FUN_0055f850)
+    if (weapon && item_usable(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken or 0x4000 one's stats are off (FUN_0055f850, FUN_0055dbc0)
     if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end() && found->second.hit_class) fighter.hit_class = found->second.hit_class;
     // In 256ths, as game.exe keeps them.
     // `thrown`: the weapon's throw damage (FUN_0064b860: stats 0x9f / 0xa0, minmisdam / maxmisdam).
@@ -182,9 +183,10 @@ inline Fighter simple_fighter(int min, int max, int attack_rating, int defense =
     return fighter;
 }
 
-// Diminishing returns on the speed stats: IAS / FHR / FBR count
-// 120 x v / (120 + v), FRW 150 x v / (150 + v).
-inline int effective_speed(int speed, int cap = 120) { return speed > 0 ? cap * speed / (cap + speed) : speed; }
+// Diminishing returns on the speed stats (FUN_00621740, table 0x6e8e24): IAS / FHR / FBR count
+// 120 x v / (120 + v), FRW 150 x v / (150 + v), for any v but 0, a negative too (truncated toward zero).
+// At v = -cap game.exe's IDIV divides by zero; d2d keeps v (deviations.md #13, as get_hit_rate).
+inline int effective_speed(int speed, int cap = 120) { return speed != 0 && speed != -cap ? cap * speed / (cap + speed) : speed; }
 
 // A player's walk / run / town-walk animation rate, 1/256 frames a tick
 // (FUN_00623f50 on a PlrMode +4 mode): FUN_006213d0's base, RN 0x65, WL and
@@ -251,21 +253,52 @@ inline bool get_hit(std::int64_t max_life, std::int64_t damage, int hit_class, b
     return true;
 }
 
+// game.exe's MulDiv (FUN_00483360): value x times / over, truncated, 0 over
+// 0. Up to 0x100000 with times up to 0x10000 it multiplies in 32 bits (the
+// product wraps); a bigger times over at most times / 16 divides it first,
+// as a bigger value over at most value / 16 does the value (each multiply
+// wrapping); else 64 bits.
+inline int mul_div(int value, int times, int over) {
+    if (over == 0) return 0;
+    if (value <= 0x100000) {
+        if (times <= 0x10000) return int(std::uint32_t(value) * std::uint32_t(times)) / over;
+        if (over <= times >> 4) return int(std::uint32_t(times / over) * std::uint32_t(value));
+    } else if (over <= value >> 4) {
+        return int(std::uint32_t(value / over) * std::uint32_t(times));
+    }
+    return int(std::int64_t(value) * times / over);
+}
+// FUN_0057c1e0 (0x57c252..0x57c2a4): the flat (stat 34 or 35, whole points) in 256ths, scaled by the record's +0x54 / 1024
+// (FUN_00483360) when that is above 0. +0x54 is the missile's stat 327 damage_framerate, Missiles.txt DamageRate (FUN_0059fa30,
+// copied by its hit FUN_005ad730): set only on the burners, so any other hit takes the flat whole.
+inline int frame_rate_flat(int flat, int rate) {
+    const int fine = flat * 256;
+    return fine > 0 && rate > 0 ? mul_div(fine, rate, 0x400) : fine;
+}
+// A fine damage (256ths) through a resistance as FUN_0057bf80 does it: nothing
+// at or under 0 (LAB_0057bf94) or at 100 % or more, untouched at 0 %, else
+// MulDiv (FUN_00483360), which over 0x100000 divides first and multiplies in
+// 32 bits; a wrapped (negative) result deals nothing.
+inline int resisted_fine(int fine, int res) {
+    if (fine <= 0 || res >= 100) return 0;
+    if (res == 0) return fine;
+    return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
+}
 // FUN_0057bf80 on a damage record's physical field, in 256ths: the flat
 // reduction (stat 34, whole points) comes off first, then the percent (stat 36)
-// of what is left; a field already at 0 stays 0, the product truncates toward
-// zero (FUN_00483360). reduce_fine clamps a result under 0; game.exe stores it, sums it into the
+// of what is left; a field already at 0 stays 0, the product through MulDiv
+// (FUN_00483360: over 0x100000 it divides first). reduce_fine clamps a result under 0; game.exe stores it, sums it into the
 // record total and only ignores a total not above 0 (0057c852): reduce_fine_signed keeps it.
 // FUN_0057c1e0 scales the whole record by FUN_0057c060's pair percent
-// first (monster_blow: a prime evil's on a pet).
-// ponytail: it also scales the flat by the record's +0x54 / 1024 when that
-// is above 0; not modelled.
-inline int reduce_fine_signed(int fine, int percent, int flat) {
+// first (monster_blow: a prime evil's on a pet). A burner's hit scales the
+// flat first: frame_rate_flat. reduce_fine_by takes the flat in 256ths.
+inline int reduce_fine_by(int fine, int percent, int flat_fine) {
     if (fine <= 0) return 0;
-    fine -= flat * 256;
-    if (fine > 0 && percent != 0) fine = int(std::int64_t(fine) * (100 - std::clamp(percent, -100, 100)) / 100);
+    fine -= flat_fine;
+    if (fine > 0 && percent != 0) fine = mul_div(fine, 100 - std::clamp(percent, -100, 100), 100);
     return fine;
 }
+inline int reduce_fine_signed(int fine, int percent, int flat) { return reduce_fine_by(fine, percent, flat * 256); }
 inline int reduce_fine(int fine, int percent, int flat) { return std::max(reduce_fine_signed(fine, percent, flat), 0); }
 // One landed blow on a unit this frame, as game.exe keeps one damage record a
 // hit: its damage (whole points), hit class and element mark (an element or
@@ -310,6 +343,24 @@ inline void store_total(StruckBlow& blow, std::int64_t total) {
     blow.frac = int(total & 255);
 }
 
+// FUN_005c8780, Cyclone Armor's pool on one field in 256ths (FUN_005c87a0 calls it on fire, cold, then lightning): only a field
+// above 0; the pool takes all of it it can. Returns the cut.
+inline int cyclone_take(int& pool, int field) {
+    if (field <= 0 || pool <= 0) return 0;
+    const int cut = std::min(pool, field);
+    pool -= cut;
+    return cut;
+}
+// FUN_0057bf80 on an elemental or magic field in 256ths after the absorb: one at or under 0 is stored as 0; else the flat magic
+// reduction comes off FIRST (and may leave it under 0, which is stored and summed), then the resistance on what is still above 0
+// (magic has none on a monster blow here: `resist` false).
+inline int elemental_fine(int field, int mdr_fine, int res, bool resist) {
+    if (field <= 0) return 0;
+    field -= mdr_fine;
+    if (field > 0 && resist) field = resisted_fine(field, res);
+    return field;
+}
+
 // Puts a blow's reduced physical (`physical`, and its share of the total) back in line with `raw`; `old` is the physical field it had
 // (physical_now before `raw` changed).
 inline void settle_blow(StruckBlow& blow, std::int64_t old) {
@@ -334,11 +385,29 @@ inline void settle_blow(StruckBlow& blow, std::int64_t old) {
 // of the unreduced field.
 // Its oracle for the pool in 256ths and the absorb before the reduction is tools/emu/monster_damage.py (sets absorb and
 // both); hit_absorb.py, the older whole-point one, was never committed.
-// ponytail: the physical reduction is put back after the absorb (raw); fire / lightning / cold are already resisted in d2d's blows, game.exe resists after.
-// ponytail: Cyclone Armor's fields are whole points here (no elemental fraction), so it takes whole points from the pool.
+// Cyclone Armor works on each part's unresisted field (raw x 256) in 256ths and puts what is left back through the flat magic
+// reduction and the resistance (elemental_fine); a blow with no parts (built by hand) loses whole points of its elemental total.
 inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) {
     int taken = 0;
     for (auto& blow : blows) {
+        if (elemental && std::ranges::any_of(std::array{ 0, 1, 2 }, [&](int type) { return blow.parts[std::size_t(type)].raw > 0; })) {
+            std::int64_t total = blow_total(blow);
+            for (const int type : { 0, 2, 1 }) {   // fire, cold, lightning
+                auto& part = blow.parts[std::size_t(type)];
+                const int field = part.raw * 256;
+                const int cut = cyclone_take(pool, field);
+                if (cut <= 0) continue;
+                const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, true);
+                total += fine - part_fine(part);
+                blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
+                part.dealt = std::max(fine, 0) >> 8;
+                part.fine = fine;
+                taken += cut;
+            }
+            store_total(blow, total);
+            if (blow.elemental <= 0 && !blow.poisoned) blow.marked = false;
+            continue;
+        }
         if (elemental) {
             const int cut = std::min({ pool >> 8, blow.elemental, blow.damage });
             if (cut <= 0) continue;
@@ -476,32 +545,8 @@ struct Blow {
     bool prevent_heal = false;           // the to-hit roll passed with stat 117 (FUN_0057d9b0 -> FUN_0057d810), blocked or not
 };
 inline int resisted(int dmg, int res) { return res >= 100 ? 0 : dmg * (100 - res) / 100; }
-// game.exe's MulDiv (FUN_00483360): value x times / over, truncated, 0 over
-// 0. Up to 0x100000 with times up to 0x10000 it multiplies in 32 bits (the
-// product wraps); a bigger times over at most times / 16 divides it first,
-// as a bigger value over at most value / 16 does the value (each multiply
-// wrapping); else 64 bits.
-inline int mul_div(int value, int times, int over) {
-    if (over == 0) return 0;
-    if (value <= 0x100000) {
-        if (times <= 0x10000) return int(std::uint32_t(value) * std::uint32_t(times)) / over;
-        if (over <= times >> 4) return int(std::uint32_t(times / over) * std::uint32_t(value));
-    } else if (over <= value >> 4) {
-        return int(std::uint32_t(value / over) * std::uint32_t(times));
-    }
-    return int(std::int64_t(value) * times / over);
-}
-// A fine damage (256ths) through a resistance as FUN_0057bf80 does it: nothing
-// at or under 0 (LAB_0057bf94) or at 100 % or more, untouched at 0 %, else
-// MulDiv (FUN_00483360), which over 0x100000 divides first and multiplies in
-// 32 bits; a wrapped (negative) result deals nothing.
-inline int resisted_fine(int fine, int res) {
-    if (fine <= 0 || res >= 100) return 0;
-    if (res == 0) return fine;
-    return std::max(fine > 0x100000 ? int(std::uint32_t(fine / 100) * std::uint32_t(100 - res)) : int(std::int64_t(fine) * (100 - res) / 100), 0);
-}
 // Energy Shield (FUN_005ca6c0, the state's absorb event 0xb like Bone Armor's): the pool of mana and the two numbers of the
-// state, calc1 (the percent of a field it takes, at most 95 here) and calc2 (`per16`: 16ths of mana per point absorbed, at least 1).
+// state, calc1 (the percent of a field it takes; the data caps it at 95) and calc2 (`per16`: 16ths of mana per point absorbed, at least 1).
 struct EnergyShield {
     int pct = 0, per16 = 1;
     std::int64_t mana = 0;               // the wearer's mana in 256ths, drained as it absorbs
@@ -527,8 +572,7 @@ struct EnergyShield {
 // What a blow carries that no field accounts for (a record built without them: Corpse Explosion, a Fire Golem's burn) is taken
 // from as it stands, as the shield used to take everything.
 // The state cast later runs first (FUN_005c0ad0: Fight::absorb).
-// ponytail: a Cyclone Armor cut is not put back through the resistance. Magic has no percent resistance on a monster blow here
-// (monster_blow), so its field goes through the flat reduction only.
+// Magic has no percent resistance on a monster blow here (monster_blow), so its field goes through the flat reduction only.
 // A field the shield did not touch keeps monster_blow's value, which has the same order (reduction, resistance, a negative kept in the total).
 inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shield) {
     constexpr std::array<int, 4> kElementOrder{ 0, 1, 2, 4 };
@@ -551,13 +595,7 @@ inline void energy_shield_blows(std::span<StruckBlow> blows, EnergyShield& shiel
             const int field = part.raw * 256;
             const int cut = shield.take(field);
             if (cut <= 0) continue;
-            // FUN_0057bf80: a field at or under 0 is stored as 0; else the flat magic reduction comes off FIRST (and may leave it under 0,
-            // which is stored and summed), then the resistance on what is still above 0.
-            int fine = field - cut;
-            if (fine > 0) {
-                fine -= blow.mdr * 256;
-                if (fine > 0 && type != 4) fine = resisted_fine(fine, part.res);
-            }
+            const int fine = elemental_fine(field - cut, blow.mdr * 256, part.res, type != 4);
             total += fine - part_fine(part);
             if (type != 4) {
                 blow.elemental = std::max(blow.elemental + (std::max(fine, 0) >> 8) - part.dealt, 0);
@@ -667,7 +705,8 @@ inline Blow missile_blow(const MissileDamage& damage, const Target& target, cons
                             + (target.demon && damage.demon_pct > 0 ? mul_div(roll, damage.demon_pct, 100) : 0);
     if (damage.etype == 5) { blow.stun_ticks = std::max(blow.stun_ticks, std::min(damage.elen, 250)); return blow; }
     int res = target.res[std::size_t(kRes[damage.etype])];
-    if (damage.etype < 4 && res < 100) res = std::max(res - pierce[std::size_t(damage.etype)], -100);
+    if (damage.etype < 4 && res < 100) res -= pierce[std::size_t(damage.etype)];
+    res = std::max(res, -100);   // FUN_0057be00 also floors magic, which has no pierce stat.
     if (damage.etype == 3) {
         blow.poison += resisted(int(std::int64_t(rolled) * std::max(damage.elen, 1) >> 8), res);
         blow.poison_ticks = std::max(blow.poison_ticks, std::max(damage.elen, 1));

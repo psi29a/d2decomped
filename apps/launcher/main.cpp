@@ -200,7 +200,7 @@ public:
             if (dlg.exec() != QDialog::Accepted) return;
             const auto sel = dlg.selectedFiles();
             if (sel.isEmpty()) return;
-            const QString directory = sel.first();
+            const QString& directory = sel.first();
             remember_dir(directory);
             const QDir dir(directory);
             const auto isos = dir.entryList({"*.iso", "*.ISO"},

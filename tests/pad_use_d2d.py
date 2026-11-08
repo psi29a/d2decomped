@@ -104,6 +104,7 @@ def face(x, y):
 # A town portal: read in the Blood Moor, A at its mouth takes it to camp.
 cmd("debug goto 2"); frames(20)
 cmd("debug equip tsc 12")
+until("the scroll in items", lambda: "[tsc " in cmd("items"))   # the client's copy, published on a tick
 scroll = cmd("items").split("[tsc ")[1].split(" id=")[1].split()[0].rstrip("]")
 cmd(f"cmd use {scroll}")
 until("the portal opens", lambda: any(line.startswith("0\t") for line in cmd("debug portals").splitlines()))

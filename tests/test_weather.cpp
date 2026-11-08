@@ -8,10 +8,11 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     Rain rain;
     rain.splash_frames = { 1, 1, 6, 6 };
     Rng rng(12345);
@@ -98,4 +99,7 @@ int main() {
     // A flake's grey: its shape's index, halved at dusk, a quarter at night.
     assert(flake_tone(0, 7) == 10 && flake_tone(1, 7) == 5 && flake_tone(2, 7) == 2 && snow_rgb(0)[0] == 120 && snow_rgb(11)[0] == 193);
     std::puts("test_weather: ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_weather: %s\n", error.what());
+    return 1;
 }

@@ -60,7 +60,9 @@ std::uint32_t get_hit_elapsed(const Unit& unit, std::uint32_t elapsed) {
 
 // An object's FrameCnt past its COF's frames (the Act 3 magic shrine: 13 in a 1-frame COF):
 // game.exe's frame runs on, its DCCs have no cell there (FUN_005feb80), nothing draws, its shadow neither.
-// ponytail: blank outright, not the COF priority game.exe reads past its table.
+// Blank outright: game.exe reads its priority bytes past the frame's row (FUN_004db110), but no layer has
+// a cell there (each such object's DCCs end by the COF's last frame), so nothing draws either
+// (cof-draw-order.md "A layer shorter than its COF").
 bool past_cof(const Unit& unit, std::uint32_t elapsed) {
     return unit.frames && elapsed / std::max<std::uint32_t>(unit.anim->ms_per_frame(), 1) >= std::uint32_t(unit.anim->cof.frames_per_direction());
 }
@@ -182,9 +184,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // Any other room is one area and its walls never fade (FUN_0066c9c0:
     // +0x10 stays 0), so no town's do. Roofs (15) and lower walls (16..19)
     // never fade.
+    // A tile with flag 4 (Level::never_fades) never fades (FUN_004dd180).
     // ponytail: the blend is linear in RGB, not the driver's alpha table;
-    // a wall on a room's far edge takes the room it opens (room_of), and
-    // tile flag 4 (never fades) isn't kept on the picks.
+    // a wall on a room's far edge takes the room it opens (room_of).
     struct Fade { int from = 255, target = 255; std::uint32_t changed_at = 0; };
     static std::unordered_map<std::uint64_t, Fade> fades;
     // The players (a player's Height2 units; the camera's point without one):
@@ -506,14 +508,14 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             const auto [cell_level, off] = cell_at(cell_x, cell_y);
             if (!cell_level) continue;
             const auto& cell_map = cell_level->ds1;
-            auto draw_wall = [&](int type, const d2d::dt1::Tile& tile, int wall_index, const void* source) {
-                if (type != 15) { blit_cell(cell_x, cell_y, tile, 0, source, wall_alpha(cell_level, int(off), type, wall_index, cell_x, cell_y)); return; }
+            auto draw_wall = [&](int type, const d2d::dt1::Tile& tile, int wall_index, const void* source, bool no_fade) {
+                if (type != 15) { blit_cell(cell_x, cell_y, tile, 0, source, no_fade ? 255 : wall_alpha(cell_level, int(off), type, wall_index, cell_x, cell_y)); return; }
                 roofs.push_back({ cell_x, cell_y, &tile, source });   // roofs go last, over every wall and unit (FUN_004dea70 after FUN_004df1c0)
             };
             if (!cell_level->picks.empty()) {
                 int wall_index = 0;
                 for (const auto& pick : cell_level->shown()[off])
-                    if (pick.layer == 0 && pick.orient != 13 && pick.orient < 16 && !pick.hidden) draw_wall(pick.orient, *pick.tile, wall_index++, &pick);
+                    if (pick.layer == 0 && pick.orient != 13 && pick.orient < 16 && !pick.hidden) draw_wall(pick.orient, *pick.tile, wall_index++, &pick, pick.no_fade);
                 continue;
             }
             int wall_index = 0;
@@ -524,9 +526,10 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 const int type = cell.wall_type;
                 if (type == 0) continue;         // floor marker in wall stream
                 if (type == 13 || type >= 16) continue;        // shadow, lower wall (drawn above)
-                if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, type)) draw_wall(type, *tile, wall_index, &cell);
+                const auto word = d2d::ds1::Map::word(cell);
+                if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, type)) draw_wall(type, *tile, wall_index, &cell, Level::never_fades(word, tile->material_flags));
                 // A corner (3) is two tiles: the second picked with orientation 4 (FUN_0066e9b0).
-                if (type == 3) if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, 4)) draw_wall(4, *tile, wall_index, &cell);
+                if (type == 3) if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, 4)) draw_wall(4, *tile, wall_index, &cell, Level::never_fades(word, tile->material_flags));
             }
         }
     }

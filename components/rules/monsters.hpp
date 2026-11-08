@@ -410,7 +410,7 @@ inline MonStats monster_stats(const Monsters& monsters, int type, int difficulty
     const auto& per_difficulty = type_info.diff[std::size_t(difficulty_index)];
     auto pct = [&](int base, int percent) { return type_info.no_ratio ? percent : base * percent / 100; };
     const int hit_points = spawn_row.hit_points[std::size_t(difficulty_index)];
-    stats.hit_points  = std::max(rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp)), 1);
+    stats.hit_points  = rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp));
     stats.hit_points = int(std::min<std::int64_t>(stats.hit_points + std::int64_t(stats.hit_points) * player_life_pct(players) / 100, 0x7fffff));
     // Stat 0x4a from that life in 256ths x DamageRegen / 4096, past
     // 0x7fffffff / DamageRegen shifted first (a boss's mods come after).
@@ -1365,7 +1365,7 @@ inline int monster_skill_level(int sk_lvl, int difficulty) {
 }
 
 inline bool traced_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 107> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
+    static constexpr std::array<std::string_view, 108> kTraced{ "Skeleton", "Zombie", "Bighead", "BloodHawk", "Brute", "Wraith", "Goatman",
                                                                "CorruptRogue", "QuillRat", "CorruptArcher", "CorruptLancer", "SkeletonBow", "Fallen", "FallenShaman", "FoulCrowNest",
                                                                "BloodRaven", "SkeletonMage", "GargoyleTrap", "Arach", "Vampire", "Fetish", "Griswold", "Smith",
                                                                "Duriel", "Swarm", "PinHead", "Mummy", "SandLeaper", "ClawViper", "PantherWoman", "PantherJavelin",
@@ -1377,7 +1377,7 @@ inline bool traced_ai(std::string_view ai_name) {
                                                                "ReanimatedHorde", "SiegeBeast", "Minion", "SuicideMinion", "Succubus", "SuccubusWitch", "Overseer",
                                                                "MinionSpawner", "Imp", "Catapult", "FrozenHorror", "BloodLord", "CatapultSpotter", "NpcBarb",
                                                                "GenericSpawner", "DeathMauler", "PutridDefiler", "BaalTentacle", "BaalMinion", "Ancient", "Nihlathak", "ClawViperEx", "Wussie", "BaalThrone", "BaalToStairs", "BaalTaunt", "UberIzual", "UberMephisto", "UberDiablo", "UberBaal", "SiegeTower",
-                                                               "HellMeteor", "Sarcophagus", "Spirit", "ArcaneTower", "Trap-RightArrow", "Trap-LeftArrow", "DesertTurret" };
+                                                               "HellMeteor", "Sarcophagus", "Spirit", "ArcaneTower", "Trap-RightArrow", "Trap-LeftArrow", "Trap-Melee", "DesertTurret" };
     return std::ranges::contains(kTraced, ai_name);
 }
 
@@ -3145,7 +3145,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         int word_x = input.word_x, word_y = input.word_y;
         if (!input.has_word) { word_x = input.self_x; word_y = input.self_y; effect(ThinkEffect::mark, word_x, word_y); }
         const auto apart = point_apart;
-        const bool casting = [&] {                                                  // FUN_005fc0c0: the target's right hand, then its left
+        const bool casting = [&] {                                                  // FUN_005fc0c0: the target's right hand, then its left (FUN_005fc070)
             for (const auto& [id, level] : { std::pair{ input.right_skill, input.right_level }, std::pair{ input.left_skill, input.left_level } })
                 if (id == 0x3b || id == 0x38 || (id == 0x33 && level > 3) || (id == 0x1b && level > 7)) return true;
             return false;
@@ -3793,6 +3793,14 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         }
         return { MonAct::idle, 30 };
     }
+    // Trap-Melee (87, FUN_005fba60; trap-melee, an Act 3 MonPreset): out of
+    // melee it stands 40; in melee, a step of its seed % 100 under aip1 an A1
+    // at the target, else it stands aip2.
+    if (ai_name == "Trap-Melee") {
+        if (!input.in_melee) return { MonAct::idle, 40 };
+        if (roll() < aip[0]) return { MonAct::a1 };
+        return { MonAct::idle, aip[1] };
+    }
     // DesertTurret (94, FUN_005e0980; the fire towers): with Skill1 and no
     // frame yet it casts it where it stands (state3 0, state the frame);
     // before its frame (state) it stands 10. Within aip4 of the target it
@@ -3819,6 +3827,20 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         return { MonAct::idle, in_reach ? 10 : 15 };
     }
     return { MonAct::untraced };
+}
+
+// A search that found no one. FUN_005de890 (search type 1): with a WL
+// mode (MonStats2 mode bits, FUN_0046c140(class, 2)), one just hit (its
+// last mode GH, FUN_005dd2b0) or standing on collision bit 0x40
+// (FUN_0064d910) wanders 5 (FUN_005de200); else it stands 10, nearest - 10
+// from 25 off, 25 from 35. Types 4 / 5 (SandMaggot, FrogDemon:
+// FUN_005de9d0) take no hit into account and think again 20 frames on
+// (event 2, FUN_005417d0).
+struct SearchMiss { bool wander = false; int stand = 0; };
+inline SearchMiss search_missed(std::string_view ai_name, bool has_walk, bool got_hit, bool on_0x40, int nearest) {
+    const bool type_4_5 = ai_name == "SandMaggot" || ai_name == "FrogDemon";
+    if (has_walk && ((!type_4_5 && got_hit) || on_0x40)) return { .wander = true };
+    return { .stand = type_4_5 ? 20 : nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25 };
 }
 
 // The Countess (special AI 0xd, FUN_005e5c50; FUN_005b15d0 runs it in

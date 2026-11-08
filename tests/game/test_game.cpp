@@ -279,6 +279,37 @@ int main(int argc, char** argv) try {
         }
         return 0;
     }
+    // `--load-stats CASES`: the life, mana and stamina a character enters a game
+    // with (World::enter), as tools/emu/fl_load.py prints game.exe's loader
+    // FUN_0056b180's. A case is `id life maxlife mana maxmana stamina
+    // maxstamina` (256ths); per case `id life mana stamina maxlife maxmana
+    // maxstamina`.
+    if (argc > 2 && std::string_view(argv[1]) == "--load-stats") {
+        std::ifstream cases(argv[2]);
+        d2d::rules::Rng made_rng(7);
+        auto made = new_character(*data, 4, "Headless", false, true, made_rng);
+        std::string id;
+        std::array<std::int64_t, 6> given{};
+        while (cases >> id >> given[0] >> given[1] >> given[2] >> given[3] >> given[4] >> given[5]) {
+            using namespace d2d::d2s;
+            Character saved;
+            saved.character_class = 4;
+            saved.name = "Headless";
+            saved.header = made.header;
+            saved.stats = made.stats;
+            saved.items = made.items;
+            saved.panel = panel_stats(*data, saved.header, saved.items, saved.stats);
+            const std::array<StatId, 6> ids{ kLife, kMaxLife, kMana, kMaxMana, kStamina, kMaxStamina };
+            for (std::size_t i = 0; i < ids.size(); ++i) saved.stats.values[ids[i]] = given[i];
+            World world(&*data, -1, -1);
+            world.enter(saved);
+            const auto& got = world.actor->character.stats.values;
+            std::printf("%s %lld %lld %lld %lld %lld %lld\n", id.c_str(), static_cast<long long>(got[kLife]), static_cast<long long>(got[kMana]),
+                        static_cast<long long>(got[kStamina]), static_cast<long long>(got[kMaxLife]), static_cast<long long>(got[kMaxMana]),
+                        static_cast<long long>(got[kMaxStamina]));
+        }
+        return 0;
+    }
     // `--waypoint-refuse CASES`: the camp's waypoint used to the Cold Plains
     // (cmd::Waypoint, C->S 0x49), the cases of tools/emu/wp_refuse.py
     // (game.exe's FUN_0054d750 -> FUN_0054c5d0). Each level change is an
@@ -1056,13 +1087,13 @@ int main(int argc, char** argv) try {
         std::erase_if(thrower.character.items, [](const d2d::d2s::Item& item) { return item.location == loc::kEquipped && (item.slot == body::kRightArm || item.slot == body::kLeftArm); });
         assert(skill_base_level(*data, thrower.character, skill) == 1 && skill_refused(*data, thrower.character, skill));
         d2d::d2s::Item axe;
-        axe.code = "hax"; axe.location = loc::kEquipped; axe.slot = body::kRightArm; axe.id = 9101;
+        axe.code = "hax"; axe.location = loc::kEquipped; axe.slot = body::kRightArm; axe.id = 9101; axe.wielded = true;
         thrower.character.items.push_back(axe);
         assert(skill_refused(*data, thrower.character, skill));                        // a weapon, not a throwable
         thrower.character.items.back().props = { { .stat = 125, .value = 1 } };
         assert(!skill_refused(*data, thrower.character, skill));                       // stat 125 lets it throw
         d2d::d2s::Item javelins;
-        javelins.code = "jav"; javelins.location = loc::kEquipped; javelins.slot = body::kLeftArm; javelins.id = 9102; javelins.quantity = 5;
+        javelins.code = "jav"; javelins.location = loc::kEquipped; javelins.slot = body::kLeftArm; javelins.id = 9102; javelins.quantity = 5; javelins.wielded = true;
         thrower.character.items.back() = javelins;
         assert(skill_base_level(*data, thrower.character, skill) == 1 && !skill_refused(*data, thrower.character, skill));
         thrower.character.items.back().flags |= 0x100u;                                // a spent magic stack, broken in hand (FUN_0062a4e0)
@@ -1098,6 +1129,24 @@ int main(int argc, char** argv) try {
         thrower.character.items.push_back(javelins);                                   // javelins back: it throws
         assert(world.fight.cast_missile(skill, thrower.player.x + 2, thrower.player.y, throw_ms + 120) && thrower.pmode >= 0);
         thrower.pmode = -1;
+        {   // A dual-wielder (FUN_006235a0): Throw takes the first usable weapon
+            // in hand, right then left (FUN_0063c9b0), when it's the wielded
+            // one (inventory +0x1c), else the other hand's (FUN_00643d60).
+            const auto cls_before = thrower.character.header.cls;
+            thrower.character.header.cls = d2d::d2s::kBarbarian;
+            auto right_axe = axe;
+            right_axe.props.clear();
+            thrower.character.items.push_back(right_axe);
+            auto& left = thrower.character.items[thrower.character.items.size() - 2];
+            auto& right = thrower.character.items.back();
+            assert(left.code == "jav" && right.code == "hax");
+            left.wielded = false; right.wielded = true;
+            assert(skill_refused(*data, thrower.character, skill));                    // the wielded axe isn't a throwable
+            left.wielded = true; right.wielded = false;
+            assert(!skill_refused(*data, thrower.character, skill));                   // the axe isn't wielded: the javelins
+            thrower.character.items.pop_back();
+            thrower.character.header.cls = cls_before;
+        }
         if (data->patched) assert(data->sound_index.at("amazon_impossible_1") == 0xb89);
         // Utrans 255 (necroskeleton) on a monster that isn't a pet: 0 (FUN_004791b0, 0x46665c).
         Monster skeleton;
@@ -1238,6 +1287,24 @@ int main(int argc, char** argv) try {
         assert(std::ranges::count(world.cues.due, jab->do_sound_b, &Cues::Cue::sound) == sound_rows && duriel.seq_sounds == 0);
         world.cues.due.clear();
         std::printf("OK: Duriel's Jab plays dosound b on its %td event-3 rows\n", sound_rows);
+    }
+    // A saved character keeps its life and mana on entering a game, exactly
+    // (game.exe's FUN_0056b180 -> FUN_0056af80), and starts with full stamina.
+    {
+        const auto before = hero.character;
+        auto saved = before;
+        using namespace d2d::d2s;
+        saved.stats.values[kMaxLife] = 91 * 256; saved.stats.values[kLife] = 89 * 256 + 138;   // 89.54
+        saved.stats.values[kMaxMana] = 4992;      saved.stats.values[kMana] = 4992;             // 19.5 of 19.5
+        saved.stats.values[kMaxStamina] = 102 * 256; saved.stats.values[kStamina] = 50 * 256;
+        world.take_character(saved);
+        assert(hero.character.stats.values[kLife] == 89 * 256 + 138);
+        assert(hero.character.stats.values[kMana] == 4992 && hero.character.stats.values[kMaxMana] == 4992);
+        assert(hero.character.stats.values[kStamina] == 102 * 256);
+        saved.stats.values[kLife] = 95 * 256; world.take_character(saved);   // above the maximum: kept, as the loader does
+        assert(hero.character.stats.values[kLife] == 95 * 256);
+        hero.character = before;
+        std::printf("OK: a save's life and mana are kept on entering a game\n");
     }
     const auto poisoned = [&] { return std::ranges::any_of(hero.regen, &Fight::Regen::poison); };
     hero.regen.push_back({ -1.0, 0, 1000 * kTickMs, true });
@@ -1801,6 +1868,12 @@ int main(int argc, char** argv) try {
                 assert(fine.hit_points == 5 && fine.life_frac == 128);
                 heal(fine, 1);
                 assert(fine.hit_points == 5 && fine.life_frac == 0);
+                fine.hit_points = 4;
+                fine.max_life_frac = 64;
+                heal(fine, 1);
+                assert(fine.max_life_fine() == 1216 && fine.hit_points == 5 && fine.life_frac == 64);
+                heal(fine, 1);
+                assert(fine.hit_points == 5 && fine.life_frac == 64);
                 // A pet or a monster takes its blows one record at a time (Fight::world): two class-2 blows of 6
                 // on 64 life are each under max / 8, no get-hit; the one blow of 32 is sure (FUN_0057cb00).
                 fine = pet.monster;

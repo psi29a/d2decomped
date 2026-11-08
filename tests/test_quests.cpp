@@ -12,12 +12,13 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <utility>
 #include <vector>
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     QuestBits quest_bits{};
     DenQuest den;
     auto akara = [&] { return den.talk(quest_bits, 148); };
@@ -266,6 +267,11 @@ int main() {
     cain.portal_entered();
     // His portal (FUN_005942c0, 25 frames an event): mode 3 at the first event after he's in (not before 50), mode 4 the next.
     assert(CainQuest::portal_closed_frame(10) == 75 && CainQuest::portal_closed_frame(60) == 100 && CainQuest::portal_closed_frame(75) == 125);
+    // Its look by mode (FUN_005942c0's events 25 frames apart): OP, ON, S1 the
+    // 25 before mode 4, then S2 for good; not closing, ON on and on.
+    assert(CainQuest::portal_mode(0, 75) == 1 && CainQuest::portal_mode(24, 75) == 1 && CainQuest::portal_mode(25, 75) == 2);
+    assert(CainQuest::portal_mode(49, 75) == 2 && CainQuest::portal_mode(50, 75) == 3 && CainQuest::portal_mode(74, 75) == 3);
+    assert(CainQuest::portal_mode(75, 75) == 4 && CainQuest::portal_mode(100000, 75) == 4 && CainQuest::portal_mode(100000, 0) == 2);
     assert(!cain.camp_cain && cain.enter(cain_bits, CainQuest::kTristram, 1, 1) && cain.camp_cain);
     assert(cain.alert(cain_bits, CainQuest::kCampCain, false, 1) && cain.talk(cain_bits, CainQuest::kCampCain, false, 1)[0].string == 123);
     cain.said(cain_bits, CainQuest::kCampCain, 123, false, 1);
@@ -528,6 +534,19 @@ int main() {
     // Sanctuary, the journal (done for a player there), its 396 in the
     // journal's room opens the way to the Canyon once.
     QuestBits sanctuary{}, sanctuary_game{};
+    {   // The guard's "Halt" on his "!" (FUN_004b3380): no talk, bits 8 and 1 clear, the harem shut.
+        QuestBits guard_bits{};
+        assert(ArcaneQuest::guard_halts(false, guard_bits, false));
+        assert(!ArcaneQuest::guard_halts(true, guard_bits, false) && !ArcaneQuest::guard_halts(false, guard_bits, true));
+        quest::set(guard_bits, ArcaneQuest::kQuest, 8);
+        assert(!ArcaneQuest::guard_halts(false, guard_bits, false));
+        guard_bits = {};
+        quest::set(guard_bits, ArcaneQuest::kQuest, 1);
+        assert(!ArcaneQuest::guard_halts(false, guard_bits, false));
+        guard_bits = {};
+        quest::set(guard_bits, ArcaneQuest::kQuest, 7);   // the first line heard: still halts
+        assert(ArcaneQuest::guard_halts(false, guard_bits, false));
+    }
     ArcaneQuest arcane;
     arcane.staff_made(sanctuary);
     assert(arcane.state == 1 && arcane.log == 1 && arcane.alert(sanctuary, ArcaneQuest::kDrognan));
@@ -574,4 +593,7 @@ int main() {
     // A cage's portal (FUN_005888d0): the dead door's subtile + 2 on x, never a free-spot search.
     assert(RescueQuest::portal_spot(100, 40) == std::pair(102.5f / 5, 40.5f / 5));
     std::puts("ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_quests: %s\n", error.what());
+    return 1;
 }

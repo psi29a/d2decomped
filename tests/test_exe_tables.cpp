@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -450,7 +451,7 @@ fs::path find_exe() {
 
 }  // namespace
 
-int main() {
+int main() try {
     const fs::path path = find_exe();
     if (path.empty() || !fs::is_regular_file(path)) { std::printf("SKIP: no game.exe (set D2_GAME_EXE)\n"); return D2D_TEST_SKIPPED; }
     if (d2d::install::file_version(path) != std::array<std::uint16_t, 4>{ 1, 14, 3, 71 }) {
@@ -467,4 +468,7 @@ int main() {
     }
     std::printf("%zu tables, %d mismatches\n", std::size(kTables), g_bad);
     return g_bad == 0 ? 0 : 1;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_exe_tables: %s\n", error.what());
+    return 1;
 }

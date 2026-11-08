@@ -11,6 +11,8 @@
 #include <rules.hpp>
 
 #include <cassert>
+#include <cstdio>
+#include <exception>
 #include <utility>
 #include <vector>
 
@@ -18,7 +20,7 @@ using namespace d2d::rules;
 using d2d::d2s::Item;
 namespace location = d2d::d2s::item_location;
 
-int main() {
+int main() try {
     Tables tables;
     tables.npc_prices["Akara"].max_buy = { 100000, 100000, 100000 };
     tables.types["hpot"].beltable = true;
@@ -102,4 +104,7 @@ int main() {
     auto ground_axe = std::move(axe);
     assert(pick_up(tables, worn, ground_axe, 10, 4, 4, &barbarian) == Pickup::kGone && worn[3].slot == body::kLeftArm);   // the pickup does
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_store_buy: %s\n", error.what());
+    return 1;
 }

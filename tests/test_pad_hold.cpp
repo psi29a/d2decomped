@@ -10,6 +10,8 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
+#include <exception>
 #include <string>
 #include <vector>
 
@@ -21,7 +23,7 @@ using d2d::client::pad_hold_kind;
 using d2d::client::pad_shows_hold_cue;
 using d2d::client::potion_code;
 
-int main() {
+int main() try {
     assert(potion_code("hp3") && potion_code("mp1") && potion_code("rvs") && potion_code("rvl"));
     assert(potion_code("vps") && potion_code("yps") && potion_code("wms"));
     assert(!potion_code("key") && !potion_code("isc") && !potion_code("aar"));
@@ -99,4 +101,7 @@ int main() {
     joined.equippable = pad_hold_can_equip(true, true);
     assert(pad_hold_kind(joined) == PadHoldKind::None);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_pad_hold: %s\n", error.what());
+    return 1;
 }

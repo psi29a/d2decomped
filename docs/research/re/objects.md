@@ -130,6 +130,15 @@ the object's flag byte:
   (`FUN_005417d0(4, frame + 0x23)`) and sends the opener unit event 0xd
   (`FUN_00553380`, EDX 0xd; the client's `FUN_004cb9c0` has no sound for
   it). The trap only fires at the event.
+- **The fissures** (399, `fh`, Act 4's River of Flame): InitFn 58
+  (`FUN_0054fdb0`) steps the object seed and queues event 8 at that
+  `% 250 + 25` frames on. Event 8 (`FUN_00581250`, class 399's branch): in
+  mode 0 or 2 it steps the object seed again, queues the next event 8 at
+  `% 250 + 25` frames, sets mode 1 (OP: FrameCnt1 49 at FrameDelta 256)
+  and queues event 1 at FrameCnt1 + 1 (`objects.bin +0xdc >> 8`), which
+  takes it to mode 2 (`FUN_00581490`, Mode2 1). In mode 1 it does nothing
+  and queues nothing (bugs.md #52). It sets modes only: no missile, no
+  damage in this code.
 - Object events go through the table at 0x6e19b0 (event 1
   `FUN_00581490`: only if the unit is still in mode 1 and has Mode2, then
   mode 1 → 2 and the footprint changes when Mode2's collision differs;
@@ -147,8 +156,23 @@ the object's flag byte:
   These server events only transition a unit still in mode 1 with Mode2;
   the client can transition first when its counter reaches FrameCnt1 - 1.
   The shrine (fn 2, `FUN_00583c70`) also queues +1. Corpse / crate (fn 14)
-  calls the event scheduler at 0x586800. Other event-1 callers remain to be
-  mapped to their operate functions; this list is not exhaustive.
+  calls the event scheduler at 0x586800. Every operate function
+  (the table at 0x732d18, a dword per OperateFn 0..73, 0 none) that calls `FUN_005417d0(1,
+  ...)` itself, with the frame it asks for (objects.bin +0xdc is
+  FrameCnt1 << 8; asm at each call):
+  - FrameCnt1 + 1: 1, 2, 3, 4, 5, 14, 23, 30 (above) and 7
+    (`FUN_00584330` 0x58438c), 15 (`FUN_00584870` 0x584c79), 18
+    (`FUN_00583ff0` 0x58403e), 29 (`FUN_005821a0` 0x58223c), 33
+    (`FUN_00583e70` 0x583edb), 34 (`FUN_005846b0` 0x5846ff), 47
+    (`FUN_00581f60` 0x582068), 48 (`FUN_005869f0` 0x586a9d), 61
+    (`FUN_00582080` 0x58216c), 68 (`FUN_00586520` 0x5865a1);
+  - FrameCnt1: 6, 31 (above) and 10 (`FUN_00593480` 0x593535), 42
+    (`FUN_0059b970` 0x59b9ad), 45 (`FUN_005b8530` 0x5b85a3), 49
+    (`FUN_005b5c10` 0x5b5e46), 53 (`FUN_005bb980` 0x5bbadd), 66
+    (`FUN_0058d400` 0x58d4f6);
+  - 2 x FrameCnt1: 52 (`FUN_005b5630` 0x5b5672, `shr 7`).
+  Each only on the branch that sets mode 1; operate functions reaching
+  `FUN_005417d0` through a helper (14's 0x586800) aren't in this scan.
   Only Act 2's jugs (142, 143) change collision between the two modes.
 
 | Trap | Function | Does |
@@ -185,6 +209,10 @@ aip1..3 by difficulty) all run the same way:
   (`FUN_005dead0`); aip1 20, aip3 15. Monster skills are given at Sk*lvl
   (+0x198) + MonsterSkillBonus (`FUN_00573cb0` with `FUN_00573930`): level
   1 / 4 / 8 again.
+- Trap-Melee (87, `FUN_005fba60`; trap-melee, an Act 3 MonPreset row, no
+  chest makes it): search type 1; out of melee stand 40, in melee a step of
+  its seed % 100 under aip1 an A1 at the target, else stand aip2. d2d:
+  `rules::mon_think`.
 
 **What each one does**, at missile level L = 1 / 4 / 8. A missile's
 elemental damage (`FUN_0064b860` → `FUN_0064b100` / `FUN_0064b1d0`) is

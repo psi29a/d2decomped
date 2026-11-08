@@ -28,15 +28,20 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Checks | Command (in tools/emu) | Good output |
 |---|---|---|
 | Level layouts, monsters, objects | `uv run python diff_drlg.py 1-20 2 [tiles\|monsters\|objgroups\|collision\|game\|npcs]` | `N/N seeds match game.exe` |
+| Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
 | Every level, all cores | `./sweep.sh 1-50 monsters objgroups` | every level matching |
 | Every level's collision vs libd2's engine captures (200 seeds × 3 difficulties, ~8 min) | `D2_BUILD=build-release uv run python libd2_crc.py` | `N/131 levels match on all 200 seeds` |
 | Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `objects`, `stands`) | `N/N ... match game.exe` |
 | Monster sight, search, moves | `uv run python sight.py 20000 3`, `search.py 20000 2`, `moves.py` | `ok` |
+| Quest flag buffer allocation and release (pool boundaries hooked) | `uv run python quest_buffer.py` | `ok: 29 quest buffer lifetime cases` |
+| Client DC6 load and free helpers (CORE\ARCHIVE.CPP: FUN_004788b0, FUN_00478950, FUN_00478a00) | `uv run python archive_dc6.py` | `ok: 9 DC6 load/free cases; 68 + 8 call sites pass flag 0` |
 | DC6 / DCC cel placement | `uv run python cel_anchor.py \| diff - ../../tests/cel_anchor_cases.inc`; then `test_cel_anchor` | no output; the test passes |
 | COF draw effects (which blend each is) | `uv run python cof_effects.py \| diff - ../../tests/cof_effect_cases.inc`; then `test_cof_effects` | no output; the test passes |
+| Body-armour layers and tiers (FUN_0064f420, FUN_0064f500, FUN_0063d690) vs compcode.hpp | `uv run python composit_layers.py` | `ok: lit layers TR=torso LG=legs RA=rArm LA=lArm S1=rspad S2=lspad; 10 other layers fatal; d2d's compcode tables match` |
 | Screen shake and quest control frames | `uv run python shake.py > ../../tests/shake_cases.inc`; `uv run python shake.py --controls > ../../tests/quake_control_cases.inc` | `test_shake` matches both captured fixtures |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
 | Waypoint refusal window (C->S 0x49: refused or travels) | `uv run python wp_refuse.py gen 100000 7 --solo > cases.txt; uv run python wp_refuse.py game cases.txt > g.txt; ../../build/tests/test_game --waypoint-refuse cases.txt \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
+| Stock waypoint allocation/release (stock-only lifecycle check; allocator, diagnostic and fatal boundaries intercepted) | `uv run python waypoint_lifecycle.py`; `uv run python -m unittest test_waypoint_lifecycle.py` | `ok: 9 allocations, 63 releases/rejections`; 8 tests pass with game data |
 | Missile frame directions | `uv run python missile_dirs.py 2000 > g.txt; cut -d: -f1 g.txt \| ../../build/tools/missile-dir-dump/missile-dir-dump \| diff g.txt -` (also `table`) | no output |
 | Walk / run animation rate | `uv run python walk_rates.py > g.txt; ../../build/tests/test_combat --walk-rates \| diff g.txt -` | no output |
 | Cast speed and cast length (FCR 0..400) | `uv run python cast_rates.py > g.txt; ../../build/tests/test_combat --cast-rates \| diff g.txt -` | no output |
@@ -55,9 +60,12 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Walk % of a monster, player, merc and pet (FUN_00623f50: velocity, chill, floor, velocitypercent) | `uv run python walk_velocity.py gen 100000 9191 > cases.tsv; uv run python walk_velocity.py game cases.tsv > g.txt; ../../build/tests/test_walk_velocity --walk-velocity cases.tsv \| grep -E '^[0-9]+ ' > d.txt; uv run python walk_velocity.py compare cases.tsv g.txt d.txt` | `mismatches 0` |
 | Vendor buy / sell / repair price | `uv run python price_oracle.py gen 100000 7 > cases.tsv; uv run python price_oracle.py game cases.tsv > g.txt; ../../build/tests/test_game --price cases.tsv \| grep -E '^[0-9]+ ' > d.txt; uv run python price_terms.py cases.tsv g.txt d.txt` | last line `outside stacks, whole, bigmul, nodur: buy 0/…, sell 0/…, repair 0/… differ`; the terms d2d doesn't model yet are listed above it |
 | Key bindings (assign rules, key names) | `uv run python keys.py \| diff - <(../../build/tests/test_keyconfig --dump)` | no output |
+| Font map and the TBL character count (FUN_00527790 `default.map`, FUN_005276e0 lead bytes, FUN_00527d50) | `uv run python unicode_kamap.py` | `ok: 8 font map / count cases; Latin lead bytes 0x7f..0x9f; 9388 English TBL values counted at or above their decoded length` |
+| A boss's death (MonUMod 22 by class, FUN_005dfbf0's area, pick and delay, mod 21's FUN_005a3aa0) | `uv run python boss_deaths.py` | `ok` |
 | Overlay frames, loop/one-shot endings, delayed-loop wait | `uv run python overlays.py > /tmp/overlay_cases.inc && diff ../../tests/overlay_cases.inc /tmp/overlay_cases.inc` | no diff; also checks kind 6's wait and duplicate clock |
 | HUD life / mana / stamina glide (FUN_00496dd0) | `uv run python globe_glide.py gen 2000 1 > cases.tsv; uv run python globe_glide.py game cases.tsv > g.txt; ../../build/tests/test_globe_glide g.txt \| diff g.txt -` | no output |
 | Show Items label layout (FUN_004c0640's 12 tries in FUN_004c0810's loop) | `uv run python show_items_layout.py gen 5000 1 > cases.tsv; uv run python show_items_layout.py game cases.tsv > g.txt; ../../build/tests/test_show_items_layout cases.tsv \| diff g.txt -` | no output |
+| Monster display-name slot (FUN_0063e810: UTF-16 copy to MonsterData +0x2c, with null/type guards) | `uv run python monster_name_slot.py` | copied names including supplementary Unicode, guard cases unchanged, and the no-op mutation detected |
 
 ## When it breaks
 

@@ -8,8 +8,10 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     using d2d::client::skillpad::Hand;
     using d2d::client::skillpad::Sheet;
     using d2d::client::skillpad::kEmpty;
@@ -125,4 +127,7 @@ int main() {
     const auto restored = aura_choice(99, 99, 99, true, swapped.remembered);
     assert(restored.next == 0 && restored.remembered == 0);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_skillpad: %s\n", error.what());
+    return 1;
 }

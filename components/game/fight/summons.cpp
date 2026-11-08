@@ -11,6 +11,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <monsters.hpp>
+#include <pets.hpp>
 #include <rules.hpp>
 #include <shadows.hpp>
 #include <skills.hpp>
@@ -103,15 +104,26 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             if (skill.srvdofunc == ServerDoFunction::kRevive) type = monsters[std::size_t(corpse)].type;
         }
         if (type < 0) return;
-        // Bone Wall (do 60, FUN_005c58b0): one on the point, then its makers
-        // (srvmissilea, missile do 13) lay calc2 / 2 more each way across
-        // the caster's line. Bone Prison (62, FUN_005c5d00): twelve round the
-        // point at 0x6e304c / 0x6e307c.
-        // ponytail: the makers are laid at once, a subtile apart.
+        // Bone Wall (do 60, FUN_005c58b0): one on the point, then its two
+        // makers (srvmissilea, missile do 13: missile_tick) fly across the
+        // caster's line from it, each laying up to calc2 / 2 more
+        // (rules::bone_wall_makers). Bone Wall can't be cast in town (InTown).
+        // Bone Prison (62, FUN_005c5d00): twelve round the point at 0x6e304c / 0x6e307c.
         if (skill.srvdofunc == ServerDoFunction::kBoneWall) {
-            const float perp_x = y - actor->player.y, perp_y = actor->player.x - x, distance = std::max(std::hypot(perp_x, perp_y), 0.01f);
-            const int count = std::max(calc(skill, skill.calc[1], lvl), 2) / 2;
-            for (int k = -count; k <= count; ++k) summon_one(skill, type, lvl, env, x + perp_x / distance * float(k) * 0.4f, y + perp_y / distance * float(k) * 0.4f, now_ms);
+            const int first = summon_one(skill, type, lvl, env, x, y, now_ms);
+            const int piece_x = int(std::floor(x * 5)), piece_y = int(std::floor(y * 5));
+            const auto makers = d2d::rules::bone_wall_makers(int(std::floor(actor->player.x * 5)), int(std::floor(actor->player.y * 5)), piece_x, piece_y,
+                                                             calc(skill, skill.calc[1], lvl), false);
+            const auto maker = game_data->missiles.find(skill.srvmissilea);
+            if (makers.count <= 0 || maker == game_data->missiles.end()) return;
+            const float from_x = (float(piece_x) + 0.5f) / 5, from_y = (float(piece_y) + 0.5f) / 5;
+            for (const auto& [to_x, to_y] : makers.aims) {
+                const float aim_x = (float(to_x) + 0.5f) / 5, aim_y = (float(to_y) + 0.5f) / 5;
+                auto& made = launch(maker->second, skill, lvl, from_x, from_y, aim_x - from_x, aim_y - from_y, maker->second.range + maker->second.lev_range * lvl, now_ms);
+                made.to = std::pair{ aim_x, aim_y };
+                made.hops = makers.count; made.target_id = first;
+                made.subtile_x = piece_x; made.subtile_y = piece_y;
+            }
             return;
         }
         if (skill.srvdofunc == ServerDoFunction::kBonePrison) {
@@ -133,7 +145,7 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
         summon_one(skill, type, lvl, env, x, y, now_ms);
     }
 
-auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms) -> void {
+auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms) -> int {
         const int max = std::max(d2d::rules::eval_calc(game_data->skills, skill.petmax, env, skill.id, lvl), 1);
         auto same = [&](const Pet& pet) { return game_data->skills.get(pet.skill) && game_data->skills.get(pet.skill)->pettype == skill.pettype; };
         while (skill.pettype != "none" && std::ranges::count_if(actor->pets, same) >= max) actor->pets.erase(std::ranges::find_if(actor->pets, same));
@@ -225,7 +237,15 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                 break;
             case ServerDoFunction::kMirrorImage: pet.mirror = true; break;          // Shadow Warrior / Master (FUN_005d6e70): the owner's level and gear
             case ServerDoFunction::kRaven: pet.hits = std::max(skill.par[4], 1); break;   // Raven: its attacks
-            case ServerDoFunction::kBoneWall: case ServerDoFunction::kBonePrison: pet.idle = true; pet.until = now_ms + 24000; break;   // bone: it stands (24 s: ponytail, the published time)
+            case ServerDoFunction::kBoneWall: case ServerDoFunction::kBonePrison: {
+                // It stands. BoneWall's init (FUN_005e0390) keeps the frame + its Skill1's Param2 (Bone Wall's 600; both
+                // skills' Param2 is 600); its first think past that (25 frames after it's made, then every 15: FUN_005e0400)
+                // puts it in DT, at frame 610.
+                const int last = skill.par[1];
+                pet.idle = true;
+                pet.until = now_ms + std::uint32_t(last < 25 ? 25 : 25 + ((last - 25) / 15 + 1) * 15) * 40;
+                break;
+            }
             case ServerDoFunction::kVine: monster.stats.level = std::max(calc(skill, skill.calc[1], lvl), 1); break;   // Vines (FUN_005c6a80): calc2 is its level
             default: break;
         }
@@ -242,6 +262,10 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // hits, a trap's shots as d2d counts them).
         if (const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name; ai_name == "Hydra") pet.ctrl[0] = int(pet.until / 40);
         else if (ai_name == "Raven") pet.ctrl[0] = pet.hits;
+        // The sentries' init (FUN_005ea290, MonAI 101 / 104): +0x18 -1, the
+        // shots their first think takes from Skill1's calc (FUN_005ea2b0),
+        // here at once. Vines' and CycleOfLife's (FUN_005ec6a0): +0x14 0.
+        // ponytail: +0x14 starts at the game frame there, -1 here: a DeathSentry's last corpse, which no unit id should match.
         else if (ai_name == "AssassinSentry" || ai_name == "DeathSentry") pet.ctrl = { -1, pet.shots, lvl };
         // The Shadows' skills: their MonStats Skill1..8 at Sk*lvl +
         // MonsterSkillBonus, in Sk*mode (FUN_004ae8d0), then the Warrior's
@@ -266,6 +290,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         set_mode(*game_data, monster, "NU", now_ms);
         pet.monster.id = next_id++;                              // a unit id as a monster's (a guided missile's hold on it)
         actor->pets.push_back(std::move(pet));
+        return actor->pets.back().monster.id;
     }
 
 auto Fight::trap_turn(Pet& pet, std::uint32_t now_ms) -> void {

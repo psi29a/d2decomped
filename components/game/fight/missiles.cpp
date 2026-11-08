@@ -9,6 +9,7 @@
 #include "inventory.hpp"
 #include "item_text.hpp"
 
+#include <aura_filter.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
@@ -100,8 +101,8 @@ auto Fight::needs_ammo(const d2d::rules::Skill& skill) const -> bool {
         return skill.decquant || skill.srvdofunc == ServerDoFunction::kThrow || skill.srvstfunc == ServerStartFunction::kCheckAmmo;
     }
 
-auto Fight::spend_ammo() -> void {
-        const int index = ammo_index();
+auto Fight::spend_ammo(int index) -> void {
+        if (index < 0) index = ammo_index();
         if (index < 0) return;
         if (--actor->character.items[std::size_t(index)].quantity <= 0) out_of_ammo(std::size_t(index));
     }
@@ -112,12 +113,15 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
         item.quantity = 0;
         const auto info = game_data->rules.item_info.find(item.code);
         if (info != game_data->rules.item_info.end() && info->second.kind == 2 && item.quality >= 4 && item.quality <= 9) {
+            d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_0063d2b0
             item.flags |= 0x100u;
             item.durability = 0;
+            settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
             return;
         }
         const std::string code = item.code;
         const auto slot = item.slot;
+        d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
         actor->character.items.erase(actor->character.items.begin() + std::ptrdiff_t(index));
         const auto next = std::ranges::find_if(actor->character.items, [&](const Item& other) {
             return other.code == code && other.location == item_location::kStored && other.panel == item_panel::kInventory && !d2d::rules::broken(other); });
@@ -125,7 +129,9 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
         if (next != actor->character.items.end()
             && d2d::rules::can_wear(game_data->rules, *next, slot, wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats), required_level(*game_data, *next, actor->character.header.cls))) {
             next->location = item_location::kEquipped; next->slot = slot; next->panel = 0;
+            d2d::rules::wield_enters(game_data->rules, actor->character.items, *next);   // FUN_00562a30 -> FUN_0063d1d0
         }
+        settle_requirements(*game_data, actor->character);   // FUN_00562a30 -> FUN_0055dbc0
     }
 
 auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
@@ -139,7 +145,12 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
         if (int(rng(100)) >= chance) return;
         if (item.durability - 1 >= 1) { item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item)); return; }
-        if (armor) { item.flags |= 0x100u; item.durability = 0; cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y); return; }
+        if (armor) {
+            item.flags |= 0x100u; item.durability = 0;
+            settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
+            cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
+            return;
+        }
         const auto base = tables.item_base.find(item.code);
         if (base == tables.item_base.end() || !base->second.stackable) {
             item.durability = 0;
@@ -192,7 +203,9 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
                 else if (item.max_durability > 0 && !d2d::rules::indestructible(game_data->rules, item)) {
                     item.durability -= d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl);
                     if (item.durability <= 0) {
+                        d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
                         item.durability = 0; item.flags |= 0x100u;             // FUN_0055f850: it breaks
+                        settle_requirements(*game_data, actor->character);
                         cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
                     }
                 }
@@ -253,7 +266,9 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
                     || !d2d::rules::type_is(game_data->rules, info->second.type, "weap") || base->second.no_durability || base->second.durability <= 0
                     || d2d::rules::max_durability(item) == 0 || d2d::rules::indestructible(game_data->rules, item) || item.durability > 0 || d2d::rules::broken(item))
                     continue;
+                d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_0063d2b0
                 item.flags |= 0x100u;
+                settle_requirements(*game_data, actor->character);
                 cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
             }
             actor->attack_mon = -1;
@@ -499,6 +514,20 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                         burned.emplace_back(int(i), missile.skill);
                         burn(i, damage, now_ms);
                     }
+            }
+            // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
+            // (FUN_00552f60 on its id) stands, one at its own subtile on a frame it entered a new one
+            // (path +0x34 & 8), at the skill's level; its flight stops at a wall (CollideType 8).
+            if (missile_info.srv_do == 13 && missile.hops > 0) {
+                const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
+                const bool first_stands = std::ranges::any_of(actor->pets, [&](const auto& pet) { return pet.monster.id == missile.target_id && pet.monster.alive(); });
+                if ((at_x != missile.subtile_x || at_y != missile.subtile_y) && first_stands) {
+                    missile.subtile_x = at_x; missile.subtile_y = at_y;
+                    if (const int type = game_data->monsters.row(skill->summon); type >= 0) {
+                        summon_one(*skill, type, missile.level, calc_env(), (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, now_ms);
+                        --missile.hops;
+                    }
+                }
             }
             // The Range runs out: the hit function goes off with no unit.
             static constexpr int kEnd[] = { 1, 3, 4, 9, 13, 14, 20, 22, 26, 29, 36, 48, 56 };
@@ -905,15 +934,22 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
         for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (monsters[i].alive() && std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach) {
+            if (aura_takes(skill, monsters[i]) && std::hypot(monsters[i].unit.x - x, monsters[i].unit.y - y) * 5 <= reach) {
                 land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
                 if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
     }
 
+auto Fight::aura_takes(const d2d::rules::Skill& skill, const Monster& monster) const -> bool {
+        if (monster.type < 0 || std::size_t(monster.type) >= game_data->monsters.types.size()) return false;
+        const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+        return d2d::rules::aura_filter_takes(skill.aura_filter, { .dead = !monster.alive(), .undead = type_info.undead, .boss = type_info.boss_column,
+                                                                  .prime_evil = type_info.prime_evil, .ally = false });
+    }
+
 auto Fight::in_aura(const Monster& monster) -> bool {
         const auto* skill = game_data->skills.get(actor->aura);
-        if (!skill || !skill->aura) return false;
+        if (!skill || !skill->aura || !aura_takes(*skill, monster)) return false;
         const int radius = d2d::rules::eval_calc(game_data->skills, skill->aurarange, calc_env(), skill->id, skill_level ? skill_level(actor->aura) : 1);
         return std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(radius);
     }

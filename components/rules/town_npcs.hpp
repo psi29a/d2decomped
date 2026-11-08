@@ -6,6 +6,7 @@
 #include "rules.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
@@ -62,6 +63,21 @@ struct NpcAct {
 [[nodiscard]] inline int npc_reach(int x, int y, int to_x, int to_y, int size) {
     const int gap_x = std::max(std::abs(x - to_x) - size, 0), gap_y = std::max(std::abs(y - to_y) - size, 0);
     return gap_y < gap_x ? (gap_y + gap_x * 2) / 2 : (gap_x + gap_y * 2) / 2;
+}
+
+// FUN_005dde80, an NPC with the interact flags picking its visitor among the
+// players (x, y subtiles; alert: the NPC has a "!" for them, FUN_00544590):
+// one under 16 (npc_reach, size 2) with a "!" replaces the best only when
+// strictly nearer, so the nearest wins, the first on a tie. -1: none.
+struct NpcCandidate { int x = 0, y = 0; bool alert = false; };
+[[nodiscard]] inline int npc_visitor_pick(int x, int y, std::span<const NpcCandidate> candidates) {
+    int best = -1, best_distance = 16;
+    for (std::size_t k = 0; k < candidates.size(); ++k)
+        if (const int distance = npc_reach(x, y, candidates[k].x, candidates[k].y, 2); candidates[k].alert && distance < best_distance) {
+            best = int(k);
+            best_distance = distance;
+        }
+    return best;
 }
 
 // FUN_005de4e0 (from FUN_005de6d0, mode 2 walk): a spot up to `most`
@@ -158,9 +174,10 @@ inline NpcAct npc_think(NpcBrain& brain, Rng& seed, std::span<const NpcPoint> pa
         if (class_id == 0xb2 && seed(100) < 66) brain.special_mode = 8;
     }
     // FUN_005e7080: 66 in 100 a random point of the path, its action
-    // (table 0x741d74: 1 and 3 walk there and linger 12 thinks, 2 linger 20,
-    // 4 / 5 then S1 / S2 there); else (or already there) stand 8 (a
-    // towner 12).
+    // (table 0x741d74: 1 and 3 walk there and linger 12 thinks, FUN_005e6de0
+    // / FUN_005e6ef0; 2 linger 20 there or not, FUN_005e6e80; 4 / 5 then S1
+    // / S2 there, mode 1 without it, 4 tries, FUN_005e6f00 / FUN_005e6fc0);
+    // else (or already there) stand 8 (a towner 12).
     auto act = stand(towner ? 12 : 8);
     if (!path.empty() && seed(100) < 66) {
         const auto& point = path[std::size_t(seed(int(path.size())))];

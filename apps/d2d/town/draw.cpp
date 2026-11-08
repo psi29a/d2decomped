@@ -241,7 +241,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
                       unit.dir, frame_ms, hover_x, hover_y, said_npcs.empty() ? std::span<const UnitState>(view.npc_states) : std::span<const UnitState>(said_npcs),
                       inv_open ? &character.items : nullptr,
                       char_open ? &character.stats : nullptr, &character.stats, &character.panel, mode_ms, &character.items,
-                      &hovered_npc, stash_open || cube_open ? &character.items : nullptr, character.expansion, belt_open,
+                      &hovered_npc, stash_open || cube_open ? &character.items : nullptr, character.expansion, belt_up.shown,
                       cube_open ? (transmute_down ? 2 : 1) : 0, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, &rain,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
@@ -317,12 +317,12 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = left_panel_open();
-        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, inv_open || tree_open, mouse.x, mouse.y, !pad_bar);
+        if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, mini_right(), mouse.x, mouse.y, !pad_bar);
         // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
         // action, then 0x1052 " (%s)" for each key bound to it, the second
         // slot first; FUN_00502280 at (x - 3, H - 0x32 - 0x1a). Menu has no key.
         if (int button_x = 0; !coop_hud_hidden() && !pad_bar)
-            if (const int kind = mini.hovered(left_open, inv_open || tree_open, mouse.x, mouse.y, button_x); kind >= 0) {
+            if (const int kind = mini.hovered(left_open, mini_right(), mouse.x, mouse.y, button_x); kind >= 0) {
                 static constexpr std::array<int, 7> kKeys = { keys::kCharacter, keys::kInventory, keys::kSkillTree, keys::kParty, keys::kAutomap, keys::kMessageLog, keys::kQuestLog };
                 std::string tip = string_id(*scene, std::uint16_t(0x1049 + kind));
                 if (kind < int(kKeys.size()))

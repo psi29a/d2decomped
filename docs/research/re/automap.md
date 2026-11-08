@@ -149,13 +149,20 @@ player's look (`FUN_00645270`, States.txt gfxtype) is judged as one.
 With the map open, Font16 (`FUN_00502ef0(1)`), colour 4, right-aligned
 16 px in from the screen's right edge, baselines from 0x18 down every 0x10:
 
-1. the game's name and password (`FUN_00459e90`, a joined game);
+1. the game's name and password (`FUN_00459e90`): string 0x1055
+   ("Game: ") + config +0x1f, then 0x1056 ("Password: ") + config +0x245
+   (`DAT_007a0438`; `FUN_0044b7c0` / `FUN_0044b7f0`, each only when not
+   empty; with no name and an empty +0x37 neither). Only the Battle.net
+   front end writes those two (`FUN_0043fe40`, `FUN_0043ffa0`); the front
+   end's start clears them (`FUN_004359d0`), so a TCP/IP game (types 8 /
+   9, net-join.md) and single player show neither line;
 2. the level's name (`FUN_0045a050`: `FUN_00453e70` of the level id);
 3. "v 1.14d" (`FUN_0045a0a0`: "v %d.%d%c", 1, 0xe, 'd');
 4. on Nightmare / Hell, string 0x1057 ("Difficulty: %s") of 0x1423
    ("Nightmare") / 0x1422 ("Hell") (`FUN_0045a190`);
-5. a line for game types 6 and 8 (`FUN_0045a120`, `FUN_0040df60`;
-   untraced);
+5. for game types 6 and 8 (hosting), the host's own IP address
+   (`FUN_0045a120`: `FUN_0040df60`, the same lookup that fills config
+   +0x37 at the Host Game button, net-join.md "Game types");
 6. on an expansion game, 0x58ca ("EXPANSION") (`FUN_00459ff0`).
 
 ## Saved maps (`Name.map`, `Name.ma0`..`ma3`)

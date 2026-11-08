@@ -130,11 +130,12 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
     if (hover) {
         const int clvl = wearer ? wearer->lvl : 1;
         auto lines = item_lines(scene, *hover, clvl, wearer);
-        // "Cost: " (0xd01) + the vendor's price, as the store hover shows it (FUN_004b2ad0).
-        // At the gamble screen, the gamble price (FUN_00629370).
+        // "Cost: " (0xd01) + the vendor's price, as the store hover shows it (FUN_004b2ad0),
+        // on top in the name's colour (add_price_line). At the gamble screen, the gamble
+        // price (FUN_00629370).
         const int price = store.gamble ? d2d::rules::gamble_price(scene.rules, hover->code, clvl, store.reduced)
                                     : d2d::rules::item_price(scene.rules, *hover, store.npc_id, false, store.header, store.reduced);
-        lines.push_back({ string_id(scene, 0xd01) + std::to_string(price), kTxtWhite });
+        add_price_line(lines, string_id(scene, 0xd01) + std::to_string(price));
         draw_hover_text(framebuffer, scene, lines, hover_box[0], hover_box[0] + hover_box[2], hover_box[1] + hover_box[3], hover_box[1]);
     }
 }

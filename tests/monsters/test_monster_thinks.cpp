@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <optional>
 #include <span>
 #include <sstream>
@@ -23,7 +24,7 @@
 
 using namespace d2d::rules;
 
-int main() {
+int main() try {
     // The MonAI thinks: each rand(100) one seed step, a wander four, a circle one.
     {
         auto steps = [](std::uint32_t seed, Rng& stepped) { Rng count{ seed }; int step_count = 0; while (count.low != stepped.low || count.high != stepped.high) { (void)count.next(); ++step_count; } return step_count; };
@@ -42,6 +43,20 @@ int main() {
                 assert(act.act == want && roll.low == mirror.low && (want != MonAct::idle || act.n == 15));
             }
         }
+        for (std::uint32_t seed = 1; seed < 50; ++seed) {           // Trap-Melee (FUN_005fba60): out of melee stand 40; in it aip1 % A1, else stand aip2
+            for (const bool in_melee : { false, true }) {
+                ThinkIn trap_in{ .aip = { 50, 12 }, .in_melee = in_melee, .state = &state };
+                Rng roll{ seed }, mirror{ seed };
+                const auto act = mon_think("Trap-Melee", trap_in, roll, no_away);
+                const bool swing = in_melee && mirror(100) < 50;
+                assert(roll.low == mirror.low && act.act == (swing ? MonAct::a1 : MonAct::idle) && (swing || act.n == (in_melee ? 12 : 40)));
+            }
+        }
+        // No one found: type 1 (FUN_005de890) wanders when just hit, types 4 / 5 (FUN_005de9d0) don't and stand 20.
+        assert(search_missed("Zombie", true, true, false, 40).wander && !search_missed("SandMaggot", true, true, false, 40).wander);
+        assert(search_missed("FrogDemon", true, false, true, 40).wander && !search_missed("Zombie", false, true, true, 40).wander);
+        assert(search_missed("Zombie", true, false, false, 30).stand == 20 && search_missed("Zombie", true, false, false, 10).stand == 10);
+        assert(search_missed("Zombie", true, false, false, 40).stand == 25 && search_missed("SandMaggot", true, false, false, 10).stand == 20);
         int zombie_pace = 0;
         think_in = { .aip = { 30, 10, 0, 20 }, .dist = 12, .state = &state, .pace = &zombie_pace };   // Zombie: out of aip2, wanders 3 (4 steps), in the Burial Grounds runs
         Rng roll{ 5 };
@@ -446,6 +461,17 @@ int main() {
         // to, 3 subtiles a think (FUN_005de4e0's split); 2 off it's greeted,
         // then again 60 thinks on; past 16 from home the NPC goes home first.
         assert(d2d::rules::npc_reach(10, 10, 20, 13, 2) == 8);
+        {   // FUN_005dde80: the nearest player under 16 with a "!" for them, the first on a tie
+            using d2d::rules::NpcCandidate;
+            const std::array<NpcCandidate, 3> both{ { { 20, 10, true }, { 15, 10, true }, { 25, 10, true } } };
+            assert(d2d::rules::npc_visitor_pick(10, 10, both) == 1);
+            const std::array<NpcCandidate, 2> far_alert{ { { 20, 10, true }, { 15, 10, false } } };
+            assert(d2d::rules::npc_visitor_pick(10, 10, far_alert) == 0);
+            const std::array<NpcCandidate, 2> tie{ { { 15, 10, true }, { 5, 10, true } } };
+            assert(d2d::rules::npc_visitor_pick(10, 10, tie) == 0);
+            const std::array<NpcCandidate, 1> beyond{ { { 10 + 2 + 16, 10, true } } };   // reach 16: not under it
+            assert(d2d::rules::npc_visitor_pick(10, 10, beyond) == -1);
+        }
         assert(d2d::rules::npc_step_toward(10, 10, 20, 13, 8, 3, 2) == std::pair(13, 11));
         d2d::rules::NpcBrain host;
         host.homed = true; host.home_x = 10; host.home_y = 10;
@@ -480,4 +506,7 @@ int main() {
         assert(!d2d::rules::has_other_think("Baal"));
     }
     std::puts("ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_monster_thinks: %s\n", error.what());
+    return 1;
 }

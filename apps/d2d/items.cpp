@@ -6,6 +6,7 @@
 #include "scene.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -39,6 +40,26 @@ void draw_hover_text(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
             scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x + scene.font.measure(head), y, line.text.substr(line.split),
                                    line.tail[0], line.tail[1], line.tail[2]);
         y += line_height;
+    }
+}
+
+void draw_hover_lines(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<TextLine>& lines, const std::array<int, 4>& box) {
+    const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+    const auto [left, top, right, bottom] = box;
+    for (int y = std::max(0, top); y < std::min(int(kScreenHeight), bottom); ++y)
+        for (int x = std::max(0, left); x < std::min(int(kScreenWidth), right); ++x) {
+            auto* pixel = &framebuffer[(std::size_t(y) * kScreenWidth + std::size_t(x)) * 4];
+            pixel[0] = std::uint8_t(pixel[0] / 4); pixel[1] = std::uint8_t(pixel[1] / 4); pixel[2] = std::uint8_t(pixel[2] / 4);
+        }
+    int y = top;
+    for (const auto& line : lines) {
+        const int x = left + (right - left - scene.font.measure(line.text)) / 2;
+        const std::string head = line.text.substr(0, line.split);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, y, head, line.rgb[0], line.rgb[1], line.rgb[2]);
+        if (line.split < line.text.size())
+            scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x + scene.font.measure(head), y, line.text.substr(line.split),
+                                   line.tail[0], line.tail[1], line.tail[2]);
+        y += 16;                                                  // font16 cell height
     }
 }
 

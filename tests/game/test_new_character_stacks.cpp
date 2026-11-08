@@ -13,6 +13,8 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
+#include <exception>
 #include <string>
 
 using namespace d2d::game;
@@ -28,7 +30,7 @@ const d2d::d2s::Item& carried(const NewCharacter& made, const std::string& code)
 
 }  // namespace
 
-int main() {
+int main() try {
     GameData game_data;
     auto& tables = game_data.rules;
     tables.item_base["jav"] = { .stackable = true, .min_stack = 30, .max_stack = 60 };
@@ -54,4 +56,7 @@ int main() {
         assert(carried(made, "buc").quantity <= 0);       // not a stack: untouched
     }
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_new_character_stacks: %s\n", error.what());
+    return 1;
 }

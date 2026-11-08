@@ -255,11 +255,19 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   unique +dmg% (strong), 16–21 minion elemental min / max %, 22–27
   champion's, 28–33 unique's; each triple by difficulty):
   - 1 rndname: the name seed (monster data +0x14) from the monster seed;
-  - 2 hpmultiply (FUN_005a0dc0 → FUN_005a0d20): life += life × (+hp% row);
+  - 2 hpmultiply (FUN_005a0dc0 → FUN_005a0d20) adds the row's percentage
+    of life to both max and current life. FUN_00573cb0 can roll zero life.
+    FUN_005a0d20 uses the same integer multiply/divide as FUN_00483360 on
+    life in 256ths, and the possessed or berserker modifier applies to
+    the resulting value. The boss_level.py oracle compares the raw stat 7 value.
+    Ordinary scripted spawns such as Baal on the stairs keep a one-point
+    minimum in d2d so they can run their AI.
   - 4 leveladd (FUN_005a0e40): level + 3, experience × 5;
   - 16 champion (FUN_005a0e80): level − 1 (net + 2), experience − 2/5 (×
     3), +dmg% (stat 0x19) and +tohit% (0x77) from rows 11 / 10 scaled by
-    the difficulty's +0x34 percentage, velocity + 20 %;
+    the difficulty's +0x34 percentage, velocity + 20 %. Willowisp's BaseId
+    0x76 (FUN_00463860) halves the scaled damage bonus. The same check
+    applies to berserker and Extra Strong. The to-hit bonus uses its usual scaling;
   - the champion kinds (one of 16 / 36..39 by cpick, each weight 1):
     36 ghostly (FUN_005a1080): monster data +0x16 |= 0x40 (drawn
     see-through — see `### Ghostly blend (client flag 0x40)` below),
@@ -297,6 +305,14 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   a UniqueSuffix then a UniquePrefix into string 0x6b9 ("%0 %1"); then
   `rand(100) < 50` builds it again from an appellation, a suffix and a
   prefix into 0x6ba ("%0 %1 %2"): "Bane Poison the Hunter".
+  The formatted client text is installed by FUN_0063e810: for a nonnull
+  monster unit with MonsterData and a nonnull input string, it allocates and
+  copies a NUL-terminated UTF-16 name into MonsterData +0x2c. Other unit types
+  and null inputs leave that slot unchanged (`tools/emu/monster_name_slot.py`,
+  including a no-op mutation control).
+  The corresponding d2d name is stored directly in `Monster::npc.name` by
+  `make_boss` (`components/game/ai.cpp`);
+  its unique path builds the display string in `unique_name`.
 - Loot: champions MonStats TreasureClass2, uniques TreasureClass3,
   superuniques their SuperUniques TC (by difficulty).
 - **The label under the name** (client FUN_004adea0, from FUN_00452580,
@@ -358,7 +374,8 @@ handlers do nothing without it, so a unique's minions don't explode.
 | 13 rage, 11 durieldead | none | no init (0x73c008) and no hooks (0x73c0b8) |
 | 33 suicideminion | 1 `FUN_005a3e70`, 2 `FUN_005a3ef0` | GH puts it straight into death; dead, 4 frames on, its A1 roll as physical plus aip1's element, within aip4 (monster-ai.md "Act 5's monster skills") |
 | 31 goboom | 1 `FUN_005a3800`, 2 `FUN_005a2840` | only the Fire Golem has it (`FUN_005b1cf0` case BaseId 0x124: `FUN_005a4850(0x1f, 0)`, no flag 8; no init in 0x73c008). On death, 4 frames on: missile 0x75 (monstercorpseexplode) on its spot (`FUN_0056ecb0`, EDX 0x75); when that's made, `FUN_0057e090` (radius 6, flags 0x583) with a 0x70-byte record of 0x6400 physical (+8) and 0x6400 fire (+0x10), 100 points each in 256ths, on every unit within 6 subtiles (dx² + dy² ≤ 36) with the line clear of 0x805 that is its enemy (`FUN_00554200`: the missile's owner, the golem, stands for its owner, the player), not the golem itself |
-| 14 / 15 / 21 / 32 / 34 / 35 / 40 .. 42 | 0x73c0b8 | not traced (traps, bone prisons, Act 5's deaths) |
+| 21 killself | 2 `FUN_005a3aa0` | given by MonUMod 22's death hooks (`FUN_005dfbf0`, superuniques.md) with its event 7 queued: alive, in state 0x36 another 3 frames on; owned by a player (`FUN_0058f0d0` a type-0 unit) its pet is dropped (`FUN_005750e0`); else into mode 0 (death, no credit) |
+| 14 / 15 / 32 / 34 / 35 / 40 .. 42 | 0x73c0b8 | not traced (traps, bone prisons, Act 5's deaths) |
 | 25 mana burn | (spawn) `FUN_005a1f90` | manadrain min / max (stats 62 / 63) = MonLvl damage × `FUN_005a00f0`'s % |
 | 26 teleport | spawn `FUN_005a1600`: skill 184 MonTeleport level 1, AI-control flag 0x20 (`FUN_005dd250`); AI `FUN_005b11f0` | at a think: rand(100) < 40 (its seed), then — life under 30 % (`FUN_00621f20`), or not flagged by `FUN_00457490(class, 1)` (monsters 10 / 0x159 / 0x22d count as flagged) and AI param +0x14 < 10 — rand(100) < 15: a free spot in its room (`FUN_0054dc40`), not in town; under 30 %, rand(100) < 25 and no state 0x34: life + mlvl (stat 6 + mlvl × 256); then cast 184 there |
 | 30 aura | spawn `FUN_005a1650` | the table at 0x73bf68 {min mlvl, add, mul, div, skill}: Might 98 /6, Holy Fire 102 /6, Blessed Aim 108 /5, Holy Freeze 114 /7, Conviction 123 /8, Fanaticism 122 /8, Holy Shock 118 /8 from mlvl 20; pick = rand(rows reached) on {name seed (monster data +0x14), 666}; superunique 37 → Fanaticism; class 0x2c0 → Conviction 20; level = (add + mlvl) × mul / div, 1..99 |

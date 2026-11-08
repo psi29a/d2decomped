@@ -76,6 +76,7 @@ struct Audio {
         // unit it plays on, the sound tick it started, Solo.
         int group_base = 0;
         std::uint64_t unit = 0;
+        std::vector<std::uint64_t> merged;       // units a Compound merge added (rules::SoundInstance::merged)
         std::int64_t start_tick = 0;
         bool solo = false;
     };
@@ -96,17 +97,19 @@ struct Audio {
     int voice_sound() const { return voice.sound; }
     // The game menu's sliders, 0..100 ("Master Volume" 0x8817b0, "Music
     // Volume" 0x8817b4): 0x4dfc84 scales a sound's volume by music / 100
-    // if it's a Music Vol one, then everything by master / 100.
-    // ponytail: master is the listener's gain, so it scales cinematics too.
+    // if it's a Music Vol one, then everything by master / 100: each sound's
+    // own gain, not the listener's, so a cinematic's (vsrc) isn't scaled, as
+    // game.exe's Bink isn't (sound.md "The master volume reaches nothing else").
     int master_volume = 100, music_volume = 50;
     [[nodiscard]] float out_gain(const Channel& channel, float gain) const {
-        return (&channel == &music || &channel == &music_old ? gain * float(music_volume) / 100.f : gain) * duck(channel);
+        return (&channel == &music || &channel == &music_old ? gain * float(music_volume) / 100.f : gain) * float(master_volume) / 100.f * duck(channel);
     }
     // The ducks (FUN_004ba020, 0x4dfcb2 / 0x4dfd0b): under a Solo row the
     // rest at down to 70%, under the paused game menu all but the cursor,
-    // ambience and music rows down to 0, stepped each sound tick.
-    // ponytail: game.exe's paused frame runs the sound tick unpaced, so its
-    // fade is quicker than these 40 ms ticks.
+    // ambience and music rows down to 0, stepped each sound tick: under the
+    // pause one each frame (rules::sound_ticks_due).
+    // ponytail: d2d's frames are vsync-paced, game.exe's paused loop spins
+    // (its Sleep(10) skipped), so its fade is quicker still.
     int solo_percent = 100, menu_percent = 100;
     bool menu_paused = false;                    // a local game paused under the game menu (Town)
     std::int64_t sound_tick = 0;                 // DAT_007bc9bc: +1 each 40 ms
@@ -120,9 +123,16 @@ struct Audio {
         return float(d2d::rules::ducked_volume(10000, channel.sound, channel.solo, menu_percent, solo_percent)) / 10000.f;
     }
     void apply_volume() {
-        if (!ok) return;
-        alListenerf(AL_GAIN, float(master_volume) / 100.f);
-        for (auto* channel : { &music, &music_old }) set_gain(*channel, channel->gain);
+        if (ok) regain();
+    }
+    // Every playing sound's gain again, under the sliders and ducks as they are now.
+    void regain() {
+        for (auto& channel : sfx) {
+            if (!channel.src) continue;
+            if (channel.placed) (void)apply_mix(channel, channel.screen_x, channel.screen_y2);
+            else set_gain(channel, channel.gain);
+        }
+        for (auto* channel : { &voice, &ui_sounds, &ambience, &ambience_old, &rain, &quake_loop, &music, &music_old }) set_gain(*channel, channel->gain);
     }
     // Songs are ~20 MB WAVs (240 ms to read): decoded on a worker with its
     // own MPQ handles (StormLib handles aren't shared across threads).
@@ -275,8 +285,8 @@ struct Audio {
         return found != sfx.end() ? *found : sfx[sfx_next++ % sfx.size()];
     }
     // Whether `index` starts against the world sounds playing (rules/sound_start.hpp):
-    // Compound merges it into one of its group (nothing new starts; ponytail: the
-    // new unit isn't added to that one's list), Defer / Stop Inst and a unit's
+    // Compound merges it into one of its group (nothing new starts; the new
+    // unit joins that one's list, FUN_004b9760), Defer / Stop Inst and a unit's
     // speech drop it or stop the one it clashes with. game.exe checks Compound
     // at the play and the rest at the start; a cue plays when due, so both here.
     bool may_start(const GameData& game_data, int index, std::uint64_t unit, bool positioned) {
@@ -288,11 +298,14 @@ struct Audio {
             ALint state = AL_STOPPED;
             alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
             if (state != AL_PLAYING && state != AL_PAUSED) continue;
-            playing.push_back({ channel.sound, channel.group_base, channel.unit, channel.start_tick, false });
+            playing.push_back({ channel.sound, channel.group_base, channel.unit, channel.start_tick, false, channel.merged });
             on_channel.push_back(&channel);
         }
         const d2d::rules::SoundRule rule{ index, snd.group_base, snd.compound, snd.defer, snd.stop_inst };
-        if (d2d::rules::compound_into(playing, rule, sound_tick)) return false;
+        if (const auto into = d2d::rules::compound_into(playing, rule, sound_tick)) {
+            if (unit != 0 && !playing[*into].plays_on(unit)) on_channel[*into]->merged.push_back(unit);
+            return false;
+        }
         const auto clash = d2d::rules::start_clash(playing, rule, unit, positioned);
         if (clash.other && clash.stop_other) stop(*on_channel[*clash.other]);
         return clash.play;
@@ -300,7 +313,7 @@ struct Audio {
     // One of `unit`'s speech lines playing (FUN_004b9700 on it: rules::speech_row).
     bool speaking(std::uint64_t unit) {
         return unit != 0 && std::ranges::any_of(sfx, [&](const Channel& channel) {
-            if (!channel.src || channel.unit != unit || !d2d::rules::speech_row(channel.sound)) return false;
+            if (!channel.src || (channel.unit != unit && !std::ranges::contains(channel.merged, unit)) || !d2d::rules::speech_row(channel.sound)) return false;
             ALint state = AL_STOPPED;
             alGetSourcei(channel.src, AL_SOURCE_STATE, &state);
             return state == AL_PLAYING || state == AL_PAUSED;
@@ -309,6 +322,7 @@ struct Audio {
     void started(Channel& channel, const GameData& game_data, int index, std::uint64_t unit) {
         channel.group_base = game_data.sounds[std::size_t(index)].group_base;
         channel.unit = unit;
+        channel.merged.clear();
         channel.start_tick = sound_tick;
     }
     // AL_SOFT_direct_channels: a split world sound's two buffers go each
@@ -321,9 +335,10 @@ struct Audio {
         channel.screen_x = screen_x;
         channel.screen_y2 = screen_y2;
         // played by path, no Sounds.txt row: never ducked (as `duck`)
+        const int volume = d2d::rules::master_scaled(channel.volume, master_volume);
         const auto mix = channel.sound > 0
-            ? d2d::rules::ducked_mix(channel.volume, channel.falloff, screen_x, screen_y2, channel.sound, channel.solo, menu_percent, solo_percent)
-            : d2d::rules::sound_mix_pixels(channel.volume, channel.falloff, screen_x, screen_y2);
+            ? d2d::rules::ducked_mix(volume, channel.falloff, screen_x, screen_y2, channel.sound, channel.solo, menu_percent, solo_percent)
+            : d2d::rules::sound_mix_pixels(volume, channel.falloff, screen_x, screen_y2);
         if (!mix.audible) return false;
         if (channel.right_src) {
             const auto speakers = d2d::rules::speakers(mix);
@@ -331,8 +346,9 @@ struct Audio {
             alSourcef(channel.right_src, AL_GAIN, speakers.right);
             return true;
         }
-        // ponytail: without direct channels OpenAL pans the mono source by
-        // its angle, not game.exe's far-side-down law.
+        // Without direct channels (no AL_SOFT_direct_channels) OpenAL pans the
+        // mono source by its angle, not FUN_00515890's far-side-down law:
+        // deviations.md "Approximations" #13.
         const float pan = std::clamp(float(mix.pan - 128) / 128.f, -1.f, 1.f);
         alSourcef(channel.src, AL_GAIN, float(mix.volume) / 255.f);
         alSource3f(channel.src, AL_POSITION, pan, 0.f, -std::sqrt(std::max(0.f, 1.f - pan * pan)));
@@ -648,9 +664,9 @@ struct Audio {
     void step_ducks() {
         const auto now_ms = SDL_GetTicks();
         if (tick_mark_ms == 0) tick_mark_ms = now_ms;
-        const auto ticks = std::min<std::uint64_t>((now_ms - tick_mark_ms) / kTickMs, 100);
+        const auto ticks = d2d::rules::sound_ticks_due(now_ms - tick_mark_ms, menu_paused);
         if (ticks == 0) return;
-        tick_mark_ms += ticks * kTickMs;
+        tick_mark_ms = menu_paused ? now_ms : tick_mark_ms + ticks * kTickMs;
         sound_tick += std::int64_t(ticks);
         const auto playing = [](const Channel& channel) {
             ALint state = AL_STOPPED;
@@ -665,13 +681,7 @@ struct Audio {
             solo_percent = d2d::rules::solo_duck_step(solo_percent, solo_playing);
             menu_percent = d2d::rules::menu_duck_step(menu_percent, menu_paused);
         }
-        if (solo_percent == was_solo && menu_percent == was_menu) return;
-        for (auto& channel : sfx) {
-            if (!channel.src) continue;
-            if (channel.placed) (void)apply_mix(channel, channel.screen_x, channel.screen_y2);
-            else set_gain(channel, channel.gain);
-        }
-        for (auto* channel : { &voice, &ui_sounds, &ambience, &ambience_old, &rain, &quake_loop, &music, &music_old }) set_gain(*channel, channel->gain);
+        if (solo_percent != was_solo || menu_percent != was_menu) regain();
     }
     // Land a finished music job; free one-shots that have played out.
     void update() {

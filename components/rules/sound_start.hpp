@@ -21,6 +21,11 @@ struct SoundInstance {
     std::uint64_t unit = 0;         // the unit it plays on, 0 for none (instance +0x28)
     std::int64_t start_tick = 0;    // instance +0x34
     bool stopping = false;          // told to stop (instance +0x3d)
+    // The units a Compound merge added (the list at +0x28 past the first,
+    // FUN_004b9760): it counts as playing on them too.
+    std::span<const std::uint64_t> merged{};
+    // Playing on `asking` (FUN_005169d0: a walk of the list).
+    [[nodiscard]] bool plays_on(std::uint64_t asking) const { return unit == asking || std::ranges::find(merged, asking) != merged.end(); }
 };
 
 // The row being started.
@@ -59,14 +64,14 @@ inline SoundClash start_clash(std::span<const SoundInstance> playing, const Soun
     if (rule.defer || rule.stop_inst) {   // the oldest of its group, on its unit when it has one (FUN_004b9690)
         for (std::size_t k = 0; k < playing.size(); ++k) {
             const auto& other = playing[k];
-            if (other.group_base != rule.group_base || (unit != 0 && other.unit != unit)) continue;
+            if (other.group_base != rule.group_base || (unit != 0 && !other.plays_on(unit))) continue;
             if (!clash.other || other.start_tick < playing[*clash.other].start_tick) clash.other = k;
         }
     }
     if (unit != 0 && speech_row(rule.row)) {   // a unit's speech: any of its lines playing (FUN_004b9700)
         clash.other.reset();
         for (std::size_t k = 0; k < playing.size() && !clash.other; ++k)
-            if (playing[k].unit == unit && speech_row(playing[k].row)) clash.other = k;
+            if (playing[k].plays_on(unit) && speech_row(playing[k].row)) clash.other = k;
     }
     if (rule.defer && unit == 0 && positioned) clash.other.reset();   // plays over whatever plays
     if (clash.other) {
@@ -92,6 +97,17 @@ constexpr int menu_duck_step(int percent, bool paused) {
 constexpr bool menu_exempt(int row) {
     return (row >= 1 && row <= 0xf) || (row >= 0x34 && row <= 0x47) || (row >= 0x1231 && row <= 0x125a);
 }
+// The sound ticks a client frame runs (FUN_00482c20: no clock of its own,
+// DAT_007bc9bc + 1 a call): one each 40 ms frame in play, at most 100 to
+// catch up; under the paused game menu one each pass of the message loop
+// (menu.md "The pause"), so one each frame, however short.
+constexpr std::uint64_t sound_ticks_due(std::uint64_t elapsed_ms, bool paused) {
+    return paused ? 1 : std::min<std::uint64_t>(elapsed_ms / 40, 100);
+}
+// A sound's 0..255 volume under the master slider (0x4dfca1, FUN_00514cc0:
+// whole percent, truncated), before the ducks. Nothing else takes the master:
+// a cinematic's sound (Bink) plays at its own level.
+constexpr int master_scaled(int volume, int master_percent) { return volume * master_percent / 100; }
 // A sound's 0..255 volume under the ducks (0x4dfcb2 / 0x4dfd0b: integer percent).
 constexpr int ducked_volume(int volume, int row, bool solo_row, int menu_percent, int solo_percent) {
     if (menu_percent != 100 && !menu_exempt(row)) volume = menu_percent * volume / 100;

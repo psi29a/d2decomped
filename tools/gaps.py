@@ -8,6 +8,7 @@ Writes, from the repo alone (no game files, no Ghidra):
   gaps.json      totals, per-module counts, every listed gap, the frontier, credits
   functions.tsv  one row per game.exe function: status, module, callers ported, ...
   index.md       the summary page (published with GitHub Pages)
+  _includes/head-custom.html  the Pages theme's head hook: dark colours when the system asks
   symbols.tsv    d2d's names and citations, for tools/ghidra/decompile.sh to put in Ghidra
                  (names: docs/research/re/names.tsv, else a C++ function citing one FUN_)
 
@@ -365,6 +366,26 @@ def shade(pct):
     return f"hsl({1.2 * pct:.0f}, 70%, 42%)"
 
 
+# Primer (the Pages default theme) is light only; dark follows the system.
+HEAD_CUSTOM = """<meta name="color-scheme" content="light dark">
+<style>
+@media (prefers-color-scheme: dark) {
+  :root { --track: #30363d; }
+  body { background: #0d1117; color: #c9d1d9; }
+  a, .markdown-body a { color: #58a6ff; }
+  .markdown-body h1, .markdown-body h2 { border-bottom-color: #21262d; }
+  .markdown-body hr { background-color: #30363d; }
+  .markdown-body table tr { background-color: #0d1117; border-top-color: #30363d; }
+  .markdown-body table tr:nth-child(2n) { background-color: #161b22; }
+  .markdown-body table th, .markdown-body table td { border-color: #30363d; }
+  .markdown-body code, .markdown-body tt { background-color: rgba(110, 118, 129, 0.4); }
+  .markdown-body pre { background-color: #161b22; }
+  .markdown-body blockquote { color: #8b949e; border-left-color: #30363d; }
+}
+</style>
+"""
+
+
 def write(out, summary, records, frontier):
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "gaps.json"), "w", encoding="utf-8") as f:
@@ -396,7 +417,7 @@ def write(out, summary, records, frontier):
           f"Data: [gaps.json](gaps.json) (gaps, frontier, credits), [functions.tsv](functions.tsv) "
           f"(every function). New here? Read [CONTRIBUTING.md]({repo}CONTRIBUTING.md).\n",
           f"**{done:.1f}% done**: verified or ported, by code bytes.\n",
-          f'<div style="background:#ddd;border-radius:4px;height:1.2em"><div style="width:{done:.1f}%;height:100%;'
+          f'<div style="background:var(--track, #ddd);border-radius:4px;height:1.2em"><div style="width:{done:.1f}%;height:100%;'
           f'border-radius:4px;background:{shade(done)}"></div></div>\n',
           "## game.exe functions\n", "| Status | Functions | Share | Code bytes | Share |", "|---|---|---|---|---|"]
     for s in reversed(LEVELS):
@@ -453,6 +474,9 @@ def write(out, summary, records, frontier):
         md.append(f"| {p['name']} | {p['commits']} | {p['reported']} | {p['traced']} |")
     with open(os.path.join(out, "index.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(md) + "\n")
+    os.makedirs(os.path.join(out, "_includes"), exist_ok=True)
+    with open(os.path.join(out, "_includes", "head-custom.html"), "w", encoding="utf-8") as f:
+        f.write(HEAD_CUSTOM)
 
 
 def done_line(remaining):

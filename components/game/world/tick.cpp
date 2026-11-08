@@ -9,7 +9,9 @@
 #include "fight.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
+#include "inventory.hpp"
 #include "log.hpp"
+#include "npc_talk.hpp"
 #include "protocol.hpp"
 
 #include <combat.hpp>
@@ -23,6 +25,7 @@
 #include <shrines.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
+#include <town_npcs.hpp>
 
 #include <algorithm>
 #include <array>
@@ -47,9 +50,10 @@ namespace d2d::game {
 
 // The client's OP counter runs from Start1 at its OP rate (FUN_00624390:
 // object_frame_delta, as the client draws it) to FrameCnt1 - 1 (FUN_004bcbb0).
-// These known operation functions also queue event 1 (FUN_005417d0); the altar
-// and Moldy Tome schedule it at FrameCnt1, the others at FrameCnt1 + 1.
-// ponytail: map the other event-1 callers to their operate functions.
+// The operate functions that queue event 1 themselves (FUN_005417d0, on the
+// branch that sets mode 1; objects.md has each call's address): at FrameCnt1
+// + 1, at FrameCnt1, or (the seals, 0x5b5672) at 2 x FrameCnt1. One that
+// reaches FUN_005417d0 through a helper (14's 0x586800) is listed by hand.
 int object_op_ticks(const Npc& npc) {
     if (!npc.op_frames) return 0;
     int client = -1;
@@ -61,17 +65,21 @@ int object_op_ticks(const Npc& npc) {
     }
     if (!npc.mode2) return client;
     using namespace d2d::rules::operate_fn;
-    int delay = 0;
+    int server = 0;
     switch (npc.operate_fn) {
-    case kShrine: case kCasket: case kUrn: case kChest: case kBarrel: case kCorpse: case kTrapObject: case kWaypoint:
-        delay = 1;
+    case kCasket: case kShrine: case kUrn: case kChest: case kBarrel: case kExplodingBarrel: case kCorpse: case kPortal: case kSecretDoor:
+    case kWaypoint: case kSlimeDoor: case kTrapObject: case kWirtBody: case kSanctuaryPortal: case kStairs: case kBurningSoul: case kGate: case kEvilUrn:
+        server = npc.op_frames + 1;
         break;
-    case kMoldyTome: case kGidbinnAltar:
+    case kMoldyTome: case kGibbet: case kGidbinnAltar: case kJournal: case kSewerLever: case kHellforge: case kCompellingOrb: case kAncientsDoor:
+        server = npc.op_frames;
+        break;
+    case kSeal:
+        server = npc.op_frames * 2;
         break;
     default:
         return client;
     }
-    const int server = npc.op_frames + delay;
     return client < 0 ? server : std::min(server, client);
 }
 
@@ -98,6 +106,36 @@ auto World::greet_sound(const Npc& npc, int kind) -> int {
 // material, else the level's SoundEnviron Material 1), each at least two
 // thirds of a step after the last. The animation's rate is the walk's
 // (rules::moving_anim_rate), as the client's footsteps read it (unit +0x4c).
+// A fissure's eruption (event 8, FUN_00581250, class 399): in NU or ON the
+// object seed steps, the next one is queued that % 250 + 25 frames on, and it
+// goes OP till event 1 at FrameCnt1 + 1 frames takes it ON (FUN_00581490);
+// one that comes while it's still OP queues nothing more (bugs.md #52).
+// Event 1 first when both fall on a frame. Only on the player's level.
+// ponytail: the object seed's steps fall in d2d's order of the game's object
+// rolls (levels built on demand), and the first is timed from the player's
+// first tick on the level, not the room's coming up.
+auto World::fissure_frame(std::uint32_t now_ms) -> void {
+        for (std::size_t index = 0; index < level->npcs.size() && index < npc_states.size(); ++index) {
+            const auto& npc = level->npcs[index];
+            if (npc.erupts < 0) continue;
+            auto [entry, fresh] = fissures.try_emplace({ level, int(index) });
+            auto& fissure = entry->second;
+            auto& state = npc_states[index];
+            if (fresh) fissure.next_ms = now_ms + std::uint32_t(npc.erupts) * kTickMs;
+            if (fissure.on_ms && now_ms >= fissure.on_ms) {
+                state.mode = "ON";
+                state.mode_ms = std::exchange(fissure.on_ms, 0);
+            }
+            if (fissure.stopped || now_ms < fissure.next_ms) continue;
+            if (state.mode == "OP") { fissure.stopped = true; continue; }
+            const std::uint32_t at_ms = fissure.next_ms;
+            fissure.next_ms = at_ms + std::uint32_t(fight.spawning.objects.next() % 250 + 25) * kTickMs;
+            fissure.on_ms = at_ms + std::uint32_t(npc.op_frames + 1) * kTickMs;
+            state.mode = "OP";
+            state.mode_ms = at_ms;
+        }
+    }
+
 auto World::footstep_frame(std::uint32_t tick_ms) -> void {
         using namespace d2d::rules::sound_ids;
         const int cls = actor->character.character_class;
@@ -174,6 +212,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         // Levels: finished builds come in; the ones next to the player's
         // start building when it changes (GameData::level).
         game_data->poll_levels();
+        if (!in_town(level)) each_player([](Player& player) { player.greeted.clear(); });   // FUN_004b3e10: out of town, all greet again
         fight.spawning.game_quests = game_bits;          // the town markers' inits read them as rooms come up
         // a3q7: the Dark Wanderer gone (ai.cpp) marks every player in act 3 (FUN_005bd260: word 0x20 bit 0, if missing).
         if (d2d::rules::level_act(level->id) == 2
@@ -244,6 +283,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             }
             entry = back ? operated.erase(entry) : std::next(entry);
         }
+        fissure_frame(now_ms);
         for (const auto& [key, door] : doors)                  // doors in the mode they were left in
             if (key.first == level && std::size_t(key.second) < npc_states.size())
                 std::tie(npc_states[std::size_t(key.second)].mode, npc_states[std::size_t(key.second)].mode_ms) = std::pair{ kObjectModes[std::size_t(door.mode)], door.when };
@@ -287,7 +327,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             // Back in camp after dying: alone, or in co-op once no one's left alive.
             if (fight.player_modes(button, now_ms, elapsed) && resurrect && (players.size() == 1 || !anyone_alive())) respawn(now_ms);
             if (actor->pmode != actor->last_pmode) {                 // death's stages: the penalty as it starts, the corpse as it ends
-                if (actor->pmode == kModeDT) death_penalty(now_ms);
+                if (actor->pmode == kModeDT) { death_penalty(now_ms); actor->interact_npc = -1; }
                 if (actor->pmode == kModeDD) { if (players.size() > 1) become_ghost(player); else make_corpse(); }   // co-op: a ghost, the gear kept
                 actor->last_pmode = actor->pmode;
             }
@@ -297,6 +337,14 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 if (std::holds_alternative<cmd::Resurrect>(command)) continue;
                 if (actor->ghost && !std::holds_alternative<cmd::Move>(command) && !std::holds_alternative<cmd::Run>(command)) continue;   // a ghost only walks
                 apply(command, now_ms);
+                // ItemMode.cpp's server moves end with FUN_0055dbc0: a hand's or body
+                // slot's item off (FUN_00560cd0) or on (FUN_005606b0 ..), into the
+                // inventory (FUN_00560200), the weapon switch (FUN_005616a0), a mend
+                // (FUN_0055f900).
+                if (std::holds_alternative<cmd::ToBody>(command) || std::holds_alternative<cmd::ToCursor>(command) || std::holds_alternative<cmd::ToGrid>(command)
+                    || std::holds_alternative<cmd::SwapWeapons>(command) || std::holds_alternative<cmd::Buy>(command) || std::holds_alternative<cmd::Sell>(command)
+                    || std::holds_alternative<cmd::Repair>(command))
+                    settle_requirements(*game_data, actor->character);
             }
             // In reach as the server's interact has it (FUN_005b0f50): an
             // object by rules::object_reach (a player's size 2) with no wall
@@ -310,7 +358,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 const bool in_reach = npc.root == "objects"
                     ? d2d::rules::object_reach(from_x - to_x, from_y - to_y, 2, npc.size_x, npc.size_y) && !wall_to(npc, from_x, from_y, 2)
                     : d2d::rules::unit_distance(from_x - to_x, from_y - to_y, 2, npc.size_x) < 7;
-                if (in_reach) {
+                if (in_reach && !state.hidden && !busy) {
                     if (operable(npc.operate_fn) || npc.operate_fn == d2d::rules::operate_fn::kMoldyTome || npc.operate_fn == d2d::rules::ToolsQuest::kStand || quest_object(npc.operate_fn)) {
                         credit_party([&] { operate(actor->interact_npc, now_ms); });
                     } else if (npc.operate_fn == d2d::rules::operate_fn::kStash) {
@@ -335,16 +383,27 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                             if (quest::bit(quest_bits, d2d::rules::DenQuest::kQuest, 0) && !quest::bit(quest_bits, kRespec, 1) && !quest::bit(quest_bits, kRespec, 0)) { d2d::rules::quest::set(quest_bits, kRespec, 13); d2d::rules::quest::set(quest_bits, kRespec, 1); }
                         }
                         auto lines = quest_talk(npc.hc_idx);
-                        // Its greeting as the menu opens (FUN_004b66b0, kind 0), unless it has news to tell.
-                        // ponytail: kind 2's "return" (the talk record's +0x12 flag) isn't traced.
-                        if (!std::ranges::any_of(lines, &d2d::rules::QuestMsg::greet)) cues.cue_on(unit_key(kSoundOnMonster, -1 - actor->interact_npc), greet_sound(npc, 0), now_ms, actor->player.x, actor->player.y);
+                        // Its greeting as the menu opens (FUN_004b66b0, kind 0), unless it has news to tell;
+                        // one with a talk record only once a stay in town (its +0x15, Player::greeted).
+                        // ponytail: kind 2's "return" (+0x12, from S->C 0x91: FUN_00545100's per-class
+                        // quest callbacks via FUN_00572470) isn't played.
+                        const bool gated = has_talk_record(npc.hc_idx);
+                        if (!std::ranges::any_of(lines, &d2d::rules::QuestMsg::greet) && !(gated && std::ranges::contains(actor->greeted, npc.hc_idx))) {
+                            if (gated) actor->greeted.push_back(npc.hc_idx);
+                            cues.cue_on(unit_key(kSoundOnMonster, -1 - actor->interact_npc), greet_sound(npc, 0), now_ms, actor->player.x, actor->player.y);
+                        }
                         actor->events.push_back(ev::OpenUI{ ev::OpenUI::talk, actor->interact_npc, std::move(lines) });
                     }
                     actor->player.walking = false; actor->interact_npc = -1;
-                } else if (!actor->player.walking) {
-                    actor->interact_npc = -1;                         // blocked on the way
+                } else if (state.hidden || (!busy && !actor->player.walking && from_x == to_x && from_y == to_y)) {
+                    actor->interact_npc = -1;                         // the target's gone (FUN_00481600, LAB_00481697), or it's here and out of reach
+                    if (state.hidden) { actor->player.walking = false; actor->player.path.clear(); }
                 } else {
                     actor->target_x = npc_x; actor->target_y = npc_y;              // follow a walking NPC
+                    // Queued, a walk that stopped tries again whether or not it moved, and
+                    // stands meanwhile: no route is no walk (FUN_00481600 -> FUN_004812e0,
+                    // LAB_004813c3, FUN_00461250's neutral). A hit waits, as a pick_item's does.
+                    if (!busy) actor->player.walking = true;
                 }
             }
             if (actor->pick_item >= 0 && loot.index_of(actor->pick_item) < 0) actor->pick_item = -1;   // someone took it
@@ -393,7 +452,8 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 const int walk = std::max(game_data->walk_velocity[save_class], 1);
                 const float vel = float(walk * walk_percent(*actor, now_ms)) / 100.f;
                 const float before_x = actor->player.x, before_y = actor->player.y;
-                actor->player.walking = follow_path(*level, actor->player, cells_per_sec(vel) * elapsed, walk_crowd);
+                bool blocked = false;
+                actor->player.walking = follow_path(*level, actor->player, cells_per_sec(vel) * elapsed, walk_crowd, &blocked);
                 // The merc's think reads the player's footsteps (FUN_00580c20): walking or
                 // running, 25 ms on from the last, over 45 (squared) from it.
                 if (const int step_x = int(std::floor(actor->player.x * 5)), step_y = int(std::floor(actor->player.y * 5)); now_ms > actor->footstep_ms + 25) {
@@ -402,8 +462,9 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
                 }
                 if (!actor->player.walking) {
                     actor->player.path.clear();
-                    // Short of the target with a step made: it paths again from here.
-                    actor->player.walking = (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
+                    // Short of the target with a step made and nothing in the way: it paths
+                    // again from here. A block ends the walk (the snap isn't a step).
+                    actor->player.walking = !blocked && (subtile(actor->player.x) != subtile(actor->target_x) || subtile(actor->player.y) != subtile(actor->target_y))
                                      && (actor->player.x != before_x || actor->player.y != before_y);
                 }
             }
@@ -416,10 +477,30 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         std::array<int, 3> talking{ -1, -1, -1 };    // the NPCs a player has a menu, speech or store open with
         for (const auto& player : players)
             for (std::size_t k = 0; k < talking.size(); ++k) if (player->talking[k] >= 0) talking[k] = player->talking[k];
-        // ponytail: an NPC with news greets the first player.
-        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, &lead().player, arcane.guard_state == 2);
+        // The "!" (FUN_00544590, from the NPC's think): only the NPC's own act's
+        // quests are asked, and objects have no think.
+        using ActAlert = bool (World::*)(int);
+        static constexpr std::array<ActAlert, 5> kActAlerts{ &World::act1_alert, &World::act2_alert, &World::act3_alert, &World::act4_alert, &World::act5_alert };
+        const ActAlert act_alert = kActAlerts[std::size_t(act())];
+        // Each NPC heeds the nearest player with a "!" for them (FUN_005dde80, rules::npc_visitor_pick).
+        std::vector<const UnitState*> visitors(npc_states.size(), nullptr);
+        {
+            std::vector<std::vector<d2d::rules::NpcCandidate>> candidates(npc_states.size());
+            each_player([&](Player& player) {
+                for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
+                    if (level->npcs[i].root != "objects")
+                        candidates[i].push_back({ int(std::floor(player.player.x * 5)), int(std::floor(player.player.y * 5)), (this->*act_alert)(level->npcs[i].hc_idx) });
+            });
+            for (std::size_t i = 0; i < npc_states.size(); ++i)
+                if (const int pick = d2d::rules::npc_visitor_pick(int(std::floor(npc_states[i].x * 5)), int(std::floor(npc_states[i].y * 5)), candidates[i]); pick >= 0)
+                    visitors[i] = &players[std::size_t(pick)]->player;
+        }
+        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, visitors, arcane.guard_state == 2);
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
-            if (std::exchange(npc_states[i].greets, false)) cues.cue_on(unit_key(kSoundOnMonster, -1 - int(i)), greet_sound(level->npcs[i], 1), now_ms, lead().player.x, lead().player.y);
+            if (std::exchange(npc_states[i].greets, false)) {   // unit sound 0x12 to the visitor, at its spot
+                const UnitState& heard = visitors[i] ? *visitors[i] : lead().player;
+                cues.cue_on(unit_key(kSoundOnMonster, -1 - int(i)), greet_sound(level->npcs[i], 1), now_ms, heard.x, heard.y);
+            }
         cain_step(now_ms, elapsed);
         for (const auto& neighbour : level->nearby) {           // over the edge, still in play
             auto& states = other_npcs[neighbour.level];
@@ -427,11 +508,6 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             grow_states(states, *neighbour.level);
             npc_patrol(*game_data, *neighbour.level, states, { -1, -1, -1 }, now_ms, elapsed, Crowd{});
         }
-        // The "!" (FUN_00544590, from the NPC's think): only the NPC's own act's
-        // quests are asked, and objects have no think.
-        using ActAlert = bool (World::*)(int);
-        static constexpr std::array<ActAlert, 5> kActAlerts{ &World::act1_alert, &World::act2_alert, &World::act3_alert, &World::act4_alert, &World::act5_alert };
-        const ActAlert act_alert = kActAlerts[std::size_t(act())];
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             npc_states[i].alert = level->npcs[i].root != "objects" && (this->*act_alert)(level->npcs[i].hc_idx);
         // The player's mode as the merc's think reads it: 2 walk, 3 run, 6 walk in town.

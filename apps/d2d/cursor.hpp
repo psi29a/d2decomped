@@ -15,14 +15,16 @@ namespace d2d::client {
 
 // Which panels are open, for hit-testing.
 // shift: held for the click (a Beltable inventory item goes to the belt).
-struct OpenPanels { bool inv = false, stash = false, cube = false, belt_popup = false, expansion = true, shift = false; };
+// ctrl: held for the click (with `store` open, a grid item is sold: ctrl_click.hpp).
+struct OpenPanels { bool inv = false, stash = false, cube = false, belt_popup = false, expansion = true, shift = false, ctrl = false, store = false; };
 
 // A left click at (mx, my) with the panels in `open`: picks up or puts
 // down. Returns whether the click landed on an item spot (so it doesn't
 // also walk or toggle the belt).
 // A click's item action (the client's side): the command for the World
 // (protocol.hpp), and whether the click was the cursor's at all.
-struct CursorClick { bool consumed = false; std::optional<Command> cmd; };
+// refused: a Ctrl sale of an item no vendor buys (the hero's "impossible").
+struct CursorClick { bool consumed = false; std::optional<Command> cmd; bool refused = false; };
 CursorClick item_cursor_command(const Scene& scene, const std::vector<d2d::d2s::Item>& items, const std::optional<d2d::d2s::Item>& held,
                                 int save_cls, const OpenPanels& open, int mouse_x, int mouse_y);
 

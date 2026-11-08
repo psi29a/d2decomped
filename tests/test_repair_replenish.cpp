@@ -10,11 +10,13 @@
 #include <rules.hpp>
 
 #include <cassert>
+#include <cstdio>
+#include <exception>
 
 using namespace d2d::rules;
 using d2d::d2s::Item;
 
-int main() {
+int main() try {
     Tables tables;
     tables.npc_prices["Charsi"].rep = 1024;
     tables.types["axe"].repair = true;
@@ -35,4 +37,7 @@ int main() {
     axe.durability = 39;                                                        // max - 1: nothing, then the minimum
     assert(repair_cost(tables, axe, "Charsi", header) == 1);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_repair_replenish: %s\n", error.what());
+    return 1;
 }

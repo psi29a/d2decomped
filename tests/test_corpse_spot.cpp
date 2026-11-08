@@ -11,6 +11,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -59,7 +60,7 @@ int diff(const char* cases_path, const char* game_path, bool twin) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     if ((argc == 4 || argc == 5) && std::string_view(argv[1]) == "--corpse-spot") return diff(argv[2], argv[3], argc == 5 && std::string_view(argv[4]) == "twin");
     constexpr int kStartX = 100, kStartY = 100;
     Words words{ { { kStartX, kStartY }, 0x1000 } };
@@ -78,4 +79,7 @@ int main(int argc, char** argv) {
     assert(spot(walls, kStartX, kStartY, true) == std::pair(kStartX, kStartY - 6));                       // ring 2 at radius 6 (step 5)
     std::printf("OK: corpse_spot, twin_spot\n");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_corpse_spot: %s\n", error.what());
+    return 1;
 }

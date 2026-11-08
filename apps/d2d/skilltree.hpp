@@ -54,9 +54,9 @@ const std::vector<TreeLabel> kTreeTabs[7] = {
 // level at (x + 48, bottom + 12) when learned (4 left for two digits).
 // Hovered, the skill's tooltip (game::skill_tree_tip, FUN_004abf60 ->
 // FUN_004eef00) for its level with `env` (the character's skill levels).
-// ponytail: grey is a 50% darken; no hover brightening; the tooltip sits
-// centred over the icon (game.exe's own placement isn't traced); the game
-// draws 10+ in FontFormal10.
+// The tooltip hangs under the icon (rules::skill_tree_tip_box).
+// ponytail: grey is a 50% darken; no hover brightening; the game draws 10+
+// in FontFormal10.
 void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene, int cls, int tab,
                      const std::array<std::uint8_t, 30>& levels, const d2d::d2s::Stats& stats, const d2d::rules::CalcEnv& env,
                      int pressed, int mouse_x, int mouse_y);

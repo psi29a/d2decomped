@@ -143,7 +143,12 @@ The base y is 539 (= 60 + 255 + 224):
 - Cain's identify fee and other payments take the purse first, then the
   stash (`FUN_00576d90`).
 - Prices (hover: "Cost: " 0xd01 in the store, "Sell value: " 0xd03 on
-  your own items while it is open), per FUN_0062efb0:
+  your own items while it is open, the inventory's and the belt's). The
+  line (`FUN_004b2ad0`) goes after the name in the bottom-up hover string
+  (`FUN_0048dd90` -> `FUN_0048cea0` at `0x48ec27`; the belt's
+  `FUN_00497a40` at `0x497bf1`), so it shows on top, and it carries no
+  colour code, so it keeps the name's: blue over a magic item, gold over
+  a unique (d2d `add_price_line`). Per FUN_0062efb0:
   1. base = the item's cost column (armor/weapons/misc.txt); an armor
      (ItemTypes armo, `0062f0f2`) is cost x its own defence (stat 31)
      / maxac, for buy, sell and repair alike. Two kinds
@@ -223,6 +228,16 @@ The base y is 539 (= 60 + 255 + 224):
 - Buying and selling:
   - right-click stock buys; Buy or Sell toggled on makes a left click
     buy the stock item or sell the clicked inventory item;
+  - Ctrl + left click on a grid item, the hand empty, sells it
+    (`FUN_0048ffe0`: `GetAsyncKeyState(VK_CONTROL)` at `0x4901f4`, before
+    Shift's belt at `0x49029d`). A store open (`FUN_004b3230`, its NPC
+    `FUN_00463990`): if `FUN_0062a130` takes the item, C->S 0x33 at
+    `FUN_0062fdc0`'s price (`0x490261`); if not, the hero's "impossible"
+    (`FUN_004cb9c0` message 0x13, `0x490283`), nothing sent. No store: the
+    click is taken and nothing happens (`0x4902f8`), so Ctrl + click picks
+    up nothing. The branch reads no page; `FUN_004912a0` calls it from
+    three sites (`0x49144d`, `0x4916e7`, `0x491750`), so d2d applies it on
+    each open grid. d2d: `ctrl_click.hpp`;
   - buying needs a free 10×4 inventory spot (column-major first fit) and
     enough carried + stash gold (carried first, a guess); perm items
     stay in stock;
@@ -485,7 +500,13 @@ else rare.
     of it with room, worn then backpack (`FUN_00577700`), with as many
     as the gold buys (none: 12, line 0x89a); with none carried, one
     stack of that many, at most its most (`FUN_006295b0`);
-  - anything else is bought again while the belt takes it; the first it
-    doesn't goes to the inventory and ends it. Gold running out after
-    one answers 12 (0x8d4); room running out says nothing.
+  - anything else is bought again while the belt takes it (upper rows too:
+    `FUN_0055e9b0`, a column's lowest free box). The first copy the belt
+    doesn't take, after one was bought, is offered to a body slot
+    (`FUN_00562e00`), else dropped: 0x577d9c tests the bought flag
+    (`[EBP-0x10]`) and jumps to `LAB_00577e68`, which puts the gold back
+    (`FUN_0053ff00`), frees the copy (`FUN_00557fd0`) and returns with
+    nothing said. Only a first copy goes to the inventory
+    (`FUN_00560200`), so a fill doesn't spill there. Gold running out
+    after one answers 12 (0x8d4).
   d2d: `rules::store_buy`'s `fill`, `cmd::Buy::fill`.

@@ -132,8 +132,8 @@ def game(path):
 
 # d2d with the fix, line for line: Fight::apply_target_stats takes a fifth of a
 # lowering (toward 0) when the base is 100 or more; rules::missile_blow:
-# elements fire..poison take the pierce when res < 100, floored at -100 there;
-# physical / magic as is.
+# elements fire..poison take the pierce when res < 100. All six resistances
+# are floored at -100.
 def resisted_fine(fine, res):
     if fine <= 0 or res >= 100:
         return 0
@@ -145,10 +145,12 @@ def resisted_fine(fine, res):
 
 
 def port_line(elem, b, v, p, r):
+    """Return the adjustment, effective resistance and damage for one port case."""
     adj = -(-v // 5) if v < 0 and b >= 100 else v
     res = b + adj
     if 2 <= elem <= 5 and res < 100:
-        res = max(res - p, -100)
+        res -= p
+    res = max(res, -100)
     return adj, res, resisted_fine(r, res)
 
 

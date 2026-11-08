@@ -1,10 +1,17 @@
 address	name	evidence
+00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
+00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
+0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
+0046dbf0	path_base_name	copies the base name between the last \ and the extension via _strncpy (chat.md)
+0046dc40	gfx_find_by_name	Gfx.cpp graphic lookup: base name, __strlwr, 512-bucket hash chain (chat.md)
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
 00499040	belt_key_labels	SetFont(1) at 0x499053, then the belt slots' key names
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
 00526100	utf8_decode	table at 0x7309b8 (mask, value, value mask, minimum); 10xxxxxx continuations
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
+00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
+005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
 0058ebc0	ai_control_alloc	allocates 0x40 bytes zeroed; sets flags +0x10 = 1, +0x30 = 1, target +0xc = -1, owner +0x2c = -1; AiGeneral.cpp line 0x1b
 0058ec50	ai_control_scratch_get	getter for scratch words +0x14, +0x18, +0x1c by index 1..3 from monster data +0x28; AiGeneral.cpp
 0058ec90	ai_command_push	pushes command node onto AI control queue; AiGeneral.cpp
@@ -22,6 +29,8 @@ address	name	evidence
 0058f6c0	ai_leader_died	when leader dies, elects new leader via FUN_0058f530 or disbands pack; AiGeneral.cpp
 0058f710	ai_control_get_spawn_class	reads spawn monster class from AI control +0x3c; AiGeneral.cpp
 0058f810	ai_control_free	destructor for AI control: frees commands, minions (+0x34), and struct; AiGeneral.cpp line 0x19d
+005aae10	srv_hit_16_put_state	pSrvHitFunc entry 16 (0x73c880): auratargetstate for the skill's +0x144 calc frames (min 5), returns 0
+005ab110	srv_hit_19_put_state	pSrvHitFunc entry 19 (0x73c88c): auratargetstate for the skill's +0x60 calc frames (min 5) on the target, returns 3
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
 005dd0b0	unit_search	mode table at 0x6e3300: kind 1 FUN_005dcee0, 2 FUN_005dcf70, 3 FUN_005dd050, else FUN_005dce60
 005de330	ai_speech_trigger	formats line %d, gets chat node (FUN_00661110), sets flag 0x100 (+0xc4), plays sound event 6; AiTatics.cpp
@@ -113,12 +122,19 @@ address	name	evidence
 005fc450	baal_inferno_incinerate	Baal Inferno / Incinerate choice; AiBaal.cpp
 005fc630	baal_clone_check	Baal clone duplicate limit check; AiBaal.cpp
 005fc830	baal_clone_alive_count	counts live clones for Baal duplicate limit; AiBaal.cpp
+00611200	ignorelist_ctor	sets IgnoreList::vftable, reads "Persistent Ignore" (chat-ignorelist.md)
+00611560	ignorelist_get	lazy IgnoreList getter: DAT_0096bc20, SMemAlloc(0x188, Chat/Ignorelist.cpp, 0x48) (chat-ignorelist.md)
 00620190	left_skill	FUN_00643930: the skill list's +8
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
+00624f40	stat_array_of	EAX list: list+0x48 when flag 0x80000000 is set, else list+0x24 (the {array, count} pair)
 00625d10	unit_max_life	stat 7 (maxhp, ItemStatCost row 7 at tables +0xbcc + 0x8dc) through FUN_00624f60, 0 for no unit / stats list
 00625d60	unit_max_mana	stat 9 (maxmana, ItemStatCost row 9 at tables +0xbcc + 0xb64) through FUN_00624f60, 0 for no unit / stats list
+006266c0	stat_refresh_derived	ECX list, EDX key, row, ctx: FUN_00626200 value stored by FUN_00625150, dependents at row+0x58 / +0x5e recomputed
+00626920	stat_delta_up_lists	ECX list, EDX key, delta, ctx: adds the delta (FUN_006250b0) or refreshes (FUN_006266c0) on the list and its parents (+0x34)
+006269f0	stat_list_detach	unlinks the list from its parent, pushes its values up negated, then calls the removal callback +0x38
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
+00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
 00665f40	ds1_cache_acquire	thiscall (out, path): finds path in the list at DAT_0096d60c (byte-exact compare) and bumps the refcount, else loads via FUN_00665950; ".\DRLG\Preset.cpp" lines 0x4e0, 0x4e1
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)

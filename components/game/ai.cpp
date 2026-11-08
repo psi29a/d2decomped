@@ -91,9 +91,9 @@ bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bo
 
 bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd) {
     if (unit.path.empty()) return false;
-    const auto end = unit.path.back();
-    if (follow_path(level, unit, step, crowd)) return true;
-    if (unit.x != end.first || unit.y != end.second) return false;      // blocked on the way
+    bool blocked = false;
+    if (follow_path(level, unit, step, crowd, &blocked)) return true;
+    if (blocked) return false;
     auto sub = [](float value) { return int(std::floor(value * 5)); };
     if ((sub(unit.x) == sub(unit.goal_x) && sub(unit.y) == sub(unit.goal_y)) || unit.budget == 0) return false;
     unit.budget = std::max(unit.budget - unit.path_points, 0);
@@ -186,11 +186,11 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
     // unit's full stat 99, but no Skills.txt aurastat / passivestat gives it.
     monster.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0
         : mode == "GH"                                                ? now_ms + get_hit_ms(game_data.npc_timing(monster.npc, mode), monster.props.fhr)
-                                                                      : now_ms + game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, mode));
+                                                                      : now_ms + game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode));
 }
 
 int mode_end_event(const GameData& game_data, const Monster& monster, std::string_view mode, int frame) {
-    return frame + int(game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, mode)) / 40) + 1;
+    return frame + int(game_data.npc_timing(monster.npc, mode).length_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode)) / 40) + 1;
 }
 
 std::vector<UnitState> npc_start(const Level& level) {
@@ -218,7 +218,7 @@ void file_first_think(UnitState& state, std::uint32_t now_ms) {
 }
 
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t now_ms, float elapsed, const Crowd& crowd, const UnitState* player, bool guard_aside) {
+                std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::span<const UnitState* const> visitors, bool guard_aside) {
     constexpr std::uint32_t kFrameMs = 40;
     for (std::size_t i = 0; i < npcs.size() && i < level.npcs.size(); ++i) {
         const auto& npc = level.npcs[i];
@@ -251,7 +251,7 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
             points.push_back({ k < npc.actions.size() ? npc.actions[k] : 0, int(npc.path[k].first * 5), int(npc.path[k].second * 5) });
         const int x = int(std::floor(state.x * 5)), y = int(std::floor(state.y * 5));
         d2d::rules::NpcVisitor visitor{ .talking = listed };
-        if (player && state.alert) {                            // FUN_005dde80: within 16, with a "!" for them
+        if (const UnitState* player = i < visitors.size() ? visitors[i] : nullptr) {   // FUN_005dde80: within 16, with a "!" for them
             visitor.x = int(std::floor(player->x * 5)); visitor.y = int(std::floor(player->y * 5));
             visitor.distance = d2d::rules::npc_reach(x, y, visitor.x, visitor.y, 2);
             visitor.present = visitor.distance < 16;
@@ -638,8 +638,9 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
     const bool second = monster.type == int(game_data.mon_bin[std::size_t(d2d::rules::monster_ids::kDuriel)]) || monster.type == int(game_data.mon_bin[0x49]);
     const std::string_view mode = second ? "A2" : "A1";
     monster.unit.dir = direction16(foe.x - monster.unit.x, foe.y - monster.unit.y);
+    monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
     set_mode(game_data, monster, mode, now_ms);
-    monster.skill = skill; monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
+    monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
     monster.skill_frame = 0; monster.skill_x = subtile(foe.x); monster.skill_y = subtile(foe.y);
     attack_starts(game_data, monster, mode, rng);
 }
@@ -673,7 +674,7 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
         const int try_x = room_seed(width) + left, try_y = room_seed(height) + top;
         int at_x = 0, at_y = 0;
         if (!spawn_spot(game_data, level, crowd, rooms_in_play, monster.type, try_x, try_y, -1, room, at_x, at_y)) continue;
-        if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) monster.hit_points = std::min(monster.stats.hit_points, monster.hit_points + monster.stats.level);
+        if (low && monster.seed(100) < 25 && now_ms >= monster.no_heal_until) heal(monster, monster.stats.level);
         monster.skill = teleport;
         monster.skill_x = at_x; monster.skill_y = at_y; monster.at_point = true;
         monster.unit.walking = false;
@@ -787,7 +788,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         for (auto& foe : foes) if (foe.alive) { target = &foe; break; }
     // Diablo's (FUN_005e8f20, once his search found someone): the unit
     // lists' best by his score (FUN_005e8530), above 0, the first on a tie.
-    // Lists 0..7: a player of his act under 0x3fc (FUN_005e8eb0: FUN_005dc530)
+    // Lists 0..7: a player of his act under 0x3fc (FUN_005e8eb0: FUN_005dc530;
+    // Baal's FUN_005fc000: the same act byte, under 0x3fc)
     // and the pets after it (a dead player scores 0); list 8, the good
     // monsters of his act. List 9's best (neutral: Confuse, Attract) is the
     // fallback: within 5 of him, with the best out of reach (FUN_00622c40)
@@ -921,17 +923,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     if (!target) {
         monster.chase = -1;
-        // FUN_005de890 with none found: with a WL mode (MonStats2 mode bits,
-        // FUN_0046c140(class, 2)), one just hit (its last mode GH,
-        // FUN_005dd2b0) or standing on collision bit 0x40 (FUN_0064d910)
-        // wanders 5 (FUN_005de200); else it stands.
         const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
-        if (has_walk && (monster.left_mode == "GH" || level.blocked(unit.x, unit.y, 0x40))) {
+        const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.left_mode == "GH", level.blocked(unit.x, unit.y, 0x40), nearest);
+        if (miss.wander) {
             const auto wander = d2d::rules::think_wander(monster.seed, 5);
             walk_to(wander.x, wander.y, false);
             return true;
         }
-        idle(nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25);
+        idle(miss.stand);
         return true;
     }
     // The driver's step 3 (FUN_005b13e0): first-sight speech, then the teleport mod.
@@ -1495,8 +1494,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
         monster.chase = int(target - foes.data());
         unit.dir = direction16(dx, dy);
+        monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
         set_mode(game_data, monster, mode, now_ms);
-        monster.skill = skill; monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
+        monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
         monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y; monster.at_point = false;
         attack_starts(game_data, monster, mode, rng);
         // srvst 59 (FUN_005d1280, Imp Inferno): its end calc1 frames from the start (the roll on its seed now), state 0xc on.
@@ -1593,7 +1593,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (effect.kind == d2d::rules::ThinkEffect::mark) { monster.has_point = true; monster.point_x = effect.id; monster.point_y = effect.value; }
         if (effect.kind == d2d::rules::ThinkEffect::greet) monster.greeted = true;
         if (effect.kind == d2d::rules::ThinkEffect::mount && imp_found >= 0) pack[std::size_t(imp_found)].ai_state = monster.id;   // FUN_005e17e0
-        // Baal's Vile Effigy (FUN_005fc860): none while one lives; baalclone
+        // Baal's Vile Effigy (FUN_005fc860): none while one lives (FUN_005fc830
+        // counts each other unit not in mode 0 or 0xc); baalclone
         // +- 12 (two draws of his seed) about the unit he's at (FUN_00553540;
         // his own spot without one), a third of his life, no regen (stat 0x4a
         // 0), made in NU; his AI control +0x18 counts it. Unit flags 0x4020000
@@ -1655,7 +1656,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const SeqRows* seq = skill_seq(game_data, type_info, lay);
                 const std::string_view played = seq ? std::string_view(seq->front().mode) : std::string_view(type_info.sk_mode[0]);
                 use(played, lay);
-                if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
+                if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
                 monster.skill_x = lay_x; monster.skill_y = lay_y;
                 monster.nesting = true;
                 return true;
@@ -1820,7 +1821,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // the first row's mode stands for it in the logic.
             const std::string_view played = seq ? std::string_view(seq->front().mode) : std::string_view(type_info.sk_mode[slot]);
             use(played, id);
-            if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
+            if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
             // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
             // on the takeoff and landing events), the strike on the next
             // (FUN_005da660).
@@ -1831,7 +1832,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 monster.leap_to_x = (float(landing->first) + 0.5f) / 5; monster.leap_to_y = (float(landing->second) + 0.5f) / 5;
             }
             if (const auto* leap = game_data.skills.get(id); landing && leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack) {
-                monster.leap_until = unit.mode_ms + 11 * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct);
+                monster.leap_until = unit.mode_ms + 11 * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
             }
             // Whirlwind (srvstfunc 38, FUN_005d8f50; Talic's seq_ancientwhirlwind):
             // in reach a plain attack (FUN_0056e230); else a path to its point
@@ -2131,7 +2132,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         // runs its skill; a plain mode strikes on its action frame.
         int due = 0;
         if (seq) {
-            const int reached = std::min(int((now_ms - unit.mode_ms) / std::max<std::uint32_t>(timing.ms_per_frame() * 100 / std::uint32_t(100 + monster.anim_pct), 1)), int(seq->size()) - 1);
+            const int reached = std::min(int((now_ms - unit.mode_ms) / std::max<std::uint32_t>(timing.ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1)), int(seq->size()) - 1);
             monster.seq_mode = (*seq)[std::size_t(reached)].mode;
             monster.seq_frame = (*seq)[std::size_t(reached)].frame;
             for (; monster.seq_done <= reached; ++monster.seq_done) {
@@ -2143,7 +2144,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     ++monster.seq_sounds;
                 }
             }
-        } else if (!monster.struck && now_ms >= unit.mode_ms + timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(monster, monster.mode))) {
+        } else if (!monster.struck && now_ms >= unit.mode_ms + timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, monster.mode))) {
             monster.struck = true;
             due = 1;
         }
@@ -2340,7 +2341,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // MagottDown (srvdofunc 86, FUN_005cb300): calc1 % of its life back, once (flag 0x40).
                 const int lvl = skill_level(game_data, monster, monster.skill);
                 const int back = d2d::rules::eval_calc(game_data.skills, done->calc[0], {}, monster.skill, lvl);
-                if (back > 0) monster.hit_points = std::min(monster.hit_points + monster.stats.hit_points * back / 100, monster.stats.hit_points);
+                if (back > 0) heal(monster, monster.stats.hit_points * back / 100);
                 monster.seq_once = true;
             } else if (done && done->srvdofunc == d2d::rules::ServerDoFunction::kBestow) {
                 // Bestow (srvdofunc 96, FUN_005cc840): the one it's at gets
@@ -2364,6 +2365,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (raised.usable_corpse()) {
                         raised.no_exp = raised.no_drop = true;
                         raised.hit_points = raised.last_hp = raised.stats.hit_points;
+                        raised.life_frac = raised.max_life_frac;
                         raised.ai_state = raised.ai_command = 0; raised.skill = -1; raised.left_mode = "NU";
                         set_mode(game_data, raised, "NU", now_ms);
                     }
@@ -2406,7 +2408,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // attack rate, armor and damage %). The roll is the caster's seed
                     // (+0x20), drawn for any live minion before the Bloodlust test.
                     // The minion turns itself (morph_monster: FUN_00574370).
-                    // ponytail: the morph's state 0x8e (stat 0x163, the old class) isn't kept.
+                    // Its state 0x8e (changeclass, stat 0x163 the old class) isn't kept: only the
+                    // client's set function FUN_004d89b0 reads it, and acts only for 0x21f
+                    // (baalthrone); no server code tests the state.
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size()) {
                         auto& whipped = pack[std::size_t(monster.skill_unit)];
                         const bool minion = whipped.type >= 0 && game_data.monsters.types[std::size_t(whipped.type)].base == 0x1c5;
@@ -2523,7 +2527,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // Start 62 (FUN_005d2420 -> FUN_0056e620 -> FUN_0063ea70): the
                     // caster's MonStats spawn at its spot + spawnx / spawny, in
                     // spawnmode (out of 0..15: NU); no spawn row (Nihlathak's), the
-                    // class his think kept (AI control +0x3c: FUN_0063ec70, the
+                    // class his think kept (AI control +0x3c, read by FUN_0058f710: FUN_0063ec70, the
                     // level's own minion). Do 135 (FUN_005d2490) makes it through
                     // FUN_005b2f20: exactly there, else within 4.
                     // Flags 0x4020000 (no experience, no drop); MinionSpawner's Skills
@@ -2610,10 +2614,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         if (auto& eaten = pack[std::size_t(monster.skill_unit)]; eaten.usable_corpse()) {
                             eaten.corpse_used = true;
                             const int pct = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
-                            const int max_life = monster.stats.hit_points * 256;
-                            const int life = monster.hit_points * 256 - monster.life_frac + d2d::rules::mul_div(eaten.stats.hit_points * 256, pct, 100);
-                            const int now = life >= max_life ? max_life : std::max(life, 1);
-                            monster.hit_points = (now + 255) >> 8; monster.life_frac = monster.hit_points * 256 - now;
+                            const int max_life = monster.max_life_fine();
+                            const auto life = std::int64_t(monster.life_fine()) + d2d::rules::mul_div(eaten.max_life_fine(), pct, 100);
+                            monster.set_life_fine(int(std::min<std::int64_t>(std::max<std::int64_t>(life, 1), max_life)));
                         }
                 } else if (cast->srvdofunc == ServerDoFunction::kMonsterBreath || cast->srvdofunc == ServerDoFunction::kDiabLight || cast->srvdofunc == ServerDoFunction::kImpInferno) {
                     // DiabLight: the same start (srvst 53) and its bolts while state 0xc's on (FUN_005cc690).
@@ -3019,6 +3022,10 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.unit.shape = monster.npc.shape;
     monster.unit.wait_until = std::uint32_t(rng(4000));
     if (stats) monster.stats = d2d::rules::monster_stats(game_data.monsters, type, difficulty, rng, 0, players, area_monster_level(game_data, level_id, difficulty));
+    // ponytail: FUN_00573cb0 keeps zero life for units such as Baal on the stairs.
+    // Ordinary spawns need one point here because d2d gates their AI on positive
+    // life. make_boss preserves zero-life rolls.
+    monster.stats.hit_points = std::max(monster.stats.hit_points, 1);
     monster.hit_points = monster.last_hp = monster.stats.hit_points;
     monster.difficulty = std::clamp(difficulty, 0, 2);
     // Its MonProp row; spawn_monsters takes it again on the unit seed. Here
@@ -3077,8 +3084,13 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
     monster.mods = mods;
     monster.super = super;
     monster.name_seed = name_seed;
-    monster.stats.hit_points += monster.stats.hit_points * boss.hp_pct / 100;
-    monster.stats.hit_points = std::max(monster.stats.hit_points + monster.stats.hit_points * boss.life_after_pct / 100, 1);
+    // FUN_005a0d20 scales max life in 256ths, first for hpmultiply and then for the champion kind.
+    int life = monster.stats.hit_points * 256;
+    life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.hp_pct, 100)));
+    life = int(std::uint32_t(life) + std::uint32_t(d2d::rules::mul_div(life, boss.life_after_pct, 100)));
+    monster.set_life_fine(life);
+    monster.stats.hit_points = monster.hit_points;
+    monster.max_life_frac = monster.life_frac;
     monster.stats.armor_class += monster.stats.armor_class * boss.defense_pct / 100;
     if (boss.phys_resist >= 0) monster.boss_res[0] = boss.phys_resist - type_info.diff[std::size_t(std::clamp(difficulty, 0, 2))].res[0];
     monster.stats.exp *= boss.exp_mult;
@@ -3112,7 +3124,6 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
         monster.aura = aura.skill; monster.aura_lvl = aura.level;
     }
     if (super == 6) { monster.half_freeze = true; monster.special = 0xd; }   // FUN_005a49b0 case 6, the Countess: FUN_00639db0(0x76) (state 118), FUN_005b0e00(0xd)
-    monster.hit_points = monster.stats.hit_points;
     monster.last_hp = monster.hit_points;
     if (super >= 0 && std::size_t(super) < game_data.superuniques.size()) monster.npc.name = game_data.superuniques[std::size_t(super)].name;
     else if (kind == d2d::rules::Boss::unique) monster.npc.name = unique_name(game_data, name_seed);
@@ -3154,7 +3165,7 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
     // MonStats2's mGH; a stunned one (state 0x15) takes it without the roll (0057d0b9).
     else if (now_ms < monster.stun_until
              || (game_data.monsters.types[std::size_t(monster.type)].can_get_hit
-                 && d2d::rules::get_hit(std::int64_t(monster.stats.hit_points) << 8, blow_fine, hit_class, marked, monster.seed)))
+                 && d2d::rules::get_hit(monster.max_life_fine(), blow_fine, hit_class, marked, monster.seed)))
         set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
 }
@@ -3162,11 +3173,12 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
 void heal(Monster& monster, int points) {
     if (points <= 0 || !monster.alive()) return;
     const int healed = monster.hit_points + points;
-    if (healed > monster.stats.hit_points) { monster.hit_points = monster.stats.hit_points; monster.life_frac = 0; }
-    else monster.hit_points = healed;
+    monster.hit_points = std::min(healed, monster.stats.hit_points);
+    if (healed > monster.stats.hit_points) monster.life_frac = monster.max_life_frac;
+    else if (healed == monster.stats.hit_points) monster.life_frac = std::max(monster.life_frac, monster.max_life_frac);
 }
 
-bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd) {
+bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd, bool* blocked) {
     auto& path = unit.path;
     auto& x = unit.x;
     auto& y = unit.y;
@@ -3177,7 +3189,13 @@ bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& c
         if (dist > 0.05f) dir = direction16(dx, dy);
         if (dist <= step) { x = target_x; y = target_y; step -= dist; path.erase(path.begin()); continue; }
         const float next_x = x + dx / dist * step, next_y = y + dy / dist * step;
-        if (level.unit_blocked(next_x, next_y, unit.shape) || crowd.at(next_x, next_y, &unit)) { path.clear(); break; }
+        if (level.unit_blocked(next_x, next_y, unit.shape) || crowd.at(next_x, next_y, &unit)) {
+            // FUN_00650150: a blocked subtile ends the path on a subtile's centre, the one it's on here.
+            x = (std::floor(x * 5) + 0.5f) / 5; y = (std::floor(y * 5) + 0.5f) / 5;
+            path.clear();
+            if (blocked) *blocked = true;
+            break;
+        }
         x = next_x; y = next_y;
         break;
     }

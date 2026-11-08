@@ -9,11 +9,13 @@
 #include <skills.hpp>
 
 #include <cassert>
+#include <cstdio>
+#include <exception>
 #include <vector>
 
 using namespace d2d::game;
 
-int main() {
+int main() try {
     GameData game_data;
     auto& row = game_data.missiles["bolt"];
     row.name = "bolt"; row.min = 40 << 8; row.max = 50 << 8; row.range = 10;
@@ -28,4 +30,7 @@ int main() {
     assert(missiles[1].src.a2_min == 6 && missiles[1].src.a2_max == 6);   // 3 + a point a level past 1; the max no lower
     assert(missiles[1].skill == 7);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_carried_missile: %s\n", error.what());
+    return 1;
 }

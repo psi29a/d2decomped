@@ -33,8 +33,18 @@ Ranked by Seen, then by how much play it touches.
 | 11 | Charsi's Imbue: game.exe's one-slot item panel and its button, not d2d's pick | build | yes | act1-end.md "Imbue", town/ `imbue_with` |
 | 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. `ponytail: one player` in quests.hpp |
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
-| 15 | A town portal opens 0.6 cells south of its caster, not at game.exe's nearest free spot (collision 0x3e01, size 3) | exact | hardly | deviations.md approximation 8 |
 | 37 | The get-hit oracles `hit_rule.py`, `hit_absorb.py` and `hit_render.py` were cited but never committed: get-hit, absorb and get-hit frames are cited, not re-checkable | trace | no | combat.md, combat.hpp `get_hit` / `absorb_blows`, `test_combat --get-hit*` |
+| 39 | A walk to an NPC ends at the server's reach (under 7, no line test), not the client's melee range with a clear line (FUN_00480c80 → FUN_00622c40) | exact | yes | collision.md "How near the client walks"; world/tick.cpp `in_reach` |
+| 40 | One click on the ground re-plans after a short path while it moves; game.exe's walk to a spot ends there | exact | maybe | collision.md "A walk to a spot just ends"; world/tick.cpp "Short of the target with a step made" |
+| 41 | `follow_path` tests the end of a step short of its next point, its own subtile too, and not a point it reaches; game.exe tests only a new subtile and every one crossed (FUN_00650150 from LAB_006501c0), so with a blocker come onto its footprint d2d's unit can't make a short step inside its subtile and game.exe's can | exact | hardly | collision.md "A walk's stop"; ai.cpp `follow_path` |
+| 47 | A walk to a warp has no two-walk limit (FUN_00548a50, FUN_00580c20): it re-plans while it steps | exact | hardly | collision.md "The server's pending interact"; world/tick.cpp, world/travel.cpp `use_warp` |
+| 48 | `use_warp` takes a warp mid-walk at reach; a single click in game.exe tests when the walk ends (LAB_00580e73), up to 4 subtiles later | exact | hardly | collision.md "The server's pending interact"; world/travel.cpp `use_warp` |
+| 49 | A held button over a warp forgets it after a stop; game.exe clicks again after a stop (LAB_00461fb7; FUN_00462930 stops a held frame while it walks), and refuses warp clicks inside that time | exact | hardly | collision.md "The server's pending interact"; world/commands.cpp `walk_to` |
+| 50 | A held button re-aims each tick, and a joined game sends C->S 0x01 / 0x03 each drawn frame the aim moves to a new subtile (`NetGame::send` drops a repeat within 200 ms, as FUN_00478350); game.exe's walking player sends every 7 client frames, 280 ms (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; town/input.cpp, netgame.cpp `move_to` |
+| 51 | A click nearer than 3 subtiles (held 4, a run 5) walks only that far; game.exe's spot goes out to that distance (FUN_004623c0) | exact | hardly | collision.md "What a held frame sends"; world/commands.cpp `walk_to` |
+| 52 | A skill with AttackNoMana refused for its weapon (Jab with no spear, Smite with no shield, Bash with a bow): game.exe's client check swings Attack instead, silently (FUN_004610c0, LAB_00461101); d2d voices impossible and doesn't swing. Which click paths reach FUN_004610c0 rather than FUN_00467880 (status 0 only) is the open part | check | maybe | skills.md "Can the skill go now"; world/commands.cpp and town/net.cpp `skill_refused` |
+| 53 | Startmana isn't read: game.exe's client won't start Inferno below 6 mana unless it's already burning (FUN_006440f0: Skills +0x184 x 256, state 0xc); d2d starts it on its 0.56 mana price | exact | maybe | skills.md "Can the skill go now" step 7; `cost_of` in `Fight::cast`, `Fight::cast_missile`, `start_swing`; gamedata_load.cpp skills |
+| 54 | No skill delay: game.exe puts a player in state skilldelay (0x79) for the skill's `delay` frames and refuses every skill with a delay meanwhile (FUN_0056f7f0 → FUN_0056ef90, FUN_006478f0: status 8; the client's own up to 12 frames, FUN_004c6680). d2d casts Meteor, Blizzard, Fire Wall, Hydra, Frozen Orb, Fist of the Heavens, Valkyrie, Poison / Plague Javelin and Immolation Arrow back to back | build | yes | skills.md "Can the skill go now", paragraph "Skill delay"; `skill_refused`, Fight casts |
 
 ## Sounds
 
@@ -77,10 +87,13 @@ Known differences in the ones it draws, and what's left to check:
 | 28 | A joined monster's act lasts 600 ms, not its animation | exact | maybe | town/net.cpp `net_overlay`; balloon starts and rate now traced (quests.md) |
 | 29 | COF draw effect 6 (the max-component table) draws opaque | build | maybe | cof-draw-order.md "Draw effects", deviations.md approximation 9 |
 | 30 | Palette blends (additive / multiply missiles, blended shadows, rain) done in RGB, not through the PL2 tables | exact | slightly | deviations.md approximation 1 |
-| 31 | Static lights' shadows (type 2) not built | build | maybe | lighting.md, deviations.md approximation 5 |
+| 31 | Static lights' shadows (type 2) are read each frame; game.exe caches them (FUN_004750f0), so a later change to the map doesn't re-shade them | exact | hardly | lighting.md, deviations.md approximation 5 |
 | 32 | Light Quality always high; unit shadows darken once; lit tiles per pixel, not per 32-pixel block | exact | hardly | deviations.md approximations 2–4 |
-| 33 | Act 4's clock: its 15 more a frame and eclipse phases (0x744438) | build | maybe | light.hpp:28 |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
+| 42 | Raised roofs take the level's own light, not the environment's +0xc: Pandemonium Fortress's are 140, game.exe's 128 after a fade from the last act's light | exact | hardly | lighting.md "Drawing with it", Floors and roofs; world_view.cpp roofs; `FUN_004dea70` -> `FUN_004ddef0` |
+| 43 | River of Flame and the Chaos Sanctuary stay at their own light (120, 80) after Diablo's release; game.exe fills them with 160 until the next game (classic: until he dies), so floors, walls and units there are brighter | build | yes | lighting.md "What fills it"; `town/view.cpp` `frame_light`; tools/emu/level_ambient.py |
+| 44 | The ambient's dip to black isn't built: Cloak of Shadows (state 153) and the Cairn Stones opening in Stony Field leave the level lit | build | yes | lighting.md "What fills it"; `FUN_004d87e0`, `FUN_0046ad10`; tools/emu/level_ambient.py |
+| 45 | Rooms over a level's edge take the player's level's ambient, not their own: at least three Act 4 borders differ (140 / 120, 120 / 80, 80 / 40; the listing leaves out River of Flame, 107) | exact | hardly | lighting.md "What fills it"; `FUN_00474610`; `level_ambient.py borders` |
 
 ## Tables
 

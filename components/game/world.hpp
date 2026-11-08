@@ -138,7 +138,8 @@ struct View {
     std::vector<Fire> fires;
     // The player's town portal where they stand (which 0: where it was cast,
     // 1: its twin in town), leading to level `to`.
-    struct Portal { float x = 0, y = 0; int destination = 0; std::uint32_t born = 0; int which = 0; };
+    // closed_ms: an object 189's mode 4 (rules::CainQuest::portal_mode), 0 not due.
+    struct Portal { float x = 0, y = 0; int destination = 0; std::uint32_t born = 0; int which = 0; std::uint32_t closed_ms = 0; };
     std::vector<Portal> portals;
     // The player's corpses where they stand: their look when they fell.
     struct Corpse { float x = 0, y = 0; int dir = 0; GameData::Appearance gfx{}; int which = 0; };
@@ -223,6 +224,14 @@ struct World {
         std::bitset<1024> voice_found;         // levels whose row has come up this game (0x7c78b8)
         std::uint32_t voice_at = 0;            // when the class last spoke
         std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
+        // Talk records (by hc_idx) whose menu greeting has played since the
+        // player was last out of town: FUN_004b66b0 clears the record's +0x15
+        // as it greets, FUN_004b3e10 sets all again as the player leaves town.
+        std::vector<int> greeted;
+        // When the Countess's death (unit event 0x25) held the player's
+        // complete_tower line (FUN_004dcd40, its fifth argument 0): her
+        // treasure's end (0x5c) plays it within 60 s (World::tower_treasure).
+        std::optional<std::uint32_t> tower_line_held;
         std::vector<Event> events;             // for the client, since it last looked
         std::optional<d2d::d2s::Item> held;    // the item in the player's hand (the cursor)
         Store store;                           // the NPC window open (npc < 0: none): its stock
@@ -365,6 +374,13 @@ struct World {
     bool  autoloot_gold = true;            // d2d: gold walked over goes into the purse (deviations.md #5, --toggle autoloot)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     std::map<std::pair<const Level*, int>, std::uint32_t> operated;   // shrines / chests used: when
+    // The fissures' eruptions (object 399, event 8 FUN_00581250): the next
+    // one due, and when the one under way goes ON (event 1, FUN_00581490);
+    // `stopped` once one fell in OP (bugs.md #52). Started as the player
+    // first ticks on its level, from Npc::erupts.
+    struct Fissure { std::uint32_t next_ms = 0, on_ms = 0; bool stopped = false; };
+    std::map<std::pair<const Level*, int>, Fissure> fissures;
+    void fissure_frame(std::uint32_t now_ms);
     struct Door { int mode = 0; std::uint32_t when = 0; };
     std::map<std::pair<const Level*, int>, Door> doors;   // doors used: their mode (0..7), when it changed
     struct Fire { const Level* level; const Npc* npc; float x, y; std::uint32_t born = 0, gone = 0; };
@@ -389,6 +405,13 @@ struct World {
     // A portal's other end is k ^ 1.
     struct Portal { const Level* level = nullptr; float x = 0, y = 0; std::uint32_t born = 0; };
     static constexpr std::size_t kGamePortals = 14, kTemplePortal = 8, kCowPortal = 10, kGibbetPortal = 12;
+    // A slot's objects.txt row: 60 (PP, red) for [2..5] and [8..11]
+    // (FUN_005a9930, FUN_0056d130, FUN_0058af90, FUN_00594140 make object
+    // 60), 100 (SJ) for [6], else 59 (TP, blue).
+    [[nodiscard]] static constexpr int portal_object(std::size_t which) {
+        if (which == 6) return 100;
+        return (which >= 2 && which <= 5) || (which >= 8 && which <= 11) ? 60 : 59;
+    }
     bool cow_portal_opened = false;        // this game's (quest record 0xb's flag, FUN_00544720)
     // a5q2's cages' portals (FUN_005888d0: object 189, as Cain's): the freed
     // prisoners' way out, no twin, not selectable.
@@ -770,9 +793,16 @@ struct World {
     // (merc, pets) comes along; the automap and monsters are the new level's.
     // Close (FUN_00548b00 case 5): warp_close; a click further off walks
     // toward its tile unit (drlg.md "Taking a warp").
-    // ponytail: a click picks the warp within 2 cells of its cell, not by
-    // LvlWarp's Select box (the client's click target).
     void use_warp();
+    // A click at (x, y) cells is on the warp (FUN_00466870 case 5 ->
+    // FUN_00463ee0): its world pixel within LvlWarp's Select box from the
+    // tile unit's subtile ((x - y) * 16, (x + y) * 8, FUN_00643260), edges in.
+    [[nodiscard]] static bool warp_clicked(const Level::Warp& warp, float x, float y) {
+        const int unit_x = int(std::floor(warp.unit_x * 5)), unit_y = int(std::floor(warp.unit_y * 5));
+        const float pixel_x = (x - y) * 80 - float((unit_x - unit_y) * 16), pixel_y = (x + y) * 40 - float((unit_x + unit_y) * 8);
+        const auto [select_x, select_y, select_dx, select_dy] = warp.select;
+        return pixel_x >= float(select_x) && pixel_x <= float(select_x + select_dx) && pixel_y >= float(select_y) && pixel_y <= float(select_y + select_dy);
+    }
     // Within reach of the warp's tile unit: rules::unit_distance (the
     // player's size 2, a warp unit's 0) under 5 (FUN_00641530).
     [[nodiscard]] static bool warp_close(const Level::Warp& warp, float x, float y) {
@@ -879,7 +909,8 @@ struct World {
     // no portal (false).
     void open_portal(std::uint32_t now_ms);
     // A town portal pair `pair` closes (FUN_00535430 / FUN_00584870): an end
-    // on the Summit counts out of the Rite (RiteQuest::portal_closed).
+    // on the Summit counts out of the Rite (RiteQuest::portal_closed); a
+    // player walking to either end stops taking it (take_portal -1).
     void close_portal_pair(std::size_t pair);
     bool open_portal_at(float portal_x, float portal_y, std::uint32_t now_ms, int pair = -1);   // -1: the actor's own pair
     // FUN_0056d130's spot (FUN_0064e810, field_spot): from (x, y) cells, a

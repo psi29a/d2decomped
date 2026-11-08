@@ -346,6 +346,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
         missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1; missile_info.return_fire = number("ReturnFire") == 1;
         missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.param4 = number("Param4"); missile_info.hit_par2 = number("sHitPar2"); missile_info.dmg_func = number("pSrvDmgFunc"); missile_info.dmg_par1 = number("dParam1"); missile_info.dmg_par2 = number("dParam2");
+        missile_info.damage_rate = number("DamageRate");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay"); missile_info.last_collide = number("LastCollide") == 1;
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.explosion_name = missiles_table.get(row_index, "ExplosionMissile"); missile_info.always_explode = number("AlwaysExplode") == 1;
@@ -503,7 +504,9 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.id = id;
         skill_row.name = text("skill"); skill_row.cls = text("charclass"); skill_row.desc = text("skilldesc");
         skill_row.srvstfunc = d2d::rules::ServerStartFunction(number("srvstfunc")); skill_row.srvdofunc = d2d::rules::ServerDoFunction(number("srvdofunc"));
-        skill_row.anim = text("anim"); skill_row.range = text("range"); skill_row.itypea1 = text("itypea1"); skill_row.monanim = text("monanim");
+        skill_row.anim = text("anim"); skill_row.range = text("range"); skill_row.itypea1 = text("itypea1");
+        for (std::size_t k = 0; k < 3; ++k) { skill_row.itype_a[k] = text("itypea" + std::to_string(k + 1)); skill_row.itype_b[k] = text("itypeb" + std::to_string(k + 1)); }
+        for (std::size_t k = 0; k < 2; ++k) { skill_row.etype_a[k] = text("etypea" + std::to_string(k + 1)); skill_row.etype_b[k] = text("etypeb" + std::to_string(k + 1)); } skill_row.monanim = text("monanim");
         skill_row.aitype = number("aitype"); skill_row.attack_rank = number("attackrank"); skill_row.aibonus = number("aibonus"); skill_row.delay = calc("delay"); skill_row.progressive = text("progressive") == "1";
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
@@ -545,7 +548,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (const auto found = skill_tables.names.stats.find(std::string(text("aurastat" + std::to_string(i + 1)))); found != skill_tables.names.stats.end())
                 skill_row.aurastat[std::size_t(i)] = found->second;
         }
-        skill_row.auralen = calc("auralencalc"); skill_row.aurarange = calc("aurarangecalc");
+        skill_row.auralen = calc("auralencalc"); skill_row.aurarange = calc("aurarangecalc"); skill_row.aura_filter = std::uint32_t(number("aurafilter"));
         skill_row.aurastate = text("aurastate"); skill_row.auratarget = text("auratargetstate"); skill_row.prgdam = number("prgdam"); skill_row.seqnum = number("seqnum");
         for (int i = 0; i < 3; ++i) {
             skill_row.prgfunc[std::size_t(i)] = d2d::rules::ServerDoFunction(number("srvprgfunc" + std::to_string(i + 1)));
@@ -699,9 +702,11 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         Level glow_level;
         add(glow_level, 131, 0, 0);                           // the afterglow (InitFn 59, FUN_005bd390): plays mode 1
         if (!glow_level.npcs.empty()) { game_data.afterglow = std::move(glow_level.npcs[0]); game_data.afterglow.mode = "OP"; }
-        Level portal_level;
-        add(portal_level, 59, 0, 0);                          // the town portal
-        if (!portal_level.npcs.empty()) game_data.town_portal = std::move(portal_level.npcs[0]);
+        // Each look on its own: a row missing from objects.txt loses only that one.
+        const auto portal = [&](int oid, Npc& look) { Level one; add(one, oid, 0, 0); if (!one.npcs.empty()) look = std::move(one.npcs[0]); };
+        portal(59, game_data.town_portal);                    // the town portal
+        portal(60, game_data.red_portal);                     // the permanent (red) one
+        portal(189, game_data.cain_portal);                   // Cain's
     }
     for (const auto& object : game_data.town.ds1.objects())
         if (object.type == d2d::rules::unit_type::kObject && object.id >= 0 && object.id < 150) add(game_data.town, kObjPreset[0][std::size_t(object.id)], object.x, object.y);   // act 1
@@ -1613,6 +1618,8 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                  per("StatPerLevel"), per("ToHitFactor"), per("BlockFactor"), per("ManaRegen") };
         auto& start = game_data.class_start[class_index];
         start = { per("str"), per("dex"), per("int"), per("vit"), per("stamina"), per("hpadd"), {}, std::string(charstats.get(class_index, "StartSkill")) };
+        for (int i = 1; i <= 10; ++i)
+            if (std::string name(charstats.get(class_index, "Skill " + std::to_string(i))); !name.empty()) start.skills.push_back(std::move(name));
         for (int i = 1; i <= 10; ++i)
             if (const std::string code(charstats.get(class_index, "item" + std::to_string(i))); !code.empty() && code != "0")
                 start.items.push_back({ code, std::string(charstats.get(class_index, "item" + std::to_string(i) + "loc")),

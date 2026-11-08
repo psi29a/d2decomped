@@ -261,7 +261,13 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
                         && d2d::rules::can_wear(game_data->rules, *item_it, base_slot, worn_by, required_level(*game_data, *item_it, worn_by.cls));
             if (fits && (base_slot == body::kRightArm || base_slot == body::kLeftArm))
                 if (const auto paired = worn_in(d2d::rules::other_side(to_slot)); paired != actor->character.items.end()) fits = d2d::rules::hands_ok(game_data->rules, *item_it, *paired, worn_by);
-            if (fits) { item_it->slot = to_slot; actor->character.items.push_back(std::move(*item_it)); item_it = corpse.items.erase(item_it); continue; }
+            if (fits) {
+                item_it->slot = to_slot;
+                actor->character.items.push_back(std::move(*item_it));
+                d2d::rules::wield_enters(game_data->rules, actor->character.items, actor->character.items.back());   // FUN_00562f30 -> FUN_0063d1d0
+                item_it = corpse.items.erase(item_it);
+                continue;
+            }
             std::optional<Item> held_item = *item_it;
             held_item->location = d2d::d2s::item_location::kStored;
             std::vector<const Item*> inv;
@@ -271,6 +277,7 @@ auto World::take_corpse_items(std::size_t corpse_index, std::uint32_t now_ms) ->
                 && d2d::rules::put_in_grid(game_data->rules, actor->character.items, held_item, d2d::d2s::item_panel::kInventory, layout.cols, layout.rows, column, row)) { item_it = corpse.items.erase(item_it); continue; }
             ++item_it;
         }
+        settle_requirements(*game_data, actor->character);   // FUN_00562f30 -> FUN_0055dbc0
         if (corpse.items.empty()) actor->corpses.erase(actor->corpses.begin() + std::ptrdiff_t(corpse_index));
         cues.cue("item_pickup", now_ms, actor->player.x, actor->player.y);
     }
@@ -282,8 +289,6 @@ auto World::read_portal(std::vector<d2d::d2s::Item>::iterator scroll, std::uint3
         if (in_town(level) || (level && level->id == d2d::rules::level_ids::kUberTristram) || fight.dead() || fight.uninterruptable() || actor->held) return;
         const bool book = scroll->code == "tbk";
         if (book && scroll->quantity <= 0) return;
-        // ponytail: a click on the old portal still pending (take_portal) is kept. FUN_00535430 only unlinks the pair and
-        // writes nothing to the player; the walk to a clicked portal is the client's, which the oracle doesn't have.
         close_portal_pair(std::size_t(actor->portal_pair));   // FUN_00535430, before the new one
         if (!open_portal_at(actor->player.x, actor->player.y, now_ms)) return;
         if (level->id == d2d::rules::RiteQuest::kSummit && rite.portal_opened()) rite_put_back(now_ms);   // FUN_0058cf00
@@ -297,6 +302,9 @@ auto World::open_portal(std::uint32_t now_ms) -> void { open_portal_at(actor->pl
 auto World::close_portal_pair(std::size_t pair) -> void {
         for (const std::size_t end : { pair, pair + 1 })
             if (portal[end].level && portal[end].level->id == d2d::rules::RiteQuest::kSummit) rite.portal_closed();
+        // Both ends are freed (FUN_00555600): a walk queued to either has lost its target (LAB_00481697).
+        for (const auto& player : players)
+            if (player->take_portal == int(pair) || player->take_portal == int(pair + 1)) player->take_portal = -1;
         portal[pair] = portal[pair + 1] = {};
     }
 

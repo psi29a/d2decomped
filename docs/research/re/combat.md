@@ -124,9 +124,11 @@ client game frame in FUN_0044c790: 75 frames, 3 s) is skipped.
 Message 0x15 is the client's own: FUN_004610c0 asks FUN_004d9fc0 →
 FUN_00647960 whether the skill can go; reason 1 (short of mana:
 FUN_00647540's cost `(mana + lvlmana × (lvl − 1)) << manashift` against
-stat 8, or FUN_006440f0's minmana × 256) voices table 0x711ddc[reason]
+stat 8, or FUN_006440f0's startmana × 256, Skills +0x184) voices table 0x711ddc[reason]
 (0, 0x15, 0x13, 0x13, 0x13): `<class>_needmana_1` (amazon 0xb8d). A skill
-with AttackNoMana (Skills +7 & 0x10) swings Attack instead, silently. The
+with AttackNoMana (Skills +7 & 0x10) on status 1, 2 or 4 (not only mana:
+LAB_00461101) swings Attack instead, silently (skills.md "Can the skill
+go now"; `tools/emu/skill_status.py client`). The
 server (FUN_0056f640) just drops a skill it can't pay for. d2d:
 `Fight::need_mana`.
 d2d: rules::pick_up, Loot::take. ponytail: no step 4; stacks match by
@@ -220,9 +222,24 @@ d2d matches both, and the one-poison-at-a-time rule.
   sums (V run, no shield: 100 fire at 50 % with mdr 10 deals 45);
   `rules::monster_blow` and the shield path both do that now (the fields in
   256ths, one field a type, the total clamped once; `test_combat`).
-  Not covered (U): Cyclone Armor's fractions, the
-  flat's +0x54 / 1024 scale, elements, a missile's
+  Cyclone Armor works on the unresisted 256ths fields the same way (skills.md
+  row 25, `test_cyclone_armor`). Not covered (U): elements, a missile's
   `FUN_005a89a0` roll.
+- **The flat's frame rate.** `FUN_0057c1e0` takes the defender's stat 34
+  (normal_damage_reduction) and 35 (magic_damage_reduction) `<< 8`, and
+  when the record's +0x54 is above 0 scales each by it / 1024
+  (`FUN_00483360(flat << 8, +0x54, 0x400)`, 0x57c26a / 0x57c291) before
+  `FUN_0057bf80` takes them off. +0x54 is a missile's: its maker
+  (`FUN_0059fa30`) puts Missiles.txt DamageRate (record +0x19c) in the
+  missile's stat 327 damage_framerate, and its hit on a unit
+  (`FUN_005ad730`) copies that stat into the record (`param_4[0x15]`)
+  before `FUN_0057c6c0`. DamageRate is set only on the burners (fire
+  walls, Inferno and the other per-frame flames: 41, 82, 205), so their
+  per-frame damage loses DR / MDR x rate / 1024, not the whole flat; any
+  other hit's +0x54 is 0 and takes the flat whole. d2d:
+  `rules::frame_rate_flat` on a monster burner's hit (srv_do 5, the MDR
+  first, then the resistance); V: `tools/emu/frame_rate_flat.py`, 2000
+  records frozen in `tests/frame_rate_flat_cases.inc` (`test_frame_rate_flat`).
 - **The pair percent** (`FUN_0057c060`, EAX the hit context: +4 ?, +8
   attacker, +0xc defender; 100 when either is missing or they are one).
   On a player: 17 (0x11) from a player, a hireling (`FUN_0063ee90`: classes
@@ -399,7 +416,9 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   poison resist only the per-tick damage. `FUN_0057be00`: stat − pierce;
   a player adds the difficulty penalty to all but physical / magic, caps
   at 75 + the max stat (≤ 95; 75 with none, so PLR's 75), −100 the least;
-  monsters uncapped.
+  monsters use the same −100 floor, including physical and magic, with no
+  upper cap before the immunity check. `tools/emu/sk_resist.py` compares
+  the effective resistance and the magic missile's damage with 1.14d.
 - **Applied** (`FUN_0057c6c0`): chill `FUN_0057af80` ([0xc]), freeze
   `FUN_0057b230` ([0xd]), poison `FUN_0057ac50` ([10], [0xb]).
   - Chill: state 11, −50 on stats 67 velocitypercent, 68 attackrate, 69
@@ -415,14 +434,29 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   stat 67 (100; running run × 100 / walk), at least 25, on the walk
   velocity and on the walk's animation (RN 0x65, WL / TW 0xd5, char-select.md
   "Unit animation timing"); attack % = effective IAS + stat 68, 15..175 (attack_ticks'
-  eias, chill as −50 SIAS). A monster (0x623f50 on): its cast mode (SC, 7:
+  eias, chill as −50 SIAS). Only stat 93 (item_fasterattackrate, by the
+  table 0x6e8e24's row: `FUN_00621740`) goes through 120 v / (120 + v);
+  stat 68 (attackrate: a weapon's speed as its own stat 68, the auras' and
+  skills' SIAS, chill's −50) is added as it is (0x6241e7..). So an aura's
+  attackrate (Fanaticism) is SIAS, not IAS (d2d: `Fighter::sias`; V:
+  `tools/emu/player_attack_rate.py`, `test_player_attack_rate`). A monster (0x623f50 on): its cast mode (SC, 7:
   `FUN_006216e0`) runs at min(100 + effective FCR, 175) % of its AnimData
   speed, stat 68 / 69 not read; an attack mode (`FUN_00621580`: A1 / A2,
-  and S1..S4 / SQ for one holding a weapon) at effective IAS + stat 68
+  and S1..S4 / SQ while the unit's current skill has UseAttackRate) at effective IAS + stat 68
   (attackrate, 100 base), clamped 15..175; a moving mode (`FUN_006214a0`)
   at stat 67 + effective FRW, at least 25; any other (not GH / DD, which
   have their own) at stat 69 (other_animrate) clamped 15..175. The speed ×
   pct / 100 is at least 1 when not 0 and at most 0x7fff.
+  `FUN_00621580` (ECX mode, EDX unit type, stack unit, class): a monster's
+  row is 0x6e8b90 + mode x 0x14 (class < 0x19a, else 0x6e8cd0, the same
+  for these columns). +0xc set (A1, A2): an attack mode. +8 set (S1..S4,
+  SQ): an attack mode when the unit's current skill (`FUN_00620250` ->
+  `FUN_006439a0`, unit skill list +0x10; its id `FUN_00643ce0`) has record
+  byte +6 & 8 (`DAT_006ce274`): flags bit 0x13, which the Skills.txt loader
+  (0x6169d5: {"UseAttackRate", .., 0x13}) sets from UseAttackRate. 45
+  non-class rows have it, among them Fire Hit, MonFrenzy,
+  BloodLordFrenzy, Teleport 2, Cry Help, Overseer Whip, Suck Blood, the
+  Baal / Imp teleports, Vine Attack and the druid auras' S1 / SQ casts.
 - Ported: `chill_length` / `monster_blow` (combat.hpp), `Fight::land`
   (monsters), `Fight::chill_rate`; the merc and the chill's 0x6b roll aren't.
 

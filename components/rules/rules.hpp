@@ -699,6 +699,7 @@ inline bool indestructible(const Tables& tables, const d2d::d2s::Item& item) {
 // A broken item (item flag 0x100, set by FUN_0055f850): its stats and
 // defense are off until a repair (FUN_0055f900) clears it.
 inline bool broken(const d2d::d2s::Item& item) { return (item.flags & 0x100) != 0; }
+inline void wield_enters(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item);
 // A stack a repair refills (FUN_005761c0): stackable (ItemsTxt +0x132,
 // FUN_006289f0) and throwable (FUN_0062ba80) — every stacking weapon.
 inline bool restocks(const Tables& tables, const d2d::d2s::Item& item) {
@@ -927,8 +928,12 @@ inline std::optional<int> store_repair_all(const Tables& tables, const Store& st
     if (cost == 0) return 0;
     if (!pay(stats, cost)) return std::nullopt;
     int mended = 0;
-    for (auto& item : items)
-        if (repair_all_takes(tables, item)) mended += int(mend(tables, item));
+    for (auto& item : items) {
+        if (!repair_all_takes(tables, item)) continue;
+        const bool was_broken = broken(item);
+        mended += int(mend(tables, item));
+        if (was_broken && !broken(item)) wield_enters(tables, items, item);   // FUN_0055f900 -> FUN_0063d1d0
+    }
     return mended;
 }
 
@@ -971,10 +976,11 @@ inline bool store_perm(const Store& store, const std::string& code) {
 //   FUN_0063c2f0, FUN_0063c200), with as many as the gold buys (none:
 //   no_gold, 0x89a); with none carried, it buys one stack of that many,
 //   at most its most;
-// - anything else is bought again while it goes to the belt: the first
-//   that can't goes to the inventory and ends it (FUN_0055e9b0 fails:
-//   param_8 cleared). Gold or room running out after one is bought: gold
-//   says no_gold (0x8d4), room says nothing (done).
+// - anything else is bought again while it goes to the belt (every row,
+//   FUN_0055e9b0): the first copy that can't is dropped unpaid and ends it
+//   (0x577d9c -> LAB_00577e68: the gold put back, nothing said) unless a
+//   body slot takes it; only the first copy goes to the inventory. Gold
+//   running out after one is bought says no_gold (0x8d4).
 // Given a wearer, an item bound for the inventory is first offered to a body
 // slot (0x577d10 .. FUN_00562e00 -> FUN_0055d710 mode 0: auto_equip_slot,
 // `required_level` the item's), unless a weapon is in hand (FUN_0063bef0,
@@ -1061,15 +1067,19 @@ inline Trade store_buy(const Tables& tables, Store& store, int index, std::vecto
             fill = false;
             copy.location = d2d::d2s::item_location::kEquipped; copy.slot = slot; copy.column = 0; copy.row = 0; copy.panel = 0;
         } else {
+            // One already bought: this copy is dropped and nothing paid
+            // (0x577d9c -> LAB_00577e68), so a fill never spills over.
+            if (bought) return Trade::done;
             fill = false;
             std::vector<const Item*> inv;
             for (const auto& carried : items) if (in_inventory(carried)) inv.push_back(&carried);
             const auto [width, height] = item_size(tables, item.code);
             const auto [column, row] = free_spot(tables, inv, 10, 4, width, height, true);
-            if (column < 0) return bought ? Trade::done : Trade::no_room;
+            if (column < 0) return Trade::no_room;
             copy.column = column; copy.row = row; copy.location = d2d::d2s::item_location::kStored; copy.panel = d2d::d2s::item_panel::kInventory;
         }
         items.push_back(std::move(copy));
+        wield_enters(tables, items, items.back());     // a weapon worn (FUN_00562e00 -> FUN_0063d1d0)
         pay(price);
         if (!store_perm(store, item.code)) tab.erase(tab.begin() + index);
     }
@@ -1298,6 +1308,139 @@ inline void stack_onto(const Tables& tables, d2d::d2s::Item& target, std::option
     held.reset();
 }
 
+// The wielded weapon (weapon-switch.md "The wielded weapon"): the
+// inventory keeps one item's id at +0x1c, here that item's `wielded`.
+// Usable (FUN_0062a4e0): not broken (flag 0x100) nor flagged 0x4000.
+inline bool item_usable(const d2d::d2s::Item& item) { return (item.flags & 0x4100u) == 0; }
+inline bool in_a_hand(const d2d::d2s::Item& item) {
+    return item.location == d2d::d2s::item_location::kEquipped
+        && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm);
+}
+inline bool weapon_item(const Tables& tables, const d2d::d2s::Item& item) {
+    const auto* info = info_of(tables, item);
+    return info && type_is(tables, info->type, "weap");
+}
+// The item in hand `slot`, if any (FUN_0063bde0 on cell 4 or 5).
+inline int hand_index(const std::vector<d2d::d2s::Item>& items, int slot) {
+    for (std::size_t i = 0; i < items.size(); ++i)
+        if (items[i].location == d2d::d2s::item_location::kEquipped && items[i].slot == slot) return int(i);
+    return -1;
+}
+// FUN_0063bef0: the left hand's item (cell 5), then the right's (cell 4),
+// if it's a weapon (ItemTypes weap) and the wielded one; usable or not.
+inline const d2d::d2s::Item* wielded_weapon(const Tables& tables, const std::vector<d2d::d2s::Item>& items) {
+    for (const int slot : { d2d::d2s::body_location::kLeftArm, d2d::d2s::body_location::kRightArm })
+        if (const int index = hand_index(items, slot); index >= 0 && items[std::size_t(index)].wielded && weapon_item(tables, items[std::size_t(index)]))
+            return &items[std::size_t(index)];
+    return nullptr;
+}
+inline void wield(std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item) {
+    for (auto& each : items) each.wielded = false;
+    item.wielded = true;
+}
+// FUN_0063d1d0: weapon `item` is now in a hand (one of `items`). Usable, it
+// becomes the wielded one when no weapon is (FUN_0063bef0 says none) or
+// the wielded one is a throwing potion (ItemTypes tpot); unusable, it isn't.
+// Every hand exit clears the leaving weapon's mark (wield_leaves), so the
+// wielded one found here is never `item` itself.
+inline void wield_enters(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item) {
+    if (!in_a_hand(item) || !weapon_item(tables, item)) return;
+    item.wielded = false;
+    if (!item_usable(item)) return;
+    const auto* current = wielded_weapon(tables, items);
+    const auto* info = current ? info_of(tables, *current) : nullptr;
+    if (!current || (info && type_is(tables, info->type, "tpot"))) wield(items, item);
+}
+// FUN_0063d2b0: weapon `leaving`, still in its hand, comes off. It stops
+// being the wielded one, and the other hand's item, if usable (any item,
+// not only a weapon), becomes it.
+inline void wield_leaves(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& leaving) {
+    if (!in_a_hand(leaving) || !weapon_item(tables, leaving)) return;
+    leaving.wielded = false;
+    const int other = d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - leaving.slot;
+    if (const int index = hand_index(items, other); index >= 0 && item_usable(items[std::size_t(index)])) wield(items, items[std::size_t(index)]);
+}
+// A loaded character's hands: each item enters in the save's order
+// (FUN_005335e0 -> FUN_00531210, a worn one through FUN_005606b0 with the
+// requirements skipped, which calls FUN_0063d1d0 for slots 4 / 5); a new
+// character's starting gear the same way, in CharStats order (FUN_00534d60
+// -> FUN_00534bb0 -> FUN_005606b0).
+inline void wield_settle(const Tables& tables, std::vector<d2d::d2s::Item>& items) {
+    for (auto& item : items) item.wielded = false;
+    for (auto& item : items) wield_enters(tables, items, item);
+}
+// FUN_0055db00: worn `item` (one of `items`) meets its requirements:
+// FUN_0062eaf0's (identified, class, strength, dexterity, level), and a
+// quiver (its ItemTypes Quiver, +0xe: FUN_0062e740) only with an item of
+// its bow's type (FUN_00629bb0) in the right hand, or the left when the
+// quiver is the right hand's.
+inline bool requirements_hold(const Tables& tables, const std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& item, const Wearer& wearer,
+                              int required_level = -1) {
+    if (!item.identified || !meets_requirements(tables, item, wearer, required_level)) return false;
+    const auto type = tables.types.find(info_of(tables, item)->type);
+    if (type == tables.types.end() || type->second.quiver.empty()) return true;
+    int other = hand_index(items, d2d::d2s::body_location::kRightArm);
+    if (other >= 0 && &items[std::size_t(other)] == &item) other = hand_index(items, d2d::d2s::body_location::kLeftArm);
+    if (other < 0) return false;
+    const auto& bow = items[std::size_t(other)];
+    const auto* bow_info = info_of(tables, bow);
+    const auto base = tables.item_base.find(bow.code);
+    return (bow_info && type_is(tables, bow_info->type, type->second.quiver))
+        || (base != tables.item_base.end() && type_is(tables, base->second.type2, type->second.quiver));
+}
+// FUN_0055dbc0's worn passes (body slots 1..10; the weapon switch's 11 / 12
+// aren't walked). `wearer()` is the strength, dexterity and level with the
+// gear's stats on, which a flagged item's no longer are; `level(item)` its
+// required level. First, in slot order, an unbroken unflagged item that
+// fails gets flag 0x4000 (its stats off, FUN_0055c730) and FUN_0063d2b0.
+// Then, repeated while one changed (one's stats can let another pass), an
+// unbroken flagged item that meets them loses 0x4000 and gets FUN_0063d1d0
+// (its stats on, FUN_0055c2c0). A flagged item's own stats don't count
+// toward its own requirements; an unflagged one's do.
+// ponytail: pass 1 (the inventory's charms, FUN_0062ff70) isn't ported:
+// every inventory charm counts, its level requirement unchecked.
+template <class WearerOf, class LevelOf>
+inline void settle_requirements(const Tables& tables, std::vector<d2d::d2s::Item>& items, WearerOf&& wearer, LevelOf&& level) {
+    const auto worn = [](const d2d::d2s::Item& item) {
+        return item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst
+            && item.slot <= d2d::d2s::body_location::kLast;
+    };
+    for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot)
+        for (auto& item : items)
+            if (worn(item) && item.slot == slot && item_usable(item) && !requirements_hold(tables, items, item, wearer(), level(item))) {
+                item.flags |= 0x4000u;
+                wield_leaves(tables, items, item);
+            }
+    for (bool changed = true; changed;) {
+        changed = false;
+        for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot)
+            for (auto& item : items)
+                if (worn(item) && item.slot == slot && !broken(item) && (item.flags & 0x4000u) && requirements_hold(tables, items, item, wearer(), level(item))) {
+                    item.flags &= ~0x4000u;
+                    wield_enters(tables, items, item);
+                    changed = true;
+                }
+    }
+}
+// The item Throw takes (FUN_0056f460; the gate FUN_00647640 for skill 2):
+// the first usable weapon in hand (FUN_0063c9b0: the right hand's, then
+// the left's); when that isn't the wielded one (FUN_0063bef0), the other
+// hand's item (FUN_00643d60), whatever it is. -1 none. `wielded` says
+// whether the first was the wielded one.
+inline int throw_hand(const Tables& tables, const std::vector<d2d::d2s::Item>& items, bool* wielded = nullptr) {
+    if (wielded) *wielded = false;
+    for (const int slot : { d2d::d2s::body_location::kRightArm, d2d::d2s::body_location::kLeftArm }) {
+        const int index = hand_index(items, slot);
+        if (index < 0 || !item_usable(items[std::size_t(index)]) || !weapon_item(tables, items[std::size_t(index)])) continue;
+        if (&items[std::size_t(index)] == wielded_weapon(tables, items)) {
+            if (wielded) *wielded = true;
+            return index;
+        }
+        return hand_index(items, d2d::d2s::body_location::kRightArm + d2d::d2s::body_location::kLeftArm - slot);
+    }
+    return -1;
+}
+
 // Equip `held` in body slot `slot` (1..10), swapping out what's there; a
 // stack onto its kind in a hand joins it (hand_stack, stack_onto). In
 // the hands, `held` and the other hand's item must go together (FUN_0063dd90
@@ -1332,16 +1475,22 @@ inline bool equip(const Tables& tables, std::vector<d2d::d2s::Item>& items, std:
         const auto [width, height] = item_size(tables, moved.code);
         const auto [column, row] = free_spot(tables, placed, cols, rows, width, height, true);
         if (column < 0) return false;
+        wield_leaves(tables, items, moved);            // FUN_00561220: the other hand's comes off first
         moved.location = d2d::d2s::item_location::kStored; moved.panel = d2d::d2s::item_panel::kInventory;
         moved.column = column; moved.row = row; moved.slot = 0;
+        wield_leaves(tables, items, items[std::size_t(off)]);   // then this hand's, the other hand empty
     } else if (off < 0) {
         off = other_off;                               // code 2: the other hand's to the cursor
+        if (off >= 0) wield_leaves(tables, items, items[std::size_t(off)]);   // FUN_00563d20
+    } else {
+        wield_leaves(tables, items, items[std::size_t(off)]);   // code 5, a swap (FUN_00560f00)
     }
     auto put = std::move(*held);
     held.reset();
     if (off >= 0) { held = std::move(items[std::size_t(off)]); items.erase(items.begin() + off); }
     put.location = d2d::d2s::item_location::kEquipped; put.slot = slot; put.panel = 0; put.column = 0; put.row = 0;
     items.push_back(std::move(put));
+    wield_enters(tables, items, items.back());         // FUN_0063d1d0, once it's in
     return true;
 }
 
@@ -2789,6 +2938,7 @@ inline Pickup pick_up(const Tables& tables, std::vector<d2d::d2s::Item>& items, 
     if (const int slot = wearer ? auto_equip_slot(tables, items, item, *wearer, required_level) : -1; slot > 0) {
         item.location = d2d::d2s::item_location::kEquipped; item.slot = slot; item.panel = 0; item.column = 0; item.row = 0;
         items.push_back(std::move(item));
+        wield_enters(tables, items, items.back());     // FUN_00562e00 -> FUN_0063d1d0
         return Pickup::kGone;
     }
     if (const int slot = belt_box(tables, items, item, boxes); slot >= 0) {

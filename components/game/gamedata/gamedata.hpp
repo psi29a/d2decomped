@@ -136,6 +136,7 @@ struct Npc {
     bool locked = false;                 // a locked chest: takes a key
     bool sparkle = false;                // a sparkling chest (InitFn 57: unit +0x78 & 1)
     bool env_effect = false;             // objects.txt EnvEffect (+0x139): NU by day, OP at dusk, night and dawn (the client's FUN_004bc5e0)
+    int erupts = -1;                     // a fissure's first eruption (event 8), frames from its init (InitFn 58); -1 not one
     // An object's unit seed (+0x20, FUN_00555230; a chest's InitFn re-seeds
     // it, roll_chest): what its rounds (FUN_00585b90) roll on. Its room
     // (Level::rooms index, -1 none): a stand rolls on the room's seed.
@@ -205,7 +206,14 @@ struct Level {
     // flags 2 / 0x40 / 0x80 as FUN_0064c790 stamps them: 0x10, 0x01, 0x04).
     // `stamp`: what collision took of it (set_level_tiles): the tile as it
     // was when the room it lies in came up, none if that was before its own.
-    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; const d2d::dt1::Tile* stamp = nullptr; };
+    // no_fade: the tile's flag 4 (never_fades): a wall in front stays opaque.
+    struct Pick { std::uint8_t layer, orient; const d2d::dt1::Tile* tile; bool hidden = false; std::uint8_t cell = 0; const d2d::dt1::Tile* stamp = nullptr; bool no_fade = false; };
+    // A tile's flag 4 as the DRLG makes it (FUN_0066dc50): the DS1 word's bit 3
+    // or bit 26, or the DT1 tile's material flags bit 0; FUN_004dd180 then
+    // never fades it (walls.md).
+    [[nodiscard]] static constexpr bool never_fades(std::uint32_t word, std::uint16_t material_flags) {
+        return (word & 0x8u) != 0 || (word & 0x4000000u) != 0 || (material_flags & 1u) != 0;
+    }
     std::vector<std::vector<Pick>> picks;               // ds1 width x height, or empty
     // What the screen shows: game.exe's client brings each batch of rooms up
     // in the order they were made (the near list and the ring past it, oldest
@@ -345,7 +353,9 @@ struct Level {
     // then walks ExitWalk on from there (FUN_005550b0).
     // pair: its Levels.txt slot's rank among the row's slots to the same
     // level (FUN_0066c220 links the k-th one to the other side's k-th back).
-    struct Warp { float x, y; int destination; float exit_x, exit_y, unit_x, unit_y; int slot = 0, pair = 0; };
+    // select: LvlWarp's SelectX / SelectY / SelectDX / SelectDY, the client's
+    // click box in world pixels from the tile unit (World::warp_clicked).
+    struct Warp { float x, y; int destination; float exit_x, exit_y, unit_x, unit_y; int slot = 0, pair = 0; std::array<int, 4> select{}; };
     std::vector<Warp> warps;
     // Its rooms' preset units (drlg level_room_tiles, proven against
     // game.exe): level-relative subtiles; load_npcs / load_monsters make
@@ -611,12 +621,15 @@ struct GameData {
     InvLayout merc_layout{};                          // inventory.txt "Hireling2": the Hireling screen's body slots
     std::array<d2d::rules::ClassGains, 7> class_gains{};   // by d2s class (CharStats)
     // A new character's start (CharStats.txt): str, dex, int (energy), vit,
-    // stamina, hpadd; item1..10 with their loc and count; StartSkill.
+    // stamina, hpadd; item1..10 with their loc and count; StartSkill;
+    // Skill 1..10 (record +0xae), the general skills every one of the class
+    // has at level 1 (FUN_00647ee0), by Skills.txt name.
     struct ClassStart {
         int str = 0, dex = 0, ene = 0, vit = 0, stamina = 0, hpadd = 0;
         struct Item { std::string code, loc; int count = 0; };
         std::vector<Item> items;
         std::string start_skill;
+        std::vector<std::string> skills;
     };
     std::array<ClassStart, 7> class_start{};
     // D2's three-tier string tables. Lookup order per D2's own convention:
@@ -755,6 +768,7 @@ struct GameData {
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
                          int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, param4 = 0, hit_par2 = 0;
+                         int damage_rate = 0;   // DamageRate (+0x19c, stat 327 damage_framerate on the missile): a burner's flat DR / MDR x it / 1024 (rules::frame_rate_flat)
                          int dmg_func = 0, dmg_par1 = 0, dmg_par2 = 0;   // pSrvDmgFunc (5: Blessed Hammer's bonus, FUN_005ad2f0), dParam1 (undead %) and dParam2 (demon %)
                          bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames
                          bool last_collide = false;                   // LastCollide (+4 bit 0): it passes the unit it last struck by
@@ -771,6 +785,8 @@ struct GameData {
     std::array<Npc, 2> trap_fires;                         // objects 162 / 160, ON (a chest's traps 5 and 7)
     Npc afterglow;                                         // object 131 (9b), OP: the "vile dog afterglow" the Dark Wanderer leaves
     Npc town_portal;                                       // object 59 (TP): a town portal's look and light
+    Npc red_portal;                                        // object 60 (PP): a permanent (red) portal's (World::portal_object)
+    Npc cain_portal;                                       // object 189 (tP: TP's files): Tristram Cain's and the cages' portals
     std::unordered_map<std::string, std::string> thrown;   // a throwing weapon's code: its Missiles.txt row (weapons.txt missiletype)
     std::unordered_map<std::string, std::string> gem_letters;   // gems.txt letter by code (the runes'; gems.txt +0x20)
     std::vector<std::size_t> mon_bin;                  // game.exe's MonStats unit ids -> rows (no Expansion row)

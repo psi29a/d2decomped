@@ -455,7 +455,7 @@ returned B3 chunks.
 - **Client timeouts** (`FUN_0044eec0`, only for remote types):
   - disconnect if the socket closes (`FUN_0052a640` = 0);
   - disconnect after 300000 ms from start when `DAT_007a0624` is set;
-  - disconnect after 30000 ms from start (`DAT_007a05f8`, written only in `FUN_0044e200`) while `DAT_007a061c`, `DAT_007a0620` and `DAT_007a0624` are all 0;
+  - disconnect after 30000 ms from start (`DAT_007a05f8`, written only in `FUN_0044e200`) while `DAT_007a061c`, `DAT_007a0620` and `DAT_007a0624` are all 0 (S→C 0x04 sets `DAT_007a061c`, LAB_0045c9a3, so the game coming up ends this);
   - for types 7 and 9, disconnect as soon as `DAT_007a0618` = 0 (a `B0` or a failed connect).
 - A game with nobody in it closes after 300000 ms (`FUN_0052fd90`).
 
@@ -604,9 +604,10 @@ That is roughly 2–3 days on top of the server work in multiplayer.md.
 - Is there a difficulty or act access check (Nightmare or Hell for a character that hasn't unlocked it)?
   `FUN_0056a090` reads bit 0x80 of save[0xa8 + difficulty] and doesn't refuse; `FUN_0056b180`'s
   sub-parsers were not read.
-- The 30 s client timeout in `FUN_0044eec0`: `DAT_007a05f8` is written only once. It is
-  unclear which of `DAT_007a0620` (from `DAT_007a0460`) or `DAT_007a061c` keeps a long game
-  alive. Watch it under the emulator or in a live session before copying the behavior.
+- The 30 s client timeout in `FUN_0044eec0`: `DAT_007a05f8` is written only once, and
+  `DAT_007a061c` is what keeps a long game alive: S→C 0x04's handler sets it (collision.md,
+  "What keeps a walk to a unit going"). `DAT_007a0620` is the leave flag (quests-act4.md).
+  Read from the code, not watched live.
 - What +0x13, +0x25, +0x2b and +0x2c in 0x67 mean (config +0x20d, +0x207, +0x20e, +0x20f), and what the u32 at +1 of 0x68 means.
 - The game events that trigger an in-game save (callers of `FUN_00532400`).
 - Where B2 is sent, and whether TCP ever sends it.

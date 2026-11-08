@@ -407,6 +407,9 @@ struct Skill {
     ServerDoFunction srvdofunc = ServerDoFunction::kNone;         // srvdofunc: the server do function
     std::string anim, range;               // anim (A1, SC, KK, ...), range (h2h, rng, both, none)
     std::string itypea1;                   // +0x18: the first weapon type it takes ("" none)
+    // The weapon-type gate's two sets (FUN_00643f80): itypea1..3 / etypea1..2 (taken / excluded), itypeb1..3 / etypeb1..2.
+    std::array<std::string, 3> itype_a, itype_b;
+    std::array<std::string, 2> etype_a, etype_b;
     std::string monanim;                   // +0x11: a monster's mode for it (FUN_00647110; xx: SQ)
     int aitype = 0, aibonus = 0;           // +0x230 / +0x232: how the Shadows' AIs score it (pet-ai.md)
     int attack_rank = 0;                   // attackrank (+0x18e): Diablo's target score weighs it (FUN_005e8530)
@@ -459,6 +462,7 @@ struct Skill {
     std::array<Calc, 6> aura_calc;         // aurastatcalc1..6
     std::array<int, 6> aurastat{ -1, -1, -1, -1, -1, -1 };   // aurastat1..6 (ItemStatCost ids)
     Calc auralen, aurarange;               // auralencalc (+0x60, ticks), aurarangecalc (+0x64, subtiles)
+    std::uint32_t aura_filter = 0;         // aurafilter (+0x50): the units an aura takes (aura_filter.hpp)
     std::string aurastate, auratarget;     // aurastate (+0x80), auratargetstate (+0x82): States.txt names
     int prgdam = 0;
     int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit

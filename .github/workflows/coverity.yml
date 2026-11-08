@@ -1,10 +1,9 @@
 name: Coverity Scan
 
 on:
-  # A merged PR updates main, so this also scans every PR merge.
-  push:
-    branches:
-      - main
+  # Twice a day on main (08:00 and 16:00 UTC), not per merge: Scan's build quota is a few a day.
+  schedule:
+    - cron: '0 8,16 * * *'
   workflow_dispatch:
 
 permissions:
@@ -39,13 +38,10 @@ jobs:
         env:
           COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
 
-      # C++23: Coverity 2024.12 doesn't know -std=c++26 and parses it as C++17,
-      # so the C++20 parts of libstdc++ fail and 84 of our files dropped out of
-      # the scan (2026-10-18). Everything of ours builds as C++23.
       # Header checks off: 55 one-#include TUs re-emit headers the real .cpps
       # already cover, and only grow the tarball (470M, near the upload limit).
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_STANDARD=23 -DD2D_CHECK_HEADERS=OFF
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DD2D_CHECK_HEADERS=OFF
 
       # Sentry/Crashpad is ~300 of the ~430 TUs; captured, the tarball hit 545M
       # and scan.coverity.com refused it (413). Built first, cov-build skips it.

@@ -1,32 +1,139 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: iso9660
-// Smoke test for iso9660::Reader. Points at ~/Downloads/Diablo II + LoD/1.
-// INSTALL DISC.ISO when it exists; otherwise prints "SKIP: ..." and returns
-// D2D_TEST_SKIPPED.
-// ponytail: one runnable check that fails loudly if the reader breaks. No
-// framework, no fixtures.
+// Check generated ISO 9660 and Joliet images, plus the install disc if present.
 
 #include <iso9660.hpp>
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <exception>
 #include <filesystem>
+#include <fstream>
+#include <ios>
+#include <random>
+#include <string>
+#include <string_view>
+#include <system_error>
 
 #define CHECK(x) do { if (!(x)) { \
     std::fprintf(stderr, "FAIL: %s (line %d)\n", #x, __LINE__); return 1; } \
 } while (0)
 
-int main() {
-    namespace fs = std::filesystem;
+namespace {
+namespace fs = std::filesystem;
+using namespace std::string_view_literals;
+constexpr std::uint32_t kSector = 2048;
+constexpr std::uint32_t kBlocks = 24;
+constexpr auto kContents = "ISO test payload\n"sv;
+
+struct ScratchDirectory {
+    fs::path path;
+    fs::path image;
+
+    ~ScratchDirectory() {
+        if (path.empty()) return;
+        std::error_code error;
+        if (!image.empty()) fs::remove(image, error);
+        fs::remove(path, error);
+    }
+};
+
+void both_endian(unsigned char* target, std::uint32_t value, std::size_t width) {
+    for (std::size_t i = 0; i < width; ++i) {
+        const auto octet = static_cast<unsigned char>(value >> (8 * i));
+        target[i] = octet;
+        target[2 * width - i - 1] = octet;
+    }
+}
+
+std::size_t record(unsigned char* target, std::uint32_t extent, std::uint32_t size,
+                   bool directory, std::string_view name) {
+    const auto length = 33 + name.size() + (name.size() % 2 == 0 ? 1 : 0);
+    target[0] = static_cast<unsigned char>(length);
+    both_endian(target + 2, extent, 4);
+    both_endian(target + 10, size, 4);
+    target[25] = directory ? 2 : 0;
+    both_endian(target + 28, 1, 2);
+    target[32] = static_cast<unsigned char>(name.size());
+    std::memcpy(target + 33, name.data(), name.size());
+    return length;
+}
+
+int check_generated_image(bool joliet) {
+    std::array<unsigned char, kBlocks * kSector> image{};
+    const auto block = [&](std::size_t sector) { return image.data() + sector * kSector; };
+    const auto descriptor = [&](std::size_t sector, unsigned char type, std::uint32_t root) {
+        auto* desc = block(sector);
+        desc[0] = type;
+        std::memcpy(desc + 1, "CD001", 5);
+        desc[6] = 1;
+        if (type == 255) return;
+        both_endian(desc + 80, kBlocks, 4);
+        both_endian(desc + 128, kSector, 2);
+        record(desc + 156, root, kSector, true, "\0"sv);
+    };
+    const auto directory = [&](std::uint32_t sector, std::uint32_t parent) {
+        auto* cursor = block(sector);
+        cursor += record(cursor, sector, kSector, true, "\0"sv);
+        cursor += record(cursor, parent, kSector, true, "\1"sv);
+        return cursor;
+    };
+    descriptor(16, 1, 19);
+    descriptor(joliet ? 18 : 17, 255, 0);
+    constexpr auto payload_size = static_cast<std::uint32_t>(kContents.size());
+    record(directory(19, 19), 23, payload_size, false, "README.DAT;1"sv);
+    if (joliet) {
+        descriptor(17, 2, 20);
+        std::memcpy(block(17) + 88, "%/E", 3);
+        record(directory(20, 20), 21, kSector, true, "\0" "D\0" "A\0" "T\0" "A"sv);
+        record(directory(21, 20), 23, payload_size, false, "\0\xe9\0.\0D\0A\0T\0;\0" "1"sv);
+    }
+    std::memcpy(block(23), kContents.data(), kContents.size());
+
+    ScratchDirectory scratch;
+    const auto temp = fs::temp_directory_path();
+    std::random_device entropy;
+    for (int attempt = 0; attempt < 16 && scratch.path.empty(); ++attempt) {
+        auto candidate = temp / ("d2d-test-iso-" + std::to_string(entropy()));
+        if (fs::create_directory(candidate)) scratch.path.swap(candidate);
+    }
+    CHECK(!scratch.path.empty());
+    scratch.image = scratch.path / "fixture.iso";
+    {
+        std::ofstream file(scratch.image, std::ios::binary);
+        file.write(reinterpret_cast<const char*>(image.data()), static_cast<std::streamsize>(image.size()));
+        file.close();
+        CHECK(file);
+    }
+    auto reader = iso9660::Reader::open(scratch.image);
+    bool matches = false;
+    if (reader && reader->entries().size() == (joliet ? 2u : 1u)) {
+        const auto& entry = reader->entries().back();
+        const auto bytes = reader->read(entry);
+        matches = (!joliet || (reader->entries().front().directory && reader->entries().front().path == "/DATA"))
+            && entry.path == (joliet ? "/DATA/\xc3\xa9.DAT" : "/README.DAT") && !entry.directory
+            && bytes.size() == kContents.size() && std::memcmp(bytes.data(), kContents.data(), bytes.size()) == 0;
+    }
+    CHECK(matches);
+    return 0;
+}
+
+int check_install_disc() {
     const char* home = std::getenv("HOME");
-    if (!home) { std::puts("SKIP: no HOME"); return D2D_TEST_SKIPPED; }
+    if (!home || !*home) {
+        std::puts("SKIP: HOME unset, install-disc check skipped");
+        return 0;
+    }
 
     const fs::path iso = fs::path(home) / "Downloads"
         / "Diablo II + LoD" / "1. INSTALL DISC.ISO";
     if (!fs::exists(iso)) {
-        std::printf("SKIP: %s not found\n", iso.string().c_str());
-        return D2D_TEST_SKIPPED;
+        std::printf("SKIP: no install disc at %s\n", iso.string().c_str());
+        return 0;
     }
 
     auto reader = iso9660::Reader::open(iso);
@@ -59,4 +166,14 @@ int main() {
     }
     std::puts("test_iso9660: OK (no small file to round-trip, still valid)");
     return 0;
+}
+} // namespace
+
+int main() try {
+    if (check_generated_image(false) != 0 || check_generated_image(true) != 0) return 1;
+    std::puts("test_iso9660: generated ISO 9660 and Joliet fixtures passed");
+    return check_install_disc();
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_iso9660: %s\n", error.what());
+    return 1;
 }

@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <fstream>
 #include <initializer_list>
 #include <sstream>
@@ -26,7 +27,7 @@
 
 using namespace d2d::rules;
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     // `--walk-rates`: the walk / run animation rate at every walk % 0..400,
     // as tools/emu/walk_rates.py prints game.exe's (`mode percent rate`).
     if (argc > 1 && std::string_view(argv[1]) == "--walk-rates") {
@@ -284,6 +285,7 @@ int main(int argc, char** argv) {
 
     // Speed breakpoints: 1.10's attack frames.
     assert(effective_speed(20) == 17 && effective_speed(0) == 0 && effective_speed(30, 150) == 25);
+    assert(effective_speed(-20) == -24 && effective_speed(-120) == -120);   // FUN_00621740 on a negative too (skill_attack_rate.py)
     assert(attack_ticks(16, 256, 0, 0) == 16);                        // no IAS: a frame a tick
     assert(attack_ticks(16, 256, 20, 0) == 14);                       // EIAS 17: ceil(4096 / 299)
     assert(attack_ticks(16, 256, 0, 20) == 21);                       // a slow weapon: ceil(4096 / 204)
@@ -954,4 +956,7 @@ int main(int argc, char** argv) {
         assert(chilled.hit && chilled.chill_ticks == 12);   // 50 less 75 %, no cold point left
     }
     std::puts("ok");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_combat: %s\n", error.what());
+    return 1;
 }

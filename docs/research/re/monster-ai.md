@@ -195,7 +195,7 @@ The path is D2DynamicPath (unit +0x2c):
   - With none: re-path only on the last test.
   - FUN_00650350 is refused when a monster's budget is 0. Otherwise the points reached (+0x24) come off the budget, floor 0.
   - Then it steps one velocity toward points[idx]. It snaps onto the point when within the step (FUN_00650090), so one point a frame.
-  - A blocked subtile crossed (FUN_00650150) ends the path (idx = count). A path with flag 0x10 re-paths instead. FUN_00649d00 doesn't set the flag.
+  - A blocked subtile crossed (FUN_00650150) ends the path (idx = count). A client-side monster's path re-paths instead (flag 0x10 and unit type 1, LAB_00650683): FUN_00649d00 sets the flag from its last argument (LAB_00649ed8), 1 at the client's three calls (LAB_00460c0d, LAB_004aea63, LAB_004cd105), 0 at the server's (LAB_005548cb, LAB_005548f1, LAB_005549aa, LAB_00554ac7, LAB_00554b34, LAB_00554c2d). So a server walk always ends here. The flag also skips FUN_00650350's budget (LAB_00650367).
   - At idx ≥ count after the step, FUN_006507b0 stops: snap to the subtile centre, clear flag 0x20. So the idx ≥ count re-path in FUN_006503f0 doesn't come up from here, and the budget is spent only by a target that moves.
 - **End.** The update sees the stop and calls FUN_005a8030 the same frame. WL and RN think at once. A chase ends at its target, at its path's end (5 steps on, or the clear line's end), when blocked, or when a re-path is refused.
 - `tools/emu/moves.py` runs FUN_00679c80 on random walls and FUN_006503f0 on random paths: 20 000 cases each, all match `rules::toward_path` / `rules::chase_check`. 10 259 paths end short of the dest, and the chase cases split 7 657 stop / 6 175 go on / 6 168 re-path. `--break` (re-path at 4, no step-back stop) gives 196 and 667 mismatches.
@@ -464,7 +464,11 @@ unit's death).
   bloodlust, with `FUN_0045c390`'s roll at least calc1 (65), turns
   (`FUN_005d1e10`): its summon (suicideminion1) in summode (S1) through
   `FUN_00574370`, special AI 15 (`FUN_005e1d30`, the SuicideMinion
-  think), state 0x8e with stat 0x163, sumumod 33. Else Bloodlust
+  think), state 0x8e with stat 0x163, sumumod 33. Only the client reads
+  them: state 0x8e is changeclass (States.txt setfunc 5), whose client
+  set function (`FUN_004d9e60` -> table 0x72a690[5] = `FUN_004d89b0`)
+  reads stat 0x163, the old class, and acts only for 0x21f (baalthrone,
+  set by `FUN_005ef320`); no server code tests state 0x8e. Else Bloodlust
   (`FUN_005d1d70`): state 141 for auralen (250) frames and its aurastats
   (velocity +80, attack rate +80, armor +50, damage +100 %).
 - **Impregnate** (do 133, `FUN_005d2250`; PutridDefiler, S1 at its find):
@@ -629,10 +633,37 @@ MonAI rows (0x73ca18 + ai × 16: search type, init, think, other):
 - UberIzual (`FUN_005f8c80`): Izual's shape (aip by difficulty at MonStats
   +0x56.., +0x18 / +0x1c counters) with three skill slots; not traced
   further yet.
-- The Tristram ubers' death (mod 22, `FUN_005e0070`, via FUN_005a30e0):
+- The Tristram ubers' death (mod 22, `FUN_005e0070`, via the function at 0x5a3250):
   sets game +0x1df0 / +0x1dec / +0x1de8 for 0x2c0 / 0x2c1 / 0x2c5; all three
   set: drops `cm2` (the Hellfire Torch) through `FUN_00559a30(7)`, then a
   `std` (Standard of Heroes) per +0x8c; each four-byte code ends in a space.
+
+### Orphan AI helpers
+
+No rel32 call, jcc or absolute pointer anywhere in the image reaches these
+(tools/emu scan, 2026-11-08; stubs.md). The three in `AiThink4.cpp` /
+`AiBaal.cpp` are kin of live code, likely what the 1.13 uber thinks called.
+
+- `FUN_005df2a0` (ECX game, EDX unit, the target, n): from the unit's
+  subtile, n subtiles toward the target on each axis by the sign of the
+  difference (0 when level), started as move mode 2 (`FUN_005a7e60` /
+  `FUN_005a7c20`), its path flag 1 (`FUN_00649070`).
+- `FUN_005e9750`: an act chooser in the shape of Diablo's (`FUN_005e8810`,
+  above): a pending act (AI control +0x14) wins; no target: on collision
+  bit 0x40 (`FUN_0064d910`) 4 one time in 1000 on the unit seed, else
+  0xb, and 0x10 off it; then 17-act weight tables by reach, the target's
+  hands (skills 0x3b / 0x38, 0x33 over level 3, 0x1b over 7, as
+  `FUN_005fc0c0`), life under 20 %, state 0xb, the merc gap (0x55 / 0x69),
+  level 108 within 0x55 of the kept point.
+- `FUN_005f8010`: a player in the unit's level (`FUN_0061a1b0`), alive
+  (`FUN_005541b0`), within 0x3fc (`ai_distance`), drawn on the unit seed
+  with weights by class (0x23, 0x28, 0x1e, 0x14, 0x19, ...): beside
+  Mephisto's think, uber Mephisto's pick.
+- `FUN_005fc130` (weights, n; EAX a seed record): the weights' sum, one
+  draw of the seed at +0x20 (masked for a power of 2, else modulo), the
+  first index whose running sum passes it; 1 when none does. Beside Baal's
+  chooser (`FUN_005fc630`), which weighs in place.
+
 
 ## Turrets, traps and the rest (traced 2026-10-28)
 

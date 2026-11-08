@@ -150,6 +150,7 @@ RUFF_HARD = ("F", "E9", "B")                # the rest (unchecked subprocess, br
 
 
 def check_python(tree, changed, numbers):
+    """Check Python syntax, run tool tests and report Ruff findings on added lines."""
     scripts = [path for path in changed if path.endswith(".py") and (tree / path).is_file()]
     if not scripts:
         return
@@ -170,6 +171,11 @@ def check_python(tree, changed, numbers):
         return
     run = subprocess.run([*ruff, "check", "--no-cache", "--output-format", "json", "--select", RUFF_RULES, *scripts],
                          cwd=tree, capture_output=True, text=True, check=False)
+    report_ruff_result(tree, scripts, numbers, run)
+
+
+def report_ruff_result(tree, scripts, numbers, run):
+    """Validate Ruff output and report findings that fall on the branch's added lines."""
     if run.returncode not in (0, 1):
         report("FAIL", "ruff", f"exit {run.returncode}: {(run.stderr or run.stdout).strip()[:300]}")
         return
@@ -181,7 +187,7 @@ def check_python(tree, changed, numbers):
         report("FAIL", "ruff", "invalid or inconsistent JSON output: " + (run.stderr or run.stdout).strip()[:300])
         return
     mine = [hit for hit in found
-            if hit["location"]["row"] in numbers.get(os.path.relpath(hit["filename"], tree), set())]
+            if hit["location"]["row"] in numbers.get(Path(os.path.relpath(hit["filename"], tree)).as_posix(), set())]
     def line(hit):
         return f"{os.path.relpath(hit['filename'], tree)}:{hit['location']['row']}: {hit['code'] or 'syntax'} {hit['message']}"
     # a syntax error has no code (null): py-compile above already failed it
@@ -193,6 +199,20 @@ def check_python(tree, changed, numbers):
         report("WARN", "ruff", text)
 
 
+def tool_test_variants(real, linked):
+    """Prepare the ordinary and symlinked temp setups supported by this host."""
+    variants = [("", {})]
+    try:
+        linked.symlink_to(real, target_is_directory=True)
+    except OSError as error:
+        if sys.platform != "win32" or getattr(error, "winerror", None) != 1314:
+            raise
+        report("WARN", "tool-tests", "symlinked TMPDIR skipped: Windows denied symlink creation")
+    else:
+        variants.append((" (symlinked TMPDIR)", {"TMPDIR": str(linked)}))
+    return variants
+
+
 def check_tool_tests(tree):
     """Run tracked tool tests with normal and symlinked temporary directories."""
     tests = tool_tests(tree)
@@ -201,17 +221,17 @@ def check_tool_tests(tree):
         # (#91: abspath against a resolved getcwd() picked every TU on the macOS leg)
         with tempfile.TemporaryDirectory() as real:
             linked = Path(real + "-link")
-            linked.symlink_to(real)
+            variants = tool_test_variants(real, linked)
             try:
                 for test in tests:
-                    for label, extra in (("", {}), (" (symlinked TMPDIR)", {"TMPDIR": str(linked)})):
+                    for label, extra in variants:
                         run = subprocess.run([sys.executable, "-m", "unittest", Path(test).name], cwd=tree / Path(test).parent,
                                              capture_output=True, text=True,
                                              env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", **extra}, check=False)
                         report("FAIL" if run.returncode else "ok", "tool-tests",
                                f"{test}{label}: " + (run.stderr.strip().splitlines() or ["no output"])[-1])
             finally:
-                linked.unlink()
+                linked.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------- C++: CI parity

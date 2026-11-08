@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -13,7 +14,7 @@
 
 namespace fs = std::filesystem;
 
-int main() {
+int main() try {
     const auto dir = fs::temp_directory_path() / "d2d_test_userdir";
     fs::create_directories(dir);
     const auto first = dir / "a.cfg", second = dir / "b.cfg";
@@ -57,4 +58,7 @@ int main() {
 #endif
     std::printf("user dir: %s\nOK\n", user.string().c_str());
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_userdir: %s\n", error.what());
+    return 1;
 }

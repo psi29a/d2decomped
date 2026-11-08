@@ -32,6 +32,18 @@ Bits: 0x01 blocks walking, 0x08 blocks the player. An object's bits
 else 0x400 (on in the modes HasCollision says, off as it opens). An item
 0x200, a warp tile 1. Outside every room reads 0x27.
 
+`FUN_0064ca10` releases a room's `room1` allocation: with a non-null room
+and non-null `room1` at +0x20, it calls the debug allocator free entry
+`FUN_0040b480` with the caller's original ECX, the `room1` pointer, and
+`Collisn.cpp:0x1c1`, then sets `room + 0x20` to null (`game114d.asm`
+0x64ca10..0x64ca47; the file string is at 0x6eb730). A null room or null
+`room1` does nothing; a repeated release sees null and does not free again.
+Verified by `tools/emu/collisn_release.py` against stock 1.14d, with the
+allocator entry captured rather than invoked. d2d has no one-to-one function:
+`components/game/gamedata/gamedata.hpp` stores the whole-level grid in
+`Level::walk`, and `components/game/gamedata/gamedata.cpp` builds it in
+`set_level_tiles`; the vector is released with its owning `Level`.
+
 Units stamp their own (`FUN_00649400`, off with `FUN_00649560`; the mover's
 own lifted while it paths, `FUN_00649970`) by pattern (`FUN_0064ea90`):
 
@@ -162,3 +174,229 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
 - ponytail: FUN_0056d8d0 skips bit 31 for a summon record with flag 8;
   no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
   d2d pet takes 3 / 4.
+
+## A walk's stop
+
+Read from the code; `objdump -d -M intel --start-address=0x64eda0
+--stop-address=0x650910 game.exe` shows the first three paragraphs.
+
+- **The stop.** FUN_00650840 calls FUN_00650660, which calls FUN_00650150
+  (LAB_0065073c). A blocked subtile: FUN_00650150 writes the centre of the
+  last free walked point (LAB_0065025f, `and edi,0xffff0000`, then adding 0x8000) and
+  returns 1, and FUN_00650660 sets idx = count (LAB_0065076c). FUN_00650840
+  puts the unit there (LAB_006508ca), sees idx ≥ count and calls FUN_006507b0
+  (LAB_006508ff), which snaps again (LAB_006507b5), clears flag 0x20 and sets
+  idx and count to 0. No path means the same stop, from the same label.
+- **Steps don't count.** The walk starts at the unit's own position
+  (LAB_0065017c) and no step made earlier decides the snap: path +0x1d4 starts
+  at 0 each call, and only its cap of 10 subtiles a call (LAB_00650236) leaves
+  without a snap. Blocked on the first step, the unit goes to the centre of
+  the subtile it stands on. A velocity of 0 snaps too (LAB_006506a8).
+- **Wall or unit, the same.** A walker (no path flag 0x40000) tests a new
+  subtile through FUN_0064ff90 → FUN_0064eda0: its own stamp off
+  (FUN_0064ec10), then FUN_0064d870 against the mask (path +0x50). Any bit
+  blocks (LAB_0065005f, `or` into path +0x54, then LAB_00650070), so a wall,
+  an object and the units' 0x1000 take one path. Only a change of subtile is
+  tested (LAB_006501c0 on).
+- **Who.** Player, monster and merc share this stop; the merc differs only in
+  what it stamps (0x2000, "The grid" above). What follows differs: FUN_00554ca0
+  turns the stop into 2, a player's FUN_00580c20 then goes idle or takes its
+  pending interact, a monster's walk update (LAB_005a84c4) thinks at
+  once (FUN_005a8030). Only a client-side monster re-paths from the stop
+  (monster-ai.md).
+- **d2d.** `follow_path` (ai.cpp), for the player, merc, pets and town NPCs,
+  stops for a wall and the crowd alike, as game.exe does, on a step that stops
+  short of its next point; one that reaches a point tests nothing. A stop puts the
+  unit on the centre of the subtile it stands on and clears its path, as game.exe's
+  does (#226). A walk with no route at all doesn't snap, though game.exe's does
+  (LAB_006508ff, the same stop): `follow_path`'s loop doesn't run on an empty path. A
+  hostile monster walks by `move_frame`, which snaps already.
+
+### What keeps a walk to a unit going: the client
+
+The server re-issues a walk once at most (below). What keeps a walk to an NPC,
+object or player going is the client, every game frame, until it stands in reach:
+
+- **Queued at the click.** FUN_00461dc0 starts the walk (LAB_0046213f; an NPC
+  over 2 away, LAB_0046204e, LAB_0046212a) and queues the interact: pending
+  (player data +0x150) = 1, action +0x154 = 0x13, target +0x158 / +0x15c
+  (LAB_00462159). A stop leaves it queued, the mode unchanged (FUN_00463390,
+  LAB_004636ae).
+- **Queued at a click on a player** in town: FUN_004625b0 (LAB_0046281a) calls
+  FUN_004619e0 when both units' rooms are in town (FUN_0061ab00). Within 2 with
+  a clear 0x804 line it interacts at once (LAB_00461a11); otherwise it walks
+  (LAB_00461a22) and queues the same way (from LAB_00461a3c). It isn't a caller of the frame code:
+  FUN_00481600 has one caller, LAB_0044f126.
+- **Run each frame** of a game. FUN_0044efa0 calls FUN_00481600 (LAB_0044f126)
+  only while 0x7a061c is set: S→C 0x04's handler sets it (LAB_0045c9a3), and
+  S→C 0x05's handler (LAB_0045ca3f), FUN_0044e380 (LAB_0044e3df), FUN_00477ee0
+  (LAB_00477f2f) and FUN_00453910 (LAB_004539bb) clear it, as FUN_0044e200 does
+  at the start. FUN_00481600 clears the queue
+  (LAB_00481672, FUN_0045c470) and asks FUN_00480c80 about
+  a player, monster or object target (LAB_004816f5, LAB_004816ea,
+  LAB_004816d8).
+- **Out of reach,** FUN_004812e0 runs the walk command (LAB_0048136b,
+  FUN_00480c10 → FUN_00461250 → FUN_00480780: a new path from where the unit is) and, with a
+  path, sends C→S 0x02 or 0x04 (LAB_0048137a). Path or no path it queues the
+  action again (LAB_004813c3), with no count, no timer and no test of the
+  steps made. With no path the unit goes neutral, nothing is sent, and the
+  next frame tries again.
+- **In reach,** FUN_00481030 (LAB_00481709) sends 0x13 and clears the queue.
+- **Abandoned** by any other action (FUN_00481030 clears the queue,
+  LAB_00481240), a target gone (LAB_00481697, the queue already cleared), or a
+  target dead or not selectable (FUN_00467a70). Besides those, in address order:
+  - LAB_0045c9e5: S→C 0x04's handler (0x45c9a0, table 0x7114cc): the game
+    coming up.
+  - LAB_004615b9: FUN_00461250's command 8, the player dying (table 0x4616a4, index
+    0x4616e4; FUN_00480e70 with mode 0, LAB_004615a9), through FUN_0045c470. Only a packet
+    can pass 8: S→C 0x0d's handler (0x45ccc0) reads it at +6 (LAB_0045cce7), as net-packets.md's
+    recording of a player's death shows. The fixed callers pass 0, 1, 2, 7, 0x15 to 0x19.
+  - LAB_004622c4 and LAB_004622db, FUN_004621d0, the first thing FUN_004625b0
+    does on a click, held or not: a queued action other than 0x13 goes
+    (LAB_004622db); a queued 0x13 goes if FUN_00463990 finds its target
+    (LAB_004622c4), and if not FUN_00481600 clears it. So a new click ends a queue.
+    FUN_004621d0's skill gate can return first, without clearing (LAB_00462226).
+  - LAB_004b3c45: FUN_004b3c20(id), then FUN_00463990(id, 1) and FUN_004b3790,
+    from the NPC menu code (calls from 0x4b3d10 to 0x4b70c2) and FUN_00453910.
+  - LAB_004b6e1f: FUN_004b6dd0, S→C 0x28's (handler 0x45d370), when the unit
+    isn't found (and the packet's kind isn't 6): it also sends C→S 0x30 and
+    calls FUN_004b3830.
+
+  Nothing here is a timer or a count: a queue ends on input, a packet or its target.
+- **A town portal gone.** A new portal from the same player closes the old
+  pair first (FUN_00535430): each end gets a room event 2 with its unit id
+  (FUN_0061a270, the room's list +0x18) and is freed (FUN_00555600), so the
+  client loses the unit and a walk queued to either end is a target gone
+  (LAB_00481697): it stops. Read, not run.
+
+So a blocked walk to an NPC re-plans the frame after it stops, from the
+snapped centre, whether or not it moved. This is a reading of the code; no
+packet log has been taken of 0x02 going out each frame.
+
+d2d does the same since #227 (`tick.cpp`, "Queued, a walk that stopped tries
+again"): the interact stays queued, the walk re-plans the tick after each stop, and the player
+stands while no step is possible.
+
+### The server's pending interact: one more walk
+
+FUN_00548a50 walks a player at a target out of FUN_00548b00's reach (mode 3,
+FUN_00580a70) and sets pending (+0x150, LAB_00641f37). When the walk ends,
+blocked or not, FUN_00580c20 goes idle and calls FUN_00548b00 again
+(LAB_00580e73). Out of reach, that starts another walk and sets pending, and
+FUN_00580c20 then clears pending (LAB_00580e88). So the second walk ends in
+plain idle: one re-issue, then nothing. C→S 0x02 / 0x04 (`549890`, `549920`)
+never set it.
+
+An item or a warp is where this shows. FUN_00481600 sends those with no range
+test (LAB_004816b1 to LAB_00481709), once, as FUN_00480930's 0x16 or 0x13, so
+a blocked walk to one gets the two walks and stops. The 0x16 handler (`54aad0`)
+ends in FUN_00548b00 (LAB_0054ab27). An NPC farther than 8 gets no walk at
+all from FUN_00548b00 (LAB_00548d7d): 7 and 8 walk, 6 or less talks.
+
+The sends, as FUN_00481030 reaches them: action 0x13 (LAB_004810f1) → FUN_00480c10
+→ FUN_00461250's command 2 (LAB_00461634) → FUN_00480930 (LAB_0046163d). That
+switches on the type (table 0x480b20): 0x16 only for an item (`mov cl,0x16`,
+LAB_00480b11, through 0x4786d0), 0x13 for the rest, a warp too (LAB_00480a3d, through
+0x4786a0). The other 0x16 immediates in these functions aren't sends: LAB_004807db is a state
+test, and LAB_00481186 and LAB_004811f6 are FUN_00461250 command numbers.
+
+d2d's item walk (`tick.cpp`, `pick_item`) re-plans without that limit.
+
+A warp's click, FUN_00461dc0's type 5 (LAB_00461fb7): refused until 0x7a04c8, the time
+FUN_0044dad0 sets 500 ms ahead (LAB_00462022, LAB_0048168f; FUN_00467000 uses it too).
+Within 4 it sends at once (LAB_00462010); further it walks and queues 0x13 (LAB_00461fed,
+LAB_00461ffc). FUN_00548b00's case 5 (LAB_00548bdc) answers: over 0x32 nothing, over 4
+walk (FUN_00548a50), else FUN_005550b0 (LAB_00548c32). The test runs when a packet comes and
+when the walk ends, not on the way. This case has no held test of its own, but FUN_00462930
+stops a held frame while the unit walks ("What a held frame sends"). So a held button clicks again
+after a stop, at most each 500 ms, and each click is two more walks.
+
+d2d (`World::use_warp`):
+
+- Same reach: `warp_close`, under 5 by `unit_distance`.
+- No two-walk limit here: "Short of the target with a step made" re-plans with no
+  count, and `take_warp` goes when the walk ends short of reach. Since #226 a block
+  ends it, as does a stop with no step, so a blocked walk is one walk where game.exe has two.
+- It tests every tick, so it takes the warp on the way at reach 4; a single click in
+  game.exe walks on to the path's end first. Up to 4 subtiles early.
+- A held button sets `take_warp` only on the press, so after a stop it's gone.
+- No 500 ms refusal. No 0x32 limit, which a click can't reach: at 800x600 the
+  screen corner is about 31 subtiles from the player, by the iso projection.
+
+All read from the code, no oracle. It takes a crowd or a blocked path on the way to a warp; how
+often wasn't measured.
+
+### How near the client walks
+
+FUN_00480c80, FUN_00481600's test, for an interact (action 0x13) stops the
+walking for a player or monster only at FUN_00622c40: within melee range + 1 (+ 1 for a moving target) with no
+0x804 between (LAB_00480d0f), and an object at FUN_00623660 with no 0x804
+(LAB_00480cde). The click sends at once only for an NPC within 2. So the
+server's reach of 6 (FUN_00548b00) isn't what ends a client's walk to an NPC.
+
+d2d's `tick.cpp` talks at the server's reach, `unit_distance` under 7, with no
+line test: sooner than game.exe's client, and through a wall.
+
+### A walk to a spot just ends
+
+A click on the ground queues nothing, so a player's walk to a spot that runs
+out or is blocked stops there: FUN_00650840 stops the same frame (LAB_006508ff),
+the server goes idle (FUN_00580c20) and the client goes neutral (FUN_00463390).
+FUN_006503f0's re-path at idx ≥ count isn't reached from this.
+
+A held button: FUN_0044efa0 calls FUN_0044c000 each frame (LAB_0044f039) while the
+press was taken and 0x7a061c is set. That is FUN_00462d00 with flags 9 (the press has 5),
+so FUN_00462a20 and FUN_004625b0. On the ground FUN_004623c0 and FUN_00461840 path anew
+from where the unit stands, with the same FUN_00650840 stop, so a blocked
+walk gets a new one the next frame: the stop is the same, the button restarts it. With a queued
+action a held button on the ground does nothing (LAB_00462b1d) unless shift is held, so
+it doesn't drop a queued interact. On a unit, an object or item
+ignores the hold (LAB_00461df2, LAB_00461ee5), a monster needs the press
+(LAB_004628cb), and a warp has no such test ("The server's pending interact").
+What a held frame sends is in "What a held frame sends" below.
+
+d2d's held button (`input.cpp`, `cmd::Move` not fresh) walks again after a stop too.
+Before #231 it also drops a queued interact: `walk_to` clears `interact_npc` before it tests
+`fresh`, so a click on a far NPC held past a frame walks there and doesn't talk. Seen in
+play, and with real X button events on Warriv: held 120 ms, 2 of 8 talked; 0 ms, 8 of 8.
+#231 sends no held walk while the press's interact is queued.
+
+d2d re-plans a walk to a spot that runs out short while it moves ("Short of the
+target with a step made", `tick.cpp`), so one click can walk farther than game.exe's
+does. A blocked one ends there since #226.
+
+### What a held frame sends
+
+Read from the code, no oracle or packet log.
+
+- **The gate.** FUN_00462a20 starts with FUN_00462930. The press (flag 4) arms it: 0x7a526c
+  = 1 on the ground, 2 with a unit under the cursor (LAB_00462952). A release (flag 0x10)
+  clears it. A held frame (flag 8) with it clear does nothing (LAB_00462968). With a unit under the
+  cursor: an object, missile or item does nothing (LAB_0046297f); a player, monster or warp
+  does nothing while the unit walks or runs, modes 2, 3 and 6 (LAB_0046298e to LAB_00462998).
+  So holding on an NPC during the walk to it sends nothing and leaves the queue alone.
+- **Which packet.** FUN_004621d0 takes action 3 with flag 0x40, else 1 (LAB_00462236,
+  LAB_0046224b), and 4 or 2 for a unit. Flag 0x40 is a run key (FUN_0044bec0) with stat 0xa
+  non-zero (LAB_00462dbf). FUN_00461840 passes it to FUN_00481030, whose FUN_00480b40 sends the
+  action as the opcode (LAB_004785db). So C→S 0x03 running and 0x01 walking, 5 bytes.
+- **How often.** FUN_004623c0, on the ground: a held frame of a walking or running player goes
+  on only when 7 frames of 0x7a0498's clock (25 a second) have passed since the last that
+  went on, 280 ms (LAB_00462537, LAB_00462542). A stopped player goes at once. Nothing goes if the
+  spot is 0x100 or more away on an axis, or under 1 on both (LAB_00462482).
+- **How near.** The spot goes out to a least distance (FUN_00474080, LAB_004624d9): a
+  press 3, or 5 with flag 0x40; held 4, or 5 with flag 0x40 (LAB_004624c1).
+- **The skill branches** in FUN_004625b0, in order; what the fields mean wasn't followed:
+  - No unit under the cursor, or a monster FUN_00464820 passes with a skill whose +7 lacks
+    0x6ce268: LAB_00462671. There flag 0x20, or flag 2 with FUN_00645460 not 1, casts
+    (FUN_004610c0, FUN_00461700, LAB_004626fe); otherwise the walk (LAB_004626c9).
+  - A unit and FUN_00643860 passing: a skill with 0x6ce274 in +7 casts (LAB_00462781); a unit
+    with bit 2 of +0xc4 and the skill's +7 masks or FUN_00465c60 takes the click by type
+    (LAB_004627cc); otherwise flag 0x20 casts (LAB_0046289c).
+  - FUN_00643860 failing: LAB_004628a8, as "A walk to a spot just ends" has it.
+
+d2d's `input.cpp` sends `cmd::Move` each drawn frame and a held click re-aims each tick with no
+wait, and `walk_to` has no least distance. `Town::send` passes each to `NetGame::move_to`, so a
+joined game sends C→S 0x01 or 0x03 each drawn frame (the display's refresh, or `fps_cap`; 60 where none is known)
+that aims at a new subtile, against about 3.6. A packet the same as the last one sent within 200 ms
+is dropped (`NetGame::send`, as FUN_00478350 does), so a held button on one spot sends about 5 a second.
+By reading both are small, a few subtiles of where a walk ends; neither was measured.

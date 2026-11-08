@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Run with: python3 -m unittest tools/test_presubmit.py"""
 import importlib.util
+import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -35,10 +37,11 @@ class PresubmitTests(unittest.TestCase):
         self.assertEqual(presubmit.unsorted_runs("t.py", ["import emu", "import sys", "from drops import rows"]), [])
 
     def test_unlisted_sources(self):
+        """Report only sources missing from the compilation database."""
         with tempfile.TemporaryDirectory() as folder:
             tree = Path(folder)
             (tree / "build").mkdir()
-            (tree / "build" / "compile_commands.json").write_text(f'[{{"file": "{tree / "a.cpp"}"}}]')
+            (tree / "build" / "compile_commands.json").write_text(json.dumps([{"file": str(tree / "a.cpp")}]))
             self.assertEqual(presubmit.unlisted_sources(tree, tree / "build", ["a.cpp", "b.cpp", "c.hpp"]), ["b.cpp"])
 
     def test_unsorted_tables(self):
@@ -180,6 +183,16 @@ class PresubmitTests(unittest.TestCase):
             git(root, "add", "tools/test_mine.py")
             self.assertEqual(presubmit.tool_tests(root), ["tools/test_mine.py"])
 
+    def test_tool_tests_run_when_windows_denies_symlinks(self):
+        """Keep the ordinary temp setup when Windows denies symlink creation."""
+        denied = OSError("symlink privilege is unavailable")
+        denied.winerror = 1314
+        with (patch.object(presubmit.sys, "platform", "win32"),
+              patch.object(Path, "symlink_to", side_effect=denied)):
+            variants = presubmit.tool_test_variants("real", Path("linked"))
+        self.assertEqual(variants, [("", {})])
+        self.assertEqual(self.levels("tool-tests"), ["WARN"])
+
     def test_ruff_failure_does_not_pass(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -201,6 +214,18 @@ class PresubmitTests(unittest.TestCase):
                  patch.object(presubmit.subprocess, "run", return_value=result):
                 presubmit.check_python(root, ["sample.py"], {})
             self.assertEqual(self.levels("ruff"), ["ok"])
+
+    def test_ruff_matches_git_paths_for_added_lines(self):
+        """Match a Ruff finding's absolute path to a Git-relative added line."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "scripts").mkdir()
+            source = root / "scripts/sample.py"
+            source.write_text("value = 1\n")
+            findings = [{"filename": str(source), "location": {"row": 1}, "code": "F821", "message": "test finding"}]
+            result = SimpleNamespace(returncode=1, stdout=json.dumps(findings), stderr="")
+            presubmit.report_ruff_result(root, ["scripts/sample.py"], {"scripts/sample.py": {1}}, result)
+            self.assertEqual(self.levels("ruff"), ["FAIL"])
 
     def test_tool_tests_run_without_ruff(self):
         with tempfile.TemporaryDirectory() as directory:

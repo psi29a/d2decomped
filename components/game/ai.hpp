@@ -107,14 +107,15 @@ void file_first_think(UnitState& state, std::uint32_t now_ms);
 
 // Town NPCs with the Npc AI think (rules::npc_think on their unit seed)
 // when due: a stand thinks again n frames on, a walk at its end, a special
-// mode (S1, S2) aidel (15) frames after it ends. An NPC with a "!" walks
-// up to `player` within 16 and greets it; one in `busy` (menu, speech or
+// mode (S1, S2) aidel (15) frames after it ends. An NPC with a visitor
+// (by its index in `visitors`: rules::npc_visitor_pick, a player within 16
+// with a "!" for them) walks up to it and greets it; one in `busy` (menu, speech or
 // store open on it) stops and stands (rules::npc_think's visitor).
 // The walk is a monster's (set_off / walk_on: toward 0xd, wall 0xf) at
 // Velocity. Its first think comes 2 frames after the first call that
 // meets it, unless file_first_think filed it already.
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, const UnitState* player = nullptr, bool guard_aside = false);
+                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, std::span<const UnitState* const> visitors = {}, bool guard_aside = false);
 
 // A player's walk from (x, y) to (gx, gy), in cells: game.exe's path type 7
 // (rules::player_path: the toward pather, the search when close) over
@@ -137,8 +138,9 @@ bool walk_on(const Level& level, UnitState& unit, float step, const Crowd& crowd
 
 // Moves u along its path by `step` cells, dropping reached points and
 // turning it to face the way; blocked by a wall or another unit, it
-// drops the route. False once there (or stuck).
-bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {});
+// drops the route and stands on its subtile's centre (FUN_00650150), and
+// `blocked`, if given, is set. False once there (or stuck).
+bool follow_path(const Level& level, UnitState& unit, float step, const Crowd& crowd = {}, bool* blocked = nullptr);
 
 // A pet follows the player about camp: it sets off when more than 3 cells
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;
@@ -167,6 +169,7 @@ struct Monster {
     int last_hp = 0;
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued by a hit in GH (0 none)
+    std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
     bool fx_done = false;
     std::string_view swing_mode;               // its last attack mode (A1, A2, SC, S1..S4; "" none yet): the stats it set (FUN_005a4f50)
     std::array<bool, 3> element_on{};          // which of its elements that swing rolled in (roll_elements)
@@ -222,6 +225,7 @@ struct Monster {
     // finer than game.exe's own client, which only ever sees life / 128 of
     // the maximum (net-packets.md "Monster life"; 0x0c / 0x0d / 0xab). The
     // server is authoritative.
+    int max_life_frac = 0;                    // the same deficit from stats.hit_points for a boss's max life
     int life_frac = 0;                        // 256ths of a point already taken off hit_points (life = hit_points x 256 - life_frac)
     int leader = -1;                          // index of its group's leader
     int difficulty = 0;
@@ -298,7 +302,7 @@ struct Monster {
     bool afraid = false;
     // Converted from a higher level (state 0x6d): its own level and life
     // (stats 0xb0 / 0xb1), put back as Conversion ends (FUN_005d01a0).
-    int own_level = 0, own_max_life = 0;
+    int own_level = 0, own_max_life = 0, own_max_life_frac = 0;
     // Its alignment (stat 0xac: 0 evil, 1 neutral while Confuse or Attract
     // is on it, 2 good while Conversion is: in its caster's list, FUN_005b1900) and its skill-set target (monster data +0x38 kind, +0x34
     // value, FUN_00573090: 2 a monster by id, Attract's; 3 Confuse's
@@ -423,6 +427,12 @@ struct Monster {
     int row_align = 0;                        // its MonStats Align (+0x4c), as made (align is its side now)
     bool classic = false;                     // made in a classic game (game +0x70 0: Fight::add_monster)
     int level_id = -1;                        // the Levels.txt id it was made in (-1: unknown): Nightmare / Hell start at that level's MonLvl (rules::start_level)
+    [[nodiscard]] int life_fine() const { return int(std::int64_t(hit_points) * 256 - life_frac); }
+    void set_life_fine(int life) {
+        hit_points = int((std::int64_t(life) + 255) >> 8);
+        life_frac = int(std::int64_t(hit_points) * 256 - life);
+    }
+    [[nodiscard]] int max_life_fine() const { return int(std::int64_t(stats.hit_points) * 256 - max_life_frac); }
     [[nodiscard]] bool alive() const { return hit_points > 0 && !gone; }
     // A corpse the corpse searches take (FUN_0063a770, 0x63a770: no `udead`
     // state on it): dead, in DD, not used (raised, eaten, exploded: corpse_used
@@ -466,11 +476,11 @@ struct Monster {
 // auras) + its MonProp IAS, clamped 15..175; its cast mode (SC,
 // FUN_006216e0) at 100 + its FCR, at most 175, no attackrate /
 // other_animrate; IAS and FCR each 120 x v / (120 + v) (FUN_00621740's
-// table at 0x6e8e24). A moving mode (WL, RN: FUN_006214a0), GH and DD keep
-// their own; any other (a skill's sequence plays as SQ) at 100 + anim_pct
-// (other_animrate), clamped 15..175.
-// ponytail: S1..S4 / SQ are attack modes too for a monster holding a
-// weapon (FUN_00621580), never here.
+// table at 0x6e8e24). S1..S4 and SQ (a skill's sequence) are attack modes
+// too while the monster's current skill has UseAttackRate (FUN_00621580:
+// the mode row's +8, Skills record byte +6 & 8; `skill_attack_rate`). A
+// moving mode (WL, RN: FUN_006214a0), GH and DD keep their own; any other
+// at 100 + anim_pct (other_animrate), clamped 15..175.
 // A get-hit's length in ms: rules::get_hit_ticks on the mode's AnimData
 // record (frames and speed, the COF's for a mode animdata lacks) and the
 // unit's FHR, a tick 40 ms.
@@ -479,11 +489,17 @@ inline std::uint32_t get_hit_ms(const GameData::AnimTiming& timing, int fhr) {
     return std::uint32_t(d2d::rules::get_hit_ticks(frames, speed, fhr)) * 40u;
 }
 
-inline int anim_rate_pct(const Monster& monster, std::string_view mode) {
-    if (mode == "A1" || mode == "A2") return std::clamp(100 + monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias), 15, 175) - 100;
+inline int anim_rate_pct(const Monster& monster, std::string_view mode, bool skill_attack_rate = false) {
+    const bool skill_mode = mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4" || mode == "SQ";
+    if (mode == "A1" || mode == "A2" || (skill_attack_rate && skill_mode)) return std::clamp(100 + monster.anim_pct + monster.aura_rate + d2d::rules::effective_speed(monster.props.ias), 15, 175) - 100;
     if (mode == "SC") return std::min(100 + d2d::rules::effective_speed(monster.props.fcr), 175) - 100;
     if (mode == "WL" || mode == "RN" || mode == "GH" || mode == "DD") return monster.anim_pct;
     return std::clamp(100 + monster.anim_pct, 15, 175) - 100;
+}
+// The same with the monster's current skill (monster.skill: the one its mode plays) read for its UseAttackRate.
+inline int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string_view mode) {
+    const auto* skill = game_data.skills.get(monster.skill);
+    return anim_rate_pct(monster, mode, skill && skill->use_attack_rate);
 }
 
 // Whoever the monsters are after (the player, the merc), and what they
@@ -636,6 +652,7 @@ struct Missile {
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
+    int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece
     int last_hit = -1;                        // the monster it last struck (missile data +0x1c, FUN_0064a400), -1 none
     std::uint32_t last_hit_ms = ~0u;          // when
     const GameData::MissileInfo* sub = nullptr;          // a monster's spawner's SubMissile1 (the Countess's firewall maker)
@@ -902,9 +919,10 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // A monster's fire wall: the maker (do 6) lays SubMissile1 where it
         // is each frame; the fire (do 5) burns a foe within half a cell each
         // frame, once a frame for the cast (they share `struck`), its row's
-        // element in 256ths less resistance and magic damage reduction.
-        // ponytail: the 256ths a burn leaves over round up by chance, not
-        // kept on the foe's life; DamageRate unread.
+        // element in 256ths less magic damage reduction, then resistance
+        // (FUN_0057bf80); the MDR scaled by the row's DamageRate / 1024
+        // (FUN_0057c1e0, rules::frame_rate_flat). The life takes the record
+        // total in 256ths (0057c852): the fraction is kept (Foe::frac), no draw.
         // A monster's maker (do 31: Baal's cold missiles) lays SubMissile1
         // where it is each frame, going its way; the maker strikes nothing.
         if (missile.info && missile.info->srv_do == 31) {
@@ -950,10 +968,11 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 if (!foe.alive || std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.5f || std::ranges::contains(*missile.struck, key)) continue;
                 missile.struck->push_back(key);
                 const auto& row = *missile.row;
-                const int burn = std::max(d2d::rules::resisted(rng.range(row.elo, row.ehi), foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]) - foe.fighter.mdr * 256, 0);
-                const int dealt = (burn >> 8) + (int(rng(256)) < (burn & 255) ? 1 : 0);
-                foe.damage += dealt; foe.elemental += dealt;
-                foe.blows.push_back({ dealt, 0, true, 0, dealt });   // its own record, for its get-hit
+                const int burn = d2d::rules::resisted_fine(rng.range(row.elo, row.ehi) - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
+                                                           foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]);
+                const int dealt = burn >> 8;
+                foe.damage += dealt; foe.elemental += dealt; foe.frac += burn & 255;
+                foe.blows.push_back({ dealt, 0, true, 0, dealt, false, burn & 255 });   // its own record, for its get-hit
             }
             return false;
         }

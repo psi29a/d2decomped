@@ -21,8 +21,7 @@ tested on representative hardware.
 - The renderer currently presents an 800×600 logical framebuffer. The display
   mode and high-DPI behavior are not equivalent to a general responsive,
   widescreen UI. See [rendering.md](./rendering.md).
-- The project requires C++26 where supported; MSVC uses its latest available
-  dialect via `/std:c++latest` (currently configured as C++23 in CMake).
+- The project requires C++23; MSVC gets it via `/std:c++latest`.
   Toolchain and language-library support must be checked per target rather
   than assumed.
 - Current CI covers Linux/macOS/Windows desktop builds and Linux Flatpak

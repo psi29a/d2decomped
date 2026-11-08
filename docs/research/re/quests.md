@@ -26,6 +26,37 @@ Bit use in a1q1:
 Akara's reward also sets quest 41's bits 13 and 1. Quest 41 is her
 stat/skill reset, which the reward opens.
 
+### Flag buffer lifetime
+
+`FUN_0065c430(pool)` takes its pool on the stack and returns a newly
+allocated bit-buffer header. It allocates 0x14 bytes for the header and
+0x60 bytes for the flags through `FUN_0040b430`, forwarding the pool to
+both calls. It clears all 96 flag bytes, then `FUN_00410e40` initializes
+the header: +0 the flag pointer, +4 the bit capacity (768), and +8, +0xc,
++0x10 zero. The oracle supplies successful allocations; behavior inside
+the pool allocator is outside this trace.
+
+`FUN_0065c490(pool, header)` also takes its arguments on the stack. A
+null header does nothing. Otherwise it calls `FUN_0040b480` first on the
+header's +0 flag pointer, then on the header, with the supplied pool for
+both. It does not check the flag pointer for null before forwarding it
+to the free helper.
+
+`tools/emu/quest_buffer.py` runs both helpers, the clear, and the header
+initialization from stock 1.14d (game.exe SHA-256
+`631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf`).
+Only pool allocation/free are hooked. Its 29 cases check allocation
+sizes and pool forwarding, initialization from three nonzero storage
+patterns, guard bytes, independent simultaneous buffers, release order,
+and null header/payload paths. Every call is bounded and must return.
+Run `uv run python quest_buffer.py` from the oracle's directory.
+
+d2d's `rules::QuestBits` (`components/rules/quests.hpp`) owns 96 bytes by
+value; the save's three blocks (`components/d2s/d2s.hpp`) are initialized
+with `{}`. It has no separately allocated bit-buffer header or pool
+release calls. These helpers are verified stock behavior, rather than
+equivalent d2d allocation functions.
+
 ## The quest record
 
 `FUN_00590720` sets up the record. Each quest has one record per game.
@@ -227,7 +258,7 @@ ponytail: not built yet:
 Clearing the Den of Evil lights it, in this game only (the client's quest
 states for the game come in S→C 0x02, 37 bytes, `LAB_004b92b0` → 0x7c0ea4;
 a new game's Den is dark again).
-- **The event:** S→C 0x2d `{0x2d, event}` (`FUN_004b9330` →
+- **The event:** S→C 0x89 `{0x89, event}` (handler 0x4b9330 →
   `FUN_0046b630`) runs the client's quest event table 0x7129d8; event 0
   (`FUN_0046b0c0`) starts a count at 0x7129cc.
 - **The flash** (`FUN_0046bd50`, as the Den's own light, `FUN_0046bdd0`):

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "audio.hpp"
+#include "belt_popup.hpp"
 #include "common.hpp"
 #include "controls.hpp"
 #include "gamemenu.hpp"
@@ -193,6 +194,7 @@ struct Town {
     std::uint32_t net_drift_ms = 0;                          // since when d2d's player has been far from the host's (0: not)
     std::uint32_t net_follow_ms = 0;                         // when the host was last told where our walk is
     bool inv_close_down = false, char_close_down = false;   // the inventory's / character panel's close button held
+    bool hold_interact = false;                              // the left press sent an Interact: the hold walks no more till it's done (LAB_00462b1d)
     int entry_level = 0;                                     // the level whose "entering" art last started (0: the game's first)
     std::uint32_t entry_until = 0;                           // shown till then (2 s from a level change)
     bool net_clicked_walk = false;                           // this walk went to the host as a click (its target): no follow-ups
@@ -323,6 +325,9 @@ struct Town {
     [[nodiscard]] bool left_panel_open() const {
         return char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open || hireling.open;
     }
+    // A panel on the right, for the mini-panel (FUN_0047eb50): the inventory
+    // or skill tree, or the belt popup up (belt_popup::moves_mini_panel).
+    [[nodiscard]] bool mini_right() const;
     // The keyboard's Enter on that name: the new character is made, as the pad's A.
     void coop_enter();
     // A seat's pad this frame: its field play, as that player's orders.
@@ -451,7 +456,8 @@ struct Town {
     int   skill_pressed = -1;              // skill icon held down
     std::vector<d2d::rules::MercOffer> hire_offers;   // Kashya's list while it's open (the View's)
     std::string merc_label;
-    bool  belt_open = false;               // belt popup (` key or a click on the belt)
+    bool  belt_open = false;               // UI 0x1f: the belt popup kept up (its key, ` by default)
+    belt_popup::State belt_up;             // the popup up: belt_open, or the mouse onto the belt
     bool  cube_open = false;               // right-click the Horadric Cube item
     bool  transmute_down = false;          // its Transmute button held (FUN_0048a190)
     bool  net_cube_open = false;           // a joined game: the host has our Cube open (0x77 0x15; 0x4f 0x17 shuts it)
@@ -589,7 +595,7 @@ struct Town {
     float rain_cam_x = 0, rain_cam_y = 0;          // the camera at the last weather tick
     int rain_vol = 0;                              // the rain sound's volume 0..255
     // The Den of Evil cleared (docs/research/re/quests.md "The Den lights
-    // up"): S→C 0x2d event 0 starts a count (FUN_0046b0c0); for 30 frames
+    // up"): S→C 0x89 event 0 starts a count (FUN_0046b0c0); for 30 frames
     // the Den's ambient falls from 80 (FUN_0046bd50), then its rooms get
     // light beams, missile denofevillight, three to a room at free spots
     // (FUN_0046b0d0 / FUN_0046af70), and keep them (client func 23).

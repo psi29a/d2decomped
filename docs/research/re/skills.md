@@ -25,6 +25,26 @@ What a skill is, column by column (the ones that matter first):
   `etypea1..2` (weapon types allowed / excluded), `TargetableOnly`,
   `SearchEnemyXY`, `SearchEnemyNear`, `TargetCorpse`, `LineOfSight`,
   `leftskill` (can go on the left button), `InTown`.
+  The weapon-type gate is `FUN_00643f80` (from the usability chain
+  `FUN_00647960`, status 2 when it fails): a skill with no itypea1 (+0x18)
+  and no etypea1 (+0x24) passes. Else, with h4 / h5 the right / left
+  hand items (`FUN_0063bde0(inv, 4 / 5)`; for Left Hand Throw / Swing
+  (ids 4 / 5) the active hand's item is dropped, `FUN_0063bef0`), it
+  passes when one hand fits set a (itypea1..3 / etypea1..2) and the other
+  set b (itypeb / etypeb), either way round:
+  `(D_a(h4, h5) && D_b(h5, h4)) || (D_b(h4, h5) && D_a(h5, h4))` (EAX the
+  set, 0x644009 / 0x644013). `FUN_00643d90` D(item, other): no item:
+  true when the set has no itype and no etype, or (itype1 weap 0x2d /
+  mele 0x2e / 0x43, no itype2... , neither hand a weapon,
+  `FUN_00629bb0(.., 0x2d)`); an item of an etype: false; no itype: true;
+  an item of none of the itypes: false; of one: true, except the ammo
+  tests (a bow / crossbow needs its quiver in the other hand with stat 70
+  above 0, unless stat 0x9d; flags 0x4000 / 0x100 items only for skill 0).
+  So Holy Shield and Smite (itypea1 shld, no set b) need a shield in
+  either hand: the other hand passes set b's empty test.
+  d2d: `weapon_gate` / `hand_fits` (fight.hpp, through `skill_refused`;
+  `test_weapon_gate`); not kept: the ammo tests, the 0x4000 / 0x100
+  items, Left Hand Throw / Swing's dropped hand; Throw keeps its own gate.
 - **Damage**: `ToHit` + `LevToHit`, or `ToHitCalc`; `SrcDam` (128 = all of
   the weapon damage); physical `MinDam` / `MaxDam` with `MinLevDam1..5`,
   elemental `EType`, `EMin` / `EMax` with `EMinLev1..5` / `EMaxLev1..5`,
@@ -532,6 +552,68 @@ lines (missile names aren't passed in). What it does:
   LAB_004c9280), the skill picker by SkillsPal.cpp (FUN_004c9b40); icons
   are `Spells\<Cl>Skillicon` (already loaded for the tree).
 
+### Can the skill go now (FUN_00647960, traced 2026-11-07)
+`FUN_00647960(unit, entry)` (stdcall, SKILLS/Skills.cpp) answers 0 or the
+first reason it can't, in this order (the Skills.txt flag bits are the
+loader's, `FUN_00613f80`: dword +4 bit n, n from 0x20 on in dword +8):
+1. no row (entry +0), or the row's InGame flag clear (bit 0xa, +5 & 4): 3.
+2. level 0 (`FUN_006442a0(unit, entry, 1)`): 7.
+3. aura (bit 5, +4 & 0x20, `0x6ce27c`): 6. passive (bit 4, +4 & 0x10): 5.
+4. `FUN_00647640` (scrolls and tomes: the entry's count +0x30 above 0 with
+   an inventory; Throw, Left Hand Throw / Swing: their hands; else 1),
+   then the weapon-type gate `FUN_00643f80` for every skill: 2.
+5. mana (`FUN_00647540`): 1. An item's entry (+0x34 not -1) asks only for
+   its charges (+0x38 above 0); blood_mana (state 0x72) asks life (stat 6)
+   instead of mana (stat 8); srvdofunc 116 passes when `FUN_0063a400`.
+6. restrict (`FUN_00644060`, +0x228): 0 refuses a unit in a state with
+   States.txt restrict (wolf, bear, delerium; `FUN_0063a510`), 2 asks
+   one of State1..3 (+0x22a), 1 and others pass: 4.
+7. startmana (`FUN_006440f0`, a player only): 1 when +0x184 (startmana,
+   not minmana +0x186) is above 0, mana is below startmana x 256 and the
+   unit isn't in state inferno (0xc). Only Inferno (6), Arctic Blast and
+   Blade Fury have one: Inferno needs 6 mana to start, its 36 << 2 price
+   alone 0.56 (cases inferno_start_5 / _6 / inferno_burning_5).
+8. an item's entry (+0x34 not -1) whose item is in the inventory with no
+   charges left, its stat 0xcc (layer skill << 6 | level) 0 in the low byte
+   (`FUN_00647840`): 2. An item not found passes (cases item_held_charges /
+   item_held_no_charges, item_charges).
+9. a player in state skilldelay (0x79) with the skill's delay calc
+   (+0x190, `FUN_00646ca0`) above 0 (`FUN_006478f0`): 8; else 0.
+
+So an aura or passive at level 0 is 7, a passive with no weapon 5, a
+skill with no weapon and no mana 2. Oracle: `tools/emu/skill_status.py`
+(31 cases, the real rows and helpers; `ok`).
+
+The client asks before it sends a skill (`FUN_004610c0`: EDI the unit,
+EBX the entry's slot in the input record +0x1c; `FUN_004d9fc0` wraps the
+status). On status 1, 2 or 4 a skill with AttackNoMana (bit 0x1c, +7 &
+0x10) has Attack's entry (`FUN_006439f0(unit, 0)`) put in the slot and is
+asked again (LAB_00461101). Then 0 or 5 goes; anything else sends nothing
+and voices 0x711ddc[status] (`FUN_00461070`): 1 needmana (0x15), 2..4
+impossible (0x13), 6..8 none. So Jab with no spear, Smite with no shield
+or Bash out of mana swings a plain attack, with no voice. Oracle:
+`tools/emu/skill_status.py client` (18 cases; `ok`). Which click paths
+reach it, and which `FUN_00467880` (status 0 only, no fallback), isn't
+traced: todo.md row 52.
+
+Skill delay. At the end of a skill's do (`FUN_0056f7f0`, from
+LAB_0056fa93) the skill's delay calc (+0x190, Skills.txt `delay`, in
+frames) above 0 puts a player in state skilldelay (0x79) until the game
+frame (+0xa8) plus the delay (`FUN_0056ef90`: the state made or kept,
+its end event 0xc through `FUN_005417d0`); an SQ skill (anim +0x10 0x12)
+only when unit +0x38 & 0xffffff00 is 0. Shapeshift sets it through
+`FUN_0056f020`. While it's on, every skill with a delay above 0 is status
+8 (`FUN_006478f0`), the others are not: Meteor (30 frames) blocks Meteor,
+Blizzard (45), Fire Wall (35), Hydra (40), Frozen Orb (25), Fist of the
+Heavens (25), Valkyrie (150), Poison (15) / Plague Javelin (100),
+Immolation Arrow (25), but not Fire Bolt. The server's skill packet asks
+too (the call at 0x549b0a in `FUN_00549ad0`). The client keeps its own,
+for its player only: `FUN_004c6680` sets 0x7a04fc (`FUN_0044ce40`) to its
+frame clock 0x7a0498 plus min(delay, 12), and `FUN_004d9fc0` turns a 0
+into 8 before then. Status 8 voices nothing; the buttons draw it as not
+usable. Cases delay_meteor, delay_meteor_off, delay_fire_bolt,
+delay_meteor_no_mana. d2d keeps no delay: todo.md row 54.
+
 ### Item charges (traced 2026-10-28)
 - Stat 0xcc (204, item_charged_skill): param skill << 6 | level, value
   max << 8 | left.
@@ -567,7 +649,8 @@ lines (missile names aren't passed in). What it does:
   0x13, 0x13): 0x13 the class table's +8, `<class>_impossible_1`
   (amazon 0xb89). After an item change FUN_004c1350 -> FUN_004c1200 puts
   a remembered hand skill back unless its status is 2 or 7. d2d:
-  `skill_refused` (Throw's weapon gate only), `Fight::impossible`.
+  `skill_refused` (the weapon-type gate, Throw's own), `Fight::impossible`;
+  "Can the skill go now" has the statuses.
   ponytail: the remembered hands (FUN_004c1200) aren't kept.
 - Tooltip: the button's and the picker's (FUN_004a8d50 -> FUN_004ef990:
   unit, skill, level, calc, draw mode, x, y) is the plain skill tooltip at
@@ -741,9 +824,40 @@ lines (missile names aren't passed in). What it does:
   `aura_pulse` (Prayer's hitpoints heal; 66 / 81 strike monsters in
   range), `target_of` (the target state's resistances / defense while in
   range), thorns_percent (131) on melee hits. Not yet: perdelay's reader
-  (taken as ticks), aurafilter, the merc in the aura, Sanctuary /
-  Redemption's callbacks, Holy Freeze's slow (its cold chills), mana
-  (FUN_00644b10), the aura overlays.
+  (taken as ticks), aurafilter's unit-flag, town and sight bits (below),
+  the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
+  slow (its cold chills), mana (FUN_00644b10), the aura overlays.
+- **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
+  (SkilPal.cpp lines 0x1f6, 0x2ba, 0x6ba), which runs the callback only on
+  a unit within range that FUN_0056b3e0 takes (a filter of 0 is 0x583).
+  The bits on a monster, as read from the decompile (no oracle):
+  - 0x2: monsters at all;
+  - 0x1000: set, a monster in mode 0xc (dead); clear, one in neither 0xc
+    nor 0;
+  - 0x4: undead (FUN_0063e990: MonStats +0xd & 8 or & 0x10);
+  - 0x4000: no MonStats boss (FUN_0063e9f0, +0xc & 0x40);
+  - 0x40000: no prime evil (FUN_0063edc0, +0xc & 0x80);
+  - 0x8000: an enemy (FUN_00554200: FUN_00650d70 is 0);
+  - 0x10000: an ally (FUN_00554de0: a monster stands for its owner,
+    FUN_0058f0d0, then FUN_00650d70).
+
+  For a monster, 0x8000 and 0x10000 take FUN_00650d70's opposite answers,
+  so one an enemy aura strikes fails a friendly one's 0x10000. The 1.14d
+  rows:
+  - Might, Prayer, the resists, Thorns, Defiance, Blessed Aim, Cleansing,
+    Concentration, Vigor, Fanaticism, Salvation 0x12003, Meditation 0x12001
+    (no monster bit), the totems 0x10103: allies only;
+  - Holy Fire, Holy Shock 0xa783 and Conviction 0xa583: living enemies;
+  - Sanctuary 0xe786: undead that aren't bosses;
+  - Holy Freeze 0x4a283: no prime evil.
+
+  d2d: `rules::aura_filter_takes` (`Fight::aura_takes`) in `enemy_pulse`
+  and `in_aura`, so a friendly aura's auratargetstate isn't drawn on a
+  monster. Not read: 0x80 / 0x400 (unit flags +0xc4 & 4 / & 8), 0x100 and
+  FUN_0056b7e0's 0x2000 (town rooms), 0x200 (line of sight,
+  FUN_0064e260), 0x20000 (FUN_00622c40), 0x80000 (state 0x56).
+  Re-check: `python3 tools/ghidra/fn.py 0056b3e0` (and 0056b7e0, 005cf010,
+  005cf3a0, 005d0920); the rows from Skills.txt's aurafilter column.
 - A monster's curse or enemy-aura lowering of a resistance whose base is
   100 or more counts a fifth, truncated toward 0 (FUN_005c3540, from the
   callbacks of do 30, 65 and 66): `apply_target_stats` takes the base.
@@ -1064,9 +1178,22 @@ lines (missile names aren't passed in). What it does:
   - **24** Energy Shield (FUN_005ca6c0): calc1 % of each damage type of
     DAT_006e30e0 (+8, +0x10, +0x1c, +0x24, +0x20; the flagged +0x38..+0x40
     only from a monster), mana (stat 8) taken 16 / calc2 a point; at 0 the
-    state goes.
+    state goes. Each field loses min(field x calc1 / 100, mana x 16 /
+    calc2) (FUN_00483360 at 0x5ca7e1 / 0x5ca7f3): no cap on calc1 in the
+    function; Skills.txt's calc1 is `min(edmn,95)`, so it never passes 95.
   - **25** Cyclone Armor (FUN_005c87a0): the pool takes fire, lightning
-    and cold (+0x10, +0x1c, +0x24; FUN_005c8780 each).
+    and cold (+0x10, +0x1c, +0x24; FUN_005c8780 each). In that order:
+    fire (+0x10), cold (+0x24), lightning (+0x1c), each only when above
+    0; FUN_005c8780 (EAX the pool, in 256ths as the stat at skill +0x54
+    holds it): a field at least the pool loses the pool (pool 0), else the
+    field goes to 0 and the pool keeps the rest. It runs in event 0xb, so
+    on the unresisted 256ths fields, before FUN_0057c1e0's flat MDR and
+    resistances. Pool 0 after: the state goes (FUN_00639db0 / FUN_006277e0);
+    else stat 0x54 (the client's shown share, MulDiv of skill +0x56's stat)
+    is resent when it moves by 5 or more.
+    d2d: `rules::absorb_blows` on each part's raw field (`cyclone_take`,
+    then `elemental_fine`); V: `tools/emu/cyclone_armor.py`, 3000 records
+    in `tests/cyclone_armor_cases.inc` (`test_cyclone_armor`).
   d2d: `buff_events` (Foe::fired_by, damaged_by), `absorb` (Taken::physical
   / elemental).
 - Built: `self_cast` (all of the above), `start_state`, `state_of`,
@@ -1127,6 +1254,23 @@ lines (missile names aren't passed in). What it does:
   random points round the target.
 - Do **60** (FUN_005c58b0, Bone Wall): a bonewall on the point, then two
   srvmissilea makers carrying calc2 / 2 (missile do 13 lays the rest).
+  With P the first piece's spot (where FUN_0056d940 put it) and (dx, dy)
+  = caster - P in subtiles ((1, 0) when both are 0): outside town and
+  only when count = calc2 / 2 (C division) is above 1, one maker from P
+  toward (P.x - dy, P.y + dx), the other toward (P.x + dy, P.y - dx)
+  (0x5c5b04..0x5c5b96), each carrying the first piece's id
+  (FUN_0064a710) and the count (FUN_0064a760). Missile do 13
+  (FUN_005aeda0, table 0x73c768 + 13 x 4): while its count is above 0,
+  on a frame whose move entered a new subtile (path +0x34 & 8, set by
+  FUN_00650150 when it crossed one or more), with the first piece still
+  there (FUN_00552f60), a piece at the maker's spot (FUN_0056d940,
+  joined to the first one's group FUN_0058f030 / FUN_0058f100, its
+  stats FUN_005c4470); only a piece made spends one of the count. Then
+  it flies on (FUN_005ae1f0): Vel 12, Range 7 + 2 a level, it stops on
+  collision (CollideType 8).
+  d2d: `rules::bone_wall_makers` (V: `tools/emu/bone_wall.py`, 2000
+  casts in `tests/bone_wall_cases.inc`, `test_bone_wall`) and
+  `Fight::missile_tick`'s do 13 (`test_bone_wall_lay`).
   **62** (FUN_005c5d00, Bone Prison): twelve round the point (0x6e304c /
   0x6e307c: (-1,-4) (1,-4) (3,-3) (4,-1) (4,1) (3,3) (-1,4) (1,4) (-3,3)
   (-4,-1) (-4,1) (-3,-3)).

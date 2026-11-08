@@ -12,6 +12,8 @@
 #include <rules.hpp>
 
 #include <cassert>
+#include <cstdio>
+#include <exception>
 #include <utility>
 #include <vector>
 
@@ -31,7 +33,7 @@ Item carried(const char* code) {
 
 }  // namespace
 
-int main() {
+int main() try {
     Tables tables;
     tables.npc_prices["Charsi"].rep = 1024;
     tables.types["axe"].repair = true;
@@ -83,4 +85,7 @@ int main() {
     assert(needs_repair(tables, unknown) && repair_cost(tables, unknown, "Charsi", header) == 0);
     assert(!store_repair(tables, smith, unknown, wallet) && wallet.get(d2d::d2s::kGold) == 100);
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_repair_whole_item: %s\n", error.what());
+    return 1;
 }

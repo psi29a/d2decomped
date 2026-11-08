@@ -46,6 +46,16 @@ the viewer behind it (the row was taken as the DCC direction).
   Frozen Horror's death (`f0`, 13 of 14): bugs.md #29.
   `tools/anim_coverage.py --audit` lists them.
 
+- A frame past the COF's own (an object's FrameCnt running on, bugs.md
+  #30): `FUN_004db110` still indexes the priority run at that frame, so
+  the bytes come from the next row or past the table. Each is matched
+  against the COF's layer records (`FUN_004db7b0`, `*rec == type` while
+  `< 0x10`): a byte naming no layer draws nothing, one naming a layer
+  gets that layer's DCC past its frames, no cell. Every such object's
+  DCCs end by the COF's last frame (`qo` NU: COF 1, DCC 1; `5h` NU: 13,
+  13 for both layers; FrameCnt 13 / 20), so nothing draws whatever the
+  bytes are: d2d's `past_cof` blanks the unit outright, the same.
+
 d2d: `composite_frames` (apps/d2d/world_view.hpp) does both.
 
 ## A layer's file

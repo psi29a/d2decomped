@@ -9,6 +9,10 @@ one touches no shared file. No fixtures, no
 framework — a `main()` that returns 0 on success, checking with plain
 `assert` (CMakeLists.txt keeps NDEBUG off for this directory, so asserts
 stay on in Release builds); nothing fancier is warranted yet.
+`main` is `int main() try { ... } catch (const std::exception& error)`
+(tests/.clang-tidy checks it). A `mon_think` test points the `ThinkIn`
+scratch with `ThinkScratch` (think_scratch.hpp), or a checker reads a
+null write in another AI.
 
 Tests that need real assets (D2 ISOs, extracted MPQs, game.exe) locate
 them at runtime; when they're absent the test prints a `SKIP:` line and
@@ -20,6 +24,10 @@ skips only part of its checks (test_d2s's real saves, test_mpq's
 installer) prints a `SKIP` line for that part and still passes.
 test_game and test_game_tables skip without d2data.mpq; the game's checks
 that need no data are in test_game_rules, which always runs.
+
+`test_iso9660` generates primary ISO 9660 and Joliet images with a known
+payload. It checks the real install disc too when present at the usual
+Downloads path. The generated fixtures need no game files.
 
 Run: `ctest --test-dir build --output-on-failure`.
 

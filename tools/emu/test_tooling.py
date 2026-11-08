@@ -78,6 +78,7 @@ class CastManaTests(unittest.TestCase):
         self.assertEqual([(name, frames, speed) for name, frames, speed, _ in found], [("SOSCSTF", 14, 256), ("SOSCHTH", 14, 256)])
 
 
+@unittest.skipUnless(os.name == "posix", "sweep.sh requires a POSIX shell and signals")
 class SweepTests(unittest.TestCase):
     UV = """#!/bin/sh
 if [ "$1" = sync ]; then exit 0; fi

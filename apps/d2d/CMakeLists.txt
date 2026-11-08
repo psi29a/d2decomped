@@ -137,7 +137,11 @@ if(D2D_BUNDLED_FFMPEG)
         set(ffmpeg_source_dir "${ffmpeg_prefix}/src")
         set(ffmpeg_source_args
             SOURCE_DIR "${ffmpeg_source_dir}"
-            URL "https://ffmpeg.org/releases/ffmpeg-${D2D_FFMPEG_VERSION}.tar.xz"
+            # Debian's orig tarball is ffmpeg.org's, byte for byte (same SHA-256),
+            # on a CDN that doesn't reset connections; ffmpeg.org once Debian
+            # drops the version.
+            URL "https://deb.debian.org/debian/pool/main/f/ffmpeg/ffmpeg_${D2D_FFMPEG_VERSION}.orig.tar.xz"
+                "https://ffmpeg.org/releases/ffmpeg-${D2D_FFMPEG_VERSION}.tar.xz"
             URL_HASH "SHA256=${D2D_FFMPEG_SHA256}"
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     endif()

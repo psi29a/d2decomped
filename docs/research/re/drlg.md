@@ -1569,3 +1569,12 @@ size 2, a warp unit's 0: `FUN_00620510` has no case 5) under 5 takes it at
 once; under 0x33 the player walks toward the unit (`FUN_00548a50`); else
 nothing. LvlWarp's SelectX / SelectY / SelectDX / SelectDY are the
 client's click box only; the server's test is that distance.
+
+The client's click box (the hit test `FUN_00466870`, case 5 →
+`FUN_00463ee0`): the tile unit's LvlWarp row (`FUN_00619620` →
+`FUN_0066af80`: the room's list +0x4c, the row whose Id is the unit's
+class) and its subtile (x, y) in world pixels (`FUN_00643260`:
+((x − y) × 16, (x + y) × 8)); the cursor takes it when its world pixel
+(the mouse plus the view's origin, `FUN_004670a0`) is within
+[px + SelectX, px + SelectX + SelectDX] × [py + SelectY, py + SelectY +
+SelectDY], edges included (row +4, +8, +0xc, +0x10).

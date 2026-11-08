@@ -4,6 +4,7 @@
 #include "town.hpp"
 
 #include "audio.hpp"
+#include "belt_popup.hpp"
 #include "common.hpp"
 #include "controls.hpp"
 #include "cursor.hpp"
@@ -88,7 +89,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
                 out.push_back(cmd::UseSkill{ view.attack_skill, world_x, world_y, view.attack, true, view.attack_skill == skillbar.left ? skillbar.left_item : -1 });
             else if (function_held(keys::kStandStill))
                 out.push_back(cmd::UseSkill{ skillbar.left, world_x, world_y, -1, true, skillbar.left_item });
-            else
+            else if (!hold_interact)                         // with an interact queued the hold does nothing (FUN_00462a20, LAB_00462b1d)
                 out.push_back(cmd::Move{ world_x, world_y, false });
         }
         if (mouse.rpress_this_frame && skillbar.right == kResurrectSkill) {   // co-op: the body nearest the click
@@ -100,9 +101,16 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
     }
 
 auto Town::pad_field() const -> bool {
-        return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !quest_log.open && !hireling.open && !help.open && !party.open
+        return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !belt_up.shown && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
             && !skillbar.picking && skill_strip < 0 && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
+    }
+
+auto Town::mini_right() const -> bool {
+        if (inv_open || tree_open) return true;
+        if (!scene) return false;
+        const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
+        return belt_popup::moves_mini_panel(belt_up, belt_open, boxes);
     }
 
 // What the pad's A would act on now: a monster in reach in the facing (the
@@ -555,7 +563,7 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
         }
         if (net_game && net_game->trade.state != 0)                     // a trade's buttons, gold and our offer's cells
             for (const auto& box : trade_boxes(*scene, net_game->trade.state)) centre(box[0], box[1], box[2] - box[0], box[3] - box[1]);
-        if (belt_open) {                                                // the belt's boxes
+        if (belt_up.shown) {                                            // the belt's boxes
             const auto& belt = scene->belts[std::size_t(belt_index(*scene, character.items))];
             for (int box = 0; box < belt.boxes; ++box) {
                 const auto& edges = belt.box[std::size_t(box)];
@@ -701,7 +709,7 @@ auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
         if (gold_box) return true;                                   // the gold box: B is its Cancel
         if (!scene || held || !(stash_open || cube_open)) return false;
         const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
-                                            { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse_x, mouse_y);
+                                            { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse_x, mouse_y);
         return !(click.cmd && std::holds_alternative<cmd::ToCursor>(*click.cmd));
     }
 

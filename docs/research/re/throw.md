@@ -20,7 +20,13 @@ implementation").
 - `FUN_00647ee0` looks for the character's own Attack entry. When absent,
   it adds Attack and walks ten skill identifiers at CharStats record
   `+0xae`, adding each valid identifier through `FUN_00647110`. This
-  path contains no inventory or weapon-eligibility check.
+  path contains no inventory or weapon-eligibility check. The ten
+  (CharStats `Skill 1`..`Skill 10`) are, for every class: Throw, Kick,
+  Scroll of Identify, Book of Identify, Scroll of Townportal, Book of
+  Townportal, then Unsummon; the Barbarian has Left Hand Throw and Left
+  Hand Swing before Unsummon, the Assassin Left Hand Swing. Each is an
+  ordinary entry at level 1, with or without a tome or scroll carried.
+  `StartSkill` (Fire Bolt, Raise Skeleton) is not among them.
 - `FUN_00647110` creates an ordinary skill entry with level 1 at `+0x28`
   and item identifier -1 at `+0x34`. Its existing-entry path increments
   the stored level; it is not an unconditional reset to level 1.
@@ -33,6 +39,19 @@ implementation").
   (`FUN_006235a0`), and the weapon lookup `FUN_0063c9b0`. A selected
   weapon can qualify through `FUN_0062ba80` (Throwable) or stat 125.
   The opposite-hand path for dual-wield characters uses `FUN_00643d60`.
+  In full: `FUN_0063c9b0` gives the first usable weapon in hand, the
+  right's (cell 4) then the left's, and whether it is the wielded one
+  (`FUN_0063bef0`, inventory `+0x1c`; weapon-switch.md "The wielded
+  weapon"). Not a dual-wielder: that weapon, only when wielded. A
+  dual-wielder: that weapon when wielded, else the other hand's item
+  (`FUN_00643d60(slot)`: `FUN_0063bde0` on the other body slot, any
+  item). Skill 4 (Left Hand Throw) takes the other one the other way
+  round, and skill 5 (Left Hand Swing) wants it a weapon; d2d uses
+  neither.
+- `FUN_0056f460` (Throw's srvdofunc 3) takes its item the same way, the
+  other hand's whenever the first weapon isn't wielded, and throws it
+  (`FUN_0056ecb0`; a throwing potion, ItemTypes row 0x26, through
+  `FUN_0056ee90`).
 - `FUN_00647960` first reads the skill level with `FUN_006442a0`. A zero
   level yields status 7. The later equipment gate is `FUN_00647640`;
   failure reaches status 2. Further checks follow a successful equipment
@@ -134,15 +153,23 @@ with an isolated oracle check, not a claim of full d2d parity.
 ## Follow-up implementation
 
 Done in #125. Throw stays at level 1 (`skill_base_level`), and the weapon
-is `throw_ready` (`components/game/fight.hpp`): the right hand's, else the
-left's, usable weapon (`FUN_0063c9b0`, `FUN_0062a4e0` flags 0x100 /
-0x4000) is Throwable or has stat 125. Without one the skill is refused
+is `throw_ready` (`components/game/fight.hpp`): the item
+`rules::throw_hand` takes (the first usable weapon in hand, right then
+left, `FUN_0063c9b0`, `FUN_0062a4e0` flags 0x100 / 0x4000, if wielded;
+else, for a barbarian or an assassin, the other hand's) is Throwable or
+has stat 125. The launch (`Fight`, `ServerDoFunction::kThrow`) throws and
+spends that item. Without one the skill is refused
 (`skill_refused`): the picker still lists it and the buttons show it, both
 in text colour 1 (`FUN_004aa3a0`, `FUN_004a8d30`), and a cast stops with
 the class's `impossible_1` (`FUN_004610c0`). The picker, cast and voice
 paths are in skills.md "Item charges"; `test_game` covers the gate.
 
-Still open (`ponytail:` in `throw_ready` / `skill_refused`): a
-dual-wielder with two weapons uses the primary one (`FUN_0063bef0`), else
-the other hand (`FUN_00643d60`), where d2d takes either; and the other
-statuses of `FUN_00647960`.
+Throw passes the weapon-type gate too (traced 2026-11-07): after
+`FUN_00647640` says yes, `FUN_00647960` calls `FUN_00643f80` for every
+skill, Throw included (from LAB_006479f8), and Throw's itypea1 is `thro`.
+So a weapon must be Throwable (or stat 125) and of type thro in a hand;
+a stat-125 weapon of another type is still status 2. No 1.14d item has
+stat 125, so d2d's `throw_ready` alone answers the same. Oracle:
+`tools/emu/skill_status.py` cases throw_throwable,
+throw_throwable_weapon_gate, throw_not_throwable. The other statuses are
+in skills.md "Can the skill go now".
