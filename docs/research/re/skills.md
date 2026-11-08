@@ -1429,6 +1429,16 @@ Cited from the decompile (no oracle run); re-check with
   pointer (`+0xb98 + id*0x23c`) is 0, or the short is below 1. Callers:
   FUN_0056dfa0, FUN_00570080, FUN_00646fd0, FUN_00647110 (each then sets
   that state on the unit with FUN_00639db0).
+- **FUN_00639db0**(unit, state, on): does nothing unless `0 <= state <
+  [0x744304]+0xc4` (the States.txt count); then FUN_00625a70 (the state bit
+  in the unit's state words, plus its dirty bit) and FUN_0064c040 (once per
+  unit, flag 0x2000 at unit +0xc4: links it through unit +0xe0 into the list
+  head FUN_00619f90 returns; asserts on a null unit). Callers:
+  0045d705/19/2d, 0046df40, 004c2180 and the four skill functions below.
+  d2d: reads the same, cited from the decompile, no oracle run. `ai.hpp:413` and `ai.cpp:1570` cite the call for
+  state 0x76 / 0xc, and `FUN_00625a70`'s bit is cited by
+  `tools/emu/freeze_rules.py:249`. d2d has no one function for the
+  bounded set; each caller writes its flag.
  / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
