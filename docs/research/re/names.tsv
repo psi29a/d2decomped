@@ -232,6 +232,8 @@ address	name	evidence
 00526100	utf8_decode	table at 0x7309b8 (mask, value, value mask, minimum); 10xxxxxx continuations
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
 00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60 (ECX = client +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
+0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
+0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
@@ -277,6 +279,8 @@ address	name	evidence
 0055fde0	itemmode_refresh	FUN_0055dbc0(0), FUN_00621000
 0055fe00	item_flag10_refresh	flag 0x10, FUN_0062ff70
 0055fe60	itemmode_55c2c0_0	FUN_0055c2c0(arg, 0)
+0055bed0	item_announce_ground	(item, client): item mode 3 and unit flag 0x10 clear; flag 0x1000 set calls FUN_0053ec90 (action 2), clear FUN_0053ecf0 (action 3) (items.md)
+0055bf30	item_announce_ground_if_flag1	(unit): FUN_0055bed0 only when unit +0xc4 bit 0 is set (items.md)
 0055fe80	item_recharge	(owner, item): every stat 0xcc (item_charged_skill) entry whose low byte is below its max (value >> 8) is set back to max through FUN_0065c940; for a player owner also sends the stat update (FUN_0053d130); returns whether any changed
 00560420	c2s_19_to_cursor	ItemMode.cpp 0x936..0x978
 00561b00	c2s_1f_grid_swap	box code, ItemMode.cpp 0xec0..0xf4b
