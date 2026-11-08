@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <span>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -157,6 +158,12 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             return block_x >= left && block_x < right && block_y > -0x21 && block_y < int(kScreenHeight) + 0x20;
         });
     };
+    // A floor is queued in the sweep's order and drawn once the sweep is done,
+    // in horizontal bands on several threads (draw_in_bands): each band draws
+    // every floor in that order, clipped to its rows, so the picture is the same.
+    struct QueuedFloor { const d2d::dt1::Tile* tile; int screen_x, screen_y, cell_x, cell_y; };
+    std::vector<QueuedFloor> floors;
+    floors.reserve(1024);
     // `layer`: 0 wall, 1 floor, 2 shadow (the pass, not the DT1's own type field).
     // `source`: the Level::Pick or DS1 layer cell it's drawn for (g_drawn).
     auto blit_cell = [&](int cell_x, int cell_y, const d2d::dt1::Tile& tile, int layer, const void* source, int alpha = 255) -> bool {
@@ -172,6 +179,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
         const int screen_y = (layer == 0 && tile.type >= 16 ? iso_y + kIsoH - tile.y_shift : iso_y - (tile_height - kIsoH)) - wall_lift;
         const bool drawn = layer == 1 ? floor_drawn(screen_x, screen_y) : layer == 0 && wall_drawn(screen_x, screen_y, tile);
         if (drawn) g_drawn.cells.push_back({ cell_x, cell_y, source });
+        if (layer == 1) { floors.push_back({ &tile, screen_x, screen_y, cell_x, cell_y }); return drawn; }   // drawn after the sweep, below
         if (layer == 2) blit_dt1_shadow(framebuffer, tile, pal, screen_x, screen_y);
         else if (light && layer == 0) blit_dt1_wall_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha < 255, alpha);   // ponytail: "in front" read off the alpha, so a wall fading back still samples the front spots
         else if (light) blit_dt1_tile_lit(framebuffer, tile, *light, screen_x, screen_y, cell_x, cell_y, alpha);
@@ -321,6 +329,14 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
             }
         }
     }
+    static const int floor_bands = std::clamp(int(std::thread::hardware_concurrency()), 1, 4);
+    draw_in_bands(floor_bands, [&](Rows rows) {
+        for (const auto& queued : floors) {
+            if (queued.screen_y >= rows.end || queued.screen_y + std::abs(queued.tile->height) <= rows.begin) continue;
+            if (light) blit_dt1_tile_lit(framebuffer, *queued.tile, *light, queued.screen_x, queued.screen_y, queued.cell_x, queued.cell_y, 255, nullptr, rows);
+            else blit_dt1_tile(framebuffer, *queued.tile, pal, queued.screen_x, queued.screen_y, 255, nullptr, rows);
+        }
+    });
 
     // The rain's splashes and the mud's bubbles on the floor (FUN_00473c00 →
     // FUN_00473a70: draw mode 3, additive), each moved by the side panel's

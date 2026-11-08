@@ -23,6 +23,7 @@
 #include <cstring>
 #include <exception>
 #include <ratio>
+#include <utility>
 #include <vector>
 
 namespace d2d::client::reference {
@@ -330,6 +331,41 @@ int main(int argc, char** argv) try {
         }
         ++cases;
     }
+    // A screen of overlapping floors, lit and not, drawn whole and then in
+    // bands (draw_in_bands, as render_world draws them): the same bytes for
+    // any band count, the pool's workers reused between calls.
+    for (const int bands : { 1, 2, 3, 4, 4, 2, 3 }) {
+        const int width = bands % 2 == 0 ? 1068 : int(kScreenWidth);
+        struct Placed { d2d::dt1::Tile tile; int screen_x, screen_y, cell_x, cell_y; };
+        std::vector<Placed> floors;
+        for (int index = 0; index < 300; ++index) {
+            auto tile = make_tile(random, 160, index % 5 == 0 ? 128 : -80, index % 5 == 0 ? 48 : 0);
+            tile.material_flags = index % 23 == 0 ? 0x100 : 0;
+            floors.push_back({ std::move(tile), random.range(-200, width + 40), random.range(-160, int(kScreenHeight) + 40), random.range(-6, 14), random.range(-6, 14) });
+        }
+        Lighting light;
+        light.grid = make_grid(random);
+        light.pal = &pals;
+        const bool lit = bands != 3;
+        auto expected = make_framebuffer(random, width);
+        auto actual = expected;
+        for (const auto& placed : floors) {
+            if (lit) blit_dt1_tile_lit(expected, placed.tile, light, placed.screen_x, placed.screen_y, placed.cell_x, placed.cell_y);
+            else blit_dt1_tile(expected, placed.tile, pals[7], placed.screen_x, placed.screen_y);
+        }
+        draw_in_bands(bands, [&](Rows rows) {
+            for (const auto& placed : floors) {
+                if (placed.screen_y >= rows.end || placed.screen_y + std::abs(placed.tile.height) <= rows.begin) continue;
+                if (lit) blit_dt1_tile_lit(actual, placed.tile, light, placed.screen_x, placed.screen_y, placed.cell_x, placed.cell_y, 255, nullptr, rows);
+                else blit_dt1_tile(actual, placed.tile, pals[7], placed.screen_x, placed.screen_y, 255, nullptr, rows);
+            }
+        });
+        if (expected != actual) {
+            std::fprintf(stderr, "floors in %d bands differ\n", bands);
+            return 1;
+        }
+        ++cases;
+    }
     std::printf("%d cases match\n", cases);
 
     if (argc > 1 && std::strcmp(argv[1], "--bench") == 0) {
@@ -372,6 +408,22 @@ int main(int argc, char** argv) try {
         auto no_wall = [](auto&, const auto&, const auto&, int, int, int, int) {};
         time("ref flat", reference_flat, no_wall);
         time("flat", current_flat, no_wall);
+        // The lit floors alone, then in 4 bands (draw_in_bands).
+        auto floors_in = [&](int bands) {
+            draw_in_bands(bands, [&](Rows rows) {
+                for (int index = 0; index < 400; ++index) {
+                    const int y = (index / 20) * 32 - 40;
+                    if (y >= rows.end || y + 80 <= rows.begin) continue;
+                    blit_dt1_tile_lit(framebuffer, floor, light, (index % 20) * 48 - 80, y, index % 9, index / 9 % 9, 255, nullptr, rows);
+                }
+            });
+        };
+        for (const int bands : { 1, 4 }) {
+            for (int warm = 0; warm < 5; ++warm) floors_in(bands);
+            const auto start = std::chrono::steady_clock::now();
+            for (int count = 0; count < 100; ++count) floors_in(bands);
+            std::printf("floors, %d band%s %.3f ms/frame\n", bands, bands == 1 ? " " : "s", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count() / 100);
+        }
     }
     return 0;
 } catch (const std::exception& error) {

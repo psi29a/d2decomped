@@ -8,13 +8,22 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <utility>
 #include <vector>
 
 namespace d2d::client {
+
+// The screen rows [begin, end) a floor blit may write: all of them, or one
+// band when the floors are drawn on several threads (draw_in_bands).
+struct Rows {
+    int begin = 0;
+    int end = INT_MAX;
+};
 
 // A see-through hole in what's drawn (the roof cut-out round each player).
 struct Hole {
@@ -43,7 +52,7 @@ struct Hole {
 void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
                    const d2d::dt1::Tile& tile,
                    const d2d::palette::Palette& pal,
-                   int screen_x, int screen_y, int alpha_all = 255, const Hole* hole = nullptr);
+                   int screen_x, int screen_y, int alpha_all = 255, const Hole* hole = nullptr, Rows rows = {});
 
 // A shadow tile (orientation 13), Blended Shadows on (the Video Options
 // default): through the palette's alpha table 0 (PL2 +0x3500) as
@@ -88,7 +97,7 @@ struct Lighting {
 // callback FUN_004f8b80 per 32 x 16 block; lighting.md). One level for the
 // tile when the table shares it.
 void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
-                       int screen_x, int screen_y, int cell_x, int cell_y, int alpha_all = 255, const Hole* hole = nullptr);
+                       int screen_x, int screen_y, int cell_x, int cell_y, int alpha_all = 255, const Hole* hole = nullptr, Rows rows = {});
 
 // A wall of cell (cell_x, cell_y), lit as game.exe's wall draws do
 // (FUN_004df1c0, FUN_004dedf0 for lower walls; the driver's +0x9c): six lights on
@@ -97,5 +106,11 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
 // 32-pixel column edge, each column's pixels between its two.
 void blit_dt1_wall_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
                        int screen_x, int screen_y, int cell_x, int cell_y, bool in_front, int alpha_all = 255, const Hole* hole = nullptr);
+
+// Runs draw(rows) once for each of `bands` horizontal bands of the screen,
+// at the same time: the first on the calling thread, the others on worker
+// threads, and returns when all are done. The workers start on the first
+// call and live as long as the process. Called from one thread at a time.
+void draw_in_bands(int bands, const std::function<void(Rows)>& draw);
 
 }  // namespace d2d::client

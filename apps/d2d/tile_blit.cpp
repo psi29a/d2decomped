@@ -10,10 +10,14 @@
 
 #include <algorithm>
 #include <array>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 namespace d2d::client {
@@ -21,15 +25,15 @@ namespace d2d::client {
 namespace {
 
 // Draws a tile's buffer at (screen_x, screen_y), clipped to the framebuffer
-// once up front: each non-transparent pixel (index 0 is see-through) takes
-// colour_at(x, y, index), x and y in the tile's buffer, blended at
-// alpha_all (or the hole's alpha there). Opaque draws skip the blend.
+// and `rows` once up front: each non-transparent pixel (index 0 is
+// see-through) takes colour_at(x, y, index), x and y in the tile's buffer,
+// blended at alpha_all (or the hole's alpha there). Opaque draws skip the blend.
 template <class ColourAt>
 void blit_tile_pixels(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile,
-                      int screen_x, int screen_y, int alpha_all, const Hole* hole, ColourAt colour_at) {
+                      int screen_x, int screen_y, int alpha_all, const Hole* hole, Rows rows, ColourAt colour_at) {
     const int screen_w = fb_width(framebuffer);
     const int x_begin = std::max(0, -screen_x), x_end = std::min(tile.width, screen_w - screen_x);
-    const int y_begin = std::max(0, -screen_y), y_end = std::min(std::abs(tile.height), int(kScreenHeight) - screen_y);
+    const int y_begin = std::max(0, rows.begin - screen_y), y_end = std::min(std::abs(tile.height), std::min(int(kScreenHeight), rows.end) - screen_y);
     if (x_begin >= x_end) return;
     const bool opaque = !hole && alpha_all >= 255;
     for (int y = y_begin; y < y_end; ++y) {
@@ -64,13 +68,13 @@ void blit_tile_pixels(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Ti
 void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
                    const d2d::dt1::Tile& tile,
                    const d2d::palette::Palette& pal,
-                   int screen_x, int screen_y, int alpha_all , const Hole* hole) {
+                   int screen_x, int screen_y, int alpha_all , const Hole* hole, Rows rows) {
     // Opaque through one palette (most floors): each index is a whole 32-bit
     // pixel, alpha 0xFF as blit_tile_pixels writes it, so one store a pixel.
     if (!hole && alpha_all >= 255) {
         const int screen_w = fb_width(framebuffer);
         const int x_begin = std::max(0, -screen_x), x_end = std::min(tile.width, screen_w - screen_x);
-        const int y_begin = std::max(0, -screen_y), y_end = std::min(std::abs(tile.height), int(kScreenHeight) - screen_y);
+        const int y_begin = std::max(0, rows.begin - screen_y), y_end = std::min(std::abs(tile.height), std::min(int(kScreenHeight), rows.end) - screen_y);
         if (x_begin >= x_end) return;
         std::array<std::uint32_t, 256> lut{};
         const auto entries = pal.entries();
@@ -85,7 +89,7 @@ void blit_dt1_tile(std::vector<std::uint8_t>& framebuffer,
         }
         return;
     }
-    blit_tile_pixels(framebuffer, tile, screen_x, screen_y, alpha_all, hole, [&](int, int, std::uint8_t idx) { return pal[idx]; });
+    blit_tile_pixels(framebuffer, tile, screen_x, screen_y, alpha_all, hole, rows, [&](int, int, std::uint8_t idx) { return pal[idx]; });
 }
 
 void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile,
@@ -108,10 +112,10 @@ void blit_dt1_shadow(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Til
 }
 
 void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::Tile& tile, const Lighting& light,
-                       int screen_x, int screen_y, int cell_x, int cell_y, int alpha_all , const Hole* hole) {
+                       int screen_x, int screen_y, int cell_x, int cell_y, int alpha_all , const Hole* hole, Rows rows) {
     // A floor whose DT1 material has 0x100 is drawn at full light
     // (FUN_004de410: its table all 0xff; lava).
-    if (tile.material_flags & 0x100) { blit_dt1_tile(framebuffer, tile, (*light.pal)[31], screen_x, screen_y, alpha_all, hole); return; }
+    if (tile.material_flags & 0x100) { blit_dt1_tile(framebuffer, tile, (*light.pal)[31], screen_x, screen_y, alpha_all, hole, rows); return; }
     // FUN_004ddef0: an 8 x 8 table of the grid round the tile, entry (col,
     // row) the subtile (x - 1 + col, y - 1 + row) from the cell's.
     std::array<int, 64> table{};
@@ -123,7 +127,7 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
             low = std::min(low, value); high = std::max(high, value);
         }
     const auto& pals = *light.pal;
-    if (low >> 3 == high >> 3) { blit_dt1_tile(framebuffer, tile, pals[std::size_t(low >> 3)], screen_x, screen_y, alpha_all, hole); return; }
+    if (low >> 3 == high >> 3) { blit_dt1_tile(framebuffer, tile, pals[std::size_t(low >> 3)], screen_x, screen_y, alpha_all, hole, rows); return; }
     // Each 32 x 16 block (subtile (bx, by)) as the software driver's block
     // callback FUN_004f8b80 takes it: flat at A >> 3 when its four entries
     // barely differ, else four corner levels, each the mean of four entries
@@ -158,7 +162,7 @@ void blit_dt1_tile_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
         const int left = (block.v0 * 16 + (block.v3 - block.v0) * row_in) >> 7, right = (block.v1 * 16 + (block.v2 - block.v1) * row_in) >> 7;
         return std::size_t(std::clamp(left + (((right - left) * along) >> 5), 0, 31));
     };
-    blit_tile_pixels(framebuffer, tile, screen_x, screen_y, alpha_all, hole, [&](int x, int y, std::uint8_t idx) {
+    blit_tile_pixels(framebuffer, tile, screen_x, screen_y, alpha_all, hole, rows, [&](int x, int y, std::uint8_t idx) {
         return pals[level(x - kIsoW / 2, y - tile.y_shift)][idx];   // from the diamond's top: block (0, 0) at x 64, y 0
     });
 }
@@ -194,12 +198,56 @@ void blit_dt1_wall_lit(std::vector<std::uint8_t>& framebuffer, const d2d::dt1::T
     if (low >> 3 == high >> 3) { blit_dt1_tile(framebuffer, tile, pals[std::size_t(low >> 3)], screen_x, screen_y, alpha_all, hole); return; }
     // A block (FUN_004f8120): flat at the left light's level when its two
     // lights differ by under 10, else the ramp between their levels.
-    blit_tile_pixels(framebuffer, tile, screen_x, screen_y, alpha_all, hole, [&](int x, int, std::uint8_t idx) {
+    blit_tile_pixels(framebuffer, tile, screen_x, screen_y, alpha_all, hole, {}, [&](int x, int, std::uint8_t idx) {
         const int column = std::min(x / 32, 4), along = x - column * 32;
         const int left = lights[std::size_t(column)], right = lights[std::size_t(column) + 1];
         const int lvl = std::abs(right - left) < 10 ? left >> 3 : (left >> 3) + ((((right >> 3) - (left >> 3)) * along) >> 5);
         return pals[std::size_t(lvl)][idx];
     });
+}
+
+void draw_in_bands(int bands, const std::function<void(Rows)>& draw) {
+    const int band_height = (int(kScreenHeight) + bands - 1) / bands;
+    const std::function<void(int)> band = [&](int index) { draw({ index * band_height, (index + 1) * band_height }); };
+    if (bands <= 1) { band(0); return; }
+    // Made on the first call and never destroyed: at exit a static pool's
+    // destructor would run while its workers still wait on it, and hang.
+    struct Pool {
+        std::mutex mutex;
+        std::condition_variable wake, done;
+        const std::function<void(int)>* job = nullptr;
+        int jobs = 0;          // this round's bands, the caller's (0) included
+        int pending = 0;       // the workers' bands not drawn yet
+        std::uint64_t round = 0;
+        int workers = 0;
+    };
+    static Pool& pool = *new Pool;
+    std::unique_lock lock(pool.mutex);
+    for (; pool.workers < bands - 1; ++pool.workers)
+        std::thread([index = pool.workers + 1] {
+            std::uint64_t seen = 0;
+            std::unique_lock worker_lock(pool.mutex);
+            for (;;) {
+                pool.wake.wait(worker_lock, [&] { return pool.round != seen; });
+                seen = pool.round;
+                if (index >= pool.jobs) continue;
+                const auto* work = pool.job;
+                worker_lock.unlock();
+                (*work)(index);
+                worker_lock.lock();
+                if (--pool.pending == 0) pool.done.notify_one();
+            }
+        }).detach();
+    pool.job = &band;
+    pool.jobs = bands;
+    pool.pending = bands - 1;
+    ++pool.round;
+    lock.unlock();
+    pool.wake.notify_all();
+    band(0);
+    lock.lock();
+    pool.done.wait(lock, [&] { return pool.pending == 0; });
+    pool.job = nullptr;
 }
 
 }  // namespace d2d::client
