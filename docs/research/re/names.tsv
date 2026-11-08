@@ -285,6 +285,7 @@ address	name	evidence
 0055bed0	item_announce_ground	(item, client): item mode 3 and unit flag 0x10 clear; flag 0x1000 set calls FUN_0053ec90 (action 2), clear FUN_0053ecf0 (action 3) (items.md)
 0055bf30	item_announce_ground_if_flag1	(unit): FUN_0055bed0 only when unit +0xc4 bit 0 is set (items.md)
 0055c470	unit_hand_weapons	(unit in EAX; outs in EBX, EDI): wielded weapon, and the other slot-4/5 item cleared unless ItemTypes 0x2d (weapon-switch.md)
+0055c4d0	skill_not_refused	(unit in ECX, entry in EAX): 0 when FUN_00647960 says 2 or 7, else 1 (weapon-switch.md)
 0055fe80	item_recharge	(owner, item): every stat 0xcc (item_charged_skill) entry whose low byte is below its max (value >> 8) is set back to max through FUN_0065c940; for a player owner also sends the stat update (FUN_0053d130); returns whether any changed
 00560420	c2s_19_to_cursor	ItemMode.cpp 0x936..0x978
 00561b00	c2s_1f_grid_swap	box code, ItemMode.cpp 0xec0..0xf4b

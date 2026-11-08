@@ -222,3 +222,14 @@ when the wielded one is slot 4's, else slot 4's. EBX is cleared unless
 it is of ItemTypes row 0x2d (`FUN_00629bb0`, weap).
 Evidence: `python3 tools/ghidra/fn.py 0055c470`, `python3 tools/ghidra/calls.py 0055c470`.
 d2d: not ported; no mention in `components/` or `apps/`.
+
+### Is the skill still usable (`FUN_0055c4d0`)
+
+`FUN_0055c4d0(unit, entry)` (unit in ECX, entry in EAX) runs `FUN_00647960`
+(skills.md "Can the skill go now") and returns 0 for status 2 (the weapon-type
+gate or a spent charge) or 7 (level 0), else 1. Every other reason, mana and
+cooldown included, counts as usable. Callers: `FUN_0055c560`. The same
+2-or-7 test is in `FUN_0055c5c0` (inline) and d2d's `skill_refused`
+(`components/game/fight.hpp`), which keeps status 2 and 7 only.
+Evidence: `python3 tools/ghidra/fn.py 0055c4d0`, `python3 tools/ghidra/fn.py 00647960`.
+d2d: reads the same, cited from the decompile, no oracle run (`skill_refused` ports the two statuses; `fight.hpp:146`).
