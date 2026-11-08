@@ -294,6 +294,8 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
     10..100;
   - 9 / 17 / 18 fire / lightning / cold enchanted (FUN_005a1990 & co):
     element min / max = MonLvl damage for its level × (elemental rows) %,
+    cold enchanted (FUN_005a1c70) also the cold's length: the unit's level
+    × 5 + 100 frames (stat 0x38; ghostly's FUN_005a1080 adds 150),
     then FUN_005a1370;
   - FUN_005a1370, unless the monster already has two immunities: 8 magic
     resistant +40 cold, fire, lightning (each under 100); 9 / 18 / 17 / 23

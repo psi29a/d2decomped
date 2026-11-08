@@ -2673,7 +2673,7 @@ void make_boss(const GameData& game_data, Monster& monster, d2d::rules::Boss kin
         const int damage_pct = level_row.damage[std::size_t(std::clamp(difficulty, 0, 2))];
         int put = 0;
         for (auto& element : monster.stats.elements)
-            if (element.type < 0 && put < 2) element = { boss.elem, 100, damage_pct * boss.elem_min_pct / 100, std::max(damage_pct * boss.elem_max_pct / 100, damage_pct * boss.elem_min_pct / 100), boss.elem_len, put++ ? "A2" : "A1" };
+            if (element.type < 0 && put < 2) element = { boss.elem, 100, damage_pct * boss.elem_min_pct / 100, std::max(damage_pct * boss.elem_max_pct / 100, damage_pct * boss.elem_min_pct / 100), d2d::rules::boss_elem_length(boss, monster.stats.level, int(game_data.monsters.lvl.size()) - 1), put++ ? "A2" : "A1" };
     }
     // Mana burn (FUN_005a1f90): manadrainmin / max (stats 62 / 63) = MonLvl
     // damage x MonUMod constants (FUN_005a00f0) rows 0x10 / 0x13 +
