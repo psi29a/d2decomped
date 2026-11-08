@@ -1632,7 +1632,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     if (ai_name == "FallenShaman") {
         if (input.in_melee && roll() < aip[2]) return { MonAct::a1 };
         if (roll() < aip[0]) *input.rally = true;
-        if (input.corpse && roll() < aip[0] && input.skill[0]) return { MonAct::skill, 0 };
+        if (input.corpse && roll() < aip[0] && input.skill[0] && input.usable) return { MonAct::skill, 0 };   // FUN_005fd470 after the roll
         if (input.dist < aip[4] && roll() < aip[1]) return { MonAct::skill, 1 };
         if (input.second && input.second_dist < aip[4] && roll() < aip[1]) return at_second({ MonAct::skill, 1 });
         if (roll() >= aip[2]) return { MonAct::idle, 10 };

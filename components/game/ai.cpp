@@ -1077,7 +1077,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // found; an lUndead (MonStats +0xd & 8) not a unique (FUN_005a0180, 8).
     // Radament's (FUN_005f2b10, class 0xe5): within aip5 + 10, uniques
     // too, on Normal any undead (FUN_0063e990).
-    // ponytail: a skill is always usable (FUN_005fd470).
+    // FUN_005fd470, a skill usable, where a think asks it (else 1): see below.
     input.regen = monster.stats.regen;
     input.skill45 = { !type_info.skill[3].empty(), !type_info.skill[4].empty() };
     input.target_fire_res = target->fighter.res[0]; input.target_cold_res = target->fighter.res[2];
@@ -1585,6 +1585,25 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                                             x == subtile(monster.home_x) && y == subtile(monster.home_y) };
         act = d2d::rules::countess_think(input, where, monster.path, monster.seed);
     } else {
+        // FUN_005fd470 for the thinks that ask it: Resurrect / Resurrect2's
+        // TgtPlaceCheck (Skills +8 bit 0) the corpse's spot open to its pattern
+        // under 0x3c01 (FUN_0064d910); Charge (do 67) a clear line to the
+        // target (FUN_00645910, 0xc01); Leap (do 77) a free spot past the
+        // target (twice it less itself, FUN_0064e7b0 at its size, 0x3c01) in a
+        // clear line. Not in town (FUN_0061ab00): a think here never is.
+        const auto& name = type_info.ai_name;
+        const auto wallc01 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0xc01); };
+        if ((name == "FallenShaman" || name == "GreaterMummy") && corpse >= 0) {
+            const auto& body = pack[std::size_t(corpse)].unit;
+            UnitShape place = body.shape;
+            place.mask = 0x3c01;
+            input.usable = !level.unit_blocked(body.x, body.y, place) && !crowd.at(body.x, body.y, &body);
+        } else if (name == "ClawViper" || name == "ClawViperEx") {
+            input.usable = !d2d::rules::sight_blocked(x, y, 0, target_x, target_y, 0, wallc01);
+        } else if (name == "SandLeaper") {
+            const auto landing = free_spot_near(level, crowd, &unit, 2 * target_x - x, 2 * target_y - y, unit.shape.size, 0x3c01);
+            input.usable = landing && !d2d::rules::sight_blocked(x, y, 0, landing->first, landing->second, 0, wallc01);
+        }
         act = d2d::rules::mon_think(type_info.ai_name, input, monster.seed, away);
     }
     monster.move_pct = pace;                                       // the next mode takes it (FUN_005a63f0)
