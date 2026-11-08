@@ -169,6 +169,12 @@ register arguments are partly dropped), so argument order is a reading.
   with string 0x64a, tail-calling `FUN_00643960` (the right skill, list +0xc;
   names.tsv:123). d2d reads the same, cited from the decompile, no oracle run (`components/rules/pets.hpp:289`); same note on
   the fatal path.
+- **`FUN_00644140` (skill_record, 10 bytes)**: a skill entry -> the dword at
+  its +0, or 0 for a null entry. `tools/emu/cast_mana.py:86` hooks it as "the
+  Skills.txt record of that skill", and `FUN_004eda80` hands the result to
+  `FUN_004a89d0`, so that dword is the 0x23c-byte Skills record (id short at
+  +0, as `FUN_004ea010` reads `*param_3`). d2d: not ported (it keeps the
+  record by id).
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
