@@ -602,6 +602,7 @@ struct Town {
     float rain_cam_x = 0, rain_cam_y = 0;          // the camera at the last weather tick
     float panel_cam_x = 0, panel_cam_y = 0;        // the side panels' part of cam_x / cam_y (the weather scrolls without it)
     std::optional<std::pair<int, int>> cursor_move; // where a panel key put the cursor (rules::panel_view_cursor_x), for main to warp it there
+    void sync_panel_cam();                         // the panels' quarter onto cam_x / cam_y (draw.cpp)
     int rain_vol = 0;                              // the rain sound's volume 0..255
     // The Den of Evil cleared (docs/research/re/quests.md "The Den lights
     // up"): S→C 0x89 event 0 starts a count (FUN_0046b0c0); for 30 frames

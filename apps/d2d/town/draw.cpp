@@ -96,6 +96,17 @@ auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std:
     draw_coop_portraits(framebuffer, left_panel_open());       // on the whole frame: widescreen's spare width
 }
 
+// The side panels' quarter (rules::panel_view_shift) onto the camera, in
+// place of the last one: at the draw, and as soon as a key opens or shuts a
+// panel, so the cursor maps to the world through the same view the frame's
+// input uses (FUN_0045aea0 sets 0x7a5214 in the call that moves the cursor).
+auto Town::sync_panel_cam() -> void {
+    const int shift = d2d::rules::panel_view_shift(view_state(), g_view_width);
+    const float want_x = float(shift) / kIsoW, want_y = -float(shift) / kIsoW;
+    cam_x += want_x - panel_cam_x; cam_y += want_y - panel_cam_y;
+    panel_cam_x = want_x; panel_cam_y = want_y;
+}
+
 auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms) -> void {
         auto& unit = view.player;                           // the client's copy: its animation clock is the client's
         const int pmode = view.pmode;
@@ -140,9 +151,8 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         // A side panel open: the world draws a quarter of the view over, so
         // the player stands in the middle of the half left free
         // (FUN_0045aea0; rules/panel_view.hpp). A screen x offset, as the shake's.
-        const int panel_shift = d2d::rules::panel_view_shift(view_state(), fb_width(wide ? *wide : framebuffer));
-        panel_cam_x = float(panel_shift) / kIsoW; panel_cam_y = -float(panel_shift) / kIsoW;
-        cam_x += panel_cam_x; cam_y += panel_cam_y;
+        panel_cam_x = panel_cam_y = 0;
+        sync_panel_cam();
         const std::pair<float, float> hero_at{ hero_x, hero_y };
         state_clock.now = frame_ms;
         view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, frame_ms, &character.name, std::max(character.character_class, 0), &state_clock);
