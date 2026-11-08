@@ -25,7 +25,7 @@ namespace d2d::net::lan {
 using Bytes = std::vector<std::uint8_t>;
 
 // Bumped whenever a frame or payload changes shape: a host refuses other versions.
-inline constexpr std::uint32_t kProtocolVersion = 2;   // 2: Save, the goodbye that waits for it
+inline constexpr std::uint32_t kProtocolVersion = 3;   // 2: Save, the goodbye that waits for it; 3: Resync
 inline constexpr std::uint16_t kDefaultPort = 6113;      // game.exe hosts on 4000; this is a different protocol
 inline constexpr std::size_t kMaxPayload = 8u << 20;     // a View or a save is far smaller
 inline constexpr int kMaxClients = 3;                    // the host plays too: four players
@@ -42,6 +42,7 @@ enum class Kind : std::uint8_t {
     Pong = 7,
     Bye = 8,       // either way: leaving on purpose (a joiner's: the host answers with a Save, then closes; the host's: on its way out)
     Save = 9,      // host -> client: the joiner's character, a whole .d2s
+    Resync = 10,   // client -> host: a View didn't apply; the next one whole, please
 };
 
 struct Frame { Kind kind{}; Bytes payload; };
@@ -68,7 +69,7 @@ auto decode_hello(std::span<const std::uint8_t> payload) -> std::optional<Hello>
 class Host {
 public:
     struct Event {
-        enum class Type { Joined, Command, Left } type{};
+        enum class Type { Joined, Command, Left, Resync } type{};
         int client = -1;            // the host's id for the connection (also the Welcome's player id)
         Hello hello;                // Joined
         Bytes command;              // Command: one encoded Command
@@ -126,6 +127,8 @@ public:
     static auto join(const std::string& host, Hello hello, std::uint16_t port = kDefaultPort, int timeout_ms = 3000) -> std::expected<Client, std::string>;
     auto poll() -> std::vector<Event>;
     auto send_command(std::span<const std::uint8_t> command) -> bool;
+    // Lost track of the Views: the host's next is whole (its encoder reset).
+    auto send_resync() -> bool;
     // Says goodbye; poll on for the host's last Save, then the host closes (Lost).
     auto leave() -> void;
     [[nodiscard]] auto connected() const -> bool { return connected_; }

@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <span>
 #include <thread>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -63,6 +64,11 @@ auto Town::lan_poll() -> void {
                 if (found == lan_players.end()) continue;
                 if (auto command = d2d::game::decode(event.command)) found->orders.push_back(std::move(*command));
                 else d2d::log::warn("lan: client {} sent a command that doesn't decode ({} bytes)", event.client, event.command.size());
+            } else if (event.type == Type::Resync) {
+                const auto found = std::ranges::find(lan_players, event.client, &LanPlayer::client);
+                if (found == lan_players.end()) continue;
+                found->view_enc.reset();              // the next View is whole
+                d2d::log::info("lan: player {} asked for a whole View", found->id);
             } else if (event.type == Type::Left) {
                 const auto found = std::ranges::find(lan_players, event.client, &LanPlayer::client);
                 if (found == lan_players.end()) continue;
@@ -147,10 +153,17 @@ auto Town::lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t fram
         for (auto& event : lan_client->poll()) {
             using Type = d2d::net::lan::Client::Event::Type;
             if (event.type == Type::View) {
-                // ponytail: a View that doesn't apply leaves this client behind the host's encoder
-                // (no resync request yet); TCP keeps them in order, so it means a bug.
+                // A View that doesn't apply (TCP keeps them in order, so a bug) leaves us behind the
+                // host's encoder: ask once for a whole one, drop the rest until one applies.
+                // D2D_LAN_DROP_VIEW=n (tests): the nth View is lost, as a bug would lose it.
+                static const int drop_view = std::getenv("D2D_LAN_DROP_VIEW") ? std::atoi(std::getenv("D2D_LAN_DROP_VIEW")) : 0;
+                if (++lan_views == drop_view) { d2d::log::info("lan: View {} dropped (D2D_LAN_DROP_VIEW)", lan_views); continue; }
                 const auto queued = cues.due.size();
-                if (!take_view(event.view, nullptr)) continue;
+                if (!take_view(event.view, nullptr)) {
+                    if (!std::exchange(lan_resyncing, true)) lan_client->send_resync();
+                    continue;
+                }
+                lan_resyncing = false;
                 for (auto cue = cues.due.begin() + std::ptrdiff_t(queued); cue != cues.due.end(); ++cue) cue->when_ms += frame_ms;   // the host's delays, on our clock
                 if (std::getenv("D2D_LAN_SOUNDS") && cues.due.size() > queued) d2d::log::info("lan: {} sounds from the host", cues.due.size() - queued);
                 for (const auto& said : view.events) {

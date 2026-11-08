@@ -185,7 +185,12 @@ int main() try {
         for (const auto& event : leaver_events[0]) if (event.type == net::lan::Client::Event::Type::Save) saved = event.view.size() == 2048;
         assert(saved);
     }
-    // 7. Leaving on purpose and dropping both show on the host.
+    // 7. A client that lost track asks for a whole View.
+    host_events.clear();
+    assert(clients[0].send_resync());
+    std::vector<net::lan::Client*> first{ &clients[0] };
+    assert(pump(*host, first, host_events, client_events, [&] { return count(host_events, net::lan::Host::Event::Type::Resync) == 1; }));
+    // 8. Leaving on purpose and dropping both show on the host.
     host_events.clear();
     clients[0].leave();
     { auto gone = std::move(clients[1]); }   // the socket closes without a goodbye

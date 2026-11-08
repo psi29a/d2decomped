@@ -344,6 +344,8 @@ struct Town {
     std::optional<d2d::net::lan::Client> lan_client;
     std::string lan_lost;                         // why the host's game ended for us ("" while it's on)
     const CharacterStore* lan_store = nullptr;    // where the host's Saves of our character go
+    bool lan_resyncing = false;                   // asked the host for a whole View, none applied since
+    int lan_views = 0;                            // Views from the host so far
     // Goodbye to the host: its last Save of our character written, then out (Town::save on leaving).
     void lan_leave();
     void lan_client_frame(const Mouse& mouse, Audio& audio, std::uint32_t frame_ms);

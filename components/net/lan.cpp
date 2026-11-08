@@ -35,7 +35,7 @@ auto get_u32(std::span<const std::uint8_t> bytes, std::size_t offset) -> std::ui
 auto now_ms() -> std::uint64_t {
     return std::uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count());
 }
-auto known(std::uint8_t kind) -> bool { return kind >= std::uint8_t(Kind::Hello) && kind <= std::uint8_t(Kind::Save); }
+auto known(std::uint8_t kind) -> bool { return kind >= std::uint8_t(Kind::Hello) && kind <= std::uint8_t(Kind::Resync); }
 
 auto send_frame(TcpConnection& connection, Kind kind, std::span<const std::uint8_t> payload) -> bool {
     return connection.send(encode_frame(kind, payload)).has_value();
@@ -177,6 +177,9 @@ auto Host::poll() -> std::vector<Event> {
                 case Kind::Command:
                     if (client.joined) events.push_back({ .type = Event::Type::Command, .client = client.number, .command = std::move(frame->payload) });
                     break;
+                case Kind::Resync:
+                    if (client.joined) events.push_back({ .type = Event::Type::Resync, .client = client.number });
+                    break;
                 case Kind::Ping: send_frame(client.connection, Kind::Pong, frame->payload); break;
                 case Kind::Pong: break;   // heard: that's what it's for
                 case Kind::Bye:
@@ -273,6 +276,12 @@ auto Client::poll() -> std::vector<Event> {
     if (now - heard_ > kTimeout) { lost("the host stopped answering"); return events; }
     if (now - pinged_ >= kPingEvery) { pinged_ = now; if (!send_ping(connection_)) lost("send failed"); }
     return events;
+}
+
+auto Client::send_resync() -> bool {
+    if (!connected_) return false;
+    if (!send_frame(connection_, Kind::Resync, {})) { connected_ = false; return false; }
+    return true;
 }
 
 auto Client::send_command(std::span<const std::uint8_t> command) -> bool {
