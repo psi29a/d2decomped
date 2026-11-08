@@ -2527,7 +2527,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // Start 62 (FUN_005d2420 -> FUN_0056e620 -> FUN_0063ea70): the
                     // caster's MonStats spawn at its spot + spawnx / spawny, in
                     // spawnmode (out of 0..15: NU); no spawn row (Nihlathak's), the
-                    // class his think kept (AI control +0x3c: FUN_0063ec70, the
+                    // class his think kept (AI control +0x3c, read by FUN_0058f710: FUN_0063ec70, the
                     // level's own minion). Do 135 (FUN_005d2490) makes it through
                     // FUN_005b2f20: exactly there, else within 4.
                     // Flags 0x4020000 (no experience, no drop); MinionSpawner's Skills
