@@ -329,11 +329,9 @@ struct Town {
     // FUN_0045ae90's view state (rules/panel_view.hpp): the inventory or tree
     // on the right, the left panels, a store / stash / cube over both.
     // unverified (source: D2BS's UI enum): waypoints UI 0x14, stash 0x19, cube 0x1a; its 0xc, 0xf, 0x16, 0x24 match ours.
-    // ponytail: opening one from a key doesn't move the cursor by the shift (FUN_00468770).
-    [[nodiscard]] int view_state() const {
-        return d2d::rules::panel_view_state(char_open || waypoint.open || quest_log.open || party.open || hireling.open, inv_open || tree_open,
-                                            stash_open || cube_open || store.npc >= 0);
-    }
+    [[nodiscard]] int view_state() const { return d2d::rules::panel_view_state(left_side_open(), inv_open || tree_open, view_covered()); }
+    [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open; }
+    [[nodiscard]] bool view_covered() const { return stash_open || cube_open || store.npc >= 0; }
     // A panel on the right, for the mini-panel (FUN_0047eb50): the inventory
     // or skill tree, or the belt popup up (belt_popup::moves_mini_panel).
     [[nodiscard]] bool mini_right() const;
@@ -603,6 +601,7 @@ struct Town {
     std::uint32_t rain_ms = 0;
     float rain_cam_x = 0, rain_cam_y = 0;          // the camera at the last weather tick
     float panel_cam_x = 0, panel_cam_y = 0;        // the side panels' part of cam_x / cam_y (the weather scrolls without it)
+    std::optional<std::pair<int, int>> cursor_move; // where a panel key put the cursor (rules::panel_view_cursor_x), for main to warp it there
     int rain_vol = 0;                              // the rain sound's volume 0..255
     // The Den of Evil cleared (docs/research/re/quests.md "The Den lights
     // up"): S→C 0x89 event 0 starts a count (FUN_0046b0c0); for 30 frames

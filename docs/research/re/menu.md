@@ -71,9 +71,20 @@ software modes don't shift the world".
 In state 3 nothing of the world is drawn (`FUN_0044c990` skips
 `FUN_00476bc0`), and neither is the automap (below).
 
-Opening or shutting one of these from a key (the call's third argument)
-also moves the cursor by W/4 (`FUN_00468770`, `SetCursorPos`), so it
-stays over the same spot in the world.
+With the call's third argument set, opening or shutting one also moves
+the cursor by W/4 (`FUN_00468770`, `SetCursorPos`; y stays), so it stays
+over the same spot in the world:
+- a right panel opens to state 1: x - W/4 when x > W/4;
+- it shuts to 0: x + W/4 when x < W/2;
+- a left one opens to 2: x + W/4 when x < W - W/4;
+- it shuts to 0: x - W/4 when x > W/2.
+
+No other change moves it. The keys pass 1: Character `0x468940`,
+Inventory `0x468950`, Party `0x468960`, Skill Tree `0x468af0`, Hireling
+`0x469170`, and the Quest Log through `FUN_004a3fe0`. Esc calls
+`FUN_00456300(0, 1)` at 0x4690df. That function shuts the flags in
+order, so the inventory and tree go before the left panels. The
+mini-panel's and HUD's buttons pass 0.
 
 **Draw order** (`FUN_00456ee0`, the in-game UI each frame):
 1. the automap (`FUN_0045ad60`, UI 10), only while the state isn't 3;
@@ -92,7 +103,10 @@ d2d (`rules/panel_view.hpp`, `Town::view_state`):
   it (weather.md).
 - `render_ingame` draws the automap before the border and the panels,
   and not at all in state 3.
-- The cursor move isn't kept: a ponytail.
+- The panel keys (Character, Inventory, Skill Tree, Quest Log, Party,
+  Hireling) and Esc's close-all move the cursor as game.exe does
+  (`rules::panel_view_cursor_x`; main warps the OS cursor). A click on
+  the HUD or mini-panel doesn't.
 
 ## Menu tables
 

@@ -27,6 +27,7 @@
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
+#include <panel_view.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <screenshot.hpp>
@@ -222,6 +223,12 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             // The key config's functions (docs/research/re/controls.md); Esc stays Esc.
             const auto fired = keys::actions_of(key_table, virtual_key(key));
             const auto fires = [&](int action) { return std::ranges::contains(fired, action); };
+            // The panel keys and Esc's close-all move the cursor with the view
+            // (their flag to FUN_00455f20 / FUN_00456300); not past a store, stash or cube.
+            const int side_before = d2d::rules::panel_view_state(left_side_open(), inv_open || tree_open, false);
+            const bool covered_before = view_covered();
+            bool cursor_follows = std::ranges::any_of(std::array{ keys::kInventory, keys::kSkillTree, keys::kCharacter, keys::kQuestLog, keys::kParty, keys::kHireling },
+                                                      [&](int action) { return fires(action); });
             if (fires(keys::kInventory)) { inv_open = !inv_open; if (inv_open) tree_open = false; }
             if (fires(keys::kSkillTree)) { tree_open = !tree_open; if (tree_open) inv_open = false; }   // both right-hand panels
             if (fires(keys::kToggleRun)) send(cmd::Run{ !view.running });
@@ -278,9 +285,16 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 else if (npc_menu.npc >= 0) npc_menu = {};          // then the menu
                 else if (game_menu.open) close_game_menu();
                 else if (help.open) toggle_help();                    // then the Help screen
-                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open || party.open)   // then panels
+                else if (inv_open || char_open || stash_open || cube_open || tree_open || quest_log.open || hireling.open || party.open) {   // then panels
                     inv_open = char_open = stash_open = cube_open = tree_open = quest_log.open = hireling.open = party.open = false;
-                else open_game_menu();
+                    cursor_follows = true;
+                } else open_game_menu();
+            }
+            if (const int side_after = d2d::rules::panel_view_state(left_side_open(), inv_open || tree_open, false);
+                cursor_follows && side_after != side_before && !covered_before && !view_covered()) {
+                const int spare = (g_view_width - int(kScreenWidth)) / 2;   // widescreen: the cursor counts from the centre 800
+                mouse.x = d2d::rules::panel_view_cursor_x(side_before, side_after, mouse.x + spare, g_view_width) - spare;
+                cursor_move = std::pair{ mouse.x, mouse.y };
             }
         }
         if (audio_say >= 0) {                              // on the hero: one line at a time

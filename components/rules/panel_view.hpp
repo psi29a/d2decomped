@@ -29,4 +29,23 @@ constexpr int panel_view_shift(int state, int width) {
     return state == panel_view::kRightOpen ? width / 4 : state == panel_view::kLeftOpen ? -(width / 4) : 0;
 }
 
+// The cursor's x after a key (or Esc's close-all) took the view from
+// `before` to `after`, as FUN_00455f20 / FUN_00456300 move it when their
+// flag is set (FUN_00468770, SetCursorPos; y stays). `x` and `width` are
+// the view's. It keeps to the same spot of the world, unless that's under
+// the panel or off the half it comes back from:
+// - a right panel opens: x - W/4 when x > W/4; it shuts: x + W/4 when x < W/2;
+// - a left one opens: x + W/4 when x < W - W/4; it shuts: x - W/4 when x > W/2.
+// Both sides (3, a store / stash / cube aside) to none is Esc's: it shuts
+// the inventory and tree first, so the left's rule. Any other step: none.
+constexpr int panel_view_cursor_x(int before, int after, int x, int width) {
+    const int quarter = width / 4;
+    if (after == panel_view::kRightOpen && before == panel_view::kWhole) return x > quarter ? x - quarter : x;
+    if (after == panel_view::kLeftOpen && before == panel_view::kWhole) return x < width - quarter ? x + quarter : x;
+    if (after != panel_view::kWhole) return x;
+    if (before == panel_view::kRightOpen) return x < width / 2 ? x + quarter : x;
+    if (before == panel_view::kLeftOpen || before == panel_view::kCovered) return x > width / 2 ? x - quarter : x;
+    return x;
+}
+
 }  // namespace d2d::rules
