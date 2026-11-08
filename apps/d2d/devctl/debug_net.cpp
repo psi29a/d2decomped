@@ -29,6 +29,11 @@ void DebugVerbs::add_net() {
         town.add_chat(text);
         return std::string("ok\n");
     });
+    add("chatlog", [this](const Args& /*args*/) -> Reply {   // the chat lines on screen now, oldest first (a LAN game's chat and news)
+        std::string out;
+        for (const auto& line : town.chat_lines) out += line.text + "\n";
+        return out + "ok\n";
+    });
     add("net", [this](const Args& /*args*/) -> Reply {   // a joined game: where the host has us, where d2d has us (act subtiles), and how far apart
         if (!town.net_game || !town.level) return std::nullopt;
         const float local_x = (town.hero.player.x + float(town.level->world_x)) * 5.f, local_y = (town.hero.player.y + float(town.level->world_y)) * 5.f;
@@ -104,7 +109,11 @@ void DebugVerbs::add_net() {
         for (const auto& other : view.others) others += (others.empty() ? "" : ",") + other.name;
         double spread = 0;                                     // where the monsters are, summed: it changes as they move
         for (const auto& monster : view.monsters) spread += monster.unit.x + monster.unit.y;
-        return std::format("ok level={} monsters={} others={} ground={} where={:.1f}\n", view.level ? view.level->id : -1, view.monsters.size(), others.empty() ? "-" : others, view.ground.size(), spread);
+        const auto nearest = std::ranges::min_element(view.monsters, {}, [&](const auto& monster) { return std::hypot(monster.unit.x - view.player.x, monster.unit.y - view.player.y); });
+        const auto closest = nearest == view.monsters.end() ? std::string("-") : std::format("{:.1f},{:.1f}", nearest->unit.x, nearest->unit.y);
+        std::string ids;                                       // the monsters' unit ids: which ones they are
+        for (const auto& monster : view.monsters) ids += (ids.empty() ? "" : ",") + std::to_string(monster.id);
+        return std::format("ok level={} monsters={} others={} ground={} where={:.1f} near={} ids={}\n", view.level ? view.level->id : -1, view.monsters.size(), others.empty() ? "-" : others, view.ground.size(), spread, closest, ids.empty() ? "-" : ids);
     });
 }
 

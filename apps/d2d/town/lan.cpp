@@ -61,6 +61,7 @@ auto Town::lan_poll() -> void {
                                         .save = std::vector<std::byte>(reinterpret_cast<const std::byte*>(raw.data()), reinterpret_cast<const std::byte*>(raw.data()) + raw.size()),
                                         .saved_ms = steady_ms() });
                 d2d::log::info("lan: {} joined as player {} (client {})", joining->name, seat_id, event.client);
+                world.announce({ ev::Message::joined, joining->name, {} });
             } else if (event.type == Type::Command) {
                 const auto found = std::ranges::find(lan_players, event.client, &LanPlayer::client);
                 if (found == lan_players.end()) continue;
@@ -103,6 +104,8 @@ auto Town::lan_send_save(LanPlayer& lan_player) -> bool {
 
 auto Town::lan_remove(LanPlayer& lan_player, const std::string& why) -> void {
         const auto* saved_store = std::exchange(world.characters, nullptr);   // their save is theirs: none written here
+        if (const auto found = std::ranges::find_if(world.players, [&](const auto& seated) { return seated->id == lan_player.id; }); found != world.players.end())
+            world.announce({ ev::Message::left, (*found)->character.name, {} });
         world.leave(lan_player.id);
         world.characters = saved_store;
         d2d::log::info("lan: player {} left ({})", lan_player.id, why);

@@ -234,6 +234,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         first_turn = true;
         if (!split_levels) {
             tick_level(orders, now_ms, last_ms);
+            hand_out_announced();
             if (turn_done) turn_done();
             return;
         }
@@ -270,6 +271,13 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         fight.heroes = all_heroes;
         act_as(lead());
         swap_to(lead().on_level);                                  // the host's screen: where its player is now
+        hand_out_announced();                                // the joiners have them in their next View
+    }
+
+auto World::hand_out_announced() -> void {
+        if (announced.empty()) return;
+        for (auto& player : players) for (const auto& message : announced) player->events.push_back(message);
+        announced.clear();
     }
 
 auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
@@ -417,14 +425,16 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                     death_penalty(now_ms);
                     actor->interact_npc = -1;
                     actor->character.header.status |= 0x08;   // the save's died bit (FUN_00580ec0: FUN_00538650 with 8 at 00580f7c)
+                    if (split_levels) { announce({ ev::Message::slain, actor->character.name, {} }); d2d::log::info("{} died", actor->character.name); }   // ponytail: the killer's name (game.exe's "was slain by")
                 }
                 if (actor->pmode == kModeDD) { if (shared_screen()) become_ghost(player); else make_corpse(); }   // co-op (one screen): a ghost, the gear kept; a screen of one's own: a corpse, as game.exe
                 actor->last_pmode = actor->pmode;
             }
+            for (const auto& command : cmds) if (std::holds_alternative<cmd::Say>(command)) apply(command, now_ms);   // the dead chat too
             if (!fight.dead() || actor->ghost) {
             const bool busy = actor->pmode >= 0 && !actor->ghost;
             for (const auto& command : cmds) {
-                if (std::holds_alternative<cmd::Resurrect>(command)) continue;
+                if (std::holds_alternative<cmd::Resurrect>(command) || std::holds_alternative<cmd::Say>(command)) continue;
                 if (actor->ghost && !std::holds_alternative<cmd::Move>(command) && !std::holds_alternative<cmd::Run>(command)) continue;   // a ghost only walks
                 apply(command, now_ms);
                 // ItemMode.cpp's server moves end with FUN_0055dbc0: a hand's or body

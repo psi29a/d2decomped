@@ -98,8 +98,11 @@ struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
 // An NPC's service on the item in hand answered (S->C 0x58 {npc, 6 done /
 // 7 refused}, FUN_00579d60): the client shuts its item panel.
 struct ServiceResult { int npc = -1; bool done = false; };
+// A line for everyone in the game, wherever they are (a LAN game's chat
+// and news): typed chat, who joined or left, who was slain.
+struct Message { enum Kind : std::uint8_t { chat, joined, left, slain } kind = chat; std::string name, text; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip, ev::ServiceResult, ev::Message>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP
@@ -1002,6 +1005,11 @@ struct World {
     bool split_levels = false;
     std::function<void()> turn_done;
     std::vector<Player*> elsewhere;                  // during a turn: the players on other levels (each_in_game)
+    // Lines for everyone in the game (ev::Message), whatever level they're
+    // on: handed to every player as the tick ends.
+    std::vector<ev::Message> announced;
+    void announce(ev::Message message) { announced.push_back(std::move(message)); }
+    void hand_out_announced();
     void swap_to(const Level* destination);
     void go_alone(const Level* destination, float arrive_x, float arrive_y, const char* how);
     [[nodiscard]] bool here(const Player& player) const { return !split_levels || !player.on_level || player.on_level == level; }

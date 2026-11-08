@@ -353,6 +353,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
  * facing.
  */
 auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
+        if (const auto* say = std::get_if<cmd::Say>(&command)) {   // typed chat: to everyone in the game
+            if (!say->text.empty()) announce({ ev::Message::chat, actor->character.name, say->text.substr(0, 255) });
+            d2d::log::info("chat: {}: {}", actor->character.name, say->text);
+            return;
+        }
         // The character's own: through whatever the player's doing.
         if (const auto* stat_point = std::get_if<cmd::StatPoint>(&command)) {
             if (stat_point->stat < 0 || stat_point->stat > 3 || stat_point->count < 1) return;

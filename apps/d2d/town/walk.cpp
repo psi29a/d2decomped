@@ -439,6 +439,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         // the screen when it's free; the rest is the screen's business only.
         for (auto& other : world.players) {
             if (other->id == focus_id()) continue;
+            if (std::ranges::contains(lan_players, other->id, &LanPlayer::id)) continue;   // a LAN joiner's are its View's (lan_publish)
             const auto said = std::exchange(other->events, {});
             for (const auto& event : said)
                 if (std::holds_alternative<ev::MusicCue>(event)) handle(event, audio, frame_ms);
@@ -453,6 +454,17 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
     }
 
 auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> void {
+        if (const auto* message = std::get_if<ev::Message>(&event)) {   // a LAN game's line for everyone, as game.exe words them
+            auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
+            auto named = [&](std::uint16_t id) { auto pattern = text(id); if (const auto spot = pattern.find("%s"); spot != std::string::npos) pattern.replace(spot, 2, message->name); return pattern; };
+            switch (message->kind) {
+            case ev::Message::chat: add_chat(message->name + text(0xfd0) + message->text, 0, message->name.size()); break;   // "name: text", the name gold
+            case ev::Message::joined: if (message->name != character.name) add_chat(named(0xe39), 4); break;             // "%s joined our world..."
+            case ev::Message::left: add_chat(named(0xe3a), 4); break;                                                      // "%s left our world..."
+            case ev::Message::slain: add_chat(message->name + text(0xe41), 4); break;                                      // " was slain"
+            }
+            return;
+        }
         if (const auto* level_changed = std::get_if<ev::LevelChanged>(&event)) {
             net_interact_pending = -1;                    // its index was the old level's
             if (level_changed->from->layer != level->layer) {

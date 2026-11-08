@@ -1530,6 +1530,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                             town.lan_store = town.world.characters;  // the host's Saves of the character go here
                             town.world.characters = nullptr;          // the host writes the save
                             town.lan_client = std::move(*joined);
+                            town.lan_client->send_resync();   // Views that came while we joined were dropped: a whole one, once we're in
                             town.enter();
                         }
                     } else if (g_join_host.empty()) {

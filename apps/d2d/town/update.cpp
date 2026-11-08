@@ -239,6 +239,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                             message = line.substr(space + 1);
                         }
                     if (net_game) net_game->say(message, target);
+                    else if (lan_host || lan_client) { send(cmd::Say{ std::string(message) }); d2d::log::info("lan: said {}", message); }   // the LAN game's host hands it to everyone
                     else add_chat(character.name + string_id(*scene, 0xfd0) + std::string(message), 0, character.name.size());
                 }
                 chat_typing.reset();
