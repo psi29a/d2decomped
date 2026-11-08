@@ -759,3 +759,53 @@ tile as each room populates.
   then the same for y (0x731b9c), until FUN_00550220 takes one (a soul
   there); none: rand(k >> 1) once more, and the try ends. d2d:
   objgroups.cpp `trapped_souls`; `monsters.py` counts each soul alone.
+
+## The monster leaves (2026-11-08)
+
+25 small MONSTER functions run in stock game.exe 1.14d against hand-written
+models; callees are hooked and logged, and their addresses are written with an
+underscore (0x55_4d00) because this section does not claim them. Oracles:
+`tools/emu/monster_data_fields.py`, `monster_pools.py`, `monster_talk.py`,
+`monster_bind.py` (each has `--mutation-check`). "Unit" is the 0x1a8-byte-class
+unit record; "data" is the monster data at unit +0x14. A talker chain is nodes
+{+0 talker, +4 state, +8 next} behind a head cell whose address is the dword at
+data +0x30. In address order; "halts" is a fault or an early return; "none" is
+what the oracles found on the paths they ran:
+
+| Function | Arguments (convention) | Does | Returns / halts |
+|---|---|---|---|
+| FUN_00547b50 | ECX pool, EDX array (fastcall, plain `ret`) | releases array[1 .. count-1] that are non-zero to the pool entry 0x40_b480, count = signed dword [0x744304]+0xc5c, line 0xc5 | no value claimed; none |
+| FUN_00572ba0 | ECX game | allocates 4 bytes from the pool at game +0x1c (line 0x17b), zeroes them | the block; none |
+| FUN_00572bc0 | ECX game, EDX head cell | releases each chain node (line 0x188), then the cell (line 0x18b); the cell keeps its old value | none |
+| FUN_00572c10 | EAX npc, EBX talker, stack (game, cell, arg), `ret 0xc` | adds a talker to an NPC's chain: see the gates below; the add path makes the 0x55_31c0, 0x53_87c0, 0x57_6770, 0x55_4120, 0x66_1240, 0x54_3d10, 0x66_1480, 0x53_c8d0 (message 0x27, npc type byte, npc id), 0x66_12a0, 0x54_4520, 0x54_3520, 0x53_d670 (DL 0x28) calls | 0 when 0x55_4d00 is non-zero, npc null, npc +0x10 is 0 or 0xc, 0x53_5060 gives exactly 1, or class 0x92 and 0x59_4610 is non-zero; 1 when 0x45_7490(class, 9) is 0 or the talker is already listed; 0 after an add; none |
+| FUN_00572da0 | ECX head cell | counts nodes whose talker is non-zero | the count; none |
+| FUN_00572de0 | ECX head cell, EDX talker | 1 when a node holds the talker | 0 or 1; none |
+| FUN_00572e00 | ECX game, EDX talker, stack cell, `ret 4` | unlinks the first node with that talker and releases it (line 0x229); a null cell does nothing | no value claimed; none |
+| FUN_00572e60 | EDX talker, stack (arg, cell), `ret 8` | node state 0 becomes 1 and 0x57_8e70(arg) is called; other states do nothing | no value claimed; none |
+| FUN_00572ea0 | ECX unit, EDX talker | finds the node through the unit's cell address; state 1 becomes 2 | the node or 0; faults at address 0 when the unit is not type 1, has no data, or data +0x30 is 0 |
+| FUN_00572ee0 | ECX unit, EDX talker | 1 when the node's state is 2 | 0 or 1; the same fault as FUN_00572ea0 |
+| FUN_00573020 | ECX game, EDX talker, stack (npc, cell, arg), `ret 0xc` | loads EAX, EBX and the stack for FUN_00572c10 and calls it | FUN_00572c10's result; none |
+| FUN_005730e0 | ECX unit | data +0x38 | the dword, 0 when the unit is null, not type 1 or has no data; none |
+| FUN_00573100 | ECX unit | data +0x34 | as FUN_005730e0; none |
+| FUN_00573180 | ECX game, EDX unit, stack (callback, flag byte), `ret 8` | for each node of the unit's chain: 0x55_31c0, 0x53_d6d0 (DL 0x62), with flag byte non-zero 0x55_4100 and, when it answers 1 for the node and the id matches 0x45_1f50(unit), 0x55_4190, else (flag 0) 0x55_4190 directly; then the callback (ECX talker) if given; releases the node (line 0x36b); finally zeroes the cell | no value claimed; returns at once when the unit is null, not type 1, has no data, or the cell address is 0 |
+| FUN_00573270 | ECX game, EDX owner, stack (monster, id, record, flag), `ret 0x10` | binds a monster to an owner: monster +0xc4 \|= 0x4020200, then 0x80000000 once 0x66_37f0 answers; 0x57_5e90 gets {record+4, record word, buffer dword 0}; id word 0xffff adds 0x65_62f0, 0x62_7260, 0x57_2840, 0x57_26c0; ends with 0x5a_4850(0x13, 0) and zeroes data +4, +5, +9, +0xa, +0xb | no value claimed; returns early on null owner, monster or record, owner type not 0, 0x66_37f0 = 0, or (id 0xffff) 0x65_62f0 = 0 |
+| FUN_005734c0 | ECX unit, EDX value | data +0x54 = value | none |
+| FUN_005734e0 | ECX unit | data +0x54 | the dword; 1 (not 0) when the unit is null, not type 1 or has no data; none |
+| FUN_00573500 | ECX unit, EDX value | data +0x58 = value | none |
+| FUN_00573520 | ECX unit | data +0x58 | the dword, 0 by default; none |
+| FUN_00573540 | ECX unit, EDX mask | the word at data +0x5c tested against DX | 1 or 0; none |
+| FUN_00573570 | ECX unit, EDX mask, stack flag, `ret 4` | flag non-zero: word at data +0x5c \|= DX; zero: &= ~DX (16-bit) | none |
+| FUN_005735a0 | ECX obj, EDX monster, stack (a, b, unused), `ret 0xc` | reads the MonStats word at row +0x32 (row = [[0x744304]+0xa78] + class*0x1a8), calls 0x64_8690(monster +0x2c, word << 8, file, line 0x17f) and 0x62_3f50 (line 0x180), has 0x5a_7e60 fill a 0x20-byte block, sets block +0xc = a and +0x10 = b, calls 0x5a_7c20(obj, block, 1) | faults at address 0x32 when the monster is null or the class is outside [0, [table+0xa80]) |
+| FUN_00597d70 | ESI monster, EBX client record, stack target, `ret 4` | announces a monster: id = -1 for null ESI, else ESI +0xc; to the one client (0x53_d530, DL 1) when EBX is set and 0x53_87f0(EBX, target) accepts, else 0x53_d4d0 (DL 1) with the words 0x64_8a10 and 0x64_8a00 read from ESI +0x2c | no value claimed; returns when 0x62_0250(ESI) is 0; faults when ESI is null and it takes the 0x53_d4d0 path |
+| FUN_005a6490 | ECX game | allocates 0x24 bytes from the pool at game +0x1c (line 0x13f), zeroes nine dwords | the block; none |
+| FUN_005a64d0 | ECX game, EDX block | releases the block (line 0x147) | none |
+
+Findings: the head of a talker chain is a pointer to a cell (data +0x30 holds
+the cell's address), not the first node itself; an NPC whose data +0x30 is 0
+makes FUN_00572ea0 and FUN_00572ee0 read address 0. FUN_005734e0 is the one
+getter here whose default is 1. FUN_005735a0 takes three stack words and reads
+two; FUN_00597d70 takes ESI and EBX as register arguments (its prologue pushes
+ESI, which 0x62_0250 pops). In FUN_00573270 the 12-byte block it hands to
+0x57_5e90 sits inside the 0x48-byte frame buffer that 0x66_37f0 fills, so
+the callee must write only the first 0x3c bytes for the block to be what the
+model says; the oracle's stand-in does.
