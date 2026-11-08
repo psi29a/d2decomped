@@ -208,6 +208,15 @@ register arguments are partly dropped), so argument order is a reading.
   per skill (section above), the hover reuses it. The 0x48 bound is
   loose (bugs.md 54). Which register holds which argument is read from d2d's
   naming of the two skill wrappers, not from the asm.
+- **`FUN_004ec040` (desc_damage_handler_18, 66 bytes)**: referenced only as
+  data at `0x72d7b0` (game-calls.tsv: `0072d7b0 004ec040 data`), which is slot
+  (0x72d7b0 - 0x72d768) / 4 = 18 of the descdam table at 0x72d768. Body: two
+  arguments must be non-null and `FUN_004a89d0` must find a SkillDesc, then it
+  forwards to `FUN_004ea010` (descdam 7, the weapon-damage handler), so
+  descdam 18 draws like 7 once its gate passes. Which skills use descdam 18
+  is a SkillDesc.txt question (not read here). d2d: not ported (listed under
+  "Not done: descdam 2..4, 6, 8..24" above). `0x72d7b0` is a data slot, not a
+  function: nothing to trace there.
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
