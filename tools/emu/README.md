@@ -85,6 +85,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Table loaders (LoadTxt FUN_00504430, CompileTxt FUN_006122f0) | `uv run python txt_loaders.py` | `46 cases: LoadTxt (.txt / .bin) and CompileTxt (4 flag sets) ...`, then `ok` |
 | NPC gossip text list (Text/Text.cpp: FUN_00661240..FUN_006616e0, 13 functions) | `uv run python text_list.py` | `929 cases: new / add / remove / free / getters / build / store / sort; ...`, then `ok` |
 | Excel name links and txt splitter (Excel/Excel.cpp: FUN_006bcda0..FUN_006bd640, 8 functions) | `uv run python excel_links.py` | `923 cases: add name / lookup / ...`, then `ok` |
+| Excel link reads and the bin field map (Excel/Excel.cpp: FUN_006bce20, FUN_006bd040, FUN_006bd130, FUN_006bd180, FUN_006bd330, FUN_006bd380) | `uv run python excel_fields.py` | `ok: 4949 excel link read, code search, tree search and bin field map cases` |
 | Overhead message node (Chat/Chat.cpp: FUN_00661110, FUN_006611a0) | `uv run python chat_node.py` | `30 nodes: time = min(length, 254) x 8 + 125 (2157 frames at 254 and above), ...`, then `ok` |
 | Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
 | Ignore list account mapping and node teardown (Chat/Ignorelist.cpp: FUN_00611320, FUN_0060edf0, FUN_00610690, FUN_0060ef60, FUN_0060ef30, FUN_0060edb0, FUN_0060eef0) | `uv run python ignorelist.py` | `9910 cases: 244 accounts mapped; ...`, then `ok` |
