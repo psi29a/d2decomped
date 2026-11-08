@@ -481,7 +481,10 @@ the emulator.
   to `FUN_005a9720(row +0x18, 0, result)`, then `FUN_005ae1f0`. Neither the
   call graph nor the data refs show who uses it: not placed in a table here.
 - `FUN_00641cb0` (missile_touches) and `FUN_005ae1f0` read the same as
-  d2d (`rules::missile_touches`, `standing_struck`); `FUN_0064a380`,
+  d2d (`rules::missile_touches`, `standing_struck`) for missile sizes 1-3.
+  Outside 1-3 `FUN_00641cb0` returns 0 (strikes no unit), while
+  `standing_struck` keeps a 0.5-cell fallback: a known difference.
+  `FUN_0064a380`,
   `FUN_00648eb0`, `FUN_0064d9b0` too: cited from the decompile, no oracle
   run, nothing new to say.
 
@@ -949,8 +952,9 @@ Cited. Both take `(unit, value)` on the stack and do the same thing: when
 the unit is non-null, its type (`*unit`) is **3** (a missile) and its data
 block (`unit[5]`, +0x14) is non-null, they store the value at data `+0x28`
 (`FUN_0064a710`) or `+0x2c` (`FUN_0064a760`); otherwise nothing. 32 bytes
-each, no return value. They are the setters of the slot `FUN_0064a730`
-reads (hit function 28).
+each, no return value. `FUN_0064a710` is the setter of the +0x28 slot
+`FUN_0064a730` reads (hit function 28); `FUN_0064a760` writes +0x2c, which
+that getter does not read.
 
 Callers tag a missile they just made (the result of `FUN_004cd540` or
 `FUN_0059fa30`): `FUN_0046b3c0` stores 0x19 at +0x28, `FUN_0046b680` 0x32,
@@ -981,9 +985,9 @@ roll draws on the missile's own seed (+0x20).
 Re-check: `python3 tools/ghidra/fn.py 0045c3e0`,
 `python3 tools/ghidra/calls.py 0045c3e0`.
 
-d2d: **agrees**. `Rng::operator()` (components/rules/rules.hpp:164) has the
+d2d: reads the same, cited from the decompile, no oracle run. `Rng::operator()` (components/rules/rules.hpp:164) has the
 same step, the same power-of-two mask, `%` otherwise, and 0 without a step
-for n < 1. Cited, no oracle run for this change.
+for n < 1.
 
 ## The roll helper — FUN_005a8910 (stack: a stat id, a bonus stat id)
 
@@ -1015,8 +1019,8 @@ Re-check: `python3 tools/ghidra/fn.py 005a8910`,
 
 d2d: **not ported** for the bonus term (a gap, not shown to disagree: whether a
 missile unit carries the mastery stats, or the skill calc already adds them, is
-not settled here). The min / max / zero rules **agree** with `missile_blow`
-(components/rules/combat.hpp:694).
+not settled here). The min / max / zero rules read the same as `missile_blow`
+(components/rules/combat.hpp:694), cited from the decompile, no oracle run.
 
 ## Monster class test: demon — FUN_0063e940
 
@@ -1031,9 +1035,9 @@ decompile, below).
 Re-check: `python3 tools/ghidra/fn.py 0063e940`,
 `python3 tools/ghidra/calls.py 0063e940`.
 
-d2d: **agrees**. `Target::demon` (components/rules/combat.hpp:531, "MonStats
+d2d: reads the same, cited from the decompile, no oracle run. `Target::demon` (components/rules/combat.hpp:531, "MonStats
 demon") is the same bit; components/game/fight/missiles.cpp:626 uses it for the
-dParam2 bonus. Cited, no oracle run for this change.
+dParam2 bonus.
 
 ## Monster class test: undead — FUN_0063e990
 
@@ -1046,10 +1050,10 @@ FUN_0056b3e0, FUN_0057b660; FUN_005a8c70 also calls it.
 Re-check: `python3 tools/ghidra/fn.py 0063e990`,
 `python3 tools/ghidra/calls.py 0063e990`.
 
-d2d: **agrees**. `Target::undead` (components/rules/combat.hpp:530) and
+d2d: reads the same, cited from the decompile, no oracle run. `Target::undead` (components/rules/combat.hpp:530) and
 `kUndead` (components/rules/aura_filter.hpp:17) are the same two bits; the
 dParam1 bonus (components/game/fight/missiles.cpp:626) and the AI check at
-components/game/ai.cpp:1041 use it. Cited, no oracle run for this change.
+components/game/ai.cpp:1041 use it.
 
 ## The record fill — FUN_005a8c70 (ECX game, EDX the missile, stack unit, record)
 
@@ -1091,8 +1095,8 @@ and applies neither the 0x19 / 0x79 / 0x7a percent nor the 0x8d doubling; the
 undead / demon bonus d2d has is the Blessed Hammer slot's (FUN_005ad2f0). Whether a
 missile unit carries those stats (they would have to be copied from the
 owner when it is made) is not shown here, so this is a gap to check, not
-a proven disagreement. The element rows agree with `missile_blow`'s
-min / max reading, apart from the bonus stat discussed under FUN_005a8910.
+a proven disagreement. The element rows read the same as `missile_blow`'s
+min / max reading (cited from the decompile, no oracle run), apart from the bonus stat discussed under FUN_005a8910.
 
 ## Hit function FUN_005abd70 (the owner's life by a missile's roll)
 
