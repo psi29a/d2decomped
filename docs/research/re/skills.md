@@ -1483,6 +1483,21 @@ Cited from the decompile (no oracle run); re-check with
   `tick.cpp:572` cites it) and FUN_0055b800. d2d: **not ported**: d2d
   derives passives on read (`rules::passive_stats`, skills.hpp:765) and
   does not replay this refresh; whether that differs in play is untested.
+- **FUN_00647110**(unit, skill) -> list entry or 0: 0 for a null unit, a
+  skill outside `[0, +0xba0)` or a null record. Sets the passivestate on
+  (FUN_00643690 + FUN_00639db0). Walks the unit's list (FUN_00620150): an
+  entry for that record with +0x34 == -1 (a base entry) gets level +0x28
+  += 1 only while the level is below FUN_004aa8b0() or the unit is a
+  monster (`unit[0] == 1`), then FUN_00646d60 and returns it. Else, when the
+  unit has a list header (+0xa8): a new 0x40-byte zeroed node from
+  `".\SKILLS\Skills.cpp"` line 0x539: +0 record, +8 mode = record +0x11 for
+  a monster, 0x10 for a player-type unit (`unit[0] == 0`) of class 6 given
+  skill 5, else record +0x10; +0x28 level 1, +0x34 -1, +4 next 0; appended
+  at the tail (or as the first node when `header+4` is 0), then
+  FUN_00646d60. No header: 0. d2d: reads the same, cited from the decompile,
+  no oracle run, on the new node's level 1, mode and tail append (`pets.cpp:942`, pet-ai.md:269, throw.md:30). Not in
+  d2d: the +1 on an existing base entry (capped for a player) and the
+  class 6 / skill 5 mode 0x10 case; `shadow_give` sets the level directly.
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
