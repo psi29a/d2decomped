@@ -1486,6 +1486,16 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 if (const int act = town.view_act(); act != scene->palette_act)
                     load_act_palettes(*scene, scene->mpqs, act);
                 town.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
+                // A panel key moved the cursor with the view (FUN_00468770's SetCursorPos):
+                // the game's copy, and the OS cursor unless a pad drives it.
+                if (const auto moved = std::exchange(town.cursor_move, std::nullopt)) {
+                    mouse.x = moved->first; mouse.y = moved->second;
+                    if (!pad_in_use) {
+                        float window_x = 0, window_y = 0;
+                        SDL_RenderCoordinatesToWindow(win.renderer, float(mouse.x) + float(win.view_w - int(kScreenWidth)) / 2, float(mouse.y), &window_x, &window_y);
+                        SDL_WarpMouseInWindow(win.window, window_x, window_y);
+                    }
+                }
                 write_save_back();
                 // S->C 0x61 (FUN_00482ef0): a cinematic now (its table 0x721d9c: 1..7 the
                 // Cinematics menu's videos), seen from then on; back into the game after.
