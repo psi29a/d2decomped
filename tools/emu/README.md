@@ -29,6 +29,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 |---|---|---|
 | Level layouts, monsters, objects | `uv run python diff_drlg.py 1-20 2 [tiles\|monsters\|objgroups\|collision\|game\|npcs]` | `N/N seeds match game.exe` |
 | Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
+| Application mode from the command line (Main.cpp, FUN_00406340: split on `-`, case-sensitive name prefix, client never stored, last match wins) | `uv run python app_mode.py` | `ok` |
 | Every level, all cores | `./sweep.sh 1-50 monsters objgroups` | every level matching |
 | Every level's collision vs libd2's engine captures (200 seeds × 3 difficulties, ~8 min) | `D2_BUILD=build-release uv run python libd2_crc.py` | `N/131 levels match on all 200 seeds` |
 | Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `objects`, `stands`) | `N/N ... match game.exe` |
