@@ -35,6 +35,7 @@
 
 using namespace d2d::game;
 
+// One block per rule: a failed assert aborts, an exception returns 1.
 int main() try {
     {
         // Skill tooltips: game.exe's string is built bottom line first, colour codes carrying on.

@@ -12,6 +12,8 @@
 
 using namespace d2d::rules;
 
+// The day, the light grid and the environment's intensity against game.exe's
+// numbers: a failed assert aborts, an exception returns 1.
 int main() try {
     Day day;
     assert(day.phase == 2 && day.intensity() == 128);            // sunrise
