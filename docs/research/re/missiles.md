@@ -807,3 +807,26 @@ fields +4 flags word, +8 physical, +0x28 / +0x2c poison damage and length,
 Re-check: `cd tools/emu && D2_MPQ_DIR=<mpq folder> uv run python missmode.py`.
 Not covered: the callees' own effects, and which Missiles.txt rows select
 each slot.
+## Missile data setters — FUN_0064a710, FUN_0064a760
+
+Cited. Both take `(unit, value)` on the stack and do the same thing: when
+the unit is non-null, its type (`*unit`) is **3** (a missile) and its data
+block (`unit[5]`, +0x14) is non-null, they store the value at data `+0x28`
+(`FUN_0064a710`) or `+0x2c` (`FUN_0064a760`); otherwise nothing. 32 bytes
+each, no return value. They are the setters of the slot `FUN_0064a730`
+reads (hit function 28).
+
+Callers tag a missile they just made (the result of `FUN_004cd540` or
+`FUN_0059fa30`): `FUN_0046b3c0` stores 0x19 at +0x28, `FUN_0046b680` 0x32,
+`FUN_0046b9a0` 0x4b in both slots; `FUN_0046b530`, `FUN_0046b850`,
+`FUN_004e1b10` and `FUN_004e3720` store a value they were given (a unit id
+or a skill-derived value). Hits 5 and 29 store the ring vector in both. So
++0x28 / +0x2c are two general per-missile words; the meaning depends on
+the missile.
+
+Re-check: `python3 tools/ghidra/fn.py 0064a710`,
+`python3 tools/ghidra/fn.py 0064a760`,
+`python3 tools/ghidra/calls.py 0046b9a0`.
+
+d2d: not ported. d2d keeps no missile data block; the only mention of the
+slots is the "not modelled" note under hit 29. Not a disagreement.
