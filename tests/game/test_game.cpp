@@ -1323,7 +1323,7 @@ int main(int argc, char** argv) try {
     {
         auto items = std::move(hero.character.items);
         d2d::d2s::Item charm;
-        charm.code = "cm1"; charm.panel = 1; charm.props = { { d2d::d2s::kMaxMana, 0, 100 }, { d2d::d2s::kEne, 0, 10 }, { d2d::d2s::kMaxManaPercent, 0, 50 } };
+        charm.code = "cm1"; charm.panel = 1; charm.identified = true; charm.props = { { d2d::d2s::kMaxMana, 0, 100 }, { d2d::d2s::kEne, 0, 10 }, { d2d::d2s::kMaxManaPercent, 0, 50 } };
         hero.character.items.clear();
         hero.character.items.push_back(std::move(charm));
         fight.update_fighters(26 * kTickMs);
