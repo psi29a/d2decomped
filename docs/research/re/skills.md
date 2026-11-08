@@ -1675,6 +1675,16 @@ Cited from the decompile (no oracle run); re-check with
   0x100. What `+0x41` is in CharStats is not read here. The record walk
   matches drops.md ("walks the class's CharStats row"). d2d: **not ported**
   as a function (CharStats rows are `rules::` tables read by class).
+- **FUN_004c7630**(unit in ECX, target in EDX) (102 bytes) -> always 1: builds
+  a unit command on its stack (net-packets.md "The unit command", seven
+  dwords) `s = {0, -1, type, id, 1, 0, 0}` with type / id the target's
+  `[0]` / `[3]` (6 / -1 for a null target), and hands it to FUN_00480c10 with
+  flag 1. The command number and unit it passes are in registers the
+  decompile drops (inferred: the caller's unit, an attack on a unit). Its only
+  caller of note is FUN_004c9b40 (the picker's start) when the target is
+  already in reach (FUN_00622c40): the start returns this 1 and does not run
+  the rest. Also called by FUN_004c8d90, FUN_004c9120. d2d: **not ported**
+  (the client's own click-to-command path is not modelled).
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
