@@ -719,6 +719,32 @@ an item with hasinv, with a free socket) and the item-text builders
 
 d2d: reads the same, cited from the decompile, no oracle run. `rules.hpp:99` names the same field (`hasinv (+0x137)`) and
 item_text.hpp:430 cites `FUN_00629900` for the rune-letter line.
+
+## Ground items sent to a client (`FUN_0055bed0` chain)
+
+In call order, callee first. Status: cited, not proven; no oracle was run.
+The decompile drops fastcall register arguments, so which register holds
+which argument below is read from the callers' shapes, not from the asm.
+
+### The player unit of a client record (`FUN_00537860`)
+
+`FUN_00537860(client, force)`: a null client ends in the assert exit
+(`FUN_00408090(0xfb)`, `FUN_00408a60`, `FUN_00681e09(-1)`). Otherwise, when
+`client[+0x3d4] & 1` or `force != 0`, it returns `client[+0x174]` as is.
+When neither holds, it returns 0 if `client[+0x174]` is 0, else it looks the
+player up again with `FUN_00552f60` (the unit hash lookup `(game, type, id)`,
+shared with ai.cpp and missiles.cpp), returns the result and zeroes
+`client[+0x174]` when the lookup finds nothing. The decompile shows only
+`client[+0x170]` as the call's first (ECX) argument, which for that lookup is
+the game pointer, so `+0x170` is most likely the client's game; the type and
+id arguments are in registers the decompile hides (net-join.md has the
+player unit id at `+0x1a8`), and were not read from the asm. So `+0x174` is a
+cached player unit pointer that a client without flag `+0x3d4 & 1`
+revalidates on every call. Callers include `FUN_0052c410`, `FUN_0052c500`, `FUN_0053eae0`
+(the 0x9c builder, net-packets.md), `FUN_0054da10` and `FUN_00571740`.
+Evidence: `python3 tools/ghidra/fn.py 00537860`.
+d2d: not ported (no mention in `components/` or `apps/`); act1-end.md already
+names it as "client =" in the act-change walk, which agrees.
 `rules::make_fighter`'s weapon).
 
 Pass 1 sets no 0x4000: a charm short of its requirements just gets no
