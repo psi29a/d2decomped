@@ -159,6 +159,7 @@ So when an Act 1 Fallen stands still at 7 tiles, it isn't because it can't see y
 
 - A mode end (FUN_005a8030) thinks at once when DAT_0073c6d0[mode] is set: WL (2) and RN (15). Other modes go to NU through FUN_005a7c20.
 - A mode that can't start, or NU, schedules the think aidel frames on (FUN_005a73e0: MonStats +0x4f + difficulty; 0 → 15; 0x2d in state 0x15). That's skipped if an event is already due later.
+- A pending think comes due mid-mode too: FUN_005b1740 reads no mode, and FUN_005a7c20 starts the think's mode over the old one (no busy test; under state 0x36 it raises error 0x753, so nothing thinks through a whirl, leap or nest). The mode table 0x6e2260 (16 bytes a mode: start, event 0, event 1 = the end, a flag) gives every mode but NU, S3, S4 and DD FUN_005a8030 as its end; NU's start is FUN_005a73e0. d2d: `Monster::think_pending` (next_act after thought_ms), monster_update's `think_due` / `mode_ends`; `tests/game/test_think_schedule.cpp`.
 - FUN_005de080(n) (stand n) schedules it n frames on.
 - A move gets a re-path budget of 0x14 (FUN_005a7c20 → FUN_006490e0, path +0x94). See the next section.
 
