@@ -923,17 +923,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     if (!target) {
         monster.chase = -1;
-        // FUN_005de890 with none found: with a WL mode (MonStats2 mode bits,
-        // FUN_0046c140(class, 2)), one just hit (its last mode GH,
-        // FUN_005dd2b0) or standing on collision bit 0x40 (FUN_0064d910)
-        // wanders 5 (FUN_005de200); else it stands.
         const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
-        if (has_walk && (monster.left_mode == "GH" || level.blocked(unit.x, unit.y, 0x40))) {
+        const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.left_mode == "GH", level.blocked(unit.x, unit.y, 0x40), nearest);
+        if (miss.wander) {
             const auto wander = d2d::rules::think_wander(monster.seed, 5);
             walk_to(wander.x, wander.y, false);
             return true;
         }
-        idle(nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25);
+        idle(miss.stand);
         return true;
     }
     // The driver's step 3 (FUN_005b13e0): first-sight speech, then the teleport mod.

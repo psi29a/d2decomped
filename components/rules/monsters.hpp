@@ -3829,6 +3829,20 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     return { MonAct::untraced };
 }
 
+// A search that found no one. FUN_005de890 (search type 1): with a WL
+// mode (MonStats2 mode bits, FUN_0046c140(class, 2)), one just hit (its
+// last mode GH, FUN_005dd2b0) or standing on collision bit 0x40
+// (FUN_0064d910) wanders 5 (FUN_005de200); else it stands 10, nearest - 10
+// from 25 off, 25 from 35. Types 4 / 5 (SandMaggot, FrogDemon:
+// FUN_005de9d0) take no hit into account and think again 20 frames on
+// (event 2, FUN_005417d0).
+struct SearchMiss { bool wander = false; int stand = 0; };
+inline SearchMiss search_missed(std::string_view ai_name, bool has_walk, bool got_hit, bool on_0x40, int nearest) {
+    const bool type_4_5 = ai_name == "SandMaggot" || ai_name == "FrogDemon";
+    if (has_walk && ((!type_4_5 && got_hit) || on_0x40)) return { .wander = true };
+    return { .stand = type_4_5 ? 20 : nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25 };
+}
+
 // The Countess (special AI 0xd, FUN_005e5c50; FUN_005b15d0 runs it in
 // place of her CorruptRogue think). Home is where she first thought
 // (command 10). Out of home's room she walks back; with the target out of
