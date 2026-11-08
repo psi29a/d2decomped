@@ -100,6 +100,8 @@ private:
         std::uint16_t value; std::memcpy(&value, source, 2); return value;
     }
 
+    // Reads the header, the hash nodes and each key and value (FUN_005259c0's
+    // layout), keeping the first entry per key.
     void parse(std::span<const std::byte> bytes) {
         constexpr std::size_t kHeader = 21;
         constexpr std::size_t kNode   = 17;
@@ -130,8 +132,8 @@ private:
             std::size_t keyLen = 0;
             while (keyLen < keyMax && keyp[keyLen] != '\0') ++keyLen;
 
-            // UTF-8 to 16-bit units (FUN_00526320 -> FUN_00526100). The
-            // separate font-map lead-byte path applies to non-Latin fonts.
+            // UTF-8 to 16-bit units (FUN_00526320 -> FUN_00526100). The font
+            // map's lead bytes (FUN_00527d50) only size game.exe's buffer.
             if (valLen == 0 || valOff + std::size_t(valLen) > bytes.size()) continue;
             std::u16string value = utf8_units({ bytes.data() + valOff, std::size_t(valLen - 1) });   // less the trailing NUL
 

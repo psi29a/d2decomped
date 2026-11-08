@@ -26,6 +26,30 @@ the table, it calls `FUN_005276e0` and advances by one or two bytes while
 counting output characters. `FUN_00527790` loads that table from the selected
 font's `default.map`.
 
+`default.map` (`FUN_00527790`, `.\Unicode\UNISYS.CPP`): `"KAMAP\n"`, a
+version line ended by 0x1a within 40 bytes (the free at line 0x79 otherwise;
+0x65 for another magic), four bytes, a u16 entry count, a u8 range count,
+that many (first, last) byte ranges, the entries as u16 pairs and a u16 code
+per entry. It keeps the ranges (`0x882b28`), the entries with only each
+u16's low byte (`0x882b24`, `movzx` at `0x527953` / `0x52795a`), the codes
+whole (`0x882b2c`), the two counts (`0x882b20`, `0x882b22`) and the version
+up to its newline (`0x882af8`); each old table is freed just
+before its replacement is allocated.
+`FUN_005276e0` (byte in DL) is 1, a lead byte, for a byte from 0x20 outside
+every range. `FUN_00527d50` (text ECX, limit EDX) is `strlen` when no code
+table is loaded and otherwise counts characters up to the limit or the NUL,
+a lead byte and the one after it as one.
+
+English loads `data\local\font\latin\default.map` (version `ISO`, ranges
+0x20..0x7e and 0xa0..0xff), so 0x7f..0x9f are lead bytes and a UTF-8
+continuation byte in that range swallows the byte after it. The count only
+sizes `FUN_005259c0`'s buffer of decoded units (count + 1 per value, two bytes
+each): across the 9,388 English values it's never below what `FUN_00526320`
+decodes, so the buffer is big enough. d2d grows its `std::u16string` as it
+decodes (`d2d::tbl::utf8_units`) and needs no count. Verified by
+`tools/emu/unicode_kamap.py` (the CRT `strtok` that cuts the version is
+hooked).
+
 ## Oracle result
 
 `tools/emu/tbl.py` calls game.exe's `FUN_00526320` on each installed English
@@ -94,6 +118,7 @@ JPN/KOR use a different glyph pipeline entirely (multi-byte).
 | `0x525fb0` | `FUN_00525fb0` | Sibling helper: formats an integer with comma separators. |
 | `0x526100` | `FUN_00526100` | Decodes one UTF-8 sequence to one 16-bit unit and returns its byte length. |
 | `0x526320` | `FUN_00526320` | Converts a complete NUL-terminated UTF-8 value. |
+| `0x5276e0` | `FUN_005276e0` | 1 for a lead byte: from 0x20 and outside every `default.map` range. |
 | `0x527790` | `FUN_00527790` | Loads `default.map` and its mapping/multibyte tables. |
 | `0x527d50` | `FUN_00527d50` | Counts value characters for allocation, using the optional font multibyte table. |
 
@@ -125,5 +150,5 @@ containing functions when we need to trace the boot sequence.
 ## d2d representation
 
 `components/tbl/tbl.hpp` parses the hash nodes into key and ID lookup maps.
-Its byte zero-extension matches the original only for ASCII; the remaining
-work is the UTF-8 conversion described above, not the table layout.
+Values go through `d2d::tbl::utf8_units`, game.exe's UTF-8 decoder
+(`FUN_00526100`) described above.
