@@ -31,7 +31,8 @@ Scene::PlayerAnim load_composite(const d2d::mpq::Stack& mpqs,
                                  const std::array<std::vector<std::uint8_t>, 9>& colormaps,
                                  int cls, int mode, const Scene::Appearance& gfx);
 
-// Load an NPC/object composite: COF <root>\<code>\COF\<code><mode><BaseW>,
+// Load an NPC/object composite: COF <root>\<code>\COF\<code><mode><class>
+// (cof_weapon_class: BaseW, hth for a monster's DT / DD),
 // then per COF layer <root>\<code>\<LY>\<code><LY><comp><mode><wclass>
 // with the recipe's component for that layer ("lit" when blank).
 Scene::PlayerAnim load_npc_composite(const d2d::mpq::Stack& mpqs, const Npc& npc,

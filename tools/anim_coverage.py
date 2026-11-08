@@ -8,7 +8,8 @@ The animations are what game.exe's data can show from the base install
 (d2data / d2char; LoD's d2exp isn't read):
   - chars:    every player COF of the five classes (class, mode, weapon class);
   - monsters: a MonStats Code's COFs whose mode MonStats2 flags (mA1, mS1, ...)
-              and whose weapon class is a BaseW of its rows;
+              and whose weapon class is a BaseW of its rows (DT / DD: hth unless
+              the row has compositeDeath, as cof_weapon_class);
   - objects:  an objects.txt Token's COFs whose mode its Mode0..7 flags;
   - missiles: Missiles.txt CelFile DCCs;
   - overlays: Overlay.txt Filename DCCs;
@@ -79,12 +80,15 @@ for token in kClasses:
 
 ms2 = {row.get("Id", ""): row for row in table("MonStats2")}
 mon_modes, mon_weapons = collections.defaultdict(set), collections.defaultdict(set)
+mon_death = collections.defaultdict(set)                      # DT / DD weapon class per row: hth unless compositeDeath (cof_weapon_class)
 for row in table("MonStats"):
     extra = ms2.get(row.get("MonStatsEx", ""))
     token = row.get("Code", "").lower()
     if not extra or not token: continue
     mon_modes[token] |= {mode for mode in kMonModes if extra.get("m" + mode) == "1"}
-    mon_weapons[token].add(extra.get("BaseW", "").lower() or "hth")
+    base = extra.get("BaseW", "").lower() or "hth"
+    mon_weapons[token].add(base)
+    mon_death[token].add(base if extra.get("compositeDeath") == "1" else "hth")
 
 obj_modes = collections.defaultdict(set)
 for row in table("objects"):
@@ -95,7 +99,8 @@ for (root, token), stems in cofs.items():
     if root == "chars": continue
     for stem in stems:
         mode, weapon = stem[len(token):len(token) + 2].upper(), stem[len(token) + 2:]
-        named = (mode in mon_modes[token] and weapon in mon_weapons[token]) if root == "monsters" else mode in obj_modes[token]
+        weapons = mon_death[token] if mode in ("DT", "DD") else mon_weapons[token]
+        named = (mode in mon_modes[token] and weapon in weapons) if root == "monsters" else mode in obj_modes[token]
         if named: shows[(root, stem)] = mode; token_of[(root, stem)] = token
         else: unused[root] += 1
 
