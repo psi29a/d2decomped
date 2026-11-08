@@ -1655,7 +1655,7 @@ Cited from the decompile (no oracle run); re-check with
   separate Par1 reader for the two starts, which are not ported
   (`FUN_004c9b40`: cited only).
 - **FUN_00483360**(a in ECX, b in EDX, c on the stack) (122 bytes) -> a × b /
-  c, the "MulDiv" of every percent in the skills code: 0 when c is 0. When a ≤
+  c, the "MulDiv" behind the percents in the skills code: 0 when c is 0. When a ≤
   0x100000 and b ≤ 0x10000 it multiplies in **32 bits** and divides (the
   product is signed and wraps past 2^31, e.g. a = 0x100000, b = 0x10000 gives
   2^36); else when c ≤ b >> 4 it divides first (`(b / c) * a`, wrapping), and
@@ -1700,9 +1700,8 @@ Cited from the decompile (no oracle run); re-check with
 - **FUN_00620250**(unit) (56 bytes) -> the unit's skill-list header (unit
   `+0x10`; FUN_006439a0 returns `+0x10`, 0 for a null header). A null **unit**
   is fatal: it formats message 0x65c (FUN_00408090 / FUN_00408a60) and calls
-  FUN_00681e09(-1) (the exit), so no caller gets 0 for a null unit; a unit
-  with no header gives 0, and every caller tests that (FUN_004c9b40,
-  FUN_005cf6b0 do). Callers include FUN_004611f0, FUN_00463390, FUN_004645b0,
+  FUN_00681e09(-1) (the exit), so a null unit never returns 0; a unit
+  with no header gives 0, which FUN_004c9b40 and FUN_005cf6b0 test. Callers include FUN_004611f0, FUN_00463390, FUN_004645b0,
   FUN_00465070, FUN_004654c0. d2d: **agrees** with combat.md "unit skill list
   +0x10" (cited there); the fatal null is not modelled (d2d's units are
   never null here).
