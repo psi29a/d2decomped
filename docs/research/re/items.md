@@ -817,6 +817,35 @@ Evidence: `python3 tools/ghidra/fn.py 00629b50`, `python3 tools/ghidra/fn.py 006
 d2d: reads the same on the answer (cited from the decompile, no oracle run; `d2d::rules::type_is` walks the Equiv chain); the
 matrix itself is not ported.
 
+### An item's colour and tint byte (`FUN_0062c100`)
+
+`FUN_0062c100(owner, item, tint_out, inv)` returns the colormap pointer from
+`FUN_00600c20(Transform, colour)` (Transform from the item class record
+`+0x141`, or `+0x142` when `inv`), or 0 for no colour. compcode.md "Tints"
+has the colour rules; checked here against the decompile:
+- Order: a null item gives 0. With an owner, each state of the list at
+  `[state+0x18c]` (`[state+400]` shorts) that the owner has (`FUN_00639df0`) and
+  whose record (stride 0x3c at `[state+0xbc]`) has colour `+0x2c` under 21 and an
+  itemtype (`+0x2a`) the item is (`FUN_00629bb0`) returns that colour at once
+  and leaves `*tint_out` unwritten (the States.txt itemtrans; d2d keeps this in
+  `gamedata.hpp:493`, and `view.cpp:201` notes the unwritten tint).
+- Then the item data quality (`item+0x14` → `+0`): 7 unique (record `+0x38`
+  worn, `+0x39` inv, negative gives 0), 5 set (`+0x40` / `+0x41`), 4 and 6 the
+  affix lists (suffixes `+0x3e..+0x43`, prefixes `+0x38..+0x3d`, then the
+  automod `+0x36`, each through `FUN_00633ee0`, first with colour `+0x56` not
+  -1), anything else the socketed-gem rule then the automod.
+- The gem rule needs the class's hasinv byte (`+0x137`) and `FUN_0062bc20`
+  (sockets) nonzero, flag `0x800`, the first socketed item an ItemTypes 0x14
+  (`FUN_00629bb0`), colour = its gems record `+0x2f`.
+- `*tint_out` = `FUN_0062a250(Transform, colour)`: `Transform * 32 + (colour &
+  31)` for Transform 1..8 and colour under 21, else 0. This is the in-memory
+  byte, with no +1 and 0 for none; the d2s header's `(Transform * 32 + colour +
+  1)`, 0xff for none (compcode.md) is made from it elsewhere, not traced here.
+Evidence: `python3 tools/ghidra/fn.py 0062c100 0062a250`.
+d2d: reads the same on the colour rules traced here, cited from the decompile, no oracle run (`compcode::Colours::of`,
+`components/compcode/compcode.hpp:310`); the gem and the hasinv/socket gate are
+approximated by the caller's socketed-item code. Cited, not proven.
+
 ### A unit's class id (`FUN_00451f60`)
 
 `FUN_00451f60(unit)` (ECX) returns `-1` for a null unit, else the dword at
