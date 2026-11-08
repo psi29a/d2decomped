@@ -55,6 +55,14 @@ We promise:
   as evidence is fine.
 - **Show `d2d.log` to the person before it's attached:** its paths contain
   their user name.
+- **Write only what you read.** An address, offset or row goes in only if
+  you read it in game.exe, a table or a save; anything else is "not
+  traced". A name or claim from another project is a lead until then.
+- **Never bend a check.** Don't change a test, an oracle or d2d's code just
+  to make a diff go away. A test changes only in the same commit as the
+  behaviour it checks, and the commit says why.
+- **Ask before installing or downloading anything,** each time: Ghidra,
+  `uv sync`, the build's fetches.
 
 ## 3. What runs on their machine
 
@@ -126,6 +134,8 @@ We promise:
      disagrees with d2d, that's the better find: open an issue.
    - Fix or port: the change and a test in `tests/`, citing the game.exe
      address.
+   - If a build, trace or check fails three different ways, stop and tell
+     them what you tried.
 5. **Send it,** with their go-ahead. Play and report: open the issue from
    step 4; no branch or pull request. Trace or fix: run
    `python3 tools/pr_guard.py`, then open the pull request (section 6) with
@@ -183,6 +193,8 @@ The same bar for everyone, people and agents alike.
   for review and after main moves. `.gitattributes` settles two rows added
   at the end of the same research table (both stay); `tools/presubmit.py`
   then flags a number two rows now share, and you renumber yours.
+  Rebasing a pushed branch needs a force push: ask first, and use
+  `git push --force-with-lease`.
 - The pull request body follows
   [.github/pull_request_template.md](.github/pull_request_template.md)
   (`gh pr create` skips it, so fill it in with `--body-file`): what changes,
