@@ -754,6 +754,7 @@ address	name	evidence
 00643b00	skill_node_item_info	(node, *out_item_id, *out_skill_id, *out_+0x28, *out_+0x38) -> 0 when node +0x34 is -1 (a base entry), else 1 and each non-null out filled from +0x34, *record, +0x28, +0x38; null node asserts (Skills.cpp line 0x641); skills.md "Skill list accessors and the hotkey sweep"
 00643ce0	skill_node_id	(node) -> *(short *)node[0], the skill id from the node's record; 0 for a null node; skills.md "Skill accessors"
 00644140	skill_record	a skill entry's +0: its Skills.txt record, 0 for no entry (cast_mana.py:86 hook; char-panel.md)
+006442a0	skill_level	(unit, skill entry, with_items): +0x28, plus FUN_00644180 when +0x34 == -1 and with_items; >= 0, capped by FUN_00611830(0)
 00644560	skill_list_set_18	fastcall (header, value): header +0x18 = value (target type / x / last struck unit id by use); null header asserts (message 0xa76) and exits; skills.md "Skill record and skill-list accessors"
 006445e0	skill_list_set_20	fastcall (header, value): header +0x20 = value; null header asserts (message 0xa88) and exits; skills.md "Skill record and skill-list accessors"
 00644620	skill_list_set_24	fastcall (header, value): header +0x24 = value (7, or 0xf for a non-player class 0xd3 in the starts); null header asserts (message 0xa91) and exits; skills.md "Skill record and skill-list accessors"

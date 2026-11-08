@@ -175,6 +175,15 @@ register arguments are partly dropped), so argument order is a reading.
   `FUN_004a89d0`, so that dword is the 0x23c-byte Skills record (id short at
   +0, as `FUN_004ea010` reads `*param_3`). d2d: not ported (it keeps the
   record by id).
+- **`FUN_006442a0` (skill_level, 94 bytes)**: (unit, skill entry, with_items).
+  0 for a null unit or entry. Level = entry `+0x28`; when `with_items` is
+  set and entry `+0x34` is -1 (no points of its own) `FUN_00644180(entry)`
+  (the item / stat bonuses) is added. Negative -> 0, then capped at
+  `FUN_00611830(0)` (a level at or past it returns that value). d2d reads the same, cited from the decompile, no oracle run,
+  with the use: `components/game/skill_text.hpp:467` (flag 1 vs 0 = item
+  levels), `components/rules/monsters.hpp:469`; the cap is not modelled in
+  d2d's `skill_level` users (`grep -n FUN_006442a0 components/rules/monsters.hpp`),
+  harmless below level 98.
 
 ## Stat point buttons (FUN_004a7720 press, FUN_004a78c0 release)
 
