@@ -31,7 +31,7 @@ Ranked by Seen, then by how much play it touches.
 | 8 | Skills: every class skill works, fidelity varies by skill | exact | maybe | skills.md, each phase's "gaps" |
 | 9 | Unique monster mods still untraced: the thief, the act bosses' deaths | trace | maybe | PLAN.md phase 6, monster-ai.md |
 | 11 | Charsi's Imbue: game.exe's one-slot item panel and its button, not d2d's pick | build | yes | act1-end.md "Imbue", town/ `imbue_with` |
-| 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. `ponytail: one player` in quests.hpp |
+| 13 | Quests keep one player's lists | build | no | Single player is fine; matters once d2d hosts. Left: quests-act2.md's "one player" ponytails. The Den's clear now reaches the killer's party (quests.md "A monster dies") |
 | 14 | Seed stand-ins: d2d's rng where game.exe rolls a unit's or the game's own seed (same odds, different rolls) | exact | no | ~32 notes, act1-gaps.md. Matters once machines share a game |
 | 37 | The get-hit oracles `hit_rule.py`, `hit_absorb.py` and `hit_render.py` were cited but never committed: get-hit, absorb and get-hit frames are cited, not re-checkable | trace | no | combat.md, combat.hpp `get_hit` / `absorb_blows`, `test_combat --get-hit*` |
 | 39 | A walk to an NPC ends at the server's reach (under 7, no line test), not the client's melee range with a clear line (FUN_00480c80 → FUN_00622c40) | exact | yes | collision.md "How near the client walks"; world/tick.cpp `in_reach` |
