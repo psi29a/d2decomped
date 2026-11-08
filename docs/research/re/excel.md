@@ -64,4 +64,4 @@ neighbouring codes); the row is the record count. Halts 0x3d1 (null),
 `FUN_006bd0b0` (stdcall link, null ok) frees the tree, the array (0x35d) and
 the link (0x360).
 
-Re-check: `cd tools/emu && uv run python excel_links.py`.
+Re-check: `cd tools/emu && uv sync && uv run python excel_links.py`.
