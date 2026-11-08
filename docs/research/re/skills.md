@@ -1569,6 +1569,63 @@ Cited from the decompile (no oracle run); re-check with
   - 1 + s17) and 0x16 = max(0, s16 - 1 + s18) in the unit's list for flag 1
   (FUN_00625760). Stat names by ItemStatCost row (21..24 = min / max /
   secondary min / max damage) are not checked here. d2d: not ported.
+- **FUN_005a23d0** (339 bytes; caller FUN_005a2530, the Cursed boss mod):
+  per enemy (FUN_00554200) in the area, with Skills record 0x42 (Amplify
+  Damage, stride 0x23c, so the record at +0x9378; its state short at
+  +0x82 and its five passivestat-style stat shorts from +0x56 are
+  range-checked): two FUN_00646ca0 calls evaluate the record's
+  calcs (+0x60, +0x68) for the level (results feed the put-state's
+  length / level in registers), `d2d_states_put_state` puts the curse,
+  and each of 5 stat slots (short +0x56+2k, calc +0x6c+4k) with a valid
+  stat and a non-zero calc is **set** into the new list
+  (FUN_00627150). d2d: **agrees** with monster-ai.md "Boss mods in the
+  hit"; the set-not-add per slot and the five-slot cap are the details
+  this adds.
+- **FUN_005c3de0** (320 bytes; caller FUN_005c3f20, Confuse): after the
+  FUN_005c3d50 test, `d2d_states_put_state` puts the curse from the skill
+  descriptor (param_2: stat ids at +0x20..+0x30, five slots, each valid
+  stat set to FUN_005c3540(+0x38+4k) when non-zero); if descriptor +0xc is
+  non-zero it re-rates the unit with FUN_00623f50 (call site asserts
+  `.\SKILLS\SkillNec.cpp` line 0x3d7); then FUN_005543b0(1) (alignment 1),
+  FUN_005b1990(0, 9) (list 9), FUN_00573090(0) (kind 3, per
+  monster-ai.md) and event 10 at `now + length` (FUN_005417d0).
+  d2d: **agrees** with monster-ai.md "Confuse and Attract"; the
+  FUN_00623f50 re-rate is the new detail (d2d does not model it).
+- **FUN_005d7ea0** (Bash start, 536 bytes): before the roll it asks
+  FUN_0061ab00(FUN_00620bb0(target)) (the town test used by DiabPrison
+  above) and returns 0 (no attack) in a town room; it evaluates the
+  record's calc3 (+0x140) and then calls FUN_0056e520, so the temporary
+  attackrate list of Bash is probably calc3 (the value register is not
+  visible in the decompile: likely, not certain). d2d: skills.md
+  "Melee skills" and strike.cpp:455 **agree** on the roll, flags, ED
+  and the aurastate list (FUN_006251f0 kind 4, FUN_0056e900 callback,
+  FUN_005c6cc0); **not ported**: the town refusal and the attackrate list.
+- **FUN_0056e970** (`d2d_states_put_state`, 622 bytes; fastcall, ECX = a
+  put-state descriptor {unit-of-caster +0, target +4, state +0x1c,
+  skill +8, level +0xc, length +0x10, stat +0x14 / value +0x18, callback
+  +0x20}): fails (0) for a state outside the States table, a player whose
+  data +0xd & 1, or one without FUN_00451fe0 flag +5 & 2. For a state with
+  FUN_0063a420 set (the curse states): stat 0x6d (109, curse resistance)
+  >= 100 fails; a non-zero one shortens the length by FUN_00483360(100)
+  (a random share); state 0x39 (57) on the target fails. It finds the
+  existing list (FUN_006256b0, or FUN_00625760 flag 0x20 for a curse): same
+  state, same skill and the same level only moves its expiry to `now +
+  length` (event 0xc), a higher stored level returns 0, anything else
+  removes it (FUN_006277e0, FUN_00626cd0) and makes a new kind list
+  (flags 2 when timed, 0x800 / 8 by the state's table bits), sets the
+  stat/value pair, links it and sets the removal callback (default
+  FUN_0056e900). d2d: **agrees** with `put_state` (states.cpp:57) on the
+  extend / keep-higher / replace rule; **not ported**: curse resistance
+  (objects.md:82 already notes it), state 57's block and the stat pair.
+- **FUN_004c6ac0** (796 bytes, client; caller FUN_0045d5e0): for a Skills
+  record whose state short (+0x80) and stat short (+0x54) are valid, finds
+  or creates the state's list (kind 0, FUN_006251f0), sets the stat to
+  the level, runs the client start function from the table at 0x727ba8
+  (indexed by the record's shorts from +0xf6, once per earlier level when
+  record +4 & 0x80, setting the stat to each level first), plays the
+  record's sound / overlay (+0x100 / +0x108 / +0x10a via FUN_004b9a00 and
+  FUN_00470390) and restores the unit's +0x28 and the saved position.
+  Cited only: the table's meaning is not read. d2d: not ported.
 
 ### Still unknown
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
