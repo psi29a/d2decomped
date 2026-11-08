@@ -60,6 +60,7 @@ namespace d2d::client {
 auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mouse, const std::vector<SDL_Keycode>& frame_keys,
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         now_ms = frame_ms;
+        pad_show_items = false;
         skillbar.coop = world.players.size() > 1;           // Resurrect on the right-hand picker
         if (skillbar.right == kResurrectSkill && !skillbar.usable(kResurrectSkill, false)) skillbar.right = 0;   // co-op over: Attack
         skillbar.drop_gone();                                       // a charged entry used up or taken off
@@ -416,6 +417,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // menu or speech up). Held over the store's stock, a click
         // sells the item.
         bool item_click = false;
+        drive_pad_hold(mouse, frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
         // With an identify scroll picked, a click names the item for it and ends the pick.
         if (identify_with >= 0 && mouse.press_this_frame) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
@@ -436,7 +438,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             item_click = true;
         }
         if (mouse.press_this_frame && !item_click && store.mode == 0 && npc_menu.npc < 0 && speech.npc < 0) {
-            if (held && store.npc >= 0 && mouse.x >= 96 && mouse.x < 96 + 10 * 29
+            if (held && store.npc >= 0 && !pad_a_edge && mouse.x >= 96 && mouse.x < 96 + 10 * 29
                 && mouse.y >= 123 && mouse.y < 123 + 10 * 29) {
                 send(cmd::Sell{ held->id });               // Town::send: a joined game's host makes the sale
                 item_click = true;
@@ -800,7 +802,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
                 send(cmd::Buy{ store_index, store.tab, fill });
             }
             // Sell: an inventory item; repair: that or a worn one.
-            if (mouse.press_this_frame && (store.mode == 2 || store.mode == 3))
+            if (mouse.press_this_frame && (store.mode == 3 || (store.mode == 2 && !pad_a_edge)))
                 for (std::size_t i = 0; i < character.items.size(); ++i) {
                     const auto& item = character.items[i];
                     const bool worn = item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast;

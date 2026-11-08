@@ -20,7 +20,8 @@ int main() try {
         cmd::SelectSkill{ 98, false }, cmd::UseBelt{ 2 }, cmd::UseItem{ 23 }, cmd::ToCursor{ 17 }, cmd::Drop{ 17 }, cmd::ToGrid{ 5, -1, 3 }, cmd::ToBody{ 4 },
         cmd::ToBelt{ 7 }, cmd::OpenTrade{ 3, true }, cmd::OpenTrade{ 3, false }, cmd::OpenHire{ 8 }, cmd::Buy{ 2 }, cmd::Buy{ 5, 3 },
         cmd::Sell{ 55 }, cmd::Repair{ -1 }, cmd::Identify{}, cmd::IdentifyWith{ 7, 12 }, cmd::Hire{ 1 }, cmd::CloseTrade{}, cmd::Run{ true }, cmd::Run{ false },
-        cmd::Chat{ 4 }, cmd::Chat{ -1 }, cmd::QuestMessage{ 3, 76 }, cmd::Respec{ 2 }, cmd::Waypoint{ 5, 3 }, cmd::Caravan{ 6 }, cmd::Imbue{ 7 }, cmd::SwapWeapons{}, cmd::AutoBelt{ 9 } };
+        cmd::Chat{ 4 }, cmd::Chat{ -1 }, cmd::QuestMessage{ 3, 76 }, cmd::Respec{ 2 }, cmd::Waypoint{ 5, 3 }, cmd::Caravan{ 6 }, cmd::Imbue{ 7 }, cmd::SwapWeapons{}, cmd::AutoBelt{ 9 },
+        cmd::EquipFromBag{ 44 } };
     for (const auto& command : all) {
         const auto bytes = encode(command);
         const auto back = decode(bytes);
@@ -45,6 +46,10 @@ int main() try {
     assert(!decode(std::span(message).first(message.size() - 1)));
     message.push_back(0);
     assert(!decode(message));
+    const auto equipped = decode(encode(cmd::EquipFromBag{ 44 }));
+    const auto* from_bag = equipped ? std::get_if<cmd::EquipFromBag>(&*equipped) : nullptr;
+    assert(from_bag && from_bag->item == 44);
+    assert(!decode(std::vector<std::uint8_t>{ opcode::kEquipFromBag }));
     std::puts("ok");
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

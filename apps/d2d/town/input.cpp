@@ -10,10 +10,12 @@
 #include "cursor.hpp"
 #include "gamepad.hpp"
 #include "gamepad_map.hpp"
+#include "hold_confirm.hpp"
 #include "ingame.hpp"
 #include "internal.hpp"
 #include "keyconfig.hpp"
 #include "load.hpp"
+#include "pad_hold.hpp"
 #include "panels.hpp"
 #include "party.hpp"
 #include "platform.hpp"
@@ -26,6 +28,9 @@
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
+#include <inventory.hpp>
+#include <item_text.hpp>
+#include <level_ids.hpp>
 #include <log.hpp>
 #include <monsters.hpp>
 #include <object_sounds.hpp>
@@ -98,7 +103,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !belt_up.shown && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
-            && !skillbar.picking && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
+            && !skillbar.picking && skill_strip < 0 && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
     }
 
 auto Town::mini_right() const -> bool {
@@ -119,13 +124,15 @@ auto Town::pad_aim(int skill, bool steering) const -> pad::Aim {
         return { 12.f, 14.f, steering ? pad::Aim{}.cone_cos : -2.f };   // the stick left alone: any way round
     }
 
-auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim) const -> PadPick {
+auto Town::pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim, bool monsters) const -> PadPick {
         const float hero_x = unit.x, hero_y = unit.y, face_x = player_pad.face_x, face_y = player_pad.face_y;
-        std::vector<pad::Candidate> monsters;
-        for (const auto& monster : view.monsters)
-            if (monster.alive() && !monster.ally_not_interact(*scene, level ? level->id : 0)) monsters.push_back({ monster.id, monster.unit.x, monster.unit.y });   // not a converted one, as the cursor
-        if (const int hit = pad::pick_target(hero_x, hero_y, face_x, face_y, monsters, player_pad.target, aim); hit >= 0)
-            return { PadPick::kMonster, monsters[std::size_t(hit)].id, monsters[std::size_t(hit)].x, monsters[std::size_t(hit)].y };
+        if (monsters) {
+            std::vector<pad::Candidate> foes;
+            for (const auto& monster : view.monsters)
+                if (monster.alive() && !monster.ally_not_interact(*scene, level ? level->id : 0)) foes.push_back({ monster.id, monster.unit.x, monster.unit.y });   // not a converted one, as the cursor
+            if (const int hit = pad::pick_target(hero_x, hero_y, face_x, face_y, foes, player_pad.target, aim); hit >= 0)
+                return { PadPick::kMonster, foes[std::size_t(hit)].id, foes[std::size_t(hit)].x, foes[std::size_t(hit)].y };
+        }
         if (!uses) return {};
         std::vector<pad::Candidate> drops;
         for (const auto& item : view.ground) drops.push_back({ item.id, item.x, item.y });
@@ -174,7 +181,13 @@ auto Town::pad_act(PadPlayer& player_pad, const UnitState& unit, bool dead, bool
             return;
         }
         player_pad.target = -1;
-        if (move.attack_down && !move.attack && !move.alt) return;   // held with nothing left to hit
+        // A hold keeps sending the skill, so the attack continues after this swing.
+        // It does not pick up or talk.
+        if (move.attack_down && !move.attack && !move.alt) {
+            if (!(level && d2d::rules::level_ids::is_town(level->id)))
+                out(cmd::UseSkill{ skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item });
+            return;
+        }
         if (pick.kind == PadPick::kItem) { out(cmd::Pickup{ pick.id }); return; }
         if (pick.kind == PadPick::kThing) { out(cmd::Interact{ pick.id }); return; }
         // Nothing in reach: the left skill swings only with a monster about (in camp A never just walks); the right one always casts (buffs, teleport).
@@ -277,6 +290,7 @@ auto Town::coop_join(int seat, const Character& joining) -> void {
         if (found == coop.end()) { coop.emplace_back().seat = seat; found = coop.end() - 1; found->mapper = pad::Mapper{ pad_config }; }
         found->id = world.join(joining).id;
         found->roster.reset();
+        load_skill_sheet(joining.name);
     }
 
 auto Town::coop_text(std::string_view text, bool backspace) -> void {
@@ -319,6 +333,8 @@ auto Town::coop_pad(int seat, const pad::Sample& sample, float seconds) -> void 
         if (in_world == world.players.end() || coop_player.id == focus_id()) return;   // the screen's: main's pad pipeline plays it
         const auto opens = field_play(coop_player.pad, coop_player.mapper, **in_world, sample, seconds,
                                       [&](const Command& command) { coop_player.orders.push_back(command); });
+        // This pad's own flag. Another seat's field_play cannot clear it.
+        if (std::exchange(coop_player.pad.wants_strip, false) && focus_free()) { take_focus(coop_player.id); skill_strip = 0; return; }
         // A panel, the game menu or the skill picker: the screen is theirs, when no one else has it.
         if (opens.empty() || !focus_free()) return;
         take_focus(coop_player.id);
@@ -352,6 +368,7 @@ auto Town::coop_choose(int seat, const RosterChoice& choice) -> bool {
 
 auto Town::lead_pad(const pad::Sample& sample, float seconds) -> void {
         (void)field_play(lead_field, lead_mapper, hero, sample, seconds, [&](const Command& command) { lead_orders.push_back(command); });
+        lead_field.wants_strip = false;            // the lead's Start does not take the screen back
     }
 
 auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::Player& hero_there, const pad::Sample& sample, float seconds,
@@ -373,10 +390,16 @@ auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::P
                     opens.push_back(key); break;
                 default: break;
             }
-        if (actions.skill_picker) opens.push_back(pad::Key::Up);          // the right stick's click: the picker
+        if (actions.skill_picker) opens.push_back(pad::Key::Up);          // the picker: the wheel when skill buttons are on
+        player_pad.wants_strip = actions.panel_strip;
         const bool dead = hero_there.pmode == game::kModeDT || hero_there.pmode == game::kModeDD;
         const bool field = !game_menu.open;
         pad_walk(player_pad, hero_there.player, dead && !hero_there.ghost, field, out);   // a ghost walks
+        if (mapper.config().skill_buttons) {
+            apply_skill_pad(player_pad, hero_there.player, dead, field, hero_there.character.name, int(hero_there.character.header.right_skill),
+                            hero_there.character.header.expansion(), actions, out);
+            return opens;
+        }
         // Its hands' charged entries (kept while another player has the
         // screen); one gone since is Attack / 0, as the skillbar's drop_gone.
         auto& hands = hand_items[hero_there.id];
@@ -448,6 +471,7 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
             const auto [x, y] = controls.focus();
             return PadFocus{ 9000 + controls.sel * 2 + controls.column + (controls.pad_page ? 1000 : 0), x, y };
         }
+        if (skillbar.picking == 3) return std::nullopt;                // the wheel draws its own highlight
         if (skillbar.picking) {                                         // the hand's skill now, else its button
             const bool on_left = skillbar.picking == 1;
             const auto rows = skillbar.rows(on_left);
@@ -564,17 +588,109 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
         return points;
     }
 
-// A store's X: the stock under the cursor bought, the inventory item under
-// it sold, or the one held sold (as a drop on the stock grid).
-auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
-        if (store.npc < 0 || !scene) return;
-        if (held) { net.send(cmd::Sell{ held->id }); return; }
-        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y); stock >= 0) { send(cmd::Buy{ stock, store.tab }); return; }
-        const auto& inv = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
+// The inventory item under the cursor, or nullptr. Not the stash, the cube or the belt.
+auto Town::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::Item* {
+        if (!scene || !inv_open) return nullptr;
+        const auto& inventory = scene->inv_layout[std::size_t(std::max(character.character_class, 0))];
         for (const auto& item : character.items) {
             if (item.location != d2d::d2s::item_location::kStored || item.panel != d2d::d2s::item_panel::kInventory) continue;
-            const auto rect = grid_rect(*scene, inv, item);
-            if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) { send(cmd::Sell{ item.id }); return; }
+            const auto rect = grid_rect(*scene, inventory, item);
+            if (mouse_x >= rect[0] && mouse_x < rect[0] + rect[2] && mouse_y >= rect[1] && mouse_y < rect[1] + rect[3]) return &item;
+        }
+        return nullptr;
+    }
+
+// A store's X buys the stock under the cursor. Selling is Hold A, so X does not sell.
+auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
+        if (store.npc < 0 || !scene) return;
+        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y); stock >= 0) send(cmd::Buy{ stock, store.tab });
+    }
+
+// Skill buttons, inventory only. A shop's X stays Buy. The item in hand drops.
+// A bag item is picked up and dropped in that order: if the pick-up is refused the drop matches nothing.
+// A joined game skips that pair. The drop packet needs a cursor the pickup has not filled yet.
+auto Town::pad_drop(int mouse_x, int mouse_y) -> void {
+        if (!pad_config.skill_buttons || store.npc >= 0 || !inv_open) return;
+        if (held) { send(cmd::Drop{ held->id }); return; }
+        if (!pad_drops_from_bag(net_game != nullptr)) return;
+        if (const d2d::d2s::Item* item = bag_at(mouse_x, mouse_y)) {
+            send(cmd::ToCursor{ item->id });
+            send(cmd::Drop{ item->id });
+        }
+    }
+
+auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
+        pad_hold_text.clear();
+        pad_hold_fraction = 0.f;
+        const d2d::d2s::Item* item = bag_at(mouse.x, mouse.y);
+        PadHoldQuery query;
+        query.shop = store.npc >= 0;
+        query.gamble = store.gamble;
+        query.identify = identify_with >= 0;
+        query.imbue = imbue_with >= 0;
+        query.hand_empty = !held;
+        query.bag = item != nullptr;
+        query.store_mode = store.mode;
+        if (item && scene && world.game_data) {
+            query.sellable = d2d::rules::sellable(scene->rules, *item);
+            query.potion = potion_code(item->code) || scene->rules.potions.contains(item->code);
+            const int save_cls = std::max(character.character_class, 0);
+            const int level_needed = d2d::game::required_level(*world.game_data, *item, save_cls);
+            const auto worn_by = d2d::game::wearer(*world.game_data, save_cls, character.items, character.stats);
+            query.equippable = d2d::rules::bag_equip_slot(scene->rules, character.items, held, item->id, worn_by, level_needed) >= 0;
+        }
+        query.equippable = pad_hold_can_equip(net_game != nullptr, query.equippable);
+        PadHoldKind kind = pad_hold_button(query, pad_south_down, pad_rt_down);
+        if (!pad_south_down && !pad_rt_down && pad_hold.armed) kind = PadHoldKind(pad_hold.context);
+        const bool eligible = kind != PadHoldKind::None;
+        const int item_id = item ? item->id : -1;
+        if (kind == PadHoldKind::Sell) pad_hold.delay = pad::kHoldSellSeconds;
+        else if (kind == PadHoldKind::Equip) pad_hold.delay = pad::kHoldEquipSeconds;
+        else pad_hold.delay = pad::kHoldFillSeconds;
+        const bool button_down = pad_south_down || (pad_rt_down && kind == PadHoldKind::FillOne);
+        const bool edge = pad_south_down ? pad_south_edge : pad_rt_edge;
+        if (!inv_open || (pad_hold.armed && !button_down && pad_hold.context != int(kind))) {
+            pad_hold.clear();
+            return;
+        }
+        const hold_confirm::Step step = pad_hold.step(edge, button_down, eligible, item_id, int(kind), seconds);
+        const bool tracking = pad_hold.armed && !pad_hold.cancelled;
+        if (tracking || step == hold_confirm::Step::Click || step == hold_confirm::Step::Act) mouse.press_this_frame = false;
+        const bool can_potion = query.potion && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
+        const bool can_equip = query.equippable && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
+        const bool can_sell = query.sellable && query.bag && query.hand_empty && query.shop && !query.gamble && !query.identify && !query.imbue
+                              && query.store_mode != 1 && query.store_mode != 3;
+        if (pad_shows_hold_cue(pad_playing, can_potion, can_equip, can_sell)) {
+            if (tracking) pad_hold_fraction = pad_hold.fraction();
+            const std::string_view aye = pad::label(pad_family, pad::Button::South);
+            const std::string_view trigger = pad::label(pad_family, pad::Button::RightTrigger);
+            if (can_potion) pad_hold_text = std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
+            else if (can_sell) pad_hold_text = std::string("Hold ") + std::string(aye) + " to sell";
+            else pad_hold_text = std::string("Hold ") + std::string(aye) + " to equip";
+        }
+        if (step == hold_confirm::Step::Click && scene) {
+            const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
+                                                    { inv_open, stash_open, cube_open, belt_open, character.expansion }, mouse.x, mouse.y);
+            if (click.cmd) send(*click.cmd);
+        } else if (step == hold_confirm::Step::Act && item) {
+            if (kind == PadHoldKind::Sell) send(cmd::Sell{ item->id });
+            else if (kind == PadHoldKind::Equip) send(cmd::EquipFromBag{ item->id });
+            else if ((kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne) && scene) {
+                auto trial = character.items;
+                const int boxes = scene->belts[std::size_t(belt_index(*scene, character.items))].boxes;
+                std::vector<int> moved;
+                const auto try_item = [&](int carried_id) {
+                    if (d2d::rules::auto_belt(scene->rules, trial, carried_id, boxes)) moved.push_back(carried_id);
+                };
+                const auto is_potion = [&](std::string_view code) {
+                    return potion_code(code) || scene->rules.potions.contains(std::string(code));
+                };
+                try_item(item->id);
+                if (kind == PadHoldKind::Fill)
+                    for (const auto& carried : character.items)
+                        if (carried.id != item->id && is_potion(carried.code)) try_item(carried.id);
+                for (const int carried_id : moved) send(cmd::AutoBelt{ carried_id });
+            }
         }
     }
 
@@ -600,6 +716,15 @@ auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
 // The field's right stick click: the right hand's skill picker (A on the
 // left skill button switches to the left's), the cursor on its skill.
 auto Town::pad_open_picker() -> void {
+        if (pad_config.skill_buttons) {
+            if (skillbar.picking == 3) { skillbar.picking = 0; return; }
+            if (!pad_field() && skillbar.picking != 0) return;
+            rebuild_wheel();
+            wheel_at = int(wheel_ids.size()) > 1 ? 1 : 0;
+            wheel_page = 0;
+            skillbar.picking = 3;
+            return;
+        }
         if (pad_field()) skillbar.picking = 2;
     }
 
