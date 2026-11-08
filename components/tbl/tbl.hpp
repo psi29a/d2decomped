@@ -100,6 +100,8 @@ private:
         std::uint16_t value; std::memcpy(&value, source, 2); return value;
     }
 
+    // Reads the header, the hash nodes and each key and value (FUN_005259c0's
+    // layout), keeping the first entry per key.
     void parse(std::span<const std::byte> bytes) {
         constexpr std::size_t kHeader = 21;
         constexpr std::size_t kNode   = 17;
