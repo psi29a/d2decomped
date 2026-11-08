@@ -1578,3 +1578,72 @@ class) and its subtile (x, y) in world pixels (`FUN_00643260`:
 (the mouse plus the view's origin, `FUN_004670a0`) is within
 [px + SelectX, px + SelectX + SelectDX] × [py + SelectY, py + SelectY +
 SelectDY], edges included (row +4, +8, +0xc, +0x10).
+
+## Dungeon.cpp leaves, run in the emulator
+
+All 74 functions of `DUNGEON\Dungeon.cpp` that were untouched or only cited
+are run in `tools/emu` against hand-written models (`dungeon_accessors.py`,
+`dungeon_rooms.py`, `dungeon_lifecycle.py`, shared rig `_dungeon_rig.py`).
+Each compares the return value, the ordered callee log, the whole record
+arena, allocator blocks, the fatal-error line and the bytes `ret n` pops. A
+"room1" below is the 0x80-byte record `FUN_00619890` allocates; a "dungeon"
+is the act record it hangs off. "Fatal NNN" is the `Dungeon.cpp` assert
+(line NNN hex) that halts through `0x40_8a60`. Callees not traced are written
+`0x66_xxxx` and are hooked, not claimed. stdcall unless a register is named.
+
+Fields: room1 +0 near array, +4 capacity, +8 tile-info record, +0xc idle
+counter, +0x10 room2, +0x18 node list, +0x1c secondary unit-list head, +0x20
+collision record, +0x24 near count, +0x28 unit counter, +0x2c dungeon, +0x34
+flags, +0x48 / +0x78 sorted pointer set (array / count), +0x4c..+0x6b tile
+rectangle (x, y, w, h) then a second rectangle at +0x5c.., +0x74 primary
+unit-list head, +0x7c next room1. Dungeon: +4 block, +0x10 room1 list, +0x14
+ring index, +0x38 ring, +0x48 act state, +0x4c callback, +0x50, +0x54, +0x58
+flags/values, +0x5c arena pool.
+
+Getters and setters:
+
+- `FUN_00619550` (ECX): returns `[ecx+0x5c]`; no null check.
+- `FUN_0061aae0` (ECX): returns `[ecx+0x10]`; `FUN_00619720(p)` returns `p+0x18`.
+- `FUN_00619660(room1, &out)`: with room1 and its +8 set, out = `[+8]+0xc`, returns `[+8]+8`; otherwise out = 0, returns 0. `FUN_006196a0` (fatal 0xb1) and `FUN_006196e0` (fatal 0xbe): out = `[+8]+4` / `+0x14`, return `[+8]+0` / `+0x10`.
+- `FUN_00619ee0` increments room1 +0x28 (null no-op); `FUN_00619f00` reads it (null gives 0); `FUN_00619f20` decrements (null no-op; fatal 0x27c unless the signed counter is above 0).
+- `FUN_00619f60` (ECX, fatal 0x286) returns `room1+0x74`; `FUN_00619f90` (ECX, EDX flag, fatal 0x2ad) returns `room1+0x1c` and stores 1 through `[room1+0x2c]` when the flag is nonzero; `FUN_0061a040` (ECX, EDX, fatal 0x2ce) stores EDX at +0x20.
+- `FUN_0061a330` (fatal 0x3a6) returns +0x18; `FUN_0061aa90` (fatal 0x550) returns +0x48; `FUN_0061aa60` (ECX, fatal 0x547) returns `[ecx+4]`; `FUN_0061ae80` (fatal 0x634) returns +8; `FUN_0061aac0` returns +0xc (null gives 0); `FUN_0061ab60` returns +0x34 & 4.
+- `FUN_0061a4d0` (fatal 0x42f) returns +0x34 & 2; `FUN_0061a510(room1, on)` (fatal 0x438) sets or clears that bit.
+- `FUN_0061af60(dungeon, fn)` (fatal 0x67f) stores the callback at +0x4c; `FUN_0061afa0(dungeon, v)` stores v at `+0x38 + 4*[+0x14]` and advances the byte index at +0x14 modulo 4 (null no-op).
+
+Wrappers (callee, then its arguments):
+
+- room2 is `[room1+0x10]`; act is `[dungeon+0x48]`. `FUN_00619560` (fatal 0x62) `0x66_ab70`(ECX room2, EDX arg); `FUN_00619620` (fatal 0x8a) `0x66_af80`(room2, arg); `FUN_00619fd0` (fatal 0x2bb) `0x66_bfa0`(room2); `FUN_0061ac10` (fatal 0x5b9) `0x64_2380`(room2); `FUN_0061ac50` (fatal 0x5c4) `0x66_ab90`(room2, arg); `FUN_0061ac90` (fatal 0x5cf) `0x66_abe0`(room2, arg); `FUN_0061a210` (fatal 0x363) `0x66_bb60`(room2); `FUN_0061acd0(r, x, y, f)` (fatal 0x5da) `0x66_71e0`(ECX room2, EDX x; stack y, f).
+- Null returns 0 without calling: `FUN_0061a1d0(r, id)` `0x66_bac0`; `FUN_0061a1f0` `0x66_bb20`; `FUN_0061a250` `0x66_bba0`; `FUN_0061aed0(r, y)` `0x61_bac0`; `FUN_0061aef0` `0x66_d410`.
+- No null check: `FUN_0061ad10(r, y, z)` `0x66_6a80`(room2, y; stack z); `FUN_0061aa20(d)` `0x64_3200`(act); `FUN_0061abf0(d, y)` `0x64_2be0`(act, y); `FUN_0061aaf0(id)` `0x64_26a0`(id).
+- Act-based: `FUN_00619e50(d, a1..a4)` (fatal 0x221, ret 0x14) `0x66_b2b0`(ECX act, EDX a1; stack a2, a3, a4); `FUN_0061a070` / `FUN_0061a0c0(d, a1, a2, a3, r)` (fatal 0x2d7 / 0x2e9, ret 0x14) `0x61_b640` / `0x61_b690`(ECX act, EDX a1; stack a2, a3, room2-of-r or 0); `FUN_0061a140(d, a1, a2)` (fatal 0x313) `0x61_b7b0`(act, a1; stack a2); `FUN_0061a360(d)` (fatal 0x3c5) `0x61_b840`(act); `FUN_0061a3a0(d, r)` (fatal 0x3ce / 0x3d1) `0x61_b870`(act, room2); `FUN_0061a3f0(d, r)` (fatal 0x3dd; 0x3de when `[d+0x50]` is nonzero; 0x3df) `0x61_ba30`(room2).
+- Two room1s, either null as 0: `FUN_0061a110` `0x61_b6f0` and `FUN_0061a9f0` `0x64_3020`, both (ECX room2 of arg0, EDX room2 of arg1).
+- `FUN_0061ab30(r)`: null calls `0x64_2740`(0); else `0x64_2740`(`0x66_bab0`(room2)).
+- `FUN_0061af10(d, r, s)`: ECX is room2 of r when r is on d's room1 list (+0x10, next +0x7c), else 0; EDX room2 of s or 0; calls `0x66_d750`.
+- `FUN_00619ea0` (fatal 0x249) calls `0x64_c0c0`(room1) then returns +0x74.
+- `FUN_0061a440(r)`: `0x61_bae0`(room2) low byte 3 or more gives 1, else 0 (no null check).
+
+Geometry (signed compares; rectangle x +0x5c, y +0x60, w +0x64, h +0x68):
+
+- `FUN_00619970(a, b)` (fatal 0x13e / 0x141): 1 when a's x range and y range both touch b's (edges count), else 0.
+- `FUN_006199f0(r, x, y)` (fatal 0x168, ret 0xc): 1 when x is in [rx, rx+w) and y in [ry, ry+h).
+- `FUN_00619a50(r)` (fatal 0x17b): 0 for a negative w or h, 1 for w = 0, 3 for h = 0, else 4. The function is `ret 8` although it reads one argument, so a caller pops two dwords.
+- `FUN_00619b10(d, x, y)`: first room1 on d's list (+0x10, next +0x7c) holding the point, else 0; no null check.
+- `FUN_00619b60(r, x, y)` (fatal 0x1af; null near entry fatal 0x1b3): first near room (`[r]`, count +0x24) holding the point.
+- `FUN_00619bd0(r, fn, arg)` (fatal 0x1c0; fatal 0x1c2 when `IsBadCodePtr(fn)`): calls `fn(near, arg)` (stdcall) for each near room until one returns 0; returns the last result (0 with no near rooms).
+- `FUN_00619d00(r, out)` (fatal 0x1e3): out = {x, y, x+w, y+h} from +0x4c.. written first, then fatal 0x1eb when y > y+h, fatal 0x1ec when x > x+w.
+
+Creation (`FUN_00619800` ESI room1 + stack pool, ret 4; `FUN_00619890` ECX dungeon, EDX room2, stack rect*, a1, a2, a3, ret 0x10):
+
+- `FUN_00619800`: n = `0x66_bcf0`(room2); allocates 4n bytes (`Dungeon.cpp` line 0x100) into `[room]`; `[room+0x24]` = `0x66_bd00`(room2, array); fatal 0x108 on a null entry; for each entry other than the room itself, that entry's +0x24 = `0x66_bd00`(its room2, its `[+0]`).
+- `FUN_00619890` (fatal 0x119): allocates 0x80 (line 0xf5) and clears it; +0x34 = a3; `0x65_0e40`(ECX room+0x6c, EDX a2); +0x10 = room2; copies 8 dwords from rect* to +0x4c; +8 = a1; +0x7c = old list head; the dungeon's +0x10 = room, +0x54 = 1; +0x2c = dungeon; `0x66_bfc0`(room2, room); `FUN_00619800`; `0x64_c900`(pool, room); calls the dungeon's +0x4c callback (ECX room) when set; returns the room1.
+
+Node list, unit lists, teardown:
+
+- `FUN_0061a270(r, x, y)`: pushes a 12-byte node {x, y, old head} (line 0x384) on +0x18 and sets `[dungeon+0x58]` = 1; null no-op. `FUN_0061a2c0` (fatal 0x390) frees every node (line 0x39c) and clears +0x18.
+- `FUN_0061a460` (fatal 0x3ef): 0 unless `0x66_bcf0`(room2) equals +0x24; then 1 when every near room has flag bit 0 set.
+- The sorted pointer set (+0x48 / +0x78): `FUN_0061a550` (EDX room1) returns 1, fatal 0x453 on a null entry. `FUN_0061a5a0` (EAX room1) runs that scan, then sorts the entries ascending, unsigned; its own "scan returned 0" branch (line 0x45b) cannot be reached because the scan never returns 0. `FUN_0061a700(r, v)` (fatal 0x487 null room1, 0x488 null v, 0x490 not in the set): moves the last entry into v's slot, drops the count and re-sorts. `FUN_0061a790` (fatal 0x4ae): +0xc = 0 when the set is non-empty, else +0xc + 1; returns +0xc. `FUN_0061a7e0` (ECX a, EDX b): 1 when some entry of b is missing from a (an empty a with a non-empty b included), else 0.
+- `FUN_0061a840` (ECX pool, EDX room1): for each unit on +0x74, sets `[u+0xc8]` |= 0x20 and `[u+0xc4]` |= 0x800000 and calls `0x64_c450`(u) (the call must unlink it, or the loop does not end); then `0x64_ca10`(pool, room), `FUN_0061a2c0`, frees +0x48 (line 0x4e2, pool of the room's dungeon), `[room]` (line 0x4e4) and the room (line 0x4e5).
+- `FUN_0061a910(d, r)` (fatal 0x4f7 null r; 0x502 not on the list): unlinks r from d's list, removes r from each other near room's own near array (last entry swapped in, count - 1), calls `0x66_b4c0`(room2, `[d+0x50]`, stack r's flags), then `FUN_0061a840`(d's pool, r).
+- `FUN_0061afd0(d)` (fatal 0x3a): `0x64_2190`(act) and clears +0x48 when set; `FUN_0061a840` on each room1; `0x61_bec0`(pool, `[d+4]`) and clears +4 when set; frees d (line 0x52).
+- `FUN_0061ad70(pool, mask, &ptr, &count)` (ret 0x10; fatal 0x60a when the `0x61_ddf0` table has over 32 entries): copies the table entries whose mask bit is set into a new block (line 0x614); ptr = 0, count = 0 when none. `FUN_0061ae30(v)` returns `1 << i` for the first table entry equal to v, else 0.
