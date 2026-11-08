@@ -65,3 +65,45 @@ neighbouring codes); the row is the record count. Halts 0x3d1 (null),
 the link (0x360).
 
 Re-check: `cd tools/emu && uv sync && uv run python excel_links.py`.
+
+## Reading a link back, and the bin field map (6 functions)
+
+The remaining functions of `Excel.cpp`, run in the emulator by
+`tools/emu/excel_fields.py` (4,949 cases, against models). Same link layout as
+above. Nothing here changes d2d's output.
+
+- `FUN_006bd040` (stdcall file, line) makes an empty link: 16 bytes from the
+  pool-0 allocator, flag 0, all four fields zero.
+- `FUN_006bd130` (stdcall link, code, unused) searches the code array of
+  `FUN_006bd230` by unsigned compare and returns the row or -1. It is a plain
+  binary search: on an array that is not sorted it returns what the search
+  finds, not a lookup. A count of zero or below searches nothing.
+- `FUN_006bd180` (stdcall link, row, out) is the reverse: a linear scan of the
+  array for the first element with that row, writing the four code characters
+  (a space becomes NUL; the fourth too, and then the fifth byte is NUL as
+  well) and returns 1. No array, a row below 0 or at/above the count, or a row
+  not in the array, returns 0 and leaves `out` alone.
+- `FUN_006bd330` (fastcall node, row) finds the tree node whose row (+0x20) is
+  the argument: the node itself, then the whole left subtree, then the whole
+  right. It returns the node, or the pointer stored at `0x74c3d8` (it starts as
+  `0x6ccb30`) when there is none, which is also the answer for a null node.
+- `FUN_006bd380` (stdcall link, row, flag) is that after a range check: a null
+  link, a row below 0 or at/above the count gives the `0x74c3d8` pointer, else
+  the node or the same pointer. **The third argument changes nothing.**
+- `FUN_006bce20` (stdcall out, excel struct, field table) is the bin loader's
+  column map. The table is 20-byte entries (name pointer, type, size, ...)
+  ended by type 0; the excel struct is the one `FUN_006bd640` makes, with the
+  column names (NUL-separated) at +0. Fields are hashed by name
+  (`FUN_00413ce0`, case-blind) into 256 buckets. For each column in order the
+  field of the same name (case-blind, found through the hash) gives its table
+  index in `out`; that field is then used up, so a repeated column, or a column
+  without a field, gets 0x7fff. Where two fields share a name the later one is
+  found first. Every field no column used then follows, in table order. The
+  result is the number of entries written. More than 0x118 fields halts (line
+  0xcc). A type-5 (bool) field of size above 1 starts a run: each next entry
+  must be type 5 (else halt, line 0xc4), and the run ends when the count
+  reaches the size of the entry just read. **A field whose name hashes to 0
+  would count as used from the start** (the hash is also the used mark);
+  nothing in the oracle produces that.
+
+Re-check: `cd tools/emu && uv sync && uv run python excel_fields.py`.
