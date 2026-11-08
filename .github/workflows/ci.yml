@@ -19,8 +19,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Docs, research notes and the Python RE tools don't touch the build: a
-  # change to only those skips build, tidy and flatpak (tools.yml tests the
+  # Docs, research notes, the Python RE tools and C++ comments don't touch
+  # the build: a change to only those skips build, tidy and flatpak (tools.yml tests the
   # Python). tests/*.py drive the d2d binary and tidy-pr-select.py picks
   # tidy's files, so those still build; a tag always does.
   changes:
@@ -45,6 +45,17 @@ jobs:
             exit 0
           fi
           code=$(grep -vE '^docs/|\.md$|^tools/[^/]+\.py$|^tools/(emu|ghidra)/|^\.github/workflows/(cache-cleanup|coverity|gaps|guard|tools)\.yml$' <<<"$files" || true)
+          # A comment-only edit to engine or app C++ doesn't build either:
+          # compare each side with comments and whitespace stripped. Not
+          # tests/: their // test-links: comments are CMake's.
+          base=$(git merge-base "$BASE" "$HEAD")
+          stripped() { git show "$1:$2" | gcc -fpreprocessed -dD -E -P -x c++ - 2>/dev/null | tr -d ' \t\n'; }
+          for file in $code; do
+            if [[ "$file" =~ ^(components|apps)/.*\.(c|cc|cpp|h|hpp)$ ]] && old=$(stripped "$base" "$file") \
+                && [[ -n "$old" && "$old" == "$(stripped "$HEAD" "$file" || true)" ]]; then
+              code=$(grep -vxF "$file" <<<"$code" || true)
+            fi
+          done
           if [[ -n "$code" ]] || grep -qx 'tools/tidy-pr-select.py' <<<"$files"; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
@@ -482,7 +493,9 @@ jobs:
   flatpak:
     name: Flatpak (${{ matrix.arch }})
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # main and tags only: the slowest jobs, and a pull request rarely breaks
+    # only the Flatpak. One that does shows on main after the merge.
+    if: needs.changes.outputs.code == 'true' && github.event_name == 'push'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     container:
