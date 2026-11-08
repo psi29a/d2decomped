@@ -82,6 +82,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Talk-submenu quest names (FUN_0049f910, table 0x722678) vs `rules::quest_name` | `uv run python quest_name.py` | `65536 messages match d2d's 32 runs; 527 have a name; 164 (row 100) is 3716`, then `ok` |
 | Table loaders (LoadTxt FUN_00504430, CompileTxt FUN_006122f0) | `uv run python txt_loaders.py` | `46 cases: LoadTxt (.txt / .bin) and CompileTxt (4 flag sets) ...`, then `ok` |
 | NPC gossip text list (Text/Text.cpp: FUN_00661240..FUN_006616e0, 13 functions) | `uv run python text_list.py` | `929 cases: new / add / remove / free / getters / build / store / sort; ...`, then `ok` |
+| Excel name links and txt splitter (Excel/Excel.cpp: FUN_006bcda0..FUN_006bd640, 8 functions) | `uv run python excel_links.py` | `923 cases: add name / lookup / ...`, then `ok` |
 | Overhead message node (Chat/Chat.cpp: FUN_00661110, FUN_006611a0) | `uv run python chat_node.py` | `30 nodes: time = min(length, 254) x 8 + 125 (2157 frames at 254 and above), ...`, then `ok` |
 | Chat IME helpers (UI/chat.cpp: FUN_0047ad60, FUN_0047b010, FUN_0047b070) | `uv run python chat_ime.py` | `123 cases: candidate list refresh ...`, then `ok` |
 | Ignore list account mapping and node teardown (Chat/Ignorelist.cpp: FUN_00611320, FUN_0060edf0, FUN_00610690, FUN_0060ef60, FUN_0060ef30, FUN_0060edb0, FUN_0060eef0) | `uv run python ignorelist.py` | `9910 cases: 244 accounts mapped; ...`, then `ok` |
