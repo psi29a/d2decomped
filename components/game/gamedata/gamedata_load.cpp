@@ -512,7 +512,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.leftskill = text("leftskill") == "1"; skill_row.passive = text("passive") == "1"; skill_row.aura = text("aura") == "1";
         skill_row.use_attack_rate = text("UseAttackRate") == "1"; skill_row.in_town = text("InTown") == "1"; skill_row.attack_no_mana = text("AttackNoMana") == "1";
         skill_row.reqlevel = std::max(number("reqlevel"), 1); if (number("maxlvl") > 0) skill_row.maxlvl = number("maxlvl");
-        skill_row.mana = number("mana"); skill_row.lvlmana = number("lvlmana"); skill_row.manashift = number("manashift"); skill_row.minmana = number("minmana");
+        skill_row.mana = number("mana"); skill_row.lvlmana = number("lvlmana"); skill_row.manashift = number("manashift"); skill_row.minmana = number("minmana"); skill_row.startmana = number("startmana");
         skill_row.tohit = number("ToHit"); skill_row.levtohit = number("LevToHit"); skill_row.tohit_calc = calc("ToHitCalc");
         for (int i = 0; i < 4; ++i) skill_row.calc[std::size_t(i)] = calc("calc" + std::to_string(i + 1));
         for (int i = 0; i < 8; ++i) skill_row.par[std::size_t(i)] = number("Param" + std::to_string(i + 1));

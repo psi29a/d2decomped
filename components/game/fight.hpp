@@ -147,13 +147,12 @@ inline bool weapon_gate(const GameData& game_data, const Character& character, c
 // picker and the button draw it in text colour 1 (FUN_004aa3a0 /
 // FUN_004a8d30 on FUN_004d9fc0), and a cast stops with the class's
 // impossible_1 (FUN_004610c0, reason 0x13 at 0x711ddc).
-// ponytail: a skill with AttackNoMana swings Attack instead, with no voice (LAB_00461101): todo.md row 52.
+// A skill with AttackNoMana swings Attack instead, with no voice (LAB_00461101): Fight::ask.
 // The weapon-type gate (FUN_00643f80), Throw's its own (FUN_00647640: a throwable, or stat 125).
 // FUN_00643f80 runs on Throw too (LAB_006479f8; itypea1 thro): no 1.14d item has stat 125, so
 // throw_ready alone answers the same. skills.md "Can the skill go now".
-// ponytail: of FUN_00647960's other statuses only the mana cost (`cost_of`), no row (3) and level 0
-// (7) are kept; not startmana or blood mana (1), restrict (4), passive (5), aura (6), an item's
-// stat 0xcc charges (2) or skilldelay (8). Throw's gate takes a dual-wielder's primary hand (FUN_006235a0).
+// FUN_00647960's other statuses are Fight::skill_status's. Throw's gate takes a dual-wielder's
+// primary hand (FUN_006235a0).
 inline bool skill_refused(const GameData& game_data, const Character& character, int id) {
     const auto* skill = game_data.skills.get(id);
     if (!skill) return false;
@@ -239,6 +238,10 @@ struct Fight {
         // aurastats): the finger mage's fingermagecurse (0x54).
         std::array<Curse, 2> marks{};
         std::uint32_t chilled = 0;                       // the player's chill (state 11, a monster's cold) runs out
+        // State inferno (0xc, FUN_005c8e30): on 20 frames from an Inferno / Arctic Blast start, kept
+        // to 6 frames past each later flame. State skilldelay (0x79, FUN_0056ef90): till the frame
+        // the last skill's do plus its delay.
+        std::uint32_t burning = 0, skill_delay = 0;
         // The player's stun (state 21, FUN_0057aae0: a monster's Smite) runs out.
         // It stops nothing; every hit while it runs is a get-hit (FUN_0057cee0).
         std::uint32_t stunned = 0;
@@ -578,12 +581,12 @@ struct Fight {
     // a plain attack instead, any other doesn't swing. Its animation (A1,
     // KK for the kicks) at the swing's speed; Dragon Talon's kick count is
     // calc1 (FUN_005d5970).
-    bool start_swing(std::uint32_t now_ms);
+    // The host's swing in a joined game (shown) is for show: not asked.
+    bool start_swing(std::uint32_t now_ms, bool shown = false);
     // Short of mana for a skill (the client's FUN_00647960 reason 1:
     // FUN_00647540's cost, FUN_006440f0's startmana) the class says so: message
     // 0x15 (table 0x711ddc) -> FUN_004cb9c0, the class table's +0xc,
-    // <class>_needmana_1 (class_voice). d2d tests the cost only (`cost_of`), no startmana:
-    // todo.md row 53.
+    // <class>_needmana_1 (class_voice).
     void need_mana(std::uint32_t now_ms);
     // Reason 0x13 (status 2, skill_refused): the class table's +8,
     // <class>_impossible_1 (amazon 0xb89), as need_mana.
@@ -1184,6 +1187,21 @@ struct Fight {
     [[nodiscard]] int cast_level(int skill) const;
     // What the check asks (FUN_0056c160: no minmana floor); pay takes what FUN_0056bfe0 takes.
     [[nodiscard]] int cost_of(const d2d::rules::Skill& skill, int lvl) const;
+    // Whether the player's skill can go now (FUN_00647960), game.exe's status: 0, or the first
+    // of 3 no row, 7 level 0, 6 aura, 5 passive, 2 the weapon (skill_refused), 1 mana (cost_of,
+    // then startmana x 256 out of state inferno), 8 skilldelay on and the skill's delay above 0.
+    // ponytail: restrict (4), blood mana (state 0x72) and an item's charges in its stat (2)
+    // aren't asked: d2d has no shapeshift or Blood Mana on the player, and a spent entry goes.
+    [[nodiscard]] int skill_status(int skill, std::uint32_t now_ms);
+    // The client's ask before a skill goes (FUN_004610c0): status 1, 2 or 4 on a skill with
+    // AttackNoMana asks again for Attack (0), which goes in its place, silently. 0 or 5 goes:
+    // the skill that goes. Else -1 and the status's line (0x711ddc): 1 needmana, 2..4
+    // impossible, 6..8 none.
+    int ask(int skill, std::uint32_t now_ms);
+    // The end of the swing skill's do (FUN_0056f7f0 at LAB_0056fa93): its delay (Skills.txt
+    // `delay`, frames) above 0 puts the player in skilldelay till now plus it (FUN_0056ef90).
+    // ponytail: an SQ skill's only-when-unit +0x38 test and Shapeshift's (FUN_0056f020) aren't kept.
+    void start_delay(std::uint32_t now_ms);
     void pay(const d2d::rules::Skill& skill, int lvl);
     void owe(const d2d::rules::Skill& skill, int lvl);
     void settle_cast();

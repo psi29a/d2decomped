@@ -291,35 +291,30 @@ auto Fight::impossible(std::uint32_t now_ms) -> void {
         class_voice(kImpossible[std::size_t(std::clamp(actor->character.character_class, 0, 6))], now_ms);
     }
 
-auto Fight::start_swing(std::uint32_t now_ms) -> bool {
-        using namespace d2d::d2s;
+auto Fight::start_swing(std::uint32_t now_ms, bool shown) -> bool {
         actor->swing_skill = 0;
         actor->kicks_left = 0;
         actor->item_charge = actor->attack_charge;            // the queued attack's entry (World::apply), if any
         const auto* skill = game_data->skills.get(actor->attack_skill);
         if (skill && actor->attack_skill != 0) {
+            // The walk's end asks again (FUN_00461250 commands 0x15 / 0x16 -> FUN_00461180 -> FUN_004610c0).
+            const int asked = shown ? actor->attack_skill : ask(actor->attack_skill, now_ms);
+            if (asked < 0) { actor->attack_mon = -1; return false; }
             if (!skill_built(*skill)) {
                 if (std::ranges::find(told, actor->attack_skill) == told.end()) {
                     told.push_back(actor->attack_skill);
                     d2d::log::info("not implemented: skill {} (srvstfunc {}, srvdofunc {}) - a plain attack for now",
                                    skill->name, int(skill->srvstfunc), int(skill->srvdofunc));
                 }
-            } else {
-                const int lvl = cast_level(actor->attack_skill);
-                const int cost = cost_of(*skill, lvl);
-                if (lvl > 0 && actor->character.stats.values[kMana] >= cost) {
-                    pay(*skill, lvl);
-                    actor->swing_skill = actor->attack_skill;
-                    if (skill->srvstfunc == ServerStartFunction::kDragonTalon || skill->srvstfunc == ServerStartFunction::kRepeatedHit || skill->srvstfunc == ServerStartFunction::kFend) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
-                        const auto env = calc_env();
-                        int value = d2d::rules::eval_calc(game_data->skills, skill->calc[0], env, skill->id, lvl);
-                        if (skill->srvstfunc == ServerStartFunction::kFend) value = std::min(value, int(in_reach().size()));   // Fend (FUN_005dae30): one per enemy in reach (FUN_0056bc80), at most calc1
-                        actor->kicks_left = std::max(value, 1) - 1;
-                    }
-                } else if (!skill->attack_no_mana) {
-                    actor->attack_mon = -1;                         // can't pay, won't swing
-                    if (lvl > 0) need_mana(now_ms);
-                    return false;
+            } else if (asked == actor->attack_skill) {
+                const int lvl = cast_level(asked);
+                pay(*skill, lvl);
+                actor->swing_skill = actor->attack_skill;
+                if (skill->srvstfunc == ServerStartFunction::kDragonTalon || skill->srvstfunc == ServerStartFunction::kRepeatedHit || skill->srvstfunc == ServerStartFunction::kFend) {   // Talon's kicks (FUN_005d5970), Zeal's hits (FUN_005daf40)
+                    const auto env = calc_env();
+                    int value = d2d::rules::eval_calc(game_data->skills, skill->calc[0], env, skill->id, lvl);
+                    if (skill->srvstfunc == ServerStartFunction::kFend) value = std::min(value, int(in_reach().size()));   // Fend (FUN_005dae30): one per enemy in reach (FUN_0056bc80), at most calc1
+                    actor->kicks_left = std::max(value, 1) - 1;
                 }
             }
         }
@@ -584,11 +579,11 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
 
 auto Fight::strike(std::uint32_t now_ms) -> void {
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && missile_skill(*skill)) {   // Magic Arrow: the bow's action frame
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); }
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; settle_cast(); do_sounds(now_ms); fire(*skill, now_ms); start_delay(now_ms); }
             return;
         }
         if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && (skill->srvdofunc == ServerDoFunction::kThrow || skill->srvdofunc == ServerDoFunction::kDoubleThrow)) {   // the throws (TH)
-            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; do_sounds(now_ms); spot(*skill, now_ms); }
+            if (!actor->pstruck && now_ms >= actor->player.mode_ms + std::uint32_t(float(player_anim(actor->pmode).action_ms()) / actor->prate)) { actor->pstruck = true; do_sounds(now_ms); spot(*skill, now_ms); start_delay(now_ms); }
             return;
         }
         if (!actor->seq.empty()) {
@@ -616,6 +611,7 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
         actor->pstruck = true;
         do_sounds(now_ms);
         hit(now_ms);
+        start_delay(now_ms);
     }
 
 auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
@@ -1032,6 +1028,7 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
                 } else if (skill) {
                     start_state(*skill, skill_level ? skill_level(skill->id) : 1, now_ms);
                 }
+                start_delay(now_ms);
             }
             if (now_ms >= actor->pmode_until) { actor->pmode = -1; actor->player.mode_ms = now_ms; actor->item_charge = {}; if (!held) actor->attack_mon = -1; }
         } else if ((actor->pmode == kModeGH || actor->pmode == kModeBL) && now_ms >= actor->pmode_until) {

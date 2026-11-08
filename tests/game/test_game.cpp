@@ -1223,6 +1223,9 @@ int main(int argc, char** argv) try {
         const auto look = hero.character.appearance;
         hero.character.character_class = d2d::d2s::kAmazon;      // her starting javelin: 1ht, which has Jab's sequence
         hero.character.appearance.reset();
+        const auto kept_items = hero.character.items;             // without a spear Jab swings Attack (FUN_004610c0)
+        std::erase_if(hero.character.items, [](const d2d::d2s::Item& item) { return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kRightArm; });
+        hero.character.items.push_back({ .code = "jav", .location = d2d::d2s::item_location::kEquipped, .slot = d2d::d2s::body_location::kRightArm, .identified = true, .quantity = 5 });
         auto levels = std::move(fight.skill_level);
         const int attack = hero.attack_skill;
         const auto mana = hero.character.stats.values[d2d::d2s::kMana];
@@ -1243,6 +1246,7 @@ int main(int argc, char** argv) try {
         assert(std::ranges::count(world.cues.due, jab->do_sound_a, &Cues::Cue::sound) == sound_frames);
         hero.character.character_class = barbarian;
         hero.character.appearance = look;
+        hero.character.items = kept_items;
         fight.skill_level = std::move(levels);
         hero.attack_skill = attack;
         hero.character.stats.values[d2d::d2s::kMana] = mana;

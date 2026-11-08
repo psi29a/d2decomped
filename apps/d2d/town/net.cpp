@@ -70,7 +70,15 @@ auto Town::send(const Command& command) -> void {
             net_game->merc_item(std::uint16_t(merc_item->slot));
         } else if (const auto* use = std::get_if<cmd::UseSkill>(&command)) {
             if (d2d::game::skill_refused(*scene, character, use->skill)) {   // game.exe's client checks first (FUN_004610c0): nothing sent
-                world.fight.impossible(world_ms);
+                // AttackNoMana: Attack goes in its place, silently (LAB_00461101).
+                // ponytail: only the weapon (status 2) is asked here; the host refuses the rest
+                // (mana, startmana, its skilldelay), and the client's own 12-frame delay (FUN_004c6680) isn't kept.
+                if (const auto* refused = scene->skills.get(use->skill); refused && refused->attack_no_mana && use->skill != 0) {
+                    auto attack = *use;
+                    attack.skill = 0;
+                    attack.item = -1;
+                    send(attack);
+                } else world.fight.impossible(world_ms);
                 return;
             }
             const auto* skill = scene->skills.get(use->skill);

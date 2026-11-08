@@ -73,6 +73,40 @@ auto Fight::cast_level(int skill) const -> int {
 
 auto Fight::cost_of(const d2d::rules::Skill& skill, int lvl) const -> int { return from_charges(skill.id) ? 0 : d2d::rules::mana_formula(skill, lvl); }
 
+auto Fight::skill_status(int skill, std::uint32_t now_ms) -> int {
+        const auto* row = game_data->skills.get(skill);
+        if (!row) return 3;
+        const int lvl = cast_level(skill);
+        if (lvl <= 0) return 7;
+        if (row->aura) return 6;
+        if (row->passive) return 5;
+        if (skill_refused(*game_data, actor->character, skill)) return 2;
+        const auto mana = actor->character.stats.values[d2d::d2s::kMana];
+        if (mana < cost_of(*row, lvl)) return 1;
+        if (row->startmana > 0 && mana < std::int64_t(row->startmana) * 256 && now_ms >= actor->burning) return 1;   // FUN_006440f0
+        if (now_ms < actor->skill_delay && d2d::rules::eval_calc(game_data->skills, row->delay, calc_env(), skill, lvl) > 0) return 8;   // FUN_006478f0
+        return 0;
+    }
+
+auto Fight::ask(int skill, std::uint32_t now_ms) -> int {
+        int status = skill_status(skill, now_ms);
+        if (const auto* row = game_data->skills.get(skill); row && row->attack_no_mana && (status == 1 || status == 2 || status == 4)) {
+            skill = 0;
+            status = skill_status(skill, now_ms);
+        }
+        if (status == 0 || status == 5) return skill;
+        if (status == 1) need_mana(now_ms);
+        else if (status >= 2 && status <= 4) impossible(now_ms);
+        return -1;
+    }
+
+auto Fight::start_delay(std::uint32_t now_ms) -> void {
+        const auto* row = game_data->skills.get(actor->swing_skill);
+        if (!row) return;
+        const int lvl = skill_level ? skill_level(row->id) : 1;
+        if (const int delay = d2d::rules::eval_calc(game_data->skills, row->delay, calc_env(), row->id, lvl); delay > 0) actor->skill_delay = now_ms + std::uint32_t(delay) * 40;
+    }
+
 auto Fight::pay(const d2d::rules::Skill& skill, int lvl) -> void {
         auto& mana = actor->character.stats.values[d2d::d2s::kMana];
         if (from_charges(skill.id)) (void)use_charge(actor->character.items, actor->item_charge);
@@ -100,13 +134,10 @@ auto Fight::settle_cast() -> void {
     }
 
 auto Fight::cast(int skill, std::uint32_t now_ms) -> bool {
-        using namespace d2d::d2s;
         const auto* skill_row = game_data->skills.get(skill);
         if (!skill_row || dead() || actor->pmode >= 0 || !self_cast(*skill_row)) return false;
+        if (ask(skill, now_ms) != skill) return false;
         const int lvl = cast_level(skill);
-        const int cost = cost_of(*skill_row, lvl);
-        if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);
-        if (lvl <= 0 || actor->character.stats.values[kMana] < cost) return false;
         owe(*skill_row, lvl);
         actor->swing_skill = skill;
         actor->attack_mon = -1;
