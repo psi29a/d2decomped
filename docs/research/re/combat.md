@@ -416,7 +416,9 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   poison resist only the per-tick damage. `FUN_0057be00`: stat − pierce;
   a player adds the difficulty penalty to all but physical / magic, caps
   at 75 + the max stat (≤ 95; 75 with none, so PLR's 75), −100 the least;
-  monsters uncapped.
+  monsters use the same −100 floor, including physical and magic, with no
+  upper cap before the immunity check. `tools/emu/sk_resist.py` compares
+  the effective resistance and the magic missile's damage with 1.14d.
 - **Applied** (`FUN_0057c6c0`): chill `FUN_0057af80` ([0xc]), freeze
   `FUN_0057b230` ([0xd]), poison `FUN_0057ac50` ([10], [0xb]).
   - Chill: state 11, −50 on stats 67 velocitypercent, 68 attackrate, 69

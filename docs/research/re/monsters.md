@@ -255,11 +255,19 @@ spawnCol → mask 0x3c01 / 0x1c0 / 0x3f11 / 0) is clear.
   unique +dmg% (strong), 16–21 minion elemental min / max %, 22–27
   champion's, 28–33 unique's; each triple by difficulty):
   - 1 rndname: the name seed (monster data +0x14) from the monster seed;
-  - 2 hpmultiply (FUN_005a0dc0 → FUN_005a0d20): life += life × (+hp% row);
+  - 2 hpmultiply (FUN_005a0dc0 → FUN_005a0d20) adds the row's percentage
+    of life to both max and current life. FUN_00573cb0 can roll zero life.
+    FUN_005a0d20 uses the same integer multiply/divide as FUN_00483360 on
+    life in 256ths, and the possessed or berserker modifier applies to
+    the resulting value. The boss_level.py oracle compares the raw stat 7 value.
+    Ordinary scripted spawns such as Baal on the stairs keep a one-point
+    minimum in d2d so they can run their AI.
   - 4 leveladd (FUN_005a0e40): level + 3, experience × 5;
   - 16 champion (FUN_005a0e80): level − 1 (net + 2), experience − 2/5 (×
     3), +dmg% (stat 0x19) and +tohit% (0x77) from rows 11 / 10 scaled by
-    the difficulty's +0x34 percentage, velocity + 20 %;
+    the difficulty's +0x34 percentage, velocity + 20 %. Willowisp's BaseId
+    0x76 (FUN_00463860) halves the scaled damage bonus. The same check
+    applies to berserker and Extra Strong. The to-hit bonus uses its usual scaling;
   - the champion kinds (one of 16 / 36..39 by cpick, each weight 1):
     36 ghostly (FUN_005a1080): monster data +0x16 |= 0x40 (drawn
     see-through — see `### Ghostly blend (client flag 0x40)` below),

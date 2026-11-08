@@ -268,6 +268,9 @@ int main() try {
                     // Normal never reads the area
                     if (difficulty == 0) assert(got.level == own.level && got.hit_points == own.hit_points);
                 }
+        area_test.types[1].diff[1].min_hp = area_test.types[1].diff[1].max_hp = 0;
+        Rng zero_life{ 9 };
+        assert(monster_stats(area_test, 1, 1, zero_life, 2).hit_points == 0);
         assert(start_level(plain, 1, 40) == 40 && start_level(plain, 2, 70) == 70 && start_level(plain, 0, 5) == 2 && start_level(plain, 1, -1) == 30);
         assert(start_level(no_ratio, 2, 70) == 61 && start_level(boss, 1, 40) == 32);
     }
@@ -312,6 +315,10 @@ int main() try {
         wisp.base = 0x76;                                                           // willowisp1's family: half the damage part
         const auto wisp_berserk = boss_stats(umods, wisp, Boss::champion, { 39 }, 1);
         assert(wisp_berserk.dmg_pct == 112 && wisp_berserk.tohit_pct == 225);
+        const auto wisp_champion = boss_stats(umods, wisp, Boss::champion, { 16 }, 1);
+        assert(wisp_champion.dmg_pct == 37 && wisp_champion.tohit_pct == 56);
+        const auto wisp_strong = boss_stats(umods, wisp, Boss::unique, { 5 }, 1);
+        assert(wisp_strong.dmg_pct == 56 && wisp_strong.tohit_pct == 75);
         // A champion's name word (FUN_004ac870): its champion mod's; the
         // fixed rndname alone falls through to the table's last.
         assert(champion_word({ 16 }) == 0xc94 && champion_word({ 36 }) == 0x2b4c && champion_word({ 39 }) == 0x2b4f);

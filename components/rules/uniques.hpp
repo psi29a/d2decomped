@@ -269,6 +269,8 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     // else +20, none without a MonStats Velocity).
     const auto has = [&](int id) { return std::ranges::find(mods, id) != mods.end(); };
     const bool berserk = has(umod::berserk);
+    // Champion, berserker and Extra Strong halve the damage bonus for the willowisp BaseId.
+    const int damage_divisor = type.base == 0x76 ? 2 : 1;
     if (champion) stats.hp_pct = umods.constants[std::size_t(4 + difficulty_index)];   // FUN_005a0dc0, the champion rows
     if (champion && berserk && !unique) {                                // FUN_005a1280 runs no FUN_005a0e80: the fixed leveladd alone
         stats.level_add += 3;
@@ -278,7 +280,7 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
         stats.level_add += unique ? -1 : 2;
         stats.exp_mult = 3;
         stats.tohit_pct += umods.constants[10] * kBossBonus[std::size_t(difficulty_index)] / 100;
-        stats.dmg_pct += umods.constants[11] * kBossBonus[std::size_t(difficulty_index)] / 100;
+        stats.dmg_pct += (umods.constants[11] * kBossBonus[std::size_t(difficulty_index)] / 100) / damage_divisor;
         // Ghostly returns before the speed (0x5a0ff8): its -33 store at 0x5a1062 is never reached.
         if (type.velocity > 0 && !has(umod::ghostly))
             stats.velocity_pct += has(umod::fanatic) ? std::clamp(2048 / type.velocity - 128, 10, 100) : 20;
@@ -293,10 +295,9 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     if (has(umod::fanatic)) stats.defense_pct = -70;                     // FUN_005a11f0
     if (has(umod::possessed)) stats.life_after_pct = 100;                // FUN_005a1230
     if (berserk) {                                                       // FUN_005a1280: life -75 %, +300 % x the bonus to damage and to-hit
-        // A wisp (BaseId 0x76, willowisp1: FUN_00463860 / FUN_00463900) takes half the damage part.
         const int bonus = 300 * kBossBonus[std::size_t(difficulty_index)] / 100;
         stats.life_after_pct = -75;
-        stats.dmg_pct += type.base == 0x76 ? bonus / 2 : bonus;
+        stats.dmg_pct += bonus / damage_divisor;
         stats.tohit_pct += bonus;
     }
     auto resist = [&](int id) {                                          // FUN_005a1370
@@ -326,7 +327,7 @@ inline BossStats boss_stats(const UMods& umods, const MonType& type, Boss kind, 
     for (const int id : mods) {
         switch (id) {
         case umod::strong:                                               // FUN_005a17e0
-            stats.dmg_pct += umods.constants[kind == Boss::minion ? 14 : 15] * kBossBonus[std::size_t(difficulty_index)] / 100;
+            stats.dmg_pct += (umods.constants[kind == Boss::minion ? 14 : 15] * kBossBonus[std::size_t(difficulty_index)] / 100) / damage_divisor;
             stats.tohit_pct += umods.constants[kind == Boss::minion ? 12 : 13] * kBossBonus[std::size_t(difficulty_index)] / 100;
             break;
         case umod::fast:                                                 // FUN_005a1910: 2048 / Velocity - 128, 10..100

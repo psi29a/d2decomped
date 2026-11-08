@@ -100,8 +100,8 @@ int main(int argc, char** argv) try {
         const int etype = kEtype[index];
         int res = target.res[index];
         std::printf("%lld %d ", case_id, res - base);
-        if (etype >= 0 && etype < 4 && res < 100) res = std::max(res - pierce, -100);
-        std::printf("%d ", res);
+        if (etype >= 0 && etype < 4 && res < 100) res -= pierce;
+        std::printf("%d ", std::max(res, -100));
         if (etype < 0 || etype == 3) { std::printf("-\n"); continue; }
         std::array<int, 4> pierces{};
         if (etype < 4) pierces[std::size_t(etype)] = pierce;
