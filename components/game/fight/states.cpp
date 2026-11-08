@@ -274,7 +274,7 @@ auto Fight::merc_buff_events(Foe& foe, std::uint32_t now_ms) -> void {
         const int frames = std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], merc_calc_env(), skill->id, actor->merc_buff.level), 1);
         for (const int striker : foe.damaged_by) {                    // as the player's (buff_events): its strikers freeze
             const int found = this->monster_index(striker);
-            if (found < 0 || !monsters[std::size_t(found)].alive()) continue;
+            if (found < 0 || !monsters[std::size_t(found)].alive() || monsters[std::size_t(found)].uninterruptable()) continue;   // state 0x36: FUN_0057b230's first test
             const auto monster_index = std::size_t(found);
             monsters[monster_index].stun_until = std::max(monsters[monster_index].stun_until, now_ms + std::uint32_t(frames) * 40);
             monsters[monster_index].chill_until = std::max(monsters[monster_index].chill_until, now_ms + std::uint32_t(frames) * 40);
