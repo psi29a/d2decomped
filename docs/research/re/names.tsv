@@ -166,6 +166,7 @@ address	name	evidence
 00643690	skill_passivestate	(skill id) -> Skills record +0x94 passivestate if > 0, else 0 (also for an id outside [0, [0x744304]+0xba0)); skills.md "Skill accessors"
 006438f0	skill_node_next	(node) -> node +4, 0 for a null node; same body as FUN_00643910; skills.md "Skill accessors"
 00643910	skill_list_first	(list header) -> header +4 (the first node), 0 for null; same body as FUN_006438f0; skills.md "Skill accessors"
+00643ce0	skill_node_id	(node) -> *(short *)node[0], the skill id from the node's record; 0 for a null node; skills.md "Skill accessors"
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
 006505c0	path_flag_8	path +0x34 & 8; null 0
