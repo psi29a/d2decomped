@@ -1724,7 +1724,32 @@ Cited from the decompile (no oracle run); re-check with
   (the unit-mode tables number differently for players and monsters; cited).
   d2d: **not ported**.
 
-### Still unknown
+### Skill list accessors and the hotkey sweep (work package 006450f0, cited)
+
+Cited, not proven: read from `python3 tools/ghidra/fn.py <address>`; no oracle run.
+The assert line numbers are the constant passed to `FUN_00408090` (its body
+returns only its return address, so what it makes of the number is not read)
+before `FUN_00408a60` and `FUN_00681e09(-1)` (report, then exit). The file
+name string was not read, so the "Skills.cpp" in the rows is the nearest
+cited module, not a quoted assert.
+
+- **FUN_006450f0**(node) -> node `+0x30`: a skill list node's count, the one
+  `FUN_00647640` tests for scrolls and tomes (above). A null node asserts
+  with line `0xda4` and exits. Callers: 00496be0, 004a9a90, 004a9ae0,
+  004a9b30, 004a9b80, 004a9df0, 004aa3a0, 0055c070 and others (see
+  `game-calls.tsv`). d2d: **not ported** (only the always-0 result of the
+  count's search is, `skill_text.hpp:389`).
+- **FUN_00620150**(unit) -> `FUN_00643910(unit +0xa8)`, the first node of the
+  unit's skill list; a null unit asserts with line `0x638` and exits. d2d:
+  **not ported** (it holds the list directly).
+- **FUN_00643b00**(node, &item, &skill, &level, &charges) -> 0 when node
+  `+0x34` is -1 (a base entry), else 1 with each non-null out written:
+  `*item = +0x34`, `*skill = *(short*)node[0]`, `*level = +0x28`,
+  `*charges = +0x38`. Null node asserts (line `0x641`). So it reads an
+  **item** entry's fields (skills.md "Skill record" above: +0x34 the item's
+  unit id, +0x38 charges). Callers: 00496be0, 004a9a00, 004a9bd0, 004a9fc0,
+  004aa3a0. d2d: **not ported**; `skillbar.hpp` keeps the same four fields
+  in its own entry type.
 - Each skill's own srvstfunc / srvdofunc body beyond Attack, [2] and Bash's
   start (Dragon Talon's kicks, sentries, missiles, auras): trace them per
   phase.
