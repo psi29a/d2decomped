@@ -208,6 +208,26 @@ register arguments are partly dropped), so argument order is a reading.
   per skill (section above), the hover reuses it. The 0x48 bound is
   loose (bugs.md 54). Which register holds which argument is read from d2d's
   naming of the two skill wrappers, not from the asm.
+- **`FUN_004e7120` (damage_add_listed_skills, 429 bytes)**: `(unit, &min, &max,
+  &colour)`, always returns 1; adds skill-sourced damage onto the numbers
+  `FUN_004e89a0` / `FUN_004eba30` (its only callers) already hold. Walks the
+  short array at `[0x744304]+0x16c` (count: short at `+0x170`). For each id:
+  `FUN_00639df0(unit, id)` must pass (unit type 0 / 1 / 3, id below the
+  table count at `+0xc4`), `FUN_006256b0(unit, id)` gives a stat list,
+  whose stat 0x15e (350) is a Skills row (`> 0`, below `+0xba0`) and stat
+  0x15f (351) a level (`> 0`); the record's short at `+0x54` must index a
+  table of `+0xbd4` entries and that stat on the list (`FUN_00625d00`) be `> 0`
+  (it is the third value, called 1 / 2 / 3 below). With a SkillDesc
+  (`FUN_004a89d0`): the third value is clamped to 1..3 (`< 2` -> 1, `> 2` -> 3)
+  and `FUN_00646d00(unit, SkillDesc[+0x20 + n*4], row, level)` is added to
+  min and `[+0x2c + n*4]` to max; if the byte at `SkillDesc +0x1f + n` is 1..12
+  the colour is `FUN_004e6fb0` of it (the EType -> colour map, char-panel.md
+  above). Without one: `FUN_00644d50` / `FUN_00644e40(unit, row, level, 1) >> 8`
+  (EMin / EMax with mastery) are added instead. What the list at `+0x16c`
+  holds is not identified here (stats 350 / 351 are not named in
+  `ItemStatCost` by this trace). d2d: not ported; `elem_damage` covers the
+  weapon and skill elements only, so a skill granted this way adds nothing in
+  d2d's panel (not checked in play).
 - **`FUN_004ec040` (desc_damage_handler_18, 66 bytes)**: referenced only as
   data at `0x72d7b0` (game-calls.tsv: `0072d7b0 004ec040 data`), which is slot
   (0x72d7b0 - 0x72d768) / 4 = 18 of the descdam table at 0x72d768. Body: two
