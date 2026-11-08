@@ -149,7 +149,7 @@ footer { border-top: 1px solid var(--edge); padding-top: 14px; color: var(--dim)
         LEVELS.map(function (s) { return '<td class="r">' + fmt(m[1][s]) + '</td>'; }).join('') + '</tr>';
     }).join('');
     document.getElementById('creditRows').innerHTML = d.credits.map(function (p, i) {
-      return '<tr><td class="r">' + (i + 1) + '</td><td>' + esc(p.name) + '</td><td class="r">' + fmt(p.commits) +
+      return '<tr><td class="r">' + (i + 1) + '</td><td>' + (p.login ? '<a href="https://github.com/' + esc(p.login) + '">' + esc(p.login) + '</a>' : esc(p.name)) + '</td><td class="r">' + fmt(p.commits) +
         '</td><td class="r">' + fmt(p.reported) + '</td><td class="r">' + fmt(p.traced) + '</td></tr>';
     }).join('');
   }).catch(function (e) { document.getElementById('stamp').textContent = 'gaps.json failed to load (' + e.message + ')'; });

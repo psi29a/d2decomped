@@ -28,7 +28,8 @@ An address inside a ponytail: note counts as cited, not ported.
 Listed gaps come from todo.md, unverified.md (above "Traced"), the ponytail:
 notes in components/ and apps/, and with --issues the open GitHub issues (gh).
 bugs.md, deviations.md and stubs.md are listed too, as context, not as gaps.
-Credits count commit authors plus Reported-by: / Traced-by: trailers.
+Credits count commit authors plus Reported-by: / Traced-by: trailers, by GitHub login
+where there is one (a noreply address, or with --issues GitHub's view of the commit).
 
 Done means nothing left: no listed gap, and every counted function ported or
 verified. The last line says DONE, or what remains; gaps.json has it too.
@@ -304,7 +305,7 @@ def build(with_issues):
         "remaining": remaining, "done": not any(remaining.values()),
         "frontier": [r["address"] for r in frontier],
         "blocking": [{"address": r["address"], "gaps": len(r["gaps"]), "status": r["status"]} for r in blocking],
-        "gaps": gaps, "credits": credits(), "oracles": oracles(funcs),
+        "gaps": gaps, "credits": credits(with_issues), "oracles": oracles(funcs),
     }, records, frontier
 
 
@@ -344,20 +345,31 @@ def oracles(funcs):
     return {"scripts": rows, "missing": {name: sorted(where) for name, where in sorted(missing.items())}}
 
 
-def credits():
-    """People by commits authored, issues reported and functions traced (trailers)."""
-    people = collections.defaultdict(lambda: {"commits": 0, "reported": 0, "traced": 0})
-    log = git("log", "--format=%aN%x1e%(trailers:key=Reported-by,valueonly,separator=%x1f)"
+def credits(with_github):
+    """People by commits authored, issues reported and functions traced (trailers), with their GitHub login:
+    from a noreply address, else (with_github) from GitHub's view of their newest commit."""
+    people = collections.defaultdict(lambda: {"login": None, "commits": 0, "reported": 0, "traced": 0})
+    newest = {}
+    log = git("log", "--format=%aN%x1e%aE%x1e%H%x1e%(trailers:key=Reported-by,valueonly,separator=%x1f)"
                      "%x1e%(trailers:key=Traced-by,valueonly,separator=%x1f)%x1d")
     for entry in log.split("\x1d"):
         fields = entry.strip("\n").split("\x1e")
-        if len(fields) != 3:
+        if len(fields) != 5:
             continue
-        author, reported, traced = fields
+        author, email, commit, reported, traced = fields
         people[author]["commits"] += 1
+        noreply = re.fullmatch(r"(?:\d+\+)?([^@]+)@users\.noreply\.github\.com", email)
+        if noreply and not people[author]["login"]:
+            people[author]["login"] = noreply.group(1)
+        newest.setdefault(author, commit)
         for key, value in (("reported", reported), ("traced", traced)):
             for who in filter(None, value.split("\x1f")):
                 people[re.sub(r"\s*<[^>]*>", "", who).strip()][key] += 1  # names only, no emails
+    for author, commit in newest.items():
+        if with_github and not people[author]["login"]:
+            people[author]["login"] = subprocess.run(
+                ["gh", "api", f"repos/{{owner}}/{{repo}}/commits/{commit}", "--jq", ".author.login // empty"],
+                capture_output=True, text=True).stdout.strip() or None   # not a GitHub account: the name stays
     return sorted(({"name": n, **c} for n, c in people.items()),
                   key=lambda p: (-(p["commits"] + p["reported"] + p["traced"]), p["name"]))
 
@@ -472,7 +484,7 @@ def write(out, summary, records, frontier):
     md += ["\n## Credits\n", "Commits authored, plus `Reported-by:` and `Traced-by:` trailers.\n",
            "| Name | Commits | Reported | Traced |", "|---|---|---|---|"]
     for p in summary["credits"]:
-        md.append(f"| {p['name']} | {p['commits']} | {p['reported']} | {p['traced']} |")
+        md.append(f"| {p['login'] or p['name']} | {p['commits']} | {p['reported']} | {p['traced']} |")
     with open(os.path.join(out, "gaps.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(md) + "\n")
     os.makedirs(os.path.join(out, "_includes"), exist_ok=True)
