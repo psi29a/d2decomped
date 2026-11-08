@@ -311,3 +311,157 @@ second mask (`FUN_00639e30`) for hit 19 and 16 but not in
 `FUN_00570590`.
 d2d: reads the same, cited from the decompile, no oracle run.
 Re-check: `python3 tools/ghidra/fn.py 005ab110`, `git grep -n FUN_005ab110 components docs/research/re/skills.md`.
+
+## Stat list primitives, run against game.exe (oracles)
+
+Run, not cited: `tools/emu/stats_list_fields.py` (10041 cases),
+`tools/emu/stats_array_ops.py` (33425 cases) and `tools/emu/stats_propagate.py`
+(3000 cases) run these functions in the emulator against a hand-written model
+on random lists and rows and compare the return, the allocator and callback
+logs, the list bytes and the bytes `ret n` pops. Each also fails on its
+deliberate model defects (`--mutation-check`: 8, 10 and 8). Callees the
+oracles replace are written with an underscore (0x62_4f60) and are not
+claimed here. A list means the record at unit +0x5c; "row" an ItemStatCost
+row (0x144 bytes); the three flag masks are the bytes at 0x6ce270 (row +4,
+sums), 0x6ce274 (row +5, change callback) and 0x6ce278 (row +5, queue).
+
+Corrections to the notes above, from these runs: the change callback
+(list +0x5c) and the queue gate test row byte **+5**, while the sum and push-up
+walks test row byte **+4**; `FUN_006250b0` calls the callback even when the
+value did not change, `FUN_00625150` only when it did; `FUN_006250b0` sets
+flag 0x20000000 only for a positive new value, `FUN_00625150` for any stored
+value of a row with +0x53 set.
+
+### Arrays, in address order (stdcall unless a register is named)
+
+- `FUN_00624c80` EAX key, ESI array, stack pool (`ret 4`): inserts a {key, 0}
+  entry in signed key order and returns its address; returns 0 and changes
+  nothing when the key is there. When count >= capacity it adds 4 to the
+  capacity (allocator resize, 8 bytes an entry, assert line 0xe8) first.
+- `FUN_00624d10` ESI array, EDX entry address, stack pool (`ret 4`): removes
+  the entry (moves the tail down); an address at or past the end changes
+  nothing. When capacity - count is above 8 it takes 4 off the capacity
+  (resize, assert line 0x110). Returns nothing.
+- `FUN_00624d90` EAX array {ptr, count at +4}, EDI key, no stack: the same
+  search as `0x62_4bd0` over 4-byte keys: the insert position, or -1 when the
+  key is there (signed compares). Used on the changed-stat queue.
+- `FUN_00624dd0` EBX list, stack key (`ret 4`): queues the key in the sorted
+  changed-stat queue (list +0x50, count +0x54, capacity +0x56, 4 bytes an
+  entry, grows by 4 at assert line 0x162) when the list has flag 0x80000000,
+  the stat id (key >> 16) is not 6, 8, 10, 13 or 14, the stat has a row, row
+  byte +5 has a bit of the 0x6ce278 mask, and the key is not queued yet.
+- `FUN_00624ed0` EBX list, EDI key, stack row (`ret 4`): the value of the key
+  in the plain array (+0x24), 0 if absent. With a row whose byte +5 meets the
+  0x6ce270 mask, on an expanded list whose owner (+0x44) has type 0 or 1, a
+  value below the signed row +0x2c is replaced by that floor shifted left by
+  row byte +0x18 (the shift count is taken mod 32). The expanded-array twin
+  is `0x62_4f60`.
+- `FUN_00624f40` EAX list: returns list +0x48 when flag 0x80000000 is set,
+  else list +0x24 (an address, not a value).
+- `FUN_00624fe0` EAX list, stack key, row (`ret 8`): the key's value in the
+  plain array plus, for a list with flag 0x80000000, the key's value in each
+  child on the +0x3c chain (+0x2c next; the child's expanded array if it has
+  flag 0x80000000, else its plain array); a child with flag 0x40000000 is
+  left out when row byte +4 meets the 0x6ce270 mask.
+- `FUN_006250b0` EBX list, stack key, delta, row, ctx (`ret 0x10`): adds
+  delta to the key's entry in the expanded array (+0x48; made when absent),
+  sets flag 0x20000000 when the new value is positive and row +0x53 is set,
+  removes the entry when the new value is 0 and row +0x50 is 0, then calls
+  list +0x5c (ECX = list +0x60, EDX = owner +0x44, stack ctx, key, old, new)
+  when row byte +5 meets the 0x6ce274 mask. Returns the new value.
+- `FUN_00625150` EBX list, stack key, value, row, ctx (`ret 0x10`): sets the
+  key in the expanded array. Absent and value 0: nothing happens and no
+  callback. Value 0 with row +0x50 clear removes the entry; otherwise the
+  entry takes the value and, if row +0x53 is set, flag 0x20000000 is set.
+  The callback (as above) runs only when the value differs from the old one.
+  The return value is not meaningful.
+- `FUN_00625650` stack list, state (`ret 8`): the child on the +0x3c chain,
+  then the +0x40 chain, whose state word (+0x14) equals `state`; 0 for a null
+  list, a list without flag 0x80000000, or state 0.
+- `FUN_006256e0` stack list, flags (`ret 8`): the first list with a bit of
+  `flags & ~0x2000` in its flags. A list with flag 0x80000000 walks its +0x40
+  chain when `flags` has 0x2000 and its +0x3c chain otherwise; a list without
+  it walks itself and its +0x2c siblings. 0 if none or the list is null.
+- `FUN_00625730` stack list, mask (`ret 8`): the first +0x2c sibling after
+  the list with a bit of `mask`; the list itself is not tested.
+- `FUN_00625870` stack unit, ctx, stat, callback (`ret 0x10`): when the
+  unit's list has flag 0x80000000, the key stat << 16 is in the queue and in
+  the plain array, calls callback(ECX unit, EDX stat, stack value, ctx).
+- `FUN_006258d0` stack unit, ctx, callback (`ret 0xc`): for each queued key
+  calls callback(ECX unit, EDX stat, stack value, ctx) with the plain-array
+  value (0 if absent). A zero ctx makes it return at once when the callback
+  is non-null; with a zero callback and a non-empty queue it would call
+  address 0 (not run).
+- `FUN_00626110` EAX list, ECX out, stack stat, max (`ret 8`): copies the
+  {key, value} entries of one stat id (key >> 16) from the expanded array if
+  the list has flag 0x80000000, else the plain array, at most `max`; returns
+  the count copied (0 for a null list). `FUN_006261b0` stack list, stat, out,
+  max (`ret 0x10`) is the same with stack arguments.
+
+### Fields and wrappers, in address order (stdcall)
+
+- `FUN_00625250` list: list +8 (the owner type), 6 for a null list.
+- `FUN_00625270` list: signed word at list +0x28 (plain count); 0 for null.
+- `FUN_00625290` unit: signed word at the unit's list +0x4c (expanded
+  count); 0 for a null unit or no list.
+- `FUN_006252b0` list: list +0xc; 0 for null. `FUN_006252f0` list: +0x14.
+- `FUN_006254e0` list, stat, layer: jumps to `0x62_5350`; `FUN_006254f0`
+  jumps to `0x62_5420` (same three stack arguments, their return).
+- `FUN_00625520` list, stat, layer: `0x62_5420` minus `0x62_5350` for the
+  same arguments (expanded first); 0 for a null list.
+- `FUN_006255a0` list, stat, other, flag (`ret 0x10`): t = `0x62_5420`(other),
+  base = `0x62_5350`(stat); with flag set it adds `0x62_5420`(stat) - base;
+  returns `0x48_3360`(base, t, 100) + that + base. 0 for a null list.
+  `FUN_00625600` unit, stat, other, flag: the same on the unit's list.
+- `FUN_00625620` list, index: the value of plain entry `index` (signed
+  compare with the count), 0 when out of range or null.
+- `FUN_00625820` unit, out pointer: the parent list's (+0x34) owner (+0x44)
+  when the parent has flag 0x80000000, else 0; `*out` (if non-null) is 1
+  when the unit's own list lacks flag 0x40000000 and the parent qualified,
+  else 0.
+- `FUN_00625960` unit: for a list with flag 0x80000000, frees the queue buffer
+  (+0x50, assert line 0xa1e) if there is one and zeroes the pointer, count
+  and capacity.
+- `FUN_00625a00` unit: sets flag 0x100 on the unit's list; `FUN_00625a20`
+  unit: that flag as 0 or 1.
+- `FUN_00625a50` list, stat: `0x62_5420`(list, stat, 0).
+- `FUN_00625bb0` unit: list +0x58 when the list has flag 0x80000000, else 0.
+  `FUN_00625be0` unit: that pointer plus 4 x ((count at tables +0xc4 + 31)
+  / 32, truncated toward zero); 0 without the flag.
+- `FUN_00625c90` list, out, n (`ret 0xc`): copies min(count, n) plain
+  entries to `out` and returns that number; 0 for a null list. A negative n
+  with a null array reads from address 0 (not run).
+- `FUN_00625e60` unit, which and `FUN_00625ef0` unit, which: the value of
+  stat 22 (24 when `which` is nonzero) and of stat 21 (23), through
+  `0x62_4f60` with the row for that id; 0 for no unit, no list, or when the
+  table count is not above the id. `FUN_00625f80`, `FUN_00625fd0`,
+  `FUN_00626020` unit: the same for stats 160, 159 and 31.
+- `FUN_00626070` ignored, unit, stat: `0x62_5480`(unit, stat, 0).
+- `FUN_00626090` list: +0x18. `FUN_006260d0` / `FUN_006260e0` list, value /
+  list: set / get +0x1c. `FUN_006260f0` / `FUN_00626100`: set / get +0x20.
+  `FUN_006260d0`, `FUN_006260e0`, `FUN_006260f0` and `FUN_00626100` have no
+  null check (not run with null); `FUN_00626090` returns 0 for null.
+- `FUN_00626d10` unit: when the unit's list has flag 0x80000000 calls
+  `0x62_6c00`(list); then zeroes unit +0x5c. A null list changes nothing.
+
+### Push and refresh
+
+- `FUN_00626920` ECX list, EDX key, stack delta, ctx (`ret 8`): nothing for
+  delta 0, a stat id with no row, or a start list with flag 0x2000. It starts
+  at the list when it has flag 0x80000000, else at its parent (+0x34), and for
+  each list up the chain calls `0x62_50b0`(key, delta, row, ctx) when row
+  bytes +0x51 and +0x52 are 0, else `FUN_006266c0`(row, ctx); it stops after
+  a list with flag 0x2000, and after one with flag 0x40000000 when row byte
+  +4 meets the 0x6ce270 mask.
+- `FUN_006266c0` ECX list, EDX key, stack row, ctx (`ret 8`): value =
+  `0x62_6200`(list, key). Row +0x51 = 0: stores it (`0x62_5150`) and returns.
+  Otherwise stores 0 first when the value is 0, then for up to 3 dependents
+  (u16 ids at row +0x58, stop at 0xffff) recomputes each with itself and
+  stores it; a nonzero dependent value then may block by row byte +0x54:
+  modes 0 and 8-11 do not block; 2-3 block when the list owner (+8) is 0 or 1,
+  the u16 at row +0xde + 6i is not 0xffff and `0x62_4f60` reads it positive;
+  4-5 block when the unit at list +4 has type 0 or 1, that u16 is not 0xffff
+  and `0x62_5480` reads it positive; 6-7 block for owner 0 or 1; 13 for owner
+  4; modes 1, 12, 14 and 15 block (the oracle draws those; the switch default is the same arm for the rest). If nothing blocked and the value
+  is nonzero it stores the value and recomputes and stores the stats whose
+  ids are at row +0x5e (up to 64, stop at 0xffff). Returns the value.
