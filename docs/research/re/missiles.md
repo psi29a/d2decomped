@@ -433,6 +433,64 @@ d2d: fight/missiles.cpp case 56 reads the same, cited from the decompile, no ora
 on the burst at the missile's spot with sHitPar1 else the skill's aurarange, and the one sub missile on
 that spot. Not examined: the OR of record +0xa8 / +0xac into the roll's flags.
 
+## Standing missiles: the wrappers and the path getters
+
+Re-check each with `python3 tools/ghidra/fn.py <addr>`. Cited, not run in
+the emulator.
+
+- **`FUN_006486c0`** (path): returns path +0x7c, the velocity set at make
+  time (the 75 / 100 scaled one above). Unlike its neighbours `FUN_006488c0`
+  / `FUN_00648900` it has no null assert. `FUN_005ae1f0` calls it on the
+  missile's path first: non-zero runs `FUN_00554ca0` (path over: ends it).
+  `FUN_005ae480` tests it too: non-zero goes straight to `FUN_005ae1f0`.
+- **`FUN_00648eb0`** (already ported) recomputes path +0x54 only when the
+  velocity is 0, via `FUN_0064d9b0` at the unit's own subtile (path +2 / +6,
+  type +0x44, mask 0x7fff). So `FUN_005ae1f0` does reach its unit search for
+  a missile that stands still; the line "srvdofunc 1 never strikes at
+  velocity 0" in "d2d" below is only true of the moving branch (step 1).
+- **`FUN_00648f40`** (path, &list): returns the entered-subtile count
+  (path +0x1d4) and sets list to path +0x1d8, an array of {short x, short y}
+  (4 bytes each). If path flag +0x34 & 0x20000 is clear it raises the
+  "Unrecoverable internal error" (`FUN_00408a60`, `DAT_006cc837`, line
+  0x8f4, then `FUN_00681e09(-1)`), the same shape as the null asserts of
+  `FUN_006488c0` (line 0x692) and `FUN_00648900` (0x69d). Callers
+  `FUN_005ae1f0`, `FUN_004d30c0`.
+- **`FUN_0064a640`** (unit): missile data (unit +0x14) +8 as a short, 0 if
+  the unit isn't type 3 or has no data. That is the "Range left > Range -
+  Activate" test above: `FUN_005ae1f0` returns 1 (nothing yet) while
+  `FUN_0064a640` < `FUN_0064a380` (range left, data +0x10).
+- **`FUN_005ae480`** (ECX game, EDX missile): path velocity non-zero ->
+  `FUN_005ae1f0`. Else ORs 0x40 into the room word of the missile's
+  subtile (`FUN_0064cb90`: room of `FUN_00620bb0`, x = path +2, y = path
+  +6; a unit of type 2 / 4 / 5 has its pointer at +0x2c read as +0xc / +0x10)
+  and then `FUN_005ae1f0`. `FUN_005b04a0` tail-calls it. The 0x40 is taken
+  off again by `FUN_005adf10` (`FUN_0064eba0`, shape from `FUN_00620510`,
+  bits 0x40) when the missile ends. tools/emu/sk_ground_hit.py runs it.
+- **`FUN_005ae520`** (missile do 5, table 0x73c768 + 5 x 4): the same stamp
+  but by shape: `FUN_0064ea00(room, x, y, size, 0x40)` (1 point, 2 plus,
+  3 box), on each call, then the animation frame (unit +0x44 >> 8) rule by
+  the row byte +0x181: on the last frame (+0x181 - 1) the position becomes
+  (`FUN_0045c3e0()` + frame) x 256 (its ECX / EDX aren't in the decompile:
+  not checked); when range left == +0x181 it becomes (+0x181 - 3) x 256;
+  when range left < +0x181 the frame steps back 2, floored at 0. Then
+  `FUN_005ae1f0`. Any missing row/path goes straight to `FUN_005ae1f0`'s end
+  (`FUN_005adf10(0, 1)`).
+- **`FUN_005ae400`** (ECX game, EDX missile): with a valid row whose +0x18
+  (a short) is >= 0, evaluates the row's calc `FUN_0064b7c0` (missile, owner
+  `FUN_00552fd0`, row +0x80, row index, level `FUN_0064a210`) and passes it
+  to `FUN_005a9720(row +0x18, 0, result)`, then `FUN_005ae1f0`. Neither the
+  call graph nor the data refs show who uses it: not placed in a table here.
+- `FUN_00641cb0` (missile_touches) and `FUN_005ae1f0` read the same as
+  d2d (`rules::missile_touches`, `standing_struck`); `FUN_0064a380`,
+  `FUN_00648eb0`, `FUN_0064d9b0` too: cited from the decompile, no oracle
+  run, nothing new to say.
+
+d2d: `FUN_00648f40`, `FUN_006486c0`, `FUN_0064a640`, `FUN_005ae400`,
+`FUN_005ae480`: not ported as such (`missile_fly` keeps its own entered
+list). `FUN_005ae520`: ported without the 0x40 stamp (collision.md "By shape"
+says `FUN_0064ea00` isn't ported) and without the frame stepping, which only
+changes the picture.
+
 ## d2d
 
 - `rules::MissileFlight` (launch, step, walk, retarget), `missile_aim`,
