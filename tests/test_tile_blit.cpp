@@ -366,6 +366,12 @@ int main(int argc, char** argv) try {
         auto current_wall = [](auto& target, const auto& tile, const auto& lit, int x, int y, int cell_x, int cell_y) { blit_dt1_wall_lit(target, tile, lit, x, y, cell_x, cell_y, false); };
         time("reference", reference_floor, reference_wall);
         time("current", current_floor, current_wall);
+        // The same floors in an even light (most of a lit level's): one palette, no walls.
+        auto reference_flat = [&](auto& target, const auto& tile, const auto&, int x, int y, int, int) { reference::blit_dt1_tile(target, tile, pals[16], x, y, 255, nullptr); };
+        auto current_flat = [&](auto& target, const auto& tile, const auto&, int x, int y, int, int) { blit_dt1_tile(target, tile, pals[16], x, y); };
+        auto no_wall = [](auto&, const auto&, const auto&, int, int, int, int) {};
+        time("ref flat", reference_flat, no_wall);
+        time("flat", current_flat, no_wall);
     }
     return 0;
 } catch (const std::exception& error) {
