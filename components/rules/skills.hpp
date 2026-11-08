@@ -420,6 +420,7 @@ struct Skill {
     bool attack_no_mana = false;
     int reqlevel = 1, maxlvl = 20;
     int mana = 0, lvlmana = 0, manashift = 8, minmana = 0;
+    int startmana = 0;                     // +0x184: the mana a start needs, whole points (FUN_006440f0)
     int tohit = 0, levtohit = 0;
     Calc tohit_calc;
     std::array<Calc, 4> calc;              // calc1..4

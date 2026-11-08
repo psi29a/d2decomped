@@ -51,14 +51,11 @@ auto Fight::trap_shot(const d2d::rules::Skill& skill) const -> int {
     }
 
 auto Fight::cast_summon(int skill, float target_x, float target_y, std::uint32_t now_ms) -> bool {
-        using namespace d2d::d2s;
         const auto* skill_row = game_data->skills.get(skill);
         if (!skill_row || dead() || actor->pmode >= 0 || !summon_skill(*skill_row)) return false;
         if (skill_row->target_corpse && corpse_near(target_x, target_y) < 0) return false;
+        if (ask(skill, now_ms) != skill) return false;
         const int lvl = cast_level(skill);
-        const int cost = cost_of(*skill_row, lvl);
-        if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);
-        if (lvl <= 0 || actor->character.stats.values[kMana] < cost) return false;
         pay(*skill_row, lvl);
         actor->swing_skill = skill;
         actor->cast_x = target_x; actor->cast_y = target_y;

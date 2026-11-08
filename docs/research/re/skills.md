@@ -592,9 +592,22 @@ asked again (LAB_00461101). Then 0 or 5 goes; anything else sends nothing
 and voices 0x711ddc[status] (`FUN_00461070`): 1 needmana (0x15), 2..4
 impossible (0x13), 6..8 none. So Jab with no spear, Smite with no shield
 or Bash out of mana swings a plain attack, with no voice. Oracle:
-`tools/emu/skill_status.py client` (18 cases; `ok`). Which click paths
-reach it, and which `FUN_00467880` (status 0 only, no fallback), isn't
-traced: todo.md row 52.
+`tools/emu/skill_status.py client` (18 cases; `ok`).
+
+Every click path that sends a skill reaches it (traced 2026-11-08). A click
+goes to `FUN_004625b0`, which first picks the target through `FUN_004621d0`
+-> `FUN_00467880`. That one only asks whether the status is 0, to let the
+skill's own search (Skills.txt +6 bits 0x40 / 0x20 / 0x80) pick a target;
+it never refuses. Then `FUN_004625b0` asks `FUN_004610c0` itself (shift
+held, a spot skill, or a cast at the point: three calls), or a unit in
+reach asks through `FUN_00461c70`. A unit out of reach is walked to, and
+the walk's end asks again: `FUN_00461250` commands 0x15 / 0x16 ->
+`FUN_00461180` -> `FUN_004610c0`, Attack's entry kept in the slot when it
+fell back. d2d: `Fight::skill_status` / `Fight::ask`, asked at the click
+for a spot or self cast (world/commands.cpp) and in `start_swing` for a
+unit; `tests/game/test_skill_ready.cpp`. Not kept: the fallback's Attack
+at a spot (`FUN_00461700(0)`), and a joined game asks only the weapon (the
+host asks the rest).
 
 Skill delay. At the end of a skill's do (`FUN_0056f7f0`, from
 LAB_0056fa93) the skill's delay calc (+0x190, Skills.txt `delay`, in
@@ -612,7 +625,9 @@ for its player only: `FUN_004c6680` sets 0x7a04fc (`FUN_0044ce40`) to its
 frame clock 0x7a0498 plus min(delay, 12), and `FUN_004d9fc0` turns a 0
 into 8 before then. Status 8 voices nothing; the buttons draw it as not
 usable. Cases delay_meteor, delay_meteor_off, delay_fire_bolt,
-delay_meteor_no_mana. d2d keeps no delay: todo.md row 54.
+delay_meteor_no_mana. d2d: `Fight::start_delay` at each do's action
+frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
+(`FUN_005c8e30`: 20 frames from the start, 6 past each later flame).
 
 ### Item charges (traced 2026-10-28)
 - Stat 0xcc (204, item_charged_skill): param skill << 6 | level, value

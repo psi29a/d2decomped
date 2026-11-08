@@ -92,7 +92,7 @@ auto World::display_swing(int skill, float x, float y, std::uint32_t now_ms) -> 
         actor->interact_npc = actor->pick_item = actor->take_warp = -1;
         actor->player.walking = false;
         actor->player.dir = direction16(x - actor->player.x, y - actor->player.y);
-        fight.start_swing(now_ms);
+        fight.start_swing(now_ms, true);
     }
 
 auto World::use_warp() -> void {

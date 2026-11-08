@@ -241,11 +241,8 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
         if (!skill_row || dead() || actor->pmode >= 0 || (!missile_skill(*skill_row) && !spot_skill(*skill_row))) return false;
         // Throw is a spot skill: a held one (engage) whose last one's gone, or the weapons
         // swapped since the command, stops here (FUN_004610c0's status 2).
-        if (skill_refused(*game_data, actor->character, skill)) { actor->attack_mon = -1; impossible(now_ms); return false; }
+        if (ask(skill, now_ms) != skill) { actor->attack_mon = -1; return false; }
         const int lvl = cast_level(skill);
-        const int cost = cost_of(*skill_row, lvl);
-        if (lvl > 0 && actor->character.stats.values[kMana] < cost) need_mana(now_ms);
-        if (lvl <= 0 || actor->character.stats.values[kMana] < cost) { actor->attack_mon = -1; return false; }
         if (needs_ammo(*skill_row) && ammo_index() < 0) {
             // FUN_005da8b0 (srvstfunc 4): refused, and a spent stack in either hand (right first;
             // stackable, FUN_006289f0) goes as one run out (FUN_00580310), so the next has ammo.
@@ -381,7 +378,10 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 launch(found->second, skill, lvl, around_x, around_y, 0, 0, found->second.range + found->second.lev_range * lvl, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kBreath || skill.srvdofunc == ServerDoFunction::kBladeFury) {
             if (caster.merc || caster.pet) send(dx, dy, range);            // one a cast: the channel is the player's (missile_tick)
-            else actor->channel = skill.id;
+            else {
+                actor->channel = skill.id;
+                if (skill.srvdofunc == ServerDoFunction::kBreath) actor->burning = now_ms + 20 * 40;   // state inferno (FUN_005c8e30)
+            }
         } else if (skill.srvdofunc == ServerDoFunction::kBlessedHammer) {                      // Blessed Hammer (FUN_005d0040): path 14, a spiral out
             auto& missile = send(dx, dy, range);
             missile.target_x = caster.x; missile.target_y = caster.y;
@@ -455,9 +455,10 @@ auto Fight::player_shots(std::uint32_t now_ms) -> void {
             else {
                 const int lvl = skill_level ? skill_level(skill->id) : 1;
                 const auto& missile_info = *skill_missile(*skill);
-                if (skill->srvdofunc == ServerDoFunction::kBreath)
+                if (skill->srvdofunc == ServerDoFunction::kBreath) {
+                    actor->burning = std::max(actor->burning, now_ms + 6 * 40);   // FUN_005c8e30: each flame keeps it 6 frames on
                     launch(missile_info, *skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y, std::max(calc(*skill, skill->calc[0], lvl), 1), now_ms);
-                else if (frame % 3 == 0)                     // Blade Fury (FUN_005d68a0): one per attack frame
+                } else if (frame % 3 == 0)                     // Blade Fury (FUN_005d68a0): one per attack frame
                     launch(missile_info, *skill, lvl, actor->player.x, actor->player.y, actor->cast_x - actor->player.x, actor->cast_y - actor->player.y, missile_info.range, now_ms);
             }
         }
