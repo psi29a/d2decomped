@@ -201,7 +201,7 @@ NpcMenuState open_trade_refused(const Scene& scene, int npc, d2d::rules::Trade r
 // The talk submenu (FUN_004b5890): header "talk" (gold), "introduction"
 // unless the NPC's talk record says no_intro, "gossip", then "cancel"
 // (0xd48). The NPC's quest topics (the server's kind-2 messages,
-// FUN_0049f900) go after gossip, each under its quest's name (the table at
+// FUN_0049f910) go after gossip, each under its quest's name (the table at
 // 0x722678: message -> name, rules::quest_name).
 NpcMenuState open_talk_menu(const Scene& scene, const Level& level, int npc, int screen_x, int screen_y,
                             const std::vector<d2d::rules::QuestMsg>& quest = {});
