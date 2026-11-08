@@ -47,6 +47,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Client DC6 load and free helpers (CORE\ARCHIVE.CPP: FUN_004788b0, FUN_00478950, FUN_00478a00) | `uv run python archive_dc6.py` | `ok: 9 DC6 load/free cases; 68 + 8 call sites pass flag 0` |
 | DC6 / DCC cel placement | `uv run python cel_anchor.py \| diff - ../../tests/cel_anchor_cases.inc`; then `test_cel_anchor` | no output; the test passes |
 | COF draw effects (which blend each is) | `uv run python cof_effects.py \| diff - ../../tests/cof_effect_cases.inc`; then `test_cof_effects` | no output; the test passes |
+| Inventory mode, grid-cell and panel hit-test helpers (FUN_00483e10, FUN_00486bd0, FUN_00486e10) | `uv run python d2common_item_ui.py` | `ok: 37 stock D2COMMON item UI helper cases` |
 | Body-armour layers and tiers (FUN_0064f420, FUN_0064f500, FUN_0063d690) vs compcode.hpp | `uv run python composit_layers.py` | `ok: lit layers TR=torso LG=legs RA=rArm LA=lArm S1=rspad S2=lspad; 10 other layers fatal; d2d's compcode tables match` |
 | Screen shake and quest control frames | `uv run python shake.py > ../../tests/shake_cases.inc`; `uv run python shake.py --controls > ../../tests/quake_control_cases.inc` | `test_shake` matches both captured fixtures |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
