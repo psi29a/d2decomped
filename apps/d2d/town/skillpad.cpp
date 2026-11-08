@@ -88,7 +88,7 @@ auto Town::present_skill_pad() -> void {
     const skillpad::Sheet sheet = stored == skill_sheets.end() ? skillpad::Sheet{} : stored->second;
     const bool alternate = skill_actions.modifier_held;
     skillbar.mode_modifier = alternate;
-    const auto label_of = [&](pad::Action action) {
+    const auto label_of = [&](pad::Action action) -> std::string {
         const auto& pair = pad_config.bindings[action];
         const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
         return button == pad::Bindings::kNone ? std::string("-") : std::string(pad::label(pad_family, button));

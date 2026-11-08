@@ -367,7 +367,7 @@ struct SkillBar {
                         if (shown == kResurrectSkill) caption("Resurrect", x, y + 16);
                         else if (const auto full = skillpad::action_label(shown, true); !full.empty()) caption(std::string(full), x, y + 16);
                         else {
-                            const auto* info = shown >= 0 && scene ? scene->skills.get(shown) : nullptr;
+                            const auto* info = shown >= 0 ? scene->skills.get(shown) : nullptr;
                             caption(info ? info->name : "Clear", x, y + 16);
                         }
                     }

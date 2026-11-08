@@ -457,7 +457,7 @@ int main() try {
         // (its stats off, FUN_0063d2b0); flagged gear that meets them again
         // loses it (FUN_0063d1d0), repeated while one changed.
         auto worn = [](const char* code, int slot) { Item worn_item = item(code); worn_item.location = 1; worn_item.slot = slot; return worn_item; };
-        auto plus_strength = [](Item gear_item) { gear_item.props.push_back({ .stat = d2d::d2s::kStr, .value = 10 }); return gear_item; };
+        auto plus_strength = [](Item&& gear_item) { gear_item.props.push_back({ .stat = d2d::d2s::kStr, .value = 10 }); return gear_item; };
         const auto strength_of = [](const std::vector<Item>& gear) {   // 20 own, plus the unflagged worn gear's
             Wearer self{ .cls = d2d::d2s::kSorceress, .str = 20, .dex = 30, .lvl = 10 };
             for (const auto& each : gear)

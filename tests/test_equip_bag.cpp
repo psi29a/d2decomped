@@ -11,6 +11,7 @@
 #include <exception>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using d2d::d2s::Item;
@@ -67,7 +68,7 @@ int main() try {
     worn.location = d2d::d2s::item_location::kEquipped;
     worn.slot = d2d::d2s::body_location::kTorso;
     worn.panel = worn.column = worn.row = 0;
-    items.push_back(worn);
+    items.push_back(std::move(worn));
     for (int row = 0; row < 4; ++row)
         for (int column = 0; column < 10; ++column) {
             if (column < 2 && row < 2) continue;
