@@ -19,7 +19,7 @@ import argparse
 import sys
 
 import _dungeon_rig as rig_mod
-from _dungeon_rig import M32, Halt, mix, s32
+from _dungeon_rig import M32, Halt, s32
 
 MUT = set()
 
@@ -243,7 +243,7 @@ class Suite:
             """Dungeon with a room1 chain (+0x10, next +0x7c), a room1 and a second one, all maybe null."""
             chain = [rig.slot(4), rig.slot(5), rig.slot(6)]
             rig_mod_w(img, rig, 0, 0x10, chain[0] if rng.random() < 0.9 else 0)
-            for i, c in enumerate(chain):
+            for i, _ in enumerate(chain):
                 rig_mod_w(img, rig, 4 + i, 0x7C, chain[i + 1] if i + 1 < len(chain) else 0)
             second = rng.choice((chain[0], chain[1], chain[2], rig.slot(7), 0))
             return {"stack": [rig.slot(0), second, pick(rng, rig.slot(8), 0.4)]}

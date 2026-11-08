@@ -1581,7 +1581,7 @@ SelectDY], edges included (row +4, +8, +0xc, +0x10).
 
 ## Dungeon.cpp leaves, run in the emulator
 
-All 74 functions of `DUNGEON\Dungeon.cpp` that were untouched or only cited
+The 74 functions of `DUNGEON\Dungeon.cpp` that were untouched or only cited
 are run in `tools/emu` against hand-written models (`dungeon_accessors.py`,
 `dungeon_rooms.py`, `dungeon_lifecycle.py`, shared rig `_dungeon_rig.py`).
 Each compares the return value, the ordered callee log, the whole record
@@ -1640,9 +1640,9 @@ Creation (`FUN_00619800` ESI room1 + stack pool, ret 4; `FUN_00619890` ECX dunge
 
 Node list, unit lists, teardown:
 
-- `FUN_0061a270(r, x, y)`: pushes a 12-byte node {x, y, old head} (line 0x384) on +0x18 and sets `[dungeon+0x58]` = 1; null no-op. `FUN_0061a2c0` (fatal 0x390) frees every node (line 0x39c) and clears +0x18.
-- `FUN_0061a460` (fatal 0x3ef): 0 unless `0x66_bcf0`(room2) equals +0x24; then 1 when every near room has flag bit 0 set.
-- The sorted pointer set (+0x48 / +0x78): `FUN_0061a550` (EDX room1) returns 1, fatal 0x453 on a null entry. `FUN_0061a5a0` (EAX room1) runs that scan, then sorts the entries ascending, unsigned; its own "scan returned 0" branch (line 0x45b) cannot be reached because the scan never returns 0. `FUN_0061a700(r, v)` (fatal 0x487 null room1, 0x488 null v, 0x490 not in the set): moves the last entry into v's slot, drops the count and re-sorts. `FUN_0061a790` (fatal 0x4ae): +0xc = 0 when the set is non-empty, else +0xc + 1; returns +0xc. `FUN_0061a7e0` (ECX a, EDX b): 1 when some entry of b is missing from a (an empty a with a non-empty b included), else 0.
+- `FUN_0061a270(r, x, y)`: pushes a 12-byte node {x, y, old head} (line 0x384) on +0x18 and sets `[dungeon+0x58]` = 1; null no-op. `FUN_0061a2c0` (fatal 0x390) frees each node (line 0x39c) and clears +0x18.
+- `FUN_0061a460` (fatal 0x3ef): 0 unless `0x66_bcf0`(room2) equals +0x24; then 1 when each near room has flag bit 0 set.
+- The sorted pointer set (+0x48 / +0x78): `FUN_0061a550` (EDX room1) returns 1, fatal 0x453 on a null entry. `FUN_0061a5a0` (EAX room1) runs that scan, then sorts the entries ascending, unsigned; its own "scan returned 0" branch (line 0x45b) is not reached in any emulated case, because the scan returned 1 or halted. `FUN_0061a700(r, v)` (fatal 0x487 null room1, 0x488 null v, 0x490 not in the set): moves the last entry into v's slot, drops the count and re-sorts. `FUN_0061a790` (fatal 0x4ae): +0xc = 0 when the set is non-empty, else +0xc + 1; returns +0xc. `FUN_0061a7e0` (ECX a, EDX b): 1 when some entry of b is missing from a (an empty a with a non-empty b included), else 0.
 - `FUN_0061a840` (ECX pool, EDX room1): for each unit on +0x74, sets `[u+0xc8]` |= 0x20 and `[u+0xc4]` |= 0x800000 and calls `0x64_c450`(u) (the call must unlink it, or the loop does not end); then `0x64_ca10`(pool, room), `FUN_0061a2c0`, frees +0x48 (line 0x4e2, pool of the room's dungeon), `[room]` (line 0x4e4) and the room (line 0x4e5).
 - `FUN_0061a910(d, r)` (fatal 0x4f7 null r; 0x502 not on the list): unlinks r from d's list, removes r from each other near room's own near array (last entry swapped in, count - 1), calls `0x66_b4c0`(room2, `[d+0x50]`, stack r's flags), then `FUN_0061a840`(d's pool, r).
 - `FUN_0061afd0(d)` (fatal 0x3a): `0x64_2190`(act) and clears +0x48 when set; `FUN_0061a840` on each room1; `0x61_bec0`(pool, `[d+4]`) and clears +4 when set; frees d (line 0x52).
