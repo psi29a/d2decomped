@@ -169,6 +169,7 @@ struct Monster {
     int last_hp = 0;
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued by a hit in GH (0 none)
+    std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
     bool fx_done = false;
     std::string_view swing_mode;               // its last attack mode (A1, A2, SC, S1..S4; "" none yet): the stats it set (FUN_005a4f50)
     std::array<bool, 3> element_on{};          // which of its elements that swing rolled in (roll_elements)

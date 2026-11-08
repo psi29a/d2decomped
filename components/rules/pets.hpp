@@ -113,6 +113,7 @@ public:
     // `reach`. 5: path type 7, `reach` about the owner, `reach` away, its
     // path end. 2 and 4 stand 15 when nothing took.
     bool follow(int mode, bool run, int pct, int reach) {
+        // A run (FUN_005deeb0): RN, a walk in state 0x3c (slowed, never on in d2d).
         const int move_mode = run ? kMonsterRun : kMonsterWalk;
         const int pet_x = view_.x, pet_y = view_.y, own_x = view_.owner_x, own_y = view_.owner_y, end_x = view_.end_x, end_y = view_.end_y;
         if (mode == 3) { act = { .kind = PetAct::Kind::teleport }; return true; }   // ponytail: d2d's teleport always lands

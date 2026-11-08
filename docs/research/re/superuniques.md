@@ -65,7 +65,27 @@ and switches on the MonStats class (monster +4):
 | 0x21c..0x21e | FUN_005e0060 |
 | 0x2c0, 0x2c1, 0x2c5 | FUN_005e0070 |
 
-So for every Act 1 superunique, mod 22 does nothing.
+Each case runs only with the unit in mode 0 (unit +0x10). `FUN_005dfbf0(radius,
+first, end, flag)` (EBX the boss, EDI the game) asks the unit finder
+(`FUN_0065a950`, flags 0x583: alive players and monsters, unit +0xc4 & 4
+and & 8, not in town) for the units within radius subtiles of the boss.
+Each monster of them evil (`FUN_006259b0` 0), not diabloclone (0x14d),
+gets MonUMod 21 killself (`FUN_005a4850(0x15, 0)`) with event 7 at game
+frame + first + rand(end - first) on the boss's seed (`FUN_0045c3e0`); the
+flag (0 in every caller) would also need `FUN_0063e990`.
+
+| class | hook | radius, first, end | besides |
+|---|---|---|---|
+| 0x9c andariel | FUN_005dfe00 | 35, 1, 51 | |
+| 0xe5 radament | FUN_005dfe20 | 35, 40, radamentdeath's Range (missile row +0x96, 400) - 100, at least 100 | missile 347 radamentdeath at his spot (`FUN_0056ede0`) |
+| 0xf2 mephisto | FUN_005dfdb0 | — | missile 299 mephistodeathcontrol on him (`FUN_0059fa30`, flags 0x8000) |
+| 0x100 izual | FUN_005e0020 | 105, 1, 2 | |
+| 0x1df overseer1 | FUN_005e0040 | 35, 25, 125 | |
+| 0x21c..0x21e the Ancients | FUN_005e0060 | — | a bare ret (stubs.md) |
+
+So for every Act 1 superunique, mod 22 does nothing (Shenk, overseer1, is Act 5's).
+d2d: `Fight::quest_death` (fight/deaths.cpp, `rules::killself_hooks`).
+Checked by `test_game_missiles` (Andariel's).
 
 ## Act bosses at spawn: FUN_005b1cf0 (from FUN_005b2a00)
 

@@ -376,6 +376,17 @@ inline std::vector<int> family_mods(int base_id) {
     }
 }
 
+// MonUMod 22's death hook (0x5a3250: event 1 into mode 0, by MonStats
+// row). Four rows give MonUMod 21 (killself) to the monsters about them
+// (FUN_005dfbf0(radius, first, end), the boss's seed): Andariel
+// (FUN_005dfe00), Radament (FUN_005dfe20: end radamentdeath's Range - 100,
+// at least 100), Izual (FUN_005e0020), overseer1 (FUN_005e0040). The
+// Ancients' (FUN_005e0060) is a bare ret.
+struct KillSelf { int monstats_row, radius, first, end; };
+inline std::array<KillSelf, 4> killself_hooks(int radamentdeath_range) {
+    return { { { 0x9c, 0x23, 1, 0x33 }, { 0xe5, 0x23, 0x28, std::max(radamentdeath_range - 100, 100) }, { 0x100, 0x69, 1, 2 }, { 0x1df, 0x23, 0x19, 0x7d } } };
+}
+
 inline std::pair<int, int> fire_blast(int max_life, int difficulty) {
     static constexpr int kCE[3] = { 50, 35, 20 };
     const int difficulty_index = std::clamp(difficulty, 0, 2);

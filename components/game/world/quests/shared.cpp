@@ -455,8 +455,8 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
     }
 
 // Tristram Cain's AI (FUN_005e7880), a think each time he stops: the
-// first notes where he stands (FUN_005944b0) and heads 3 subtiles on
-// (x + 3, y + 3); up to 6 goes while more than 1 off; then the town
+// first (FUN_005e77a0, AI command 3 still empty) notes where he stands
+// (FUN_005944b0) and heads 3 subtiles on (x + 3, y + 3), stand 1; up to 6 goes while more than 1 off; then the town
 // portal (FUN_005943b0: object 189, ECX 2 / EDX 0xbd to FUN_00555230)
 // at the noted spot, in the room near his own that holds it
 // (FUN_00463740); none does: the spot moves on 3 subtiles on each axis
@@ -465,7 +465,8 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // (FUN_005944f0: camp Cain due). The portal closes (S1) and stays in its
 // mode 4 (S2): nothing removes the object (rules::CainQuest::portal_mode).
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
-// tick.
+// tick. FUN_005e77a0's spot-already-noted branch (FUN_005944f0, stat 6 0,
+// mode 0xc at his spot) isn't kept: d2d's Cain takes his first think once.
 auto World::cain_step(std::uint32_t now_ms, float elapsed) -> void {
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];

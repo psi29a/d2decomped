@@ -730,6 +730,33 @@ Levels.bin +0xe4 = waypoint index (0xff = none). Player waypoint data = pcdata +
 - Functions: FUN_00660e50 test; FUN_00660ec0 set; FUN_00660e00 level→index; FUN_00660d90 index→level; FUN_006610b0 copy out.
 - New: FUN_00660f30 (header 0x0102, index 0 set). Load from save: FUN_00661030, which **always forces index 0**. So the Act 1 town waypoint (Rogue Encampment) is always active, and no operate is needed.
 
+The stock allocation/release pair is checked by `tools/emu/waypoint_lifecycle.py`:
+
+- FUN_00660f30 takes the pool on the stack, requests 16 bytes through
+  FUN_0040b430, clears 16 bytes, writes the 16-bit header `0x0102`,
+  and sets index 0 through the table at `0x00746428` (word slot 1, mask 1).
+  It returns the allocation. The oracle supplies dirty storage and checks
+  the entire block, both guards and the allocation arguments.
+- FUN_00660fd0 takes the pool and block on the stack. Header `0x0102`
+  proceeds directly to release; `0` and `0x0101` are rewritten to `0x0102`
+  first. The remaining 14 bytes are unchanged. Any other header goes
+  through the diagnostic at FUN_00408a60 and fatal exit at FUN_00681e09
+  with status `-1`, before normalization or release. The release uses
+  FUN_0040b480 with the original pool and block. Its allocator wrapper's
+  return value is passed through; the stock wrapper returns 1.
+
+From the emulator directory, run `uv run python waypoint_lifecycle.py`: 9 allocations
+and 63 release/rejection cases cover three pool values, three dirty/payload
+patterns and seven release headers. The oracle intercepts allocation,
+release, diagnostics and fatal exit; their internal implementations are
+outside this check. `uv run python -m unittest test_waypoint_lifecycle.py`
+also checks bad arguments, bounded-call completion and five instruction
+mutations that must fail. The stock image checked was 1.14d, SHA-256
+`631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf`.
+This verifies the stock helpers, without claiming a d2d allocation or
+destruction equivalent: d2d stores waypoint bits inline in `d2s::Header`
+and activates index 0 during world setup.
+
 ### InitFn 17: FUN_00547210(ctx {+0 game, +4 obj, +8 room})
 ```
 pending = game+0x10f0 -> +0x1110       // list of {room, x, y, next}, filled by travel (below)

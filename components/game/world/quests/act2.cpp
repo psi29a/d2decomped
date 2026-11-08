@@ -115,7 +115,7 @@ auto World::act2_tick() -> void {
         // Tyrael's think (NpcStationary, FUN_005e73a0): once his portal is
         // open (FUN_0059df50: record +0xf) and no player is within 12 of
         // him (FUN_006416d0, the sweep at 0x59df30), not in a talk
-        // (FUN_00572dc0), he leaves (FUN_005ddfc0 mode 0), for good; every
+        // (FUN_005e7350: FUN_00572dc0 0, then mode 0), he leaves (FUN_005ddfc0 mode 0), for good; every
         // player (FUN_0059c750 -> FUN_005537d0) with the quest's bit 13 gets
         // unit event 0x36, act2_complete_tombs (LAB_0059c710).
         if (level->id == d2d::rules::SevenTombsQuest::kLair && tombs.tyrael_portal && !tombs.tyrael_gone)
