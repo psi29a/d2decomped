@@ -613,3 +613,128 @@ magic shrine `qo` (1 frame of 13), the jungle shrines' glows `jy` / `js`
 (13 of 20). d2d draws nothing there too, also where the frame is past
 the COF's own frames (`render_world`).
 
+
+## Traced by oracle: region data and ObjMode handlers (game.exe 1.14d)
+
+Run from `tools/emu` with `uv run python <file>.py` (`--mutation-check` for each
+model defect). Each oracle runs the stock function in Unicorn against a hand
+model on random records, and compares the return value, the ordered callee log,
+the fatal-error line, the `ret n` pop count, EBX / ESI / EDI / EBP and the
+bytes of a 24 KiB arena. Callees (written `0x12_3456`) are hooked, not claimed.
+Calling conventions: fastcall-style `ECX/EDX` plus stack where named; the
+fatal error is `0x40_8A60` (line numbers below, then exit -1).
+
+`objects_region.py` (objrgn.cpp and Objects.cpp; ECX = game, game +0x10f0 =
+region, region +0x1110 = pending list, +0x1c of game = allocator pool):
+
+- 0x546e90 (ECX game; no stack; void): game NULL halts line 0xb6. A game with a
+  region frees the +0x1110 chain (objrgn.cpp line 0xc1), zeroes +0x1110, frees
+  region +0x4c .. for table count - 1 pointers without a NULL test (line 0xe2;
+  the count is `*(0x744304) + 0xc5c`), frees the eight pointers at +0x28 that are
+  not NULL (0xe8), then the region (0xec). A game without a region does nothing.
+- 0x546fb0 (ECX game; returns): region + 8 (the object seed address).
+- 0x546ff0 (one stack arg, a string; ECX unused; void): copies the string into a
+  0x26-byte-headed message {0x26, 1, ?, 2, 0 x 7, ..., text at +0x1a} and calls
+  `0x52_DED0` with EAX = message, EDX = 0x54_6fe0 and a stack arg pointing to the
+  message pointer. Bytes +2 and +0xb..0x19 are left as the stack had them.
+- 0x547080 (ECX game; void): for group counters 1..0x60 (words at region +0x104a)
+  that are not 0, calls 0x546ff0 with "Attempted to place group %d %d times\n";
+  then "%d Rooms where we wanted to place - no group beat the odds" (word +0x110c)
+  and "%d rooms tried to place 1+ group(s); %d rooms w/no objs" (words +0x110a, +0x1048).
+- 0x547170 (ECX game, EDX unit, one stack arg; ret 4; void): allocates 0x10 bytes
+  (objrgn.cpp line 0x177) and pushes {arg, x, y, old head} on region +0x1110. x / y
+  are path +0xc / +0x10 for unit types 2, 4, 5; for the other types (signed
+  compare: also negative) the path getters `0x64_88C0` / `0x64_8900`, or 0 with no path.
+- 0x547210 (ECX ctx {game, object, room}; void): InitFn 17. Walks the pending list;
+  an entry matches when its room pointer equals ctx room (also 0 = 0) or its x / y
+  lie in the room's rect (+0x4c, +0x50, size +0x54, +0x58; signed, end exclusive).
+  A match with an object that is NULL or in mode 0: mode 1 and the frame-count event
+  (`0x54_17D0`, ECX game, EDX object, args 1, frames, 0, 0; frames =
+  objects.txt record +0xdc >> 8 plus game +0xa8). Then the match is freed (line
+  0x19b) and the list head zeroed. No match: a town room (`0x61_AB00`) sets mode 2.
+- 0x54f520 (ECX game; returns): allocates an 8-byte header (Objects.cpp line 0x1b8)
+  {node, -1} and an 8-byte node (0x1bc) {-1, 0}; returns the header.
+- 0x54f580 (ECX game, EDX header; void): frees each node of the chain at
+  `[header]` (next at +4; line 0x1ce), then the header (0x1d1).
+
+`objects_mode_small.py` (ObjMode.cpp):
+
+- 0x582490, 0x5824b0, 0x5824d0, 0x5824f0 (ECX, EDX; return): EBX = ECX, ESI = EDX,
+  EDI = 0x14a / 0x146 / 0x149 / 0x171, then the spawner `0x58_2420`; its EAX is returned.
+- 0x5825b0 (EAX unit, EDI type; returns 0 / 1): unit +0x60 NULL halts line 0x6d3;
+  walks the inventory's items and returns 1 at the first whose data passes
+  `0x62_9BB0(data, EDI)`.
+- 0x583bd0 (ECX, one stack arg; ret 4): `0x56_E900(arg)`, then `0x56_DE40` on ECX; its EAX returns.
+- 0x5843d0 (ECX ctx {+4 object}; returns 1): OperateFn 11. Mode 0 (or no object):
+  mode 1 and object +0xc4 &= ~2; modes 1 and 2: mode 0; other modes: nothing.
+- 0x584820 (ECX game, EDX player, one stack arg unit; ret 4; void): for a unit of
+  class 0x151, p = the pointer `0x62_34F0` returns the address of; with a player
+  given it needs p and the unit that `0x55_2F60(game, 0, *p)` finds to be that
+  player; then `*p` = -1.
+- 0x585120 / 0x5851e0 (EDX unit, one stack arg; ret 4; returns 1): value =
+  `0x62_5D60(unit)` / `0x62_5D10(unit)` + (arg << 8), set (`0x62_7260`) on stats
+  8 and 9 / 6 and 7.
+- 0x585160, 0x585180, 0x5851a0, 0x5851c0, 0x585220 (EDX unit, one stack arg; ret 4;
+  return 1): `0x62_72B0(unit, stat, arg, 0)` with stat 1, 2, 3, 0, 5.
+- 0x585240 (EDI = seed holder, stack (ctx, row byte); ret 8): row >= count at
+  0x732fac (21 rows of {function, chance, param} at 0x732eb0): returns 0 with the
+  seed untouched. Else the 64-bit seed at +0x20 / +0x24 steps (lo * 0x6ac690c5 + hi,
+  carry into hi) and roll = new lo % 100; roll >= chance returns 0; else the
+  row's function runs (ECX ctx, EDX seed holder, stack param) and its EAX returns;
+  `IsBadCodePtr` true halts line 0x10f5. The rows are the stat-point and
+  mana / life setters above (chances 100, 5 / 10 / 15, 3 / 6 / 10), not traps.
+- 0x5854d0 (ECX kept for the callee, EDX player, one stack arg unit; ret 4): by the
+  unit's class low word: 0x50 and 0x5a call 0x5852e0 (ECX kept, EDX player id or
+  -1, args unit id, 0, 2); 0x151 calls 0x584820 (EDX player); 0x98 sets mode 0; then
+  `0x55_4190(player)` in each case.
+- 0x585550 (EDX unit; void): class 0x151 as 0x584820 without the player test, else mode 0.
+
+`objects_mode_calc.py`:
+
+- 0x582800 (ECX, EDX, five stack args; ret 0x14): builds {ECX, EDX, 0, 0, a1, a3, a2, a4, a5}
+  and returns `0x56_E970` on it.
+- 0x582940 (ECX ctx {+8 unit}, EDX {+4 a, +8 b}): loss = (a * (stat 6 >> 8) / 100) << 8
+  (unsigned divide); adds -loss to stat 6 and b * loss / 100 to stat 8.
+- 0x583740 (EAX, ECX, EDX, stack (out, level); ret 8): out = `0x62_2560(EDX)`; ECX 0 halts
+  line 0x963; then adds a percent: ((level - 1) * rec +0x19c + rec +0x198 + terms) *
+  out / 100 (signed), where a type-0x26 `0x62_B400` result zeroes out first; a
+  player (type 0, class index inside the table at `*(0x744304)`) then adds the
+  class record's +0x3c.
+- 0x583840 (ESI unit, EBX percent, one stack arg code; ret 4): EBX unchanged for codes
+  0xb, 0x1b, 0x27, 0x29, 0x2b, 0x2d, 0x55, 0xab; 0x13: the 0x583740 result times
+  EBX / 100; 0x15: stat 0x17 or 0x15 times EBX / 100; any other: that stat times
+  EBX / 100 (signed divide by 100).
+
+`objects_mode_operate.py`:
+
+- 0x582610 (ECX ctx {game, object, player}; returns 1): OperateFn 17. An open object
+  (mode other than 0) in mode 3 held by the player (`0x55_4D00`) goes to mode 1;
+  a closed one: a busy player (`0x53_5060` = 1) stops; without a type-0x14 item
+  (`0x58_25B0`) `0x55_3380`; with it, interact (mode 2), mode 3 and packet 0x58 {id}.
+- 0x584420 (ECX game, EDX player, stack (type, id, out); ret 0xc): `*out` = 1, looks
+  the object up, a player unit (type 0) not in reach, with a record +0x4c flag, or
+  holding a cursor item (except class 0x10b) returns 0; OperateFn index byte (class
+  record +0x1b3) >= 0x65 halts line 0xcf8; classes 0x79, 0x7a, 0x16 and empty table
+  slots return 0; else calls table[0x732d18 + 4 * index] with ECX = {game, object,
+  player, seed, class} and returns its EAX.
+- 0x5845d0 (ECX game, one stack arg object id; ret 4): no object halts line 0xd37; in
+  modes 0, 2, 5 tests the spot with `0x64_D800`; modes 2 and 5 switch to 5 when it
+  is free and 2 when blocked (no call when already there).
+- 0x584d00 (ECX ctx {game, unit, player}; returns 0): player not type 0 halts line 0xfb3;
+  sets the unit flag byte |= 5; level 0x49 for class 0x64, data byte +4 for class 0x179;
+  act >= 5 halts 0xfcb; drlg (game +0xbc + 4 * act) spot (none halts 0xfcd); nearest
+  free spot (mask 0x1c09) then the warp `0x55_4EA0` (zero halts 0xfd9).
+- 0x5852e0 (ECX game, EDX player id, stack (object id, item id, op word); ret 0xc):
+  op 2 sends packet 0x58 {id, 1}, mode 0, stop; op 3 tests the item (class 0x98: item
+  record code "hst "; else `0x55_EEA0`), fail sends byte 4; success sends 5 and a flag
+  byte (1 for class 0x98, else the 0x585240 roll for item record +0x122); flag 1 goes to
+  mode 1 (class 0x98: mode 2 and `0x59_DD80`; else the frame event), else mode 0.
+  Missing player and object halts line 0x1109.
+- 0x585580 (ECX game, EDX d, stack (id, byte); ret 8): game NULL halts 0x11dd. A class 0x3b
+  object not already flagged: its data byte +4 = byte, flags |= 1, mode 3, a replacement
+  made by `0x56_CF40` (NULL halts 0x11fb) with flags |= 3; a found record of another class halts 0x11ea.
+- 0x585a80 (ECX unit A, EDX unit B, stack (a, b); ret 8): negative a returns 0; no spot from
+  `0x55_5DA0` returns 0; else builds a zeroed 0x84-byte request and returns `0x55_8D90`.
+- 0x585ce0 (ECX game, EDX unit; void): object event 9. Mode 1: re-queue in 10 frames. Mode 2:
+  counter byte data +4 += 1; <= 1: `0x58_1680`, re-queue in 0x19 frames; else the drop
+  `0x58_5B90`, on success mode 3 and a re-queue; mode 3: mode 4.
