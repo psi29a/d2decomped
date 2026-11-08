@@ -54,6 +54,14 @@ section { margin-bottom: 44px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 5px 10px; border-bottom: 1px solid var(--faint); text-align: left; white-space: nowrap; }
 th { color: var(--dim); font-weight: 400; }
+th button { all: unset; cursor: pointer; }
+th button:hover, th button:focus-visible, th[aria-sort] button { color: var(--gold); }
+th[aria-sort="ascending"] button::after { content: " ▴"; }
+th[aria-sort="descending"] button::after { content: " ▾"; }
+.tall { max-height: 640px; overflow-y: auto; }
+.tall thead th { position: sticky; top: 0; background: var(--bg); }
+td .done { display: flex; align-items: center; gap: 8px; }
+td .done span { min-width: 3.5em; text-align: right; font-variant-numeric: tabular-nums; }
 .r { text-align: right; font-variant-numeric: tabular-nums; }
 td .bar { height: 12px; min-width: 140px; }
 .chart { display: block; width: 100%; height: auto; background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; }
@@ -89,9 +97,12 @@ footer { border-top: 1px solid var(--edge); padding-top: 14px; color: var(--dim)
     <svg class="chart" id="trendChart" viewBox="0 0 760 300" role="img" aria-label="Share of game.exe code bytes verified, ported and cited, day by day"></svg>
   </section>
   <section id="modules">
-    <h2>MODULES <small>the 20 biggest, from the source file an assert names; all of them on the <a href="gaps.html#by-module">gap map</a></small></h2>
-    <div class="scroll"><table>
-      <thead><tr><th>Module</th><th>Done</th><th class="r">Verified</th><th class="r">Ported</th><th class="r">Cited</th><th class="r">Untouched</th></tr></thead>
+    <h2>MODULES <small>from the source file an assert names; click a column to sort</small></h2>
+    <div class="scroll tall"><table>
+      <thead id="moduleHead"><tr><th><button data-key="name">Module</button></th><th><button data-key="done">Done</button></th>
+        <th class="r"><button data-key="verified">Verified</button></th><th class="r"><button data-key="ported">Ported</button></th>
+        <th class="r"><button data-key="cited">Cited</button></th><th class="r"><button data-key="untouched">Untouched</button></th>
+        <th class="r"><button data-key="size">Functions</button></th></tr></thead>
       <tbody id="moduleRows"></tbody>
     </table></div>
   </section>
@@ -141,13 +152,36 @@ footer { border-top: 1px solid var(--edge); padding-top: 14px; color: var(--dim)
     var left = Object.keys(d.remaining).filter(function (k) { return d.remaining[k]; });
     document.getElementById('remaining').textContent = left.length
       ? 'Left: ' + left.map(function (k) { return fmt(d.remaining[k]) + ' ' + k; }).join(', ') + '.' : 'Nothing left: every function ported or verified.';
-    document.getElementById('moduleRows').innerHTML = Object.keys(d.modules).map(function (name) {
-      var c = d.modules[name], n = LEVELS.reduce(function (sum, s) { return sum + c[s]; }, 0);
-      return [name, c, n, (c.verified + c.ported) / (n || 1)];
-    }).sort(function (a, b) { return b[2] - a[2]; }).slice(0, 20).map(function (m) {
-      return '<tr><td>' + esc(m[0]) + '</td><td><div class="bar" title="' + (100 * m[3]).toFixed(1) + '%">' + bar(m[1]) + '</div></td>' +
-        LEVELS.map(function (s) { return '<td class="r">' + fmt(m[1][s]) + '</td>'; }).join('') + '</tr>';
-    }).join('');
+    var modules = Object.keys(d.modules).map(function (name) {
+      var c = d.modules[name], size = LEVELS.reduce(function (sum, s) { return sum + c[s]; }, 0);
+      return { name: name, counts: c, size: size, done: (c.verified + c.ported) / (size || 1),
+               verified: c.verified, ported: c.ported, cited: c.cited, untouched: c.untouched };
+    });
+    var head = document.getElementById('moduleHead');
+    function sortModules(key, ascending) {
+      modules.sort(function (a, b) {
+        var order = key === 'name' ? a.name.localeCompare(b.name) : a[key] - b[key];
+        return (ascending ? order : -order) || b.size - a.size;
+      });
+      head.querySelectorAll('th').forEach(function (th) {
+        if (th.querySelector('button').dataset.key === key) th.setAttribute('aria-sort', ascending ? 'ascending' : 'descending');
+        else th.removeAttribute('aria-sort');
+      });
+      document.getElementById('moduleRows').innerHTML = modules.map(function (m) {
+        return '<tr><td>' + esc(m.name) + '</td><td><div class="done"><div class="bar">' + bar(m.counts) + '</div><span>' +
+          (100 * m.done).toFixed(1) + '%</span></div></td>' +
+          LEVELS.map(function (s) { return '<td class="r">' + fmt(m[s]) + '</td>'; }).join('') +
+          '<td class="r">' + fmt(m.size) + '</td></tr>';
+      }).join('');
+    }
+    // A new column sorts biggest first (names A to Z); the same column again flips it.
+    head.addEventListener('click', function (e) {
+      var button = e.target.closest('button');
+      if (!button) return;
+      var key = button.dataset.key, th = button.parentNode;
+      sortModules(key, th.hasAttribute('aria-sort') ? th.getAttribute('aria-sort') === 'descending' : key === 'name');
+    });
+    sortModules('size', false);
     document.getElementById('creditRows').innerHTML = d.credits.map(function (p, i) {
       return '<tr><td class="r">' + (i + 1) + '</td><td>' + (p.login ? '<a href="https://github.com/' + esc(p.login) + '">' + esc(p.login) + '</a>' : esc(p.name)) + '</td><td class="r">' + fmt(p.commits) +
         '</td><td class="r">' + fmt(p.reported) + '</td><td class="r">' + fmt(p.traced) + '</td></tr>';
