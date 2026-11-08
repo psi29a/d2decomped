@@ -325,6 +325,36 @@ d2d: `rules::respec`, `cmd::Respec` (0x38 kind 3), `open_respec_menu`.
 Quest menus now open after the quest speech, as game.exe builds them
 then.
 
+## Warp gatekeeping (FUN_00545b80)
+
+`FUN_00545b80(from_level, to_level)` (stdcall `ret 8` in `QUESTS.CPP`,
+table at `0x545bd4` indexed by byte table `0x545be8` across `to_level` 73..132)
+is called by `FUN_005550b0` (`SUnit.cpp`: warp / trapdoor connection) to
+check whether transition into `to_level` is blocked by an unfinished quest
+objective:
+
+- **Level 73 (Duriel's Lair):** calls `FUN_0059db20` (Seven Tombs, record
+  0xd). Returns 1 (blocked) if the quest is active (+9 != 0) and the
+  orifice wall has not been opened (data +0xb == 0). Returns 0 when closed
+  or opened.
+- **Level 100 (Durance of Hate Level 1):** calls `FUN_005bbfa0` (Blackened
+  Temple, record 0x13). Returns 1 (blocked) if the Compelling Orb is whole
+  (data +0xc == 0), unless the actor's room is already in Durance Level 2
+  (level 101, `FUN_0061a1b0` via `FUN_00620bb0`).
+- **Level 118 (Ancient's Way) or 128 (Worldstone Keep Level 1):** if
+  `from_level == 120` (Arreat Summit), calls `FUN_0058d090` (Rite of
+  Passage, record 0x23). Returns 1 (blocked) if the quest is active and the
+  Ancients have not been defeated (data +0 == 0). If `from_level != 120`,
+  returns 0.
+- **Level 132 (Worldstone Chamber):** calls `FUN_0058e640` (Eve of
+  Destruction, record 0x24). Returns 1 (blocked) if the quest record is
+  absent or Baal has not entered the portal (data +0x86 != 1). Returns 0
+  once Baal has stepped into the portal (`FUN_0058e600`).
+- **Other levels (0..255):** return 0 (not blocked).
+
+Tested by `tools/emu/quest_warp.py` against game.exe 1.14d across 270 level
+combinations and quest states.
+
 ## The quest log (QuestLog.cpp)
 
 - **Art:** `FUN_004a23d0` loads questbackground (4 pieces), questtabs /
