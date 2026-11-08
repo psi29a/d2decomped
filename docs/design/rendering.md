@@ -34,6 +34,9 @@ quads and got, for free or cheaply:
 - A CPU framebuffer, 800×600 RGBA; sprites are palette-indexed and
   converted to RGB at blit time (`blit_sprite`, `blit_dt1_tile`,
   `blit_dcc_frame`).
+- Floors are queued in the sweep's order, then drawn in horizontal bands
+  on up to four threads (`draw_in_bands`, tile_blit.cpp), the same bytes
+  as one pass; walls, units and the rest draw on the main thread.
 - PL2 (`components/palette`) parses only the additive and 50 % blend
   tables; used by the frontend fire, not in game.
 - Shadow tiles draw opaque; no unit shadows; no light (the whole screen at
