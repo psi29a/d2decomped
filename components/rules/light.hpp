@@ -4,6 +4,8 @@
 // docs/research/re/lighting.md.
 #pragma once
 
+#include "level_ids.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -23,6 +25,21 @@ inline constexpr int kDayScale = 128;
 inline constexpr std::array<DayPhase, 6> kEclipse{ { { 300, 3 }, { 0, 0 }, { 60, 1 }, { 120, 2 }, { 180, 2 }, { 240, 2 } } };
 inline constexpr std::array<DayPhase, 6> kAct4Eclipse{ { { 340, 3 }, { 350, 3 }, { 0, 0 }, { 180, 1 }, { 190, 1 }, { 200, 2 } } };
 
+// Act 4's light has no sun (FUN_0061bb80 with act 3): each level's target
+// from the table at 0x61bcc8, any other level act + 13 = 16.
+constexpr int act4_light(int level_id) {
+    using namespace level_ids;
+    switch (level_id) {
+    case kPandemoniumFortress: return 0x80;
+    case kOuterSteppes: return 0x40;
+    case kPlainsOfDespair: return 0x38;
+    case kCityOfTheDamned: return 0x30;
+    default: return 16;
+    }
+}
+// ... which the light moves toward one a frame (FUN_0061bb80).
+constexpr int light_toward(int light, int target) { return light < target ? light + 1 : light > target ? light - 1 : light; }
+
 // A game's clock; a new game starts at sunrise (FUN_0061be40).
 // The eclipse (+0x30) as the client has it from S->C 0x53 (FUN_0061c240):
 // its own phases, no night's extra frame, and the light falling 8 a frame
@@ -33,13 +50,18 @@ struct Day {
     int phase = 2, time = 0;                   // time: frames into the day
     bool eclipse = false;
     int dimmed = 255;                          // the eclipse's intensity (+0xc), falling
+    // The environment's intensity (+0xc, FUN_0061c0e0), what raised roofs
+    // take: intensity() but in Act 4, where it fades to act4_light from
+    // what the last act left. A new game's is sunrise's 128 (FUN_0061be40).
+    int environment = 128;
     // A client frame (FUN_0061bee0, `act` 0-based): one frame; out of the
     // eclipse 16 in Act 4, else two at night (ten in Act 3). Past the next
     // phase's start the phase moves on and the clock snaps to that start
     // (the eclipse's in Act 4 are 0x744438's, but it snaps to 0x744480's).
     // game.exe bug (bugs.md #9): phase 2 starts at 0°, so phase 1 moves on
-    // at its first frame and the day is 340° long.
-    void step(int act = 0) {
+    // at its first frame and the day is 340° long. Then the environment's
+    // intensity in `level_id` (FUN_0061bb80).
+    void step(int act = 0, int level_id = 0) {
         ++time;
         if (!eclipse) time += act == 3 ? 15 : kDay[std::size_t(phase)].type != 2 ? 0 : act == 2 ? 9 : 1;
         if (time >= 360 * kDayScale) time = 0;
@@ -47,6 +69,7 @@ struct Day {
         const int next = (phase + 1) % 6;
         if (starts[std::size_t(next)].start * kDayScale < time) { phase = next; time = (eclipse ? kEclipse : kDay)[std::size_t(next)].start * kDayScale; }
         if (eclipse) dim();
+        environment = act == 3 ? light_toward(environment, act4_light(level_id)) : intensity();
     }
     // S->C 0x53 (FUN_0061c240): the phase, the time (past a day: 0) and the
     // eclipse; going dark starts from the sun's light and dims a step.

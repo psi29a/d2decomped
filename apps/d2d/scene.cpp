@@ -7,25 +7,14 @@
 
 #include <d2s_items.hpp>
 #include <dc6.hpp>
-#include <dcc.hpp>
-#include <log.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <exception>
-#include <format>
-#include <fstream>
-#include <ios>
-#include <ostream>
-#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
-#include <unordered_set>
-#include <utility>
 #include <vector>
 
 namespace d2d::client {
@@ -38,40 +27,6 @@ const std::uint8_t* Scene::monster_map(const Npc& npc) const {
         if (auto bytes = mpqs.try_read(R"(data\global\monsters\)" + npc.code + R"(\COF\palshift.dat)"))
             found->second.assign(reinterpret_cast<const std::uint8_t*>(bytes->data()), reinterpret_cast<const std::uint8_t*>(bytes->data()) + bytes->size());
     return found->second.size() >= std::size_t(npc.colour + 1) * 256 ? found->second.data() + npc.colour * 256 : nullptr;
-}
-
-d2d::dcc::Sprite dc6_as_dcc(std::span<const std::byte> bytes) {
-    const d2d::dc6::Sprite cels(bytes);
-    std::vector<d2d::dcc::Frame> frames;
-    for (const auto& cel : cels.frames()) {
-        const int width = int(cel.width), height = int(cel.height), top = cel.offset_y - height + 1;
-        frames.push_back({ width, height, cel.offset_x, cel.offset_y, cel.offset_x, top, cel.offset_x + width, cel.offset_y + 1, cel.pixels });
-    }
-    return d2d::dcc::Sprite::from_frames(std::uint8_t(cels.directions()), std::int32_t(cels.frames_per_direction()), std::move(frames));
-}
-
-const d2d::dcc::Sprite* Scene::overlay_sprite(const OverlayInfo& overlay) const {
-    auto [found, fresh] = overlay_sprites.try_emplace(&overlay);
-    if (fresh) {
-        // Overlay row 0x7a (mephisto) is a DC6 (FUN_005fe610); the rest DCCs.
-        const std::string path = R"(data\global\overlays\)" + overlay.file;
-        try {
-            if (auto bytes = mpqs.try_read(path + ".dcc")) found->second = d2d::dcc::Sprite(*bytes);
-            else if (auto cels = mpqs.try_read(path + ".dc6")) found->second = dc6_as_dcc(*cels);
-        } catch (const std::exception& error) { d2d::log::warn("overlay {}: {}", overlay.file, error.what()); }
-    }
-    const bool usable = found->second.directions() && found->second.frames_per_direction();
-    return usable ? &found->second : nullptr;
-}
-
-void Scene::note_drawn(std::string_view kind, std::string_view name) {
-    static std::unordered_set<std::string> drawn;
-    static std::ofstream out = [] {
-        const char* path = std::getenv("D2D_ANIM_LOG");
-        return path && *path ? std::ofstream(path, std::ios::app) : std::ofstream{};
-    }();
-    if (!out.is_open() || name.empty()) return;
-    if (auto line = std::format("{} {}", kind, name); drawn.insert(line).second) out << line << '\n' << std::flush;
 }
 
 const Scene::PlayerAnim& Scene::composite(int d2s_class, int mode, const Appearance& gfx) const {

@@ -35,6 +35,7 @@
 
 using namespace d2d::game;
 
+// One block per rule: a failed assert aborts, an exception returns 1.
 int main() try {
     {
         // Skill tooltips: game.exe's string is built bottom line first, colour codes carrying on.
@@ -81,6 +82,7 @@ int main() try {
         empty_data.monsters.types.emplace_back();
         View sent;
         sent.level = &empty_data.town;
+        sent.day.environment = 73;
         sent.quest_log.back() = 9;
         sent.game_quests.back() = 0x8000;
         sent.events = { ev::Reassigned{}, ev::Lightning{}, ev::QuestQuake{ d2d::rules::QuestQuake::diablo } };
@@ -99,6 +101,7 @@ int main() try {
         const auto bytes = encode_view(empty_data, sent, encoder);
         View received;
         assert(apply_view(empty_data, bytes, received));
+        assert(received.day.environment == 73);
         assert(received.quest_log == sent.quest_log);
         assert(received.panel.next == sent.panel.next && received.panel.defense == 345 && received.panel.res == sent.panel.res && received.panel.bonus[3] == 7);
         assert(received.panel.blue == sent.panel.blue && received.panel.red == sent.panel.red && received.stat_sum == sent.stat_sum);

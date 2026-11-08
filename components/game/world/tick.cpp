@@ -199,6 +199,8 @@ auto World::stamina_frame() -> void {
         stamina = d2d::rules::stamina_regen(stamina, actor->character.stats.values[kMaxStamina], mode, int(actor->psum[kStaminaRecoveryBonus]));
     }
 
+// Runs one game frame with these orders; it also steps the day and the environment's
+// intensity for the player's act and level (FUN_0061bb80).
 auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         const float elapsed = float(now_ms - last_ms) / 1000.f;
         now = now_ms;
@@ -245,7 +247,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         // The day moves a frame a tick (40 ms); a stall doesn't fast-forward it.
         if (now_ms - day_at > 1000) day_at = now_ms;
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
-            day.step(act());
+            day.step(act(), level ? level->id : 0);
             credit_party([&] { act1_tick(); act2_tick(); });
             each_player([&](Player&) { stamina_frame(); footstep_frame(day_at); find_voice(day_at); });
         }
