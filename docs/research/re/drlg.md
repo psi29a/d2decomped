@@ -1850,3 +1850,26 @@ allocator.
   FUN_00643020(roomA, roomB): when their levels differ, FUN_00642f70(level of
   A, -1) then (level of B, +1); either room may be null.
 
+## Level teardown and room search, run in the emulator
+
+`tools/emu/drlg_level.py` (same harness; `--mutation-check` 3 ways). Hooked
+and logged, not claimed: FUN_0066c100, FUN_006683d0, FUN_00673fe0,
+FUN_006674d0, FUN_006754c0, FUN_006427a0, FUN_00642ae0, FUN_006424a0,
+FUN_00642630 and the allocator; the CRT memset and FUN_0066b980 run for real.
+
+- FUN_00642010 (level in ESI; stack pool, flag; `ret 8`): with flag set and
+  no saved room flags (+0x22c), allocates 4 * count bytes (+8; Drlg.cpp line
+  0x7c; count 0 just clears +8) and zeroes them; with flag clear frees the
+  buffer (line 0x84). Then, for each room on +0x10 (next +0x24): stores
+  `flags(+0x60) & 1` into the buffer when there is one and calls FUN_0066c100
+  (room); clears +0x10 and +8. Frees the automap-like block at +0x1b0 through
+  FUN_006683d0(pool, ptr); the drlg type at +0 picks FUN_00673fe0 (1),
+  FUN_006674d0 (2) or FUN_006754c0 (3), each called (level, flag). Zeroes +0x2c
+  (0x180 bytes), +0x1d8 and +0x1e0 (0x4c bytes); with flag clear frees +0x1bc
+  (line 0xb7); frees the +0x1cc chain (next +0xc, line 0xc5).
+- FUN_00642c30(x in ECX, y in EDX, act, room, level; `ret 0xc`): the room if
+  it holds the point (FUN_0066b980), else the first of its near rooms
+  (+0x2c count, +8 array) that does; else the level (the argument, or the act
+  level whose id FUN_006427a0 gives, allocated through FUN_00642ae0),
+  initialised with FUN_006424a0 when it has no rooms, then FUN_00642630.
+
