@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Verify the Drlg.cpp tile-cache init and neighbour-room free in stock game.exe 1.14d.
+"""Verify six Drlg.cpp functions (tile cache, neighbour-room free, knockback end point, LvlSub loader and sweep, A* box wrapper) in stock game.exe 1.14d.
 
     uv run python drlg_mid.py [--mutation-check]
 
-Runs game.exe's own code for FUN_00642a30 and FUN_00643060 against
+Runs game.exe's own code for FUN_00642a30, FUN_00643060, FUN_0067a000,
+FUN_006704e0, FUN_0066ff50 and FUN_0067ad00 against
 hand-written models on random records (_dungeon_rig.py): return value, callee
 log, arena, allocator blocks, fatal-error line and the bytes `ret n` pops.
 Hooked, logged, not claimed: FUN_00604ae0, FUN_0066dde0, FUN_0066c040,
-FUN_00642ae0, FUN_0066b4f0 and the allocator. `--mutation-check` breaks the
+FUN_00642ae0, FUN_0066b4f0, FUN_00619730, FUN_0067aaa0, FUN_00679720,
+FUN_00648ad0, FUN_006488c0, FUN_00648900, FUN_00665f40, FUN_0067ccc0,
+FUN_0067c590, FUN_0066fcf0, FUN_0066fad0, FUN_0066fe00 and the allocator. `--mutation-check` breaks the
 model eight ways.
 """
 import argparse

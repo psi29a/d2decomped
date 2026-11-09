@@ -3,8 +3,8 @@
 
     D2_BUILD=<build dir with tools/drlg-dump and tools/mpq-cat> uv run python drlg_generators.py [--mutation-check]
 
-FUN_00665950 (DS1 parse), FUN_00667970 (preset area), FUN_00675850 (act 4
-outdoors), FUN_006719f0 (the Arcane Sanctuary's maze) and FUN_00677880 (act 3
+FUN_00665950 (DS1 parse), FUN_00667970 (preset area), FUN_00675850 (outdoor
+border placement), FUN_006719f0 (the Arcane Sanctuary's maze) and FUN_00677880 (act 3
 outdoor placement) are too large and call too much for a callee-log model, so
 this oracle runs them for real in the emulator instead: it counts each
 entry (a code hook on the function's first instruction), requires every

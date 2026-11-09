@@ -213,7 +213,6 @@ class Suite:
             depth = rng.randrange(1, 5)
             for k in range(depth):
                 node = 0x100 + 0x20 * k
-                put(img, node + 6, 0)
                 img[node + 6:node + 8] = rng.choice((0, 3, 4, 4, 5, 0xFFFF, 1)).to_bytes(2, "little") if k == depth - 1 else rng.choice((3, 4, 4, 5)).to_bytes(2, "little")
                 put(img, node + 0xC, at(0x800 + 0x20 * k + 4 * rng.randrange(0, 4)))
                 put(img, node + 0x10, rng.getrandbits(32))

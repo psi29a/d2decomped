@@ -289,7 +289,6 @@ def more_methods():
         def build(img, rng):
             """A cache of 1-3 nodes whose files are records at 0x1000 + 0x400 k; the wanted file is one of them."""
             nodes = rng.randrange(1, 4)
-            head = 0
             for k in range(nodes):
                 node = 0x100 + 0x120 * k
                 fil = 0x1000 + 0x400 * k

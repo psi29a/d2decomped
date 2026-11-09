@@ -1981,12 +1981,13 @@ FUN_0067c590, FUN_0066fcf0, FUN_0066fad0, FUN_0066fe00 and the allocator.
 - FUN_0067a000(args) is the knockback end point. args +0 is the source (packed
   x | y << 16), +4 the default target, +0x30 the dynamic path (distance byte
   +0x90, target unit +0x58, committed point +0x9c, point count +0x28). With a
-  target unit, the end point is the source plus the vector to the unit scaled
+  target unit, the end point is the source plus the vector from the unit to the source, scaled
   so its larger axis is `dist / 2 + 1` (C truncating division; a zero larger
   axis leaves the source); static units (types 2, 4, 5) give their position at
   +0x2c -> +0xc / +0x10, others FUN_006488c0 / FUN_00648900 or 0 with no path.
   It then raycasts (FUN_00679720), tells FUN_00648ad0 the result, and returns 0
-  with nothing committed if the point equals the source, else stores it at +0x9c
+  without setting +0x28 if the point equals the source (+0x9c already holds
+  the pre-raycast point), else stores it at +0x9c
   and sets +0x28 to 1. Redivivus's decompile names the fields of the argument
   record shifted (nOffsetY / nPosX); the oracle pins the offsets above.
 - FUN_006704e0(pool, sub) loads a LvlSub's DS1 once (FUN_00665f40 into
@@ -2086,7 +2087,8 @@ FUN_0066f050 and the allocator.
 - FUN_0066fe00(x, y, wall grids, sub) (group in ESI) says a LvlSub group fits
   when every cell has the same tile type (grid flags) and, where the sub floor
   has bit 2 / the sub wall has bit 1, the room's matching bit is set and the
-  flags agree outside 0x3f0ff00.
+  flags agree on the bits of 0x3f0ff00 (the floor and wall checks run only
+  when the file has a floor layer (+0x18) and a wall layer (+0x14)).
 
 ## DRLG path helpers and OutPlace edge borders, run in the emulator
 
@@ -2134,13 +2136,13 @@ FUN_0067a630, FUN_006487f0, FUN_0064fd70, FUN_0064fe40, FUN_00679720.
 ## The five large generators against d2d's port
 
 `tools/emu/drlg_generators.py` (`--mutation-check` 3 ways). FUN_00665950
-(DS1 parse, 1507 B), FUN_00667970 (preset area, 1323 B), FUN_00675850 (act 4
-outdoors, 1295 B), FUN_006719f0 (the Arcane Sanctuary's maze, 2379 B) and
+(DS1 parse, 1507 B), FUN_00667970 (preset area, 1323 B), FUN_00675850 (outdoor
+border placement, 1295 B), FUN_006719f0 (the Arcane Sanctuary's maze, 2379 B) and
 FUN_00677880 (act 3 outdoor placement, 4132 B) call too many hooked callees
 for a model of their callee log, so the oracle runs each for real, counts
 its entries with a code hook, and diffs game.exe's level and tile dump with
 d2d's `drlg-dump` (the project's port, `diff_drlg.compare`): levels 2 and 8
-(parse, preset area), 40 and 79 (preset area), 104 and 106 (act 4 outdoors),
+(parse, preset area), 40 and 79 (preset area), 104 and 106 (outdoor border placement),
 74 (Arcane Sanctuary), 76, 79 and 83 (act 3), seeds 1-8 each: identical.
 Which level reaches which generator was measured with the same hook (seed 1,
 levels 1-132): FUN_00677880 runs on levels 75-102, FUN_00675850 on 104-106 and once or

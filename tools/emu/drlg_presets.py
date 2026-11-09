@@ -101,7 +101,7 @@ class Suite:
         self.fills.clear()
         self.exp_fills.clear()
 
-    def strip(self, m, mp, pool, xoff, grid_calls):
+    def strip(self, m, mp, pool, xoff):
         """The body of FUN_00666220 on the model: five preset units per row, skipping rows past some floor types."""
         y = 0
         size_y = s32(m.r(mp + 0x1C))
@@ -155,7 +155,7 @@ class Suite:
 
         def model(m, a):
             """Per row: five units linked at the map's list head, then maybe skip three rows."""
-            self.strip(m, a["regs"]["esi"], a["regs"]["edi"], a["stack"][0], None)
+            self.strip(m, a["regs"]["esi"], a["regs"]["edi"], a["stack"][0])
             require(len(set(self.grids)) <= 1, "FUN_0067c570 got different grid pointers")
         rig.run("FUN_00666220", 0x666220, build, model, 2, ret=False)
 
@@ -183,14 +183,14 @@ class Suite:
             rx, ry = m.r(mp + 0x10), m.r(mp + 0x14)
             if m.r(m.r(mp + 8)) == 0x1B:
                 m.call("c6661a0", rx, ry, pool, mp)
-                self.strip(m, mp, pool, M32, None)
+                self.strip(m, mp, pool, M32)
             else:
                 x = 0
                 while x < s32(sx):
                     fl = m.call("c67c570", x, 0)
                     if (fl >> 20) & 0x3F == 2 and (fl >> 8) & 0xFF == (0x18 if not mut("sub") else 0x19):
                         m.call("c6661a0", (x + rx + 1) & M32, ry, pool, mp)
-                        self.strip(m, mp, pool, x, None)
+                        self.strip(m, mp, pool, x)
                         x += 4
                     x += 1
             m.call("c67cdc0")
@@ -199,7 +199,7 @@ class Suite:
         rig.run("FUN_006663c0", 0x6663C0, build, model, 0, ret=False)
 
     def nav(self):
-        """FUN_00666990: collect up to six burial-ground navigation points from a preset room's grid."""
+        """FUN_00666990: collect up to six navigation points (type 10, sub-type 0x17-0x1b cells) from a preset room's grid."""
         rig, at = self.rig, self.at
 
         def build(img, rng):

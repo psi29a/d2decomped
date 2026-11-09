@@ -171,7 +171,7 @@ class Suite:
                     if not fl & 0x8000003:
                         continue
                     o = m.call("c67c570", orient, x, y) if orient else fallback
-                    main, sub = ((fl >> 20) & 0x3F, (fl >> 8) & 0xFF) if fl else (0, 0)
+                    main, sub = (fl >> 20) & 0x3F, (fl >> 8) & 0xFF
                     n = m.call("c604ae0", room + 0x68, o, main, sub)
                     if n == 0:
                         continue
