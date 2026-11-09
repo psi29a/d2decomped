@@ -18,7 +18,12 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_0046d450` | critter row 574 (Worldstone Effect): 5 %, a unit (`FUN_004cdb40`) up to 30 subtiles round it | unreachable | no Levels.txt cmon names row 574 | not ported | critters.md |
 | `FUN_0046d660` | a critter's think when MonStats `zoo` (flag 0x16) is set: stand 20, or 20 % each walk to / flee 8 from the player, else wander 8 | unreachable | no Levels.txt cmon names a zoo row (zoo is on ordinary monsters, which never take the critter think) | ported anyway (town/walk.cpp, for mods) | critters.md |
 | `FUN_0046d780` rows 157 / 158 / 227 / 320 | the birds', maggot's and fish's critter thinks | unreachable | no Levels.txt cmon names them (parrot 319 shares the birds' think and is reached) | ported (shared code) | critters.md |
+| `FUN_0046e150` | sets `+8` of a unit's overlays of one row | orphan (no call, jump or pointer) | — | not ported | gfx.md "Overlays" |
+| `FUN_0046ea50` | loads a unit's COF with no type check | orphan (no call, jump or pointer) | — | not ported | gfx.md "The unit's COF list" |
+| `FUN_0046f3f0` | frees the monster COF cache alone (`FUN_00470290` frees both) | orphan (no call, jump or pointer) | — | not ported | gfx.md "The COF caches" |
 | `FUN_0047fc40`, `FUN_0047ffb0` | the Warden module's deleting destructor; a module cache write (API `+0xd0`) | orphan (no call, jump or pointer) | modules are freed inline and cached by callback 2 (`FUN_00480040`) instead | not ported | bnclient.md "WardenClient.cpp" |
+| `FUN_004da170`, `FUN_004da190`, `FUN_004da660` | motion record raw x, y; the started flag | orphan (no call, jump or pointer) | — | not ported | gfx.md "The motion record" |
+| `FUN_004da920`, `FUN_004da990`, `FUN_004da9c0` | GfxUtil.cpp 16-byte node list: add, find, free | orphan (no call, jump or pointer) | — | not ported | gfx.md "Unused list helpers" |
 | `0x4fb204–0x4fb22a` | DAT palette loop fills a local four-byte-stride array | dead | the local array is never read; the active palette comes from PL2 | not ported | palette.md "DAT and active-palette layout" |
 | `FUN_0051ad70` | byte-stuffs a buffer (`00` → `FF 01`, `FF` → `FF FF`) | orphan (no call, jump or pointer) | nothing escapes BNCS data | not ported | bnclient.md "BnSend.cpp leftovers" |
 | `FUN_0051d590`, `FUN_0051d6a0`, `FUN_0051d6d0`, `FUN_0051d7a0`, `FUN_0051d7f0` | the news array's destructor, clear, reserve, append, reserve exact | orphan (no call, jump or pointer) | template members the news code inlines or never uses | not ported | bnclient.md "BNNews.cpp" |

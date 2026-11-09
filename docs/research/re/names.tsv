@@ -19,6 +19,62 @@ address	name	evidence
 0046b9a0	client_spawn_missiles_12b	no args: client missiles of rows 0x12b, 0x166, 0x132 via FUN_004cd540, the first tagged 0x4b in data +0x28 and +0x2c (missiles.md "Client missile spawn: FUN_0046b9a0")
 0046dbf0	path_base_name	copies the base name between the last \ and the extension via _strncpy (chat.md)
 0046dc40	gfx_find_by_name	Gfx.cpp graphic lookup: base name, __strlwr, 512-bucket hash chain (chat.md)
+0046ddf0	gfx_cof_bundle_load	walks 0x18-byte entries into 512 buckets (Gfx.cpp 0x10b, 0x126, 0x79)
+0046e100	gfx_has_overlay	unit gfx +0x2c list, node +4 == row (Gfx.cpp 0x1ea)
+0046e150	gfx_overlay_set_8	node +8 for kind 1 overlays of a row (Gfx.cpp 0x205)
+0046e1b0	gfx_overlay_draw_row	two passes by node +0x34, Overlay.txt 0x84-byte rows
+0046e300	gfx_overlays_draw	unit's overlays at its screen or automap spot plus motion offsets
+0046e570	gfx_cof_data	unit gfx +0x28 node for a mode, graphic +0x14
+0046e5a0	gfx_cof_node	unit gfx +0x28 node by mode and token (Gfx.cpp 0x3ac)
+0046e610	gfx_cof_node_free	unlinks the +0x28 node whose graphic is EAX (Gfx.cpp 0x3d0)
+0046e690	gfx_cof_node_current	token match or free (Gfx.cpp 0x3f0, 0x406)
+0046e8d0	gfx_cof_load_monster	FUN_0046c140 check then FUN_0046e740 (Gfx.cpp 0x464, 0x486)
+0046e980	gfx_cof_load_object	Objects.txt +0x13f + mode == 1 (Gfx.cpp 0x4be..0x4dc)
+0046ea50	gfx_cof_load_plain	FUN_0046e740 then layer flag
+0046eac0	gfx_cof_clear	16 layer flags, frees unit gfx +0x28 (Gfx.cpp 0x65f..0x66d)
+0046eb70	gfx_overlays_free	unit gfx +0x2c nodes, +0x40 sound (Gfx.cpp 0x690)
+0046ebb0	gfx_record_new	0x3c bytes, +0x34 = +0x38 = 2 (Gfx.cpp 0x804)
+0046ec10	gfx_record_free	COF list, overlays, record (Gfx.cpp 0x814..0x820)
+0046ec80	gfx_cof_list_free	unit gfx +0x28 nodes (Gfx.cpp 0x82a, 0x830)
+0046ece0	gfx_cof_list_trim	frees nodes except modes 0 and 0x11 (Gfx.cpp 0x847)
+0046ed50	gfx_life_tint	green/yellow/red by life %, blue for MonStats +0xd bit 1 (Gfx.cpp 0x991)
+0046ee80	gfx_item_cel_draw	gold frame by stat 0xe, ethereal draw mode 1 (Gfx.cpp 0xac2)
+0046f000	gfx_cof_clear_all	FUN_0046eac0(0..15)
+0046f020	gfx_layer_flags_set	20 two-byte slots of unit gfx (Gfx.cpp 0xbba)
+0046f060	gfx_motion	unit gfx +0x30
+0046f070	gfx_motion_set	unit gfx +0x30 = arg
+0046f0c0	gfx_overlay_remove_row	FUN_0046e040 on the first match (Gfx.cpp 0xca9)
+0046f170	gfx_overlays_remove_all	FUN_0046e040 per +0x2c node (Gfx.cpp 0xccf)
+0046f1c0	gfx_set_34	unit gfx +0x34 (Gfx.cpp 0xce4)
+0046f1f0	gfx_get_34	unit gfx +0x34 (Gfx.cpp 0xcf1)
+0046f220	gfx_set_38	unit gfx +0x38 (Gfx.cpp 0xcfd)
+0046f250	gfx_get_38	unit gfx +0x38 (Gfx.cpp 0xd0a)
+0046f280	gfx_layer_flags_clear	20 / 16 / 8 slots by unit type (Gfx.cpp 0xd3e)
+0046f310	gfx_cof_bundle_open	"%s\\%s" DATA\GLOBAL + 0x6d6c30[n]
+0046f370	gfx_cof_cache_free_loose	entries with flag bit 0 (Gfx.cpp 0xe3c, 0xe3d)
+0046f3f0	gfx_cof_cache_free_monster	0x7a8100 (Gfx.cpp 0xe50)
+0046f440	gfx_cof_cache_free_player	0x7a78f0 (Gfx.cpp 0xe61)
+0046f490	gfx_monster_cof_path	"%s\\%s\\COF\\%s%s%s.COF" DATA\GLOBAL\MONSTERS
+0046f870	gfx_monster_cofs_load	modes 0x712ac4 by MonStats2 +0xf0 bits
+0046f980	gfx_7a8914	returns 0x7a8914
+0046f990	gfx_bytes_in_use	returns 0x7a8918
+0046f9a0	gfx_7a891c	returns 0x7a891c
+0046f9d0	gfx_class_slots	0x7a80fc + n * 0xa0
+0046f9e0	gfx_cof_load_monster_mode	mode 0xe current, 0xc clears first (Gfx.cpp 0x498)
+0046fa80	gfx_cof_load	by unit type 0/1/2 (Gfx.cpp 0x502)
+0046fb60	gfx_cof_preload	"sAsyncLoadBlock failed on async:%d ..." (Gfx.cpp 0x6c3..0x6dd)
+0046fda0	gfx_preload_monster_mode	0x7a80fc slots, FUN_005ff300 (Gfx.cpp 0x70a)
+0046feb0	gfx_preload_monster	modes 0x712ac4 through FUN_0046fda0
+0046ff50	gfx_preload_player_mode	0x7a7490 / 0x7a74e0 (Gfx.cpp 0x751)
+00470070	gfx_preload_near	rooms near the player, stops past 0x1d queued (Gfx.cpp 0x7aa)
+00470200	gfx_init	caches, 0x7a80fc (Gfx.cpp 0x7e1), FUN_004fac90, FUN_004da790
+00470290	gfx_shutdown	both caches, frees 0x7a80fc (Gfx.cpp 0x7f9)
+00470350	gfx_preload_tick	FUN_00470070 every 600 ms
+004706e0	gfx_unit_frame_size	FUN_00601920 / FUN_00601950 (Gfx.cpp 0xd4d, 0xd7a)
+00470860	gfx_unit_hit	COF box +8..+0x14 grown by 16 (Gfx.cpp 0xd90, 0xda4)
+004709a0	gfx_unit_on_screen	COF box vs 0x71146c x 0x711470 (Gfx.cpp 0xdc2, 0xdd3)
+00471a30	gfx_tint_draw_simple	FUN_004f6570 with FUN_0046ed50 (Gfx.cpp 0x9b6, 0x9be)
+00471bd0	gfx_tint_draw	per COF layer FUN_004f6570 (Gfx.cpp 0xa2f, 0xa56)
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
 004795a0	roster_next	ECX roster entry: +0x80; null gives the first (DAT_007bb5c0)
 004795c0	roster_name	ECX roster entry: entry + 0x66 (the name); null is fatal, line 0x174
@@ -56,6 +112,56 @@ address	name	evidence
 004c7950	target_stat_list_kind6	fastcall (target): stat list FUN_006251f0(0, 6, 0x32, target type, id) with callback FUN_004c7890, linked to the target (d2d_rules_socket_props); caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
 004c7be0	unit_add_attackrate_list_b	twin of FUN_0056e520 (same body), Skills.cpp line 0x9e5; callers FUN_004c7cf0, 0x4f26f3, 0x4f2706; skills.md "Stat-list helpers and skill starts"
 004c9460	skill_par1	fastcall (skill id) -> Skills record +0x148 Param1, 0 for an id outside [0, [0x744304]+0xba0) or a null record; skillcalc operand 8; skills.md "Skill record and skill-list accessors"
+004da000	motion_new	0x4c bytes into unit gfx +0x30 (Particle.cpp 0x4a)
+004da080	motion_free	frees unit gfx +0x30 (Particle.cpp 100)
+004da0b0	motion_draw_x	record +0x34
+004da0d0	motion_draw_y	record +0x38
+004da0f0	motion_draw_z	record +0x3c
+004da110	motion_x	record +4 >> 11
+004da130	motion_y	record +8 >> 11
+004da150	motion_z	record +0xc >> 11
+004da170	motion_x_raw	record +4
+004da190	motion_y_raw	record +8
+004da1b0	motion_z_raw	record +0xc
+004da1d0	motion_set_pos	record +4..+0xc << 11
+004da200	motion_set_vel	record +0x10..+0x18
+004da250	motion_set_accel	record +0x1c..+0x24
+004da2a0	motion_set_vec3	record +0x28..+0x30
+004da2f0	motion_set_target	flag 4, record +0x40/+0x44
+004da320	motion_target_x	record +0x40
+004da340	motion_clear_thrown	clears flag 2
+004da5b0	motion_throw	flag 2, velocity z from height and ticks
+004da620	motion_flag_10	sets or clears flag 0x10
+004da640	motion_start	sets flag 1
+004da660	motion_started	flag 1
+004da690	motion_done	clears 1, sets 8
+004da6b0	motion_idle	no record, not started or done
+004da6e0	motion_flag_20	sets or clears flag 0x20
+004da720	token_pad	up to three characters, space padded to four
+004da770	monstats2_mode_byte	MonStats2 extension +4 + n
+004da790	gfx_type_tokens_init	0x7c8920 / 0x7c88d0 / 0x7c8980 / 0x7c8960 / 0x7c89c0 (fatal 0x36..0x5a)
+004da8e0	cof_req_monstats2	request +0x2c = MonStats2 +0x138
+004da920	gfxutil_list_add	16-byte node (GfxUtil.cpp 0x81)
+004da990	gfxutil_list_find	node +4 / +8 match
+004da9c0	gfxutil_list_free	GfxUtil.cpp 0xa8
+004daa00	cof_base_token	FUN_0065b480 / MonStats +0x10 / FUN_0065b570
+004daa70	cof_draw_type_fold	0,1,2,4,6 -> 4; 3,5 -> 3
+004daab0	cof_torso_tiers	Items +0x116..+0x11b of the torso item
+004dab40	cel_on_screen	FUN_006018f0 / FUN_00601920 / FUN_00601950 vs 0x71146c x 0x711470
+004dabc0	cof_item_cel_name	unique/set/base cel and invfile columns (GfxUtil.cpp 0x196, 0x1ae)
+004dad50	overlay_txt_80	Overlay.txt +0x80
+004dad80	cof_layer_weapon_token	'xbw ' / 'bow ' / 'shh ' / 'lit '
+004dae60	cof_has_layer	player 0..4, 8, 9; MonStats2 +0xe8; Objects.txt +0x151 (GfxUtil.cpp 0x25b)
+004daf70	cof_layer_draw_type	MonStats2 +0xf4, Objects.txt +0x1a0, overlays
+004db090	cof_layer_byte1	9-byte records from COF +0x1c
+004db0d0	cof_layer_byte2	9-byte records from COF +0x1c
+004db180	unit_type_drawn	type 0..2
+004db1a0	gfx_layer_loaded	unit gfx byte n * 2
+004db1c0	gfx_layer_loaded_set	unit gfx byte n * 2 = arg
+004db1e0	gfx_turn_idle	FUN_006488a0 in modes 0 / 0x11 / 0xc (GfxUtil.cpp 0x53c)
+004db290	dir_steps_convert	8 <-> 4, 16 <-> 8 through FUN_00600cb0
+004db570	cof_layer_tint	FUN_0062c100 unless broken, unusable or 'lit ' (GfxUtil.cpp 0x656, 0x657)
+004db670	gfx_unit_layer_ready	on screen, COF loaded, FUN_004db0d0
 004e1b10	client_skill_missile_long	ECX caster, EDX skill, stack level: ORs 0x40 into caster +0xc4, builds a type-3 block from the skill's missile row (short +0xea) and target offset, FUN_004cd540, tags level (missiles.md "Client skill missile, long form")
 004e3720	client_skill_missile_short	ECX caster, EDX skill, stack level: ORs 0x40 into caster +0xc4, FUN_004c5420 missile tagged with the skill calc1 value (missiles.md "Client skill missile, short form")
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
