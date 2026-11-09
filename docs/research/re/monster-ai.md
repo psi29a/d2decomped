@@ -819,14 +819,16 @@ Group senders (FUN_0058f730) and what they send:
 | Cry Help (do 128) | the overseer's Skill1 when hit | 1, its target, till frame + calc1 |
 
 Readers: Fallen takes 1 (a charge: walk at the target, then aip3 %
-swings) and drops any other; Fetish takes 1 and 0xe alike (its unit
-alive: state words 0, pace 50, FUN_005dec80(unit, 0), popped);
+swings) and drops any other; Fetish (FUN_005f53e0) takes 1 and 0xe alike (its
+unit found by id, FUN_00552f60, dead or alive: state words 0, pace 50,
+FUN_005dec80(unit, 0), popped);
 FetishBlowgun 1 (A1 at it) and 0xe (walk at it); QuillRat any kind with
 a live unit (A2 at its target). QuillMother's broadcast reaches only
 quillbears, which never read the ring (it fills until they die); no
 group holding quillrats has a sender, so QuillRat's branch never runs
 (stubs.md). In d2d one command word stands for the ring (`ai_command`);
-a corpse command (0xe) is dropped, the corpse not kept.
+a corpse command (0xe) keeps its corpse's id (`Monster::command_corpse`), and
+a fetish walks at that unit while it's about.
 `tools/emu/mon_ais_act1.py` gives Fetish scenes a command (QuillRat's
 stay without).
 

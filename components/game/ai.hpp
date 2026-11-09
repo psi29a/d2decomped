@@ -338,6 +338,7 @@ struct Monster {
     // AI command kind 1 (FUN_0058f730: the overseer's Cry Help, do 128): the
     // unit its group goes at (a Foe::id) till that frame.
     int command_foe = -1, command_until = 0;
+    int command_corpse = -1;                  // AI command 0xe's unit: the corpse its fetish shaman raises (a Monster::id)
     bool impregnated = false;                 // state 0x6e (Impregnate, do 133): dead, a painworm comes out (FUN_005d21b0)
     // A skill's sequence (MonSeq.txt): its next row, and the shot done
     // (unit flag 0x40: no more of its events 1 / 2, FUN_005a8670).
