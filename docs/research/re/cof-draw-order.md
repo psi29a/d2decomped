@@ -230,6 +230,19 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   decompile only, not the asm), and calls `FUN_005ffe90(entry, group, count)`
   or, when `flag` is non-zero, `FUN_005fffa0`. Called by `FUN_006001f0`.
   d2d: not ported.
+- `FUN_006004e0(layer)` (callers `FUN_0046f650`, `FUN_0046fb60`): a null
+  layer ends the run. With layer +0x34 set, layer +0x3c = `FUN_00601840(layer)`
+  and it returns. Otherwise `FUN_005fe990(local buffer)` builds the stem
+  and path and loads the DCC (0 = nothing more is done). Then
+  `FUN_0060ace0(&group, &count, entry)`: a hit sets bit 2 of layer +0x44
+  when bit 0 of `*(hit->+0x20)+0x20` is set (the failed flag
+  `FUN_005ffe90` writes) and returns. A miss with `count` above 1,
+  `group` non-zero and the entry not failed rescales layer +0x40 as
+  `FUN_006000b0` does but through `FUN_00600cb0((+0x40 * entry[+0x14]) >> 6,
+  entry[+0x14], count, layer[+4] & 4)`, looks up again (a miss, or a
+  non-zero `group`, ends the run) and, with a stem or a path built
+  (`FUN_005fe610`), calls `FUN_005fffa0(entry, group, count, stem)`.
+  d2d: not ported.
 
 ## Draw effects
 
