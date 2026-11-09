@@ -15,7 +15,7 @@ game.exe's data are read from the emulator. Hooked, logged, not claimed:
 FUN_0066bf30 (a node allocator, handed arena nodes), FUN_0066dde0,
 FUN_0067c4f0, FUN_00679a60, FUN_0064fd70 (writes the case's vector) and
 FUN_00679530 (its result mixes the vector it was given).
-`--mutation-check` breaks the model seven ways.
+`--mutation-check` breaks the model eight ways.
 """
 import argparse
 import struct

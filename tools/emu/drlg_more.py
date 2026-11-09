@@ -100,7 +100,7 @@ class Suite:
         if n == 0 and rng.random() < 0.5:
             chain = [head]
         put(img, head_off + 0x10, chain[0])
-        for i, node in enumerate(nodes):
+        for i in range(len(nodes)):
             put(img, head_off + 0x40 + 0x20 * i + 0x10, chain[i + 1])
         return head
 
