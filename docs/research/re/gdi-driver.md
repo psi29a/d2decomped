@@ -73,3 +73,13 @@ Frees the buffer (`FUN_0040b3c0`, SMemFree-shaped, mpq-archives.md) and
 zeroes `DAT_0098a278` when it is set; closes the Smacker (`_SmackClose_4`) and
 zeroes the handle when `kind` is `'s'`; then zeroes `kind`. DirectDraw's
 `FUN_00513330` is the same without the last step (its `kind` stays).
+
+### Row blit (`FUN_006c9690`)
+
+Copies a video buffer to the draw buffer through the palette map. Registers
+as the decompile reads them: `EAX` is a rectangle record (`+8` the x, `+0xc`
+the bottom y), `ECX` the row count, the stack argument the row width. The
+first row goes to `(bottom − rows) * W + x + DAT_007c9154` (`W` =
+`DAT_007c9138`), each following row one stride lower, every byte of the
+source mapped through `DAT_0098a178`. Unlike DirectDraw's `FUN_00513380`, it
+does not test `DAT_0098a278` for null first.
