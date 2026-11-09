@@ -14,7 +14,7 @@ spec.loader.exec_module(pr_guard)
 
 class GuardTests(unittest.TestCase):
     def run_guard(self, files, labels=(), at_base=False):
-        """Commit an empty base, then `files` on top; return (fails, warns).
+        """Commit an empty base, then `files` on top (a str: a symlink to it); return (fails, warns).
 
         at_base: leave the working tree at the base, as CI does (it checks out the
         base and fetches the PR head only as data), and check the head by hash.
@@ -27,7 +27,10 @@ class GuardTests(unittest.TestCase):
             for name, data in files.items():
                 path = Path(directory, name)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(data)
+                if isinstance(data, str):
+                    path.symlink_to(data)
+                else:
+                    path.write_bytes(data)
             git("add", "-A")
             git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "change")
             head = "HEAD"
@@ -69,6 +72,11 @@ class GuardTests(unittest.TestCase):
         fails, _ = self.run_guard({"components/x.bin": b"\x00\x01\x02MZ", "assets/icon/i.png": b"\x89PNG\x00"})
         self.assertEqual(len(fails), 1)
         self.assertIn("components/x.bin", fails[0])
+
+    def test_a_symlink_fails(self):
+        fails, _ = self.run_guard({"tools/emu/.venv": "/home/someone/emu/.venv"})
+        self.assertEqual(len(fails), 1)
+        self.assertIn("symlink", fails[0])
 
     def test_local_only_files_fail_even_as_text(self):
         fails, _ = self.run_guard({"docs/research/re/game-strings.tsv": b"address\tlength\tvalue\n",
