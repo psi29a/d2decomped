@@ -116,6 +116,11 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   gives an empty stem and 0. It also sets bit 0 of +0x44 (the DCC flag)
   under the same `CompressedData` and row rules `FUN_005fe610` uses (see
   "A layer's file"; the one difference is that stem test). d2d: not ported.
+- `FUN_0040b430(file, line, flag)`: `FUN_0040a080(file, line)`, and when
+  that returns 0, `FUN_00408900(2, file, line, "")`; it returns the pointer
+  either way. This is the allocator the other docs cite by address (chat.md,
+  drlg.md, collision.md); it was untraced itself. d2d: not ported (it
+  uses its own allocation).
 
 ## Draw effects
 
