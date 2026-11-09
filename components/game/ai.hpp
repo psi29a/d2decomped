@@ -878,9 +878,10 @@ inline Missile missile_from(const Missile& from, const GameData::MissileInfo& in
 // subtile it entered (rolling its to-hit) spends it either way
 // (CollideKill), as does the missile barrier (0x04) or its rooms' end.
 // `reach`: missile_rooms for (x, y) cells.
-// ponytail: flat on the ground (no missile height); SrcDamage taken as
-// 128ths of the attack's damage; a standing missile (no velocity) strikes
-// what's within 0.4 cells (srvdofunc 1 never strikes standing).
+// A standing missile (no velocity) strikes from its own subtile
+// (standing_struck). Its physical carries the owner's at SrcDamage / 128
+// (monster_shot_phys).
+// ponytail: flat on the ground (no missile height).
 // A friendly one asks `hits_monster` (true: it struck one, spent).
 template <class Reach, class HitsMonster, class OwnerAlive>
 void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
@@ -993,7 +994,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             return false;
         }
         for (auto& foe : foes) {
-            if (!foe.alive || (moving ? !missile_struck(level, missile, foe.x, foe.y, foe.size) : std::hypot(foe.x - missile.x, foe.y - missile.y) > 0.4f)) continue;
+            if (!foe.alive || (moving ? !missile_struck(level, missile, foe.x, foe.y, foe.size) : !standing_struck(missile, foe.x, foe.y, foe.size))) continue;
             const int key = -100 - int(&foe - foes.data());         // a ring's missiles strike each foe once
             if (std::ranges::contains(*missile.struck, key)) continue;
             missile.struck->push_back(key);
