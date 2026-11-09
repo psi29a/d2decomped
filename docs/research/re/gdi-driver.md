@@ -83,3 +83,31 @@ first row goes to `(bottom − rows) * W + x + DAT_007c9154` (`W` =
 `DAT_007c9138`), each following row one stride lower, every byte of the
 source mapped through `DAT_0098a178`. Unlike DirectDraw's `FUN_00513380`, it
 does not test `DAT_0098a278` for null first.
+
+### Open (`FUN_006c9710`, slot `+0x40`)
+
+Arguments as the decompile reads them: `ECX` the file name, `EDX` the record,
+the stack argument the kind. It stores the kind in `record + 4`, then:
+
+- **`'p'`, a still picture:** allocates the buffer `DAT_0098a278` (0x6db0
+  bytes, zeroed), loads the file (`FUN_0041b680`), decodes it (`FUN_006c6a80`
+  with type 2, an image decoder returning width, height and bits per pixel;
+  the file is freed with its assert at `.\Src\gdiSmack.cpp` line 0x78) and
+  accepts it only if it is 0x1d4 × 0x3c at 8 bits (0x1d4 × 0x3c = 0x6db0).
+  It then fills the 256-byte map `DAT_0098a178` from the picture's 256 RGBA
+  palette entries through `FUN_00605210` (the game's nearest-colour lookup in
+  `DAT_007c8cc8`, as the video frame does).
+- **`'s'`, a Smacker:** only when the record has none yet: `_SmackOpen_12(name,
+  0xfe000, -1)`; on success allocates a width × height buffer, zeroes it,
+  points the Smacker at it (`_SmackToBuffer_28`) and clears
+  `DAT_0098a27c` (the palette-changed flag).
+- Any other kind returns; any failure (the open, the load, the size test)
+  falls to the cleanup, which frees the buffer, closes the Smacker and zeroes
+  the kind, as `FUN_006c9640` does.
+
+The allocation's and free's literal arguments (0x51 / 0x43 here, 0x53 / 0x42
+in DirectDraw's `FUN_00513400`, 0xf0 for the free) read like source line
+numbers of SMemAlloc / SMemFree-shaped calls, the way the assert's 0x78 is;
+that is a reading of the pattern, not traced. Apart from those, the two
+drivers' open functions are the same text, with the failure path of the GDI
+one also zeroing the kind.
