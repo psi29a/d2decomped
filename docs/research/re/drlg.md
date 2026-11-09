@@ -2030,18 +2030,22 @@ FUN_00667060 (in drlg_pops only) and the allocator.
 - FUN_00667060(room, rect, deadline, lib index, flag): halts at line 0xa3b
   without room +0x54. Over the room's wall tile array (+0x14 / +0x18), a tile
   with 0x200 inside the rectangle grown by 1 (FUN_0066b980) is switched on
-  (flag 1: +0x10 |= 4, fade time = deadline) or off (+0x10 &= ~4, +0 &= ~8). A
-  tile without 0x100 whose library index (FUN_00604b90) equals the argument and
-  that lies inside gets +0x10 |= 2 and a fade: flag 1 sets +0x15 / +0x16 to 0 /
-  0xff with time `deadline - al * 500 / 255` (al = byte +0x14 and the deadline
-  itself for 0), flag 0 sets 0xff / 0 with `deadline + (al - 255) * 500 / 255`
-  (deadline for 0xff).
+  (flag 1: +0x24 |= 4, fade time +0x2c = deadline) or off (+0x24 &= ~4,
+  flags +0x14 &= ~8); the flags are the dword at tile +0x14 and the offsets here
+  are from the start of each 0x30-byte tile. A tile without 0x100 whose
+  library index (FUN_00604b90) equals the argument and that lies inside gets
+  +0x24 |= 2 and a fade: flag 1 sets +0x29 / +0x2a to 0 / 0xff with +0x2c =
+  `deadline - al * 500 / 255` (al = byte +0x28 and the deadline itself for 0),
+  flag 0 sets 0xff / 0 with `deadline + (al - 255) * 500 / 255` (deadline for
+  0xff).
 - FUN_006671e0(room, x, y, other) finds the POP of the room's map (type 2)
   whose bounds (x5, plus the level's PopPad at +0x3c of the LvlPrest record on
   the size) contain the point, then for every near preset room with a live
-  room refreshes the other POPs with FUN_00667060 (flag 1) and the matching one
-  (flag 0; its stored deadline only when `other` is set), and if any refresh
-  ran rewrites the stored deadlines: 0 for the others, 500 for the match.
+  room refreshes the other POPs with FUN_00667060 (flag 1; a non-matching POP
+  with a zero stored deadline is skipped) and the matching one (flag 0: with
+  the shared deadline when its stored deadline is zero, with its stored
+  deadline when `other` is set, and skipped when its stored deadline is nonzero
+  and `other` is clear), and if any refresh ran rewrites the stored deadlines: 0 for the others, 500 for the match.
 - FUN_00667430(level) allocates 8 bytes at line 0xaf9 and halts at 0xafb when
   the level has no LvlPrest row; it stores the record at +0x14 with the file pick
   (FUN_0045c3e0 on the level seed, or -1 with no files) and tail-calls
@@ -2129,8 +2133,9 @@ FUN_0067a630, FUN_006487f0, FUN_0064fd70, FUN_0064fe40, FUN_00679720.
   after one FUN_0064fe40 step, the target becomes the path's current tile and it
   returns 0; otherwise it returns FUN_00679720 on the current tile and the target.
 - FUN_0067a9f0(args, node in EAX) walks the node chain to the root keeping a
-  point only where the step to the parent changes (the root is skipped), at
-  most 0x4d, and returns 0 for fewer than 2 or more than 77; otherwise it copies
+  point only where the step to the parent changes (the root is skipped), collecting
+  up to 0x4e points, and returns 0 for fewer than 2 or more than 0x4d (77), so a
+  chain that yields 0x4e points returns 0; otherwise it copies
   them start first to the path points and returns the count.
 
 ## The five large generators against d2d's port
@@ -2173,7 +2178,8 @@ allocator.
   block's +0x2c (line 0x101), frees the record (0x106) and clears +0x64.
 - FUN_0067d1e0(pool, slot) frees a circular list kept by its head: every node
   after the head through +0x10 (line 0x114), the head last (0x117 when the walk
-  comes back to it; 0x11f when the list ends at 0 or is empty), then clears
+  comes back to it; a head whose +0x10 points to itself is therefore freed at
+  0x114 and again at 0x117; 0x11f when the list ends at 0 or is empty), then clears
   the slot. FUN_0067d610(room) frees the maze record (+0x20): four buffers
   (+0, 0x14, 0x28, 0x3c), the ring at +0x50, the record (Maze.cpp line 0xad),
   and clears +0x20. FUN_0067d680(room) does the first two steps and keeps the
@@ -2208,7 +2214,7 @@ FUN_00679a60, FUN_0064fd70 (writes the case's vector) and FUN_00679530.
   the source point plus the step table at 0x6f1f7c (index side + 2 * step, 8
   bytes apart).
 - FUN_0067a630(obj in EAX, record in ESI): when obj +0x36fd0 is set, the 64-bit
-  LCG at [obj +0x36fd4] steps (`seed * 0x6ac690c5 + hi`) and the direction
+  LCG at [obj +0x36fd4] steps (the low seed word times 0x6ac690c5, plus the high word, as a 64-bit result split into the new low and high words) and the direction
   at record +0x10 becomes `(T[low 5 bits] + *[record +0xc] + dir) & 7` with T
   at 0x6f18d8; without it just `(*[record +0xc] + dir) & 7`.
 - FUN_00666170(arg; EAX, ECX, EDX) allocates a node through FUN_0066bf30, sets
