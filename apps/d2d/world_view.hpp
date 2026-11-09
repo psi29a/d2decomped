@@ -96,6 +96,7 @@ struct Unit {
     bool spirit = false;                 // local co-op's ghost: pale, half see-through, no shadow (docs/design/local-coop.md)
     std::optional<int> name_offset;      // an object's hover name sits this far over its feet, not over its frame (Npc::name_offset)
     std::uint32_t overlay_start = 0;
+    int label_rank = -1;                 // a ground item's place in Show Items' walk (rank_ground_labels), -1: in no near room, no label
 };
 
 

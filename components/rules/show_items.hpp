@@ -49,4 +49,48 @@ inline int label_place(LabelRect& rect, std::vector<LabelRect>& placed, int x, i
     return tries;
 }
 
+// A ground item as FUN_004c0810 meets it: its label's spot (x, y), the
+// item's client position less the view's and 16 up (FUN_00620650 -
+// FUN_0045afc0, FUN_006206b0 - 0x10 - FUN_0045afd0), and its name's size
+// (FUN_00502520).
+struct LabelItem { int x = 0, y = 0, text_w = 0, text_h = 0; };
+// A label that's drawn: its item (an index into the walk), its rect, and
+// lit (draw mode 5 in the palette's (0, 64, 128), white text) or not.
+struct ShownLabel { std::size_t item = 0; LabelRect rect; bool lit = false; };
+
+// FUN_004c0810's labels, `items` in its walk: the player's room's near list
+// (FUN_00619790) in order, each room's units from its list's head (the
+// newest: FUN_0064c2c0 adds at the head), the drawn items (type 4, +0xc8
+// bit 7). Past 0x20 labels the rest get none. The rect: left = x - (w + 8)
+// / 2 (sar), right = left + w + 8, top = y - h + 4, bottom = y; then
+// label_place in the columns an open panel leaves (`open_side` 1 right, 2
+// left: FUN_0045ae90). While none is lit, a label goes lit when the mouse
+// is within left..right, top..bottom + 4 (inclusive), or else when its
+// item is the one under the cursor (FUN_00467a10).
+inline std::vector<ShownLabel> show_items(const std::vector<LabelItem>& items, int screen_width, int screen_height, int open_side, int mouse_x, int mouse_y,
+                                          std::ptrdiff_t cursor_item) {
+    constexpr std::size_t kMaxLabels = 0x20;
+    const int max_x = open_side == 1 ? screen_width / 2 - 0x20 : screen_width, min_x = open_side == 2 ? screen_width / 2 : 0;
+    std::vector<ShownLabel> shown;
+    std::vector<LabelRect> placed;
+    bool lit_one = false;
+    for (std::size_t index = 0; index < items.size(); ++index) {
+        if (placed.size() >= kMaxLabels) continue;
+        const auto& item = items[index];
+        const int box_width = item.text_w + 8, left = item.x - (box_width >> 1);
+        LabelRect rect{ left, item.y - item.text_h + 4, left + box_width, item.y };
+        bool kept = false;
+        (void)label_place(rect, placed, item.x, item.y, max_x, min_x, screen_height, kept);
+        if (!kept) continue;
+        bool lit = false;
+        if (!lit_one) {
+            const bool under_mouse = mouse_x >= rect.left && mouse_x <= rect.right && mouse_y >= rect.top && mouse_y <= rect.bottom + 4;
+            lit = under_mouse || std::ptrdiff_t(index) == cursor_item;
+            lit_one = lit;
+        }
+        shown.push_back({ index, rect, lit });
+    }
+    return shown;
+}
+
 }  // namespace d2d::rules

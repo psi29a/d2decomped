@@ -121,6 +121,22 @@ std::pair<std::string_view, std::uint32_t> portal_mode(const View::Portal& porta
 
 }  // namespace
 
+void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units) {
+    std::vector<Unit*> ground;
+    for (auto& unit : units)
+        if (unit.npc <= -1000 && unit.npc > -2000) ground.push_back(&unit);
+    std::ranges::sort(ground, {}, [](const Unit* unit) { return unit->npc; });   // the newest (last in View::ground) first
+    int rank = 0;
+    for (const auto& room : d2d::game::automap_rooms(game_data, level, x, y)) {
+        if (room.level != &level) continue;                                      // View::ground is this level's
+        for (auto* unit : ground) {
+            const float act_x = unit->x + float(level.world_x), act_y = unit->y + float(level.world_y);
+            if (unit->label_rank < 0 && act_x >= float(room.x) && act_x < float(room.x + room.width) && act_y >= float(room.y) && act_y < float(room.y + room.height))
+                unit->label_rank = rank++;
+        }
+    }
+}
+
 void view_units(const Scene& scene, const View& view, float camera_x, float camera_y, const std::string* merc_label, std::vector<Unit>& out,
                 std::span<const View::Shot> effects , std::uint32_t now_ms , const std::string* corpse_name , int cls ,
                 StateClock* clk) {
