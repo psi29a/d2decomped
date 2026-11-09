@@ -24,6 +24,7 @@
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
+#include <hud_globe.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
@@ -884,12 +885,20 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (run_down && on_run) send(cmd::Run{ !view.running });
             run_down = false;
         }
+        // A press on a globe turns its text on or off for good (FUN_00499500).
+        const int globe = !coop_hud_hidden() && !view.dead && mouse.press_this_frame ? d2d::rules::globe_clicked(mouse.x, mouse.y, int(kScreenWidth), int(kScreenHeight)) : 0;
+        if (globe != 0) {
+            bool& globe_text = globe == 1 ? life_text : mana_text;
+            globe_text = !globe_text;
+            if (!cfg_file.empty() && !d2d::userdir::save_cfg(cfg_file, { { globe == 1 ? "show_hp_text" : "show_mp_text", globe_text ? "1" : "0" } }))
+                d2d::log::warn("d2d.cfg: the globe's text not saved");
+        }
         // Holding an item, a click on the world drops it (C→S 0x17).
         const bool bar_click = (!coop_hud_hidden() || skillbar.picking) && skillbar.click(mouse);
-        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click && !level_click && !run_click
+        if (held && mouse.press_this_frame && !item_click && !over_panel && !over_belt && !menu_click && !bar_click && !level_click && !run_click && globe == 0
             && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && have_world)
             net.send(cmd::Drop{ held->id });
-        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click || level_click || run_click
+        const bool over_ui = over_panel || over_belt || menu_click || npc_menu.npc >= 0 || item_click || held || bar_click || level_click || run_click || globe != 0
                           || hud_click || game_menu.open;
         // A press on the UI stays the UI's while the button is held: no walk
         // starts under a menu that just closed.

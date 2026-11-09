@@ -115,6 +115,8 @@ auto Town::enter() -> void {
             d2d::userdir::Config cfg;
             d2d::userdir::load_cfg(cfg_file, cfg);
             mini.open = mini_panel::opens(cfg["mini_panel"]);
+            life_text = cfg["show_hp_text"] == "1";   // FUN_004967f0: the registry's Show HP / MP Text
+            mana_text = cfg["show_mp_text"] == "1";
         }
         game_menu.open = false;
         controls.open = false;

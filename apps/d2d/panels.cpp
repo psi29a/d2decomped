@@ -488,12 +488,12 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         const int text_y = height - 0x5f - int(scene.font.sheet().frame(0, 0).height) + 1;
         scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, centre - scene.font.measure(text) / 2, text_y, text);
     };
-    if (over(0x1e, height - 0x4b, 0x6e, height - 0xf)) {
+    if (hud.life_text || over(0x1e, height - 0x4b, 0x6e, height - 0xf)) {
         auto life = life_shown >> 8;
         if (life_shown > 0 && life < 1) life = 1;
         globe_text(0x41, game::d2_format(str(0x1045), { life, stats.values[kMaxLife] >> 8 }));
     }
-    if (over(width - 0x6f, height - 0x4b, width - 0x1f, height - 0xf))
+    if (hud.mana_text || over(width - 0x6f, height - 0x4b, width - 0x1f, height - 0xf))
         globe_text(width - 0x50, game::d2_format(str(0x1046), { mana_shown >> 8, stats.values[kMaxMana] >> 8 }));
 }
 

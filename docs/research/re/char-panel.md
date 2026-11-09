@@ -313,7 +313,9 @@ H−0x4b..H−0xf: 0x1045 "Life: %d / %d" (cur >> 8, at least 1 alive), plain
 (`FUN_00502320`), centred on 0x41, bottom H−0x5f; mana 0x1046 with
 `0x7befe0` or x W−0x6f..W−0x1f, centred on W−0x50. A click on a globe
 (`FUN_00499500`) toggles its flag (registry "Show HP Text" / "Show MP
-Text").
+Text"), unless no player or a dead one (`FUN_00463df0`, mode 0x11) or
+`0x7a0620` is set (not traced); `FUN_004967f0` reads both values when the
+HUD loads at the game's start.
 
 **Stamina** (server). Regen `FUN_00580500` each frame (`FUN_00580810`
 event 3, after life `FUN_00580610` and mana `FUN_005806f0`): by mode
@@ -331,7 +333,9 @@ d2d: `rules::stamina_drain` / `stamina_regen` (combat.hpp) from
 the poison frame, bars, run button and texts; the button's press /
 release in `Town::update`. The potion preview from `View::life_preview` /
 `mana_preview` (`World::view`: `rules::life_end_percent` /
-`mana_end_percent` each View, plus the gear's regen). The bars' hover
+`mana_end_percent` each View, plus the gear's regen);
+the globe click (`rules::globe_clicked`, hud_globe.hpp) saves d2d.cfg's
+`show_hp_text` / `show_mp_text` in place of the registry. The bars' hover
 texts go to `Hud::hovers`, drawn after the mini-panel (`draw_hud_hovers`).
 
 ## Stat totals and ItemStatCost ops (FUN_00626200)

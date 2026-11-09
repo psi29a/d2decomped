@@ -385,6 +385,7 @@ struct Town {
     bool run_held = false;                        // Run's key made the player run
     bool portraits_hidden = false;
     bool hireling_hint = false;                   // FUN_004939b0: armed at a game's start while d2d.cfg's popup_hireling isn't 1
+    bool life_text = false, mana_text = false;    // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): d2d.cfg's show_hp_text / show_mp_text, read at a game's start (FUN_004967f0)
     bool message_log = false;
     HelpScreen help;                              // UI 0x21
     HirelingPanel hireling;                       // UI 0x24
