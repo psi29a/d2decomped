@@ -18,7 +18,7 @@ import argparse
 import sys
 
 import _dungeon_rig as rig_mod
-from _dungeon_rig import M32, Halt, require, s32
+from _dungeon_rig import M32, require, s32
 
 MUT = set()
 F_PRESET = 0x6E_E7C4

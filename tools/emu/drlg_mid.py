@@ -131,7 +131,7 @@ class Suite:
                 """Chain a few rooms on a level; `quiet` keeps them all freeable."""
                 nonlocal nxt, near
                 prev = 0
-                for k in range(rng.randrange(0, 4)):
+                for _ in range(rng.randrange(0, 4)):
                     room = nxt
                     nxt += 0x60
                     img[room + 0x44] = rng.choice((4, 5, 9, 0xFF)) if quiet else rng.choice((0, 3, 4, 7, 0xFF))

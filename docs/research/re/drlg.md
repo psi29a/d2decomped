@@ -1955,3 +1955,182 @@ FUN_0066d3b0, FUN_00678b80, FUN_00678c10 and the allocator.
   box at obj +0x6278 (x0, y0, x1, y1), both ends inclusive. FUN_0067b9c0(a,
   b) is the squared distance of two packed points; FUN_0067bbc0 indexes the
   dwords at 0x6f1e28 by `3 * (hi b - hi a) - lo a + lo b`.
+
+## Drlg.cpp tile cache, neighbour free and LvlSub loader, run in the emulator
+
+`tools/emu/drlg_mid.py` (same harness; `--mutation-check` 8 ways, 900 cases).
+Hooked and logged, not claimed: FUN_00604ae0, FUN_0066dde0, FUN_0066c040,
+FUN_00642ae0, FUN_0066b4f0, FUN_00619730, FUN_0067aaa0, FUN_00679720,
+FUN_00648ad0, FUN_006488c0, FUN_00648900, FUN_00665f40, FUN_0067ccc0,
+FUN_0067c590, FUN_0066fcf0, FUN_0066fad0, FUN_0066fe00 and the allocator.
+
+- FUN_00642a30(act, out) zeroes 0x30 bytes at `out`, then looks the act's
+  first tile up through FUN_00604ae0 (act +0xc, 0x28 slots): act 0 asks for
+  (type 0, sub 0), act 1 (0, 1), act 2 (0x1d, 0xc); any other act returns after
+  the memset. With no hit it halts at Drlg.cpp line 0x44c (a null act 0x437, a
+  null `out` 0x438), else FUN_0066dde0(0, out, 0, 0, 0, first tile) fills it.
+- FUN_00643060(level) returns 0 while any of the level's own rooms has status
+  below 4 or flag 0x100000. Otherwise, for each of the 8 vis ids of the level
+  (FUN_0066c040), it finds that level in the act's list (act +0x47c, next at
+  +0x1ac, id at +0x1d0; FUN_00642ae0 builds it when absent), collects the bits
+  0x10 << k of the slots in its own vis array that name this level, returns 0
+  if a room with such a bit is not ready, and else frees those rooms' tiles
+  (FUN_0066b4f0) and near arrays (Drlg.cpp line 0x16f), zeroing +8 / +0x2c. The
+  free uses the first level's pool; it returns 1.
+- FUN_0067a000(args) is the knockback end point. args +0 is the source (packed
+  x | y << 16), +4 the default target, +0x30 the dynamic path (distance byte
+  +0x90, target unit +0x58, committed point +0x9c, point count +0x28). With a
+  target unit, the end point is the source plus the vector to the unit scaled
+  so its larger axis is `dist / 2 + 1` (C truncating division; a zero larger
+  axis leaves the source); static units (types 2, 4, 5) give their position at
+  +0x2c -> +0xc / +0x10, others FUN_006488c0 / FUN_00648900 or 0 with no path.
+  It then raycasts (FUN_00679720), tells FUN_00648ad0 the result, and returns 0
+  with nothing committed if the point equals the source, else stores it at +0x9c
+  and sets +0x28 to 1. Redivivus's decompile names the fields of the argument
+  record shifted (nOffsetY / nPosX); the oracle pins the offsets above.
+- FUN_006704e0(pool, sub) loads a LvlSub's DS1 once (FUN_00665f40 into
+  +0x50), halts at line 0x2b6 when it has no substitution groups (file +0x4c),
+  and builds per wall layer k two grids: sub +0xa4 + 0x14 k from file +0x2c + 4
+  k and sub +0x54 + 0x14 k from file +0x1c + 4 k, over a (0, 0, w + 1, h + 1)
+  context; layers 1.. then get flag mask k << 18 cleared (FUN_0067c590) on the
+  first array's grids; a floor layer (file +0x18) goes to +0xf4, a shadow layer
+  (file +0x44) to +0x108.
+- FUN_0066ff50(wall grids, sub) sweeps each substitution group (0x18-byte
+  records in file +0x50). Act 1 takes rows and columns from 1 to the room-fit
+  limits, applying FUN_0066fad0 (extra 0) where FUN_0066fcf0 accepts; act 2
+  from 0, where FUN_0066fe00 matches it draws seed steps (low * 0x6ac690c5 +
+  high): applied when `Prob[subtype] < r % 100`, the variant is a second step
+  masked (`n - 1 & low`, n a power of two) or `low % n`, and the stamp extra is
+  `(width + 1) * (variant + 1)`.
+- FUN_0067ad00(args) doubles the byte at +0x14, boxes the current room
+  (FUN_00619730), widens the box to the next room when it differs, then pads
+  both axes by 10 on each side when the box did not change on that axis (always
+  on x with no next room), and returns FUN_0067aaa0(box, args).
+
+## Preset.cpp file cache and POP tile updaters, run in the emulator
+
+`tools/emu/drlg_preset_mid.py` (same harness; `--mutation-check` 5 ways,
+1200 cases) and `tools/emu/drlg_pops.py` (3 ways, 300 cases). Import stubs give
+GetTickCount 0 (the deadline is 500) and make InterlockedIncrement / Decrement
+take effect. Hooked and logged, not claimed: FUN_00665950, FUN_0066b980,
+FUN_00604b90, FUN_0061f0e0, FUN_0045c3e0, FUN_00642d10, FUN_0040b3c0,
+FUN_00667060 (in drlg_pops only) and the allocator.
+
+- FUN_00665f40(out, pool, name) looks `name` up in the DS1 cache (head at
+  0x96d60c, 0x110-byte nodes: name at +0, count +0x104, file +0x108, next
+  +0x10c) with a case-sensitive byte compare. A hit adds a reference and returns
+  the cached file; a miss allocates the node and the 0x5c file record with
+  pool 0 (Preset.cpp lines 0x4e0 / 0x4e1, not `pool`), zeroes the record, copies
+  the name, links the node at the head with count 1 and runs FUN_00665950.
+- FUN_00666e00(count) (map in ESI) turns each POP's corner pair into position
+  (+ the map origin at +0x10 / +0x14) and size (span + 1), and each POP index
+  `v` into `(v + (v < 0 ? 3 : 0)) >> 2` less 1.
+- FUN_00667060(room, rect, deadline, lib index, flag): halts at line 0xa3b
+  without room +0x54. Over the room's wall tile array (+0x14 / +0x18), a tile
+  with 0x200 inside the rectangle grown by 1 (FUN_0066b980) is switched on
+  (flag 1: +0x10 |= 4, fade time = deadline) or off (+0x10 &= ~4, +0 &= ~8). A
+  tile without 0x100 whose library index (FUN_00604b90) equals the argument and
+  that lies inside gets +0x10 |= 2 and a fade: flag 1 sets +0x15 / +0x16 to 0 /
+  0xff with time `deadline - al * 500 / 255` (al = byte +0x14 and the deadline
+  itself for 0), flag 0 sets 0xff / 0 with `deadline + (al - 255) * 500 / 255`
+  (deadline for 0xff).
+- FUN_006671e0(room, x, y, other) finds the POP of the room's map (type 2)
+  whose bounds (x5, plus the level's PopPad at +0x3c of the LvlPrest record on
+  the size) contain the point, then for every near preset room with a live
+  room refreshes the other POPs with FUN_00667060 (flag 1) and the matching one
+  (flag 0; its stored deadline only when `other` is set), and if any refresh
+  ran rewrites the stored deadlines: 0 for the others, 500 for the match.
+- FUN_00667430(level) allocates 8 bytes at line 0xaf9 and halts at 0xafb when
+  the level has no LvlPrest row; it stores the record at +0x14 with the file pick
+  (FUN_0045c3e0 on the level seed, or -1 with no files) and tail-calls
+  FUN_00642d10. FUN_00668240(file) frees the DS1 data (client free, line
+  0x4f8), the group array (0x4f9), each preset unit with its map AI position
+  and record (0x597 / 0x598 / 0x56b) and the record (0x505).
+- FUN_00668300(pp) drops one reference on the cached file; at 0 or below it
+  unlinks the node (head or predecessor), frees the file as above, frees the
+  node (line 0x538) and nulls `*pp`. Not tested: a `*pp` that is in no node
+  would make the stock code decrement a count at address 0x104 (the original
+  does not check before the InterlockedDecrement), so the oracle only builds
+  files that are cached.
+
+## Preset.cpp object presets and RoomTile.cpp counters, run in the emulator
+
+`tools/emu/drlg_presets.py` (same harness; `--mutation-check` 3 ways, 600
+cases) and `tools/emu/drlg_tiles.py` (6 ways, 1200 cases). FUN_00643560 is
+replaced by a fixed linear map the model shares; the grid object
+FUN_006663c0 builds lives on the emulated stack, so only its being the same in
+every call is checked. Hooked and logged, not claimed in these two files:
+FUN_00643560, FUN_0066bf30, FUN_0067c570, FUN_0067c550, FUN_0067cd30,
+FUN_0067cdc0, FUN_006661a0, FUN_0066b980, FUN_00604ae0, FUN_00604bc0,
+FUN_0066f050 and the allocator.
+
+- FUN_00666220(x, grid) (map in ESI, pool in EDI) adds five preset units per
+  row (objects 0x28, 0x29, 0x29, 0x29, 0x2a at world x - 5, 0, +5, +10, +15,
+  flag 1, linked at map +0x38) and skips three more rows after a grid cell of
+  type 4 with sub-type 0, 4, 8, 0x10, 0x1d or 0x27. FUN_006663c0(map, pool in
+  EAX) fills a floor-layer grid, and for Def 0x1b places once globally (x = -1),
+  else for every type 2 / sub-type 0x18 cell places at that column and skips 4.
+- FUN_00666990(room, pool) allocates 0x30 bytes once (line 0x7ac) for at most
+  six navigation points, taken from wall grid cells of type 10 with sub-type
+  0x17 to 0x1b, stored as world x + 2, y + 2, and records the count at +0xf4.
+- FUN_0066ece0 counts per cell wall (bit 1), floor (bit 2, or inside the room
+  when asked) and roof (0x8000000) tiles; FUN_0066edb0 counts orientation 3 as
+  a wall, 10 and 11 as a wall or, when the floor flags are negative, six floors;
+  FUN_0066d290 looks each 0x8000003 cell's tile up (FUN_00604ae0) and adds
+  `matches - 1` to floors / walls / roofs when the library flags have 0x100,
+  setting room flag 0x8000000. FUN_0066eee0 allocates the floor, wall and
+  (only when absent) roof arrays of count * 0x30 at lines 0x545 / 0x54b /
+  0x551; FUN_0066f0b0 frees them (FUN_0066f050), the map links (0x5ad), the
+  animated tile lists (0x5b9 / 0x5ba) and the grid (0x5bd).
+- FUN_0066fe00(x, y, wall grids, sub) (group in ESI) says a LvlSub group fits
+  when every cell has the same tile type (grid flags) and, where the sub floor
+  has bit 2 / the sub wall has bit 1, the room's matching bit is set and the
+  flags agree outside 0x3f0ff00.
+
+## DRLG path helpers and OutPlace edge borders, run in the emulator
+
+`tools/emu/drlg_path.py` (same harness; `--mutation-check` 4 ways, 1000
+cases). The direction table at 0x6f18d8 is read from the emulator. Hooked and
+logged, not claimed: FUN_0064d910, FUN_0067a420, FUN_0067a630.
+
+- FUN_00675de0 / FUN_00675eb0(out in EAX, level rect in ECX, variant in EDX,
+  direction) place `out` beside the level rectangle: the first starts a south
+  edge at the left, west at the top, north at the right and east at the
+  bottom; the second is its mirror (south at the right, west at the bottom,
+  north at the left, east at the top). Variant 1 shifts by 0x10 along the edge,
+  2 and 3 by 8 on the west / east edges (Redivivus marks FUN_00675de0
+  unreferenced; neither is called from a function traced here).
+- FUN_0067a4a0(args) walks a path's points (+0x9c, count +0x28): hops of at
+  most one tile in each axis use FUN_0064d910 (room, x, y, width, pattern: any
+  hit fails), longer hops FUN_0067a420 (a false answer fails); 1 when all pass.
+- FUN_0067a690(node, ctx) counts a visit; below 4 it advances the seed pointer
+  by 4 and calls FUN_0067a630; at 5 it climbs to the parent (0 past the root),
+  advances its seed pointer, and re-rolls its direction `+ *seed & 7`, or with
+  ctx +0x36fd0 set `table[step & 0x1f] + *seed + dir & 7` on the context's seed.
+- FUN_0067a9f0(args, node in EAX) walks the node chain to the root keeping a
+  point only where the step to the parent changes (the root is skipped), at
+  most 0x4d, and returns 0 for fewer than 2 or more than 77; otherwise it copies
+  them start first to the path points and returns the count.
+
+## The five large generators against d2d's port
+
+`tools/emu/drlg_generators.py` (`--mutation-check` 3 ways). FUN_00665950
+(DS1 parse, 1507 B), FUN_00667970 (preset area, 1323 B), FUN_00675850 (act 4
+outdoors, 1295 B), FUN_006719f0 (the Arcane Sanctuary's maze, 2379 B) and
+FUN_00677880 (act 3 outdoor placement, 4132 B) call too many hooked callees
+for a model of their callee log, so the oracle runs each for real, counts
+its entries with a code hook, and diffs game.exe's level and tile dump with
+d2d's `drlg-dump` (the project's port, `diff_drlg.compare`): levels 2 and 8
+(parse, preset area), 40 and 79 (preset area), 104 and 106 (act 4 outdoors),
+74 (Arcane Sanctuary), 76, 79 and 83 (act 3), seeds 1-8 each: identical.
+Which level reaches which generator was measured with the same hook (seed 1,
+levels 1-132): FUN_00677880 runs on levels 75-102, FUN_00675850 on 104-106 and once or
+twice on levels 2, 8, 9, 18, 40, 55, 103 and 107, FUN_006719f0 only on 74, FUN_00665950 only
+while the tables load (the cache then serves every level).
+
+Not reached: this is equivalence of the end result on those rows, not of each
+generator step by step. The function bodies' intermediate state, their callee
+order and the paths no row takes (other acts' branches of FUN_00677880, the
+preset branches FUN_00667970 takes only for levels not listed, difficulty above
+Normal) are not compared, and the run used the `drlg-dump` of an existing
+build (2026-10-29) rather than one from this tree.
