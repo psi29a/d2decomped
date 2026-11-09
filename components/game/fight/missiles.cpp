@@ -285,6 +285,9 @@ auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::
         const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile missile{ &missile_info, x, y, dx / distance * speed, dy / distance * speed, missile_facing(x, y, dx, dy), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
         missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc; missile.striker = casting_unit;
+        // FUN_0059f940. ponytail: a merc's pierce isn't read (its gear's item_pierce, its own stat 0x148).
+        if (missile_info.pierce && !casting_merc)
+            missile.pierce = d2d::rules::pierce_charges(int(actor->psum[d2d::d2s::kSkillPierce] + actor->psum[d2d::d2s::kItemPierce]), actor->pierce_idx);
         pending.push_back(std::move(missile));
         return pending.back();
     }
@@ -714,7 +717,13 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
             if (missile_info.hit_func == 47) return false;             // the boulder rolls on (FUN_005ac550 returns 1)
             return true;
         }
-        return missile_info.collide_kill && !(missile_info.pierce && int(rng(100)) < int(actor->psum[d2d::d2s::kPierceIndex]));
+        // FUN_005adf10 -> FUN_005ada80: a charge left flies on, one fewer, while the owner has
+        // skill_pierce or item_pierce; no draw.
+        if (missile_info.pierce && missile.pierce > 0 && (actor->psum[d2d::d2s::kSkillPierce] != 0 || actor->psum[d2d::d2s::kItemPierce] != 0)) {
+            --missile.pierce;
+            return false;
+        }
+        return missile_info.collide_kill;
     }
 
 auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {

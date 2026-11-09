@@ -271,6 +271,9 @@ struct Fight {
         d2d::rules::Fighter player_combat;                // the player in a fight, as of this frame
         d2d::rules::Fighter pf_kick;           // the same without the weapon (kicks: FUN_00646280 takes it off)
         d2d::rules::StatSum psum{};            // the player's stats (gear, passives, masteries, states) as of this frame
+        // Stat 0x148 (pierce_idx, not saved): each skill command adds 1 (C->S 0x05 / 0x06 / 0x0c / 0x0d,
+        // FUN_00549d00), the seed of its missiles' pierce charges (FUN_0059f940).
+        std::uint32_t pierce_idx = 0;
         float cast_x = 0, cast_y = 0;          // where a missile skill was sent
         int aura = 0;                          // the aura on (Town: the right skill when it's one)
         // The player's summons (skills.md "Summons"): a Monster of the skill's

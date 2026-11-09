@@ -203,13 +203,13 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kBoneArmor = 132,
               kOpenWounds = 135, kCrushingBlow = 136, kKickDamage = 137, kDeadlyStrike = 141,
               kIndestructible = 152, kCannotBeFrozen = 153, kStaminaDrainPercent = 154,
-              kItemMagicArrow = 157, kItemExplosiveArrow = 158,
-              kThrowMinDamage = 159, kThrowMaxDamage = 160,
+              kItemPierce = 156, kItemMagicArrow = 157, kItemExplosiveArrow = 158,
+              kThrowMinDamage = 159, kThrowMaxDamage = 160, kSkillPierce = 166,
               kSkillArmorPercent = 171, kFade = 181, kArmorOverridePercent = 182,
               kChargedSkill = 204,                  // item_charged_skill: param skill << 6 | level, value charges << 8 | left
               kArmorPerLevel = 214, kMaxDamagePerLevel = 218, kMaxDamagePercentPerLevel = 219, kToHitPerLevel = 224,
               kDeadlyStrikePerLevel = 250,          // the per-level ones in eighths
-              kPoisonCount = 326, kPierceIndex = 328,   // pierce_idx: chance to pierce
+              kPoisonCount = 326, kPierceIndex = 328,   // pierce_idx: a player's skill commands counted, the seed of its missiles' pierce charges
               kPassiveFireMastery = 329, kPassiveLightningMastery = 330, kPassiveColdMastery = 331, kPassivePoisonMastery = 332,   // EType order
               kPassiveFirePierce = 333, kPassiveLightningPierce = 334, kPassiveColdPierce = 335, kPassivePoisonPierce = 336,
               kPassiveCriticalStrike = 337, kPassiveDodge = 338, kPassiveAvoid = 339, kPassiveEvade = 340,
