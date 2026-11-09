@@ -260,3 +260,61 @@ virtual deletion hooked. The node cleanup and bucket unlinking run in game.exe.
   exists. `FUN_00611560` returns the existing pointer, or allocates and
   constructs the same way (line 0x48) if it is null. The oracle checks the
   allocation-failure and existing-singleton paths as well as success.
+
+## The rest of the stpl.h range (`0x60dcb0`–`0x611170`)
+
+Storm's container templates (`d:\diablo2\Diablo2\3rdparty\storm\h\stpl.h`)
+instantiated for the ignore list, plus the ignore list's own small
+methods that the address range puts in the same module. Several functions
+are byte-identical copies (one per template instance); the table names
+each once. Read from the code, not run.
+
+**Containers.** A link is {prev link, next node}; a next value ≤ 0 is the
+list's terminator (`~address`). A list is {link offset, terminator link};
+link offset 0 means "the terminator". A hash table is a vtable, a list of
+all nodes, a bucket array (12-byte lists at `+0x1c`, count `+0x18`), mask
+`+0x24`. A string is one `SStrDup` pointer, freed at stpl.h line 0x5e4.
+
+| Address | What |
+|---|---|
+| `FUN_0060dcb0`, `FUN_0060e130` | String assign: frees the old (line 0x5e9), `SStrDup`s the new |
+| `FUN_0060dd00` | String from text (`SStrDup`) |
+| `FUN_0060dd20` | String equal (`SStrCmp`, length 0x7fffffff) |
+| `FUN_0060dd50` | Sets `ChatIgnoreList::vftable` |
+| `FUN_0060dd60` | `ChatIgnoreList` deleting destructor |
+| `FUN_0060dd90` | String free (line 0x5e4) |
+| `FUN_0060ddb0` | Destroys the singleton `DAT_0096bc20` (virtual `+0x2c`, 1) and clears it |
+| `FUN_0060ddf0` | Persistent ignore flag (`+0x184`) |
+| `FUN_0060de00` | Sets it and writes registry `Diablo II` / `Persistent Ignore` |
+| `FUN_0060de30` | The part of a name before `*` (empty when it starts with `*`; at most 17 characters) |
+| `FUN_0060dea0` | The part from `*` on, `*` included (at most 17 characters). Its terminating 0 goes at the source index, not the destination's; `FUN_0060dff0` zeroes the buffer first, so it doesn't show |
+| `FUN_0060df10` | Appends a name and a line end to the ignore file (`+0x80`, mode `at+`), only when persistent |
+| `FUN_0060dff0` | The key for a name: its `*` part when it has one, else the part before |
+| `FUN_0060e0e0`, `FUN_0060e110` | Bucket `n` (`+8 + n * 12`) |
+| `FUN_0060e170`, `FUN_0060e1c0` | A link's previous link (`~prev` when that is the terminator) |
+| `FUN_0060e1f0`, `FUN_0060e210` | Hash & mask (`+0x24`) |
+| `FUN_0060e2a0`, `FUN_0060e300` | Grow step: the highest power of two ≤ n (1 for 0); from 21 up, 21 stored at `+0xc` |
+| `FUN_0060e2e0`, `FUN_0060e340` | Rounds n up to a multiple of the step |
+| `FUN_0060e370`, `FUN_0060e390`, `FUN_0060e470`, `FUN_0060e5b0` | List init: link offset, empty terminator |
+| `FUN_0060e450`, `FUN_0060e630` | A node's link (offset 0: the terminator) |
+| `FUN_0060e490`, `FUN_0060e890` | Links a node before or after another (1 = after), unlinking it first |
+| `FUN_0060e540`, `FUN_0060e940` | A node's raw next value |
+| `FUN_0060e560`, `FUN_0060e960` | Unlinks a node |
+| `FUN_0060e650`, `FUN_0060e7c0`, `FUN_0060eaa0` | A node's next node, 0 at the terminator |
+| `FUN_0060e7a0` | Unlinks a node (`FUN_0060e6e0`), then virtual slot 0 (delete) |
+| `FUN_0060e820` | Unlinks every node of a list |
+| `FUN_0060e9b0`, `FUN_0060e9e0` | List init as `FUN_0060e370`, clearing the terminator first |
+| `FUN_0060eae0` | Copy of `FUN_0060ea10` |
+| `FUN_0060f590` | Hash lookup by hash and string (`+0x14`) |
+| `FUN_0060f610` | Bucket array destructor (`TSExplicitList<StringEntry>`) |
+| `FUN_0060f690` | List destructor: unlink all, unlink the terminator |
+| `FUN_0060f6d0` | Bucket array reserve, rounded up to the grow step |
+| `FUN_0060f720` | Bucket array resize (`TSExplicitList<MappingEntry>`): Storm realloc, else alloc and relink |
+| `FUN_0060f870` | Looks a name up in the account map and copies its value (`+0x18`) out |
+| `FUN_0060f8b0` | Looks a name up in the ignore table (hash `FUN_00413ce0`) |
+| `FUN_00610be0`, `FUN_00610df0` | Hash insert: grow check, node from virtual `+4`, linked last, hash and key set |
+| `FUN_00610ca0` | Grow check: counts the chain (the count at `+0x10` starts 3 lower each time); past 13, while the mask is under 0x3ff, rehashes (`FUN_006108d0`) |
+| `FUN_00610d30` | Table deleting destructor |
+| `FUN_00610d60` | Inserts a name into the ignore table |
+| `FUN_00610eb0` | Ignore by key (`FUN_0060dff0`): new keys are inserted and written to the file |
+| `FUN_00610f90` | Ignore a name as given: inserted, and written to the file as `!name` (the loader `FUN_00611050` strips the `!`) |

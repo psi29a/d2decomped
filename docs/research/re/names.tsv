@@ -249,6 +249,64 @@ address	name	evidence
 005fc450	baal_inferno_incinerate	Baal Inferno / Incinerate choice; AiBaal.cpp
 005fc630	baal_clone_check	Baal clone duplicate limit check; AiBaal.cpp
 005fc830	baal_clone_alive_count	counts live clones for Baal duplicate limit; AiBaal.cpp
+0060dcb0	stpl_string_assign	frees the old (stpl.h 0x5e9), FUN_00414310 (SStrDup) the new
+0060dd00	stpl_string_dup	FUN_00414310 into *this
+0060dd20	stpl_string_equal	FUN_00413590(a, b, 0x7fffffff) == 0
+0060dd50	ignorelist_base_ctor	*this = ChatIgnoreList::vftable
+0060dd60	ignorelist_base_delete	ChatIgnoreList::vftable, "delete" when bit 0
+0060dd90	stpl_string_free	stpl.h line 0x5e4
+0060ddb0	ignorelist_destroy	DAT_0096bc20 virtual +0x2c(1), then 0
+0060ddf0	ignorelist_persistent	+0x184
+0060de00	ignorelist_set_persistent	+0x184, registry "Diablo II" / "Persistent Ignore"
+0060de30	ignorelist_name_head	copies up to '*', at most 0x11; empty when it starts with '*'
+0060dea0	ignorelist_name_tail	copies from '*' on, at most 0x11
+0060df10	ignorelist_file_append	fopen(+0x80, "at+") when virtual +0x20 is set
+0060dff0	ignorelist_key	FUN_0060dea0, else FUN_0060de30
+0060e0e0	stpl_bucket	+8 + n * 0xc
+0060e110	stpl_bucket_2	copy of FUN_0060e0e0
+0060e130	stpl_string_assign_2	copy of FUN_0060dcb0
+0060e170	stpl_link_prev	~link when negative, else link + offset
+0060e1c0	stpl_link_prev_2	copy of FUN_0060e170
+0060e1f0	stpl_hash_mask	+0x24 & hash
+0060e210	stpl_hash_mask_2	copy of FUN_0060e1f0
+0060e2a0	stpl_grow_step	highest power of two <= n, 0x15 cap stored at +0xc
+0060e2e0	stpl_round_up	n rounded up to a multiple of the step
+0060e300	stpl_grow_step_2	copy of FUN_0060e2a0
+0060e340	stpl_round_up_2	copy of FUN_0060e2e0
+0060e370	stpl_list_init	+0 offset, +4 = &+4, +8 = ~&+4
+0060e390	stpl_list_init_2	copy of FUN_0060e370
+0060e450	stpl_list_link	offset 0: the terminator (+4)
+0060e470	stpl_list_init_3	same as FUN_0060e370, offset by value
+0060e490	stpl_list_link_node	unlinks, then links before (or after, 1) another node
+0060e540	stpl_list_next_raw	offset 0: +8; else node + offset + 4
+0060e560	stpl_list_unlink	the node's link fixed up and cleared
+0060e5b0	stpl_list_init_4	copy of FUN_0060e470
+0060e630	stpl_list_link_2	copy of FUN_0060e450
+0060e650	stpl_list_next	next value, 0 when <= 0
+0060e7a0	stpl_list_delete_node	FUN_0060e6e0 then virtual slot 0
+0060e7c0	stpl_list_next_2	copy of FUN_0060e650
+0060e820	stpl_list_unlink_all	unlinks the head while +8 > 0
+0060e890	stpl_list_link_node_2	copy of FUN_0060e490
+0060e940	stpl_list_next_raw_2	copy of FUN_0060e540
+0060e960	stpl_list_unlink_2	copy of FUN_0060e560
+0060e9b0	stpl_list_init_5	clears +4/+8, then as FUN_0060e370
+0060e9e0	stpl_list_init_6	copy of FUN_0060e9b0
+0060eaa0	stpl_table_next	+0xc, or *(+4 + offset + 4); 0 when <= 0
+0060eae0	ignorelist_node_cleanup_2	copy of FUN_0060ea10
+0060f590	stpl_hash_find	bucket +0x1c, hash +0 then FUN_00413590 on +0x14
+0060f610	stpl_bucket_array_free	"TSExplicitList<StringEntry>" free
+0060f690	stpl_list_free	FUN_0060ecb0, then the terminator unlinked
+0060f6d0	stpl_bucket_array_reserve	rounded up with FUN_0060e2a0, FUN_0060f390
+0060f720	stpl_bucket_array_resize	"TSExplicitList<MappingEntry>", realloc else alloc and relink
+0060f870	ignorelist_mapping_get	FUN_0060f510, copies +0x18 out
+0060f8b0	ignorelist_find	FUN_00413ce0 hash, FUN_0060f590
+00610be0	stpl_hash_insert	FUN_00610840 grow check, virtual +4 node, linked last, +0 hash, +0x14 key
+00610ca0	stpl_hash_grow_check	mask <= 0x3fe; chain count at +0x10 (-3); > 0xd -> FUN_006108d0
+00610d30	stpl_hash_delete	FUN_00610aa0, "delete" when bit 0
+00610d60	ignorelist_insert	FUN_00413ce0 hash, FUN_00610be0
+00610df0	stpl_hash_insert_2	copy of FUN_00610be0 with FUN_00610ca0
+00610eb0	ignorelist_add_key	FUN_0060dff0, FUN_0060f8b0, FUN_00610d60, FUN_0060df10
+00610f90	ignorelist_add_name	FUN_00610d60, file line '!' + name
 00611200	ignorelist_ctor	sets IgnoreList::vftable, reads "Persistent Ignore" (chat-ignorelist.md)
 00611560	ignorelist_get	lazy IgnoreList getter: DAT_0096bc20, SMemAlloc(0x188, Chat/Ignorelist.cpp, 0x48) (chat-ignorelist.md)
 00620150	unit_skill_first	(unit) -> first node of the list at unit +0xa8 (FUN_00643910); null unit asserts (Skills.cpp line 0x638) and exits; skills.md "Skill list accessors and the hotkey sweep"
