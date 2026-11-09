@@ -1,5 +1,6 @@
 address	name	evidence
 00403040	vector_ctor_iterator	calls arg 4 arg 3 times (the MSVC array constructor loop)
+00408090	assert_caller_address	4 bytes: returns its own return address (decompile unaff_retaddr); an argument pushed at the call, 0x44 / 199 / 0x261, is not read (runtime-support.md "The internal-error path")
 0040a620	async_data_create	AsyncData.cpp: 0x54-byte record (alloc line 0x128) tagged 0x41737960 at +0x48; buffer +0x3c, size +0x40; reads inline or queued (DAT_0075af94)
 0040a9e0	async_data_result	record in ECX: +0x3c, after FUN_0040a960 when bit 0 of +0x48 is clear; null / bad tag / still unfinished end the run with errors 0x25f / 0x260 / 0x266
 0040aa40	async_data_size	record in ECX: +0x40; null / bad tag end the run with errors 0x271 / 0x272; waits for nothing
