@@ -1026,7 +1026,9 @@ std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const 
         room.kind = 2, room.def = def, room.file = file, room.rolled = true;
     }
     std::vector<std::string> notes;
-    auto rooms = d2d::drlg::level_room_tiles(made, {}, assets.data, {}, level.id, d2d::drlg::warp_slots(assets, level.id), notes);
+    const auto dt1s = game_data.prest_automap_dt1s.find(level.id);
+    auto rooms = d2d::drlg::level_room_tiles(made, {}, assets.data, dt1s == game_data.prest_automap_dt1s.end() ? d2d::drlg::RoomDt1s{} : dt1s->second,
+                                             level.id, d2d::drlg::warp_slots(assets, level.id), notes);
     std::ranges::reverse(rooms);                          // the list is newest first: split order
     for (auto& room : rooms) room.seed = nullptr;        // `made` goes
     return rooms;

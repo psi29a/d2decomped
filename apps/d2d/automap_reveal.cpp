@@ -12,6 +12,7 @@
 #include <outdoor_data.hpp>
 #include <room_tiles.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -60,8 +61,17 @@ std::array<std::vector<ListTile>, 2> room_lists(const GameData& game_data, const
     for (const auto& tile : made->second[std::size_t(room)].tiles) {
         if (tile.layer > 1 || tile.x < 0 || tile.y < 0 || tile.x >= width || tile.y >= int(level.ds1.height())) continue;
         const int layer_index = int((tile.word >> 18) & 3);
-        lists[tile.layer == 1 ? 0 : 1].push_back({ tile.x, tile.y, (tile.layer == 1 ? kFloorSlot : kWallSlot) + layer_index, tile.layer == 1 ? 0 : tile.orient,
-                                                   int((tile.word >> 20) & 0x3f), int((tile.word >> 8) & 0xff), tile.orient, (tile.word & 0x80000000u) != 0 });
+        // The picked tile's DT1 header, (10, 0, 0) where none matched the word
+        // (FUN_0066d820); no pick (no DT1s loaded): the word's own.
+        int orientation = tile.layer == 1 ? 0 : tile.orient, style = int((tile.word >> 20) & 0x3f), sequence = int((tile.word >> 8) & 0xff);
+        if (tile.file && tile.index >= 0) {
+            const auto& head = tile.file->tiles[std::size_t(tile.index)];
+            orientation = head.orient;
+            style = head.style;
+            sequence = head.seq;
+        }
+        lists[tile.layer == 1 ? 0 : 1].push_back({ tile.x, tile.y, (tile.layer == 1 ? kFloorSlot : kWallSlot) + layer_index, orientation, style, sequence, tile.orient,
+                                                   (tile.word & 0x80000000u) != 0 });
     }
     return lists;
 }
@@ -121,8 +131,7 @@ void automap_step(const Scene& scene, const GameData& game_data, const Level& le
 }
 
 void automap_whole(const Scene& scene, const GameData& game_data, const Level& level, Automap& automap, AutomapReveal& reveal) {
-    namespace ids = d2d::rules::level_ids;
-    if (level.id == ids::kLutGholein || level.id == ids::kPandemoniumFortress || level.id == ids::kHarrogath) return;
+    if (std::ranges::contains(d2d::rules::level_ids::kMiniatureTowns, level.id)) return;
     if (!game_data.prest_automap.contains(level.id) || reveal.whole.contains(&level)) return;
     if (automap_all(scene, game_data, level, automap, reveal)) reveal.whole.insert(&level);
 }

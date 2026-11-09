@@ -19,6 +19,10 @@ inline constexpr int kHarrogath = 109;
 // The towns by act: each act's levels follow its town's Id.
 inline constexpr std::array kActTowns{ kRogueEncampment, kLutGholein, kKurastDocks, kPandemoniumFortress, kHarrogath };
 
+// The towns FUN_00668100 gives the automap's miniature (0x28, 0x67, 0x6d)
+// rather than their rooms whole.
+inline constexpr std::array kMiniatureTowns{ kLutGholein, kPandemoniumFortress, kHarrogath };
+
 // The act (0..4) a level is in.
 constexpr int act_of(int level_id) {
     return std::max(0, int(std::ranges::upper_bound(kActTowns, level_id) - kActTowns.begin()) - 1);
