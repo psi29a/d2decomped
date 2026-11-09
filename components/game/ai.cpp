@@ -554,9 +554,8 @@ const SeqRows* skill_seq(const GameData& game_data, const d2d::rules::MonType& t
 // neutral one rules::search_near (primary, else secondary). A good one
 // (2) finding a target doesn't set flag 8 or the area's flag.
 // tools/emu/search.py checks the pick and the flags against game.exe.
-// ponytail: a dead pet is skipped (game.exe drops it from the list);
-// mode 5's candidates are every foe in the fight, in foes order (game.exe:
-// the near rooms' units, room by room); a dead monster leaves list 9.
+// A dead pet is skipped and a dead monster leaves list 9, as game.exe
+// drops them from those lists.
 // Mode 5's "in the searcher's area" compares area ids (FUN_0061b130,
 // area_id_at), which carry across rooms; the flag (+0x24) is the record's.
 int area_at(const Level& level, float x, float y) {
@@ -588,14 +587,29 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
     const auto nearby = [&](const Foe& foe) { return d2d::rules::near_distance(subtile(foe.x) - x, subtile(foe.y) - y, foe.size); };
     const auto here = area_id_at(game_data, level, unit.x, unit.y, unit.x, unit.y);   // FUN_0061b130: mode 5 compares area ids
-    const auto mode5 = [&](int align) {                             // FUN_005dd0b0 mode 5
+    // FUN_005dd0b0 mode 5 over the near rooms in order, each room's newest
+    // first (as mode 6's): the order picks between ties and says when a
+    // waking friend lifts the sight test. The pick's indexes are foes'.
+    const auto mode5 = [&](int align) {
+        std::vector<int> rooms;
+        for (const auto& [room_level, near_room] : near_rooms(game_data, level, unit.x, unit.y))
+            if (room_level == &level) rooms.push_back(near_room);
+        std::vector<d2d::rules::RoomUnit> units;
+        units.reserve(foes.size());
+        for (const auto& foe : foes) units.push_back({ room_of(level, foe.x, foe.y), true });
+        const auto near_of = d2d::rules::room_order(units, rooms);
         std::vector<d2d::rules::NearFoe> nears;
-        for (const auto& foe : foes) {
+        nears.reserve(near_of.size());
+        for (const int index : near_of) {
+            const auto& foe = foes[std::size_t(index)];
             auto& entry = nears.emplace_back(d2d::rules::NearFoe{ nearby(foe), foe.of ? foe.of->align : 2, foe.threat, foe.of == &monster, foe.of || foe.pet, !foe.alive, town });
             entry.blocked = need_sight && entry.distance <= 0x23 && d2d::rules::sight_blocked(subtile(foe.x), subtile(foe.y), foe.size, x, y, type_info.size, wall);
             entry.waking = foe.of && foe.alive && foe.of->sighted && area_id_at(game_data, level, foe.x, foe.y, foe.x, foe.y) == here;
         }
-        return d2d::rules::search_near(nears, align, need_sight);
+        auto pick = d2d::rules::search_near(nears, align, need_sight);
+        if (pick.target >= 0) pick.target = near_of[std::size_t(pick.target)];
+        if (pick.second >= 0) pick.second = near_of[std::size_t(pick.second)];
+        return pick;
     };
     Search found;
     if (monster.set_kind == 2) {                                    // FUN_005dd610: Attract's monster
