@@ -1046,6 +1046,7 @@ address	name	evidence
 0066edb0	room_tiles_count_orients	thiscall (room, skipFirst, skipLast): per cell of the orient grid, block +0x18 += 1 when the orient is 3, 10 or 11; the +0x20 += 6 branch is dead (FUN_0067c570 read twice)
 0066eea0	room_tiles_alloc	allocates room +0x54 once: 0x2c bytes zeroed, from ".\DRLG\RoomTile.cpp" line 0x533; called first by FUN_0067d710, FUN_0067d2d0, FUN_00666ac0
 0066eee0	room_tiles_alloc_arrays	fastcall (room): block = room +0x54; walls +0x14 (capacity +0x18, line 0x545), floors +0x1c (+0x20, line 0x54b), shadows +0x24 (+0x28, line 0x551, only when +0x24 is 0); 0x30 bytes per entry, zeroed; ".\DRLG\RoomTile.cpp"
+00678df0	goal_dir_bytes	thiscall (out, a, b): out[0..2] = bytes 0x6f1648 + 3 * FUN_00678c10(a, b), widened (collision.md "Is a subtile blocked for a unit")
 006be3c0	qs_flush_queues	every class head/tail cleared, records freed
 006be450	qs_client_count	+0x880
 006be470	qs_is_local	+0x86c is 1 or 2

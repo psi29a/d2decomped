@@ -206,6 +206,17 @@ were not read in the asm); cited, no oracle run.
   at the first blocked subtile; each free one is stored in `rq[2..3]`. It
   returns nothing. Its only caller is `FUN_00648120`, for a player (below).
   d2d: not ported.
+- **`FUN_00678df0`** `(out, a, b)` (thiscall, ECX = out): the three
+  direction tries toward b from a. `i = FUN_00678c10(a, b)` (the 5 x 5
+  index, coordinates packed x low, y high) and `out[0..2]` = the bytes at
+  `0x6f1648 + 3 * i + 0 / 1 / 2`, widened to dwords. `FUN_00678cd0` reads
+  the first of those bytes alone; `FUN_00678d70` fills the same three from
+  the dword table `0x6f1518` (12 bytes a row, 25 rows: d2d's `kTry`,
+  monsters.hpp:567). So 0x6f1648 is a byte table of the same shape that
+  follows it (0x6f1518 + 25 * 12 = 0x6f1644); that its rows equal `kTry`
+  was not checked (the bytes were not read). A third entry of 0xff is
+  skipped by `FUN_00648120` (below), as `toward_path` skips it. d2d: not
+  ported; `kTry` and `FUN_00678d70` are the dword twin.
 
 ## A walk's stop
 
