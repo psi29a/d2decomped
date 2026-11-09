@@ -9,7 +9,7 @@ complete.
 
 | off | column | read by |
 |---|---|---|
-| +4 | Class (MonStats row) | FUN_005a49b0, FUN_005ef320 (act 3) |
+| +4 | Class (MonStats row) | FUN_005a49b0, FUN_005ef320 (BaalThrone) |
 | +8 | hcIdx | the switches in FUN_005a49b0, FUN_005a4440, FUN_00543a30 |
 | +0xc | Mod1..3 (int) | FUN_005a49b0 |
 | +0x18 | MonSound (MonSounds row, int) | client FUN_004ca410 |
@@ -31,7 +31,7 @@ All readers of the record (the 7 FUN_006556e0 calls):
 - FUN_004ca410: the sound set (ported, below).
 - FUN_005a49b0: the spawn (ported).
 - FUN_005a6600 → FUN_005a03a0: the TC (ported).
-- FUN_005ef320: act 3.
+- FUN_005ef320: BaalThrone, the next wave's class for S->C 0xa4 (quests-act5.md).
 
 The only other per-superunique test is FUN_005a1650 (su 37 → Fanaticism).
 

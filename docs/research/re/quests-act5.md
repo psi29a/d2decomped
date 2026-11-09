@@ -192,7 +192,13 @@ open, +0x4c altar mode.
   next frame. No other monster within 64: flag 1 → the next wave
   (`FUN_005ef210`: skill 286 in S3 at y + 13, superunique 61..65 via
   0x6e3528 / [0x744304]+0xae0; 100 frames), or after five baalcrabstairs
-  (0x22f, `FUN_00574370`); flag 1 unset → skill 285 in S3, 250 frames.
+  (0x22f, `FUN_00574370`); flag 1 unset → skill 285 in S3, 250 frames,
+  unit event 0x10 (his Taunt), after S->C 0xa4 (`FUN_00571c00`) with the
+  next wave's class (superunique +4; then 0x17 after class 0x3e, 0x17d
+  after 0x69): the client loads its art. Others within 64: Skill1
+  (Decrepify) in Sk1mode at the target unless he's in its aurastate
+  (+0x80) or the target in its auratargetstate (+0x82), on seed(100) <
+  aip1 (`LAB_005ef4fc`); else stands 10.
 - BaalToStairs (MonAI 138, `FUN_005ef620`): object 563 within 25, walked
   at; within aip1 gone in (`FUN_0058e600`: +0x86, log 3).
 - BaalTaunt (MonAI 136, `FUN_005ef710`; monster 545, a MonPreset of act 5):
