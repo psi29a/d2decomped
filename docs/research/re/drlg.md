@@ -1241,8 +1241,39 @@ v >= 2, d2d reads 5 dwords from v >= 3 (differs for v 3..5; d2d refuses v <
 4 anyway); (c) d2d throws on more than 4 walls / 2 floors, game.exe has no
 such bound; (d) a path attaches to the first equal-coordinate object in file
 order in d2d, the last in game.exe, and only to units the loader made.
-Not traced: FUN_0066bf30, the monster-preset lookup (FUN_00659b40), and
-whether any shipped DS1 is v < 12 with type 1 or 2.
+`FUN_0066bf30` (read, asm 0066bf30..0066bf93) is a fastcall with ECX the
+room record to link into (the DS1 loader passes 0, 0x665d84) and EDX a
+second argument it only passes to the allocator, then `RET 0x14` with the
+stack `type, id, mode, x, y`. It allocates 0x20 bytes (`DrlgRoom.cpp` line
+0x3b6) and stores mode +0, id +4, x +8, next +0xc (0), path +0x10 (0),
+type +0x14, y +0x18, flags +0x1c (0); only when ECX is non-null does it put the unit
+at the front of ECX's list at +0x5c. The DS1 loader links it itself: next =
+its own +0x54, +0x54 = the unit (so file order, each at the front), and ORs
+the object's flags into +0x1c (0x665d89..0x665d98). That agrees with the
+`Unit` layout in components/drlg/units.hpp and the note above. The loader calls it
+only for an id >= 0 and, for a type 1 unit, v > 4 (0x665d66..0x665d73).
+
+`FUN_00659b40(act, &count)` (`RET 8`) returns the first monpreset record of
+that act and writes the act's record count; act > 4 or no table gives 0
+and count 0. The table loader `FUN_00659a10` reads
+`monpreset` (`FUN_006122f0`, 4-byte records; `FUN_00659af0` frees it) and groups them by the record's
+first byte as a 1-based act (act byte 1 is index 0), so the records are
+read as `{act, kind, u16 id}`; the DS1 loader then indexes `id` into the
+act's own group (kind 0 = MonPlace: id + MonStats rows (+0xa80 of the data
+tables) + SuperUniques count (`FUN_00655710`, `0x96c70c`, capped at 0x200);
+1 = MonStats: id; 2 = SuperUniques: id + MonStats rows; any other kind: -1,
+unit dropped) when id < the act's count, else the id stays raw. That is
+`ds1_units` and `outdoor_data.hpp` in d2d. The act-3 / act-5 monster-to-object
+remaps after it (0x665c..) were not re-read here (d2d's constants 0x129 / 0x16e / 0x202 / 0x219..0x21b stand as before).
+
+Census: of the 2,198 DS1 files reachable from the local MPQ stack (the 2,077
+the emu cache holds from LvlPrest / LvlSub loads, 121 more from the stack's
+(listfile) names that are not in it), all are v 12..18, with substitution type
+0, 1 or 2 (v12 1 of type 1; v13 3; v16 5 and 1 of type 2; v17 4 and 9; v18 43
+and 62). None is v < 12, so the v10 / v11 gate and the v3..5 object gate
+differences above are not met by shipped data. That counts only the files
+the stack's listfile and the emu cache name; a file in neither is not
+counted.
 
 **Units off every room.** FUN_00666710 is the only hand-out (its one
 caller is the preset room init FUN_006667d0). A unit of the record that
