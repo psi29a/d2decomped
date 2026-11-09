@@ -59,18 +59,22 @@ and `0x7447b4` (the belt, 16 cells).
 | `FUN_0063c110` | An item's x when it's 10 or less (its body location), else 0 |
 | `FUN_0063c150` | An item's x (its column) |
 | `FUN_0063c180` | Sets the cursor item: null removes the current one (`FUN_0063aaf0`); else `+0x20` = it and its `+0x5c` = the inventory |
+| `FUN_0063c3b0` | (inventory, template item, after): the first item of the pack grid (grid 2; a player owner's size comes from Inventory.txt, `FUN_00621050` / `FUN_0065c1f0`) whose `FUN_0062b400` is 0x12, whose `FUN_00627f80` matches the template's and whose stat 0x46 (`FUN_00625480`) is below `FUN_006295b0`; it starts at `after` itself when given |
 | `FUN_0063c4c0` | Puts an item on body location ECX (0..15): `FUN_0063afd0(loc, 0, 1, 0)` |
 | `FUN_0063c550` | Empty: `ret 8` (two stack arguments); eight callers (`0x4c432f`, `0x4c457c`, `0x4c4ffa`, `0x55ec1c`, `0x55edaa`, `0x55ee71`, `0x560a07`, `0x56231b`) |
 | `FUN_0063c7f0` | The item in belt slot n (0..15) |
 | `FUN_0063c830` | (inventory, item, slot, &out): a beltable 1 × 1 item whose Items bytes `+0x11d` and `+0x130` are both 1 gets the belt slot's item in `out` and true (line 0xbc9) |
 | `FUN_0063cab0` | True when the item at body location 3 is of ItemTypes row 3 (`FUN_00629bb0`). No caller |
 | `FUN_0063cb70` | Removes every item, not the cursor's |
+| `FUN_0063cbd0` | Frees the changed-unit list (line 0xcbb) and clears `+0x2c` / `+0x30` |
 | `FUN_0063cc30` | Is this unit id on the changed list |
 | `FUN_0063cc70` | Adds an item's id to the changed list unless there (line 0xd09; out of memory is fatal, 0xd0a). 40 callers, the server's item moves; `FUN_00597b00` walks the list |
+| `FUN_0063cd80` | (inventory, ItemTypes row, after): the first pack-grid (grid 2, sized as `FUN_0063c3b0`) item of that row (`FUN_00629bb0`); it starts at the item after `after` (`+0x70`) when given |
 | `FUN_0063ce60` | (inventory, item type, after): the next worn item (body location below 11) of that ItemTypes row, after `after` when given. No caller |
 | `FUN_0063cf30` | Same, by item code (`FUN_00633640`, compared with unit `+4`). No caller |
-| `FUN_0063d010` | Byte-for-byte the same as `FUN_0063cf30`. No caller |
+| `FUN_0063d010` | `FUN_0063cf30`'s search over grid 2 (`mov eax, 2`, not grid 0), but still handed the body grid's size record `0x74479c` (13 × 1), so it finds nothing unless grid 2 is 13 × 1. No caller (`tools/emu/inventory_queries.py`) |
 | `FUN_0063d0f0` | (inventory, set row): how many worn set items (quality 5, `FUN_00627e70`) are of that named row (`FUN_00629da0`). No caller |
+| `FUN_0063d470` | (inventory, id, word, flag): appends a corpse node (line 0xfea), `+0` flag, `+4` id, `+8` word, `+0x3c` + 1 when flagged |
 | `FUN_0063d4e0` | (inventory, id, flag): removes that corpse node, drops the count when flagged (line 0x1034). Callers `FUN_005394a0`, `FUN_0057f690`, `FUN_0057fb70` |
 | `FUN_0063d590` | Frees the corpse list (line 0x1071). No caller |
 | `FUN_0063d5f0` | The flagged corpse count (`+0x3c`) |

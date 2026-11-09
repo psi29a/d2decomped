@@ -10,7 +10,7 @@ of FUN_0063b5e0 and the walk choosers are recorded with their arguments. Everyth
 runs for real: FUN_0063a810, FUN_0063a970 and FUN_0063aaf0 inside FUN_0063ac40 and FUN_0063ad90.
 
 Covers FUN_0063a970 (item out of a grid), FUN_0063aaf0 (item out of an inventory), FUN_0063ac40 (free an
-inventory), FUN_0063ad90 (remove an owned item), FUN_0063af20 (append to the item list), FUN_0063af70 (append
+inventory), FUN_0063e0b0 (empty an inventory), FUN_0063ad90 (remove an owned item), FUN_0063af20 (append to the item list), FUN_0063af70 (append
 to a grid list), FUN_0063b300 (does a spot fit) and FUN_0063b5e0 / 0063b790 / 0063b7d0 / 0063b810 (edge search
 and free-spot walk choice).
 
@@ -460,10 +460,38 @@ def test_edges(w):
         check(w.calls, [], f"{address:08x} null inventory")
 
 
+def test_empty(w):
+    """FUN_0063e0b0: cursor cleared, wielded id -1, every item removed; false when one cannot be removed."""
+    for case in range(200):
+        w.arena.reset()
+        w.footprint.clear()
+        inv, items = build(w, items=random.randint(0, 6), grids=random.randint(1, 3))
+        if items and random.random() < 0.25:
+            w.e.w32(w.arena.data(random.choice(items)) + 0x5C, inv + 0x40)
+        w.e.w32(inv + 0x1C, random.getrandbits(32))
+        result, before, after, log = run(w, 0x63E0B0, (inv,))
+        model_log = []
+        before.w32(inv + 0x20, 0)
+        before.w32(inv + 0x1C, 0xFFFFFFFF)
+        expect = 1
+        while before.r32(inv + 0xC):
+            if not m_aaf0(before, before.r32(inv + 0xC), w.footprint, model_log):
+                expect = 0
+                break
+        check(result, expect, f"63e0b0 result {case}")
+        same_arena(before, after, "63e0b0")
+        check(log, model_log, "63e0b0 calls")
+    w.arena.reset()
+    check(w.e.call(0x63E0B0, 0), 0, "63e0b0 null")
+    bad = w.arena.inventory()
+    w.e.w32(bad, 4)
+    check(w.e.call(0x63E0B0, bad), 0, "63e0b0 bad magic")
+
+
 def main():
     random.seed(0x1A7E5)
     w = World()
-    for step in (test_remove, test_grid_out, test_free, test_append, test_fits, test_edges):
+    for step in (test_remove, test_grid_out, test_free, test_empty, test_append, test_fits, test_edges):
         step(w)
     print(f"ok: {cases()} Inventory.cpp list and grid cases")
 
