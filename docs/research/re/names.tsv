@@ -963,3 +963,9 @@ address	name	evidence
 006c33d0	qsnt_stop	+0xbf8 = 1, waits 2000 ms
 006c3410	qs98_send	one send()
 006c3440	qs98_add_client	FUN_006bfb70, +0xbc4 with QServer98.cpp 0x91
+0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
+0061f0e0	lvlprest_by_level	first lvlprest row (0x1b0 bytes at 0x96c894) whose +4 LevelId equals the key, else 0; verified by lvl_tbls.py
+0061f310	lvlwarp_check	halts (0x32b / 0x33a) unless a lvlwarp row has the id and a 'b' / matching letter at +0x2c; verified by lvl_tbls.py
+0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
+0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
+0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py
