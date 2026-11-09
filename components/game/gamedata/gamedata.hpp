@@ -711,7 +711,9 @@ struct GameData {
     }
     // Mercenary units by hireling.txt Id (the save's merc type): the
     // monster, and the first name key (merc01, merca201, MercX101, ...).
-    struct Merc { Npc npc; std::string name_first; };
+    // hire_desc: hireling.txt HireDesc as its hiredesc.txt row (0 None;
+    // FUN_00655720 links it to row +0xd2), for the hire list's second line.
+    struct Merc { Npc npc; std::string name_first; int hire_desc = 0; };
     // MonSeq.txt: a monster skill's sequence (its MonStats Sk*mode names
     // one), frame by frame: the mode played, its frame, the event (1 a hit).
     struct MonSeqFrame { std::string mode; int frame = 0, event = 0; };
