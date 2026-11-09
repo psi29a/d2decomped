@@ -4,8 +4,11 @@
 // A think's type 7 move (FUN_00649970) keeps the player's path it found:
 // round a wall the toward pather doesn't clear in 5 steps. Needs no data.
 
+#include <ai.hpp>
 #include <ds1.hpp>
+#include <gamedata.hpp>
 #include <internal.hpp>
+#include <merc.hpp>
 
 #include <cassert>
 #include <cmath>
