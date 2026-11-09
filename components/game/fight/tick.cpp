@@ -17,6 +17,7 @@
 #include <monsters.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <shrines.hpp>
 #include <skills.hpp>
 
 #include <algorithm>
@@ -284,11 +285,13 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
     }
 
 // The states on the player (which 0) or the merc (1) the AIs read (their skills'
-// +0x82), and the zealots' spare (FUN_0065c310(pcdata +0x10 + diff * 4,
-// 0x15, 0): a pet's owner's, FUN_0058f090).
+// +0x82; the player's shrine state, a curse to FUN_00625760), and the zealots'
+// spare (FUN_0065c310(pcdata +0x10 + diff * 4, 0x15, 0): a pet's owner's, FUN_0058f090).
 auto Fight::on_foe_states(Foe& foe, std::size_t which, std::uint32_t now_ms) const -> void {
         for (const auto* held : { &actor->curses[which], &actor->marks[which] })
             if (const auto* skill = now_ms < held->until ? game_data->skills.get(held->skill) : nullptr) foe.states.push_back(skill->auratarget);
+        if (const auto& boost = actor->boost; which == 0 && now_ms < boost.until && boost.shrine > 0 && std::size_t(boost.shrine) < game_data->shrines.size())
+            if (const auto state = d2d::rules::shrine_state(game_data->shrines[std::size_t(boost.shrine)].code); !state.empty()) foe.states.push_back(state);
         foe.a3q5_done = zealots_spare();
     }
 

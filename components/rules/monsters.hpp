@@ -1318,12 +1318,14 @@ struct ThinkIn {
     // Act 5's: a line to the target clear of 0x805 (FUN_005dc640, any of three);
     // Skill1's Skills.txt +0x158 (FUN_004e6c70, its reach); the siege
     // beast's rider (FUN_00552fd0), it lies dead (FUN_0063ea40: mode 0 or
-    // 12), its state 0x69 test (FUN_006259b0), an imp within aip1 to take on
-    // (FUN_005dd0b0, FUN_005e1720); the target in state 0x20 (FUN_00625760),
+    // 12), its alignment test (FUN_006259b0: state 0x69's stat 0xac, set
+    // under Confuse / Attract / Conversion), an imp within aip1 to take on
+    // (FUN_005dd0b0, FUN_005e1720); the target cursed (FUN_00625760: a stat
+    // list flagged 0x20, a States.txt curse state's, FUN_0056e970),
     // its FUN_00625d10 / FUN_00625d60 values, its own life % (FUN_00621f20
     // on itself); its command's last frame (+0x14) and its unit busy
     // (FUN_005541b0).
-    bool lines_clear = true, rider = false, self_dead = false, state69 = false, imp_near = false, target_state20 = false, command_busy = false;
+    bool lines_clear = true, rider = false, self_dead = false, state69 = false, imp_near = false, target_cursed = false, command_busy = false;
     int skill1_range = 0, target_max_life = 0, target_max_mana = 0, self_life_pct = 100, command_until = 0;
     // The Overseer's: the one that last struck at it (FUN_005de830: not
     // dying or dead, its enemy); its search (FUN_005e26d0): a minion within 24
@@ -3304,7 +3306,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         return { MonAct::idle, aip[6] };
     }
     // SiegeBeast (115, FUN_005e1900): nothing once dead (mode 0 / 12).
-    // Riderless and not under state 0x69's test, an imp within aip1 takes it
+    // Riderless and not under its alignment test, an imp within aip1 takes it
     // (FUN_005e17e0). In melee aip3 % Skill1 (at no unit), aip2 % A1, else
     // stands aip4; out of it Skill1 within its reach aip5 %; with clear
     // lines aip6 % keeps 12 off at aip7 % pace; else keeps 12 off.
@@ -3350,14 +3352,14 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         else *input.state = aip[4] + input.frame;
         return idle2;
     }
-    // Succubus (118, FUN_005e1e00): the target not in state 0x20, within
+    // Succubus (118, FUN_005e1e00): the target not cursed, within
     // aip4, aip3 %: Skill1 at a target with at least aip7 % life; Skill2 with
     // its own at most aip8 %; Skill3 unless the target is a player with
     // FUN_00625d60 at least FUN_00625d10; Skill4 at a player. In melee aip1 %
     // A1, else stands aip5. Skill5 aip8 % (on the unit seed) at the second
     // target; aip2 % walks in; else stands aip6.
     if (ai_name == "Succubus") {
-        if (!input.target_state20 && input.dist < aip[3] && roll() < aip[2]) {
+        if (!input.target_cursed && input.dist < aip[3] && roll() < aip[2]) {
             if (input.skill[0] && input.target_life_pct >= aip[6]) return cast(0);
             if (input.skill[1] && input.self_life_pct <= aip[7]) return cast(1);
             if (input.skill[2] && (input.target_max_mana < input.target_max_life || !input.target || !input.target_player)) return cast(2);
@@ -3374,7 +3376,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // target aip5 % gets S2; aip2 % walks in; half the time circles 6, else
     // (or when it can't) stands aip6.
     if (ai_name == "SuccubusWitch") {
-        if (input.target && !input.target_state20 && input.dist < aip[3] && roll() < aip[2]) {
+        if (input.target && !input.target_cursed && input.dist < aip[3] && roll() < aip[2]) {
             if (input.skill[0] && input.target_life_pct >= aip[6]) return cast(0);
             if (input.skill[1] && input.self_life_pct <= aip[7]) return cast(1);
             if (input.skill[2] && (input.target_max_mana < input.target_max_life || !input.target_player)) return cast(2);
@@ -3432,8 +3434,8 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
         return idle2;
     }
     // Imp (122, FUN_005e2ff0; imp1..imp4's aips as a, b, c, d): riding (state:
-    // its beast's id, -1 none) and not under 0x69's test: a beast gone, busy,
-    // ridden or under it drops the ride; past b1 it walks to it, else Skill1
+    // its beast's id, -1 none) and not under its alignment test: a beast gone,
+    // dead, ridden or under it drops the ride; past b1 it walks to it, else Skill1
     // (its teleport) onto it. In melee under a1 % life it teleports (within
     // a2 of itself), else c2 % backs off 5 (running). Then a3 % teleports;
     // within c1 c2 % backs off 5; Skill4 at the second target within c3 (c4
@@ -3447,7 +3449,7 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     };
     // A riding imp's think (special 16, FUN_005e2d80; its init imp_ride_pick):
     // off its mount or out of state 0x8f, back to its own think, stands 1.
-    // Past 24, its mount busy or under 0x69's test, or no pick (+0x18 0): it
+    // Past 24, its mount dead or under its alignment test, or no pick (+0x18 0): it
     // teleports off (as below), its ride word -1. Within b2, b3 %: its pick
     // (Skill3 Fireball / Skill5 Inferno) at the target, a stand 20 when unset;
     // else 50 % S1 at it, else stands 20.

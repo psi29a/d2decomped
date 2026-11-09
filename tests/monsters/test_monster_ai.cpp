@@ -448,7 +448,7 @@ int main() try {
                                                                } }
                     if (kAis[std::size_t(which)].act5_scene) {
                         input.lines_clear = read() != 0; input.skill1_range = read(); input.rider = read() != 0; input.self_dead = read() != 0; input.state69 = read() != 0;
-                        input.imp_near = read() != 0; input.target_state20 = read() != 0; input.target_max_life = read(); input.target_max_mana = read();
+                        input.imp_near = read() != 0; input.target_cursed = read() != 0; input.target_max_life = read(); input.target_max_mana = read();
                         input.self_life_pct = input.life_pct; input.target_life_pct = read(); input.command_until = read(); input.target_player = read() != 0;
                         input.reach = read() != 0; input.command_busy = read() != 0;
                         input.attacker = read() != 0; input.hurt_minion = read() != 0; input.free_minion = read() != 0;

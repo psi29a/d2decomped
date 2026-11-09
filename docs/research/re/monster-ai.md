@@ -414,6 +414,17 @@ and Skill5 come from the ride.
   imp BaseId 0x1ec, mount BaseId 0x1b3 barricadetower or 0x1b9
   siegebeast1; state 0x8f on, both bound (FUN_00621ce0, unit +0x98),
   events 5, the imp's flags 0xe off, special AI 16).
+- **Alignment** (FUN_006259b0: state 0x69 alignment's stat 0xac, not 0
+  under Confuse / Attract / Conversion; d2d's `Monster::align`): a siege
+  beast under it takes no imp (its own, `LAB_005e194d`); the Imp skips its
+  ride under its own, and drops it (ride word -1, `LAB_005e317d`) with its
+  mount found, dead, ridden or under it. SiegeTower tests none.
+- **The Succubi** (FUN_005e1e00 / FUN_005e2120) cast only at a target
+  not cursed: FUN_00625760(target, 0x20) finds a stat list flagged 0x20,
+  which FUN_0056e970 gives a state in the curse bit set (game +0xf8:
+  the States.txt loader FUN_00618100 builds one set per flag column,
+  FUN_00611d60; set 11 is `curse`). The ten shrine states are curses too,
+  and so are battlecry, bloodlust and cloaked; battleorders isn't.
 - **The ride think** (special 16, table 0x73d358: init FUN_005e2cd0,
   think FUN_005e2d80). The init draws once on the imp's seed and picks
   slot 4 (Inferno) on an even draw, else slot 2 (Fireball) (table
