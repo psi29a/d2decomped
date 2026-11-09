@@ -159,7 +159,7 @@ class Suite:
                 put(img, lv + 0x1AC, at(levels[n + 1]) if n < 2 else 0)
                 self.vis[ids[n]] = at(0xD00 + 0x20 * n)
                 varr = []
-                for i in range(8):
+                for _ in range(8):
                     r = rng.random()
                     varr.append(0 if r < 0.35 else ids[0] if r < 0.6 else rng.choice(ids[1:]) if r < 0.85 else rng.randrange(1, 9))
                 for i, v in enumerate(varr):

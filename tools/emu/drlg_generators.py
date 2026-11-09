@@ -89,7 +89,7 @@ def run_rows(mutation=None):
                 Path(out, "tiles").mkdir()
                 dump = emu.BUILD / "tools/drlg-dump/drlg-dump"
                 if subprocess.run([str(dump), emu.data_path(), f"{first}-{last}", str(lvl), str(Path(out, "tiles")), "tiles"],
-                                  env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
+                                  env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False).returncode:
                     raise SystemExit(f"drlg-dump failed for level {lvl}")
                 if mutation:
                     mutate(Path(out, "tiles", f"{first}.txt"), mutation)
