@@ -3,7 +3,10 @@
 // A search type 2 MonAI (the MonAI table 0x73ca18 + ai x 16; FUN_005b1650
 // case 2: FUN_005dd7f0 alone) thinks with no target found, where type 1
 // stands or wanders. Nihlathak (128, FUN_005ee5d0) with no one about: hit,
-// he teleports (Skill1); else he stands 25. Needs the data; SKIPs without it.
+// he teleports (Skill1); else he stands 25. Type 5 (FrogDemon, FUN_005de9d0)
+// thinks after its miss, with the nearest player's distance (FUN_005dd7f0's
+// local_34): past 12 at first it dives (Skill1, at no one). Needs the data;
+// SKIPs without it.
 
 #include <ai.hpp>
 #include <ds1.hpp>
@@ -56,7 +59,15 @@ int main() try {
     assert(hit.skill == teleport && hit.chase == -1);             // teleports, at no one
     const Monster calm = thinks(false);
     assert(calm.mode == "NU" && calm.next_act == 40000 + 25 * 40);   // stands 25
-    std::puts("OK: Nihlathak thinks with no target: hit he teleports, else stands 25");
+
+    const auto frog = data->monsters.by_id.find("frogdemon1");
+    assert(frog != data->monsters.by_id.end() && data->monsters.types[frog->second].ai_name == "FrogDemon");
+    d2d::rules::Rng spawn{ 0x5eed };
+    std::vector<Monster> frogs{ make_monster(*data, int(frog->second), 12.1f, 12.1f, spawn, 0) };
+    frogs[0].aware = true;
+    monster_update(*data, here, frogs[0], player, rng, 40000, 0.04f, crowd, shots, frogs);
+    assert(frogs[0].skill == data->skills.by_name.at("Submerge") && frogs[0].chase == -1 && frogs[0].ai_state3 == 1);
+    std::puts("OK: Nihlathak thinks with no target: hit he teleports, else stands 25; a frog demon dives");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_think_untargeted: %s\n", error.what());

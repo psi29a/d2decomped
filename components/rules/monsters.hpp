@@ -3840,12 +3840,14 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
 // (FUN_0064d910) wanders 5 (FUN_005de200); else it stands 10, nearest - 10
 // from 25 off, 25 from 35. Types 4 / 5 (SandMaggot, FrogDemon:
 // FUN_005de9d0) take no hit into account and think again 20 frames on
-// (event 2, FUN_005417d0).
-struct SearchMiss { bool wander = false; int stand = 0; };
+// (FUN_00540e60 drops its think events, FUN_005417d0 files event 2), its
+// mode going on.
+struct SearchMiss { bool wander = false; int stand = 0; bool mode_kept = false; };
 inline SearchMiss search_missed(std::string_view ai_name, bool has_walk, bool got_hit, bool on_0x40, int nearest) {
     const bool type_4_5 = ai_name == "SandMaggot" || ai_name == "FrogDemon";
     if (has_walk && ((!type_4_5 && got_hit) || on_0x40)) return { .wander = true };
-    return { .stand = type_4_5 ? 20 : nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25 };
+    if (type_4_5) return { .stand = 20, .mode_kept = true };
+    return { .stand = nearest < 25 ? 10 : nearest < 35 ? nearest - 10 : 25 };
 }
 
 // The Countess (special AI 0xd, FUN_005e5c50; FUN_005b15d0 runs it in
