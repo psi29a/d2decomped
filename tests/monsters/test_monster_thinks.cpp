@@ -57,6 +57,7 @@ int main() try {
         assert(search_missed("FrogDemon", true, false, true, 40).wander && !search_missed("Zombie", false, true, true, 40).wander);
         assert(search_missed("Zombie", true, false, false, 30).stand == 20 && search_missed("Zombie", true, false, false, 10).stand == 10);
         assert(search_missed("Zombie", true, false, false, 40).stand == 25 && search_missed("SandMaggot", true, false, false, 10).stand == 20);
+        assert(search_missed("SandMaggot", true, false, false, 10).mode_kept && !search_missed("Zombie", true, false, false, 10).mode_kept);
         int zombie_pace = 0;
         think_in = { .aip = { 30, 10, 0, 20 }, .dist = 12, .state = &state, .pace = &zombie_pace };   // Zombie: out of aip2, wanders 3 (4 steps), in the Burial Grounds runs
         Rng roll{ 5 };

@@ -963,29 +963,32 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         walk_to(portal_x - x, portal_y - y, false);
         return true;
     }
-    // Search type 2 (FUN_005b1650 case 2: FUN_005dd7f0 alone; the MonAI
-    // table 0x73ca18 + ai x 16): its think runs with no target too, on a
-    // stand-in here (its own spot, not alive) and ThinkIn::target false.
-    // ponytail: FrogDemon's type 5 (the miss's stand or wander, then its
-    // think) takes type 1's miss alone.
+    // Search types 2 and 5 (FUN_005b1650 cases 2 and 5; the MonAI table
+    // 0x73ca18 + ai x 16): the think runs with no target too, type 5's
+    // (FrogDemon) after its miss, on a stand-in here (its own spot, not
+    // alive) and ThinkIn::target false. FUN_005dd7f0's miss hands it the
+    // nearest player's distance (local_34: 0x7fffffff with none, or for a
+    // searcher not evil) and not in melee.
     static constexpr std::array<std::string_view, 5> kThinksAlone{ "Tentacle", "TentacleHead", "NpcBarb", "Ancient", "Nihlathak" };
     Foe alone;
     alone.x = unit.x; alone.y = unit.y; alone.alive = false;
-    if (!target && std::ranges::contains(kThinksAlone, type_info.ai_name)) { target = &alone; monster.chase = -1; }
-    const bool targeted = target != &alone;
-    const auto chase_of = [&] { return targeted ? int(target - foes.data()) : -1; };
     if (!target) {
         monster.chase = -1;
-        const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
-        const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.left_mode == "GH", level.blocked(unit.x, unit.y, 0x40), nearest);
-        if (miss.wander) {
-            const auto wander = d2d::rules::think_wander(monster.seed, 5);
-            walk_to(wander.x, wander.y, false);
-            return true;
+        if (!std::ranges::contains(kThinksAlone, type_info.ai_name)) {
+            const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
+            const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.left_mode == "GH", level.blocked(unit.x, unit.y, 0x40), nearest);
+            if (miss.wander) {
+                const auto wander = d2d::rules::think_wander(monster.seed, 5);
+                walk_to(wander.x, wander.y, false);
+            } else if (miss.mode_kept) monster.next_act = now_ms + std::uint32_t(miss.stand) * 40;
+            else idle(miss.stand);
+            if (type_info.ai_name != "FrogDemon") return true;
         }
-        idle(miss.stand);
-        return true;
+        target = &alone;
+        best = nearest;
     }
+    const bool targeted = target != &alone;
+    const auto chase_of = [&] { return targeted ? int(target - foes.data()) : -1; };
     // The driver's step 3 (FUN_005b13e0). First sight (FUN_005b1140): a
     // champion, unique or superunique (data +0x16 & 8), a MonStats boss
     // (FUN_0063e9f0) or the Summoner (class 0xfa), its target a player under
@@ -1067,7 +1070,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     d2d::rules::ThinkIn input{ .aip = per_difficulty.aip, .dist = best, .difficulty = monster.difficulty, .level = level.id, .state = &monster.ai_state };
     input.target = targeted;
     input.self_x = x; input.self_y = y;
-    input.in_melee = d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, target->size) <= type_info.melee_rng + 1;
+    input.in_melee = targeted && d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, target->size) <= type_info.melee_rng + 1;
     input.got_hit = monster.left_mode == "GH";
     input.life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));   // FUN_00621f20
     for (std::size_t skill = 0; skill < 3; ++skill) input.skill[skill] = !type_info.skill[skill].empty();
