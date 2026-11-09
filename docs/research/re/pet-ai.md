@@ -425,4 +425,12 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   struct as its one stack argument. 0 when the row is under 0 or at least
   the row count, else `*struct + row * 0xc`. No assert. Its one caller is
   `FUN_00575d90`.
+- **`FUN_0053cb30`** (`scmd_pet_list`, `GAME/SCmd.cpp`): builds the 13-byte
+  S->C packet **0x7a** on the stack and queues it with `FUN_0053b280(buf,
+  0xd)`: +1 = EDX byte (net-packets.md: 1 add, 0 removed), +2 the first
+  stack byte (PetType row), +3 u16 MonStats class, +5 u32 = the fifth
+  argument (the owner's id), +9 u32 = the fourth (the pet's id). That is
+  the layout net-packets.md has from the client's handler (`0x45e860`).
+  Callers `FUN_00574410`, `FUN_00574930`, `FUN_00574f80`. The client is
+  `FUN_0053b280`'s hidden EDI.
 
