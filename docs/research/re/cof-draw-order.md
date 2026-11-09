@@ -60,13 +60,46 @@ d2d: `composite_frames` (apps/d2d/world_view.hpp) does both.
 
 ## A layer's file
 
-`FUN_005fe610` builds the path `<root>\<token>\<layer>\<token><layer><piece><mode><weapon>`
-and picks `.dc6` for a hard-coded list of monster ids (0xf2 Mephisto,
-0xfb, 0x16f, 0xf3, 0x11c, 0x14d, 0x220, 0x22f, 0x23a, 0x2c0, 0x2c1,
-0x2c5), `.dcc` for the rest; overlay row 0x7a (`mephisto`) is a `.dc6`
-too. `FUN_005fe990` loads it, and a file that isn't there is fatal
+`FUN_005fe610` builds the path of one layer's file into the caller's buffer
+(register arguments: the stem from `FUN_005fe2b0`, the layer record in
+ESI; the record's type is the dword at +8). An empty stem gives an empty
+path and 0. Per type:
+
+| Type (+8) | Path | Extension |
+|---|---|---|
+| 0 char, 1 monster, 2 object | `DATA\GLOBAL\CHARS` / `MONSTERS` / `OBJECTS` `\<token>\<layer>\<stem>` (token +0x18, layer +0x1c; a space byte becomes NUL) | `.dcc`, `.dc6` in the cases below |
+| 3 missile | `DATA\GLOBAL\MISSILES\<name>` (name = the string at +0x2c; none gives empty and 0) | `.dcc`, `.dc6` when `CompressedData` is 0 |
+| 4 item | `DATA\GLOBAL\items\<name>` (+0x2c; only when +0x10 is 3 or 4, else empty and 0) | always `.dc6` |
+| 6 overlay | `DATA\GLOBAL\OVERLAYS\<name>` (+0x2c; needs bit 1 of +4, else empty and 0) | `.dc6` for row +0x14 = 0x7a, else as a missile |
+
+Every `.dcc` it picks sets bit 0 of the record's +0x44 (`FUN_005fe990`
+reads that bit: set = a DCC). The `.dc6` cases for types 0 to 2:
+
+- `DAT_00741efc` is 0. That is the registry value `CompressedData` under
+  `Diablo II` (`FUN_005fe280`; the default passed is 1). With it 0 every
+  layer is a `.dc6`.
+- Monster rows (+0xc) 0xf2, 0xfb, 0x16f, 0x209 and 0x2c0, whatever else.
+- Monster rows 0xf3, 0x11c, 0x14d, 0x220, 0x22f, 0x23a, 0x2c1 and 0x2c5 when
+  record +0x10 is 0.
+- Object rows 0x156 and 0x233.
+- A stem equal (`__strnicmp` through `FUN_00413590`) to `OYTRlitTNhth`,
+  for a char, monster or object: a `.dc6`, and bit 0 of +0x44 cleared.
+  `FUN_005fe2b0` has no such test. No file of that stem is known here.
+
+`FUN_005fe2b0` makes the same `.dc6` decisions (it returns before setting
+bit 0 for them), so the two agree apart from that last stem. This
+replaces the list in earlier notes, which left out 0x209, the objects and
+the +0x10 test, and put 0x2c0 with the second group. Overlay row 0x7a
+(`mephisto`) is a `.dc6` too.
+`FUN_005fe990` loads it, and a file that isn't there is fatal
 (error 0x413). d2d tries `.dcc` then `.dc6` (the same files) and draws
-the other layers when neither is there.
+the other layers when neither is there, so it needs none of these rules;
+`Scene::overlay_sprite` (apps/d2d/scene/render.cpp) reads row 0x7a's
+`.dc6` through that fallback.
+
+Re-check: `python3 tools/ghidra/fn.py 005fe610` (the two switches on
+`*(esi+0xc)`, the roots and the format strings) and
+`python3 tools/ghidra/fn.py 005fe280` (the registry value).
 
 
 ## Draw effects
