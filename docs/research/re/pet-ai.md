@@ -439,4 +439,20 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   and +0x10 two more words. net-packets.md has it as "assign merc"
   (`FUN_00478bb0`): the same layout. Callers `FUN_00574930` and
   `FUN_00574f80`.
+- **`FUN_00574930`** (`pet_send_to_client`): the per-client callback that
+  `FUN_005538d0` runs over the game's clients; its one argument is a
+  0x1c-byte event: +0 pet id (-1 when there is no unit), +4 owner id, +8
+  u16 class, +0xc PetType row, +0x10 / +0x14 two words (the callers
+  `FUN_00575d90` and `FUN_00574ab0` fill them; `FUN_00575d90` zeroes
+  them). With both words 0 it sends **0x7a** (`FUN_0053cb30`: row, pet,
+  owner, class); with either set it sends **0x81** (`FUN_0053cb80`: row,
+  pet, owner, class, the two words at +0xc / +0x10). So a pet with the
+  node words zero reaches the client as a 0x7a list entry and the merc
+  (row 7, net-packets.md) as 0x81. The 0x33e / 0x345 beside each
+  `FUN_005531c0` call are `PlayerPets.cpp` source lines Ghidra shows as an
+  argument that function ignores (objects.cpp:381). `FUN_005538d0` takes
+  it as the callback through EDX, which the decompile hides: the evidence
+  is that `game-calls.tsv` lists `FUN_00574930` as called by
+  `FUN_00575d90`, `FUN_00574ab0` and `FUN_00575e90`, while their decompiled
+  bodies show no call to it (the address is pushed).
 
