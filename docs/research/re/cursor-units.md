@@ -115,8 +115,28 @@ Read from the code, no oracle run.
   whose Skills.txt +6 bits are 0x40 (`FUN_00467490`), 0x20 with no target
   (`FUN_00467660`) or 0x80 (`FUN_004677b0`). `FUN_00467490` and
   `FUN_00467660` filter candidates with `FUN_00466870(0,0)` (the same
-  rule), and the converted monster stays out of them. `FUN_004677b0`
-  and the right-click path's ground branch were not read.
+  rule), and the converted monster stays out of them.
+- `FUN_004677b0` (0x80) is not a pick and has no `FUN_00466870` call (the
+  asm at 004677b0..00467876 calls only the position getters 006488c0 /
+  00648900, `FUN_004646a0` (the local player's room), `FUN_0064cb30` and
+  `FUN_0064e780`). It takes the current target's subtile x, y (the click's
+  own x, y when the target is null), asks `FUN_0064cb30(room, x, y, 1)`
+  (the collision flags at that spot, mask 1) and `FUN_0064e780(room, &xy,
+  1, 1, 0, 7)` (a free-spot search, not read) and, if both pass, writes the
+  spot back to the click's x, y and returns null: the unit target is
+  dropped for the ground. Else it returns the target as it was. So it can
+  only turn a target into a spot; it never adds a unit, and a converted
+  monster (null from `FUN_00467a10`) enters it as the click's own spot.
+- The right click (kind 3 of `FUN_00462d00`) with a converted monster is
+  the same null target as the left: `FUN_00466fe0` (not `FUN_00467a70`),
+  then `FUN_00462ba0`: `FUN_00462930` (a press arms 0x7a526c to 1 for a
+  null target), the right skill (`d2d_right_skill`), and, when
+  `FUN_00464600` passes and the skill row's byte +0x14 (the 0x23c-byte
+  table at 0x744304 + 0xb98, row by `Player.cpp` 0x9dd) is 1 and bit 0x40
+  of the click flags is clear, the flag 0x80. Then the same
+  `FUN_004625b0` as the left click, so the same ground branch
+  (`LAB_00462671`) and the same `FUN_004621d0` re-pick. There is no
+  separate rule for a converted monster on the right button.
 
-Not traced: the right click on a converted monster beyond the null-target
-branch of `FUN_004625b0`, and the `FUN_004677b0` pick.
+Not traced: what `FUN_0064e780` / `FUN_0064dea0` search, and the byte +0x14
+meaning.
