@@ -59,8 +59,7 @@ and the set-item row `base + id * 0x1b8` with signed id and count compares.
 
 ## Not exercised
 
-FUN_006288a0 and FUN_00629860/FUN_006298a0 with a class that has no Items row:
-the oracle's arena cannot map the null row FUN_006288a0 then reads. Callees
+FUN_006288a0 with a class that has no Items row: the oracle's arena cannot map the null row FUN_006288a0 then reads. Callees
 (FUN_006335f0, FUN_0055c2c0, FUN_0055dbc0, FUN_00621000, FUN_006280d0,
 FUN_0062ff70, FUN_0055c730, FUN_0063d2b0, FUN_00621190, FUN_0063bde0,
 FUN_0055bed0, FUN_00647960, FUN_0062b5b0, FUN_0062ae20, FUN_00628900,
