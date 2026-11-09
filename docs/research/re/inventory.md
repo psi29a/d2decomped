@@ -51,14 +51,16 @@ and `0x7447b4` (the belt, 16 cells).
 | `FUN_0063b7d0` | Byte-for-byte the same as `FUN_0063b790` |
 | `FUN_0063b810` | Byte-for-byte the same as `FUN_0063b790` |
 | `FUN_0063bcc0` | Client: with arg 1 non-null, places an item: `FUN_0063afd0(arg 3, arg 4, page + 2, arg 5)`. Five callers (`FUN_004c2970`, `FUN_004c3e00`, `FUN_004c4740`, `FUN_00560200`, `FUN_00561b00`) |
-| `FUN_0063bd00` | Empty (`ret`); called at `0x4b381e` and `0x5790f5` |
+| `FUN_0063bcf0` | Empty: `ret 0x20` (eight stack arguments, nothing done) |
+| `FUN_0063bd00` | Empty: `ret 4` (one stack argument); called at `0x4b381e` and `0x5790f5` |
+| `FUN_0063be30` | Empty: `ret 8` (two stack arguments, nothing done). The decompile shows no arguments; the asm pops 8 |
 | `FUN_0063be40` | (inventory, n): true when the item at body location 5, else 4, passes `FUN_0062a4e0` and `FUN_00628950(item, n)`. No caller |
 | `FUN_0063c050` | (inventory, component): the worn item (body locations 0..10) drawn on that look component (Items `+0x115`, `FUN_00628660`); a weapon (`FUN_00629fe0` 2, 3 or 0xc) answers component 5 only when wielded and 6 only when not |
 | `FUN_0063c110` | An item's x when it's 10 or less (its body location), else 0 |
 | `FUN_0063c150` | An item's x (its column) |
 | `FUN_0063c180` | Sets the cursor item: null removes the current one (`FUN_0063aaf0`); else `+0x20` = it and its `+0x5c` = the inventory |
 | `FUN_0063c4c0` | Puts an item on body location ECX (0..15): `FUN_0063afd0(loc, 0, 1, 0)` |
-| `FUN_0063c550` | Empty (`ret`); eight callers (`0x4c432f`, `0x4c457c`, `0x4c4ffa`, `0x55ec1c`, `0x55edaa`, `0x55ee71`, `0x560a07`, `0x56231b`) |
+| `FUN_0063c550` | Empty: `ret 8` (two stack arguments); eight callers (`0x4c432f`, `0x4c457c`, `0x4c4ffa`, `0x55ec1c`, `0x55edaa`, `0x55ee71`, `0x560a07`, `0x56231b`) |
 | `FUN_0063c7f0` | The item in belt slot n (0..15) |
 | `FUN_0063c830` | (inventory, item, slot, &out): a beltable 1 × 1 item whose Items bytes `+0x11d` and `+0x130` are both 1 gets the belt slot's item in `out` and true (line 0xbc9) |
 | `FUN_0063cab0` | True when the item at body location 3 is of ItemTypes row 3 (`FUN_00629bb0`). No caller |

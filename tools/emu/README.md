@@ -53,6 +53,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | MONSTER pool allocate / release helpers (FUN_00547b50, 00572ba0, 00572bc0, 005a6490, 005a64d0; `--mutation-check` 8 ways) | `uv run python monster_pools.py` | `ok: 130 MONSTER pool allocate and release cases` |
 | NPC talker chain (FUN_00572c10, 00572da0, 00572de0, 00572e00, 00572e60, 00572ea0, 00572ee0, 00573020, 00573180; `--mutation-check` 13 ways) | `uv run python monster_talk.py` | `ok: 1260 NPC talker list cases` |
 | Monster bind, animation call and announce (FUN_00573270, 005735a0, 00597d70; `--mutation-check` 11 ways) | `uv run python monster_bind.py` | `ok: 1500 monster bind, animation and announce cases` |
+| Small Inventory.cpp helpers: empty stubs, field getters, node getters, cursor, wield, belt cell, placement wrappers (FUN_0063bcc0 ... FUN_0063e070; `FUN_0063afd0` and `FUN_0063aaf0` hooked and recorded) | `uv run python inventory_small.py` | `ok: 2525 small Inventory.cpp helper cases` |
 | Every level, all cores | `./sweep.sh 1-50 monsters objgroups` | every level matching |
 | Every level's collision vs libd2's engine captures (200 seeds × 3 difficulties, ~8 min) | `D2_BUILD=build-release uv run python libd2_crc.py` | `N/131 levels match on all 200 seeds` |
 | Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `objects`, `stands`) | `N/N ... match game.exe` |
