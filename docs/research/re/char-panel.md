@@ -250,8 +250,28 @@ frames; a big change, and any life loss, shows at once.
 **Life globe** (`FUN_00496f80`): rows = cur × 80 / max; 1 row becomes 2
 while not dead (mode 0x11). `hlthmana` frame 2 with state 2 (poison),
 else 0, at x 0x1d, bottom H−0xd. With state 100 (a healing potion) a
-preview fill up to hpregen (stat 0x4a) × 80 / 100 rows; mana the same
-with state 0x6a / stat 0x1a.
+preview fill up to stat 0x4a × 80 / 100 rows, at most 80, in frame 0
+(not poison's 2), draw mode 0, from the fill's rows up, drawn before the
+fill (draw mode 5) and only when it reaches higher; mana the same with
+state 0x6a / stat 0x1a (`FUN_00497110`, frame 1, x W−0x6f). It reads the
+client's player (`FUN_00463dd0`, `FUN_00625480`: its stats and gear).
+There stat 0x4a / 0x1a is no regen: S->C 0x18's two 7-bit fields
+(`FUN_0045d9b0` sets them with `FUN_00627260`) carry what the server works
+out for the potion's end, as a percent of the max:
+- life (`FUN_005485b0`): with state 100 on, ((the state's own hpregen
+  (`FUN_00625d00`) × its frames to go (end `FUN_00626090` − the game's
+  frame +0xa8) + life) >> 8) × 100 / (max life >> 8);
+- mana (`FUN_00548640`): with state 0x6a, (frames to go × (manarecovery in
+  all + (stat 0x1b + 100) × the steady rate / 100) + mana) × 100 / max mana,
+  the steady rate max(max / (CharStats +0x3a × 25, or 7500), 1);
+- then the low byte, 100 when that's past 100 (600 % sends 88); 0 without
+  the state.
+`FUN_00548760` (the server's life update) sends 0x18 rather than 0x95 /
+0x96 when either percent changed, and only once life is off by 10 % of max
+from what it sent last, unless forced. The gear's hpregen / manarecovery
+add to the client's sum, so replenish life lifts the preview a little.
+(Neither stat has Send Bits, ItemStatCost rows 74 / 26, so 0xa8 can't
+carry the state's own rate: the reader `FUN_0045ee20` stops at such a stat.)
 
 **Experience** (`FUN_00498ea0`): lvl stat 12, exp stat 13; next / prev =
 `FUN_00611800(class, lvl)` / `(class, lvl − 1)` (experience.txt). If next
@@ -309,7 +329,9 @@ drain / 100, at least 1; at 0 it returns 0 and `FUN_0057f090` walks
 d2d: `rules::stamina_drain` / `stamina_regen` (combat.hpp) from
 `World::stamina_frame`, each 40 ms frame; `draw_hud` (panels.cpp) with
 the poison frame, bars, run button and texts; the button's press /
-release in `Town::update`. The bars' hover
+release in `Town::update`. The potion preview from `View::life_preview` /
+`mana_preview` (`World::view`: `rules::life_end_percent` /
+`mana_end_percent` each View, plus the gear's regen). The bars' hover
 texts go to `Hud::hovers`, drawn after the mini-panel (`draw_hud_hovers`).
 
 ## Stat totals and ItemStatCost ops (FUN_00626200)

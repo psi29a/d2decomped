@@ -90,6 +90,7 @@ int main() try {
         sent.panel.next = 3'000'000'000; sent.panel.defense = 345; sent.panel.res = { 75, -100, 12, 40 }; sent.panel.bonus[3] = 7;
         sent.panel.blue = d2d::rules::kPanelDefense; sent.panel.red = d2d::rules::kPanelFire | d2d::rules::kPanelPoison;
         sent.stat_sum = { { 0, 25 }, { 329, 40 } };
+        sent.life_preview = 426; sent.mana_preview = -3;   // the globes' potion preview
         Monster sent_monster;
         sent_monster.id = 1;
         sent_monster.type = 0;
@@ -106,6 +107,7 @@ int main() try {
         assert(received.panel.next == sent.panel.next && received.panel.defense == 345 && received.panel.res == sent.panel.res && received.panel.bonus[3] == 7);
         assert(received.panel.blue == sent.panel.blue && received.panel.red == sent.panel.red && received.stat_sum == sent.stat_sum);
         assert(received.game_quests == sent.game_quests);
+        assert(received.life_preview == 426 && received.mana_preview == -3);
         assert(received.events.size() == 3 && std::holds_alternative<ev::Reassigned>(received.events[0]) && std::holds_alternative<ev::Lightning>(received.events[1]));
         assert(std::get<ev::QuestQuake>(received.events[2]).kind == d2d::rules::QuestQuake::diablo);
         assert(received.pets.empty() && received.party_pets.size() == 1 && received.party_pets[0].pettype == "hireable" && received.party_pets[0].mode == "WL");

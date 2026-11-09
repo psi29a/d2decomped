@@ -15,6 +15,7 @@
 #include <drlg.hpp>
 #include <font.hpp>
 #include <hud_glide.hpp>
+#include <hud_globe.hpp>
 #include <item_text.hpp>
 #include <level_ids.hpp>
 #include <object_ids.hpp>
@@ -367,25 +368,37 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         return std::int64_t(d2d::rules::glide(glides[slot], slot == 0, int(stats.values[std::size_t(stat)]), int(stats.values[std::size_t(max_stat)]), hud.frame));
     };
     const std::int64_t life_shown = glided(0, kLife, kMaxLife), mana_shown = glided(1, kMana, kMaxMana), stamina_shown = glided(2, kStamina, kMaxStamina);
-    // Globe fill: only the bottom `rows` rows of the 80x80 cel.
-    auto fill = [&](int frame, int x, std::int64_t cur, std::int64_t max) {
-        if (max <= 0 || frame >= int(scene.globes.frames_per_direction())) return;
+    // Globe fill: only the bottom `rows` rows of the 80x80 cel. A potion's
+    // preview goes first (FUN_00496f80 / FUN_00497110): its state's regen
+    // x 80 / 100 rows, at most 80, in frame 0 / 1 (not poison's 2) at 25 %
+    // over what's there (draw mode 0), the rows above the fill's.
+    auto blit_rows = [&](int frame, int x, int from_row, int to_row, bool quarter) {
+        if (frame >= int(scene.globes.frames_per_direction())) return;
         const auto& frame_ref = scene.globes.frame(0, std::uint32_t(frame));
-        int rows = int(std::clamp<std::int64_t>(cur * 80 / max, 0, 80));
-        if (frame != 1 && rows == 1) rows = 2;               // life: 2 rows at least while alive
-        const int top = height - 13 - int(frame_ref.height);
-        for (int y = int(frame_ref.height) - rows; y < int(frame_ref.height); ++y)
+        const int cel_height = int(frame_ref.height), top = height - 13 - cel_height;
+        for (int y = std::max(cel_height - to_row, 0); y < cel_height - from_row; ++y)
             for (int left = 0; left < int(frame_ref.width); ++left) {
                 const auto idx = frame_ref.pixels[std::size_t(y) * frame_ref.width + std::size_t(left)];
                 const int pixel_x = x + left, pixel_y = top + y;
                 if (!idx || pixel_x < 0 || pixel_y < 0 || pixel_x >= width || pixel_y >= height) continue;
                 const auto colour = pal[idx];
                 auto* pixel = framebuffer.data() + (std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4;
-                pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b;
+                if (quarter) {
+                    pixel[0] = std::uint8_t((colour.r + pixel[0] * 3) / 4); pixel[1] = std::uint8_t((colour.g + pixel[1] * 3) / 4); pixel[2] = std::uint8_t((colour.b + pixel[2] * 3) / 4);
+                } else {
+                    pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b;
+                }
             }
     };
-    fill(hud.poisoned ? 2 : 0, 29, life_shown, stats.values[kMaxLife]);
-    fill(1, width - 0x6f, mana_shown, stats.values[kMaxMana]);
+    auto fill = [&](int frame, int preview_frame, int x, std::int64_t cur, std::int64_t max, int preview) {
+        if (max <= 0) return;
+        int rows = int(std::clamp<std::int64_t>(cur * 80 / max, 0, 80));
+        if (frame != 1 && rows == 1) rows = 2;               // life: 2 rows at least while alive
+        if (const int preview_rows = d2d::rules::globe_preview_rows(preview); rows < preview_rows) blit_rows(preview_frame, x, rows, preview_rows, true);
+        blit_rows(frame, x, 0, rows, false);
+    };
+    fill(hud.poisoned ? 2 : 0, 0, 29, life_shown, stats.values[kMaxLife], hud.life_preview);
+    fill(1, 1, width - 0x6f, mana_shown, stats.values[kMaxMana], hud.mana_preview);
     at_bottom(scene.globe_glass, 0, 28, height - 5);
     at_bottom(scene.globe_glass, 1, width - 0x6e, height - 9);
     auto str = [&](int id) {
