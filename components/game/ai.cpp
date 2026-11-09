@@ -483,7 +483,7 @@ bool castable(const d2d::rules::Skill& skill) {
     return !skill.srvmissile.empty() || std::ranges::contains(std::array{ kNova, kMissileWall, kCurse, kScatteredBolts, kMissileAtTarget, kMonsterBreath, kBestow,
                                                                           kMonTeleport, kMonPoisonNova, kHydra, kDiabLight, kDiabCold, kFingerMageSpider, kDoomKnightMissile,
                                                                           kGuidedMissile, kSelfState, kRegurgitatorEat, kMonCurseCast, kDiabPrison, kDiabWall,
-                                                                          kBaalColdMissiles, kBaalTentacle, kImpInferno, kImpTeleport, kImpFireMissile,
+                                                                          kBaalColdMissiles, kBaalTentacle, kBaalCorpseExplode, kImpInferno, kImpTeleport, kImpFireMissile,
                                                                           kCryHelp, kOverseerWhip, kImpregnate, kSiegeBeastStomp, kWarCry, kCorpseExplosion, kMinionSpawner }, skill.srvdofunc);
 }
 }  // namespace
@@ -902,9 +902,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // FUN_005c4df0), whose damage is calc1..calc2 % of its life: the row
     // has neither, so it hurts no one (bugs.md); the corpses are spent.
     // The corpses are FUN_0056dcc0's (flags 0x3002, radius 40): baal_corpse_spent.
-    // ponytail: spent as the cast starts, not at its action frame; the
-    // skill1 at a foe while a wave fights isn't made; a wave is its
-    // superunique's group.
+    // They're spent on S3's action frame (FUN_0056f7f0 runs the do-func).
+    // ponytail: the skill1 at a foe while a wave fights isn't made; a wave
+    // is its superunique's group.
     if (type_info.ai_name == "BaalThrone") {
         const int frame = int(now_ms / 40);
         if (frame < monster.ai_state3) { idle(monster.ai_state3 - frame); return true; }
@@ -915,6 +915,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (monster.ai_state >= 5) { monster.baal_leaves = true; idle(5); return true; }
             monster.baal_wave = 61 + monster.ai_state;
             set_mode(game_data, monster, "S3", now_ms);
+            monster.skill = -1;
             monster.next_act = monster.mode_until;                 // the cast plays out before the next think
             ++monster.ai_state;
             monster.ai_state3 = frame + 100;
@@ -922,11 +923,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             return true;
         }
         set_mode(game_data, monster, "S3", now_ms);
+        monster.skill = skill_id(game_data, "Baal Corpse Explode");   // 285
         monster.next_act = monster.mode_until;
         monster.ai_state2 |= 1;
         monster.ai_state3 = frame + 250;
-        for (auto& corpse : pack)
-            if (baal_corpse_spent(corpse, subtile(corpse.unit.x) - x, subtile(corpse.unit.y) - y)) corpse.corpse_used = true;
         return true;
     }
     // BaalToStairs (138, FUN_005ef620): the Chamber's portal (object 563)
@@ -2664,6 +2664,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             }
                         d2d::log::info("{} explodes a corpse ({} damage)", monster.npc.name, dmg);
                     }
+                } else if (cast->srvdofunc == ServerDoFunction::kBaalCorpseExplode) {
+                    for (auto& corpse : pack)
+                        if (baal_corpse_spent(corpse, subtile(corpse.unit.x) - subtile(unit.x), subtile(corpse.unit.y) - subtile(unit.y))) corpse.corpse_used = true;
                 } else if (cast->srvdofunc == ServerDoFunction::kMinionSpawner) {
                     // Start 62 (FUN_005d2420 -> FUN_0056e620 -> FUN_0063ea70): the
                     // caster's MonStats spawn at its spot + spawnx / spawny, in
