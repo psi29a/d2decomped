@@ -40,6 +40,7 @@ HELPERS = {
     0x63BEF0: (1, None),                                                # d2d_rules_wielded_weapon: set per case
     0x6488C0: (1, lambda: random.randint(0, 15)),                       # d2d_path_get_x
     0x621050: (3, lambda: random.getrandbits(8)),
+    0x628250: (1, lambda: random.choice((2, 2, 2, 1, 0))),             # the item's page (a byte)
 }
 
 
@@ -60,6 +61,8 @@ class World:
         e.hook(0x6286C0, self._footprint, 5)
         e.hook(0x6335F0, self._record, 1)
         e.hook(0x40B430, self._alloc, 3)
+        e.hook(0x40B4B0, self._alloc_size, 4)
+        e.hook(0x63B850, self._place, 6)
         e.hook(0x40B480, self._free, 3)
 
     # emulator side
@@ -124,13 +127,35 @@ class World:
         return self.e.alloc(0x200)
 
     def _alloc(self, e):
+        """FUN_0040b430 (pool ECX, size EDX, file, line, 0): the case's block, else a fresh zeroed arena block."""
         self.log.append(("alloc", e.arg(1)))
-        return self.alloc_result
+        block = self.alloc_result or self.arena.new(max(e.mu.reg_read(UC_X86_REG_EDX), 16))
+        self.alloc_addrs.append(block)
+        return block
+
+    def _alloc_size(self, e):
+        """FUN_0040b4b0 (size, file, line, 0)."""
+        self.log.append(("alloc", e.arg(2)))
+        block = self.arena.new(max(e.arg(0), 16))
+        self.alloc_addrs.append(block)
+        return block
+
+    def _place(self, e):
+        """FUN_0063b850 (inventory, item, row, &x, &y, 0): a memoised (found, x, y); x and y are written as signed words."""
+        key = ("b850", e.arg(0), e.arg(1), e.arg(2))
+        self.log.append(key)
+        if key not in self.memo:
+            self.memo[key] = (int(random.random() < 0.8), random.randint(-1, 11), random.randint(-1, 9))
+        found, x, y = self.memo[key]
+        e.w32(e.arg(3), x)
+        e.w32(e.arg(4), y)
+        return found
 
     def _free(self, e):
         self.log.append(("free", e.mu.reg_read(UC_X86_REG_EDX), e.arg(1)))
 
     alloc_result = 0
+    alloc_addrs = []
 
 
 def ask(w, address, *args):
@@ -140,11 +165,12 @@ def ask(w, address, *args):
 
 # ---- fixtures -----------------------------------------------------------------------------------------------
 
-def make(w, body_dims=BODY, belt_dims=BELT, owner_kind=1, chain=None):
+def make(w, body_dims=BODY, belt_dims=BELT, owner_kind=1, chain=None, keep=False):
     """An inventory with a body grid (cells + list) and a belt grid; returns (inventory, body cell items, chain items)."""
     a, e = w.arena, w.e
-    w.log.clear()
-    w.memo.clear()
+    if not keep:
+        w.log.clear()
+        w.memo.clear()
     inv = a.inventory()
     table = a.new(48)
     pack_dims = BODY if random.random() < 0.3 else (random.randint(2, 10), random.randint(2, 8))
@@ -252,6 +278,7 @@ def run(w, address, *args, **kw):
     """Run game.exe's function; returns its result, the arena before (the model's copy) and after, the call log."""
     before = w.arena.snapshot()
     w.log.clear()
+    w.alloc_addrs = []
     result = w.e.call(address, *args, **kw)
     log = list(w.log)
     w.log.clear()
