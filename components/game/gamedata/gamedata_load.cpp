@@ -77,6 +77,9 @@ void load_town(GameData& game_data, d2d::mpq::Stack& mpqs, const char* ds1_path)
             if (std::size_t(def) >= game_data.prest_outdoors.size()) game_data.prest_outdoors.resize(std::size_t(def) + 1);
             game_data.prest_outdoors[std::size_t(def)] = true;
         }
+    for (std::size_t row = 0; row < prest.size(); ++row)            // the automap's whole presets (automap_whole)
+        if (const int level_id = std::atoi(std::string(prest.get(row, "LevelId")).c_str()); level_id > 0 && prest.get(row, "AutoMap") == "1")
+            game_data.prest_automap.insert(level_id);
     for (std::size_t row = 0; row < types.size(); ++row)
         if (types.get(row, "Id") == "1")
             for (int i = 0; i < 32; ++i)

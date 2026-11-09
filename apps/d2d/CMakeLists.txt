@@ -229,6 +229,7 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/build_info.hpp" CONTENT
 add_executable(d2d
     # One a line, in name order: a new file goes where it sorts. A subsystem
     # split over several files keeps them in its own directory (devctl/, town/).
+    automap_reveal.cpp
     common.cpp
     controls.cpp
     cursor.cpp

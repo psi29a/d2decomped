@@ -3,6 +3,7 @@
 #include "town.hpp"
 
 #include "audio.hpp"
+#include "automap_reveal.hpp"
 #include "belt_popup.hpp"
 #include "common.hpp"
 #include "controls.hpp"
@@ -621,11 +622,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // An open NPC menu takes every click: an entry runs its action,
         // anything else closes it.
         bool menu_click = false;
-        if (g_drawn.level == level) {                                 // drawn last frame, in this level
-            automap_reveal(*scene, *level, automap, g_drawn.cells);
-            if (view.level == level) automap_icons(*world.game_data, *level, automap, view.player.x, view.player.y, view.npc_states, view.monsters);
+        if (g_drawn.level == level) {                                 // drawn last frame, in this level: flag 0x20000
+            automap_mark(automap_reveal, *level, g_drawn.cells);
             for (const auto& neighbour : level->nearby)               // what's in view across the edge
-                if (neighbour.level->layer == level->layer) automap_reveal(*scene, *neighbour.level, automap, g_drawn.cells, neighbour.dx, neighbour.dy);
+                if (neighbour.level->layer == level->layer) automap_mark(automap_reveal, *neighbour.level, g_drawn.cells, neighbour.dx, neighbour.dy);
+        }
+        if (view.level == level) {
+            automap_whole(*scene, *world.game_data, *level, automap, automap_reveal);   // the Rogue Encampment, the Kurast Docks
+            for (const auto& neighbour : level->nearby)
+                if (neighbour.level->layer == level->layer) automap_whole(*scene, *world.game_data, *neighbour.level, automap, automap_reveal);
+            automap_step(*scene, *world.game_data, *level, view.player.x, view.player.y, automap, automap_reveal);
+            if (g_drawn.level == level) automap_icons(*world.game_data, *level, automap, view.player.x, view.player.y, view.npc_states, view.monsters);
         }
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for
         // the speech string) follows the speech box.

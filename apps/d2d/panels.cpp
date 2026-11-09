@@ -735,12 +735,12 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
     }
 }
 
-int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash) {
+int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, d2d::rules::Rng& seed) {
     const auto key = [](const Scene::AutomapRule& rule) { return std::pair(rule.level_type, rule.orientation); };
     for (const auto& rule : std::ranges::equal_range(scene.automap_rules, std::pair(level.type, orientation), {}, key)) {
         if (rule.main >= 0 && rule.main != main) continue;
         if (rule.sub0 >= 0 && (sub < rule.sub0 || sub > rule.sub1)) continue;
-        return rule.cels[hash % rule.cels.size()];
+        return rule.cels[std::size_t(seed(int(rule.cels.size())))];   // FUN_0045c3e0 on the automap's seed
     }
     return -1;
 }
@@ -803,51 +803,6 @@ void save_automap(Automap& automap, const std::filesystem::path& dir, const std:
     const auto file = d2d::d2s::automap_file(dir, name, map_seed);
     if (file.empty() || !d2d::d2s::append_automap(file, layer, fresh)) return;
     for (auto& cell : automap.cells) cell.saved = true;
-}
-
-// game.exe adds the tiles drawn on screen (flag 0x20000) of the player's
-// room and its near rooms each time the player has moved 80 px
-// (FUN_00459020); d2d the tiles render_world drew (g_drawn), each by its
-// own draw: a cell's floors, walls and roof come in apart. A cel already
-// placed isn't added again (Automap::add).
-void automap_reveal(const Scene& scene, const Level& level, Automap& automap, std::span<const DrawnCell> cells,
-                    int shift_x, int shift_y) {
-    const auto& map = level.ds1;
-    const int width = int(map.width()), height = int(map.height());
-    if (width == 0) return;
-    for (const auto& drawn : cells) {
-        const int tile_x = drawn.x - shift_x, tile_y = drawn.y - shift_y;
-        if (tile_x < 0 || tile_y < 0 || tile_x >= width || tile_y >= height) continue;
-        const auto index = std::size_t(tile_y * width + tile_x);
-        const auto wanted = [&](const void* source) { return !drawn.source || drawn.source == source; };
-        const int act_x = tile_x + level.world_x, act_y = tile_y + level.world_y;     // act tiles
-        const std::uint32_t hash = std::uint32_t(act_x) * 73856093u ^ std::uint32_t(act_y) * 19349663u;   // unsigned: wraps, not UB
-        const int automap_x = (act_x - act_y) * 80 / 10, automap_y = (act_x + act_y) * 40 / 10;
-        // A generated level's tiles are its picks (a maze's DS1 is blank):
-        // FUN_00458f40 adds the room's floors, then its walls, each
-        // not hidden (flag 8); FUN_00457cf0 looks the cel up by the
-        // DT1 tile's orientation, main and sub index (+0x14, +0x18,
-        // +0x1c); a lower wall (the room tile's orientation past 15) sits 24 down.
-        if (!level.shown().empty()) {
-            for (const auto& pick : level.shown()[index]) {
-                if (pick.layer > 1 || pick.hidden || !wanted(&pick)) continue;
-                if (const int cel = automap_cel(scene, level, pick.tile->type, pick.tile->style, pick.tile->sequence, hash); cel >= 0)
-                    automap.add({ cel, automap_x, automap_y + (pick.orient > 15 ? 24 : 0), pick.layer == 1 ? 0 : 1 });
-            }
-            continue;
-        }
-        for (const auto& layer : map.floors()) {
-            const auto& tile = layer.cells[index];
-            if (tile.hidden || !(tile.prop1 & 2) || !wanted(&tile)) continue;
-            if (const int cel = automap_cel(scene, level, 0, tile.style, tile.sequence, hash); cel >= 0) automap.add({ cel, automap_x, automap_y, 0 });
-        }
-        for (const auto& layer : map.walls()) {
-            const auto& tile = layer.cells[index];
-            if (tile.hidden || tile.wall_type == 0 || !wanted(&tile)) continue;
-            if (const int cel = automap_cel(scene, level, tile.wall_type, tile.style, tile.sequence, hash); cel >= 0)
-                automap.add({ cel, automap_x, automap_y + (tile.wall_type > 15 ? 24 : 0), 1 });
-        }
-    }
 }
 
 // FUN_00458dc0 over a room's units: an object the view draws (unit flag

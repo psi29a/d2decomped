@@ -209,8 +209,7 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
 // (orientation > 15) 24 further down. Drawn (FUN_00459700/FUN_00459440)
 // at cell - scroll, scroll = player's world pixels / 10 - screen / 2 +
 // (40, 15), with DC6's bottom-left anchoring.
-// ponytail: reveals tiles within 12 of the player (D2 reveals by room),
-// cel picked by a tile hash rather than the game's RNG.
+// What comes in, when, and its cel: automap_reveal.hpp.
 // The towns of acts 2, 4 and 5 add their miniature (list 3, in the
 // layer's cel_file; automap_town).
 // One automap per Levels.txt Layer: the town and the act 1 wilderness
@@ -256,13 +255,11 @@ inline constexpr int kCelGroups[][2] = {
 // The player mark's outline (0x6d6638), half-scale steps.
 inline constexpr int kMark[13][2] = { {0,-1},{2,-2},{4,-1},{2,0},{4,1},{2,2},{0,1},{-2,2},{-4,1},{-2,0},{-4,-1},{-2,-2},{0,-1} };
 
-int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, std::uint32_t hash);
-
-// The tiles `cells` drew (each its DrawnCell::source, or all of the cell's
-// floors and walls) from the level's grid, the grid they're in shifted by
-// (shift_x, shift_y): a neighbour level's from the drawn level's.
-void automap_reveal(const Scene& scene, const Level& level, Automap& automap, std::span<const DrawnCell> cells,
-                    int shift_x = 0, int shift_y = 0);
+// FUN_0061fff0: the first AutoMap.txt record of the level's type and the
+// tile's orientation whose main index (0xff any) and sub range (0xff any)
+// take it, and one of its cels (up to the first -1) by `seed`; -1 none
+// (the seed not stepped).
+int automap_cel(const Scene& scene, const Level& level, int orientation, int main, int sub, d2d::rules::Rng& seed);
 
 // The objects the view draws with an Objects.txt AutoMap cel, and the
 // level's monsters with a MonStats2 automapCel, into list 2 (FUN_00458dc0

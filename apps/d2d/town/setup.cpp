@@ -101,6 +101,7 @@ auto Town::enter() -> void {
         shake = {}; quest_quakes.clear(); shake_rng = d2d::rules::Rng{ 666 };
         automap.cells.clear();                    // a new game: what the files beside the save kept
         automap.placed.clear();
+        automap_reveal.new_game();                // its rooms' tiles come with clear flags
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
         alert_clocks.clear();                      // Town is reused when a second game starts on the same level

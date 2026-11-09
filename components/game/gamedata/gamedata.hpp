@@ -42,6 +42,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -224,6 +225,12 @@ struct Level {
     std::vector<std::vector<Pick>> drawn;
     std::vector<std::size_t> drawn_laid;                // the order drawn was laid in (list indices), empty: none
     [[nodiscard]] const std::vector<std::vector<Pick>>& shown() const noexcept { return drawn.empty() ? picks : drawn; }
+    // Each room's tile lists as the automap walks them (FUN_00458f40: room1
+    // +8's floors, then its walls), by Level::rooms index: {cell, its
+    // index in shown()'s cell} in list order, a shared edge tile in each
+    // room's that lists it. From the last lay (lay_tiles), shown()'s.
+    struct RoomTile { std::uint32_t cell; std::uint16_t pick; };
+    std::vector<std::array<std::vector<RoomTile>, 2>> room_tiles;   // [0] floors, [1] walls
     // Shared tiles re-picked after the room they lie in came up: that grid's
     // cell loses the old tile's flags and takes the new one's (FUN_0064c860).
     struct Patch { int x, y; const d2d::dt1::Tile* old_tile; const d2d::dt1::Tile* tile; };
@@ -594,6 +601,9 @@ struct GameData {
     // LvlPrest Outdoors by Def: game.exe flags those presets' rooms 0x80000
     // (FUN_00667ed0), where monsters need no line of sight (FUN_0066ba70).
     std::vector<bool> prest_outdoors;
+    // The levels a whole-level preset with LvlPrest AutoMap (row +0x30) makes:
+    // FUN_00668100 brings their every room into the automap as they come up.
+    std::set<int> prest_automap;
     // belts.txt 800x600 rows ("belt2" .. "uber belt", after the Expansion
     // separator) by armor.txt `belt` index: box count and boxes 1..16
     // {left, right, top, bottom}. Index 2 ("default") when no belt is worn.
@@ -1056,6 +1066,18 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
 // +0 / +0x24). Empty when no room holds it.
 // ponytail: every near room counts as up (game.exe skips one that isn't).
 std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y);
+// The automap's rooms (FUN_00459020): the one holding (x, y) cells and its
+// near list (FUN_00619790), itself included, in the list's order: each
+// room's level, its index (Level::rooms, or a preset level's 8x8 room in
+// the order they're split, row by row) and its rect in act tiles.
+struct AutomapRoom { const Level* level; int room; int x, y, width, height; };
+std::vector<AutomapRoom> automap_rooms(const GameData& game_data, const Level& level, float x, float y);
+// A preset level's (no generated rooms: the towns) rooms laid as game.exe
+// splits it (FUN_00666680, 8x8, each at the list's head) and walks each
+// (FUN_00666ac0: its (w+1)x(h+1) slice of every floor layer, then every
+// wall layer, then the shadow): its 8x8 rooms in split order, with their
+// tiles; `assets`: any generated level's (the presets' rows and DS1s).
+std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets);
 // Every room of the level populated at once, newest first: tools/emu
 // monsters.py's order, for diffing against game.exe (drlg-dump monsters).
 // The rooms come up `came_up` (Level::rooms indices) first, the rest in list
