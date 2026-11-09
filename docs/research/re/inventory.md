@@ -85,10 +85,10 @@ and `0x7447b4` (the belt, 16 cells).
 | `FUN_0063e000` | An item's unit id (`+0xc`) |
 | `FUN_0063e070` | The item if its inventory is arg 1, else 0 |
 | `FUN_0063e0b0` | Empties an inventory: cursor cleared, wielded id -1, every item removed |
-| `FUN_0063e100` | (EAX inventory, EBX unit): copies the unit's grid-0 cells (Inventory.txt row by `FUN_00621050`, `FUN_0065c1f0`) into the other inventory when both grids are the same size |
-| `FUN_0063e1c0` | (EAX inventory, row, item): finds the item a free spot (`FUN_0063b850`) and fills its cells with -1 (line 0x16d5) |
-| `FUN_0063e2e0` | (EAX unit, row): every item on page 2 (`FUN_00628250`) gets a spot (`FUN_0063e1c0`); false at the first that doesn't |
-| `FUN_0063e370` | The trade fit test (PlrTrade.cpp `FUN_00567c70`): two scratch inventories copied from the unit's grid; true when its page-2 items fit both rows (args 3 and 2); else `*arg 4` = 0 when the first fails, 1 when the second does |
+| `FUN_0063e100` | (EAX scratch inventory, EBX unit): copies the unit's pack grid (grid 2; its size from Inventory.txt through `FUN_00621050` / `FUN_0065c1f0`, so an empty scratch inventory gets the grid allocated by `FUN_0063add0`) into the scratch one when both are that size |
+| `FUN_0063e1c0` | (EAX scratch inventory, stack unit, item): asks the free-spot search (`FUN_0063b850`, the unit selects the Inventory.txt row) and, when the spot is inside the pack grid, fills the item's footprint (line 0x16d5) with -1 |
+| `FUN_0063e2e0` | (EAX unit, stack other unit, EBX scratch inventory): every item on the unit's item list (`+0x64` next) that is on page 2 (`FUN_00628250`) gets a spot in the scratch inventory (`FUN_0063e1c0`, with the other unit); false at the first that doesn't |
+| `FUN_0063e370` | The trade fit test (PlrTrade.cpp `FUN_00567c70`): (pool, unit A, unit B, `&out`). Two scratch inventories are allocated from the pool and given copies of A's and B's pack grids (`FUN_0063e100`); A's page-2 items are then placed in B's copy, and B's in A's. True when both fit; else `*out` = 0 when A's don't fit in B's, 1 when B's don't fit in A's (left alone when `out` is null). Both scratch inventories are freed (`FUN_0063ac40`) (`tools/emu/inventory_trade.py`) |
 
 ## The look's token table (`FUN_0063d710`, `FUN_0063d900`)
 
