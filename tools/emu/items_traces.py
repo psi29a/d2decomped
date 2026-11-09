@@ -116,8 +116,8 @@ class Suite:
         def build(img, rng):
             """Random register and stack contents."""
             return {"stack": [rng.getrandbits(32), rng.getrandbits(32)], "regs": {"eax": rng.getrandbits(32)}}
-        rig.run("FUN_0055d930", 0x55D930, lambda i, r: {"stack": [r.getrandbits(32)], "regs": {"eax": 0x1234}},
-                lambda m, a: 0x1234, 1)
+        rig.run("FUN_0055d930", 0x55D930, lambda i, r: {"stack": [r.getrandbits(32)], "regs": {"eax": r.getrandbits(32)}},
+                lambda m, a: a["regs"]["eax"], 1)
         rig.run("FUN_0055e9a0", 0x55E9A0, build, lambda m, a: 0, 2)
         rig.run("FUN_0062a360", 0x62A360, build, lambda m, a: 0, 2)
 
@@ -492,7 +492,7 @@ class Suite:
             """An item whose data holds quality 5 (or not) and a set-item table of 0..4 rows."""
             u = self.unit(img, rng, cls=rng.choice((0, 1)), data=0.9, null=0.05)
             put(img, DATA, rng.choice((5, 5, 5, 4, 0, rng.getrandbits(32))))
-            put(img, TABLE + 0xC1C, rng.choice((0, 1, 3, 4, 0x7FFFFFFF)))
+            put(img, TABLE + 0xC1C, rng.choice((0, 1, 3, 4, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF)))
             put(img, TABLE + 0xC18, rng.choice((0, at(0x3900), rng.getrandbits(32))))
             return {"stack": [u]}
 
