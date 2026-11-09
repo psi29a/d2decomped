@@ -19,10 +19,25 @@ Each row:
 
 ## Adding cells
 
-`FUN_0061fff0(level_type, orientation, main, sub)` matches a record and
-returns `cel[rand % n_cels]` from the game's RNG (`FUN_0045c3e0`).
+`FUN_0061fff0(level_type, orientation, main, sub)` takes the first record
+of the level type's run (`0x96c8d0` / `0x96c8d4`: first, past last) whose
+orientation is it, main index 0xff or it, and sub range (low 0xff, or
+low ≤ sub ≤ high) holds it, and returns `cel[rand(n_cels)]`
+(`FUN_0045c3e0`); -1 when none (level type 0 included), with no draw.
+The loader (`FUN_0061fcf0`) counts n up to the first cel of -1; a row
+with none is fatal (0x50d).
 
-`FUN_00457cf0` adds one cell per tile, once (tile flag 0x40000):
+The draw is on the automap's own seed: `0x744504` points at `0x96c8c8`,
+which `FUN_0061fcf0` sets to {0, 0x29a} (`FUN_00650e30`, `FUN_00650e40`)
+as AutoMap.txt loads with the other tables (`FUN_00619300`). Nothing else
+reads `0x744504` and nothing resets it, so the picks are one sequence,
+a step for each lookup that finds a record, in the order the tiles are
+looked up. (When the table load runs, once or each game, isn't traced: it
+is reached through an indirect call.)
+
+`FUN_00457cf0` adds one cell per tile, once: it sets the tile's flag
+0x40000 first, then looks the cel up, so a tile is looked up once whether
+a record matches or not:
 - The tile's level coordinates go through `FUN_00643310`:
   `x = (tx - ty) * 80`, `y = (tx + ty) * 40` (world pixels).
 - Both are divided by 10.
@@ -57,12 +72,26 @@ by its own draw, so a cell's floors and walls come in apart:
   x `< W - W/2`, left (2) x `>= W/2 - 0x20`.
 
 So the map only ever gets tiles that have been on screen. Callers:
-- `FUN_00459020`, each time the player has moved 80 client px (an
-  octagon distance on `FUN_00620650` / `FUN_006206b0`, the unit's client
-  px) since the last reveal: the player's room and its near rooms
-  (`FUN_00619790`) of the same Layer, `all` = 0. Tiles drawn in between
-  keep the flag, so they come in at the next one.
-- `FUN_00459150`, the DRLG room callback: the whole room, `all` = 1.
+- `FUN_00459020`, each client frame (from `FUN_0044c790`), once the
+  player has moved 80 client px since the last reveal: on
+  `FUN_00620650` / `FUN_006206b0` (the path's screen x, y, +8 / +0xc), the
+  larger axis twice plus the smaller, halved, past 0x4f. The last spot
+  (`0x7a51fc` / `0x7a51f4`) starts at (0, 0), so a game's first frame
+  reveals. Then the player's room (`FUN_004646a0`) and its near list
+  (`FUN_00619790`, itself included), each whose level's Levels.txt Layer
+  (`FUN_0061e470` +8) is the player's room's, `all` = 0, in the list's
+  order. Tiles drawn in between keep the flag, so they come in at the
+  next one. While `0x7a51a4` is set it counts down instead and nothing
+  comes in: `FUN_00459140` sets it to 2, from `FUN_004654c0` (not traced).
+- `FUN_00459150`, the DRLG room callback (act `+0x454`, set in
+  `FUN_0044e100`): the whole room, `all` = 1. `FUN_00668100`, a preset
+  level coming up: for levels 0x28, 0x67, 0x6d the miniature (below);
+  any other whose LvlPrest row has AutoMap (row +0x30; the loader
+  `FUN_0061ebb0` puts AutoMap, Scan, Pops, PopPad at +0x30..+0x3c) has
+  every room of its list (newest first) brought up and passed to it. In
+  1.14d only the five towns set AutoMap, so the Rogue Encampment and the
+  Kurast Docks come in whole; Lut Gholein, the Pandemonium Fortress and
+  Harrogath get their miniature instead.
 
 Cel files (`FUN_0045a2b0`; a layer's cel file is its `+4`):
 
@@ -312,19 +341,34 @@ dropped, otherwise the cel decides.
 
 - Tab toggles the automap.
 - What render_world drew last frame (`g_drawn`, with the level it
-  drew) is revealed, as game.exe's flag 0x20000, tile by tile (each
+  drew) is marked drawn, as game.exe's flag 0x20000, tile by tile (each
   `DrawnCell` names its pick or DS1 layer cell): a floor or roof by the
   view box, a wall by its DT1 blocks (`dt1::Tile::blocks`) with the side
-  panel's half, each above. Before 2026-10-28 d2d took every tile
-  within 12 of the player, a square about three screens across (a
-  tester saw the map run past what's in view). W is the screen's width,
-  as game.exe's box takes `0x71146c`: a wider screen reveals more there
-  too.
-- A generated level reveals its `Level::picks` (the DT1 tiles game.exe's
-  rooms take), by their DT1 header like `FUN_00457cf0`. A maze level's
-  (caves, crypts, Jail, Cathedral, Catacombs) DS1 is blank, so reading
-  the DS1 left their maps empty.
-- Cel choice is a tile hash, not the game's RNG.
+  panel's half, each above (`automap_mark`). W is the screen's width, as
+  game.exe's box takes `0x71146c`: a wider screen marks more there too.
+- The reveal is `automap_reveal.cpp` (`AutomapReveal` on the Town: its
+  state outlives a layer's `Automap`): `automap_step` each frame
+  (`rules::automap_moved`, test_automap_step), over `game::automap_rooms`
+  (the near list d2d's rooms already use) on the player's Layer, each
+  room by `automap_room`: its floors, then its walls, in its lists'
+  order, the drawn ones not hidden, each once (keyed by level, room, list
+  and place, so a shared edge tile is looked up by both rooms, as
+  game.exe's), the cel by `automap_cel` on `AutomapReveal::seed`
+  (`rules::Rng`, {0, 666} for the process).
+- A generated level's lists are `Level::room_tiles`, kept as `lay_tiles`
+  lays the picks (the DT1 tiles game.exe's rooms take, in their order), by
+  their DT1 header like `FUN_00457cf0`. A maze level's (caves, crypts,
+  Jail, Cathedral, Catacombs) DS1 is blank, so reading the DS1 left
+  their maps empty.
+- A preset level (the towns) has its 8x8 rooms walked by
+  `game::preset_rooms` (`level_room_tiles` on the town's preset, as
+  `camp_rooms` lays the camp beside the Blood Moor), the words' style and
+  sequence standing for the DT1 header. `automap_whole` brings the Rogue
+  Encampment and the Kurast Docks in whole once a game
+  (`GameData::prest_automap`, LvlPrest AutoMap).
+- Not ported: the `0x7a51a4` count-down; a preset room lists every word
+  its walk takes (game.exe only those it finds a tile for); before 2026-11
+  d2d revealed each frame what was drawn, with a tile hash for the cel.
 - Your own mark is drawn.
 - The options (Options → Automap, the key config's automap functions;
   kept in d2d.cfg `automap_*` as game.exe keeps them in the registry):

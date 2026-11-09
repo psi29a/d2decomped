@@ -5,6 +5,7 @@
 #pragma once
 
 #include "audio.hpp"
+#include "automap_reveal.hpp"
 #include "belt_popup.hpp"
 #include "common.hpp"
 #include "controls.hpp"
@@ -470,6 +471,7 @@ struct Town {
     bool  net_cube_open = false;           // a joined game: the host has our Cube open (0x77 0x15; 0x4f 0x17 shuts it)
     NpcMenuState npc_menu;                 // open NPC menu (npc < 0: none)
     Automap automap;                       // Tab
+    AutomapReveal automap_reveal;          // what the reveal keeps across layers and games (its seed, the flags)
     Store store;                           // an open vendor store (npc < 0: none): the View's stock, the client's tab and buttons
     WaypointUI waypoint;                   // the waypoint panel
     Speech speech;                         // NPC talking (npc < 0: none)

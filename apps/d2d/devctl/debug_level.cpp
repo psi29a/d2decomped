@@ -3,6 +3,7 @@
 // (docs/control_channel.md). In name order: a new one goes where it sorts.
 #include "debug.hpp"
 
+#include "automap_reveal.hpp"
 #include "panels.hpp"
 #include "town.hpp"
 
@@ -29,11 +30,7 @@ namespace d2d::client {
 void DebugVerbs::add_level() {
     add("automap", [this](const Args& /*args*/) -> Reply {   // reveal the whole level
         if (!scene) return std::nullopt;
-        const auto& map = town.level->ds1;
-        std::vector<DrawnCell> every;
-        for (int y = 0; y < int(map.height()); ++y)
-            for (int x = 0; x < int(map.width()); ++x) every.push_back({ x, y, nullptr });
-        automap_reveal(*scene, *town.level, town.automap, every);
+        automap_all(*scene, *town.world.game_data, *town.level, town.automap, town.automap_reveal);
         return "ok " + std::to_string(town.automap.cells.size()) + "\n";
     });
     add("blocked", [this](const Args& args) -> Reply {   // can a unit stand at (x, y)?
