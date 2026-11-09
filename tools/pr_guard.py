@@ -6,8 +6,8 @@ Usage: tools/pr_guard.py [BASE [HEAD]]   (default origin/main HEAD; reads the di
 
   FAIL  a FUN_/LAB_ address outside game.exe's code, or any address outside
         its image: evidence that can't be true
-  FAIL  a new binary file outside assets/ and docs/screenshots/, or a file that
-        must stay local (game-strings.tsv, decompiled C, the Ghidra project,
+  FAIL  a new binary file outside assets/ and docs/screenshots/, a symlink, or a
+        file that must stay local (game-strings.tsv, decompiled C, the Ghidra project,
         MPQs, saves)
   FAIL  risky surface (network, downloads, process launches, workflows, the
         agent instructions, a long byte table) without the `security-reviewed`
@@ -163,6 +163,10 @@ def check(base, labels, entries, head="HEAD"):
         if path == "docs/PLAN.md":
             warns.append(f"{path}: the maintainer updates it after a merge; put the status in the PR body "
                          "(every PR that edits it conflicts with the others)")
+    for row in git("diff", "--raw", "--no-renames", "--diff-filter=d", f"{base}...{head}").splitlines():
+        meta, path = row.split("\t", 1)
+        if meta.split()[1] == "120000":
+            fails.append(f"{path}: a symlink (it points into its author's machine: ignore it instead)")
     for path, number, text in added_lines(base, head):
         where = f"{path}:{number}"
         if path.startswith("docs/research/re/game-"):
