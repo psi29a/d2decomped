@@ -460,8 +460,9 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   whose type word (`+0`) is not 0 (player) asserts (line 0xfb6); both go
   through `FUN_00408090(line)` / `FUN_00408a60` and `FUN_00681e09(-1)`,
   which does not return. Else it returns unit `+0x14`, the player data.
-  Every pet function above and below starts with it (it never returns 0 for
-  a player: callers' `== 0` tests on it are dead). Five other callers
+  `FUN_00575720`, `FUN_00575850`, `FUN_00575900`, `FUN_00574ab0` and
+  `FUN_005750e0` call it first (it returns 0 only if the player data
+  pointer is 0, so their `== 0` asserts are not reached on a made player). Five other callers
   (`FUN_0045a860`, `FUN_0047a210`, `FUN_00532520`, `FUN_00532590`,
   `FUN_00532be0`). d2d reads the player data directly and has no assert
   (the oracles in `tools/emu/fl_load.py` run it native).
@@ -473,8 +474,8 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   equal, it takes that row's first live pet (`FUN_00574ec0(row, 1)`, the
   unit found by id with `FUN_00552f60`) and removes it with
   `FUN_005750e0(pet id, 1)`, going on while that row's slot still has a
-  head node. So summoning into a row empties every other row of the same
-  group. The short's column name is not in the repo (the PetType.txt
+  head node. So summoning into a row empties the other rows that carry the
+  same group value. The short's column name is not in the repo (the PetType.txt
   header was not read; no MPQ here), and which rows share a value is
   data. d2d: **not ported**: `Fight::summon_one` trims only the cast
   skill's own `pettype` (summons.cpp:147), and `GameData::PetType` has no
@@ -526,21 +527,22 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   (the pettype, 0 if past the row count) and the petmax calc
   (`FUN_00646ca0`) **unclamped**. In order:
   1. Does nothing unless the owner is a player and `0 < row < count`: row 0
-     (the first PetType row) is never recorded.
+     (the first PetType row) is not recorded: the function returns at once.
   2. `FUN_00575720(row)` (the other rows of the group go), then
      `FUN_00575850(row, limit)` (the limit set, the surplus shed).
   3. The slot is `FUN_00574540(*(pdata+0x44) struct)` (row in EAX); a
      missing struct or slot ends it.
   4. `FUN_00575c70(pet, three zero words)`. When it returns 1, an event
      `{pet id (-1 for no unit), owner id (+0xc), u16 class (pet +4; 0xffff
-     for none), row, 0, 0, 0}` goes to every client through
-     `FUN_005538d0` (the callback is `FUN_00574930`), so each client's
-     pet list gets a 0x7a entry. A refusal sends nothing.
+     for none), row, 0, 0, 0}` goes through `FUN_005538d0`'s client lists
+     (the callback is `FUN_00574930`; it skips a client for which
+     `FUN_00639df0(client, 7)` is not 0), so those clients' pet lists get
+     a 0x7a entry. A refusal sends nothing.
   d2d: **partly ported**. `Fight::summon_one` (summons.cpp:147) keeps the
   pets of the cast skill's pettype within petmax, dropping the oldest
   (reads the same, cited from the decompile, no oracle run); the group release (`FUN_00575720`) is **not ported**, nor are
   the broadcast and the limit shed outside a cast. One possible
-  difference: d2d clamps petmax to at least 1 for every summon, Revive
+  difference: d2d clamps petmax to at least 1 in `summon_one`, Revive
   included, while game.exe clamps it only on `FUN_0056d8d0`'s path. A
   Revive petmax calc of 0 or less would store limit 0, and
   `FUN_00575c70` would refuse the raised monster (after one
@@ -566,7 +568,7 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   from the caller). On a match: node flags `&= ~1` (bit 0 is what
   `FUN_00574ec0(row, 0)` skips), then the same event `FUN_00575d90`
   sends, `{id, owner id, u16 class (unit +4; 0xffff for none), row, node
-  +8, node +0xc, 0}`, to every client through `FUN_005538d0`; returns 1.
+  +8, node +0xc, 0}`, through `FUN_005538d0`'s client lists; returns 1.
   No match returns 0. Its one caller is `FUN_00579aa0`, the merc's
   resurrection placement (npc-menu.md "Done"). With the merc's node words
   nonzero, `FUN_00574930` sends this as 0x81. d2d: **not ported** (its
