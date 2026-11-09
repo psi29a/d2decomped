@@ -49,3 +49,11 @@ The renderer's tile draw (`FUN_004f68e0` hands its arguments to renderer
   the tile view box leaves out, automap.md) keep their pixels.
 - DirectDraw's `+0x18` (`FUN_00511720`) locks the surface and has no such
   clear: the GDI draw buffer is a persistent one.
+
+## Wall tile draw (`+0xa0`, `FUN_006c93a0`)
+
+The same text as DirectDraw's `FUN_005130a0` (read side by side: the same
+`FUN_005fdea0` load, view box, per-block test and callback `+0x18` of
+`DAT_007c914c`), which d2d ports (automap.md "wall draw", `world_view.cpp`).
+So the box it tests blocks against, and the side-panel halves, are the ones
+written up there. It returns 1 when it drew a block, 0 otherwise.

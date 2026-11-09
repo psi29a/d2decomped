@@ -1125,6 +1125,7 @@ address	name	evidence
 006c95d0	gdi_draw_tile	GDI driver slot +0x7c (0x74c524): FUN_005fdea0 then callback +0xc of DAT_007c914c; same text as FUN_005132c0
 006c9220	gdi_clear_buffer	memset of DAT_007c9154: W * H when arg is 0, else (H - 0x2f) * W
 006c9280	gdi_clear_buffer_thunk	calls FUN_006c9220 with its argument; called by FUN_006c7d80 (driver slot +0x18)
+006c93a0	gdi_draw_wall_blocks	GDI driver slot +0xa0 (0x74c548): same text as FUN_005130a0; view box {-0x20, W, -0x21, H + 0x20}, callback +0x18
 0054ba90	scmd_npc_gossip	C->S 0x31 (9 bytes): guid u32 +1, gossip id u16 +5 to FUN_005443b0; verified plrmsg_small.py
 0054bb20	scmd_npc_sell	C->S 0x33 (0x11 bytes): npc +1, item +5, mode u16 +9, price u32 +0xd to FUN_00579510, returns its status; verified plrmsg_small.py
 0054bb60	scmd_npc_repair	C->S 0x35 (0x11 bytes): npc +1, item +5, word +9, dword +0xd to FUN_00578050 (repair); verified plrmsg_small.py
