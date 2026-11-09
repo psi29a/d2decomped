@@ -235,3 +235,7 @@ d2d: pass 1 is `rules::settle_requirements`' first loop. An inventory
 charm (`rules::inventory_charm`) failing `requirements_hold` gets
 `Item::charm_short` (not saved; sent in the replicated items' byte with
 `wielded`), and `game::gear_active` leaves its stats out.
+
+The server's other item moves (C→S 0x19, 0x1f, 0x22, 0x24, 0x25, 0x2a) and the
+small Items.cpp getters are in [itemmode.md](itemmode.md); the inventory record in
+[inventory.md](inventory.md).

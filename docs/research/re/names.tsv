@@ -226,6 +226,58 @@ address	name	evidence
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
+00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
+00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
+00558a10	ground_item_lifetime	30000 / 45000 / 15000 frames by quality and gold
+00558b90	ground_items_expire	item data +0x24 against the frame, per act room
+00558c50	item_clear_4000000	flag 0x4000000, state 0xab stat list
+00558cb0	item_from_record	FUN_00555230, FUN_0062e430, flags 0x80000 / 0x2000
+00559130	item_drop_at	FUN_0064e810 mask 0x3e01, 0x84-byte record, FUN_00558d90
+00559830	item_drop_at_2	same as FUN_00559130, level 1 outside an area
+0055bed0	unit_mode3_notify	FUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
+0055bf30	unit_mode3_notify_if	unit +0xc4 bit 0
+0055bff0	book_item_skill	books.txt +8 / +0xc by ItemTypes 0x16 / 0x12
+0055c110	book_item_charges	stat 0x46 into the skill count, S->C 0x22 (ItemMode.cpp 0x225, 0x230)
+0055c270	book_item_add	FUN_0055c110(1) (ItemMode.cpp 0x24d)
+0055c460	itemmode_55c2c0	FUN_0055c2c0
+0055c470	wielded_and_other	d2d_rules_wielded_weapon, hand index 4 / 5, type 0x2d
+0055c4d0	skill_still_usable	FUN_00647960 not 2 or 7
+0055c4f0	kept_skill_restore	FUN_00623060 / FUN_006230c0, FUN_005701b0
+0055c560	skill_type30_mode2	skill +0x18 is-a 0x30, +0x14 == 2
+0055c6e0	book_item_remove	FUN_0055c110(0) (ItemMode.cpp 0x394)
+0055ca00	code_pair_match	Items +0x80 pair either way
+0055ca40	quest_item_duplicate	UniqueItems +0x2c bit 2, Items +0x12a, j34/g34 bks/bkd d33/g33 hst/msf/vip qf1/qf2
+0055d930	itemmode_nop	bare ret
+0055d940	wield_leaves_refresh	d2d_rules_wield_leaves, FUN_0055c730
+0055d9d0	vitals_and_skills	stats 6/8/10, skill ids (ItemMode.cpp 0x9df, 0x9eb)
+0055df10	item_off_grid	ItemMode.cpp 0xf7b, 0xf7e
+0055e8e0	item_create_record	0x84 bytes from a unit
+0055e9a0	c2s_22_body	return 0
+0055eb30	c2s_25_belt_swap	ItemMode.cpp 0x128a..0x12d8
+0055ed30	item_back_to_cell	FUN_0063c550, FUN_00557fd0 (ItemMode.cpp 0x12e9)
+0055edc0	belt_column_drop	rows of 4, FUN_0063c4f0 (ItemMode.cpp 0x1313)
+0055f2a0	other_hand_item	d2d_rules_other_side
+0055f6e0	item_set_quantity	stat 0x46 (ItemMode.cpp 0x18e0)
+0055f740	book_stack_target	ItemTypes 0x12 / 0x16, stat 0x46 (ItemMode.cpp 0x1905)
+0055f9c0	book_item_zero	FUN_00645120(skill, 0) (ItemMode.cpp 0x1962)
+0055fb10	item_to_cursor_flag	mode 4, flag 0x100000 (ItemMode.cpp 0x19a0)
+0055fb80	gamble_pick	seed * 0x6ac690c5, ubercode +0x88 / ultracode +0x8c (ItemMode.cpp 0x19c9)
+0055fcc0	strip_player	FUN_0063e0b0 (ItemMode.cpp 0x19fd, 0x1a0f)
+0055fde0	itemmode_refresh	FUN_0055dbc0(0), FUN_00621000
+0055fe00	item_flag10_refresh	flag 0x10, FUN_0062ff70
+0055fe60	itemmode_55c2c0_0	FUN_0055c2c0(arg, 0)
+00560420	c2s_19_to_cursor	ItemMode.cpp 0x936..0x978
+00561b00	c2s_1f_grid_swap	box code, ItemMode.cpp 0xec0..0xf4b
+00561e70	item_tell_and_back	ItemMode.cpp 0xf94, FUN_0055ed30
+00562250	c2s_24_belt_to_cursor	flag 0x800, FUN_0055edc0 (ItemMode.cpp 0x1249..0x126d)
+005628c0	c2s_2a_into_cube	'box ', FUN_00560200 (ItemMode.cpp 0x14a7..0x14ab)
+00562c40	item_replenish_step	stat + 1 to max, timer 3 >= 125 (ItemMode.cpp 0x1580, 0x1586)
+00562d30	item_timer_replenish	0x6e117c entry 3 (ItemMode.cpp 0x15a6)
+00562da0	item_timer_run	0x6e117c[n], IsBadCodePtr (ItemMode.cpp 0x15ea)
+00563350	sockets_still_fit	FUN_0055a2a0 copies, d2d_rules_takes_socket
+00563470	item_put_back	by mode 0 / 1 / 4 (ItemMode.cpp 0x1a75)
+00563840	cube_empty	page 3 items to inventory or ground (ItemMode.cpp 0x80d..0x8ee)
+00563fe0	item_transmogrify	Items +0x139, +0xc8, +0x13a/+0x13b
 0056dfa0	skills_refresh_passives	fastcall (unit): for each node of the unit +0xa8 skill list whose passivestate > 0: state on (FUN_00639db0) and FUN_00646d60; skills.md "Skill accessors"
 0056e520	unit_add_attackrate_list	fastcall (unit, value): kind-4 stat list (FUN_006251f0) linked to the unit, stat 0x44 = value, then FUN_00623f50; Skills.cpp line 0x12ab; skills.md "Stat-list helpers and skill starts"
 0056ff10	skill_state_list_apply	(unit in EDI, skill): record flag +4 & 0x20 needed; state +0x80 on, list tagged state / skill / level, stats 0x15e / 0x15f set, or d2d_ai_castable when +5 & 0x80; then FUN_0056cda0; skills.md "Stat-list helpers and skill starts"
@@ -537,6 +589,66 @@ address	name	evidence
 00626920	stat_delta_up_lists	ECX list, EDX key, delta, ctx: adds the delta (FUN_006250b0) or refreshes (FUN_006266c0) on the list and its parents (+0x34)
 006269f0	stat_list_detach	unlinks the list from its parent, pushes its values up negated, then calls the removal callback +0x38
 00627150	stat_list_set	(list, stat, value, layer): FUN_006270b0 when list is non-null, else nothing; skills.md "Stat-list helpers and skill starts"
+00627c90	item_data_alloc	0x74 bytes (Items.cpp 0xd2, 0xd5)
+00627d00	item_data_free	Items.cpp 0x10a
+00627dc0	item_650e30	FUN_00650e30 on an item with data
+00627e20	item_data_set_10	item data +0x10 (Items.cpp 0x187..0x18b)
+006281b0	item_data_14	item data +0x14
+006282a0	item_data_46	item data byte +0x46
+006282d0	item_data_set_46	item data byte +0x46
+006283f0	item_data_49	item data byte +0x49
+00628440	itemtype_word_c	ItemTypes +0xc
+006284c0	itemtype_byte_13	ItemTypes +0x13
+00628530	item_2handedwclass	Items +0xc4 (Items.cpp 0x608..0x60c)
+006285f0	item_gfx_code	Items +0x90 else +0x80 (Items.cpp 0x627..0x62b)
+00628660	item_component	Items +0x115 (Items.cpp 0x634..0x638)
+006288a0	item_missiletype	Items +0xfa
+00628900	class_wclass_is	Items +0xc0 (Items.cpp 0x8eb)
+00628950	item_wclass_is	FUN_00628900 of unit +4
+00628980	class_2handed	Items +0x11c (Items.cpp 0x906)
+00629620	class_spawnstack	Items +0xec (Items.cpp 0xd6c)
+00629660	item_spawnstack	FUN_00629620 (Items.cpp 0xd7b)
+006296b0	class_minstack	Items +0xe4 (Items.cpp 0xd8a)
+00629740	item_bitfield1_8	Items +0xdc & 8 (Items.cpp 0xd9d)
+006297a0	item_durwarning	Items +0x135 (Items.cpp 0xdc3)
+00629800	item_qntwarning	Items +0x136 (Items.cpp 0xdcf)
+00629860	item_strbonus	Items +0x106, 100 when 1
+006298a0	item_dexbonus	Items +0x108, 100 when 1
+006298e0	class_hasinv	Items +0x137
+00629990	class_gemsockets	Items +0x138
+00629a00	class_gemapplytype	Items +0x13e (Items.cpp 0xf28)
+00629a40	item_gemapplytype	FUN_00629a00 (Items.cpp 0xf3d)
+00629b50	itemtype_is_a_bits	bit matrix at data tables +0xc04
+00629d00	class_bitfield1_4	Items +0xdc & 4 (Items.cpp 0x1054)
+00629e40	item_data_1c_20	item data +0x1c / +0x20
+00629ea0	item_data_set_1c_20	item data +0x1c / +0x20
+00629ed0	item_data_set_c	item data +0xc (Items.cpp 0x10bc..0x10bf)
+00629f20	item_data_c	item data +0xc (Items.cpp 0x10c7..0x10ca)
+0062a060	class_transmogrify	Items +0x139 (Items.cpp 0x1155)
+0062a0a0	item_transmogrify_flag	FUN_0062a060 (Items.cpp 0x1162)
+0062a250	tint_byte	transform * 32 + colour
+0062a2b0	item_compactsave	Items +0x143 (Items.cpp 0x12e0)
+0062a310	item_quantity_left	stat 0x46, stat 0x7d, FUN_006295b0
+0062a360	items_stub_0	return 0
+0062a490	item_setitems_row	SetItems 0x1b8 rows at +0xc18
+0062a670	item_data_30	item data word +0x30 (Items.cpp 0x1504..0x1507)
+0062a900	item_socketed_count	hasinv, FUN_0063b2c0 walk
+0062ac80	saved_stat_read	FUN_00411020, version 0x5a / 0x5d remaps
+0062ae20	saved_item_header	'JM', 'ear ', 'nec ' -> 'neg ' before 0x5d
+0062af50	bits_write_clamped	FUN_00410eb0, (1 << n) - 1
+0062b3a0	item_setitems_2e	SetItems +0x2e
+0062b450	sockets_stat_sum	children in mode 1, FUN_00625480
+0062b560	item_62b4d0	FUN_0062b4d0 of unit +4 (Items.cpp 0x78c)
+0062ba60	item_required_level_wrap	d2d_item_text_required_level
+0062bbd0	itemtype_byte_1f	ItemTypes +0x1f, 7 default
+0062be00	item_set_sockets	invwidth x invheight cap 6, flag 0x800, stat 0xc2
+0062beb0	item_is_type35	FUN_00629bb0(item, 0x35)
+0062c9f0	item_stat_floor	maxac +0xd0, mindam/maxdam +0xfe..+0x103
+0062e410	saved_item_header_60	FUN_0062ae20(..., 0x60)
+0062e7e0	itemtype_byte_11	ItemTypes +0x11
+0062e830	itemtype_byte_12	ItemTypes +0x12
+0062e920	itemtype_cel_variant	ItemTypes +0x23 count, +0x24 + 32 n
+0062ea80	itemtype_bytes_a_b	ItemTypes +0xa / +0xb
 00633540	items_tables_free	ItemTbls.cpp 0x1c8, 0x1cb
 00633590	items_count_ptr	returns &0x96ca58
 006335a0	items_index	0x96ca78 word (ItemTbls.cpp 0x1e2)
