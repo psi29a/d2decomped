@@ -433,4 +433,10 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   the layout net-packets.md has from the client's handler (`0x45e860`).
   Callers `FUN_00574410`, `FUN_00574930`, `FUN_00574f80`. The client is
   `FUN_0053b280`'s hidden EDI.
+- **`FUN_0053cb80`** (`scmd_assign_merc`, `GAME/SCmd.cpp`): the 20-byte
+  S->C packet **0x81**, queued with `FUN_0053b280(buf, 0x14)`: +1 the
+  first byte argument, +2 u16 class, +4 u32 owner id, +8 u32 pet id, +0xc
+  and +0x10 two more words. net-packets.md has it as "assign merc"
+  (`FUN_00478bb0`): the same layout. Callers `FUN_00574930` and
+  `FUN_00574f80`.
 
