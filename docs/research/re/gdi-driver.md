@@ -57,3 +57,19 @@ The same text as DirectDraw's `FUN_005130a0` (read side by side: the same
 `DAT_007c914c`), which d2d ports (automap.md "wall draw", `world_view.cpp`).
 So the box it tests blocks against, and the side-panel halves, are the ones
 written up there. It returns 1 when it drew a block, 0 otherwise.
+
+## Videos (`Src/gdiSmack.cpp`: slots `+0x40`, `+0x44`, `+0x48`)
+
+The state is a record `{ int smack; char kind; }` (the slot functions take
+its pointer; `kind` at `+4` is `'s'` for a Smacker file, `'p'` for a still
+picture, 0 for none), a pixel buffer `DAT_0098a278` and a 256-byte palette
+map `DAT_0098a178`. DirectDraw's twins (`ddSmack.cpp`: `FUN_00513400`,
+`FUN_005135f0`, `FUN_00513330`, `FUN_00513380`) keep theirs at `DAT_008816b0` /
+`DAT_008815b0`. d2d doesn't port any of them.
+
+### Close (`FUN_006c9640`, slot `+0x48`)
+
+Frees the buffer (`FUN_0040b3c0`, SMemFree-shaped, mpq-archives.md) and
+zeroes `DAT_0098a278` when it is set; closes the Smacker (`_SmackClose_4`) and
+zeroes the handle when `kind` is `'s'`; then zeroes `kind`. DirectDraw's
+`FUN_00513330` is the same without the last step (its `kind` stays).
