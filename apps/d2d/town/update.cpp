@@ -631,7 +631,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             automap_whole(*scene, *world.game_data, *level, automap, automap_reveal);   // the Rogue Encampment, the Kurast Docks
             for (const auto& neighbour : level->nearby)
                 if (neighbour.level->layer == level->layer) automap_whole(*scene, *world.game_data, *neighbour.level, automap, automap_reveal);
-            automap_step(*scene, *world.game_data, *level, view.player.x, view.player.y, automap, automap_reveal);
+            automap_step(*scene, *world.game_data, *level, view.player.x, view.player.y, frame_ms, automap, automap_reveal);
             if (g_drawn.level == level) automap_icons(*world.game_data, *level, automap, view.player.x, view.player.y, view.npc_states, view.monsters);
         }
         // The NPC's voice (FUN_004a10e0 plays FUN_004e0650's sound for

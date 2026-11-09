@@ -24,6 +24,7 @@ namespace d2d::client {
 namespace {
 
 constexpr int kFloorSlot = 16, kWallSlot = 32;   // a DS1 layer's slot (AutomapReveal::drawn)
+constexpr std::uint32_t kGameFrameMs = 40;        // FUN_0044c790's client game frame, 25 a second
 
 // One tile of a room's list as FUN_00457cf0 reads it: where it is, its
 // drawn slot, the DT1 header's orientation, main and sub index, the room
@@ -106,9 +107,15 @@ void automap_room(const Scene& scene, const GameData& game_data, const Level& le
         }
 }
 
-void automap_step(const Scene& scene, const GameData& game_data, const Level& level, float x, float y, Automap& automap, AutomapReveal& reveal) {
+void automap_step(const Scene& scene, const GameData& game_data, const Level& level, float x, float y, std::uint32_t now_ms, Automap& automap,
+                  AutomapReveal& reveal) {
     const float act_x = x + float(level.world_x), act_y = y + float(level.world_y);   // the unit's client px (path +8 / +0xc)
-    if (!d2d::rules::automap_moved(reveal.step, int(std::lround((act_x - act_y) * 80)), int(std::lround((act_x + act_y) * 40)))) return;
+    const int pixel_x = int(std::lround((act_x - act_y) * 80)), pixel_y = int(std::lround((act_x + act_y) * 40));
+    if (!reveal.frame_ms) reveal.frame_ms = now_ms;                                  // a game's first frame is now
+    bool moved = false;
+    for (; std::int32_t(now_ms - *reveal.frame_ms) >= 0; *reveal.frame_ms += kGameFrameMs)   // each 40 ms game frame due
+        moved = d2d::rules::automap_frame(reveal.step, pixel_x, pixel_y) || moved;
+    if (!moved) return;
     for (const auto& near_room : game::automap_rooms(game_data, level, x, y))
         if (near_room.level->layer == level.layer) automap_room(scene, game_data, *near_room.level, near_room.room, automap, reveal, false);
 }

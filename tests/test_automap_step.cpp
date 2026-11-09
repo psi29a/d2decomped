@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: rules
 // When the automap takes in what's been drawn (rules/automap_step.hpp,
-// FUN_00459020's octagon on client px, past 0x4f), and the cel picks' seed
+// FUN_00459020's octagon on client px, past 0x4f, paused two frames by a
+// teleport's FUN_00459140), and the cel picks' seed
 // (0x96c8c8: {0, 0x29a} by FUN_0061fcf0, rules::Rng as FUN_0045c3e0), worked
 // by hand.
 #include <automap_step.hpp>
@@ -26,6 +27,18 @@ int main() try {
     assert(!automap_moved(down, 0, 79) && automap_moved(down, 0, 80));               // (0 + 158) / 2 = 79, then 80
     assert(automap_moved(down, -20, 159));                                            // from (0, 80): (20 + 158) / 2 = 89
     std::printf("OK: the 80 px step\n");
+
+    // A teleport (FUN_00459140: 0x7a51a4 = 2): the next two frames count
+    // down and keep the last spot, the third measures from it.
+    using d2d::rules::automap_frame;
+    AutomapStep teleport;
+    assert(automap_frame(teleport, 80, 0) && teleport.last_x == 80);
+    d2d::rules::automap_pause(teleport);
+    assert(!automap_frame(teleport, 1000, 0) && teleport.pause == 1 && teleport.last_x == 80);
+    assert(!automap_frame(teleport, 1000, 0) && teleport.pause == 0 && teleport.last_x == 80);
+    assert(automap_frame(teleport, 1000, 0) && teleport.last_x == 1000);
+    assert(!automap_frame(teleport, 1000, 0));                                        // there: no step
+    std::printf("OK: the teleport's pause\n");
 
     // The seed's first draws: 666, then 666 * 0x6ac690c5 = (277, 3365183618).
     d2d::rules::Rng seed;
