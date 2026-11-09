@@ -18,7 +18,7 @@ bytes, `+0` magic `0x1020304` (every entry point checks it):
 |---|---|
 | `+0x04` | the memory pool it was allocated from |
 | `+0x08` | the owner unit (`FUN_0063ac40` clears its `+0x60`) |
-| `+0x0c` / `+0x10` | first / last item; items link through item data `+0x60` next, `+0x64` previous |
+| `+0x0c` / `+0x10` | first / last item; items link through item data `+0x60` previous, `+0x64` next (`FUN_0063af20` writes the new item to the old tail's `+0x64` and the old tail to its own `+0x60`; `tools/emu/inventory_lists.py`) |
 | `+0x14` | the grids: 16 bytes each, `+0` first item, `+4` last, `+8` width, `+9` height, `+0xc` cell array (width × height item pointers) |
 | `+0x18` | grid count |
 | `+0x1c` | the wielded weapon's id, -1 none ([weapon-switch.md](weapon-switch.md)) |
