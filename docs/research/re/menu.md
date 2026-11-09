@@ -47,8 +47,36 @@ The inventory and tree checks are at 0x4560de..0x45613d. The left
 panels' checks are at 0x4561e8..0x456206.
 
 UI 0xc is the store (char-panel.md). 0xf is the quest log, 0x16 the
-party and 0x24 the hireling. 0x14, 0x19 and 0x1a are unverified (source:
-D2BS's UI enum): the waypoints, the stash and the cube.
+party and 0x24 the hireling. 0x14, 0x19 and 0x1a are traced (read, no
+oracle run); their names first came from D2BS's UI enum:
+- 0x14 the waypoints: `FUN_0049cf90` (S->C 0x63, the waypoint panel,
+  act1-end.md) calls `FUN_00455f20` with ECX = 0x14 at 0x49cf9a. Its close
+  (`FUN_00455ae0` case 0x14) calls `FUN_0049cf50`, which sends the 9-byte
+  `FUN_004786a0(0)` (C->S 0x49 with level 0 is not traced; same send as the
+  row click) once, guarded by `0x7bf085`. `FUN_00455f20` lists it with the
+  left panels (state 2 / 1), per the table above.
+- 0x1a the cube: `FUN_0048a460` (S->C 0x77 action 0x15, cube.md) calls
+  `FUN_00455f20` with ECX = 0x1a at 0x48a469 and sets the panel state
+  `0x7bcbf0` = 0xe. The open handler (`FUN_00455720` case 0x1a) loads
+  `PANEL\supertransmogrifier` (`FUN_0048a4b0`); the close (`FUN_00455ae0`
+  case 0x1a) runs `FUN_0048a500`: if `0x7bcbf0` is 0xe, clear it and run
+  `FUN_0048a050` (sends C->S 0x4f `{0x17}` via `FUN_00478600`); free the cube
+  art (`0x7bcc30`).
+- 0x19 the stash: `FUN_00455f20` is called with ECX = 0x19 at 0x489e09
+  (a stash function: its neighbours are stash mouse handlers that test the
+  panel state `0x7bcbf0` for 0xc / 0xd). The open handler (case 0x19) loads
+  `DATA\GLOBAL\ui\panel\bank` (`FUN_00489e50`; and `TradeStash` when
+  `FUN_00408f20` is nonzero); the close (case 0x19) runs `FUN_00489ee0`: if
+  `0x7bcbf0` is 0xc or 0xd, clear it, shut UI 0 and send `FUN_00478600(0,0)`;
+  free the art (`0x7bcc2c`, `0x7bcc3c`). Which of 0xc / 0xd is the stash and
+  which the tradeable stash/gold is not traced.
+- Sides: `FUN_00455f20`'s switch groups 0x14 with 2, 0xf, 0x10, 0x16, 0x24,
+  0x25 (left: open 2 / 3, shut 0 / 1) and 0x19, 0x1a with 0xc, 0xe, 0x1b,
+  0x1c, 0x1d, 0x20 (open 3, shut 0). d2d agrees: `view_state`
+  (town.hpp:332-334) takes the waypoints as left and the stash / cube as
+  covering. `FUN_00455ae0` also calls `FUN_0045aea0` after the 0x19 / 0x1a
+  close (0x1a without `FUN_00453ee0`); the state it sets is hidden by the
+  decompile's fastcall args and is not traced there.
 
 The state moves the world:
 - `FUN_0045aea0` sets `0x7a5214`: -W/4 for state 1, +W/4 for 2, 0
