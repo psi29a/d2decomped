@@ -1199,6 +1199,51 @@ FUN_0061ebb0, FUN_0061f500, FUN_006704e0. d2d reads the DS1 on every call
 and keeps no cache; the unit lists are copied out of it (FUN_00667620), so
 the result is the same. Cited from decompilation only, no oracle run.
 
+**The DS1 file layout (FUN_00665950, `.\DRLG\Preset.cpp`).** Read from the
+decompile and the asm at 00665a40..00665b00; no oracle run (cited / read,
+not proven). The loader does not copy: the file is read in place and the
+DS1 record keeps pointers into it. Field order and version gates, `v` the
+file's version:
+
+1. `v`, width-1, height-1 (cells = (w+1)·(h+1)); v >= 8 the act (game.exe
+   clamps it to at most 4; d2d adds 1 and does not clamp); v >= 10 the
+   substitution type; v >= 3 a count then that many NUL-terminated names;
+   v 9..13 skip 8 bytes.
+2. v < 4: no counts; five streams: wall tile words, floor, orientation, a
+   fourth (substitution slot), shadow. v >= 4: wall count, and floor count
+   only from v >= 16 (else 1).
+3. v >= 4 streams: for each wall, the tile-word stream then its
+   orientation stream; then each floor; then the shadow; then, when the
+   substitution type is 1 or 2, one more stream. Wall = first of a pair
+   because only the second stream goes through the v < 7 conversion
+   (table 006eef20, in place), which is an orientation mapping; not
+   confirmed independently from the consumers.
+4. v >= 2 objects: count, then `{type, id, x, y}` and a flags dword only
+   from v >= 6. Type 1 (monster) needs v >= 5; type 2 needs v >= 6 (ids <
+   150 through the act's table at 0x748ad8, else minus 150); type 4 takes a
+   name from 0x748ad4. Units are built by FUN_0066bf30, each put at the
+   front of the list.
+5. v >= 12 and substitution type 1 or 2: v >= 18 one dword skipped, group
+   count, then `{x, y, w, h}` and `variants` only from v >= 13. No bound
+   check on the buffer (see bugs.md 1).
+6. v >= 14 paths: count; each `{n, x, y}` then n points `{x, y}` plus an
+   action dword from v >= 15. A path goes to the first unit in the list
+   whose x and y match, found from the list's front (the last of equal
+   units in file order); n = 0 is skipped.
+
+Against components/ds1/ds1.hpp: the layer order (walls with their
+orientation, floors, shadow, substitution), every version gate for v >= 4,
+the group block, the paths and the 18/13/15/16/14/12 gates agree. Where they
+differ: (a) the substitution stream is present for v >= 10 with type 1 or 2
+in game.exe, d2d needs v >= 12 (differs only for a v10/11 file; none
+checked); (b) objects: game.exe reads flags from v >= 6 and objects from
+v >= 2, d2d reads 5 dwords from v >= 3 (differs for v 3..5; d2d refuses v <
+4 anyway); (c) d2d throws on more than 4 walls / 2 floors, game.exe has no
+such bound; (d) a path attaches to the first equal-coordinate object in file
+order in d2d, the last in game.exe, and only to units the loader made.
+Not traced: FUN_0066bf30, the monster-preset lookup (FUN_00659b40), and
+whether any shipped DS1 is v < 12 with type 1 or 2.
+
 **Units off every room.** FUN_00666710 is the only hand-out (its one
 caller is the preset room init FUN_006667d0). A unit of the record that
 lies inside no room of the preset stays in the record and nothing ever
