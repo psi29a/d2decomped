@@ -103,14 +103,16 @@ Read from the code, no oracle run.
   shift (flag 0x20) is `FUN_00461700(0)` (the attack in place) and
   `FUN_00467a70`; otherwise `FUN_004623c0` + `FUN_00461840`, a walk to the
   click's spot. So a left click on a converted monster walks there,
-  as on empty ground.
+  as on empty ground, unless shift is held: then it is the attack in
+  place (`FUN_00461700(0)`), as on empty ground.
 - A held frame (kind 1, `FUN_00462a20`) is let through by `FUN_00462930`
   when the press armed 0x7a526c (a null target arms it to 1, a unit to 2)
   and the target is null, or is a type 0, 1 or 5 unit whose owner is not
   walking, running or in mode 6. A monster target then needs the press
   flag to attack (the existing note in collision.md). A converted monster
-  is a null target on every frame, so a held button never attacks it: it
-  keeps re-walking to the spot. That is d2d's "a held attack drops it".
+  is a null target on every frame, so a held button never targets it: it
+  keeps re-walking to the spot (with shift, the attack in place). That is
+  d2d's "a held attack drops it".
 - `FUN_004621d0` re-picks the target through `FUN_00467880` for skills
   whose Skills.txt +6 bits are 0x40 (`FUN_00467490`), 0x20 with no target
   (`FUN_00467660`) or 0x80 (`FUN_004677b0`). `FUN_00467490` and
