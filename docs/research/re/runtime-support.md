@@ -1,6 +1,6 @@
 # Runtime support routines (0x4059d0 .. 0x409490) — game.exe 1.14d
 
-Small helpers every other module calls: the internal-error path, the error
+Small helpers many modules call: the internal-error path, the error
 box, the logging start-up and the pool-block list. Read from the Ghidra
 decompile (`python3 tools/ghidra/fn.py <addr>`); the asm was not read, so
 every register argument is the decompiler's (`unaff_` / `in_` names), and
@@ -13,7 +13,7 @@ no oracle ran: all of it is **cited**, none proven. d2d ports none of it
   it hands back its caller's return address. The sites that pass a constant
   (`FUN_00408090(0x44)`, `(199)`, `(0x261)`) pass it as an argument the
   decompiled body does not use, so the number is a source line for the reader of
-  the asm, not a value. Every site then runs the same pair:
+  the asm, not a value. Each site in the list below then runs the same pair:
   `FUN_00408a60(&DAT_006cc837, <that address>)` and `FUN_00681e09(-1)`
   (exit; the decompile marks it as not returning). The other docs write it
   as "assert line N" (collision.md "Building a path", items.md, chat.md);
@@ -67,12 +67,13 @@ no oracle ran: all of it is **cited**, none proven. d2d ports none of it
   - Did not: `SHGetFolderPathA(0, 5, 0, 0, ...)` (CSIDL 5, My Documents);
     a non-zero result returns with the buffer as it was; else
     `FUN_00406b20` and `FUN_00413800(buf, "Diablo II\\Save", size)`.
-    The decompile gives the local 260-byte array as the folder call's
-    output and never reads it afterwards, which cannot be what the code
-    does (the call's output is the buffer); the asm was not read, so
-    this is the decompiler's register loss, not a finding.
-- So the result is a per-user folder plus `Diablo II`, or (fallback)
-  `<CSIDL 5>\Diablo II\Save`. Which folder the id at `0x006cca6c` names
+    The decompile passes the local 260-byte array as the folder call's
+    output and never reads it afterwards; `FUN_00406b20` and
+    `FUN_00413800` then work on the buffer. Where the folder path really
+    goes (the buffer or that array) and so what this path returns is not
+    traced: the asm was not read.
+- So the result is a per-user folder plus `Diablo II`, or (fallback, if
+  the CSIDL 5 folder goes to the buffer, not traced) `<CSIDL 5>\Diablo II\Save`. Which folder the id at `0x006cca6c` names
   was not read (16 bytes of data); `0x8000` is the create flag of
   `SHGetKnownFolderPath` by its documented value, not read in game.exe.
 - Open (switches.md lists it): whether `FUN_00407050` uses this for
