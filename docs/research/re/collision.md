@@ -193,6 +193,19 @@ were not read in the asm); cited, no oracle run.
   above and `UnitShape` (gamedata.hpp:61, 274: 0 own subtile, 1 / 3 plus,
   2 / 4 box); the pattern 5 case (the plus again, no footprint) is the one
   `grid_set_pattern_bits` shows for stamping.
+- **`FUN_00648050`** (ESI = the path request `rq`, a record built by
+  `FUN_00649970`; its shorts `rq[0..1]` are the start x, y, `rq[2..3]`
+  the end x, y, `rq +8` the room, `rq +0x28` the pattern, `rq +0x2c` the
+  mask): pushes the end on, by at most 5 - max(|dx|, |dy|) table steps
+  (the table is unread, so "away from the start" is the intent, not
+  checked). With dx, dy = end - start, it does nothing unless both |dx| and
+  |dy| are under 5 and they are not both 0. The step is
+  (`0x6eb490[dx + 9 * dy]`, `0x6eb490[dy + 9 * dx]`) as x and y (a table
+  of 9 x 9 dwords; its values were not read). From n = max(|dx|, |dy|) up
+  to 4 it adds the step to the end, asks `FUN_0064d910` there, and stops
+  at the first blocked subtile; each free one is stored in `rq[2..3]`. It
+  returns nothing. Its only caller is `FUN_00648120`, for a player (below).
+  d2d: not ported.
 
 ## A walk's stop
 
