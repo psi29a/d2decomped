@@ -17,6 +17,7 @@
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <quests.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <uniques.hpp>
@@ -578,7 +579,13 @@ auto Town::net_quests(std::uint32_t frame_ms) -> void {
         // The Cube: the host opens it (0x77 0x15); shut here, the host's shuts too (0x4f 0x17).
         if (std::exchange(net_game->cube_opened, false)) { cube_open = net_cube_open = true; inv_open = true; stash_open = char_open = false; }
         if (net_cube_open && !cube_open) { net_game->send_items({ d2d::net::d2gs::c2s::button(0x17) }); net_cube_open = false; }
-        for (const std::uint32_t id : net_game->npc_alerts) net_alert_ms[id] = world_ms;
+        for (const std::uint32_t id : net_game->npc_alerts) {
+            net_alert_ms[id] = world_ms;
+            if (const auto host = net_game->units.find(std::uint64_t(1) << 32 | id);   // a prisoner's 0x8a: its help-me line, no "!"
+                host != net_game->units.end() && host->second.cls == d2d::rules::RescueQuest::kPrisoner && level)
+                cues.cue_on(d2d::game::unit_key(d2d::game::kSoundOnMonster, int(id)), d2d::rules::RescueQuest::kHelpMe, frame_ms,
+                            (host->second.x + 0.5f) / 5.f - float(level->world_x), (host->second.y + 0.5f) / 5.f - float(level->world_y));
+        }
         const bool talk_open = npc_menu.npc >= 0 || speech.npc >= 0 || store.npc >= 0;   // FUN_004b1620: a talk with anyone
         const auto& quest_bits = hero.character.header.quests[std::size_t(std::clamp(hero.character.header.active_difficulty(), 0, 2))];
         for (std::size_t i = 0; level && i < view.npc_states.size() && i < level->npcs.size(); ++i) {

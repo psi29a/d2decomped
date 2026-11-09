@@ -864,10 +864,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // walks at it 70 % (FUN_005dec80 flags 7), else rand(100) < 10 wanders 4,
     // else stands 10; there (or after the first) it's gone through. Else a
     // player within 16: its door broken, the portal opens (FUN_005888d0),
-    // still caged it cries (FUN_00588dd0; rand(1000) < 100 the overhead
-    // 0x14ff). Then it stands 25.
-    // ponytail: the walk at the portal as one to its spot; the overhead
-    // line, and FUN_005b1990 at +0xd0 == 11, aren't sent.
+    // still caged it cries (FUN_00588dd0; rand(1000) < 100 its help-me
+    // line, RescueQuest::kHelpMe). Then it stands 25.
+    // ponytail: the walk at the portal as one to its spot; FUN_005b1990
+    // at +0xd0 == 11 (into list 8, the good monsters') isn't kept.
     if (type_info.ai_name == "Wussie") {
         auto& view = monster.wussie;
         if (view.portal) {
@@ -883,7 +883,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         }
         if (view.player) {
             if (view.door_broken) view.open_portal = true;
-            else { view.cried = true; (void)monster.seed(1000); }
+            else { view.cried = true; monster.help_sound = monster.seed(1000) < 100; }
         }
         idle(25);
         return true;
