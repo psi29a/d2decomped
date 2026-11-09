@@ -29,8 +29,9 @@ namespace d2d::client {
 
 void DebugVerbs::add_level() {
     add("automap", [this](const Args& /*args*/) -> Reply {   // reveal the whole level
-        if (!scene) return std::nullopt;
-        automap_all(*scene, *town.world.game_data, *town.level, town.automap, town.automap_reveal);
+        if (!scene || !town.level || !town.world.game_data) return std::nullopt;
+        if (!automap_all(*scene, *town.world.game_data, *town.level, town.automap, town.automap_reveal))
+            return std::string("err rooms not ready\n");
         return "ok " + std::to_string(town.automap.cells.size()) + "\n";
     });
     add("blocked", [this](const Args& args) -> Reply {   // can a unit stand at (x, y)?
