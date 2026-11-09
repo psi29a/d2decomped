@@ -16,7 +16,7 @@ Usage: D2_MPQ_DIR=<MPQ folder> uv run python inventory_queries.py
 """
 import random
 
-from unicorn.x86_const import UC_X86_REG_EDX
+from unicorn.x86_const import UC_X86_REG_EDI, UC_X86_REG_EDX, UC_X86_REG_ESI
 
 import emu
 from _inventory_world import Arena, cases, check, signed
@@ -29,7 +29,7 @@ HELPERS = {
     0x62A4E0: (1, lambda: int(random.random() < 0.7)),
     0x628950: (2, lambda: int(random.random() < 0.5)),
     0x629FE0: (1, lambda: random.choice((0, 2, 3, 0xC, 5, 9))),        # a short
-    0x628660: (1, lambda: random.randint(0, 8)),
+    0x628660: (1, lambda: random.choice((0, 1, 2, 3, 4, 5, 6, 7, 8, 0x10, 0x20, 0x1FF))),
     0x62B400: (1, lambda: random.choice((0x12, 0x12, 5, 7))),
     0x627F80: (2, lambda: random.randint(1, 2)),                        # a short
     0x625480: (3, lambda: random.randint(0, 4)),
@@ -40,6 +40,7 @@ HELPERS = {
     0x63BEF0: (1, None),                                                # d2d_rules_wielded_weapon: set per case
     0x6488C0: (1, lambda: random.randint(0, 15)),                       # d2d_path_get_x
     0x621050: (3, lambda: random.getrandbits(8)),
+    0x627D40: (1, lambda: random.choice((4, 4, 5, 5, 3, 0))),          # a byte
     0x628250: (1, lambda: random.choice((2, 2, 2, 1, 0))),             # the item's page (a byte)
 }
 
@@ -85,14 +86,18 @@ class World:
         found, klass = self.answer_code(e.arg(0))
         if found:
             e.w32(e.arg(1), klass)
-        return found
+        return found     # the record pointer when found
 
     def answer_code(self, code):
         """The memoised (found, class) for a code, logged."""
         key = (0x633640, code)
         self.log.append(key)
         if key not in self.memo:
-            self.memo[key] = (int(random.random() < 0.85), random.randint(0, 3))
+            record = self.arena_rec() if random.random() < 0.85 else 0
+            if record:
+                self.e.w32(record + 0x80, random.choice((0x2074696C, random.getrandbits(32))))
+                self.e.w32(record + 0x90, random.choice((0, random.getrandbits(32))))
+            self.memo[key] = (record, random.randint(0, 3))
         return self.memo[key]
 
     def _record_dims(self, e):
@@ -118,6 +123,8 @@ class World:
             rec = self.arena_rec()
             e.mu.mem_write(rec + 0x11D, bytes([random.choice((0, 1, 1))]))
             e.mu.mem_write(rec + 0x130, bytes([random.choice((0, 1, 1))]))
+            e.w32(rec + 0x80, random.getrandbits(32))
+            e.w32(rec + 0x90, random.choice((0, random.getrandbits(32))))
             self.memo[key] = rec
         self.log.append(key)
         return self.memo[key]
@@ -139,6 +146,13 @@ class World:
         block = self.arena.new(max(e.arg(0), 16))
         self.alloc_addrs.append(block)
         return block
+
+    def answer_with(self, key, gen, keep_tuple=False):
+        """A memoised answer for key from gen, logged; shared by game.exe's hook and the model."""
+        self.log.append(key)
+        if key not in self.memo:
+            self.memo[key] = gen()
+        return self.memo[key] if keep_tuple or not isinstance(self.memo[key], tuple) else self.memo[key][0]
 
     def _place(self, e):
         """FUN_0063b850 (inventory, item, row, &x, &y, 0): a memoised (found, x, y); x and y are written as signed words."""
