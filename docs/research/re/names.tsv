@@ -584,6 +584,7 @@ address	name	evidence
 00622060	player_data_free	FUN_0065c490 / FUN_00660fd0 pairs (Units.cpp 0xf6b, 0xf76)
 006220f0	player_set_name	FUN_004135d0 into player data (Units.cpp 0xf97..0xf9a)
 00622150	player_data_check	checks only (Units.cpp 0xfa5..0xfa8)
+006221a0	player_data	ECX unit: null asserts 0xfb4, type != 0 asserts 0xfb6 (FUN_00408090 / FUN_00681e09(-1)), else unit +0x14 (pet-ai.md "The owner's pet lists")
 00622270	object_txt_168	Objects.txt +0x168 (Units.cpp 0xfd3)
 006222c0	object_data_5	object data byte +5 (Units.cpp 0xfe4)
 00622300	object_set_data_5	object data byte +5 (Units.cpp 0xfef)

@@ -455,4 +455,14 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   is that `game-calls.tsv` lists `FUN_00574930` as called by
   `FUN_00575d90`, `FUN_00574ab0` and `FUN_00575e90`, while their decompiled
   bodies show no call to it (the address is pushed).
+- **`FUN_006221a0`** (`player_data`, `Units.cpp` beside the checks at
+  `FUN_00622150`): unit in ECX. A null unit asserts (line 0xfb4), a unit
+  whose type word (`+0`) is not 0 (player) asserts (line 0xfb6); both go
+  through `FUN_00408090(line)` / `FUN_00408a60` and `FUN_00681e09(-1)`,
+  which does not return. Else it returns unit `+0x14`, the player data.
+  Every pet function above and below starts with it (it never returns 0 for
+  a player: callers' `== 0` tests on it are dead). Five other callers
+  (`FUN_0045a860`, `FUN_0047a210`, `FUN_00532520`, `FUN_00532590`,
+  `FUN_00532be0`). d2d reads the player data directly and has no assert
+  (the oracles in `tools/emu/fl_load.py` run it native).
 
