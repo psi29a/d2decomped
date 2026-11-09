@@ -102,6 +102,21 @@ Re-check: `python3 tools/ghidra/fn.py 005fe610` (the two switches on
 `python3 tools/ghidra/fn.py 005fe280` (the registry value).
 
 
+## Loading a layer (SpriteCache.cpp)
+
+The chain from a layer record to its decoded cells, in call order. The
+record (ESI in most of these) has the type at +8, row id +0xc, +0x10, the
+five name dwords +0x18 token, +0x1c layer, +0x20 piece, +0x24 mode, +0x28
+weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
+
+- `FUN_005fe2b0` (stem, buffer in EAX): types 0 to 2 copy the five name
+  dwords' first three bytes each, stopping at the first space byte, and
+  end with NUL; types 3, 4 and 6 copy the string at +0x2c (type 6 needs bit
+  1 of +4; all need a non-null +0x2c). Any other type, or a missing name,
+  gives an empty stem and 0. It also sets bit 0 of +0x44 (the DCC flag)
+  under the same `CompressedData` and row rules `FUN_005fe610` uses (see
+  "A layer's file"; the one difference is that stem test). d2d: not ported.
+
 ## Draw effects
 
 A COF layer record is 9 bytes from +0x1c: type, shadow, selectable,

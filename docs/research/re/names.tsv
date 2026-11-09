@@ -423,6 +423,7 @@ address	name	evidence
 005fc450	baal_inferno_incinerate	Baal Inferno / Incinerate choice; AiBaal.cpp
 005fc630	baal_clone_check	Baal clone duplicate limit check; AiBaal.cpp
 005fc830	baal_clone_alive_count	counts live clones for Baal duplicate limit; AiBaal.cpp
+005fe2b0	layer_stem	file stem into EAX from the layer record (ESI): +0x18..+0x28 name dwords (3 bytes each, to the first space) or the +0x2c string; sets the DCC flag +0x44 bit 0; cof-draw-order.md "Loading a layer"
 0060dcb0	stpl_string_assign	frees the old (stpl.h 0x5e9), FUN_00414310 (SStrDup) the new
 0060dd00	stpl_string_dup	FUN_00414310 into *this
 0060dd20	stpl_string_equal	FUN_00413590(a, b, 0x7fffffff) == 0
