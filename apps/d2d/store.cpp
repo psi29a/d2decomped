@@ -9,6 +9,7 @@
 #include "ui.hpp"
 
 #include <d2s_items.hpp>
+#include <hire_list.hpp>
 #include <rules.hpp>
 
 #include <algorithm>
@@ -33,14 +34,21 @@ NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::
     std::string head = string_id(scene, 0xd24);
     if (const auto found = head.find("%d"); found != head.npos) head.replace(found, 2, std::to_string(gold));
     menu.lines.push_back({ std::move(head), 21, 0, 0, true });
-    auto label = [&](std::uint16_t id) { return string_id(scene, id) + ": "; };
+    // A row's two lines (rules/hire_list.hpp, FUN_004b5c60).
+    const std::string space = string_id(scene, 0xf9b);
+    auto stat = [&](std::uint16_t id, int value) {
+        return d2d::rules::hire_label(string_id(scene, id)) + string_id(scene, 0xf9d) + space + d2d::rules::hire_number(std::uint32_t(value));
+    };
     for (std::size_t i = std::size_t(menu.scroll); i < offers.size() && i < std::size_t(menu.scroll + kRows); ++i) {
         const auto& offer = offers[i];
         const auto merc = scene.mercs.find(offer.id);
         const auto name = merc != scene.mercs.end() ? merc_name(scene, merc->second, offer.name) : std::string("?");
-        menu.lines.push_back({ name + " - " + label(0xd28) + std::to_string(offer.level) + "  " + label(0xd26) + std::to_string(offer.life)
-                                + "  " + label(0xd27) + std::to_string(offer.def) + "  " + label(0xd29) + std::to_string(offer.cost),
-                            0x23, 0, 0, false, NpcMenuState::kHireOffer, int(i) });
+        menu.lines.push_back({ name + space + string_id(scene, 0xf9c) + space + stat(0xd28, offer.level) + space + space + stat(0xd26, offer.life) + space + space +
+                                   stat(0xd27, offer.def) + space + space + stat(0xd29, offer.cost),
+                               0x23 - 0xe, 0, 0, false, NpcMenuState::kHireOffer, int(i) });
+        const std::uint16_t desc = merc != scene.mercs.end() ? d2d::rules::hire_desc_string(merc->second.hire_desc) : 0;
+        menu.lines.push_back({ space + space + (desc ? d2d::rules::hire_description(string_id(scene, desc)) : std::string()), 0xe, 0, 0, false,
+                               NpcMenuState::kHireOffer, int(i) });
     }
     menu.lines.push_back({ string_id(scene, 0xd48), 0x23 });
     menu.box_width = 0x1ea; menu.box_height = 0x15e;

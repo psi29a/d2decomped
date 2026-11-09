@@ -51,9 +51,23 @@ Warriv's "go east" still comes from elsewhere.
 A 490x350 NPC text window: header 0xd24 "Your Gold: %d     Hire which
 Mercenary?" (carried + stash gold) in gold, a list widget (FUN_004bf8f0,
 490x280 at ((W-490)/2, H/2-160), rows 0x23 high) of the offers the server
-sent (0x7c0c85), and 0xd48 "cancel". A row: the merc's name string, " - ",
-then 0xd28 "Lvl", 0xd26 "Life", 0xd27 "Def", 0xd29 "Cost", each ": %u".
-Name ID 0x421 shows 0x2b0d instead.
+sent (0x7c0c85), and 0xd48 "cancel". A row is two lines (the list's
+vtable +0x30 takes them, 0x4b62fe):
+- the merc's name string, 0xf9b 0xf9c 0xf9b (" - "), then 0xd28 "Lvl",
+  0xd26 "Life", 0xd27 "Def" and 0xd29 "Cost" (`FUN_006637f0`'s [1], [2],
+  [7], [5]), each its label's first 20 characters (`FUN_00526790(.., 0x14)`),
+  0xf9d 0xf9b (": ") and the value by `wsprintfA("%2u")` widened at most 9
+  characters (`FUN_00526f20(.., 9)`: a longer one is cut to 8), two 0xf9b
+  between them;
+- two 0xf9b, then the hireling's description: `FUN_00663720([12])`, [12]
+  the hireling.txt row's byte +0xd2, HireDesc (`FUN_00655720`'s field
+  {"hiredesc", 0xd, +0xd2}, linked through hiredesc.txt's Code, 0x96bce8:
+  its row, None 0 .. Lightning Spells 8), the string at table 0x6ee410
+  (0, 0xd2b, 0xd2c, 0x2b52, 0x2b50, 0x2b51, 0xd31, 0xd30, 0xd2f; 0: none),
+  formatted by `FUN_0048be80` with "a0:%0" (`FUN_0048be00` cuts it at a
+  '['). A Barbarian (no HireDesc) has the two spaces alone.
+
+No offer at all: one row, 0xd25. Name ID 0x421 shows 0x2b0d instead.
 
 Offer stats (FUN_006637f0, from the offer's seed): FUN_00656580 lists the
 hireling.txt rows of the act, difficulty and version (100 LoD, 0 classic)
