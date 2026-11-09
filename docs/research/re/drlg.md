@@ -1127,8 +1127,8 @@ FUN_0066e4c0 misses the tiles past it and adds its own copies (L23).
 ry + h`, both ends inclusive, so a room of w x h tiles holds (w+1) x (h+1)
 points. FUN_0066c3d0 (wall flood), FUN_0066c870 (wall cells), FUN_0066cf60
 (border join) and FUN_0066e4c0 (edge sharing) call it; d2d inlines it as
-`x >= room.x && ... && x <= room.x + room.width` (room_tiles.hpp). Cited
-from the decompiled body, not run through tools/emu.
+`x >= room.x && ... && x <= room.x + room.width` (room_tiles.hpp). Run
+against a model in `tools/emu/drlg_small.py` (see "Small DRLG helpers").
 
 **Doors** (FUN_0066d9e0; d2d's `relevel` makes the units again in the
 rooms' order, so a shared edge's door is the first room's): an orientation 8 / 9 wall makes a door unit —
@@ -1726,3 +1726,41 @@ Node list, unit lists, teardown:
 - `FUN_0061a910(d, r)` (fatal 0x4f7 null r; 0x502 not on the list): unlinks r from d's list, removes r from each other near room's own near array (last entry swapped in, count - 1), calls `0x66_b4c0`(room2, `[d+0x50]`, stack r's flags), then `FUN_0061a840`(d's pool, r).
 - `FUN_0061afd0(d)` (fatal 0x3a): `0x64_2190`(act) and clears +0x48 when set; `FUN_0061a840` on each room1; `0x61_bec0`(pool, `[d+4]`) and clears +4 when set; frees d (line 0x52).
 - `FUN_0061ad70(pool, mask, &ptr, &count)` (ret 0x10; fatal 0x60a when the `0x61_ddf0` table has over 32 entries): copies the table entries whose mask bit is set into a new block (line 0x614); ptr = 0, count = 0 when none. `FUN_0061ae30(v)` returns `1 << i` for the first table entry equal to v, else 0.
+
+## Small DRLG helpers, run in the emulator
+
+`tools/emu/drlg_small.py` runs stock 1.14d code for these helpers against
+hand-written models on random records (the `_dungeon_rig.py` harness:
+return value, callee log, whole arena, allocator blocks, fatal-error line,
+bytes `ret n` pops; `--mutation-check` breaks the model eight ways). Hooked
+and logged, not claimed: FUN_00642ae0, FUN_0061e470, FUN_0066f1a0,
+FUN_00666ac0, FUN_0067d710 and the allocator. Offsets: DRLG act +0x47c level
+list, +0x94 staff tomb level, +0x8c flags; level +0x10 room list, +0x1ac next,
++0x1d0 id, +0x1b4 act, +0x22c per-room state flags, +0x8 their count; room
++0x24 next, +0x28 flags, +0x30, +0x34 {x, y, w, h}, +0x48 preset type, +0x54
+tile grid, +0x58 level, +0x5c preset units, +0x60 other flags.
+
+- Accessors: FUN_00642380 returns room->level + 0x1e0 (the warp coordinates);
+  FUN_00642230 the staff tomb level, 0 for a null act; FUN_00642750 the
+  LevelDefs line's +0x34 (FUN_0061e470 is the line lookup); FUN_00642a00
+  act flags & 1, fatal 0x42e for a null act; FUN_0066baa0 room flags &
+  0x30000 (the waypoint bits); FUN_0066bab0 the room's level id; FUN_0066bfc0
+  stores edx at +0x30; FUN_00666ec0 stores the picked file at map +4;
+  FUN_0067c570 returns `flags[rows[y] + x]` from a grid {flags, rows}.
+- FUN_00642390 (level in EDX): with a nonzero count and a flag array, ORs 1
+  into `+0x60` of each room whose array entry is nonzero. The array is walked
+  in step with the room chain, not bounded by the count.
+- FUN_00642bb0(act, id): first level on the act's list with that id, else
+  FUN_00642ae0(act, id) allocates one. FUN_00642630(level, x, y): first room
+  holding the point through FUN_0066b980, which is half-open [x, x+w) x [y,
+  y+h) and signed, unlike FUN_0066b9d0 above; fatal 0x2fd for a null level,
+  0x2fe for a level without rooms, 0 when no room holds it.
+- FUN_0066b4c0(room, edx, flags): +0x30 = 0, +0x60 = flags & 1; with room
+  flag 0x100000 set it calls FUN_0066f1a0(room, edx == 0).
+- FUN_0066bfa0: returns +0x5c, but once flag 0x40000 is clear a room hands
+  its preset units out one time: the first call sets 0x4000000, later calls
+  return null.
+- FUN_0066ee70: preset type 1 calls FUN_0067d710, type 2 FUN_00666ac0;
+  always sets room flag 0x100000. FUN_0066eea0: a room without a tile grid
+  gets a zeroed 0x2c-byte block from the DRLG's pool (RoomTile.cpp line
+  0x533). FUN_00666120(src, dst): `*dst = *src; *src = 0`, returns `*dst`.

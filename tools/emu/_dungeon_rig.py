@@ -106,9 +106,9 @@ class Model:
         require(index < len(self.outs), f"model made call {index} but the stock code made {len(self.outs)}")
         return self.outs[index]
 
-    def alloc(self, pool, size, line):
-        """Log the arena allocator (0x40_b430) and return the pointer the stock run got."""
-        self.log.append(("alloc", pool & M32, size & M32, ALLOC_FILE, line, 0))
+    def alloc(self, pool, size, line, file=ALLOC_FILE):
+        """Log the arena allocator (0x40_b430) and return the pointer the stock run got (`file`: the __FILE__ string it was passed)."""
+        self.log.append(("alloc", pool & M32, size & M32, file, line, 0))
         pointer = self.out_of(len(self.log) - 1)
         buf = bytearray(size)
         self.blocks.append((pointer, buf))
