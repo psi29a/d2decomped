@@ -241,9 +241,7 @@ address	name	evidence
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
-00558530	item_arm_replenish_durability	stat 0xfc (item_replenish_durability) via FUN_00625480; if set and no event 3 is pending (FUN_005415a0), queues event 3 at game +0xa8 + 2500 / rate + 1 (FUN_005417d0)
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
-00558580	item_arm_replenish_quantity	same as FUN_00558530 for stat 0xfd (item_replenish_quantity)
 00558a10	ground_item_lifetime	30000 / 45000 / 15000 frames by quality and gold
 00558b90	ground_items_expire	item data +0x24 against the frame, per act room
 00558c50	item_clear_4000000	flag 0x4000000, state 0xab stat list
@@ -260,7 +258,6 @@ address	name	evidence
 0055c4d0	skill_still_usable	FUN_00647960 not 2 or 7
 0055c4f0	kept_skill_restore	FUN_00623060 / FUN_006230c0, FUN_005701b0
 0055c560	skill_type30_mode2	skill +0x18 is-a 0x30, +0x14 == 2
-0055c560	skill_wants_ranged_type	(unit in EDI): Skills record itypea1 (+0x18) is ItemTypes 0x30 or a child, record byte +0x14 is 2, and FUN_0055c4d0 says usable (weapon-switch.md)
 0055c6e0	book_item_remove	FUN_0055c110(0) (ItemMode.cpp 0x394)
 0055ca00	code_pair_match	Items +0x80 pair either way
 0055ca40	quest_item_duplicate	UniqueItems +0x2c bit 2, Items +0x12a, j34/g34 bks/bkd d33/g33 hst/msf/vip qf1/qf2
@@ -667,12 +664,10 @@ address	name	evidence
 0062beb0	item_is_type35	FUN_00629bb0(item, 0x35)
 0062c9f0	item_stat_floor	maxac +0xd0, mindam/maxdam +0xfe..+0x103
 0062e410	saved_item_header_60	FUN_0062ae20(..., 0x60)
-0062e430	item_read_bitstream	(unit, buffer, bytes, check_jm, sockets_out, version, err_out): reads the optional JM mark and 32 flag bits, resets item data, then the compact reader FUN_0062a970 (flag 0x200000) or the full FUN_0062cbe0; returns bytes used (FUN_00410e90)
 0062c100	item_colour_tint	(owner unit, item unit, tint out, second-colour flag): colour from the unit's states, then quality 7 / 5 / 4,6 / other, gem rule gate (hasinv +0x137, FUN_0062bc20); tint byte via FUN_0062a250 = Transform * 32 + (colour & 31) (items.md)
 0062e430	item_read_bitstream	(unit, buffer, bytes, check_jm, sockets_out, version, err_out): reads the optional JM mark and 32 flag bits, resets item data, then the compact reader FUN_0062a970 (flag 0x200000) or the full FUN_0062cbe0; returns bytes used (FUN_00410e90)
 0062e7e0	itemtype_byte_11	ItemTypes +0x11
 0062e830	itemtype_byte_12	ItemTypes +0x12
-0062e830	item_type_byte_12	ItemTypes record (table +0xbf8, stride 0xe4) +0x12 of an item unit's type, 0 if none; FUN_00580030 calls FUN_0057ff70 when nonzero (column likely ReEquip)
 0062e920	itemtype_cel_variant	ItemTypes +0x23 count, +0x24 + 32 n
 0062ea80	itemtype_bytes_a_b	ItemTypes +0xa / +0xb
 00633540	items_tables_free	ItemTbls.cpp 0x1c8, 0x1cb
