@@ -1956,3 +1956,77 @@ FUN_0066d3b0, FUN_00678b80, FUN_00678c10 and the allocator.
   box at obj +0x6278 (x0, y0, x1, y1), both ends inclusive. FUN_0067b9c0(a,
   b) is the squared distance of two packed points; FUN_0067bbc0 indexes the
   dwords at 0x6f1e28 by `3 * (hi b - hi a) - lo a + lo b`.
+
+## Record, teardown and list helpers, round two, run in the emulator
+
+`tools/emu/drlg_more.py` (same harness; `--mutation-check` 6 ways). FUN_0067cd90
+(free the block at slot +4, zero the slot), the CRT memcpy and memset run for
+real. Hooked and logged, not claimed: FUN_00666520, FUN_0061f310 and the
+allocator.
+
+- FUN_006660b0(pool, {count, rows}) clones a Preset row table: an 8-byte header
+  (Preset.cpp line 0x574), then 12 * count bytes (0x579), the rows copied; it
+  returns the header {count, copy}. FUN_006665b0(room) frees a room's preset
+  record (+0x20): FUN_00666520(room), then record +0xf0 if set (lines 0x6f7)
+  and the record (0x6fa), and clears +0x20. FUN_0066c6e0(room) is the DrlgRoom
+  counterpart for the logic record (+0x64): with bit 1 of its first dword it
+  clears the buffers at +8 and +0x1c, frees the +0x30 chain through each
+  block's +0x2c (line 0x101), frees the record (0x106) and clears +0x64.
+- FUN_0067d1e0(pool, slot) frees a circular list kept by its head: every node
+  after the head through +0x10 (line 0x114), the head last (0x117 when the walk
+  comes back to it; 0x11f when the list ends at 0 or is empty), then clears
+  the slot. FUN_0067d610(room) frees the maze record (+0x20): four buffers
+  (+0, 0x14, 0x28, 0x3c), the ring at +0x50, the record (Maze.cpp line 0xad),
+  and clears +0x20. FUN_0067d680(room) does the first two steps and keeps the
+  record and +0x20.
+- FUN_0066e160(obj in ESI, arg): fatal 0x273 without the object, 0x274 without
+  its record (+0x10); when the record's type byte (+0x2c) is neither 0x62 nor
+  0x6c (arg 0xb: 0x72), +0x10 = FUN_0061f310(record +0). The call also passes
+  EDX, whose low byte is the wanted type: the caller's upper 24 bits ride
+  along. FUN_00670810(level) is fatal 0x1c / 0x1e without the level or its
+  table (+0x14) and returns whether table[act byte +0x450 + 1] is 1.
+- FUN_00670c10(obj in EAX, key in ESI, a, b, flag) walks the list at +0x10 for
+  the first node whose record (+0x20) has bit 1 of +0xc clear and key == ESI,
+  then does what FUN_00670970 does (record = {a, b}; flag nonzero clears bit 1,
+  zero sets it) and returns the node; 0 when none matches. FUN_0067b1c0(obj)
+  hands out the next of 200 zeroed 0x38-byte slots from +0x404 (count at
+  +0x2fc4), 0 when used up.
+
+## Geometry, direction and list-link helpers, run in the emulator
+
+`tools/emu/drlg_geom.py` (same harness; `--mutation-check` 8 ways). FUN_0067a630
+needs a game object of 0x37000 bytes and is checked on 320 random cases on the
+emulator's own memory. FUN_00643560 (scale a pair by 5) and FUN_00678f00 (halve
+a vector until both parts fit 0x10000) run for real. Hooked and logged, not
+claimed: FUN_0066bf30 (handed arena nodes), FUN_0066dde0, FUN_0067c4f0,
+FUN_00679a60, FUN_0064fd70 (writes the case's vector) and FUN_00679530.
+
+- FUN_0067a550(a, b) on packed points is `min + 2 * max` of the axis distances
+  (the same as FUN_00678b40). FUN_0066d7f0(i) reads the dword table at
+  0x6eef20. FUN_0067d280(point, out x, out y) stores the signs (-1, 0, 1) of the
+  difference to the point at +0x10. FUN_0067d7e0(out, side, step, ESI source)
+  sets +8, +0xc to 0x40, 0xa0 (side 0) or 0xa0, 0x40 (side 1) and +0, +4 to
+  the source point plus the step table at 0x6f1f7c (index side + 2 * step, 8
+  bytes apart).
+- FUN_0067a630(obj in EAX, record in ESI): when obj +0x36fd0 is set, the 64-bit
+  LCG at [obj +0x36fd4] steps (`seed * 0x6ac690c5 + hi`) and the direction
+  at record +0x10 becomes `(T[low 5 bits] + *[record +0xc] + dir) & 7` with T
+  at 0x6f18d8; without it just `(*[record +0xc] + dir) & 7`.
+- FUN_00666170(arg; EAX, ECX, EDX) allocates a node through FUN_0066bf30, sets
+  bit 0 of its +0x1c and pushes it on the room's list (+0x38). FUN_006661a0
+  (x in EAX, y in ECX, pool in EDI, room in ESI) does that for each 0x28 across
+  a row: x and the end (x + room width) are scaled by 5 (FUN_00643560), y too,
+  one node per step. FUN_0066c7f0(room, arg) calls FUN_0067c4f0 for each
+  entry (0x30 bytes, +0x14 flags) with bit 2 set and none of 0x1c000.
+  FUN_0066def0(obj, head slot, 4 args) takes the next 0x30-byte row of the
+  list at +0x54, links it before [slot] (or ends the chain), counts it and
+  calls FUN_0066dde0 on it.
+- FUN_00679f70(obj) asks FUN_00679a60 for the new position of obj +4 (record
+  +0x30), compares both 16-bit parts with obj +0 and returns 0 when equal;
+  else it stores the position at record +0x9c, sets +0x28 and returns 1.
+  FUN_0067a390(scale, out, a, b) lets FUN_0064fd70 fill a vector, scales each
+  part `x * scale >> 8` (32-bit imul, arithmetic shift), stores it and returns
+  the larger absolute part; it halts 0x331 from 0x200000, after the store.
+  FUN_0067a420(obj, a, b) returns 0 without a scale (+0x7c); otherwise the
+  scaled vector must not be zero (fatal 0x342), is clamped by FUN_00678f00
+  and handed to FUN_00679530.
