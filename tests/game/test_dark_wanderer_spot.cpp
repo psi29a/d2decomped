@@ -6,7 +6,10 @@
 // size-2 end, mask 0x3c01), found once and kept (a3q7's record +2). A wall
 // 7 north cuts the lines to the 20 and 11 spots though both are open
 // themselves (the 8 one's line stops 2 short of it, its end's size): he
-// heads for the 8 one, and keeps it once past the wall.
+// heads for the 8 one, and keeps it once past the wall. A walk again
+// (state 2, FUN_005ea130) is a player's path (FUN_005de190(1): type 7, its
+// search pather under 18 off): round a wall the first walk's toward and
+// wall pathers don't clear in 5 steps.
 // Needs the data; SKIPs without it.
 
 #include <ai.hpp>
@@ -62,7 +65,19 @@ int main() try {
     him.next_act = 0;
     monster_update(*data, here, him, player, rng, 80000, 0.04f, crowd, shots, pack);
     assert(him.wanderer_spot == std::pair(40, 52) && std::floor(him.unit.goal_y * 5) == 52.f);   // kept
-    std::puts("OK: the Dark Wanderer's spot takes a clear line and is kept");
+
+    // Back south of the wall, 8 off his spot: the first walk can't reach it,
+    // a walk again goes round.
+    for (int at_x = 30; at_x <= 50; ++at_x) here.walk[53 * 80 + std::size_t(at_x)] = 0;
+    for (int at_x = 36; at_x <= 44; ++at_x) here.walk[56 * 80 + std::size_t(at_x)] = 0x0001;
+    him.unit.x = 8.1f; him.unit.y = 12.1f;
+    him.mode = "NU"; him.ai_state = 1; him.next_act = 0;
+    monster_update(*data, here, him, player, rng, 120000, 0.04f, crowd, shots, pack);
+    assert(him.path_type == 0 && !him.steps.empty() && him.steps.back() != std::pair(40, 52));
+    him.mode = "NU"; him.ai_state = 2; him.ai_state2 = 0; him.next_act = 0;
+    monster_update(*data, here, him, player, rng, 160000, 0.04f, crowd, shots, pack);
+    assert(him.path_type == 7 && him.next_path_type == 0 && him.ai_state2 == 1 && !him.steps.empty() && him.steps.back() == std::pair(40, 52));
+    std::puts("OK: the Dark Wanderer's spot takes a clear line and is kept; he walks again by a player's path");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_dark_wanderer_spot: %s\n", error.what());

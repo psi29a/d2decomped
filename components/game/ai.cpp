@@ -337,8 +337,11 @@ std::optional<std::pair<int, int>> free_spot_near(const Level& level, const Crow
 
 namespace {
 
-// A move's path to subtile (to_x, to_y) (FUN_00649970): rules::monster_path,
-// the toward pather then the wall pather (FUN_00650350, FUN_005a6290).
+// A move's path to subtile (to_x, to_y) (FUN_00649970) by its path type:
+// rules::monster_path, the toward pather then the wall pather (FUN_00650350,
+// FUN_005a6290); type 7 rules::player_path at its own 5 steps, then the
+// wall pather (type 0xf from then on). Leading points on its own subtile
+// are dropped (FUN_0064fe40).
 // FUN_006483a0 refuses a monster that isn't npc / inTown / a pet a path
 // whose end room is in town; a thinking monster here is never in a town
 // level, and its path stays in its level, so none is refused.
@@ -349,9 +352,16 @@ bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_f
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
     monster.step = 0;
     monster.end_x = to_x; monster.end_y = to_y;
-    monster.steps = d2d::rules::monster_path(subtile(unit.x), subtile(unit.y), to_x, to_y, at_foe, [&](int at_x, int at_y) {
-        return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit);
-    });
+    const int x = subtile(unit.x), y = subtile(unit.y);
+    const auto blocked = [&](int at_x, int at_y) { return level.unit_blocked(centre(at_x), centre(at_y), unit.shape) || crowd.at(centre(at_x), centre(at_y), &unit); };
+    if (monster.path_type == 0) {
+        monster.steps = d2d::rules::monster_path(x, y, to_x, to_y, at_foe, blocked);
+        return !monster.steps.empty();
+    }
+    if (monster.path_type == 7) monster.steps = d2d::rules::player_path(x, y, to_x, to_y, at_foe ? 1 : 0, at_foe, blocked, 5);
+    if (monster.path_type == 7 && monster.steps.empty()) monster.path_type = 0xf;
+    if (monster.path_type == 0xf) monster.steps = d2d::rules::wall_path(x, y, to_x, to_y, 5, at_foe, blocked);
+    monster.steps.erase(monster.steps.begin(), std::ranges::find_if(monster.steps, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); }));
     return !monster.steps.empty();
 }
 
@@ -720,8 +730,10 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
 // rest between aren't taken; the World's spawns (world/) keep the default);
 // FUN_0064d910's 0x40 test on
 // the one subtile under it, not its collision pattern; in melee
-// skips the path test (FUN_00622aa0, mask 0x804); paths
-// (FUN_005de190) as path_to's, a circle as a walk to the point n
+// skips the path test (FUN_00622aa0, mask 0x804); the path types a think
+// gives its next move (FUN_005de190's EDX: 48 of its 103 calls, 1 / 2 /
+// 7 / 0xd / 0xf) taken only for the Dark Wanderer's (Monster::path_type),
+// the rest as path_to's; a circle as a walk to the point n
 // subtiles to the side of the target; a back-off sets off when its end
 // and first step are open.
 bool think(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng, std::uint32_t now_ms,
@@ -745,6 +757,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (FUN_005a73e0).
     auto set_off = [&](bool running, const Foe* foe) {
         monster.budget = 0x14;
+        monster.path_type = std::exchange(monster.next_path_type, 0);
         monster.wandering = !foe;
         if (!path_to(level, monster, foe ? subtile(foe->x) : subtile(unit.goal_x), foe ? subtile(foe->y) : subtile(unit.goal_y), foe, crowd)) {
             if (!foe) idle(per_difficulty.aidel ? per_difficulty.aidel : 15);
@@ -1037,9 +1050,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // there, state 2. State 2 at its end: within 2 of it, or after 3 more
     // tries (+0x18), he's gone (unit flag 0x20000, FUN_005ddfc0) and a3q7
     // marks every player in act 3 (FUN_005bd4a0 -> FUN_005bd390, word 0x20
-    // bit 0); else walk again.
-    // ponytail: the next move's path type (FUN_005de190) isn't set. The
-    // afterglow he leaves: World::tick.
+    // bit 0); else walk again, a player's path (FUN_005de190(1, 0, 0): type
+    // 7). The afterglow he leaves: World::tick.
     if (type_info.ai_name == "DarkWanderer") {
         if (!monster.wanderer_spot) {
             const int home_x = subtile(monster.home_x), home_y = subtile(monster.home_y);
@@ -1062,6 +1074,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (monster.ai_state == 1) { head_off(); monster.ai_state = 2; return true; }
         if (d2d::rules::ai_distance(spot_x - x, spot_y - y) < 2 || monster.ai_state2 >= 3) { monster.gone = true; return true; }
         ++monster.ai_state2;
+        monster.next_path_type = 7;
         head_off();
         return true;
     }

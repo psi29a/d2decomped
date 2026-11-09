@@ -266,6 +266,12 @@ struct Monster {
     int area = -2;
     std::vector<std::pair<int, int>> steps;
     int step = 0, budget = 0, end_x = 0, end_y = 0;
+    // Its path type (+0x3c): 0 the toward pather's (0xd), or 7 (a player's,
+    // rules::player_path) when a think set that for its next move
+    // (FUN_005de190 -> FUN_005a6260: mode ctx +0x18, 1 given as 7;
+    // FUN_005a63f0 takes and clears it as the move starts); a type 7 path
+    // found empty goes 0xf, the wall pather (FUN_005a6290).
+    int path_type = 0, next_path_type = 0;
     int chase = -1;
     bool corpse_used = false;                 // raised (Raise Skeleton): its corpse is gone
     // Unit flags a skill's young carry (+0xc4): 0x4000000 no experience for

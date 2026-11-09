@@ -165,7 +165,8 @@ auto Fight::merc_max_life() const -> int {
     }
 
 // A think's move as a path by its type (FUN_00649970) from subtile
-// (from_x, from_y): the cells to walk, empty when none.
+// (from_x, from_y): the cells to walk, empty when none. Type 7 found empty
+// takes the wall pather (FUN_005a6290: 0xf).
 auto move_route(const Level& level, const UnitState& unit, int from_x, int from_y, const d2d::rules::MercMove& move, const Crowd& crowd)
     -> std::vector<std::pair<float, float>> {
     auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
@@ -173,6 +174,7 @@ auto move_route(const Level& level, const UnitState& unit, int from_x, int from_
     const int steps = move.steps ? move.steps : 5;
     std::vector<std::pair<int, int>> points;
     if (move.type == 7) points = d2d::rules::player_path(from_x, from_y, move.x, move.y, 0, false, blocked, steps);
+    if (move.type == 7 && points.empty()) points = d2d::rules::wall_path(from_x, from_y, move.x, move.y, steps, false, blocked);
     else if (move.type == 1) points = d2d::rules::search_path(from_x, from_y, move.x, move.y, false, blocked);
     else if (move.type == 0xf) points = d2d::rules::wall_path(from_x, from_y, move.x, move.y, steps, false, blocked);
     else points = d2d::rules::monster_path(from_x, from_y, move.x, move.y, false, blocked, steps);

@@ -380,7 +380,7 @@ address	name	evidence
 005ec6a0	ai_scratch_clear_14	clears scratch word +0x14 = 0
 005ed710	pet_follow_check	pet follow mode verification; AiThink4.cpp
 005edc00	npc_barb_set_target	stores target coords in +0x18 and +0x1c for NpcBarb
-005ee3c0	npc_barb_think	NpcBarb AI combat think; AiThink4.cpp
+005ee3c0	wussie_think	Wussie think (a5q2's prisoners): MonAI table 0x73ca18 row 131 (NpcBarb's, row 127, is FUN_005edc50); AiThink4.cpp
 005eeda0	baal_minion_wave_think	Baal minion wave think; AiThink4.cpp
 005ef010	baal_minion_wave_subthink	Baal minion wave 2/3 think; AiThink4.cpp
 005ef1f0	ancient_set_flag	sets or clears bitmask in Ancient AI scratch word +0x18
