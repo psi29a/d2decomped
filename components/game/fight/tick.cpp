@@ -431,6 +431,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         if (pet.monster.alive()) pet_hurt(pet, int(crushing_blow(pet.monster.hit_points, divisor, foe.pick.damage_resist)), now_ms);
                     if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);
                     if (const auto curse = monster_curse(foe.cursed, now_ms); curse.skill >= 0 && pet.monster.alive()) { pet.curse = curse; pet_buffs(pet); }
+                    if (foe.flashed >= 0) { pet.monster.flash_overlay = foe.flashed; pet.monster.flash_at = now_ms; }
                 }
                 pets_turn(now_ms, elapsed, crowd);
                 player_shots(now_ms);
@@ -661,6 +662,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
                 actor->curses[k] = curse;
                 d2d::log::info("{} cursed: skill {} level {}", k ? "the merc" : "the player", curse.skill, curse.level);
             }
+        if (side[0].flashed >= 0) { actor->flash_overlay = side[0].flashed; actor->flash_at = now_ms; }
+        if (side[1].flashed >= 0 && actor->merc) { actor->merc->flash_overlay = side[1].flashed; actor->merc->flash_at = now_ms; }
         for (std::size_t k = 0; k < 2; ++k)
             if (const auto* skill = game_data->skills.get(side[k].marked.skill)) {
                 if (now_ms >= actor->marks[k].until) d2d::log::info("{} marked: {}", k ? "the merc" : "the player", skill->auratarget);

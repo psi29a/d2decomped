@@ -163,12 +163,14 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                         view.merc->mode == "DT" ? nullptr : merc_label, view.merc->unit.mode_ms, -2 });
         out.back().hold = view.merc->mode == "DT";
         if (view.merc->mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(out.back().anim->speed ? out.back().anim->speed : out.back().anim->cof_speed), view.merc->fhr));
+        flash(scene, out.back(), view.merc->flash_overlay, view.merc->flash_at);
     }
     // ponytail: a party member's merc (party_pets, "hireable") in GH has no FHR here: its get-hit plays at the plain rate and loops.
     for (const auto* pets : { &view.pets, &view.party_pets })
         for (const auto& pet : *pets) {
             out.push_back({ pet.unit.x, pet.unit.y, &scene.npc_anim(pet.npc, pet.mode), pet.unit.dir, nullptr, pet.unit.mode_ms, -3 });
             out.back().hold = pet.mode == "DT";
+            flash(scene, out.back(), pet.flash_overlay, pet.flash_at);
         }
     // A joined game's other players, in what they wear (0x9d), walking,
     // standing or in a skill's mode.
@@ -185,6 +187,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                 out.back().rate = float(d2d::rules::moving_anim_rate(mode == kModeRN, other.walk_percent)) / float(walk_anim.speed ? walk_anim.speed : walk_anim.cof_speed);
         if (other.ghost) { out.back().spirit = true; out.back().shadow = false; }   // local co-op's dead, walking along
         dress(scene, out.back(), -2 - int(other.id & 0xffffff), other.states, clk);
+        flash(scene, out.back(), other.flash_overlay, other.flash_at);
     }
     auto shot = [&](const View::Shot& shot_state) {
         Unit unit{ shot_state.x, shot_state.y, nullptr, shot_state.dir, nullptr, shot_state.born, -1 };
@@ -216,8 +219,7 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
         out.back().cmap = scene.monster_map(monster.npc);
         out.back().ghostly = monster.alive() && std::ranges::find(monster.mods, d2d::rules::umod::ghostly) != monster.mods.end();
         dress(scene, out.back(), monster.id, monster_states(scene, monster, now_ms, view.aura), clk);
-        if (monster.flash_overlay >= 0 && std::size_t(monster.flash_overlay) < scene.overlay_rows.size() && scene.overlay_rows[std::size_t(monster.flash_overlay)])
-            out.back().overs.push_back({ scene.overlay_rows[std::size_t(monster.flash_overlay)], monster.flash_at, true });   // its think's overlay, played once
+        flash(scene, out.back(), monster.flash_overlay, monster.flash_at);   // its think's overlay
     }
 }
 

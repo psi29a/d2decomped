@@ -58,6 +58,7 @@ auto World::view() const -> View {
         if (potion_on(true)) view.life_preview = actor->life_sent.life_percent + actor->player_combat.life_regen;
         if (potion_on(false)) view.mana_preview = actor->life_sent.mana_percent + int(actor->psum[d2d::d2s::kManaRecovery]);
         view.curse = now < actor->curses[0].until ? actor->curses[0].skill : -1;
+        view.flash_overlay = actor->flash_overlay; view.flash_at = actor->flash_at;
         view.stunned = now < actor->stunned;
         view.pmode = actor->pmode;
         view.prate = actor->prate;
@@ -65,7 +66,7 @@ auto World::view() const -> View {
         view.seq.assign(actor->seq.begin(), actor->seq.end()); view.seq_frame_ms = actor->seq_frame_ms; view.seq_loop = actor->seq_loop;
         view.gfx = fight.gfx();
         if (actor->merc && actor->merc_npc) {
-            view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode };
+            view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode, 0, actor->merc->flash_overlay, actor->merc->flash_at };
             const auto fighter = fight.merc_fighter();
             view.merc->fhr = fighter.fhr;
             const auto gear = fight.merc_gear();
@@ -87,7 +88,8 @@ auto World::view() const -> View {
             if (pet.where == level) {
                 const auto* skill = game_data->skills.get(pet.skill);
                 view.pets.push_back({ pet.monster.npc, pet.monster.unit, pet.monster.mode, skill ? std::string_view(skill->pettype) : std::string_view{},
-                                      std::clamp(pet.monster.hit_points * 100 / std::max(pet.monster.stats.hit_points, 1), 0, 100) });
+                                      std::clamp(pet.monster.hit_points * 100 / std::max(pet.monster.stats.hit_points, 1), 0, 100),
+                                      pet.monster.flash_overlay, pet.monster.flash_at });
             }
         for (const auto& player : players) {                  // the party's mercs and summons, as ours
             if (player.get() == actor) continue;
@@ -110,7 +112,8 @@ auto World::view() const -> View {
                     if (const auto* skill = now < state.until ? game_data->skills.get(state.skill) : nullptr) states.push_back(skill->aurastate);
                 view.others.push_back({ player->player, cls, player->character.name, std::uint32_t(player->id),
                                         player->character.appearance ? *player->character.appearance : game_data->starting_gear[std::size_t(cls)],
-                                        player->ghost ? -1 : player->pmode, running(*player), std::move(states), player->ghost, walk_percent(*player, now) });
+                                        player->ghost ? -1 : player->pmode, running(*player), std::move(states), player->ghost, walk_percent(*player, now),
+                                        player->flash_overlay, player->flash_at });
             }
         for (const auto& player : players)
             if (player->body && player->body->level == level)
