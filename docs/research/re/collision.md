@@ -178,6 +178,22 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
   no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
   d2d pet takes 3 / 4.
 
+## Is a subtile blocked for a unit: `FUN_0064d910`, and the blocked-end walk back
+
+Read from the decompile only (the register arguments of the helpers below
+were not read in the asm); cited, no oracle run.
+
+- **`FUN_0064d910`** `(room, x, y, pattern, mask)`: non-zero means blocked.
+  The pattern picks the test: 0 `FUN_0064d450` & 0xffff (the decompile
+  shows only the mask as its argument; the rest go in registers, unread);
+  1 / 3 / 5 `FUN_0064d4e0(room, x, y)` (the plus); 2 / 4 `FUN_0064d7c0`
+  (the decompile shows y and the mask; the others are in registers,
+  unread); any other pattern returns 1, blocked. The mask is the path's +0x50 (`FUN_00649970` passes path +0x1c
+  room, +0x48 pattern, +0x50 mask). d2d: agrees with "Rects and units"
+  above and `UnitShape` (gamedata.hpp:61, 274: 0 own subtile, 1 / 3 plus,
+  2 / 4 box); the pattern 5 case (the plus again, no footprint) is the one
+  `grid_set_pattern_bits` shows for stamping.
+
 ## A walk's stop
 
 Read from the code; `objdump -d -M intel --start-address=0x64eda0
