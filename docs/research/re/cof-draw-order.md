@@ -121,6 +121,24 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   either way. This is the allocator the other docs cite by address (chat.md,
   drlg.md, collision.md); it was untraced itself. d2d: not ported (it
   uses its own allocation).
+- `FUN_0040a620` (`.\Src\AsyncData.cpp`; the decompile has nine
+  parameters, the first in ECX, and the caller's call shows eight, so the
+  numbering below is the decompile's `param_N`): makes a 0x54-byte record (`FUN_0040b430`, line 0x128), zeroed,
+  with `0x41737960` in +0x48 (the high 28 bits are a tag; bit 1 = it
+  allocated the buffer itself with `FUN_0040a080`; bit 0, read by
+  `FUN_0040a9e0`, = the read is done). It keeps `param_1` at +4, `param_7`
+  at +0x44, the buffer (`param_5`, or a fresh one) at +0x3c and the size
+  (`param_4`, or `FUN_00406930()` when below 1) at +0x40, and copies an
+  optional 7-dword callback block (`param_6`) to +0x1c.
+  When `param_2` is 0, or `DAT_0075af94` is 0, it reads
+  at once (`FUN_00406900`), calls the block's first dword with (buffer, size,
+  block) and returns the record. Otherwise it takes a queue entry
+  (`FUN_0040a550`) and starts the read there; with no entry it frees what it
+  made (`FUN_0040b480`, lines 0x184 and 0x186) and returns 0. If the first
+  argument after ECX is non-zero and `FUN_00406940(0, 0)` is -1 the run
+  ends with error 0x142 (`param_3`). `FUN_005ff760` calls it twice (with
+  `.\SRC\SpriteCache.cpp` lines 0x369 and 0x379). d2d: not ported (it reads
+  whole files); `tools/emu/sound_hdr_load.py` hooks it.
 
 ## Draw effects
 
