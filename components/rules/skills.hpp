@@ -388,6 +388,7 @@ enum class ServerDoFunction : int {
     kDeathMaul = 136,              // FUN_005d25b0: srvmissilea at the target's spot, its range by the distance
     kBaalColdMissiles = 139,       // FUN_005d2940: srvmissilea (a maker) at the target's spot
     kBaalTentacle = 140,           // FUN_005d2c20: 2 + rand(3) + difficulty tentacles about the target
+    kBaalCorpseExplode = 141,      // FUN_005d2e80: the corpses about the caster spent (baal_corpse_spent)
     kReleaseMissileAtUnitsSecondScan = 143,   // FUN_005d4f40 -> FUN_005d4870: 37 through the other scan
     kHydra = 144,                  // FUN_005ca910
     kDoomKnightMissile = 148,      // FUN_005cdfb0: srvmissilea (+ the knight's variant) at the target
