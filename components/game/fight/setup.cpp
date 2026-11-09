@@ -16,6 +16,7 @@
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <monsters.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
@@ -285,6 +286,7 @@ auto Fight::monster_sounds(Monster& monster, std::uint32_t now_ms) -> void {
             if (sounds) play(sounds->flee, now_ms);
             monster.flee_sound = false;
         }
+        if (std::exchange(monster.help_sound, false)) play(d2d::rules::RescueQuest::kHelpMe, now_ms);
         if (monster.taunt_sound) {                                     // FUN_004cbde0 event 0x10: Taunt
             if (sounds) play(sounds->taunt, now_ms);
             monster.taunt_sound = false;

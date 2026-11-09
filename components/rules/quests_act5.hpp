@@ -202,6 +202,11 @@ struct SiegeQuest {
 struct RescueQuest {
     static constexpr int kQuest = 0x24, kQualKehk = act5_detail::kQualKehk, kPrisoner = act5_detail::kPrisoner, kDoor = act5_detail::kPrisonDoor;
     static constexpr int kTold = 20096, kReward = 20110, kCages = 3, kPerCage = 5, kFreeReach = 15, kFail = 5;
+    // A caged prisoner's cry: S->C 0x8a {1, its id} to the nearest player
+    // (0x5ee579), whose client plays wussie_help_me on it (FUN_004b3380,
+    // class 0x216; 0x11fb, wussie_cheer_1, only for a unit whose 0xac named
+    // an owner, FUN_004ae130 -> FUN_004ae150 from 0x45f3a3: no prisoner).
+    static constexpr int kHelpMe = 0x11ff;
     static constexpr std::array<const char*, 3> kRunes{ "r07", "r08", "r09" };   // 0x732fec: Ral, Ort, Tal
     // A cage's portal (FUN_005888d0): the dead door's subtile + 2 on x, as
     // is (an object's make, FUN_00555230 at 0x588a13, tests no collision);
