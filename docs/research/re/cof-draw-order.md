@@ -149,8 +149,9 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   d2d: not ported.
 - `FUN_0040aa40` (ECX = the record): the size (+0x40), after the same null
   (error 0x271) and tag (0x272) checks; it does not wait for the read.
-  `FUN_005ff760` calls it right after the read it queues with the
-  `FUN_005ff6e0` callback (line 0x369) and drops the result, so there it is only the tag check. d2d: not ported
+  `FUN_005ff760` calls it right after the read it makes with the
+  `FUN_005ff6e0` callback (line 0x369; `param_2` is 0, so the read and the
+  callback are done before `FUN_0040a620` returns) and drops the result, so there it is only the tag check. d2d: not ported
   (`tools/emu/sound_hdr_load.py` hooks it).
 - `FUN_005fec90(entry, record)` (the layer's sprite-cache record in EDI):
   works only when `record` and EDI are set, bit 0 of `*entry` is clear and
@@ -198,9 +199,9 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   bit 1 of `*entry` clear a plain one (line 0x379); with it set EDI+0x20
   bit 2 is raised and the `FUN_005ff6e0` callback is used (line 0x369,
   then `FUN_0040aa40`). The record goes to EDI+0xb0, and 0 is error 0x37d.
-  d2d: agrees on the direction rounding (`missile_direction`,
-  `cof_direction`, tests/game/test_game_rules.cpp:76); the rest is not
-  ported.
+  d2d: the direction rounding (`missile_direction`, `cof_direction`,
+  tests/game/test_game_rules.cpp:76) reads the same, cited from the
+  decompile, no oracle run; the rest is not ported.
 - `FUN_005ffe90(entry, group, count)` (the layer record in ESI): false for
   a null `entry`. It takes a holder node (`FUN_005ffc40(0, 0)`, not read
   here), zero-fills the 0xb8-byte cache record it holds, and copies the
@@ -208,7 +209,7 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   (+0x24) and weapon (+0x28) into record +0, +0xc, +0x10, +0x14, +0x18,
   +0x1c, and the holder into +0xb4. When the entry hasn't failed (bit 0 of
   `*entry`) it also copies the row (+0xc) and +0x10 into record +8 and +4
-  and runs `FUN_005ff760` to queue the read. `FUN_0060adc0(*holder, layer,
+  and runs `FUN_005ff760` to read the data (at once, not queued). `FUN_0060adc0(*holder, layer,
   entry)` registers it, and 0 is error 0x5d1; the result goes to
   holder +8 and its +0x24 points back at the holder. A failed entry sets
   bit 0 of record +0x20 and returns false. Otherwise, when record +0x28 is
