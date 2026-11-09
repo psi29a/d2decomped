@@ -51,7 +51,7 @@ name order. A new sub-verb goes in its area's file where its name sorts.
 | `ground`                    | `<code>\t<label>\t<sx>\t<sy>\t#<unit>` per item on the level's ground, then `ok` | Loot: gold is `gld`; feet on screen; unit id (what `cmd pickup` takes). |
 | `menu`                      | `<text>\t<x>\t<y>` per line of the open NPC menu, then `ok` | A point inside each line, header first. |
 | `debug collision`           | `ok on` / `ok off`     | Toggle the InGame overlay: red dot on every blocked subtile. |
-| `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap. |
+| `debug automap`             | `ok <cells>`           | Reveal the whole level on the automap; `err rooms not ready` while a preset level's rooms can't be made yet. |
 | `debug statpts <n>` / `debug skillpts <n>` | `ok`    | Set the in-game character's unspent stat / skill points. |
 | `debug equip <code> <slot>` | `ok quantity=<n>`      | A normal `<code>` (rolled as a drop) worn in body slot `<slot>`, replacing what's there (shot / ammo tests). |
 | `debug wear`                | `ok`                   | Halve the durability of everything worn (repair tests). |
