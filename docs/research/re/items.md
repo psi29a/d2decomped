@@ -380,32 +380,6 @@ stats it checks that are 204 below max to `max << 8 | max` and returns whether a
 cube (cube.hpp:362) and the repair use it. d2d omits the client stat packet
 (step 4) and the 1..255 guard, neither visible in play.
 
-### Recharging charged skills (`FUN_0055fe80`)
-
-Cited. `(owner in ecx, edx unused, item)`; 0 unless the item is an item unit.
-
-1. `FUN_006261d0(item, 0xcc, buf, 0x40)` lists the item's stat 0xcc
-   (item_charged_skill) entries: each a param (skill id and level, split by
-   the shift / mask at tables +0xc6c / +0xc70) and a value.
-2. Per entry: current = value & 0xff, max = value >> 8. If current < max,
-   `FUN_0065c940(item, param >> shift, param & mask, max)` writes
-   `max << 8 | min(max, request)`, i.e. max / max, to the entry (it returns
-   0 and writes nothing when max is not 1..255, and tries the item's
-   socketed items when the item itself has no such entry).
-3. The result is 1 if any entry was below max (set whether or not
-   `FUN_0065c940` wrote it).
-4. When the owner is a player (type 0) with a client (`FUN_005531c0`), the
-   new value is also sent: `FUN_0053d130(1, 0xcc, ...)`.
-
-Callers: `FUN_00562660` (when its flag argument is set, after a socket),
-`FUN_00565ab0` (the cube's recharge flag 0x400), `FUN_005761c0` (repair),
-`FUN_005e0070` (the Torch / Standard drop).
-
-d2d: reads the same, cited from the decompile, no oracle run. `rules::recharge` (components/rules/rules.hpp:731) sets the
-stats it checks that are 204 below max to `max << 8 | max` and returns whether any was; the
-cube (cube.hpp:362) and the repair use it. d2d omits the client stat packet
-(step 4) and the 1..255 guard, neither visible in play.
-
 ### Does the item take sockets (`FUN_00629900`)
 
 Cited. For an item unit (type 4), returns the Items record's byte +0x137
@@ -417,44 +391,6 @@ an item with hasinv, with a free socket) and the item-text builders
 
 d2d: reads the same, cited from the decompile, no oracle run. `rules.hpp:99` names the same field (`hasinv (+0x137)`) and
 item_text.hpp:430 cites `FUN_00629900` for the rune-letter line.
-
-### Does the item take sockets (`FUN_00629900`)
-
-Cited. For an item unit (type 4), returns the Items record's byte +0x137
-(`FUN_006335f0(unit +4)`), the `hasinv` column; 0 for no unit, another unit
-type or no record. Callers include `FUN_00562660` (a filler goes only into
-an item with hasinv, with a free socket) and the item-text builders
-(`FUN_00483ff0`, `FUN_004843e0`, `FUN_004845a0`, `FUN_0048b540`,
-`FUN_0048dd90`).
-
-d2d: reads the same, cited from the decompile, no oracle run. `rules.hpp:99` names the same field (`hasinv (+0x137)`) and
-item_text.hpp:430 cites `FUN_00629900` for the rune-letter line.
-
-## Ground items sent to a client (`FUN_0055bed0` chain)
-
-In call order, callee first. Status: cited, not proven; no oracle was run.
-The decompile drops fastcall register arguments, so which register holds
-which argument below is read from the callers' shapes, not from the asm.
-
-### The player unit of a client record (`FUN_00537860`)
-
-`FUN_00537860(client, force)`: a null client ends in the assert exit
-(`FUN_00408090(0xfb)`, `FUN_00408a60`, `FUN_00681e09(-1)`). Otherwise, when
-`client[+0x3d4] & 1` or `force != 0`, it returns `client[+0x174]` as is.
-When neither holds, it returns 0 if `client[+0x174]` is 0, else it looks the
-player up again with `FUN_00552f60` (the unit hash lookup `(game, type, id)`,
-shared with ai.cpp and missiles.cpp), returns the result and zeroes
-`client[+0x174]` when the lookup finds nothing. The decompile shows only
-`client[+0x170]` as the call's first (ECX) argument, which for that lookup is
-the game pointer, so `+0x170` is most likely the client's game; the type and
-id arguments are in registers the decompile hides (net-join.md has the
-player unit id at `+0x1a8`), and were not read from the asm. So `+0x174` is a
-cached player unit pointer that a client without flag `+0x3d4 & 1`
-revalidates on every call. Callers include `FUN_0052c410`, `FUN_0052c500`, `FUN_0053eae0`
-(the 0x9c builder, net-packets.md), `FUN_0054da10` and `FUN_00571740`.
-Evidence: `python3 tools/ghidra/fn.py 00537860`.
-d2d: not ported (no mention in `components/` or `apps/`); act1-end.md already
-names it as "client =" in the act-change walk, which agrees.
 
 ## Ground items sent to a client (`FUN_0055bed0` chain)
 
@@ -494,56 +430,6 @@ Evidence: `python3 tools/ghidra/fn.py 00451f80`.
 d2d: reads the same as monsters.md (cited from the decompile, no oracle run); no d2d function names it (the oracles
 `tools/emu/freeze_rules.py` and `freeze_resume.py` call it).
 
-### The MonStats row by id (`FUN_00451f80`)
-
-`FUN_00451f80(id)` (fastcall, ECX): returns 0 when `id < 0` or
-`id >= [DAT_00744304 + 0xa80]` (the row count), else
-`[DAT_00744304 + 0xa78] + id * 0x1a8`. That is the MonStats row accessor of
-monsters.md "Tables" (rows of 0x1a8 bytes at `+0xa78`, count at `+0xa80`).
-It does not assert on a bad id. Callers include `FUN_00454ad0`, `FUN_00461dc0`
-and `FUN_00571f90`, which is in this work package.
-Evidence: `python3 tools/ghidra/fn.py 00451f80`.
-d2d: reads the same as monsters.md (cited from the decompile, no oracle run); no d2d function names it (the oracles
-`tools/emu/freeze_rules.py` and `freeze_resume.py` call it).
-
-### A ground item sent to a client (`FUN_0055bed0`, `FUN_0053ec90`, `FUN_0053ecf0`)
-
-`FUN_0055bed0(unit, client)` (fastcall; the client is the second argument, as
-the decompile's `FUN_00537860(param_2, 0)` shows) does nothing unless all of:
-the unit is nonnull, `unit[+0xc4] & 0x10` is clear, and `unit[+0x10] == 3`
-(the mode field, structs.tsv). It then resolves the client's player unit with
-`FUN_00537860(client, 0)` (the result is not used in the decompile) and
-branches on `unit[+0xc4] & 0x1000`: set calls `FUN_0053ec90(unit, 0)`, clear
-calls `FUN_0053ecf0(unit, 0)`.
-
-Both callees have the same shape: `FUN_005531c0` is checked against the unit,
-and a mismatch exits through the assert path with id `0x7dd`
-(`FUN_0053ec90`) or `0x7e6` (`FUN_0053ecf0`); otherwise they call the 0x9c
-builder `FUN_0053eae0` with a literal 2 (`FUN_0053ec90`) or 3
-(`FUN_0053ecf0`). In net-packets.md the 0x9c action 2 is "dropped to the
-ground" and action 3 is "a ground item comes into view", so the pair reads as:
-a ground item (mode 3) whose flag 0x1000 is set is announced as dropped, one
-whose flag is clear as coming into view. What flag 0x1000 means in `+0xc4` is
-not traced; only the two-way split is read.
-
-Not resolved from the decompile (the asm was not read): which registers carry
-the client and item into `FUN_0053eae0`, whose first parameter reaches
-`FUN_00537860` as a client, so the literal 2 / 3 may sit in another slot than
-the action byte. Treat the action mapping as cited from net-packets.md's
-table, not from this chain.
-Evidence: `python3 tools/ghidra/fn.py 0055bed0`, `... 0053ec90`, `... 0053ecf0`.
-d2d: not ported; `git grep -n -E "0055bed0|0053ec90|0053ecf0" -- components apps`
-finds nothing.
-
-### The flag-1 wrapper (`FUN_0055bf30`)
-
-`FUN_0055bf30(unit)` calls `FUN_0055bed0` only when the unit is nonnull and
-`unit[+0xc4] & 1` is set; it passes no second argument of its own in the
-decompile, so the client reaches `FUN_0055bed0` in a register this function
-does not set (the asm was not read). Its one caller is `FUN_0053a500`.
-Evidence: `python3 tools/ghidra/fn.py 0055bf30`, `python3 tools/ghidra/calls.py 0055bf30`.
-d2d: not ported; no mention in `components/` or `apps/`.
-
 ### A ground item sent to a client (`FUN_0055bed0`, `FUN_0053ec90`, `FUN_0053ecf0`)
 
 `FUN_0055bed0(unit, client)` (fastcall; the client is the second argument, as
@@ -694,139 +580,6 @@ scratch)`: `out` gets the per-layer codes and the tints go to a stack buffer.
 No caller in the call table (reached through a table or a callback).
 Evidence: `python3 tools/ghidra/fn.py 005379d0`, `python3 tools/ghidra/calls.py 005379d0`.
 d2d: not ported; no mention in `components/` or `apps/`.
-
-## Is-a by type index and the equipment look (`FUN_00629b50` chain)
-
-Traced in call order, callee first. The claims here are cited from the
-decompile, not proven (no oracle run). The state is the data-tables block at `[0x744304]`.
-
-### Is-a between two ItemTypes indices (`FUN_00629b50`)
-
-`FUN_00629b50(type, want)` is true when ItemTypes row `type` is `want` or
-derives from it. It reads one bit of a precomputed matrix: 0 unless both
-indices are in `0 .. [state+0xbfc]` (the ItemTypes count, structs.tsv
-`item_type_count`), else the dword at `[state+0xc04] + ([state+0xc00] * type +
-(want >> 5)) * 4` masked with `1 << (want & 31)` (`DAT_006ce268`); the row
-stride is `[state+0xc00]` dwords. `FUN_00629bb0` is the same test on an item
-unit (its type from `FUN_00628700`), and `FUN_00504a20` is the Equiv1/Equiv2
-walk (compcode.md) that answers the same question without the matrix.
-Callers: `FUN_0055c560`, `FUN_0063d710`, `FUN_0063e510`, `FUN_00645720`. How
-the matrix is filled was not read.
-Evidence: `python3 tools/ghidra/fn.py 00629b50`, `python3 tools/ghidra/fn.py 00629bb0`.
-d2d: reads the same on the answer (cited from the decompile, no oracle run; `d2d::rules::type_is` walks the Equiv chain); the
-matrix itself is not ported.
-
-### An item's colour and tint byte (`FUN_0062c100`)
-
-`FUN_0062c100(owner, item, tint_out, inv)` returns the colormap pointer from
-`FUN_00600c20(Transform, colour)` (Transform from the item class record
-`+0x141`, or `+0x142` when `inv`), or 0 for no colour. compcode.md "Tints"
-has the colour rules; checked here against the decompile:
-- Order: a null item gives 0. With an owner, each state of the list at
-  `[state+0x18c]` (`[state+400]` shorts) that the owner has (`FUN_00639df0`) and
-  whose record (stride 0x3c at `[state+0xbc]`) has colour `+0x2c` under 21 and an
-  itemtype (`+0x2a`) the item is (`FUN_00629bb0`) returns that colour at once
-  and leaves `*tint_out` unwritten (the States.txt itemtrans; d2d keeps this in
-  `gamedata.hpp:493`, and `view.cpp:201` notes the unwritten tint).
-- Then the item data quality (`item+0x14` → `+0`): 7 unique (record `+0x38`
-  worn, `+0x39` inv, negative gives 0), 5 set (`+0x40` / `+0x41`), 4 and 6 the
-  affix lists (suffixes `+0x3e..+0x43`, prefixes `+0x38..+0x3d`, then the
-  automod `+0x36`, each through `FUN_00633ee0`, first with colour `+0x56` not
-  -1), anything else the socketed-gem rule then the automod.
-- The gem rule needs the class's hasinv byte (`+0x137`) and `FUN_0062bc20`
-  (sockets) nonzero, flag `0x800`, the first socketed item an ItemTypes 0x14
-  (`FUN_00629bb0`), colour = its gems record `+0x2f`.
-- `*tint_out` = `FUN_0062a250(Transform, colour)`: `Transform * 32 + (colour &
-  31)` for Transform 1..8 and colour under 21, else 0. This is the in-memory
-  byte, with no +1 and 0 for none; its callers `FUN_0063e510` / `FUN_0063da70`
-  add 1 on a colour and store 0xff on none, which is the d2s header's
-  `(Transform * 32 + colour + 1)`, 0xff for none (compcode.md).
-Evidence: `python3 tools/ghidra/fn.py 0062c100 0062a250`.
-d2d: reads the same on the colour rules traced here, cited from the decompile, no oracle run (`compcode::Colours::of`,
-`components/compcode/compcode.hpp:310`); the gem and the hasinv/socket gate are
-approximated by the caller's socketed-item code. Cited, not proven.
-
-### A 0x34-byte row check (`FUN_0065b620`)
-
-`FUN_0065b620(index)` computes `index * 0x34 + DAT_0096d4e8` (a table of 0x34
-byte rows whose base is the pointer in `DAT_0096d4e8`) and, when that sum is 0,
-reports string id 0x150 (`FUN_00408090` / `FUN_00408a60`) and exits with
-`FUN_00681e09(-1)`. It tests the row's address, not the base or the row's
-content, so it fires only if the address wraps to 0 (bugs.md #54). The decompile
-content, so it fires only when the address is 0: base 0 with index 0, or a
-wrap (bugs.md #59); base 0 with another index passes. The decompile
-wrap (bugs.md #60); base 0 with another index passes. The decompile
-content, so it fires only when the address is 0: base 0 with index 0, or a
-wrap (bugs.md #54); base 0 with another index passes. The decompile
-returns nothing; the asm was not read, so whether the row address stays in EAX
-for the caller is unverified: `FUN_0063e510` calls `FUN_00451f60` right after it
-with no argument of its own, which fits the row (its `+4` read, > 0 to go on).
-Callers: `FUN_004da790`, `FUN_0063e510`. What the table is was not traced.
-Evidence: `python3 tools/ghidra/fn.py 0065b620`, `python3 tools/ghidra/calls.py 0065b620`.
-d2d: not ported; no mention in `components/` or `apps/`.
-
-### The worn look: codes and tints (`FUN_0063e510`)
-
-`FUN_0063e510(unit, codes, tints)` fills two 16-byte arrays, one byte per
-look layer, from what the unit wears. Both are pre-set to 0xff by its
-wrappers (below). Steps, all from the decompile:
-- Needs the unit's inventory (`unit+0x60`, magic `0x1020304`), then walks its
-  item list from `+0xc` along each item's data `+0x64`. It takes only items
-  of unit type 4 in mode 1 (`piVar6[4] == 1`, worn). A class with no Items
-  record reports string 0x1446 and exits. It stops at a non-item or an item
-  without data (a data pointer of -0x5c also stops it, an odd guard).
-- The worn spot is `FUN_00627d40(item)` (the byte at item data `+0x44`,
-  weapon-switch.md). Spots 1, 4 and 5 (when the item is not ItemTypes row
-  0x4b, `FUN_00629b50`) go to `FUN_0063da70`: the layer is `FUN_00628660(item)`,
-  forced to 5 or 6 when the item is what `FUN_0063c050` gives for 5 or 6;
-  the code is `FUN_0063d900`'s, 0xff (both arrays) when it has none; the tint
-  is `FUN_0062c100(unit, item, &tint, 0)` + 1, or 0xff when that returns 0.
-- Spot 3 (the torso) fills layers 0..15 that `FUN_0064f420` accepts (1, 2, 3,
-  4, 8, 9): `FUN_0063d690` copies six bytes at the armor record `+0x116..0x11b`
-  and `FUN_0064f500` picks one per layer (1 → byte 2, 2 → 3, 3 → 0, 4 → 1,
-  8 → 4, 9 → 5; another layer under 16 asserts string 0x274, 16 or more
-  0x265). That byte goes through `FUN_0065b620` and `FUN_00451f60`, and a
-  result over 0 asks `FUN_0063d900` for the code; the tint is as above. A
-  layer without one gets 0xff in both arrays.
-`FUN_0063d900` takes its two arguments in registers (not read) and searches
-the table at `DAT_0096cc68` (pairs, 255 at most) built once by `FUN_0063d710`
-from the Items records (code `+0x90`, else `+0x80`; first three rows
-`lit `, `med `, `hvy `); it returns the pair index, 0 for none.
-Evidence: `python3 tools/ghidra/fn.py 0063e510 0063da70 0063d900 0063d710`,
-`python3 tools/ghidra/calls.py 0063e510`.
-d2d: reads the same on the result encoding (cited from the decompile, no oracle run; tint = Transform * 32 + colour + 1, 0xff for
-none: `compcode::tints`); d2d builds the look from the worn list
-(`GameData::look_of`) and does not run this walk. Cited, not proven.
-
-### The look codes of a unit (`FUN_005379d0`)
-
-`FUN_005379d0(_, unit, out, size)` (fastcall: unit in EDX, `out` and `size`
-on the stack) asserts (string 0x3d4) when `size < 0x10` or the unit is null,
-sets the 16 bytes at `out` to 0xff, and calls `FUN_0063e510(unit, out,
-scratch)`: `out` gets the per-layer codes and the tints go to a stack buffer.
-No caller in the call table (reached through a table or a callback).
-Evidence: `python3 tools/ghidra/fn.py 005379d0`, `python3 tools/ghidra/calls.py 005379d0`.
-d2d: not ported; no mention in `components/` or `apps/`.
-
-### A unit's look tints (`FUN_00537a40`)
-
-`FUN_00537a40` is `FUN_005379d0` with the two arrays swapped: assert string
-0x3df, `out` pre-set to 0xff and passed as `FUN_0063e510`'s tints (third)
-argument, the codes going to the scratch buffer. No caller in the call table.
-Evidence: `python3 tools/ghidra/fn.py 00537a40`, `python3 tools/ghidra/calls.py 00537a40`.
-d2d: not ported; its result is what `compcode::tints` builds from the worn
-list, in the same encoding.
-
-### A unit's class id (`FUN_00451f60`)
-
-`FUN_00451f60(unit)` (ECX) returns `-1` for a null unit, else the dword at
-unit `+4` (the class id: Items row, MonStats id, player class). A getter with
-no checks; callers `FUN_00470ec0`, `FUN_0048a990`, `FUN_00497e00`,
-`FUN_004a7d00`, `FUN_004abf10`, `FUN_004ac4d0`, `FUN_004ed480`, and
-`FUN_0062c100` and `FUN_0063e510` call it (game-calls.tsv).
-Evidence: `python3 tools/ghidra/fn.py 00451f60`, `python3 tools/ghidra/calls.py 00451f60`.
-d2d: not ported as a function (a unit's class is a plain field); the pet-ai.md
-mention at line 285 uses it for the owner's class.
 
 ### A unit's look tints (`FUN_00537a40`)
 
