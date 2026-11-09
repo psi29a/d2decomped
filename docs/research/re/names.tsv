@@ -376,3 +376,82 @@ address	name	evidence
 0066edb0	room_tiles_count_orients	thiscall (room, skipFirst, skipLast): per cell of the orient grid, block +0x18 += 1 when the orient is 3, 10 or 11; the +0x20 += 6 branch is dead (FUN_0067c570 read twice)
 0066eea0	room_tiles_alloc	allocates room +0x54 once: 0x2c bytes zeroed, from ".\DRLG\RoomTile.cpp" line 0x533; called first by FUN_0067d710, FUN_0067d2d0, FUN_00666ac0
 0066eee0	room_tiles_alloc_arrays	fastcall (room): block = room +0x54; walls +0x14 (capacity +0x18, line 0x545), floors +0x1c (+0x20, line 0x54b), shadows +0x24 (+0x28, line 0x551, only when +0x24 is 0); 0x30 bytes per entry, zeroed; ".\DRLG\RoomTile.cpp"
+006be3c0	qs_flush_queues	every class head/tail cleared, records freed
+006be450	qs_client_count	+0x880
+006be470	qs_is_local	+0x86c is 1 or 2
+006be4a0	qs_set_ip_limit	+0x884, 0 becomes 1
+006be4e0	qs_wait_event	98 only: WaitForSingleObject(+0xbd4)
+006be510	qs_lock	EnterCriticalSection, keeps the pointer
+006be530	qs_unlock	LeaveCriticalSection
+006be540	qs_client_find	+0xc mask, +0x14 heads, +0x1c locks
+006be5b0	qs_client_by_socket	every bucket, client +0x10
+006be640	qs_client_addref	InterlockedIncrement +8
+006be650	qs_client_free	EDI client: send queue, DeleteCriticalSection +0x2c
+006be6c0	qs_hacklist_log	"[HACKLIST]  Hacklist size is %d", 2 s throttle
+006be700	qs_hacklist_age	once a second; refused +8 then expiry +4 (0x78)
+006be890	qs_hacklist_remove	IP modulo +0x8b0
+006be980	qs_hacklist_refused	+8 non-zero: reset to 0x78, refuse
+006be9f0	qs_ip_at_limit	+0x40 count >= +0x884
+006bea70	qs_queue_count	class list length
+006bead0	qs_queue_pop	copies <= 0x5b4, returns +0x5b4, record to +0x878
+006bebc0	qs_wait	98 event, NT FUN_006c30d0
+006bec00	qs_client_lock	FUN_006be540 keeping the bucket lock
+006bec70	qs_client_local_addr	+0x7c
+006becb0	qs_client_local_port	ntohs(+0x7a)
+006bed00	qs_client_peer_addr	+0x8c
+006bed40	qs_client_peer_port	ntohs(+0x8a)
+006bed90	qs_client_ip_text	inet_ntoa(+0x18)
+006bee20	qs_client_ip	+0x18
+006bee90	qs_client_getpeername	result unused
+006bef40	qs_client_socket	+0x10, -1 when missing
+006befb0	qs_hack_unlist_ip	"QSHackUnlistIP() from FILE:%s  LINE:%d"
+006bf000	qs_hack_list_size	"QSHackListSize() from FILE:%s  LINE:%d"
+006bf040	qs_set_hack_callback	+0xbb8; null server fatal (0x842)
+006bf080	qs_set_callback_bbc	+0xbbc
+006bf0a0	qs_client_set_value	+0x20
+006bf0c0	qs_client_value	+0x20
+006bf0f0	qs_hacklist_free	every bucket freed, +0x890 = 0
+006bf180	qs_ip_count_inc	+0x40 buckets {ip, count, next}
+006bf1f0	qs_ip_count_dec	frees at 0
+006bf260	qs_recent_prune	older than 15000 ms
+006bf320	qs_recent_free	+0x84c list
+006bf370	qs_inject	parse callback +0xbc0, record queued in its class
+006bf4e0	qs_set_hacklist	+0xbd0
+006bf520	qs_start_listen	WSAStartup, NT FUN_006c3360 else FUN_006c3b50
+006bf580	qs_queue_total	all classes
+006bf600	qs_stub_6bf600	empty
+006bf610	qs_exempt_add	+0x48 {ip, bits}, 256 max
+006bf660	qs_is_exempt	mask table 0x74c3f0
+006bf6c0	qs_is_exempt_fast	FUN_006bf660
+006bf6d0	qs_stats_copy	+0x8cc 0xb0 per listener, +0xba8 flags
+006bf750	qs_stub_6bf750	empty; accept thread, listener 0
+006bfad0	qs_broadcast	every client with +0xc == 0
+006bfb70	qs_add_client	"[QSrvAddClient]  Added client %d %s on socket %d"
+006bfcd0	qs_remove_client	"[sRemoveClient]  Remove client %d %s refcount=%d life=%d"
+006bfea0	qs_hacklist_add	+0xbb8 callback, entry {ip, 0x78, 0, next}
+006bffa0	qs_reconnect_check	15 s window, > limit * 2 + 3 refuses
+006c00a0	qs_spam_check	+0x28 > 1000 bans; -200 a second
+006c0170	qs_shutdown	WSACleanup, every list and lock freed
+006c0360	qs_client_release	refcount 0: +0xbc8 callback, FUN_006bfcd0, FUN_006be650
+006c0420	qs_close_client	"[QSrvCloseRemoteConnection] *** closesocket() err = %d ***"
+006c0530	qs_hack_list	"QSHackList() from FILE:%s  LINE:%d"
+006c0600	qs_hack_list_ip	"QSHackListIP() from FILE:%s  LINE:%d"
+006c06b0	qs_disconnect	FUN_006c0420
+006c06d0	qs_disconnect_ip	"QSDisconnectIP() from FILE:%s  LINE:%d"
+006c0770	qs_ban_client	FUN_006c0420 + FUN_006bfea0
+006c0800	qs_ban_by_addr	"banned via QSBanByAddr()"
+006c08a0	qs_process_msg	"PACKET_INVALID in QSrvProcessMsg", "sQSSpamCheck in QSrvProcessMsg"
+006c2280	qsnt_post_read	ReadFile overlapped +0x44, QServerNT.cpp 0x3ed / 0x430
+006c23b0	qsnt_queue_send	node {len, next, data} on +0x74
+006c2420	qsnt_accept	"[sQSNTAccept]  *** Deleted socket %d (%s) - %s ***"
+006c2760	qsnt_post_write	WriteFile overlapped +0x5c
+006c2860	qsnt_accept_thread	select, FUN_006be700, FUN_006c2420; stop +0xbf8
+006c2c70	qsnt_send	send now, queue the rest (QServerNT.cpp 0x220 / 0x234)
+006c2d70	qsnt_pump	GetQueuedCompletionStatus, "[NTRdQ]" logs
+006c3030	qsnt_completion_thread	FUN_006c2d70(0x32) until +0xc3c
+006c30d0	qsnt_pump_all	each listener when +0xc18 is 0
+006c3120	qsnt_init	"QSNTInit failed on socket() / bind() / listen()", backlog 0xfa
+006c3360	qsnt_start	+0x884 = 1, WSAStartup, FUN_006c3120
+006c33d0	qsnt_stop	+0xbf8 = 1, waits 2000 ms
+006c3410	qs98_send	one send()
+006c3440	qs98_add_client	FUN_006bfb70, +0xbc4 with QServer98.cpp 0x91

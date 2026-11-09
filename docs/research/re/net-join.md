@@ -611,4 +611,4 @@ That is roughly 2–3 days on top of the server work in multiplayer.md.
 - What +0x13, +0x25, +0x2b and +0x2c in 0x67 mean (config +0x20d, +0x207, +0x20e, +0x20f), and what the u32 at +1 of 0x68 means.
 - The game events that trigger an in-game save (callers of `FUN_00532400`).
 - Where B2 is sent, and whether TCP ever sends it.
-- `FUN_006c3360`, the other listen path picked by `FUN_00410960`, was not read.
+- `FUN_006c3360`, the other listen path picked by `FUN_00410960`, is the I/O completion port path: qserver.md "The NT path".
