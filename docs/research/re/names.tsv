@@ -450,6 +450,7 @@ address	name	evidence
 005fec90	sprite_cache_link_cells	SpriteCache.cpp 0x517: dirs (+0x21) * frames (+0x24) * 0x2c bytes of cell records, one per decoded frame header (+0x18); sets +0x28 = 1
 005ff6e0	sprite_cache_read_done	AsyncData callback (block: +4 cache entry, +8 layer record, +0xc first, +0x10 count): FUN_0060bff0 decodes into the record, result at block +0x14; clears record+0x20 bit 2; entry bit 0 set when it failed
 005ffe90	sprite_cache_add_layer	(entry, group, count) with the layer record in ESI: FUN_005ffc40 node, 0xb8-byte cache record filled from the layer, FUN_005ff760, FUN_0060adc0 (error 0x5d1), FUN_005fec90; result FUN_005fec50 into layer +0x3c
+006000b0	sprite_cache_load_layer	(entry ECX, layer EDX, group, count, path buffer, flag; stem EAX): +0x40 direction scale, FUN_0060ace0 lookup, FUN_005fe2b0 / FUN_005fe610 for the path, then FUN_005ffe90 (flag 0) or FUN_005fffa0
 0060dcb0	stpl_string_assign	frees the old (stpl.h 0x5e9), FUN_00414310 (SStrDup) the new
 0060dd00	stpl_string_dup	FUN_00414310 into *this
 0060dd20	stpl_string_equal	FUN_00413590(a, b, 0x7fffffff) == 0

@@ -215,6 +215,21 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   0 it runs `FUN_005fec90`, and `FUN_005fec50()`'s result becomes layer
   +0x3c, which this returns as a bool. Called by `FUN_006000b0` and
   `FUN_006001f0`. d2d: not ported.
+- `FUN_006000b0(entry, layer, group, count, path, flag)` (fastcall, the
+  stem buffer in EAX; the decompile's `param_N`): does nothing unless
+  `entry` (ECX) and `layer` (EDX) are set. A direction scale applies when
+  `group` is 0 and `count` above 1, except for a char layer (type 0, no
+  type 6 overlay) unless bit 3 of layer +4 is set, layer +0x10 is
+  neither 0 nor 0x11 and `DAT_0089db58` is 0. Then
+  layer +0x40 = `(FUN_00600d30(count, count * 2) << 6) / entry[+0x14]` (1
+  when `entry[+0x14]` is below 2). `FUN_0060ace0(&group, &count, entry)` looks
+  the layer up; a hit returns here. A miss needs `group` 1 (error 0x686)
+  and `count` above 1 (0x687). It then runs `FUN_005fe2b0` if `*param_5`
+  is empty and `FUN_005fe610(param_5)` if `*EAX` is, returning if either
+  gives 0 (which buffer is the stem and which the path is read from the
+  decompile only, not the asm), and calls `FUN_005ffe90(entry, group, count)`
+  or, when `flag` is non-zero, `FUN_005fffa0`. Called by `FUN_006001f0`.
+  d2d: not ported.
 
 ## Draw effects
 
