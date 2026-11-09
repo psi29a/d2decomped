@@ -1,6 +1,7 @@
 address	name	evidence
 00403040	vector_ctor_iterator	calls arg 4 arg 3 times (the MSVC array constructor loop)
 004059d0	app_mode_run	mode 1..5 (DAT_0074c704): obj = make() from 0x706554 + 8 * mode, calls its first virtual method, then done() at 0x706558 + 8 * mode; null entries raise lines 0x133 / 0x134; only caller FUN_00405c30 (runtime-support.md "The mode run")
+00406d30	user_dir_path	(buf in ESI, size in EDI): FUN_004067d0 SHGetKnownFolderPath(id 0x6cca6c) + "Diablo II", else SHGetFolderPathA CSIDL 5 + "Diablo II\\Save"; null buf line 0x44 (runtime-support.md "The per-user folder path")
 00408090	assert_caller_address	4 bytes: returns its own return address (decompile unaff_retaddr); an argument pushed at the call, 0x44 / 199 / 0x261, is not read (runtime-support.md "The internal-error path")
 0040a620	async_data_create	AsyncData.cpp: 0x54-byte record (alloc line 0x128) tagged 0x41737960 at +0x48; buffer +0x3c, size +0x40; reads inline or queued (DAT_0075af94)
 0040a9e0	async_data_result	record in ECX: +0x3c, after FUN_0040a960 when bit 0 of +0x48 is clear; null / bad tag / still unfinished end the run with errors 0x25f / 0x260 / 0x266

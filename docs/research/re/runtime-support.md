@@ -46,3 +46,35 @@ no oracle ran: all of it is **cited**, none proven. d2d ports none of it
   functions the five pairs hold was not read (the table's bytes were not
   read here), and so what each mode runs is untraced.
 - d2d: not ported; it has no application mode (switches.md).
+
+## The per-user folder path (`FUN_00406d30`, with `FUN_004067d0` / `FUN_00406b20`)
+
+- **`FUN_00406d30`** (buffer in ESI, size in EDI; both registers as the
+  decompile names them; only caller `FUN_00407050`; `FUN_004067d0` and
+  `FUN_00406b20` are fastcall in the same decompile): a size of 0 returns;
+  a null buffer raises the internal error, line 0x44 (`FUN_00408090`).
+  - `FUN_004067d0(buf, size)` asks `SHGetKnownFolderPath` (looked up in
+    `Shell32.dll` with `GetProcAddress`; a null result skips it) for the
+    folder id at `0x006cca6c` with flags `0x8000`, and converts the wide
+    result to the buffer (`WideCharToMultiByte`, code page 0, flags
+    0x400, the used-default flag checked). It returns 1 when that worked
+    without a substituted character, 0 otherwise (also for the call
+    missing or failing).
+  - Worked: `FUN_00406b20` (make sure the buffer ends in `\`; 0 when
+    there is no room: the length + 1 equals the size) and then
+    `FUN_00413800(buf, "Diablo II", size)` (the string joiner the other
+    docs call "builds the path", switches.md; chat-ignorelist.md).
+  - Did not: `SHGetFolderPathA(0, 5, 0, 0, ...)` (CSIDL 5, My Documents);
+    a non-zero result returns with the buffer as it was; else
+    `FUN_00406b20` and `FUN_00413800(buf, "Diablo II\\Save", size)`.
+    The decompile gives the local 260-byte array as the folder call's
+    output and never reads it afterwards, which cannot be what the code
+    does (the call's output is the buffer); the asm was not read, so
+    this is the decompiler's register loss, not a finding.
+- So the result is a per-user folder plus `Diablo II`, or (fallback)
+  `<CSIDL 5>\Diablo II\Save`. Which folder the id at `0x006cca6c` names
+  was not read (16 bytes of data); `0x8000` is the create flag of
+  `SHGetKnownFolderPath` by its documented value, not read in game.exe.
+- Open (switches.md lists it): whether `FUN_00407050` uses this for
+  `D2.ini`'s directory. Not traced here.
+- d2d: not ported (its settings and saves folder is its own, apps/d2d/README.md).
