@@ -201,6 +201,20 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   d2d: agrees on the direction rounding (`missile_direction`,
   `cof_direction`, tests/game/test_game_rules.cpp:76); the rest is not
   ported.
+- `FUN_005ffe90(entry, group, count)` (the layer record in ESI): false for
+  a null `entry`. It takes a holder node (`FUN_005ffc40(0, 0)`, not read
+  here), zero-fills the 0xb8-byte cache record it holds, and copies the
+  layer's type (+8), token (+0x18), layer (+0x1c), piece (+0x20), mode
+  (+0x24) and weapon (+0x28) into record +0, +0xc, +0x10, +0x14, +0x18,
+  +0x1c, and the holder into +0xb4. When the entry hasn't failed (bit 0 of
+  `*entry`) it also copies the row (+0xc) and +0x10 into record +8 and +4
+  and runs `FUN_005ff760` to queue the read. `FUN_0060adc0(*holder, layer,
+  entry)` registers it, and 0 is error 0x5d1; the result goes to
+  holder +8 and its +0x24 points back at the holder. A failed entry sets
+  bit 0 of record +0x20 and returns false. Otherwise, when record +0x28 is
+  0 it runs `FUN_005fec90`, and `FUN_005fec50()`'s result becomes layer
+  +0x3c, which this returns as a bool. Called by `FUN_006000b0` and
+  `FUN_006001f0`. d2d: not ported.
 
 ## Draw effects
 
