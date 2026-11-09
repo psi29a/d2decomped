@@ -465,4 +465,18 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   (`FUN_0045a860`, `FUN_0047a210`, `FUN_00532520`, `FUN_00532590`,
   `FUN_00532be0`). d2d reads the player data directly and has no assert
   (the oracles in `tools/emu/fl_load.py` run it native).
+- **`FUN_00575720`** (`pets_release_group`, owner in EDI, PetType row on the
+  stack): the pets of the other rows that share this row's group word go
+  before a pet of this row arrives. Guards: owner is a player (`*unit ==
+  0`), row in `0..count`, the row (`[0x744304]+0xbe8`, 0xe0 bytes each)
+  has a short at `+8` above 0. For every other row whose short at `+8` is
+  equal, it takes that row's first live pet (`FUN_00574ec0(row, 1)`, the
+  unit found by id with `FUN_00552f60`) and removes it with
+  `FUN_005750e0(pet id, 1)`, going on while that row's slot still has a
+  head node. So summoning into a row empties every other row of the same
+  group. The short's column name is not in the repo (the PetType.txt
+  header was not read; no MPQ here), and which rows share a value is
+  data. d2d: **not ported**: `Fight::summon_one` trims only the cast
+  skill's own `pettype` (summons.cpp:147), and `GameData::PetType` has no
+  group (gamedata_load.cpp:847).
 
