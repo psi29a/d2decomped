@@ -139,6 +139,11 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   ends with error 0x142 (`param_3`). `FUN_005ff760` calls it twice (with
   `.\SRC\SpriteCache.cpp` lines 0x369 and 0x379). d2d: not ported (it reads
   whole files); `tools/emu/sound_hdr_load.py` hooks it.
+- `FUN_0040a9e0` (ECX = the record): the result buffer (+0x3c). Null ends the
+  run with error 0x25f, a tag other than `0x41737960` in +0x48 with 0x260.
+  If bit 0 of +0x48 is clear it calls `FUN_0040a960` (to finish the read)
+  first, and a bit still clear is error 0x266. `FUN_005fec90` calls it.
+  d2d: not ported.
 
 ## Draw effects
 
