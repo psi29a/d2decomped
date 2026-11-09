@@ -3,15 +3,15 @@
 
     uv run python drlg_preset_mid.py [--mutation-check]
 
-Runs game.exe's own code for FUN_00665f40, FUN_00667060 and FUN_006671e0
-against hand-written models on random records (_dungeon_rig.py): return
-value, callee log, arena, allocator blocks, fatal-error line, the cache's
-global head (0x96d60c) and the bytes `ret n` pops. The CRT memset runs for
-real, with an allocator that returns dirty memory for the file record. The
-import stubs give GetTickCount 0 and make InterlockedIncrement add one. Hooked, logged, not
-claimed: FUN_00665950, FUN_0066b980, FUN_00604b90, FUN_00667060 (while
-FUN_006671e0 runs) and the allocator. `--mutation-check` breaks the model
-three ways.
+Runs game.exe's own code for FUN_00665f40, FUN_00666e00, FUN_00667060,
+FUN_00667430, FUN_00668240 and FUN_00668300 against hand-written models on
+random records (_dungeon_rig.py): return value, callee log, arena, allocator
+blocks, fatal-error line, the cache's global head (0x96d60c) and the bytes
+`ret n` pops. The CRT memset runs for real, with an allocator that returns
+dirty memory for the file record. The import stubs give InterlockedIncrement
+and Decrement their real effect. Hooked, logged, not claimed: FUN_00665950,
+FUN_0066b980, FUN_00604b90, FUN_0061f0e0, FUN_0045c3e0, FUN_00642d10,
+FUN_0040b3c0 and the allocator. `--mutation-check` breaks the model five ways.
 """
 import argparse
 import sys
@@ -227,18 +227,198 @@ class Suite:
         rig.run("FUN_00667060", 0x667060, *self.checked(build, model), 2, ret=False)
 
 
+def more_methods():
+    """The file release, level init and POP location groups, added to Suite below."""
+    def free_model(m, fil):
+        """DRLGPRESET_FreeDrlgFile's effects on a model: the DS1 data, group array, preset units (and their map AI) and the record."""
+        if m.r(fil + 4):
+            m.call("cfree", m.r(fil + 4), F_PRESET, 0x4F8, 0)
+        if m.r(fil + 0x50):
+            m.free(0, m.r(fil + 0x50), 0x4F9, F_PRESET)
+        unit = m.r(fil + 0x54)
+        while unit:
+            ai, nxt = m.r(unit + 0x10), m.r(unit + 0xC)
+            if ai:
+                m.free(0, m.r(ai + 4), 0x597 if not mut("ai-line") else 0x598, F_PRESET)
+                m.free(0, ai, 0x598, F_PRESET)
+            m.free(0, unit, 0x56B, F_PRESET)
+            unit = nxt
+        m.free(0, fil, 0x505, F_PRESET)
+
+    def file_build(img, rng, at):
+        """A file record at 0x40 + 0x80 k with a DS1 pointer, a group array and a chain of preset units (some with map AI)."""
+        def rec(base, units_at):
+            """Fill one file record at arena offset `base`."""
+            put(img, base + 4, rng.choice((0, rng.getrandbits(32) | 1)))
+            put(img, base + 0x50, rng.choice((0, rng.getrandbits(32) | 1)))
+            first = 0
+            prev = 0
+            for k in range(rng.randrange(0, 4)):
+                u = units_at + 0x40 * k
+                put(img, u + 0xC, 0)
+                ai = rng.random() < 0.5
+                put(img, u + 0x10, at(u + 0x20) if ai else 0)
+                put(img, u + 0x24, rng.getrandbits(32) | 1)
+                if prev:
+                    put(img, prev + 0xC, at(u))
+                else:
+                    first = at(u)
+                prev = u
+            put(img, base + 0x54, first)
+        return rec
+
+    def free_file(self):
+        """FUN_00668240: free a DS1 file record and everything it owns."""
+        rig, at = self.rig, self.at
+        rig.callee("cfree", 0x40_B3C0, 2, ("ecx", "edx"))
+
+        def build(img, rng):
+            """A file record at 0x100 with its units from 0x400."""
+            file_build(img, rng, at)(0x100, 0x400)
+            return {"ecx": at(0x100)}
+
+        def model(m, a):
+            """Free in the order: DS1 data (client free), group array, each unit's AI position + AI + unit, the record."""
+            free_model(m, a["ecx"])
+        rig.run("FUN_00668240", 0x668240, build, model, 0, ret=False)
+
+    def release(self):
+        """FUN_00668300: drop a reference on a cached DS1 file; at zero unlink, free it and its node."""
+        rig, at = self.rig, self.at
+
+        def build(img, rng):
+            """A cache of 1-3 nodes whose files are records at 0x1000 + 0x400 k; the wanted file is one of them."""
+            nodes = rng.randrange(1, 4)
+            head = 0
+            for k in range(nodes):
+                node = 0x100 + 0x120 * k
+                fil = 0x1000 + 0x400 * k
+                put(img, node + 0x104, rng.choice((1, 1, 2, 0, -1)))
+                put(img, node + 0x108, at(fil))
+                put(img, node + 0x10C, at(0x100 + 0x120 * (k + 1)) if k + 1 < nodes else 0)
+                file_build(img, rng, at)(fil, fil + 0x100)
+            head = at(0x100)
+            rig.m.mu.mem_write(CACHE_HEAD, head.to_bytes(4, "little"))
+            self.first_node = head
+            pick = rng.randrange(nodes)
+            put(img, 0x40, 0 if rng.random() < 0.1 else at(0x1000 + 0x400 * pick))
+            return {"ecx": at(0x40)}
+
+        def model(m, a):
+            """Null: nothing. Else find the node, decrement; at <= 0 unlink, free the file and node, null the pointer."""
+            pp = a["ecx"]
+            target = m.r(pp)
+            head = int.from_bytes(rig.m.read(CACHE_HEAD, 4), "little")
+            if target == 0:
+                require(head == self.first_node, "cache head moved on a null release")
+                return
+            prev, node = 0, self.first_node
+            while node and m.r(node + 0x108) != target:
+                prev, node = node, m.r(node + 0x10C)
+            ref = (m.r(node + 0x104) - 1) & M32
+            m.w(node + 0x104, ref)
+            if s32(ref) > 0:
+                require(head == self.first_node, "cache head moved without a free")
+                return
+            if prev:
+                m.w(prev + 0x10C, m.r(node + 0x10C))
+                require(head == self.first_node, "cache head moved on a mid-list unlink")
+            else:
+                require(head == m.r(node + 0x10C), f"cache head {head:#x}, model {m.r(node + 0x10C):#x}")
+            free_model(m, target)
+            m.free(0, node, 0x538, F_PRESET)
+            m.w(pp, 0)
+        rig.run("FUN_00668300", 0x668300, build, model, 0, ret=False)
+
+    def init_area(self):
+        """FUN_00667430: allocate a preset level record, pick a file and size the level."""
+        rig, at = self.rig, self.at
+        rig.callee("c61f0e0", 0x61_F0E0, 0, ("ecx",))
+        rig.callee("c45c3e0", 0x45_C3E0, 0, ("ecx", "edx"))
+        rig.callee("c642d10", 0x64_2D10, 0, ("ecx", "edx"))
+        self.prest = 0
+        rig.custom["c61f0e0"] = lambda e: self.prest
+
+        def build(img, rng):
+            """A level with an act pool, a level id and a LvlPrest record (or none) with a file count."""
+            put(img, 0x1B4, at(0x300))
+            put(img, 0x300 + 0x478, rng.getrandbits(32))
+            put(img, 0x1D0, rng.randrange(1, 100))
+            self.prest = 0 if rng.random() < 0.15 else at(0x500)
+            put(img, 0x500 + 0x40, rng.choice((0, 1, 4, 9)))
+            return {"ecx": at(0)}
+
+        def model(m, a):
+            """Allocate 8 bytes (line 0xaf9); no LvlPrest row halts at 0xafb; else store the record, pick a file (or -1) and tail-call the sizing."""
+            lv = a["ecx"]
+            blk = m.alloc(m.r(m.r(lv + 0x1B4) + 0x478), 8, 0xAF9, F_PRESET)
+            m.call("c61f0e0", m.r(lv + 0x1D0))
+            if self.prest == 0:
+                raise Halt(0xAFB)
+            m.w(lv + 0x14, blk)
+            files = m.r(self.prest + 0x40)
+            if files:
+                m.w(blk + 4, m.call("c45c3e0", lv + 0x1C4, files))
+            else:
+                m.w(blk + 4, M32 if not mut("no-file") else 0)
+            return m.call("c642d10", m.r(lv + 0x1B4), lv)
+        rig.run("FUN_00667430", 0x667430, build, model, 0)
+
+    def pop_locations(self):
+        """FUN_00666e00: turn each POP's corner pair into a position and size relative to the map, and its index into a pop number."""
+        rig, at = self.rig, self.at
+
+        def build(img, rng):
+            """A map with an origin, a bounds array and an index array; the count is on the stack."""
+            put(img, 0x10, rng.randrange(-5, 50))
+            put(img, 0x14, rng.randrange(-5, 50))
+            put(img, 0x50, at(0x200))
+            put(img, 0x44, at(0x300))
+            n = rng.choice((-1, 0, 1, 2, 4))
+            for k in range(4):
+                for f in range(4):
+                    put(img, 0x200 + 0x10 * k + 4 * f, rng.randrange(-20, 20))
+                put(img, 0x300 + 4 * k, rng.choice((0, 3, 4, 7, 8, -1, -5, -8, rng.randrange(-40, 40))))
+            return {"regs": {"esi": at(0)}, "stack": [n]}
+
+        def model(m, a):
+            """Min/max the corners, offset by the map origin, size = span + 1; index = (index + (index < 0 ? 3 : 0)) >> 2 - 1."""
+            mp = a["regs"]["esi"]
+            n = s32(a["stack"][0])
+            m.w(mp + 0x40, n)
+            for i in range(max(n, 0)):
+                e = m.r(mp + 0x50) + 0x10 * i
+                x0, y0, x1, y1 = (s32(m.r(e + 4 * k)) for k in range(4))
+                m.w(e, s32(m.r(mp + 0x10)) + min(x0, x1))
+                m.w(e + 4, s32(m.r(mp + 0x14)) + min(y0, y1))
+                m.w(e + 8, max(x0, x1) - min(x0, x1) + 1)
+                m.w(e + 12, max(y0, y1) - min(y0, y1) + 1)
+                slot = m.r(mp + 0x44) + 4 * i
+                v = s32(m.r(slot))
+                m.w(slot, ((v + (3 if v < 0 else 0)) >> 2) - 1)
+        rig.run("FUN_00666e00", 0x666E00, build, model, 1, ret=False)
+    return free_file, release, init_area, pop_locations
+
+
+Suite.free_file, Suite.release, Suite.init_area, Suite.pop_locations = more_methods()
+
+
 def suite(rig):
     """Run every group; returns the number of cases."""
     rig_mod.ROUNDS = 200
     s = Suite(rig)
     s.cache()
     s.tiles()
+    s.free_file()
+    s.release()
+    s.init_area()
+    s.pop_locations()
     return rig.cases
 
 
 MUTATIONS = {
     name: (lambda on, n=name: MUT.add(n) if on else MUT.discard(n))
-    for name in ("no-ref", "fade", "keep-8")
+    for name in ("no-ref", "fade", "keep-8", "ai-line", "no-file")
 }
 
 
