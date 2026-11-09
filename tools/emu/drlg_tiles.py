@@ -4,13 +4,13 @@
     uv run python drlg_tiles.py [--mutation-check]
 
 Runs game.exe's own code for FUN_0066d290, FUN_0066ece0 (CountTilesFromGrid),
-FUN_0066edb0, FUN_0066eee0 and FUN_0066fe00 against hand-written models on
+FUN_0066edb0, FUN_0066eee0, FUN_0066f0b0 and FUN_0066fe00 against hand-written models on
 random records (_dungeon_rig.py): return value, callee log, arena, allocator
 blocks and the bytes `ret n` pops. The CRT memset runs for real, with an
 allocator that returns dirty memory. Hooked, logged, not claimed:
 FUN_0067c570 (grid flags), FUN_0067c550 (grid cell pointer), FUN_0066b980,
-FUN_00604ae0, FUN_00604bc0 and the allocator. `--mutation-check` breaks the
-model five ways.
+FUN_00604ae0, FUN_00604bc0, FUN_0066f050 and the allocator. `--mutation-check` breaks
+the model six ways.
 """
 import argparse
 import struct
@@ -210,6 +210,52 @@ class Suite:
                 m.w(tg + ptr_off, m.alloc(pool, n * 0x30, line, F_ROOMTILE))
         rig.run("FUN_0066eee0", 0x66EEE0, build, model, 0, ret=False)
 
+    def free_tiles(self):
+        """FUN_0066f0b0: free a room's tile arrays (FUN_0066f050), its map links and animated tile lists, and the tile grid."""
+        rig, at = self.rig, self.at
+        rig.callee("c66f050", 0x66_F050, 0, ("eax", "edi"))
+
+        def build(img, rng):
+            """A room with a level, act pool and a tile grid (or none) holding link and animation chains."""
+            put(img, 0x100 + 0x58, at(0x300))
+            put(img, 0x300 + 0x1B4, at(0x400))
+            put(img, 0x400 + 0x478, rng.getrandbits(32))
+            put(img, 0x100 + 0x54, 0 if rng.random() < 0.15 else at(0x200))
+            links = rng.randrange(0, 4)
+            put(img, 0x200, at(0x500) if links else 0)
+            for k in range(links):
+                put(img, 0x500 + 0x20 * k + 8, at(0x500 + 0x20 * (k + 1)) if k + 1 < links else 0)
+            anims = rng.randrange(0, 4)
+            put(img, 0x200 + 4, at(0x700) if anims else 0)
+            for k in range(anims):
+                put(img, 0x700 + 0x20 * k, rng.getrandbits(32))
+                put(img, 0x700 + 0x20 * k + 0x10, at(0x700 + 0x20 * (k + 1)) if k + 1 < anims else 0)
+            return {"ecx": at(0x100)}
+
+        def model(m, a):
+            """Free the arrays, then each map link (0x5ad), each animation grid's data (0x5b9) and itself (0x5ba), then the grid (0x5bd)."""
+            room = a["ecx"]
+            pool = m.r(m.r(m.r(room + 0x58) + 0x1B4) + 0x478)
+            m.call("c66f050", room, pool)
+            tg = m.r(room + 0x54)
+            if tg == 0:
+                return
+            link = m.r(tg)
+            while link:
+                nxt = m.r(link + 8)
+                m.free(pool, link, 0x5AD, F_ROOMTILE)
+                link = nxt
+            m.w(tg, 0)
+            anim = m.r(tg + 4)
+            while anim:
+                nxt = m.r(anim + 0x10)
+                m.free(pool, m.r(anim), 0x5B9, F_ROOMTILE)
+                m.free(pool, anim, 0x5BA if not mut("anim-line") else 0x5B9, F_ROOMTILE)
+                anim = nxt
+            m.free(pool, tg, 0x5BD, F_ROOMTILE)
+            m.w(room + 0x54, 0)
+        rig.run("FUN_0066f0b0", 0x66F0B0, build, model, 0, ret=False)
+
     def match_types(self):
         """FUN_0066fe00: can a LvlSub group be placed here (tile types, floor and wall flags agree)."""
         rig, at = self.rig, self.at
@@ -290,13 +336,14 @@ def suite(rig):
     s = Suite(rig)
     s.count_floors()
     s.alloc_arrays()
+    s.free_tiles()
     s.match_types()
     return rig.cases
 
 
 MUTATIONS = {
     name: (lambda on, n=name: MUT.add(n) if on else MUT.discard(n))
-    for name in ("roof", "six", "anim-flag", "mask", "roof-guard")
+    for name in ("roof", "six", "anim-flag", "mask", "roof-guard", "anim-line")
 }
 
 
