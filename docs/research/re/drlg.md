@@ -1872,4 +1872,3 @@ FUN_00642630 and the allocator; the CRT memset and FUN_0066b980 run for real.
   (+0x2c count, +8 array) that does; else the level (the argument, or the act
   level whose id FUN_006427a0 gives, allocated through FUN_00642ae0),
   initialised with FUN_006424a0 when it has no rooms, then FUN_00642630.
-

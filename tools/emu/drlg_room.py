@@ -131,7 +131,7 @@ class Suite:
             ca, cb = at(0x10), at(0x20)
             put(img, 0x10, at(0x300))
             put(img, 0x20, at(0x500))
-            for base, other in ((0x300, cb), (0x500, ca)):
+            for base in (0x300, 0x500):
                 n = rng.randrange(1, 4)
                 for i in range(n):
                     put(img, base + 0x40 * i, rng.choice((ca, cb, 7)))
