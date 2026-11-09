@@ -264,9 +264,10 @@ slot 59 is `0x73c92c` = FUN_005acf20). Baal Taunt's lightning control
 d2d: `Missiles` `hit_spawn` (ai.hpp) reads the same, cited from the decompile, no oracle run,
 on the radius clamp, the
 sub missile, the start and the flags-0x20 aim, and keeps its own rng
-(ponytail already noted). It differs in one case: when both draws land on the
-missile's own subtile, game.exe aims (+1, +1) subtiles away, d2d at that
-subtile's centre. The gates do not match: game.exe's also needs an owner
+(ponytail already noted). When both draws land on the missile's own subtile
+and the sub missile moves, both aim (+1, +1) subtiles away (0x59fbbe..0x59fc11:
+velocity [ebp-0x10] nonzero, no target unit, target equal to the start;
+tests/game/test_missile_seed_spots.cpp). The gates do not match: game.exe's also needs an owner
 (FUN_00552fd0) and a class inside the table; `hit_spawn` itself checks only the
 sub missile and hit function number (58 / 59), and its caller checks expiry
 (`now_ms >= dies`) before calling it. No owner lookup in d2d.
@@ -539,16 +540,38 @@ and 2 is returned: the hit function runs and the missile flies on (bit 1
 clear, so FUN_005adf10's end test fails). No random roll is drawn.
 FUN_005adf10 only asks when the missile has an owner (`FUN_00552fd0`)
 that has stat 0xa6 or `FUN_00625500(owner, 0x9c)` nonzero, and a struck
-unit. Stat 0x148 is a per-missile counter: the client packet handler
-writes it from a packet byte, and the client hit adds 1; who seeds it on
-the server is not traced.
+unit. Stats 0xa6 and 0x9c are ItemStatCost's skill_pierce (166, Pierce's
+passivestat1) and item_pierce (156).
 
-Re-check: `python3 tools/ghidra/fn.py 005ada80`, `python3 tools/ghidra/fn.py 005adf10`.
+Stat 0x148 is a per-missile counter. The server seeds it in
+**FUN_0059f940** (EAX the owner, the missile on the stack), which
+FUN_0059fa30 calls for every missile it makes (0x59fe72, EAX = params[1],
+the owner). It needs an owner of type 0 or 1, a missile (type 3) whose
+row has the Pierce flag (byte +4 & the mask at 0x6ce270, 4), and a chance
+= skill_pierce (`FUN_00625480`) + item_pierce (`FUN_00625500`) that is not
+0; otherwise it sets nothing. It seeds {the owner's own stat 0x148
+(pierce_idx, `FUN_006253b0`), 666} (`FUN_00650e40`), draws `% 100` while
+the draw is under the chance (signed compare, 0x59f9fb), at most 4 times,
+and sets the missile's stat 0x148 to the count. So a volley's missiles
+from one command share their count. The owner's pierce_idx (unsaved) is
+bumped by the skill commands C->S 0x05 / 0x06 / 0x0c / 0x0d
+(`FUN_00549d00` and its siblings, network.md); `FUN_00597e20` bumps it too
+(its default branch, not read further). The client's copy is
+`FUN_004cd420`, the packet handler writes it from a packet byte, and the
+client hit adds 1.
 
-d2d: **DISAGREES.** fight/missiles.cpp:701 treats stat 328 as a percent:
-`pierce && rng(100) < psum[kPierceIndex]` on the shooter's summed
-passives, drawing one rng per hit. game.exe draws none and counts down a
-stat on the missile, gated on the owner's stats 0xa6 / skill 0x9c.
+Re-check: `python3 tools/ghidra/fn.py 005ada80 005adf10 0059f940`,
+`cd tools/emu && uv run python disasm.py 59f940`; the oracle
+`cd tools/emu && uv run python pierce_charges.py 2000 1 --dump ../../tests/pierce_charges_cases.inc`
+then `git diff --exit-code tests/pierce_charges_cases.inc`.
+
+d2d: `rules::pierce_charges` matches FUN_0059f940 on 2000 cases
+(tests/test_pierce_charges.cpp). `Fight::launch` gives a Pierce row's
+missile its charges from the player's skill_pierce + item_pierce and its
+`pierce_idx` (bumped by each `cmd::UseSkill`); a struck monster spends
+one while the player still has either stat, with no draw
+(`skill_missile_hits`). ponytail: a merc's missiles get none, and
+`pierce_idx` counts d2d's commands, not game.exe's packets.
 
 ## Server hit function 20 helper — FUN_005ab2a0 (area callback)
 

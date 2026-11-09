@@ -3,6 +3,7 @@
 #include "party.hpp"
 
 #include "common.hpp"
+#include "party_cut.hpp"
 #include "scene.hpp"
 #include "ui.hpp"
 
@@ -79,11 +80,7 @@ void PartyPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
         font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, kLeft + (centred ? x - font.measure(words) / 2 : x),
                          kTop + glyph_top(font, baseline), words, rgb[0], rgb[1], rgb[2]);
     };
-    const auto cut = [&](const d2d::font::Font& font, std::string words, int width) {    // FUN_0049a2c0 / FUN_0049a830: "..." past the width
-        if (font.measure(words) <= width) return words;
-        while (!words.empty() && font.measure(words + "...") > width) words.pop_back();
-        return words + "...";
-    };
+    const auto measure8 = [&](const std::string& words) { return font8.measure(words); };
     // FUN_00499e50: Menu\party's four frames.
     const int height = int(kScreenHeight);
     cel(scene.party_panel, 0, 0, height - 0xe0 - kTop * 2);
@@ -109,10 +106,10 @@ void PartyPanel::draw(std::vector<std::uint8_t>& framebuffer, const Scene& scene
         int colour = 0;
         if (row.party != 0xffff) colour = row.party == own.party ? 2 : 8;
         if (row.hostile) colour = 1;
-        put(font8, cut(font8, row.name, 100), 0x24, bottom - 2, colour, false);
+        put(font8, cut_party_name(row.name, row.party != 0xffff, measure8), 0x24, bottom - 2, colour, false);
         put(font8, string_id(scene, kClassName[std::size_t(std::clamp(row.cls, 0, 6))]), 0x24, bottom + 12, colour, false);
         put(font8, string_id(scene, 0xd28) + string_id(scene, 0xf9d) + string_id(scene, 0xf9b) + std::to_string(row.level), 0x10a, bottom + 12, colour, false);
-        if (!row.area.empty() && row.party != 0xffff && row.party == own.party) put(font8, cut(font8, row.area, 0x8c), 0x7e, bottom + 12, colour, false);
+        if (!row.area.empty() && row.party != 0xffff && row.party == own.party) put(font8, cut_party_area(row.area, measure8), 0x7e, bottom + 12, colour, false);
         if (own.fixed) continue;
         if (row.relation != 1) {
             cel(scene.party_buttons, 0, 0xbe, bottom);

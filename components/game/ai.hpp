@@ -673,6 +673,7 @@ struct Missile {
     float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
     int turn = 0;                             // Frozen Orb's direction index (do 15), a spiral's angle
     int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece
+    int pierce = 0;                           // the player's: pierce charges left (stat 0x148: FUN_0059f940 sets, FUN_005ada80 spends)
     int last_hit = -1;                        // the monster it last struck (missile data +0x1c, FUN_0064a400), -1 none
     std::uint32_t last_hit_ms = ~0u;          // when
     const GameData::MissileInfo* sub = nullptr;          // a monster's spawner's SubMissile1 (the Countess's firewall maker)
@@ -1033,11 +1034,15 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         if (!sub || (missile.info->hit_func != 58 && missile.info->hit_func != 59)) return;
         const int spread = std::max(missile.info->hit_par1, 1);
         if (missile.info->hit_func == 58) {
-            const int at_x = int(std::floor(missile.x * 5));
+            const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
             d2d::rules::Rng spot{ std::uint32_t(at_x) };
-            const float to_x = float(at_x - spread + spot(2 * spread + 1)) + 0.5f;
-            const float to_y = float(int(std::floor(missile.y * 5)) - spread + spot(2 * spread + 1)) + 0.5f;
-            const float dx = to_x / 5 - missile.x, dy = to_y / 5 - missile.y, span = std::max(std::hypot(dx, dy), 0.01f), speed = missile_speed(*sub, missile.level);
+            int spot_x = at_x - spread + spot(2 * spread + 1);
+            int spot_y = at_y - spread + spot(2 * spread + 1);
+            const float speed = missile_speed(*sub, missile.level);
+            // FUN_0059fa30 (0x59fbbe): moving, with no target unit, a spot on its start subtile goes to (+1, +1).
+            if (speed != 0 && spot_x == at_x && spot_y == at_y) { ++spot_x; ++spot_y; }
+            const float to_x = float(spot_x) + 0.5f, to_y = float(spot_y) + 0.5f;
+            const float dx = to_x / 5 - missile.x, dy = to_y / 5 - missile.y, span = std::max(std::hypot(dx, dy), 0.01f);
             laid.push_back(missile_from(missile, *sub, missile.x, missile.y, dx / span * speed, dy / span * speed, now_ms));
             laid.back().to = { missile.x + dx, missile.y + dy };
             return;

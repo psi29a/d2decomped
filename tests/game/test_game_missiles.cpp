@@ -17,6 +17,7 @@
 #include <missiles.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
+#include <protocol.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <uniques.hpp>
@@ -680,6 +681,41 @@ int main() try {
         world.fight.pending.clear(); world.fight.missiles.clear();
         world.actor->character.items = std::move(worn);
         std::printf("OK: a Shadow's Attack is ranged with a bow\n");
+    }
+
+    // A skill command adds 1 to pierce_idx (FUN_00549d00); a Pierce row's missile (Magic
+    // Arrow) takes FUN_0059f940's charges on it from skill_pierce + item_pierce, and each
+    // struck monster spends one as it flies on (FUN_005ada80), no draw; then CollideKill ends it.
+    {
+        const auto* before = world.level;
+        world.level = data->level(d2d::rules::level_ids::kBloodMoor);
+        const auto idx = world.actor->pierce_idx;
+        world.apply(cmd::UseSkill{ 0, world.actor->player.x + 3, world.actor->player.y, -1, true }, 7000);
+        assert(world.actor->pierce_idx == idx + 1);
+        const auto& skill = *data->skills.get(int(data->skills.by_name.at("Magic Arrow")));
+        const auto& row = data->missiles.at("magicarrow");
+        assert(row.pierce && row.collide_kill);
+        d2d::rules::Rng pierce_rng{ 3 };
+        world.fight.monsters.push_back(make_monster(*data, int(data->monsters.by_id.at("fallen1")), world.actor->player.x + 3, world.actor->player.y, pierce_rng, 0));
+        const std::size_t fallen = world.fight.monsters.size() - 1;
+        world.fight.monsters[fallen].hit_points = world.fight.monsters[fallen].stats.hit_points = 1 << 20;   // the hits leave it standing
+        const auto psum = world.actor->psum;
+        world.actor->psum[d2d::d2s::kSkillPierce] = 40;
+        world.actor->psum[d2d::d2s::kItemPierce] = 20;
+        world.actor->pierce_idx = 1;                                     // {1, 666} under 60: 3 draws land
+        Missile arrow = world.fight.launch(row, skill, 1, world.actor->player.x, world.actor->player.y, 1.f, 0.f, row.range, 7000);
+        world.fight.pending.pop_back();
+        assert(arrow.pierce == 3 && d2d::rules::pierce_charges(60, 1) == 3);
+        for (int left = 2; left >= 0; --left) assert(!world.fight.skill_missile_hits(arrow, fallen, 7000) && arrow.pierce == left);
+        assert(world.fight.skill_missile_hits(arrow, fallen, 7000));
+        world.actor->psum[d2d::d2s::kSkillPierce] = world.actor->psum[d2d::d2s::kItemPierce] = 0;   // none: the charges stay unspent
+        arrow.pierce = 2;
+        assert(world.fight.skill_missile_hits(arrow, fallen, 7000) && arrow.pierce == 2);
+        world.actor->psum = psum;
+        world.fight.monsters.pop_back();
+        world.fight.pending.clear(); world.fight.missiles.clear();
+        world.level = before;
+        std::printf("OK: a Pierce row's charges are FUN_0059f940's, one spent a struck monster\n");
     }
 
     // With the stones done, talking to anyone in Act 1 takes a bkd still carried (FUN_00592580).

@@ -664,6 +664,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         const auto& use_skill = std::get<cmd::UseSkill>(command);
+        // Stat 0x148 + 1 (FUN_00549d00). ponytail: one a UseSkill; game.exe's client sends no packet for
+        // a click it refuses and its own rate while held, so the count drifts from game.exe's over a run.
+        ++actor->pierce_idx;
         // A charged entry's cast (UseSkill::item): only while the entry is
         // there, its item active with charges left (FUN_00647840; a client
         // with none starts nothing, FUN_004c6140). Its level and cost go
