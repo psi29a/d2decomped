@@ -3,7 +3,8 @@
 `tools/emu/items_traces.py` runs stock game.exe 1.14d's own code for 39
 ITEMS functions against a hand-written model on random unit, item-data and
 Items-row bytes (3120 cases; `--mutation-check` breaks the model 20 ways).
-It compares the whole EAX, the ordered callee log (register then stack
+It compares the whole EAX (FUN_0062a250: AL only; no EAX comparison for a
+case whose model returns `None`, which includes the free model), the ordered callee log (register then stack
 arguments), the arena, the fatal-error line and the bytes `ret n` pops.
 
 This page records only where the oracle agrees with, sharpens or disagrees
@@ -24,13 +25,15 @@ The 39 traces held on the 3120 generated cases: the stub pops (`ret 4` / `ret 8`
 the pure helpers' arithmetic, the forwarded argument orders, the fatal
 lines (0xd6c, 0xd8a, 0x906, 0xf28, 0x1054, 0x12e0), the seed reset to
 `1, 0x29a`, the free of D with line 0x10a, the slot pairing 4/5, 6/7, 11/12
-and the set-item row `base + id * 0x1b8` with signed id and count compares.
+and the set-item row `base + id * 0x1b8` with signed id and count compares (the count cases include 0x80000000 and 0xFFFFFFFF).
 
 ## Sharpened
 
 - FUN_0055fe00: a null unit takes the same path as a mode-0 unit (the
-  `test esi / je` jumps into the equipment check), so the refresh runs for a
-  null unit too, not only a stored item. The returned EAX is the last
+  `test esi / je` jumps into the equipment check), so the refresh calls follow for a
+  null unit too, whenever FUN_0062ff70 returns nonzero. The oracle hooks that
+  callee with arbitrary results, so it does not show that the real callee
+  returns nonzero for a null unit. The returned EAX is the last
   callee's result: FUN_0062ff70's 0 when it refuses, FUN_006280d0's when the
   mode is not 0.
 - FUN_006282a0 and FUN_006283f0 (byte getters): the rejected value is only in
@@ -42,9 +45,10 @@ and the set-item row `base + id * 0x1b8` with signed id and count compares.
   or missing row gives exactly 0x64.
 - FUN_00629990: the success value keeps the Items row pointer's upper 24 bits
   (`mov al`); FUN_006298e0 is zero-extended.
-- FUN_0055bf30, FUN_0055c4d0 and FUN_0055fde0 pass ECX/EDX through to their
-  callees unchanged; FUN_0055c4d0's skill arrives in EAX and is pushed second
-  (callee argument 1).
+- FUN_0055bf30 and FUN_0055fde0 pass ECX/EDX through to their callees
+  unchanged. FUN_0055c4d0's skill arrives in EAX and is pushed second (callee
+  argument 1); its FUN_00647960 hook records only the two stack arguments, so
+  the oracle does not show that ECX/EDX are passed through.
 
 ## Ghidra names that are backwards or misleading
 
