@@ -135,14 +135,51 @@ and the defaults.
   the callback when the row under it is that row. Enter (`FUN_004bebc0`,
   key 0xd) calls it for the row at +0x180738.
 
-Oracle: `tools/emu/hire_list_box.py` runs `FUN_004be340` and
+- The scroll bar (`FUN_004bee90`, `UI\menu	extslid`, `FUN_004be020`;
+  each cel by its bottom-left through `FUN_004f6480`): the up arrow (frame
+  9, 11 while pressed) at (scroll x, scroll y), the track's cells (13) 12
+  apart below it, (height − 0x10) / 12 − 1 of them (+0x180762; 1 under
+  0x20 high), the down arrow (8, 10 pressed) on the last cell. The thumb
+  (`FUN_004be110`, the vtable's +0x30, after the rows): the rows wholly
+  shown (+0x18074e: from the first shown, each row whose running sum is
+  still under height − 0x14); with fewer than all, its cells of 0x12
+  (+0x180718) from `top` to `bottom` (+0x180752 / +0x180756): share =
+  whole × 128 / rows; first 0: 0 .. 0x12 × share >> 7; first under rows −
+  whole: 0x12 × first / rows .. that + 0x12 × share >> 7 (at most 0x12);
+  else 0x12 − 0x12 × share >> 7 .. 0x12. Drawn at scroll x − 1: frame 16
+  on scroll y + 0xd + 12 × top, 14 on each cell to bottom, 15 one past.
+- The scroll bar's parts (edges out): up arrow (`FUN_004be720`) scroll x ..
+  + 0x10 by scroll y − 0xc .. scroll y; down arrow (`FUN_004be770`) the
+  same 12 above scroll y + 12 × cells; track (`FUN_004be7c0`) between. A
+  press on one keeps it (+0x180720 / +0x180724 / +0x180728, the count
+  +0x18076e at 0); each draw while an arrow is pressed and under the mouse
+  the count goes on one and the arrow steps unless it's a multiple of 10
+  (0x4bf252..0x4bf26b); the release on it steps once more
+  (`FUN_004bf530`).
+- A step (`FUN_004be910` up, `FUN_004be990` down; with a callback): the
+  selected row +0x180738 (the row under the mouse) moves one within 0 ..
+  rows − 1 (`FUN_004b9a00(0, 0, 0)`: nothing for 0), and the first shown
+  follows it (back to it, or on one when it passes the rows wholly
+  shown; `FUN_004be8d0` the same). The wheel (`FUN_004be860`, the event's
+  s16 +0xa): up selects the first shown row and steps up; down selects the
+  last wholly shown and steps down. A release on the track
+  (`FUN_004bf2f0`), below scroll y and with a thumb (top ≠ bottom): above
+  the thumb (scroll y + 0xd + 12 × top) the selection goes back the rows
+  wholly shown (0 at least), below its bottom on as many (rows − 1 at
+  most, then rows − whole with fewer left); that row shows first.
+
+Oracles: `tools/emu/hire_list_box.py` runs `FUN_004be340` and
 `FUN_004bea50` on generated boxes and rows; `test_hire_list_box` gives
 d2d's `rules::list_rows_shown` / `list_row_at` the same cases (fixture
-`hire_list_box_cases.inc`).
+`hire_list_box_cases.inc`). `tools/emu/hire_list_scroll.py` runs
+`FUN_004be110` (its cels recorded), then a track release, a step or a
+wheel notch; `test_hire_list_scroll` gives d2d's `rules::list_thumb`,
+`list_page`, `list_step` and `list_wheel` the same (fixture
+`hire_list_scroll_cases.inc`).
 
 d2d: `rules::hire_entries` / `for_hire` / `hire_names` / `merc_offer`
 (rules.hpp), `World::hire_list` / `hire_offers` (per act, on the proxy
-seed: `fight.spawning.proxy`), `open_hire_menu(..., scroll)` (the wheel).
+seed: `fight.spawning.proxy`), `open_hire_menu` (its list box: rules/hire_list.hpp).
 Checked: `tools/emu/hire.py` — 720 offers (seeds × acts 1–2 × difficulties
 × clvl 1 / 9 / 30 / 75) against `drlg-dump ... hire`, and 400 lists
 (entries_dump, 41 and 21 names) against `drlg-dump ... hirelist`: all

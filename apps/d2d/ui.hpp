@@ -149,7 +149,16 @@ void blit_button_chrome(std::vector<std::uint8_t>& framebuffer,
 // under the mouse (FUN_004bea50; the first add makes it 0) and the one
 // pressed (FUN_004bf430: hired on a release over it, FUN_004bf530).
 struct NpcMenuListRow { std::array<std::string, 2> lines; int arg = -1; };
-struct NpcMenuList { d2d::rules::ListBox box; std::vector<NpcMenuListRow> rows; int hover = 0, pressed = -1; };
+// part: the scroll bar's part pressed (an arrow repeats while held there:
+// held draws since the press, the last at held_ms, 40 ms apart).
+struct NpcMenuList {
+    d2d::rules::ListBox box;
+    std::vector<NpcMenuListRow> rows;
+    int hover = 0, pressed = -1;
+    d2d::rules::ListPart part = d2d::rules::ListPart::kNone;
+    int held = 0;
+    std::uint32_t held_ms = 0;
+};
 
 // An open NPC menu, as game.exe builds and lays it out (FUN_004b4830,
 // FUN_004b85f0, FUN_004b8410; docs/research/re/npc-menu.md): a gold
@@ -165,10 +174,16 @@ struct NpcMenuState {
     struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; bool red = false; };
     std::vector<Line> lines;
     int x = 0, y = 0, box_width = 0, box_height = 0;
-    int scroll = 0, scroll_max = 0;          // the hire list's first row shown, and its last first row (0: no scroll)
+    int scroll = 0;                          // the hire list's first row shown (+0x180730)
     using ListRow = NpcMenuListRow;
     using List = NpcMenuList;
     std::optional<List> list;
+    // The list's first row shown (`scroll`) and selected one (`hover`), as rules::ListScroll moves them.
+    [[nodiscard]] d2d::rules::ListScroll list_scroll() const { return { scroll, list ? list->hover : 0 }; }
+    void set_list_scroll(const d2d::rules::ListScroll& moved) {
+        scroll = moved.first;
+        if (list) list->hover = moved.selected;
+    }
     bool blue_hover = false;                 // menu mode 1 (FUN_004b8370): the hovered line in text colour 3, no focus16
     // Each list row's lines with text (FUN_004be340 / FUN_004bea50 count those).
     [[nodiscard]] std::vector<int> list_lines() const {

@@ -90,4 +90,112 @@ template <typename Lines> constexpr int list_row_at(const ListBox& box, const Li
 // before it + 14 per line drawn before it; its x is box.x + 0x20.
 constexpr int list_line_y(const ListBox& box, int rows_before, int lines_before) { return box.y + 0x19 + box.row_gap * rows_before + box.line_height * lines_before; }
 
+// The scroll bar (FUN_004bee90, UI\menu\textslid; each cel by its
+// bottom-left): the up arrow (frame 9, 11 pressed) at (scroll x, y + 0x10),
+// the track's cells (13) 12 apart below it, the down arrow (8, 10 pressed)
+// on the last of them. Cells: 1 under 0x20 high, else (height - 0x10) /
+// 12 - 1 (+0x180762).
+constexpr int list_scroll_y(const ListBox& box) { return box.y + 0x10; }
+constexpr int list_track_cells(const ListBox& box) { return box.height < 0x20 ? 1 : (box.height - 0x10) / 0xc - 1; }
+
+// The rows wholly shown (FUN_004be110: +0x18074e): from `first`, each row
+// whose running sum (lines x 14 + 6) is still under height - 0x14.
+template <typename Lines> constexpr int list_rows_whole(const ListBox& box, const Lines& lines, int first) {
+    int whole = 0, total = 0;
+    for (int row = first; row < int(lines.size()); ++row) {
+        total += int(lines[std::size_t(row)]) * box.line_height + box.row_gap;
+        if (total < box.height - 0x14) ++whole;
+    }
+    return whole;
+}
+
+// The thumb (FUN_004be110), in cells of `length` (+0x180718: 0x12), from
+// `top` to `bottom` (+0x180752 / +0x180756): none (both 0, not shown)
+// while every row is whole; one from 0 to 0 still draws its ends. Its
+// share is whole x 128 / rows; at the top it starts at 0, in the middle at
+// length x first / rows, at the end it ends at length.
+// Drawn at scroll x - 1: frame 16 on y + 0x1d + 12 x top, 14 on each cell
+// to bottom, 15 one past (rules::list_thumb_cels).
+struct ListThumb { int top = 0, bottom = 0; bool shown = false; };
+template <typename Lines> constexpr ListThumb list_thumb(const ListBox& box, const Lines& lines, int first, int length = 0x12) {
+    const int rows = int(lines.size()), whole = list_rows_whole(box, lines, first);
+    if (whole >= rows) return {};
+    const int share = (whole << 7) / rows;
+    const int span = int(unsigned(length * share) >> 7);
+    if (first == 0) return { 0, span, true };
+    if (first < rows - whole) {
+        const int top = length * first / rows > 0 ? length * first / rows : 0;
+        return { top, span + top <= length ? span + top : length, true };
+    }
+    const int top = length - span;
+    return { top < length ? top : length, length, true };
+}
+// The thumb's cels as FUN_004be110 draws them: {frame, bottom} at scroll x - 1.
+struct ListCel { int frame = 0, bottom = 0; };
+template <typename Out> constexpr void list_thumb_cels(const ListBox& box, ListThumb thumb, Out&& out) {
+    const int top_y = list_scroll_y(box) + 0xd;
+    out(ListCel{ 0x10, top_y + 12 * thumb.top });
+    int last = thumb.top;
+    for (int cell = thumb.top; cell < thumb.bottom; ++cell) out(ListCel{ 0xe, top_y + 12 * (cell + 1) });
+    if (thumb.top < thumb.bottom) last = thumb.bottom;
+    out(ListCel{ 0xf, top_y + 12 * last + 12 });
+}
+
+// The scroll bar's parts under the mouse (edges out): the up arrow
+// (FUN_004be720: scroll x .. + 0x10, scroll y - 0xc .. scroll y), the down
+// arrow (FUN_004be770: the same 12 above scroll y + 12 x cells), the track
+// between (FUN_004be7c0: scroll y .. scroll y - 12 + 12 x cells).
+enum class ListPart { kNone, kUp, kDown, kTrack };
+constexpr ListPart list_part_at(const ListBox& box, int mouse_x, int mouse_y) {
+    const int left = list_scroll_x(box), top = list_scroll_y(box), down = top + list_track_cells(box) * 0xc;
+    if (mouse_x <= left || mouse_x >= left + 0x10) return ListPart::kNone;
+    if (mouse_y > top - 0xc && mouse_y < top) return ListPart::kUp;
+    if (mouse_y > down - 0xc && mouse_y < down) return ListPart::kDown;
+    if (mouse_y > top && mouse_y < down - 0xc) return ListPart::kTrack;
+    return ListPart::kNone;
+}
+
+// A step (FUN_004be910 up, FUN_004be990 down; a box with a callback, as the
+// hire window's): the selected row (+0x180738, the one under the mouse)
+// moves one, within 0 .. rows - 1, and the first shown follows it: back to
+// it, or on one when it passes the rows wholly shown.
+struct ListScroll { int first = 0, selected = 0; };
+constexpr void list_follow(ListScroll& scroll, int whole) {
+    if (scroll.selected < scroll.first) scroll.first = scroll.selected;
+    if (whole + scroll.first <= scroll.selected) ++scroll.first;
+}
+constexpr void list_step(ListScroll& scroll, int whole, int rows, bool down) {
+    if (down ? scroll.selected >= rows - 1 : scroll.selected <= 0) return;
+    scroll.selected += down ? 1 : -1;
+    list_follow(scroll, whole);
+}
+// The wheel (FUN_004be860): a notch up selects the first shown row and steps
+// up; down, the last wholly shown, and steps down.
+constexpr void list_wheel(ListScroll& scroll, int whole, int rows, bool down) {
+    scroll.selected = down ? whole - 1 + scroll.first : scroll.first;
+    list_step(scroll, whole, rows, down);
+}
+// A release on the track (FUN_004bf2f0), below scroll y: above the thumb
+// the selection goes back the rows wholly shown (to 0 at least), below it on
+// as many (to rows - 1, then to rows - whole when fewer are left); that row
+// shows first. Nothing on the thumb, nor with no thumb. False: nothing.
+constexpr bool list_page(ListScroll& scroll, int whole, int rows, ListThumb thumb, int scroll_y, int mouse_y) {
+    if (rows == 0 || whole > rows || mouse_y <= scroll_y || thumb.top == thumb.bottom) return false;
+    if (mouse_y < scroll_y + 0xd + thumb.top * 0xc) {
+        scroll.selected = scroll.selected - whole > 0 ? scroll.selected - whole : 0;
+    } else {
+        if (mouse_y <= scroll_y + 0xd + thumb.bottom * 0xc) return false;
+        scroll.selected = scroll.selected + whole < rows ? scroll.selected + whole : rows - 1;
+        if (rows - scroll.selected < whole) scroll.selected = rows < whole ? 0 : rows - whole;
+    }
+    if (scroll.selected > 0x7f) scroll.selected = rows - 1 > 0 ? rows - 1 : 0;
+    scroll.first = scroll.selected;
+    list_follow(scroll, whole);
+    return true;
+}
+// Held on an arrow (FUN_004bee90, each draw while it's pressed and under the
+// mouse): the count since the press (+0x18076e) goes on one, and a step
+// comes unless it's a multiple of 10; the release on it steps once more.
+constexpr bool list_held_step(int& count) { ++count; return count != 0 && count % 10 != 0; }
+
 }  // namespace d2d::rules
