@@ -557,4 +557,19 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
      owner register set by the caller: the pettype row and the limit.
      The limit is clamped to at least 1 here and not on Revive's path.
   d2d: bit 31 agrees (collision.md); the registration is `pet_add` above.
+- **`FUN_00574ab0`** (`pet_revive_announce`, owner in EDX, the unit on the
+  stack): finds a unit already in the owner's lists and tells the clients
+  it is back. The player data comes from `FUN_006221a0` (a 0 would assert,
+  line 0x402: dead); no `+0x44` struct returns 0. Rows 1 to count-1 are
+  scanned (row 0 is not), each row's nodes from the head along `+0x14`,
+  for the node whose `+4` equals the unit's id (`FUN_00451f50`, ECX read
+  from the caller). On a match: node flags `&= ~1` (bit 0 is what
+  `FUN_00574ec0(row, 0)` skips), then the same event `FUN_00575d90`
+  sends, `{id, owner id, u16 class (unit +4; 0xffff for none), row, node
+  +8, node +0xc, 0}`, to every client through `FUN_005538d0`; returns 1.
+  No match returns 0. Its one caller is `FUN_00579aa0`, the merc's
+  resurrection placement (npc-menu.md "Done"). With the merc's node words
+  nonzero, `FUN_00574930` sends this as 0x81. d2d: **not ported** (its
+  merc resurrection, `resurrect_merc`, per npc-menu.md, has no node flag
+  or event).
 

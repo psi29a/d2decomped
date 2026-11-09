@@ -313,6 +313,7 @@ address	name	evidence
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
 00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")
 00574930	pet_send_to_client	per-client callback of FUN_005538d0: event {+0 pet id, +4 owner id, +8 class, +0xc row, +0x10/+0x14 words}; both words 0 sends 0x7a (FUN_0053cb30) else 0x81 (FUN_0053cb80) (pet-ai.md "The owner's pet lists")
+00574ab0	pet_revive_announce	EDX owner, stack unit: rows 1.. find the node whose +4 is the unit's id, flags &= ~1, send the add event (FUN_005538d0 / FUN_00574930), 1; else 0 (pet-ai.md "The owner's pet lists")
 00575720	pets_release_group	EDI owner, stack row: removes every pet (FUN_005750e0) of the other PetType rows whose short at row +8 equals this row's and is > 0 (pet-ai.md "The owner's pet lists")
 00575850	pet_set_max	EDX owner, stack row and max: slot +8 = max (not row 1 unless max is 1); while max < count and row != 7 drops the head pet via FUN_005747b0 / FUN_005750e0 (pet-ai.md "The owner's pet lists")
 00575c70	pet_list_add	ESI slot {+0 head, +4 count, +8 max}, stack pet unit and 3 words: max 0 rebuilds (FUN_00575900) or refuses; full drops one (FUN_00574850); appends a 0x18-byte node at the tail (PlayerPets.cpp 0x322; asserts 0x312 / 0x316 / 0x330) (pet-ai.md "The owner's pet lists")
