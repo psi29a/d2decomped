@@ -187,7 +187,7 @@ class Suite:
             return {"ecx": rng.getrandbits(32), "edx": at(0x10), "stack": [w, h]}
 
         def m_new(m, a):
-            """One block of (w + 1) * h dwords: row offsets, then cells (zeroed); owns-rows 0."""
+            """One block of (w + 1) * h dwords: row offsets, then cells (zeroed); sets +0x10 to 0."""
             w, h = a["stack"]
             g = a["edx"]
             size = 4 * (w + 1) * h
@@ -207,7 +207,7 @@ class Suite:
             return {"ecx": at(0x10), "edx": w, "stack": [h, at(0x800), at(0x600)]}
 
         def m_over(m, a):
-            """cells zeroed for w * h dwords, rows[i] = i * w, owns-rows 0."""
+            """cells zeroed for w * h dwords, rows[i] = i * w, sets +0x10 to 0."""
             w, (h, cells, rows) = a["edx"], a["stack"]
             g = a["ecx"]
             m.w(g + 8, w)
@@ -227,7 +227,7 @@ class Suite:
             return {"ecx": rng.getrandbits(32), "edx": at(0x10), "stack": [at(0x800), w, h]}
 
         def m_rows(m, a):
-            """Allocate h dwords (line 0x1d0) of row offsets i * w; owns-rows 1."""
+            """Allocate h dwords (line 0x1d0) of row offsets i * w; sets +0x10 to 1."""
             cells, w, h = a["stack"]
             g = a["edx"]
             m.w(g + 8, w)
@@ -254,7 +254,7 @@ class Suite:
             return {"ecx": rng.getrandbits(32), "edx": at(0x10), "stack": [at(0x800), at(0x40), r["stride"]]}
 
         def m_view(m, a):
-            """Copy w and h; cells at base + 4 * (y * stride + x); rows i * stride (allocated, line 0x1ec); owns-rows 1."""
+            """Copy w and h; cells at base + 4 * (y * stride + x); rows i * stride (allocated, line 0x1ec); sets +0x10 to 1."""
             base, src, stride = a["stack"]
             g = a["edx"]
             w, h, x, y = m.r(src + 8), m.r(src + 0xC), m.r(src), m.r(src + 4)
