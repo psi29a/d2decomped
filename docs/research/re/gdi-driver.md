@@ -37,3 +37,15 @@ The renderer's tile draw (`FUN_004f68e0` hands its arguments to renderer
   decompile: it passes its arguments in registers the decompile doesn't
   show, so that half of the row rests on the disassembly the row's author
   read, not on a re-read here. Cited, not re-proven.
+
+## Clearing the draw buffer (`FUN_006c9280`, `FUN_006c9220`)
+
+- `FUN_006c9280` is a thunk to `FUN_006c9220`. Its caller is the slot `+0x18`
+  function `FUN_006c7d80`, which calls it only when its first argument is
+  non-zero, after it has entered the critical section `DAT_007c9134`.
+- `FUN_006c9220(flag)` zeroes the draw buffer `DAT_007c9154` (stride and
+  width `DAT_007c9138`, height `DAT_007c913c`): all of it when the flag is 0,
+  else the first height − 0x2f rows, so the bottom 0x2f rows (the panel strip
+  the tile view box leaves out, automap.md) keep their pixels.
+- DirectDraw's `+0x18` (`FUN_00511720`) locks the surface and has no such
+  clear: the GDI draw buffer is a persistent one.
