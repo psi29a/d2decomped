@@ -546,4 +546,15 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   `FUN_00575c70` would refuse the raised monster (after one
   `FUN_00575900` rebuild). Whether Revive's calc can be that low needs
   Skills.txt, which was not read here: possible, not shown.
+- **`FUN_0056d8d0`** (d2d: summons.cpp:156, collision.md; the pet tail of
+  the summon skills' do-functions; the pet is the stack argument, a
+  record is in EBX, which the decompile does not show being set):
+  1. Record flags (byte `+0`) with bit 8 clear and a pet: the pet's
+     `+0xc4 |= 0x80000000` (the player's-pet bit, collision.md).
+  2. Record flags with bit 2 set: `FUN_0056d840` then `FUN_00554040`
+     (not traced here).
+  3. `FUN_00575d90(pet, record +0x1c, max(record +0x20, 1))` with the
+     owner register set by the caller: the pettype row and the limit.
+     The limit is clamped to at least 1 here and not on Revive's path.
+  d2d: bit 31 agrees (collision.md); the registration is `pet_add` above.
 
