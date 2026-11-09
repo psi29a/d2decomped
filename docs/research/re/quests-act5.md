@@ -76,11 +76,14 @@ dead, +0xac freed, +0xb0 prisoner ids (3 × 5), +0x108 cage emptied,
   Five dead: log 12, the rest bit 14.
 - The prisoner's think (Wussie, MonAI 131, `FUN_005ee3c0`): its cage's
   portal open (`FUN_00588d60`): unless one of its cage has gone, ≥ 4 off it
-  70 % walks at it (`FUN_005dec80` flags 7), else rand(100) < 10 wanders 4,
-  else stands 10; there it's gone (`FUN_00588880`). Else a player within
-  16 (`FUN_005ddf20`): door broken (`FUN_00588e10`) → the portal
-  (`FUN_005888d0`: object 189 at the dead door +2, prisoners only); still
-  caged → log 5 (`FUN_00588dd0`) and rand(1000) < 100 the overhead 0x14ff.
+  70 % walks at it (`FUN_005dec80` → `FUN_005deb60`(unit, portal, mode 2,
+  stop 0, flags 7): one that can't set off has its think events dropped,
+  sight forced (`FUN_005dd230`) and on its seed 70 % wanders 4, else stands
+  10), else rand(100) < 10 wanders 4, else stands 10; there it's gone
+  (`FUN_00588880`). Else a player within 16 (`FUN_005ddf20`): door broken
+  (`FUN_00588e10`) → the portal (`FUN_005888d0`: object 189 at the dead
+  door +2, prisoners only); still caged → log 5 (`FUN_00588dd0`) and
+  rand(1000) < 100 S->C 0x8a (its client plays wussie_help_me, 0x11ff).
   Stands 25.
 - The portal's spot (`FUN_005888d0`): the dead door's subtile + 2 on x
   (`FUN_00620870`, then `+2`), in the room near the player's that holds it

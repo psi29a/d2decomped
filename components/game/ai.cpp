@@ -752,15 +752,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     };
     const bool has_run = game_data.npc_timing(monster.npc, "RN").directions > 0;   // RN falls back to WL
     // A move sets off (FUN_005a7c20) with a re-path budget of 0x14
-    // (FUN_006490e0) and its path (path_to), at a foe or to unit.goal; one
-    // with no path can't start, and a spot move then thinks aidel on
-    // (FUN_005a73e0).
-    auto set_off = [&](bool running, const Foe* foe) {
+    // (FUN_006490e0) and its path (path_to), at a foe or to unit.goal (at a
+    // unit there: `to_unit`); one with no path can't start, and a spot move
+    // then thinks aidel on (FUN_005a73e0).
+    auto set_off = [&](bool running, const Foe* foe, bool to_unit = false) {
         monster.budget = 0x14;
         monster.path_type = std::exchange(monster.next_path_type, 0);
         monster.wandering = !foe;
-        if (!path_to(level, monster, foe ? subtile(foe->x) : subtile(unit.goal_x), foe ? subtile(foe->y) : subtile(unit.goal_y), foe, crowd)) {
-            if (!foe) idle(per_difficulty.aidel ? per_difficulty.aidel : 15);
+        if (!path_to(level, monster, foe ? subtile(foe->x) : subtile(unit.goal_x), foe ? subtile(foe->y) : subtile(unit.goal_y), foe || to_unit, crowd)) {
+            if (!foe && !to_unit) idle(per_difficulty.aidel ? per_difficulty.aidel : 15);
             return false;
         }
         const std::string_view mode = running && has_run ? "RN" : "WL";
@@ -875,19 +875,27 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     };
     // Wussie (FUN_005ee3c0; a5q2's prisoners): no target. Its cage's portal
     // open: unless one of its cage has gone through, 4 or more off it it
-    // walks at it 70 % (FUN_005dec80 flags 7), else rand(100) < 10 wanders 4,
-    // else stands 10; there (or after the first) it's gone through. Else a
+    // walks at it 70 % (FUN_005dec80 flags 7: one that can't set off has
+    // sight forced, then walk_failed), else rand(100) < 10 wanders 4, else
+    // stands 10; there (or after the first) it's gone through. Else a
     // player within 16: its door broken, the portal opens (FUN_005888d0),
     // still caged it cries (FUN_00588dd0; rand(1000) < 100 its help-me
     // line, RescueQuest::kHelpMe). Then it stands 25.
     // With its door broken it goes into list 8 (FUN_005b1990, while +0xd0
-    // is 0xb: in none), so evil monsters can find it.
-    // ponytail: the walk at the portal as one to its spot.
+    // is 0xb: in none), so evil monsters can find it. The portal stands
+    // still, so a walk at it is a spot move pathed as at a unit (near 1).
     if (type_info.ai_name == "Wussie") {
         auto& view = monster.wussie;
         if (view.portal) {
             if (!view.cage_left && d2d::rules::ai_distance(view.portal_x - x, view.portal_y - y) >= 4) {   // FUN_005dc5c0
-                if (monster.seed(100) < 70) { walk_to(view.portal_x - x, view.portal_y - y, false); return true; }
+                if (monster.seed(100) < 70) {
+                    unit.goal_x = (float(view.portal_x) + 0.5f) / 5; unit.goal_y = (float(view.portal_y) + 0.5f) / 5;
+                    if (set_off(false, nullptr, true)) return true;
+                    monster.force_sight = true;
+                    const auto failed = d2d::rules::walk_failed(monster.seed);
+                    if (failed.act == d2d::rules::MonAct::idle) idle(failed.n); else walk_to(failed.x, failed.y, false);
+                    return true;
+                }
                 if (monster.seed(100) < 10) { const auto wander = d2d::rules::think_wander(monster.seed, 4); walk_to(wander.x, wander.y, false); return true; }
                 idle(10);
                 return true;

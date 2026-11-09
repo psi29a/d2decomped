@@ -6,13 +6,16 @@
 // Each think draws once; the cry is that draw under 100. Caged, it's in no
 // target list, so an evil monster beside it doesn't take it; with its door
 // broken its think puts it in list 8 (FUN_005b1990, 0x5ee549) and one does.
-// Needs the data; SKIPs without it.
+// Its portal open and 4 or more off, 70 % it walks at it (FUN_005dec80 flags
+// 7); walled in, it can't set off: sight forced, then 70 % wanders 4, else
+// stands 10 (walk_failed), each on its seed. Needs the data; SKIPs without it.
 
 #include <ai.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
+#include <monsters.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
 
@@ -84,7 +87,31 @@ int main() try {
     for (std::uint32_t now = 200080; now < 200080 + 40 * 40 && fight[0].chase != 1; now += 40)
         monster_update(*data, here, fight[0], foes, rng, now, 0.04f, crowd, shots, fight);
     assert(fight[0].chase == 1);                                  // in list 8: taken
-    std::printf("OK: a caged prisoner cries on 1 draw in 10 (%d of 200); listed once its door's broken\n", cries);
+
+    // Walled in on its subtile (40, 40), its portal 10 east.
+    for (int at_y = 39; at_y <= 41; ++at_y)
+        for (int at_x = 39; at_x <= 41; ++at_x)
+            if (at_x != 40 || at_y != 40) here.walk[std::size_t(at_y) * 80 + std::size_t(at_x)] = 0x0001;
+    std::vector<Monster> caged{ make_monster(*data, d2d::rules::RescueQuest::kPrisoner, 8.1f, 8.1f, spawn, 0) };
+    auto& walled = caged[0];
+    walled.aware = true;
+    walled.wussie.portal = true; walled.wussie.portal_x = 50; walled.wussie.portal_y = 40;
+    int stuck = 0;
+    for (int think = 0; think < 100; ++think) {
+        auto draw = walled.seed;
+        const bool walks = draw(100) < 70;
+        const auto failed = d2d::rules::walk_failed(draw);
+        walled.mode = "NU"; walled.next_act = 0; walled.force_sight = false;
+        walled.unit.x = 8.1f; walled.unit.y = 8.1f;
+        const std::uint32_t now = 400000 + std::uint32_t(think) * 40 * 30;
+        monster_update(*data, here, walled, player, rng, now, 0.04f, crowd, shots, caged);
+        if (!walks) continue;
+        ++stuck;
+        assert(walled.force_sight);
+        if (failed.act == d2d::rules::MonAct::idle) assert(walled.mode == "NU" && walled.next_act == now + 10 * 40);
+    }
+    assert(stuck > 50);
+    std::printf("OK: a caged prisoner cries on 1 draw in 10 (%d of 200); listed once its door's broken; walled in it can't walk at its portal\n", cries);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_prisoner_cry: %s\n", error.what());
