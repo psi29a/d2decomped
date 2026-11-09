@@ -494,6 +494,36 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
     × 500, and only from the purse; the rest of the purse falls where the
     player dies (`FUN_00535510`, split into piles by `FUN_0055a090`); the
     purse goes to 0 and goldlost (stat 175) holds the loss.
+- **A player's kill leaves an ear** (`FUN_0055a200`, `FUN_00580ec0`'s death
+  mode; cited, decompile only, no disassembly or oracle run). `FUN_00580ec0`
+  calls it, after the died bit and the experience and gold losses, when the
+  dying unit is a player (type 0) and the killer is given and is not the
+  dying unit, and the killer is either a player (type 0) or a monster
+  (type 1) whose owner (`FUN_0058f0d0`: the summoner behind a pet or a
+  merc) is a player other than the victim. Then, for the victim (EDX; ECX is
+  the game, `FUN_00580ec0`'s own ECX, which the decompile hides at the
+  call):
+  1. victim missing or not a player: nothing;
+  2. `FUN_00633640(0x20726165, &index)` ("ear " as a little-endian code)
+     finds the item row (stride 0x1a8); no row: nothing;
+  3. the victim's x, y (`FUN_00620870`) and room (`FUN_00620bb0`), then
+     `FUN_00555da0` finds the nearest free spot (the same call as a dropped
+     item, drops.md "Where a drop lands"); none: nothing;
+  4. `FUN_00559ce0` makes the item (the create record of drops.md, level =
+     the victim's stat 0xc through `FUN_00625480`, so its item level is the
+     victim's level; the other literals 4, 2, 1, 1 and the zeros are as the
+     decompile shows them and are not resolved here);
+  5. `FUN_00558aa0` puts it on the ground at the spot in the room
+     `FUN_00555da0` returned (items.md "ground placement").
+  What the ear holds is set in `FUN_00558d90`'s unit-type-7 branch (a record
+  whose +0x2c is 0): the name is `FUN_006221a0(record unit)` (the player's
+  name, `FUN_00628370` copies it to item data +0x4a), the level is that
+  unit's stat 0xc (`FUN_006283d0`, data +0x48); the record's unit must be
+  a player, else the item is thrown away (LAB_005590e2). Which unit the seed
+  puts in the record is not visible in the decompile (the ECX of the call);
+  the ear carrying the victim's name and level is the reading that fits
+  steps 1 and 4, not a traced fact. d2d: not ported (no ear is ever made;
+  `d2s` only reads and writes a saved one, items.md "compact reader").
 - **When the death has played** (mode 0x11: `FUN_00581020` →
   `FUN_0057fca0` → `FUN_0057f700`, PlrModes.cpp): a corpse unit, the
   player's class in mode 0x11, at most 16 a player. Everything worn (body
