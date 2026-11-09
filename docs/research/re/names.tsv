@@ -26,6 +26,20 @@ address	name	evidence
 00479ba0	roster_class	ECX roster entry: +0x1c; null 0
 0047a0c0	roster_unit_id	ECX roster entry: +0x10; null -1
 0047a1e0	roster_area	ECX roster entry: +0x24; null 0
+0047fc40	warden_module_delete	deleting destructor: FUN_004e06a0, Storm free at WardenClient.cpp line 0x117 when bit 0
+0047fee0	warden_module_load	memcmp 16 bytes with 0x6d8768 -> FUN_0047fc70(0x6d74b0); else "%02x" x16 + ".mod" read through API +0xcc
+0047ffb0	warden_module_cache_write	API +0xd0 with GetSystemTimeAsFileTime, lifetimes -1
+00480000	warden_cb_send	callback table 0x6d8e68 slot 0: FUN_00478830 (C->S 0x66)
+00480020	warden_cb_load	callback slot 1: FUN_0047fee0 != 0
+00480040	warden_cb_cache	callback slot 2: "%02x" x16 + ".mod", API +0xd0
+004800c0	warden_cb_alloc	callback slot 3: Storm alloc, WardenClient.cpp line 0x274
+004800e0	warden_cb_free	callback slot 4: Storm free, line 0x27b
+00480100	warden_cb_keep	callback slot 5: copies the buffer to DAT_007bc988 / size DAT_007bc98c
+00480150	warden_cb_take	callback slot 6: copies min(size) out of DAT_007bc988, frees it, line 0x292
+004801d0	warden_unload	module DAT_007bc990: its +0xc object's +4, then free (line 0x117)
+00480230	warden_start_loaded	DAT_007bc994 -> DAT_007bc990, init +0x10, then +0 with the seed DAT_00721c94
+004802e0	warden_packet	S->C 0xAE: 0x45f5f0 JMPs here (ECX packet + 3, EDX u16 +1); module +8, then FUN_00480230
+00480320	warden_tick	FUN_0044efa0 per frame: module +0xc, then FUN_00480230
 00481860	sound_row	ECX id: id*0x8e + DAT_007bc9a0, 0 when id < 0 or >= DAT_007bc9a4 (Sounds.txt's records, music.md)
 004833e0	char_stats_row	ECX class: class*0xc4 + tables+0xbc4, 0 past tables+0xbc8 (the 0xc4-byte class record FUN_005706d0 reads)
 00483410	sets_row	ECX id: id*0x128 + tables+0xc0c, 0 past tables+0xc10: 32 rows loaded, Sets.txt's count
@@ -45,6 +59,62 @@ address	name	evidence
 004e1b10	client_skill_missile_long	ECX caster, EDX skill, stack level: ORs 0x40 into caster +0xc4, builds a type-3 block from the skill's missile row (short +0xea) and target offset, FUN_004cd540, tags level (missiles.md "Client skill missile, long form")
 004e3720	client_skill_missile_short	ECX caster, EDX skill, stack level: ORs 0x40 into caster +0xc4, FUN_004c5420 missile tagged with the skill calc1 value (missiles.md "Client skill missile, short form")
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
+00518de0	bncache_crc32	table 0x72fb80, ~ on both ends; EAX data, ECX length
+00518e60	bncache_decrypt	MPQ key schedule: seed 0xeeeeeeee, crypt table +0x1000, key >> 11 | ~key << 21 + 0x11111111
+00518ec0	bncache_encrypt	same schedule as FUN_00518e60, the plain word feeds the seed
+00518f30	bncache_time	GetSystemTime + ESI * 10000000 as FILETIME, cached per GetTickCount
+00518fa0	bncache_hash	toupper, 0x7fed7fed / 0xeeeeeeee, crypt table type * 0x100
+00519000	bncache_crypt_table	0x500 entries from seed 0x100001, * 0x7d + 3 % 0x2aaaab
+00519110	bncache_find	FUN_00518fa0 types 0/1/2, mask hash count - 1, probe to -1
+005191d0	bncache_delete	every FUN_00519110 hit: block +8/+0xc cleared, hash +0xc = -2
+00519220	bncache_path	SHGetFolderPathA(0x23) + "\Blizzard Entertainment" + "\Diablo II" + "\bncache.dat"
+005192a0	bncache_remove_file	CloseHandle, DeleteFileA of FUN_00519220's path
+00519300	bncache_close	frees DAT_00881884/8c/80/88 (CACHE.CPP 0x155-0x165), CloseHandle
+005193c0	bncache_free	API +0xc8: Storm free, CACHE.CPP line 0x16f
+005193e0	bncache_open	magic 0x1a334e42, CRC +0x20, "WARNING- cache file is invalid" codes 1-12
+005198c0	bncache_rebuild	FUN_00519300, DeleteFileA, FUN_005193e0
+00519920	bncache_read	API +0xcc; "File: '%s' in bncache.dat is corrupt (%d) - deleting from cache"
+00519db0	bncache_write	API +0xd0; 0x144-byte entry header, rewrites both tables and the header CRC
+0051ac20	bnet_free_channel_list	DAT_008818c8, Storm free line 0x1ef; FUN_0051c470 (close)
+0051ad70	bnet_byte_stuff	00 -> FF 01, FF -> FF FF in place, fails at 0xff
+0051b1f0	bnet_host_ad_result	API +0x8c: ECX out = 0x8822a8[0x1c], returns 0x882128[0x1c]
+0051b210	bnet_free_game_list	DAT_008818d0, Storm free line 0x36a; FUN_0051c470 (close)
+0051b820	bnet_keep_user_data	S->C 0x26 handler 0x521200 JMPs here: copy to DAT_008818d8
+0051b960	bnet_read_user_data	API +0x7c: DAT_008818d8 +0 == 1, +4 == ECX, +8 == EDX, then strings
+0051bd60	bnet_keep_realm_list	S->C 0x40 handler 0x5211d0 JMPs here: copy to DAT_008818cc
+0051bdc0	bnet_keep_channel_list	S->C 0x0b handler 0x5210c0 JMPs here: copy to DAT_008818c8
+0051be20	bnet_keep_game_list	S->C 0x09 handler 0x5210d0 JMPs here: copy to DAT_008818d0
+0051d370	news_save	cache name BNNews-D2DV (0x72ff80), FUN_00519db0 lifetimes -1
+0051d510	news_notify	DAT_00881c2c once, DAT_00881c28 per unread item
+0051d590	news_array_delete	"AUItem_NewsTable" free, then "delete" when bit 0
+0051d5d0	news_array_resize	items of 0x408 bytes, Storm realloc else alloc + copy 0x102 dwords
+0051d6a0	news_array_clear	frees +8, zeroes +0/+4/+8
+0051d6d0	news_array_reserve	count + N, rounded up to +0xc or FUN_0051d2f0
+0051d7a0	news_array_append	count + 1, returns item count * 0x408 + data
+0051d7f0	news_array_reserve_exact	FUN_0051d5d0(count + N) when over capacity
+0051d810	news_array_set_count	grows rounded up, then count = N
+0051d860	news_reply	S->C 0x46 handler 0x521210 JMPs here: u8 count, +5 oldest, +9 newest, then u32 + string each
+0051da30	news_load	FUN_00519920; <= 0x100 items in timestamp order, else clears the list
+0051e5d0	bnftp_cancel	API +0x70: DAT_00881c54 = 1
+0051e5e0	bnftp_busy	DAT_00881d5c > 0 (download threads)
+0051e5f0	bnftp_recv_all	ws2 ordinal 16 (recv) until EDI bytes
+0051e640	bnftp_resume_size	existing file's size if its write time is within 0x2625a00 of the server's
+0051e920	patch_extract	SFile read of one name, written to disk; BnDownload.cpp 0x583
+0051e9d0	patch_run	FUN_00516de1 then ShellExecuteA per string of a double-NUL list
+0051ea20	bnftp_percent	done * 100 / total into DAT_00881c50
+0051ea40	bnftp_set_percent	DAT_00881c50 = ECX, patch name DAT_00881d60 cleared, under 0x881f64
+0051ea80	bnftp_set_mpq_name	copy to DAT_00881c58
+0051eaa0	bnftp_has_mpq_name	DAT_00881c58 != 0
+0051eab0	bnftp_recv_memory	1460-byte recv chunks; flag 1 -> FUN_00519db0 (15 / 30 days), flag 2 -> FUN_0051e440
+0051ebb0	bnftp_recv_file	1460-byte recv chunks from an offset, SetFileTime each
+0051ed00	patch_apply	Patch\Patches, "Prepatch.lst" delete / extract / execute, "bnupdate.exe"
+0051f2d0	patch_apply_api	API +0x48: FUN_0051ed00; 0/1 -> 1, 2 -> *ECX = 1
+0051f310	bnftp_thread	port 0x17e0, sends 02 + request, "ERROR: Failed recv from BNET for download."
+00520020	bnftp_get_patch	API +0x50: Patch\Patches, request "IX86" "D2DV" v1 0x100, _beginthreadex FUN_0051f310
+00520210	bnqueue_push	0x12c-byte node: id, data <= 0x120, length, next; under 0x882004
+005202f0	bnqueue_push_string	FUN_00520210 shape with a string copy
+005203b0	bnqueue_pop	API +0x24: head's data to EDX, id to ECX, returns its length
+00520440	bnqueue_clear	frees every node; FUN_0051c470 (close)
 00526100	utf8_decode	table at 0x7309b8 (mask, value, value mask, minimum); 10xxxxxx continuations
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
@@ -226,13 +296,13 @@ address	name	evidence
 00648f40	path_step_list	(path, &list): returns path +0x1d4 (count), sets list to path +0x1d8; asserts when path flag 0x20000 is clear, line 0x8f4 (missiles.md "Standing missiles")
 00649400	unit_stamp_footprint	(unit): type 0 / 1 FUN_0064ea90 by path pattern +0x48, type 2 FUN_0064de30, others FUN_0064ea00 by shape (collision.md "Building a path")
 00649ca0	unit_path_repattern	(unit): path +0x48 = FUN_00648580(unit, path +0x44); lifts the old stamp (FUN_00649560) and restamps (FUN_00649400) when in a room (collision.md "Building a path")
+00649d00	unit_path_make	(unit, room, x, y, flag): Path.cpp line 0x453, 0x200 bytes at unit +0x2c; own bits, mask, type and steps by unit type 0 / 1 / 3 (collision.md "Building a path")
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a640	missile_activate_left	missile data +8 (Range less Activate) as a short; 0 for a non-missile or no data (missiles.md "Standing missiles")
 0064a710	missile_set_data_28	(unit, value): stores value at the missile data block +0x28 when the unit is a missile (type 3) with data (missiles.md "Missile data setters")
 0064a760	missile_set_data_2c	(unit, value): the same for data +0x2c (missiles.md "Missile data setters")
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
 0064c350	unit_link_in	(unit, room): FUN_0064c2c0(unit, room, 1), which asserts both, pushes the unit on a list (drlg.md:1299) (collision.md "Building a path")
-00649d00	unit_path_make	(unit, room, x, y, flag): Path.cpp line 0x453, 0x200 bytes at unit +0x2c; own bits, mask, type and steps by unit type 0 / 1 / 3 (collision.md "Building a path")
 0064d060	grid_set_rect_bits	fastcall (room, rect, bits): room holding the rect, split by FUN_0064cdf0, bits ORed into the first piece (FUN_0064cd70), recursion for the rest (collision.md "The stamp family")
 0064dc80	grid_set_plus_bits	(room, bits; subtile in registers): ORs bits into (x-1,y), (x,y), (x+1,y), (x,y-1), (x,y+1), each cell finding its own room (collision.md "The stamp family")
 0064ddb0	grid_set_point_bits	(room, x, y, bits): ORs bits into the one subtile's grid word if a room holds it (collision.md "The stamp family")

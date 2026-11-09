@@ -27,6 +27,8 @@ three; the game runs on the D2GS and characters live on the server (d2dbs).
 All of it is linked into game.exe: Bnclient (0x518900–0x5224c0),
 the MCP client (D2Launch area, 0x449b70–0x44b2d0), Storm/D2Net transport,
 SRP (0x528500), SHA (0x52a120), Warden (0x47fa20–0x4803a0).
+The cache, news, BNFTP, message queue and Warden helpers are traced in
+[../research/re/bnclient.md](../research/re/bnclient.md).
 
 ### BNCS (port 6112)
 
