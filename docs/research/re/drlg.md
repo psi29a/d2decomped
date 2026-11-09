@@ -1825,3 +1825,28 @@ locals are popped but not compared).
   the list is fatal 0x410. FUN_0066c0b0: the room's act; fatal 0x42b, 0x42c,
   0x42d at each null.
 
+## Drlg.cpp act and level helpers, run in the emulator
+
+`tools/emu/drlg_act.py` (same harness; `--mutation-check` 3 ways; FUN_00643020
+runs in a second rig that hooks FUN_00642f70). Hooked and logged, not claimed:
+FUN_0061e470 (LevelDefs line), FUN_0061eaa0, FUN_00642010 (level teardown,
+level in ESI), FUN_00642ae0 (level allocation), FUN_0066c040 and the
+allocator.
+
+- FUN_00642740 returns 0. FUN_006427a0(act, x, y): id of the first level
+  whose rect (+0x1c {x, y, w, h}) holds the point, half-open through
+  FUN_0066b980; 0 when none. FUN_00642820 / FUN_00642840(id): the LevelDefs
+  line's +0x94 / +0x98. FUN_006429e0(id): byte +0x780 of FUN_0061eaa0's record
+  (the upper bytes of eax are the record pointer's).
+- FUN_00642860(act, id): the warp-info entry {id +0, Vis[8] +4, Warp[8] +0x24,
+  next +0x44} on the act's +0x90 list, else a new one (Drlg.cpp line 0x3e0)
+  filled from LevelDefs +0x48 and +0x68, pushed on the list head.
+- FUN_00642190(act): FUN_00642010(level in ESI; pool, 0) then free (line 0xdd)
+  for each level, +0x47c = 0; frees the warp-info list (line 0xec) and the act
+  (line 0xf2).
+- FUN_00642f70(level, n): active count +0xc += n, +0x1d4 = 10, a result of 0
+  or less becomes 0; the same for each nonzero Vis level (FUN_0066c040's
+  array of 8) found on the act's list, else allocated through FUN_00642ae0.
+  FUN_00643020(roomA, roomB): when their levels differ, FUN_00642f70(level of
+  A, -1) then (level of B, +1); either room may be null.
+
