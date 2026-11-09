@@ -30,8 +30,8 @@
 // The (style, sequence) pair (plus the wall type from the orientation
 // stream) is what the renderer feeds into a DT1 tile lookup.
 //
-// Layer stream ORDER. unverified (source: OpenDiablo2's reader); the data
-// agrees (every DS1 in the MPQs parses to its exact size):
+// Layer stream ORDER, as FUN_00665950 reads it (drlg.md "The DS1 file
+// layout"; the version gates differ for old files, noted there):
 //   for each wall i:   wall_i dword, then orientation_i dword
 //   for each floor i:  floor_i dword
 //   if shadows > 0:    shadow dword
