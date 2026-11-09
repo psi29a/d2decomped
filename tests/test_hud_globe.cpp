@@ -2,14 +2,57 @@
 // test-links: rules
 // The globes' potion preview and their click (rules/hud_globe.hpp), worked
 // by hand from FUN_005485b0 / FUN_00548640's end percents, FUN_00496f80 /
-// FUN_00497110's x 0x50 / 100 and FUN_00499500's boxes at 800 x 600.
+// FUN_00497110's x 0x50 / 100 and FUN_00499500's boxes at 800 x 600; the
+// end percents also against stock 1.14d's own, run by tools/emu/end_percent.py
+// (end_percent_cases.inc). With a file argument (end_percent.py's `gen`
+// cases) it prints each line with d2d's end percent instead, to diff.
 #include <hud_globe.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <fstream>
+#include <string>
 
-int main() try {
+namespace {
+
+// One end_percent.py case: kind 0 life (rate the state's hpregen), 1 mana
+// (rate stat 0x1a, bonus 0x1b, regen CharStats +0x3a); the frames to go
+// are end - now, game.exe's 32-bit subtraction.
+int end_percent(int kind, std::int32_t cur, std::int32_t max, std::int32_t rate, std::int32_t bonus, int regen, std::int32_t end, std::int32_t now) {
+    const auto frames = std::int32_t(std::uint32_t(end) - std::uint32_t(now));
+    if (kind == 0) return d2d::rules::life_end_percent(cur, max, rate, frames);
+    return d2d::rules::mana_end_percent(cur, max, d2d::rules::mana_end_rate(max, regen, bonus, rate), frames);
+}
+
+}  // namespace
+
+int main(int argc, char** argv) try {
+    if (argc > 1) {
+        std::ifstream input(argv[1]);
+        int seq = 0, kind = 0, regen = 0;
+        std::int32_t cur = 0, max = 0, rate = 0, bonus = 0, end = 0, now = 0;
+        std::string rest;
+        while (input >> seq >> kind >> cur >> max >> rate >> bonus >> regen >> end >> now) {
+            std::getline(input, rest);
+            std::printf("%d %d %d %d %d %d %d %d %d %d\n", seq, kind, cur, max, rate, bonus, regen, end, now, end_percent(kind, cur, max, rate, bonus, regen, end, now));
+        }
+        return 0;
+    }
+    struct Case { int kind; std::int32_t cur, max, rate, bonus; int regen; std::int32_t end, now; int percent; };
+    const Case cases[] = {
+#include "end_percent_cases.inc"
+    };
+    for (const auto& row : cases) {
+        const int percent = end_percent(row.kind, row.cur, row.max, row.rate, row.bonus, row.regen, row.end, row.now);
+        if (percent != row.percent)
+            std::fprintf(stderr, "FAIL: kind %d cur %d max %d rate %d bonus %d regen %d end %d now %d: d2d %d, game.exe %d\n", row.kind, row.cur, row.max, row.rate, row.bonus,
+                         row.regen, row.end, row.now, percent, row.percent);
+        assert(percent == row.percent);
+    }
+    std::printf("OK: %zu end percents as game.exe's\n", sizeof(cases) / sizeof(cases[0]));
+
     using d2d::rules::life_end_percent;
     using d2d::rules::mana_end_percent;
     // 100 of 400 life, a minor healing potion's 30 << 8 over 192 frames

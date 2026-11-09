@@ -13,21 +13,34 @@ namespace d2d::rules {
 // to go, its end FUN_00626090 less the game's frame), all in 256ths. Life
 // takes the state's own hpregen (FUN_00625d00) and divides whole points;
 // mana the unit's whole regen (manarecovery 0x1a in all, plus the steady
-// rate: rules::mana_per_frame) over the 256ths max. Then the byte quirk:
+// rate: mana_end_rate) over the 256ths max. Then the byte quirk:
 // the low byte of the sum, 100 when that's past 100. 0 with no max. Sent
 // in S->C 0x18's 7-bit fields (FUN_0053c230 from FUN_00548760), which the
-// client sets as its player's stat 0x4a / 0x1a (FUN_0045d9b0).
+// client sets as its player's stat 0x4a / 0x1a (FUN_0045d9b0). All in
+// game.exe's 32-bit signed arithmetic (imul, sar, idiv): each product
+// wraps (tools/emu/end_percent.py).
+constexpr std::int32_t wrap32(std::int64_t value) { return std::int32_t(std::uint32_t(std::uint64_t(value))); }
 constexpr int end_percent_byte(std::int64_t percent) {
     const int low = int(percent & 0xff);
     return low > 100 ? 100 : low;
 }
-constexpr int life_end_percent(std::int64_t life, std::int64_t max_life, std::int64_t per_frame, std::int64_t frames_left) {
-    if (max_life >> 8 == 0) return 0;
-    return end_percent_byte(((per_frame * frames_left + life) >> 8) * 100 / (max_life >> 8));
+constexpr int life_end_percent(std::int32_t life, std::int32_t max_life, std::int32_t per_frame, std::int32_t frames_left) {
+    const std::int32_t max_points = max_life >> 8;
+    if (max_points == 0) return 0;
+    const std::int32_t points = wrap32(std::int64_t(per_frame) * frames_left + life) >> 8;
+    return end_percent_byte(std::int64_t(wrap32(std::int64_t(points) * 100)) / max_points);
 }
-constexpr int mana_end_percent(std::int64_t mana, std::int64_t max_mana, std::int64_t per_frame, std::int64_t frames_left) {
+// FUN_00548640's rate: stat 0x1a (manarecovery in all) plus (stat 0x1b +
+// 100) x the steady rate / 100, the steady rate max(max / (CharStats +0x3a
+// x 25, or 7500), 1). rules::mana_per_frame's sum, in 32 bits.
+constexpr std::int32_t mana_end_rate(std::int32_t max_mana, int regen_seconds, std::int32_t bonus_pct, std::int32_t recovery) {
+    const std::int32_t frames = regen_seconds * 25 != 0 ? regen_seconds * 25 : 7500;
+    const std::int32_t steady = std::max<std::int32_t>(max_mana / frames, 1);
+    return wrap32(std::int64_t(recovery) + wrap32(std::int64_t(wrap32(std::int64_t(bonus_pct) + 100)) * steady) / 100);
+}
+constexpr int mana_end_percent(std::int32_t mana, std::int32_t max_mana, std::int32_t per_frame, std::int32_t frames_left) {
     if (max_mana == 0) return 0;
-    return end_percent_byte((frames_left * per_frame + mana) * 100 / max_mana);
+    return end_percent_byte(std::int64_t(wrap32(std::int64_t(wrap32(std::int64_t(frames_left) * per_frame + mana)) * 100)) / max_mana);
 }
 
 // The server's life update, a player's each frame (FUN_0052d980 ->

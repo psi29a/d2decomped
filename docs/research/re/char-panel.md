@@ -369,6 +369,10 @@ out for the potion's end, as a percent of the max:
   the steady rate max(max / (CharStats +0x3a × 25, or 7500), 1);
 - then the low byte, 100 when that's past 100 (600 % sends 88); 0 without
   the state.
+
+Both in 32-bit signed arithmetic (imul, sar, idiv: each product wraps,
+the division truncates). Oracle: `tools/emu/end_percent.py` runs both on
+the same cases as `test_hud_globe` (its fixture `end_percent_cases.inc`).
 `FUN_00548760` (the server's life update, from `FUN_0052d980` as each
 client's buffer is flushed) sends 0x18 rather than 0x95 / 0x96 when either
 percent changed. Unforced it goes only once life (whole points) is off by
