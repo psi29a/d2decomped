@@ -1824,7 +1824,8 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
     // and stands 10. Else it walks in. Its walks and back-offs go at pace
     // 50; a back-off (flags 4) that can't set off thinks again at once.
     // First its leader's command (FUN_0058ee80; the fetish shaman's 1 at its
-    // target, 0xe to a corpse it raises): with that unit alive, back to rest,
+    // target, 0xe to a corpse it raises): with that unit found by id
+    // (FUN_00552f60, dead or alive), back to rest,
     // a walk at it (FUN_005dec80(unit, 0)) at pace 50; taken either way. The
     // shaman's target is taken as the fetish's own (one player, or its
     // nearest: the same foe).
@@ -1836,7 +1837,9 @@ Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng, Away&&
             if (sent) {
                 *input.state = *input.state2 = 0;
                 *input.pace = 50;
-                return { MonAct::walk, 0 };
+                Think out{ MonAct::walk, 0 };
+                if (*input.command == 14) out.unit = ThinkUnit::kin;   // the raised corpse (ai.cpp's kin)
+                return out;
             }
         }
         auto swing = [&] { return roll() >= aip[0] ? Think{ MonAct::idle, aip[1] } : Think{ MonAct::a1 }; };

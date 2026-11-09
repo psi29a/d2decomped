@@ -1241,8 +1241,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // Council's cast points).
     // The ThornHulk's FUN_005415a0(1) after its frenzy (Skill1) starts
     // (FUN_005f4850): that cast mode's end event.
-    // ponytail: the shaman's Inferno state (0xc) is never on; a fetish sent
-    // to a corpse (command 14) drops it (the corpse isn't kept).
     {
         if (type_info.ai_name == "ThornHulk") input.next_event = mode_end_event(game_data, monster, type_info.sk_mode[0], frame);
         static constexpr std::array<std::string_view, 16> kModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
@@ -1253,6 +1251,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.leader_mode = int(std::ranges::find(kModes, head.mode) - kModes.begin());
         }
         input.command_unit = *input.command == 1;
+        // A fetish's 0xe: the corpse its shaman raises, while that unit is
+        // still about (FUN_005f53e0: FUN_00552f60 finds it by id; dead or raised).
+        if (type_info.ai_name == "Fetish" && *input.command == 14)
+            if (const auto raised = std::ranges::find_if(pack, [&](const Monster& other) { return other.id == monster.command_corpse && !other.gone; }); raised != pack.end()) {
+                input.command_unit = true;
+                kin = int(raised - pack.begin());
+            }
         input.state_c = monster.breath_state;   // the breath's state 0xc (FUN_00639df0)
         input.skill_level = d2d::rules::monster_skill_level(type_info.sk_lvl[0], monster.difficulty);
         if (type_info.ai_name == "FrogDemon") input.spot_clear = !level.blocked(unit.x, unit.y, 0xc01);
@@ -1693,10 +1698,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             monster.aloft = false; unit.shape.pattern = 1; unit.shape.mask = 0x3c01;
         }
         // The fetish shaman's command to its group (FUN_0058f730: 1 at the
-        // target, 14 to a corpse, dropped: see above).
-        if (effect.kind == d2d::rules::ThinkEffect::rally && effect.id == 1)
+        // target, 0xe at the corpse it raises).
+        if (effect.kind == d2d::rules::ThinkEffect::rally && (effect.id == 1 || (effect.id == 14 && corpse >= 0)))
             for (auto& other : pack)
-                if (&other != &monster && other.alive() && other.leader == int(&monster - pack.data())) other.ai_command = 1;
+                if (&other != &monster && other.alive() && other.leader == int(&monster - pack.data())) {
+                    other.ai_command = effect.id;
+                    if (effect.id == 14) other.command_corpse = pack[std::size_t(corpse)].id;
+                }
         // The wisps' dance: its finds' AI words (FUN_0058ec00), the blessing.
         if (effect.kind == d2d::rules::ThinkEffect::set_word && std::size_t(effect.id / 4) < wisp_finds.size()) {
             auto& wisp = pack[std::size_t(wisp_finds[std::size_t(effect.id / 4)])];
