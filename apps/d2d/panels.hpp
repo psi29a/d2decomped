@@ -101,6 +101,9 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 //   poisoned) / 1 (mana), bottom at H-13, x 29 / W-111; then the glass
 //   (overlap frame 0 at x 28, bottom H-5; frame 1 at W-110, bottom H-9).
 //   life: at least 2 rows while alive; hlthmana frame 2 poisoned (state 2).
+//   With a healthpot / manapot (state 100 / 0x6a) on, first a preview up
+//   to its stat 0x4a / 0x1a x 80 / 100 rows (at most 80) in frame 0 / 1,
+//   draw mode 0, over the rows the fill leaves.
 //   exp bar (FUN_00498ea0): (exp - prev) * 119 / (next - prev) px, two
 //   lines at H-38 / H-37 from W/2-144 in palette index 255; none at the
 //   max level.
@@ -119,8 +122,7 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 // The maxima include what's worn (Fight::item_max).
 // The shown life / mana / stamina glide (FUN_00496dd0: rules::glide) on
 // the client's frame (`frame`, 25 a second).
-// ponytail: no skill icons; no potion preview fill (states 100 / 0x6a), no stamina potion's blue
-// (state 0x18 / 0x88), no Show HP / MP Text toggles (a globe click,
+// ponytail: no skill icons; no Show HP / MP Text toggles (a globe click,
 // DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
 struct HudHover { int centre = 0, bottom = 0; TextLine line; };   // a bar's hover text, centred on `centre`
 struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;
@@ -128,7 +130,8 @@ struct Hud { bool poisoned = false, running = false, run_down = false, weapon_se
              const d2d::d2s::Header* header = nullptr;    // the player's: its quest words (the grid's tint, tint_cells)
              std::uint32_t frame = 0;                     // the client's frame (the shown values' glide)
              bool pad_bar = false;                       // the pad is playing: the mini-panel strip stays hidden until the mouse or keyboard returns
-             std::vector<HudHover>* hovers = nullptr; }; // set: the bars' hover texts go here, for the frame's late draw (draw_hud_hovers); null: drawn at once
+             std::vector<HudHover>* hovers = nullptr;    // set: the bars' hover texts go here, for the frame's late draw (draw_hud_hovers); null: drawn at once
+             int life_preview = 0, mana_preview = 0; };  // View::life_preview / mana_preview: the potions' preview fill
 void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers);
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);

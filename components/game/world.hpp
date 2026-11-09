@@ -105,6 +105,11 @@ struct View {
     bool chilled = false;                  // a monster's cold on the player (state 11, its blue)
     bool stamina_blue = false;             // a stambarblue state on the player (staminapot, shrine_stamina): the stamina bar full and blue (FUN_004975b0)
     bool stamina_shrine = false;           // state 0x88 (shrine_stamina) on it: the stamina text blue too
+    // With a healthpot / manapot (state 100 / 0x6a) on the player: the
+    // client's stat 0x4a / 0x1a, the percent of the max at the potion's end
+    // plus the gear's regen, for the globes' preview (FUN_00496f80 /
+    // FUN_00497110; rules::life_end_percent); 0 without.
+    int life_preview = 0, mana_preview = 0;
     int curse = -1;                        // a monster's curse on the player (Fight::curses): its skill, -1 none
     bool stunned = false;                  // a monster's Smite on the player (state 21)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
