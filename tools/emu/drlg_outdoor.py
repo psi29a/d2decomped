@@ -88,9 +88,10 @@ class Suite:
         rig.run("FUN_00673fe0", 0x673FE0, lambda img, rng: {"ecx": at(0), "edx": rng.choice((0, 1, 5))}, m_clear, 0)
 
         def b_vis(img, rng):
-            """Two levels; the first one's Vis array (the hook's answer, at 0x900) may hold the second's id."""
+            """Two levels; the first one's Vis array (the hook's answer, at 0x900) may hold the second's id (`want`)."""
             put(img, 0x1D0, rng.randrange(1, 40))
-            put(img, 0x200 + 0x1D0, rng.randrange(1, 40))
+            want = rng.randrange(1, 40)
+            put(img, 0x200 + 0x1D0, want)
             for i in range(8):
                 put(img, 0x900 + 4 * i, rng.choice((0, 0, 7)))
             if rng.random() < 0.6:
@@ -98,7 +99,7 @@ class Suite:
                 put(img, 0x900 + 4 * rng.randrange(8), 0)
             hit = rng.randrange(8)
             if rng.random() < 0.7:
-                put(img, 0x900 + 4 * hit, 0)
+                put(img, 0x900 + 4 * hit, want)
             put(img, 0x1B4, at(0x600))
             return {"ecx": at(0), "edx": at(0x200)}
 
