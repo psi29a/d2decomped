@@ -81,15 +81,18 @@ auto Town::open_menu(int npc) -> void {
 // Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
 // and everything else into its centre 800x600, as it always did.
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
+    present_skill_pad();
     const int screen_w = fb_width(framebuffer);
     if (screen_w == int(kScreenWidth)) {
         draw_view(framebuffer, nullptr, mouse, frame_ms);
+        draw_touch(framebuffer);
         draw_coop_portraits(framebuffer, left_panel_open());
         return;
     }
     const int off = (screen_w - int(kScreenWidth)) / 2;
     ui_buffer.resize(std::size_t(kScreenWidth) * kScreenHeight * 4);
     draw_view(ui_buffer, &framebuffer, mouse, frame_ms);
+    draw_touch(ui_buffer);
     for (std::size_t y = 0; y < kScreenHeight; ++y)
         std::copy_n(ui_buffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4), kScreenWidth * 4,
                     framebuffer.begin() + std::ptrdiff_t((y * std::size_t(screen_w) + std::size_t(off)) * 4));
@@ -332,6 +335,14 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (tree_open)
             draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats, tip_env(),
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
+        if (tree_open && pad_config.skill_buttons && pad_playing && !skillbar.picking) {
+            const int tree_class = std::max(character.character_class, 0);
+            const int index = skill_at(*scene, tree_class, tree_tab, mouse.x, mouse.y);
+            const auto& ids = scene->skills.class_ids[std::size_t(tree_class)];
+            if (index >= 0 && std::size_t(index) < ids.size() && skill_known(character.name, ids[std::size_t(index)]))
+                scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 420, 548,
+                    std::string(pad::label(pad_family, pad::Button::North)) + " . Assign to button");
+        }
         if (waypoint.open)
             draw_waypoints(framebuffer, *scene, waypoint, character.header, character.expansion, level->id, mouse.x, mouse.y);
         draw_level_buttons(framebuffer, *scene, level_buttons_now(), mouse.x, mouse.y);   // after the panels, as the frame's draw

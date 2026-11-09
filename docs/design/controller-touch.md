@@ -9,7 +9,7 @@ controls, not claims that stock game.exe supports touch or these bindings.
 |---|---|---|
 | Diablo II: Resurrected | Blizzard's [console design article](https://news.blizzard.com/en-us/article/23722094/bringing-the-original-diablo-ii-experience-to-console) describes direct skill buttons, an LT bank of six additional skills, a directional targeting cone, and corpse selection appropriate to the ability. It also discusses the difficulty of choosing one drop among many. | Keep direct buttons and LT. Resolve the displayed Attack/Use action once for its press. A held attack does not become pickup when an enemy dies. Corpse abilities seek eligible corpses, not live enemies. |
 | Diablo Immortal | The [original Blizzard announcement](https://investor.activision.com/node/32001/pdf) describes dragging a skill to aim and releasing to use it. Blizzard's [accessibility article](https://news.blizzard.com/en-us/article/23805083/making-a-game-for-everyonediablo-immortals-accessibility-features) documents controller remapping, a free UI cursor, and repositionable mobile skill buttons. | Independent movement and skill fingers; tap or drag/release with an explicit cancel region. Keep assignment identities independent of controller positions. The prototype has fixed positions; configurable positions remain outside this change. |
-| Grim Dawn | First-hand reports on the developer-hosted forum describe enabling extra buttons in [Options > Controller](https://forums.crateentertainment.com/t/on-a-controller-how-do-i-assign-more-skills/114059). Reports about its assignment radial and skill-panel entry are community evidence, not a developer specification of exact current glyphs. | Put a visible Assign action in the skill panel. Show actual configured destinations and their occupants. Do not assume every player uses the default controller layout. |
+| Grim Dawn | First-hand reports on the developer-hosted forum describe enabling extra buttons in [Options > Controller](https://forums.crateentertainment.com/t/on-a-controller-how-do-i-assign-more-skills/114059). The [first-hand skill-panel assignment reports](https://www.reddit.com/r/Grimdawn/comments/1m2mysp/) about its radial are community evidence, not a developer specification of exact current glyphs. | Put a visible Assign action in the skill panel. Show actual configured destinations and their occupants. Do not assume every player uses the default controller layout. |
 | Path of Exile 2 | GGG's [0.2.0 patch notes](https://www.pathofexile.com/forum/view-thread/3740562) document per-skill controller targeting, corpse-targeting fixes, panel improvements, and pickup interaction fixes. | Auras/self-casts, enemy attacks, corpse abilities and ground placement have different targeting policies. A generic nearest-enemy policy must not cause buffs to walk. |
 
 The right-hand column is our design inference. Other games are UX references;
@@ -118,7 +118,14 @@ These citations are existing research/ports, not newly oracle-verified claims.
 
 ## Validation record
 
-See the accompanying handoff for actual runs. Native controller hardware and a
+Local validation: the focused controller/touch checks pass using virtual SDL
+pads and injected finger events. A temporary-character probe wrote and reloaded
+both actual sidecars, including a legacy one-RT controller file and a deliberately
+cleared A. The controller input path activated a real generated shrine after
+its room was explored, held Attack across a kill without looting, then picked up
+on a fresh press. Touch tests used both tomes and bought and sold separately.
+A 1066x600 landscape screenshot was inspected. See the handoff for full presubmit
+results and any remaining baseline failures. Native controller hardware and a
 physical phone are not present in the automated checks. SDL virtual-controller
 and injected-finger tests exercise the game input path; screenshots inspect the
 prototype layout. Hardware comfort, OS interruption behavior, safe areas and

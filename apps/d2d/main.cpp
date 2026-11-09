@@ -31,6 +31,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "touch_input.hpp"
 #include "town.hpp"
 #include "ui.hpp"
 #include "video.hpp"
@@ -382,6 +383,7 @@ static std::uint32_t game_seed(const d2d::d2s::Header& header) {
 }
 static int         g_scale = 1;          // window = game res * g_scale
 static SDL_ScaleMode g_scale_mode = SDL_SCALEMODE_PIXELART;   // d2d.cfg scalemode, --toggle scalemode=
+static bool        g_touch_controls = false;
 static bool        g_fullscreen = false; // d2d.cfg fullscreen = 1 (Alt+Enter flips and saves it)
 static bool        g_widescreen = false; // d2d.cfg widescreen = 1 / --widescreen: the game view widens to the window
 static int         g_forced_view_w = 0;  // --view-width: the widescreen width, else the window's aspect
@@ -703,6 +705,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     bool text_active = false;
     Town town(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
     town.set_pad_config(g_pad_config);
+    town.touch_enabled = g_touch_controls;
     // The left button is down while a source holds it: the physical button or an Attack / Use key.
     const auto attack_key_held = [&] { return std::ranges::any_of(town.click_keys[keys::kClickAttack], key_held); };
     // A pad's seat; a new seat's player picks their character (Town::coop_seat's roster).
@@ -817,6 +820,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         current_phase.store(std::uint32_t(MainPhase::PollEvents),
                             std::memory_order_relaxed);
         bool mouse_took_over = false;   // the mouse moved or clicked this frame: it ends the pad's field mode
+        town.touch_input.frame();
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             // SDL3 doesn't rescale event coords under logical presentation;
@@ -827,6 +831,24 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (event.type == SDL_EVENT_MOUSE_MOTION) event.motion.x -= view_off;
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) event.button.x -= view_off;
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
+            if (town.touch_enabled && screen == Screen::InGame) {
+                if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) { town.touch_input.clear(); town.touch_item_finger = -1; }
+                if ((event.type == SDL_EVENT_MOUSE_MOTION && event.motion.which == SDL_TOUCH_MOUSEID) ||
+                    ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) && event.button.which == SDL_TOUCH_MOUSEID)) continue;
+                if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
+                    event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
+                    pad_in_use = true;
+                    const auto phase = event.type == SDL_EVENT_FINGER_DOWN ? touch::Phase::Down : event.type == SDL_EVENT_FINGER_UP ? touch::Phase::Up
+                                     : event.type == SDL_EVENT_FINGER_MOTION ? touch::Phase::Move : touch::Phase::Cancel;
+                    const float touch_x = event.tfinger.x - view_off, touch_y = event.tfinger.y;
+                    if (town.touch_event(std::int64_t(event.tfinger.fingerID), phase, touch_x, touch_y)) continue;
+                    mouse.x = int(touch_x); mouse.y = int(touch_y);
+                    if (phase == touch::Phase::Down) { mouse.down = true; mouse.press_this_frame = true; }
+                    if (phase == touch::Phase::Up) { mouse.down = false; mouse.release_this_frame = true; }
+                    if (phase == touch::Phase::Cancel) mouse.down = false;
+                    continue;
+                }
+            }
             gamepads.handle_event(event);
             if (event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) { pad_in_use = false; mouse_took_over = true; }
             if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) pad_in_use = false;
@@ -979,7 +1001,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             if (pad_active && !pad_in_use) d2d::log::info("gamepad: in use (screen {})", int(screen));
             if (pad_active) pad_in_use = true;
             town.skill_actions = pad_actions;
-            if (town.drive_skill_ui(pad_actions)) {
+            if (town.drive_skill_ui(pad_actions, mouse.x, mouse.y)) {
                 pad_actions.click_press = false;
                 pad_actions.click_down = false;
                 pad_actions.click_release = false;
@@ -1006,7 +1028,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             pad_focus_key = pad_focus ? pad_focus->key : 0;
             pad_cursor_hidden = pad_field;
             town.pad_playing = pad_in_use;
-            town.pad_cue = pad_field && !town.pad_config.skill_buttons;
+            town.pad_cue = pad_field && !town.pad_config.skill_buttons && !town.touch_enabled;
             // The button labels of the pad playing the UI: a co-op partner's while they have the screen.
             const int label_pad = seats.label_pad(coop_game, ui_seat);
             town.pad_family = label_pad >= 0 ? gamepads.family(SDL_JoystickID(label_pad))
@@ -1801,6 +1823,7 @@ int main(int argc, char** argv) {
                    "Widen the in-game view to the window's aspect (menus stay 800x600)");
     app.add_option("--data", data_dir_str,
                    "D2 MPQ directory (else $D2_MPQ_DIR, d2data.mpq beside d2d or in ./, d2d.cfg data =)");
+    app.add_flag("--touch-controls", g_touch_controls, "Show the touch control prototype");
     app.add_flag  ("--headless", headless,
                    "Run without opening a window");
     app.add_flag  ("--send-crash-reports", send_crash_reports,
@@ -1983,6 +2006,7 @@ int main(int argc, char** argv) {
     g_start_hardcore = start_hardcore;
     g_start_classic  = start_classic;
     g_no_save        = no_save;
+    g_touch_controls = g_touch_controls || cfg["touch_controls"] == "1";
     g_start_cam_x    = start_cam_x;
     g_start_cam_y    = start_cam_y;
     g_scale          = std::clamp(scale, 1, 8);   // cfg value isn't CLI-checked

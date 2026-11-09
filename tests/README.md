@@ -42,6 +42,14 @@ Inventory from the wheel, using identify and portal tomes, buying with X,
 selling with Hold A, and Attack/Use on a portal and waypoint. It shares
 `pad_use_d2d.py` with the default-layout check; both need MPQs and the patch.
 
+`pad_controls_ux_d2d` checks the skill-panel entry, remapped destination labels,
+both banks, panel cancellation and holding Might without moving. The two
+`touch_*_d2d` tests inject SDL finger events for assignment, page changes during
+movement, aim/cancel, panel interruption, Teleport and corpse casting.
+`test_touch_input` covers finger ownership and gesture invalidation without
+assets; `test_direct_controls` covers saved clears, legacy RT fallback, both
+LT-chord release orders and item-use availability. None is a hardware test.
+
 Fast act checks (need the MPQs and `D2_PATCH_INSTALLER`): the quests of
 Acts 1–5 played headless, an act per test, side by side:
 `ctest --test-dir build -R quests_act -j3`. Each act's levels against

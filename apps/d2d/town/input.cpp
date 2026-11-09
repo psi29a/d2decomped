@@ -13,6 +13,7 @@
 #include "hold_confirm.hpp"
 #include "ingame.hpp"
 #include "internal.hpp"
+#include "item_use.hpp"
 #include "keyconfig.hpp"
 #include "load.hpp"
 #include "pad_hold.hpp"
@@ -21,6 +22,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
 #include "ui.hpp"
@@ -103,7 +105,7 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
 auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !belt_up.shown && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
-            && !skillbar.picking && skill_strip < 0 && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
+            && !skillbar.picking && skill_strip < 0 && touch_assign == skillpad::kUnset && !chat_typing && !gold_box && !(net_game && net_game->trade.state != 0);
     }
 
 auto Town::mini_right() const -> bool {
@@ -610,6 +612,12 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
         if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y); stock >= 0) send(cmd::Buy{ stock, store.tab });
     }
 
+auto Town::item_use(const d2d::d2s::Item& item) const -> ItemUse {
+    const bool potion = potion_code(item.code) || (scene && scene->rules.potions.contains(item.code));
+    const bool unidentified = std::ranges::any_of(character.items, [&](const auto& carried) { return carried.id != item.id && !carried.identified; });
+    return item_use_action(item.code, item.quantity, potion, level && d2d::rules::level_ids::is_town(level->id), view.dead, unidentified);
+}
+
 // Skill buttons, inventory only. A shop's X stays Buy. The item in hand drops.
 // A bag item is picked up and dropped in that order: if the pick-up is refused the drop matches nothing.
 // A joined game skips that pair. The drop packet needs a cursor the pickup has not filled yet.
@@ -671,13 +679,17 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
             if (button != pad::Bindings::kNone)
                 pad_hold_text = std::string(pad::label(pad_family, button)) + " to buy";
         }
-        const bool usable = item && (query.potion || item->code == "isc" || item->code == "ibk" ||
-                                     item->code == "tsc" || item->code == "tbk" || item->code == "box");
-        if (pad_playing && pad_config.skill_buttons && usable && query.hand_empty && !query.identify && !query.imbue) {
-            const auto& pair = pad_config.bindings[pad::Action::Interact];
-            const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
-            if (button != pad::Bindings::kNone)
-                pad_hold_text = std::string(pad::label(pad_family, button)) + " to use.  ";
+        const auto label_of = [&](pad::Action action) {
+            const auto& pair = pad_config.bindings[action];
+            return std::string(pad::label(pad_family, pair[0] != pad::Bindings::kNone ? pair[0] : pair[1]));
+        };
+        if (pad_playing && identify_with >= 0) {
+            const bool valid = item && item->id != identify_with && !item->identified;
+            pad_hold_text = valid ? label_of(pad::Action::Primary) + " . Identify item" : "Choose an unidentified item";
+            pad_hold_text += " . " + label_of(pad::Action::Back) + " Cancel";
+        } else if (pad_playing && pad_config.skill_buttons && item && query.hand_empty && !query.imbue) {
+            const auto use = item_use(*item);
+            if (!use.label.empty()) pad_hold_text = (use.kind == ItemUseKind::None ? "" : label_of(pad::Action::Interact) + " . ") + std::string(use.label) + "  ";
         }
         if (pad_shows_hold_cue(pad_playing, can_potion, can_equip, can_sell)) {
             if (tracking) pad_hold_fraction = pad_hold.fraction();
@@ -736,12 +748,9 @@ auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
 // left skill button switches to the left's), the cursor on its skill.
 auto Town::pad_open_picker() -> void {
         if (pad_config.skill_buttons) {
-            if (skillbar.picking == 3) { skillbar.picking = 0; return; }
+            if (skillbar.picking == 3) { close_assignment(); return; }
             if (!pad_field() && skillbar.picking != 0) return;
-            rebuild_wheel();
-            wheel_at = int(wheel_ids.size()) > 1 ? 1 : 0;
-            wheel_page = 0;
-            skillbar.picking = 3;
+            open_assignment(0);
             return;
         }
         if (pad_field()) skillbar.picking = 2;

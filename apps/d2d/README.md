@@ -64,34 +64,45 @@ the cursor speed, as `pad_*` lines in `d2d.cfg`. The same screen sets
 the keyboard's keys, as game.exe does (kept beside the saves as
 `<name>.key` and `default.key`).
 
-Skill buttons is a third preset on that page (`pad_skill_buttons`).
-The layout above stays the default. With the preset on, A, B, X, Y, LB
-and RB each cast a skill, and holding LT uses a second set. RT casts
-one skill, and holding LT casts a second one on RT. A file that only
-saved the first uses it for both until the second is assigned. The right stick's click
-talks, picks up and uses, and does not cast. A short LT tap swaps
-weapons. View opens a wheel of the existing skill icons, eight at a time:
-highlight one, press a button to assign it, and press it again to
-leave it there. The line under the wheel says to hit that same button
-to close. Clear is its own wedge, and so are Interact (talk, use, or
-pick up), Show Items (held, like Alt), Inventory, Character, Skill Tree,
-Automap and Quests. Assigning Attack (skill 0) also picks up, talks and
-uses objects on a fresh press; holding it continues attacking. In inventory
-and shops, the interact button (RS by default) uses the item under the cursor,
-including identify and town portal tomes. For Identify, then point at the
-unidentified item and press A. In shops X buys stock and holding A over a
-carried item sells it. Charged items stay on the
-mouse fan. A skill the character no longer has does not cast. An aura selects that skill on the right hand, which is how the aura turns on, and pressing it again restores the previous right-hand skill. Start opens a list of the panels (character,
-inventory, skill tree, automap, quests, party, hireling, help and the
-game menu). South confirms that list and East closes it. The button
-layout is `d2d.cfg`, for every character. Which skill is on a button is
-`<name>.padskills` beside the save, and only for that character. While
-the pad is the last input, the seven slots sit above the original bar,
-between the orbs, with the button name under each icon. A mouse move,
-a click, or a key brings the classic panel back, and the mini-panel's
-option row with it. Restore default controller, on the Gamepad page,
-turns the preset off and puts the normal bindings back. Accept keeps
-that. The mouse fan and the keyboard are unchanged.
+Skill buttons is a third preset on that page (`pad_skill_buttons`). Fresh
+layouts start with A as contextual Attack / Use in both banks; existing files
+and explicit clears are preserved. RT stays the main skill. LT holds the
+alternate bank; a short tap swaps weapons, but a skill chord never swaps.
+
+In the skill panel, highlight a learned skill and press the north button
+(Y on Xbox) for **Assign to button**. View opens the editor from the field.
+D-pad left/right selects Skills or Actions; up/down browses. The editor shows
+actual destination glyphs, current occupants and bank I/II. Hold LT to preview
+bank II. Press a destination to assign; the resulting binding is shown and
+the editor stays open. View or Start finishes; held buttons cannot cast on exit.
+Inventory is available in Actions and through Start's panel menu.
+
+In this preset B closes panels; RS uses the hovered item. Tome prompts reflect
+charges and availability. Identify waits for an unidentified target; B cancels.
+Shop stock shows Buy (X by default), and sellable bag items show Hold to sell
+(A by default). Labels follow remapped bindings. Attack / Use shows its action
+and target: a fresh press can use or pick up, while a held attack stays combat.
+Loot under a dead enemy requires a fresh press. Auras and self-buffs do not
+chase enemies; the active aura stays labelled across banks.
+
+Assignments remain `<name>.padskills` beside the save. Older files with only
+one RT skill use it on LT+RT until assigned separately. Item-granted charged
+skills stay on the mouse fan. The original controller preset, mouse fan,
+keyboard bindings and `.d2s` hotkeys retain their existing behavior.
+
+For the touch prototype, pass `--touch-controls` (or set `touch_controls = 1`).
+It has a movement area, fixed Attack / Use, four assigned skills, a latching
+I/II page switch and belt access on both pages. In Skills, tap a learned skill,
+then Assign, then a destination; Done returns. Touch assignments use separate
+`<name>.touchskills` files. Tap for the previewed target, or drag an aimed skill
+and lift to cast. Drag to Cancel, interrupt the finger, or open a panel to
+cancel without casting. Movement and skill fingers are independent. Teleport
+shows its landing point; corpse skills preview eligible corpses. Tap a usable
+tome to use it; tap stock to buy and hold a sellable carried item to sell.
+
+See [design, sources and the playtest script](../../docs/design/controller-touch.md).
+This is a landscape input prototype; physical phone/controller testing remains
+necessary before claiming device support.
 
 Settings live in `d2d.cfg`: `~/Library/Preferences/d2d` (macOS),
 `~/.config/d2d` (Linux), `Documents\My Games\d2d` (Windows). The log,

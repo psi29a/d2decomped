@@ -208,6 +208,20 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         SDL_PushEvent(&event);
         return std::string("ok\n");
     });
+    channel.on("touch", [&window = win](const std::vector<std::string>& args) {
+        if (args.size() != 5) return std::string("err touch <finger> down|move|up|cancel <x> <y>\n");
+        SDL_Event event{};
+        event.type = args[2] == "down" ? SDL_EVENT_FINGER_DOWN : args[2] == "move" ? SDL_EVENT_FINGER_MOTION
+                   : args[2] == "up" ? SDL_EVENT_FINGER_UP : args[2] == "cancel" ? SDL_EVENT_FINGER_CANCELED : SDL_EVENT_FIRST;
+        if (event.type == SDL_EVENT_FIRST) return std::string("err touch phase\n");
+        event.tfinger.touchID = 1;
+        event.tfinger.fingerID = std::strtoull(args[1].c_str(), nullptr, 10);
+        event.tfinger.windowID = SDL_GetWindowID(window.window);
+        event.tfinger.x = std::stof(args[3]) / float(window.view_w);
+        event.tfinger.y = std::stof(args[4]) / float(kScreenHeight);
+        SDL_PushEvent(&event);
+        return std::string("ok\n");
+    });
     channel.on("wheel", [&](const std::vector<std::string>& args) {
         if (args.size() < 2) return std::string("err wheel <dy>\n");
         SDL_Event event{};
@@ -311,6 +325,20 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " cam=" + std::format("{:.2f},{:.2f}", town.player.x, town.player.y)
              + " walking=" + (town.player.walking ? "1" : "0") + " dir=" + std::to_string(town.player.dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
+             + " aura=" + std::to_string(town.view.aura)
+             + " character_panel=" + std::to_string(town.char_open)
+             + " quests=" + std::to_string(town.quest_log.open)
+             + " touch_page=" + std::to_string(town.touch_input.alternate)
+             + " touch_aiming=" + std::to_string(town.touch_input.aiming)
+             + " touch_skill=" + std::to_string(town.touch_input.preview.skill)
+             + " touch_target=" + std::to_string(town.touch_input.preview.unit)
+             + " touch_point=" + std::to_string(town.touch_input.preview.x) + "," + std::to_string(town.touch_input.preview.y)
+             + " touch_move=" + std::to_string(town.touch_input.move_x) + "," + std::to_string(town.touch_input.move_y)
+             + " pad_south=" + [&] {
+                   const auto found = town.skill_sheets.find(town.sheet_key(character.name));
+                   return std::to_string(found == town.skill_sheets.end() ? 0 : found->second.slot(false, 0));
+               }()
+             + " assignment=" + town.assignment_feedback
              + " inventory=" + (town.inv_open ? "1" : "0")
              + " identify=" + std::to_string(town.identify_with)
              + " pad_field=" + (town.pad_field() ? "1" : "0")

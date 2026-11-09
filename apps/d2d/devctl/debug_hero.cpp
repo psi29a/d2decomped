@@ -4,6 +4,8 @@
 
 #include "debug.hpp"
 
+#include "skilltree.hpp"
+
 #include <d2s_items.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -79,6 +81,18 @@ void DebugVerbs::add_hero() {
         if (!town.skillbar.usable(id, left)) return std::string("err not usable\n");
         town.skillbar.choose(left, { id, -1 });
         return std::string("ok\n");
+    });
+    add("skillat", [this](const Args& args) -> Reply {
+        if (args.size() < 3 || !scene) return std::nullopt;
+        const int cls = std::max(town.character.character_class, 0);
+        const auto& ids = scene->skills.class_ids[std::size_t(cls)];
+        const auto found = std::ranges::find(ids, std::atoi(args[2].c_str()));
+        if (found == ids.end()) return std::string("err not a class skill\n");
+        const auto index = std::size_t(found - ids.begin());
+        if (index >= scene->rules.class_skills[std::size_t(cls)].size()) return std::string("err no skill icon\n");
+        const auto& entry = scene->rules.class_skills[std::size_t(cls)][index];
+        const auto [icon_x, icon_y] = skill_icon_at(entry);
+        return std::format("ok {} {} {}\n", entry.page, icon_x + 24, icon_y - 24);
     });
     const auto grant_points = [this](const Args& args) -> Reply {   // grant unspent points
         if (args.size() < 3) return std::nullopt;
