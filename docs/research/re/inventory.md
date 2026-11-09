@@ -106,8 +106,15 @@ weapon or shield as "its graphic's index in this table". The table is at
   `cap ` 0x25, `skp ` 0x25, ...) doesn't share 0x2d or 0x32 with the
   item's. Past entry 0xfe it starts over at the next unused one.
 
-`FUN_0063d900` (ESI alternategfx, EDI code) returns the first entry
-holding either, 0 when none. `FUN_0063da70` (EAX item, unit, look,
+`FUN_0063d900` (ESI alternategfx, EDI code) returns the first entry from 1
+to 0xfe whose code equals ESI, or else EDI, and 0 when none does. Its two
+callers pass an item record's alternategfx (`+0x90`) and code (`+0x80`), and
+an item with no alternategfx has ESI = 0, which equals every empty slot: a
+code that is not in the table then gets the first empty slot's index (98 on
+the 1.14d tables, 131 slots filled) instead of 0, and only an item with a
+non-zero alternategfx can come back unlisted (0). `tools/emu/inventory_look.py`
+runs the build and the lookup on the real Items rows.
+`FUN_0063da70` (EAX item, unit, look,
 tints) writes one item: its component (`FUN_00628660`), 5 for the
 wielded hand's weapon and 6 for the other's (`FUN_0063c050`), the index
 there (0xff in both arrays when not in the table), `FUN_0063d930`'s bow
