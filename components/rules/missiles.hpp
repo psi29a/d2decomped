@@ -69,6 +69,16 @@ inline int missile_range(int range, int lev_range, int level) {
     return std::clamp(range + lev_range * level, -0x8000, 0x7fff);
 }
 
+// FUN_0059f940: a Pierce row's charges as FUN_0059fa30 makes it (its stat
+// 0x148). Draws on {the owner's stat 0x148 (pierce_idx), 666} count while
+// each lands under `chance` (skill_pierce + item_pierce), 4 at most.
+inline int pierce_charges(int chance, std::uint32_t seed) {
+    Rng roll{ seed };
+    int charges = 0;
+    while (charges < 4 && roll(100) < chance) ++charges;
+    return charges;
+}
+
 // FUN_0064fc60: the unit vector (x 4096) from 16.16 (x, y) to (to_x, to_y).
 // The smaller delta x 127 / the larger picks the row (32-bit, as the exe).
 inline std::pair<int, int> missile_aim(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uint32_t to_y) {
