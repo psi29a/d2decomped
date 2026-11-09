@@ -217,6 +217,44 @@ were not read in the asm); cited, no oracle run.
   was not checked (the bytes were not read). A third entry of 0xff is
   skipped by `FUN_00648120` (below), as `toward_path` skips it. d2d: not
   ported; `kTry` and `FUN_00678d70` are the dword twin.
+- **`FUN_00648120`: walk a blocked end back toward the start** (EAX = the
+  request `rq` of `FUN_00648050` above; `rq +0x30` is the unit's path).
+  `FUN_00649970` calls it only when path flag 0x1000 is set and
+  `FUN_0064d910` finds the path's end (+0x10, +0x12) blocked for the
+  path's pattern (+0x48) and mask (+0x50); its result replaces the "1,
+  go on" that `FUN_00649970` otherwise keeps, so **0 means the pather is
+  not run and the path is empty**.
+  - A path whose flag 0x40000 is set raises the internal error (`FUN_00408090(199)`;
+    runtime-support.md); `FUN_00649970` sends those to `FUN_00649760`
+    first, so it is not reached.
+  - The unit type (`*(path +0x30)`, 6 for no unit) is kept; type 0 only
+    matters at the end.
+  - `cur` = `rq[2..3]` (the end), `start` = `rq[0..1]`. The tries
+    `t0 t1 t2` come from `FUN_00678df0(cur, start)` (the direction of the
+    start as seen from the end; bytes of table `0x6f1648`). Three points
+    are kept: `cur`, and two side points `B` and `C`, all three starting
+    at the end. The step of direction d is (`0x6eb398[8 * d]`,
+    `0x6eb39c[8 * d]`), shorts of two dwords a row (not read; d2d's
+    `kDir`, `DAT_006f1798`, has the same layout).
+  - Each round: if `cur == start`, **return 0** (no free subtile on the
+    way: the walk found nothing). Else `cur += step(t0)`, and ask
+    `FUN_0064d910(room, cur, rq +0x28, rq +0x2c)`. Free: the end becomes
+    `cur`. Blocked: `B += step(t1)` and ask there; free: the end becomes
+    `B`. Blocked: if `t2` is not 0xff, `C += step(t2)` and ask; free: the
+    end becomes `C`. All blocked: the tries are read again for the new `cur`
+    toward the start (the decompile shows `t0` taken from the new read; the
+    other two are not visible in it) and the next round runs. `cur` moves
+    on every round whether it was free or not, but `B` and `C` only add
+    their own tries, from the end, never from `cur`.
+  - Once a free spot was taken as `rq[2..3]`: if it equals the start,
+    **return 0**; else for unit type 0 (the player) `FUN_00648050` pushes
+    it on again (above); **return 1**. Monsters keep the free spot as is.
+  - d2d: **not ported**. `ai.cpp:348` (`path_to`) leaves it out with
+    "its setter isn't found". This read does not find the setter either:
+    only `FUN_00649970` tests path flag 0x1000, and the places that set
+    +0x34 bits were not searched. So d2d agrees as far as it goes, and no
+    disagreement is claimed. `rules::player_path` is a player's walk, so
+    the push-on (`FUN_00648050`) matters only once that flag is set.
 
 ## A walk's stop
 
