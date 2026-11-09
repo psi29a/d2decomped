@@ -559,6 +559,7 @@ address	name	evidence
 00562c40	item_replenish_step	stat + 1 to max, timer 3 >= 125 (ItemMode.cpp 0x1580, 0x1586)
 00562d30	item_timer_replenish	0x6e117c entry 3 (ItemMode.cpp 0x15a6)
 00562da0	item_timer_run	0x6e117c[n], IsBadCodePtr (ItemMode.cpp 0x15ea)
+005608c0	belt_spill_items	ItemMode.cpp 0xc29: belt slots 0..15 at or past the worn belt's box count (FUN_00660cb0 row byte) to the inventory (FUN_0063b950) else the ground (FUN_00555da0, FUN_00558aa0)
 00563350	sockets_still_fit	FUN_0055a2a0 copies, d2d_rules_takes_socket
 00563470	item_put_back	by mode 0 / 1 / 4 (ItemMode.cpp 0x1a75)
 00563840	cube_empty	page 3 items to inventory or ground (ItemMode.cpp 0x80d..0x8ee)
