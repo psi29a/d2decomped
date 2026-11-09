@@ -135,10 +135,25 @@ sit at y 0x5a + 0x26·i (panel coordinates, +0x50 / +0x3c at 800×600).
 - Each row is in font8 (`FUN_0049c270`). The colour is green (2) for our
   party, orange (8) for another party, red (1) when hostile, otherwise
   white:
-  - the name at (0x24, y − 2), cut with "..." past 100;
+  - the name at (0x24, y − 2), cut by `FUN_0049a2c0` (EDX the name,
+    third argument the row in a party, `FUN_00479bc0` != -1 at 0x49c31f):
+    0x60 px in a party, 0x88 in none. Under the limit it is kept; else
+    letters go from its end while it measures the limit or more (the
+    loop zeroes the 100-unit buffer from its end, 0x49a330), then "..."
+    is appended unmeasured (0x49a379), so the result can pass the limit
+    by the dots;
   - the class (0x103a.., druid 0x2771, assassin 0x2772) at (0x24, y + 12);
   - "Lvl: n" (0xd28 0xf9d 0xf9b) at (0x10a, y + 12);
-  - a party member's area at (0x7e, y + 12), cut at 0x8c.
+  - a party member's area at (0x7e, y + 12), cut by `FUN_0049a830` past
+    0x8c px: the suffix is "...." (0x6da05c) with its fourth unit
+    swapped for the area's last letter (0x49a8ce), so "..." and that
+    letter; letters go from its end while it measures more than 0x8b
+    less the suffix's width, then the suffix is appended: "Catacombs
+    Lev...4".
+
+  d2d: `client::cut_party_name` / `cut_party_area` (apps/d2d/party_cut.hpp)
+  match stock 1.14d on 2000 cases with a hooked font
+  (`tools/emu/party_cut.py`, tests/test_party_cut.cpp).
 - `FUN_0049a690`: the party button, `partybuttons` frame 0 at (0xbe, y),
   with INVITE / ACCEPT / LEAVE (0x1036..0x1038) centred on it. Then the
   `partyboxes`:
