@@ -77,7 +77,19 @@ int main() try {
     const int to_x = 20 - 2 + seed(5), to_y = 21 - 2 + seed(5);
     assert(std::abs(missiles[0].to->first - (float(to_x) + 0.5f) / 5) < 0.001f);
     assert(std::abs(missiles[0].to->second - (float(to_y) + 0.5f) / 5) < 0.001f);
-    std::puts("OK: do 34 and hit 58 pick on {subtile x, 666}");
+
+    // Both draws on its own subtile (sHitPar1 1: rand(3) twice 1, first at subtile x 6): FUN_0059fa30
+    // (0x59fbbe) aims the moving sub missile, with no target unit, at (+1, +1).
+    lightning.hit_par1 = 1;
+    Missile own;
+    own.info = &lightning;
+    own.x = 6.5f / 5; own.y = 9.5f / 5;              // subtile (6, 9)
+    own.born = 0; own.dies = 400;
+    missiles = { std::move(own) };
+    update(open, missiles, 400);
+    assert(missiles.size() == 1 && missiles[0].to);
+    assert(std::abs(missiles[0].to->first - 7.5f / 5) < 0.001f && std::abs(missiles[0].to->second - 10.5f / 5) < 0.001f);
+    std::puts("OK: do 34 and hit 58 pick on {subtile x, 666}; a spot on its own subtile goes to (+1, +1)");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_missile_seed_spots: %s\n", error.what());
