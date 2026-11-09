@@ -30,9 +30,12 @@ Each is lifted from the body (`FUN_0063bde0` / `FUN_0063ad90`) and put back at
 its new slot (`FUN_0063bdb0`, `FUN_0063b210`, `FUN_00627d70`); the stats are
 redone (`FUN_0055dbc0`).
 
-The skills: the left / right ones the other set kept (player data +0x84 /
-+0x8c, read and cleared by `FUN_006231a0` / `FUN_00623120`) come back, and
-the ones in use are kept in their place (`FUN_00622f80` / `FUN_00622ff0`).
+The skills: the ones the other set kept come back: `FUN_00623120` reads the
+right switch pair (player data +0x80 / +0x88) and `FUN_006231a0` the left
+pair (+0x84 / +0x8c). Neither clears the pair it reads; each resets the
+in-use pair of its hand (+0x70 / +0x78 for the right, +0x74 / +0x7c for the
+left) to (0, -1) and sets +0x90 = -1, +0x94 = 0. The ones in use are kept in
+the switch pair (`FUN_00622f80` right, `FUN_00622ff0` left).
 A kept skill that's no longer usable (`FUN_00647960` says 2 or 7: not
 usable, or not in the skill list) gives way to the skill list's own
 (`FUN_00620190` / `FUN_006201d0` → `FUN_00643930` / `FUN_00643960`,

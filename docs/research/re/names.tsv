@@ -566,10 +566,15 @@ address	name	evidence
 00621b70	object_data_8	object data +8 (Units.cpp 0xe4e, 0xe55)
 00621c00	unit_path_649ef0	FUN_00649ef0(path, a, b, 0)
 00621c30	unit_set_94_98	+0x94/+0x98, state 0x62 stats 0x161/0x162, flag 0x400
-00621f60	monster_flag_4638a0	monster and FUN_004638a0
+00621cc0	unit_set_94_98_wrapper	(unit, a, b), ret 0xc: ESI = unit, EBX = b, FUN_00621c30(a); units.md "Verified in the emulator"
+00621ed0	item_belt_index	(belt item) -> Belts.txt index: byte +0x130 of FUN_006335f0(class) (items.md "A belt put on or taken off"); 0xf20 not an item, 0xf24 no base
+00621f60	monster_flag_4638a0	monster and FUN_004638a0(class, 0xc) (ECX = unit +4, EDX = 0xc); returns 0 or 1
+00621f90	player_data_alloc	0x16c zeroed bytes at unit +0x14 (Units.cpp 0xf52); handles at +0x10..+0x24, +0x2c, +0x4c = 0; 0xf4f null, 0xf51 present
 00622060	player_data_free	FUN_0065c490 / FUN_00660fd0 pairs (Units.cpp 0xf6b, 0xf76)
 006220f0	player_set_name	FUN_004135d0 into player data (Units.cpp 0xf97..0xf9a)
 00622150	player_data_check	checks only (Units.cpp 0xfa5..0xfa8)
+006221e0	player_set_portal_levels	player data +0x2c = portal-levels-visited mask (net-packets.md "0x5f portal levels visited"; Units.cpp 0xfbf, 0xfc0); no data check
+00622230	player_portal_levels	player data +0x2c, the portal-levels-visited mask (net-packets.md "0x5f portal levels visited"; Units.cpp 0xfc9, 0xfca); no data check
 00622270	object_txt_168	Objects.txt +0x168 (Units.cpp 0xfd3)
 006222c0	object_data_5	object data byte +5 (Units.cpp 0xfe4)
 00622300	object_set_data_5	object data byte +5 (Units.cpp 0xfef)
@@ -577,10 +582,15 @@ address	name	evidence
 00622830	monster_weapon	FUN_0063c9b0 on unit +0x60
 00622dc0	unit_622d00_set	FUN_00622d00 != 0
 00622de0	unit_missing_vitals_cost	missing life + mana >> 8, times stat 0xc >> 2
+00622e90	units_stub_ret8	ret 8; touches nothing (stubs.md)
 00622ea0	player_keep_right_skill	player data +0x70/+0x78 (Units.cpp 0x13f6, 0x13fa)
 00622f10	player_keep_left_skill	player data +0x74/+0x7c (Units.cpp 0x1405, 0x1409)
+00622f80	player_keep_switch_right_skill	player data +0x80/+0x88 (Units.cpp 0x1414, 0x1419)
+00622ff0	player_keep_switch_left_skill	player data +0x84/+0x8c (Units.cpp 0x1424, 0x1429)
 00623060	player_kept_right_skill	player data +0x70/+0x78 (Units.cpp 0x1438)
 006230c0	player_kept_left_skill	player data +0x74/+0x7c (Units.cpp 0x1449)
+00623120	player_take_switch_right_skill	reads +0x80/+0x88, resets +0x70/+0x78 to (0, -1) and +0x90/+0x94 to (-1, 0) (Units.cpp 0x145a)
+006231a0	player_take_switch_left_skill	reads +0x84/+0x8c, resets +0x74/+0x7c to (0, -1) and +0x90/+0x94 to (-1, 0) (Units.cpp 0x1470)
 00623220	player_switch_skill_a	player data +0x84/+0x8c (Units.cpp 0x1487)
 00623290	player_switch_skill_b	player data +0x80/+0x88 (Units.cpp 0x1499)
 00623300	player_set_switch_skill_a	player data +0x84/+0x8c (Units.cpp 0x14a8)
@@ -591,7 +601,7 @@ address	name	evidence
 006234f0	unit_7c	unit +0x7c (Units.cpp 0x1513)
 00623520	static_path_alloc	32 bytes at unit +0x2c (Units.cpp 0x151e)
 00623570	static_path_free	unit +0x2c (Units.cpp 0x152b)
-00623600	monster_corpse_flag	mode 0xc, MonStats +4 bit 7, +6 bit 3, FUN_0063a770
+00623600	monster_corpse_flag	mode 0xc, MonStats2 (FUN_00451fe0) byte +4 & 0x80 and not +6 & 8 (Fog bit-mask table 0x6ce268 [7], [3]), FUN_0063a770 == 0
 006238c0	unit_face_path_target	FUN_00648810 or FUN_00621dc0 (Units.cpp 0xe83)
 00623990	skill_weapon	Skills +0x168 picks the hand; FUN_0062a4e0
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
