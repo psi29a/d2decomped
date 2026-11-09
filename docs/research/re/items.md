@@ -456,8 +456,9 @@ the client and item into `FUN_0053eae0`, whose first parameter reaches
 the action byte. Treat the action mapping as cited from net-packets.md's
 table, not from this chain.
 Evidence: `python3 tools/ghidra/fn.py 0055bed0`, `... 0053ec90`, `... 0053ecf0`.
-d2d: not ported; `git grep -n -E "0055bed0|0053ec90|0053ecf0" -- components apps`
-finds nothing.
+d2d: not ported in code (`git grep -n -E "0055bed0|0053ec90|0053ecf0" -- components apps`
+finds nothing); itemmode.md's `FUN_0055bed0` row agrees (mode 3, flag 0x10
+clear, then `FUN_00537860`, `FUN_0053ec90` on flag 0x1000, else `FUN_0053ecf0`).
 
 ### The flag-1 wrapper (`FUN_0055bf30`)
 
@@ -466,7 +467,9 @@ finds nothing.
 decompile, so the client reaches `FUN_0055bed0` in a register this function
 does not set (the asm was not read). Its one caller is `FUN_0053a500`.
 Evidence: `python3 tools/ghidra/fn.py 0055bf30`, `python3 tools/ghidra/calls.py 0055bf30`.
-d2d: not ported; no mention in `components/` or `apps/`.
+d2d: not ported in code (`git grep -n 0055bf30 -- components apps` finds
+nothing); itemmode.md's `FUN_0055bf30` row reads the same
+(`FUN_0055bed0` when unit `+0xc4` bit 0), cited from the decompile, no oracle run.
 
 ## Is-a by type index and the equipment look (`FUN_00629b50` chain)
 
