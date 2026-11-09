@@ -74,7 +74,13 @@ weapons. View opens a wheel of the existing skill icons, eight at a time:
 highlight one, press a button to assign it, and press it again to
 leave it there. The line under the wheel says to hit that same button
 to close. Clear is its own wedge, and so are Interact (talk, use, or
-pick up) and Show Items (held, like Alt). Charged items stay on the
+pick up), Show Items (held, like Alt), Inventory, Character, Skill Tree,
+Automap and Quests. Assigning Attack (skill 0) also picks up, talks and
+uses objects on a fresh press; holding it continues attacking. In inventory
+and shops, the interact button (RS by default) uses the item under the cursor,
+including identify and town portal tomes. For Identify, then point at the
+unidentified item and press A. In shops X buys stock and holding A over a
+carried item sells it. Charged items stay on the
 mouse fan. A skill the character no longer has does not cast. An aura selects that skill on the right hand, which is how the aura turns on, and pressing it again restores the previous right-hand skill. Start opens a list of the panels (character,
 inventory, skill tree, automap, quests, party, hireling, help and the
 game menu). South confirms that list and East closes it. The button

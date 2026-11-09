@@ -184,7 +184,8 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
         const bool is_trigger = trigger == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || trigger == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
         if (button == SDL_GAMEPAD_BUTTON_INVALID && !is_trigger) return std::string("err unknown button (a, b, x, y, dpleft, leftshoulder, lefttrigger, ...)\n");
         if (const auto err = plug(false); !err.empty()) return err;
-        if (is_trigger) SDL_SetJoystickVirtualAxis(handle, trigger, word(1) == "down" ? SDL_JOYSTICK_AXIS_MAX : 0);
+        // Raw joystick triggers rest at -32768; SDL maps that to gamepad zero.
+        if (is_trigger) SDL_SetJoystickVirtualAxis(handle, trigger, word(1) == "down" ? SDL_JOYSTICK_AXIS_MAX : SDL_JOYSTICK_AXIS_MIN);
         else SDL_SetJoystickVirtualButton(handle, button, word(1) == "down");
         return std::string("ok\n");
     });
@@ -310,6 +311,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " cam=" + std::format("{:.2f},{:.2f}", town.player.x, town.player.y)
              + " walking=" + (town.player.walking ? "1" : "0") + " dir=" + std::to_string(town.player.dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
+             + " inventory=" + (town.inv_open ? "1" : "0")
+             + " identify=" + std::to_string(town.identify_with)
+             + " pad_field=" + (town.pad_field() ? "1" : "0")
              + " stash=" + (town.stash_open ? "1" : "0")
              + " cube=" + (town.cube_open ? "1" : "0")
              + " store=" + std::to_string(town.store.npc >= 0 ? town.store.vendor : -1) + " store_tab=" + std::to_string(town.store.tab)
