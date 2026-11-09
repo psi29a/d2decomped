@@ -54,6 +54,9 @@ inline int label_place(LabelRect& rect, std::vector<LabelRect>& placed, int x, i
 // FUN_0045afc0, FUN_006206b0 - 0x10 - FUN_0045afd0), and its name's size
 // (FUN_00502520).
 struct LabelItem { int x = 0, y = 0, text_w = 0, text_h = 0; };
+// The item standing at (feet_x, feet_y) on screen (where it's drawn): its
+// spot 16 up, whatever its sprite's size.
+constexpr LabelItem label_item(int feet_x, int feet_y, int text_w, int text_h) { return { feet_x, feet_y - 0x10, text_w, text_h }; }
 // A label that's drawn: its item (an index into the walk), its rect, and
 // lit (draw mode 5 in the palette's (0, 64, 128), white text) or not.
 struct ShownLabel { std::size_t item = 0; LabelRect rect; bool lit = false; };
