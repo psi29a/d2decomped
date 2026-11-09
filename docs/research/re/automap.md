@@ -365,7 +365,9 @@ dropped, otherwise the cel decides.
   `camp_rooms` lays the camp beside the Blood Moor), the words' style and
   sequence standing for the DT1 header. `automap_whole` brings the Rogue
   Encampment and the Kurast Docks in whole once a game
-  (`GameData::prest_automap`, LvlPrest AutoMap).
+  (`GameData::prest_automap`, LvlPrest AutoMap). Both are DrlgType 2 in
+  Levels.txt; d2d grows the Docks with the jungle, so its rooms are the
+  generated ones.
 - Not ported: the `0x7a51a4` count-down; a preset room lists every word
   its walk takes (game.exe only those it finds a tile for); before 2026-11
   d2d revealed each frame what was drawn, with a tile hash for the cel.

@@ -67,10 +67,11 @@ void automap_step(const Scene& scene, const GameData& game_data, const Level& le
 // built to lend its DRLG tables).
 bool automap_all(const Scene& scene, const GameData& game_data, const Level& level, Automap& automap, AutomapReveal& reveal);
 
-// FUN_00668100's other branch: a preset level (no generated rooms) whose
+// FUN_00668100's other branch: a preset level (Levels.txt DrlgType 2) whose
 // LvlPrest AutoMap is set, but for Lut Gholein, the Pandemonium Fortress
 // and Harrogath (their miniatures, automap_town), has every room come in
-// whole as the level comes up: the Rogue Encampment and the Kurast Docks.
+// whole as the level comes up: the Rogue Encampment and the Kurast Docks
+// (d2d grows the Docks with the jungle: its generated rooms, then).
 // The level's list order (newest first), once a game.
 void automap_whole(const Scene& scene, const GameData& game_data, const Level& level, Automap& automap, AutomapReveal& reveal);
 

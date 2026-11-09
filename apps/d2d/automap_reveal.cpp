@@ -115,7 +115,7 @@ void automap_step(const Scene& scene, const GameData& game_data, const Level& le
 
 void automap_whole(const Scene& scene, const GameData& game_data, const Level& level, Automap& automap, AutomapReveal& reveal) {
     namespace ids = d2d::rules::level_ids;
-    if (!level.rooms.empty() || level.id == ids::kLutGholein || level.id == ids::kPandemoniumFortress || level.id == ids::kHarrogath) return;
+    if (level.id == ids::kLutGholein || level.id == ids::kPandemoniumFortress || level.id == ids::kHarrogath) return;
     if (!game_data.prest_automap.contains(level.id) || reveal.whole.contains(&level)) return;
     if (automap_all(scene, game_data, level, automap, reveal)) reveal.whole.insert(&level);
 }
