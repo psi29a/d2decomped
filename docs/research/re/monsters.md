@@ -642,7 +642,9 @@ diff_drlg.py game`.
   (FUN_006229f0). AI control +0x14 0 -> 1. A foe 20 or more off (the
   think's AI distance): stand 40. Under 20, state 1: walk there
   (FUN_005ded90), state 2. State 2: within 2 of the spot (FUN_005dc5c0),
-  or after 3 more walks (+0x18, FUN_005de190(0, 0) first), unit flag
+  or after 3 more walks (+0x18; each a player's path: FUN_005de190(unit,
+  1, 0, 0) gives the next mode path type 7, FUN_005a63f0 -> FUN_005a6290,
+  which falls back to 0xf when it finds none), unit flag
   0x20000, gone (FUN_005ddfc0), and the record (FUN_005bd4a0: +0xd, +0x10
   his id) two ticks on (FUN_005bd390) gives every player in act 3 word
   0x20 bit 0 (FUN_005bd260) and leaves 7 or 8 objects 0x83 ("vile dog
