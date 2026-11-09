@@ -241,9 +241,7 @@ address	name	evidence
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
-00558530	item_arm_replenish_durability	stat 0xfc (item_replenish_durability) via FUN_00625480; if set and no event 3 is pending (FUN_005415a0), queues event 3 at game +0xa8 + 2500 / rate + 1 (FUN_005417d0)
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
-00558580	item_arm_replenish_quantity	same as FUN_00558530 for stat 0xfd (item_replenish_quantity)
 00558a10	ground_item_lifetime	30000 / 45000 / 15000 frames by quality and gold
 00558b90	ground_items_expire	item data +0x24 against the frame, per act room
 00558c50	item_clear_4000000	flag 0x4000000, state 0xab stat list
@@ -282,11 +280,6 @@ address	name	evidence
 0055fde0	itemmode_refresh	FUN_0055dbc0(0), FUN_00621000
 0055fe00	item_flag10_refresh	flag 0x10, FUN_0062ff70
 0055fe60	itemmode_55c2c0_0	FUN_0055c2c0(arg, 0)
-00558cb0	item_create_from_stream	(game in ecx; record ref, out word, version): needs ref[0] below the item-table count (FUN_00633590), makes the unit (FUN_00555230), fills it from the bitstream (FUN_0062e430, frees it on 0 bytes or error), sets flag 0x80000, clears 0x2000, arms both replenish events
-0055bed0	item_announce_ground	(item, client): item mode 3 and unit flag 0x10 clear; flag 0x1000 set calls FUN_0053ec90 (action 2), clear FUN_0053ecf0 (action 3) (items.md)
-0055bf30	item_announce_ground_if_flag1	(unit): FUN_0055bed0 only when unit +0xc4 bit 0 is set (items.md)
-0055c470	unit_hand_weapons	(unit in EAX; outs in EBX, EDI): wielded weapon, and the other slot-4/5 item cleared unless ItemTypes 0x2d (weapon-switch.md)
-0055c4d0	skill_not_refused	(unit in ECX, entry in EAX): 0 when FUN_00647960 says 2 or 7, else 1 (weapon-switch.md)
 0055fe80	item_recharge	(owner, item): every stat 0xcc (item_charged_skill) entry whose low byte is below its max (value >> 8) is set back to max through FUN_0065c940; for a player owner also sends the stat update (FUN_0053d130); returns whether any changed
 00560420	c2s_19_to_cursor	ItemMode.cpp 0x936..0x978
 00561b00	c2s_1f_grid_swap	box code, ItemMode.cpp 0xec0..0xf4b
@@ -657,8 +650,6 @@ address	name	evidence
 0062a490	item_setitems_row	SetItems 0x1b8 rows at +0xc18
 0062a670	item_data_30	item data word +0x30 (Items.cpp 0x1504..0x1507)
 0062a900	item_socketed_count	hasinv, FUN_0063b2c0 walk
-00629b50	itemtype_is_a	(type, want): both in 0..[0x744304]+0xbfc, else bit want of row type in the dword matrix at +0xc04 (row stride dwords at +0xc00); 0 out of range (items.md)
-0062a250	item_tint_byte	(EAX Transform, ECX colour): Transform * 32 + (colour & 31) for Transform 1..8 and colour < 21, else 0 (items.md)
 0062a970	item_read_compact	compact item (flag 0x200000) reader, version in the second arg: 10-bit version, 3-bit location, code, gold amount, quest difficulty (version > 0x5c), save realm words (version > 0x56 / 0x5d); no socket count
 0062ac80	saved_stat_read	FUN_00411020, version 0x5a / 0x5d remaps
 0062ae20	saved_item_header	'JM', 'ear ', 'nec ' -> 'neg ' before 0x5d
@@ -677,7 +668,6 @@ address	name	evidence
 0062e430	item_read_bitstream	(unit, buffer, bytes, check_jm, sockets_out, version, err_out): reads the optional JM mark and 32 flag bits, resets item data, then the compact reader FUN_0062a970 (flag 0x200000) or the full FUN_0062cbe0; returns bytes used (FUN_00410e90)
 0062e7e0	itemtype_byte_11	ItemTypes +0x11
 0062e830	itemtype_byte_12	ItemTypes +0x12
-0062e830	item_type_byte_12	ItemTypes record (table +0xbf8, stride 0xe4) +0x12 of an item unit's type, 0 if none; FUN_00580030 calls FUN_0057ff70 when nonzero (column likely ReEquip)
 0062e920	itemtype_cel_variant	ItemTypes +0x23 count, +0x24 + 32 n
 0062ea80	itemtype_bytes_a_b	ItemTypes +0xa / +0xb
 00633540	items_tables_free	ItemTbls.cpp 0x1c8, 0x1cb
