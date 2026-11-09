@@ -236,6 +236,10 @@ struct Monster {
     bool fleeing = false, flee_sound = false;  // Fallen's flee event while a nearby monster dies
     bool first_sight = false, taunt_sound = false;   // AI flag 0x10: its first-sight taunt (unit event 0x10) is sent
     bool help_sound = false;                  // a caged prisoner's cry (RescueQuest::kHelpMe)
+    // In a game target list (+0xd0 not 0xb): an evil monster's search takes a
+    // good one only from list 8. A prisoner (FUN_00588600's) is in none till its
+    // think finds its door broken (FUN_005ee3c0 -> FUN_005b1990(8)).
+    bool listed = true;
     int seq_sound = 0, seq_sounds = 0;        // a Jab sequence's event-3 rows passed and its dosound b: played or dropped each frame (Fight::monster_sounds)
     std::uint32_t sound_ms = 0, neutral_ms = 0, step_ms = 0;   // its last sound, Neutral, footstep (unit +0x7c / +0x80 / +0x84)
     std::uint32_t sound_tick = 0;             // the tick its Neutral last rolled
