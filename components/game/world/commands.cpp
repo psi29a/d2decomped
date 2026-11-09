@@ -684,8 +684,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         const auto* skill = game_data->skills.get(use_skill.skill);
         const int monster_index = fight.monster_index(use_skill.unit);
         // A converted monster is the player's side: the cursor never picks it, so no attack.
-        // unverified (source: d2d's hover rule, cursor-units.md): a click with no unit under the
-        // cursor walks, so a held attack drops it; the hover itself is FUN_00465c60's.
+        // FUN_00467a10 gives a converted monster as a null target, so the click walks and a held
+        // attack never targets it (cursor-units.md "The click's own path"); the hover is FUN_00465c60's.
         const auto* target = monster_index >= 0 ? &fight.monsters[std::size_t(monster_index)] : nullptr;
         const bool live = target && target->targetable() && !target->ally_not_interact(*game_data, level->id);
         if (skill && !skill->in_town && !in_moor) {
