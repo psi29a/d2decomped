@@ -517,4 +517,33 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   `Fight::summon_one` (summons.cpp:148) reads the same, cited from the
   decompile, no oracle run (and ECX = the head's id is a reading). Caller `FUN_00575d90`
   and `FUN_00575e90`.
+- **`FUN_00575d90`** (`pet_add`, owner in EDX; stack: the pet unit, the
+  PetType row, the limit): the entry that records a new pet. The reading
+  of the arguments is from the callers: `FUN_0056d8d0` (the summon skills'
+  do-function tail) passes its pet, the skill call record's `+0x1c` (the
+  skill's pettype row) and `+0x20` (petmax, at least 1); `FUN_005c56c0`
+  (Revive) passes the raised monster, the skill record's byte `+0xbe`
+  (the pettype, 0 if past the row count) and the petmax calc
+  (`FUN_00646ca0`) **unclamped**. In order:
+  1. Does nothing unless the owner is a player and `0 < row < count`: row 0
+     (the first PetType row) is never recorded.
+  2. `FUN_00575720(row)` (the other rows of the group go), then
+     `FUN_00575850(row, limit)` (the limit set, the surplus shed).
+  3. The slot is `FUN_00574540(*(pdata+0x44) struct)` (row in EAX); a
+     missing struct or slot ends it.
+  4. `FUN_00575c70(pet, three zero words)`. When it returns 1, an event
+     `{pet id (-1 for no unit), owner id (+0xc), u16 class (pet +4; 0xffff
+     for none), row, 0, 0, 0}` goes to every client through
+     `FUN_005538d0` (the callback is `FUN_00574930`), so each client's
+     pet list gets a 0x7a entry. A refusal sends nothing.
+  d2d: **partly ported**. `Fight::summon_one` (summons.cpp:147) keeps the
+  pets of the cast skill's pettype within petmax, dropping the oldest
+  (reads the same, cited from the decompile, no oracle run); the group release (`FUN_00575720`) is **not ported**, nor are
+  the broadcast and the limit shed outside a cast. One possible
+  difference: d2d clamps petmax to at least 1 for every summon, Revive
+  included, while game.exe clamps it only on `FUN_0056d8d0`'s path. A
+  Revive petmax calc of 0 or less would store limit 0, and
+  `FUN_00575c70` would refuse the raised monster (after one
+  `FUN_00575900` rebuild). Whether Revive's calc can be that low needs
+  Skills.txt, which was not read here: possible, not shown.
 
