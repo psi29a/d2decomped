@@ -1232,15 +1232,18 @@ file's version:
    units in file order); n = 0 is skipped.
 
 Against components/ds1/ds1.hpp: the layer order (walls with their
-orientation, floors, shadow, substitution), every version gate for v >= 4,
-the group block, the paths and the 18/13/15/16/14/12 gates agree. Where they
+orientation, floors, shadow, substitution), the group block, the paths and the
+18/13/15/16/14/12 gates agree. Where they
 differ: (a) the substitution stream is present for v >= 10 with type 1 or 2
 in game.exe, d2d needs v >= 12 (differs only for a v10/11 file; none
 checked); (b) objects: game.exe reads flags from v >= 6 and objects from
 v >= 2, d2d reads 5 dwords from v >= 3 (differs for v 3..5; d2d refuses v <
 4 anyway); (c) d2d throws on more than 4 walls / 2 floors, game.exe has no
 such bound; (d) a path attaches to the first equal-coordinate object in file
-order in d2d, the last in game.exe, and only to units the loader made.
+order in d2d, the last in game.exe, and only to units the loader made; paths exist from v14, so unlike the others this applies to shipped files whenever two units share a position (not counted); (e) for v < 7 game.exe maps each orientation stream in place
+(`FUN_0066d7f0`, table 006eef20, 00665ac3; the table is not read here), and
+ds1.hpp keeps the dword unconverted, so v4..6 files differ (none shipped, see
+the census).
 `FUN_0066bf30` (read, asm 0066bf30..0066bf93) is a fastcall with ECX the
 room record to link into (the DS1 loader passes 0, 0x665d84) and EDX a
 second argument it only passes to the allocator, then `RET 0x14` with the
