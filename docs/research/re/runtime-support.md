@@ -123,3 +123,33 @@ no oracle ran: all of it is **cited**, none proven. d2d ports none of it
     is `FUN_00408660`.
 - d2d: not ported (no error box, no pool system, no error-reporter
   record; its crash reports are the launcher's own).
+
+## The pool's sorted block list (`FUN_00409370`, `FUN_00409490`)
+
+A pool (ESI in both; `FUN_00409dd0` makes one) keeps its blocks sorted by a
+key: +4 a critical section, +0x7a0 the count, +0x7a4 the capacity, +0x7a8
+the array of 8-byte entries `{block, key}`, +0x17a8 a running byte total.
+A block is `param_1`: `*param_1` is its key (an unsigned dword), `param_1[5]`
+points at a record whose +0x1c and +0x20 give its size. Offsets are as the
+decompile shows them; the asm was not read.
+
+- **`FUN_00409370`** (block): enters the section. When count >= capacity
+  the capacity grows by 0x20 and the array is `_realloc`ed to
+  capacity * 8; a null result prints `"(1) Pool Blocks overflowed at %d"`
+  (`FUN_00409020`) and raises the internal error, line 0x261. The total
+  grows by `*(rec +0x20) + 0x18 + ((*(rec +0x1c) + 0x1f) >> 5) * 4`. A
+  binary search finds the first entry whose key is not below the block's
+  (a lower bound), the tail moves up one entry (`_memmove`), the new entry
+  `{block, *block}` is stored and the count rises. Leaves the section.
+- **`FUN_00409490`** (block): the reverse. The same lower-bound search, but
+  an entry is taken when its **key equals** the block's key (the block
+  pointer is not compared), so with two blocks of one key it removes
+  whichever the search lands on. It moves the tail down, drops the count,
+  takes the same size sum off the total, and when count + 0x40 < capacity
+  shrinks the capacity by 0x20 (`_realloc`; a null result prints the same
+  overflow message, line 0x2b4). Leaves the section. A key not found
+  leaves the section and raises line 0x2bf.
+- The line numbers are the internal-error sites of `FUN_00408090` above.
+  The list is only inserted into and removed from here; who reads it was
+  not traced.
+- d2d: not ported (it uses the C++ allocator).

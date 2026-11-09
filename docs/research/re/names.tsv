@@ -10,6 +10,8 @@ address	name	evidence
 00408ce0	error_system_init	once (DAT_0074f0d0): report record at 0x74d868 incl. sprintf("D2 %i.%i%c", 1, 0xe, 100), pool "Global Pool System", self-check of tables 0x6ce268 / 0x6ce2e8 (lines 0x576 / 0x577), SErrSetBlizzardErrorFunction(FUN_00408660) (runtime-support.md "The error box")
 0040b330	fog_cos	float table at 0x707800, 512 entries, index + 0x80 & 0x1ff: a quarter turn ahead of FUN_0040b350
 0040b350	fog_sin	float table at 0x707800, 512 entries, index & 0x1ff
+00409370	pool_block_add	(block; pool in ESI) sorted insert of {block, key = *block} at pool +0x7a8, grows by 0x20 entries (realloc fail: "(1) Pool Blocks overflowed at %d", line 0x261), total +0x17a8 += size (runtime-support.md "The pool's sorted block list")
+00409490	pool_block_remove	(block; pool in ESI) removes the entry whose key equals *block, total -= size, shrinks by 0x20 when count + 0x40 < capacity (line 0x2b4); not found line 0x2bf (runtime-support.md "The pool's sorted block list")
 0040b430	alloc_checked	(file, line, flag): FUN_0040a080(file, line) and, when it returns 0, FUN_00408900(2, file, line, "") before returning it; the allocator the docs cite as FUN_0040b430
 00410b10	bits_set	ORs byte arg1[n >> 3] with the mask table 0x6ce268[n & 7]
 00410b50	bits_clear	ANDs byte arg1[n >> 3] with the mask table 0x6ce2e8[n & 7]
