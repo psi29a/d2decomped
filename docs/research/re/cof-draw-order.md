@@ -144,6 +144,11 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   If bit 0 of +0x48 is clear it calls `FUN_0040a960` (to finish the read)
   first, and a bit still clear is error 0x266. `FUN_005fec90` calls it.
   d2d: not ported.
+- `FUN_0040aa40` (ECX = the record): the size (+0x40), after the same null
+  (error 0x271) and tag (0x272) checks; it does not wait for the read.
+  `FUN_005ff760` calls it right after the read it queues with the
+  `FUN_005ff6e0` callback (line 0x369) and drops the result, so there it is only the tag check. d2d: not ported
+  (`tools/emu/sound_hdr_load.py` hooks it).
 
 ## Draw effects
 
