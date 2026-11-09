@@ -262,6 +262,13 @@ W/2−0x90 to +width at H−0x26 and H−0x25, palette index 0xff. Hover
 x W/2−0x92..W/2−0x17, y H−0x2b..H−0x22: string 0x1043 "Experience: %u /
 %u" (exp, next), centred on W/2−0x92, bottom H−0x33.
 
+**Hover texts.** `FUN_00502280(text, x, y, centred)` doesn't draw: it
+keeps the text in one buffer (0x841ec8) and its place (0x8426c8..d8).
+`FUN_00456ee0` empties it as the frame starts (`FUN_00502280(0, 0, 0)`)
+and draws it near the end with `FUN_00503000`, after the panels and the
+mini-panel (`FUN_0047f710`). So the experience, run and stamina texts, and
+the mini-panel's tooltips, sit over everything the frame drew before.
+
 **Run button** (`FUN_00497480`, `Panel\runbutton` → `0x7bef0c`): frame 0
 walking, 2 running, +1 while held (`0x7befd8`) and under the cursor; x
 W/2−0x91, bottom H−10. Hit box `FUN_00497440`: x W/2−0x91..W/2−0x80, y
@@ -302,7 +309,8 @@ drain / 100, at least 1; at 0 it returns 0 and `FUN_0057f090` walks
 d2d: `rules::stamina_drain` / `stamina_regen` (combat.hpp) from
 `World::stamina_frame`, each 40 ms frame; `draw_hud` (panels.cpp) with
 the poison frame, bars, run button and texts; the button's press /
-release in `Town::update`.
+release in `Town::update`. The bars' hover
+texts go to `Hud::hovers`, drawn after the mini-panel (`draw_hud_hovers`).
 
 ## Stat totals and ItemStatCost ops (FUN_00626200)
 

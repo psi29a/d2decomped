@@ -35,7 +35,6 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -399,7 +398,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         pixel[0] = red; pixel[1] = green; pixel[2] = blue;
     };
     constexpr std::array<std::uint8_t, 3> kWhite{ 255, 255, 255 }, kBlue{ 105, 105, 255 };
-    std::vector<std::pair<std::array<int, 2>, TextLine>> hovers;   // centre x, bottom: drawn over the bars
+    std::vector<HudHover> hovers;   // drawn over the bars, or later in the frame (Hud::hovers)
     auto over = [&](int left, int top, int right, int bottom) { return mouse_x >= left && mouse_x <= right && mouse_y >= top && mouse_y <= bottom; };
     // Experience: the level's share of 119 px.
     const auto lvl = stats.get(kLevel), exp_now = stats.values[kExp];
@@ -408,7 +407,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         if (over(width / 2 - 0x92, height - 0x2b, width / 2 - 0x17, height - 0x22)) {
             auto format = str(0x1043);
             for (auto at = format.find("%u"); at != std::string::npos; at = format.find("%u")) format[at + 1] = 'd';
-            hovers.push_back({ { width / 2 - 0x92, height - 0x33 }, { game::d2_format(format, { exp_now, next }), kWhite } });
+            hovers.push_back({ width / 2 - 0x92, height - 0x33, { game::d2_format(format, { exp_now, next }), kWhite } });
         }
         if (next > prev) {
             std::int64_t num = exp_now > prev ? exp_now - prev : 0, den = next - prev;
@@ -429,7 +428,7 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     if (on_run) {
         auto special = str(0x1052);
         if (const auto placeholder = special.find("%s"); placeholder != std::string::npos) special.replace(placeholder, 2, "R");
-        hovers.push_back({ { width / 2 - 0x91, height - 0x17 }, { str(0x1053) + special, kWhite } });
+        hovers.push_back({ width / 2 - 0x91, height - 0x17, { str(0x1053) + special, kWhite } });
     }
     // Stamina (FUN_004975b0): 102 px when full, in the palette entry nearest
     // its colour (FUN_004fb180), at three quarters (draw mode 2); over its
@@ -461,9 +460,10 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
         const bool more = shown > top;
         if (more) shown = top;
         // Blue past the most, or with shrine_stamina (state 0x88) on.
-        hovers.push_back({ { width / 2 - 0x4c, height - 0x34 }, { game::d2_format(str(0x1044), { shown, top }), more || hud.stamina_shrine ? kBlue : kWhite } });
+        hovers.push_back({ width / 2 - 0x4c, height - 0x34, { game::d2_format(str(0x1044), { shown, top }), more || hud.stamina_shrine ? kBlue : kWhite } });
     }
-    for (const auto& [anchor, line] : hovers) draw_hover_text(framebuffer, scene, { line }, anchor[0], anchor[0], anchor[1], anchor[1]);
+    if (hud.hovers) hud.hovers->insert(hud.hovers->end(), hovers.begin(), hovers.end());
+    else draw_hud_hovers(framebuffer, scene, hovers);
     // The globes' text (FUN_00498120): plain, centred, in font16 (scene.font).
     // game.exe sets no font for it: its frame's current one is font16, which
     // its belt key labels set earlier in its draw order (FUN_00456ee0 ->
@@ -482,6 +482,10 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     }
     if (over(width - 0x6f, height - 0x4b, width - 0x1f, height - 0xf))
         globe_text(width - 0x50, game::d2_format(str(0x1046), { mana_shown >> 8, stats.values[kMaxMana] >> 8 }));
+}
+
+void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers) {
+    for (const auto& hover : hovers) draw_hover_text(framebuffer, scene, { hover.line }, hover.centre, hover.centre, hover.bottom, hover.bottom);
 }
 
 bool over_run_button(int mouse_x, int mouse_y) {
