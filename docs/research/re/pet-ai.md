@@ -479,4 +479,21 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   data. d2d: **not ported**: `Fight::summon_one` trims only the cast
   skill's own `pettype` (summons.cpp:147), and `GameData::PetType` has no
   group (gamedata_load.cpp:847).
+- **`FUN_00575850`** (`pet_set_max`, owner in EDX, then row and max on the
+  stack): sets a row's limit. The player data is fetched with
+  `FUN_006221a0` (a 0 result would assert, line 0x200: dead). It acts
+  only when the pet struct (`+0x44`) exists, the row is in `0..count` and
+  the row is not 1 unless the new max is 1 (`row != 1 || max == 1`). Then
+  slot `+8` = max, and while max is under the slot's count (`+4`), the
+  slot still holds pets and the row is not 7 (the merc's, net-packets.md),
+  it removes the first pet (`FUN_005747b0` returns the head node's pet id,
+  `FUN_005750e0(id, 1)` drops it). So a lowered limit sheds the oldest
+  pets at once, except the merc. Callers: `FUN_00575d90` (the cast skill's
+  petmax), `FUN_00575900` (rebuild from the skills, below), `FUN_00575a80`,
+  `FUN_0056bd90`. d2d: **not ported**: it has no per-row limit; the
+  `Fight::summon_one` loop (summons.cpp:147) trims at the cast, to the
+  cast skill's petmax, which reads the same as the value game.exe stores at
+  a cast (cited from the decompile, no oracle run).
+  What d2d lacks is the trim when a skill point is removed or a limit
+  drops outside a cast (`// ponytail:` candidate).
 
