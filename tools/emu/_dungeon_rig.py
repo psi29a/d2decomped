@@ -23,7 +23,8 @@ import struct
 import zlib
 from pathlib import Path
 
-from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI,
+                               UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_ESP)
 
 import emu
 
@@ -35,6 +36,8 @@ ALLOC_FILE = 0x6E_7D04           # the source-file string the arena allocator ca
 GET_IP, ERR_HALT = 0x40_8090, 0x40_8A60
 ALLOC, FREE = 0x40_B430, 0x40_B480
 ROUNDS = 24
+REG_IDS = {"eax": UC_X86_REG_EAX, "ebx": UC_X86_REG_EBX, "ecx": UC_X86_REG_ECX,
+           "edx": UC_X86_REG_EDX, "esi": UC_X86_REG_ESI, "edi": UC_X86_REG_EDI}
 
 
 class Mismatch(Exception):
@@ -164,8 +167,7 @@ class Rig:
 
         def hook(e):
             """Record the call and give its result."""
-            regvals = tuple(e.mu.reg_read(r) for r in (
-                {"ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX}[x] for x in regs))
+            regvals = tuple(e.mu.reg_read(REG_IDS[x]) for x in regs)
             args = regvals + tuple(e.arg(i) for i in range(nstack))
             rig.log.append((name,) + args)
             handler = rig.custom.get(name) or fn
@@ -175,7 +177,7 @@ class Rig:
         self.m.hook(addr, hook, nstack)
 
     def callee(self, name, addr, nstack=0, regs=()):
-        """Declare a hooked, unclaimed callee. `regs` lists the register arguments, ecx and edx only."""
+        """Declare a hooked, unclaimed callee. `regs` lists the register arguments (eax, ebx, ecx, edx, esi, edi)."""
         self._callee(name, addr, nstack, regs)
 
     def slot(self, i, size=0x100):
