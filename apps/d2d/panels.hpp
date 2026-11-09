@@ -118,12 +118,12 @@ void draw_char_panel(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
 //   FUN_00503000 draws it after the mini-panel (FUN_00456ee0), so with
 //   `hovers` set they go there to be drawn as late. Globes (FUN_00498120):
 //   "Life: %d / %d" / "Mana: %d / %d" plain, centred on 65 / W-80,
-//   bottom H-95, drawn on the spot.
+//   bottom H-95, drawn on the spot, under the cursor or with its "Show
+//   HP / MP Text" on (rules::globe_clicked).
 // The maxima include what's worn (Fight::item_max).
 // The shown life / mana / stamina glide (FUN_00496dd0: rules::glide) on
 // the client's frame (`frame`, 25 a second).
-// ponytail: no skill icons; no Show HP / MP Text toggles (a globe click,
-// DAT_007befdc / e0); the run key shown is R, not the hotkey's binding.
+// ponytail: no skill icons; the run key shown is R, not the hotkey's binding.
 struct HudHover { int centre = 0, bottom = 0; TextLine line; };   // a bar's hover text, centred on `centre`
 struct Hud { bool poisoned = false, running = false, run_down = false, weapon_set_two = false, hidden = false, left_open = false, right_open = false, stamina_blue = false, stamina_shrine = false;
              std::array<std::string, 4> belt_keys{};     // the keys bound to Use Belt 1..4, by name (draw_belt)   // weapon_set_two: the inventory shows switch set II; hidden: local co-op's (the portraits instead); left / right_open: a panel on that side (the 800 border frame); stamina_blue / stamina_shrine: the View's
@@ -131,7 +131,8 @@ struct Hud { bool poisoned = false, running = false, run_down = false, weapon_se
              std::uint32_t frame = 0;                     // the client's frame (the shown values' glide)
              bool pad_bar = false;                       // the pad is playing: the mini-panel strip stays hidden until the mouse or keyboard returns
              std::vector<HudHover>* hovers = nullptr;    // set: the bars' hover texts go here, for the frame's late draw (draw_hud_hovers); null: drawn at once
-             int life_preview = 0, mana_preview = 0; };  // View::life_preview / mana_preview: the potions' preview fill
+             int life_preview = 0, mana_preview = 0;     // View::life_preview / mana_preview: the potions' preview fill
+             bool life_text = false, mana_text = false; }; // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): the globe's text without the cursor on it
 void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers);
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);

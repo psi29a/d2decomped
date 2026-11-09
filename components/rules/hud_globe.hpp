@@ -36,4 +36,17 @@ constexpr int mana_end_percent(std::int64_t mana, std::int64_t max_mana, std::in
 // mode 0) only above the fill's own rows.
 constexpr int globe_preview_rows(int percent) { return std::min(percent * 80 / 100, 80); }
 
+// A press on a globe (FUN_00499500, which takes nothing at or above
+// H-0x30, nor with no player or a dead one, FUN_00463df0): x 0x1e..0x6e
+// life, W-0x6f..W-0x1f mana, y H-0x2f..H-0xf. It toggles that globe's
+// "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0) and writes it to
+// the registry (FUN_004150e0; FUN_004967f0 reads both at the game's
+// start). 1 life, 2 mana, 0 neither.
+constexpr int globe_clicked(int mouse_x, int mouse_y, int width, int height) {
+    if (mouse_y <= height - 0x30 || mouse_y > height - 0xf) return 0;
+    if (mouse_x >= 0x1e && mouse_x <= 0x6e) return 1;
+    if (mouse_x >= width - 0x6f && mouse_x <= width - 0x1f) return 2;
+    return 0;
+}
+
 }  // namespace d2d::rules
