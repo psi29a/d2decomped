@@ -68,8 +68,23 @@ oracle run); their names first came from D2BS's UI enum:
   `DATA\GLOBAL\ui\panel\bank` (`FUN_00489e50`; and `TradeStash` when
   `FUN_00408f20` is nonzero); the close (case 0x19) runs `FUN_00489ee0`: if
   `0x7bcbf0` is 0xc or 0xd, clear it, shut UI 0 and send `FUN_00478600(0,0)`;
-  free the art (`0x7bcc2c`, `0x7bcc3c`). Which of 0xc / 0xd is the stash and
-  which the tradeable stash/gold is not traced.
+  free the art (`0x7bcc2c`, `0x7bcc3c`). 0xc is the stash: `FUN_00489e00`
+  (S->C 0x77 action 0x10: the 0x77 handler at 0x4b8cf0, its jump table at 0x4b8f7c, entry 16
+  = 0x4b8d09, a `JMP 0x00489e00`; entry 17 = 0x4b8d0e, `JMP 0x00489f50`, the
+  close that sends nothing) runs `FUN_00455f20(0)` and, if it opens, sets
+  0xc. No store of 0xd exists: of the stores to 0x7bcbf0 (XrefsTo), the
+  constants are 0, 1, 5, 6, 7, 0xa, 0xb, 0xc, 0xe, 0x13, and the table-driven ones
+  (`FUN_00488b00`, `FUN_00488f10`) copy a value from the table at 0x7bc9ea
+  whose three initialisers (`FUN_00487e20` / `e60` / `ea0`) write 1, 2, 3. 0xd
+  is only tested (`FUN_00489ac0`, `FUN_00489a30`, the closes) and put back to
+  0xc by `FUN_00489880` / `FUN_004898a0`, which set `0x7bce2c` to 0 / 1. So
+  there is one stash state; `TradeStash` is not a second one: both arts are
+  loaded in 0xc, `bank` always and `TradeStash` when `FUN_00408f20` (LoD
+  installed), and the panel drawer `FUN_0048edf0` (states 0xc..0xd) takes `TradeStash` when `FUN_0044dcc0`
+  (`0x7a04f4`, the S->C 0x01 expansion flag) is nonzero, else `bank`. The
+  expansion stash is drawn higher (glyph top bottom - 0x19f against
+  bottom - 0xdb) and its close button at x + 0x110 against x + 0x113. Not
+  traced: what a nonzero `0x7bce2c` is for beyond those tests.
 - Sides: `FUN_00455f20`'s switch groups 0x14 with 2, 0xf, 0x10, 0x16, 0x24,
   0x25 (left: open 2 / 3, shut 0 / 1) and 0x19, 0x1a with 0xc, 0xe, 0x1b,
   0x1c, 0x1d, 0x20 (open 3, shut 0). d2d agrees: `view_state`
