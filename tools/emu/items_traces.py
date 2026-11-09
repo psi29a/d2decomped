@@ -19,8 +19,8 @@ FUN_006335f0 (Items row), FUN_0055c2c0, FUN_0055dbc0, FUN_00621000, FUN_006280d0
 FUN_0062ff70, FUN_0055c730, FUN_0063d2b0, FUN_00621190, FUN_0063bde0,
 FUN_0055bed0, FUN_00647960, FUN_0062b5b0, FUN_0062ae20, FUN_00628900,
 FUN_00410eb0, FUN_0063aaf0, FUN_0063b2c0, FUN_0063dfa0, FUN_00629da0 and the
-allocator free. Not exercised: FUN_006288a0 / FUN_00629860 on a class with no
-Items row (the stock code reads the null row for 006288a0 and the rig cannot map it).
+allocator free. Not exercised: FUN_006288a0 on a class with no Items row (the
+stock code reads the null row and the rig cannot map it).
 `--mutation-check` breaks the model 20 ways.
 """
 import argparse
@@ -295,7 +295,7 @@ class Suite:
                     d = m.r(u + 0x14)
                     if dword:
                         return m.r(d + off)
-                    return (d & ~0xFF & M32) | m.r(d + off + (1 if mut("variant-48") else 0), 1)
+                    return (d & ~0xFF & M32) | m.r(d + off + (1 if mut("getter-off1") else 0), 1)
                 if dword:
                     return 0
                 return residue(u if u and m.r(u) != 4 else 0, 0 if mut("exchange-zero") else low)
@@ -338,7 +338,7 @@ class Suite:
             return m.r(m.call("c6335f0", m.r(u + 4)) + 0xFA, 2)
 
         def b_rec_ok(img, rng):
-            """As b_rec with a class that has a row."""
+            """A unit whose class has an Items row (0..3), so FUN_006288a0 never reads the null row."""
             return {"stack": [self.unit(img, rng, cls=rng.randrange(0, 4))]}
         rig.run("FUN_006288a0", 0x6288A0, b_rec_ok, m_missile, 1)
 
@@ -524,7 +524,7 @@ def suite(rig):
 
 MUTATIONS = {
     name: (lambda on, n=name: MUT.add(n) if on else MUT.discard(n))
-    for name in ("type3", "variant-48", "apply-one", "mode-1", "pair-11", "status-3", "wclass-swap", "pair-order",
+    for name in ("type3", "getter-off1", "apply-one", "mode-1", "pair-11", "status-3", "wclass-swap", "pair-order",
                  "group0", "flag-eq-1", "version", "pair-20", "type-count", "shift-mask", "exchange-zero", "bonus-le", "fatal-line", "free-null", "quality-4", "count-first")
 }
 
