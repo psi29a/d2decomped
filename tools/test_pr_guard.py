@@ -20,18 +20,21 @@ class GuardTests(unittest.TestCase):
         base and fetches the PR head only as data), and check the head by hash.
         """
         with tempfile.TemporaryDirectory() as directory:
-            def git(*args):
-                subprocess.run(["git", "-C", directory, *args], check=True, capture_output=True)
+            def git(*args, data=None):
+                return subprocess.run(["git", "-C", directory, *args], check=True, capture_output=True, input=data).stdout
             git("init", "-q", "-b", "main")
             git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "base")
             for name, data in files.items():
-                path = Path(directory, name)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                if isinstance(data, str):
-                    path.symlink_to(data)
-                else:
+                if isinstance(data, bytes):
+                    path = Path(directory, name)
+                    path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_bytes(data)
             git("add", "-A")
+            # A symlink only in the index (mode 120000): Windows needs a privilege for a real one.
+            for name, data in files.items():
+                if isinstance(data, str):
+                    blob = git("hash-object", "-w", "--stdin", data=data.encode()).decode().strip()
+                    git("update-index", "--add", "--cacheinfo", f"120000,{blob},{name}")
             git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "change")
             head = "HEAD"
             if at_base:
