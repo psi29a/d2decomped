@@ -65,10 +65,7 @@ auto Town::save_skill_sheet(const std::string& name) const -> void {
 }
 
 auto Town::rebuild_wheel() -> void {
-    wheel_ids.clear();
-    wheel_ids.push_back(skillpad::kEmpty);
-    wheel_ids.push_back(skillpad::kInteract);
-    wheel_ids.push_back(skillpad::kShowItems);
+    wheel_ids.assign(skillpad::kActions.begin(), skillpad::kActions.end());
     if (!scene) return;
     for (const auto& row : skillbar.rows(false))
         for (const auto& pick : row)
@@ -232,7 +229,7 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
     if (actions.interact_press) interact();
     const auto found = skill_sheets.find(sheet_key(std::string(name)));
     const skillpad::Sheet sheet = found == skill_sheets.end() ? skillpad::Sheet{} : found->second;
-    const auto fire = [&](int skill, bool press, bool button_down) {
+    const auto fire = [&](int skill, bool press, bool button_down, bool& used) {
         // Holding the button keeps sending the skill. The world continues the
         // attack only while a skill command is still arriving.
         if (skill < 0 || !scene || (!press && !button_down) || !skill_known(name, skill)) return;
@@ -241,16 +238,20 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
         // A hold in town would repeat the "not in town" line every tick.
         if (!press && level && d2d::rules::level_ids::is_town(level->id)) return;
         const bool swing = skillpad::swings({ info->leftskill, !info->srvmissile.empty(), info->range });
-        const PadPick pick = pad_pick(player_pad, unit, true, pad_aim(skill, move.aim || move.active));
+        // Attack is also Use, as the left mouse button (FUN_004625b0).
+        // A fresh press may interact; its held frames must leave that use queued.
+        const PadPick pick = pad_pick(player_pad, unit, skill == 0 && press, pad_aim(skill, move.aim || move.active));
         if (pick.kind == PadPick::kMonster) {
             player_pad.target = pick.id;
             out(cmd::UseSkill{ skill, pick.x, pick.y, pick.id, swing, -1 });
             return;
         }
         player_pad.target = -1;
+        if (pick.kind == PadPick::kItem) { used = true; out(cmd::Pickup{ pick.id }); return; }
+        if (pick.kind == PadPick::kThing) { used = true; out(cmd::Interact{ pick.id }); return; }
         out(cmd::UseSkill{ skill, unit.x + player_pad.face_x * 3.f, unit.y + player_pad.face_y * 3.f, -1, swing, -1 });
     };
-    const auto cast = [&](int skill, bool press, bool button_down) {
+    const auto cast = [&](int skill, bool press, bool button_down, bool& used) {
         if (press && scene && skill_known(name, skill)) {
             const auto* info = scene->skills.get(skill);
             if (info && info->aura) {
@@ -269,9 +270,16 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
                 return;
             }
         }
-        fire(skill, press, button_down);
+        fire(skill, press, button_down, used);
     };
-    const auto perform = [&](int id, bool press, bool button_down) {
+    const auto perform = [&](int id, bool press, bool button_down, int button) {
+        auto& used = player_pad.used_hold[std::size_t(button)];
+        if (press || !button_down) used = false;
+        if (used) return;   // FUN_00462930: a held frame leaves the queued interact alone
+        if (const int panel = skillpad::panel_index(id); panel >= 0) {
+            if (press) player_pad.wants_panel = panel;
+            return;
+        }
         if (id == skillpad::kInteract) { if (press) interact(); return; }
         if (id == skillpad::kShowItems) { if (press || button_down) pad_show_items = true; return; }
         // Co-op only. Same reach as pad_act. Not SelectSkill: 0x7ffe stays out of the save's right-hand skill.
@@ -280,21 +288,21 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
                 if (const auto* body = body_near(unit.x, unit.y, 4.f)) out(cmd::UseSkill{ kResurrectSkill, body->x, body->y, body->id });
             return;
         }
-        cast(id, press, button_down);
+        cast(id, press, button_down, used);
     };
     const int trigger_set = player_pad.trigger_hold.set_for(actions.main_skill, actions.main_skill_down, actions.modifier_held);
     if (trigger_set >= 0) {
         int skill = sheet.trigger(trigger_set == 1);
         if (skill == skillpad::kUnset) skill = right_skill;
         const bool keep = skillpad::binds_action(skill) || skill == kResurrectSkill || skill_known(name, skill);
-        perform(keep ? skill : skillpad::kEmpty, actions.main_skill, actions.main_skill_down);
+        perform(keep ? skill : skillpad::kEmpty, actions.main_skill, actions.main_skill_down, skillpad::kSlots);
     }
     for (int index = 0; index < skillpad::kSlots; ++index) {
         const bool press = actions.skill_slot == index;
         const bool button_down = actions.slot_down[std::size_t(index)];
         const int set = player_pad.slot_hold.set_for(index, press, button_down, actions.modifier_held);
         if (set < 0) continue;
-        perform(sheet.slot(set == 1, index), press, button_down);
+        perform(sheet.slot(set == 1, index), press, button_down, index);
     }
 }
 

@@ -143,7 +143,11 @@ struct Bindings {
 [[nodiscard]] inline unsigned where_of(std::size_t action, bool skill_buttons) {
     unsigned mask = kWhere[action];
     if (!skill_buttons) return mask;
+    if (Action(action) == Action::Interact) mask |= where::kPanel | where::kShop;
     switch (Action(action)) {
+        case Action::Recentre:
+            mask &= ~(where::kPanel | where::kShop);  // RS uses the hovered item in skill-button mode
+            break;
         case Action::Primary: case Action::Secondary: case Action::Inventory: case Action::Character:
         case Action::SkillTree: case Action::QuestLog: case Action::Automap: case Action::SwapWeapons:
             mask &= ~where::kField;
@@ -440,12 +444,11 @@ public:
 
         // The left button: Primary in the game; the confirm button or the right trigger in the menus.
         out.click_down = game ? down(Action::Primary) : held[std::size_t(confirm)] || right_trigger_;
-        out.click_press = out.click_down && !click_prev_;
+        out.click_press = out.click_down && !click_prev_ && (!game || hit(Action::Primary));
         out.click_release = !out.click_down && click_prev_;
         click_prev_ = out.click_down;
-        const bool secondary = down(Action::Secondary);
-        out.rclick_press = secondary && !secondary_prev_;
-        secondary_prev_ = secondary;
+        out.rclick_press = hit(Action::Secondary) ||
+                           (skills && (context == Context::Panel || context == Context::Shop) && hit(Action::Interact));
 
         // The aiming stick (the right one; the left one when swapped): the cursor. In the menus the other one moves it too.
         const float walk_x = config_.swap_sticks ? sample.rx : sample.lx, walk_y = config_.swap_sticks ? sample.ry : sample.ly;
@@ -579,7 +582,7 @@ private:
 
     Config config_;
     std::array<bool, std::size_t(Button::Count)> prev_{};
-    bool click_prev_ = false, secondary_prev_ = false, left_trigger_ = false, right_trigger_ = false;
+    bool click_prev_ = false, left_trigger_ = false, right_trigger_ = false;
     std::array<float, 4> dpad_hold_{};             // up, down, left, right, while a menu d-pad is repeating
     float swap_hold_ = 0.f;                        // how long the left trigger has been down
     bool swap_cast_ = false;                       // a skill fired during that press

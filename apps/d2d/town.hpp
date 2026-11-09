@@ -283,6 +283,8 @@ struct Town {
         skillpad::HoldSet slot_hold;              // the set a held skill button started on
         skillpad::TriggerHold trigger_hold;       // the set RT started on
         int aura_return = 0;                      // the non-aura right skill to restore when an aura toggles off
+        std::array<bool, skillpad::kSlots + 1> used_hold{};  // a press used an object: don't replace its queued walk with an attack
+        int wants_panel = -1;                     // an assigned panel action, consumed by this seat
         bool wants_strip = false;                 // this pad's Start asked for the panel list
     };
     PadPlayer pad;                                // the first player's

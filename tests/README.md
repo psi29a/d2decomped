@@ -37,6 +37,11 @@ ordinary and state loops, cast endings, tick boundaries, a stopped
 animation and a rate faster than one loop per tick. The test also checks
 independent alert starts, restarts, new-level resets and clock wrap.
 
+`pad_skill_use_d2d` uses a virtual pad with the skill-button preset: assigning
+Inventory from the wheel, using identify and portal tomes, buying with X,
+selling with Hold A, and Attack/Use on a portal and waypoint. It shares
+`pad_use_d2d.py` with the default-layout check; both need MPQs and the patch.
+
 Fast act checks (need the MPQs and `D2_PATCH_INSTALLER`): the quests of
 Acts 1–5 played headless, an act per test, side by side:
 `ctest --test-dir build -R quests_act -j3`. Each act's levels against

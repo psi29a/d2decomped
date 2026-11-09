@@ -398,6 +398,10 @@ auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::P
         if (mapper.config().skill_buttons) {
             apply_skill_pad(player_pad, hero_there.player, dead, field, hero_there.character.name, int(hero_there.character.header.right_skill),
                             hero_there.character.header.expansion(), actions, out);
+            static constexpr std::array<pad::Key, 5> kPanelKeys = {
+                pad::Key::Character, pad::Key::Inventory, pad::Key::SkillTree, pad::Key::Automap, pad::Key::QuestLog };
+            const int panel = std::exchange(player_pad.wants_panel, -1);
+            if (panel >= 0 && panel < int(kPanelKeys.size())) opens.push_back(kPanelKeys[std::size_t(panel)]);
             return opens;
         }
         // Its hands' charged entries (kept while another player has the
@@ -660,13 +664,28 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         const bool can_equip = query.equippable && query.bag && query.hand_empty && !query.shop && !query.identify && !query.imbue;
         const bool can_sell = query.sellable && query.bag && query.hand_empty && query.shop && !query.gamble && !query.identify && !query.imbue
                               && query.store_mode != 1 && query.store_mode != 3;
+        if (pad_playing && pad_config.skill_buttons && query.shop && query.hand_empty && scene &&
+            store_item_at(*scene, store, mouse.x, mouse.y) >= 0) {
+            const auto& pair = pad_config.bindings[pad::Action::Trade];
+            const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
+            if (button != pad::Bindings::kNone)
+                pad_hold_text = std::string(pad::label(pad_family, button)) + " to buy";
+        }
+        const bool usable = item && (query.potion || item->code == "isc" || item->code == "ibk" ||
+                                     item->code == "tsc" || item->code == "tbk" || item->code == "box");
+        if (pad_playing && pad_config.skill_buttons && usable && query.hand_empty && !query.identify && !query.imbue) {
+            const auto& pair = pad_config.bindings[pad::Action::Interact];
+            const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
+            if (button != pad::Bindings::kNone)
+                pad_hold_text = std::string(pad::label(pad_family, button)) + " to use.  ";
+        }
         if (pad_shows_hold_cue(pad_playing, can_potion, can_equip, can_sell)) {
             if (tracking) pad_hold_fraction = pad_hold.fraction();
             const std::string_view aye = pad::label(pad_family, pad::Button::South);
             const std::string_view trigger = pad::label(pad_family, pad::Button::RightTrigger);
-            if (can_potion) pad_hold_text = std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
-            else if (can_sell) pad_hold_text = std::string("Hold ") + std::string(aye) + " to sell";
-            else pad_hold_text = std::string("Hold ") + std::string(aye) + " to equip";
+            if (can_potion) pad_hold_text += std::string("Hold ") + std::string(aye) + " to fill belt.  Hold " + std::string(trigger) + " to belt this.";
+            else if (can_sell) pad_hold_text += std::string("Hold ") + std::string(aye) + " to sell";
+            else pad_hold_text += std::string("Hold ") + std::string(aye) + " to equip";
         }
         if (step == hold_confirm::Step::Click && scene) {
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),

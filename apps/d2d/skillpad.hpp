@@ -22,12 +22,36 @@ inline constexpr int kUnset = -2;         // the main skill has never been saved
 inline constexpr int kInteract = -3;      // the slot talks, uses, or picks up, as the right stick does
 inline constexpr int kShowItems = -4;     // the slot holds Show Items, as Alt does
 
-[[nodiscard]] inline bool binds_action(int id) { return id == kInteract || id == kShowItems; }
+inline constexpr int kInventory = -5;
+inline constexpr int kCharacter = -6;
+inline constexpr int kSkillTree = -7;
+inline constexpr int kAutomap = -8;
+inline constexpr int kQuests = -9;
+inline constexpr std::array<int, 8> kActions = {
+    kEmpty, kInteract, kShowItems, kInventory, kCharacter, kSkillTree, kAutomap, kQuests };
+
+// The same panel indices as the Start list below.
+[[nodiscard]] inline int panel_index(int id) {
+    switch (id) {
+        case kCharacter: return 0;
+        case kInventory: return 1;
+        case kSkillTree: return 2;
+        case kAutomap: return 3;
+        case kQuests: return 4;
+        default: return -1;
+    }
+}
+[[nodiscard]] inline bool binds_action(int id) { return id == kInteract || id == kShowItems || panel_index(id) >= 0; }
 // `full` is the wheel's highlighted name. The tray uses the short one.
 [[nodiscard]] inline std::string_view action_label(int id, bool full) {
     if (id == kEmpty) return "Clear";
     if (id == kInteract) return full ? "Interact" : "Use";
     if (id == kShowItems) return full ? "Show Items" : "Items";
+    if (id == kInventory) return full ? "Inventory" : "Inv";
+    if (id == kCharacter) return full ? "Character" : "Char";
+    if (id == kSkillTree) return full ? "Skill Tree" : "Skills";
+    if (id == kAutomap) return "Map";
+    if (id == kQuests) return "Quests";
     return {};
 }
 
