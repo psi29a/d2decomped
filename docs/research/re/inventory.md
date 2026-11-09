@@ -121,3 +121,29 @@ there (0xff in both arrays when not in the table), `FUN_0063d930`'s bow
 fix-up (a crossbow's other hand to component 6, `lit ` for a bow's
 quiver on 5), and the tint from `FUN_0062c100` + 1, 0xff when there is
 none.
+
+## InvMode.cpp and the socket move (`tools/emu/inventory_mode.py`)
+
+Per-unit event dispatch, run on fake units with the handlers hooked and their
+calls (stack and register arguments) compared:
+
+- `FUN_005973f0` (EBX game, ESI unit, EDI player): chooses a handler from the
+  unit's flags (`+0xc8` bits 2 and 4 first, then `FUN_00628140` masks in the
+  order of the decompile, then `FUN_006280a0` for 0x100, 0x200 and 1).
+  Every handler is called with ECX = EBX and EDX = EDI.
+- `FUN_00597890` (ECX game, EDX unit, stack EBX value, alternate inventory):
+  walks the changed list (`FUN_0063cbb0`), looks each id up
+  (`FUN_00552f60`) and dispatches; a unit with bit 0 set (sockets) dispatches
+  once per child that still finds a unit, with ESI still the outer unit
+  ([bugs.md](bugs.md) 63). Ends with `FUN_0063ee90(unit)`, then
+  `FUN_0055df00(0, 1)` and `FUN_0055f4f0(1)`.
+- `FUN_005979b0` (EDX unit): clears bits 0x14 of `+0xc8`, then runs the
+  global list at `0x738c70` (count `0x738cc4`) through `FUN_00628170` and the
+  one at `0x738c4c` (count `0x738c6c`) through `FUN_006280d0`.
+- `FUN_00597a20`, `FUN_00597b00`: as in the rows above. `FUN_00557fd0` takes
+  its arguments in ECX and EDX only.
+- `FUN_0063b210` (inventory, item, a third stack argument it ignores): with no
+  owner returns 1; null or non-item item 0; an owner that is not an item 1;
+  else the item leaves its inventory (`FUN_0063aaf0`), joins this one's list
+  (`FUN_0063af20`), gets item data `+0x68` = 0 and `+0x69` = 1 and the count
+  `+0x28` goes up by one.

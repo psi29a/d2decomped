@@ -48,8 +48,8 @@ HELPERS = {
 class World:
     """An emulator with an arena, the memoised helpers and a call log."""
 
-    def __init__(self):
-        self.e = e = emu.Emu()
+    def __init__(self, real=()):
+        self.e = e = emu.Emu(real=real)
         self.arena = Arena(e)
         self.memo = {}
         self.log = []
