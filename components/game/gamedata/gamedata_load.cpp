@@ -803,6 +803,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.shift = shift.empty() ? -1 : std::atoi(std::string(shift).c_str());
             state.pri = std::atoi(std::string(states_table.get(row, "colorpri")).c_str());
             state.group = std::atoi(std::string(states_table.get(row, "group")).c_str());
+            state.curse = states_table.get(row, "curse") == "1";
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());

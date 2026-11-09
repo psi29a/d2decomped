@@ -227,8 +227,8 @@ def setup(rng, ai):
         s["stat"][("foe", 0x29)] = rng.choice((0, rng.randint(0, 100), rng.randint(-50, 300)))
     # Act 5's: three clear lines to the target (FUN_005dc640), Skill1's reach
     # (FUN_004e6c70), the siege beast's rider (FUN_00552fd0), it lies dead
-    # (FUN_0063ea40), its state 0x69 test (FUN_006259b0), an imp to take on
-    # (FUN_005dd0b0 with FUN_005e1720); the target in state 0x20 (FUN_00625760),
+    # (FUN_0063ea40), its alignment test (FUN_006259b0), an imp to take on
+    # (FUN_005dd0b0 with FUN_005e1720); the target cursed (FUN_00625760 0x20),
     # its FUN_00625d10 / FUN_00625d60, the units' own lives (FUN_00621f20);
     # its command's last frame (+0x14).
     # The arrow traps' level kind (FUN_005fb650: 0 / 2 the spike, 1 the poison

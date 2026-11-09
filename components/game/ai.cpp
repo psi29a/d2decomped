@@ -1442,11 +1442,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // Act 5's (monster-ai.md "Act 5's MonAIs"): a line to the target clear
     // of 0x805 (FUN_005dc640: rules::pet_line_clear, any of three), Skill1's Param1 (its reach), the dead
     // test (mode DT / DD), its own life %, the target a player, the command's
-    // unit (the Minion's: in reach by melee); the target's max life and
-    // mana (FUN_00625d10 / FUN_00625d60: Baal's act 8, the Succubi's Skill3).
-    // ponytail: the siege beast's rider, state 0x69 and imps to take on, the
-    // target's state 0x20 aren't kept (no rider, state off); a command's last
-    // frame is the frame after.
+    // unit (the Minion's: in reach by melee, its command's last frame: only
+    // Cry Help sends a minion one); the target's max life and mana
+    // (FUN_00625d10 / FUN_00625d60: Baal's act 8, the Succubi's Skill3) and
+    // a curse on it (FUN_00625760 0x20: a States.txt curse state, shrines'
+    // too); the siege beast's own alignment (FUN_006259b0: not 0 under
+    // Confuse / Attract / Conversion, Monster::align).
     {
         input.lines_clear = d2d::rules::pet_line_clear(x, y, type_info.size, target_x, target_y, wall805);
         if (const auto* own = game_data.skills.get(skill_id(game_data, type_info.skill[0]))) input.skill1_range = own->par[0];
@@ -1455,7 +1456,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         input.target_life_pct = target->life_pct;
         input.target_max_life = target->max_life; input.target_max_mana = target->max_mana;
         if (type_info.ai_name == "Succubus" || type_info.ai_name == "SuccubusWitch") input.target_player = !target->pet && !target->of;
-        input.command_until = input.frame + 1;
+        input.target_cursed = std::ranges::any_of(target->states, [&](std::string_view state) {
+            const auto found = game_data.states.find(std::string(state));
+            return found != game_data.states.end() && found->second.curse;
+        });
+        input.state69 = type_info.ai_name == "SiegeBeast" && monster.align != 0;
         if (cried_at) {
             input.command_unit = std::ranges::any_of(foes, [&](const Foe& sent) { return sent.id == monster.command_foe && sent.alive; });
             input.command_until = monster.command_until;
@@ -1546,8 +1551,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         if (name == "BaalCrabClone" || name == "BaalTentacle") input.rider = std::ranges::any_of(pack, [&](const Monster& other) { return other.alive() && game_data.monsters.types[std::size_t(other.type)].ai_name == "BaalCrab"; });
         // The Imp reads imp1..imp4's aips (MonStats 0x1ec..0x1ef). Its ride
         // word (+0x14) names the siege beast or tower that took it (FUN_005e17e0):
-        // found (FUN_00552f60), dead (FUN_005541b0), ridden (FUN_00552fd0), its spot.
-        // Riding, its mount found and dead.
+        // found (FUN_00552f60), dead (FUN_005541b0), ridden (FUN_00552fd0), its
+        // alignment (FUN_006259b0), its spot; its own alignment first. Riding,
+        // its mount found, dead or its alignment (FUN_005e2d80: one branch).
         if (name == "Imp") {
             if (monster.ai_state == 0 && monster.special != 16) monster.ai_state = -1;   // its init, FUN_005e2fd0 (rules::ai_toggle)
             for (std::size_t k = 0; k < 4; ++k)
@@ -1559,12 +1565,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (mount >= 0) {
                 const auto& ride = pack[std::size_t(mount)];
                 input.command_unit = true;
-                input.command_busy = !ride.alive();
+                input.command_busy = !ride.alive() || ride.align != 0;
                 input.rider = monster.special == 16 || ride.bound >= 0;
                 kin = mount;
                 input.kin_x = subtile(ride.unit.x); input.kin_y = subtile(ride.unit.y);
             }
             input.riding = monster.riding;
+            input.state69 = monster.special != 16 && monster.align != 0;
         }
         // The siege beast's and the barricade tower's rider (FUN_00552fd0) and
         // whether it's dead (FUN_005541b0); the first imp to take on in mode
