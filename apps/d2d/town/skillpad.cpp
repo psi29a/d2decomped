@@ -3,8 +3,10 @@
 // per-character .padskills file. The default pad path stays in input.cpp.
 #include "town.hpp"
 
+#include "common.hpp"
 #include "gamepad_map.hpp"
 #include "skillpad.hpp"
+#include "skilltree.hpp"
 
 #include <level_ids.hpp>
 #include <log.hpp>
@@ -65,16 +67,16 @@ auto Town::save_skill_sheet(const std::string& name) const -> void {
 }
 
 auto Town::rebuild_wheel() -> void {
-    wheel_ids.assign(skillpad::kActions.begin(), skillpad::kActions.end());
-    if (!scene) return;
-    for (const auto& row : skillbar.rows(false))
-        for (const auto& pick : row)
-            if (pick.item < 0 && pick.skill >= 0) wheel_ids.push_back(pick.skill);
+    wheel_ids.clear();
+    if (wheel_actions) wheel_ids.assign(skillpad::kActions.begin(), skillpad::kActions.end());
+    else if (scene)
+        for (const auto& info : scene->skills.rows)
+            if (skill_known(focused().character.name, info.id)) wheel_ids.push_back(info.id);
     if (wheel_at < 0 || wheel_at >= int(wheel_ids.size())) wheel_at = 0;
 }
 
 auto Town::present_skill_pad() -> void {
-    skillbar.mode_on = pad_config.skill_buttons && !game_menu.open && !controls.open;
+    skillbar.mode_on = pad_config.skill_buttons && !game_menu.open && !controls.open && (!touch_enabled || skillbar.picking == 3 || skill_strip >= 0);
     skillbar.wheel_on = false;
     skillbar.strip_on = false;
     skillbar.legend_on = false;
@@ -117,7 +119,14 @@ auto Town::present_skill_pad() -> void {
     skillbar.wheel_on = skillbar.picking == 3;
     skillbar.wheel_close = label_of(pad::Action::SkillPicker);
     skillbar.wheel_prompt.clear();
-    if (skillbar.wheel_on) skillbar.wheel_prompt = "Hit " + skillbar.wheel_close + " to close";
+    if (skillbar.wheel_on) {
+        skillbar.wheel_prompt = std::string(wheel_actions ? "Actions" : "Skills") + "  " +
+            std::to_string(wheel_page / skillpad::kWheelShown + 1) + "/" +
+            std::to_string(std::max(1, (int(wheel_ids.size()) + skillpad::kWheelShown - 1) / skillpad::kWheelShown)) +
+            " . D-pad L/R: tab . U/D: browse";
+        skillbar.wheel_controls = "Press a destination to assign . " + skillbar.wheel_close + " / Start: Done";
+        skillbar.assignment_feedback = assignment_feedback;
+    }
     skillbar.strip_on = skill_strip >= 0;
     skillbar.strip_at = skill_strip;
     skillbar.strip_rows.assign(skillpad::kPanels.begin(), skillpad::kPanels.end());
@@ -125,17 +134,74 @@ auto Town::present_skill_pad() -> void {
                           + std::string(pad::label(pad_family, pad::Button::East)) + ": back";
     skillbar.legend_on = pad_playing && (pad_field() || skillbar.picking == 3);
     if (!scene || !pad_field()) return;
-    const auto pick = pad_pick(pad, focused().player, true, {}, false);
-    if (pick.kind == PadPick::kNone) return;
-    const bool portal = pick.kind == PadPick::kThing && pick.id <= -2000 && pick.id > -3000;
-    const bool corpse = pick.kind == PadPick::kThing && pick.id <= -3000 && pick.id > -4000;
-    const bool object = pick.kind == PadPick::kThing && pick.id >= 0 && level && std::size_t(pick.id) < level->npcs.size() && level->npcs[std::size_t(pick.id)].root == "objects";
-    const std::string_view verb = pick.kind == PadPick::kItem || corpse ? "Pick up" : object || portal ? "Use" : "Talk";
-    skillbar.mode_hint = label_of(pad::Action::Interact) + "  " + std::string(verb);
+    contextual_pick = pad_pick(pad, focused().player, true);
+    bool attack_bound = false;
+    for (int index = 0; index < skillpad::kSlots; ++index)
+        if (sheet.slot(alternate, index) == 0) {
+            skillbar.mode_hint = skillbar.mode_labels[std::size_t(index)] + " . " + pick_label(contextual_pick);
+            attack_bound = true;
+            break;
+        }
+    if (!attack_bound && sheet.trigger(alternate) == 0)
+        skillbar.mode_hint = skillbar.mode_main_label + " . " + pick_label(contextual_pick);
+    if (skillbar.mode_hint.empty())
+        skillbar.mode_hint = label_of(pad::Action::Interact) + " . " + pick_label(pad_pick(pad, focused().player, true, {}, false));
 }
 
-auto Town::drive_skill_ui(const pad::Actions& actions) -> bool {
+auto Town::pick_label(const PadPick& pick) const -> std::string {
+    if (pick.kind == PadPick::kMonster) {
+        const auto found = std::ranges::find(view.monsters, pick.id, &Monster::id);
+        if (scene && found != view.monsters.end() && found->type >= 0 && std::size_t(found->type) < scene->monsters.types.size()) {
+            const auto& key = scene->monsters.types[std::size_t(found->type)].name_key;
+            const auto text = lookup_string(*scene, key);
+            return "Attack " + (text ? u16_to_latin1(*text) : key);
+        }
+        return "Attack";
+    }
+    if (pick.kind == PadPick::kItem) {
+        const auto found = std::ranges::find(view.ground, pick.id, &Loot::GroundItem::id);
+        return "Pick up " + (found != view.ground.end() ? found->label : std::string("item"));
+    }
+    if (pick.kind == PadPick::kThing) {
+        if (pick.id <= -3000) return "Pick up corpse";
+        if (pick.id < 0) return "Use portal";
+        if (level && std::size_t(pick.id) < level->npcs.size()) {
+            const auto& npc = level->npcs[std::size_t(pick.id)];
+            return std::string(npc.root == "objects" ? "Use " : "Talk to ") + npc.name;
+        }
+    }
+    return "Attack / Use";
+}
+
+auto Town::open_assignment(int skill) -> void {
+    assignment_from_tree = tree_open;
+    tree_open = false;
+    wheel_actions = skill < 0;
+    rebuild_wheel();
+    const auto found = std::ranges::find(wheel_ids, skill);
+    wheel_at = found == wheel_ids.end() ? 0 : int(found - wheel_ids.begin());
+    wheel_page = wheel_at / skillpad::kWheelShown * skillpad::kWheelShown;
+    skillbar.picking = 3;
+    assignment_feedback.clear();
+}
+
+auto Town::close_assignment() -> void {
+    skillbar.picking = 0;
+    if (assignment_from_tree) tree_open = true;
+    assignment_from_tree = false;
+}
+
+auto Town::drive_skill_ui(const pad::Actions& actions, int mouse_x, int mouse_y) -> bool {
     if (!pad_config.skill_buttons) return false;
+    if (actions.assign_skill && tree_open && scene) {
+        const int cls = std::max(character.character_class, 0);
+        const int index = skill_at(*scene, cls, tree_tab, mouse_x, mouse_y);
+        const auto& ids = scene->skills.class_ids[std::size_t(cls)];
+        if (index >= 0 && std::size_t(index) < ids.size() && skill_known(character.name, ids[std::size_t(index)])) {
+            open_assignment(ids[std::size_t(index)]);
+            return true;
+        }
+    }
     const bool start = actions.panel_strip || (skill_strip >= 0 && actions.cancel);
     if (skillpad::start_respawns(start, view.dead, view.ghost, view.all_dead)) {
         skillbar.picking = 0;
@@ -150,15 +216,15 @@ auto Town::drive_skill_ui(const pad::Actions& actions) -> bool {
 }
 
 auto Town::drive_wheel(const pad::Actions& actions) -> void {
+    if (actions.wheel_tab != 0) { wheel_actions = !wheel_actions; wheel_at = wheel_page = 0; }
     rebuild_wheel();
     const int count = int(wheel_ids.size());
     if (count <= 0) { skillbar.picking = 0; return; }
-    if (actions.panel_strip) { skillbar.picking = 0; skill_strip = 0; return; }
-    if (actions.skill_picker) { skillbar.picking = 0; return; }
+    if (actions.cancel || actions.skill_picker) { close_assignment(); return; }
     if (actions.wheel_step != 0) wheel_at = (wheel_at + (actions.wheel_step > 0 ? 1 : count - 1)) % count;
-    wheel_page = skillpad::wheel_page(count, wheel_at, skillpad::kWheelShown, wheel_page).start;
+    wheel_page = wheel_at / skillpad::kWheelShown * skillpad::kWheelShown;
     if (actions.wheel_step == 0 && actions.aim_active) {
-        const auto page = skillpad::wheel_page(count, wheel_at, skillpad::kWheelShown, wheel_page);
+        const skillpad::WheelPage page{ wheel_page, std::min(skillpad::kWheelShown, count - wheel_page) };
         const int picked = skillpad::wedge(actions.aim_x, actions.aim_y, page.shown, 0.f);
         if (picked >= 0) wheel_at = page.start + picked;
     }
@@ -168,14 +234,24 @@ auto Town::drive_wheel(const pad::Actions& actions) -> void {
     bool changed = false;
     if (actions.skill_slot >= 0 && actions.skill_slot < skillpad::kSlots) {
         sheet.set_slot(actions.modifier_held, actions.skill_slot, chosen);
+        static constexpr std::array<pad::Action, 6> kDestinations = {
+            pad::Action::SkillSouth, pad::Action::SkillEast, pad::Action::SkillWest,
+            pad::Action::SkillNorth, pad::Action::SkillLeft, pad::Action::SkillRight };
+        const auto& buttons = pad_config.bindings[kDestinations[std::size_t(actions.skill_slot)]];
+        const auto button = buttons[0] != pad::Bindings::kNone ? buttons[0] : buttons[1];
+        assignment_feedback = std::string(pad::label(pad_family, button));
         changed = true;
     }
     if (actions.main_skill) {
         if (actions.modifier_held) sheet.alt_main = chosen;
         else sheet.main = chosen;
+        const auto& buttons = pad_config.bindings[pad::Action::MainSkill];
+        assignment_feedback = std::string(pad::label(pad_family, buttons[0] != pad::Bindings::kNone ? buttons[0] : buttons[1]));
         changed = true;
     }
     if (!changed) return;
+    const auto* assigned = chosen >= 0 && scene ? scene->skills.get(chosen) : nullptr;
+    assignment_feedback += " . " + (assigned ? assigned->name : std::string(skillpad::action_label(chosen, true)));
     if (sheet.main == skillpad::kUnset) sheet.main = int(who.header.right_skill);
     save_skill_sheet(who.name);
 }
@@ -237,10 +313,16 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
         if (!info || info->passive) return;
         // A hold in town would repeat the "not in town" line every tick.
         if (!press && level && d2d::rules::level_ids::is_town(level->id)) return;
+        if (skill != 0) {
+            const auto target = resolve_skill(player_pad, skill, 0, 0, false, &unit, name);
+            if (target.valid) out(cmd::UseSkill{ skill, target.x, target.y, target.unit, target.left, -1 });
+            return;
+        }
         const bool swing = skillpad::swings({ info->leftskill, !info->srvmissile.empty(), info->range });
         // Attack is also Use, as the left mouse button (FUN_004625b0).
         // A fresh press may interact; its held frames must leave that use queued.
-        const PadPick pick = pad_pick(player_pad, unit, skill == 0 && press, pad_aim(skill, move.aim || move.active));
+        const PadPick pick = skill == 0 && press && &player_pad == &pad ? contextual_pick
+            : pad_pick(player_pad, unit, skill == 0 && press, pad_aim(skill, move.aim || move.active));
         if (pick.kind == PadPick::kMonster) {
             player_pad.target = pick.id;
             out(cmd::UseSkill{ skill, pick.x, pick.y, pick.id, swing, -1 });
@@ -269,6 +351,13 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
                 out(cmd::SelectSkill{ choice.next, false });
                 return;
             }
+        }
+        // Aura selection is press-only: a hold must never fall into targeting.
+        const auto* info = scene ? scene->skills.get(skill) : nullptr;
+        if (info && info->aura) return;
+        if (info && self_cast(*info)) {
+            if (press) out(cmd::UseSkill{ skill, unit.x, unit.y, -1, false, -1 });
+            return;
         }
         fire(skill, press, button_down, used);
     };

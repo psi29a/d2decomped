@@ -143,6 +143,8 @@ struct Bindings {
 [[nodiscard]] inline unsigned where_of(std::size_t action, bool skill_buttons) {
     unsigned mask = kWhere[action];
     if (!skill_buttons) return mask;
+    if (Action(action) == Action::Back) mask |= where::kPanel;
+    if (Action(action) == Action::Secondary) mask &= ~where::kPanel; // B cancels; Interact uses items
     if (Action(action) == Action::Interact) mask |= where::kPanel | where::kShop;
     switch (Action(action)) {
         case Action::Recentre:
@@ -309,6 +311,8 @@ struct Actions {
     bool  panel_strip = false;                     // Start opens the panel list
     bool  skill_busy = false;                      // a skill button, the modifier or the strip is down
     int   skill_slot = -1;                         // 0..5 just pressed, or -1
+    bool  assign_skill = false;
+    int   wheel_tab = 0;
     int   wheel_step = 0;                          // the wheel's d-pad, -1 or 1
     int   strip_step = 0;                          // the panel list's d-pad, -1 or 1
     bool  confirm = false, cancel = false;        // the panel list: South, and East or Start
@@ -485,6 +489,7 @@ public:
             key(Action::Belt2, Key::Belt2);
             key(Action::Belt3, Key::Belt3);
             key(Action::Belt4, Key::Belt4);
+            out.assign_skill = skills && context == Context::Panel && pressed(Button::North);
             out.trade_press = hit(Action::Trade);
             out.drop_press = hit(Action::DropItem);
             out.tab_step = int(hit(Action::TabNext)) - int(hit(Action::TabPrev));
@@ -516,7 +521,8 @@ public:
             out.aim_x = face_x; out.aim_y = face_y;
             out.cursor_dx = 0;
             out.cursor_dy = 0;
-            out.wheel_step = int(dpad_on[3] || dpad_on[1]) - int(dpad_on[2] || dpad_on[0]);
+            out.wheel_step = int(dpad_on[1]) - int(dpad_on[0]);
+            out.wheel_tab = int(dpad_on[3]) - int(dpad_on[2]);
             out.click_down = false;
             out.click_press = false;
             out.click_release = false;
@@ -526,7 +532,7 @@ public:
             out.snap_y = 0;
             out.trade_press = false;
             out.tab_step = 0;
-            if (pressed(Button::Start)) out.panel_strip = true;
+            if (pressed(Button::Start)) out.cancel = true;
         } else if (skill_ui == SkillUi::Strip) {
             // South confirms and East or Start cancels, whatever screen
             // context the caller passed. The d-pad step does not depend on
@@ -552,6 +558,11 @@ public:
             const bool field = context == Context::Game && skill_ui == SkillUi::None;
             const bool watching = field || wheel;
             const bool down_trigger = left_trigger_;
+            // A chord counts even when LT was pressed after the skill, or
+            // released in the same frame as the skill's press.
+            if (watching && (down_trigger || swap_down_) &&
+                (out.main_skill_down || out.main_skill || out.skill_slot >= 0 ||
+                 std::ranges::any_of(out.slot_down, [](bool held_slot) { return held_slot; }))) swap_cast_ = true;
             if (watching && down_trigger) {
                 swap_hold_ += std::max(seconds, 0.f);
                 if (out.skill_slot >= 0 || out.main_skill) swap_cast_ = true;
@@ -562,6 +573,16 @@ public:
             swap_down_ = watching && down_trigger;
             out.skill_busy = out.modifier_held || out.main_skill_down || out.skill_slot >= 0 || out.interact_press || out.panel_strip || out.swap_tap
                              || std::ranges::any_of(out.slot_down, [](bool held_slot) { return held_slot; });
+        }
+        if (skills && skill_ui != SkillUi::None) skill_handoff_ = true;
+        else if (skills && skill_handoff_) {
+            // Leaving an editor consumes every destination until all buttons
+            // are up. In particular, Done must never cast on the next screen.
+            if (!std::ranges::any_of(held, [](bool pressed_button) { return pressed_button; })) skill_handoff_ = false;
+            out.skill_slot = -1; out.slot_down.fill(false);
+            out.main_skill = out.main_skill_down = out.interact_press = out.swap_tap = false;
+            out.keys.clear();
+            swap_hold_ = 0; swap_cast_ = true;
         }
         prev_ = held;
         return out;
@@ -586,6 +607,7 @@ private:
     std::array<float, 4> dpad_hold_{};             // up, down, left, right, while a menu d-pad is repeating
     float swap_hold_ = 0.f;                        // how long the left trigger has been down
     bool swap_cast_ = false;                       // a skill fired during that press
+    bool skill_handoff_ = false;
     bool swap_down_ = false;                       // the trigger was down last frame, in the field or the wheel
 };
 

@@ -12,6 +12,7 @@
 #include "party.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
+#include "skillpad.hpp"
 #include "ui.hpp"
 
 #include <cues.hpp>
@@ -60,6 +61,10 @@ auto Town::load_keys() -> void {
         }
         update_hotkey_names();
         load_skill_sheet(character.name);
+        load_touch_sheet(character.name);
+        touch_input.clear(); touch_input.alternate = false; touch_player = {};
+        touch_item_finger = -1; touch_item = touch_stock = -1; touch_item_hint.clear();
+        touch_selected = skillpad::kEmpty; touch_assign = skillpad::kUnset;
     }
 
 // <name>.key, and with `shared` the save folder's default.key (Accept,

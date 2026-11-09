@@ -68,7 +68,7 @@ struct Sheet {
     int main = kUnset;                              // RT, not part of either set
     int alt_main = kUnset;                          // LT+RT. Unset: use main (an older file). Empty is a saved clear.
     std::array<int, kSlots * 2> slots{};            // set 0, then set 1
-    Sheet() { slots.fill(kEmpty); }
+    Sheet() { slots.fill(kEmpty); slots[0] = slots[kSlots] = 0; }
     [[nodiscard]] int slot(bool alternate, int index) const { return slots[std::size_t(index + (alternate ? kSlots : 0))]; }
     void set_slot(bool alternate, int index, int skill) { slots[std::size_t(index + (alternate ? kSlots : 0))] = skill; }
     // The skill id on RT, or on LT+RT when `alternate`. An unset alternate is main.
@@ -195,6 +195,7 @@ inline constexpr std::array<std::string_view, 9> kPanels = {
 
 [[nodiscard]] inline Sheet read(std::string_view text) {
     Sheet sheet;
+    sheet.slots.fill(kEmpty);  // existing files keep missing and deliberately empty slots empty
     while (!text.empty()) {
         const auto split = text.find('\n');
         const auto line = text.substr(0, split);

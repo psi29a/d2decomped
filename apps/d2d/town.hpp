@@ -14,6 +14,7 @@
 #include "help.hpp"
 #include "hireling.hpp"
 #include "hold_confirm.hpp"
+#include "item_use.hpp"
 #include "netgame.hpp"
 #include "pad_hold.hpp"
 #include "panels.hpp"
@@ -25,6 +26,7 @@
 #include "skillpad.hpp"
 #include "store.hpp"
 #include "tile_blit.hpp"
+#include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
 #include "world_view.hpp"
@@ -293,6 +295,7 @@ struct Town {
     // panel or menu is up), the commands out through `out`.
     void pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, const Send& out);
     struct PadPick { enum Kind { kNone, kMonster, kItem, kThing } kind = kNone; int id = -1; float x = 0, y = 0; };
+    PadPick contextual_pick;
     [[nodiscard]] PadPick pad_pick(const PadPlayer& player_pad, const UnitState& unit, bool uses, const pad::Aim& aim = {}, bool monsters = true) const;
     // The pad's reach for `skill`: a ranged one's (it fires a missile, srvmissile, or its Skills.txt
     // range is "range") locks on across the screen, the nearest any way round unless the stick
@@ -433,6 +436,7 @@ struct Town {
     void pad_trade(int mouse_x, int mouse_y);
     void pad_drop(int mouse_x, int mouse_y);
     void drive_pad_hold(Mouse& mouse, float seconds);
+    [[nodiscard]] ItemUse item_use(const d2d::d2s::Item& item) const;
     // The pad's Secondary (B) is Back with the gold box up, or where the stash
     // or Cube is up (no key toggles them) and the cursor's on no item: true when it's taken.
     [[nodiscard]] bool pad_back(int mouse_x, int mouse_y) const;
@@ -446,10 +450,36 @@ struct Town {
     void pad_open_picker();
     // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
     // an empty key_dir (--no-save) keeps it in memory only.
+    bool touch_enabled = false;
+    touch::Input touch_input;
+    PadPlayer touch_player;
+    std::map<std::string, skillpad::Sheet> touch_sheets;
+    std::array<touch::Target, 4> touch_previews{};
+    std::int64_t touch_item_finger = -1;
+    int touch_item = -1, touch_stock = -1;
+    std::uint32_t touch_item_start = 0;
+    float touch_item_x = 0, touch_item_y = 0;
+    int touch_panel_state = 0;
+    bool touch_sold = false;
+    std::string touch_item_hint;
+    int touch_selected = skillpad::kEmpty;
+    bool touch_attack_used = false;
+    PadPick touch_attack_pick;
+    int touch_assign = skillpad::kUnset;
+    std::string touch_feedback;
+    bool touch_event(std::int64_t finger, touch::Phase phase, float x, float y);
+    void drive_touch();
+    void draw_touch(std::vector<std::uint8_t>& framebuffer);
+    void load_touch_sheet(const std::string& name);
+    void save_touch_sheet(const std::string& name) const;
+    [[nodiscard]] touch::Target resolve_skill(PadPlayer& player_pad, int skill, float dx = 0, float dy = 0, bool manual = false, const UnitState* owner = nullptr, std::string_view owner_name = {}) const;
+    void cast_resolved(PadPlayer& player_pad, const touch::Target& target);
     pad::Actions skill_actions;
     std::map<std::string, skillpad::Sheet> skill_sheets;
     int skill_strip = -1;                         // the panel list's row, or -1 closed
     skillpad::MenuHandoff menu_handoff;           // the South press that closed the list is not the next screen's click
+    bool wheel_actions = false, assignment_from_tree = false, touch_assignment_from_tree = false;
+    std::string assignment_feedback;
     int wheel_at = 0;
     int wheel_page = 0;                           // first icon of the wheel's visible window
     std::vector<int> wheel_ids;
@@ -460,7 +490,10 @@ struct Town {
     void present_skill_pad();
     // The wheel and the panel list. True when this frame's clicks and keys
     // belong to that screen.
-    bool drive_skill_ui(const pad::Actions& actions);
+    bool drive_skill_ui(const pad::Actions& actions, int mouse_x = -1, int mouse_y = -1);
+    void open_assignment(int skill);
+    void close_assignment();
+    [[nodiscard]] std::string pick_label(const PadPick& pick) const;
     void apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, std::string_view name, int right_skill,
                          bool expansion, const pad::Actions& actions, const Send& out);
     [[nodiscard]] bool skill_known(std::string_view name, int skill) const;

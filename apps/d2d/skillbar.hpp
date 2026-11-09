@@ -241,7 +241,7 @@ struct SkillBar {
     int mode_main = -1, mode_aura = 0, wheel_at = 0, wheel_page = 0, strip_at = 0;
     std::array<int, 6> mode_slots{};
     std::array<std::string, 6> mode_labels{};
-    std::string mode_main_label, mode_set, mode_hint, wheel_close, wheel_prompt, strip_prompt;
+    std::string mode_main_label, mode_set, mode_hint, wheel_close, wheel_prompt, wheel_controls, assignment_feedback, strip_prompt;
     std::vector<int> wheel_ids;
     std::vector<std::string> strip_rows;
 
@@ -341,6 +341,10 @@ struct SkillBar {
                 }
                 if (!mode_set.empty())
                     caption(mode_set, kTrayLeft - small.measure(mode_set) - 8, kTrayBottom - kIcon / 2 + small.line_height() / 2);
+                if (!wheel_on && mode_aura > 0) {
+                    const auto* aura = scene->skills.get(mode_aura);
+                    if (aura) caption("Aura: " + aura->name, 165, kTrayBottom + 32);
+                }
                 if (!wheel_on && !mode_hint.empty())
                     caption(mode_hint, (int(kScreenWidth) - small.measure(mode_hint)) / 2, kTrayBottom - kIcon - 6);
             }
@@ -353,7 +357,7 @@ struct SkillBar {
             if (wheel_on && !wheel_ids.empty()) {
                 const int count = int(wheel_ids.size());
                 const int highlight = std::clamp(wheel_at, 0, count - 1);
-                const auto page = skillpad::wheel_page(count, highlight, skillpad::kWheelShown, wheel_page);
+                const skillpad::WheelPage page{ wheel_page, std::min(skillpad::kWheelShown, count - wheel_page) };
                 for (int slot = 0; slot < page.shown; ++slot) {
                     const int index = page.start + slot;
                     const float angle = skillpad::wedge_center(slot, page.shown);
@@ -372,9 +376,20 @@ struct SkillBar {
                         }
                     }
                 }
+                caption(mode_modifier ? "Bank II (" + mode_set + ")" : "Bank I", 16, 85);
+                const auto name_of = [&](int id) -> std::string {
+                    if (id >= 0) { const auto* info = scene->skills.get(id); return info ? info->name : "Unavailable"; }
+                    return id == skillpad::kEmpty ? "Empty" : std::string(skillpad::action_label(id, true));
+                };
+                for (int index = 0; index < 6; ++index)
+                    caption(mode_labels[std::size_t(index)] + " . " + name_of(mode_slots[std::size_t(index)]), 16, 110 + index * 24);
+                caption(mode_main_label + " . " + name_of(mode_main), 16, 254);
+                if (mode_aura > 0) caption("Aura: " + name_of(mode_aura), 16, 285);
                 const std::string line = wheel_prompt.empty() ? "Hit " + wheel_close + " to close" : wheel_prompt;
                 const int line_x = std::max(4, (int(kScreenWidth) - small.measure(line)) / 2);
                 caption(line, line_x, 330);
+                caption(wheel_controls, std::max(4, (int(kScreenWidth) - small.measure(wheel_controls)) / 2), 350);
+                caption(assignment_feedback, std::max(4, (int(kScreenWidth) - small.measure(assignment_feedback)) / 2), 375);
             }
         }
         if (picking == 3) return;

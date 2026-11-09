@@ -56,7 +56,7 @@ int main() try {
     assert(held_set.set_for(1, true, true, true) == 1);
 
     Sheet sheet;
-    assert(sheet.main == kUnset && sheet.slot(false, 0) == kEmpty && sheet.slot(true, 5) == kEmpty);
+    assert(sheet.main == kUnset && sheet.slot(false, 0) == 0 && sheet.slot(true, 5) == kEmpty);
     sheet.set_slot(false, 0, 54);
     sheet.set_slot(false, 0, 54);
     assert(sheet.slot(false, 0) == 54);
