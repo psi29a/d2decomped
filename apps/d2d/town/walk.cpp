@@ -3,6 +3,7 @@
 #include "town.hpp"
 
 #include "audio.hpp"
+#include "automap_reveal.hpp"
 #include "common.hpp"
 #include "controls.hpp"
 #include "ingame.hpp"
@@ -15,6 +16,7 @@
 #include "unit_slide.hpp"
 #include "world_view.hpp"
 
+#include <automap_step.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
@@ -56,6 +58,7 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
             if (net_game->take_reassign() && level) {
                 net_moving_until = 0;
                 rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));
+                d2d::rules::automap_pause(automap_reveal.step);     // FUN_004654c0 -> FUN_00459140
                 const float to_x = (net_game->self_x + 0.5f) / 5.f - float(level->world_x), to_y = (net_game->self_y + 0.5f) / 5.f - float(level->world_y);
                 const auto inside = [](const Level& where, float cell_x, float cell_y) {
                     return cell_x >= 0 && cell_y >= 0 && cell_x < float(where.ds1.width()) && cell_y < float(where.ds1.height());
@@ -443,11 +446,16 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             shake = {}; quest_quakes.clear(); audio.stop_quake();
             level_ms = frame_ms;                                  // its song comes in 3 s later
             rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));   // the host's 0x15 for the warp
+            d2d::rules::automap_pause(automap_reveal.step);
             return;
         }
         if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) { quest_quakes.push_back({ quake->kind, frame_ms }); return; }
         if (std::holds_alternative<ev::Lightning>(event)) { rain.set_off(); return; }
-        if (std::holds_alternative<ev::Reassigned>(event)) { rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id)); return; }
+        if (std::holds_alternative<ev::Reassigned>(event)) {
+            rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));
+            d2d::rules::automap_pause(automap_reveal.step);
+            return;
+        }
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.play_sfx(*scene, music->sound, float(audio.music_volume) / 100.f, 0); return; }
         if (std::holds_alternative<ev::TradeRefused>(event)) return;   // walk() opens its box, at the mouse

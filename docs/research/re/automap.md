@@ -82,7 +82,14 @@ So the map only ever gets tiles that have been on screen. Callers:
   (`FUN_0061e470` +8) is the player's room's, `all` = 0, in the list's
   order. Tiles drawn in between keep the flag, so they come in at the
   next one. While `0x7a51a4` is set it counts down instead and nothing
-  comes in: `FUN_00459140` sets it to 2, from `FUN_004654c0` (not traced).
+  comes in, the last spot kept: `FUN_00459140` sets it to 2, its one
+  caller `FUN_004654c0` (at 0x465692), the unit's hard teleport, once the
+  unit is placed. That runs for any unit (a player not in mode 0 / 0x11,
+  a monster not in 0 / 0xc) from S->C 0x15's reassign (`FUN_0045d160`),
+  `FUN_00460f10` and `FUN_004c8b80`. So the two client game frames after
+  a teleport (warps, waypoints and portals come as 0x15, net-packets.md)
+  take nothing in, and the third measures from where the last reveal
+  was.
 - `FUN_00459150`, the DRLG room callback (act `+0x454`, set in
   `FUN_0044e100`): the whole room, `all` = 1. `FUN_00668100`, a preset
   level coming up: for levels 0x28, 0x67, 0x6d the miniature (below);
@@ -368,7 +375,12 @@ dropped, otherwise the cel decides.
   (`GameData::prest_automap`, LvlPrest AutoMap). Both are DrlgType 2 in
   Levels.txt; d2d grows the Docks with the jungle, so its rooms are the
   generated ones.
-- Not ported: the `0x7a51a4` count-down; a preset room lists every word
+- `automap_step` runs `rules::automap_frame` once per 40 ms game frame;
+  the player's own teleports (the host's reassign, `ev::LevelChanged`,
+  `ev::Reassigned`, each beside `rain.reassign`) call
+  `rules::automap_pause`.
+- Not ported: another unit's teleport pausing it (d2d's client hears only
+  its own player's); a preset room lists every word
   its walk takes (game.exe only those it finds a tile for); before 2026-11
   d2d revealed each frame what was drawn, with a tile hash for the cel.
 - Your own mark is drawn.

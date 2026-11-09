@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <set>
 #include <span>
 #include <tuple>
@@ -25,7 +26,9 @@ namespace d2d::client {
 // - `seed`: the cel picks' own seed (0x96c8c8 by 0x744504), {0, 0x29a} as
 //   AutoMap.txt loads (FUN_0061fcf0), stepped by each lookup that finds a
 //   record (FUN_0061fff0); nothing else draws on it, and nothing resets it.
-// - `step`: where the last reveal was (rules::automap_moved).
+// - `step`: where the last reveal was (rules::automap_moved), and the
+//   pause after a teleport (rules::automap_pause).
+// - `frame_ms`: when the next 40 ms client game frame is due.
 // - `drawn`: a tile's flag 0x20000, set by its own draw: {level, cell, slot}
 //   (slot: a pick's place in its cell, or a DS1 layer's: floors 16 + i,
 //   walls 32 + i).
@@ -39,11 +42,12 @@ namespace d2d::client {
 struct AutomapReveal {
     d2d::rules::Rng seed;
     d2d::rules::AutomapStep step;
+    std::optional<std::uint32_t> frame_ms;
     std::set<std::tuple<const Level*, std::uint32_t, int>> drawn;
     std::set<std::tuple<const Level*, int, int, std::size_t>> added;
     std::set<const Level*> whole;
     std::unordered_map<const Level*, std::vector<d2d::drlg::BuiltRoom>> presets;   // preset_rooms, made once a level
-    void new_game() { drawn.clear(); added.clear(); whole.clear(); presets.clear(); }
+    void new_game() { drawn.clear(); added.clear(); whole.clear(); presets.clear(); frame_ms.reset(); }
 };
 
 // Marks what render_world drew (`cells`, each its DrawnCell::source, or the
@@ -56,10 +60,12 @@ void automap_mark(AutomapReveal& reveal, const Level& level, std::span<const Dra
 // into list 0 / 1 with a cel from the seed (automap_cel).
 void automap_room(const Scene& scene, const GameData& game_data, const Level& level, int room, Automap& automap, AutomapReveal& reveal, bool all);
 
-// FUN_00459020, a frame's: with the player at (x, y) cells in `level`,
+// FUN_00459020, each 40 ms game frame due by `now_ms`
+// (rules::automap_frame): with the player at (x, y) cells in `level`,
 // once it has moved 80 client px, the rooms of automap_rooms on the
 // player's layer, each as automap_room.
-void automap_step(const Scene& scene, const GameData& game_data, const Level& level, float x, float y, Automap& automap, AutomapReveal& reveal);
+void automap_step(const Scene& scene, const GameData& game_data, const Level& level, float x, float y, std::uint32_t now_ms, Automap& automap,
+                  AutomapReveal& reveal);
 
 // Every room of the level whole, in the level's list order (newest
 // first), as with 0x7a51a0 set: devctl `debug automap`, automap_whole.
