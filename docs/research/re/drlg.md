@@ -1872,3 +1872,33 @@ FUN_00642630 and the allocator; the CRT memset and FUN_0066b980 run for real.
   (+0x2c count, +8 array) that does; else the level (the argument, or the act
   level whose id FUN_006427a0 gives, allocated through FUN_00642ae0),
   initialised with FUN_006424a0 when it has no rooms, then FUN_00642630.
+
+## Preset.cpp and RoomTile.cpp small helpers, run in the emulator
+
+`tools/emu/drlg_preset.py` (same harness; `--mutation-check` 3 ways). Several
+take the room in EAX, ESI or EDI. Hooked and logged, not claimed: FUN_00666520,
+FUN_0061f0b0, FUN_00643310, FUN_0067c570, the allocator and realloc.
+
+- FUN_00666610(room): with a preset block (+0x20), FUN_00666520 with EAX
+  room, ECX level, EDX act, EDI the act's pool. FUN_00666630 allocates the
+  0xf8-byte block from that pool (Preset.cpp line 0x70f) and zeroes it.
+  FUN_00666a80(room, out1, out2): preset type (+0x48) 2 gives the block's
+  +0xf0 / +0xf4, other types give 0 / 0. FUN_00666fd0 / FUN_00666fe0: +0x28 /
+  +0x2c of FUN_0061f0b0's record. FUN_00667010(room): `map[8] + 60 * index +
+  0x44` from the block's map (+8: index +4, table +8). FUN_00667030(room,
+  out1, out2): the map's first two words to whichever outputs are non-null.
+  FUN_006675d0(pool, map) frees the sub-block's +4 and the sub-block (lines
+  0x597, 0x598), then the map (0x56b).
+- FUN_0066e140(kind) returns 0x72 for kind 0xb, else 0x6c. FUN_0066e5e0
+  (ESI room, ECX pool, value) pushes a 12-byte node {value, 0, old head} on
+  the list the room's +0x54 points to (RoomTile.cpp line 0x37b). FUN_0066dc10
+  (ESI out, EDX room, x, y): out +8 = x - room.x, +0xc = y - room.y, then
+  FUN_00643310(&x, &y + 1) adjusts both and out +0 = x', +4 = y' + 0x28.
+  FUN_0066efb0(ECX pool, EDX tile array, n): for n > 0, reallocates +0x24 to
+  `(count + n) * 0x30` (line 0x561), links the first `+0x10 - 1` entries'
+  +0x20 to the next entry, ends the chain, and adds n to +0x28. FUN_0066f050
+  (EAX room, EDI pool) frees the tile grid's arrays at +0x14, +0x1c, +0x24
+  that are set (lines 0x592..0x594), leaving the pointers. FUN_0066f350 /
+  FUN_0066f380 (EAX room, EDX a, stack b): 0 unless the room record (+0x50)
+  has +0x18 / +0x14 set, else FUN_0067c570 on the grid at +0xf4 / +0xa4 with
+  the arguments swapped (grid, b, a).

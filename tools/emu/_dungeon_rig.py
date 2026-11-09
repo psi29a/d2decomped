@@ -116,6 +116,15 @@ class Model:
         self.regions.append((pointer, buf))
         return pointer
 
+    def realloc(self, pool, old, size, line, file):
+        """Log the arena realloc (0x40_b4b0: registers pool, old block; stack size, file, line, 0) and return the stock block."""
+        self.log.append(("realloc", pool & M32, old & M32, size & M32, file, line, 0))
+        pointer = self.out_of(len(self.log) - 1)
+        buf = bytearray(size)
+        self.blocks.append((pointer, buf))
+        self.regions.append((pointer, buf))
+        return pointer
+
     def free(self, pool, pointer, line, file=ALLOC_FILE):
         """Log the arena free (0x40_b480) (`file`: the __FILE__ string it was passed)."""
         self.log.append(("free", pool & M32, pointer & M32, file, line, 0))
