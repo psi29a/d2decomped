@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Verify 17 small DRLG helpers (Preset, DrlgRoom, DrlgLogic, Maze, packed-point tables) in stock game.exe 1.14d.
+"""Verify 16 small DRLG helpers (Preset, DrlgRoom, DrlgLogic, Maze, packed-point tables) in stock game.exe 1.14d.
 
     uv run python drlg_misc.py [--mutation-check]
 

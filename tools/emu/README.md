@@ -76,14 +76,14 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Dungeon.cpp field accessors and forwarding wrappers (52 functions, FUN_00619550 ... FUN_0061afa0; null asserts, callee arguments; `--mutation-check` 5 ways) | `uv run python dungeon_accessors.py` | `ok: 1248 Dungeon.cpp accessor and wrapper cases` |
 | Dungeon.cpp room1 geometry, searches, near-array build and creation (FUN_00619800 ... FUN_00619d00; `--mutation-check` 4 ways) | `uv run python dungeon_rooms.py` | `ok: 720 Dungeon.cpp room1 geometry, search and creation cases` |
 | Dungeon.cpp room1 node list, sorted set, teardown and bit table (FUN_0061a270 ... FUN_0061afd0; `--mutation-check` 4 ways) | `uv run python dungeon_lifecycle.py` | `ok: 312 Dungeon.cpp room1 node, set, teardown and bit-table cases` |
-| Small DRLG helpers (20 functions of Drlg.cpp, DrlgRoom.cpp, RoomTile.cpp, Preset.cpp, DrlgGrid.cpp; FUN_00642380 ... FUN_0067c570; `--mutation-check` 8 ways) | `uv run python drlg_small.py` | `ok: 1520 small DRLG helper cases` |
+| Small DRLG helpers (19 functions of Drlg.cpp, DrlgRoom.cpp, RoomTile.cpp, Preset.cpp, DrlgGrid.cpp; FUN_00642380 ... FUN_0067c570; `--mutation-check` 8 ways) | `uv run python drlg_small.py` | `ok: 1520 small DRLG helper cases` |
 | DrlgGrid.cpp grid helpers (18 functions, FUN_0067c430 ... FUN_0067ce00; `--mutation-check` 4 ways) | `uv run python drlg_grid.py` | `ok: 1440 DrlgGrid.cpp helper cases` |
-| DrlgRoom.cpp helpers (19 functions, FUN_0066b4f0 ... FUN_0066c0b0; `--mutation-check` 4 ways) | `uv run python drlg_room.py` | `ok: 1280 DrlgRoom.cpp helper cases` |
+| DrlgRoom.cpp helpers (16 functions, FUN_0066b4f0 ... FUN_0066c0b0; `--mutation-check` 4 ways) | `uv run python drlg_room.py` | `ok: 1280 DrlgRoom.cpp helper cases` |
 | Drlg.cpp act and level helpers (FUN_00642190, 006427a0 ... 00643020; `--mutation-check` 3 ways) | `uv run python drlg_act.py` | `ok: 720 Drlg.cpp act and level helper cases` |
 | Drlg.cpp level teardown and room-at-point search (FUN_00642010, FUN_00642c30; `--mutation-check` 3 ways) | `uv run python drlg_level.py` | `ok: 240 Drlg.cpp level teardown and room search cases` |
 | Preset.cpp and RoomTile.cpp small helpers (15 functions, FUN_00666610 ... FUN_0066f380; `--mutation-check` 3 ways) | `uv run python drlg_preset.py` | `ok: 1200 Preset.cpp and RoomTile.cpp helper cases` |
 | Outdoors.cpp, level-link and distance helpers (15 functions, FUN_00673fe0 ... FUN_00678d30; `--mutation-check` 3 ways) | `uv run python drlg_outdoor.py` | `ok: 1200 Outdoors.cpp and distance helper cases` |
-| Record, table and packed-point helpers (17 functions across Preset, DrlgRoom, DrlgLogic, Maze; `--mutation-check` 3 ways) | `uv run python drlg_misc.py` | `ok: 1600 small DRLG helper (records and tables) cases` |
+| Record, table and packed-point helpers (16 functions across Preset, DrlgRoom, DrlgLogic, Maze; `--mutation-check` 3 ways) | `uv run python drlg_misc.py` | `ok: 1600 small DRLG helper (records and tables) cases` |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
 | MissMode.cpp, the 44 functions (FUN_005ab630 ... FUN_005adcc0: hit, damage, srvdo and timer entry points; callees hooked and logged) | `uv run python missmode.py` | `ok: 43 MissMode.cpp function groups (44 functions) against stock game.exe` |
 | Waypoint refusal window (C->S 0x49: refused or travels) | `uv run python wp_refuse.py gen 100000 7 --solo > cases.txt; uv run python wp_refuse.py game cases.txt > g.txt; ../../build/tests/test_game --waypoint-refuse cases.txt \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |

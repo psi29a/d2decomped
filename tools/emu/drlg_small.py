@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Verify 20 small DRLG helpers (Drlg.cpp, DrlgRoom.cpp, RoomTile.cpp, Preset.cpp, DrlgGrid.cpp) in stock game.exe 1.14d.
+"""Verify 19 small DRLG helpers (Drlg.cpp, DrlgRoom.cpp, RoomTile.cpp, Preset.cpp, DrlgGrid.cpp) in stock game.exe 1.14d.
 
     uv run python drlg_small.py [--mutation-check]
 
@@ -19,7 +19,7 @@ blocks the allocator handed out, the fatal-error line and the bytes `ret n`
 pops. FUN_00642630 runs FUN_0066b980 for real; the CRT memset runs for real.
 Hooked, logged, not claimed: FUN_00642ae0, FUN_0061e470, FUN_0066f1a0,
 FUN_00666ac0, FUN_0067d710 and the allocator. `--mutation-check` breaks the
-model six ways.
+model eight ways.
 """
 import argparse
 import sys
