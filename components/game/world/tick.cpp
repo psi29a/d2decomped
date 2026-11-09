@@ -192,13 +192,15 @@ auto World::life_update_frame(std::uint32_t tick_ms) -> void {
             return std::ranges::find_if(actor->regen, [&](const Fight::Regen& entry) { return !entry.poison && tick_ms < entry.until && (life ? entry.life > 0 : entry.mana > 0); });
         };
         int life_percent = 0, mana_percent = 0;
+        const auto stat = [&](int index) { return std::int32_t(values[std::size_t(index)]); };   // game.exe's 32-bit stats
         if (const auto healthpot = potion(true); healthpot != actor->regen.end())
-            life_percent = d2d::rules::life_end_percent(values[d2s::kLife], values[d2s::kMaxLife], std::lround(healthpot->life * 40.0), (healthpot->until - tick_ms) / 40);
+            life_percent = d2d::rules::life_end_percent(stat(d2s::kLife), stat(d2s::kMaxLife), std::int32_t(std::lround(healthpot->life * 40.0)),
+                                                        std::int32_t((healthpot->until - tick_ms) / 40));
         if (const auto manapot = potion(false); manapot != actor->regen.end()) {
             const auto& gains = game_data->class_gains[std::size_t(std::max(actor->character.character_class, 0))];
             const int flat = int(actor->psum[d2s::kManaRecovery]) + int(std::lround(manapot->mana * 40.0));
-            const auto per_frame = d2d::rules::mana_per_frame(values[d2s::kMaxMana], gains.mana_regen, actor->player_combat.mana_regen, flat);
-            mana_percent = d2d::rules::mana_end_percent(values[d2s::kMana], values[d2s::kMaxMana], per_frame, (manapot->until - tick_ms) / 40);
+            const auto per_frame = d2d::rules::mana_end_rate(stat(d2s::kMaxMana), gains.mana_regen, actor->player_combat.mana_regen, flat);
+            mana_percent = d2d::rules::mana_end_percent(stat(d2s::kMana), stat(d2s::kMaxMana), per_frame, std::int32_t((manapot->until - tick_ms) / 40));
         }
         d2d::rules::life_update_frame(actor->life_sent, int(values[d2s::kLife] >> 8), int(values[d2s::kMaxLife] >> 8), life_percent, mana_percent);
     }
