@@ -111,6 +111,8 @@ struct View {
     // FUN_00497110; rules::life_end_percent); 0 without.
     int life_preview = 0, mana_preview = 0;
     int curse = -1;                        // a monster's curse on the player (Fight::curses): its skill, -1 none
+    int flash_overlay = -1;                // a one-shot overlay on the player (Fight::flash_overlay: an Overlay.txt row), from flash_at
+    std::uint32_t flash_at = 0;
     bool stunned = false;                  // a monster's Smite on the player (state 21)
     int pmode = -1;                        // Fight::pmode: A1, GH, BL, DT, DD ... (-1 none)
     float prate = 1.f;
@@ -119,7 +121,7 @@ struct View {
     std::uint32_t seq_frame_ms = 40;
     bool seq_loop = false;
     GameData::Appearance gfx{};               // what the character wears
-    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; int fhr = 0; };   // fhr: its faster hit recovery (merc_fighter), for its get-hit's drawn frame
+    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; int fhr = 0; int flash_overlay = -1; std::uint32_t flash_at = 0; };   // fhr: its faster hit recovery (merc_fighter), for its get-hit's drawn frame
     std::optional<Merc> merc;
     // The Hireling screen's numbers (FUN_0048a990): level, experience and the
     // next level's, strength, dexterity, damage, defense, the resistances
@@ -131,7 +133,7 @@ struct View {
     };
     std::optional<MercSheet> merc_sheet;
     // pettype: its skill's Skills.txt pettype (PetType.txt row); life: percent.
-    struct Pet { Npc npc; UnitState unit; std::string_view mode; std::string_view pettype; int life = 100; };
+    struct Pet { Npc npc; UnitState unit; std::string_view mode; std::string_view pettype; int life = 100; int flash_overlay = -1; std::uint32_t flash_at = 0; };
     std::vector<Pet> pets;                 // the player's summons on this level
     std::vector<Pet> party_pets;           // the other players' mercs ("hireable") and summons on it (local co-op; life unused)
     std::vector<Monster> monsters;         // the level's
@@ -152,7 +154,7 @@ struct View {
     // A joined game's other players (a game.exe host's 0x59 / 0x0f): not
     // replicated, the client sets them after each View (apps/d2d netgame).
     struct OtherPlayer { UnitState unit; int cls = 0; std::string name; std::uint32_t id = 0; GameData::Appearance gfx{}; int mode = -1; bool running = false;
-                        std::vector<std::string_view> states; bool ghost = false; int walk_percent = 100; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW)
+                        std::vector<std::string_view> states; bool ghost = false; int walk_percent = 100; int flash_overlay = -1; std::uint32_t flash_at = 0; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW); flash: as View's
     std::vector<OtherPlayer> others;
     // Local co-op's death (docs/design/local-coop.md): the screen's player a
     // ghost; everyone dead (the death screen, Esc back to town); the bodies

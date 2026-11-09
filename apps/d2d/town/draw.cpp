@@ -212,6 +212,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             for (const int row : net_game->self_states) if (std::size_t(row) < scene->state_names.size()) look_states.emplace_back(scene->state_names[std::size_t(row)]);
         player_look.x = view.player.x; player_look.y = view.player.y;
         dress(*scene, player_look, -1, look_states, &state_clock);
+        flash(*scene, player_look, view.flash_overlay, view.flash_at);
         // A state gone plays its offsound once, where it was; one leaving the
         // view with its unit (the in_view box, 14 cells) hasn't ended.
         for (auto& [key, seen] : state_clock.seen)

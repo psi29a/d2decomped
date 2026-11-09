@@ -560,6 +560,7 @@ struct Foe {
     struct Cast { int skill = -1, level = 0, pick = -1; };   // pick: a monster's random curse's (rules::monster_curse_stats), else -1
     Cast cursed;                              // a curse cast on it this frame (a Cursed boss's Amplify Damage, the Summoner's Weaken)
     Cast marked;                              // a missile's hit 19 state put on it this frame (the finger mage's spider)
+    int flashed = -1;                         // a one-shot overlay put on it this frame (an Overlay.txt row: Cry Help's srvoverlay)
     std::vector<std::string_view> states;     // the states on it a think reads (its curse's, its mark's: auratargetstate names)
     bool pet = false;                         // the merc, a summon: in the player's list
     int size = 2;                             // FUN_00620510: a player's 2, a monster's MonStats2 SizeX

@@ -466,6 +466,7 @@ struct Skill {
     Calc auralen, aurarange;               // auralencalc (+0x60, ticks), aurarangecalc (+0x64, subtiles)
     std::uint32_t aura_filter = 0;         // aurafilter (+0x50): the units an aura takes (aura_filter.hpp)
     std::string aurastate, auratarget;     // aurastate (+0x80), auratargetstate (+0x82): States.txt names
+    std::string srvoverlay;                // srvoverlay (+0x4e): an Overlay.txt name, played once on its unit (FUN_00621e40)
     int prgdam = 0;
     int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit
     std::array<ServerDoFunction, 3> prgfunc{};   // srvprgfunc1..3 (+0x30): srvdofunc slots run on release

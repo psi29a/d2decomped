@@ -2602,9 +2602,15 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     // leader's members) gets AI command 1 at the unit it's at till
                     // calc1 (at least 1) frames on; srvoverlay curseattract on it. The
                     // unit is its path's (+0x58, FUN_00553540): the think's second
-                    // target, which `use` made the foe.
-                    // ponytail: the overlay isn't drawn (a player has no one-shot
-                    // overlay, only its states'; Monster::flash_overlay is a monster's).
+                    // target, which `use` made the foe; its overlay (row > 0,
+                    // FUN_00621e40) a monster's flash_overlay, else Foe::flashed.
+                    const auto& rows = game_data.overlay_rows;
+                    const auto named = game_data.overlays.find(cast->srvoverlay);
+                    if (const auto row = named == game_data.overlays.end() ? rows.end() : std::ranges::find(rows, &named->second); row > rows.begin() && row != rows.end()) {
+                        const int overlay = int(row - rows.begin());
+                        if (foe.of && foe.of >= pack.data() && foe.of < pack.data() + pack.size()) { auto& hit = pack[std::size_t(foe.of - pack.data())]; hit.flash_overlay = overlay; hit.flash_at = now_ms; }
+                        else foe.flashed = overlay;
+                    }
                     const int frames = std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl), 1);
                     const int group = monster.leader >= 0 ? monster.leader : int(self_index);
                     for (std::size_t k = 0; k < pack.size(); ++k)

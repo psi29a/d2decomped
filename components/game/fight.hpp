@@ -238,6 +238,11 @@ struct Fight {
         // skill's auratargetstate for auralen frames, at least 5, with its
         // aurastats): the finger mage's fingermagecurse (0x54).
         std::array<Curse, 2> marks{};
+        // A one-shot overlay a monster's skill put on the player (Cry Help's
+        // srvoverlay, FUN_00621e40: an Overlay.txt row), from flash_at; the
+        // merc's and pets' are their Monster::flash_overlay.
+        int flash_overlay = -1;
+        std::uint32_t flash_at = 0;
         std::uint32_t chilled = 0;                       // the player's chill (state 11, a monster's cold) runs out
         // State inferno (0xc, FUN_005c8e30): on 20 frames from an Inferno / Arctic Blast start, kept
         // to 6 frames past each later flame. State skilldelay (0x79, FUN_0056ef90): till the frame

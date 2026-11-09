@@ -487,8 +487,11 @@ unit's death).
   S1): with a target, AI command kind 1 at it till frame + calc1 (ln12:
   100 + 20 a level, at least 1) for its group (`FUN_0058f730`: the
   leader's member list, `FUN_0058ec90` a command each); srvoverlay
-  curseattract on the target. A commanded Minion (its think, command kind
-  1) goes at that unit.
+  (Skills +0x4e, used when over 0: curseattract, Overlay row 133) on the
+  target, played once (`FUN_00621e40`, a stat list flagged 0x80). A
+  commanded Minion (its think, command kind 1) goes at that unit. d2d:
+  `Foe::flashed` → the player's, merc's or pet's one-shot overlay;
+  `tests/game/test_cry_help_overlay.cpp`.
 - **Overseer Whip** (do 131, `FUN_005d1f70`; Skill3 at a free minion, A2):
   at a live monster. A minion (BaseId 0x1c5, `FUN_00463900`) not under
   bloodlust, with `FUN_0045c390`'s roll at least calc1 (65), turns
