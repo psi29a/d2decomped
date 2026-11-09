@@ -446,7 +446,9 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   `FUN_00575d90` and `FUN_00574ab0` fill them; `FUN_00575d90` zeroes
   them). With both words 0 it sends **0x7a** (`FUN_0053cb30`: row, pet,
   owner, class); with either set it sends **0x81** (`FUN_0053cb80`: row,
-  pet, owner, class, the two words at +0xc / +0x10). So a pet with the
+  pet, owner, class, then the event's words at +0x10 / +0x14, which land
+  at packet offsets +0xc / +0x10; the event row at +0xc is the first
+  byte argument, not a word). So a pet with the
   node words zero reaches the client as a 0x7a list entry and the merc
   (row 7, net-packets.md) as 0x81. The 0x33e / 0x345 beside each
   `FUN_005531c0` call are `PlayerPets.cpp` source lines Ghidra shows as an
@@ -544,10 +546,17 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   the broadcast and the limit shed outside a cast. One possible
   difference: d2d clamps petmax to at least 1 in `summon_one`, Revive
   included, while game.exe clamps it only on `FUN_0056d8d0`'s path. A
-  Revive petmax calc of 0 or less would store limit 0, and
-  `FUN_00575c70` would refuse the raised monster (after one
-  `FUN_00575900` rebuild). Whether Revive's calc can be that low needs
-  Skills.txt, which was not read here: possible, not shown.
+  Revive petmax calc of 0 would store limit 0 only for a row other than
+  1 (`FUN_00575850` skips row 1 unless the max is 1). A negative calc is
+  stored as is (slot `+8` = max, no clamp), not as 0, so the rebuild
+  below does not apply to it: `FUN_00575c70` sees a nonzero max, and
+  with the count plus one above it reaches its line 0x330 assert. For a
+  zero max, the raised monster is refused only if `FUN_00575c70` finds
+  max 0 and one `FUN_00575900` rebuild leaves it 0; the rebuild is not
+  traced to a result for Revive (it clamps each owned skill's calc to at
+  least 1).
+  Whether Revive's calc can be that low needs Skills.txt, which was not
+  read here: possible, not shown.
 - **`FUN_0056d8d0`** (d2d: summons.cpp:156, collision.md; the pet tail of
   the summon skills' do-functions; the pet is the stack argument, a
   record is in EBX, which the decompile does not show being set):
@@ -558,7 +567,8 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   3. `FUN_00575d90(pet, record +0x1c, max(record +0x20, 1))` with the
      owner register set by the caller: the pettype row and the limit.
      The limit is clamped to at least 1 here and not on Revive's path.
-  d2d: bit 31 agrees (collision.md); the registration is `pet_add` above.
+  d2d: bit 31 reads the same, cited from the decompile (collision.md), no
+  oracle run; the registration is `pet_add` above.
 - **`FUN_00574ab0`** (`pet_revive_announce`, owner in EDX, the unit on the
   stack): finds a unit already in the owner's lists and tells the clients
   it is back. The player data comes from `FUN_006221a0` (a 0 would assert,
