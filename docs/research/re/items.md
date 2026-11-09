@@ -223,6 +223,25 @@ World's item commands (`cmd::ToBody`, `ToCursor`, `ToGrid`,
 `SwapWeapons`, `Buy`, `Sell`, `Repair`), a pickup, `Fight`'s breaks and
 refill, the corpse and `World::take_character`. A flagged item's stats
 are off like a broken one's (`game::gear_active`, `panel_stats`,
+`rules::make_fighter`'s weapon).
+
+Pass 1 sets no 0x4000: a charm short of its requirements just gets no
+`FUN_0055d970`, and `FUN_0062ff70` refuses it at the other attach sites
+(`FUN_00560200` into the inventory, and the rest of its 29 callers). None
+of `FUN_0055dbc0`'s 22 callers is a level up; `FUN_005380d0` calls it
+(through `FUN_0055df00`, 0x538146) only with unit flag `+0xc8 & 0x200000`,
+which only `FUN_00539760` (the join's player, 0x539939) sets. So a charm
+whose level the player reaches counts from the next item move or join,
+not at the level up. ItemTypes row 0xd is `char` (Charm).
+
+d2d: pass 1 is `rules::settle_requirements`' first loop. An inventory
+charm (`rules::inventory_charm`) failing `requirements_hold` gets
+`Item::charm_short` (not saved; sent in the replicated items' byte with
+`wielded`), and `game::gear_active` leaves its stats out.
+
+The server's other item moves (C→S 0x19, 0x1f, 0x22, 0x24, 0x25, 0x2a) and the
+small Items.cpp getters are in [itemmode.md](itemmode.md); the inventory record in
+[inventory.md](inventory.md).
 
 ## Item bitstream loader (`FUN_00558cb0` chain)
 
@@ -318,9 +337,12 @@ version, err_out)`:
 5. A result below 1 sets `*err = 1`. The result is `FUN_00410e90(reader)`,
    the bytes used.
 
-d2d: reads the same as `d2s::item` (components/d2s/d2s_items.hpp:249; cited from the decompile, no oracle run) and
-net-packets.md "Items": JM only for saves, header-only stops after the code,
-compact has no socket count. The `check_jm` argument is the d2d `net == null`
+d2d: `d2s::item` (components/d2s/d2s_items.hpp:249; cited from the decompile, no oracle run) and
+net-packets.md "Items" agree on JM only for saves and no socket count in a
+compact item. They differ on the header-only flag: game.exe stops after the
+code (net-packets.md), but `detail::item` never tests 0x2000000 and goes on
+to read the rest, so on a header-only packet `parse_net_item` reads past its
+end and returns `nullopt`. The `check_jm` argument is the d2d `net == null`
 case; `FUN_00558cb0` passes its own flag word there. Not recorded in d2d:
 the game also zeroes the unit-side fields in step 3 (d2d builds a fresh
 `Item`).
@@ -334,20 +356,27 @@ comes in a register. Read in this order:
 | Bits | Into |
 |---|---|
 | 10 | item version (`FUN_0062a6c0`, item data +0x30) |
-| 3 | location: 3 or 5 (ground / socketed) read x, y as 16 + 16 bits (`FUN_00620470`, `FUN_006204c0`); else 4 bits to data +0x44, x 4, y 4, 3 bits - 1 to data +0x45 |
+| 3 | location: 3 or 5 (ground / dropping, as itemmode.md) read x, y as 16 + 16 bits (`FUN_00620470`, `FUN_006204c0`); any other mode, socketed 6 included, reads 4 bits to data +0x44, x 4, y 4, 3 bits - 1 to data +0x45 |
 | (ear flag 0x10000 set) | 3 bits ear class, 7 bits level to +0x48, then 7-bit name characters to +0x4a until a zero |
 | 32 | otherwise the item code, then `FUN_00633680` finds the base row into unit +4 |
 | 1, then 32 or 12 | if the item is of type 4 (`FUN_00629bb0(unit, 4)`, gold): the amount, stat 0xe through `FUN_00627260` |
 | (type 0x16, codes `tsc ` / `isc `) | `tsc `: data +0x3e = 0; `isc `: `FUN_00627fb0(unit, 1, 0)` |
-| `stat bits` | version > 0x5c, item row +0x12a and +0x12b nonzero (quest difficulty check): ItemStatCost row 0x164's save bits (row +0x19), minus its save add (+0x1c), shifted by the row's +0x18 & 31, stored as stat 0x164. Fewer than 0x165 rows exits with assert id 0x1607 |
+| `stat bits` | version > 0x5c, item row +0x12a and +0x12b nonzero (quest difficulty check): reads ItemStatCost row 0x164's save-bits count (row +0x19) from the stream, subtracts the row's save add (+0x1c) from the decoded value, shifts left by the row's +0x18 & 31, and stores the result as stat 0x164. Fewer than 0x165 rows exits with assert id 0x1607 |
 | 1 (+ 32, 32, and a third 32 when version > 0x5d) | is-save only and version > 0x56: when the bit is set, realm words via `FUN_00629ea0` |
 
 It ends with unit +0x28 = 0, `FUN_00650e40`, item data +0x2c = 1 and data
 +0 = 2, and returns 1 (-1 when the base row isn't found).
 
 d2d: `d2s::item`'s simple branch (components/d2s/d2s_items.hpp:284) reads the same, cited from the decompile, no oracle run,
-on the version gates (> 92 quest difficulty, > 86 realm, > 93 third word), the
-32/12 gold read and the ear fields. Two differences, neither one a save
+on the version gates (> 92 quest difficulty, > 86 realm, > 93 third word) and
+the 32/12 gold read for a non-ear item, and the ear's own fields (class,
+level, name). It differs for an ear: the game's quest-difficulty and realm
+reads sit after the ear / code branch, so a saved ear (version > 86) is
+followed by the realm bit, but `detail::item`'s ear branch reaches neither.
+A saved ear with a 5-character name (76 bits from the JM through the grid position, then 52 for the ear)
+ends on a byte boundary before that bit, so d2d starts the next item one
+byte early (read from the code, no save run). Two more differences, neither
+one a save
 bug: d2d reads gold only on the wire (`net`) and only for code `gld`, where
 the game tests the item type (a save is not expected to hold gold; unchecked), and d2d applies no
 `<< (row +0x18)` shift to the quest difficulty, which is right only while
@@ -375,8 +404,8 @@ Callers: `FUN_00562660` (when its flag argument is set, after a socket),
 `FUN_00565ab0` (the cube's recharge flag 0x400), `FUN_005761c0` (repair),
 `FUN_005e0070` (the Torch / Standard drop).
 
-d2d: reads the same, cited from the decompile, no oracle run. `rules::recharge` (components/rules/rules.hpp:731) sets the
-stats it checks that are 204 below max to `max << 8 | max` and returns whether any was; the
+d2d: reads the same, cited from the decompile, no oracle run. `rules::recharge` (components/rules/rules.hpp:731) checks the
+stat 204 entries whose current charge is below max, sets each to `max << 8 | max`, and returns whether any was; the
 cube (cube.hpp:362) and the repair use it. d2d omits the client stat packet
 (step 4) and the 1..255 guard, neither visible in play.
 
@@ -480,14 +509,15 @@ decompile, not proven (no oracle run). The state is the data-tables block at `[0
 
 `FUN_00629b50(type, want)` is true when ItemTypes row `type` is `want` or
 derives from it. It reads one bit of a precomputed matrix: 0 unless both
-indices are in `0 .. [state+0xbfc]` (the ItemTypes count, structs.tsv
-`item_type_count`), else the dword at `[state+0xc04] + ([state+0xc00] * type +
+indices are in `0 <= index < [state+0xbfc]` (the ItemTypes count, structs.tsv
+`item_type_count`; the count itself is out), else the dword at `[state+0xc04] + ([state+0xc00] * type +
 (want >> 5)) * 4` masked with `1 << (want & 31)` (`DAT_006ce268`); the row
 stride is `[state+0xc00]` dwords. `FUN_00629bb0` is the same test on an item
 unit (its type from `FUN_00628700`), and `FUN_00504a20` is the Equiv1/Equiv2
 walk (compcode.md) that answers the same question without the matrix.
-Callers: `FUN_0055c560`, `FUN_0063d710`, `FUN_0063e510`, `FUN_00645720`. How
-the matrix is filled was not read.
+Callers: `FUN_0055c560`, `FUN_0063d710`, `FUN_0063e510`, `FUN_00645720`. The
+matrix is built by `FUN_00638d80` (ItemTbls.cpp line 0x893): `0x96c834`, rows of
+`0x96c830` = (count + 31) / 32 dwords (datatbls.md); the fill loop was not read.
 Evidence: `python3 tools/ghidra/fn.py 00629b50`, `python3 tools/ghidra/fn.py 00629bb0`.
 d2d: reads the same on the answer (cited from the decompile, no oracle run; `d2d::rules::type_is` walks the Equiv chain); the
 matrix itself is not ported.
@@ -528,12 +558,8 @@ approximated by the caller's socketed-item code. Cited, not proven.
 byte rows whose base is the pointer in `DAT_0096d4e8`) and, when that sum is 0,
 reports string id 0x150 (`FUN_00408090` / `FUN_00408a60`) and exits with
 `FUN_00681e09(-1)`. It tests the row's address, not the base or the row's
-content, so it fires only if the address wraps to 0 (bugs.md #54). The decompile
 content, so it fires only when the address is 0: base 0 with index 0, or a
-wrap (bugs.md #59); base 0 with another index passes. The decompile
 wrap (bugs.md #60); base 0 with another index passes. The decompile
-content, so it fires only when the address is 0: base 0 with index 0, or a
-wrap (bugs.md #54); base 0 with another index passes. The decompile
 returns nothing; the asm was not read, so whether the row address stays in EAX
 for the caller is unverified: `FUN_0063e510` calls `FUN_00451f60` right after it
 with no argument of its own, which fits the row (its `+4` read, > 0 to go on).
@@ -556,7 +582,12 @@ wrappers (below). Steps, all from the decompile:
   0x4b, `FUN_00629b50`) go to `FUN_0063da70`: the layer is `FUN_00628660(item)`,
   forced to 5 or 6 when the item is what `FUN_0063c050` gives for 5 or 6;
   the code is `FUN_0063d900`'s, 0xff (both arrays) when it has none; the tint
-  is `FUN_0062c100(unit, item, &tint, 0)` + 1, or 0xff when that returns 0.
+  is the byte `FUN_0062c100(unit, item, &slot, 0)` writes through `tint_out`
+  (that layer's tint slot), + 1; the caller stores 0xff when the return (a
+  colormap pointer) is 0. On the state-override path the function returns a
+  colour without writing `tint_out`, and the caller still adds 1 to the slot
+  as it stands (0xff if the pre-set is intact, so the byte wraps to 0; not
+  traced further).
 - Spot 3 (the torso) fills layers 0..15 that `FUN_0064f420` accepts (1, 2, 3,
   4, 8, 9): `FUN_0063d690` copies six bytes at the armor record `+0x116..0x11b`
   and `FUN_0064f500` picks one per layer (1 → byte 2, 2 → 3, 3 → 0, 4 → 1,
@@ -567,7 +598,10 @@ wrappers (below). Steps, all from the decompile:
 `FUN_0063d900` takes its two arguments in registers (not read) and searches
 the table at `DAT_0096cc68` (pairs, 255 at most) built once by `FUN_0063d710`
 from the Items records (code `+0x90`, else `+0x80`; first three rows
-`lit `, `med `, `hvy `); it returns the pair index, 0 for none.
+`lit `, `med `, `hvy `); it returns the pair index, 0 for none. It
+matches the first entry equal to either argument, so an item with no alternategfx (0)
+whose code is not listed matches the first empty slot and gets its index (98 on the 1.14d
+tables; bugs.md entry 62), not 0.
 Evidence: `python3 tools/ghidra/fn.py 0063e510 0063da70 0063d900 0063d710`,
 `python3 tools/ghidra/calls.py 0063e510`.
 d2d: reads the same on the result encoding (cited from the decompile, no oracle run; tint = Transform * 32 + colour + 1, 0xff for
@@ -603,25 +637,3 @@ no checks; callers `FUN_00470ec0`, `FUN_0048a990`, `FUN_00497e00`,
 Evidence: `python3 tools/ghidra/fn.py 00451f60`, `python3 tools/ghidra/calls.py 00451f60`.
 d2d: not ported as a function (a unit's class is a plain field); the pet-ai.md
 mention at line 285 uses it for the owner's class.
-belt potion / javelin / durability never regrows in play. Not a
-disagreement, a gap: it needs the event-3 handler for items (not traced:
-the handler is whatever event 3 calls on an item unit).
-`rules::make_fighter`'s weapon).
-
-Pass 1 sets no 0x4000: a charm short of its requirements just gets no
-`FUN_0055d970`, and `FUN_0062ff70` refuses it at the other attach sites
-(`FUN_00560200` into the inventory, and the rest of its 29 callers). None
-of `FUN_0055dbc0`'s 22 callers is a level up; `FUN_005380d0` calls it
-(through `FUN_0055df00`, 0x538146) only with unit flag `+0xc8 & 0x200000`,
-which only `FUN_00539760` (the join's player, 0x539939) sets. So a charm
-whose level the player reaches counts from the next item move or join,
-not at the level up. ItemTypes row 0xd is `char` (Charm).
-
-d2d: pass 1 is `rules::settle_requirements`' first loop. An inventory
-charm (`rules::inventory_charm`) failing `requirements_hold` gets
-`Item::charm_short` (not saved; sent in the replicated items' byte with
-`wielded`), and `game::gear_active` leaves its stats out.
-
-The server's other item moves (C→S 0x19, 0x1f, 0x22, 0x24, 0x25, 0x2a) and the
-small Items.cpp getters are in [itemmode.md](itemmode.md); the inventory record in
-[inventory.md](inventory.md).
