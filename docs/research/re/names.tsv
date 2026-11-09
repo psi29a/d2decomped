@@ -420,6 +420,70 @@ address	name	evidence
 00620190	left_skill	FUN_00643930: the skill list's +8
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
 00620250	unit_skill_list	fastcall (unit) -> unit +0x10 skill-list header via FUN_006439a0 (0 if none); a null unit asserts (message 0x65c) and exits -1; skills.md "Skill record and skill-list accessors"
+00620300	unit_free	FUN_00626d10, FUN_00643a60, type 6, id -1 (Units.cpp 0x69a, 0x6a4)
+00620360	tile_path_set4	type 5 static path +0xc..+0x18 (Units.cpp 0x6af, 0x6b1)
+006203b0	unit_precise_x	static x << 16 or FUN_00648940 (Units.cpp 0x6c4)
+00620410	unit_precise_y	static y << 16 or FUN_00648970 (Units.cpp 0x6da)
+00620470	unit_static_set_x	static path +0xc (Units.cpp 0x6ef, 0x6fa)
+006204c0	unit_static_set_y	static path +0x10 (Units.cpp 0x706, 0x711)
+00620710	unit_dx	absolute x difference of two units
+00620780	unit_dy	absolute y difference of two units
+006207f0	unit_set_screen_x	FUN_006489e0 (Units.cpp 0x7b2)
+00620830	unit_set_screen_y	FUN_006489f0 (Units.cpp 0x7be)
+00620980	tile_path_set_4_8	type 5 static path +4/+8 (Units.cpp 0x7ff, 0x801)
+00620ae0	static_path_init	room, x, y, FUN_00643260 pixels (Units.cpp 0x866)
+00620b50	unit_clear_room	static +0 or FUN_00648a90(path, 0) (Units.cpp 0x87d)
+00620c70	unit_target_type	FUN_00648bb0 first output (Units.cpp 0x8b9, 0x8bb)
+00620cd0	unit_target_id	FUN_00648bb0 second output (Units.cpp 0x8ca, 0x8cc)
+00620d30	unit_set_target	FUN_00648b90 (Units.cpp 0x8dc, 0x8de)
+00620d80	monster_speed_word	MonStats +0x36/+0x38, stat 0x43, unit +0x4c
+00620f50	unit_path_flag2	static +0x1d or FUN_00648b30 (Units.cpp 0x9ec)
+00620fa0	unit_set_path_flag2	static +0x1d or FUN_00648b40 (Units.cpp 0x9fe)
+00621150	unit_take_64	returns and clears unit +0x64 (Units.cpp 0xa6d)
+006211c0	unit_set_mode_field	+0x40 when +0x30 set, else +0x10 (Units.cpp 0xa92)
+006212c0	unit_set_frame	+0x38 = frame << 8 | low byte (Units.cpp 0xace)
+00621310	unit_frame_advance	+0x44 += +0x4c, wrap at +0x48
+00621330	unit_frame_advance_range	+0x44 wrap into arg frames
+00621420	row_6e8b90	0x6e8b90 / 0x6e8cd0 by arg < 0x19a
+00621870	unit_frame_and_length	+0x44, +0x48 or Objects.txt +0xd8 + mode * 4
+006218d0	unit_frame_event_copy	anim data +0x10 + frame -> +0x4e
+00621920	unit_frame_event	monseq for player mode 0x12 / monster mode 0xe (Units.cpp 0xdcc)
+006219c0	object_txt_120	Objects.txt +0x120 + mode
+006219f0	unit_skill_node	skill list +0xa8 node for a Skills row (Units.cpp 0xdfb)
+00621a70	object_txt_13a	Objects.txt +0x13a (Units.cpp 0xe10)
+00621ac0	object_txt_13c	Objects.txt +0x13c == 1 (Units.cpp 0xe1e)
+00621b00	object_txt_167_bit0	Objects.txt +0x167 & 1
+00621b70	object_data_8	object data +8 (Units.cpp 0xe4e, 0xe55)
+00621c00	unit_path_649ef0	FUN_00649ef0(path, a, b, 0)
+00621c30	unit_set_94_98	+0x94/+0x98, state 0x62 stats 0x161/0x162, flag 0x400
+00621f60	monster_flag_4638a0	monster and FUN_004638a0
+00622060	player_data_free	FUN_0065c490 / FUN_00660fd0 pairs (Units.cpp 0xf6b, 0xf76)
+006220f0	player_set_name	FUN_004135d0 into player data (Units.cpp 0xf97..0xf9a)
+00622150	player_data_check	checks only (Units.cpp 0xfa5..0xfa8)
+00622270	object_txt_168	Objects.txt +0x168 (Units.cpp 0xfd3)
+006222c0	object_data_5	object data byte +5 (Units.cpp 0xfe4)
+00622300	object_set_data_5	object data byte +5 (Units.cpp 0xfef)
+00622350	object_data_5_test	object data byte +5 & mask (Units.cpp 0xffa)
+00622830	monster_weapon	FUN_0063c9b0 on unit +0x60
+00622dc0	unit_622d00_set	FUN_00622d00 != 0
+00622de0	unit_missing_vitals_cost	missing life + mana >> 8, times stat 0xc >> 2
+00622ea0	player_keep_right_skill	player data +0x70/+0x78 (Units.cpp 0x13f6, 0x13fa)
+00622f10	player_keep_left_skill	player data +0x74/+0x7c (Units.cpp 0x1405, 0x1409)
+00623060	player_kept_right_skill	player data +0x70/+0x78 (Units.cpp 0x1438)
+006230c0	player_kept_left_skill	player data +0x74/+0x7c (Units.cpp 0x1449)
+00623220	player_switch_skill_a	player data +0x84/+0x8c (Units.cpp 0x1487)
+00623290	player_switch_skill_b	player data +0x80/+0x88 (Units.cpp 0x1499)
+00623300	player_set_switch_skill_a	player data +0x84/+0x8c (Units.cpp 0x14a8)
+00623350	player_set_switch_skill_b	player data +0x80/+0x88 (Units.cpp 0x14b7)
+006233a0	player_set_item_90	player data +0x90 = item id (Units.cpp 0x14c5, 0x14c9)
+00623410	player_item_90	player data +0x90 (Units.cpp 0x14d7)
+006234c0	unit_set_7c	unit +0x7c (Units.cpp 0x150b)
+006234f0	unit_7c	unit +0x7c (Units.cpp 0x1513)
+00623520	static_path_alloc	32 bytes at unit +0x2c (Units.cpp 0x151e)
+00623570	static_path_free	unit +0x2c (Units.cpp 0x152b)
+00623600	monster_corpse_flag	mode 0xc, MonStats +4 bit 7, +6 bit 3, FUN_0063a770
+006238c0	unit_face_path_target	FUN_00648810 or FUN_00621dc0 (Units.cpp 0xe83)
+00623990	skill_weapon	Skills +0x168 picks the hand; FUN_0062a4e0
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
 00624f40	stat_array_of	EAX list: list+0x48 when flag 0x80000000 is set, else list+0x24 (the {array, count} pair)
 00625250	stat_list_owner_type	stat list +8; null 6
@@ -510,6 +574,8 @@ address	name	evidence
 00649400	unit_stamp_footprint	(unit): type 0 / 1 FUN_0064ea90 by path pattern +0x48, type 2 FUN_0064de30, others FUN_0064ea00 by shape (collision.md "Building a path")
 00649ca0	unit_path_repattern	(unit): path +0x48 = FUN_00648580(unit, path +0x44); lifts the old stamp (FUN_00649560) and restamps (FUN_00649400) when in a room (collision.md "Building a path")
 00649d00	unit_path_make	(unit, room, x, y, flag): Path.cpp line 0x453, 0x200 bytes at unit +0x2c; own bits, mask, type and steps by unit type 0 / 1 / 3 (collision.md "Building a path")
+0064a100	missile_data_alloc	0x34 bytes, +0x1c = -1 (Missile.cpp 0x22)
+0064a150	missile_data_free	Missile.cpp 0x3e
 0064a300	missile_total_frames	unit type 3 with data (+0x14): s16 data +0xe; else 0
 0064a640	missile_activate_left	missile data +8 (Range less Activate) as a short; 0 for a non-missile or no data (missiles.md "Standing missiles")
 0064a710	missile_set_data_28	(unit, value): stores value at the missile data block +0x28 when the unit is a missile (type 3) with data (missiles.md "Missile data setters")
@@ -524,6 +590,11 @@ address	name	evidence
 0064ea90	grid_set_pattern_bits	(room, x, y, pattern, bits): 1 / 3 plus then, if bits != 0, point 0x1000 / 0x2000; 2 / 4 3x3 square then plus; 5 plus only (collision.md "The stamp family")
 0064eba0	grid_clear_shape_bits	(room, x, y, shape, bits): the clear twin of FUN_0064ea00; shape 1 FUN_0064db70, 2 FUN_0064da40, 3 FUN_0064dbc0 (collision.md "The stamp family")
 006505c0	path_flag_8	path +0x34 & 8; null 0
+0065a900	unit_find_list_grow	+0xf entries (UnitFinds.cpp 0xc5)
+00663d40	misstream_alloc	8 bytes (MisStream.cpp 0x2e)
+00663d90	misstream_free	MisStream.cpp 0x3b, 0x3c
+00663e00	misstream_touch_walk	FUN_0064d9b0, missile touches, IsBadCodePtr (MisStream.cpp 0x71)
+00663ed0	misstream_fill	callback per path point (MisStream.cpp 0x8a..0xa9)
 00665f40	ds1_cache_acquire	thiscall (out, path): finds path in the list at DAT_0096d60c (byte-exact compare) and bumps the refcount, else loads via FUN_00665950; ".\DRLG\Preset.cpp" lines 0x4e0, 0x4e1
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)
