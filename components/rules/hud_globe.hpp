@@ -7,7 +7,8 @@
 namespace d2d::rules {
 
 // What a potion will have brought by its end, as a percent of the max
-// (FUN_005485b0 life / FUN_00548640 mana, the server's): the value now
+// (FUN_005485b0 life / FUN_00548640 mana, the server's, as life_update_frame
+// goes): the value now
 // plus `per_frame` x `frames_left` (the healthpot / manapot state's frames
 // to go, its end FUN_00626090 less the game's frame), all in 256ths. Life
 // takes the state's own hpregen (FUN_00625d00) and divides whole points;
@@ -27,6 +28,29 @@ constexpr int life_end_percent(std::int64_t life, std::int64_t max_life, std::in
 constexpr int mana_end_percent(std::int64_t mana, std::int64_t max_mana, std::int64_t per_frame, std::int64_t frames_left) {
     if (max_mana == 0) return 0;
     return end_percent_byte((frames_left * per_frame + mana) * 100 / max_mana);
+}
+
+// The server's life update, a player's each frame (FUN_0052d980 ->
+// FUN_00548760): what it told the client last. Each of the player's frames
+// adds one to `frames` (FUN_005380d0, client +0x1b0). The update is
+// forced at 20 frames (10 with the client's +0x1b8, not traced); unforced
+// it goes only once life is 10 % of max (whole points) off the last sent
+// and not at 0 from above. Going, it sends S->C 0x18 when either end
+// percent (life_end_percent / mana_end_percent) differs from the last
+// (else 0x95 / 0x96, which leave stat 0x4a / 0x1a be), keeps life and
+// resets `frames`. The join forces one (FUN_00539760: FUN_00548760(1)),
+// hence `frames` starting at 19.
+struct LifeSent { int life = 0, life_percent = 0, mana_percent = 0, frames = 19; };
+
+constexpr void life_update_frame(LifeSent& sent, int life_points, int max_points, int life_percent, int mana_percent) {
+    ++sent.frames;
+    const bool forced = sent.frames >= 20;
+    if (max_points < 1) return;
+    const int off = sent.life > life_points ? sent.life - life_points : life_points - sent.life;
+    if (!forced && (off * 100 / max_points < 10 || (life_points == 0 && sent.life != 0))) return;
+    if (life_percent != sent.life_percent || mana_percent != sent.mana_percent) { sent.life_percent = life_percent; sent.mana_percent = mana_percent; }
+    sent.life = life_points;
+    sent.frames = 0;
 }
 
 // The rows of a globe's potion preview (FUN_00496f80 life / FUN_00497110

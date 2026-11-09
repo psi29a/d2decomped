@@ -14,7 +14,6 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
-#include <hud_globe.hpp>
 #include <light.hpp>
 #include <merc.hpp>
 #include <monsters.hpp>
@@ -50,25 +49,14 @@ auto World::view() const -> View {
         view.chilled = fight.chill_rate(now) != 0;
         view.stamina_shrine = now < actor->boost.until && shrine_code(actor->boost.shrine) == 14;   // 14: the stamina shrine (state 0x88)
         view.stamina_blue = now < actor->stamina_pot.until || view.stamina_shrine;
-        // The globes' preview: S->C 0x18's percents at a potion's end
-        // (rules::life_end_percent / mana_end_percent), plus the gear's
-        // regen as the client sums its stat 0x4a / 0x1a.
-        // ponytail: worked out every View; game.exe's 0x18 goes only when life is
-        // 10 % of max off what it last sent (FUN_00548760), so its preview lags.
-        namespace d2s = d2d::d2s;
-        const auto& values = actor->character.stats.values;
-        const auto potion = [&](bool life) {
-            return std::ranges::find_if(actor->regen, [&](const Fight::Regen& entry) { return !entry.poison && now < entry.until && (life ? entry.life > 0 : entry.mana > 0); });
+        // The globes' preview: the client's stat 0x4a / 0x1a, S->C 0x18's
+        // percents as last sent (life_update_frame) plus the gear's regen,
+        // while the healthpot / manapot state is on.
+        const auto potion_on = [&](bool life) {
+            return std::ranges::any_of(actor->regen, [&](const Fight::Regen& entry) { return !entry.poison && now < entry.until && (life ? entry.life > 0 : entry.mana > 0); });
         };
-        if (const auto healthpot = potion(true); healthpot != actor->regen.end())
-            view.life_preview = d2d::rules::life_end_percent(values[d2s::kLife], values[d2s::kMaxLife], std::lround(healthpot->life * 40.0), (healthpot->until - now) / 40)
-                              + actor->player_combat.life_regen;
-        if (const auto manapot = potion(false); manapot != actor->regen.end()) {
-            const auto& gains = game_data->class_gains[std::size_t(std::max(actor->character.character_class, 0))];
-            const int flat = int(actor->psum[d2s::kManaRecovery]) + int(std::lround(manapot->mana * 40.0));
-            const auto per_frame = d2d::rules::mana_per_frame(values[d2s::kMaxMana], gains.mana_regen, actor->player_combat.mana_regen, flat);
-            view.mana_preview = d2d::rules::mana_end_percent(values[d2s::kMana], values[d2s::kMaxMana], per_frame, (manapot->until - now) / 40) + int(actor->psum[d2s::kManaRecovery]);
-        }
+        if (potion_on(true)) view.life_preview = actor->life_sent.life_percent + actor->player_combat.life_regen;
+        if (potion_on(false)) view.mana_preview = actor->life_sent.mana_percent + int(actor->psum[d2d::d2s::kManaRecovery]);
         view.curse = now < actor->curses[0].until ? actor->curses[0].skill : -1;
         view.stunned = now < actor->stunned;
         view.pmode = actor->pmode;

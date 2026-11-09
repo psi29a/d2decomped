@@ -266,9 +266,14 @@ out for the potion's end, as a percent of the max:
   the steady rate max(max / (CharStats +0x3a × 25, or 7500), 1);
 - then the low byte, 100 when that's past 100 (600 % sends 88); 0 without
   the state.
-`FUN_00548760` (the server's life update) sends 0x18 rather than 0x95 /
-0x96 when either percent changed, and only once life is off by 10 % of max
-from what it sent last, unless forced. The gear's hpregen / manarecovery
+`FUN_00548760` (the server's life update, from `FUN_0052d980` as each
+client's buffer is flushed) sends 0x18 rather than 0x95 / 0x96 when either
+percent changed. Unforced it goes only once life (whole points) is off by
+10 % of max from what it sent last, and not to 0 from above; it's forced
+once the client's +0x1b0 reaches 20 (10 with +0x1b8 set, not traced), a
+count of the player's frames (`FUN_005380d0` adds one) that goes back to
+0 whenever the update goes; the join forces one (`FUN_00539760`). So the
+preview can lag behind the potion by up to 20 frames. The gear's hpregen / manarecovery
 add to the client's sum, so replenish life lifts the preview a little.
 (Neither stat has Send Bits, ItemStatCost rows 74 / 26, so 0xa8 can't
 carry the state's own rate: the reader `FUN_0045ee20` stops at such a stat.)
@@ -332,8 +337,9 @@ d2d: `rules::stamina_drain` / `stamina_regen` (combat.hpp) from
 `World::stamina_frame`, each 40 ms frame; `draw_hud` (panels.cpp) with
 the poison frame, bars, run button and texts; the button's press /
 release in `Town::update`. The potion preview from `View::life_preview` /
-`mana_preview` (`World::view`: `rules::life_end_percent` /
-`mana_end_percent` each View, plus the gear's regen);
+`mana_preview` (`World::view`: what `rules::life_update_frame`, run
+each 40 ms frame by `World::life_update_frame`, last sent, plus the gear's
+regen);
 the globe click (`rules::globe_clicked`, hud_globe.hpp) saves d2d.cfg's
 `show_hp_text` / `show_mp_text` in place of the registry. The bars' hover
 texts go to `Hud::hovers`, drawn after the mini-panel (`draw_hud_hovers`).

@@ -5,6 +5,7 @@
 // FUN_00497110's x 0x50 / 100 and FUN_00499500's boxes at 800 x 600.
 #include <hud_globe.hpp>
 
+#include <cassert>
 #include <cstdio>
 #include <exception>
 
@@ -22,6 +23,25 @@ int main() try {
     static_assert(mana_end_percent(50 << 8, 200 << 8, 100, 128) == 50);
     static_assert(mana_end_percent(50 << 8, 0, 100, 128) == 0);
     std::printf("OK: the potions' end percents\n");
+
+    // The life update (FUN_0052d980 -> FUN_00548760), 100 points of max.
+    d2d::rules::LifeSent sent;
+    d2d::rules::life_update_frame(sent, 80, 100, 32, 0);              // the join's, forced
+    assert(sent.life == 80 && sent.life_percent == 32 && sent.frames == 0);
+    d2d::rules::life_update_frame(sent, 75, 100, 40, 0);              // 5 % off, not forced: the client keeps 32
+    assert(sent.life == 80 && sent.life_percent == 32 && sent.frames == 1);
+    d2d::rules::life_update_frame(sent, 70, 100, 45, 0);              // 10 % off: 0x18 with 45
+    assert(sent.life == 70 && sent.life_percent == 45 && sent.frames == 0);
+    for (int frame = 1; frame < 20; ++frame) d2d::rules::life_update_frame(sent, 70, 100, 50, 10);
+    assert(sent.life_percent == 45 && sent.frames == 19);
+    d2d::rules::life_update_frame(sent, 70, 100, 50, 10);             // the 20th frame forces it
+    assert(sent.life_percent == 50 && sent.mana_percent == 10 && sent.frames == 0);
+    d2d::rules::life_update_frame(sent, 0, 100, 0, 0);                // to 0 from above: only when forced
+    assert(sent.life == 70 && sent.life_percent == 50);
+    d2d::rules::LifeSent no_max;
+    d2d::rules::life_update_frame(no_max, 0, 0, 30, 0);              // no max: nothing goes, the frame still counts
+    assert(no_max.frames == 20 && no_max.life_percent == 0);
+    std::printf("OK: the life update's 0x18\n");
 
     using d2d::rules::globe_clicked;
     using d2d::rules::globe_preview_rows;
