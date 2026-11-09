@@ -159,7 +159,7 @@ class Suite:
             n = rng.randrange(0, 4)
             nodes = [at(0x500 + 0x40 * i) for i in range(n)]
             put(img, 0x300 + 0x30, nodes[0] if nodes else 0)
-            for i, node in enumerate(nodes):
+            for i in range(n):
                 put(img, 0x500 + 0x40 * i + 0x2C, nodes[i + 1] if i + 1 < n else 0)
             return {"ecx": at(0)}
 
