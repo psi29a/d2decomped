@@ -163,6 +163,18 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   Each good header's +0x18 gets its cell record, and the next header is
   `0x23 + [+0x1c] + [+0x14]` bytes on. At the end EDI+0x28 = 1. Called by
   `FUN_005ffe90`. d2d: not ported (the DCC decoder sizes its own frames).
+- `FUN_005ff6e0(_, size, block)`: the callback `FUN_005ff760` hands to
+  `FUN_0040a620`. The block is `+4` the cache entry, `+8` the layer's
+  record (EDI+0x20 there), `+0xc` the first cell index (direction *
+  count), `+0x10` the count, `+0x14` the result, `+0x18` an output slot (its address goes to
+  `FUN_0060bff0`, its value to `FUN_005ff630`). With bit 1 of
+  `*(record + 0x94) + 0xc` raised around it, it calls
+  `FUN_0060bff0(size, entry, record, first, count, block + 0x18,
+  entry + 0xa0)` and stores the result at block +0x14. It clears bit 2 of
+  the record's first byte (`FUN_005ff760` set it), calls `FUN_005ff630`
+  on block +0x18 and, when the result was 0, sets bit 0 of `*entry`; it
+  returns 1. Bit 0 of `*entry` is the "this DCC failed" flag the other
+  functions here test. d2d: not ported.
 
 ## Draw effects
 
