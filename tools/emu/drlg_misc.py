@@ -19,7 +19,7 @@ import struct
 import sys
 
 import _dungeon_rig as rig_mod
-from _dungeon_rig import M32, Halt, s32
+from _dungeon_rig import M32, Halt
 
 MUT = set()
 
