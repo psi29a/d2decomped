@@ -3,7 +3,7 @@
 
     uv run python drlg_grid.py [--mutation-check]
 
-A grid is {cells +0, row offsets +4, width +8, height +0xc, owns-rows +0x10}.
+A grid is {cells +0, row offsets +4, width +8, height +0xc, flag +0x10}.
 Runs game.exe's own code for FUN_0067c430 (OR into a cell word), FUN_0067c480
 (grid has cells), FUN_0067c4a0 (point in bounds), FUN_0067c4d0 and
 FUN_0067c550 (cell address), FUN_0067c4f0 and FUN_0067c520 (apply a table

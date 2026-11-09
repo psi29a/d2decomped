@@ -1768,7 +1768,7 @@ tile grid, +0x58 level, +0x5c preset units, +0x60 other flags.
 ## DrlgGrid.cpp helpers, run in the emulator
 
 `tools/emu/drlg_grid.py` (same harness; `--mutation-check` 4 ways). A grid
-is {cells +0, row offsets +4, width +8, height +0xc, owns-rows +0x10}; a cell
+is {cells +0, row offsets +4, width +8, height +0xc, flag +0x10}; a cell
 is `cells[rows[y] + x]` (dwords). The op table at 0x749bac (indexed by an op
 argument) is hooked and logged, not claimed.
 
@@ -1781,15 +1781,15 @@ argument) is hooked and logged, not claimed.
   then on the last cell of every row. FUN_0067c890(grid, list, v): `table[0]`
   on the cell of every list node {x, y, ..., next +0x10} inside the grid.
 - Builders: FUN_0067cb80(pool, grid, w, h) allocates (w + 1) * h dwords
-  (DrlgGrid.cpp line 0x197): row offsets, then zeroed cells; owns-rows 0.
+  (DrlgGrid.cpp line 0x197): row offsets, then zeroed cells; +0x10 = 0.
   FUN_0067cbf0 (grid, w in EDX, h, cells, rows) zeroes the caller's cells and
-  fills rows `i * w`, owns-rows 0. FUN_0067cc60 (pool, grid, cells, w, h)
-  allocates only the h row offsets (line 0x1d0), owns-rows 1. FUN_0067ccc0
+  fills rows `i * w`, +0x10 = 0. FUN_0067cc60 (pool, grid, cells, w, h)
+  allocates only the h row offsets (line 0x1d0), +0x10 = 1. FUN_0067ccc0
   (pool, grid, base, rect, stride) and FUN_0067cd30 (grid, base EDX, rect,
   stride, rows) make a grid over `rect` {x, y, w, h} of a stride-wide array
   (cells at `base + 4 * (y * stride + x)`; the first allocates its rows, line
-  0x1ec); owns-rows 1.
-- FUN_0067cd90 frees the row table when set (line 0x218) and in every case
+  0x1ec); +0x10 = 1.
+- FUN_0067cd90 frees any non-null row table (line 0x218), without checking +0x10, and in every case
   clears the cells and rows pointers; FUN_0067cdc0 clears them; FUN_0067cdd0
   allocates a zeroed 0x14-byte record with byte +8 = dl; FUN_0067ce00 (EAX
   record, flag) sets +0xc bit 0, and bit 1 too for a nonzero flag.
@@ -1820,8 +1820,8 @@ locals are popped but not compared).
   types return 0x6eee0c. FUN_0066bcf0 returns +0x2c. FUN_0066bd00(room2, out):
   copies each neighbour's nonzero +0x30, zero-fills the rest, returns the
   count copied. FUN_0066bfd0 copies four bytes of the level record (+0x88..
-  +0x8b) to four byte pointers. FUN_0066c040(level, id): the entry with that
-  id on the +0x90 list (its +4), else the level record + 0x48; a zero id in
+  +0x8b) to four byte pointers. FUN_0066c040(act, id): the entry with that
+  id on the act's +0x90 list (its +4), else the level record + 0x48; a zero id in
   the list is fatal 0x410. FUN_0066c0b0: the room's act; fatal 0x42b, 0x42c,
   0x42d at each null.
 
@@ -1869,8 +1869,9 @@ FUN_00642630 and the allocator; the CRT memset and FUN_0066b980 run for real.
   (line 0xb7); frees the +0x1cc chain (next +0xc, line 0xc5).
 - FUN_00642c30(x in ECX, y in EDX, act, room, level; `ret 0xc`): the room if
   it holds the point (FUN_0066b980), else the first of its near rooms
-  (+0x2c count, +8 array) that does; else the level (the argument, or the act
-  level whose id FUN_006427a0 gives, allocated through FUN_00642ae0),
+  (+0x2c count, +8 array) that does; else the level (the argument, or else the act
+  level whose id FUN_006427a0 gives, found on the act's level list and
+  allocated through FUN_00642ae0 only when none matches),
   initialised with FUN_006424a0 when it has no rooms, then FUN_00642630.
 
 ## Preset.cpp and RoomTile.cpp small helpers, run in the emulator
