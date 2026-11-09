@@ -162,19 +162,23 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 | `FUN_00654410` | Splits off the next number at character AL (`FUN_00687740`), `_atol` |
 | `FUN_00654d50` | Frees the treasure classes (lines 0x643, 0x647) |
 | `FUN_00654dd0` | A treasure class by name. No caller |
+| `FUN_00654e80` | (difficulty, act, chest): the parsed treasure class at `0x96c5f4[15 d + 3 a + c]`, each clamped (d 0..2, a 0..4, c 0..2). Caller `FUN_00585b90` (objects.md "Chest treasure class") |
 | `FUN_00654f20` | Loads monitempercent (4: HeartPercent, BodyPartPercent, TreasureClassPercent, ComponentPercent) |
 | `FUN_00654fc0` / `FUN_00654fe0` | Free / row (fatal 0x6dc, 0x6dd). The row has no caller |
 | `FUN_00655030` | Loads monumod (0x20) |
 | `FUN_006552e0` | Loads superuniques (0x34): the first row of each hcIdx below 0x42 into `0x96c710`; a hcIdx with none is fatal (0x782) |
+| `FUN_006556e0` | Superunique row n (0x34 bytes at `0x96c704`), 0 for n >= count (signed) |
 | `FUN_00655710` | The superunique count |
 | `FUN_00655720` | Loads hireling (0x118): NameFirst / NameLast strings at `+0x114` / `+0x116` (checked in the expansion: lines 0x816..0x818), the first row per (version 0 / 100, `+4`) into `0x96bdd8` |
 | `FUN_006562b0` | Frees it and clears that index |
 | `FUN_00656390` | (expansion, name string, after): the next hireling row of that version whose name range holds the string |
 | `FUN_00656440` | (expansion, id, after): the next row of that version with `+8` == id |
+| `FUN_006564d0` | (expansion, seller, difficulty, after): the next hireling row whose `+0x14` is seller, `+0x10` is difficulty + 1 and version word is 0 / 100 |
 | `FUN_00656620` | Loads npc (0x4c) |
 | `FUN_00656900` | The npc row of a monster class (0x4c rows, `+0`) |
 | `FUN_00656930` | Loads monsounds (0x94) |
 | `FUN_00656f90` | A monsounds row |
+| `FUN_00656fc0` | The monsounds row of MonStats row n (`+0x14` word, signed, below the sounds count); 0 without either table or for n >= the MonStats count |
 | `FUN_00657010` | Parses a MonStats2 component list (`"a,b,..."`, up to 12 codes of at most 4 characters, through the compcode link) for layer n into `+0x15 + n` (count) and `+0x26 + 12n`; layer 15 also sums the extra choices into `+0x25` (at most 0xfe). Caller `FUN_006571a0` |
 | `FUN_00658460` | Is MonType a one of b (its three equivs walked) |
 | `FUN_00658520` | Loads montype (0xc) and its is-a bit matrix (line 0xafc) |
@@ -327,3 +331,94 @@ in `__security_check_cookie`).
 | `monster_tbls.py` | `FUN_00653d60`, `00653ed0`, `00653f10`, `00653f50`, `00653f90`, `00654010`, `00654080`, `006540c0`, `00654410`, `00654dd0`, `00654fc0`, `00654fe0`, `00655710`, `00656390`, `00656440`, `00656900`, `00656f90`, `00658460`, `00659b40`, `00659b80`, `00659c30` |
 | `item_tbls.py` | `FUN_00633590`, `006335a0`, `00634250`, `00636b10`, `00636b20`, `006374a0`, `00637490`, `006375b0`, `006375c0`, `006379d0`, `00638c80`, `00638cd0`, `00639c90`, `00639cb0` |
 | `lvl_tbls.py` | `FUN_0061ddf0`, `0061e440`, `0061e470`, `0061e4a0`, `0061ea90`, `0061eaa0`, `0061eae0`, `0061eb40`, `0061f030`, `0061f0b0`, `0061f0e0`, `0061f300`, `0061f310`, `0061f480`, `0061f490`, `0061fa90`, `0061fc10`, `0061fc80`, `006200d0` |
+
+### Loaders and getters (`monster_loaders.py`)
+
+`tools/emu/monster_loaders.py` runs 19 more MonsterTbls.cpp functions from stock
+game.exe 1.14d: the table loaders, the freers and four getters (4,050 cases,
+`--mutation-check` breaks the model 36 ways). Each loader builds a column list
+(5 dwords an entry: name, type, size, offset, linker) and calls CompileTxt
+`0x6122f0`; the oracle hooks CompileTxt, records the list, the table name, the
+record size and the row-count address, then writes a scripted row count and
+returns a scripted table. The link creator `0x6bd040`, the table and link
+frees, the pool free, the fatal path, `D2CheckExpansionGame` `0x408f20` and
+the string lookup `0x524d30` are hooked and logged; `strchr` runs for real. Each
+loader and freer case fills the data page `0x96b000..0x96e000` with random
+dwords and requires the dwords that changed to be exactly the ones the model writes. Re-check:
+`cd tools/emu && uv run python monster_loaders.py` (needs `D2_MPQ_DIR`; no MPQ
+is read) and with `--mutation-check`.
+
+- **Schemas.** Compared column by column (name, type, size, offset, linker) with
+  the model: `FUN_00653db0` (one `Name` KEY_WORD column, linker `0x6117b0`,
+  record 2, into `0x96d488 + 4n`, count `0x96d498 + 4n`; `n >= 4` unsigned,
+  so -1 too, does nothing), `FUN_00654f20` (4 CHAR columns), `FUN_00655030` (16 columns, link
+  `0x96c87c`, `exclude1/2` linked to the MonType link `0x96c868`),
+  `FUN_00655720` (70 columns: `namefirst` / `namelast` ASCII 32 at `+0xd3` /
+  `+0xf3`, six skill groups linked to the skills link `0x96c7cc`, `hiredesc`
+  CODE_CHAR at `+0xd2` linked `0x96bce8`), `FUN_00656620` (20 columns, `npc`
+  linked to the MonStats link `0x96c6ac`), `FUN_00659a10` (`Act` CHAR, `Place`
+  LINKER_BIT with the function `0x659990`) and `FUN_00659bb0` (`Sound`
+  NAME_I_WORD, link at line 0xc99, only with the compile flag `0x96c8b4`).
+- `FUN_00655030` caps the monumod row count at 0x100 with a **signed** compare
+  (a negative count is kept). `FUN_0065a390` is fatal (0x616) when the parsed
+  treasure class count is 0xffff or more, also signed; its three callees
+  (`FUN_006541c0`, `FUN_006547d0(pool)`, `FUN_0065a2c0`) run in that order after
+  the link (line 0x60e) and are hooked, so their own work is not covered.
+- `FUN_00655720` after the compile: all 512 dwords of the two id-line tables
+  `0x96bdd8..0x96c5d8` are set to -1; per row the string ids of NameFirst and
+  NameLast go to `+0x114` / `+0x116` (low 16 bits of the lookup result); with
+  the expansion flag the loader is fatal on a zero first id (0x816), a last id
+  not above the first (0x817, tested second) and a row id of 0x100 or more
+  (0x818). The first row of each (version >= 100, id) is stored as
+  `table[0x100 * (version >= 100) + id]`, only while the entry is still
+  negative. A halt leaves the earlier rows' ids written.
+- The free functions leave pointers behind (bugs.md 71): `FUN_006562b0` unloads
+  hireling and zeroes the count and id lines but not `0x96bdd0`;
+  `FUN_00659af0` unloads monpreset and clears the per-act tables but not
+  `0x96c6d8`; `FUN_00659de0` clears the MonSeq count `0x96c7b0` (not the table,
+  link or extra block pointers) and, when an extra block was freed, its count
+  `0x96c7b8`; `FUN_006586d0` clears MonType's table and link but not the extra
+  block pointer `0x96c874` (left dangling; its body is guarded on `0x96c86c`, so
+  a second call does nothing, and only the other three free twice); `FUN_00653e20` and `FUN_00654d50` do clear what they free.
+  `FUN_006562b0` calls the unload unconditionally, the others test the pointer.
+- `FUN_00659a10` builds the per-act first-row / count tables from the Act byte
+  of each row: act 1's table starts at the first row, every act step records
+  the row where the next act starts and the count of the finished one. The two
+  tables have five slots (`0x96c6dc..0x96c6ec`, `0x96c6f0..0x96c700`) and are
+  adjacent; an Act byte above 5 writes `perAct[5]` over `perActId[0]` and so on,
+  and an Act-6 row's final `perActId[5]` store lands on `0x96c704`, the superunique
+  table pointer (bugs.md 72; the shipped monpreset uses acts 1..5).
+- `FUN_006564d0` is not a lookup by class: it matches `+0x14` (the `seller`
+  column, the NPC class) with its second argument, `+0x10` (difficulty) with the
+  third plus one, and the version word with 0 / 100. It starts after the
+  previous row (pointer difference divided by 0x118, truncating toward zero,
+  plus one; an unaligned or lower pointer is not rejected), and returns 0 past
+  the table.
+- `FUN_00656fc0` and `FUN_006556e0` reject only `n >= count` (signed): a negative
+  `n` indexes below the table (bugs.md 73), as for the row getters above.
+- `FUN_00654e80` clamps each of difficulty, act and chest (`<= 0` gives 0) and
+  indexes `0x96c5f4 + 4 * (15 d + 3 a + c)`; act has five values (0..4), the
+  others three.
+- `FUN_00657010` (component list for MonStats2 layer `slot`, `slot < 0x10`
+  else nothing): clears the slot's count byte (`+0x15 + slot`) and its 12 code
+  bytes (`+0x26 + 12 slot`) to 0xff; a null text stops there. A leading `"` is
+  skipped, any other `"` is overwritten with NUL (the scan continues past it, so
+  `ab"cd` reads as `ab`). The text is then split on commas; an empty token or one
+  of more than four characters ends the list without storing it (the codes
+  before it are kept); a token is padded with spaces to four characters,
+  resolved with `GetClassIdFromName(compcode link, code, 1)` (hooked) and its
+  low byte stored; at most 12 codes. The count is stored to `+0x15 + slot`. On
+  slot 15 only, the byte at `+0x25` is the sum over the 16 count bytes
+  `+0x15..+0x24` of (n - 1) for each n above 1 (the sum includes slot 15's own
+  count), capped at 0xfe.
+
+**Assumed here.** The string lookup, `GetClassIdFromName` and the three
+treasure class builders are hooked (call order and arguments checked, not their
+work); `FUN_006541c0`'s register inputs are unknown and are not logged.
+`CompileTxt`'s own behaviour is verified by `txt_loaders.py`. The row bytes the
+parser would write are not produced (CompileTxt returns a scripted table), so
+what a real `.txt` yields for these columns is not claimed.
+
+| Oracle | Functions |
+|---|---|
+| `monster_loaders.py` | `FUN_00653db0`, `00653e20`, `00654d50`, `00654e80`, `00654f20`, `00655030`, `006556e0`, `00655720`, `006562b0`, `006564d0`, `00656620`, `00656fc0`, `00657010`, `006586d0`, `00659a10`, `00659af0`, `00659bb0`, `00659de0`, `0065a390` |

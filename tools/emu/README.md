@@ -54,6 +54,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | DATATBLS MonsterTbls.cpp helpers (21 functions: FUN_00653d60 ... 00659c30; `--mutation-check` 26 ways) | `uv run python monster_tbls.py` | `ok: 4930 MonsterTbls helper cases` |
 | DATATBLS ItemTbls.cpp helpers (14 functions: FUN_00633590 ... 00639cb0; `--mutation-check` 14 ways) | `uv run python item_tbls.py` | `ok: 2078 ItemTbls helper cases` |
 | DATATBLS LvlTbls.cpp helpers (19 functions: FUN_0061ddf0 ... 006200d0; `--mutation-check` 19 ways) | `uv run python lvl_tbls.py` | `ok: 3220 LvlTbls helper cases` |
+| DATATBLS MonsterTbls.cpp loaders, freers and getters (19 functions: FUN_00653db0 ... 0065a390; `--mutation-check` 36 ways) | `uv run python monster_loaders.py` | `ok: 4050 MonsterTbls loader cases` |
 | NPC talker chain (FUN_00572c10, 00572da0, 00572de0, 00572e00, 00572e60, 00572ea0, 00572ee0, 00573020, 00573180; `--mutation-check` 13 ways) | `uv run python monster_talk.py` | `ok: 1260 NPC talker list cases` |
 | Monster bind, animation call and announce (FUN_00573270, 005735a0, 00597d70; `--mutation-check` 11 ways) | `uv run python monster_bind.py` | `ok: 1500 monster bind, animation and announce cases` |
 | Small Inventory.cpp helpers: empty stubs, field getters, node getters, cursor, wield, belt cell, placement wrappers (FUN_0063bcc0 ... FUN_0063e070; `FUN_0063afd0` and `FUN_0063aaf0` hooked and recorded) | `uv run python inventory_small.py` | `ok: 2525 small Inventory.cpp helper cases` |

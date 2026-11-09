@@ -812,8 +812,8 @@ address	name	evidence
 0064eba0	grid_clear_shape_bits	(room, x, y, shape, bits): the clear twin of FUN_0064ea00; shape 1 FUN_0064db70, 2 FUN_0064da40, 3 FUN_0064dbc0 (collision.md "The stamp family")
 006505c0	path_flag_8	path +0x34 & 8; null 0
 00653d60	monstats_set_32	MonStats +0x32 (MonsterTbls.cpp 0x2ef)
-00653db0	unique_names_load	"Name" 2-byte rows into 0x96d488[n]
-00653e20	unique_names_free	0x96d488..0x96d498
+00653db0	unique_names_load	"Name" 2-byte rows into 0x96d488[n]; verified by monster_loaders.py
+00653e20	unique_names_free	0x96d488..0x96d498; verified by monster_loaders.py
 00653ed0	unique_prefix_random	0x96d48c, d2d_seed_rand_below
 00653f10	unique_suffix_random	0x96d490, d2d_seed_rand_below
 00653f50	unique_appellation_random	0x96d494, d2d_seed_rand_below
@@ -822,38 +822,38 @@ address	name	evidence
 00654080	treasure_class_append	running totals +8 / +0xc
 006540c0	treasure_class_set_chance	moves the later totals
 00654410	split_number	FUN_00687740 at AL, _atol
-00654d50	treasure_classes_free	MonsterTbls.cpp 0x643, 0x647
+00654d50	treasure_classes_free	MonsterTbls.cpp 0x643, 0x647; verified by monster_loaders.py
 00654dd0	treasure_class_by_name	FUN_006bd3c0 on 0x96c5e8
-00654f20	monitempercent_load	"monitempercent" 4
+00654f20	monitempercent_load	"monitempercent" 4; verified by monster_loaders.py
 00654fc0	monitempercent_free	FUN_006125c0(0x96d484)
 00654fe0	monitempercent_row	4-byte rows (MonsterTbls.cpp 0x6dc, 0x6dd)
-00655030	monumod_load	"monumod" 0x20 (MonsterTbls.cpp 0x6ff)
+00655030	monumod_load	"monumod" 0x20 (MonsterTbls.cpp 0x6ff); verified by monster_loaders.py
 006552e0	superuniques_load	"superuniques" 0x34, hcIdx index (MonsterTbls.cpp 0x744, 0x782)
 00655710	superunique_count	returns 0x96c70c
-00655720	hireling_load	"hireling" 0x118 (MonsterTbls.cpp 0x816..0x818)
-006562b0	hireling_free	clears 0x96bdd8 index
+00655720	hireling_load	"hireling" 0x118 (MonsterTbls.cpp 0x816..0x818); verified by monster_loaders.py
+006562b0	hireling_free	clears 0x96bdd8 index; verified by monster_loaders.py
 00656390	hireling_by_name	NameFirst/NameLast range at +0x114/+0x116
 00656440	hireling_by_id	row +8 == id
-00656620	npc_load	"npc" 0x4c
+00656620	npc_load	"npc" 0x4c; verified by monster_loaders.py
 00656900	npc_row	0x4c rows keyed by +0
 00656930	monsounds_load	"monsounds" 0x94 (MonsterTbls.cpp 0x96f)
 00656f90	monsounds_row	0x94 rows
-00657010	monstats2_components	comma list through compcode, +0x15 + n, +0x26 + 12n
+00657010	monstats2_components	comma list through compcode, +0x15 + n, +0x26 + 12n; verified by monster_loaders.py
 00658460	montype_is_a	three equivs walked
 00658520	montype_load	"montype" 0xc, bit matrix (MonsterTbls.cpp 0xaf6, 0xafc)
-006586d0	montype_free	MonsterTbls.cpp 0xb16
+006586d0	montype_free	MonsterTbls.cpp 0xb16; verified by monster_loaders.py
 00659500	monlvl_load	"monlvl" 0x78
-00659a10	monpreset_load	"monpreset" 4, per-act index
-00659af0	monpreset_free	clears 0x96c6dc..0x96c700
+00659a10	monpreset_load	"monpreset" 4, per-act index; verified by monster_loaders.py
+00659af0	monpreset_free	clears 0x96c6dc..0x96c700; verified by monster_loaders.py
 00659b40	monpreset_act	first row and count, act < 5
 00659b80	monster_id_offset	+ superunique count or + MonStats count
-00659bb0	sounds_load	"sounds" 2 (MonsterTbls.cpp 0xc99)
+00659bb0	sounds_load	"sounds" 2 (MonsterTbls.cpp 0xc99); verified by monster_loaders.py
 00659c30	sounds_free	rows 0x96bdc4, link 0x96bdc8
 00659c60	monseq_load	"monseq" 6 (MonsterTbls.cpp 0xcc3, 0xccc)
-00659de0	monseq_free	MonsterTbls.cpp 0xcea
+00659de0	monseq_free	MonsterTbls.cpp 0xcea; verified by monster_loaders.py
 00659e60	monequip_load	"monequip" 0x1c, MonStats +0x2a (MonsterTbls.cpp 0xd1c)
 0065a190	monster_tables_free	monequip .. unique names
-0065a390	treasure_classes_load	MonsterTbls.cpp 0x60e, 0x616
+0065a390	treasure_classes_load	MonsterTbls.cpp 0x60e, 0x616; verified by monster_loaders.py
 0065a900	unit_find_list_grow	+0xf entries (UnitFinds.cpp 0xc5)
 0065adc0	plr_tokens_load	plrtype + plrmode (TokTbls.cpp 0x37)
 0065aef0	monmode_load	"monmode" 0x34
@@ -969,3 +969,7 @@ address	name	evidence
 0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
 0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
 0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py
+00654e80	treasure_class_roll_chest	parsed treasure class at 0x96c5f4[15 d + 3 a + c], clamped (d 0..2, a 0..4, c 0..2); verified by monster_loaders.py
+006556e0	superunique_row	superunique row n (0x34 bytes at 0x96c704), 0 for n >= count (signed); verified by monster_loaders.py
+006564d0	hireling_next_by_seller	next hireling row after prev with +0x14 == seller, +0x10 == difficulty + 1, version 0 / 100; verified by monster_loaders.py
+00656fc0	monsounds_of_monstats	monsounds row (0x94) of MonStats row n via its +0x14 word, else 0; verified by monster_loaders.py
