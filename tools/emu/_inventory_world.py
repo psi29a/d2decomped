@@ -8,7 +8,6 @@ An item is a fake unit (type 4 at +0, class +4, id +0xc, item data +0x14, path +
 """
 import random
 
-import emu
 
 MAGIC = 0x1020304
 CASES = 0

@@ -213,7 +213,7 @@ def setup_5973f0(w):
 def test_dispatch(w):
     """FUN_005973f0 over random flag words and answers."""
     global FILE_MODE
-    e, a = w.e, w.arena
+    a = w.arena
     reached = set()
     for case in range(6000):
         a.reset()
