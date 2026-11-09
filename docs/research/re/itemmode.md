@@ -1,5 +1,8 @@
 # ItemMode.cpp and Items.cpp leftovers — game.exe 1.14d
 
+For the detailed branch and ABI audit, completed name inventory and bounded
+original-code lifecycle checks, see [the module trace index](items-module.md).
+
 The server's item moves (`.\ITEMS\ItemMode.cpp`) and the small item
 getters (`.\ITEMS\Items.cpp`) that [items.md](items.md),
 [weapon-switch.md](weapon-switch.md) and [d2common-items.md](d2common-items.md)
@@ -111,7 +114,7 @@ caller" rows were byte-scanned and are in [stubs.md](stubs.md).
 | `FUN_0062ae20` | Reads a saved item's header (bits, `FUN_00411020`): `JM` (0x4d4a) when asked, 32 flag bits, 10 skipped, mode 3 bits; on the ground or dropping (3, 5) x and y 16 bits, else location 4, x 4, y 4, page 3 − 1; then the code (`ear ` for flag 0x10000; before version 0x5d `nec ` reads as `neg `) and 3 socket bits unless flags 0x2200000 |
 | `FUN_0062af50` | Writes a value in n bits, clamped to the field (32 bits as is) |
 | `FUN_0062b3a0` | A set item's SetItems word `+0x2e`, -1 else |
-| `FUN_0062b450` | (stat, &sum; EBX item): the stat summed over its socketed children in mode 1 |
+| `FUN_0062b450` | (stat, &sum; EBX parent item): sum the stat over socketed children only when the **parent** is in mode 1. Assembly at `LAB_0062b496` sets ECX=EBX before the mode call; it does not inspect child modes. See [the detailed trace](items-common-trace.md). |
 | `FUN_0062b560` | `FUN_0062b4d0` of an item's class (lines 0x78c, 0x78d). No caller |
 | `FUN_0062ba60` | `d2d_item_text_required_level` |
 | `FUN_0062bbd0` | ItemTypes byte `+0x1f` of the item's type (7 without one) |
