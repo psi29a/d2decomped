@@ -1927,3 +1927,31 @@ FUN_00678ad0 targets and the allocator.
   FUN_00678cd0, FUN_00678d10 and FUN_00678d30 look an index up through
   FUN_00678b80 / FUN_00678c10 and read the byte table 0x6f1648 (stride 3) or
   the 12-byte records at 0x6f1518.
+
+## Record, table and packed-point helpers, run in the emulator
+
+`tools/emu/drlg_misc.py` (same harness; `--mutation-check` 3 ways;
+FUN_0067a5f0 is checked on 400 random boxes outside `rig.run` because its
+object is larger than the arena). Hooked and logged, not claimed: FUN_0067c570,
+FUN_0066d3b0, FUN_00678b80, FUN_00678c10 and the allocator.
+
+- FUN_00666130(pool, block) frees block +4 and the block (Preset.cpp lines
+  0x597, 0x598). FUN_0066c620(room, out, x, y): with a record at room +0x64
+  whose bit 0 is clear, out +0x10 = FUN_0067c570(record + 0x1c, x - room.x, y -
+  room.y), else 0. FUN_0066c660(pool, room) allocates the 0x34-byte record
+  (DrlgLogic line 0xdf), zeroes it, stores it at +0x64 and returns it;
+  FUN_0066cf30 returns its +0x30 (fatal 0x2cd without it). FUN_0066d410 calls
+  FUN_0066d3b0 (EAX near room) for each near room.
+- FUN_00670970(obj in EAX, value in EDX, a, flag): record (+0x20) = {value, a};
+  a nonzero flag clears bit 1 of record +0xc, zero sets it. FUN_0067d6d0
+  allocates the 0x70-byte maze record (line 0xc5) into room +0x20. FUN_0067d7a0
+  returns record +0x54 & 0x80; FUN_0067dce0 returns 5 for level 0x75 and 4
+  otherwise.
+- FUN_00678d70 / FUN_00678df0 (out in ECX, a, b) and FUN_00678db0 (out on the
+  stack) look an index up through FUN_00678c10 / FUN_00678b80 and copy the
+  three dwords at 0x6f1518 + 12 i, or the three bytes at 0x6f1648 + 3 i, as
+  dwords. FUN_0067a5d0(EAX, s) returns `((EAX - s) & 7) * 32 + 0x6f17d8`.
+  FUN_0067a5f0(obj, packed point) tests the unsigned 16-bit halves against the
+  box at obj +0x6278 (x0, y0, x1, y1), both ends inclusive. FUN_0067b9c0(a,
+  b) is the squared distance of two packed points; FUN_0067bbc0 indexes the
+  dwords at 0x6f1e28 by `3 * (hi b - hi a) - lo a + lo b`.
