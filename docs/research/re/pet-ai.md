@@ -496,4 +496,25 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   a cast (cited from the decompile, no oracle run).
   What d2d lacks is the trim when a skill point is removed or a limit
   drops outside a cast (`// ponytail:` candidate).
+- **`FUN_00575c70`** (`pet_list_add`, slot in ESI, then the pet unit and a
+  pointer to three words on the stack, `PlayerPets.cpp`): appends a pet to
+  a slot. A slot's fields: `+0` head node, `+4` count, `+8` max.
+  1. Max 0: `FUN_00575900` (rebuild the maxima from the owner's skills,
+     below) and look again. Still 0: the pet is refused, `FUN_00574450`
+     (flags it `+0xc4 |= 0x4000000` and releases it; not traced here) and
+     return 0. The two branches (pet null or not) are the same call.
+  2. Count equals max: an empty list asserts (line 0x312); else
+     `FUN_00574850(slot, 1)` removes one node (its ECX, hidden, is the
+     node's pet id: the head's, read from the callers, not the asm), then
+     count still equal to max asserts (line 0x316).
+  3. A node of six words (0x18 bytes, line 0x322) is zeroed: `+4` = the
+     pet's id (`unit +0xc`; -1 for no unit), `+8 / +0xc / +0x10` = the
+     three words given (all zero from `FUN_00575d90`), `+0x14` next. It is
+     linked at the **tail** (the walk follows `+0x14` to the last node).
+     Count + 1; above max asserts (line 0x330). Returns 1.
+  So the list is oldest first and a full list loses its head: d2d's
+  `std::ranges::find_if` + `erase` of the first same-pettype pet in
+  `Fight::summon_one` (summons.cpp:148) reads the same, cited from the
+  decompile, no oracle run (and ECX = the head's id is a reading). Caller `FUN_00575d90`
+  and `FUN_00575e90`.
 
