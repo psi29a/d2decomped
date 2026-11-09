@@ -107,3 +107,6 @@ Re-check:
 cd tools/emu && uv run python cof_effects.py | diff - ../../tests/cof_effect_cases.inc
 cmake --build build --target test_cof_effects && build/tests/test_cof_effects
 ```
+
+The unit graphics record, the COF caches and the motion offsets around the
+unit draw are in [gfx.md](gfx.md).

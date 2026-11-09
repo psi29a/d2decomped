@@ -141,7 +141,8 @@ is not run.
 The header's 16 bytes follow from the worn items (body locations 1 head,
 3 torso, 4 right hand, 5 left hand), each through its armor / weapons /
 misc.txt `component` column (0 HD, 1 TR, 5 RH, 6 LH, 7 SH, 10 S3 for a
-necromancer's head, 16 none):
+necromancer's head, 16 none; the token table and the per-item writer are in
+[inventory.md](inventory.md) "The look's token table"):
 - a helm, weapon, shield or head: its graphic's index in this table
   (alternategfx, else code); a one-hand weapon (component 5) in the left
   hand goes on LH; bows are component 6 (LH) wherever they're held;
