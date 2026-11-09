@@ -465,7 +465,7 @@ class Suite:
             n = rng.choice((0, 1, 2, 3, 5))
             nodes = [at(NODES + 0x40 * i) for i in range(n)]
             put(img, INV + 0x80, nodes[0] if nodes else 0)
-            for i, node in enumerate(nodes):
+            for i in range(n):
                 put(img, NODES + 0x40 * i + 0x10, nodes[i + 1] if i + 1 < n else 0)
             return {"regs": {"eax": u}}
 

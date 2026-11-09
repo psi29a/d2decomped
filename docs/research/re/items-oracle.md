@@ -20,8 +20,8 @@ FUN_00650e30 run for real inside them.
 
 ## Confirmed
 
-All 39 traces held on the 3120 cases: the stub pops (`ret 4` / `ret 8`),
-the pure helpers' arithmetic, every forwarded argument order, the fatal
+The 39 traces held on the 3120 generated cases: the stub pops (`ret 4` / `ret 8`),
+the pure helpers' arithmetic, the forwarded argument orders, the fatal
 lines (0xd6c, 0xd8a, 0x906, 0xf28, 0x1054, 0x12e0), the seed reset to
 `1, 0x29a`, the free of D with line 0x10a, the slot pairing 4/5, 6/7, 11/12
 and the set-item row `base + id * 0x1b8` with signed id and count compares.
@@ -34,7 +34,7 @@ and the set-item row `base + id * 0x1b8` with signed id and count compares.
   callee's result: FUN_0062ff70's 0 when it refuses, FUN_006280d0's when the
   mode is not 0.
 - FUN_006282a0 and FUN_006283f0 (byte getters): the rejected value is only in
-  AL. A wrong-type unit leaves the unit pointer's upper 24 bits in EAX, a null
+  AL. On the cases run, a wrong-type unit leaves the unit pointer's upper 24 bits in EAX, a null
   D leaves 0, a null unit leaves 0. The success value keeps D's upper bits.
   The trace states this for FUN_006283f0 only.
 - FUN_00629860 / FUN_006298a0: the rejected 100 is written to AX only; a
@@ -50,7 +50,7 @@ and the set-item row `base + id * 0x1b8` with signed id and count compares.
 
 - FUN_0055fe60 `ITEMMODE_IsItemOnCursor`: not a predicate, a wrapper of
   FUN_0055c2c0 with final argument 0 (EAX is the callee's).
-- FUN_0055fe00 `ITEMMODE_GetItemCursorMode`: sets the identified flag and refreshes equipment; FUN_0055d940 `ITEMMODE_GetItemGoldValue` removes wield bookkeeping and the item's stats. Neither is a getter.
+- FUN_0055fe00 `ITEMMODE_GetItemCursorMode`: sets the identified flag and refreshes equipment; FUN_0055d940 `ITEMMODE_GetItemGoldValue` removes wield bookkeeping and the item's stats. Neither is a getter, whatever the name says.
 - FUN_006281b0 `ITEM_GetItemData_eD2ItemCmd`: the full transient flag word at
   D `+0x14`, not a command enum.
 - FUN_006283f0 `bVariant` reads D `+0x49` (the same byte FUN_00628420 writes as
