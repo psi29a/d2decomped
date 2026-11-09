@@ -89,7 +89,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Preset.cpp POP updater (FUN_006671e0; `--mutation-check` 3 ways) | `uv run python drlg_pops.py` | `ok: 300 Preset.cpp POP updater cases` |
 | Preset.cpp object presets (3 functions, FUN_00666220, FUN_00666990, FUN_006663c0; `--mutation-check` 3 ways) | `uv run python drlg_presets.py` | `ok: 600 Preset.cpp object preset cases` |
 | RoomTile.cpp counters, tile frees and LvlSub tile-type match (6 functions, FUN_0066d290 ... FUN_0066fe00; `--mutation-check` 6 ways) | `uv run python drlg_tiles.py` | `ok: 1200 RoomTile.cpp counter and LvlSub match cases` |
-| DRLG path helpers and OutPlace edge borders (5 functions, FUN_00675de0 ... FUN_0067a9f0; `--mutation-check` 4 ways) | `uv run python drlg_path.py` | `ok: 1000 DRLG path and edge helper cases` |
+| DRLG path helpers, missile offset and OutPlace edge borders (8 functions, FUN_00675de0 ... FUN_0067a9f0; `--mutation-check` 7 ways) | `uv run python drlg_path.py` | `ok: 1600 DRLG path and edge helper cases` |
 | The five large DRLG generators run for real and their output diffed against d2d's `drlg-dump` (FUN_00665950, 00667970, 00675850, 006719f0, 00677880; needs `D2_BUILD` with tools/drlg-dump and tools/mpq-cat; `--mutation-check` 3 ways) | `D2_BUILD=<build> uv run python drlg_generators.py` | `ok: FUN_00665950 entered ...x, ...; port output equals game.exe on every row` |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
 | MissMode.cpp, the 44 functions (FUN_005ab630 ... FUN_005adcc0: hit, damage, srvdo and timer entry points; callees hooked and logged) | `uv run python missmode.py` | `ok: 43 MissMode.cpp function groups (44 functions) against stock game.exe` |

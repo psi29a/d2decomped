@@ -2089,9 +2089,10 @@ FUN_0066f050 and the allocator.
 
 ## DRLG path helpers and OutPlace edge borders, run in the emulator
 
-`tools/emu/drlg_path.py` (same harness; `--mutation-check` 4 ways, 1000
-cases). The direction table at 0x6f18d8 is read from the emulator. Hooked and
-logged, not claimed: FUN_0064d910, FUN_0067a420, FUN_0067a630.
+`tools/emu/drlg_path.py` (same harness; `--mutation-check` 7 ways, 1600
+cases). The direction table at 0x6f18d8 and the sine table at 0x707800 are read
+from the emulator. Hooked and logged, not claimed: FUN_0064d910, FUN_0067a420,
+FUN_0067a630, FUN_006487f0, FUN_0064fd70, FUN_0064fe40, FUN_00679720.
 
 - FUN_00675de0 / FUN_00675eb0(out in EAX, level rect in ECX, variant in EDX,
   direction) place `out` beside the level rectangle: the first starts a south
@@ -2107,6 +2108,23 @@ logged, not claimed: FUN_0064d910, FUN_0067a420, FUN_0067a630.
   by 4 and calls FUN_0067a630; at 5 it climbs to the parent (0 past the root),
   advances its seed pointer, and re-rolls its direction `+ *seed & 7`, or with
   ctx +0x36fd0 set `table[step & 0x1f] + *seed + dir & 7` on the context's seed.
+- FUN_00678e30(path) (ECX): with source and target (dwords at +0 / +4) on the
+  same tile it zeroes +8..+0x18 and returns 1. Otherwise FUN_0064fd70 gives the
+  unit vector (+8 / +0xc) and the facing, stored as the byte +0x1c (minus 0x20 and
+  0x3f when flag 0x200 of +0x20 is set); the velocity (+0x10 / +0x14) is `vector
+  * speed (+0x18) >> 8` (32-bit product); it returns 0 only when both axes'
+  velocities exceed the remaining distance << 16.
+- FUN_00679190(missile) halts at line 0x1ea without a unit, 0x1eb without its
+  path (+0x58); it adds `table[(idx + 0x80) & 0x1ff] * r` to the word at +0x10
+  and `table[idx] * r` to +0x12, r = byte +0x68, idx = `(dir * 8 - r * 256) &
+  0x1ff` with dir from FUN_006487f0. The x87 control word is set to 0xc00 around
+  the conversions: they truncate toward zero. The Redivivus decompile says
+  ROUND; the oracle's `round` mutation (nearest) is caught.
+- FUN_00679a60(target ptr in EDI, path in ESI) asserts the owner is a player or
+  monster (line 0x144), the path type (+0x3c) is not 4 (0x145) and the target
+  has nonzero x (0x146) and y (0x147). With velocity (+0x7c) zero, before or
+  after one FUN_0064fe40 step, the target becomes the path's current tile and it
+  returns 0; otherwise it returns FUN_00679720 on the current tile and the target.
 - FUN_0067a9f0(args, node in EAX) walks the node chain to the root keeping a
   point only where the step to the parent changes (the root is skipped), at
   most 0x4d, and returns 0 for fewer than 2 or more than 77; otherwise it copies
