@@ -243,9 +243,7 @@ decompile's.
   difference from `FUN_00411020` is not traced here.
 - d2d: not ported by name; `d2s::Bits` (components/d2s/d2s_items.hpp) is the
   same idea. Agrees: its `read(n)` is bit by bit and the loader's `JM` check
-  is a 16-bit read.
-  same idea. It reads the same: its `read(n)` is bit by bit and the loader's
-  `JM` check is a 16-bit read (cited from the decompile, no oracle run).
+  is a 16-bit read (cited from the decompile, no oracle run).
 
 ### Arming the replenish events (`FUN_00558530`, `FUN_00558580`)
 
@@ -326,61 +324,6 @@ compact has no socket count. The `check_jm` argument is the d2d `net == null`
 case; `FUN_00558cb0` passes its own flag word there. Not recorded in d2d:
 the game also zeroes the unit-side fields in step 3 (d2d builds a fresh
 `Item`).
-
-### The stream entry (`FUN_0062e430`)
-
-Cited. `item_read_bitstream(unit, buffer, bytes, check_jm, sockets_out,
-version, err_out)`:
-
-1. `FUN_00410e40` starts a reader. With `check_jm` set, 16 bits must be
-   `0x4d4a` ("JM"), else `*err = 1` and 0 is returned. `*err = 0` otherwise.
-2. 32 flag bits are read. Bit 0x2000000 (the header-only flag) is kept apart
-   and stripped from the flags.
-3. For an item unit (type 4 with data), item data +0x18 (the flags) is
-   cleared, the stream flags OR-ed in, then bit 0x80000 cleared; +0x2c is
-   set to 1 and the halfwords +0x38, +0x3e, +0x3a, +0x40, +0x3c, +0x42,
-   +0x32, +0x34 zeroed.
-4. Flag 0x200000 clear: `FUN_0062cbe0(unit, reader, check_jm, header_only,
-   sockets_out, version)`. Set: `FUN_0062a970(check_jm, version)` (the
-   reader is passed in a register) and `*sockets_out = 0` when given.
-5. A result below 1 sets `*err = 1`. The result is `FUN_00410e90(reader)`,
-   the bytes used.
-
-d2d: reads the same as `d2s::item` (components/d2s/d2s_items.hpp:249; cited from the decompile, no oracle run) and
-net-packets.md "Items": JM only for saves, header-only stops after the code,
-compact has no socket count. The `check_jm` argument is the d2d `net == null`
-case; `FUN_00558cb0` passes its own flag word there. Not recorded in d2d:
-the game also zeroes the unit-side fields in step 3 (d2d builds a fresh
-`Item`).
-
-### The compact reader (`FUN_0062a970`)
-
-Cited. Args: `param_1` the is-save word (`check_jm` above), `param_2` the
-version the caller passes (0x60 in `FUN_00558cb0`'s callers); the item unit
-comes in a register. Read in this order:
-
-| Bits | Into |
-|---|---|
-| 10 | item version (`FUN_0062a6c0`, item data +0x30) |
-| 3 | location: 3 or 5 (ground / socketed) read x, y as 16 + 16 bits (`FUN_00620470`, `FUN_006204c0`); else 4 bits to data +0x44, x 4, y 4, 3 bits - 1 to data +0x45 |
-| (ear flag 0x10000 set) | 3 bits ear class, 7 bits level to +0x48, then 7-bit name characters to +0x4a until a zero |
-| 32 | otherwise the item code, then `FUN_00633680` finds the base row into unit +4 |
-| 1, then 32 or 12 | if the item is of type 4 (`FUN_00629bb0(unit, 4)`, gold): the amount, stat 0xe through `FUN_00627260` |
-| (type 0x16, codes `tsc ` / `isc `) | `tsc `: data +0x3e = 0; `isc `: `FUN_00627fb0(unit, 1, 0)` |
-| `stat bits` | version > 0x5c, item row +0x12a and +0x12b nonzero (quest difficulty check): ItemStatCost row 0x164's save bits (row +0x19), minus its save add (+0x1c), shifted by the row's +0x18 & 31, stored as stat 0x164. Fewer than 0x165 rows exits with assert id 0x1607 |
-| 1 (+ 32, 32, and a third 32 when version > 0x5d) | is-save only and version > 0x56: when the bit is set, realm words via `FUN_00629ea0` |
-
-It ends with unit +0x28 = 0, `FUN_00650e40`, item data +0x2c = 1 and data
-+0 = 2, and returns 1 (-1 when the base row isn't found).
-
-d2d: `d2s::item`'s simple branch (components/d2s/d2s_items.hpp:284) reads the same, cited from the decompile, no oracle run,
-on the version gates (> 92 quest difficulty, > 86 realm, > 93 third word), the
-32/12 gold read and the ear fields. Two differences, neither one a save
-bug: d2d reads gold only on the wire (`net`) and only for code `gld`, where
-the game tests the item type (saves never hold gold), and d2d applies no
-`<< (row +0x18)` shift to the quest difficulty, which is right only while
-that column of row 0x164 is 0 (not checked here; needs Itemstatcost.txt).
-The `tsc ` / `isc ` fix-ups are not ported.
 
 ### The compact reader (`FUN_0062a970`)
 

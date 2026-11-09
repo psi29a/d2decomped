@@ -282,6 +282,7 @@ address	name	evidence
 0055fde0	itemmode_refresh	FUN_0055dbc0(0), FUN_00621000
 0055fe00	item_flag10_refresh	flag 0x10, FUN_0062ff70
 0055fe60	itemmode_55c2c0_0	FUN_0055c2c0(arg, 0)
+00558cb0	item_create_from_stream	(game in ecx; record ref, out word, version): needs ref[0] below the item-table count (FUN_00633590), makes the unit (FUN_00555230), fills it from the bitstream (FUN_0062e430, frees it on 0 bytes or error), sets flag 0x80000, clears 0x2000, arms both replenish events
 0055bed0	item_announce_ground	(item, client): item mode 3 and unit flag 0x10 clear; flag 0x1000 set calls FUN_0053ec90 (action 2), clear FUN_0053ecf0 (action 3) (items.md)
 0055bf30	item_announce_ground_if_flag1	(unit): FUN_0055bed0 only when unit +0xc4 bit 0 is set (items.md)
 0055c470	unit_hand_weapons	(unit in EAX; outs in EBX, EDI): wielded weapon, and the other slot-4/5 item cleared unless ItemTypes 0x2d (weapon-switch.md)
