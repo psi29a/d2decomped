@@ -37,7 +37,7 @@ std::vector<Drawn> screen(const std::string& line, int& scene) {
             fields >> kind >> drawn >> x >> y >> text_w >> text_h;
             if (kind != 4 || !drawn) continue;
             if (number == cursor) cursor_item = std::ptrdiff_t(walk.size());
-            walk.push_back({ x, y - 16, text_w, text_h });
+            walk.push_back(d2d::rules::label_item(x, y, text_w, text_h));   // x y: where it stands (the view at 0)
             unit_of.push_back(number);
         }
     }

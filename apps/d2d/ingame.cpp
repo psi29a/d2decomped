@@ -231,7 +231,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (hovered_npc && *hovered_npc != -1)            // last frame's: brighter (render_world)
             for (auto& unit : units) if (unit.npc == *hovered_npc && unit.name) unit.highlight = true;
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
-        std::vector<std::pair<const Unit*, std::array<int, 4>>> items;
+        std::vector<std::pair<const Unit*, std::array<int, 2>>> items;   // each drawn ground item and where it stands on screen
         render_world(world, scene, level, cam_x, cam_y, elapsed_ms, units, world_mouse_x, mouse_y, &hovered, light, rain, show_items ? &items : nullptr);
         if (rain) draw_rain(world, *rain, scene.act_pal.entries().empty() ? scene.pal : scene.act_pal,
                             hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2);
@@ -281,10 +281,10 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             const int line_height = scene.font.line_height();
             std::vector<d2d::rules::LabelItem> walk;
             std::ptrdiff_t cursor_item = -1;
-            for (const auto& [unit, box] : items) {
-                // Its spot (x, y): the label's bottom over the item's centre; its height h as top = y - h + 4 has it.
+            for (const auto& [unit, feet] : items) {
+                // Its spot: where the item stands, 16 up (rules::label_item); its height h as top = y - h + 4 has it.
                 if (hovered.first == unit) cursor_item = std::ptrdiff_t(walk.size());
-                walk.push_back({ (box[0] + box[2]) / 2, box[1] - 2, scene.font.measure(*unit->name), line_height + 6 });
+                walk.push_back(d2d::rules::label_item(feet[0], feet[1], scene.font.measure(*unit->name), line_height + 6));
             }
             // The columns: the screen, its left half less 0x20 with a right
             // panel open (FUN_0045ae90 1), its right half with a left one (2).
