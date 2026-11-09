@@ -409,3 +409,20 @@ pgsv, the six progressive_* states, so the Shadow holds charges. A
 monster's states for the AIs are its curse / cry (their auratargetstate).
 Blade Shield strikes as skills.md do 54 says, from the Shadow.
 
+## The owner's pet lists (PlayerPets.cpp)
+
+Traced from the decompile only (cited, no oracle): the decompiler drops
+fastcall ECX / EDX and some registers the helpers take, so a register
+argument below is a reading of the callers, not of the disassembly.
+
+A player's pets live in its player data (`FUN_006221a0(unit)`, unit
+`+0x14`) at `+0x44`: a pointer to a struct whose first word points to an
+array of one 0xc-byte slot per PetType.txt row (the row count is
+`[0x744304]+0xbf0`; `FUN_00575af0` allocates it, `PlayerPets.cpp` lines
+0xa2 / 0xa6, and zeroes `count * 0xc` bytes).
+
+- **`FUN_00574540`** (`pet_slot`): the row number in EAX, the `+0x44`
+  struct as its one stack argument. 0 when the row is under 0 or at least
+  the row count, else `*struct + row * 0xc`. No assert. Its one caller is
+  `FUN_00575d90`.
+
