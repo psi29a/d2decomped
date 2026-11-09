@@ -572,4 +572,15 @@ array of one 0xc-byte slot per PetType.txt row (the row count is
   nonzero, `FUN_00574930` sends this as 0x81. d2d: **not ported** (its
   merc resurrection, `resurrect_merc`, per npc-menu.md, has no node flag
   or event).
+- **`FUN_005c56c0`** (Revive, do 58; d2d: summons.cpp:168, skills.md "Do
+  58"): its end is the pet's registration. The row is the skill record's
+  byte `+0xbe` (`local_5`, 0 when it is at or past the row count), the
+  limit `FUN_00646ca0(owner, record +0xc0, skill, level)` (the petmax
+  calc), and `FUN_00575d90(monster, row, limit)` is called after the
+  raised monster's stats, `FUN_005c4470` and `FUN_005c55c0`, then
+  `FUN_005b1900(0, ...)` and the path repattern. Unlike `FUN_0056d8d0`
+  there is no clamp of the limit to 1, and no `+0xc4` bit 31 write in this
+  function (the flag comes from `FUN_005c55c0`, collision.md). d2d:
+  `summon_one` does the Revive stats as skills.md says (reads the same, cited, no oracle run); the
+  registration and the missing clamp are the `pet_add` notes above.
 
