@@ -1129,6 +1129,7 @@ address	name	evidence
 006c9640	gdi_video_close	frees DAT_0098a278, _SmackClose_4 when kind (+4) is s, kind = 0; Src/gdiSmack.cpp, driver slot +0x48
 006c9690	gdi_video_blit_rows	EAX rect (+8 x, +0xc bottom y), rows ECX, width arg: DAT_0098a278 through map DAT_0098a178 into DAT_007c9154, stride DAT_007c9138
 006c9710	gdi_video_open	kind s = _SmackOpen_12 (0xfe000, -1) into a W x H buffer, kind p = 0x1d4 x 0x3c picture via FUN_006c6a80 type 2; Src\gdiSmack.cpp line 0x78
+006c9900	gdi_video_frame	_SmackWait_4, palette to DAT_0098a178, _SmackDoFrame_4, close at frame (+0x374) == count (+0xc), then FUN_006c9690; Src/gdiSmack.cpp slot +0x44
 0054ba90	scmd_npc_gossip	C->S 0x31 (9 bytes): guid u32 +1, gossip id u16 +5 to FUN_005443b0; verified plrmsg_small.py
 0054bb20	scmd_npc_sell	C->S 0x33 (0x11 bytes): npc +1, item +5, mode u16 +9, price u32 +0xd to FUN_00579510, returns its status; verified plrmsg_small.py
 0054bb60	scmd_npc_repair	C->S 0x35 (0x11 bytes): npc +1, item +5, word +9, dword +0xd to FUN_00578050 (repair); verified plrmsg_small.py

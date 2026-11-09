@@ -111,3 +111,28 @@ numbers of SMemAlloc / SMemFree-shaped calls, the way the assert's 0x78 is;
 that is a reading of the pattern, not traced. Apart from those, the two
 drivers' open functions are the same text, with the failure path of the GDI
 one also zeroing the kind.
+
+### Frame (`FUN_006c9900`, slot `+0x44`)
+
+- **`'p'`:** when `DAT_007c9144` is 0, blits the still (`FUN_006c9690`, width
+  0x1d4).
+- **`'s'` with a Smacker:** `_SmackWait_4` says whether a frame is due. If it
+  is: returns at once when `DAT_007c9140` is 0; otherwise, when the frame
+  carries a palette (Smacker `+0x68`), rebuilds the map `DAT_0098a178` from
+  its entries (`+0x6c..`, three bytes each) through `FUN_00605210` and sets
+  `DAT_0098a27c`; decodes the frame (`_SmackDoFrame_4`); then, if the frame
+  number (Smacker `+0x374`) equals the frame count (`+0xc`), closes the video
+  (`FUN_006c9640`), else `_SmackNextFrame_4`. After that, with
+  `DAT_007c9144` 0 and `DAT_0098a27c` set, it blits with the Smacker's width
+  (`+4`).
+- DirectDraw's `FUN_005135f0` is the same text (its map `DAT_008815b0`, flag
+  `DAT_008816b4`, close `FUN_00513330`, blit `FUN_00513380`).
+
+**The close-then-blit order** (bugs.md #95): on the frame that closes the
+video, the GDI function goes on to the blit with the same flag still set,
+reading the width from the Smacker it just closed, and `FUN_006c9640` has
+zeroed `DAT_0098a278`; `FUN_006c9690` then reads its source from that null
+pointer. DirectDraw's `FUN_00513380` opens with `if (DAT_008816b0 != 0)`,
+so the same sequence there blits nothing. Not run: whether a frame number
+reaches the frame count under this check, and whether the palette flag is
+set by then, is not read from the Smacker library.
