@@ -50,6 +50,15 @@ orientation `+0x14` (`FUN_00604b60`), main index `+0x18`
 the level def's `+0x34` (`FUN_00642750`). The "lower wall" test reads the
 room tile's own orientation (`+0x1c`).
 
+That header is whatever the room's walk picked, which may not be the
+word's own. Every floor and wall word gets a room tile: `FUN_0066e620`
+picks with `FUN_0066d820`, then adds it (`FUN_0066dc50`, floors
+`FUN_0066def0`) whatever came back. `FUN_0066d820` searches the room's
+DT1s (room `+0x68`, `FUN_00604ae0`) for the word's (orientation, style
+bits 20..25, sequence bits 8..15). When nothing matches it takes the
+(10, 0, 0) tile instead, and dies with error 0x73 if that is missing too.
+So a word with no tile of its own is looked up as (10, 0, 0).
+
 `FUN_00458f40(room, all, layer)` runs it over the room's floors
 (`FUN_00619660`), then its walls (`FUN_006196a0`), skipping tiles with
 flag 8 (hidden). Unless `all` (or `DAT_007a51a0`) is set, only tiles
@@ -369,9 +378,14 @@ dropped, otherwise the cel decides.
   their maps empty.
 - A preset level (the towns) has its 8x8 rooms walked by
   `game::preset_rooms` (`level_room_tiles` on the town's preset, as
-  `camp_rooms` lays the camp beside the Blood Moor), the words' style and
-  sequence standing for the DT1 header. `automap_whole` brings the Rogue
-  Encampment and the Kurast Docks in whole once a game
+  `camp_rooms` lays the camp beside the Blood Moor). Each tile is picked
+  from the preset's Dt1Mask files (`GameData::prest_automap_dt1s`, the
+  level's LvlTypes row, loaded with the act's tables) by `pick_tile`, as
+  `FUN_0066d820`, and the automap reads the picked tile's header. In
+  1.14d every floor and wall word of the camp has a tile of its own, so
+  none falls back to (10, 0, 0) (`test_preset_room_picks`).
+  `automap_whole` brings the Rogue Encampment and the Kurast Docks in
+  whole once a game
   (`GameData::prest_automap`, LvlPrest AutoMap). Both are DrlgType 2 in
   Levels.txt; d2d grows the Docks with the jungle, so its rooms are the
   generated ones.
@@ -380,8 +394,7 @@ dropped, otherwise the cel decides.
   `ev::Reassigned`, each beside `rain.reassign`) call
   `rules::automap_pause`.
 - Not ported: another unit's teleport pausing it (d2d's client hears only
-  its own player's); a preset room lists every word
-  its walk takes (game.exe only those it finds a tile for); before 2026-11
+  its own player's). Before 2026-11
   d2d revealed each frame what was drawn, with a tile hash for the cel.
 - Your own mark is drawn.
 - The options (Options → Automap, the key config's automap functions;

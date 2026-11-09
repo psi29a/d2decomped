@@ -604,6 +604,10 @@ struct GameData {
     // The levels a whole-level preset with LvlPrest AutoMap (row +0x30) makes:
     // FUN_00668100 brings their every room into the automap as they come up.
     std::set<int> prest_automap;
+    // Those but the miniature towns (level_ids::kMiniatureTowns): their
+    // LvlTypes row's DT1 heads (drlg load_room_dt1s, in the builder's act1
+    // tables), so preset_rooms picks their tiles as game.exe (FUN_0066d820).
+    std::map<int, d2d::drlg::RoomDt1s> prest_automap_dt1s;
     // belts.txt 800x600 rows ("belt2" .. "uber belt", after the Expansion
     // separator) by armor.txt `belt` index: box count and boxes 1..16
     // {left, right, top, bottom}. Index 2 ("default") when no belt is worn.
@@ -1076,7 +1080,8 @@ std::vector<AutomapRoom> automap_rooms(const GameData& game_data, const Level& l
 // splits it (FUN_00666680, 8x8, each at the list's head) and walks each
 // (FUN_00666ac0: its (w+1)x(h+1) slice of every floor layer, then every
 // wall layer, then the shadow): its 8x8 rooms in split order, with their
-// tiles; `assets`: any generated level's (the presets' rows and DS1s).
+// tiles, each picked from GameData::prest_automap_dt1s (none: no picks);
+// `assets`: any generated level's (the presets' rows and DS1s).
 std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets);
 // Every room of the level populated at once, newest first: tools/emu
 // monsters.py's order, for diffing against game.exe (drlg-dump monsters).

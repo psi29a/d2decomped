@@ -12,6 +12,7 @@
 #include <drops.hpp>
 #include <dt1.hpp>
 #include <install.hpp>
+#include <level_ids.hpp>
 #include <monster_ids.hpp>
 #include <mpq.hpp>
 #include <obj_preset.hpp>
@@ -1776,6 +1777,11 @@ void load_game_world(GameData& game_data, d2d::mpq::Stack& mpqs, std::uint32_t m
     auto act1 = std::make_unique<d2d::drlg::OutdoorAssets>();
     d2d::drlg::load_outdoor_assets(*act1, [&](const std::string& path) { return mpqs.try_read(path); });
     place_act1(game_data, mpqs, *act1, map_seed);
+    for (const int level_id : game_data.prest_automap)               // the DT1s preset_rooms picks from
+        if (!std::ranges::contains(d2d::rules::level_ids::kMiniatureTowns, level_id))
+            if (const auto row = d2d::drlg::level_row(act1->levels, level_id))
+                game_data.prest_automap_dt1s[level_id] = d2d::drlg::load_room_dt1s(
+                    *act1, [&](const std::string& path) { return mpqs.try_read(path); }, d2d::drlg::to_int(act1->levels.get(*row, "LevelType")));
     // The other levels build when they're first wanted (GameData::level).
     game_data.builder = std::make_shared<GameData::LevelBuilder>();
     game_data.builder->act1 = std::move(act1);
