@@ -8,7 +8,7 @@ hand-written models on random records (_dungeon_rig.py): return value, callee
 log, arena, allocator blocks, fatal-error line and the bytes `ret n` pops.
 Hooked, logged, not claimed: FUN_00604ae0, FUN_0066dde0, FUN_0066c040,
 FUN_00642ae0, FUN_0066b4f0 and the allocator. `--mutation-check` breaks the
-model seven ways.
+model eight ways.
 """
 import argparse
 import sys
@@ -453,6 +453,79 @@ def checkall_methods():
     return checkall
 
 
+def astar_methods():
+    """The A* bounding-box wrapper group, added to Suite below."""
+    def astar(self):
+        """FUN_0067ad00: bounding box of the current and next room (padded by 10 on an unchanged axis), then the A* search."""
+        rig, at = self.rig, self.at
+        rig.callee("c619730", 0x61_9730, 2, (), nlog=1)
+        rig.callee("c67aaa0", 0x67_AAA0, 1, ())
+        self.gen = []
+        self.boxes = []
+
+        def room_coords(e):
+            """FUN_00619730 stand-in: write a random room box (x, y, w, h, then four more dwords) and remember it."""
+            vals = [rig.rng.randrange(0, 30), rig.rng.randrange(0, 30), rig.rng.randrange(1, 30), rig.rng.randrange(1, 30)]
+            vals += [rig.rng.getrandbits(32) for _ in range(4)]
+            self.gen.append(vals)
+            for k, v in enumerate(vals):
+                e.mu.mem_write(e.arg(1) + 4 * k, v.to_bytes(4, "little"))
+            return 0
+
+        def search(e):
+            """FUN_0067aaa0 stand-in: note the box in ECX and answer a fixed number."""
+            from unicorn.x86_const import UC_X86_REG_ECX
+            ptr = e.mu.reg_read(UC_X86_REG_ECX)
+            self.boxes.append([e.r32(ptr + 4 * k) for k in range(8)])
+            return 0x1234
+        rig.custom["c619730"] = room_coords
+        rig.custom["c67aaa0"] = search
+
+        def build(img, rng):
+            """A path argument with a current room, a next room (same, none or different) and a doubling byte."""
+            self.gen.clear()
+            self.boxes.clear()
+            img[0x14] = rng.choice((0, 1, 5, 127, 128, 200))
+            put(img, 8, at(0x100))
+            put(img, 0xC, rng.choice((0, at(0x100), at(0x200), at(0x200))))
+            return {"ecx": at(0)}
+
+        def model(m, a):
+            """Double the byte; box the current room; widen to the next room if it differs; pad the axes left unchanged; search."""
+            arg = a["ecx"]
+            m.w(arg + 0x14, (m.r(arg + 0x14, 1) * 2) & 0xFF, 1)
+            room, nxt = m.r(arg + 8), m.r(arg + 0xC)
+            m.call("c619730", room)
+            cur = list(self.gen[0])
+            snap = list(cur)
+            if nxt and room != nxt:
+                m.call("c619730", nxt)
+                nb = self.gen[1]
+                if nb[0] < snap[0]:
+                    cur[0], cur[2] = nb[0], snap[2] - nb[0] + snap[0]
+                else:
+                    cur[0], cur[2] = snap[0], nb[2] - snap[0] + nb[0]
+                if nb[1] < snap[1]:
+                    cur[1], cur[3] = nb[1], snap[3] - nb[1] + snap[1]
+                else:
+                    cur[1], cur[3] = snap[1], nb[3] - snap[1] + nb[1]
+                pad_x = cur[2] == snap[2]
+            else:
+                pad_x = True
+            if pad_x:
+                cur[0] -= 10
+                cur[2] += 20
+            if cur[3] == snap[3] and not mut("pad-y"):
+                cur[1] -= 10
+                cur[3] += 20
+            cur = [v & M32 for v in cur]
+            res = m.call("c67aaa0", arg)
+            require(self.boxes == [cur], f"search box {self.boxes}, model {[cur]}")
+            return res
+        rig.run("FUN_0067ad00", 0x67AD00, build, model, 0)
+    return astar
+
+
 def self_step(m, room):
     """Advance the room's seed (+0x14 low, +0x18 high) by low * 0x6ac690c5 + high and return the new low."""
     lo, hi = m.r(room + 0x14), m.r(room + 0x18)
@@ -471,6 +544,7 @@ def _tdiv(a, b):
 Suite.knock = knock_methods()
 Suite.subfile = subfile_methods()
 Suite.checkall = checkall_methods()
+Suite.astar = astar_methods()
 
 
 def suite(rig):
@@ -482,12 +556,13 @@ def suite(rig):
     s.knock()
     s.subfile()
     s.checkall()
+    s.astar()
     return rig.cases
 
 
 MUTATIONS = {
     name: (lambda on, n=name: MUT.add(n) if on else MUT.discard(n))
-    for name in ("act1", "flag-bit", "status", "keep-near", "knock-axis", "sub-grid", "prob-dir")
+    for name in ("act1", "flag-bit", "status", "keep-near", "knock-axis", "sub-grid", "prob-dir", "pad-y")
 }
 
 
