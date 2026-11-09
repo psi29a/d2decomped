@@ -149,6 +149,20 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   `FUN_005ff760` calls it right after the read it queues with the
   `FUN_005ff6e0` callback (line 0x369) and drops the result, so there it is only the tag check. d2d: not ported
   (`tools/emu/sound_hdr_load.py` hooks it).
+- `FUN_005fec90(entry, record)` (the layer's sprite-cache record in EDI):
+  works only when `record` and EDI are set, bit 0 of `*entry` is clear and
+  EDI+0x28 is 0; if any of those fails, or `FUN_0040a9e0` gives 0, it falls
+  through to the same fatal error as a bad header below (the error id is not
+  visible in the decompile). Otherwise it zero-fills `+0x24 * +0x21 * 0x2c` bytes (`FUN_0040b430`,
+  `.\SRC\SpriteCache.cpp` line 0x517: one 0x2c-byte cell record per frame
+  of every loaded direction), takes the decoded blob from `FUN_0040a9e0`
+  and walks one frame header per cell from the offset EDI+0x2c+(+0x22)*4.
+  A header must have 0 in its first dword and +4 and +8 (the frame's
+  size) at most 0x100; if not, it builds the layer's path into a 260-byte
+  local (`FUN_005fe2b0`, `FUN_005fe610`) and ends the run with an error.
+  Each good header's +0x18 gets its cell record, and the next header is
+  `0x23 + [+0x1c] + [+0x14]` bytes on. At the end EDI+0x28 = 1. Called by
+  `FUN_005ffe90`. d2d: not ported (the DCC decoder sizes its own frames).
 
 ## Draw effects
 
