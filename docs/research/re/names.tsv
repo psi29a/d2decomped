@@ -191,11 +191,31 @@ address	name	evidence
 00519920	bncache_read	API +0xcc; "File: '%s' in bncache.dat is corrupt (%d) - deleting from cache"
 00519db0	bncache_write	API +0xd0; 0x144-byte entry header, rewrites both tables and the header CRC
 0051ac20	bnet_free_channel_list	DAT_008818c8, Storm free line 0x1ef; FUN_0051c470 (close)
+0051ac50	bnet_get_channel_list	C->S 0x0B: u32 (expansion and ECX == 0), waits, returns DAT_008818c8
+0051aca0	bnet_join_channel	C->S 0x0C: u32 flags + name (default Diablo II)
 0051ad70	bnet_byte_stuff	00 -> FF 01, FF -> FF FF in place, fails at 0xff
+0051ae10	bnet_enter_chat	C->S 0x0B product dword, then 0x0A user NUL statstring NUL
+0051af20	bnet_leave_chat	C->S 0x10, empty
+0051af40	bnet_chat_command	C->S 0x0E: cp1252 -> UTF-16 -> UTF-8, NUL included, 510 characters at most
+0051b010	bnet_check_ad	C->S 0x15: IX86, product, banner id 0x88252c, time(0)
+0051b060	bnet_display_ad	C->S 0x21: IX86, product, banner id, two zero bytes
+0051b0e0	bnet_start_game	C->S 0x1C STARTADVEX3; strings in a 0x100-byte local (bugs.md 66)
 0051b1f0	bnet_host_ad_result	API +0x8c: ECX out = 0x8822a8[0x1c], returns 0x882128[0x1c]
 0051b210	bnet_free_game_list	DAT_008818d0, Storm free line 0x36a; FUN_0051c470 (close)
+0051b240	bnet_get_game_list	C->S 0x09: 0, 0, 0, 0x19, name, password, empty; waits, returns DAT_008818d0
+0051b320	bnet_notify_join	C->S 0x22: product, 0x0E, game NUL user NUL
+0051b3e0	bnet_keep_logon_reply	size + copy of the 0x3E reply to DAT_008818d4, ntohs of the word at +0x18 when >= 0x48 bytes and not 8
+0051b460	bnet_logon_realm	C->S 0x3E: counter, hash of (counter, token, hash(password)), title
+0051b540	bnet_locale_info	C->S 0x12: FILETIMEs, Bias, LCIDs, LangID, four GetLocaleInfoA strings
+0051b6c0	bnet_click_ad	C->S 0x16: ad id, ECX flag
+0051b6f0	bnet_write_user_data	C->S 0x27: 1, count, account, keys, values
 0051b820	bnet_keep_user_data	S->C 0x26 handler 0x521200 JMPs here: copy to DAT_008818d8
+0051b870	bnet_request_user_data	C->S 0x26: 1, count, request id, account, keys
 0051b960	bnet_read_user_data	API +0x7c: DAT_008818d8 +0 == 1, +4 == ECX, +8 == EDX, then strings
+0051ba00	bnet_set_email	C->S 0x59; null is fatal line 0x55d, 0x100 bytes or more line 0x565
+0051baa0	bnet_reset_password	C->S 0x5A: account NUL email NUL; fatal lines 1400 1401 1409 1416
+0051bb90	bnet_change_email	C->S 0x5B: three NUL strings; fatal lines 1433 1434 1444 1452 1460
+0051bcf0	bnet_send_crash_report	C->S 0x5D: up to 0x5dc bytes from FUN_0040d290 when it finds any
 0051bd60	bnet_keep_realm_list	S->C 0x40 handler 0x5211d0 JMPs here: copy to DAT_008818cc
 0051bdc0	bnet_keep_channel_list	S->C 0x0b handler 0x5210c0 JMPs here: copy to DAT_008818c8
 0051be20	bnet_keep_game_list	S->C 0x09 handler 0x5210d0 JMPs here: copy to DAT_008818d0
