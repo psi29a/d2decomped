@@ -264,9 +264,10 @@ slot 59 is `0x73c92c` = FUN_005acf20). Baal Taunt's lightning control
 d2d: `Missiles` `hit_spawn` (ai.hpp) reads the same, cited from the decompile, no oracle run,
 on the radius clamp, the
 sub missile, the start and the flags-0x20 aim, and keeps its own rng
-(ponytail already noted). It differs in one case: when both draws land on the
-missile's own subtile, game.exe aims (+1, +1) subtiles away, d2d at that
-subtile's centre. The gates do not match: game.exe's also needs an owner
+(ponytail already noted). When both draws land on the missile's own subtile
+and the sub missile moves, both aim (+1, +1) subtiles away (0x59fbbe..0x59fc11:
+velocity [ebp-0x10] nonzero, no target unit, target equal to the start;
+tests/game/test_missile_seed_spots.cpp). The gates do not match: game.exe's also needs an owner
 (FUN_00552fd0) and a class inside the table; `hit_spawn` itself checks only the
 sub missile and hit function number (58 / 59), and its caller checks expiry
 (`now_ms >= dies`) before calling it. No owner lookup in d2d.
