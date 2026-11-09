@@ -16,6 +16,7 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <hud_globe.hpp>
 #include <light.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
@@ -181,6 +182,27 @@ auto World::walk_percent(const Player& player, std::uint32_t now_ms) const -> in
 // The run turns a walk on the frame stamina hits 0 (0x580c5f: FUN_0057f090
 // with mode 2, town walk 6), before that frame's regen: a walk at 0 regens
 // nothing, even with staminarecoverybonus 1000 (a run's would).
+// The end percents FUN_00548760 works out (FUN_005485b0 / FUN_00548640)
+// from the healthpot / manapot states (Fight::Regen: 8.8 a ms), then the
+// update's own rule; what 0x18 last carried stays in `life_sent`.
+auto World::life_update_frame(std::uint32_t tick_ms) -> void {
+        namespace d2s = d2d::d2s;
+        const auto& values = actor->character.stats.values;
+        const auto potion = [&](bool life) {
+            return std::ranges::find_if(actor->regen, [&](const Fight::Regen& entry) { return !entry.poison && tick_ms < entry.until && (life ? entry.life > 0 : entry.mana > 0); });
+        };
+        int life_percent = 0, mana_percent = 0;
+        if (const auto healthpot = potion(true); healthpot != actor->regen.end())
+            life_percent = d2d::rules::life_end_percent(values[d2s::kLife], values[d2s::kMaxLife], std::lround(healthpot->life * 40.0), (healthpot->until - tick_ms) / 40);
+        if (const auto manapot = potion(false); manapot != actor->regen.end()) {
+            const auto& gains = game_data->class_gains[std::size_t(std::max(actor->character.character_class, 0))];
+            const int flat = int(actor->psum[d2s::kManaRecovery]) + int(std::lround(manapot->mana * 40.0));
+            const auto per_frame = d2d::rules::mana_per_frame(values[d2s::kMaxMana], gains.mana_regen, actor->player_combat.mana_regen, flat);
+            mana_percent = d2d::rules::mana_end_percent(values[d2s::kMana], values[d2s::kMaxMana], per_frame, (manapot->until - tick_ms) / 40);
+        }
+        d2d::rules::life_update_frame(actor->life_sent, int(values[d2s::kLife] >> 8), int(values[d2s::kMaxLife] >> 8), life_percent, mana_percent);
+    }
+
 auto World::stamina_frame() -> void {
         using namespace d2d::d2s;
         if (fight.dead()) return;
@@ -249,7 +271,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
             day.step(act(), level->id);
             credit_party([&] { act1_tick(); act2_tick(); });
-            each_player([&](Player&) { stamina_frame(); footstep_frame(day_at); find_voice(day_at); });
+            each_player([&](Player&) { stamina_frame(); life_update_frame(day_at); footstep_frame(day_at); find_voice(day_at); });
         }
         each_player([&](Player& player) {
             if (player.boost.until && now_ms >= player.boost.until) {     // the state runs out

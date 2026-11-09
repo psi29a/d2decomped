@@ -13,6 +13,7 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <hud_globe.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
 #include <shadows.hpp>
@@ -410,6 +411,7 @@ struct Fight {
         std::uint32_t merc_poison_until = 0;
         std::array<PotionState, 2> merc_potion_states;   // the merc's antidote / thawing states (merc_drinks)
         double regen_acc_life = 0, regen_acc_mana = 0;
+        d2d::rules::LifeSent life_sent;                // the server's life update: what the client last heard (the globes' preview)
         bool portal_due = false;                       // Town Portal's action frame came
         // The wisps' dance's blessing on the player (FUN_005f39b0): stat 0x50
         // (magic find) for 0x1a5e00 frames, the last one's.

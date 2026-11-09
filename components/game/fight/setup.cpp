@@ -83,6 +83,7 @@ auto Fight::new_game(int difficulty) -> void {
         actor->boost = {};
         actor->stamina_pot = {};
         actor->potion_states = {};
+        actor->life_sent = {};                    // the join's update is forced (FUN_00539760)
         actor->pets.clear();
         actor->attack_mon = -1;
         actor->item_charge = actor->attack_charge = {};            // no cast from a charged entry carried in
