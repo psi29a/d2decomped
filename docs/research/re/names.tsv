@@ -302,6 +302,7 @@ address	name	evidence
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
 00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")
+00574930	pet_send_to_client	per-client callback of FUN_005538d0: event {+0 pet id, +4 owner id, +8 class, +0xc row, +0x10/+0x14 words}; both words 0 sends 0x7a (FUN_0053cb30) else 0x81 (FUN_0053cb80) (pet-ai.md "The owner's pet lists")
 0058ebc0	ai_control_alloc	allocates 0x40 bytes zeroed; sets flags +0x10 = 1, +0x30 = 1, target +0xc = -1, owner +0x2c = -1; AiGeneral.cpp line 0x1b
 0058ec50	ai_control_scratch_get	getter for scratch words +0x14, +0x18, +0x1c by index 1..3 from monster data +0x28; AiGeneral.cpp
 0058ec90	ai_command_push	pushes command node onto AI control queue; AiGeneral.cpp
