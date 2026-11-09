@@ -1794,3 +1794,34 @@ argument) is hooked and logged, not claimed.
   allocates a zeroed 0x14-byte record with byte +8 = dl; FUN_0067ce00 (EAX
   record, flag) sets +0xc bit 0, and bit 1 too for a nonzero flag.
 
+## DrlgRoom.cpp helpers, run in the emulator
+
+`tools/emu/drlg_room.py` (same harness; `--mutation-check` 4 ways). Hooked and
+logged, not claimed: FUN_0066b720, FUN_0066ab00, FUN_0061aae0, FUN_0061e470,
+FUN_00667010 and the allocator (stack arguments that point at the caller's
+locals are popped but not compared).
+
+- FUN_0066b4f0(pool, room) frees the chain on room +0x4c (next +4, line 0x58)
+  and clears +0x4c; FUN_0066b530(pool, head) frees a chain linked at +0x14
+  (line 0xbd). FUN_0066b610(pool, cell, key): drops the first node {key +0,
+  type +0xc, next +0x14} of type 1 with that key from the list the cell
+  points at, and frees it (line 0x115); the cell must be non-null (the head
+  is read at once). FUN_0066b670(pool, a, b) removes key b from list a, then
+  key a from list b.
+- FUN_0066b790(room**, level, dir, preset): allocates 0x18 (line 0x15f) {level,
+  dir, preset, 0, level + 0x1c, 0} and calls FUN_0066b720 with ebx = the node.
+- FUN_0066b900(list owner, room, skip, gap): 0 when another listed room (not
+  `room`, not `skip`) lies within `gap` on both axes (edge distance, signed),
+  else 1. FUN_0066ba20(rect, x, y): rect in 5-unit tiles, half-open.
+- FUN_0066bac0: FUN_0066ab00 -> FUN_0061aae0 -> level id; fatal 0x25c, 0x25e,
+  0x25f at each null. FUN_0066bb20: fatal 0x26b on null, 0 with room flag
+  0x800000, else the level id. FUN_0066bb60: fatal 0x276 on null; 1 when any
+  of 0x30000 is set. FUN_0066bba0: preset type 2 jumps to FUN_00667010, other
+  types return 0x6eee0c. FUN_0066bcf0 returns +0x2c. FUN_0066bd00(room2, out):
+  copies each neighbour's nonzero +0x30, zero-fills the rest, returns the
+  count copied. FUN_0066bfd0 copies four bytes of the level record (+0x88..
+  +0x8b) to four byte pointers. FUN_0066c040(level, id): the entry with that
+  id on the +0x90 list (its +4), else the level record + 0x48; a zero id in
+  the list is fatal 0x410. FUN_0066c0b0: the room's act; fatal 0x42b, 0x42c,
+  0x42d at each null.
+

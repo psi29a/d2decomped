@@ -23,7 +23,8 @@ import struct
 import zlib
 from pathlib import Path
 
-from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX,
+                               UC_X86_REG_ESI, UC_X86_REG_ESP)
 
 import emu
 
@@ -158,15 +159,20 @@ class Rig:
         """Allocator stand-in: a fresh zeroed block, the same size the caller asked for."""
         return e.alloc(max(e.mu.reg_read(UC_X86_REG_EDX), 1))
 
-    def _callee(self, name, addr, nstack, regs, fn=None):
-        """Hook `addr`: log (name, registers, stack arguments) and return fn(e) or mix()."""
+    def _callee(self, name, addr, nstack, regs, fn=None, nlog=None):
+        """Hook `addr`: log (name, registers, stack arguments) and return fn(e) or mix().
+
+        `nlog` limits how many stack arguments are logged (the rest are popped, not compared:
+        pointers to the caller's locals differ between the emulator and the model).
+        """
         rig = self
 
         def hook(e):
             """Record the call and give its result."""
             regvals = tuple(e.mu.reg_read(r) for r in (
-                {"ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX}[x] for x in regs))
-            args = regvals + tuple(e.arg(i) for i in range(nstack))
+                {"ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX, "ebx": UC_X86_REG_EBX, "esi": UC_X86_REG_ESI,
+                 "edi": UC_X86_REG_EDI, "eax": UC_X86_REG_EAX}[x] for x in regs))
+            args = regvals + tuple(e.arg(i) for i in range(nstack if nlog is None else nlog))
             rig.log.append((name,) + args)
             handler = rig.custom.get(name) or fn
             out = handler(e) if handler else mix(name, *args)
@@ -174,9 +180,9 @@ class Rig:
             return out
         self.m.hook(addr, hook, nstack)
 
-    def callee(self, name, addr, nstack=0, regs=()):
-        """Declare a hooked, unclaimed callee. `regs` lists the register arguments, ecx and edx only."""
-        self._callee(name, addr, nstack, regs)
+    def callee(self, name, addr, nstack=0, regs=(), nlog=None):
+        """Declare a hooked, unclaimed callee. `regs` lists the register arguments (ecx, edx, ebx, esi, edi, eax)."""
+        self._callee(name, addr, nstack, regs, nlog=nlog)
 
     def slot(self, i, size=0x100):
         """The address of the i-th `size`-byte slot of the arena."""

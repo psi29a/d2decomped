@@ -78,6 +78,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Dungeon.cpp room1 node list, sorted set, teardown and bit table (FUN_0061a270 ... FUN_0061afd0; `--mutation-check` 4 ways) | `uv run python dungeon_lifecycle.py` | `ok: 312 Dungeon.cpp room1 node, set, teardown and bit-table cases` |
 | Small DRLG helpers (20 functions of Drlg.cpp, DrlgRoom.cpp, RoomTile.cpp, Preset.cpp, DrlgGrid.cpp; FUN_00642380 ... FUN_0067c570; `--mutation-check` 8 ways) | `uv run python drlg_small.py` | `ok: 1520 small DRLG helper cases` |
 | DrlgGrid.cpp grid helpers (18 functions, FUN_0067c430 ... FUN_0067ce00; `--mutation-check` 4 ways) | `uv run python drlg_grid.py` | `ok: 1440 DrlgGrid.cpp helper cases` |
+| DrlgRoom.cpp helpers (19 functions, FUN_0066b4f0 ... FUN_0066c0b0; `--mutation-check` 4 ways) | `uv run python drlg_room.py` | `ok: 1280 DrlgRoom.cpp helper cases` |
 | Missiles | `uv run python missiles.py 1500 7` | `ok` |
 | MissMode.cpp, the 44 functions (FUN_005ab630 ... FUN_005adcc0: hit, damage, srvdo and timer entry points; callees hooked and logged) | `uv run python missmode.py` | `ok: 43 MissMode.cpp function groups (44 functions) against stock game.exe` |
 | Waypoint refusal window (C->S 0x49: refused or travels) | `uv run python wp_refuse.py gen 100000 7 --solo > cases.txt; uv run python wp_refuse.py game cases.txt > g.txt; ../../build/tests/test_game --waypoint-refuse cases.txt \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
