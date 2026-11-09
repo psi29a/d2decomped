@@ -944,6 +944,17 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         walk_to(portal_x - x, portal_y - y, false);
         return true;
     }
+    // Search type 2 (FUN_005b1650 case 2: FUN_005dd7f0 alone; the MonAI
+    // table 0x73ca18 + ai x 16): its think runs with no target too, on a
+    // stand-in here (its own spot, not alive) and ThinkIn::target false.
+    // ponytail: FrogDemon's type 5 (the miss's stand or wander, then its
+    // think) takes type 1's miss alone.
+    static constexpr std::array<std::string_view, 5> kThinksAlone{ "Tentacle", "TentacleHead", "NpcBarb", "Ancient", "Nihlathak" };
+    Foe alone;
+    alone.x = unit.x; alone.y = unit.y; alone.alive = false;
+    if (!target && std::ranges::contains(kThinksAlone, type_info.ai_name)) { target = &alone; monster.chase = -1; }
+    const bool targeted = target != &alone;
+    const auto chase_of = [&] { return targeted ? int(target - foes.data()) : -1; };
     if (!target) {
         monster.chase = -1;
         const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
@@ -964,12 +975,12 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     using d2d::rules::Boss;
     const bool special = (monster.boss != Boss::none && monster.boss != Boss::minion) || type_info.boss_column
                       || monster.type == int(game_data.mon_bin[0xfa]);
-    if (special && best < 0x14 && !target->pet && !target->of && !monster.first_sight) {
+    if (special && targeted && best < 0x14 && !target->pet && !target->of && !monster.first_sight) {
         monster.first_sight = monster.taunt_sound = true;
         idle(0x14);
         return true;
     }
-    if (teleport_mod(game_data, level, monster, best, crowd, rooms_in_play, now_ms)) return true;
+    if (targeted && teleport_mod(game_data, level, monster, best, crowd, rooms_in_play, now_ms)) return true;
     // The leash: an isMelee monster (FUN_00457490 1) with a WL mode
     // (FUN_0046c140 2), its level's MonSpcWalk (+0x2f) set and its target
     // farther with no clear line (FUN_005dc640), takes the nearest other
@@ -978,7 +989,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     const int spc_walk = std::size_t(level.id) < game_data.level_mon.size() ? game_data.level_mon[std::size_t(level.id)].spc_walk : 0;
     const auto wall805 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); };
     const auto line_clear = [&](const Foe& foe) { return d2d::rules::pet_line_clear(x, y, type_info.size, subtile(foe.x), subtile(foe.y), wall805); };
-    if (type_info.melee && game_data.npc_timing(monster.npc, "WL").directions > 0 && spc_walk > 0 && best > spc_walk && !line_clear(*target)) {
+    if (targeted && type_info.melee && game_data.npc_timing(monster.npc, "WL").directions > 0 && spc_walk > 0 && best > spc_walk && !line_clear(*target)) {
         Foe* leashed = nullptr;
         int gap = 0x31;
         for (auto& foe : foes) {
@@ -1035,6 +1046,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     int target_x = subtile(target->x), target_y = subtile(target->y);
     float dx = target->x - unit.x, dy = target->y - unit.y;
     d2d::rules::ThinkIn input{ .aip = per_difficulty.aip, .dist = best, .difficulty = monster.difficulty, .level = level.id, .state = &monster.ai_state };
+    input.target = targeted;
+    input.self_x = x; input.self_y = y;
     input.in_melee = d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, target->size) <= type_info.melee_rng + 1;
     input.got_hit = monster.left_mode == "GH";
     input.life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));   // FUN_00621f20
@@ -1229,8 +1242,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // The ThornHulk's FUN_005415a0(1) after its frenzy (Skill1) starts
     // (FUN_005f4850): that cast mode's end event.
     // ponytail: the shaman's Inferno state (0xc) is never on; a fetish sent
-    // to a corpse (command 14) drops it (the corpse isn't kept); a think
-    // always has a target (search types 2 / 5 think without one in game.exe).
+    // to a corpse (command 14) drops it (the corpse isn't kept).
     {
         if (type_info.ai_name == "ThornHulk") input.next_event = mode_end_event(game_data, monster, type_info.sk_mode[0], frame);
         static constexpr std::array<std::string_view, 16> kModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
@@ -1481,7 +1493,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             input.asleep = monster.asleep;
             input.state36 = monster.uninterruptable();
             input.ancient = type_info.id == "ancientbarb2" ? 1 : type_info.id == "ancientbarb3" ? 2 : 0;
-            input.picked = true;
+            input.picked = targeted;
             input.self_size = type_info.size; input.target_size = target->size;
             input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
         }
@@ -1574,7 +1586,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         }
     }
     auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
-        monster.chase = int(target - foes.data());
+        monster.chase = chase_of();
         unit.dir = direction16(dx, dy);
         monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
         set_mode(game_data, monster, mode, now_ms);
@@ -1784,7 +1796,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         case MonAct::walk: case MonAct::approach: case MonAct::run:  // FUN_005deb60 at the target
             if (at_unit) { walk_to(subtile(at_unit->unit.x) - x, subtile(at_unit->unit.y) - y, act.act == MonAct::run); return true; }
             if (set_off(act.act == MonAct::run, target)) {
-                monster.chase = int(target - foes.data());
+                monster.chase = chase_of();
                 return true;
             }
             if (act.act == MonAct::walk && act.n == 0) monster.ai_command = 0;   // the Fallen's charge ends (FUN_0058ed10)
@@ -1859,7 +1871,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // DiabRun (srvst 54 / do 103, FUN_005cd2c0 / FUN_005cd380): his
             // sequence at the target's spot as it is now (monster_update plays it).
             if (const auto* run_skill = game_data.skills.get(id); run_skill && run_skill->srvdofunc == d2d::rules::ServerDoFunction::kDiabRun) {
-                monster.chase = int(target - foes.data());
+                monster.chase = chase_of();
                 unit.dir = direction16(dx, dy);
                 set_mode(game_data, monster, "RN", now_ms);
                 monster.skill = id; monster.skill_x = target_x; monster.skill_y = target_y; monster.wandering = false;
@@ -1871,7 +1883,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const auto* start = game_data.skills.get(id);
                 if (start && start->srvstfunc == d2d::rules::ServerStartFunction::kCharge) {
                     if (input.in_melee) { charge_swing(game_data, monster, *target, id, now_ms, rng); return true; }
-                    if (set_off(true, target)) { monster.chase = int(target - foes.data()); monster.charging = id; return true; }
+                    if (set_off(true, target)) { monster.chase = chase_of(); monster.charging = id; return true; }
                 }
                 idle(0);
                 return true;
