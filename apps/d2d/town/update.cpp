@@ -732,28 +732,63 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         }
         if (npc_menu.list && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))   // a move in the box (FUN_004beb70): the row under it
             npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
+        // An arrow held (FUN_004bee90, each draw, 25 a second here): a step each
+        // draw it's still under the mouse, but every 10th (rules::list_held_step).
+        if (npc_menu.list && (npc_menu.list->part == d2d::rules::ListPart::kUp || npc_menu.list->part == d2d::rules::ListPart::kDown))
+            for (; frame_ms - npc_menu.list->held_ms >= 40; npc_menu.list->held_ms += 40) {
+                auto& list = *npc_menu.list;
+                if (d2d::rules::list_part_at(list.box, mouse.x, mouse.y) != list.part || !d2d::rules::list_held_step(list.held)) continue;
+                auto moved = npc_menu.list_scroll();
+                const auto lines = npc_menu.list_lines();
+                d2d::rules::list_step(moved, d2d::rules::list_rows_whole(list.box, lines, moved.first), int(lines.size()), list.part == d2d::rules::ListPart::kDown);
+                npc_menu.set_list_scroll(moved);
+            }
         if (speech.npc >= 0 && (speech.done(frame_ms) || mouse.press_this_frame)) {
             menu_click = mouse.press_this_frame;          // a click skips the speech
             speech = {};
             if (menu_after_speech >= 0 && std::size_t(menu_after_speech) < level->npcs.size()) open_menu(menu_after_speech);
             menu_after_speech = -1;
-        } else if (npc_menu.npc >= 0 && npc_menu.scroll_max > 0 && mouse.wheel != 0) {   // the hire list scrolls
-            const auto kept = npc_menu.list;
-            npc_menu = open_hire_menu(*scene, npc_menu.npc, hire_offers, character.stats.get(d2d::d2s::kGold) + character.stats.get(d2d::d2s::kGoldBank),
-                                      npc_menu.scroll - mouse.wheel);
-            if (kept && npc_menu.list) { npc_menu.list->hover = kept->hover; npc_menu.list->pressed = kept->pressed; }
+        } else if (npc_menu.list && mouse.wheel != 0) {   // a wheel notch (FUN_004be860): the selection steps, the list follows
+            for (int notch = 0; notch < std::abs(mouse.wheel); ++notch) {
+                auto moved = npc_menu.list_scroll();
+                const auto lines = npc_menu.list_lines();
+                d2d::rules::list_wheel(moved, d2d::rules::list_rows_whole(npc_menu.list->box, lines, moved.first), int(lines.size()), mouse.wheel < 0);
+                npc_menu.set_list_scroll(moved);
+            }
         } else if (npc_menu.list && mouse.press_this_frame && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y)) {
-            menu_click = true;                            // a press in the list box (FUN_004bf430): the row is kept, nothing yet
+            menu_click = true;                            // a press in the list box (FUN_004bf430): an arrow, the track or a row, kept; nothing yet
             menu_press = true;
-            npc_menu.list->pressed = npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
-        } else if (npc_menu.list && mouse.release_this_frame && npc_menu.list->pressed >= 0) {
-            // The release (FUN_004bf530): over the row pressed, that offer is hired (the window's callback, 0x4b3660).
-            const int row = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
-            const int pressed = std::exchange(npc_menu.list->pressed, -1);
-            npc_menu.list->hover = row;
-            if (row == pressed && npc_menu.list->rows[std::size_t(row)].arg >= 0) {
-                net.send(cmd::Hire{ npc_menu.list->rows[std::size_t(row)].arg });
-                npc_menu = {};
+            auto& list = *npc_menu.list;
+            list.part = d2d::rules::list_part_at(list.box, mouse.x, mouse.y);
+            list.held = 0;
+            list.held_ms = frame_ms;
+            if (list.part == d2d::rules::ListPart::kNone) list.pressed = list.hover = d2d::rules::list_row_at(list.box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
+        } else if (npc_menu.list && mouse.release_this_frame && (npc_menu.list->pressed >= 0 || npc_menu.list->part != d2d::rules::ListPart::kNone)) {
+            // The release (FUN_004bf530): on the arrow pressed, a step; on the
+            // track, a page (rules::list_page); over the row pressed, that offer
+            // is hired (the window's callback, 0x4b3660).
+            auto& list = *npc_menu.list;
+            const auto lines = npc_menu.list_lines();
+            const auto part = std::exchange(list.part, d2d::rules::ListPart::kNone);
+            auto moved = npc_menu.list_scroll();
+            const int whole = d2d::rules::list_rows_whole(list.box, lines, moved.first);
+            if (part != d2d::rules::ListPart::kNone) {
+                list.pressed = -1;
+                if (d2d::rules::list_part_at(list.box, mouse.x, mouse.y) == part) {
+                    if (part == d2d::rules::ListPart::kTrack)
+                        (void)d2d::rules::list_page(moved, whole, int(lines.size()), d2d::rules::list_thumb(list.box, lines, moved.first), d2d::rules::list_scroll_y(list.box), mouse.y);
+                    else
+                        d2d::rules::list_step(moved, whole, int(lines.size()), part == d2d::rules::ListPart::kDown);
+                    npc_menu.set_list_scroll(moved);
+                }
+            } else {
+                const int row = d2d::rules::list_row_at(list.box, lines, npc_menu.scroll, mouse.x, mouse.y);
+                const int pressed = std::exchange(list.pressed, -1);
+                list.hover = row;
+                if (row == pressed && list.rows[std::size_t(row)].arg >= 0) {
+                    net.send(cmd::Hire{ list.rows[std::size_t(row)].arg });
+                    npc_menu = {};
+                }
             }
         } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
             menu_click = true;                            // the click is the menu's, not a walk

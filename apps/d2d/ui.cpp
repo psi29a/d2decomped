@@ -235,6 +235,18 @@ void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
     if (!menu.list) return;
     const auto& list = *menu.list;
     const auto lines = menu.list_lines();
+    // The scroll bar (textslid, each cel by its bottom-left): the up arrow
+    // (9, 11 pressed), the track's cells (13), the down arrow (8, 10 pressed)
+    // on the last of them; the thumb after the rows (rules::list_thumb_cels).
+    const auto cel = [&](int frame_index, int left, int bottom) {
+        if (std::uint32_t(frame_index) >= scene.textslid.frames_per_direction()) return;
+        const auto& image = scene.textslid.frame(0, std::uint32_t(frame_index));
+        blit_sprite(framebuffer, image, pal, left, bottom - int(image.height));
+    };
+    const int scroll_x = d2d::rules::list_scroll_x(list.box), scroll_y = d2d::rules::list_scroll_y(list.box), cells = d2d::rules::list_track_cells(list.box);
+    cel(list.part == d2d::rules::ListPart::kUp ? 11 : 9, scroll_x, scroll_y);
+    for (int track = 0; track < cells; ++track) cel(0xd, scroll_x, scroll_y + 12 * (track + 1));
+    cel(list.part == d2d::rules::ListPart::kDown ? 10 : 8, scroll_x, scroll_y + 12 * cells);
     const int shown = d2d::rules::list_rows_shown(list.box, lines, menu.scroll);
     int rows_before = 0, lines_before = 0;
     for (int row = menu.scroll; row < menu.scroll + shown && row < int(list.rows.size()); ++row, ++rows_before)
@@ -245,6 +257,8 @@ void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
             const int baseline = d2d::rules::list_line_y(list.box, rows_before, lines_before++);
             scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, row == list.hover ? blue : pal, list.box.x + 0x20, baseline - cell + 1, cut);
         }
+    if (const auto thumb = d2d::rules::list_thumb(list.box, lines, menu.scroll); thumb.shown)
+        d2d::rules::list_thumb_cels(list.box, thumb, [&](d2d::rules::ListCel piece) { cel(piece.frame, scroll_x - 1, piece.bottom); });
 }
 
 void shade_box(std::vector<std::uint8_t>& framebuffer, int x, int y, int width, int height) {

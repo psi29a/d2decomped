@@ -25,9 +25,9 @@ namespace d2d::client {
 // The window (rules::hire_window_y: 490 x 350, no layout) holds the gold
 // header (0x15 high) and "cancel" (0x13b, so 0x150 down), each centred
 // (FUN_004b83a0), in menu mode 1 (FUN_004b8370); the list box
-// (rules::hire_list_box) holds every offer, from `scroll` (the wheel).
+// (rules::hire_list_box) holds every offer, from the first.
 NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::rules::MercOffer>& offers,
-                            std::int64_t gold, int scroll) {
+                            std::int64_t gold) {
     NpcMenuState menu;
     menu.npc = npc;
     menu.blue_hover = true;
@@ -59,8 +59,6 @@ NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::
                               int(i) });
     }
     if (list.rows.empty()) list.rows.push_back({ { string_id(scene, 0xd25), std::string() }, -1 });
-    menu.scroll_max = std::max(0, int(list.rows.size()) - d2d::rules::list_rows_shown(list.box, menu.list_lines(), 0));
-    menu.scroll = std::clamp(scroll, 0, menu.scroll_max);
     return menu;
 }
 
