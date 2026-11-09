@@ -20,7 +20,7 @@ from unicorn.x86_const import UC_X86_REG_EDI, UC_X86_REG_ESI
 
 import skill_tips
 from _inventory_world import check as check_equal
-from inventory_queries import World, arena_equal, ask, make, run
+from inventory_queries import World, arena_equal, ask, run
 
 TABLE = 0x96CC68
 STATIC = 0x744CA8
@@ -216,7 +216,7 @@ def m_da70(w, m, item, unit, first, second):
 
 def test_callers(w):
     """FUN_0063d930 and FUN_0063da70 over random fake players."""
-    e, a = w.e, w.arena
+    a = w.arena
     for case in range(1500):
         a.reset()
         w.log.clear()

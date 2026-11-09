@@ -16,7 +16,7 @@ Usage: D2_MPQ_DIR=<MPQ folder> uv run python inventory_queries.py
 """
 import random
 
-from unicorn.x86_const import UC_X86_REG_EDI, UC_X86_REG_EDX, UC_X86_REG_ESI
+from unicorn.x86_const import UC_X86_REG_EDX
 
 import emu
 from _inventory_world import Arena, cases, check, signed
@@ -715,7 +715,7 @@ def test_node_lists(w):
     """The changed-unit list (FUN_0063cc70 add, FUN_0063cbd0 free all) and the corpse list (FUN_0063d470 add, FUN_0063d4e0
     remove one, FUN_0063d590 free all): node order, the tail pointers, the flag count, and every pool call."""
     e, a = w.e, w.arena
-    for case in range(300):
+    for _case in range(300):
         a.reset()
         inv, _cells, _items = make(w, chain=0)
         w.pack_items = ()
