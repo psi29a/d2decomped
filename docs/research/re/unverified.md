@@ -15,7 +15,6 @@ trust. `git grep -n "unverified (source"` lists them.
 |---|---|---|---|---|
 | DCC format as a whole | components/dcc/dcc.hpp | OpenDiablo2's reader, Necrolis' notes | every DCC in the MPQs decodes and draws as the game shows it | the DCC decoder (D2Cmp part) |
 | Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | C → S: every id's handler from game.exe's table (`DAT_006e0d18`); 24 marked ✓ were read and agree. S → C: names only | the C → S handlers without ✓; the S → C handlers (`DAT_007114d0`) |
-| A converted monster's pick: a click on it walks there, a held attack drops it | components/game/world/commands.cpp `apply` (UseSkill) | d2d's own hover rule (cursor-units.md) | the hover is traced: outside town no monster of the player's alignment is under the cursor | the click path from the hovered unit (`FUN_00467a10`) |
 
 ## Traced
 
@@ -41,3 +40,4 @@ trust. `git grep -n "unverified (source"` lists them.
 | .d2s header: the spec's offsets hold; the act is the low 7 bits (5 or more: act 1), +0x34 is 0xffffffff, hotkeys and hands carry a u16 item index | `FUN_00568f20` (write), `FUN_0056a090` (read), read from the code; 21 real saves (test_d2s) | [d2s-header.md](d2s-header.md) |
 | DS1 layer stream order: per wall tile and orientation, then floors, shadow, substitution, with the version gates (4, 8, 10, 12, 13, 14, 15, 16, 18), groups and paths. Read from the code, no oracle. Differs for old versions only: the substitution stream is gated at v10 (d2d v12), object flags at v6, and a path attaches to the last equal-position unit (d2d the first) | `FUN_00665950` (asm `00665a40`..`00665b00`), `FUN_006667d0` | drlg.md "The DS1 file layout" |
 | UI ids 0x14 the waypoints, 0x19 the stash, 0x1a the cube: 0x14 takes the left side, 0x19 / 0x1a cover both; matches d2d. Read from the code, no oracle | `FUN_00455f20` (second switch), opened by `FUN_0049cf90` (ECX = 0x14, call `0049cf9a`), `FUN_0048a460` (0x1a, `0048a469`), `00489e00` (0x19, `00489e09`); closes `FUN_00455ae0` → `FUN_0049cf50`, `FUN_00489ee0`, `FUN_0048a500` | menu.md "The view with panels open" |
+| A converted monster's pick: a click on it walks to the spot and a held attack never targets it (it is a null target on every frame); matches d2d. Read from the code, no oracle. Not traced: the right click, `FUN_004677b0` | `FUN_00467a10` (no alignment test), `FUN_00462d00` (call `00462d72`) → `FUN_004629a0` → `FUN_004625b0`, `FUN_00462930`, `FUN_00462a20` | cursor-units.md "The click's own path" |

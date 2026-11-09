@@ -84,5 +84,39 @@ monster: in town nothing; elsewhere `alSel` passes, `noSel` refuses, else
 alignment 2 (the player's) refuses. Traced from the code, not compared
 against an oracle; the hit test's selectable and pixel checks still follow.
 
-Not traced here: the click's own path. d2d's pick (a held attack drops
-the unit, the click walks) follows its hover.
+## The click's own path
+
+Read from the code, no oracle run.
+
+- `FUN_00467a10` (0x467a10) returns the latched unit (0x7a6a94 non-zero)
+  only if `FUN_00466870(0,0)` still passes for it; if not it clears
+  0x7a6a94 and 0x7a6a98 and returns 0. It has no alignment test of its
+  own: the friends rule above is inside `FUN_00466870`, so a converted
+  monster is never latched outside town.
+- `FUN_00462d00` (the click map: kind 0 left, 3 right, 1 held left; flags
+  4 press, 8 held, bit 4 of the flags byte shift, `stat 0xa` run) calls
+  `FUN_00467a10` once (0x462d72) and stores the result as the click's
+  target (struct +8). The left press (kind 0) with no target calls
+  `FUN_00466fe0` (clears 0x7a6a94/98); with one, `FUN_00467a70`; then
+  `FUN_004629a0` -> `FUN_004625b0`.
+- `FUN_004625b0` with a null target takes the ground branch (LAB_00462671):
+  shift (flag 0x20) is `FUN_00461700(0)` (the attack in place) and
+  `FUN_00467a70`; otherwise `FUN_004623c0` + `FUN_00461840`, a walk to the
+  click's spot. So a left click on a converted monster walks there,
+  as on empty ground.
+- A held frame (kind 1, `FUN_00462a20`) is let through by `FUN_00462930`
+  when the press armed 0x7a526c (a null target arms it to 1, a unit to 2)
+  and the target is null, or is a type 0, 1 or 5 unit whose owner is not
+  walking, running or in mode 6. A monster target then needs the press
+  flag to attack (the existing note in collision.md). A converted monster
+  is a null target on every frame, so a held button never attacks it: it
+  keeps re-walking to the spot. That is d2d's "a held attack drops it".
+- `FUN_004621d0` re-picks the target through `FUN_00467880` for skills
+  whose Skills.txt +6 bits are 0x40 (`FUN_00467490`), 0x20 with no target
+  (`FUN_00467660`) or 0x80 (`FUN_004677b0`). `FUN_00467490` and
+  `FUN_00467660` filter candidates with `FUN_00466870(0,0)` (the same
+  rule), and the converted monster stays out of them. `FUN_004677b0`
+  and the right-click path's ground branch were not read.
+
+Not traced: the right click on a converted monster beyond the null-target
+branch of `FUN_004625b0`, and the `FUN_004677b0` pick.
