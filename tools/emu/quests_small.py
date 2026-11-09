@@ -490,7 +490,7 @@ class Suite:
 
         def build_party(img, rng):
             """Plan the answers; the level threshold and every following answer chosen from the case number."""
-            n = self.bits(1)
+            self.bits(1)
             game, unit = self.unit_game(img, rng)
             diff = get(img, GAME + 0x6D, 1)
             thr = (diff + 1) * 20
