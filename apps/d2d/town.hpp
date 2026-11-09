@@ -328,7 +328,8 @@ struct Town {
     }
     // FUN_0045ae90's view state (rules/panel_view.hpp): the inventory or tree
     // on the right, the left panels, a store / stash / cube over both.
-    // unverified (source: D2BS's UI enum): waypoints UI 0x14, stash 0x19, cube 0x1a; its 0xc, 0xf, 0x16, 0x24 match ours.
+    // Waypoints UI 0x14 (left), stash 0x19 and cube 0x1a (both sides): FUN_00455f20's
+    // second switch (menu.md "The view with panels open").
     [[nodiscard]] int view_state() const { return d2d::rules::panel_view_state(left_side_open(), inv_open || tree_open, view_covered()); }
     [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open; }
     [[nodiscard]] bool view_covered() const { return stash_open || cube_open || store.npc >= 0; }
