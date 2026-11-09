@@ -366,6 +366,7 @@ address	name	evidence
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60(game +0x1a8, type +0x16c, id +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
+00543db0	quest_event_item_dropped	FUN_005439a0(0): event 5 (+0xb4) over the item's own quest list (act1-end.md)
 005379d0	unit_look_codes	fastcall (_, unit, out, size): asserts 0x3d4 for size < 0x10 or no unit, out = 0xff x16, FUN_0063e510 fills it with the layer codes (items.md)
 00537a40	unit_look_tints	fastcall (_, unit, out, size): as FUN_005379d0 (assert 0x3df) but out receives the layer tints (items.md)
 005381f0	client_set_area	ECX client, EDX area: calls FUN_00537b50 when it changes, then +0x1b4; fatal line 0x79f; verified clients_small.py
@@ -494,15 +495,18 @@ address	name	evidence
 0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
 0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
 0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
+005466b0	quest_item_give	QUESTS.CPP 0x9d2: FUN_00633640 row, FUN_00559ce0 at the player's level, FUN_00560200 into the inventory else FUN_00558aa0 on the ground
 00558270	item_creation_descriptor	items-lifecycle.md: snapshot source item into 0x84-byte creation block
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
 00558a10	ground_item_lifetime	30000 / 45000 / 15000 frames by quality and gold
+00558aa0	item_place_on_ground	FUN_00620a70 footprint, unit linked in, mode 3 (FUN_00624690), flag 0x2000000, data +0x24 = FUN_00558a10, FUN_00543db0 when asked
 00558b90	ground_items_expire	item data +0x24 against the frame, per act room
 00558c50	item_clear_4000000	flag 0x4000000, state 0xab stat list
 00558cb0	item_from_record	FUN_00555230, FUN_0062e430, flags 0x80000 / 0x2000
 00559130	item_drop_at	FUN_0064e810 mask 0x3e01, 0x84-byte record, FUN_00558d90
 00559830	item_drop_at_2	same as FUN_00559130, level 1 outside an area
+00559ce0	item_make_drop	0x84-byte create record (memset), level clamp to 1, FUN_00558d90, flag 0x10 on the result
 0055a200	player_kill_drop_ear	code "ear " (0x20726165) row via FUN_00633640, spot FUN_00555da0, made by FUN_00559ce0, placed by FUN_00558aa0; called from FUN_00580ec0
 0055b7e0	monster_stats_of	ECX unit: type 1 with unit +0x14 set, the first dword there (FUN_005c5f50 reads Drain, record +0xa0 by difficulty, off it); 0 for a null unit, a player or no data (cited, decompile and FUN_005c5f50's asm)
 0055bed0	unit_mode3_notify	FUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
@@ -558,6 +562,7 @@ address	name	evidence
 00563350	sockets_still_fit	FUN_0055a2a0 copies, d2d_rules_takes_socket
 00563470	item_put_back	by mode 0 / 1 / 4 (ItemMode.cpp 0x1a75)
 00563840	cube_empty	page 3 items to inventory or ground (ItemMode.cpp 0x80d..0x8ee)
+00563c00	cursor_item_drop_at_feet	ItemMode.cpp 0x833/0x834/0x837/0x85b/0x85e: cursor item (type 4, mode 4) to FUN_00555da0's spot via FUN_00558aa0, cursor cleared
 00563fe0	item_transmogrify	Items +0x139, +0xc8, +0x13a/+0x13b
 0056b3e0	unit_takes_filter	ECX caster, EDX target, stack flags: by target type (player 0x1, monster 0x2, object 0x10, missile 0x8, item 0x20) then 0x80/0x400 unit flags, 0x100 town, 0x10000/0x8000/0x20000, state 0x56, 0x200 line (skills.md "aurafilter")
 0056d2c0	skill_target_point	fastcall (game, caster, out x, out y) -> 1 when both non-zero: the caster path's target unit (FUN_00553540) position, else the path's target words (+0x10 / +0x12); skills.md "The skill target point"
@@ -567,6 +572,7 @@ address	name	evidence
 00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
+00580ec0	player_death_mode	died bit FUN_00538650, losses FUN_00535ab0, ear FUN_0055a200 on a player's kill (combat.md Death)
 0057aae0	unit_stun	(attacker, length; struck unit in EDI): length < 1 nothing; special monster 90 % shrug on the attacker's seed, boss, Velocity 0 immune; cap 250 (hireling 13); state 0x15 to game frame + length (skills.md "Stun")
 00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")
 00574930	pet_send_to_client	per-client callback of FUN_005538d0: event {+0 pet id, +4 owner id, +8 class, +0xc row, +0x10/+0x14 words}; both words 0 sends 0x7a (FUN_0053cb30) else 0x81 (FUN_0053cb80) (pet-ai.md "The owner's pet lists")
@@ -854,9 +860,12 @@ address	name	evidence
 00620780	unit_dy	absolute y difference of two units
 006207f0	unit_set_screen_x	FUN_006489e0 (Units.cpp 0x7b2)
 00620830	unit_set_screen_y	FUN_006489f0 (Units.cpp 0x7be)
+00620870	unit_pos	(unit, out x y): type 2 / 4 / 5 static path +0xc / +0x10, else FUN_006488c0 / FUN_00648900; null asserts (id 0x7ca)
 00620980	tile_path_set_4_8	type 5 static path +4/+8 (Units.cpp 0x7ff, 0x801)
+00620a70	unit_stamp_footprint	(unit, x, y, bits): width FUN_00620510, height FUN_006205a0, both nonzero then the grid footprint; null asserts (id 0x851)
 00620ae0	static_path_init	room, x, y, FUN_00643260 pixels (Units.cpp 0x866)
 00620b50	unit_clear_room	static +0 or FUN_00648a90(path, 0) (Units.cpp 0x87d)
+00620bb0	unit_room	type 2 / 4 / 5 static path +0, else FUN_00648a80(path); no path 0; null asserts (id 0x896)
 00620c70	unit_target_type	FUN_00648bb0 first output (Units.cpp 0x8b9, 0x8bb)
 00620cd0	unit_target_id	FUN_00648bb0 second output (Units.cpp 0x8ca, 0x8cc)
 00620d30	unit_set_target	FUN_00648b90 (Units.cpp 0x8dc, 0x8de)
@@ -923,6 +932,7 @@ address	name	evidence
 00624f40	stat_array_of	EAX list: list+0x48 when flag 0x80000000 is set, else list+0x24 (the {array, count} pair)
 00625250	stat_list_owner_type	stat list +8; null 6
 006252b0	stat_list_owner_id	stat list +0xc; null 0
+00625480	unit_stat_value	(unit, stat id, layer 0): unit +0x5c stat list, id below [0x744304] +0xbd4 rows of 0x144 from +0xbcc, then FUN_00624f60(row); 0 for none
 00625d10	unit_max_life	stat 7 (maxhp, ItemStatCost row 7 at tables +0xbcc + 0x8dc) through FUN_00624f60, 0 for no unit / stats list
 00625d60	unit_max_mana	stat 9 (maxmana, ItemStatCost row 9 at tables +0xbcc + 0xb64) through FUN_00624f60, 0 for no unit / stats list
 006266c0	stat_refresh_derived	ECX list, EDX key, row, ctx: FUN_00626200 value stored by FUN_00625150, dependents at row+0x58 / +0x5e recomputed
@@ -1009,6 +1019,7 @@ address	name	evidence
 00633540	items_tables_free	ItemTbls.cpp 0x1c8, 0x1cb
 00633590	items_count_ptr	returns &0x96ca58
 006335a0	items_index	0x96ca78 word (ItemTbls.cpp 0x1e2)
+00633640	item_row_by_code	FUN_006bd130(DAT_0096bcc4, code, 0): index out, row = DAT_0096ca5c + index * 0x1a8, 0 if absent
 00633680	item_code_to_class	FUN_006bd130(DAT_0096bcc4, code, 0): FUN_0062cbe0 stores the result as the item class (d2s-items.md)
 006336a0	column_name_or_number	_atol or skills / montype / states links
 00633730	magic_affixes_load	magicsuffix, magicprefix, automagic 0x90 (ItemTbls.cpp 0x297)
