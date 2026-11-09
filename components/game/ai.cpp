@@ -134,6 +134,7 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
         for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
             if (region.types[i].first == spawn.type) sets = &region.components[i];
         monster.cage = spawn.cage;
+        monster.listed = spawn.cage < 0;                              // a prisoner is in no target list (Monster::listed)
         d2d::rules::Rng unit_seed{ spawn.seed };
         const auto look = d2d::rules::monster_look(sets, type_info.choices, unit_seed);
         monster.variant = d2d::rules::monster_variant(spawn.type, unit_seed);
@@ -626,7 +627,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
         for (auto& foe : foes) {
             // List 9: neutral monsters; a converted one is in its caster's list,
             // with the player's pets (FUN_005b1900).
-            const bool converted = foe.of && foe.of->align == 2 && foe.alive;
+            const bool converted = foe.of && foe.of->align == 2 && foe.of->listed && foe.alive;
             if (foe.of && !(foe.of->align == 1 && foe.alive) && !converted) continue;
             const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
             picks.emplace_back(d2d::rules::SearchFoe{ d2d::rules::ai_distance(foe_x - x, foe_y - y), foe.pet || converted, town && !foe.of, !foe.alive && !foe.of, false,
@@ -866,8 +867,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // player within 16: its door broken, the portal opens (FUN_005888d0),
     // still caged it cries (FUN_00588dd0; rand(1000) < 100 its help-me
     // line, RescueQuest::kHelpMe). Then it stands 25.
-    // ponytail: the walk at the portal as one to its spot; FUN_005b1990
-    // at +0xd0 == 11 (into list 8, the good monsters') isn't kept.
+    // With its door broken it goes into list 8 (FUN_005b1990, while +0xd0
+    // is 0xb: in none), so evil monsters can find it.
+    // ponytail: the walk at the portal as one to its spot.
     if (type_info.ai_name == "Wussie") {
         auto& view = monster.wussie;
         if (view.portal) {
@@ -882,7 +884,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             return true;
         }
         if (view.player) {
-            if (view.door_broken) view.open_portal = true;
+            if (view.door_broken) { view.open_portal = true; monster.listed = true; }
             else { view.cried = true; monster.help_sound = monster.seed(1000) < 100; }
         }
         idle(25);

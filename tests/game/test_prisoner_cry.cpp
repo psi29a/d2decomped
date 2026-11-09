@@ -3,8 +3,10 @@
 // A caged Act 5 prisoner (Wussie, FUN_005ee3c0) with a player by and its
 // door whole cries: rand(1000) < 100 on its seed sends S->C 0x8a (0x5ee579),
 // whose client plays wussie_help_me on it (FUN_004b3380, 0x4b33c0: 0x11ff).
-// Each think draws once; the cry is that draw under 100. Needs the data;
-// SKIPs without it.
+// Each think draws once; the cry is that draw under 100. Caged, it's in no
+// target list, so an evil monster beside it doesn't take it; with its door
+// broken its think puts it in list 8 (FUN_005b1990, 0x5ee549) and one does.
+// Needs the data; SKIPs without it.
 
 #include <ai.hpp>
 #include <ds1.hpp>
@@ -63,7 +65,26 @@ int main() try {
     }
     assert(cries > 5 && cries < 40);
 
-    std::printf("OK: a caged prisoner cries on 1 draw in 10 (%d of 200)\n", cries);
+    // An evil zombie in melee of it, the player far off: lists 0..7 have no one.
+    const auto zombie = data->monsters.by_id.find("zombie1");
+    assert(zombie != data->monsters.by_id.end());
+    std::vector<Monster> fight{ make_monster(*data, int(zombie->second), 8.3f, 8.1f, spawn, 0), prisoner };
+    fight[1].listed = false;
+    std::array<Foe, 2> foes{};
+    foes[0].x = 1.1f; foes[0].y = 1.1f;                           // the player, 50 subtiles off
+    foes[1].x = fight[1].unit.x; foes[1].y = fight[1].unit.y; foes[1].of = &fight[1]; foes[1].id = fight[1].id; foes[1].size = 1;
+    fight[0].aware = true;
+    monster_update(*data, here, fight[0], foes, rng, 200000, 0.04f, crowd, shots, fight);
+    assert(fight[0].chase != 1);                                  // caged: no target
+    fight[1].wussie.door_broken = true;
+    fight[1].next_act = 0;
+    monster_update(*data, here, fight[1], foes, rng, 200040, 0.04f, crowd, shots, fight);
+    assert(fight[1].listed && fight[1].wussie.open_portal);
+    fight[0].next_act = 0;
+    for (std::uint32_t now = 200080; now < 200080 + 40 * 40 && fight[0].chase != 1; now += 40)
+        monster_update(*data, here, fight[0], foes, rng, now, 0.04f, crowd, shots, fight);
+    assert(fight[0].chase == 1);                                  // in list 8: taken
+    std::printf("OK: a caged prisoner cries on 1 draw in 10 (%d of 200); listed once its door's broken\n", cries);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_prisoner_cry: %s\n", error.what());
