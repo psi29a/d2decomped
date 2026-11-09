@@ -1764,3 +1764,33 @@ tile grid, +0x58 level, +0x5c preset units, +0x60 other flags.
   always sets room flag 0x100000. FUN_0066eea0: a room without a tile grid
   gets a zeroed 0x2c-byte block from the DRLG's pool (RoomTile.cpp line
   0x533). FUN_00666120(src, dst): `*dst = *src; *src = 0`, returns `*dst`.
+
+## DrlgGrid.cpp helpers, run in the emulator
+
+`tools/emu/drlg_grid.py` (same harness; `--mutation-check` 4 ways). A grid
+is {cells +0, row offsets +4, width +8, height +0xc, owns-rows +0x10}; a cell
+is `cells[rows[y] + x]` (dwords). The op table at 0x749bac (indexed by an op
+argument) is hooked and logged, not claimed.
+
+- FUN_0067c430 `[ecx] |= edx`; FUN_0067c480 1 when ecx and `[ecx]` are
+  nonzero; FUN_0067c4a0(grid, x, y) signed `0 <= x < w`, `0 <= y < h`;
+  FUN_0067c550(grid, x, y) and FUN_0067c4d0 (grid in EAX, y in EDX, x on the
+  stack) the cell address; FUN_0067c4f0(grid, x, y, v, op) and FUN_0067c520
+  (grid, point {x, y}, v, op) call `table[op](&cell, v)`.
+- FUN_0067c6d0(grid, v, op): op on the first w - 1 cells of the last row,
+  then on the last cell of every row. FUN_0067c890(grid, list, v): `table[0]`
+  on the cell of every list node {x, y, ..., next +0x10} inside the grid.
+- Builders: FUN_0067cb80(pool, grid, w, h) allocates (w + 1) * h dwords
+  (DrlgGrid.cpp line 0x197): row offsets, then zeroed cells; owns-rows 0.
+  FUN_0067cbf0 (grid, w in EDX, h, cells, rows) zeroes the caller's cells and
+  fills rows `i * w`, owns-rows 0. FUN_0067cc60 (pool, grid, cells, w, h)
+  allocates only the h row offsets (line 0x1d0), owns-rows 1. FUN_0067ccc0
+  (pool, grid, base, rect, stride) and FUN_0067cd30 (grid, base EDX, rect,
+  stride, rows) make a grid over `rect` {x, y, w, h} of a stride-wide array
+  (cells at `base + 4 * (y * stride + x)`; the first allocates its rows, line
+  0x1ec); owns-rows 1.
+- FUN_0067cd90 frees the row table when set (line 0x218) and in every case
+  clears the cells and rows pointers; FUN_0067cdc0 clears them; FUN_0067cdd0
+  allocates a zeroed 0x14-byte record with byte +8 = dl; FUN_0067ce00 (EAX
+  record, flag) sets +0xc bit 0, and bit 1 too for a nonzero flag.
+

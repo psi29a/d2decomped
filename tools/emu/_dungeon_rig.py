@@ -115,9 +115,9 @@ class Model:
         self.regions.append((pointer, buf))
         return pointer
 
-    def free(self, pool, pointer, line):
-        """Log the arena free (0x40_b480)."""
-        self.log.append(("free", pool & M32, pointer & M32, ALLOC_FILE, line, 0))
+    def free(self, pool, pointer, line, file=ALLOC_FILE):
+        """Log the arena free (0x40_b480) (`file`: the __FILE__ string it was passed)."""
+        self.log.append(("free", pool & M32, pointer & M32, file, line, 0))
 
 
 class Rig:
