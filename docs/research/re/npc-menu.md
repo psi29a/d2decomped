@@ -49,9 +49,9 @@ Warriv's "go east" still comes from elsewhere.
 ## Hire (FUN_004b5c60)
 
 A 490x350 NPC text window: header 0xd24 "Your Gold: %d     Hire which
-Mercenary?" (carried + stash gold) in gold, a list widget (FUN_004bf8f0,
-490x280 at ((W-490)/2, H/2-160), rows 0x23 high) of the offers the server
-sent (0x7c0c85), and 0xd48 "cancel". A row is two lines (the list's
+Mercenary?" (carried + stash gold) in gold, a list box (FUN_004bf8f0,
+490x280 at ((W-490)/2, H/2-160); "The list box" below) of the offers the
+server sent (0x7c0c85), and 0xd48 "cancel". A row is two lines (the list's
 vtable +0x30 takes them, 0x4b62fe):
 - the merc's name string, 0xf9b 0xf9c 0xf9b (" - "), then 0xd28 "Lvl",
   0xd26 "Life", 0xd27 "Def" and 0xd29 "Cost" (`FUN_006637f0`'s [1], [2],
@@ -89,9 +89,56 @@ back at the start the picking stops. FUN_00577010: once no entry is
 offered and unhired, the list is freed and rolled anew. An offer's stats
 come from its entry (FUN_005770e0 → FUN_00663750: the name's row's act;
 FUN_006637f0 on {entry seed, 666}): the row pick, then the level roll —
-no other draw; the name is the entry's. The window's list widget
-(FUN_004bf8f0, 490 × 280 at ((W − 490) / 2, H / 2 − 160), rows 0x23)
-shows eight rows and scrolls.
+no other draw; the name is the entry's. The window's list box
+(FUN_004bf8f0) shows seven of them and scrolls.
+
+**The window** (`FUN_004b7eb0` with ECX (W − 490) / 2, EDX H / 2 − 0xc3,
+width 0x1ea, height 0x15e, +0x58 0): with +0x58 0, `FUN_004b85f0` centres
+each line (`FUN_004b83a0`) and lays out nothing, so the window stays
+490 × 350 at ((W − 490) / 2, H / 2 − 0xc3). Its lines: the header (height
+0x15, colour 4, font 1), "cancel" (height 0x13b, colour 0, font 1,
+selectable): baselines 0x15 and 0x150 down (`FUN_004b8100`).
+`FUN_004b8370(window, 1)` sets menu mode 1: the hovered line draws in
+colour 3, without focus16. `FUN_004b7c00` hangs the list box on the
+window; `FUN_004b8100` draws it after the box.
+
+**The list box** (D2Win's ListBoxImplementation, vtable 0x6daaec,
+`FUN_004bf650`; the hire window's `FUN_004bf8f0((W − 490) / 2, H / 2 −
+0xa0, 0x1ea, 0x118, 6, 0, 1, 0x4b3660, 0)`): x +0x180708, y +0x18070c,
+width +0x180710, height +0x180714, its default colour +0x180740 (0,
+white) and font +0x180744 (1, font16), the row gap +0x18076a (6), each
+line's height +0x180766 (0xe), the scroll bar's x +0x18075a (x + width −
+0x12) and y +0x18075e (y + 0x10), the row callback +0x18074a (0x4b3660).
+Up to 0x80 rows of six lines (row r at r × 0x300e, line k at +0x8 + k ×
+0x800); the add (`FUN_004be500`, the wrapper's vtable +0x30 → +0x3c)
+takes the lines, the row's value, its colour (or the default) and font
+(0xe: the default). The hire window gives each offer two lines, its index
+and the defaults.
+- Rows that fit (`FUN_004be340`): from the first shown (+0x180730), each
+  row's lines with text × 0xe + the gap summed; at the row that takes the
+  sum past height − 0x14, the rows before it (at least 1); all fitting,
+  the whole count. Two-line rows in the hire box: 34 each, so 7 (not 8).
+- The draw (`FUN_004bee90`): those rows, each line with text at (x +
+  0x20, y + 0x19 + 6 × rows before + 0xe × lines before) (`FUN_004be410`:
+  a line as wide as width − 0x32 or wider loses its last letters till it
+  isn't wider), in the row's colour, or 3 for the row at +0x180738 when
+  there's a callback.
+- The row under the mouse (`FUN_004bea50`, its event's u16 x +0xc, y
+  +0xe): none past the scroll bar's x − 0xf; from the first shown, a row's
+  lines span y + 0xc + its top .. + lines × 0xe (edges out), the gaps no
+  row's; it doesn't stop at the rows that fit, so the box's bottom can
+  name a row not drawn. Kept at +0x180738: by a mouse move inside the box
+  (`FUN_004beb70`, edges out; outside, it stands), a press, a release. The
+  first add sets it to 0 (from −1).
+- A press inside the box (`FUN_004bf430`; not on the scroll bar's parts)
+  keeps the row under it (+0x180734); the release (`FUN_004bf530`) calls
+  the callback when the row under it is that row. Enter (`FUN_004bebc0`,
+  key 0xd) calls it for the row at +0x180738.
+
+Oracle: `tools/emu/hire_list_box.py` runs `FUN_004be340` and
+`FUN_004bea50` on generated boxes and rows; `test_hire_list_box` gives
+d2d's `rules::list_rows_shown` / `list_row_at` the same cases (fixture
+`hire_list_box_cases.inc`).
 
 d2d: `rules::hire_entries` / `for_hire` / `hire_names` / `merc_offer`
 (rules.hpp), `World::hire_list` / `hire_offers` (per act, on the proxy

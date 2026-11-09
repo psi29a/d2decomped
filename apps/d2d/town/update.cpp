@@ -25,6 +25,7 @@
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
+#include <hire_list.hpp>
 #include <hud_globe.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
@@ -729,14 +730,31 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const auto found = std::ranges::find_if(kSpeechSound, [&](const auto& entry) { return entry.first == speech.string; });
             if (found != kSpeechSound.end()) { speech.voice = found->second; audio.play_voice(*scene, found->second); }
         }
+        if (npc_menu.list && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))   // a move in the box (FUN_004beb70): the row under it
+            npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
         if (speech.npc >= 0 && (speech.done(frame_ms) || mouse.press_this_frame)) {
             menu_click = mouse.press_this_frame;          // a click skips the speech
             speech = {};
             if (menu_after_speech >= 0 && std::size_t(menu_after_speech) < level->npcs.size()) open_menu(menu_after_speech);
             menu_after_speech = -1;
         } else if (npc_menu.npc >= 0 && npc_menu.scroll_max > 0 && mouse.wheel != 0) {   // the hire list scrolls
+            const auto kept = npc_menu.list;
             npc_menu = open_hire_menu(*scene, npc_menu.npc, hire_offers, character.stats.get(d2d::d2s::kGold) + character.stats.get(d2d::d2s::kGoldBank),
                                       npc_menu.scroll - mouse.wheel);
+            if (kept && npc_menu.list) { npc_menu.list->hover = kept->hover; npc_menu.list->pressed = kept->pressed; }
+        } else if (npc_menu.list && mouse.press_this_frame && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y)) {
+            menu_click = true;                            // a press in the list box (FUN_004bf430): the row is kept, nothing yet
+            menu_press = true;
+            npc_menu.list->pressed = npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
+        } else if (npc_menu.list && mouse.release_this_frame && npc_menu.list->pressed >= 0) {
+            // The release (FUN_004bf530): over the row pressed, that offer is hired (the window's callback, 0x4b3660).
+            const int row = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
+            const int pressed = std::exchange(npc_menu.list->pressed, -1);
+            npc_menu.list->hover = row;
+            if (row == pressed && npc_menu.list->rows[std::size_t(row)].arg >= 0) {
+                net.send(cmd::Hire{ npc_menu.list->rows[std::size_t(row)].arg });
+                npc_menu = {};
+            }
         } else if (npc_menu.npc >= 0 && mouse.press_this_frame) {
             menu_click = true;                            // the click is the menu's, not a walk
             menu_press = true;                            // ... and its release (a store button under it)
@@ -752,8 +770,6 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             npc_menu = {};
             if (action == NpcMenuState::kHire) {
                 net.send(cmd::OpenHire{ who });             // Kashya's list: the World rolls it
-            } else if (action == NpcMenuState::kHireOffer) {
-                net.send(cmd::Hire{ npc_menu_arg });
             } else if (action == NpcMenuState::kIdentify) {
                 net.send(cmd::Identify{});
             } else if (action == NpcMenuState::kGamble || action == NpcMenuState::kTrade) {

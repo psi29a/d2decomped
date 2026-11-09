@@ -22,41 +22,45 @@
 
 namespace d2d::client {
 
-// The list widget (FUN_004bf8f0: 490 x 280, rows 0x23) shows eight offers
-// from `scroll`; the wheel moves it.
+// The window (rules::hire_window_y: 490 x 350, no layout) holds the gold
+// header (0x15 high) and "cancel" (0x13b, so 0x150 down), each centred
+// (FUN_004b83a0), in menu mode 1 (FUN_004b8370); the list box
+// (rules::hire_list_box) holds every offer, from `scroll` (the wheel).
 NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::rules::MercOffer>& offers,
                             std::int64_t gold, int scroll) {
-    constexpr int kRows = 0x118 / 0x23;
     NpcMenuState menu;
     menu.npc = npc;
-    menu.scroll_max = std::max(0, int(offers.size()) - kRows);
-    menu.scroll = std::clamp(scroll, 0, menu.scroll_max);
+    menu.blue_hover = true;
     std::string head = string_id(scene, 0xd24);
     if (const auto found = head.find("%d"); found != head.npos) head.replace(found, 2, std::to_string(gold));
-    menu.lines.push_back({ std::move(head), 21, 0, 0, true });
-    // A row's two lines (rules/hire_list.hpp, FUN_004b5c60).
+    menu.lines.push_back({ std::move(head), 0x15, 0, 0, true });
+    menu.lines.push_back({ string_id(scene, 0xd48), 0x13b });
+    menu.box_width = 0x1ea; menu.box_height = 0x15e;
+    menu.x = d2d::rules::hire_list_x(int(kScreenWidth)); menu.y = d2d::rules::hire_window_y(int(kScreenHeight));
+    for (auto& line : menu.lines) {
+        line.width = scene.font.measure(line.text);
+        line.x = (menu.box_width - line.width + 1) / 2 + 1;
+    }
+    // A row's two lines (rules/hire_list.hpp, FUN_004b5c60); none offered: 0xd25 alone.
+    auto& list = menu.list.emplace();
+    list.box = d2d::rules::hire_list_box(int(kScreenWidth), int(kScreenHeight));
     const std::string space = string_id(scene, 0xf9b);
     auto stat = [&](std::uint16_t id, int value) {
         return d2d::rules::hire_label(string_id(scene, id)) + string_id(scene, 0xf9d) + space + d2d::rules::hire_number(std::uint32_t(value));
     };
-    for (std::size_t i = std::size_t(menu.scroll); i < offers.size() && i < std::size_t(menu.scroll + kRows); ++i) {
+    for (std::size_t i = 0; i < offers.size(); ++i) {
         const auto& offer = offers[i];
         const auto merc = scene.mercs.find(offer.id);
         const auto name = merc != scene.mercs.end() ? merc_name(scene, merc->second, offer.name) : std::string("?");
-        menu.lines.push_back({ name + space + string_id(scene, 0xf9c) + space + stat(0xd28, offer.level) + space + space + stat(0xd26, offer.life) + space + space +
-                                   stat(0xd27, offer.def) + space + space + stat(0xd29, offer.cost),
-                               0x23 - 0xe, 0, 0, false, NpcMenuState::kHireOffer, int(i) });
         const std::uint16_t desc = merc != scene.mercs.end() ? d2d::rules::hire_desc_string(merc->second.hire_desc) : 0;
-        menu.lines.push_back({ space + space + (desc ? d2d::rules::hire_description(string_id(scene, desc)) : std::string()), 0xe, 0, 0, false,
-                               NpcMenuState::kHireOffer, int(i) });
+        list.rows.push_back({ { name + space + string_id(scene, 0xf9c) + space + stat(0xd28, offer.level) + space + space + stat(0xd26, offer.life) + space + space +
+                                    stat(0xd27, offer.def) + space + space + stat(0xd29, offer.cost),
+                                space + space + (desc ? d2d::rules::hire_description(string_id(scene, desc)) : std::string()) },
+                              int(i) });
     }
-    menu.lines.push_back({ string_id(scene, 0xd48), 0x23 });
-    menu.box_width = 0x1ea; menu.box_height = 0x15e;
-    menu.x = (int(kScreenWidth) - menu.box_width) / 2; menu.y = (int(kScreenHeight) - menu.box_height) / 2;
-    for (auto& line : menu.lines) {
-        line.width = scene.font.measure(line.text);
-        line.x = std::max(4, (menu.box_width - line.width) / 2);
-    }
+    if (list.rows.empty()) list.rows.push_back({ { string_id(scene, 0xd25), std::string() }, -1 });
+    menu.scroll_max = std::max(0, int(list.rows.size()) - d2d::rules::list_rows_shown(list.box, menu.list_lines(), 0));
+    menu.scroll = std::clamp(scroll, 0, menu.scroll_max);
     return menu;
 }
 
