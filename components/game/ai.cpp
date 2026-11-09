@@ -995,26 +995,32 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // MonAI 91, DarkWanderer (FUN_005ea130; a3q7's record 0x1c): his spot
     // (FUN_005bd0d0, from the marker's x + 7 he's made on) is 20 subtiles
     // north, else 11 north, 2 east or west of that, else 8 north, else 3
-    // north, the first clear of 0x3c01 (the last taken as it is). AI control
+    // north, the first he has a clear line to (FUN_006229f0: sight_blocked
+    // from his subtile and size to a size-2 end, mask 0x3c01; the last taken
+    // as it is), found once and kept in the record (its +2 flag). AI control
     // +0x14 0 -> 1; a foe 20 or more off: stand 40. Under 20, state 1: walk
     // there, state 2. State 2 at its end: within 2 of it, or after 3 more
     // tries (+0x18), he's gone (unit flag 0x20000, FUN_005ddfc0) and a3q7
     // marks every player in act 3 (FUN_005bd4a0 -> FUN_005bd390, word 0x20
     // bit 0); else walk again.
-    // ponytail: a spot's test is one subtile, not his shape (FUN_006229f0);
-    // the next move's path type (FUN_005de190) isn't set. The afterglow
-    // he leaves: World::tick.
+    // ponytail: the next move's path type (FUN_005de190) isn't set. The
+    // afterglow he leaves: World::tick.
     if (type_info.ai_name == "DarkWanderer") {
-        const int home_x = subtile(monster.home_x), home_y = subtile(monster.home_y);
-        auto clear = [&](int at_x, int at_y) { return !level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x3c01); };
-        int spot_x = home_x, spot_y = home_y - 20;
-        if (!clear(spot_x, spot_y)) {
-            spot_y = home_y - 11;
-            if (!clear(spot_x, spot_y) && !clear(spot_x = home_x + 2, spot_y) && !clear(spot_x = home_x - 2, spot_y)) {
-                spot_x = home_x; spot_y = home_y - 8;
-                if (!clear(spot_x, spot_y)) spot_y = home_y - 3;
+        if (!monster.wanderer_spot) {
+            const int home_x = subtile(monster.home_x), home_y = subtile(monster.home_y);
+            const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x3c01); };
+            auto clear = [&](int at_x, int at_y) { return !d2d::rules::sight_blocked(x, y, type_info.size, at_x, at_y, 2, wall); };
+            int spot_x = home_x, spot_y = home_y - 20;
+            if (!clear(spot_x, spot_y)) {
+                spot_y = home_y - 11;
+                if (!clear(spot_x, spot_y) && !clear(spot_x = home_x + 2, spot_y) && !clear(spot_x = home_x - 2, spot_y)) {
+                    spot_x = home_x; spot_y = home_y - 8;
+                    if (!clear(spot_x, spot_y)) spot_y = home_y - 3;
+                }
             }
+            monster.wanderer_spot = std::pair{ spot_x, spot_y };
         }
+        const auto [spot_x, spot_y] = *monster.wanderer_spot;
         if (monster.ai_state == 0) { monster.ai_state = 1; monster.ai_state2 = 0; }
         if (best >= 0x14) { idle(0x28); return true; }
         auto head_off = [&] { unit.goal_x = (float(spot_x) + 0.5f) / 5; unit.goal_y = (float(spot_y) + 0.5f) / 5; set_off(false, nullptr); };

@@ -392,6 +392,7 @@ struct Monster {
     // think, and its absorb pool (stat 132, the cast's aurastat calc, in 256ths).
     bool has_point = false, armored = false;
     int armor_pool = 0;
+    std::optional<std::pair<int, int>> wanderer_spot;   // the Dark Wanderer's, once found (FUN_005bd0d0: a3q7's record +2 set, +4 / +8)
     bool greeted = false;                     // Izual's first think (ThinkEffect::greet): a4q1's FUN_005b4390, the World's to take
     // A prisoner's (Wussie, a5q2) view, set by World::act5_update: its cage's
     // portal (FUN_00588d60, subtiles), one of its cage gone through it
