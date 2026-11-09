@@ -1902,3 +1902,28 @@ FUN_0061f0b0, FUN_00643310, FUN_0067c570, the allocator and realloc.
   FUN_0066f380 (EAX room, EDX a, stack b): 0 unless the room record (+0x50)
   has +0x18 / +0x14 set, else FUN_0067c570 on the grid at +0xf4 / +0xa4 with
   the arguments swapped (grid, b, a).
+
+## Outdoors.cpp, level-link and distance helpers, run in the emulator
+
+`tools/emu/drlg_outdoor.py` (same harness; `--mutation-check` 3 ways; the data
+tables are read from the emulated image). Hooked and logged, not claimed:
+FUN_0066c040, FUN_0067c4f0, FUN_0067c570, FUN_00678b80, FUN_00678c10, the five
+FUN_00678ad0 targets and the allocator.
+
+- FUN_00673fe0(level, flag): with flag 0, +0x14 = 0, otherwise nothing.
+  FUN_00673ff0(level, other): `1 << (i + 4)` for the first index i of the
+  level's Vis array (FUN_0066c040) holding the other level's id, else 0.
+- FUN_00674160 / FUN_006741a0(level, x, y): FUN_0067c4f0 on the +0x14 record's
+  grids at +4 (value 0) and +0x2c (value 0 / 0x100), op 3. FUN_006741e0 returns
+  bit 10 of the +0x2c grid's flags, inverted; FUN_00674200 is 1 when none of
+  0x1b81 is set there. FUN_00675320 allocates 0x268 bytes (Outdoors.cpp line
+  0x34c) into +0x14 and zeroes them.
+- FUN_006755c0(a, b, s): `v = T0[a + 3b]` (0x6f0fd0); s >= 4 reads T2[s + 2v -
+  4] (0x6f06f0), else T1[s + 4v] (0x6f0630); v can be -1.
+- FUN_00678ad0(obj, kind byte): kinds 0..4 jump to FUN_00677750, 00677790,
+  006789b0, 00678a20, 00678a70 with the object in EAX; other kinds return.
+  FUN_00678b10(x1, y1, x2, y2) and FUN_00678b40 (the same on points packed as
+  x | y << 16) return `min + 2 * max` of the axis distances. FUN_00678cb0,
+  FUN_00678cd0, FUN_00678d10 and FUN_00678d30 look an index up through
+  FUN_00678b80 / FUN_00678c10 and read the byte table 0x6f1648 (stride 3) or
+  the 12-byte records at 0x6f1518.
