@@ -48,3 +48,6 @@ I did not check whether any shipped table is that short. d2d's `txt::Table` read
 file readers), and `StoreDataTables`.
 
 Re-check: `cd tools/emu && uv run python txt_loaders.py`.
+
+The per-table loaders, unloaders and getters built on these two are in
+[datatbls.md](datatbls.md).

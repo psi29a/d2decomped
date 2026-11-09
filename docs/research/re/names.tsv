@@ -416,6 +416,49 @@ address	name	evidence
 00610f90	ignorelist_add_name	FUN_00610d60, file line '!' + name
 00611200	ignorelist_ctor	sets IgnoreList::vftable, reads "Persistent Ignore" (chat-ignorelist.md)
 00611560	ignorelist_get	lazy IgnoreList getter: DAT_0096bc20, SMemAlloc(0x188, Chat/Ignorelist.cpp, 0x48) (chat-ignorelist.md)
+00611d20	datatbls_96c8a4	returns 0x96c8a4; callers in AnimTbls
+00611d60	states_flag_mask	States 0x3c-byte rows, flag bit at +0x10 into a mask
+00611dc0	states_flag_list	word list of States rows with a flag (DataTbls.cpp 0x64b)
+00611e60	states_field_list	word list of States rows with a positive word (DataTbls.cpp 0x662)
+00611ee0	player_class_name	CharStats +0x20 or "player %d"
+00611f40	monster_class_name	MonStats +6 string or "monster %d"
+00611fa0	object_class_name	Objects.txt row or "object %d"
+00611fe0	item_class_name	Items +0xf4 string or "item %d"
+00612030	missile_class_name	"missile %d"
+00612050	unit_debug_name	"NULL Unit" / "Invalid Unit"
+00612120	unit_type_debug_name	"Invalid Unit Type"
+006125a0	set_compile_flag	0x96c8b4 = (arg == 0)
+006125c0	table_free	DataTbls.cpp 0x924 / 0x926 by 0x744308
+00612600	table_strings_fill	FUN_00524e20 / FUN_00526700 / FUN_00526790 per row
+00612ea0	tables_free_codes	compcode, playerclass .. events
+00613d30	experience_load	"experience", 0x20-byte rows
+00613e60	exp_ratio	experience row level + 1, dword 7
+00613e90	table_store_bin	"%s\\%s.bin" DATA\GLOBAL\EXCEL "wb" (DataTbls.cpp 0x275, 0x27a)
+00617c30	skills_tables_free	DataTbls.cpp 0x5b8..0x5d4, skills, skilldesc
+00617d90	difficultylevels_load	"difficultylevels", 3 rows (DataTbls.cpp 0x61f)
+00618c90	states_free	DataTbls.cpp 0x6e8..0x6fc
+00618d90	pettype_load	"pettype" 0xe0 (DataTbls.cpp 0x72b)
+00619140	tables_unload_all	every unloader
+0061ddf0	leveldefs_extra	returns 0x96c9f4, ECX slot = 0x96c9f8
+0061de00	leveldefs_load	"leveldefs" 0x9c then FUN_0061dd00
+0061e440	leveldefs_free	LvlTbls.cpp 0x1d9
+0061e4a0	lvltypes_fix_name	'/' to '\\', "%s\\%s"
+0061e520	lvltypes_load	"lvltypes" 0x788
+0061ea90	lvltypes_free	FUN_006125c0(0x96c9f0)
+0061eaa0	lvltypes_row	0x788 rows (LvlTbls.cpp 0x251)
+0061eae0	lvltypes_act_is	row +0x780 == arg
+0061eb40	lvltypes_file	row + n * 0x3c, n < 32
+0061f030	lvlprest_free	0x96ca20 DS1s, LvlTbls.cpp 0x2d2
+0061f0b0	lvlprest_row	0x1b0 rows, count +0xc68
+0061f130	lvlwarp_load	"lvlwarp" 0x30
+0061f300	lvlwarp_free	FUN_006125c0(0x96ca00)
+0061f380	lvlmaze_load	"lvlmaze" 0x1c
+0061f480	lvlmaze_free	FUN_006125c0(0x96ca08)
+0061f9c0	lvlsub_free	0x96ca10 / 0x96ca18 / 0x96ca24 (LvlTbls.cpp 1000)
+0061fa90	lvlsub_row	0x15c rows through 0x96ca18 (LvlTbls.cpp 0x3f1..0x3f3)
+0061fae0	lvltypes_dt1_sets	0x1000 bytes per row, FUN_00604a40 (LvlTbls.cpp 0x410, 0x413)
+0061fbf0	lvltypes_dt1_sets_free	LvlTbls.cpp 0x43a
+006200d0	lvltbls_96ca28_free	LvlTbls.cpp 0x551
 00620150	unit_skill_first	(unit) -> first node of the list at unit +0xa8 (FUN_00643910); null unit asserts (Skills.cpp line 0x638) and exits; skills.md "Skill list accessors and the hotkey sweep"
 00620190	left_skill	FUN_00643930: the skill list's +8
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
@@ -494,7 +537,48 @@ address	name	evidence
 00626920	stat_delta_up_lists	ECX list, EDX key, delta, ctx: adds the delta (FUN_006250b0) or refreshes (FUN_006266c0) on the list and its parents (+0x34)
 006269f0	stat_list_detach	unlinks the list from its parent, pushes its values up negated, then calls the removal callback +0x38
 00627150	stat_list_set	(list, stat, value, layer): FUN_006270b0 when list is non-null, else nothing; skills.md "Stat-list helpers and skill starts"
+00633540	items_tables_free	ItemTbls.cpp 0x1c8, 0x1cb
+00633590	items_count_ptr	returns &0x96ca58
+006335a0	items_index	0x96ca78 word (ItemTbls.cpp 0x1e2)
 00633680	item_code_to_class	FUN_006bd130(DAT_0096bcc4, code, 0): FUN_0062cbe0 stores the result as the item class (d2s-items.md)
+006336a0	column_name_or_number	_atol or skills / montype / states links
+00633730	magic_affixes_load	magicsuffix, magicprefix, automagic 0x90 (ItemTbls.cpp 0x297)
+00633ea0	magic_affixes_free	ItemTbls.cpp 0x2b7
+00633f40	rare_affixes_load	raresuffix, rareprefix 0x48 (ItemTbls.cpp 0x2f4)
+00634220	rare_affixes_free	ItemTbls.cpp 0x30b
+00634250	rare_affix_count_ptr	returns &0x96caa0
+006342b0	uniqueitems_load	"uniqueitems" 0x14c (ItemTbls.cpp 0x37a, 0x37c)
+00634d90	uniqueitems_free	link 0x96c850, rows 0x96c854
+00636730	sets_free	sets and setitems
+00636770	qualityitems_load	"qualityitems" 0x70
+00636b00	qualityitems_free	FUN_006125c0(0x96cc54)
+00636b10	qualityitems_count_ptr	returns &0x96cc50
+00636b20	qualityitems_row	0x70 rows (ItemTbls.cpp 0x4f2, 0x4f3)
+00636b70	gems_load	"gems" 0xc0, Items +0xf0
+006372a0	gems_free	FUN_006125c0(0x96ca94)
+00637320	books_load	"books" 0x20
+00637490	books_free	FUN_006125c0(0x96cc64)
+006374a0	books_count_ptr	returns &0x96cc60
+00637500	lowqualityitems_load	"lowqualityitems" 0x22
+006375a0	lowqualityitems_free	FUN_006125c0(0x96cc5c)
+006375b0	lowqualityitems_count_ptr	returns &0x96cc58
+006375c0	lowqualityitems_row	0x22 rows (ItemTbls.cpp 0x5d0, 0x5d1)
+00637620	itemratio_load	"itemratio" 0x44
+006378f0	itemratio_free	FUN_006125c0(0x96cc4c)
+006379d0	descpriority_compare	qsort on the word at +2
+00637a00	itemstatcost_load	"itemstatcost" 0x144 (ItemTbls.cpp 0x6b4..0x748)
+006385d0	itemstatcost_free	ItemTbls.cpp 0x763
+00638630	properties_load	"properties" 0x2e (ItemTbls.cpp 0x796)
+00638aa0	properties_free	rows 0x96bcd4, link 0x96bcd8
+00638ae0	gamble_load	"gamble" 0xc, Items +0xfd (ItemTbls.cpp 0x7db, 0x7e0)
+00638c80	gamble_free	ItemTbls.cpp 0x80d
+00638cd0	itemtype_is_a	Equiv1/Equiv2 walk, 0x7d deep
+00638d80	itemtypes_load	"itemtypes" 0xe4, bit matrix (ItemTbls.cpp 0x884, 0x893)
+006393e0	itemtypes_free	ItemTbls.cpp 0x8a7
+00639420	excel_file_exists	"%s\\%s%s" DATA\GLOBAL\EXCEL, FUN_00516e46
+00639c90	runes_free	rows 0x96ca9c, link 0x96bce0
+00639cb0	runes_count_ptr	returns &0x96ca98
+00639cc0	runes_set_row	0x120-byte rows (ItemTbls.cpp 0x95b)
 00639db0	unit_set_state_checked	(unit, state, on): only for 0 <= state < [0x744304]+0xc4; FUN_00625a70 sets or clears the bit, then FUN_0064c040 links the unit into a list once (flag 0x2000); skills.md "Skill accessors"
 0063a970	inv_grid_unlink	unlinks item data +0x6c/+0x70 from a grid and clears its cells (Inventory.cpp 0x199)
 0063aaf0	inv_remove_item	clears item data +0x5c/+0x68/+0x69, inventory +0x20 or +0x28 count, wielded id +0x1c
@@ -590,12 +674,73 @@ address	name	evidence
 0064ea90	grid_set_pattern_bits	(room, x, y, pattern, bits): 1 / 3 plus then, if bits != 0, point 0x1000 / 0x2000; 2 / 4 3x3 square then plus; 5 plus only (collision.md "The stamp family")
 0064eba0	grid_clear_shape_bits	(room, x, y, shape, bits): the clear twin of FUN_0064ea00; shape 1 FUN_0064db70, 2 FUN_0064da40, 3 FUN_0064dbc0 (collision.md "The stamp family")
 006505c0	path_flag_8	path +0x34 & 8; null 0
+00653d60	monstats_set_32	MonStats +0x32 (MonsterTbls.cpp 0x2ef)
+00653db0	unique_names_load	"Name" 2-byte rows into 0x96d488[n]
+00653e20	unique_names_free	0x96d488..0x96d498
+00653ed0	unique_prefix_random	0x96d48c, d2d_seed_rand_below
+00653f10	unique_suffix_random	0x96d490, d2d_seed_rand_below
+00653f50	unique_appellation_random	0x96d494, d2d_seed_rand_below
+00653f90	treasure_class_add	0x2c-byte records (MonsterTbls.cpp 0x3a2)
+00654010	treasure_class_grow	0x1c-byte items (MonsterTbls.cpp 0x3ba)
+00654080	treasure_class_append	running totals +8 / +0xc
+006540c0	treasure_class_set_chance	moves the later totals
+00654410	split_number	FUN_00687740 at AL, _atol
+00654d50	treasure_classes_free	MonsterTbls.cpp 0x643, 0x647
+00654dd0	treasure_class_by_name	FUN_006bd3c0 on 0x96c5e8
+00654f20	monitempercent_load	"monitempercent" 4
+00654fc0	monitempercent_free	FUN_006125c0(0x96d484)
+00654fe0	monitempercent_row	4-byte rows (MonsterTbls.cpp 0x6dc, 0x6dd)
+00655030	monumod_load	"monumod" 0x20 (MonsterTbls.cpp 0x6ff)
+006552e0	superuniques_load	"superuniques" 0x34, hcIdx index (MonsterTbls.cpp 0x744, 0x782)
+00655710	superunique_count	returns 0x96c70c
+00655720	hireling_load	"hireling" 0x118 (MonsterTbls.cpp 0x816..0x818)
+006562b0	hireling_free	clears 0x96bdd8 index
+00656390	hireling_by_name	NameFirst/NameLast range at +0x114/+0x116
+00656440	hireling_by_id	row +8 == id
+00656620	npc_load	"npc" 0x4c
+00656900	npc_row	0x4c rows keyed by +0
+00656930	monsounds_load	"monsounds" 0x94 (MonsterTbls.cpp 0x96f)
+00656f90	monsounds_row	0x94 rows
+00657010	monstats2_components	comma list through compcode, +0x15 + n, +0x26 + 12n
+00658460	montype_is_a	three equivs walked
+00658520	montype_load	"montype" 0xc, bit matrix (MonsterTbls.cpp 0xaf6, 0xafc)
+006586d0	montype_free	MonsterTbls.cpp 0xb16
+00659500	monlvl_load	"monlvl" 0x78
+00659a10	monpreset_load	"monpreset" 4, per-act index
+00659af0	monpreset_free	clears 0x96c6dc..0x96c700
+00659b40	monpreset_act	first row and count, act < 5
+00659b80	monster_id_offset	+ superunique count or + MonStats count
+00659bb0	sounds_load	"sounds" 2 (MonsterTbls.cpp 0xc99)
+00659c30	sounds_free	rows 0x96bdc4, link 0x96bdc8
+00659c60	monseq_load	"monseq" 6 (MonsterTbls.cpp 0xcc3, 0xccc)
+00659de0	monseq_free	MonsterTbls.cpp 0xcea
+00659e60	monequip_load	"monequip" 0x1c, MonStats +0x2a (MonsterTbls.cpp 0xd1c)
+0065a190	monster_tables_free	monequip .. unique names
+0065a390	treasure_classes_load	MonsterTbls.cpp 0x60e, 0x616
 0065a900	unit_find_list_grow	+0xf entries (UnitFinds.cpp 0xc5)
+0065adc0	plr_tokens_load	plrtype + plrmode (TokTbls.cpp 0x37)
+0065aef0	monmode_load	"monmode" 0x34
+0065b1b0	obj_tokens_load	objtype + objmode (TokTbls.cpp 0x94)
+0065b2e0	composit_load	"composit" 0x34
+0065b350	armtype_load	"armtype" 0x34
+0065b3c0	tokens_free	TokTbls.cpp 0xd6, 0xe2
+00663210	missiles_free	MissileTbls.cpp 0x19e
 00663d40	misstream_alloc	8 bytes (MisStream.cpp 0x2e)
 00663d90	misstream_free	MisStream.cpp 0x3b, 0x3c
 00663e00	misstream_touch_walk	FUN_0064d9b0, missile touches, IsBadCodePtr (MisStream.cpp 0x71)
 00663ed0	misstream_fill	callback per path point (MisStream.cpp 0x8a..0xa9)
+00664150	overlay_load	"overlay" 0x84 (OverlayTbls.cpp 0x38)
 00665f40	ds1_cache_acquire	thiscall (out, path): finds path in the list at DAT_0096d60c (byte-exact compare) and bumps the refcount, else loads via FUN_00665950; ".\DRLG\Preset.cpp" lines 0x4e0, 0x4e1
+0066a2b0	expfield_init	FieldTbls.cpp 0x3e, 0x40
+0066a420	expfield_free	FieldTbls.cpp 0x5b
+0066a470	expfield_half_size	0x96d664 / 0x96d668
+0066a4b0	field_origin_new	FieldTbls.cpp 0x87
+0066a500	field_origin_free	FieldTbls.cpp 0x93, 0x94
+0066a540	field_origin_set	FieldTbls.cpp 0xa1
+0066a580	field_byte	FieldTbls.cpp 0xb0
+0066a700	expfield_load	"%s\\expfield.d2" DATA\GLOBAL
+0066a770	animdata_load	"%s\\AnimData.d2" DATA\GLOBAL (AnimTbls.cpp 0x83, 0x8a)
+0066a830	animdata_free	AnimTbls.cpp 0xbe, 0xbf
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)
 0066ece0	room_tiles_count_words	thiscall (room, shared, skipFirst, skipLast): per cell of the (w+1)x(h+1) word grid, block +0x18 += word&1 (wall), +0x20 += word&2 or (shared and FUN_0066b980 hit) (floor), +0x28 += word&0x8000000 (shadow)
