@@ -137,7 +137,10 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   made (`FUN_0040b480`, lines 0x184 and 0x186) and returns 0. If the first
   argument after ECX is non-zero and `FUN_00406940(0, 0)` is -1 the run
   ends with error 0x142 (`param_3`). `FUN_005ff760` calls it twice (with
-  `.\SRC\SpriteCache.cpp` lines 0x369 and 0x379). d2d: not ported (it reads
+  `.\SRC\SpriteCache.cpp` lines 0x369 and 0x379), both times as
+  `(0, offset, length, 0, block or 0, 0xfffffffe, file, line)` in the
+  decompile's `param_2..9`: `param_2` is 0, so the read is at once, and
+  `param_5` is 0, so it allocates the buffer. d2d: not ported (it reads
   whole files); `tools/emu/sound_hdr_load.py` hooks it.
 - `FUN_0040a9e0` (ECX = the record): the result buffer (+0x3c). Null ends the
   run with error 0x25f, a tag other than `0x41737960` in +0x48 with 0x260.
@@ -175,6 +178,29 @@ weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
   on block +0x18 and, when the result was 0, sets bit 0 of `*entry`; it
   returns 1. Bit 0 of `*entry` is the "this DCC failed" flag the other
   functions here test. d2d: not ported.
+- `FUN_005ff760(_, entry, layer, group, count)` (the sprite-cache record in
+  EDI; `entry` is the DCC's header blob: +0x14 directions, +0x18 frames per
+  direction, a dword offset table from +0x1c). Nothing happens unless all
+  three pointers are set. It picks the table slice `first .. end`:
+  a missile (type 3) or a type 6 overlay with bit 1 of +4: needs `count` 1
+  (else it returns), `first` = `d2d_gamedata_missile_direction(layer[+0x40],
+  entry[+0x14])` (`FUN_00600c90`), `end` = first + 1; an object (2): 0 and
+  1; an item (4): `first` = layer[+0x40], `end` = first + 1; the rest: a
+  monster (1) with `count` 1 also takes the missile direction, otherwise
+  `first` = `group * count`, `end` = first + `count`. The bytes to read are
+  `table[end] - table[first]`; 0 builds the stem and path (unused) and
+  returns, loading nothing and raising no error. With no read yet (EDI+0xb0
+  is 0) it sets EDI+0x21 = `count`, +0x22 = `group * count`, +0x24 =
+  entry[0x18], +0x23 = entry[0x14] + 1, and fills EDI+0x2c + i*4 with
+  `table[i] - table[first]` for i = first .. end inclusive (an index above
+  0x20 is error 0x34c, a negative offset 0x34e; 0x2c + 0x21 * 4 is EDI+0xb0,
+  so the 33 slots fit). The read is `FUN_0040a620` from `table[first]`: with
+  bit 1 of `*entry` clear a plain one (line 0x379); with it set EDI+0x20
+  bit 2 is raised and the `FUN_005ff6e0` callback is used (line 0x369,
+  then `FUN_0040aa40`). The record goes to EDI+0xb0, and 0 is error 0x37d.
+  d2d: agrees on the direction rounding (`missile_direction`,
+  `cof_direction`, tests/game/test_game_rules.cpp:76); the rest is not
+  ported.
 
 ## Draw effects
 
