@@ -546,3 +546,23 @@ the same pointer is already written in quests-act1.md ("The flags pointer is
 `*(FUN_006221a0(player)+0x10+diff*4)`").
 d2d: agrees, not ported as a function (`header.quest_flag(diff, quest, bit)` reads the
 save's block for the active difficulty).
+
+### The class moved on by level, then rolled (`FUN_0055afa0`)
+
+Fastcall (ECX game, EDX the dropper) with eight stack words (`ret 0x20`): killer, class,
+forced quality, ilvl, noNoDrop, out array, count pointer, max. It sets `lvl = 0`, and sets
+it to the dropper's stat 0xc (`FUN_00625480(unit, 0xc, 0)`) only when all of these hold:
+`game +0x70` (expansion) is non-zero, the byte `game +0x6d` (difficulty) is above 0, the
+dropper is a monster (type 1) with a MonStats row (`FUN_00451f80(unit +4)`), and that row's
+byte `+0xc` has neither bit in `[0x6ce270]` (4, noRatio) nor `[0x6ce280]` (0x40, boss).
+`FUN_00654e00(class, lvl)` then picks the row (it returns the class itself for `lvl <= 0`,
+and 0 for class 0 or one past `DAT_0096c5f0`); a 0 ends it with nothing rolled; otherwise
+it runs `FUN_0055a6d0(game, unit; killer, row, forced, ilvl, noNoDrop, out, count, max)`
+with the five other words passed on unchanged.
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 55afa0` (the two tests at
+0x55afaa / 0x55afb1, the masks at 0x55afcf / 0x55afd7, `ret 0x20`),
+`python3 tools/ghidra/fn.py 00654e00`.
+d2d: reads the same, cited from the decompile, no oracle run. `Loot::drop` passes `tc_upgrade(class, diff > 0 && !tc_fixed ? level : 0)`
+(`tc_fixed` = noRatio or boss), whose loop starts only for `lvl > 0` like `FUN_00654e00`. d2d
+has no expansion test (it only plays 1.14d expansion), and no empty-class case (a class
+index of 0 or past the table drops nothing in the game).
