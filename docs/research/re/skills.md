@@ -45,8 +45,8 @@ What a skill is, column by column (the ones that matter first):
   So Holy Shield and Smite (itypea1 shld, no set b) need a shield in
   either hand: the other hand passes set b's empty test.
   d2d: `weapon_gate` / `hand_fits` (fight.hpp, through `skill_refused`;
-  `test_weapon_gate`); not kept: the ammo tests, the 0x4000 / 0x100
-  items, Left Hand Throw / Swing's dropped hand; Throw keeps its own gate.
+  `test_weapon_gate`, Left Hand Throw / Swing's dropped hand too); not
+  kept: the ammo tests, the 0x4000 / 0x100 items; Throw keeps its own gate.
 - **Damage**: `ToHit` + `LevToHit`, or `ToHitCalc`; `SrcDam` (128 = all of
   the weapon damage); physical `MinDam` / `MaxDam` with `MinLevDam1..5`,
   elemental `EType`, `EMin` / `EMax` with `EMinLev1..5` / `EMaxLev1..5`,
