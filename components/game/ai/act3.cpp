@@ -50,11 +50,10 @@ struct Act3Preps : ThinkPrep {
     void thorn_hulk() { input.next_event = mode_end_event(game_data, monster, type_info.sk_mode[0], frame); }
     // The tentacles' head (their leader) and its mode.
     void tentacle() {
-        static constexpr std::array<std::string_view, 16> kModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
         const bool has_leader = monster.leader >= 0 && std::size_t(monster.leader) < pack.size() && &pack[std::size_t(monster.leader)] != &monster;
         const auto& head = has_leader ? pack[std::size_t(monster.leader)] : monster;
         input.grouped = has_leader && (head.alive() || head.mode == "DD");
-        input.leader_mode = int(std::ranges::find(kModes, head.mode) - kModes.begin());
+        input.leader_mode = monster_mode(head.mode, 16);
     }
     // Its own spot's collision: the frogs' 0xc01, the zealots' 0x40; the
     // zealots' spare: the player's quest 0x15 bit 0 (a3q5 done) in act 3.

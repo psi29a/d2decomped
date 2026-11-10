@@ -1111,6 +1111,11 @@ inline int missile_elem(const GameData& game_data, const GameData::MissileInfo& 
 // An object's mode tokens, and the index of one (0 when unknown).
 inline constexpr std::array<std::string_view, 8> kObjectModes{ "NU", "OP", "ON", "S1", "S2", "S3", "S4", "S5" };
 int mode_index(std::string_view mode);
+// A monster's mode tokens (MonMode: DT 0 .. RN 15), and the number of one
+// (`unknown` when it isn't one: a MonSeq sequence or Skills.txt monanim xx
+// plays SQ, 14).
+inline constexpr std::array<std::string_view, 16> kMonsterModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
+int monster_mode(std::string_view token, int unknown = 14);
 // An object's frame rate in a mode (FUN_00624390, 0x624558): FrameDelta as
 // written with Sync, else less its 1/16 plus a roll under its 1/8 on the
 // unit's seed, kept within 0..0x7fff.
