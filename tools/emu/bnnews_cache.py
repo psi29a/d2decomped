@@ -73,7 +73,7 @@ def run():
     m.hook(0x412650, storm_free, 4)
     m.hook(0x519DB0, write_cache, 4)
     m.hook(0x519920, read_cache, 2)
-    for address, (name, handler) in list(m.slots.items()):
+    for address, (name, _handler) in list(m.slots.items()):
         if name == "GetSystemTime":
             m.slots[address] = (name, lambda current: (0, 1))
         elif name == "SystemTimeToFileTime":
