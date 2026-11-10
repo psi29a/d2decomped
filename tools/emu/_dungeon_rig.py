@@ -99,7 +99,7 @@ class Model:
 
     def call(self, name, *args):
         """Log a hooked callee; its result is what the stock run's hook returned (the arguments are checked by the log)."""
-        self.log.append((name,) + tuple(a & M32 for a in args))
+        self.log.append((name,) + tuple(a if isinstance(a, bytes) else a & M32 for a in args))
         return self.out_of(len(self.log) - 1)
 
     def out_of(self, index):

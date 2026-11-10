@@ -690,3 +690,26 @@ ponytail: a change in the View's log state stands in for each 0x5d (so a
 log change the server keeps to itself, Burial's 13 at the reward, also
 brings the button); the player's act is taken as Act 1's; the description
 stays up while questlast replays.
+
+## QUESTS.CPP helpers (second pass)
+
+Two oracles verify 20 small functions against stock 1.14d (game.exe SHA-256
+`631066c1...adaaf`), with every callee hooked and logged; their bodies are not
+claimed here.
+
+`tools/emu/quest_small.py`: `FUN_00543b90` (kind-3 event record, dispatched
+through `FUN_005438e0(1, 0)`), `FUN_00543ce0` (kind 0) and `FUN_00543de0`
+(kind 6) through `FUN_005439a0(0)`; `FUN_00544470` (game +0x10f4 data's +8,
+assert line 0x7b3 on a null game); `FUN_00545290` / `FUN_00545300` (an id list
+whose count word is at +0x80); `FUN_00545760` (data +0x20 = DL, then
+`FUN_005537d0(0, FUN_005456f0)`); `FUN_00545830` (tag 0x49 only);
+`FUN_00545990` (`ret 4`); `FUN_00545d40` (record constructor: memset 0xf8,
++0 and +4 from the stack, +8 = DL, +9 = 1, +0x9c = 0).
+
+`tools/emu/quest_packets.py`: `FUN_00544520` (0x29 plus 0x60 flag bytes; assert
+0x7dd), `FUN_00544f60` / `FUN_00544fa0` (add state words to the class's
+player-data list; kinds 0/1/2/4 use the 6/11/7/7 words at 0x7318b0, c8, f4,
+910, kind 3 and above 4 nothing), `FUN_00545090` / `FUN_00545100` (0x91 state
+packet of the words `FUN_00572470` accepts), `FUN_00545530`, `FUN_005455b0`,
+`FUN_005456f0` (0x89), `FUN_00545780` (0x27) and `FUN_00545920` (0x5d).
+
