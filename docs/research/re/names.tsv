@@ -504,6 +504,7 @@ address	name	evidence
 00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
+0057aae0	unit_stun	(attacker, length; struck unit in EDI): length < 1 nothing; special monster 90 % shrug on the attacker's seed, boss, Velocity 0 immune; cap 250 (hireling 13); state 0x15 to game frame + length (skills.md "Stun")
 00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")
 00574930	pet_send_to_client	per-client callback of FUN_005538d0: event {+0 pet id, +4 owner id, +8 class, +0xc row, +0x10/+0x14 words}; both words 0 sends 0x7a (FUN_0053cb30) else 0x81 (FUN_0053cb80) (pet-ai.md "The owner's pet lists")
 00574ab0	pet_revive_announce	EDX owner, stack unit: rows 1.. find the node whose +4 is the unit's id, flags &= ~1, send the add event (FUN_005538d0 / FUN_00574930), 1; else 0 (pet-ai.md "The owner's pet lists")

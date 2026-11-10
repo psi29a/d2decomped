@@ -325,6 +325,28 @@ lines (missile names aren't passed in). What it does:
   data +0x16 & 8, set by FUN_005a0320 on every unique, champion and
   superunique placed (FUN_005a09e0, FUN_005a48c0, FUN_005a4940), not on
   minions. d2d: `Fight::land`.
+  Read again whole (cited, decompile only; stack `length`, the struck unit
+  in EDI, the attacker as the first argument): the order is **length < 1
+  returns; for a monster target: the special test and its 90 % draw first,
+  then the boss test, then Velocity (+0x32) 0, then the hireling cap**. So a
+  special monster that is also immune (a boss-column unique, say a
+  superunique) still takes a step of the attacker's seed (`FUN_005a0180`
+  true, seed +0x20 / +0x24 stepped, `% 100 < 90` returns) before the boss
+  test returns. The length is capped at 250 for everything but a hireling
+  (`FUN_0063ee90`), whose length over 12 becomes 13; a non-monster target
+  has only the 250 cap and no immunity test. The end frame is the game's
+  frame (+0xa8) plus the length; with state 0x15 already on, its stat list is
+  moved to the new end (`FUN_00625310`: replaced, not kept at the longer),
+  event 0xc is set for it (`FUN_005417d0`); with none, a list is made
+  (`FUN_006251f0`, kind 2, owner the attacker), `FUN_0056e900` is its end
+  callback and state 0x15 goes on. d2d (`strike.cpp:511`): reads the same,
+  cited from the decompile, no oracle run, on the
+  special 90 %, the boss and Velocity tests, the 250 cap and the
+  replacement. DISAGREES in the order: d2d tests boss / Velocity first and
+  draws only for a stunnable special, so an immune special costs game.exe a
+  seed step and d2d none (and d2d's `rng(100)` is not shown to be the
+  attacker's unit seed). Re-check: `python3 tools/ghidra/fn.py 0057aae0
+  005a0180 0063e9f0 0063ee90`.
 - Concentrate: aurastate `concentrate`, aurastat1 skill_armor_percent =
   ln34 (100 + 10 per level); calc4 = Berserk's level, % to magic.
 
