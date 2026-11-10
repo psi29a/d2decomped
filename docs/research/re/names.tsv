@@ -276,6 +276,7 @@ address	name	evidence
 0053cb80	scmd_assign_merc_81	queues the 20-byte S->C packet 0x81 (+1 byte, +2 u16 class, +4 owner id, +8 pet id, +0xc / +0x10 words) with FUN_0053b280 (pet-ai.md "The owner's pet lists")
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
 0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
+005447a0	quest_object_class_dispatch	classes 0xc9 and 0x14b within Objects table bounds dispatch to their quest handlers
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
 005496f0	location_check	shared C->S location check (packet EAX, unit ESI, stack game, size, &x, &y; ret 0x10): zeroes both word outs, size 5 else 3, no player data (FUN_006221a0) 2, range check FUN_00548ef0(EAX unit, EBX 0x32, x, y); on a failure more than 0x19 frames (signed) after the stamp at player data +0x168 sends a 0x15 reassign (FUN_0053bc10) to the unit's client; the status passes through; 0 stamps the frame and stores x, y; verified plrmsg_loc.py
 005497e0	scmd_walk_to_location	C->S 0x01: location check, then FUN_005809d0(game, unit, skill 0, mode 2, x, y, 0); answers 0; verified plrmsg_loc.py

@@ -336,7 +336,15 @@ output pointer on the stack (`ret 4`). A missing record or zero data dword
 +0xb1 is zero it calls `FUN_00620870(unit, output)`, else it copies data
 dwords +0xc4 and +0xc8 to the output. `FUN_0058aa10` looks up the record and,
 when byte +9 is nonzero and byte +0xb is below 2, clears byte +0x14 and calls
-`FUN_00544300` with the record, 0, callback `FUN_00588eb0` and 1.
+`FUN_00544300` with the record in ECX, 2 in EDX and stack arguments 0,
+callback `FUN_00588eb0` and 1.
+
+`FUN_005447a0` takes two handler arguments and a class ID on the stack
+(`ret 0xc`). It checks the ID is nonnegative and below the signed dword at
+the Objects table +0xa80, then dispatches class 0xc9 to `FUN_0059b6c0` or
+0x14b to `FUN_0059b6d0` with the first two arguments. Other classes do
+nothing. `tools/emu/quest_object_dispatch.py` checks 48 combinations against
+stock with both handlers hooked, including signed bounds and the two IDs.
 
 `tools/emu/quest_frontier.py` checks these nine functions on synthetic records
 against stock 1.14d (216 cases, nine deliberate model defects caught). The
