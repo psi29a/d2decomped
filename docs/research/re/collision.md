@@ -525,6 +525,14 @@ arguments), cited, not run. The functions are in the order they are met.
   the pending set. d2d: `walk.cpp` and `commands.cpp` `walk_to` start the same walk (the warp's
   `take_warp` is the pending); the marker, the type and the id have no counterpart because d2d keeps
   one target. **agrees** on the walk, **DISAGREES** on the limit (below).
+- **`FUN_00535060(unit)`: is the player busy?** 0 for a null unit or a non-player. Otherwise 1
+  when the interact flag (player data +0x6c, `FUN_00554100`: it also yields +0x68 the type and
+  +0x64 the id) is set, or when a cursor item is held (`FUN_0063c1e0` on unit +0x60); else the
+  value of player data +0x4c (`FUN_006221a0`). `FUN_00548b00` case 1 starts a talk only while
+  it returns 0 (LAB_00548dae), so a player with an open interact, an item on the cursor or +0x4c set
+  walks up but doesn't talk. d2d: act5.cpp (the last portal) and `town_npcs.hpp` name it for
+  the NPC-visitor and portal tests; d2d's talk start was not checked against the cursor-item and
+  +0x4c arms. **not ported** as one gate.
 
 ### How near the client walks
 

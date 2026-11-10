@@ -373,6 +373,7 @@ address	name	evidence
 00520440	bnqueue_clear	frees every node; FUN_0051c470 (close)
 00526100	utf8_decode	table at 0x7309b8 (mask, value, value mask, minimum); 10xxxxxx continuations
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
+00535060	player_busy	fastcall (unit): 0 for null / non-player; 1 when the interact flag (+0x6c, FUN_00554100) or a cursor item (FUN_0063c1e0 on +0x60) is set, else player data +0x4c; FUN_00548b00 case 1 talks only on 0 (collision.md "The pending interact's fields")
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00526f20	narrow_to_wide	ECX dst u16*, EDX src bytes, stack count (ret 4): each byte zero-extended, stops at the NUL or count; then dst[i] = 0, or dst[count-1] = 0 when src[count] is not 0 (cursor-units.md)
