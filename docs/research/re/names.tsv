@@ -958,6 +958,7 @@ address	name	evidence
 006238c0	unit_face_path_target	FUN_00648810 or FUN_00621dc0 (Units.cpp 0xe83)
 00623990	skill_weapon	Skills +0x168 picks the hand; FUN_0062a4e0
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
+006248e0	log_line_locked	cdecl (a, b, c, d, file, line, format): with 0x96ca48 set, FUN_00624780 between EnterCriticalSection / LeaveCriticalSection on 0x96ca30; FUN_00580a70 calls it (1, 2, 4, 4, ".\PLAYER\PlrModes.cpp", 0x83a, "StartModeID: Bad Target") (stubs.md, tools/emu/profile_dump.py)
 00624f40	stat_array_of	EAX list: list+0x48 when flag 0x80000000 is set, else list+0x24 (the {array, count} pair)
 00625250	stat_list_owner_type	stat list +8; null 6
 006252b0	stat_list_owner_id	stat list +0xc; null 0

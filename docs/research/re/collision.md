@@ -493,6 +493,12 @@ arguments), cited, not run. The functions are in the order they are met.
   (`FUN_0045c390(unit seed, 100)`) go to the mode test above; otherwise state 0xf absent returns 1,
   present goes to the same mode test. The roll, the states and `FUN_005809d0` are not ported
   or traced further. **DISAGREES** with d2d on what "busy" is (issue).
+- **`FUN_006248e0`: the log line.** Does nothing while `0x96ca48` is 0; else
+  `FUN_00624780` inside the critical section `0x96ca30` (stubs.md has its callers). Here only
+  `FUN_00580a70` uses it, for a target that is gone: `(1, 2, 4, 4, ".\PLAYER\PlrModes.cpp",
+  0x83a, "StartModeID: Bad Target")`, then it returns and the mode doesn't start (LAB_00580aaf).
+  The pending clear (below) comes after this return, so it is skipped too. d2d: not ported
+  (a log line only).
 
 ### How near the client walks
 
