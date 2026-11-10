@@ -407,18 +407,25 @@ address	name	evidence
 0053b4b0	scmd_unit_stop	S->C 13 bytes (0x0d stop layout); byte a0 of 6 or more is fatal (line 0x136); verified scmd_senders.py
 0053b520	scmd_move_to_unit	S->C 16 bytes (0x10 move to unit layout); verified scmd_senders.py
 0053b570	scmd_move_to_xy	S->C 16 bytes (0x0f move to x, y layout); byte a0 of 6 or more is fatal (line 0x166); verified scmd_senders.py
+0053b910	scmd_monster_move_67_ext	S->C 0x10 bytes (0x67 move to x, y with caller bytes at +0xa, +0xb, +0xf): monster id +1, path type fix-up (5/6 to 1 with the path target, 8 to 0xb), stat 0x43 clamped to i16; no monster in the client's game queues nothing (net-packets.md); cited
 0053b9f0	scmd_monster_pkt_a	S->C 12 bytes: id, u32 +1, two bytes, u32 +7, byte +0xb (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
 0053ba40	scmd_monster_pkt_b	S->C 12 bytes: id, u32 +1, byte, u16 +6, u16 +8, two bytes (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
 0053baa0	scmd_monster_pkt_c	S->C 16 bytes: id, u32 +1, two bytes, u32 +7, byte, two u16 (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
 0053bb00	scmd_monster_pkt_d	S->C 16 bytes: id, u32 +1, byte, two u16, two bytes, two u16 (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
 0053bb70	scmd_monster_stop_6d	S->C 10 bytes: 0x6d, u32 EDX, u16 x, u16 y, byte life; verified scmd_senders.py
 0053bc10	scmd_pkt_11	S->C 11 bytes: id, byte, u32 +2, u16 +6, u16 +8, byte +0xa; sent when a player comes into the game (combat.md, FUN_005394a0); verified scmd_senders.py
+0053bc50	scmd_map_reveal_07	S->C 6 bytes: 0x07, u16 x, u16 y, u8 level id (EDX); sent by the teleport FUN_00554ea0 after FUN_0061a1b0 gives the room's level (net-packets.md 0x07, act1-end.md); cited
+0053bc90	scmd_map_hide_08	S->C 6 bytes: 0x08, u16 x, u16 y, u8 level id (EDX); as FUN_0053bc50 with id 8, called by FUN_0053a9b0 (net-packets.md 0x08); cited
+0053bcd0	scmd_assign_warp	S->C 11 bytes: id (9 at its one caller), u8 type, u32 +2 id, u8 +6, u16 +7, u16 +9 (net-packets.md 0x09 assign warp); cited
+0053bd10	scmd_assign_object	S->C 14 bytes: id (0x51 at its one caller), u8 type, u32 +2 id, u16 +6, u16 +8, u16 +0xa, u8 +0xc, u8 +0xd (net-packets.md 0x51 assign object); the unit must exist in the client's game or line 0x341 is fatal
+0053bda0	scmd_remove_unit	S->C 6 bytes: id (0x0a at all three callers), u8 type, u32 +2 id; nothing for type 3, a missile (net-packets.md 0x0a remove unit); cited
 0053bdd0	scmd_experience	S->C experience: d = EDX - a0; 0x1a byte add (d 0..0xfe), 0x1b word add, 0x1c set EDX (d above 0xfffe or negative); verified scmd_senders.py
 0053be40	scmd_set_stat	S->C own stat: 0x1d byte / 0x1e word / 0x1f dword value by a0 (below 0xff / 0xffff); EDX u16 stat 0xff or more is fatal (line 0x3cb); verified scmd_senders.py
 0053bee0	scmd_set_unit_stat	S->C other unit's stat set: 0x9e byte / 0x9f word / 0xa0 dword, unit id +0xc (-1 for null); stat 0xff or more fatal (line 0x3f5); verified scmd_senders.py
 0053bfd0	scmd_add_unit_stat	S->C other unit's stat delta d = a2 - a1: 0xa1 byte, 0xa2 word, else (delta 0xffff or more, or negative) 0xa0 with a1 (the old value, bugs.md 94); stat 0xff or more fatal (line 0x42d); verified scmd_senders.py
 0053c320	scmd_walk_95	S->C 0x95 bit-packed, 13 bytes: 8 id, 15 EDX, 15, 15, 16, 16, 8, 8; verified scmd_senders.py
 0053c3f0	scmd_walk_96	S->C 0x96 bit-packed, 9 bytes: 8 id, 15 EDX, 16, 16, 8, 8; verified scmd_senders.py
+0053c520	scmd_item_skill_22	S->C 12 bytes: 0x22, EDX type, u32 +3 id, u16 +7 skill, byte +9 count (low byte of a2), +0xa not written (bugs.md #103), +0xb flag (unit found and FUN_00639df0(unit, 7)); cited
 0053c590	scmd_set_skill_23	S->C 0x23 (13 bytes): EDX byte, u32 +2, byte hand, u16 skill, u32 item; verified scmd_senders.py
 0053c900	scmd_copy_10	S->C 10 bytes copied from the structure EDX points at (0x53 act values); verified scmd_senders.py
 0053cb30	scmd_pet_list_7a	queues the 13-byte S->C packet 0x7a (+1 EDX add flag, +2 PetType row, +3 u16 class, +5 owner id, +9 pet id) with FUN_0053b280 (pet-ai.md "The owner's pet lists"); verified scmd_senders.py
@@ -432,6 +439,7 @@ address	name	evidence
 0053d960	scmd_copy_21	S->C 0x15 bytes copied from the structure EDX points at (0x63); verified scmd_senders.py
 0053e020	scmd_pong	S->C 0x8f then 32 zero bytes (33); verified scmd_senders.py
 0053e060	scmd_copy_26	S->C 0x1a bytes copied from the structure EDX points at; verified scmd_senders.py
+0053e8f0	scmd_assign_player	S->C 26 bytes: 0x59, u32 id (EDX), u8 class, name char[16] at +6 (copy bound 0x7fffffff, bugs.md #104), u16 x, u16 y, then FUN_0053da90 for the unit found by id (net-packets.md 0x59 assign player); cited
 0053e9b0	scmd_gold	S->C gold: d = EDX - a0; 1..0xfe is 0x19 + byte, else the stat 0x0e set packet (1d / 1e / 1f 0e) of EDX; verified scmd_senders.py
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
 0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
@@ -495,7 +503,7 @@ address	name	evidence
 0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
 0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
 0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
-00554010	unit_game	ECX unit: unit +0x80 (the game struct: +0x6d difficulty, +0x70 expansion); a null unit is a fatal assert id 0xa29 (combat.md "The game behind a unit")
+00554010	unit_game	ECX unit: server unit +0x80 (client units reuse it as a sound time; the game struct: +0x6d difficulty, +0x70 expansion); a null unit is a fatal assert id 0xa29 (combat.md "The game behind a unit")
 005466b0	quest_item_give	QUESTS.CPP 0x9d2: FUN_00633640 row, FUN_00559ce0 at the player's level, FUN_00560200 into the inventory else FUN_00558aa0 on the ground
 00558270	item_creation_descriptor	items-lifecycle.md: snapshot source item into 0x84-byte creation block
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
@@ -574,6 +582,7 @@ address	name	evidence
 00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
+0057a980	unit_life_back	(points on the stack, unit in a register): 0 when points < 1, unit dead (FUN_005541b0) or in state 0x5c; else stat 6 + points capped at stat 7, returns max - cur when capped (combat.md "Life back")
 0057aa00	unit_mana_back	(points on the stack, unit in EDI): stat 8 + points capped at stat 9 (FUN_00625d60), returns max - cur when capped; no dead test (combat.md "Mana back")
 00580ec0	player_death_mode	died bit FUN_00538650, losses FUN_00535ab0, ear FUN_0055a200 on a player's kill (combat.md Death)
 0057aae0	unit_stun	(attacker, length; struck unit in EDI): length < 1 nothing; special monster 90 % shrug on the attacker's seed, boss, Velocity 0 immune; cap 250 (hireling 13); state 0x15 to game frame + length (skills.md "Stun")

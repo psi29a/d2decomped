@@ -58,6 +58,29 @@ mana leech of a player's hit is `std::min(kMaxMana, mana + (blow.mana <<
 d2d does not apply the dead-unit gate to mana because nothing there needs it.
 Re-check: `python3 tools/ghidra/fn.py 0057aa00 0057c420`.
 
+**Life back: FUN_0057a980** (cited, decompile only). The twin of
+`FUN_0057aa00`, called by `FUN_0057c6c0` with record int 0x12 and by
+`FUN_0057c420`. One stack argument `points` (the raw units of stat 6,
+which `FUN_0057c6c0` treats as 256ths: dead under 0x100), the unit in
+EDI/ECX registers the decompile hides. It returns 0 and writes nothing when:
+`points < 1`; or the unit is dead (`FUN_005541b0`: a null unit, a player in
+mode 0 or 0x11, a monster in mode 0 or 0xc, a unit of any other type, or
+unit +0xc6 bit 0); or the unit has **state 0x5c** (`FUN_00639df0(unit,
+0x5c)`). Else `new = min(stat 6 + points, max)` with max =
+`FUN_00625d10` (stat 7), written by `FUN_00627260(unit, 6, new, 0)`; the
+return is `max - cur` when capped, else `points`. State 0x5c is set by
+`FUN_005a6920` (the life regen / drain tick, stat 0x4a) when it takes life
+to 0 in a unit that has state 0x36, and cleared by `FUN_005544b0` (state 0x36 off).
+It is not preventheal: that is state 0x34 (`FUN_0057d810`), which the
+regen `FUN_005a6920` and the teleport mod's heal `FUN_005b11f0` test
+themselves and this function does not. d2d: `ai.cpp` `heal` caps at max
+life and refuses a dead monster (agrees), keeps `no_heal_until` (state
+0x34) as a caller's gate (agrees with where game.exe tests it), and has no
+state 0x5c. Its header calls `points` "whole points"; game.exe's `points`
+from a hit's record are stat 6 units (256ths), so the comment is true for
+d2d's own callers only. Re-check: `python3 tools/ghidra/fn.py 0057a980
+005541b0 005a6920 005544b0`.
+
 ## The game behind a unit — FUN_00554010
 
 (cited, decompile only.) `__fastcall`, ECX the unit: a null unit fails the
@@ -66,11 +89,15 @@ usual fatal check (`FUN_00408090(0xa29)` message, `FUN_00408a60`, then
 +0x80. The callers cited here (not a full caller list) use the result as the game struct: the
 difficulty byte at +0x6d (`FUN_00611d30`, `FUN_00637910`'s second argument,
 `FUN_0057c420`'s Drain scaling) and the expansion word at +0x70
-(`FUN_00558200`). The oracles agree (`tools/emu/end_percent.py:93` hooks it
-"ECX the unit" and returns the game struct). So unit +0x80 is the game
-pointer, and `structs.tsv` rows `unit 0x80 neutral_time` (and 0x7c / 0x84)
-cite `components/game/ai.hpp:187`, which no longer shows those names: DISAGREES
-with the +0x80 row unless those rows describe another struct.
+(`FUN_00558200`). `tools/emu/end_percent.py:93` replaces it with a hook that returns
+the game struct, so that oracle assumes this reading and does not check it
+(the decompile above is the evidence). So a **server** unit's +0x80 is
+the game pointer. Client units use +0x80 differently (a sound time: the
+Neutral timer and the Gibbet's call frame, unit-sounds.md "Monsters" and
+"Objects"), so `structs.tsv`'s `unit 0x80 neutral_time` row (and 0x7c / 0x84)
+describes the client layout, not this one; the table has no server/client
+column yet, and its `components/game/ai.hpp:187` citation no longer shows
+those names.
 Re-check: `python3 tools/ghidra/fn.py 00554010 0057c420 00558200`.
 
 ## Poison and burning — FUN_0057ac50 / FUN_0057add0
@@ -540,8 +567,10 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
   2. `FUN_00633640(0x20726165, &index)` ("ear " as a little-endian code)
      finds the item row (stride 0x1a8); no row: nothing;
   3. the victim's x, y (`FUN_00620870`) and room (`FUN_00620bb0`), then
-     `FUN_00555da0` finds the nearest free spot (the same call as a dropped
-     item, drops.md "Where a drop lands"); none: nothing;
+     `FUN_00555da0` finds a free spot (the same call as a dropped item,
+     drops.md "Where a drop lands"): the search starts from (x + 2, y + 3),
+     or from (x, y) when that offset is off the rooms (`FUN_00463740`), not
+     from the victim's own coordinates; none: nothing;
   4. `FUN_00559ce0` makes the item (the create record of drops.md, level =
      the victim's stat 0xc through `FUN_00625480`, so its item level is the
      victim's level; the other literals 4, 2, 1, 1 and the zeros are as the

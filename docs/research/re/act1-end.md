@@ -856,7 +856,7 @@ FUN_00547170(game, obj, ...)   // push {room, dest wp x, y} onto game+0x10f0->+0
   - FUN_0064e7b0 (0x1c09), then FUN_00650be0 moves the unit;
   - unit+0xc8 |= 0x10000 (0x800 if param7);
   - FUN_00554670.
-  - For a player also: S→C reassign FUN_0053bc50; pcdata+0x148/+0x14c = x, y; +0xa4 = tick; a 20-entry position ring at +0xa8 (index +0xa0); event 0xe at frame + 0x32; FUN_005754b0(x, y).
+  - For a player also: S→C 0x07 map reveal `FUN_0053bc50` (x, y of the room from `FUN_00619730`, level id from `FUN_0061a1b0`; not the 0x15 reassign, which is `FUN_0053bc10`); pcdata+0x148/+0x14c = x, y; +0xa4 = tick; a 20-entry position ring at +0xa8 (index +0xa0); event 0xe at frame + 0x32; FUN_005754b0(x, y).
 
 ### Not traced
 - FUN_00548ef0: probably a range or position check.

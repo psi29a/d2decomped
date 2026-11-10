@@ -170,7 +170,7 @@ The client makes the monster (`FUN_00466360`), then sets stat 7 = 0x8000
 and stat 6 = life << 8 (not for its own merc). **The exact hit points
 never cross**: every monster's life is a byte, 0..128 of its maximum.
 
-**0x51 assign object** (14; `0x45cbd0` → `FUN_00466300`)
+**0x51 assign object** (14; `0x45cbd0` → `FUN_00466300`; builder `FUN_0053bd10`)
 
 | Off | Size | Field |
 |---|---|---|
@@ -186,10 +186,10 @@ Doors, chests, shrines, waypoints, the stash, town portals and the
 Cairn Stones' portal all come this way.
 
 **0x09 assign warp** (11; `0x45cb90` → `FUN_004661c0`, then
-`FUN_00470b70`): +1 u8 type (5), +2 u32 id, +6 u8 warp class (the
+`FUN_00470b70`; builder `FUN_0053bcd0`): +1 u8 type (5), +2 u32 id, +6 u8 warp class (the
 LvlWarp row), +7 u16 x, +9 u16 y.
 
-**0x0a remove unit** (6; `0x45cc10` → `FUN_00465ee0`): +1 u8 type, +2
+**0x0a remove unit** (6; `0x45cc10` → `FUN_00465ee0`; builder `FUN_0053bda0`): +1 u8 type, +2
 u32 id. Ignored for the client's own player.
 
 **0x0b** (6; `0x45cc50`): +1 type, +2 id: `FUN_00463d90` on the unit,
@@ -346,7 +346,7 @@ delta (7), 0xa2 u16 delta (8). Stat 12 fires the level-up event too.
 | Id | Size | Handler | Layout |
 |---|---|---|---|
 | 0x21 skill level | 12 | `0x45dcd0` (builder `FUN_0053c4a0`) | +1 u8 type, +2 u8 **(?)**, +3 u32 id, +7 u16 skill, +9 u8 base level, +10 u8 bonus level, +11 u8 **(?)** |
-| 0x22 item skill | 12 | `0x45ddb0` (`FUN_0053c520`) | +1 type, +3 u32 id, +7 u16 skill, +9 u16 quantity / level **(?)**, +11 u8 flag (≠ 0: ignored) |
+| 0x22 item skill | 12 | `0x45ddb0` (`FUN_0053c520`) | +1 type, +3 u32 id, +7 u16 skill, +9 u8 count (the client reads one byte, `0045ddfb`; the builder stores the low byte of its third word), +2 and +10 have no store in the builder's decompile (bugs.md #103), +11 u8 flag (≠ 0: ignored; the builder sets 1 when the unit is found in the client's game and `FUN_00639df0(unit, 7)` is nonzero, else 0; what that call tests is not traced) |
 | 0x23 set skill | 13 | `0x45de10` (`FUN_0053c590`) | +1 type, +2 u32 id, +6 u8 hand (0 right, 1 left), +7 u16 skill, +9 u32 item id (−1 none: a scroll / book's skill otherwise) |
 | 0x94 skill list | var | `0x45dd60` (`FUN_0053c5d0`) | +1 u8 count, +2 u32 id, then count × `{u16 skill, u8 level}` |
 | 0x7b hotkey | 8 | `0x45e8d0` | +1 u8 slot, +2 u16 skill (\| 0x8000 left), +4 u32 item id |
@@ -1158,12 +1158,19 @@ words `a0`, `a1` ... are the arguments in order, each read at its field width):
 | `FUN_0053b4b0` | 0xd | id, u8 a0 (fatal at 6 or more, line 0x136), u32 a1, u8 a2, u16 a3 (+7), u16 a4 (+9), u8 a5, u8 a6: the stop |
 | `FUN_0053b520` | 0x10 | id, u8 a0, u32 a1, u8 a2, u8 a3, u32 a4 (+8), u16 a5 (+0xc), u16 a6 (+0xe): move to unit |
 | `FUN_0053b570` | 0x10 | as `FUN_0053b4b0` (fatal at 6 or more, line 0x166) with u16 a6, u16 a7 at +0xc, +0xe: move to x, y |
+| `FUN_0053b910` | 0x10 | 0x67 move to x, y, the seven-word form (`ret 0x1c`): id (DL; `FUN_00597e20` reaches it with EDX = its packet id, 0x67 here, `005980c7..0059810e`), u32 a0 (+1, the monster id), u8 a1 (+5), u16 a2 (+6), u16 a3 (+8), u8 a4 (+0xa), u8 a6 (+0xb), path type (+0xc), i16 stat 0x43 (+0xd), u8 a5 (+0xf). Only mode 0xd (and the `FUN_0053b7f0` sibling for 0x68) takes it; `FUN_00597e20` passes a4 `FUN_00648e60(path)`, a5 `FUN_005a5650`, a6 unit +0xb0. The monster is looked up as type 1 in the client's game and a miss queues nothing (no fatal report). From the path (`unit +0x2c`): type 5 or 6 sends 1 with `FUN_00648a40` / `FUN_00648a60` as x, y, type 8 sends 0xb, other types pass through; the velocity (stat 0x43, `FUN_00625480`) is clamped to -0x8000..0x7fff. The five-word `FUN_0053b710` writes +0xb as 0 and +0xf as `FUN_00648ea0(path)` instead |
 | `FUN_0053b9f0` | 0xc | id, u32 a0, u8 a1, u8 a2, u32 a3 (+7), u8 a4 (+0xb) |
 | `FUN_0053ba40` | 0xc | id, u32 a0, u8 a1, u16 a2 (+6), u16 a3 (+8), u8 a4, u8 a5 |
 | `FUN_0053baa0` | 0x10 | id, u32 a0, u8 a1, u8 a2, u32 a3 (+7), u8 a4, u16 a5 (+0xc), u16 a6 (+0xe) |
 | `FUN_0053bb00` | 0x10 | id, u32 a0, u8 a1, u16 a2, u16 a3 (+8), u8 a4, u8 a5, u16 a6, u16 a7 |
 | `FUN_0053bb70` | 10 | 0x6d, u32 EDX (+1), u16 a0 (+5), u16 a1 (+7), u8 a2 (+9): monster stop |
 | `FUN_0053bc10` | 0xb | id, u8 a0, u32 a1 (+2), u16 a2 (+6), u16 a3 (+8), u8 a4 (+0xa) |
+| `FUN_0053bc50` | 6 | 0x07 (a constant), u16 a0 (+1), u16 a1 (+3), u8 level id (+5, EDX): map reveal |
+| `FUN_0053bc90` | 6 | as `FUN_0053bc50` with the constant 0x08: map hide. Its one caller `FUN_0053a9b0` (room in EDX, client in the stack word) passes the words at +0x10 and +0x14 of what `FUN_00619730(room, out)` fills, and `FUN_0061a1b0(room)` as the level; `FUN_00554ea0` passes the same two words to `FUN_0053bc50` |
+| `FUN_0053bcd0` | 0xb | id (DL; 9 at its one call site `005721e2` in `FUN_00571f90`), u8 a0 (+1, the unit type), u32 a1 (+2), u8 a2 (+6), u16 a3 (+7), u16 a4 (+9): the 0x09 assign warp packet (the caller passes the type byte of its record, the id at +0xc, the warp class byte at +4 and two words); no lookup, no checks |
+| `FUN_0053bd10` | 0xe | id (DL; `0x51` at its one call site `0x572067`, in `FUN_00571f90`), u8 a0 (unit type, 2 there), u32 a1 (+2, the unit id), u16 a2 (+6), u16 a3 (+8), u16 a4 (+0xa), u8 a5 (+0xc), u8 a6 (+0xd): the assign object packet. It first finds the unit (a0, a1) in the client's game (`FUN_005387c0`, `FUN_00552f60`) and takes the fatal report (line 0x341) when there is none |
+| `FUN_0053bda0` | 6 | id (DL; 0x0a at its three call sites `0052e03d`, `0053a7fe`, `0057160e`), u8 a0 (+1, the unit type), u32 a1 (+2, the id): the 0x0a remove unit packet. A type of 3 (a missile) queues nothing |
+| `FUN_0053c520` | 0xc | 0x22 (a constant), u8 EDX (+1, unit type), u32 a0 (+3, unit id), u16 a1 (+7, skill), low byte of a2 (+9, count), +0xa not written, +0xb flag: 1 when `FUN_00552f60` finds the unit (type EDX, id a0) in the client's game and `FUN_00639df0(unit, 7)` is nonzero, else 0. Callers `FUN_0055c070`, `FUN_0055c110`, `FUN_0055e0d0`, `FUN_0055e170`, `FUN_0055f9c0` |
 | `FUN_0053c590` | 0xd | 0x23, EDX byte, u32 a0 (+2), u8 a1 (+6), u16 a2 (+7), u32 a3 (+9): set skill |
 | `FUN_0053cb30` | 0xd | 0x7a, EDX byte, u8 a0, u16 a3 (+3), u32 a2 (+5), u32 a1 (+9): pet list |
 | `FUN_0053cb80` | 0x14 | 0x81 (no EDX), u8 a0, u16 a3 (+2), u32 a2 (+4), u32 a1 (+8), u32 a4, u32 a5: assign merc (six stack words, `ret 0x18`) |
@@ -1201,3 +1208,16 @@ Not claimed: what the hooked `FUN_0053fd40` returns (see net-join.md), the
 unit-reading builders (`FUN_0053b5f0`, `FUN_0053b710`, `FUN_0053b7f0`,
 `FUN_0053d530`, the skill list `FUN_0053c5d0` and others) and the remaining
 SCmd.cpp senders after `FUN_0053e060`, which read units, rooms and items.
+
+### Cited, not run: the assign player builder (`FUN_0053e8f0`)
+
+(cited, decompile only: `scmd_senders.py` does not cover it.) `FUN_0053e8f0`
+is 0x1a bytes, 0x59 (a constant) assign player, `ret 0x10`: u32 EDX (+1, the
+player's unit id), u8 a0 (+5, class), the string a1 copied with
+`FUN_004135d0(dest, src, 0x7fffffff)` into the zeroed 16 bytes at +6 (name),
+u16 a2 (+0x16, x), u16 a3 (+0x18, y). It queues the packet, then looks the id
+up as a type 0 unit in the client's game (`FUN_005387c0`, `FUN_00552f60`) and,
+if found, calls `FUN_0053da90(client player unit from FUN_00537860, found
+unit)` (the 0x75 packet). Its one caller `FUN_00571f90` (`00571ff0`) passes the
+id at record +0xc, the class byte at +4, the name pointer at +0x14 and two
+words of its frame. Re-check: `python3 tools/ghidra/fn.py 0053e8f0 00571f90`.
