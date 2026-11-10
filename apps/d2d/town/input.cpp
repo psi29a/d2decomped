@@ -11,6 +11,7 @@
 #include "gamepad.hpp"
 #include "gamepad_map.hpp"
 #include "hold_confirm.hpp"
+#include "identify_prompt.hpp"
 #include "ingame.hpp"
 #include "internal.hpp"
 #include "item_use.hpp"
@@ -721,8 +722,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         };
         if (pad_playing && identify_with >= 0) {
             const bool valid = item && item->id != identify_with && !item->identified;
-            pad_hold_text = valid ? label_of(pad::Action::Primary) + " / " + label_of(pad::Action::Interact) + " . Identify item" : "Choose an unidentified item";
-            pad_hold_text += " . " + label_of(pad::Action::Back) + " Cancel";
+            pad_hold_text = identify_prompt(pad_config.bindings, pad_family, valid);
         } else if (pad_playing && pad_config.skill_buttons && item && query.hand_empty && !query.imbue) {
             const auto use = item_use(*item);
             if (!use.label.empty()) pad_hold_text = (use.kind == ItemUseKind::None ? "" : label_of(pad::Action::Interact) + " . ") + std::string(use.label) + "  ";
