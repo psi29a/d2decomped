@@ -1206,8 +1206,8 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
 void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);
 
 // Returns true when the foe's thorns killed it.
-// Andariel and the traced MonAI types think their own way instead: see
-// rules::andariel_think / rules::mon_think. A1 / A2 fire MissA1 / MissA2.
+// The traced MonAI types think their own way instead: see
+// rules::mon_think. A1 / A2 fire MissA1 / MissA2.
 // `pack`: all the level's monsters, `monster` among them (its group, the
 // dying, corpses to raise); `born`: gets what it lays (a nest's young).
 // `seen`: the spawn areas' shared "seen" flags (monster data +0x50's +0x24).

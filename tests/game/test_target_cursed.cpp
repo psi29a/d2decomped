@@ -15,6 +15,7 @@
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <think_scratch.hpp>
+#include <thinks.hpp>
 #include <world.hpp>
 
 #include <algorithm>

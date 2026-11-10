@@ -572,6 +572,11 @@ int mode_index(std::string_view mode) {
     return found == kObjectModes.end() ? 0 : int(found - kObjectModes.begin());
 }
 
+int monster_mode(std::string_view token, int unknown) {
+    const auto found = std::ranges::find(kMonsterModes, token);
+    return found == kMonsterModes.end() ? unknown : int(found - kMonsterModes.begin());
+}
+
 // A type-2 object at subtile (sx, sy): objects.txt Id `oid` (through
 // game.exe's preset table) as an Npc in `into`, rolling a shrine's kind and
 // a chest's trap and lock, then (FUN_0054f5d0) a PreOperate object starts

@@ -13,6 +13,7 @@
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
+#include <thinks.hpp>
 
 #include <algorithm>
 #include <array>

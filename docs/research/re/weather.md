@@ -96,6 +96,65 @@ Splashes and bubbles draw moved by ∓W/4 with a side panel open (bugs.md
 #38). The world moves by the same quarter (menu.md "The view with panels
 open"), so in d2d they stay on their tiles.
 
+## Spawning a splash (`FUN_00472da0`) and the pools
+
+`FUN_00472da0` takes ECX, EDX the tile's draw point (x, y pixels, the
+arguments 4 and 5 of `FUN_004de410`) and two stack words, the tile's
+subtile (x, y) << 16 (the 3D path's coordinates). Read from its decompile,
+`tools/emu/disasm.py 472da0` and the call at 0x4de5f1:
+
+1. It takes a slot from the splash pool `DAT_007a89fc` (`FUN_006bcb40`) and
+   **does nothing more if the pool answers −1**: no roll is made, so the
+   seed does not advance.
+2. Software modes (`FUN_004f51d0` = 0): row = rand(80) (`FUN_00472280`, base 0),
+   x = x + rand((80 − 2·|row − 40|) · 2), y = y + row; so a right-pointing
+   triangle 160 wide and 80 high: every row starts at the given x (a vertical left
+   edge) and the row's width grows from 0 at row 0 to 160 at row 40, then back to 0
+   (bugs.md #10).
+   Perspective on: x and y are the two stack words plus rand(5) · 0x10000 each.
+3. The kind is `(next low word & 1) + 2` from one more step of the same seed
+   (the pair at `FUN_00463dd0() + 0x20`; `FUN_00463dd0` returns `DAT_007a6a70`,
+   weather.hpp's "player unit's seed"): Rain3 or Rain4. The record gets frame
+   0 and a wait of 2.
+
+The pools are made once by `FUN_00472320` (`FUN_006bca10`: ECX a name,
+EDX the capacity, stack the record size): drops `DAT_007a8a04` 0x100 × 0x28,
+**splashes `DAT_007a89fc` 0x200 × 0x18, bubbles `DAT_007a8a00` 0x80 × 0x18**.
+`FUN_006bcb40` scans from the pool's lowest-free hint (`+0x10c`, which a
+free, `FUN_006bccd0`, lowers) for a slot whose first word is 0 and returns
+−1 when it reaches the capacity.
+
+d2d: **DISAGREES** on the cap. `Rain::floor` (weather.hpp) pushes each
+splash and bubble it spawns onto an unbounded vector and makes no pool check;
+game.exe holds at most 512 splashes and 128 bubbles, and a spawn into a full
+pool also skips its rolls. On the spawn itself d2d reads the same, cited from
+the decompile, no oracle run (the same row, width, y and kind rolls, in the same
+order; the x matches only with `--toggle splash_centre=off`, as the bubble's
+below, deviations.md improvement 14). Whether a real scene reaches 512 live splashes
+was not measured: it needs many water tiles under full rain.
+Cited.
+
+### Spawning a bubble (`FUN_00472ec0`)
+
+The same arguments as the splash's; `FUN_004de410` calls it after the splash
+(tested `rand(1000) < 100` on the same roll as the splash's). Read from its
+decompile and `tools/emu/disasm.py 472ec0`:
+
+- A slot from the bubble pool `DAT_007a8a00` (0x80 × 0x18, above); −1 ends it
+  with no roll.
+- Software modes: row = rand(80), x = x + rand((80 − 2·|row − 40|) · 2),
+  y = y + row − 30. Perspective: the two stack words plus (rand(5) − 2) · 0x10000
+  each.
+- The record gets kind 2 (not drawn from the seed: bubble3), frame 0, wait 2.
+
+d2d reads the same on the software-mode placement, cited from the decompile, no
+oracle run (`Rain::floor`'s bubble branch: the row, width, x, y and kind 2);
+it has no perspective placement (always the row-and-width formula), and the
+128-slot cap differs, as for the splash above: **DISAGREES**
+(its `bubbles` vector is unbounded). The x also matches only with
+`--toggle splash_centre=off`: by default (`centre` on, world_view.cpp) d2d
+subtracts half the row's width, deviations.md improvement 14. Cited.
+
 ## Lightning
 
 A Thunder Storm strike (skill 57's client do 84, `FUN_004e3c50`) sets off

@@ -17,15 +17,11 @@ namespace d2d::client {
 
 // The hire list (FUN_004b5c60): a 490x350 NPC text window, header
 // "Your Gold: %d     Hire which Mercenary?" (0xd24, carried + stash gold)
-// in gold, one line per offer — its name, " - ", then "Lvl" (0xd28),
-// "Life" (0xd26), "Def" (0xd27), "Cost" (0xd29), each ": %u" — and
-// "cancel" (0xd48).
-// ponytail: one centred text line per offer in the NPC-menu style; the
-// game's scrolling list widget (FUN_004bf8f0, 490x280 at (W-490)/2,
-// H/2-160, rows 35 high) and the second line of hire description aren't
-// drawn.
+// in gold, a list box (rules/hire_list.hpp, FUN_004bf8f0) of the offers,
+// two lines each, and "cancel" (0xd48).
+// ponytail: Enter hiring the row under the mouse (FUN_004bebc0) isn't kept.
 NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::rules::MercOffer>& offers,
-                            std::int64_t gold, int scroll = 0);
+                            std::int64_t gold);
 
 // The store item under the cursor (index into the open tab), or -1.
 int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse_y);

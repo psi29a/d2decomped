@@ -5,7 +5,7 @@ Conventions, flag helpers and the record layout are in `quests.md` /
 change (param[5] old level, [6] new), +0xc0 a bound unit dies, +0xc8 leaves,
 +0xcc heard, +0xd4 joins, +0xd8, +0xe8 log, +0xec "!", +0xf0 open / chain).
 Traced 2026-10-23..24 from the decompile; ported in `rules/quests_act5.hpp`,
-`game/world/quests/act5.cpp` (thinks in `game/ai.cpp`: Wussie, BaalThrone,
+`game/world/quests/act5.cpp` (thinks in `game/ai/act5.cpp`: Wussie, BaalThrone,
 BaalToStairs), played by `tests/quests_d2d.py ... 5`.
 
 ## The records
@@ -346,7 +346,7 @@ client), not a cinematic. The client's 0x61 handler is `FUN_0045e660`
   `statues_back`, `World::rite_update`'s timer; Baal's gold and
   `World::save_due`.
 - The clouds: `missiles_update`'s client do 55 (ai.hpp).
-- Corpse Explode: the BaalThrone think (ai.cpp) spends the corpses.
+- Corpse Explode: the BaalThrone think (ai/act5.cpp) spends the corpses.
 - Baal Taunt's sound: `Fight::monster_sounds` (cltstfunc 46).
 - The last portal: `World::movie` -> main.cpp plays D2X_OUT and returns
   to the game (and marks `d2xout` seen). A host's 0x61 goes the same way

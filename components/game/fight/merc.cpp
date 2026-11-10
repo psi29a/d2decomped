@@ -383,14 +383,12 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
             // FUN_005dead0 takes the row's mode directly; A1 below only replaces a missing COF.
             const auto& target = monsters[std::size_t(actor->merc_target)];
             const int foe_x = sub(target.unit.x), foe_y = sub(target.unit.y), difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
-            static constexpr std::array<std::string_view, 16> kModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
             const auto* skill1 = skill_named(type_info->skill[0]);
-            const auto sk1mode = std::ranges::find(kModes, std::string_view(type_info->sk_mode[0]));
             d2d::rules::MercFightView fight_view{ .cls = actor->merc_npc->hc_idx, .level = actor->merc_st.level, .aip1 = type_info->diff[std::size_t(difficulty)].aip[0],
                 .gap = d2d::rules::merc_gap(merc_x, merc_y, size, foe_x, foe_y), .distance = target_gap + 1,
                 .melee = d2d::rules::unit_distance(foe_x - merc_x, foe_y - merc_y, type_info->size, game_data->monsters.types[std::size_t(target.type)].size) <= type_info->melee_rng + 1,
                 .row = d2d::rules::hireling_row(game_data->rules, actor->character.header.merc_type, actor->merc_st.level), .ids = actor->merc_ids, .levels = actor->merc_levels,
-                .skill1 = skill1 ? skill1->id : -1, .sk1mode = sk1mode == kModes.end() ? 4 : int(sk1mode - kModes.begin()) };
+                .skill1 = skill1 ? skill1->id : -1, .sk1mode = monster_mode(type_info->sk_mode[0], 4) };
             for (std::size_t k = 0; k < actor->merc_ids.size(); ++k) {
                 const auto* skill = game_data->skills.get(actor->merc_ids[k]);
                 fight_view.aura[k] = skill && skill->aura;
@@ -423,7 +421,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, b
                 actor->merc_skill_level = 0;
                 for (std::size_t k = 0; k < actor->merc_ids.size(); ++k) if (actor->merc_ids[k] == actor->merc_skill) actor->merc_skill_level = actor->merc_levels[k];
                 if (skill1 && actor->merc_skill == skill1->id && actor->merc_skill_level == 0) actor->merc_skill_level = type_info->sk_lvl[0];
-                const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kModes[std::size_t(attack.mode)];
+                const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kMonsterModes[std::size_t(attack.mode)];
                 unit.dir = direction16(target.unit.x - unit.x, target.unit.y - unit.y);
                 actor->merc_seq = nullptr;
                 if (attack.kind == AttackKind::skill && attack.mode == 14)   // SQ: the sequence its MonStats slot for the skill names
