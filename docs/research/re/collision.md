@@ -717,3 +717,10 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   call in `FUN_005dead0` (`FUN_006439b0` node, then this) as setting the current skill; the
   client callers pass 0, so they clear it. d2d: agrees with act1-end.md:335; no d2d
   function does this (not ported).
+- **`FUN_00463dd0`** and **`FUN_00463de0`**: byte-identical bodies, no arguments, each returns
+  `[0x7a6a70]`, the client's own player unit (skills.md:1793 and :1806 already read both so;
+  `FUN_00463dd0` is called by `FUN_00461250`, `FUN_00463260`, `FUN_00463390` and the five
+  at `0x44bf40`, `0x44c000`, `0x44c060`, `0x44c180`, `0x44c2c0`; `FUN_00463de0` by
+  `FUN_00463260`, `FUN_00460830`, `0x453470`, `0x453b30`, `0x45ad60`, `0x45d780`, `0x45d9b0`).
+  They are the "is this the local player" test every client path below uses. d2d: agrees
+  (skills.md:1793, :1806; `apps/whisper/whisper.cpp:45`).
