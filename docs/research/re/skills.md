@@ -1861,6 +1861,78 @@ cited module, not a quoted assert.
   BL modes; the formula is the same as FCR).
 - The skill bar and picker layout (SkillsBar.cpp / SkillsPal.cpp).
 
+## Skills.cpp accessors and helpers (SKILLS gap batch)
+
+Forty-three small D2Common routines in `SKILLS\Skills.cpp`, each run for real
+in the emulator against a Python model (`skill_accessors.py` 23,
+`skill_table_rows.py` 14, `skill_corpse.py` 6; random records incl. null,
+sign and width edges, and a `--mutation-check` that must catch each planted
+defect). Offsets are the skill record's (Redivivus `D2SkillStrc`) and the
+skill list's (`D2SkillListStrc`); the calling conventions below are what the
+bytes show (several older notes called the stdcall ones fastcall).
+
+**Skill list** (a unit's `+0xa8`): `+4` first skill, `+8` left skill
+(FUN_00643930; a null list asserts, Skills.cpp line 0x3e9), `+0xc` right skill
+(FUN_00643960, 0x40e), `+0x10` current skill (fastcall set FUN_00643990 and get
+FUN_006439a0: a null list is ignored / answers 0), `+0x14` the light
+(FUN_00643a00 swaps it and answers the old one, FUN_00643a30 reads it; 0 with no
+unit or list). FUN_00643a60 frees each skill (alloc line 0x505, pool from
+FUN_004dc0b0) then the list (0x508, the unit's own pool at `+8`) and clears
+the unit's `+0xa8`.
+
+**Skill record** accessors (stdcall, `ret 4` / `ret 8`; a null record asserts
+with the line in brackets, the same halt as the rest of D2Common, and exits):
+`+0xc` flags get (0 for null, FUN_006446a0) / set (0xa9a, FUN_00644660);
+`+0x10` target info get / set (0xa23 / 0xa2c); `+0x14` target type
+(0xa35 / 0xa3e); FUN_00644460 clears both (0xa47); `+0x18..+0x24` params 1-4
+(get 0xa52 / 0xa5b / 0xa64 / 0xa6d; set 0xa76 / 0xa7f / 0xa88 / 0xa91);
+FUN_00645120 sets `+0x30` (0xdad). FUN_00643b70 turns a skill into an item
+skill: a skill whose owner (`+0x34`) is -1 answers 0 and is left alone; else
+`+0x3c = 1`, `+0x38 = value`, answers 1 (0x657 on null).
+
+**Skills.txt row readers** (sgptDataTable `0x744304`, rows of 0x23c at `+0xb98`,
+count `+0xba0`; each tests `0 <= id < count` signed and the row address
+for null): FUN_00645fb0 answers byte `+6` & gadwBitMasks[1] (`0x6ce26c`);
+FUN_00645080 stores the signed charclass byte `+0xc` through its out pointer
+(7 for a bad id or a negative class) and answers `class != 7`, asserting 0xd79 on
+a null out pointer; FUN_00645b70 / FUN_00645bc0 (level, id) answer 0 for
+level <= 0 or a bad id, else FUN_00645b20(level, par1, par2) / (level, par3,
+par4) (diminishing returns); FUN_00644750 answers the signed short `+0x174`
+(reqlevel) plus the unit's own level in the skill, `0x7fffffff` for a bad id.
+FUN_00644750 has no null-unit check, unlike FUN_006447b0.
+
+**A unit's skill levels**: FUN_006447b0 (fastcall unit, id) the level `+0x28` of
+FUN_006439b0(unit, id, -1), 0 for none. FUN_00644300 adds FUN_00644180's
+bonus levels (ESI the unit) only when the skill's owner is -1. FUN_00644aa0
+takes FUN_00643810's skill (EAX unit, ESI id), adds the bonus the same way,
+floors at 0 and caps at the experience table's last level (FUN_00611830(0),
+called twice when it caps).
+
+**Other helpers**: FUN_00643d00 (fastcall unit, skill): a player gets the
+record's seqnum (byte `+0x13`); a monster gets MonStats `aSkSeq` (`+0x188`) at
+the slot whose `aSkill` (`+0x170`, 8 signed shorts) equals the skill id; skill
+0xc7 (Diablo's prison) and no slot give 0. FUN_00644c20 (ESI unit, stack type):
+a player's Strength + Dexterity - 20, any other unit 3 x its level, at least 1,
+then /3 (type 0) or /4 (rounded toward zero), x 256, wrapping in 32 bits.
+FUN_00646170: a shapeshifted player's attack frames, `(+0x48 & ~0xff) / speed`
+with speed from FUN_0062a710 for the weapon FUN_00623990 gives, 19 with no
+weapon, 0 when the speed is below 1. FUN_00645160 (EAX mode, stack class)
+maps a mode through the table at `0x6eb308`, 12 for (class 6, mode 4).
+FUN_00645a70 is (n + 1) * 100 / (n + 8) in 32 bits and has no caller; n = -8
+would divide by zero (the emulator faults), so nothing may pass it.
+
+**Corpse tests** (a monster, type 1, in mode 12 = corpse, or mode 0 = dying
+where the flag allows; no passive state from FUN_0063a770; the class has
+corpse-select, FUN_004638a0 with flag 7): FUN_006455e0 and FUN_006456d0 are two
+identical copies answering 1; FUN_00645590 and FUN_00645630 are two identical
+copies that also need FUN_00621f60 (soft monster); FUN_006454c0 (ESI unit, stack
+bCheckDead) and FUN_00645510 (stdcall) also take mode 0 when the flag is set,
+and FUN_00645510 then answers the class's Velocity (MonStats word `+0x32`) != 0.
+FUN_00645510 reads `+0x32` of a null row for a class outside the table; the
+class flag is 0 for such a class, so that path is not reached.
+
+No bug found in this batch; the oracles are the evidence (bugs.md unchanged).
+
 ## Plan (phases, each shippable)
 
 0. ~~Combat corrections~~ — done (combat.md, "Corrections applied").
