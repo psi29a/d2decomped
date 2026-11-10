@@ -265,7 +265,7 @@ def main():
         require((m.r32(obj + 12), m.r32(obj + 4)) == (expected, 1), f"closest {minutes}")
         checks += 1
     checks += integration(exe)
-    print(f"ok: {checks} BNetGW parser, access and lifecycle cases")
+    print(f"ok: {checks} BNetGW parser, access and lifecycle checks")
 
 
 if __name__ == "__main__":

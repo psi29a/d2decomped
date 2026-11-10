@@ -148,7 +148,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | String table number formatters (FUN_00525350, 00525490, 005255c0) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: stock TBL unsigned, signed, and K/M/B/T formatter cases` |
 | String table file opener (FUN_00525920) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: CRC-checked synthetic TBL open and rejection cases` |
 | Server-side client-packet handlers of PlrMsg.cpp, the small ones: size gates (status 3) and the forwarded arguments of 0x31, 0x33, 0x34, 0x35, 0x36, 0x3f, 0x40, 0x48, 0x4f, 0x53, 0x54, 0x58, 0x62 (FUN_0054ba90 ... FUN_0054c9c0; the callees hooked and logged; status of 0x33 and 0x4f is the callee's) | `uv run python plrmsg_small.py` | `ok: 40 PlrMsg small handler rounds` |
-| Battle.net gateway parser and lifecycle (synthetic I/O) | `uv run python bnetgw.py` | `ok: 63 BNetGW parser, access and lifecycle cases` |
+| Battle.net gateway parser and lifecycle (synthetic I/O) | `uv run python bnetgw.py` | `ok: 63 BNetGW parser, access and lifecycle checks` |
 | Battle.net message queue (four BnMessQueue.cpp routines, stock x86 with allocator and locks scripted) | `uv run python bnqueue.py` | `ok: queue FIFO, zero length, limits, string truncation, clear and reuse` |
 | BNNews initialization and request packet (cache and socket scripted) | `uv run python bnnews_init.py` | `ok` |
 | BNNews cache save/load and array growth (synthetic I/O and heap) | `uv run python bnnews_cache.py && uv run python bnnews_array.py` | `ok` |
