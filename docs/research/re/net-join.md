@@ -27,6 +27,13 @@ On types 6 and 8, the dispatch starts a listen server (`FUN_0052b7a0(0,1)`,
 it **over TCP**, to its own IP on port 4000, exactly like a remote joiner.
 Every other remote type, 9 included, only starts the client (`FUN_0052a750(0, 0x70ef20)`).
 
+`FUN_0044db30` (6 bytes, `mov eax, [0x7a0610]`) is the getter of that game type. Callers
+read it two ways: as "not 0" (the handler at 0x468960 (the Party key, apps/d2d/town/update.cpp:259) opens
+UI 0x16 only for a nonzero type; `FUN_004b4380` at 0x4b44f2) and, in the action throttle
+`FUN_00486d10` (0x486d10, 0x486d19), as 0 or 1 (both pass without the time check). Where a
+type of 1 is set was not traced: the store at 0x44d630 (in `FUN_0044d5f0`, the copy from
+config +0x19) is the only write to the word in the code.
+
 ## Transport
 
 ### Client side (0x52a000..0x52b900)
