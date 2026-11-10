@@ -132,7 +132,7 @@ these are its pieces:
 | `FUN_004da8e0` | Monster: the request's `+0x2c` = MonStats2 row `+0x138` |
 | `FUN_004daa00` | The base token: player (`FUN_0065b480`), monster (MonStats `+0x10`), object (`FUN_0065b570`) |
 | `FUN_004daa70` | Folds a draw type: 0, 1, 2, 4, 6 → 4; 3, 5 → 3 |
-| `FUN_004daab0` | The torso item's six armour tier bytes (Items `+0x116..+0x11b`), zeros when unusable |
+| `FUN_004daab0` | The torso item's six armour tier bytes (Items `+0x116..+0x11b`), zeros when bypassed or unusable. A null inventory or missing item-table row leaves the output unchanged (`tools/emu/engine_armor_tiers.py`; equipment and table lookups hooked) |
 | `FUN_004dabc0` | An item's cel name (EDI the request, ESI the item): on the ground (`+0x10` 3) a unique's / set's own `+0x3a` / `+0x42`; in the inventory (4) a set's `+0x62` invfile (flag 0x10 in `+4`) or the base's `+0x60`, a unique's `+0x5a` (flag 1) or the base's `+0x40`, else the base `+0x20` or a variant `FUN_0062e920` |
 | `FUN_004dad80` | A layer's weapon token (EBX the layer, ESI the unit): `lit ` past 15; with a crossbow (`xbw `) the right hand's alternategfx / code for layers 5, 6; with a bow (`bow `) `lit ` on 5; layer 7 `shh ` when state 0x65 and a shield (`FUN_0063c8f0`); else 0 |
 | `FUN_004dae60` | Has the unit layer n: player 0..4, 8, 9; monster the MonStats2 `+0xe8` bit; object Objects.txt `+0x151 + n`; missile layer 1 |
