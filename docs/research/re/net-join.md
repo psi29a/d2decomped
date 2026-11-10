@@ -525,6 +525,19 @@ returned B3 chunks.
 - **Socket loss**: the lib's disconnect callback injects `[70]`. The client record stays until
   sends fail 3 times. `FUN_0052caf0` then calls `FUN_00539da0`, which saves and removes it.
 
+### The client's leave flags
+
+When the client leaves a game it runs one fixed sequence: send C->S 0x69
+(`FUN_00477ee0`), clear the quit flag (`FUN_0044b880`, ECX 0), set the "we left"
+flag (`FUN_0044c860`, ECX 1), set the leave flag (`FUN_0044d520`). Read at
+`FUN_004b9210` subtype 0x17 (0x4b924b..0x4b9261), `FUN_004b4380` (0x4b4522..0x4b4539)
+and `FUN_004b9180` (0x4b91be..0x4b91d4). `FUN_0044dd60` does the same
+four steps inline, in another order (quit flag, we-left flag, 0x69, leave flag).
+
+| Address | What | Evidence |
+|---|---|---|
+| `DAT_0070ee8c` (`FUN_0044b880`, `mov [0x70ee8c], ecx`) | The quit-program flag. `FUN_0044b8a0` (the game's run function) sets it to 1 at 0x44b946 before its state loop. After state 1 (shutdown: `FUN_004fa550` .. `FUN_0044bb80`) it tests it at 0x44b98a: nonzero returns 0 (and `DAT_007a0440` = 0); zero returns 3 for config +0x19 of 2, 3, 6 or 7, else 4, so the front end comes back up. Every caller read here passes 0 (0x4b91c3, 0x4b4527, 0x4b9250, 0x44dd60, 0x44e3f3): leaving a game goes back to the menus, it doesn't quit. | `python3 tools/ghidra/fn.py 0044b880`, `fn.py 0044b8a0`, `uv run --project tools/emu python tools/emu/disasm.py 4b9180` |
+
 ## Save-back (S->C 0xb3)
 
 In an open game the **host** writes the joiner's save and sends it back. The joiner stores it
