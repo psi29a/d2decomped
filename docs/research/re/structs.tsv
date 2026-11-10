@@ -67,6 +67,10 @@ unit	0x20	u32	seed_low	the unit seed {low, 666} (FUN_00552df0)	docs/research/re/
 unit	0x24	u32	seed_high	666 when made	docs/research/re/drops.md:129
 unit	0x28	u32	seed_init	the seed's low word when made	docs/research/re/drops.md:129
 unit	0x2c	ptr	path	D2DynamicPath	docs/research/re/monster-ai.md:167
+unit	0x30	ptr	seq	the sequence playing (FUN_00621260); 0: FUN_00623e00 steps anim_pos instead	docs/research/re/units.md:40
+unit	0x34	u32	seq_length	the sequence's rows << 8	docs/research/re/units.md:40
+unit	0x38	u32	seq_pos	the sequence position, 256ths of a row	docs/research/re/units.md:40
+unit	0x3c	u32	seq_rate	added to seq_pos each step, 0x100 at the start	docs/research/re/units.md:40
 unit	0x44	u32	anim_pos	animation position, 256ths of a frame	docs/research/re/unit-sounds.md:231
 unit	0x48	u32	anim_length	animation length	docs/research/re/unit-sounds.md:231
 unit	0x4c	u32	anim_rate	256 = a frame a tick; IAS in it	docs/research/re/unit-sounds.md:45

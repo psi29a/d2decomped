@@ -1221,7 +1221,10 @@ struct Fight {
     int ask(int skill, std::uint32_t now_ms);
     // The end of the swing skill's do (FUN_0056f7f0 at LAB_0056fa93): its delay (Skills.txt
     // `delay`, frames) above 0 puts the player in skilldelay till now plus it (FUN_0056ef90).
-    // ponytail: an SQ skill's only-when-unit +0x38 test and Shapeshift's (FUN_0056f020) aren't kept.
+    // An SQ skill (anim 0x12) only while its sequence position (unit +0x38, units.md) is under
+    // a row: only an event on row 0, Charge's, whose delay is 0. Dragon Flight's events (rows 9,
+    // 14) never start it, so the sequence path doesn't call this. A shift back (shift_back)
+    // starts it too (FUN_0056f020).
     void start_delay(std::uint32_t now_ms);
     void pay(const d2d::rules::Skill& skill, int lvl);
     void owe(const d2d::rules::Skill& skill, int lvl);

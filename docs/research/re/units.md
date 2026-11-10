@@ -36,6 +36,8 @@ were byte-scanned (rel32 calls, jumps, raw pointers) and are in
 |---|---|
 | `FUN_00620d80` | A monster's speed word `+0x4c`: MonStats `+0x36`; with stats, stat 0x43 % of `+0x38` (mode 0xf) or `+0x36`, clamped to 0..0x7fff. No caller |
 | `FUN_006211c0` | Sets a mode: `+0x40` for a player or monster with `+0x30`, else `+0x10`. No caller |
+| `FUN_00621210` | ESI unit, (old position): the sequence row at `+0x38` (`FUN_00663410`, with the events of the rows passed since the old one): its frame into `+0x44` (<< 8), its mode into `+0x40`, its event into `+0x4e`; true when the mode changed |
+| `FUN_00621260` | Starts a sequence: `+0x30` the sequence (`FUN_006633b0`; none: nothing), `+0x34` its length (rows << 8, `FUN_006633d0`), `+0x38` its position 0 (256ths of a row), `+0x3c` its rate 0x100, `+0x48` the length again (`FUN_006633f0` << 8), then `FUN_00621210(0)`: row 0's event; `+0xc4` \|= 0x4000 |
 | `FUN_006212c0` | Sets the whole frame: `+0x38` = frame << 8, keeping the low byte |
 | `FUN_00621310` | Advances `+0x44` by the speed `+0x4c` (a word), wrapping at the length `+0x48` |
 | `FUN_00621330` | The same, wrapping back into (start, end) frames given as arguments |
@@ -43,6 +45,7 @@ were byte-scanned (rel32 calls, jumps, raw pointers) and are in
 | `FUN_00621870` | (unit, &frame, &length): `+0x44` and `+0x48`; an object's length is its Objects.txt `+0xd8 + mode × 4` |
 | `FUN_006218d0` | Copies a frame's event (1..4) from the animation data (`+0x50` `+0x10 + frame`, frame < 0x90) to `+0x4e`. No call; one raw-pointer-shaped match at `0x6b41e3` |
 | `FUN_00621920` | A frame's event: a player in mode 0x12, or a player or monster in mode 0xe, reads its sequence (`FUN_006633b0`, `FUN_00663410`); others the animation data (`+0x50`, `+0x10 + frame`); 0 from frame 0x90 (signed, so a negative frame reads below the data) |
+| `FUN_00623e00` | A step, `+0x4e` cleared first. No sequence: `+0x44` on by `+0x4c`, wrapping at `+0x48`, the frames' events into `+0x4e`. A sequence (`+0x30`): `+0x38` on by `+0x3c`, less `+0x34` once it reaches it; `+0x48` less `+0x3c`; `FUN_00621210(the old position)`, a new mode setting `+0xc4` \|= 0x4000. So a sequence's event is read with `+0x38` at its row: under 0x100 only for row 0 |
 
 ## Type data
 

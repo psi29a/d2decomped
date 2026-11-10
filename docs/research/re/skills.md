@@ -638,8 +638,14 @@ LAB_0056fa93) the skill's delay calc (+0x190, Skills.txt `delay`, in
 frames) above 0 puts a player in state skilldelay (0x79) until the game
 frame (+0xa8) plus the delay (`FUN_0056ef90`: the state made or kept,
 its end event 0xc through `FUN_005417d0`); an SQ skill (anim +0x10 0x12)
-only when unit +0x38 & 0xffffff00 is 0. Shapeshift sets it through
-`FUN_0056f020`. While it's on, every skill with a delay above 0 is status
+only when unit +0x38 & 0xffffff00 is 0. +0x38 is the sequence position
+(units.md: `FUN_00621260` zeroes it, `FUN_00623e00` steps it), so that's
+an event on the sequence's row 0, and only Charge's sequences (4) have one;
+Charge's delay is 0. Dragon Flight (sequence 21, delay 25, the only SQ
+skill with one) has its events on rows 9 and 14, so its do never starts
+skilldelay. Werewolf / Werebear's shift back sets it through `FUN_0056f020`
+(do 116: the do gives 0, so FUN_0056f7f0's own delay and cost are skipped;
+`Fight::shift_back`). While it's on, every skill with a delay above 0 is status
 8 (`FUN_006478f0`), the others are not: Meteor (30 frames) blocks Meteor,
 Blizzard (45), Fire Wall (35), Hydra (40), Frozen Orb (25), Fist of the
 Heavens (25), Valkyrie (150), Poison (15) / Plague Javelin (100),
