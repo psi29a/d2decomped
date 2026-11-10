@@ -11,7 +11,7 @@
 * FUN_006374a0 (no arguments): returns the address 0x96cc60 (the books count).
 * FUN_00634220 (no arguments): pool-frees the rare-affix block at 0x96caa4 (line
   0x30b) when set, and clears it.
-* FUN_00634d90 (no arguments): link-frees 0x96c850 (no null test), unloads
+* FUN_00634d90 (ITEMTBLS_FreeUniqueItems, no arguments; the sets free is FUN_00636730): link-frees 0x96c850 (no null test), unloads
   0x96c854 (no null test), and clears the count at 0x96c858.
 
 The unload and the link free are logged by the world rig; the pool free is
@@ -31,9 +31,9 @@ FLAG_VALUE, COMPILE_FLAG = 0x96_C8A4, 0x96_C8B4
 UNLOAD_SLOTS = {0x63_6B00: 0x96_CC54, 0x63_72A0: 0x96_CA94, 0x63_75A0: 0x96_CC5C, 0x63_78F0: 0x96_CC4C,
                 0x63_7490: 0x96_CC64}
 BOOKS_COUNT_ADDR, GET_BOOKS_COUNT = 0x96_CC60, 0x63_74A0
-RARE_SLOT, SETS_LINK, SETS_TABLE, SETS_COUNT, FREE_SETS = 0x96_CAA4, 0x96_C850, 0x96_C854, 0x96_C858, 0x63_4D90
+RARE_SLOT, UNIQUE_LINK, UNIQUE_TABLE, UNIQUE_COUNT, FREE_UNIQUE = 0x96_CAA4, 0x96_C850, 0x96_C854, 0x96_C858, 0x63_4D90
 MUTATIONS = ("flag-value-plus-1", "compile-flag-inverted", "unload-null-skipped", "unload-slot-wrong", "books-count-address",
-             "rare-line", "rare-keeps-pointer", "sets-link-skipped", "sets-count-kept")
+             "rare-line", "rare-keeps-pointer", "unique-link-skipped", "unique-count-kept")
 mutation = None
 
 
@@ -84,14 +84,16 @@ def check_compile_flag(rig, rng):
 def check_unload(rig, rng, entry, slot):
     """One unload of a table slot, not null-tested: the unload is called with the pointer, even when it is 0."""
     value = rng.choice((0, rng.randrange(1, 1 << 32)))
+    neighbour = rng.randrange(1, 1 << 32) | 1
     rig.m.w32(slot, value)
+    rig.m.w32(slot + 4, neighbour)
     rig.log = []
     rig.go(entry)
     want = [("unload", value)]
     if value == 0 and mut("unload-null-skipped"):
         want = []
     if mut("unload-slot-wrong"):
-        want = [("unload", value + 4)]
+        want = [("unload", neighbour)]
     require(rig.log == want, f"unload at {entry:#x}: {rig.log} != {want}")
 
 
@@ -116,20 +118,20 @@ def check_rare_free(rig, rng):
     require(rig.read_words(RARE_SLOT, 1)[0] == cleared, "rare free pointer")
 
 
-def check_sets_free(rig, rng):
-    """FUN_00634d90: link-free 0x96c850, unload 0x96c854 (both not null-tested), then clear the count at 0x96c858."""
+def check_unique_free(rig, rng):
+    """FUN_00634d90 (ITEMTBLS_FreeUniqueItems): link-free 0x96c850, unload 0x96c854 (both not null-tested), clear 0x96c858."""
     link, table = rng.choice((0, rng.randrange(1, 1 << 32))), rng.choice((0, rng.randrange(1, 1 << 32)))
-    rig.m.w32(SETS_LINK, link)
-    rig.m.w32(SETS_TABLE, table)
+    rig.m.w32(UNIQUE_LINK, link)
+    rig.m.w32(UNIQUE_TABLE, table)
     count = rng.randrange(1, 1 << 32)
-    rig.m.w32(SETS_COUNT, count)
+    rig.m.w32(UNIQUE_COUNT, count)
     rig.log = []
-    rig.go(FREE_SETS)
-    want = [] if mut("sets-link-skipped") else [("link-free", link)]
+    rig.go(FREE_UNIQUE)
+    want = [] if mut("unique-link-skipped") else [("link-free", link)]
     want += [("unload", table)]
-    require(rig.log == want, f"sets free log {rig.log} != {want}")
-    want_count = count if mut("sets-count-kept") else 0
-    require(rig.read_words(SETS_COUNT, 1)[0] == want_count, "sets count after the free")
+    require(rig.log == want, f"unique items free log {rig.log} != {want}")
+    want_count = count if mut("unique-count-kept") else 0
+    require(rig.read_words(UNIQUE_COUNT, 1)[0] == want_count, "unique items count after the free")
 
 
 def run_all():
@@ -143,7 +145,7 @@ def run_all():
         check_compile_flag(rig, rng)
         check_books_count(rig, rng)
         check_rare_free(rig, rng)
-        check_sets_free(rig, rng)
+        check_unique_free(rig, rng)
         cases += 5
     for entry, slot in UNLOAD_SLOTS.items():
         for _ in range(40):

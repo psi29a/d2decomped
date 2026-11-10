@@ -17,7 +17,7 @@
   table at 0x96bc90 (cleared, with the side counts at 0x96bc94 / 0x96bc98), unload of
   0x96c794 and link free of 0x96c798 (both left set), then 0x96c79c cleared.
 * FUN_00664150 (TXT_AllocTxt_overlay, fastcall pool): the overlay link at 0x96c7e8
-  (OverlayTbls.cpp line 0x38), 26 columns (overlay NAME_I_WORD linked to 0x96c7e8,
+  (OverlayTbls.cpp line 0x38), 25 columns (overlay NAME_I_WORD linked to 0x96c7e8,
   Filename ASCII 0x40, the frame, offset, height, colour and flag fields), record
   0x84, table 0x96c7ec, count 0x96c7f0.
 
@@ -118,7 +118,7 @@ def check_plain(rig, rng, load, name, what):
 
 
 def check_overlay(rig, rng):
-    """FUN_00664150: the overlay link (line 0x38), then the 26 columns, record 0x84, the table and count."""
+    """FUN_00664150: the overlay link (line 0x38), then the 25 columns, record 0x84, the table and count."""
     before = rig.scramble()
     pool = rng.randrange(1 << 32)
     link = rng.randrange(1, 1 << 32)

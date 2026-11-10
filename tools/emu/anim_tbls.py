@@ -29,7 +29,7 @@ FILE_PTR, FILE = 0x6E_ED6C, ".\\DATATBLS\\AnimTbls.cpp"
 PATH = "DATA\\GLOBAL\\AnimData.d2"
 BLOCK, BUCKETS, BUCKET_SIZE, RECORD = 0x4A4, 256, 0xA0, 0xA0
 MUTATIONS = ("anim-slot-stride", "anim-defaults", "anim-bucket-count", "anim-free-order", "anim-free-line",
-             "anim-free-null-frees")
+             "anim-free-null-frees", "anim-free-null-records-skipped")
 mutation = None
 
 
@@ -54,7 +54,8 @@ def check_load(rig, rng):
     archive, counts = make_archive(rig, rng)
     rig.archive = archive
     rig.log = []
-    got = rig.go(LOAD, ecx=rng.randrange(1 << 32))
+    pool = rng.randrange(1 << 32)
+    got = rig.go(LOAD, ecx=pool)
     mw.require(got[0] == "ret", f"AnimData load {got}")
     block = got[1]
     stride = BUCKET_SIZE if not mut("anim-slot-stride") else BUCKET_SIZE + 1
@@ -69,16 +70,17 @@ def check_load(rig, rng):
     struct.pack_into("<II", expect, 0x40C, default_frames, default_speed)
     mw.require(bytes(rig.m.read(block, BLOCK)) == bytes(expect), "AnimData block differs from the model")
     file_line = [e for e in rig.log if e[0] == "d2file"]
-    mw.require(file_line and file_line[0][2] == PATH and file_line[0][3] == FILE_PTR and file_line[0][4] == 0x8A,
-               f"AnimData load: {file_line}")
+    mw.require(file_line and file_line[0][1] == pool and file_line[0][2] == PATH and file_line[0][3] == FILE_PTR
+               and file_line[0][4] == 0x8A and file_line[0][5] == 0, f"AnimData load: {file_line}")
     alloc = [e for e in rig.log if e[0] == "alloc"]
     mw.require(alloc == [("alloc", 0, BLOCK, FILE, 0x83, 0)], f"AnimData alloc log {alloc}")
 
 
 def check_free(rig, rng):
-    """ANIMDATA_FreeAnimDataRecord: client free of the records (line 0xbe), then the pool free (line 0xbf)."""
+    """ANIMDATA_FreeAnimDataRecord: client free of the records (line 0xbe, no null test), then the pool free (line 0xbf)."""
+    rig.scramble()
     record = rng.choice((0, rig.m.alloc(BLOCK)))
-    records = rng.randrange(1, 1 << 32)
+    records = rng.choice((0, rng.randrange(1, 1 << 32)))
     if record:
         rig.write(record, struct.pack("<I", records))
     rig.log = []
@@ -88,7 +90,8 @@ def check_free(rig, rng):
     if record:
         if mut("anim-free-order"):
             steps.append(("free", 0, record, FILE, 0xBF, 0))
-        steps.append(("client-free", records, FILE_PTR, 0xBE if not mut("anim-free-line") else 0xBD, 0))
+        if not (mut("anim-free-null-records-skipped") and records == 0):
+            steps.append(("client-free", records, FILE_PTR, 0xBE if not mut("anim-free-line") else 0xBD, 0))
         if not mut("anim-free-order"):
             steps.append(("free", 0, record, FILE, 0xBF, 0))
     elif mut("anim-free-null-frees"):

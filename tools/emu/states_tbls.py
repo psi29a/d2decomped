@@ -55,25 +55,27 @@ class Rig(mw.World):
 
 
 def make_rows(rig, rng, count):
-    """A States row block of `count` random rows (0x3c bytes each), with the table pointer and count globals set."""
+    """A States row block of `count` random rows (0x3c bytes each), with the table pointer and count globals set.
+
+    Returns (block address, the row bytes)."""
     size = ROW * max(count, 1) + 0x100
     block = rig.m.alloc(size)
-    rows = rng.randbytes(size)
-    rig.write(block, rows)
+    rows = bytearray(rng.randbytes(size))
+    rig.write(block, bytes(rows))
     rig.m.w32(STATES_PTR, block)
     rig.m.w32(STATES_COUNT, count)
-    return rows
+    return block, rows
 
 
-def flag_set(rows, row, bit):
-    """Whether bit `bit` of row `row`'s flag bytes is set (the flag byte is at row * 0x3c + 0x10 + bit >> 3)."""
-    return bool(rows[ROW * row + FLAG_BASE + (bit >> 3)] & (1 << (bit & 7)))
+def flag_set(rows, row, bit, stride=ROW):
+    """Whether bit `bit` of row `row`'s flag bytes is set (the flag byte is at row * stride + 0x10 + bit >> 3)."""
+    return bool(rows[stride * row + FLAG_BASE + (bit >> 3)] & (1 << (bit & 7)))
 
 
 def check_bitmask(rig, rng):
     """FUN_00611d60: the struct gets 1 << i in word i >> 5 for each state i whose flag bit is set."""
     count = rng.randrange(1, 70)
-    rows = make_rows(rig, rng, count)
+    _block, rows = make_rows(rig, rng, count)
     bit = rng.randrange(0, 256)
     struct_block = rig.m.alloc(0x40)
     prefill = rng.randbytes(0x40)
@@ -81,13 +83,10 @@ def check_bitmask(rig, rng):
     got = rig.go(BIT_MASK, ecx=struct_block, edx=bit)
     require(got[0] == "ret", f"BitMask {got}")
     words = list(struct.unpack("<16I", prefill))
-    for i in range(count if not mut("bitmask-row-stride") else count):
-        test_bit = bit - 1 if mut("bitmask-bit-minus-one") and bit else bit
-        if mut("bitmask-row-stride"):
-            hit = bool(rows[ROW * i + 1 + FLAG_BASE + (test_bit >> 3)] & (1 << (test_bit & 7)))
-        else:
-            hit = flag_set(rows, i, test_bit)
-        if hit:
+    test_bit = bit - 1 if mut("bitmask-bit-minus-one") and bit else bit
+    stride = ROW + 1 if mut("bitmask-row-stride") else ROW
+    for i in range(count):
+        if flag_set(rows, i, test_bit, stride):
             word = 0 if mut("bitmask-word-first") else i >> 5
             words[word] |= 1 << (i & 31)
     require(list(struct.unpack("<16I", rig.m.read(struct_block, 0x40))) == [w & 0xFFFFFFFF for w in words],
@@ -95,16 +94,23 @@ def check_bitmask(rig, rng):
 
 
 def check_list(rig, rng, entry):
-    """FUN_00611dc0 (listed by flag bit) and FUN_00611e60 (listed by a positive short at the offset)."""
+    """FUN_00611dc0 (listed by flag bit) and FUN_00611e60 (listed by a positive short at the offset).
+
+    The counter is a short: its slot is prefilled with a dword of garbage, and all four bytes are compared."""
     count = rng.randrange(0, 40)
-    rows = make_rows(rig, rng, count)
+    block, rows = make_rows(rig, rng, count)
     pointer_slot, counter_slot = rig.m.alloc(0x10), rig.m.alloc(0x10)
+    rig.m.w32(counter_slot, 0xDEADBEEF)
     if entry == LIST_BITS:
         arg = rng.randrange(0, 256)
         listed = [i for i in range(count) if flag_set(rows, i, arg)]
         line = 0x64B
     else:
         arg = rng.choice((0, 2, 0x20, 0x34))
+        for i in range(count):
+            value = rng.choice((0, -1, 1, 0x7FFF, rng.randrange(0x10000)))
+            struct.pack_into("<H", rows, arg + ROW * i, value & 0xFFFF)
+        rig.write(block, bytes(rows))
         listed = [i for i in range(count) if struct.unpack_from("<h", rows, arg + ROW * i)[0] > 0]
         line = 0x662
     if mut("items-threshold") and entry == LIST_ITEMS:
@@ -121,9 +127,9 @@ def check_list(rig, rng, entry):
     for k, i in enumerate(listed):
         struct.pack_into("<h", expected, 2 * k, i)
     require(bytes(rig.m.read(block, count * 2)) == bytes(expected), "list ids differ from the model")
-    counter = struct.unpack("<h", rig.m.read(counter_slot, 2))[0]
     want = len(listed) if not mut("list-counter-kept") else 0
-    require(counter == want, f"list counter {counter} != {want}")
+    counter_dword = struct.unpack("<I", rig.m.read(counter_slot, 4))[0]
+    require(counter_dword == (0xDEAD0000 | (want & 0xFFFF)), f"list counter dword {counter_dword:#x} != {want:#x}")
 
 
 def run_all():

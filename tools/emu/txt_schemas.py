@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Verify 8 DATATBLS table loaders and the experience ratio getter in stock game.exe 1.14d.
+"""Verify 9 DATATBLS table loaders and the experience ratio getter in stock game.exe 1.14d.
 
     uv run python txt_schemas.py [--mutation-check]
 
@@ -20,12 +20,12 @@ built from a `D2BinFieldInputStrc` list and handed to CompileTxt 0x61_22f0:
 * FUN_00637500 (lowqualityitems, fastcall): one ASCII 0x1f column, record 0x22,
   table 0x96cc5c, count 0x96cc58; after the compile each row's name goes through
   STRTABLE_LookupString 0x524d30 and the id is stored as a short at +0x20.
-* FUN_00636770 (qualityitems, fastcall): 22 columns (nummods, two NAME_INT mod
+* FUN_00636770 (qualityitems, fastcall): 21 columns (nummods, two NAME_INT mod
   codes linked to 0x96bcd8, params, effect strings, the ten equipment flags),
   record 0x70, table 0x96cc54, count 0x96cc50. Each non-empty effect string is
   looked up; the ids go to +0x6c (effect1) and +0x6e (effect2) as shorts.
 * FUN_00618d90 (pettype, fastcall pool): creates the link at 0x96c81c (file
-  `.\\DATATBLS\\DataTbls.cpp`, line 0x729), 21 columns (pet type NAME_I_INT
+  `.\\DATATBLS\\DataTbls.cpp`, line 0x729), 20 columns (pet type NAME_I_INT
   linked to the new link, six BIT columns at dword +4 bits 0..5, the icon and
   class strings, the `name` KEY_WORD), record 0xe0, table 0x96c818, count 0x96c820.
   A count above 0xff (signed) halts (line 0x72b); a count below 1 is stored as 0.
@@ -296,7 +296,7 @@ def check_qualityitems(rig, rng):
 
 
 def pettype_columns():
-    """pettype: 21 columns in the loader's order; the six BIT columns sit in the dword at +4."""
+    """pettype: 20 columns in the loader's order; the six BIT columns sit in the dword at +4."""
     bit_offset = 4 if not mut("pet-bit-offset") else 8
     link = PET_LINK if not mut("pet-name-linker") else PET_LINK + 4
     rows = [("pet type", NAME_I_INT, 0, 0, link), ("group", SHORT, 0, 8, 0), ("basemax", SHORT, 0, 0xA, 0)]

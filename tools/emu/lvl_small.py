@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Verify two LvlTbls.cpp functions in stock game.exe 1.14d: the expansion level-table free and the portal array.
+"""Verify three LvlTbls.cpp functions in stock game.exe 1.14d: the expansion level-table free, the sub-preset free and the portal array.
 
     uv run python lvl_small.py [--mutation-check]     (needs D2_MPQ_DIR; no MPQ is read)
 
@@ -34,6 +34,7 @@ EXPANSION_FREE, PORTAL, LVLSUB_FREE = 0x61_FBF0, 0x61_DD00, 0x61_F9C0
 RELEASE, MAZE_FREE, UNLOAD, CLIENT_FREE = 0x66_8300, 0x67_0630, 0x61_25C0, 0x40_B3C0
 PRESET_FILES, SUB_COUNT, SUB_ROWS, SUB_INDEX = 0x96_CA24, 0x96_CA14, 0x96_CA10, 0x96_CA18
 SUB_ROW = 0x15C
+MASK = 0xFFFFFFFF
 FILE, FREE_LINE, ALLOC_LINE = 0x6E_84DC, 0x43A, 0x16C
 EXPANSION_PTR, PORTAL_COUNT, PORTAL_ARRAY = 0x96_CA1C, 0x96_C9F8, 0x96_C9F4
 ITEMS_TABLE, LEVELS_OFFSET = 0x74_4304, 0xC5C
@@ -133,8 +134,10 @@ def check_portal(rig, rng):
     content = bytearray(rng.randbytes(max(levels, 1) * ROW + 0x10))
     flags = [rng.random() < 0.4 for _ in range(levels)]
     for i in range(levels):
+        # any non-zero dword is a set flag: 1, a bit above the byte, the top bit and all ones
+        value = rng.choice((1, 0x100, 0x80000000, MASK)) if flags[i] else 0
         struct.pack_into("<I", content, i * ROW + PORTAL_OFFSET if not mut("portal-offset") else i * ROW + PORTAL_OFFSET + 4,
-                         1 if flags[i] else 0)
+                         value)
     rig.write(rows, bytes(content))
     items = rig.m.alloc(LEVELS_OFFSET + 0x10)
     rig.m.w32(items + LEVELS_OFFSET, levels)
@@ -157,6 +160,7 @@ def check_portal(rig, rng):
     else:
         expect_pointer = 0 if mut("portal-zero-clears") else 0x12345678
         require(rig.read_words(PORTAL_ARRAY, 1)[0] == expect_pointer, "portal array changed with no flagged level")
+        require(rig.log == [], f"portal with no flagged level made calls {rig.log}")
 
 
 def run_all():
@@ -175,7 +179,7 @@ def run_all():
 
 def main():
     """Command line: run the oracle, or with --mutation-check require every defect to fail."""
-    mw.drive(__doc__, sys.modules[__name__], run_all, "LvlTbls expansion free and portal array cases")
+    mw.drive(__doc__, sys.modules[__name__], run_all, "LvlTbls small-table cases")
 
 
 if __name__ == "__main__":

@@ -213,7 +213,7 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 
 | Address | What |
 |---|---|
-| `FUN_0066a2b0` | The field: width at `+2`, height at `+6`, bytes from `+10` copied (line 0x3e); the half sizes at `0x96d664` / `0x96d668` and ten row offsets at `0x96d630..0x96d650` |
+| `FUN_0066a2b0` | The field: width at `+2`, height at `+6`, bytes from `+10` copied (line 0x3e); the half sizes at `0x96d664` / `0x96d668` and ten row offsets at `0x96d630..0x96d650` (nine dwords, 4 bytes apart; the Ghidra output's ten is off by one) |
 | `FUN_0066a420` | Frees it (0x5b) |
 | `FUN_0066a470` | The half width and height. No caller |
 | `FUN_0066a4b0` / `FUN_0066a500` / `FUN_0066a540` | Allocate (8 bytes, line 0x87) / free (0x94) / set an origin pair |
@@ -427,9 +427,13 @@ what a real `.txt` yields for these columns is not claimed.
 |---|---|
 | `monster_loaders.py` | `FUN_00653db0`, `00653e20`, `00654d50`, `00654e80`, `00654f20`, `00655030`, `006556e0`, `00655720`, `006562b0`, `006564d0`, `00656620`, `00656fc0`, `00657010`, `006586d0`, `00659a10`, `00659af0`, `00659bb0`, `00659de0`, `0065a390` |
 
+Function names such as `TXT_FreeExpansionLvlTbls` or `LVLTBLS_BuildPortalLevelArray`
+in the sections below come from the redivivus (Ghidra) database; the stock binary
+carries no names, so each name is a label for the address, not a claim about its source.
+
 ### Loaders and getters, second batch (`txt_schemas.py`)
 
-`tools/emu/txt_schemas.py` runs ten CompileTxt loaders and one getter from stock
+`tools/emu/txt_schemas.py` runs nine CompileTxt loaders and one getter from stock
 game.exe 1.14d (1,200 cases, `--mutation-check` breaks the model 25 ways). The
 harness is `monster_loaders.py`'s rig: CompileTxt 0x6122f0 is hooked and logs the
 column list, the table name, the count address and the record size; the string
@@ -451,9 +455,9 @@ lookup 0x524d30 is hooked and logs the name pointer it was given.
 * **FUN_00637500** (lowqualityitems): one ASCII column of 0x1f bytes, record 0x22;
   table `0x96cc5c`, count `0x96cc58`. Then for each row, in order, the name goes to
   STRTABLE_LookupString and the id is stored as a short at row +0x20.
-* **FUN_00636770** (qualityitems): 22 columns (`nummods` CHAR at 0x0a; `mod1code`
+* **FUN_00636770** (qualityitems): 21 columns (`nummods` CHAR at 0x0a; `mod1code`
   and `mod2code` NAME_INT at 0x0c / 0x1c linked to `0x96bcd8`; the three
-  parameter triples at 0x10, 0x20; `effect1` / `effect2` ASCII 0x1f at 0x2c /
+  parameter triples at 0x10 and 0x20; `effect1` / `effect2` ASCII 0x1f at 0x2c /
   0x4c; the ten equipment flags at 0..9 with `wand` at 4 and `scepter` at 3), record
   0x70, table `0x96cc54`, count `0x96cc50`. After the compile, each row's `effect1`
   is looked up when its first byte is non-zero and its id stored as a short at
@@ -461,7 +465,7 @@ lookup 0x524d30 is hooked and logs the name pointer it was given.
   `effect2` field's address (`effect2 + row + 0x20`), so it lands at +0x6c, the last
   two bytes before the record's end; the disassembly agrees with the decompile.
 * **FUN_00618d90** (pettype, fastcall pool): creates the link at `0x96c81c`
-  (`.\\DATATBLS\\DataTbls.cpp`, line 0x729), 21 columns (`pet type` NAME_I_INT on
+  (`.\\DATATBLS\\DataTbls.cpp`, line 0x729), 20 columns (`pet type` NAME_I_INT on
   that link, `group` / `basemax` SHORT, six BIT columns in the dword at +4 with bit
   numbers 0..5, the icon and class strings, `name` KEY_WORD linked to
   DATATBLS_LookupStringId 0x6117b0), record 0xe0, table `0x96c818`, count
@@ -495,7 +499,7 @@ are not in the tables above.
 ### FieldTbls.cpp (`fieldtbls.py`)
 
 `tools/emu/fieldtbls.py` runs eight FieldTbls.cpp functions from stock game.exe
-1.14d (600 cases, `--mutation-check` breaks the model 16 ways). The archive
+1.14d (600 cases, `--mutation-check` breaks the model 17 ways). The archive
 reader is hooked (D2FILE `0x517079`, logged with the path it was given); the
 fatal path, the pool and client releases run as hooked logs; the memmove
 `0x6829c0` runs for real.
@@ -544,13 +548,15 @@ cases, `--mutation-check` breaks the model 17 ways), on `monster_loaders.py`'s r
   (TokTbls.cpp line 0xd6) and the merged obj block `0x96d4cc` (line 0xe2) through
   the pool; unloads monmode `0x96d4bc`, composit `0x96d4ec` and armtype `0x96d4e8`
   through the table free `0x6125c0`, and clears the five pointers. The calls run in the
-  order plr free, monmode, obj free, composit, armtype.
+  order plr free, monmode, obj free, composit, armtype. The mirror pointers are not
+  cleared and stay set: monmode's Mode2 / Mode3 `0x96d4c0` / `0x96d4c4`, the plr
+  mirrors `0x96d4e0` / `0x96d4e4`, and the obj mirrors `0x96d4d0` / `0x96d4d4`.
 * **FUN_00663210** (free the missiles, MissileTbls.cpp line 0x19e): pool free of
   `0x96bc90` (cleared with the side counts `0x96bc94` / `0x96bc98`), unload of the
   list `0x96c794` and link free of `0x96c798` (both **left set**), then `0x96c79c`
   cleared.
 * **FUN_00664150** (overlay, fastcall pool): link `0x96c7e8` (OverlayTbls.cpp line
-  0x38), 26 columns (overlay NAME_I_WORD on the link, Filename ASCII 0x40 at +2, and
+  0x38), 25 columns (overlay NAME_I_WORD on the link, Filename ASCII 0x40 at +2, and
   the frame, offset, height, colour and flag fields), record 0x84, table `0x96c7ec`,
   count `0x96c7f0`.
 
@@ -565,7 +571,7 @@ decompile needs the copy and unload helpers modelled, and is left for a later pa
 ### AnimTbls.cpp (`anim_tbls.py`)
 
 `tools/emu/anim_tbls.py` runs the AnimData loader and the record free from stock
-game.exe 1.14d (80 cases, `--mutation-check` 6 ways), on the field oracle's rig.
+game.exe 1.14d (80 cases, `--mutation-check` 7 ways), on the field oracle's rig.
 
 * **FUN_0066a770** (TXT_AllocTxt_AnimTbls, fastcall pool): a `0x4a4`-byte block
   (line 0x83), zeroed by memset; wsprintfA gives `DATA\GLOBAL\AnimData.d2`, which
@@ -640,8 +646,9 @@ link free `0x6bd0b0`, the pool free) are logged, not run.
   `0x96ca94`, `0x96cc5c`, `0x96cc4c`, `0x96cc64`. No null test: the unload runs for 0.
 * **FUN_006374a0**: returns the address `0x96cc60` (the books count) without reading it.
 * **FUN_00634220**: pool-free `0x96caa4` (ItemTbls.cpp line 0x30b) when set, then clear it.
-* **FUN_00634d90**: link free of `0x96c850` and unload of `0x96c854`, neither null-tested,
-  then the count `0x96c858` is cleared.
+* **FUN_00634d90** (ITEMTBLS_FreeUniqueItems, not the sets free, which is FUN_00636730):
+  link free of `0x96c850` and unload of `0x96c854`, neither null-tested, then the
+  count `0x96c858` is cleared.
 
 | Oracle | Functions |
 |---|---|

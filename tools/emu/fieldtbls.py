@@ -57,7 +57,7 @@ REGION, REGION_END = 0x96_D630, 0x96_D66C
 MASK = 0xFFFFFFFF
 MUTATIONS = ("init-stride-width", "init-half-swap", "init-step-swap-4-5", "init-size-kept", "freefield-keeps-width",
              "freefield-no-free", "freefield-return-0", "center-swap", "alloc-point-y-kept", "freepoint-line",
-             "setxy-swap", "byte-stride-width", "byte-origin-y-ignored", "load-path-typo", "load-line-29",
+             "setxy-swap", "byte-stride-width", "byte-origin-y-ignored", "byte-null-no-halt", "load-path-typo", "load-line-29",
              "init-client-free-skipped")
 mutation = None
 
@@ -96,7 +96,7 @@ class Rig(mw.World):
     def d2file(self, current):
         """D2FILE_AllocAndLoadD2File (fastcall pool, path; stack: &size, file, line): log and return the archive."""
         self.log.append(("d2file", current.mu.reg_read(UC_X86_REG_ECX), current.cstr(current.mu.reg_read(UC_X86_REG_EDX)),
-                         current.arg(1), current.arg(2)))
+                         current.arg(1), current.arg(2), current.arg(0)))
         if current.arg(0):
             current.w32(current.arg(0), 0x7F)
         return self.archive
@@ -111,8 +111,8 @@ class Rig(mw.World):
     def scramble(self):
         """Random dwords in the globals and the step tables; returns the globals' region before the call."""
         self.write(REGION, random.randbytes(REGION_END - REGION))
-        self.write(X_STEPS, random.randbytes(0x44))
-        self.write(Y_STEPS, random.randbytes(0x44))
+        self.write(X_STEPS, random.randbytes(0x24))
+        self.write(Y_STEPS, random.randbytes(0x24))
         return bytes(self.m.read(REGION, REGION_END - REGION))
 
     def changed(self, before):
@@ -247,17 +247,22 @@ def check_set_xy(rig, rng):
 
 
 def check_byte_at(rig, rng):
-    """FIELDTBLS_GetFieldValueAtCoords: table + x + ((y - origin[1]) << 8) - origin[0]; null origin is fatal."""
+    """FIELDTBLS_GetFieldValueAtCoords: table + x + ((y - origin[1]) << 8) - origin[0]; a null origin is fatal (line 0xb0)."""
     rig.scramble()
     base = rig.m.alloc(0x200000)
     table = base + 0x100000
     rig.m.w32(TABLE, table)
     content = rng.randbytes(0x200000)
     rig.write(base, content)
+    x, y = rng.randrange(-200, 200), rng.randrange(-200, 200)
+    if rng.random() < 0.1:
+        got = rig.go(BYTE_AT, 0, x & MASK, y & MASK)
+        want = ("halt", 0xB0) if not mut("byte-null-no-halt") else ("ret", content[0x100000 + x])
+        require(got == want, f"FieldByte(null origin): {got} != {want}")
+        return
     origin = rig.m.alloc(8)
     o0, o1 = rng.randrange(-200, 200), rng.randrange(-200, 200)
     rig.write(origin, struct.pack("<ii", o0, o1))
-    x, y = rng.randrange(-200, 200), rng.randrange(-200, 200)
     got = rig.go(BYTE_AT, origin, x & MASK, y & MASK)
     require(got[0] == "ret", f"FieldByte {got}")
     if mut("byte-origin-y-ignored"):
@@ -277,11 +282,14 @@ def check_load(rig, rng):
     archive, data = make_archive(rig, rng, width, height)
     rig.archive = archive
     rig.log = []
-    got = rig.go(LOAD, ecx=rig.m.alloc(4))
+    pool = rig.m.alloc(4)
+    got = rig.go(LOAD, ecx=pool)
     require(got[0] == "ret", f"LoadExpFieldFile {got}")
+    require(rig.log, "LoadExpFieldFile made no D2FILE call")
     path = "DATA\\GLOBAL\\expfield.d2" if not mut("load-path-typo") else "DATA\\GLOBAL\\expfield.dt"
     line = 0x28 if not mut("load-line-29") else 0x29
-    require(rig.log[0] == ("d2file", rig.log[0][1], path, FILE_PTR, line), f"LoadExpFieldFile log {rig.log[:1]}")
+    require(rig.log[0][:5] == ("d2file", pool, path, FILE_PTR, line) and rig.log[0][5] != 0,
+            f"LoadExpFieldFile log {rig.log[:1]}")
     table = rig.read_words(TABLE, 1)[0]
     require(bytes(rig.m.read(table, width * height)) == data, "LoadExpFieldFile copied other bytes")
 
