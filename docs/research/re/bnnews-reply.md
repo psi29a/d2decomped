@@ -23,3 +23,29 @@ called it an unsigned count. The oracle exercises 0x7f, 0x80 and 0xff. It
 uses well-formed NUL-terminated text; it does not claim bounds validation for
 untrusted packets. The callback order and merge facts are bounded to the test
 cases and do not establish a d2d port or live Battle.net compatibility.
+
+## Cache and array checks
+
+[`bnnews_cache.py`](../../../tools/emu/bnnews_cache.py) runs the stock save
+and load functions with synthetic cache I/O, scripted clock and allocator,
+and a preallocated array. Save serializes the newest timestamp and unread
+count as two little-endian dwords, followed by each unread timestamp and its
+NUL-terminated text in array order. The write receives two `-1` lifetimes;
+the save returns the writer's result. In the checked cases an unread string
+of 0x400 bytes returns failure without writing, and 0x100 unread items take
+the fatal path. Load accepts the tested nondecreasing timestamps, including
+an equal pair, but clears the array and timestamps for descending timestamps,
+a 0x400-byte string, 0x101 items, or a missing cache. A valid empty list and a synthetic 256-item list load successfully; 255
+unread entries save successfully. The test does not exercise actual archive
+I/O, reallocation during load, truncated buffers or time conversion.
+
+[`bnnews_array.py`](../../../tools/emu/bnnews_array.py) exercises the array's
+growth-step helper, resize, count setter, rounded and exact reserve, append,
+clear, and deleting destructor. It forces Storm realloc to fail and supplies a
+fresh block, checking that the old items are copied and the old block freed.
+The checked growth steps for requested sizes 0–3 are 1, 1, 2, 2; sizes 8 and
+larger select and store step 8. A rounded reserve grows a count of 3 to
+capacity 8 for four more; an exact reserve grows count 4 to capacity 9 for
+five more. The deleting destructor frees its header only when flag bit 0 is
+set. This synthetic allocator cannot establish behavior of a real heap,
+allocation failures or arithmetic overflow.

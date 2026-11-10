@@ -11,7 +11,7 @@ import struct
 from pathlib import Path
 
 import emu
-from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EIP
+from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EIP, UC_X86_REG_ESP
 
 SHA = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 CAP, COUNT, DATA, FIRST, NEWEST = 0x881C30, 0x881C34, 0x881C38, 0x881C40, 0x881C44
@@ -73,6 +73,7 @@ def run():
         address = m.put(packet)
         value = m.call(REPLY, ecx=address, limit=200000)
         require(m.mu.reg_read(UC_X86_REG_EIP) == emu.RET_MAGIC, "reply did not return")
+        require(m.mu.reg_read(UC_X86_REG_ESP) == emu.STACK + emu.STACK_SIZE - 0x1000, "stack cleanup")
         require(value == 1, f"reply returned {value}")
 
     def rows():
