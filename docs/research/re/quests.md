@@ -365,6 +365,14 @@ object with `FUN_00552f60(game, 2, id)` using the respective data dword +4 /
 independent. `tools/emu/quest_two_objects.py` checks 24 stock cases with the
 lookup and setter boundaries hooked.
 
+`FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
+looks up object ID data +0x28 in the game (type 2); if found, it sets the
+object mode to 1, reads its Objects table record from its class ID at +4,
+and schedules event 1 at game frame +0xa8 plus 1 plus the record's unsigned
+dword +0xdc shifted right 8, with 32-bit wrap. It then writes 2 to data +0x2c.
+If the object is absent it does neither. `tools/emu/quest_object_timer.py`
+checks 24 stock cases with lookups, setter and scheduler hooked.
+
 `tools/emu/quest_frontier.py` checks these nine functions on synthetic records
 against stock 1.14d (216 cases, nine deliberate model defects caught). The
 quest lookup `FUN_00543640` is hooked: its arguments are checked, but its
