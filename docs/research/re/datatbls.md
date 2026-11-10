@@ -426,3 +426,58 @@ what a real `.txt` yields for these columns is not claimed.
 | Oracle | Functions |
 |---|---|
 | `monster_loaders.py` | `FUN_00653db0`, `00653e20`, `00654d50`, `00654e80`, `00654f20`, `00655030`, `006556e0`, `00655720`, `006562b0`, `006564d0`, `00656620`, `00656fc0`, `00657010`, `006586d0`, `00659a10`, `00659af0`, `00659bb0`, `00659de0`, `0065a390` |
+
+### Loaders and getters, second batch (`txt_schemas.py`)
+
+`tools/emu/txt_schemas.py` runs eight more CompileTxt loaders and one getter from
+stock game.exe 1.14d (990 cases, `--mutation-check` breaks the model 17 ways). The
+harness is `monster_loaders.py`'s rig: CompileTxt 0x6122f0 is hooked and logs the
+column list, the table name, the count address and the record size; the string
+lookup 0x524d30 is hooked and logs the name pointer it was given.
+
+* **FUN_00617d90** (difficultylevels, stdcall pool): 22 INT columns in the
+  array's order (`ResistPenalty` at 0, ..., `GambleUltra` at 0x54), record 0x58,
+  table `0x96c8ac`, count `0x96c8b0`. Any count other than 3 halts (line 0x61f) after the store.
+* **FUN_00637620** (itemratio, fastcall pool): `Version` SHORT at 0x40, `Uber` and
+  `Class Specific` CHAR at 0x42 / 0x43, then 16 INT columns; record 0x44, table
+  `0x96cc4c`, count `0x96cc48`.
+* **FUN_0061f130** (lvlwarp): 11 INT columns and `Direction` as a one-byte ASCII
+  column at 0x2c; record 0x30. The table goes to `0x96ca00`; the count is written
+  to `0x96ca04` from a stack slot (the rig logs the slot's address, which is not checked).
+* **FUN_0061f380** (lvlmaze): 7 INT columns, record 0x1c; table `0x96ca08`, count `0x96ca0c`.
+* **FUN_00659500** (monlvl): 30 INT columns (AC, TH, HP, DM, XP with their (N) and
+  (H) variants, then the L- per-level variants; `XP(N)` is at 100), record 0x78,
+  table `0x96c7a0`, count `0x96c7a4`.
+* **FUN_00637500** (lowqualityitems): one ASCII column of 0x1f bytes, record 0x22;
+  table `0x96cc5c`, count `0x96cc58`. Then for each row, in order, the name goes to
+  STRTABLE_LookupString and the id is stored as a short at row +0x20.
+* **FUN_00636770** (qualityitems): 22 columns (`nummods` CHAR at 0x0a; `mod1code`
+  and `mod2code` NAME_INT at 0x0c / 0x1c linked to `0x96bcd8`; the three
+  parameter triples at 0x10, 0x20; `effect1` / `effect2` ASCII 0x1f at 0x2c /
+  0x4c; the ten equipment flags at 0..9 with `wand` at 4 and `scepter` at 3), record
+  0x70, table `0x96cc54`, count `0x96cc50`. After the compile, each row's `effect1`
+  is looked up when its first byte is non-zero and its id stored as a short at
+  +0x6c; `effect2` likewise to +0x6e. The first store is written through the
+  `effect2` field's address (`effect2 + row + 0x20`), so it lands at +0x6c, the last
+  two bytes before the record's end; the disassembly agrees with the decompile.
+* **FUN_00613e60** (TXT_Experience_GetExpRatio, stdcall level): the table at
+  `0x96c8a8`. Level <= 0 gives row 0's ExpRatio (+0x1c, not 0 as the decompile's
+  first branch suggests when the table is set); a level above the first dword
+  (signed) gives 0; otherwise row level + 1 (`+0x20 * level + 0x3c`). A null table
+  gives 0. The disassembly (`00613e60`..`00613e8d`) agrees with the decompile.
+
+The oracle's table pointers, column lists, record sizes and count addresses are
+the model's; the data page `0x96b000..0x96e000` is checked dword by dword, and the
+two post-process loaders also compare their row tables byte by byte after the
+lookups. Re-check: `cd tools/emu && uv run python txt_schemas.py` (needs
+`D2_MPQ_DIR`; no MPQ is read), and with `--mutation-check`.
+
+**Not covered here:** FUN_00618d90 (pettype: several linked columns and the
+0x72b / 0x100 clamp), FUN_00637320 (books: the `name` column's linker is
+DATATBLS_LookupStringId, whose address is not recorded yet) and the other cited DataTbls.cpp, ItemTbls.cpp, LvlTbls.cpp, MonsterTbls.cpp, TokTbls.cpp,
+MissileTbls.cpp, OverlayTbls.cpp, FieldTbls.cpp and AnimTbls.cpp functions that
+are not in the tables above.
+
+| Oracle | Functions |
+|---|---|
+| `txt_schemas.py` | `FUN_00617d90`, `00637620`, `0061f130`, `0061f380`, `00659500`, `00637500`, `00636770`, `00613e60` |
