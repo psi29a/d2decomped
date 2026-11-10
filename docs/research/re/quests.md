@@ -397,6 +397,13 @@ client in ECX, 2 in EDX and game difficulty byte +0x6d on the stack.
 `tools/emu/quest_tomb_transition.py` checks 24 cases with the bit setter,
 client lookup and progress setter hooked.
 
+`FUN_005b30e0` builds a stack-local record and calls `FUN_005b2a00` with its
+address in ECX. The record's nine dwords are, in order, the incoming ECX,
+EDX, zero, stack arguments 3, 4, 5, 1, 2, 6; its final word is the low word
+of stack argument 7. The wrapper pops seven stack arguments. The 24 cases in
+`tools/emu/quest_izual_forward.py` check that layout against stock at the
+hooked callback boundary; they do not run the callback.
+
 `FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
 looks up object ID data +0x28 in the game (type 2); if found, it sets the
 object mode to 1, reads its Objects table record from its class ID at +4,
