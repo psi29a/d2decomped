@@ -382,6 +382,14 @@ game from the stack in ECX, the zero-extended ID in EDX, callback
 `tools/emu/quest_party_callback.py` checks 24 cases, including differing
 high words; both party routines are hooked and the callback is not run.
 
+`FUN_005b4ff0` takes game and player on the stack (`ret 8`). It asks
+`FUN_00660e00` for level 0x6d's waypoint index; if found, it obtains the
+player-data pointer and calls `FUN_00660ec0` with the buffer at player data
++0x1c + 4 × the unsigned difficulty byte game +0x6d, and that index. A
+failed lookup makes no player-data or setter call.
+`tools/emu/quest_waypoint_activate.py` checks 24 cases with the three
+callees hooked, including difficulty 255 and nonzero lookup results.
+
 `FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
 looks up object ID data +0x28 in the game (type 2); if found, it sets the
 object mode to 1, reads its Objects table record from its class ID at +4,
