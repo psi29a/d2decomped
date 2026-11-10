@@ -148,7 +148,7 @@ disassembly, no oracle run. The five callers in this chain pass:
 | `FUN_00466870` (hit test, 0x46694a) | 4 | `FUN_00464310` true, bit 1 clear, a monster (type 1) for which `FUN_00464820` holds: bit 2 selects it too (`local_10` = 1) |
 | `FUN_00481030` (0x48110a) | 2 (`ebx - 2`, ebx = 4) | action 0x13 on an item target (type 4): not selectable, nothing is sent (the function returns) |
 | `FUN_00481600` (0x4816b1) | 2 | the queued target of a type other than 0, 1, 2 (item, tile): not selectable, `FUN_00467a70` abandons the queue; selectable goes to `FUN_00481030` |
-| `FUN_00454f30` (0x4550a8) | 0x200 | a monster (not classes 0x1a1 / 0x1a2) with the flag set gets no label: `FUN_00452be0(0)` clears the three name buffers; unset, it labels (`FUN_00454ad0`) |
+| `FUN_00454f30` (0x4550a8) | 0x200 | a monster (not classes 0x1a1 / 0x1a2) with the flag set gets no in-world label: `FUN_00452be0(0)` sets its name and life bar as the hover text (see "Draw now or keep for later") and the three name buffers are cleared; unset, it labels (`FUN_00454ad0`) |
 | `FUN_00459bc0` (0x459da4) | 0x200 | a monster of `FUN_00478d90` kind 1 (a pet): flag set or not, the mark is teal `0x7a51b4` (the `je` at 0x459dab goes to 0x459d56, which loads the same byte as the fall-through at 0x459dad), so the test changes nothing |
 
 Bit 31 (`0x80000000`) is the pet bit (combat.md, the pair percent
@@ -334,3 +334,33 @@ callers `FUN_00454f30` with limit 0x80, and `FUN_00453330`, not read).
 
 So over a dead player's body the bar is empty and the name carries the
 0x90b string; a living player gets the plain name with a party life bar.
+
+### Draw now or keep for later (`FUN_00452be0`, 0x452be0, 137 bytes)
+
+`FUN_00452be0(ESI unit, stack mode)` (`ret 4`; the unit is in ESI from
+the callers, `FUN_00454f30` and `FUN_00452d20`). Nothing at all when
+`FUN_004b3230(&local)` is nonzero (what it tests was not read).
+Otherwise:
+
+- width = `FUN_004525f0(unit)`: 0 unless the unit is a monster (type 1)
+  that `FUN_00464820` does not hold. Then the unit's life scaled to 0x80
+  (`FUN_00625480(unit, 6, 0) << 7 / max life`; 0x80 for a zero maximum), or,
+  when the pet list's value for it (`FUN_00479080`, node +0x1c) is 1 or
+  more and not (the monster's +0xc4 bit 2 set with `FUN_00465c60` letting
+  the local player interact), `value << 7 / 100`. Clamped to 2..0x80;
+- name = `FUN_00464a60(unit)` (wide text by unit type; a null unit is
+  fatal, `.\UNIT\CUnit.cpp` line 0x99d);
+- position x = 0x70f854, y = 0x70f858 − 0x48.
+
+Mode 0: `FUN_005022f0(name, x, y, 0, 1, width)`, which is `FUN_00502280`
+(char-panel.md "Hover texts": keeps the text, 0x841ec8, and its place,
+0x8426c8..d4; an empty or null name empties it) followed by storing
+the width at 0x8426d8. It draws nothing itself. Mode not 0: the word
+at 0x7a2c80 is cleared, then, if the name is non-null, copied to 0x7a2c80
+(`FUN_005267e0`) and x, y, width are stored at 0x7a2d20, 0x7a2d24, 0x7a2d28
+(who reads them was not traced).
+
+So `FUN_00454f30`'s `FUN_00452be0(0)` for a monster with unit flag 0x200 is
+not "no label" (as the flag table above has it): the unit's own name and
+life bar become the hover text, and the three in-world buffers
+(0x7a2a78, 0x7a2d30, 0x7a2f38) are the ones that are emptied.

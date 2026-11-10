@@ -28,6 +28,7 @@ address	name	evidence
 00451f70	unit_mode	ECX unit: +0x10 (structs.tsv unit.mode); null 0
 00451f80	monstats_row	(id): 0 when id < 0 or >= count at [0x744304]+0xa80, else [0x744304]+0xa78 + id * 0x1a8; no assert (items.md)
 00452af0	player_name_label	ECX player unit, EAX &width, EBX &flag, stack &dest, limit: roster/player-data name (Roster.cpp lines 0x5db, 0x5dc fatal); mode 0x11: string 0x90b composed with the name (width 0, flag 1); else width (roster +0x14 << 7) / 100 and the name widened (cursor-units.md "A player's name")
+00452be0	unit_label_set	ESI unit, stack mode: width FUN_004525f0 (2..0x80), name FUN_00464a60 at (0x70f854, 0x70f858 - 0x48); mode 0 sets the hover text (FUN_005022f0), else keeps name, x, y, width at 0x7a2c80 / 0x7a2d20..28; nothing when FUN_004b3230 is nonzero (cursor-units.md "Draw now or keep for later")
 00452c70	pet_owner_label	EAX unit, EBX &flag, stack &name, &width: pet-list owner's roster name (0x80 units) and (roster +0x14 << 7) / 100; flag 1 when hostile or unknown; -1 owner returns 0 (cursor-units.md "Class 0x164's text")
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
