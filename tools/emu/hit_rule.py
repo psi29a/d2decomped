@@ -19,8 +19,9 @@ line lands on the same unit in the same frame, its seed carrying on.
 record, with FUN_0057ce30 (the hit class and its element bits), FUN_0057cb00
 (the size test) and FUN_00472210 (the seed's rolls) inside it. A frame is a
 get-hit when a record sets the unit's GH mode: FUN_005809d0 mode 4 for a
-player, FUN_005a7e60 mode 3 for a monster. It prints `id gh -1` a frame,
-id the frame's first line, as test_combat does.
+player, FUN_005a7e60 mode 3 for a monster. It prints `id gh seedlo seedhi`
+a frame, id the frame's first line and the seed the unit's (+0x20) after
+it, as test_combat does.
 
 Hooked: FUN_00620bb0 (the unit's room: none, so no town test),
 FUN_00639df0 (a state: 1 is `frozen`, 0x36 none), FUN_006256b0 (state
@@ -77,7 +78,7 @@ def gen(count, seed):
 
 
 def game(path, exe=None):
-    """Run each case line of `path` through FUN_0057cee0 and print `id gh -1` a frame."""
+    """Run each case line of `path` through FUN_0057cee0 and print `id gh seedlo seedhi` a frame."""
     e = emu.Emu(exe=exe)
     case = {}
     asked = []
@@ -125,7 +126,7 @@ def game(path, exe=None):
         frame_gh = frame_gh or (PLAYER_GH if kind == 0 else MONSTER_GH) in asked
         carry = nxt != 0
         if not carry:
-            print(frame_id, int(frame_gh), -1)
+            print(frame_id, int(frame_gh), e.r32(unit + 0x20), e.r32(unit + 0x24))   # the seed after the frame
 
 
 def main():
