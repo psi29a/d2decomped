@@ -6,6 +6,7 @@
 #include "scene.hpp"
 
 #include <dc6.hpp>
+#include <hire_list.hpp>
 #include <monster_ids.hpp>
 #include <palette.hpp>
 #include <quests.hpp>
@@ -217,15 +218,47 @@ void draw_npc_menu(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
     const int hover = menu.line_at(mouse_x, mouse_y);
     const int cell = scene.font.sheet().frames_per_direction() > 0 ? int(scene.font.sheet().frame(0, 0).height) : 16;
     int base = menu.y;
+    const auto& blue = scene.act_text_blue.entries().empty() ? pal : scene.act_text_blue;
     for (std::size_t i = 0; i < menu.lines.size(); ++i) {
         const auto& line = menu.lines[i];
         base += line.height;
         const int x = menu.x + line.x;
         if (line.header && line.red) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 255, 77, 77);
         else if (line.header) scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text, 199, 179, 119);
-        else          scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, x, base - cell + 1, line.text);
-        if (int(i) == hover) draw_focus(framebuffer, scene, x, base, line.width, now_ms);
+        else          scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, int(i) == hover && menu.blue_hover ? blue : pal, x, base - cell + 1, line.text);
+        if (int(i) == hover && !menu.blue_hover) draw_focus(framebuffer, scene, x, base, line.width, now_ms);
     }
+    // The hire window's list box (FUN_004bee90): the rows that fit from the
+    // first shown, each line at x + 0x20 on rules::list_line_y, white, the
+    // row under the mouse blue; a line wider than width - 0x32 loses its
+    // last letters till it fits (FUN_004be410).
+    if (!menu.list) return;
+    const auto& list = *menu.list;
+    const auto lines = menu.list_lines();
+    // The scroll bar (textslid, each cel by its bottom-left): the up arrow
+    // (9, 11 pressed), the track's cells (13), the down arrow (8, 10 pressed)
+    // on the last of them; the thumb after the rows (rules::list_thumb_cels).
+    const auto cel = [&](int frame_index, int left, int bottom) {
+        if (std::uint32_t(frame_index) >= scene.textslid.frames_per_direction()) return;
+        const auto& image = scene.textslid.frame(0, std::uint32_t(frame_index));
+        blit_sprite(framebuffer, image, pal, left, bottom - int(image.height));
+    };
+    const int scroll_x = d2d::rules::list_scroll_x(list.box), scroll_y = d2d::rules::list_scroll_y(list.box), cells = d2d::rules::list_track_cells(list.box);
+    cel(list.part == d2d::rules::ListPart::kUp ? 11 : 9, scroll_x, scroll_y);
+    for (int track = 0; track < cells; ++track) cel(0xd, scroll_x, scroll_y + 12 * (track + 1));
+    cel(list.part == d2d::rules::ListPart::kDown ? 10 : 8, scroll_x, scroll_y + 12 * cells);
+    const int shown = d2d::rules::list_rows_shown(list.box, lines, menu.scroll);
+    int rows_before = 0, lines_before = 0;
+    for (int row = menu.scroll; row < menu.scroll + shown && row < int(list.rows.size()); ++row, ++rows_before)
+        for (const auto& text : list.rows[std::size_t(row)].lines) {
+            if (text.empty()) continue;
+            std::string cut = text;
+            while (!cut.empty() && scene.font.measure(cut) > list.box.width - 0x32) cut.pop_back();
+            const int baseline = d2d::rules::list_line_y(list.box, rows_before, lines_before++);
+            scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, row == list.hover ? blue : pal, list.box.x + 0x20, baseline - cell + 1, cut);
+        }
+    if (const auto thumb = d2d::rules::list_thumb(list.box, lines, menu.scroll); thumb.shown)
+        d2d::rules::list_thumb_cels(list.box, thumb, [&](d2d::rules::ListCel piece) { cel(piece.frame, scroll_x - 1, piece.bottom); });
 }
 
 void shade_box(std::vector<std::uint8_t>& framebuffer, int x, int y, int width, int height) {

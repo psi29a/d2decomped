@@ -123,6 +123,33 @@ Relationship (S→C 0x8b) is 0 INVITE, 2 ACCEPT, 3 LEAVE and 4 asked, our
 own invitation waiting. Flags between two players (S→C 0x8c, read by
 `FUN_004dc440`) are 1 loot, 2 not heard, 4 squelched and 8 hostile.
 
+Verified in the emulator (`tools/emu/roster_small.py`, 15 functions from game.exe 1.14d on random
+rosters; the relation list `FUN_004dc320` / `004dc440` / `004dc3e0` and the lookups `FUN_004792e0` /
+`0047a310` run as stock; the C->S 0x5d send, the redraws and the ignore-list singleton are hooked):
+
+- `FUN_004792e0(id)` (EDX) returns the first record whose `+0x10` equals the id **or whose `+0x38` list
+  (nodes of id, next) holds it**; -1 and an empty roster give 0. `FUN_00479320` is the same lookup for the local
+  player (`FUN_00463dd0` +0xc, -1 without one) and is fatal (line 0x75) when it finds nothing.
+- Record `+0x34` points at a cell holding the first relation node (`{id, mask, next}`). A relation
+  query is `FUN_004dc440(mine, other, mask)`, 0 when `mine == other` or either record is missing.
+  `FUN_00479d30` (custom call: EBX the record, DI the mask, EDI clobbered) adds the node when missing
+  and then sets every mask bit when none of them is set, else clears them all (`neg`/`sbb`/`add 1` at `00479d80`; fatal line 0x463 on a null record).
+- `FUN_00479e20` (squelch) toggles bit 4, sends C->S 0x5d with ECX 3 and the new bit-4 value (4 or 0, the raw
+  masked value), then calls the ignore-list object's slot 0 (add) when the bit is now set, else slot 1 (delete),
+  with the record name `+0x66`. A null record does nothing.
+- `FUN_00479fe0` (hostile): a null record does nothing; it proceeds only when bit 8 is already set or the
+  record's level (`+0x20`, unsigned word) is at least 9. It toggles bit 8, sends 0x5d with ECX 4 and the
+  new value, and if the bit is now set and the record's area `+0x22` is not 0xffff and equals the local
+  record's, runs `FUN_00479f60` (own `+0x22` := 0xffff, `+0x30` := 1, two redraws; fatal 0x4ed without an own record). With no own record `FUN_00479fe0`
+  is fatal 0x75 instead, from `FUN_00479320` called at `0047a04a` just before the area compare, so 0x4ed
+  is not reached from it.
+  The "both at level 9 and in town" rule in Clicks above is the caller's; this function checks the other player's level only.
+- `FUN_0047a100(id, x, y)` stores `+0x28` / `+0x2c`; `FUN_0047a690(id, life)` stores DL zero-extended as a dword at `+0x14`
+  (`movzx ecx, bl`; clears `+0x15..+0x17`; both do nothing for an unknown id); `FUN_0047a210(unit)` returns the record name for a player unit (type
+  0, else fatal 0x5dc; null 0x5db), or the unit's player data pointer when it has no record (fatal 0x5e5 if that is null).
+- `FUN_004795a0` (next), `FUN_004795c0` (name, fatal 0x174), `FUN_00479b90` (level), `FUN_00479ba0` (+0x1c),
+  `FUN_0047a0c0` (id, -1 for null) and `FUN_0047a1e0` (+0x24).
+
 `FUN_0049a640` makes a row for every other player, at most nine. The rows
 sit at y 0x5a + 0x26·i (panel coordinates, +0x50 / +0x3c at 800×600).
 

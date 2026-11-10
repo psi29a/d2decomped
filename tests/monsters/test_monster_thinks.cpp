@@ -5,6 +5,7 @@
 // Blood Raven, the traps, the Countess, town visitors and more.
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <thinks.hpp>
 #include <town_npcs.hpp>
 
 #include <algorithm>

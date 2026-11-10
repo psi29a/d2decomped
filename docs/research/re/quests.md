@@ -318,6 +318,160 @@ sends message 9 when `FUN_00599510` says so and returns 0.
 d2d has no port of these; the only one it cites is `FUN_005913c0`
 (`components/rules/quests.hpp`, the Den talk close).
 
+## Frontier accessors (stock executable)
+
+`FUN_0058a0a0` takes game in ECX and player in EDX. For the player's three
+quest buffers at player data +0x10, +0x14 and +0x18, it tests quest 0x25 bit
+7; each nonzero result adds 10. If the total is nonzero it calls
+`FUN_00589ff0(game, player, total)`; otherwise it makes no such call.
+`tools/emu/quest_rescue_resistance.py` checks all eight combinations against
+stock with player-data, bit-test and reward routines hooked; it does not
+exercise the reward's effects.
+
+Two further quest 0x21 helpers are checked by
+`tools/emu/quest_barbarian_helpers.py` (48 cases; lookup, coordinate getter
+and notifier hooked). `FUN_0058a8d0` takes game in ECX, unit in EDX and an
+output pointer on the stack (`ret 4`). A missing record or zero data dword
++0x84 returns 0 without an output write. Otherwise it returns 1: if byte
++0xb1 is zero it calls `FUN_00620870(unit, output)`, else it copies data
+dwords +0xc4 and +0xc8 to the output. `FUN_0058aa10` looks up the record and,
+when byte +9 is nonzero and byte +0xb is below 2, clears byte +0x14 and calls
+`FUN_00544300` with the record in ECX, 2 in EDX and stack arguments 0,
+callback `FUN_00588eb0` and 1.
+
+`FUN_0058a820` looks up quest 0x21, returns 0 when absent, and returns 1
+when data byte +0xb1 is already nonzero. Otherwise a nonzero data dword
++0x84 enables an attempt at the stored coordinates +0xc4/+0xc8. It obtains
+the player's room and looks for a room at those coordinates; failure adds 3
+to both dwords with 32-bit wrap and returns 0. With a room, it calls
+`FUN_00555230` with ECX 2, EDX 0xbd and stack arguments x, y, game, room,
+1, 1, 0. A successful spawn sets byte +0xb1 to 1, copies the spawned unit's
+dword +0xc to data +0xc0, and returns 1; a failed spawn returns 0.
+`tools/emu/quest_spawn_rescue.py` checks 24 cases against stock with the
+lookup, room and spawn operations hooked; those callees' internals are not
+part of the claim.
+
+`FUN_005447a0` takes two handler arguments and a class ID on the stack
+(`ret 0xc`). It checks the ID is nonnegative and below the signed dword at
+the Objects table +0xa80, then dispatches class 0xc9 to `FUN_0059b6c0` or
+0x14b to `FUN_0059b6d0` with the first two arguments. Other classes do
+nothing. `tools/emu/quest_object_dispatch.py` checks 48 combinations against
+stock with both handlers hooked, including signed bounds and the two IDs.
+
+`FUN_00545cd0` takes game and player in ECX/EDX, then a room and a flag on
+the stack (`ret 8`). It resolves the room's level and the level record's byte
++0x30; a missing level or zero byte ends the call. It passes that byte to
+`FUN_005436b0(game, player, byte)`. With the flag zero it proceeds only when
+the result is exactly 1; with a nonzero flag it proceeds only when the result
+is zero. If global `0x8846dc` is also nonzero, it calls `FUN_0054a930` with
+game in ECX, `0x6e0c10` in EDX and 4 on the stack.
+`tools/emu/quest_level_warning.py` checks 72 combinations against stock with
+the lookup, predicate and warning callees hooked.
+
+`FUN_005bcfd0` looks up quest 0x14 and, when present, sets its data dwords
++0xc and +0x10 to 2. For each nonzero flag byte +1 / +2, it looks up an
+object with `FUN_00552f60(game, 2, id)` using the respective data dword +4 /
++8; if found it calls `FUN_00624690(object, 1 / 2)`. The two lookups are
+independent. `tools/emu/quest_two_objects.py` checks 24 stock cases with the
+lookup and setter boundaries hooked.
+
+`FUN_005ba2f0` obtains a party ID from `FUN_00554630` for the player in ECX.
+When the returned low word is not 0xffff, it calls `FUN_00540510` with the
+game from the stack in ECX, the zero-extended ID in EDX, callback
+`FUN_005ba290` and argument 0. It returns 0 and pops one stack argument.
+`tools/emu/quest_party_callback.py` checks 24 cases, including differing
+high words; both party routines are hooked and the callback is not run.
+
+`FUN_005b4ff0` takes game and player on the stack (`ret 8`). It asks
+`FUN_00660e00` for level 0x6d's waypoint index; if found, it obtains the
+player-data pointer and calls `FUN_00660ec0` with the buffer at player data
++0x1c + 4 × the unsigned difficulty byte game +0x6d, and that index. A
+failed lookup makes no player-data or setter call.
+`tools/emu/quest_waypoint_activate.py` checks 24 cases with the three
+callees hooked, including difficulty 255 and nonzero lookup results.
+
+`FUN_0059c810` takes a quest buffer in ESI and game and player on the stack
+(`ret 8`). It calls `FUN_0065c360` to set quest 0xe bits 0xd and 3, obtains
+the player client with `FUN_005531c0` and calls `FUN_00538680` with the
+client in ECX, 2 in EDX and game difficulty byte +0x6d on the stack.
+`tools/emu/quest_tomb_transition.py` checks 24 cases with the bit setter,
+client lookup and progress setter hooked.
+
+`FUN_005b30e0` builds a stack-local record and calls `FUN_005b2a00` with its
+address in ECX. The record's nine dwords are, in order, the incoming ECX,
+EDX, zero, stack arguments 3, 4, 5, 1, 2, 6; its final word is the low word
+of stack argument 7. The wrapper pops seven stack arguments. The 24 cases in
+`tools/emu/quest_izual_forward.py` check that layout against stock at the
+hooked callback boundary; they do not run the callback.
+
+`FUN_0058e120` obtains the client for the player in ECX, looks up quest
+0x24 using the game in ESI, then sends a five-byte packet: byte 0 is 0x50,
+bytes 1–2 are little-endian 0x24, and bytes 3–4 are the word at quest data
++0xa4. The function dereferences the returned quest record without a null
+check. `tools/emu/quest_prisoner_packet.py` checks 24 stock cases with both
+lookups and the sender hooked; it captures the local packet without sending.
+
+`FUN_00591cd0` takes a quest record in EBX and player in EDI. It searches for
+item code `0x206d6468` with `FUN_00554010`, then asks `FUN_00558110` about
+the item and player; a nonzero result returns 1 immediately. Otherwise it
+gets the player's party ID, returning 0 if its low word is 0xffff. With a
+party, it clears quest data byte +0xa0, calls `FUN_00540510` on the game at
+record +4 with callback `LAB_00591ca0` and argument 0, then returns whether
+that byte is nonzero. `tools/emu/quest_horadric_party.py` checks 48 stock
+cases; it hooks the search, check and party calls and simulates the callback
+write, checking that the byte was cleared before iteration.
+
+`FUN_0058bc80` looks up quest 0x22 and assumes the record exists. When data
+byte +0x89 is nonzero and the unit's room resolves to act 4 (low byte), it
+tries to create a portal at unit x +10, y +5 using `FUN_0056d130`: game in
+ECX, 0 in EDX and stack room, x, y, 0x79, 0, 0x3c, 1. Types 2, 4 and 5
+read x/y from the path at unit +0x2c offsets +0xc/+0x10; other types use
+`FUN_006488c0` / `FUN_00648900`, or zero coordinates for a null path.
+It clears data +0x89 only on successful portal creation.
+`tools/emu/quest_arreat_portal.py` checks 192 synthetic cases against stock;
+quest, room, level, coordinates and portal creation are hooked.
+
+`FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
+looks up object ID data +0x28 in the game (type 2); if found, it sets the
+object mode to 1, reads its Objects table record from its class ID at +4,
+and schedules event 1 at game frame +0xa8 plus 1 plus the record's unsigned
+dword +0xdc shifted right 8, with 32-bit wrap. It then writes 2 to data +0x2c.
+If the object is absent it does neither. `tools/emu/quest_object_timer.py`
+checks 24 stock cases with lookups, setter and scheduler hooked.
+
+`FUN_00543590` takes game in ECX and a linked-list head in EDX. It saves each
+node's +4 next pointer before freeing that node through the pool at game
++0x1c; a null head does nothing. `tools/emu/quest_free_list.py` checks 24
+acyclic synthetic lists against stock with the free boundary hooked.
+
+`FUN_00543800` destroys the state at game +0x10f4 when present. It walks the
+record list at state +0 (next +0xf4), freeing each non-null data pointer at
+record +0x18 before the record. It then frees the list at state +0x10 (next
++0x10), calls `FUN_0065c490` on the game pool and the buffer at state +0xc,
+and frees the state itself. All frees use the pool at game +0x1c. The state
+pointer in the game is not cleared here. `tools/emu/quest_destroy.py` checks
+24 acyclic synthetic cases, with allocator and buffer free hooked.
+
+`tools/emu/quest_frontier.py` checks these nine functions on synthetic records
+against stock 1.14d (216 cases, nine deliberate model defects caught). The
+quest lookup `FUN_00543640` is hooked: its arguments are checked, but its
+implementation is outside this oracle. Data pointers are assumed valid when
+the record exists. Functions take the game in ECX unless stated otherwise;
+none pops stack arguments. This covers the stated branches, not all quest
+state transitions.
+
+| function | behavior |
+|---|---|
+| `FUN_0058a9f0` | Lookup quest 0x21; return 1 only when the record exists and its data dword +0x84 is zero. |
+| `FUN_005901e0` | ECX is a quest record: return the dword at its data pointer +0x88, without null checks. |
+| `FUN_0059b6e0` | Lookup quest 0xb; when data byte +0xf equals 1 and byte +0x10 is zero, set +0x10 to 1 and return 1; otherwise return 0. |
+| `FUN_005b5210` | Lookup quest 0x17 and return data byte +0x13, or zero if absent. |
+| `FUN_005b5810` | Return 0 when game dword +0x70 is nonzero. Otherwise lookup quest 0x17 and return 1 when absent or data byte +0x14 is nonzero. |
+| `FUN_005b9ca0` | Lookup quest 0x11. When data byte +6 is nonzero, copy dwords +0x10 and +0x14 to the output at EDX and return 1; otherwise return 0 without writing it. |
+| `FUN_005bad20` | Lookup quest 0x12 and return whether its first data byte is nonzero; return 0 if the record is absent. |
+| `FUN_005bad40` | Lookup quest 0x12 and clear its first data byte if present. |
+| `FUN_005bbf80` | Lookup quest 0x13: AL is 1 when absent or data byte +0xc is zero, otherwise 0. The upper EAX bytes are not a boolean return. |
+
 ## d2d
 
 `DenQuest` runs all of the above for one player:
@@ -536,3 +690,25 @@ ponytail: a change in the View's log state stands in for each 0x5d (so a
 log change the server keeps to itself, Burial's 13 at the reward, also
 brings the button); the player's act is taken as Act 1's; the description
 stays up while questlast replays.
+
+## QUESTS.CPP helpers (second pass)
+
+Two oracles verify 20 small functions against stock 1.14d (game.exe SHA-256
+`631066c1...adaaf`), with every callee hooked and logged; their bodies are not
+claimed here.
+
+`tools/emu/quest_small.py`: `FUN_00543b90` (kind-3 event record, dispatched
+through `FUN_005438e0(1, 0)`), `FUN_00543ce0` (kind 0) and `FUN_00543de0`
+(kind 6) through `FUN_005439a0(0)`; `FUN_00544470` (game +0x10f4 data's +8,
+assert line 0x7b3 on a null game); `FUN_00545290` / `FUN_00545300` (an id list
+whose count word is at +0x80); `FUN_00545760` (data +0x20 = DL, then
+`FUN_005537d0(0, FUN_005456f0)`); `FUN_00545830` (tag 0x49 only);
+`FUN_00545990` (`ret 4`); `FUN_00545d40` (record constructor: memset 0xf8,
++0 and +4 from the stack, +8 = the low byte of the third stack argument, +9 = 1, +0x9c = 0).
+
+`tools/emu/quest_packets.py`: `FUN_00544520` (0x29 plus 0x60 flag bytes; assert
+0x7dd), `FUN_00544f60` / `FUN_00544fa0` (add state words to the class's
+player-data list; kinds 0/1/2/4 use the 6/11/7/7 words at 0x7318b0, c8, f4,
+910, kind 3 and above 4 nothing), `FUN_00545090` / `FUN_00545100` (0x91 state
+packet of the words `FUN_00572470` accepts), `FUN_00545530`, `FUN_005455b0`,
+`FUN_005456f0` (0x89), `FUN_00545780` (0x27; the tail `FUN_00661480` packs at +6 is not checked, only the opcode, kind byte and id) and `FUN_00545920` (0x5d: six bytes 5d, DL, 0, 0xc, 0, 0; an owner without a level sends nothing; the level rank byte is compared unsigned against the stack byte). The state ids of 00544f60 / 00545090 / 00545100 are the NPC-intro ids, FUN_00545830's tag 0x49 is the portal from Duriel and 00545780 is the gossip packet. Names are Redivivus candidates, verified here by the oracles.

@@ -572,6 +572,7 @@ void load_act_palettes(Scene& scene, const d2d::mpq::Stack& mpqs, int act) {
     scene.act_pal = {};                      // a missing file leaves none, never the last act's
     scene.act_lit = {};
     scene.act_text_red = {};
+    scene.act_text_blue = {};
     if (auto bytes = mpqs.try_read(dir + "pal.dat"))
         scene.act_pal = d2d::palette::Palette(*bytes);
     if (scene.act_pal.entries().empty()) { scene.palette_act = act; return; }
@@ -582,13 +583,17 @@ void load_act_palettes(Scene& scene, const d2d::mpq::Stack& mpqs, int act) {
             entries[0].a = 0;
             scene.act_lit[level] = d2d::palette::Palette(entries);
         }
-    // The PL2 ends in 13 text colours' index shifts (256 each); 1 is red.
+    // The PL2 ends in 13 text colours' index shifts (256 each); 1 is red, 3 blue.
     if (auto bytes = mpqs.try_read(dir + "Pal.pl2"); bytes && bytes->size() >= 0x400 + 13 * 256) {
-        const std::size_t red_shift = bytes->size() - 13 * 256 + 256;
-        std::array<d2d::palette::Rgba, 256> entries{};
-        for (std::size_t i = 0; i < 256; ++i) entries[i] = scene.act_pal[std::uint8_t((*bytes)[red_shift + i])];
-        entries[0].a = 0;
-        scene.act_text_red = d2d::palette::Palette(entries);
+        const auto text_colour = [&](std::size_t colour) {
+            const std::size_t shift = bytes->size() - 13 * 256 + colour * 256;
+            std::array<d2d::palette::Rgba, 256> entries{};
+            for (std::size_t i = 0; i < 256; ++i) entries[i] = scene.act_pal[std::uint8_t((*bytes)[shift + i])];
+            entries[0].a = 0;
+            return d2d::palette::Palette(entries);
+        };
+        scene.act_text_red = text_colour(1);
+        scene.act_text_blue = text_colour(3);
     }
     scene.palette_act = act;
 }

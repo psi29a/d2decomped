@@ -1,8 +1,11 @@
 # Monster AI — noticing the player, alerting, thinking (1.14d game.exe)
 
 How a monster finds a target and when it thinks. Placement and population
-are in monsters.md; the per-AI thinks are in `components/rules/monsters.hpp`
-(`mon_think`).
+are in monsters.md; the per-AI thinks are in `components/rules/thinks/`
+(a file per act, `mon_think` in `thinks.hpp` finds one by its AI name), the
+game side of each (its own target pick, a think the game runs itself, the
+inputs its think reads, how its skills start and aim) in
+`components/game/ai/` (the same acts; `ai.cpp think` runs them).
 
 ## The driver — FUN_005b1740
 
@@ -300,7 +303,7 @@ d2d (`ai.cpp`): a think always has a target; no pending think event is seen; com
 - **The maggots and the mummies' heal.** MagottLay (87, FUN_005cb3c0): its MonStats spawn (FUN_0056e620 → FUN_0063ea70: maggotegg) two subtiles toward the target: FUN_00621dc0's 64-way direction folded into 8 (DAT_00745600), DAT_006e3138's ring-2 entry of the step tables DAT_006ea998 (x) / DAT_006ea978 (y), flag 0x4000000. MagottDown (86, FUN_005cb300): calc1 % of its life back (FUN_00483360 is a mul-div), flag 0x40. The egg's hatch (84, FUN_005cafa0; its sequence plays in DT): calc1 of its spawn (maggotbaby), the first on its spot, the rest on rings 1..4 (FUN_005b23c0, 2 × calc1 tries), then it dies. Bestow (96, FUN_005cc840): the one it's at gets lo + rand(hi − lo) % of its life (hi: calc2 within 0..100, lo: calc1 within 0..hi; the caster's seed), kept within 1..max. In d2d the larvae stand at the nearest free spots, a live DT sequence runs its events.
 - **Leap** (srvstfunc 40 FUN_005d9d50 at the sequence's first event, srvdofunc 77 FUN_005da370 after): a monster first hits its target (FUN_005d9c80: its attack damage, FUN_0057d4f0), then lands at twice the target's spot less its own (FUN_0045adf0 / FUN_0045ae20 of each), the free spot by mask 0x3c01 (FUN_0064e7b0); the rows after fly it (FUN_005d9f70) and land it (FUN_005da120); the knockback blast at the landing is a player's only. `ai.cpp`: `Monster::leaping`, the first event row a hit (then flag 0x40), a straight glide over the sequence to the nearest free spot; struck mid-leap it stays put.
 - **Plain casts.** A skill whose Sk mode is a plain SC (the Summoner's) runs FUN_0056f7f0 at the mode's action frame: its do-func, then its srvmissile (+0x46) if it has one. `ai.cpp`: a srvmissile at the target (Fire Ball, Glacial Spike) carrying the skill's element at its level (the missile row names the Skill: FUN_0064b860); a nova (22, FUN_005c9b50 → FUN_0056d400: 64 srvmissilea out to range + LevRange × level + calc1; Frost Nova); a fire wall (24, the Countess's, its maker's SubMissile1).
-- **In d2d.** `ai.cpp think`: the searches over the monsters within 80 subtiles; Duriel's aura through Aura Enchanted's (`Monster::aura`); a walk at a kin; S3 / S4. A skill act plays its sequence (above); a charge or an SC skill without one stands. Left out: states 0x5a / 0x5b, overlays, regen (stat 0x4a), FUN_005fd470 (usable always, but Diablo's Prison: `fits_on`), Radament's wider reach, a wait counted from the mode's end; one free-spot search, its landing move onto itself a stand. The Vulture's take-off (FUN_005f2eb0: flags 0xe off, its 0x100 / 0x1000 lifted, pattern 5, path mask 0) and landing (FUN_005f2fc0: fails when down already (pattern 1) or no free spot (FUN_00554ea0), else flags 0xe, a 0x100 plus, pattern 1, mask 0x3c01): `Monster::aloft` (untargetable, out of the crowd, flies over anything). A vulture landed by a pillar with its target still and in another room keeps trying "keep 9 off" and stands: checked 2026-10-12, game.exe's toward (0xd) and wall (0xf) pathers on the same grid find no point either (the keep's spot lies past the pillar), so it's game.exe's behaviour too. "In a group" (FUN_0058f0d0) is an owner (AI control +0x28 / +0x2c, FUN_0058f030: a boss's minions, a flagged MonStats party), not a pack: d2d a minion.
+- **In d2d.** `ai.cpp think`, the searches in `ai/act2.cpp`: over the monsters within 80 subtiles; Duriel's aura through Aura Enchanted's (`Monster::aura`); a walk at a kin; S3 / S4. A skill act plays its sequence (above); a charge or an SC skill without one stands. Left out: states 0x5a / 0x5b, overlays, regen (stat 0x4a), FUN_005fd470 (usable always, but Diablo's Prison: `fits_on`), Radament's wider reach, a wait counted from the mode's end; one free-spot search, its landing move onto itself a stand. The Vulture's take-off (FUN_005f2eb0: flags 0xe off, its 0x100 / 0x1000 lifted, pattern 5, path mask 0) and landing (FUN_005f2fc0: fails when down already (pattern 1) or no free spot (FUN_00554ea0), else flags 0xe, a 0x100 plus, pattern 1, mask 0x3c01): `Monster::aloft` (untargetable, out of the crowd, flies over anything). A vulture landed by a pillar with its target still and in another room keeps trying "keep 9 off" and stands: checked 2026-10-12, game.exe's toward (0xd) and wall (0xf) pathers on the same grid find no point either (the keep's spot lies past the pillar), so it's game.exe's behaviour too. "In a group" (FUN_0058f0d0) is an owner (AI control +0x28 / +0x2c, FUN_0058f030: a boss's minions, a flagged MonStats party), not a pack: d2d a minion.
 
 Act 4's MonAIs (levels 103..108, same table). Traced 2026-10-14; all eleven
 thinks proven 2026-10-16: `mon_ais.py` (5000 runs each, `--dump
@@ -377,8 +380,8 @@ after it; list 8 (good monsters) of his act joins the same best. List 9
 when it's within 5 of him (FUN_005dc530), the best isn't in reach
 (FUN_00622c40) and a path to it (FUN_00648b90, type 2, FUN_00649970)
 fails (FUN_00648780), the fallback is the target. It returns how many it
-looked at (the chooser's players_looked) and the best score. d2d: ai.cpp's
-Diablo block. FUN_00625480 reads the same stats off a pet or monster: its
+looked at (the chooser's players_looked) and the best score. d2d:
+`ai/act4.cpp` chooser_pick. FUN_00625480 reads the same stats off a pet or monster: its
 resists raw (a merc's base + gear, no penalty), and its aura is its right
 skill (FUN_005701b0 → FUN_00643c50: a merc's FUN_005e4d30, a summon's
 FUN_005c4470, Aura Enchanted's FUN_005a1650, Duriel's Holy Freeze), the
