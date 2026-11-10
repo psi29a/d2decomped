@@ -19,13 +19,22 @@ address	name	evidence
 00410e90	bitreader_bytes_used	reader +8, plus 1 when +0xc is nonzero (a partly read byte counts); FUN_0062e430 returns it
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
+00451f30	unit_flags_c4_any	ECX unit, EDX mask: unit +0xc4 & mask != 0; null unit false (cursor-units.md "Unit flag test")
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 0044bf00	global_70f234_get	no args: returns the dword at 0x70f234; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044bf10	global_70f2bc_get	no args: returns the dword at 0x70f2bc; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
+0044dca0	ladder_or_one	no args, 24 bytes: game type at 0x7a0610 is 2 or 3 returns dword 0x7a04f8 (S->C 0x01 byte +7, ladder), else 1 (net-join.md)
 0044dcc0	is_expansion	returns DAT_007a04f4; skill_tips.py:28 sets it to 1 for an expansion game
 00451f60	unit_class_id	(unit in ECX): -1 for a null unit, else unit +4 (items.md)
 00451f70	unit_mode	ECX unit: +0x10 (structs.tsv unit.mode); null 0
 00451f80	monstats_row	(id): 0 when id < 0 or >= count at [0x744304]+0xa80, else [0x744304]+0xa78 + id * 0x1a8; no assert (items.md)
+00452af0	player_name_label	ECX player unit, EAX &width, EBX &flag, stack &dest, limit: roster/player-data name (Roster.cpp lines 0x5db, 0x5dc fatal); mode 0x11: string 0x90b composed with the name (width 0, flag 1); else width (roster +0x14 << 7) / 100 and the name widened (cursor-units.md "A player's name")
+00452be0	unit_label_set	ESI unit, stack mode: width FUN_004525f0 (2..0x80), name FUN_00464a60 at (0x70f854, 0x70f858 - 0x48); mode 0 sets the hover text (FUN_005022f0), else keeps name, x, y, width at 0x7a2c80 / 0x7a2d20..28; nothing when FUN_004b3230 is nonzero (cursor-units.md "Draw now or keep for later")
+00452c70	pet_owner_label	EAX unit, EBX &flag, stack &name, &width: pet-list owner's roster name (0x80 units) and (roster +0x14 << 7) / 100; flag 1 when hostile or unknown; -1 owner returns 0 (cursor-units.md "Class 0x164's text")
+00452d20	merc_label_set	no args: the local player's PetType 7 node (FUN_00478f20, node +0x20 = 0, node +0x2c = 1), its client monster, position as FUN_00454f30, then FUN_00452be0(1) (cursor-units.md "The hireling's label")
+00452e50	boxpieces_frame	ECX rect {x0, y0, x1, y1}: cels of the file at 0x7a2798 round it in four runs (n % 6 + 2, n % 6 + 0x10, n % 3 + 10, n % 3 + 0xd) and corners 0, 1, 8, 9 (cursor-units.md "The frame of cels")
+00453060	kept_label_draw	no args: draws the text kept at 0x7a2c80 (FUN_00452be0 mode 1) centred on 0x7a2d20 at 0x7a2d24 + 2 - 2, clamped to the screen, then clears it (cursor-units.md "The kept label's draw")
+00453100	death_screen_draw	no args: the local player dead (FUN_00464820): youdiedhardcore / youdiedinst cels at H/2 - 0x5e, +0x30, then red Font30 lines 0x13e8 (hardcore) or 0x13e6 with stat 0xaf, and 0x13e7 above difficulty 0; sets 0x7a2890 (cursor-units.md "The death screen")
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4b0	skill_row	ECX skill id: id*0x23c + [0x744304]+0xb98, 0 when id < 0 or >= [0x744304]+0xba0; no assert (cited, decompile only; skills.md "Iron Maiden's event function")
@@ -189,6 +198,7 @@ address	name	evidence
 00483440	set_items_row	ECX id: id*0x1b8 + tables+0xc18, 0 past tables+0xc1c: 127 rows loaded, SetItems.txt's count
 00483470	unique_items_row	ECX id: id*0x14c + tables+0xc24, 0 past tables+0xc28: 402 rows loaded, UniqueItems.txt's count with its Expansion row
 00499040	belt_key_labels	SetFont(1) at 0x499053, then the belt slots' key names
+004a0000	speech_box_open	12 bytes, no args: xor eax,eax / cmp dword [0x7bf0a4],eax / setnz al / ret. 1 when the speech record is set (npc-talk.md)
 004a89d0	skill_desc_record	Skills row index -> SkillDesc record: Skills +0x194 in [0, tables+0xb94), record tables+0xb8c + n*0x120, else 0 (char-panel.md)
 004a9ae0	skill_count_search_2	fastcall (unit, skill id): the same list search as FUN_004a9a90 and always returns 0; bugs.md 24; skills.md "Skill list accessors and the hotkey sweep"
 004a9b30	skill_count_search_3	fastcall (unit, skill id): the same list search as FUN_004a9a90 and always returns 0; bugs.md 24; skills.md "Skill list accessors and the hotkey sweep"
@@ -365,6 +375,7 @@ address	name	evidence
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
+00526f20	narrow_to_wide	ECX dst u16*, EDX src bytes, stack count (ret 4): each byte zero-extended, stops at the NUL or count; then dst[i] = 0, or dst[count-1] = 0 when src[count] is not 0 (cursor-units.md)
 00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60(game +0x1a8, type +0x16c, id +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
 00543db0	quest_event_item_dropped	FUN_005439a0(0): event 5 (+0xb4) over the item's own quest list (act1-end.md)
 005379d0	unit_look_codes	fastcall (_, unit, out, size): asserts 0x3d4 for size < 0x10 or no unit, out = 0xff x16, FUN_0063e510 fills it with the layer codes (items.md)
@@ -574,8 +585,9 @@ address	name	evidence
 00563840	cube_empty	page 3 items to inventory or ground (ItemMode.cpp 0x80d..0x8ee)
 00563c00	cursor_item_drop_at_feet	ItemMode.cpp 0x833/0x834/0x837/0x85b/0x85e: cursor item (type 4, mode 4) to FUN_00555da0's spot via FUN_00558aa0, cursor cleared
 00563fe0	item_transmogrify	Items +0x139, +0xc8, +0x13a/+0x13b
-0056b3e0	unit_takes_filter	ECX caster, EDX target, stack flags: by target type (player 0x1, monster 0x2, object 0x10, missile 0x8, item 0x20) then 0x80/0x400 unit flags, 0x100 town, 0x10000/0x8000/0x20000, state 0x56, 0x200 line (skills.md "aurafilter")
 0056d2c0	skill_target_point	fastcall (game, caster, out x, out y) -> 1 when both non-zero: the caster path's target unit (FUN_00553540) position, else the path's target words (+0x10 / +0x12); skills.md "The skill target point"
+0056de40	passives_then_pet_limits	fastcall (unit): FUN_00646f20, then a player (type dword +0 is 0) tail-jumps to FUN_00575900 with unit +0x80 in ECX; skills.md
+0056b3e0	unit_takes_filter	ECX caster, EDX target, stack flags: by target type (player 0x1, monster 0x2, object 0x10, missile 0x8, item 0x20) then 0x80/0x400 unit flags, 0x100 town, 0x10000/0x8000/0x20000, state 0x56, 0x200 line (skills.md "aurafilter")
 0056dfa0	skills_refresh_passives	fastcall (unit): for each node of the unit +0xa8 skill list whose passivestate > 0: state on (FUN_00639db0) and FUN_00646d60; skills.md "Skill accessors"
 0056e520	unit_add_attackrate_list	fastcall (unit, value): kind-4 stat list (FUN_006251f0) linked to the unit, stat 0x44 = value, then FUN_00623f50; Skills.cpp line 0x12ab; skills.md "Stat-list helpers and skill starts"
 0056ff10	skill_state_list_apply	(unit in EDI, skill): record flag +4 & 0x20 needed; state +0x80 on, list tagged state / skill / level, stats 0x15e / 0x15f set, or d2d_ai_castable when +5 & 0x80; then FUN_0056cda0; skills.md "Stat-list helpers and skill starts"
@@ -807,36 +819,39 @@ address	name	evidence
 00610f90	ignorelist_add_name	FUN_00610d60, file line '!' + name
 00611200	ignorelist_ctor	sets IgnoreList::vftable, reads "Persistent Ignore" (chat-ignorelist.md)
 00611560	ignorelist_get	lazy IgnoreList getter: DAT_0096bc20, SMemAlloc(0x188, Chat/Ignorelist.cpp, 0x48) (chat-ignorelist.md)
+006118b0	datatbls_append_buffer	ECX &buffer, EDX &size, stack &capacity, source, n: grows by 0x400 (realloc FUN_0040b4b0, line 0x292) while size + n >= capacity, 0 at 0x7fffffff; copies, returns the old size; verified by datatbls_finish.py
+00611bd0	skills_code_compile	ECX text, EDX record, stack offset: FUN_006c1ae0 (callbacks 0x611930, 0x6119e0, 0x6119f0), bytes appended to the buffer 0x96bc70 (size 0x96bc74, capacity 0x96bc78); old size or -1 at record + offset; verified by datatbls_finish.py
+00611c70	skilldesc_code_compile	same as FUN_00611bd0 with the skill description buffer 0x96bc7c / 0x96bc80 / 0x96bc84 (same three callbacks); verified by datatbls_finish.py
 00611d20	datatbls_96c8a4	returns 0x96c8a4; callers in AnimTbls; verified by item_free_small.py
 00611d60	states_flag_mask	States 0x3c-byte rows, flag bit at +0x10 into a mask; verified by states_tbls.py
 00611dc0	states_flag_list	word list of States rows with a flag (DataTbls.cpp 0x64b); verified by states_tbls.py
 00611e60	states_field_list	word list of States rows with a positive word (DataTbls.cpp 0x662); verified by states_tbls.py
-00611ee0	player_class_name	CharStats +0x20 or "player %d"
-00611f40	monster_class_name	MonStats +6 string or "monster %d"
-00611fa0	object_class_name	Objects.txt row or "object %d"
-00611fe0	item_class_name	Items +0xf4 string or "item %d"
-00612030	missile_class_name	"missile %d"
+00611ee0	player_class_name	CharStats +0x20 or "player %d"; verified by datatbls_finish.py
+00611f40	monster_class_name	MonStats +6 string or "monster %d"; verified by datatbls_finish.py
+00611fa0	object_class_name	Objects.txt row or "object %d"; verified by datatbls_finish.py
+00611fe0	item_class_name	Items +0xf4 string or "item %d"; verified by datatbls_finish.py
+00612030	missile_class_name	"missile %d"; verified by datatbls_finish.py
 00612050	unit_debug_name	"NULL Unit" / "Invalid Unit"
 00612120	unit_type_debug_name	"Invalid Unit Type"
 006125a0	set_compile_flag	0x96c8b4 = (arg == 0); verified by item_free_small.py
 006125c0	table_free	DataTbls.cpp 0x924 / 0x926 by 0x744308
 00612600	table_strings_fill	FUN_00524e20 / FUN_00526700 / FUN_00526790 per row
 00612ea0	tables_free_codes	compcode, playerclass .. events
-00613d30	experience_load	"experience", 0x20-byte rows
+00613d30	experience_load	"experience", 0x20-byte rows; verified by datatbls_finish.py
 00613e60	exp_ratio	experience row level + 1, dword 7; verified by txt_schemas.py
 00613e90	table_store_bin	"%s\\%s.bin" DATA\GLOBAL\EXCEL "wb" (DataTbls.cpp 0x275, 0x27a)
-00617c30	skills_tables_free	DataTbls.cpp 0x5b8..0x5d4, skills, skilldesc
+00617c30	skills_tables_free	DataTbls.cpp 0x5b8..0x5d4, skills, skilldesc; verified by datatbls_finish.py
 00617d90	difficultylevels_load	"difficultylevels", 3 rows (DataTbls.cpp 0x61f); verified by txt_schemas.py
-00618c90	states_free	DataTbls.cpp 0x6e8..0x6fc
+00618c90	states_free	DataTbls.cpp 0x6e8..0x6fc; verified by datatbls_finish.py
 00618d90	pettype_load	"pettype" 0xe0 (DataTbls.cpp 0x72b); verified by txt_schemas.py
-00619140	tables_unload_all	every unloader
+00619140	tables_unload_all	every unloader; verified by datatbls_finish.py
 0061dd00	portal_level_array	LvlTbls.cpp: count at 0x96c9f8, pointer 0x96c9f4 (alloc line 0x16c), LevelDefs Portal at +0x8c; verified by lvl_small.py
 0061ddf0	leveldefs_extra	returns 0x96c9f4, ECX slot = 0x96c9f8
 0061de00	leveldefs_load	"leveldefs" 0x9c then FUN_0061dd00
 0061e440	leveldefs_free	LvlTbls.cpp 0x1d9
 0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
 0061e4a0	lvltypes_fix_name	'/' to '\\', "%s\\%s"
-0061e520	lvltypes_load	"lvltypes" 0x788
+0061e520	lvltypes_load	"lvltypes" 0x788; verified by datatbls_finish.py
 0061ea90	lvltypes_free	FUN_006125c0(0x96c9f0)
 0061eaa0	lvltypes_row	0x788 rows (LvlTbls.cpp 0x251)
 0061eae0	lvltypes_act_is	row +0x780 == arg
@@ -852,7 +867,7 @@ address	name	evidence
 0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
 0061f9c0	lvlsub_free	0x96ca10 / 0x96ca18 / 0x96ca24 (LvlTbls.cpp 1000); verified by lvl_small.py
 0061fa90	lvlsub_row	0x15c rows through 0x96ca18 (LvlTbls.cpp 0x3f1..0x3f3)
-0061fae0	lvltypes_dt1_sets	0x1000 bytes per row, FUN_00604a40 (LvlTbls.cpp 0x410, 0x413)
+0061fae0	lvltypes_dt1_sets	0x1000 bytes per row, FUN_00604a40 (LvlTbls.cpp 0x410, 0x413); verified by datatbls_finish.py
 0061fbf0	lvltypes_dt1_sets_free	LvlTbls.cpp 0x43a; verified by lvl_small.py
 0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
 0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py
@@ -1288,11 +1303,21 @@ address	name	evidence
 0066a830	animdata_free	AnimTbls.cpp 0xbe, 0xbf; verified by anim_tbls.py
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)
+0066d750	anim_propagate_frame	frame of the first near room (+0x8 array, +0x2c count) with an animation list (+0x54 tiles, +4) in ECX, 0 if none; written to every animation node (+8) of EDX's near rooms
 0066ece0	room_tiles_count_words	thiscall (room, shared, skipFirst, skipLast): per cell of the (w+1)x(h+1) word grid, block +0x18 += word&1 (wall), +0x20 += word&2 or (shared and FUN_0066b980 hit) (floor), +0x28 += word&0x8000000 (shadow)
 0066edb0	room_tiles_count_orients	thiscall (room, skipFirst, skipLast): per cell of the orient grid, block +0x18 += 1 when the orient is 3, 10 or 11; the +0x20 += 6 branch is dead (FUN_0067c570 read twice)
 0066eea0	room_tiles_alloc	allocates room +0x54 once: 0x2c bytes zeroed, from ".\DRLG\RoomTile.cpp" line 0x533; called first by FUN_0067d710, FUN_0067d2d0, FUN_00666ac0
 0066eee0	room_tiles_alloc_arrays	fastcall (room): block = room +0x54; walls +0x14 (capacity +0x18, line 0x545), floors +0x1c (+0x20, line 0x54b), shadows +0x24 (+0x28, line 0x551, only when +0x24 is 0); 0x30 bytes per entry, zeroed; ".\DRLG\RoomTile.cpp"
+0066f990	outdoor_substitution_groups	LvlSub BordType 0 draws FUN_0045c3e0(seed +0x1c4, groups) and stops at the first group FUN_0066f690 places; else tries every group; previous border -1 becomes 0x3e
+006707a0	lvlsub_stamp_by_mask	LvlSub row of lookup id +0x30 (FUN_0061fa90), per set bit of mask +0x38: FUN_006704e0, then FUN_00670170 (CheckAll 0) or FUN_0066ff50
+00670d70	maze_alloc_room_ex	new maze room (FUN_0066b3e0, type 2) sized from its level's LvlMaze SizeX / SizeY; FUN_00670880 failing frees it (FUN_0066c100) and gives 0; else links, picks presets if asked, adds to the level
+00670e70	maze_alloc_room_and_pick	orphan: FUN_00670d70 then the source's (flag set) and the new room's preset (FUN_006709b0); no call, jump or pointer
+00673b10	maze_initialize_level	level +0x14 = LvlMaze row of level id +0x1d0 (FUN_0061f490), then tail-calls FUN_00642d10(DRLG +0x1b4, level)
+00675f80	outplace_corner_border_coords	orphan: EAX level rect, ECX output rect, EDX variant, stack corner 0..7: x / y beside the rect, variant 1 shifts by half the size and 8
+00676fc0	act2_placement_validate	ECX list, EDX n: rect n (list + 8 + 16 n) against each earlier rect except the previous id (table 0x6f0a28) by FUN_0066b860; 0 on the first overlap
 00678df0	goal_dir_bytes	thiscall (out, a, b): out[0..2] = bytes 0x6f1648 + 3 * FUN_00678c10(a, b), widened (collision.md "Is a subtile blocked for a unit")
+00679b30	path_smooth_points	step packed source to destination (limit +0x18) by FUN_00678d70 triplet + path +0x98, FUN_006793e0, table 0x6f1798; stores turn points at path +0x9c, count at +0x28
+0067db00	outroom_spawn_preset_if_flagged	grid flags (FUN_0067c570, wild +0x2c) bit 0x400: FUN_006743c0 with preset, direction +1 for level 0x6e else -1; returns 1
 006be3c0	qs_flush_queues	every class head/tail cleared, records freed
 006be450	qs_client_count	+0x880
 006be470	qs_is_local	+0x86c is 1 or 2

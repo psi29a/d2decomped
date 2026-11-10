@@ -169,13 +169,13 @@ operand and function lists.
 Entry, per-calc-string field on the Skills.txt loader (`FUN_00613f80`):
 
 ```
-FUN_00611bd0(text, out_field_offset, record_base)
+FUN_00611bd0(text in ECX, record in EDX; stack: offset, size, row, column)
   buf[1024]; len = FUN_006c1ae0(text, buf, 1024, LAB_00611930, LAB_006119e0, FUN_006119f0)
-  if (len > 0) *((u32*)(record_base + out_field_offset)) = FUN_006118b0(pool=0x0096bc78, buf, len)
-  else                                                     ... = 0xffffffff
+  if (len > 0) *((u32*)(record + offset)) = FUN_006118b0(&0x96bc70 buffer, &0x96bc74 size, &0x96bc78 capacity, buf, len)
+  else                                           ... = 0xffffffff
 ```
 
-`FUN_006118b0` copies the bytecode into a shared pool (`DAT_0096bc78`) and returns its offset; that's what a Skills.txt record's `calc1..4` field ends up holding. For missiles, the mirror wrapper is `FUN_00611c70` (same shape, `FUN_00661880` as its lookup with the misscalc table).
+`FUN_006118b0` copies the bytecode into a shared growing buffer (pointer `DAT_0096bc70`, size `0x96bc74`, capacity `0x96bc78`) and returns its offset; that's what a Skills.txt record's `calc1..4` field ends up holding. The mirror wrapper `FUN_00611c70` has the same shape and the same three callbacks (not a misscalc lookup); it fills the skill description buffer (`0x96bc7c` / `0x96bc80` / `0x96bc84`). Both run in `tools/emu/datatbls_finish.py` (datatbls.md "Fourteen more functions").
 
 **Compiler**: `FUN_006c1ae0(text, out_buf, buf_size, name→fn_tag_cb, fn_tag→arity_cb, ident→operand_cb)`. It's a **shunting-yard** with an operator stack of 64 slots (`local_151[]` for token classes, `auStack_114[]` for values). The tokenizer is `FUN_006c11c0`; the byte emitter is `FUN_006c18a0` (bounds-check + write); the arity-at-pop lookup is `FUN_006c1820`.
 
@@ -1589,6 +1589,21 @@ Cited from the decompile (no oracle run); re-check with
   list. d2d: **agrees** with skills.hpp:765-774 and skills.md:674; this adds
   the invalid-stat break, level 0 removing the list, and the removal while the
   aura state is on.
+- **FUN_0056de40**(unit in ECX) (37 bytes): refreshes that unit's passives,
+  then, when it is a player, rebuilds pet limits. The asm (0056de40..0056de64)
+  saves ECX and calls FUN_00646f20 with the unit on the stack (the callee
+  pops it: both exits pop once and return). A null unit, or a type dword
+  (`+0`) other than 0, returns after that refresh. A player calls
+  FUN_00554010 (ECX = the unit; it returns the dword at unit `+0x80`, and
+  asserts line 0xa29 on a null) and tail-jumps to FUN_00575900 with that
+  dword in ECX and the unit in EDX. FUN_00575900's decompiled body does not
+  read ECX. It walks the player's skills and sets each PetType row's max
+  (pet-ai.md). FUN_005d8290 calls it at 0x5d83c7 with the unit that just
+  received the aura state: its EDX, stored at `[ebp-4]`, loaded into EBX,
+  then into ECX. Eight other call instructions: 0x532f15, 0x534622,
+  0x54be5a, 0x56a7be, 0x583be1, 0x583c5a, 0x5c9468, 0x5d8f38. d2d: **not
+  ported**. The aura-state cites (ai.cpp, fight.hpp, missiles.cpp) stop at
+  FUN_005d8290. Passives are derived on read (`rules::passive_stats`).
 - **FUN_0056dfa0**(unit, in ECX): for every node of the list at unit +0xa8
   (FUN_00643910 / FUN_006438f0): id = FUN_00643ce0(node); if
   FUN_00643690(id) > 0, FUN_00639db0(unit, passivestate, 1) then
