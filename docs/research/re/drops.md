@@ -34,6 +34,21 @@ Our port: `components/rules/drops.hpp` (`tc_upgrade`, `roll_drops`,
 
 - ilvl: FUN_00558200 — a monster's stat 0xc (its level), at least 1;
   otherwise the area's monster level (FUN_0061dca0).
+  Read whole (cited, decompile only; ECX unit, EDX an area used when the
+  unit is null): unit null and EDX 0 → 1. A monster (type 1): stat 0xc,
+  `FUN_00625480`. A player (type 0): the **base** stat 0xc,
+  `FUN_006253b0`. Any other unit: its room's area (`FUN_00620bb0`,
+  `FUN_0061a1b0`), as EDX is for a null unit. Those two last take the
+  area's monster level for the game's difficulty (+0x6d) and expansion
+  (+0x70), `FUN_00554010`, and the result under 2 is 1. **No +4 anywhere
+  in it**: the "+4 past level 5" belongs to Charsi's imbue caller
+  (`FUN_00579d60`, which adds 4 to the result when it is above 5), not to
+  `FUN_00558200`. `FUN_005466b0` (a quest item given with ilvl 0) uses it
+  plain. d2d: `rules::player_ilvl` (rules.hpp, "FUN_00558200") adds the 4,
+  and `quests/act1.cpp:144` gives Akara's deciphered scroll that ilvl:
+  DISAGREES for a player past level 5 (the scroll is a quest item, so the
+  effect is its stored ilvl only; the imbue use is right). d2d has no
+  monster / area branches of this function as one routine.
 - Class: superunique SuperUniques TC (`+0x2c + diff*2`), unique
   TreasureClass3, champion TreasureClass2, else TreasureClass1 (MonStats
   `+0x86 + diff*8`, one u16 each).
