@@ -156,6 +156,7 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         const std::pair<float, float> hero_at{ hero_x, hero_y };
         state_clock.now = frame_ms;
         view_units(*scene, view, cam_x, cam_y, &merc_label, extra, den_beams, frame_ms, &character.name, std::max(character.character_class, 0), &state_clock);
+        if (view.level) rank_ground_labels(*world.game_data, *view.level, unit.x, unit.y, extra);
         for (const auto& critter : critters)                      // the client's critters: walking or standing, never hovered
             if (std::size_t(critter.row) < world.game_data->mon_npc.size() && std::abs(critter.x - cam_x) < 14 && std::abs(critter.y - cam_y) < 14) {
                 const auto& anim = scene->npc_anim(world.game_data->mon_npc[std::size_t(critter.row)], critter.walking ? std::string_view("WL") : std::string_view("NU"));
