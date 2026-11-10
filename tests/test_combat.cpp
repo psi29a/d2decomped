@@ -112,7 +112,7 @@ int main(int argc, char** argv) try {
         return 0;
     }
     // `--get-hit`: FUN_0057cb00's decision for the damage records on stdin (`id kind maxlife damage hc
-    // rec64 fire ltng cold poison f2000 mgh stun frozen seedlo seedhi next`, as hit_rule.py (never committed)
+    // rec64 fire ltng cold poison f2000 mgh stun frozen seedlo seedhi next`, as tools/emu/hit_rule.py
     // writes and runs game.exe's FUN_0057cee0 on): one line a frame, `id gh -1`. `next` 1 means the
     // following record lands on the same unit in the same frame (its seed carries on; the frame is a
     // get-hit if any record is, each one rolling, as Fight::hurt_side's blows). The stun, frozen,
