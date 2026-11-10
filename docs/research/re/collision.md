@@ -722,6 +722,8 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   `FUN_00463dd0` is called by `FUN_00461250`, `FUN_00463260`, `FUN_00463390` and the five
   at `0x44bf40`, `0x44c000`, `0x44c060`, `0x44c180`, `0x44c2c0`; `FUN_00463de0` by
   `FUN_00463260`, `FUN_00460830`, `0x453470`, `0x453b30`, `0x45ad60`, `0x45d780`, `0x45d9b0`).
+  They are the "is this the local player" test every client path below uses. d2d: agrees
+  (skills.md:1793, :1806; `apps/whisper/whisper.cpp:45`).
 - **`FUN_004648f0`** (unit in ECX; callers `FUN_00462370`, `FUN_00462a20`, `FUN_00463180`,
   `FUN_00463260`, `FUN_004ad970`): the unit's target unit, checked first. It calls
   **`FUN_00480420`** (same ECX): a null unit is fatal (assert id 0x26), a unit without a path
@@ -788,5 +790,25 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   `tick.cpp:147` and `:175`; d2d has no client re-path (the walk simply continues in the walk
   mode), no disagreement found. Dead code in game.exe: after the `FUN_00648bf0` test the
   `target == 0` arms (record `{6, -1}`) cannot run.
-  They are the "is this the local player" test every client path below uses. d2d: agrees
-  (skills.md:1793, :1806; `apps/whisper/whisper.cpp:45`).
+- **`FUN_00463390`** (fastcall ECX unit; the only caller is `FUN_00480810`): the client's
+  per-frame step for a player, driven by a table of 12-byte rows indexed by the unit's mode
+  (`+0x10`): `[0x711e00 + mode*12]` (a class: 1 = a walk-like mode, 2 = a mode with a
+  skill), `[0x711e04 + ...]` (how the frame counter `+0x44` steps: 0 `FUN_00623e00`; 1
+  the same unless `FUN_006217c0` says over; 2 over sets `+0x44 = +0x48 - 0x100` and clears the
+  word at `+0x4c`, else steps; 3 sets `+0x44 = 0x100` and clears that word) and
+  `[0x711e08 + ...]` (1 keeps the `FUN_004807c0` result as "over"; 2 or 3 re-test
+  `FUN_006217c0` after the step; anything else skips the end handling). Order: class 1:
+  `FUN_004807c0`, for the local player `FUN_00460de0`, then `FUN_004caf60`; class 2 with a
+  skill list: `FUN_006446a0` flag 1 asks `FUN_004807c0` again (when it says over,
+  `FUN_00644660(flags | 2)` and `FUN_004c68f0`; the local player `FUN_00460de0`), and
+  `FUN_004c68f0` is called for a unit with `+0xc4` bit 6 clear and a `+0x4e` byte of 1, 2 or
+  3; then the frame step; mode 0x12 with `+0xc4` bit 14 `FUN_00470610`. When "over": a unit in
+  mode 0x13 takes the `FUN_00461250` prelude, sets `+0xb0 = 0`,
+  `FUN_00480e70` and `FUN_004804e0(path y, 1, 0, 0)`; a
+  type-0 unit whose data (`+0x14`) has `+0x154` set only sets `+0x150 = 1`; any other takes the
+  prelude and `FUN_00464820`, `FUN_004647d0`, `+0xc4 |= 2`, `FUN_00480e70`. Then a set path
+  flag 2 is cleared (`FUN_00460e70` for the local player), `FUN_00648640(path)`, mode 3 calls
+  `FUN_00463260`, `FUN_0063a340` non-zero calls `FUN_004c72f0`, and `FUN_00460f10` last. The
+  table's own values were not dumped here (combat.md:390 reads row 4 as `[0, 1, 2]`). d2d:
+  agrees with combat.md:390 and `setup.cpp:430` (the mode ends a tick before the server);
+  the rest of the step is not ported as a function.
