@@ -710,3 +710,10 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   (`FUN_004638a0(unit[1], 9)`, the same flag test names.tsv `monster_flag_4638a0` is
   built on) is clear. So a player, object or missile always gets bit 4; a monster only
   with flag 9. What flag 9 and bit 4 mean is not traced. d2d: not ported.
+- **`FUN_00620210`** (stdcall `(unit, node)`, `RET 8`; callers `FUN_00461250`, `FUN_00463260`,
+  `FUN_00463390`, `FUN_004aff60`, `FUN_004c6140`): a null unit is fatal (assert id 0x653,
+  `FUN_00681e09(-1)`), else `FUN_00643990(unit[+0xa8], node)`, which stores `node` at the
+  skill-list header's `+0x10` (nothing for a null header). act1-end.md already reads the
+  call in `FUN_005dead0` (`FUN_006439b0` node, then this) as setting the current skill; the
+  client callers pass 0, so they clear it. d2d: agrees with act1-end.md:335; no d2d
+  function does this (not ported).

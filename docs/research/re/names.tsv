@@ -674,6 +674,7 @@ address	name	evidence
 00620150	unit_skill_first	(unit) -> first node of the list at unit +0xa8 (FUN_00643910); null unit asserts (Skills.cpp line 0x638) and exits; skills.md "Skill list accessors and the hotkey sweep"
 00620190	left_skill	FUN_00643930: the skill list's +8
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
+00620210	unit_set_skill_node	stdcall (unit, node): FUN_00643990 stores node at the skill list header's +0x10; null unit asserts (id 0x653) and exits -1; act1-end.md:335
 00620250	unit_skill_list	fastcall (unit) -> unit +0x10 skill-list header via FUN_006439a0 (0 if none); a null unit asserts (message 0x65c) and exits -1; skills.md "Skill record and skill-list accessors"
 00620300	unit_free	FUN_00626d10, FUN_00643a60, type 6, id -1 (Units.cpp 0x69a, 0x6a4)
 00620360	tile_path_set4	type 5 static path +0xc..+0x18 (Units.cpp 0x6af, 0x6b1)
