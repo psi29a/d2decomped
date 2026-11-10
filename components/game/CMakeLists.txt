@@ -4,11 +4,16 @@
 # (apps/d2d) draws what it replicates. docs/PLAN.md "Where code goes".
 # Each source a line, in name order: a new one goes where it sorts. A
 # subsystem split over several files keeps them in its own directory
-# (fight/, world/), beside its public header (fight.hpp, world.hpp). A
+# (ai/, fight/, world/), beside its public header (fight.hpp, world.hpp). A
 # family of headers (character/, gamedata/, npc/) is on the include path, so
 # its headers are included by name.
 add_library(game STATIC
     ai.cpp
+    ai/act1.cpp
+    ai/act2.cpp
+    ai/act3.cpp
+    ai/act4.cpp
+    ai/act5.cpp
     fight/deaths.cpp
     fight/merc.cpp
     fight/missiles.cpp

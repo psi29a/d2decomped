@@ -40,14 +40,6 @@
 
 namespace d2d::game {
 
-// A monster mode's number (MonMode: DT 0 .. RN 15); a MonSeq sequence
-// (seq_swtigerfist) or Skills.txt monanim xx plays SQ (14).
-int monster_mode(std::string_view token) {
-    static constexpr std::array<std::string_view, 16> kMonModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
-    const auto found = std::ranges::find(kMonModes, token);
-    return found == kMonModes.end() ? 14 : int(found - kMonModes.begin());
-}
-
 namespace {
 
 // FUN_00645460: a skill's kind, Skills.txt range — none 0, h2h 1, rng 2,
@@ -591,14 +583,12 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             scene.life = int(actor->character.stats.values[kLife] >> 8); scene.max_life = int(actor->character.stats.values[kMaxLife] >> 8);
             scene.mana = int(actor->character.stats.values[kMana] >> 8); scene.max_mana = int(actor->character.stats.values[kMaxMana] >> 8);
         }
-        static constexpr std::array<std::string_view, 16> kModes{ "DT", "NU", "WL", "GH", "A1", "A2", "BL", "SC", "S1", "S2", "S3", "S4", "DD", "KB", "SQ", "RN" };
-        auto mode_of = [&](std::string_view token) { const auto found_mode = std::ranges::find(kModes, token); return found_mode == kModes.end() ? 4 : int(found_mode - kModes.begin()); };
         const auto& per_difficulty = type_info.diff[std::size_t(difficulty)];
         for (std::size_t k = 0; k < 5; ++k) scene.aip[k] = per_difficulty.aip[k];
         const auto* skill1 = skill_named(type_info.skill[0]);
         const auto* skill2 = skill_named(type_info.skill[1]);
         scene.skill1 = skill1 ? skill1->id : -1; scene.skill2 = skill2 ? skill2->id : -1;
-        scene.mode1 = mode_of(type_info.sk_mode[0]); scene.mode2 = mode_of(type_info.sk_mode[1]);
+        scene.mode1 = monster_mode(type_info.sk_mode[0], 4); scene.mode2 = monster_mode(type_info.sk_mode[1], 4);
         scene.skill_mode = scene.mode1;
         scene.velocity = type_info.velocity; scene.run = type_info.run;
         // How it follows: PetFollow on its PetView (as NecroPet's).
@@ -863,8 +853,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             pet.cast_x = centre(act.x); pet.cast_y = centre(act.y);
             if (target >= 0) unit.dir = direction16(monsters[std::size_t(target)].unit.x - unit.x, monsters[std::size_t(target)].unit.y - unit.y);
             unit.path.clear(); unit.walking = false;
-            const std::string_view mode = act.kind == Kind::skill && act.mode < 16 && game_data->npc_timing(monster.npc, kModes[std::size_t(act.mode)]).directions
-                                              ? kModes[std::size_t(act.mode)] : "A1";
+            const std::string_view mode = act.kind == Kind::skill && act.mode < 16 && game_data->npc_timing(monster.npc, kMonsterModes[std::size_t(act.mode)]).directions
+                                              ? kMonsterModes[std::size_t(act.mode)] : "A1";
             monster.next_act = now_ms + std::uint32_t(std::max(act.frames, 0)) * 40;
             if (!game_data->npc_timing(monster.npc, mode).directions) {   // no frames for it (a trap): at once
                 if (pet.cast >= 0) pet_cast(pet, now_ms, crowd);

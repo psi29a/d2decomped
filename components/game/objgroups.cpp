@@ -906,7 +906,7 @@ struct ObjectRooms {
                 // Wanderer (0x170) 7 subtiles east of it, its spot only, while a3q7's data +1
                 // (0x5bd207): its init (FUN_005bd300) sets it, its +0xd4 (LAB_005bd2c0) clears it
                 // when the game's first player has seen him (Spawning::wanderer_seen).
-                // His walk: ai.cpp's DarkWanderer.
+                // His walk: ai/act3.cpp's DarkWanderer.
                 if (init == 43 && !wanderer_seen) { auto east = unit; east.x += 7; monster_or_npc(0x170, east, 0, false); }
                 // Harrogath's markers (a new game's quest records): InitFn 71 (FUN_00587840,
                 // object 543, record 0x1f) Larzuk (0x1ff) within 5 of FUN_00545340's spot

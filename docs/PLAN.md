@@ -27,7 +27,7 @@ reading ("Reference projects" below).
 
 ## Phases
 
-Status as of 2026-11-03.
+Status as of 2026-11-10.
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
@@ -42,8 +42,8 @@ Status as of 2026-11-03.
    (the old D2Common/D2Game/D2Client/… DLLs are linked into it; no CD
    checks; most modding work targets it). *Ongoing,* notes per subsystem
    under `docs/research/re/`. The gap map counts it: of game.exe's 13,048
-   functions (748 library, 25 dead left out), 1,020 verified, 1,984 ported,
-   1,382 cited, 7,889 untouched; 1,697 of those are frontier (ported code
+   functions (748 library, 115 dead left out), 2,733 verified, 1,897 ported,
+   1,726 cited, 5,829 untouched; 1,185 of those are frontier (ported code
    calls them). Workflow: "Ghidra workflow" below.
 
    The launcher's install step drops the PEs into `<dest>/bin/` when it
@@ -76,7 +76,7 @@ Status as of 2026-11-03.
 ## Directory layout
 
 ```
-apps/           end-user apps: launcher (Qt6 installer), d2d (the game)
+apps/           end-user apps: launcher (Qt6 installer), d2d (the game); d2proxy (logs the bytes between a client and a game.exe host), whisper (a remote control inside game.exe 1.14d)
 assets/         not code: the icon and banner (assets/icon), Flatpak's desktop entry and app info (assets/flatpak)
 components/     shared libraries (one subdir per lib, own CMakeLists.txt)
 tests/          all tests. one test_*.cpp per subject, ctest-hooked
@@ -96,6 +96,7 @@ and sound.
 |---|---|---|---|
 | Items, stores, gambling, hiring, potions | `rules.hpp` (`test_rules`) | `inventory.hpp`, `item_text.hpp` | `items.hpp`, `store.hpp`, `cursor.hpp`, `panels.hpp` |
 | Monsters: tables, spawning, stats | `monsters.hpp` (`test_monsters`) | `ai.hpp` (units, AI, missiles) | `load.hpp` (`load_monsters`) |
+| Monster AI: each MonAI's think, by act | `thinks.hpp`, `thinks/act1..5.hpp` (`test_monster_thinks`, `test_monster_ai`: the emu oracles' cases) | `ai.cpp` (`think`, the driver), `ai/act1..5.cpp` (each AI's game side) | |
 | Combat: Fighter, blows, speed, experience | `combat.hpp` (`test_combat`) | `fight.hpp` (`Fight`) | |
 | Drops: treasure classes, quality | `drops.hpp` (`test_drops`) | `loot.hpp` (`Loot`) | |
 | Skills: records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | skill use in `fight.hpp` | `skillbar.hpp` (HUD buttons, picker, hotkeys) |
@@ -120,6 +121,20 @@ each game name it uses, so the list is the client's whole view of the
 game. `common.hpp` is its base (game_api, screen size, blits),
 `platform.hpp` brings SDL and OpenAL to the headers that need them, and
 `scene.hpp` holds `Scene : GameData` (sprites, fonts, palettes).
+
+**A monster AI.** One AI's code is two rows, in the two files of the same
+act. Its decision is a member of `ActNThinks` in `rules/thinks/actN.hpp`, a
+row in that file's table by MonStats AI name: pure, so tools/emu's
+`mon_ais*.py` replay game.exe's own think against it through `ThinkIn`. What
+the game does around it is a member of `ActNAi` in `game/ai/actN.cpp`, a row
+the same way, with the parts game.exe's MonAI row has: its own target pick,
+a think the game runs itself, the `ThinkIn` inputs its think reads, how its
+skills start and aim. `ai.cpp`'s `think` runs the rest, the same for every
+AI. The act is where the AI first shows up, not the only one it runs in
+(act1.hpp's Skeleton think drives Act 5's skeletons too). A part is defined
+in its struct, its trace's prose above it. A new AI: a member and a row in
+each file it needs; a part several AIs share sits on `Thinker` /
+`ThinkCtx`.
 
 **Files.** A header declares; its bodies live in the `.cpp` of the same
 name (`fight.hpp` / `fight/`). A file includes the headers whose names
@@ -173,10 +188,14 @@ level generator `d2d::drlg`, the game server `d2d::game`
 
 - C++23 (`-std=c++23` / `/std:c++latest`), CMake ≥ 3.28, Ninja.
 - System packages: SDL3 (window, input, WAV decode), OpenAL (openal-soft),
-  FFmpeg (Bink cinematics), zlib, Qt6 ≥ 6.5 (launcher only).
-- StormLib (MPQ): the system package, else `FetchContent`; CLI11: `FetchContent`.
+  zlib, Qt6 ≥ 6.5 (launcher only).
+- FFmpeg (Bink cinematics): a Bink-only build from its source
+  (`D2D_BUNDLED_FFMPEG`, on but for Windows), else the system's.
+- StormLib (MPQ): the system package, else `FetchContent`; CLI11 and Sentry
+  Native (crash reports, off unless the player turns them on): `FetchContent`.
 - License: GPL-3.0-or-later (matches OpenD2). Compatible with StormLib
-  (MIT), SDL3 (Zlib), openal-soft (LGPL), FFmpeg (LGPL), Qt6 (LGPL).
+  (MIT), SDL3 (Zlib), openal-soft (LGPL), FFmpeg (LGPL), Qt6 (LGPL), Sentry
+  Native (MIT).
 
 ## Reference projects (in `../`)
 
@@ -219,7 +238,7 @@ Success = launch our binary, log in with an imported save, camera moves
 around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
 NPCs talk and trade. Leaving town: *reached* (the Blood Moor, with
 combat and skills), the Den of Evil, every Act 1 outdoor level and the
-caves (9–16). Next: the rest of Act 1.
+caves (9–16); since, all five acts (2026-10-24).
 
 ## Open questions
 
@@ -230,6 +249,10 @@ caves (9–16). Next: the rest of Act 1.
   hurts.
 - Networking: decided 2026-09-27. Listen server, single player as a
   one-player in-process session (docs/design/multiplayer.md).
+- Modes as an enum: not now (2026-11-10). They're the COF tokens and the
+  protocol's; players, monsters and objects number theirs apart
+  (`kModeCode`, `kMonsterModes`, `kObjectModes`, one table each). An enum
+  is its own change: about 500 uses in the code, 5,400 in the tests' cases.
 
 ## Known issues / to investigate
 
@@ -240,8 +263,9 @@ Noted while playing the dev build (2026-09-24):
 
 - **Collision.** Now built like game.exe's room grid (DT1 subtile rows
   were read upside down) with the plus-shaped unit test, and click-to-walk
-  paths round obstacles (docs/research/re/collision.md). Left: the tile
-  entry flag bits, units blocking each other, doors. Every walker takes
+  paths round obstacles (docs/research/re/collision.md). Units block each
+  other (`Crowd`, ai.hpp) and doors open and close (`World`'s doors,
+  monsters' `open_door`). Left: the tile entry flag bits. Every walker takes
   game.exe's pathers (collision.md "Path types"): the player type 7,
   monsters, NPCs, Cain, the merc and pets 0xd then 0xf.
 - Open, by act and in joined games: the newest checkpoint below.
@@ -989,7 +1013,7 @@ Branch `act5`:
   start tile (no index-11 tile: `FUN_0066ac40` takes the first).
 - Thinks: 22 Act 5 MonAIs verified against game.exe in tools/emu
   (`tests/mon_ais5_cases.inc`), plus the quest-driven Wussie, BaalThrone
-  and BaalToStairs (ai.cpp). MonStats Align at spawn (`FUN_005b2a00`): the
+  and BaalToStairs (ai/act5.cpp). MonStats Align at spawn (`FUN_005b2a00`): the
   defenders and prisoners are on the player's side.
 - Quests (docs/research/re/quests-act5.md): the introductions (the save's
   NPC section kept), Siege on Harrogath, Rescue on Mount Arreat, Prison of
