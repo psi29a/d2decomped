@@ -75,3 +75,7 @@ through World and preserves facing/position; `pad_portal_d2d` loads a saved RT
 portal binding and uses a carried tome with Inventory closed. Both use the
 existing local 1.14d data gate. `test_direct_controls` covers the modern radial
 filter, retaining class kick skills. Native touch hardware remains unverified.
+
+`test_panel_navigation` covers radial pages, centre/boundary stability,
+column-first tree movement and shoulder mapping. `pad_controls_ux_d2d`
+cycles all six actual panels in both directions with simulated SDL input.

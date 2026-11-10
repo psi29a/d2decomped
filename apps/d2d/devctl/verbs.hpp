@@ -338,6 +338,9 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
                    const auto found = town.skill_sheets.find(town.sheet_key(character.name));
                    return std::to_string(found == town.skill_sheets.end() ? 0 : found->second.slot(false, 0));
                }()
+             + " panel_tab=" + std::to_string(town.pad_panel())
+             + " radial_skill=" + std::to_string(town.wheel_at >= 0 && town.wheel_at < int(town.wheel_ids.size()) ? town.wheel_ids[std::size_t(town.wheel_at)] : -1)
+             + " radial_at=" + std::to_string(town.wheel_at)
              + " assignment=" + town.assignment_feedback
              + " inventory=" + (town.inv_open ? "1" : "0")
              + " identify=" + std::to_string(town.identify_with)

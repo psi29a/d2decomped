@@ -147,6 +147,9 @@ struct Bindings {
     if (Action(action) == Action::Secondary) mask &= ~where::kPanel; // B cancels; Interact uses items
     if (Action(action) == Action::Interact) mask |= where::kPanel | where::kShop;
     switch (Action(action)) {
+        case Action::TabPrev: case Action::TabNext:
+            mask |= where::kPanel | where::kDialog;
+            break;
         case Action::Recentre:
             mask &= ~(where::kPanel | where::kShop);  // RS uses the hovered item in skill-button mode
             break;
@@ -375,6 +378,21 @@ struct Point { int x = 0, y = 0; };
     return best;
 }
 
+// Skill-tree arrows follow the current column across gaps before moving sideways.
+[[nodiscard]] inline int tree_pick(int from_x, int from_y, int dir_x, int dir_y, std::span<const Point> points) {
+    if (dir_x == 0 && dir_y != 0) {
+        int best = -1, distance = 0;
+        for (std::size_t index = 0; index < points.size(); ++index) {
+            const int along = (points[index].y - from_y) * dir_y;
+            if (along >= 4 && std::abs(points[index].x - from_x) <= 24 && (best < 0 || along < distance)) {
+                best = int(index); distance = along;
+            }
+        }
+        if (best >= 0) return best;
+    }
+    return snap_pick(from_x, from_y, dir_x, dir_y, points);
+}
+
 class Mapper {
 public:
     explicit Mapper(const Config& config = {}) : config_(config) {}
@@ -517,7 +535,7 @@ public:
         }
         if (wheel) {
             const auto [face_x, face_y, tilt_aim] = dead(aim_x, aim_y);
-            out.aim_active = tilt_aim > 0;
+            out.aim_active = std::hypot(aim_x, aim_y) > std::max(.30f, config_.deadzone);
             out.aim_x = face_x; out.aim_y = face_y;
             out.cursor_dx = 0;
             out.cursor_dy = 0;

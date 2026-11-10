@@ -152,10 +152,43 @@ if portal_ux:
 
 if controller_ux:
     assert state()["pad_south"] == "0", "a fresh layout needs Attack/Use"
-    cmd("debug stat 12 99"); cmd("debug points 98 20"); frames(5)
+    cmd("key i"); frames(5)
+    for expected in (4, 5, 0, 1, 2, 3):
+        press("rightshoulder")
+        assert int(state()["panel_tab"]) == expected, "RB panel cycle: " + cmd("state")
+    press("leftshoulder")
+    assert state()["panel_tab"] == "2", "LB must cycle backward"
+    screenshot("controller-panel-tabs.png")
+    press("b")
+    screenshot("controller-run-hint.png")
+
+    cmd("debug stat 12 99")
+    for skill in range(96, 126):
+        cmd(f"debug points {skill} 1")
+    cmd("debug points 98 20"); frames(5)
     skill_panel(98)
+    page, origin_x, origin_y = map(int, cmd("debug skillat 98").split()[1:])
+    below = []
+    for skill in range(96, 126):
+        tab, pixel_x, pixel_y = map(int, cmd(f"debug skillat {skill}").split()[1:])
+        if tab == page and pixel_x == origin_x and pixel_y > origin_y:
+            below.append((pixel_y, skill))
+    assert below, "tree fixture needs a skill below Might"
+    expected = min(below)[1]
+    press("dpdown"); press("y")
+    assert int(state()["radial_skill"]) == expected, "tree Down skipped the node in its column"
+    press("back")  # Done restores the tree
+    cmd(f"move {origin_x} {origin_y}"); frames(3)
     press("y")
     assert state()["picker"] == "3", "Assign from the skill panel did not open the editor"
+    original = int(state()["radial_at"])
+    press("dpdown")
+    assert int(state()["radial_at"]) // 8 != original // 8, "D-pad Down must change radial page"
+    press("dpup")
+    assert int(state()["radial_at"]) == original, "D-pad Up must return to original page"
+    cmd("pad 0 axis rightx .2"); frames(3)
+    assert int(state()["radial_at"]) == original, "radial centre drift changed selection"
+    cmd("pad 0 axis rightx 0"); frames(3)
     screenshot("controller-assign.png")
     press("leftshoulder")
     assert "LB . Might" in cmd("state"), "assignment feedback did not use the remapped destination"
@@ -336,7 +369,8 @@ if skill_buttons:
     # Issue #144: assign Inventory from the wheel, then open it without Start.
     press("back")
     press("dpright")  # Actions tab
-    press("dpdown"); press("dpdown"); press("dpdown")  # Clear -> Interact -> Show Items -> Inventory
+    cmd("pad 0 axis rightx .382683"); cmd("pad 0 axis righty .923880"); frames(3)
+    cmd("pad 0 axis rightx 0"); cmd("pad 0 axis righty 0"); frames(3)  # RS selects Inventory on Actions
     press("a")
     press("back")
     press("a")
@@ -346,6 +380,8 @@ if skill_buttons:
     cmd(f"move {words[1]} {words[2]}"); frames(3)
     press("a")
     assert state()["held"] == "cap", "the assigned Inventory button did not open the panel"
+    press("rightshoulder")
+    assert state()["panel_tab"] == "3" and state()["held"] == "cap", "panel switch lost a held item"
     cmd("cmd grid 0 0"); frames(5)
     cmd("key Escape"); frames(5)
     # RT remains Attack (skill 0), which must also use things on a fresh press.

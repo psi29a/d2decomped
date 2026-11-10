@@ -8,6 +8,7 @@
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 
+#include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
 
@@ -124,7 +125,7 @@ auto Town::present_skill_pad() -> void {
         skillbar.wheel_prompt = std::string(wheel_actions ? "Actions" : "Skills") + "  " +
             std::to_string(wheel_page / skillpad::kWheelShown + 1) + "/" +
             std::to_string(std::max(1, (int(wheel_ids.size()) + skillpad::kWheelShown - 1) / skillpad::kWheelShown)) +
-            " . D-pad L/R: tab . U/D: browse";
+            " . D-pad L/R: tab . U/D: page . " + std::string(pad::label(pad_family, pad_config.swap_sticks ? pad::Button::LeftStick : pad::Button::RightStick)) + ": aim";
         skillbar.wheel_controls = "Press a destination to assign . " + skillbar.wheel_close + " / Start: Done";
         skillbar.assignment_feedback = assignment_feedback;
     }
@@ -222,11 +223,11 @@ auto Town::drive_wheel(const pad::Actions& actions) -> void {
     const int count = int(wheel_ids.size());
     if (count <= 0) { skillbar.picking = 0; return; }
     if (actions.cancel || actions.skill_picker) { close_assignment(); return; }
-    if (actions.wheel_step != 0) wheel_at = (wheel_at + (actions.wheel_step > 0 ? 1 : count - 1)) % count;
+    if (actions.wheel_step != 0) wheel_at = skillpad::next_page(wheel_at, count, actions.wheel_step);
     wheel_page = wheel_at / skillpad::kWheelShown * skillpad::kWheelShown;
     if (actions.wheel_step == 0 && actions.aim_active) {
         const skillpad::WheelPage page{ wheel_page, std::min(skillpad::kWheelShown, count - wheel_page) };
-        const int picked = skillpad::wedge(actions.aim_x, actions.aim_y, page.shown, 0.f);
+        const int picked = skillpad::stable_wedge(actions.aim_x, actions.aim_y, page.shown, wheel_at - page.start);
         if (picked >= 0) wheel_at = page.start + picked;
     }
     const auto& who = focused().character;

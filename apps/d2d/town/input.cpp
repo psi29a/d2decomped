@@ -489,6 +489,13 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
                     }
             return PadFocus{ 3000 + skillbar.picking, (on_left ? SkillBar::kButtonLeftX : SkillBar::kButtonRightX) + SkillBar::kIcon / 2, int(kScreenHeight) - SkillBar::kIcon / 2 };
         }
+        if (tree_open && scene) {
+            for (const auto& node : scene->rules.class_skills[std::size_t(std::max(character.character_class, 0))])
+                if (node.page == tree_tab) {
+                    const auto [pixel_x, pixel_y] = skill_icon_at(node);
+                    if (pixel_x > -1000) return PadFocus{ 7000 + tree_tab, pixel_x + 24, pixel_y - 24 };
+                }
+        }
         if (game_menu.open) {                                           // its highlight: the d-pad steps it by key, the cursor follows
             const int count = int(game_menu.rows().size());
             return PadFocus{ 1000 + game_menu.menu * 64 + game_menu.sel, int(kScreenWidth) / 2, game_menu.top() + game_menu.step() * game_menu.sel + count + game_menu.step() / 2 };
@@ -757,7 +764,34 @@ auto Town::pad_open_picker() -> void {
     }
 
 // A store's shoulders: the next tab with stock on it, that way round.
+auto Town::pad_panel() const -> int {
+        if (controls.open || stash_open || cube_open || store.npc >= 0 || waypoint.open || npc_menu.npc >= 0 || speech.npc >= 0 || help.open || skillbar.picking) return -1;
+        if (game_menu.open) return 5;
+        if (tree_open) return 4;
+        if (inv_open) return 3;
+        if (char_open) return 2;
+        if (quest_log.open) return 1;
+        if (party.open) return 0;
+        return -1;
+    }
+
 auto Town::pad_tab(int step) -> void {
+        if (store.npc < 0) {
+            const int current = pad_panel();
+            if (current < 0 || held || identify_with >= 0 || imbue_with >= 0 || gold_box) return;
+            const int next = (current + (step > 0 ? 1 : 5)) % 6;
+            if (game_menu.open) close_game_menu();
+            inv_open = char_open = tree_open = quest_log.open = party.open = false;
+            inv_close_down = char_close_down = false;
+            if (next == 0) party.open = true;
+            if (next == 1) toggle_quest_log();
+            if (next == 2) char_open = true;
+            if (next == 3) inv_open = true;
+            if (next == 4) tree_open = true;
+            if (next == 5) { open_game_menu(); game_menu.show(1); }
+            sync_panel_cam();
+            return;
+        }
         for (int i = 1; i < 4; ++i)
             if (const int tab = ((store.tab + step * i) % 4 + 4) % 4; !store.tabs[std::size_t(tab)].empty()) { store.tab = tab; return; }
     }
