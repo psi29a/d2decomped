@@ -5,7 +5,6 @@
 #include "touch_input.hpp"
 
 #include <cassert>
-#include <cstddef>
 #include <cstdio>
 #include <exception>
 
