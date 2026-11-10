@@ -416,7 +416,7 @@ item code `0x206d6468` with `FUN_00554010`, then asks `FUN_00558110` about
 the item and player; a nonzero result returns 1 immediately. Otherwise it
 gets the player's party ID, returning 0 if its low word is 0xffff. With a
 party, it clears quest data byte +0xa0, calls `FUN_00540510` on the game at
-record +4 with callback `FUN_00591ca0` and argument 0, then returns whether
+record +4 with callback `LAB_00591ca0` and argument 0, then returns whether
 that byte is nonzero. `tools/emu/quest_horadric_party.py` checks 48 stock
 cases; it hooks the search, check and party calls and simulates the callback
 write, checking that the byte was cleared before iteration.
