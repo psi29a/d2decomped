@@ -365,7 +365,8 @@ else the divisor d comes from the hit class through the jump table at
 small; under 2 max / d a roll of 2 on the unit's seed (`FUN_00472210`, unit
 +0x20) of 0 is too small; then under 4 max / d a roll of 4 of 0 is; else a
 get-hit, which a monster also needs MonStats2's GH mode for (`FUN_0046c140`
-bit 3). The hit class is the record's +0x60 after `FUN_0057ce30` (run at
+bit 3, at 0x57cbda: after the rolls, so a monster without it still rolls
+its seed). The hit class is the record's +0x60 after `FUN_0057ce30` (run at
 0x57cf54 when the record's +0x64 byte is 0 and the class has no 0xf0 bits):
 13 for none, OR-ed with the first of cold 0x30 / fire 0x20 / lightning 0x40
 / poison 0x50 whose record field (0x24 / 0x10 / 0x1c / 0x28) is over 0,
@@ -376,8 +377,9 @@ puts the class past 12: a blow with an element divides by 16 whatever the
 weapon. d2d: `rules::get_hit` (`Blow::elemental`, `hurt`'s class, the player's
 and the merc's struck frame). Its oracle, `tools/emu/hit_rule.py`, runs
 game.exe's `FUN_0057cee0` on each record (`FUN_0057ce30`, `FUN_0057cb00` and
-the seed's `FUN_00472210` inside it) against `test_combat --get-hit`: no
-difference on 100,000 cases each for seeds 1 and 7. An armor's pool
+the seed's `FUN_00472210` inside it) against `test_combat --get-hit`, the
+decision and the unit's seed after each frame: no difference on 100,000
+cases each for seeds 1 and 7. An armor's pool
 works record by record too: `FUN_0057c1e0` raises state event 0xb
 (`FUN_005c0c30`, 0x57c2fc) on each record before its resistances and its
 total +0x4c, and Bone Armor (`FUN_005c6370`) takes from that record's
