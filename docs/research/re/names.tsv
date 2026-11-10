@@ -514,6 +514,7 @@ address	name	evidence
 0053e9b0	scmd_gold	S->C gold: d = EDX - a0; 1..0xfe is 0x19 + byte, else the stat 0x0e set packet (1d / 1e / 1f 0e) of EDX; verified scmd_senders.py
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
 0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
+00543520	player_quest_flags	fastcall (ECX game, EDX player): player data (FUN_006221a0) +0x10 + game +0x6d * 4, the pointer FUN_0065c310 tests (drops.md "A player's quest flags")
 00543590	quest_free_list	free each node through game pool +0x1c, following node +4
 00543800	quest_state_destroy	free quest records, extra list, quest buffer and state using game pool
 00543b90	quest_event_kind3	builds a kind-3 event record (game, stack words, EDX) and runs FUN_005438e0(1, 0); verified quest_small.py
