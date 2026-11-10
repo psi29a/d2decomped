@@ -215,7 +215,7 @@ address	name	evidence
 004a9d70	hotkeys_unbind_skill	(skill record, count): with count < 1 clears every hotkey slot (0x7c06c8 / 0x7c07b8 / 0x7c0768) bound to a skill id in the picker array 0x7c04e0 equal to the record's id, then FUN_004786a0(-1); skills.md "Skill list accessors and the hotkey sweep"
 004a9df0	hotkeys_unbind_empty	() sweeps the player's skill list, records with +8 & 0x10: FUN_004a9d70(record, node count); empty list asserts (line 0x47d); called by FUN_0048ffe0; skills.md "Skill list accessors and the hotkey sweep"
 004aa160	hotkeys_default_fill	() binds up to 16 non-passive picker slots (of 60) to the next free hotkey slots via FUN_004aa0f0; empty list asserts (line 0x524); no caller in game-calls.tsv (cited); skills.md "Skill list accessors and the hotkey sweep"
-004b9180	trade_close_wait	1 while DAT_007c0e7c == 7 (C->S 0x4f 2 sent, no reply); 30 s after DAT_007c0e70 it closes the panel and runs the leave sequence (net-packets.md "The trade close wait", bugs.md #106)
+004b9180	trade_close_wait	1 while DAT_007c0e7c == 7 (C->S 0x4f 2 sent, no reply); 30 s after DAT_007c0e70 it closes the panel and runs the leave sequence (net-packets.md "The trade close wait", bugs.md #109)
 004ade40	monster_mod_dispatch_0	ECX unit: FUN_004add90(unit, 0, 0); verified by unit_client.py
 004ade50	monster_mod_dispatch_1	ECX unit: FUN_004add90(unit, 0, 1); verified by unit_client.py
 004ade60	monster_mod_dispatch_2	ECX unit: FUN_004add90(unit, 0, 2); verified by unit_client.py

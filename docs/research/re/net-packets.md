@@ -562,7 +562,7 @@ ids).
   (the code at 0x4b8cf0, not a function entry in `game-functions.tsv`) sets the state back to 0 for two of its actions (0x4b8d13, 0x4b8d24;
   which ones was not read). `FUN_004b9180` returns 0 for any other state and 1
   for state 7. In state 7 with a tick other than -1 it waits for `tick + 30000` (unsigned,
-  see bugs.md #106) to pass; if no reply came by then it closes the item panel
+  see bugs.md #109) to pass; if no reply came by then it closes the item panel
   (`FUN_0048a6a0`), clears the state, calls `FUN_004b8940` and runs the client's leave
   sequence (C->S 0x69 `FUN_00477ee0`, then `FUN_0044b880`(0), `FUN_0044c860`(1),
   `FUN_0044d520`; net-join.md "The client's leave flags"). So a host that does not answer a
