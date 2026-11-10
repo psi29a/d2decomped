@@ -566,3 +566,22 @@ d2d: reads the same, cited from the decompile, no oracle run. `Loot::drop` passe
 (`tc_fixed` = noRatio or boss), whose loop starts only for `lvl > 0` like `FUN_00654e00`. d2d
 has no expansion test (it only plays 1.14d expansion), and no empty-class case (a class
 index of 0 or past the table drops nothing in the game).
+
+### A monster's owner (`FUN_0058f0d0`)
+
+ECX a unit. It returns 0 unless the unit is a monster (type 1) with data (`+0x14`) whose AI
+control (data `+0x28`) is set and whose control `+0x28` is non-zero; then it returns
+`FUN_00552f60(game = ctl +0x28, type = ctl +0x30, id = ctl +0x2c)`, the owner's unit (0 when
+no unit of that id is in the game's list). The three words are the ones `FUN_0058f030` stores
+(`ECX` to `+0x28`, the two stack words to `+0x2c` and `+0x30`), so control `+0x28` is the game
+pointer given there, which is also the "set" test (monster-ai.md "Friends" says "AI control
++0x28 set, owner id +0x2c"; the type at `+0x30` is what that line leaves out). The decompile
+shows only `FUN_00552f60(*(ctl + 0x2c))` because Ghidra drops ECX and EDX.
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 58f0d0` (loads at 0x58f0ec,
+0x58f0f3, 0x58f0f7), `uv run --project tools/emu python tools/emu/disasm.py 58f030`,
+`python3 tools/ghidra/fn.py 0058f0d0`.
+`FUN_005a6600` calls it for a killer that is not a player, to try the killer's owner for the
+quest test (below). d2d: reads the same where it uses it, cited from the decompile, no oracle run: the "in a group" test in `ai/act2.cpp` is
+this owner test (its comment cites `FUN_0058f0d0`, AI control `+0x28` / `+0x2c`). `Loot::drop`
+has no owner step: it reads the one local player's quest bits and gear (drops.md "Not ours
+yet": one player, no minion's owner).
