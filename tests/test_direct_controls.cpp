@@ -50,7 +50,7 @@ int main() try {
     (void)mapper.step({}, pad::Context::Game, .01f);
     assert(mapper.step(south, pad::Context::Game, .01f).skill_slot == 0);
     const skillpad::Sheet fresh;
-    assert(fresh.slot(false, 0) == 0);
+    assert(fresh.slot(false, 0) == skillpad::kEmpty);
     const auto old = skillpad::read("main 36\ns0 -1\n");
     assert(old.trigger(true) == 36 && old.slot(false, 0) == skillpad::kEmpty);
     assert(skillpad::read(skillpad::write(old)) == old);

@@ -558,6 +558,8 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
                     if (const auto [x, y] = skill_icon_at(class_skill); x > -1000) centre(x, y - 0x30, 0x30, 0x30);
             for (const int top : { kTreeB - 0x174, kTreeB - 0x108, kTreeB - 0x9c }) centre(kTreeR - 0x58, top, 0x58, 0x6b);
         }
+        if (!coop_hud_hidden()) centre(kCharacterShortcutLeft, kCharacterShortcutBottom - 32, 32, 32);
+        if (tree_open) centre(kTreeCloseLeft, kTreeCloseBottom - 32, 32, 32);
         if (char_open && character.stats.get(d2d::d2s::kStatPts) > 0)  // the stat buttons
             for (const auto& button : kStatButtons) centre(kCharPanelX + button.x, kCharPanelY + button.y - 22, 40, 22);
         if (quest_log.open) {                                           // the acts' tabs, the quests, Close and the last quest
@@ -782,7 +784,7 @@ auto Town::pad_tab(int step) -> void {
             const int next = (current + (step > 0 ? 1 : 5)) % 6;
             if (game_menu.open) close_game_menu();
             inv_open = char_open = tree_open = quest_log.open = party.open = false;
-            inv_close_down = char_close_down = false;
+            inv_close_down = char_close_down = tree_close_down = false;
             if (next == 0) party.open = true;
             if (next == 1) toggle_quest_log();
             if (next == 2) char_open = true;

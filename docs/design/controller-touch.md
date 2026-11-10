@@ -27,8 +27,10 @@ Diablo II 1.14d remains the evidence for original gameplay.
   occupants. Hold LT to preview/assign bank II. A destination assigns and
   shows its resulting binding; the editor stays open for another assignment.
   View or Start is Done. Destinations are consumed until all buttons release.
-- Fresh sheets start with south-position Attack/Use in both banks. Existing
-  sheets are read without adding defaults: a saved Clear remains Clear.
+- First activation seeds RT from the current left-click ability, RB from the
+  right-click ability, then available A/B/X/Y/LB and alternate destinations from
+  eligible saved hotkeys in order. Existing sheets are read without adding
+  defaults: a saved Clear remains Clear.
   Legacy files with one RT skill still use it for LT+RT until explicitly set.
 - Attack/Use shows its binding, verb and target. Only a fresh press can pick
   up, talk or use. Combat may continue while held. Dedicated Interact remains
@@ -184,3 +186,27 @@ margin stabilizes wedge boundaries. Destinations and Done remain unchanged.
 Skill-tree Up/Down prefers a node in the same column across gaps before
 moving sideways. Tree opening focuses a skill rather than a tab button.
 These are controller UX decisions, not newly traced original-game claims.
+
+## One-time controller setup and restored controls
+
+A character without a controller sheet gets one when Skill Buttons first
+becomes active. RT uses the current eligible left-click ability, RB the
+right-click ability. Eligible saved hotkeys fill available A/B/X/Y/LB and then
+alternate destinations in saved order, without duplicates. An unbound
+destination is left empty. No popularity or build assumptions are used.
+Charged item entries are excluded from automatic setup.
+
+The sidecar writes `initialized 1`; an existing sidecar, even an empty or
+legacy one without that line, also counts as initialized. Preset changes,
+reloads and deliberate clears do not reseed it. Touch assignments stay
+independent. These defaults supersede the earlier fresh-A default.
+
+The open mini-panel shortcut strip is no longer hidden by the controller
+tray. The skill tree gains a visible, clickable close control using existing
+close-button art, with matching drawing and hit coordinates; B remains
+available. These are UI fixes, not newly traced original-game claims.
+
+The persistent Character/Stats shortcut immediately left of Run is drawn
+with existing character-button art and works with zero unspent stat points.
+It toggles the character panel; held items and modal item actions do not
+activate it. The separate New Stats point notification is unchanged.

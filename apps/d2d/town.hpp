@@ -209,7 +209,8 @@ struct Town {
     int net_waypoint_level = -1, net_waypoint_tries = 0;                              // ... the level asked for once its menu's open (0x63), -1 none
     std::uint32_t net_drift_ms = 0;                          // since when d2d's player has been far from the host's (0: not)
     std::uint32_t net_follow_ms = 0;                         // when the host was last told where our walk is
-    bool inv_close_down = false, char_close_down = false;   // the inventory's / character panel's close button held
+    bool character_button_down = false;
+    bool inv_close_down = false, char_close_down = false, tree_close_down = false;   // the inventory's / character panel's close button held
     bool hold_interact = false;                              // the left press sent an Interact: the hold walks no more till it's done (LAB_00462b1d)
     int entry_level = 0;                                     // the level whose "entering" art last started (0: the game's first)
     std::uint32_t entry_until = 0;                           // shown till then (2 s from a level change)
@@ -485,6 +486,7 @@ struct Town {
     int wheel_page = 0;                           // first icon of the wheel's visible window
     std::vector<int> wheel_ids;
     [[nodiscard]] std::string sheet_key(const std::string& name) const;
+    void ensure_skill_sheet(std::string_view name);
     void load_skill_sheet(const std::string& name);
     void save_skill_sheet(const std::string& name) const;
     void rebuild_wheel();

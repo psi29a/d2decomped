@@ -121,6 +121,7 @@ auto Town::enter() -> void {
         }
         game_menu.open = false;
         controls.open = false;
+        tree_close_down = character_button_down = false;
         world.enter(character);
         if (scene) load_keys();
         coop.clear();                             // a new game: its first player alone
@@ -148,6 +149,7 @@ auto Town::save() -> std::string {
 auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
 
 auto Town::new_game() -> void {
+        tree_close_down = character_button_down = false;
         world.new_game();
         skillbar.new_game();
         hand_items.clear();
