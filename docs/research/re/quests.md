@@ -704,11 +704,11 @@ assert line 0x7b3 on a null game); `FUN_00545290` / `FUN_00545300` (an id list
 whose count word is at +0x80); `FUN_00545760` (data +0x20 = DL, then
 `FUN_005537d0(0, FUN_005456f0)`); `FUN_00545830` (tag 0x49 only);
 `FUN_00545990` (`ret 4`); `FUN_00545d40` (record constructor: memset 0xf8,
-+0 and +4 from the stack, +8 = DL, +9 = 1, +0x9c = 0).
++0 and +4 from the stack, +8 = the low byte of the third stack argument, +9 = 1, +0x9c = 0).
 
 `tools/emu/quest_packets.py`: `FUN_00544520` (0x29 plus 0x60 flag bytes; assert
 0x7dd), `FUN_00544f60` / `FUN_00544fa0` (add state words to the class's
 player-data list; kinds 0/1/2/4 use the 6/11/7/7 words at 0x7318b0, c8, f4,
 910, kind 3 and above 4 nothing), `FUN_00545090` / `FUN_00545100` (0x91 state
 packet of the words `FUN_00572470` accepts), `FUN_00545530`, `FUN_005455b0`,
-`FUN_005456f0` (0x89), `FUN_00545780` (0x27) and `FUN_00545920` (0x5d).
+`FUN_005456f0` (0x89), `FUN_00545780` (0x27; the tail `FUN_00661480` packs at +6 is not checked, only the opcode, kind byte and id) and `FUN_00545920` (0x5d: six bytes 5d, DL, 0, 0xc, 0, 0; an owner without a level sends nothing; the level rank byte is compared unsigned against the stack byte). The state ids of 00544f60 / 00545090 / 00545100 are the NPC-intro ids, FUN_00545830's tag 0x49 is the portal from Duriel and 00545780 is the gossip packet. Names are Redivivus candidates, verified here by the oracles.

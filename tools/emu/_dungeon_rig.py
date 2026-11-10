@@ -36,6 +36,8 @@ ALLOC_FILE = 0x6E_7D04           # the source-file string the arena allocator ca
 GET_IP, ERR_HALT = 0x40_8090, 0x40_8A60
 ALLOC, FREE = 0x40_B430, 0x40_B480
 ROUNDS = 24
+REGS = {"ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX, "ebx": UC_X86_REG_EBX, "esi": UC_X86_REG_ESI,
+        "edi": UC_X86_REG_EDI, "eax": UC_X86_REG_EAX}     # register names a hooked callee may take arguments in
 
 
 class Mismatch(Exception):
@@ -98,7 +100,10 @@ class Model:
         buf[off:off + size] = (value & ((1 << (8 * size)) - 1)).to_bytes(size, "little")
 
     def call(self, name, *args):
-        """Log a hooked callee; its result is what the stock run's hook returned (the arguments are checked by the log)."""
+        """Log a hooked callee; its result is what the stock run's hook returned (the arguments are checked by the log).
+
+        Integer arguments are masked to 32 bits; bytes arguments (a buffer's contents) are logged unmasked.
+        """
         self.log.append((name,) + tuple(a if isinstance(a, bytes) else a & M32 for a in args))
         return self.out_of(len(self.log) - 1)
 
@@ -178,9 +183,7 @@ class Rig:
 
         def hook(e):
             """Record the call and give its result."""
-            regvals = tuple(e.mu.reg_read(r) for r in (
-                {"ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX, "ebx": UC_X86_REG_EBX, "esi": UC_X86_REG_ESI,
-                 "edi": UC_X86_REG_EDI, "eax": UC_X86_REG_EAX}[x] for x in regs))
+            regvals = tuple(e.mu.reg_read(REGS[x]) for x in regs)
             args = regvals + tuple(e.arg(i) for i in range(nstack if nlog is None else nlog))
             rig.log.append((name,) + args)
             handler = rig.custom.get(name) or fn

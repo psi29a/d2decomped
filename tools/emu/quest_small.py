@@ -10,7 +10,7 @@ other callees are hooked and logged; their bodies are not exercised here.
 import _dungeon_rig as rig_mod
 from _quest_lib import Mutations, main, put, record_hook
 
-MUT = Mutations("kind", "count", "tag", "flags", "ctor")
+MUT = Mutations("kind3", "kind0", "count_has", "count_clear", "tag", "flags", "ctor")
 GAME, REC, LIST = 0x100, 0x200, 0x400
 
 
@@ -32,13 +32,13 @@ def suite(rig):
     def model_b90(m, args):
         """FUN_00543b90: record kind 3 with the two stack words, dispatched with (1, 0)."""
         a, b = args["stack"]
-        m.call("event", args["ecx"], 2 if "kind" in MUT else 3, b, args["edx"], a, 1, 0)
+        m.call("event", args["ecx"], 2 if "kind3" in MUT else 3, b, args["edx"], a, 1, 0)
     rig.run("FUN_00543b90", 0x543b90, plain, model_b90, 2, ret=False)
 
     def model_ce0(m, args):
         """FUN_00543ce0: record kind 0 carrying the stack word and EDX, dispatched with 0."""
         a = args["stack"][0]
-        m.call("unit_event", args["ecx"], 1 if "kind" in MUT else 0, a, args["edx"], 0)
+        m.call("unit_event", args["ecx"], 1 if "kind0" in MUT else 0, a, args["edx"], 0)
     rig.run("FUN_00543ce0", 0x543ce0, plain, model_ce0, 1, ret=False)
 
     def model_de0(m, args):
@@ -65,7 +65,8 @@ def suite(rig):
     def build_list(img, rng):
         """An id list of 0..9 entries; half the cases plant the searched id."""
         count = rig.cases % 10
-        put(img, LIST + 0x80, (rng.randrange(1 << 16) << 16) | count if rig.cases & 1 else count, 2)
+        put(img, LIST + 0x80, count, 2)
+        put(img, LIST + 0x82, rng.randrange(1 << 16), 2)        # the high word of the dword: not part of the count
         target = rng.randrange(1 << 32)
         for index in range(count):
             put(img, LIST + 4 * index, rng.randrange(1 << 32))
@@ -76,13 +77,13 @@ def suite(rig):
     def model_545290(m, args):
         """FUN_00545290: 1 when the id is among the first `count` words, else 0."""
         count = m.r(args["ecx"] + 0x80, 2)
-        limit = count - 1 if "count" in MUT else count
+        limit = count - 1 if "count_has" in MUT else count
         return int(any(m.r(args["ecx"] + 4 * i) == args["edx"] for i in range(max(limit, 0))))
     rig.run("FUN_00545290", 0x545290, build_list, model_545290, 0, mask=0xff)
 
     def model_545300(m, args):
         """FUN_00545300: zero the list count."""
-        m.w(args["ecx"] + 0x80, 1 if "count" in MUT else 0, 2)
+        m.w(args["ecx"] + 0x80, 1 if "count_clear" in MUT else 0, 2)
     rig.run("FUN_00545300", 0x545300, build_list, model_545300, 0, ret=False)
 
     def build_760(img, rng):

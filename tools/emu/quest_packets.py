@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Check nine QUESTS.CPP packet and state-list senders against stock game.exe 1.14d.
+"""Check ten QUESTS.CPP packet and state-list senders against stock game.exe 1.14d.
 
 Run: python quest_packets.py [--mutation-check]
 FUN_00544520 (0x29 flag dump), 00544f60 and 00544fa0 (per-kind state lists),
@@ -11,7 +11,8 @@ import _dungeon_rig as rig_mod
 from _dungeon_rig import mix
 from _quest_lib import Mutations, bytes_hook, main, put, record_hook
 
-MUT = Mutations("assert", "flags", "table", "count", "byte", "null")
+MUT = Mutations("assert", "flags", "table", "count", "byte", "null", "fill", "found", "send", "kind", "gate1",
+          "gate2", "list", "tail", "byte89", "rank")
 GAME, DATA, REC, PD, UNIT, PARAM, ARR, REC2 = 0x100, 0x1400, 0x1600, 0x1800, 0x1a00, 0x1b00, 0x1c00, 0x1d00
 CONST = 0x6e0be4
 TABLES = ((0x7318b0, 6), (0x7318c8, 11), (0x7318f4, 7), None, (0x731910, 7))
@@ -49,7 +50,6 @@ def suite(rig):
         data = bytes(mix("flags", emu.arg(0), i) & 0xff for i in range(0x60))
         emu.mu.mem_write(emu.arg(1), data)
         return 0
-    rig.callee("copy", 0x65c560, 4, (), nlog=0)
     rig.m.hook(0x65c560, lambda emu: (rig.log.append(("copy", emu.arg(0), emu.arg(2), emu.arg(3))),
                                       rig.outs.append(flags(emu)))[1] or 0, 4)
 
@@ -118,22 +118,22 @@ def suite(rig):
 
     def build_090(img, rng):
         """Random state words and scripted acceptance bits for FUN_00545090."""
-        count = rig.cases % 12 - 1
+        count = rig.cases % 14 - 1
         pick["bits"] = [rng.randrange(2) for _ in range(12)]
-        for i in range(12):
+        for i in range(13):
             put(img, ARR + 4 * i, rng.randrange(1 << 32))
         return {"regs": {"eax": base + 0x1e00}, "stack": [rng.randrange(1 << 32), base + ARR, count & 0xffffffff]}
 
     def model_090(m, args):
         """FUN_00545090: fill 24 bytes after EAX+2 with -1, store accepted words, return whether any."""
         out = args["regs"]["eax"]
-        for i in range(6):
+        for i in range(5 if "fill" in MUT else 6):
             m.w(out + 2 + 4 * i, 0xffffffff)
         ctx, arr, raw = args["stack"]
         words, found = collect(m, ctx, lambda i: m.r(arr + 4 * i), max(rig_mod.s32(raw), 0))
         for i, word in enumerate(words):
             m.w(out + 2 + 2 * i, word, 2)
-        return found
+        return int(len(words) > 1) if "found" in MUT else found
     rig.run("FUN_00545090", 0x545090, build_090, model_090, 3, mask=0xff)
 
     def build_100(img, rng):
@@ -152,24 +152,25 @@ def suite(rig):
         if table is None:
             return
         words, found = collect(m, slot, lambda i: rig.m.r32(table[0] + 4 * i), table[1])
-        if found:
+        if found or "send" in MUT:
             packet = bytearray(b"\xff" * 24)
             for i, word in enumerate(words):
                 packet[2 * i:2 * i + 2] = word.to_bytes(2, "little")
             target = m.call("slot", args["edx"], CONST, 0xab7)
-            m.call("send1a", target, bytes([0x91, kind]) + bytes(packet))
+            m.call("send1a", target, bytes([0x91, kind + 1 if "kind" in MUT else kind]) + bytes(packet))
     rig.run("FUN_00545100", 0x545100, build_100, model_100, 1, ret=False)
 
     def build_530(img, rng):
-        """Scripted flag answers (exactly 1 or not; zero or not), a zero or nonzero list count, a null or set unit."""
-        index = rig.cases % 24
+        """Scripted flag answers, list count word and null/set unit; the count's high word is random and ignored."""
+        index = rig.cases % 72
         pick["first"] = (1, 2, 0)[index % 3]
         pick["second"] = (0, 1, 7)[index // 3 % 3]
         put(img, REC + 4, base + UNIT)
         put(img, REC + 0xe0, rng.randrange(1 << 32))
-        put(img, REC + 0x9c, (0, 3, 0x10000, 0xffff)[index // 9], 2)
+        put(img, REC + 0x9c, (0, 3, 0x8000, 0xffff)[index // 9 % 4], 2)
+        put(img, REC + 0x9e, rng.randrange(1 << 16), 2)
         put(img, UNIT + 0x6d, rng.randrange(256), 1)
-        put(img, PARAM + 0xc, 0 if index & 1 else base + UNIT + 0x80)
+        put(img, PARAM + 0xc, 0 if index // 36 else base + UNIT + 0x80)
         put(img, UNIT + 0x80 + 0xc, rng.randrange(1 << 32))
         return {"ecx": base + REC, "edx": base + PARAM}
 
@@ -180,15 +181,18 @@ def suite(rig):
         m.call("pdata", unit)
         pd_flags = m.r(base + PD + m.r(m.r(rec + 4) + 0x6d, 1) * 4 + 0x10)
         quest = m.r(rec + 0xe0)
-        if m.call("flag", pd_flags, quest, 1) != 1:
+        first = m.call("flag", pd_flags, quest, 1)
+        if first != 1 and not ("gate1" in MUT and first == 2):
             return
-        if m.call("flag", pd_flags, quest, 0) == 0:
+        second = m.call("flag", pd_flags, quest, 0)
+        if second == (1 if "gate2" in MUT else 0):
             return
-        if m.r(rec + 0x9c, 2) == 0:
+        if m.r(rec + 0x9c, 2) == 0 and "list" not in MUT:
             return
-        m.call("tail", rec + 0x1c, m.r(unit + 0xc) if unit else 0xffffffff)
+        m.call("tail", rec + 0x1c, 0 if "tail" in MUT and not unit else (m.r(unit + 0xc) if unit else 0xffffffff))
     rig.custom["flag"] = lambda emu: pick["first"] if emu.arg(2) else pick["second"]
-    rig.run("FUN_00545530", 0x545530, build_530, model_530, 0, ret=False)
+    for _ in range(3):
+        rig.run("FUN_00545530", 0x545530, build_530, model_530, 0, ret=False)
 
     def build_units(img, rng):
         """A game, a unit and a player-data slot for the senders that read data +0x10."""
@@ -212,36 +216,39 @@ def suite(rig):
         target = m.call("slot", args["edx"], CONST, 0xca7)
         m.call("f53d670", target, (CONST & ~0xff) | 0x28, 6, 0, pd_flags, 0)
         second = m.call("slot", args["edx"], CONST, 0xd0e)
-        m.call("send2", second, bytes([0x89, m.r(m.r(args["ecx"] + 0x10f4) + 0x20, 1)]))
+        m.call("send2", second, bytes([0x8a if "byte89" in MUT else 0x89, m.r(m.r(args["ecx"] + 0x10f4) + 0x20, 1)]))
         return 0
     rig.run("FUN_005456f0", 0x5456f0, build_units, model_6f0, 1)
 
     def build_920(img, rng):
-        """An owner lookup that is null, below, at or above the required rank, with a null level mapping too."""
+        """Owner null or set, level null or set, and ranks around the required byte with random high bits."""
         index = rig.cases % 24
-        pick["owner"] = (0, 1, 1, 1)[index % 4]
-        pick["level"] = 0 if index // 4 == 0 else 1
-        pick["rank"] = (index // 4 % 3) + 0
-        return {"ecx": rng.randrange(1 << 32), "edx": rng.randrange(1 << 32), "stack": [(index // 8) & 3]}
+        required = (0, 1, 0x7f, 0x80, 0xff, 0x40)[index // 4]
+        low = (required + (-1, 0, 1, 0x80)[index % 4]) & 0xff
+        pick["owner"] = 0 if index % 8 == 7 else 1
+        pick["level"] = 0 if index % 12 == 11 else 1
+        pick["rank"] = (rng.randrange(1 << 24) << 8) | low
+        return {"ecx": rng.randrange(1 << 32), "edx": rng.randrange(1 << 32),
+                "stack": [(rng.randrange(1 << 24) << 8) | required]}
     rig.custom["owner"] = lambda emu: pick["owner"]
     rig.custom["level"] = lambda emu: pick["level"]
     rig.custom["rank"] = lambda emu: pick["rank"]
 
     def model_920(m, args):
-        """FUN_00545920: send 0x5d, DL, 0, 0xc, 0, 0 unless the unit's level rank is below the required one."""
+        """FUN_00545920: send 0x5d, DL, 0, 0xc, 0, 0 unless the unit's level rank byte is below the stack byte (unsigned byte compare)."""
         owner = m.call("owner", args["ecx"])
         if owner:
             level = m.call("level", owner)
             if not level:
                 return
-            if m.call("rank", level) < args["stack"][0] & 0xff:
+            rank = m.call("rank", level)
+            if (rank < args["stack"][0] if "rank" in MUT else rank & 0xff < args["stack"][0] & 0xff):
                 return
         target = m.call("slot", args["ecx"], CONST, 0xd82)
         m.call("send_5d", target, bytes([0x5d, args["edx"] & 0xff, 0, 0xc, 0, 0]))
     rig.run("FUN_00545920", 0x545920, build_920, model_920, 1, ret=False)
 
     rig.callee("call544520", 0x544520, 0, ("ecx", "edx"))
-    rig.callee("f5387c0", 0x5387c0, 0, ("ecx",))
 
     def build_780(img, rng):
         """A game, a unit and an optional quest record whose first dword and +0xc are random."""

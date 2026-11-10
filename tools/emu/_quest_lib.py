@@ -7,8 +7,7 @@ argument record through EDI, and the usual command line.
 """
 import argparse
 
-from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX,
-                               UC_X86_REG_ESI)
+from unicorn.x86_const import UC_X86_REG_EDI
 
 import _dungeon_rig as rig_mod
 
@@ -18,7 +17,7 @@ def put(img, offset, value, size=4):
     img[offset:offset + size] = (value & ((1 << (8 * size)) - 1)).to_bytes(size, "little")
 
 
-def record_hook(rig, name, addr, nstack, offsets, reg=UC_X86_REG_EDI, custom=None):
+def record_hook(rig, name, addr, nstack, offsets, reg=UC_X86_REG_EDI):
     """Hook a callee that takes a record pointer in `reg`; log its dword fields at `offsets` and stack args."""
     def hook(emu):
         """Log the record fields and stack arguments, return the case's scripted result."""
@@ -26,27 +25,21 @@ def record_hook(rig, name, addr, nstack, offsets, reg=UC_X86_REG_EDI, custom=Non
         fields = tuple(emu.r32(pointer + off) for off in offsets)
         stack = tuple(emu.arg(i) for i in range(nstack))
         rig.log.append((name,) + fields + stack)
-        out = custom(emu) if custom else 0
-        rig.outs.append(out & 0xffffffff)
-        return out
+        rig.outs.append(0)
+        return 0
     rig.m.hook(addr, hook, nstack)
 
 
-REGS = {"eax": UC_X86_REG_EAX, "ebx": UC_X86_REG_EBX, "ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX,
-        "esi": UC_X86_REG_ESI, "edi": UC_X86_REG_EDI}
-
-
-def bytes_hook(rig, name, addr, nstack, regs, buf, size, nlog=None, custom=None):
+def bytes_hook(rig, name, addr, nstack, regs, buf, size):
     """Hook a callee; log registers `regs`, `size` bytes at register `buf`'s pointer, then stack args."""
     def hook(emu):
         """Log the registers, the buffer's bytes and the stack arguments."""
-        values = tuple(emu.mu.reg_read(REGS[r]) for r in regs)
-        data = bytes(emu.read(emu.mu.reg_read(REGS[buf]), size)) if buf else b""
-        stack = tuple(emu.arg(i) for i in range(nstack if nlog is None else nlog))
+        values = tuple(emu.mu.reg_read(rig_mod.REGS[r]) for r in regs)
+        data = bytes(emu.read(emu.mu.reg_read(rig_mod.REGS[buf]), size)) if buf else b""
+        stack = tuple(emu.arg(i) for i in range(nstack))
         rig.log.append((name,) + values + ((data,) if buf else ()) + stack)
-        out = custom(emu) if custom else 0
-        rig.outs.append(out & 0xffffffff)
-        return out
+        rig.outs.append(0)
+        return 0
     rig.m.hook(addr, hook, nstack)
 
 

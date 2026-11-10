@@ -316,19 +316,19 @@ address	name	evidence
 00544470	quest_data_value	game +0x10f4 data's +8 or 0; asserts 0x7b3 on a null game; verified quest_small.py
 00544520	quest_send_flags	asserts 0x7dd when data +8 is 0, else sends 0x29 plus the 0x60 flag bytes of data +0xc (FUN_0065c560); verified quest_packets.py
 005447a0	quest_object_class_dispatch	classes 0xc9 and 0x14b within Objects table bounds dispatch to their quest handlers
-00544f60	quest_add_states	EAX unit, EDI count: adds each state word to the class's player-data list (+0x60); verified quest_packets.py
-00544fa0	quest_add_kind_states	CL kind 0/1/2/4 adds the 6/11/7/7 state words of 0x7318b0/c8/f4/910 (3 and above 4 nothing); verified quest_packets.py
-00545090	quest_collect_states	EAX out, stack ctx/words/count: -1 fills six dwords, stores the low word of each state FUN_00572470 accepts, returns any; verified quest_packets.py
-00545100	quest_send_states	kind 0/1/2/4 sends 0x91 + kind + accepted state words when any; verified quest_packets.py
+00544f60	quest_add_states	EAX unit, EDI count: adds each state word to the class's player-data list (+0x60); verified quest_packets.py; the ids are NPC-intro ids; name is a Redivivus candidate
+00544fa0	quest_add_kind_states	CL kind 0/1/2/4 adds the 6/11/7/7 state words of 0x7318b0/c8/f4/910 (3 and above 4 nothing); verified quest_packets.py; the ids are NPC-intro ids; name is a Redivivus candidate
+00545090	quest_collect_states	EAX out, stack ctx/words/count: -1 fills six dwords, stores the low word of each state FUN_00572470 accepts, returns any; verified quest_packets.py; the ids are NPC-intro ids; name is a Redivivus candidate
+00545100	quest_send_states	kind 0/1/2/4 sends 0x91 + kind + accepted state words when any; verified quest_packets.py; the ids are NPC-intro ids; name is a Redivivus candidate
 00545290	quest_id_list_has	ECX list (count word at +0x80), EDX id: 1 when among the first count dwords; verified quest_small.py
 00545300	quest_id_list_clear	zeroes the count word at +0x80; verified quest_small.py
 00545530	quest_forward_flagged	player flag bit 1 exactly 1, bit 0 set and the list non-empty: tail-calls FUN_00545240(rec+0x1c, id or -1); verified quest_packets.py
 005455b0	quest_notify_slot	slot 0xca7 then FUN_0053d670(DL 0x28; 6, 0, flags, 0); verified quest_packets.py
 005456f0	quest_notify_flag_byte	as FUN_005455b0 then 0x89 + data +0x20 through slot 0xd0e, returns 0; verified quest_packets.py
 00545760	quest_set_flag_byte	data +0x20 = DL, FUN_005537d0(0, FUN_005456f0); verified quest_small.py
-00545780	quest_send_0x27	event kind 0 on a new slot, sends 0x27 + kind + id, releases, FUN_00544520; verified quest_packets.py
-00545830	quest_tag49	tag 0x49 forwards to FUN_0059dfd0, else 0; verified quest_small.py
-00545920	quest_send_0x5d	sends 0x5d,DL,0,0xc unless the level rank is below the stack byte; verified quest_packets.py
+00545780	quest_send_0x27	event kind 0 on a new slot, sends 0x27 + kind + id (the tail FUN_00661480 packs at +6 is not checked), releases, FUN_00544520; the gossip packet; verified quest_packets.py
+00545830	quest_tag49	tag 0x49 (portal from Duriel) forwards to FUN_0059dfd0, else 0; verified quest_small.py
+00545920	quest_send_0x5d	sends the 6 bytes 5d,DL,0,0xc,0,0 unless the level rank byte is below the stack byte (unsigned); an owner without a level sends nothing; verified quest_packets.py
 00545990	quest_nop	ret 4 only; verified quest_small.py
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
 00545cd0	quest_level_warning	level record quest byte and predicate select warning when global enabled
