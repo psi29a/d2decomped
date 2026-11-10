@@ -533,6 +533,16 @@ arguments), cited, not run. The functions are in the order they are met.
   walks up but doesn't talk. d2d: act5.cpp (the last portal) and `town_npcs.hpp` name it for
   the NPC-visitor and portal tests; d2d's talk start was not checked against the cursor-item and
   +0x4c arms. **not ported** as one gate.
+- **`FUN_005678a0`: interacting with a player?** (EDX the unit; the stack word 1 the callers
+  push isn't read.) 1 when the unit's interact flag +0x6c is set, its type +0x68 is 0 and the
+  unit `FUN_00552f60` finds for +0x64 exists; else 0. `FUN_00548b00` case 0 asks it twice for a
+  dead player target (mode 0x11): of the player itself (EDX = the player, LAB_00548e39) and of
+  the corpse's owner (EDX = the target, LAB_00548e48). Only when both are 0 does it take
+  the corpse (`FUN_0057fb70`); otherwise `FUN_00566e60`.
+  `itemmode.md` cites `FUN_005678a0(1)` for the cube too, which this read does not show:
+  the test is on the interact's target type 0 (itemmode.md's "cube open" reading wants a
+  second look). d2d: the corpse take (`FUN_0057fb70`, `world.hpp`) was not checked for this
+  test; **not ported** as one.
 
 ### How near the client walks
 
