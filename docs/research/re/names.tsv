@@ -49,6 +49,7 @@ address	name	evidence
 00463260	client_run_stamina_stop	EAX unit, from FUN_00463390 in mode 3: the local player at stat 10 (stamina) 0 re-walks to its target or spot in walk mode (collision.md "The client's command switch")
 00463390	client_player_tick	ECX unit: per-frame step by the 12-byte mode rows at 0x711e00; walk / skill handling, frame step, end of mode, then FUN_00463260 in mode 3 (collision.md "The client's command switch")
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
+00463990	client_unit_find	ECX id, EDX type: FUN_00463940 on bucket id & 0x7f of 0x7a5e70 + (type << 9), chain unit +0xe4, id at +0xc; 0 if none, a type mismatch (unit +0) ends the run with error 0x5a (net-packets.md "Unit handlers")
 00463830	monstats_base_id	ECX class id: the signed word at +2 (BaseId) of the 0x1a8-byte MonStats row (table +0xa78, count +0xa80); a bad index or no row returns the id itself; verified by unit_client.py
 00463900	monster_class_valid	ECX class id: itself when 0 <= id < MonStats count (+0xa80 of 0x744304's block), else -1; verified by unit_client.py
 00463940	unit_find_in_chain	EAX bucket, EDX table, ECX id, stack type: first node of the +0xe4 chain with +0xc == id; its +0 type must equal the stack type, else fatal line 0x5a; none = 0; verified by unit_client.py

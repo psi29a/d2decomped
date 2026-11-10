@@ -47,7 +47,12 @@ types: 0 player, 1 monster (NPCs too), 2 object, 3 missile, 4 item,
 - **Unit handlers** (0x0c..0x10, 0x17, 0x4c, 0x4d, 0x67..0x72): the unit
   is looked up first (`FUN_00463990`: for 0x67..0x6d type 1 and the u32
   at +1, otherwise the type at +1 and the u32 at +2; hash at `0x7a5e70`,
-  128 buckets a type). **An unknown unit's packet is dropped**; a known
+  128 buckets a type). `FUN_00463990` (ECX id, EDX type; 21 bytes, 0x463990..0x4639a4) is a
+  thin front to `FUN_00463940`: bucket `id & 0x7f` of the table at `0x7a5e70 + (type << 9)`,
+  chained through unit +0xe4, matched on unit +0xc == id. No match returns 0. A match whose
+  unit +0 (its type) differs from the type asked for is fatal: error 0x5a, exit -1
+  (0x46396c..). The NPC code asks it with type 1 (`FUN_004b4380` at 0x4b439a, 0x4b43b7).
+  **An unknown unit's packet is dropped**; a known
   one is queued (`FUN_0045f730`) and run later in the frame by
   `FUN_0045fa40` (ECX = unit, EDX = packet). So a host must send a unit's
   assign packet before anything about it.
