@@ -502,3 +502,24 @@ the 3 / 4 / 6 caps, `!stackable`). Not ported: the version-0 branch, the row 3 /
 tests, and the record flags (those are the forced picks the `ponytail:` there lists). d2d keeps
 quality 2..3 itself; the game's own test here is only `quality >= 2`, the caller's choice
 (`FUN_00557450`) was not read for this. Cited from the decompile, no oracle run.
+
+## The per-type fix-ups after an item is made (`FUN_00556e80`)
+
+`FUN_00556e80()` (EAX the item, EDI the drop record; callers `FUN_00556f30`,
+`FUN_005572a0`) tests the item against five ItemTypes rows with `FUN_00629bb0`, in this order,
+and ends with `FUN_005c1260` (the staff mods above):
+
+| Row | What it does |
+|---|---|
+| 0xd | `FUN_00556a60(record)`: the elixir path (above; it asserts string 0x372 when neither of its rolls gives a value, and sets item flag 0x10 clear) |
+| 0x28 | item data `+0x28` (`FUN_00629df0`, which asserts 0x107c / 0x107d / 0x107f for a null unit, a non-item or no item data) set to `record +0x40`, or to the dword at `*record + 4` when `*record` is non-zero |
+| 7 | the same `+0x28` store, then item flag 0x10000 set (`FUN_006280d0`) |
+| 0x16, 0x12 | item data word `+0x3e` (`FUN_00627fb0(item, value, 0)`) set to `FUN_005c2540(..)`: the row of the books table (`d2d_books_count_ptr`) whose dword at `+0x18` / `+0x1c` equals the item's code (Items `+0x80`), else the table's count |
+
+`FUN_005c2540` is a fastcall whose ECX the decompile does not show (the item is assumed to
+be passed through); the books-table fields were read only by offset. The `+0x28` of rows 0x28 /
+7 is the same field `tools/emu/drops.py` prints as `sub` (-1 until a unique / set row is picked).
+Evidence: `python3 tools/ghidra/fn.py 00556e80`, `python3 tools/ghidra/fn.py 00629df0`,
+`python3 tools/ghidra/fn.py 00627fb0`, `python3 tools/ghidra/fn.py 005c2540`.
+d2d: not ported as a function (the elixir path is noted as not ported above). Cited from the
+decompile, no oracle run.
