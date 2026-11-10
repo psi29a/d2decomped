@@ -99,6 +99,15 @@ auto Fight::add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t unt
         actor->self_states.push_back({ skill.id, lvl, until });
     }
 
+auto Fight::shift_back(const d2d::rules::Skill& skill) -> bool {
+        const auto group_of = [&](const std::string& aurastate) { const auto info = game_data->states.find(aurastate); return info != game_data->states.end() ? info->second.group : 0; };
+        const int group = group_of(skill.aurastate);
+        return group != 0 && std::erase_if(actor->self_states, [&](const SelfState& state) {
+            const auto* other = game_data->skills.get(state.skill);
+            return other && group_of(other->aurastate) == group;
+        }) > 0;
+    }
+
 auto Fight::self_state(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         std::uint32_t until = actor->pmode_until;

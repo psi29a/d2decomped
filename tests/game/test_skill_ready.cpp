@@ -30,7 +30,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr int kCriticalStrike = 9, kJab = 10, kFireBolt = 36, kInferno = 41, kMeteor = 56, kMight = 98;
+constexpr int kCriticalStrike = 9, kJab = 10, kFireBolt = 36, kInferno = 41, kMeteor = 56, kMight = 98, kWerewolf = 223, kWerebear = 228;
 
 }  // namespace
 
@@ -107,6 +107,26 @@ int main() try {
     actor->skill_delay = 0;
     fight.start_delay(now);
     assert(actor->skill_delay == 0);                                    // Fire Bolt has no delay
+
+    // Werewolf (do 116, FUN_005c6ec0): the first cast puts the wolf on, pays and starts the delay (25 frames); the
+    // next shifts back: every state of its group off (FUN_0056c740), nothing paid (FUN_0056f7f0 stops before the
+    // cost), the delay again (FUN_0056f020). Werebear on the wolf is a shift back too: no bear.
+    // Max mana pinned at the mana before each cast, so its regen can't hide a cost.
+    auto& max_mana = actor->character.stats.values[d2d::d2s::kMaxMana];
+    const auto cast_through = [&](int skill) {
+        while (now < actor->skill_delay) { now += kTickMs; world->tick({}, now, now - kTickMs); }
+        max_mana = mana;
+        assert(fight.cast(skill, now));
+        for (int frame = 0; frame < 100 && actor->pmode >= 0; ++frame) { now += kTickMs; world->tick({}, now, now - kTickMs); }
+    };
+    mana = 100 * 256;
+    cast_through(kWerewolf);
+    assert(fight.state_of("wolf") && mana < max_mana && actor->skill_delay > now);
+    cast_through(kWerewolf);
+    assert(!fight.state_of("wolf") && mana == max_mana && actor->skill_delay > now);
+    cast_through(kWerewolf);
+    cast_through(kWerebear);
+    assert(!fight.state_of("wolf") && !fight.state_of("bear"));
 
     // A walked-up Jab with no spear swings Attack (start_swing asks again).
     actor->swing_skill = 0;

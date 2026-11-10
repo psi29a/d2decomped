@@ -724,6 +724,11 @@ struct Fight {
     void skill_element(d2d::rules::Fighter& fighter, const d2d::rules::Skill& skill);
     void add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t until);
     void self_state(const d2d::rules::Skill& skill, std::uint32_t now_ms);
+    // Werewolf / Werebear's shift back (do 116, FUN_005c6ec0): every state of
+    // its aurastate's States.txt group on the player, its own too, comes off
+    // (FUN_0056c740 with 1: the wolf, the bear, maul, feralrage, ...). False:
+    // none was on (or the group is 0), so the state goes on instead.
+    bool shift_back(const d2d::rules::Skill& skill);
 
     // A self cast's state (FUN_005c9480 and kin): auralen frames — none
     // (Bone Armor, Cyclone Armor) lasts until its absorb is spent. Bone /

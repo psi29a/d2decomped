@@ -19,8 +19,9 @@ A cast reaches FUN_0056c740 through FUN_005c9480 (srvdofunc 18: Frozen,
 Shiver, Chilling and Bone Armor, Burst of Speed, Fade, Cyclone Armor, Venom;
 call at 0x5c94f4; V read). Groups (States.txt): 1 frozenarmor, shiverarmor,
 chillingarmor, bonearmor; 2 quickness, fade (both through do 18); 3 wolf,
-bear, feralrage, maul, delerium (states 223, 228, 232, 233, 350; dos 116 and
-120, not read, U whether they call FUN_0056c740). The oracle passes 0 as the
+bear, feralrage, maul, delerium (states 223, 228, 232, 233, 350; do 116
+calls it with 1 first, a shift back when any was on (skills.md); do 120 not
+read, U whether it calls FUN_0056c740). The oracle passes 0 as the
 argument, the do passes 1; it only decides the new state's own index.
 """
 import sys
