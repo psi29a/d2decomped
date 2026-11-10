@@ -164,7 +164,7 @@ if seed_ux:
         if os.path.exists(sock_path):
             os.unlink(sock_path)
         proc = subprocess.Popen(proc.args, env=dict(os.environ, HOME=home))
-        for attempt in range(400):
+        for _attempt in range(400):
             if os.path.exists(sock_path):
                 break
             assert proc.poll() is None, "restart exited"
