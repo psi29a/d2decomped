@@ -147,6 +147,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | String table leaves (StrTable/strtable.cpp: FUN_00524fd0, 00524fe0, 00525020, 00524e20, 00525090, 00525100, 00525260, 005251c0, 00524c60, 00524ac0, 00524e40, 00525770) | `uv run python strtable_leaves.py` (`--mutation-check`) | `ok: 6560 string table leaf cases` |
 | String table number formatters (FUN_00525350, 00525490, 005255c0) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: stock TBL unsigned, signed, and K/M/B/T formatter cases` |
 | String table file opener (FUN_00525920) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: CRC-checked synthetic TBL open and rejection cases` |
+| Server-side client-packet handlers of PlrMsg.cpp, the small ones: size gates (status 3) and the forwarded arguments of 0x31, 0x33, 0x34, 0x35, 0x36, 0x3f, 0x40, 0x48, 0x4f, 0x53, 0x54, 0x58, 0x62 (FUN_0054ba90 ... FUN_0054c9c0; the callees hooked and logged; status of 0x33 and 0x4f is the callee's) | `uv run python plrmsg_small.py` | `ok: 40 PlrMsg small handler rounds` |
 
 ## When it breaks
 

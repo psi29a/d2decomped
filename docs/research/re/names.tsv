@@ -1034,6 +1034,19 @@ address	name	evidence
 006c33d0	qsnt_stop	+0xbf8 = 1, waits 2000 ms
 006c3410	qs98_send	one send()
 006c3440	qs98_add_client	FUN_006bfb70, +0xbc4 with QServer98.cpp 0x91
+0054ba90	scmd_npc_gossip	C->S 0x31 (9 bytes): guid u32 +1, gossip id u16 +5 to FUN_005443b0; verified plrmsg_small.py
+0054bb20	scmd_npc_sell	C->S 0x33 (0x11 bytes): npc +1, item +5, mode u16 +9, price u32 +0xd to FUN_00579510, returns its status; verified plrmsg_small.py
+0054bb60	scmd_npc_repair	C->S 0x35 (0x11 bytes): npc +1, item +5, word +9, dword +0xd to FUN_00578050 (repair); verified plrmsg_small.py
+0054bba0	scmd_npc_identify	C->S 0x34 (5 bytes): npc guid to FUN_00578460; verified plrmsg_small.py
+0054bbd0	scmd_hire_merc	C->S 0x36 (9 bytes): npc guid +1, merc id u16 +5 to FUN_00577fe0; verified plrmsg_small.py
+0054bc00	scmd_resurrect_merc	C->S 0x62 (5 bytes): npc guid +1 to FUN_00579c00 (resurrect merc); refused (3) while game +0x70 == 0 (classic game); verified plrmsg_small.py
+0054c070	scmd_emote	C->S 0x3f (3 bytes): emote u16 +1 in 0x19..0x20 only; unit flag bit 10 refuses (1); FUN_00553380; verified plrmsg_small.py
+0054c0c0	scmd_refresh_quests	C->S 0x40 (1 byte): FUN_00546040(game, unit); verified plrmsg_small.py
+0054c590	scmd_cutscene_over	C->S 0x48 (1 byte): calls FUN_005350b0(unit) when player data +0x4c is non-zero, else 2; verified plrmsg_small.py
+0054c7c0	scmd_click_button	C->S 0x4f (7 bytes): button u16 +1, param (word +3 << 16 | word +5) to FUN_00568060, returns its status; verified plrmsg_small.py
+0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
+0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
+0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
 0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
 0061f0e0	lvlprest_by_level	first lvlprest row (0x1b0 bytes at 0x96c894) whose +4 LevelId equals the key, else 0; verified by lvl_tbls.py
 0061f310	lvlwarp_check	halts (0x32b / 0x33a) unless a lvlwarp row has the id and a 'b' / matching letter at +0x2c; verified by lvl_tbls.py
