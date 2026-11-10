@@ -84,8 +84,8 @@ address	name	evidence
 0046f280	gfx_layer_flags_clear	20 / 16 / 8 slots by unit type (Gfx.cpp 0xd3e)
 0046f310	gfx_cof_bundle_open	"%s\\%s" DATA\GLOBAL + 0x6d6c30[n]
 0046f370	gfx_cof_cache_free_loose	entries with flag bit 0 (Gfx.cpp 0xe3c, 0xe3d)
-0046f3f0	gfx_cof_cache_free_monster	0x7a8100 (Gfx.cpp 0xe50)
-0046f440	gfx_cof_cache_free_player	0x7a78f0 (Gfx.cpp 0xe61)
+0046f3f0	gfx_cof_cache_free_player	0x7a8100 (unit type 0) (Gfx.cpp 0xe50)
+0046f440	gfx_cof_cache_free_monster	0x7a78f0 (every other unit type) (Gfx.cpp 0xe61)
 0046f490	gfx_monster_cof_path	"%s\\%s\\COF\\%s%s%s.COF" DATA\GLOBAL\MONSTERS
 0046f650	gfx_monster_mode_preload	monster COF through the 0x7a78f0 cache, one cel load per layer (Gfx.cpp 0xec3..0xed7)
 0046f870	gfx_monster_cofs_load	modes 0x712ac4 by MonStats2 +0xf0 bits
