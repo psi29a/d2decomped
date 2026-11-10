@@ -1,5 +1,8 @@
 # Item accessors and helpers
 
+For the completed static inventory of ITEMS and the remaining runtime
+verification limits, see [the module trace index](items-module.md).
+
 These functions take an item unit. They require a non-null unit of type 4
 with a non-null item-data pointer at unit `+0x14`; rejected calls do not
 write item data. `FUN_0048c060` uses the quality to select item-name

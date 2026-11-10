@@ -60,14 +60,190 @@ d2d: `composite_frames` (apps/d2d/world_view.hpp) does both.
 
 ## A layer's file
 
-`FUN_005fe610` builds the path `<root>\<token>\<layer>\<token><layer><piece><mode><weapon>`
-and picks `.dc6` for a hard-coded list of monster ids (0xf2 Mephisto,
-0xfb, 0x16f, 0xf3, 0x11c, 0x14d, 0x220, 0x22f, 0x23a, 0x2c0, 0x2c1,
-0x2c5), `.dcc` for the rest; overlay row 0x7a (`mephisto`) is a `.dc6`
-too. `FUN_005fe990` loads it, and a file that isn't there is fatal
-(error 0x413). d2d tries `.dcc` then `.dc6` (the same files) and draws
-the other layers when neither is there.
+`FUN_005fe610` builds the path of one layer's file into the caller's buffer
+(register arguments: the stem from `FUN_005fe2b0`, the layer record in
+ESI; the record's type is the dword at +8). An empty stem gives an empty
+path and 0. Per type:
 
+| Type (+8) | Path | Extension |
+|---|---|---|
+| 0 char, 1 monster, 2 object | `DATA\GLOBAL\CHARS` / `MONSTERS` / `OBJECTS` `\<token>\<layer>\<stem>` (token +0x18, layer +0x1c; a space byte becomes NUL) | `.dcc`, `.dc6` in the cases below |
+| 3 missile | `DATA\GLOBAL\MISSILES\<name>` (name = the string at +0x2c; none gives empty and 0) | `.dcc`, `.dc6` when `CompressedData` is 0 |
+| 4 item | `DATA\GLOBAL\items\<name>` (+0x2c; only when +0x10 is 3 or 4, else empty and 0) | always `.dc6` |
+| 6 overlay | `DATA\GLOBAL\OVERLAYS\<name>` (+0x2c; needs bit 1 of +4, else empty and 0) | `.dc6` for row +0x14 = 0x7a, else as a missile |
+
+Every `.dcc` it picks sets bit 0 of the record's +0x44 (`FUN_005fe990`
+reads that bit: set = a DCC). The `.dc6` cases for types 0 to 2:
+
+- `DAT_00741efc` is 0. That is the registry value `CompressedData` under
+  `Diablo II` (`FUN_005fe280`; the default passed is 1). With it 0 every
+  layer is a `.dc6`.
+- Monster rows (+0xc) 0xf2, 0xfb, 0x16f, 0x209 and 0x2c0, whatever else.
+- Monster rows 0xf3, 0x11c, 0x14d, 0x220, 0x22f, 0x23a, 0x2c1 and 0x2c5 when
+  record +0x10 is 0.
+- Object rows 0x156 and 0x233.
+- A stem equal (`__strnicmp` through `FUN_00413590`) to `OYTRlitTNhth`,
+  for a char, monster or object: a `.dc6`, and bit 0 of +0x44 cleared.
+  `FUN_005fe2b0` has no such test. No file of that stem is known here.
+
+`FUN_005fe2b0` makes the same `.dc6` decisions (it returns before setting
+bit 0 for them), so the two agree apart from that last stem. This
+replaces the list in earlier notes, which left out 0x209, the objects and
+the +0x10 test, and put 0x2c0 with the second group. Overlay row 0x7a
+(`mephisto`) is a `.dc6` too.
+`FUN_005fe990` loads it, and a file that isn't there is fatal
+(error 0x413). d2d tries `.dcc` then `.dc6` (the same files) and draws
+the other layers when neither is there, so it needs none of these rules;
+`Scene::overlay_sprite` (apps/d2d/scene/render.cpp) reads row 0x7a's
+`.dc6` through that fallback.
+
+Re-check: `python3 tools/ghidra/fn.py 005fe610` (the two switches on
+`*(esi+0xc)`, the roots and the format strings) and
+`python3 tools/ghidra/fn.py 005fe280` (the registry value).
+
+
+## Loading a layer (SpriteCache.cpp)
+
+The chain from a layer record to its decoded cells, in call order. The
+record (ESI in most of these) has the type at +8, row id +0xc, +0x10, the
+five name dwords +0x18 token, +0x1c layer, +0x20 piece, +0x24 mode, +0x28
+weapon, a name string pointer at +0x2c, flags at +4 and +0x44.
+
+- `FUN_005fe2b0` (stem, buffer in EAX): types 0 to 2 copy the five name
+  dwords' first three bytes each, stopping at the first space byte, and
+  end with NUL; types 3, 4 and 6 copy the string at +0x2c (type 6 needs bit
+  1 of +4; all need a non-null +0x2c). Any other type, or a missing name,
+  gives an empty stem and 0. It also sets bit 0 of +0x44 (the DCC flag)
+  under the same `CompressedData` and row rules `FUN_005fe610` uses (see
+  "A layer's file"; the one difference is that stem test). d2d: not ported.
+- `FUN_0040b430(file, line, flag)`: `FUN_0040a080(file, line)`, and when
+  that returns 0, `FUN_00408900(2, file, line, "")`; it returns the pointer
+  either way. This is the allocator the other docs cite by address (chat.md,
+  drlg.md, collision.md); it was untraced itself. d2d: not ported (it
+  uses its own allocation).
+- `FUN_0040a620` (`.\Src\AsyncData.cpp`; the decompile has nine
+  parameters, the first in ECX, and the caller's call shows eight, so the
+  numbering below is the decompile's `param_N`): makes a 0x54-byte record (`FUN_0040b430`, line 0x128), zeroed,
+  with `0x41737960` in +0x48 (the high 28 bits are a tag; bit 1 = it
+  allocated the buffer itself with `FUN_0040a080`; bit 0, read by
+  `FUN_0040a9e0`, = the read is done). It keeps `param_1` at +4, `param_7`
+  at +0x44, the buffer (`param_5`, or a fresh one) at +0x3c and the size
+  (`param_4`, or `FUN_00406930()` when below 1) at +0x40, and copies an
+  optional 7-dword callback block (`param_6`) to +0x1c.
+  When `param_2` is 0, or `DAT_0075af94` is 0, it reads
+  at once (`FUN_00406900`), calls the block's first dword with (buffer, size,
+  block) and returns the record. Otherwise it takes a queue entry
+  (`FUN_0040a550`) and starts the read there; with no entry it frees what it
+  made (`FUN_0040b480`, lines 0x184 and 0x186) and returns 0. If the first
+  argument after ECX is non-zero and `FUN_00406940(0, 0)` is -1 the run
+  ends with error 0x142 (`param_3`). `FUN_005ff760` calls it twice (with
+  `.\SRC\SpriteCache.cpp` lines 0x369 and 0x379), both times as
+  `(0, offset, length, 0, block or 0, 0xfffffffe, file, line)` in the
+  decompile's `param_2..9`: `param_2` is 0, so the read is at once, and
+  `param_5` is 0, so it allocates the buffer. d2d: not ported (it reads
+  whole files); `tools/emu/sound_hdr_load.py` hooks it.
+- `FUN_0040a9e0` (ECX = the record): the result buffer (+0x3c). Null ends the
+  run with error 0x25f, a tag other than `0x41737960` in +0x48 with 0x260.
+  If bit 0 of +0x48 is clear it calls `FUN_0040a960` (to finish the read)
+  first, and a bit still clear is error 0x266. `FUN_005fec90` calls it.
+  d2d: not ported.
+- `FUN_0040aa40` (ECX = the record): the size (+0x40), after the same null
+  (error 0x271) and tag (0x272) checks; it does not wait for the read.
+  `FUN_005ff760` calls it right after the read it makes with the
+  `FUN_005ff6e0` callback (line 0x369; `param_2` is 0, so the read and the
+  callback are done before `FUN_0040a620` returns) and drops the result, so there it is only the tag check. d2d: not ported
+  (`tools/emu/sound_hdr_load.py` hooks it).
+- `FUN_005fec90(entry, record)` (the layer's sprite-cache record in EDI):
+  works only when `record` and EDI are set, bit 0 of `*entry` is clear and
+  EDI+0x28 is 0; if any of those fails, or `FUN_0040a9e0` gives 0, it falls
+  through to the same fatal error as a bad header below (the error id is not
+  visible in the decompile). Otherwise it zero-fills `+0x24 * +0x21 * 0x2c` bytes (`FUN_0040b430`,
+  `.\SRC\SpriteCache.cpp` line 0x517: one 0x2c-byte cell record per frame
+  of every loaded direction), takes the decoded blob from `FUN_0040a9e0`
+  and walks one frame header per cell from the offset EDI+0x2c+(+0x22)*4.
+  A header must have 0 in its first dword and +4 and +8 (the frame's
+  size) at most 0x100; if not, it builds the layer's path into a 260-byte
+  local (`FUN_005fe2b0`, `FUN_005fe610`) and ends the run with an error.
+  Each good header's +0x18 gets its cell record, and the next header is
+  `0x23 + [+0x1c] + [+0x14]` bytes on. At the end EDI+0x28 = 1. Called by
+  `FUN_005ffe90`. d2d: not ported (the DCC decoder sizes its own frames).
+- `FUN_005ff6e0(_, size, block)`: the callback `FUN_005ff760` hands to
+  `FUN_0040a620`. The block is `+4` the cache entry, `+8` the layer's
+  record (EDI+0x20 there), `+0xc` the first cell index (direction *
+  count), `+0x10` the count, `+0x14` the result, `+0x18` an output slot (its address goes to
+  `FUN_0060bff0`, its value to `FUN_005ff630`). With bit 1 of
+  `*(record + 0x94) + 0xc` raised around it, it calls
+  `FUN_0060bff0(size, entry, record, first, count, block + 0x18,
+  entry + 0xa0)` and stores the result at block +0x14. It clears bit 2 of
+  the record's first byte (`FUN_005ff760` set it), calls `FUN_005ff630`
+  on block +0x18 and, when the result was 0, sets bit 0 of `*entry`; it
+  returns 1. Bit 0 of `*entry` is the "this DCC failed" flag the other
+  functions here test. d2d: not ported.
+- `FUN_005ff760(_, entry, layer, group, count)` (the sprite-cache record in
+  EDI; `entry` is the DCC's header blob: +0x14 directions, +0x18 frames per
+  direction, a dword offset table from +0x1c). Nothing happens unless all
+  three pointers are set. It picks the table slice `first .. end`:
+  a missile (type 3) or a type 6 overlay with bit 1 of +4: needs `count` 1
+  (else it returns), `first` = `d2d_gamedata_missile_direction(layer[+0x40],
+  entry[+0x14])` (`FUN_00600c90`), `end` = first + 1; an object (2): 0 and
+  1; an item (4): `first` = layer[+0x40], `end` = first + 1; the rest: a
+  monster (1) with `count` 1 also takes the missile direction, otherwise
+  `first` = `group * count`, `end` = first + `count`. The bytes to read are
+  `table[end] - table[first]`; 0 builds the stem and path (unused) and
+  returns, loading nothing and raising no error. With no read yet (EDI+0xb0
+  is 0) it sets EDI+0x21 = `count`, +0x22 = `group * count`, +0x24 =
+  entry[0x18], +0x23 = entry[0x14] + 1, and fills EDI+0x2c + i*4 with
+  `table[i] - table[first]` for i = first .. end inclusive (an index above
+  0x20 is error 0x34c, a negative offset 0x34e; 0x2c + 0x21 * 4 is EDI+0xb0,
+  so the 33 slots fit). The read is `FUN_0040a620` from `table[first]`: with
+  bit 1 of `*entry` clear a plain one (line 0x379); with it set EDI+0x20
+  bit 2 is raised and the `FUN_005ff6e0` callback is used (line 0x369,
+  then `FUN_0040aa40`). The record goes to EDI+0xb0, and 0 is error 0x37d.
+  d2d: the direction rounding (`missile_direction`, `cof_direction`,
+  tests/game/test_game_rules.cpp:76) reads the same, cited from the
+  decompile, no oracle run; the rest is not ported.
+- `FUN_005ffe90(entry, group, count)` (the layer record in ESI): false for
+  a null `entry`. It takes a holder node (`FUN_005ffc40(0, 0)`, not read
+  here), zero-fills the 0xb8-byte cache record it holds, and copies the
+  layer's type (+8), token (+0x18), layer (+0x1c), piece (+0x20), mode
+  (+0x24) and weapon (+0x28) into record +0, +0xc, +0x10, +0x14, +0x18,
+  +0x1c, and the holder into +0xb4. When the entry hasn't failed (bit 0 of
+  `*entry`) it also copies the row (+0xc) and +0x10 into record +8 and +4
+  and runs `FUN_005ff760` to read the data (at once, not queued). `FUN_0060adc0(*holder, layer,
+  entry)` registers it, and 0 is error 0x5d1; the result goes to
+  holder +8 and its +0x24 points back at the holder. A failed entry sets
+  bit 0 of record +0x20 and returns false. Otherwise, when record +0x28 is
+  0 it runs `FUN_005fec90`, and `FUN_005fec50()`'s result becomes layer
+  +0x3c, which this returns as a bool. Called by `FUN_006000b0` and
+  `FUN_006001f0`. d2d: not ported.
+- `FUN_006000b0(entry, layer, group, count, path, flag)` (fastcall, the
+  stem buffer in EAX; the decompile's `param_N`): does nothing unless
+  `entry` (ECX) and `layer` (EDX) are set. A direction scale applies when
+  `group` is 0 and `count` above 1, except for a char layer (type 0, no
+  type 6 overlay) unless bit 3 of layer +4 is set, layer +0x10 is
+  neither 0 nor 0x11 and `DAT_0089db58` is 0. Then
+  layer +0x40 = `(FUN_00600d30(count, count * 2) << 6) / entry[+0x14]` (1
+  when `entry[+0x14]` is below 2). `FUN_0060ace0(&group, &count, entry)` looks
+  the layer up; a hit returns here. A miss needs `group` 1 (error 0x686)
+  and `count` above 1 (0x687). It then runs `FUN_005fe2b0` if `*param_5`
+  is empty and `FUN_005fe610(param_5)` if `*EAX` is, returning if either
+  gives 0 (which buffer is the stem and which the path is read from the
+  decompile only, not the asm), and calls `FUN_005ffe90(entry, group, count)`
+  or, when `flag` is non-zero, `FUN_005fffa0`. Called by `FUN_006001f0`.
+  d2d: not ported.
+- `FUN_006004e0(layer)` (callers `FUN_0046f650`, `FUN_0046fb60`): a null
+  layer ends the run. With layer +0x34 set, layer +0x3c = `FUN_00601840(layer)`
+  and it returns. Otherwise `FUN_005fe990(local buffer)` builds the stem
+  and path and loads the DCC (0 = nothing more is done). Then
+  `FUN_0060ace0(&group, &count, entry)`: a hit sets bit 2 of layer +0x44
+  when bit 0 of `*(hit->+0x20)+0x20` is set (the failed flag
+  `FUN_005ffe90` writes) and returns. A miss with `count` above 1,
+  `group` non-zero and the entry not failed rescales layer +0x40 as
+  `FUN_006000b0` does but through `FUN_00600cb0((+0x40 * entry[+0x14]) >> 6,
+  entry[+0x14], count, layer[+4] & 4)`, looks up again (a miss, or a
+  non-zero `group`, ends the run) and, with a stem or a path built
+  (`FUN_005fe610`), calls `FUN_005fffa0(entry, group, count, stem)`.
+  d2d: not ported.
 
 ## Draw effects
 

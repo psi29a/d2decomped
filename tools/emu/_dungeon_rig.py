@@ -23,7 +23,8 @@ import struct
 import zlib
 from pathlib import Path
 
-from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX,
+                               UC_X86_REG_ESI, UC_X86_REG_ESP)
 
 import emu
 
@@ -106,18 +107,27 @@ class Model:
         require(index < len(self.outs), f"model made call {index} but the stock code made {len(self.outs)}")
         return self.outs[index]
 
-    def alloc(self, pool, size, line):
-        """Log the arena allocator (0x40_b430) and return the pointer the stock run got."""
-        self.log.append(("alloc", pool & M32, size & M32, ALLOC_FILE, line, 0))
+    def alloc(self, pool, size, line, file=ALLOC_FILE):
+        """Log the arena allocator (0x40_b430) and return the pointer the stock run got (`file`: the __FILE__ string it was passed)."""
+        self.log.append(("alloc", pool & M32, size & M32, file, line, 0))
         pointer = self.out_of(len(self.log) - 1)
         buf = bytearray(size)
         self.blocks.append((pointer, buf))
         self.regions.append((pointer, buf))
         return pointer
 
-    def free(self, pool, pointer, line):
-        """Log the arena free (0x40_b480)."""
-        self.log.append(("free", pool & M32, pointer & M32, ALLOC_FILE, line, 0))
+    def realloc(self, pool, old, size, line, file):
+        """Log the arena realloc (0x40_b4b0: registers pool, old block; stack size, file, line, 0) and return the stock block."""
+        self.log.append(("realloc", pool & M32, old & M32, size & M32, file, line, 0))
+        pointer = self.out_of(len(self.log) - 1)
+        buf = bytearray(size)
+        self.blocks.append((pointer, buf))
+        self.regions.append((pointer, buf))
+        return pointer
+
+    def free(self, pool, pointer, line, file=ALLOC_FILE):
+        """Log the arena free (0x40_b480) (`file`: the __FILE__ string it was passed)."""
+        self.log.append(("free", pool & M32, pointer & M32, file, line, 0))
 
 
 class Rig:
@@ -158,15 +168,20 @@ class Rig:
         """Allocator stand-in: a fresh zeroed block, the same size the caller asked for."""
         return e.alloc(max(e.mu.reg_read(UC_X86_REG_EDX), 1))
 
-    def _callee(self, name, addr, nstack, regs, fn=None):
-        """Hook `addr`: log (name, registers, stack arguments) and return fn(e) or mix()."""
+    def _callee(self, name, addr, nstack, regs, fn=None, nlog=None):
+        """Hook `addr`: log (name, registers, stack arguments) and return fn(e) or mix().
+
+        `nlog` limits how many stack arguments are logged (the rest are popped, not compared:
+        pointers to the caller's locals differ between the emulator and the model).
+        """
         rig = self
 
         def hook(e):
             """Record the call and give its result."""
             regvals = tuple(e.mu.reg_read(r) for r in (
-                {"ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX}[x] for x in regs))
-            args = regvals + tuple(e.arg(i) for i in range(nstack))
+                {"ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX, "ebx": UC_X86_REG_EBX, "esi": UC_X86_REG_ESI,
+                 "edi": UC_X86_REG_EDI, "eax": UC_X86_REG_EAX}[x] for x in regs))
+            args = regvals + tuple(e.arg(i) for i in range(nstack if nlog is None else nlog))
             rig.log.append((name,) + args)
             handler = rig.custom.get(name) or fn
             out = handler(e) if handler else mix(name, *args)
@@ -174,9 +189,9 @@ class Rig:
             return out
         self.m.hook(addr, hook, nstack)
 
-    def callee(self, name, addr, nstack=0, regs=()):
-        """Declare a hooked, unclaimed callee. `regs` lists the register arguments, ecx and edx only."""
-        self._callee(name, addr, nstack, regs)
+    def callee(self, name, addr, nstack=0, regs=(), nlog=None):
+        """Declare a hooked, unclaimed callee. `regs` lists the register arguments (ecx, edx, ebx, esi, edi, eax)."""
+        self._callee(name, addr, nstack, regs, nlog=nlog)
 
     def slot(self, i, size=0x100):
         """The address of the i-th `size`-byte slot of the arena."""

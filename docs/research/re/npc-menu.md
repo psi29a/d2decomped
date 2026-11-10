@@ -93,10 +93,11 @@ identical, the game seed after too.
   5383 is a "Dummy"); the line is 0x58a8 "Resurrect %s: %d" with the merc's
   name string (DAT_00725494; 0x421 → 0x2b0d, as the hire list) and the cost
   the server sent (DAT_007c0dd0).
-- Click: C→S 0x62 (5 bytes, u32 NPC id; FUN_0054bc00 needs a game player
-  and length 5) → FUN_00579c00(player, npc id). Refused unless the NPC is
-  the one being talked to and one of the five above; then the player's dead
-  merc (FUN_00574ec0(7, 1)).
+- Click: C→S 0x62 (5 bytes, u32 NPC id; FUN_0054bc00 needs game +0x70 != 0
+  (an expansion game), then length 5, else it answers 3) →
+  FUN_00579c00(player, npc id). Refused unless the NPC is the one being
+  talked to and one of the five above; then the player's dead merc
+  (FUN_00574ec0(7, 1)).
 - Cost (FUN_006637b0): merc level (stat 0xc)² / 2 × 15, at most 50,000.
 - Pay (FUN_00576d90): carried gold (stat 0xe), then the stash (0xf);
   refused when both together fall short.
