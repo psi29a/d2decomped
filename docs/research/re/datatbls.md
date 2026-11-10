@@ -667,4 +667,3 @@ is at row + 0x10 + (b >> 3). The masks `gadwBitMasks[k] = 1 << k` are at `0x6ce2
 | Oracle | Functions |
 |---|---|
 | `states_tbls.py` | `FUN_00611d60`, `00611dc0`, `00611e60` |
-
