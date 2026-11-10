@@ -19,7 +19,8 @@ data) `\Blizzard Entertainment\Diablo II\bncache.dat` (`FUN_00519220`).
 One critical section (`0x881894`) guards it.
 
 **Header** (0x2c bytes, `DAT_00881880`): `+0` magic `BN3\x1a`
-(`0x1a334e42`; `BN2\x1a` is the old format and is rebuilt), `+8` file end,
+(`0x1a334e42`; `BN2\x1a` is the old format and is rebuilt), `+4` the header
+size 0x2c (written, never checked), `+8` file end,
 `+0x10` hash table offset, `+0x14` block table offset, `+0x18` hash count,
 `+0x1c` block count, `+0x20` CRC-32 of the header with this field zeroed,
 `+0x24` / `+0x28` CRC-32 of the hash / block table. A new file gets 0x400
@@ -49,10 +50,82 @@ Lifetimes are seconds; -1 never runs out in practice.
 | `FUN_005192a0` | Closes and deletes the file |
 | `FUN_00519300` | Closes: frees tables, header, crypt table; handle back to -1 |
 | `FUN_005193c0` | API `+0xc8`: frees a buffer the cache returned (ECX) |
-| `FUN_005193e0` | Opens or creates the cache. Checks magic, header CRC, table offsets, sizes (file ≤ 10 MB) and table CRCs; any failure logs "WARNING- cache file is invalid. Replacing with new cache file" with a code 1-12 and starts a new file |
+| `FUN_005193e0` | Opens or creates the cache. Checks magic, header CRC, table offsets, sizes (file ≤ 10 MB) and table CRCs; a failure logs "WARNING- cache file is invalid. Replacing with new cache file" with a code 1-12 and starts a new file (a file of 0 bytes, over the size limit, or with the `BN2` magic is replaced with no log line) |
 | `FUN_005198c0` | Rebuild: close, delete, `FUN_005193e0` |
 | `FUN_00519920` | API `+0xcc`, read: ECX name, EDX FILETIME out, stack data out, size out. Checks the entry header (size, CRC, name, not expired, data ≤ 16 MB, data CRC) and rewrites its access time. A bad entry logs "File: '%s' in bncache.dat is corrupt (%d) - deleting from cache"; a bad file "bncache.dat is corrupt (%d) - rebuilding archive" |
 | `FUN_00519db0` | API `+0xd0`, write: ECX name, EDX data, stack size (≤ 16 MB), FILETIME*, two lifetimes in seconds (the second non-zero; news and Warden pass -1, BNFTP 15 and 30 days). Deletes the old entry, reuses a free block that fits (or the first big enough one past its reusable time), else appends (block count < 0x400), then rewrites both tables, their CRCs and the header |
+
+### CACHE.CPP: verified
+
+All 16 functions `FUN_00518de0` ... `FUN_00519db0` (the five CACHE.CPP
+entries of `game-srcfiles.tsv` and the helpers around them) run in the
+emulator against an independent model of the file (`tools/emu/bncache.py`,
+1165 cases, 11 model defects planted and caught). The model builds the
+expected file image; after every open, write and read the oracle compares the
+whole file byte for byte, the in-memory header fields and both tables, the
+logged messages, the critical-section balance and the live Storm allocations.
+Hooked: the Storm allocator and free (`FUN_00413020`, `FUN_00412650`), the
+log writer `FUN_00518d40` (format and code recorded), the fatal report, and
+the Win32 file, folder, clock and critical-section imports (a dictionary file
+system with exclusive opens). The CRT's `toupper`, `memset`, `memcpy`,
+`_stricmp` and `FUN_00413800` run for real. Not covered: a real file system,
+thread contention, the logger's formatting, and the callers (news, Warden,
+BNFTP).
+
+- **Open** (`FUN_005193e0`) opens with `OPEN_ALWAYS`, share mode 0 (a second
+  game, or a second open, fails and leaves no cache). A file of 0 bytes, over
+  `0xa00000` bytes, or with the `BN2` magic is replaced with no log line. The
+  rest log "WARNING- cache file is invalid" and the code: 1 under 0x2c bytes,
+  2 short header read, 3 bad magic, 4 header CRC, 5 hash offset or count 0,
+  6 block offset or count 0, 7 hash table past the end, 8 short hash read,
+  9 hash CRC, 10 block table past the end, 11 short block read, 12 block CRC.
+  A replacement deletes the file, creates it empty and builds the 0x400-entry
+  tables in memory only (nothing is written until the first write); the
+  header's `+4` is 0x2c and the file end starts at 0x802c.
+- **Hash entries**: the slot is name hash type 0 `& (count - 1)`; the entry
+  holds the type 1 hash, the type 2 hash, locale 0 and the block index.
+  `FUN_00519110` returns the exact-locale slot, else the last locale-0 slot of
+  the probe, else -1; a `-2` slot is skipped, a `-1` slot ends the probe.
+  The tables are encrypted with the type 3 hash of `(hash table)` and
+  `(block table)`; the cipher uses the type 4 block of the crypt table.
+- **Write** (`FUN_00519db0`) refuses a null or empty name, null data or
+  FILETIME, a size of 0 or over 0x1000000 and a zero second lifetime, taking
+  no lock. Otherwise it deletes the name, then picks a block: the first free
+  block (flags 0) with allocation >= size + 0x144, else the first block with
+  that allocation whose entry header is unreadable, not 0x144 bytes, or whose
+  reusable time (`+0x30`) is before now, else a new block at the file end
+  (block count under 0x400). A reused block keeps its offset and allocation
+  and every hash entry that pointed at it becomes `-2`. The entry header
+  stamps `+0x18` and `+0x28` with now, `+0x30` / `+0x38` with now plus each
+  lifetime (a 64-bit product, so -1 is 136 years), then both tables, their
+  CRCs and the header are rewritten. Any I/O failure or a full table logs
+  "bncache.dat is corrupt (N) - rebuilding archive" with N = 0xb (no block),
+  0xc (no hash slot), 0xd to 0x11 (short writes: entry header, data, hash
+  table, block table, header) and replaces the whole cache; the call returns 0.
+- **Read** (`FUN_00519920`) zeroes its outputs first. A hash hit whose block
+  index is not below the block count (this includes `-1` and `-2`) rebuilds
+  (code 1), a short first read of the header 2, a header size field other than 0x144 3, a short rest of the header 4, a block data size over 0x1000000 5,
+  a short header write-back 6, a short data read 7. Entry faults (header CRC 1,
+  name not equal ignoring case 2, expired 3, data CRC 4) log the "File: ..."
+  line and delete the entry in memory only; the file is not rewritten until
+  the next write. A block with flags 0 reads as a name mismatch. The caller's
+  FILETIME is returned before the data CRC is checked, so a data CRC failure
+  leaves it set. On success `+0x18` (last read) is rewritten with a new header
+  CRC.
+- **Time** (`FUN_00518f30`) caches one static FILETIME keyed by (seconds,
+  tick count); a different seconds value or tick re-reads the clock.
+- **Name hash** (`FUN_00518fa0`) indexes the crypt table by `type * 256 +
+  (signed char)`, so a character of 0x80 or more reads the previous type's
+  block; for type 0 that is memory before the table (bugs.md 88).
+- **Close** (`FUN_00519300`) frees the block table, hash table, header and
+  crypt table (CACHE.CPP lines 0x155, 0x159, 0x15d, 0x165), closes the handle
+  and clears the open flag; closing twice is harmless. `FUN_005193c0` frees a
+  returned buffer (line 0x16f) and returns 1, or 0 for null.
+
+Faults found (bugs.md 84 to 89): an unbounded name copy in the write, a
+double free when the replacement file cannot be created, the 10 MB open limit
+against 16 MB entries, unchecked table counts, name hash reads below the table,
+and a full block table discarding the whole cache.
 
 ## BNNews.cpp: the news list
 

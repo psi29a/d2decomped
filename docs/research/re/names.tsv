@@ -182,7 +182,7 @@ address	name	evidence
 00518e60	bncache_decrypt	MPQ key schedule: seed 0xeeeeeeee, crypt table +0x1000, key >> 11 | ~key << 21 + 0x11111111
 00518ec0	bncache_encrypt	same schedule as FUN_00518e60, the plain word feeds the seed
 00518f30	bncache_time	GetSystemTime + ESI * 10000000 as FILETIME, cached per GetTickCount
-00518fa0	bncache_hash	toupper, 0x7fed7fed / 0xeeeeeeee, crypt table type * 0x100
+00518fa0	bncache_hash	toupper, 0x7fed7fed / 0xeeeeeeee, crypt table type * 0x100; high-bit chars index below the block (bugs.md 88)
 00519000	bncache_crypt_table	0x500 entries from seed 0x100001, * 0x7d + 3 % 0x2aaaab
 00519110	bncache_find	FUN_00518fa0 types 0/1/2, mask hash count - 1, probe to -1
 005191d0	bncache_delete	every FUN_00519110 hit: block +8/+0xc cleared, hash +0xc = -2
@@ -190,10 +190,10 @@ address	name	evidence
 005192a0	bncache_remove_file	CloseHandle, DeleteFileA of FUN_00519220's path
 00519300	bncache_close	frees DAT_00881884/8c/80/88 (CACHE.CPP 0x155-0x165), CloseHandle
 005193c0	bncache_free	API +0xc8: Storm free, CACHE.CPP line 0x16f
-005193e0	bncache_open	magic 0x1a334e42, CRC +0x20, "WARNING- cache file is invalid" codes 1-12
+005193e0	bncache_open	magic 0x1a334e42, CRC +0x20, "WARNING- cache file is invalid" codes 1-12; verified, bugs.md 85-87
 005198c0	bncache_rebuild	FUN_00519300, DeleteFileA, FUN_005193e0
-00519920	bncache_read	API +0xcc; "File: '%s' in bncache.dat is corrupt (%d) - deleting from cache"
-00519db0	bncache_write	API +0xd0; 0x144-byte entry header, rewrites both tables and the header CRC
+00519920	bncache_read	API +0xcc; "File: '%s' in bncache.dat is corrupt (%d) - deleting from cache"; verified (tools/emu/bncache.py)
+00519db0	bncache_write	API +0xd0; 0x144-byte entry header, rewrites both tables and the header CRC; verified, bugs.md 84, 89
 0051ac20	bnet_free_channel_list	DAT_008818c8, Storm free line 0x1ef; FUN_0051c470 (close)
 0051ac50	bnet_get_channel_list	C->S 0x0B: u32 (expansion and ECX == 0), waits, returns DAT_008818c8
 0051aca0	bnet_join_channel	C->S 0x0C: u32 flags + name (default Diablo II)
