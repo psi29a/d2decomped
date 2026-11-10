@@ -647,3 +647,24 @@ link free `0x6bd0b0`, the pool free) are logged, not run.
 |---|---|
 | `item_free_small.py` | `FUN_00611d20`, `006125a0`, `00636b00`, `006372a0`, `006375a0`, `006378f0`, `00637490`, `006374a0`, `00634220`, `00634d90` |
 
+### States helpers (`states_tbls.py`)
+
+`tools/emu/states_tbls.py` runs three States helpers from stock game.exe 1.14d (600
+cases, `--mutation-check` 7 ways). The States table is the row block at `0x96bcec`
+with the count at `0x96bcf4`; rows are 0x3c bytes, and a row's flag byte for bit b
+is at row + 0x10 + (b >> 3). The masks `gadwBitMasks[k] = 1 << k` are at `0x6ce268`.
+
+* **FUN_00611d60** (DATATBLS_BuildStatesDataBitMask, fastcall struct, bit): ORs
+  `1 << i` into word `i >> 5` of the struct for each state i whose flag bit is set.
+* **FUN_00611dc0** (DATATBLS_BuildStatesDataList, fastcall list, counter; stack bit):
+  allocates `2 * count` bytes (DataTbls.cpp line 0x64b), zeroes them, stores the ids
+  of the flagged states as shorts, and the count as a short at the counter.
+* **FUN_00611e60** (TXT_States_AllocItemTypesStateDataTable, fastcall list, counter;
+  stack offset): as above (line 0x662); a state is listed when the short at
+  row + offset is positive (signed). The Ghidra output's `overlay + offset - 2` is
+  the same address.
+
+| Oracle | Functions |
+|---|---|
+| `states_tbls.py` | `FUN_00611d60`, `00611dc0`, `00611e60` |
+
