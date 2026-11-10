@@ -162,6 +162,49 @@ seed (FUN_00650e50 before them only reads it):
   weight rarity, 0 counts 1; rand(total), then subtract.
 - A failed unique goes rare with durability x3, a failed set x2.
 
+### The quality roll, expansion and classic — FUN_00556f60
+
+(cited, decompile only, no disassembly or oracle run.) `FUN_00556f60(item,
+record)`; `v` is the item's version (`FUN_0062a670`, item data +0x30: 0 in a
+classic game, non-zero in an expansion one, see above).
+
+1. `v != 0` and record +0x30 non-zero: that is the quality, no draw.
+2. The ItemRatio row is `FUN_00637910(item class, game+0x6d difficulty,
+   v == 0 ? 0 : 100)` (the highest Version row not above the argument; any
+   other version argument is the fatal id 0x61d). No row: fatal id 0x486; no
+   Items row for the code: fatal id 0x489; no game: id 0x482. An Items row
+   with +0x12a (quest) set returns 2 at once.
+3. The qualities are tried in turn from the table of six words at 0x6e1138
+   (its words are not read here; the order unique, rare, set, magic,
+   superior, normal is the one above, as case 7, 6, 5, 4, 3, 2). Each has a base `b` and divisor `d` in the row (case 7
+   ints 0 / 1, case 6 ints 3 / 4, case 5 ints 6 / 7, case 4 ints 9 / 10,
+   case 3 ints 0xc / 0xd, case 2 ints 0xe / 0xf). A try wins when `rand(b -
+   past / d) == 0` (the item's own seed, `FUN_00627d90`, via
+   `FUN_0045c3e0`).
+4. **Expansion (`v != 0`)**: `past` = record +0xc (the ilvl) minus Items
+   +0xfd (qlvl), and 1 when that is under 1 **or when the item is of
+   ItemTypes row 0x34** (`FUN_00629bb0(item, 0x34)`, an is-a test on the
+   type's equivalence bits). Each of the six qualities in the order table (7 to 2) divides. A base under 1 wins
+   **without a draw**.
+5. **Classic (`v == 0`)**: `past` is the raw ilvl (no qlvl taken off). Only
+   normal, superior and magic (cases 2, 3, 4) divide; unique, rare and set
+   (cases 7, 6, 5) are `b - ilvl`, no divisor. A base under 1 becomes 1 and
+   **still draws** (`rand(1)`, a step of the item's seed), then wins.
+6. No quality won: `((record +0x80 & 0x40) | 0x20) >> 5`, that is 3
+   (superior) with the bit and 1 (low quality) without.
+
+d2d: `stand_quality` (components/rules/drops.hpp) ports the expansion path
+only: it agrees on the try order, `past / d`, the no-draw win under 1 and the
+superior fall-through. It differs from game.exe in: no classic path (no
+version-0 ItemRatio row, qlvl is always taken off, divisors always, a base
+under 1 never draws); no ItemTypes row 0x34 override; and a failed round
+ends in superior whatever the 0x40 bit (d2d's stands set it, so the common
+case agrees; low quality, 1, is the other result in game.exe). The loader
+(`gamedata_load.cpp:1034`) keeps the highest Version <= 100 row per class /
+uber pair, as the expansion call does; it has no lookup for the version-0 row (it
+only lands on one if a pair has no row above 0).
+Re-check: `python3 tools/ghidra/fn.py 00556f60 00637910 00629bb0`.
+
 ## A new character's items — FUN_00534f10, FUN_00534d60, FUN_00534c70
 
 FUN_00532590 (PlrSave.cpp, a new character) calls FUN_00534f10, which
