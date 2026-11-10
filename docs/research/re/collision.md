@@ -475,6 +475,24 @@ arguments), cited, not run. The functions are in the order they are met.
   `FUN_0057ed70`'s test); the other modes in the table read here allow. d2d's "a skill that comes mid-swing is
   dropped" (net.cpp, net-packets.md) is the 7 / 8 / 10 / 0xb arm. **agrees** as far as that arm
   goes; the other arms are not ported.
+- **`FUN_0057eec0(game, unit, mode, flag, skill)`: may the player act?** Two callers
+  pass different arguments. It returns 0 for a unit in state 0x36 (`FUN_00639df0`), a null
+  unit, and mode 0 or 0x11 (LAB_0057eed6). A zero `mode` or `flag` then returns 1
+  (LAB_0057eff2). **The dispatcher** `FUN_0054d750` calls it as `(1, 0, 0)` (LAB_0054d7b0:
+  pushes 0, 0, 1), so for the ids read here, all but 0x14, 0x15, 0x3c, 0x43, 0x66 (no test) and 0x41 (only in
+  mode 0x11) the gate is those three tests and nothing else. **Walking is not one of them**,
+  so the "a walking player is busy" of network.md, `walk.cpp` and `World::apply`'s comment is
+  not what `FUN_0057eec0` reads; whatever drops a packet from a walking player is in the
+  handler, not traced here. **`FUN_00580a70`** calls it as `(mode, 1, skill)` (LAB_00580af6), and
+  then it goes on: the unit's skill list (`FUN_00620250`) and the skill record of its head
+  (`.\PLAYER\PlrModes.cpp` line 0xb9, `FUN_0045c4b0`); none of either returns 1. The skill
+  argument equal to the list head with record +0x2e 0x43 or 0x4c returns 1. With the record's
+  +7 flag (`[0x6ce284]`, 0x80 in the decompile) clear: current mode 1 calls `FUN_005809d0`
+  and returns 1; a new mode of 7, 8, 10, 0xb, 0xd or 0x12 returns `FUN_0057ed70`; else 0.
+  With the flag set: state 0x2a on the unit and its list's stat 0xa4 over a roll
+  (`FUN_0045c390(unit seed, 100)`) go to the mode test above; otherwise state 0xf absent returns 1,
+  present goes to the same mode test. The roll, the states and `FUN_005809d0` are not ported
+  or traced further. **DISAGREES** with d2d on what "busy" is (issue).
 
 ### How near the client walks
 

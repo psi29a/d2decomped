@@ -598,6 +598,7 @@ address	name	evidence
 0057aa00	unit_mana_back	(points on the stack, unit in EDI): stat 8 + points capped at stat 9 (FUN_00625d60), returns max - cur when capped; no dead test (combat.md "Mana back")
 00580ec0	player_death_mode	died bit FUN_00538650, losses FUN_00535ab0, ear FUN_0055a200 on a player's kill (combat.md Death)
 0057edd0	player_mode_may_start	EAX unit, ECX game, EBX new mode: 0 with a cursor item (unless mode 0 / 0x11), else by the unit's mode +0x10 (byte table 0x57eea8; 7, 8, 10, 0xb need FUN_0057ed70 or new mode 4 / 9) (collision.md "The pending interact's fields")
+0057eec0	player_may_act	fastcall (game, unit, mode, flag, skill): 0 for state 0x36, a null unit, mode 0 / 0x11; the dispatcher FUN_0054d750 calls it (1, 0, 0) so that is all it tests there; FUN_00580a70 adds the skill record test (collision.md "The pending interact's fields")
 0057aae0	unit_stun	(attacker, length; struck unit in EDI): length < 1 nothing; special monster 90 % shrug on the attacker's seed, boss, Velocity 0 immune; cap 250 (hireling 13); state 0x15 to game frame + length (skills.md "Stun")
 00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")
 00574930	pet_send_to_client	per-client callback of FUN_005538d0: event {+0 pet id, +4 owner id, +8 class, +0xc row, +0x10/+0x14 words}; both words 0 sends 0x7a (FUN_0053cb30) else 0x81 (FUN_0053cb80) (pet-ai.md "The owner's pet lists")
