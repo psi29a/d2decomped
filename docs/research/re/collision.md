@@ -770,5 +770,23 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   neutral at a failed walk); d2d has no single command switch (not ported as a function).
   Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
   mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
+- **`FUN_00463260`** (unit in EAX, no stack arguments; only caller `FUN_00463390`, which calls it
+  for a unit whose mode `+0x10` is 3, RN): the client's run stop. Nothing happens unless the
+  unit is `FUN_00463de0()`, the local player, and `FUN_00625480(unit, 10, 0)`, stat 10
+  (`kStamina`, `d2s_items.hpp`), is 0. Then the walk is re-issued, in one of two ways:
+  - **With a target** (`FUN_004648f0(unit)` non-zero): the command record is `{target[0]` (type),
+    `target[3]` (GUID)`}` and `FUN_00461250(0, unit, &record, 0)` runs (command 0: the prelude,
+    `FUN_00480780`, then mode 2 or 6 in town; a failed path goes to neutral 1 or 5).
+  - **Without** one: x, y = the path's target words (`FUN_00648a00`, `FUN_00648a10`); the same
+    prelude as `FUN_00461250` (`FUN_00643a00` / `FUN_004743d0`, `FUN_004611f0`, `FUN_00620210(unit,
+    0)`, `FUN_00648dc0`) inline, then `FUN_004804a0(unit, x, y)`; success `FUN_00480e70(unit,
+    walk mode)`, failure `FUN_00460830(unit, neutral mode, 1)`. A unit in mode 0x13 skips all of it.
+  So a run that hits stamina 0 on the local client becomes a walk to the same target, not a
+  stop; other players' runs are not touched here. d2d: not ported as such. The effect is
+  covered by `World::stamina_frame` (`world/tick.cpp:182-223`: stamina 0 turns the run into a
+  walk, 0x580c5f / `FUN_0057f090`) and by the `running && stamina > 0` tests at
+  `tick.cpp:147` and `:175`; d2d has no client re-path (the walk simply continues in the walk
+  mode), no disagreement found. Dead code in game.exe: after the `FUN_00648bf0` test the
+  `target == 0` arms (record `{6, -1}`) cannot run.
   They are the "is this the local player" test every client path below uses. d2d: agrees
   (skills.md:1793, :1806; `apps/whisper/whisper.cpp:45`).
