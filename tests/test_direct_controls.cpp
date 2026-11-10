@@ -16,6 +16,11 @@ int main() try {
     assert(pad::roster_target(true, 2, 1) == 1);
     assert(pad::roster_target(false, 2, 1) == 2);
     assert(pad::roster_target(false, -1, 1) == 1);
+    assert(!skillpad::assignable_name("Kick"));
+    assert(!skillpad::assignable_name("Scroll of Identify"));
+    assert(!skillpad::assignable_name("Book of Identify"));
+    assert(skillpad::assignable_name("Dragon Talon"));
+    assert(skillpad::assignable_name("Book of Townportal"));
     const auto config = pad::skill_buttons_config({});
     for (bool release_modifier_first : { false, true }) {
         pad::Mapper mapper{ config };

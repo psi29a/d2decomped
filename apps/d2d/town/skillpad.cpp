@@ -71,12 +71,12 @@ auto Town::rebuild_wheel() -> void {
     if (wheel_actions) wheel_ids.assign(skillpad::kActions.begin(), skillpad::kActions.end());
     else if (scene)
         for (const auto& info : scene->skills.rows)
-            if (info.name != "Identify" && info.name != "Book of Identify" && skill_known(focused().character.name, info.id)) wheel_ids.push_back(info.id);
+            if (skillpad::assignable_name(info.name) && skill_known(focused().character.name, info.id)) wheel_ids.push_back(info.id);
     if (wheel_at < 0 || wheel_at >= int(wheel_ids.size())) wheel_at = 0;
 }
 
 auto Town::present_skill_pad() -> void {
-    skillbar.inventory_context = inv_open;
+    skillbar.portal_available = portal_tome(focused().character.name) >= 0 && level && !d2d::rules::level_ids::is_town(level->id);
     skillbar.mode_on = pad_config.skill_buttons && !game_menu.open && !controls.open && (!touch_enabled || skillbar.picking == 3 || skill_strip >= 0);
     skillbar.wheel_on = false;
     skillbar.strip_on = false;
@@ -312,7 +312,11 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
         if (skill < 0 || !scene || (!press && !button_down) || !skill_known(name, skill)) return;
         const auto* info = scene->skills.get(skill);
         if (!info || info->passive) return;
-        if ((info->name == "Town Portal" || info->name == "Book of Townportal") && !inv_open) return;
+        if (skillpad::portal_name(info->name)) {
+            if (press && level && !d2d::rules::level_ids::is_town(level->id))
+                if (const int item = portal_tome(name); item >= 0) out(cmd::UseItem{ item });
+            return;
+        }
         // A hold in town would repeat the "not in town" line every tick.
         if (!press && level && d2d::rules::level_ids::is_town(level->id)) return;
         if (skill != 0) {
@@ -357,6 +361,7 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
         // Aura selection is press-only: a hold must never fall into targeting.
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (info && info->aura) return;
+        if (info && skillpad::portal_name(info->name)) { fire(skill, press, button_down, used); return; }
         if (info && self_cast(*info)) {
             if (press) out(cmd::UseSkill{ skill, unit.x, unit.y, -1, false, -1 });
             return;
@@ -397,6 +402,17 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
     }
 }
 
+auto Town::portal_tome(std::string_view name, bool charged) const -> int {
+    const Character* owner = name == character.name ? &character : nullptr;
+    if (!owner)
+        for (const auto& candidate : world.players)
+            if (candidate && candidate->character.name == name) { owner = &candidate->character; break; }
+    if (!owner) return -1;
+    for (const auto& item : owner->items)
+        if (item.code == "tbk" && item.location == d2d::d2s::item_location::kStored && item.panel == 1 && (!charged || item.quantity > 0)) return item.id;
+    return -1;
+}
+
 auto Town::skill_known(std::string_view name, int skill) const -> bool {
     if (!scene || skill < 0 || name.empty()) return false;
     const Character* who = name == character.name ? &character : nullptr;
@@ -405,7 +421,8 @@ auto Town::skill_known(std::string_view name, int skill) const -> bool {
             if (other && other->character.name == name) { who = &other->character; break; }
     if (!who) return false;
     const auto* info = scene->skills.get(skill);
-    if (!info || info->passive || info->name == "Identify" || info->name == "Book of Identify") return false;
+    if (!info || info->passive || !skillpad::assignable_name(info->name)) return false;
+    if (skillpad::portal_name(info->name)) return portal_tome(name, false) >= 0;
     return skill_base_level(*scene, *who, skill) > 0 || skill_level(*scene, *who, skill, {}) > 0;
 }
 

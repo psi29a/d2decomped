@@ -723,6 +723,20 @@ void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const
         }
         if (const auto base = scene.rules.item_base.find(item.code); item.column < 4 && !keys[std::size_t(item.column)].empty() && base != scene.rules.item_base.end() && base->second.useable) {
             auto name = keys[std::size_t(item.column)];
+            if (pad_bar && (name == "Up" || name == "Down" || name == "Left" || name == "Right")) {
+                const int centre_x = box[0] + 8, centre_y = box[3] - 10;
+                const int direction_x = name == "Right" ? 1 : name == "Left" ? -1 : 0;
+                const int direction_y = name == "Down" ? 1 : name == "Up" ? -1 : 0;
+                for (int along = -5; along <= 5; ++along)
+                    for (int across = -4; across <= 4; ++across) {
+                        if (std::abs(across) > (along >= 0 ? 5 - along : 1)) continue;
+                        const int pixel_x = centre_x + direction_x * along - direction_y * across;
+                        const int pixel_y = centre_y + direction_y * along + direction_x * across;
+                        auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+                        pixel[0] = 255; pixel[1] = 230; pixel[2] = 150;
+                    }
+                name.clear();
+            }
             while (!name.empty() && scene.font.measure(name) > 0x1c) name.pop_back();
             scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, box[0] + 2, box[3] - 2 - int(scene.font.sheet().frame(0, 0).height) + 1, name, 199, 179, 119);
         }

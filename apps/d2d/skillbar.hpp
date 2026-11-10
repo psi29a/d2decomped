@@ -242,7 +242,7 @@ struct SkillBar {
     std::array<int, 6> mode_slots{};
     std::array<std::string, 6> mode_labels{};
     std::string mode_main_label, mode_set, mode_hint, wheel_close, wheel_prompt, wheel_controls, assignment_feedback, strip_prompt;
-    bool inventory_context = false;
+    bool portal_available = false;
     std::vector<int> wheel_ids;
     std::vector<std::string> strip_rows;
 
@@ -281,8 +281,8 @@ struct SkillBar {
             const auto& spr = column >= 0 ? scene->skill_icons[std::size_t(column)] : scene->generic_skill_icons;
             if (skill->icon < 0 || spr.frames_per_direction() <= std::uint32_t(skill->icon)) return;
             const auto& frame = spr.frame(0, std::uint32_t(skill->icon));
-            const bool inventory_only = mode_on && !inventory_context && (skill->name == "Book of Townportal" || skill->name == "Town Portal");
-            blit_sprite(framebuffer, frame, inventory_only ? disabled_pal : pick.item < 0 && skill_refused(*scene, character, id) ? refused_pal : pal, x, y - int(frame.height) + 1);
+            const bool portal_disabled = mode_on && !portal_available && skillpad::portal_name(skill->name);
+            blit_sprite(framebuffer, frame, portal_disabled ? disabled_pal : pick.item < 0 && skill_refused(*scene, character, id) ? refused_pal : pal, x, y - int(frame.height) + 1);
             if (const auto charged = entry(pick); charged && charged->left > 0) {   // SPELLSEL_DrawSkillLevel: the charges left
                 std::string count = std::to_string(charged->left);
                 while (scene->font_small.measure(count) > 0x28) count.pop_back();

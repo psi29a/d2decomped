@@ -139,8 +139,8 @@ D-pad roster navigation owns A confirmation until actual mouse/analog movement.
 This intentionally hides and ignores the stale pointer. Identify items are
 excluded from modern skill assignment, including old modern bindings becoming
 unavailable without rewriting their files. Inventory A and remapped Use both
-select/confirm Identify; B cancels. Portal skill destinations are visually
-disabled outside Inventory and cannot cast there. These are UX changes, not
+select/confirm Identify; B cancels. Portal skill destinations use a carried charged tome directly in the field.
+Missing/empty tomes and town restrictions disable them. These are UX changes, not
 newly traced original-game claims.
 
 The opt-in overlay accepts one mouse/Pencil-style pointer as well as independent
@@ -148,3 +148,23 @@ SDL fingers. Pointer input cannot emulate two independent thumbs. Sidecar
 compatibility requires checking events on the user's actual macOS/iPadOS pair;
 no physical Sidecar verification has been performed. No bridge or dependency
 is introduced. Rounded skill/attack outlines reuse the existing renderer.
+
+## Radial and movement follow-up
+
+Generic Kick, Identify, Scroll of Identify and Book of Identify are excluded
+from modern assignment. Class kick skills remain. Saved excluded entries
+are unavailable without overwriting their saved IDs. A portal binding selects
+a carried charged tbk and dispatches UseItem once per press. Inventory need
+not be open; this supersedes the earlier panel restriction after playtest.
+
+Simulated clean stick release reproduced a facing change from 13 to 8. The
+release sends a fresh Move to the player's exact current position. Previously
+that requested a new path, whose subtile-centre step could turn the character.
+Exact-position fresh Move now clears movement without replanning. This is a
+controller UX correction, not newly traced original behavior (not traced).
+The configured deadzone and intentional right-stick aiming remain unchanged.
+
+Belt directions are drawn arrows, independent of font arrow support, while
+remapped non-direction buttons retain their actual names. Native touch input
+cannot currently be tested; Sidecar does not count as independent-finger
+validation. Simulated tests remain useful but do not establish device support.

@@ -496,6 +496,7 @@ struct Town {
     [[nodiscard]] std::string pick_label(const PadPick& pick) const;
     void apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, std::string_view name, int right_skill,
                          bool expansion, const pad::Actions& actions, const Send& out);
+    [[nodiscard]] int portal_tome(std::string_view name, bool charged = true) const;
     [[nodiscard]] bool skill_known(std::string_view name, int skill) const;
     void drive_wheel(const pad::Actions& actions);
     void drive_strip(const pad::Actions& actions);

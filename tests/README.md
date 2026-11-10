@@ -69,3 +69,9 @@ quest effects reaching local co-op participants.
 The Act 1 and Act 4 headless quest tests also wait for the real quest
 effects to reach the client offsets and OpenAL quake channel, check that a
 level change stops the loop, and observe Diablo's delayed arrival taunt.
+
+Controller regressions: `test_pad_stop` exercises an exact-position fresh Move
+through World and preserves facing/position; `pad_portal_d2d` loads a saved RT
+portal binding and uses a carried tome with Inventory closed. Both use the
+existing local 1.14d data gate. `test_direct_controls` covers the modern radial
+filter, retaining class kick skills. Native touch hardware remains unverified.
