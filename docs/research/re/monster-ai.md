@@ -3,8 +3,9 @@
 How a monster finds a target and when it thinks. Placement and population
 are in monsters.md; the per-AI thinks are in `components/rules/thinks/`
 (a file per act, `mon_think` in `thinks.hpp` finds one by its AI name), the
-inputs each reads beyond the ones every think gets in `components/game/ai/`
-(the same acts; `ai.cpp think` runs them).
+game side of each (its own target pick, a think the game runs itself, the
+inputs its think reads, how its skills start and aim) in
+`components/game/ai/` (the same acts; `ai.cpp think` runs them).
 
 ## The driver — FUN_005b1740
 
@@ -379,8 +380,8 @@ after it; list 8 (good monsters) of his act joins the same best. List 9
 when it's within 5 of him (FUN_005dc530), the best isn't in reach
 (FUN_00622c40) and a path to it (FUN_00648b90, type 2, FUN_00649970)
 fails (FUN_00648780), the fallback is the target. It returns how many it
-looked at (the chooser's players_looked) and the best score. d2d: ai.cpp's
-Diablo block. FUN_00625480 reads the same stats off a pet or monster: its
+looked at (the chooser's players_looked) and the best score. d2d:
+`ai/act4.cpp` chooser_pick. FUN_00625480 reads the same stats off a pet or monster: its
 resists raw (a merc's base + gear, no penalty), and its aura is its right
 skill (FUN_005701b0 → FUN_00643c50: a merc's FUN_005e4d30, a summon's
 FUN_005c4470, Aura Enchanted's FUN_005a1650, Duriel's Holy Freeze), the

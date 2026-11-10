@@ -2,6 +2,7 @@
 // Act 1's think inputs (rules/thinks/act1.hpp reads them).
 #include "ai.hpp"
 
+#include "gamedata.hpp"
 #include "internal.hpp"
 
 #include <monsters.hpp>
@@ -10,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdlib>
 #include <span>
 #include <vector>
 
@@ -19,7 +21,7 @@ namespace {
 
 using d2d::rules::Boss;
 
-struct Act1Preps : ThinkPrep {
+struct Act1Ai : ThinkCtx {
     // The Fallen run while a unit dies near (ThinkIn::dying), crying once as they start.
     void fallen() {
         if (!input.dying) monster.fleeing = false;
@@ -64,19 +66,25 @@ struct Act1Preps : ThinkPrep {
                 kin = int(raised - pack.begin());
             }
     }
+    // Square on (FUN_005f9490): along the axis it's nearer the target's.
+    void gargoyle_aim() {
+        const bool down = std::abs(target_x - x) < std::abs(target_y - y);
+        monster.skill_x = down ? x : target_x; monster.skill_y = down ? target_y : y;
+        unit.dir = direction16(float(monster.skill_x - x), float(monster.skill_y - y));
+    }
 };
 
-constexpr auto kRows = std::to_array<PrepRow>({
-    { "Fallen", &prep_as<Act1Preps, &Act1Preps::fallen> },
-    { "FallenShaman", &prep_as<Act1Preps, &Act1Preps::fallen_shaman> },
-    { "FoulCrowNest", &prep_as<ThinkPrep, &ThinkPrep::nest> },
-    { "BloodRaven", &prep_as<Act1Preps, &Act1Preps::blood_raven> },
-    { "GargoyleTrap", &prep_as<ThinkPrep, &ThinkPrep::nest> },
-    { "Fetish", &prep_as<Act1Preps, &Act1Preps::fetish> },
+constexpr auto kRows = std::to_array<AiRow>({
+    { .ai_name = "Fallen", .prep = &part_as<Act1Ai, &Act1Ai::fallen> },
+    { .ai_name = "FallenShaman", .prep = &part_as<Act1Ai, &Act1Ai::fallen_shaman> },
+    { .ai_name = "FoulCrowNest", .prep = &part_as<ThinkCtx, &ThinkCtx::nest> },
+    { .ai_name = "BloodRaven", .prep = &part_as<Act1Ai, &Act1Ai::blood_raven> },
+    { .ai_name = "GargoyleTrap", .prep = &part_as<ThinkCtx, &ThinkCtx::nest>, .aim = &part_as<Act1Ai, &Act1Ai::gargoyle_aim> },
+    { .ai_name = "Fetish", .prep = &part_as<Act1Ai, &Act1Ai::fetish> },
 });
 
 }  // namespace
 
-const std::span<const PrepRow> kAct1Preps{ kRows };
+const std::span<const AiRow> kAct1Ais{ kRows };
 
 }  // namespace d2d::game

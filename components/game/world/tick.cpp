@@ -240,7 +240,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         game_data->poll_levels();
         if (!in_town(level)) each_player([](Player& player) { player.greeted.clear(); });   // FUN_004b3e10: out of town, all greet again
         fight.spawning.game_quests = game_bits;          // the town markers' inits read them as rooms come up
-        // a3q7: the Dark Wanderer gone (ai.cpp) marks every player in act 3 (FUN_005bd260: word 0x20 bit 0, if missing).
+        // a3q7: the Dark Wanderer gone (ai/act3.cpp) marks every player in act 3 (FUN_005bd260: word 0x20 bit 0, if missing).
         if (d2d::rules::level_act(level->id) == 2
             && std::ranges::any_of(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; }))
             each_player([&](Player&) { if (!d2d::rules::quest::bit(quests(), 0x20, 0)) d2d::rules::quest::set(quests(), 0x20, 0); });

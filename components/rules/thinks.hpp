@@ -37,7 +37,7 @@ inline Think mon_think(std::string_view ai_name, const ThinkIn& input, Rng& rng,
 }
 
 // An AI d2d thinks for: a row above, or one the game runs itself
-// (game/ai.cpp: the prisoners', Baal's throne and stairs, the Dark
+// (game/ai/: the prisoners', Baal's throne and stairs, the Dark
 // Wanderer's). ImpRide is the riding imp's think (special AI 16), no
 // MonStats AI.
 inline bool traced_ai(std::string_view ai_name) {

@@ -19,7 +19,7 @@ namespace d2d::game {
 
 namespace {
 
-struct Act2Preps : ThinkPrep {
+struct Act2Ai : ThinkCtx {
     // The searches (FUN_005dd0b0 mode 1: near_order): the nearest living
     // kin of its class (FUN_005b0d00, the Panthers'), any other living one
     // (FUN_005f06b0, the Sand Raider's), by squared distance (FUN_005b0bd0).
@@ -92,20 +92,27 @@ struct Act2Preps : ThinkPrep {
         const auto landing = free_spot_near(level, crowd, &unit, 2 * target_x - x, 2 * target_y - y, unit.shape.size, 0x3c01);
         input.usable = landing && !d2d::rules::sight_blocked(x, y, 0, landing->first, landing->second, 0, [this](int at_x, int at_y) { return wallc01(at_x, at_y); });
     }
+    // Search type 0 with a think (Coldworm's, MonAI 66): no target looked for,
+    // the think runs anyway; it reads none, so any live foe stands in.
+    void coldworm_search() {
+        if (!target)
+            for (auto& foe : foes) if (foe.alive) { target = &foe; break; }
+    }
 };
 
-constexpr auto kRows = std::to_array<PrepRow>({
-    { "SandLeaper", &prep_as<Act2Preps, &Act2Preps::sand_leaper> },
-    { "ClawViper", &prep_as<ThinkPrep, &ThinkPrep::charge_line> },
-    { "PantherWoman", &prep_as<Act2Preps, &Act2Preps::panther> },
-    { "PantherJavelin", &prep_as<Act2Preps, &Act2Preps::panther> },
-    { "SandRaider", &prep_as<Act2Preps, &Act2Preps::sand_raider> },
-    { "GreaterMummy", &prep_as<Act2Preps, &Act2Preps::greater_mummy> },
-    { "Vulture", &prep_as<Act2Preps, &Act2Preps::vulture> },
+constexpr auto kRows = std::to_array<AiRow>({
+    { .ai_name = "SandLeaper", .prep = &part_as<Act2Ai, &Act2Ai::sand_leaper> },
+    { .ai_name = "ClawViper", .prep = &part_as<ThinkCtx, &ThinkCtx::charge_line> },
+    { .ai_name = "PantherWoman", .prep = &part_as<Act2Ai, &Act2Ai::panther> },
+    { .ai_name = "PantherJavelin", .prep = &part_as<Act2Ai, &Act2Ai::panther> },
+    { .ai_name = "SandRaider", .prep = &part_as<Act2Ai, &Act2Ai::sand_raider> },
+    { .ai_name = "GreaterMummy", .prep = &part_as<Act2Ai, &Act2Ai::greater_mummy> },
+    { .ai_name = "Vulture", .prep = &part_as<Act2Ai, &Act2Ai::vulture> },
+    { .ai_name = "SandMaggotQueen", .search = &part_as<Act2Ai, &Act2Ai::coldworm_search> },
 });
 
 }  // namespace
 
-const std::span<const PrepRow> kAct2Preps{ kRows };
+const std::span<const AiRow> kAct2Ais{ kRows };
 
 }  // namespace d2d::game

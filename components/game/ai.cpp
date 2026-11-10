@@ -716,10 +716,59 @@ bool teleport_mod(const GameData& game_data, const Level& level, Monster& monste
     return false;
 }
 
-// The AI's inputs beyond the ones every think gets (ai/), null for none.
-const PrepRow* think_prep(std::string_view ai_name) {
-    for (const auto table : { kAct1Preps, kAct2Preps, kAct3Preps, kAct4Preps, kAct5Preps })
-        if (const auto row = std::ranges::find(table, ai_name, &PrepRow::ai_name); row != table.end()) return &*row;
+}  // namespace
+
+auto ThinkCtx::idle(int frames) -> void {                           // FUN_005de080
+    if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
+    monster.wandering = false;
+    monster.next_act = now_ms + std::uint32_t(std::max(frames, 1)) * 40;
+}
+
+// A move sets off (FUN_005a7c20) with a re-path budget of 0x14
+// (FUN_006490e0) and its path (path_to), at a foe or to unit.goal (at a
+// unit there: `to_unit`); one with no path can't start, and a spot move
+// then thinks aidel on (FUN_005a73e0).
+auto ThinkCtx::set_off(bool running, const Foe* foe, bool to_unit) -> bool {
+    monster.budget = 0x14;
+    monster.path_type = std::exchange(monster.next_path_type, 0);
+    monster.wandering = !foe;
+    if (!path_to(level, monster, foe ? subtile(foe->x) : subtile(unit.goal_x), foe ? subtile(foe->y) : subtile(unit.goal_y), foe || to_unit, crowd)) {
+        if (!foe && !to_unit) idle(per_difficulty.aidel ? per_difficulty.aidel : 15);
+        return false;
+    }
+    const std::string_view mode = running && has_run ? "RN" : "WL";
+    if (monster.mode != mode) set_mode(game_data, monster, mode, now_ms);
+    return true;
+}
+
+auto ThinkCtx::walk_to(int off_x, int off_y, bool running) -> void {   // to a spot, subtiles off
+    unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
+    set_off(running, nullptr);
+}
+
+auto ThinkCtx::use(std::string_view mode, int skill) -> void {     // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
+    monster.chase = targeted ? int(target - foes.data()) : -1;
+    unit.dir = direction16(dx, dy);
+    monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
+    set_mode(game_data, monster, mode, now_ms);
+    monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
+    monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y; monster.at_point = false;
+    attack_starts(game_data, monster, mode, rng);
+    // srvst 59 (FUN_005d1280, Imp Inferno): its end calc1 frames from the start (the roll on its seed now), state 0xc on.
+    if (const auto* fire = game_data.skills.get(skill); fire && fire->srvstfunc == d2d::rules::ServerStartFunction::kImpInferno) {
+        d2d::rules::CalcEnv env;
+        env.rng = &monster.seed;
+        monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, fire->calc[0], env, skill, skill_level(game_data, monster, skill)), 1)) * 40;
+        monster.breath_state = true;
+    }
+}
+
+namespace {
+
+// The AI's row (ai/), null for none.
+const AiRow* ai_row(std::string_view ai_name) {
+    for (const auto table : { kAct1Ais, kAct2Ais, kAct3Ais, kAct4Ais, kAct5Ais })
+        if (const auto row = std::ranges::find(table, ai_name, &AiRow::ai_name); row != table.end()) return &*row;
     return nullptr;
 }
 
@@ -754,28 +803,22 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     const bool andariel = type_info.ai_name == "Andariel";
     const bool cursed = monster.special == 10 || monster.special == 11;   // the curse thinks run whatever its own
     if (!andariel && !cursed && !d2d::rules::traced_ai(type_info.ai_name)) return false;
-    auto idle = [&](int frames) {                                  // FUN_005de080
-        if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
-        monster.wandering = false;
-        monster.next_act = now_ms + std::uint32_t(std::max(frames, 1)) * 40;
-    };
+    const AiRow* row = ai_row(type_info.ai_name);
     const bool has_run = game_data.npc_timing(monster.npc, "RN").directions > 0;   // RN falls back to WL
-    // A move sets off (FUN_005a7c20) with a re-path budget of 0x14
-    // (FUN_006490e0) and its path (path_to), at a foe or to unit.goal (at a
-    // unit there: `to_unit`); one with no path can't start, and a spot move
-    // then thinks aidel on (FUN_005a73e0).
-    auto set_off = [&](bool running, const Foe* foe, bool to_unit = false) {
-        monster.budget = 0x14;
-        monster.path_type = std::exchange(monster.next_path_type, 0);
-        monster.wandering = !foe;
-        if (!path_to(level, monster, foe ? subtile(foe->x) : subtile(unit.goal_x), foe ? subtile(foe->y) : subtile(unit.goal_y), foe || to_unit, crowd)) {
-            if (!foe && !to_unit) idle(per_difficulty.aidel ? per_difficulty.aidel : 15);
-            return false;
-        }
-        const std::string_view mode = running && has_run ? "RN" : "WL";
-        if (monster.mode != mode) set_mode(game_data, monster, mode, now_ms);
-        return true;
-    };
+    // The think's state, which each AI's parts (ai/) see through ctx.
+    int x = 0, y = 0, best = 0, nearest = 0x7fffffff, target_x = 0, target_y = 0;
+    float dx = 0, dy = 0;
+    Foe* target = nullptr;
+    Foe* second = nullptr;
+    bool targeted = false;
+    d2d::rules::ThinkIn input;
+    d2d::rules::Think act;
+    int corpse = -1, kin = -1, aid = -1, imp_found = -1, lay_x = 0, lay_y = 0;
+    std::vector<int> wisp_finds;
+    const auto self = pack.empty() ? pack.size() : std::size_t(&monster - pack.data());
+    const int frame = int(now_ms / 40);
+    ThinkCtx ctx{ game_data, level, monster, type_info, per_difficulty, foes, pack, crowd, rooms_in_play, now_ms, rng, has_run, frame, self, unit, input,
+                  x, y, target, best, targeted, target_x, target_y, dx, dy, act, second, corpse, kin, aid, imp_found, lay_x, lay_y, wisp_finds };
     // A move runs to its end (move_frame), then it thinks: a walk or run's
     // end does so at once (FUN_005a8030: DAT_0073c6d0 flags WL and RN),
     // whatever think is pending (that one still comes).
@@ -799,210 +842,38 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // (MonStats flags +0xc & 8) and the monster bit 0x800 under it
     // (FUN_00648eb0), its door (OpenDoor) operated, it stands 5.
     // ponytail: the word read now, not a moving path's cached +0x54.
-    if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) { idle(5); return true; }
-    const int x = subtile(unit.x), y = subtile(unit.y);
-    auto [target, best, nearest] = search_target(game_data, level, monster, foes, seen);
-    // A minion under Cry Help (AI command 1, FUN_0058f730): the unit it's sent
-    // at, while that lives, is its target (the Minion think, command kind 1).
-    const bool cried_at = type_info.ai_name == "Minion" && monster.ai_command == 1 && monster.command_foe >= 0;
-    if (cried_at)
-        if (const auto sent = std::ranges::find(foes, monster.command_foe, &Foe::id); sent != foes.end() && sent->alive) {
-            target = &*sent;
-            best = d2d::rules::ai_distance(int(std::floor(sent->x * 5)) - int(std::floor(unit.x * 5)), int(std::floor(sent->y * 5)) - int(std::floor(unit.y * 5)));
-        }
+    if (type_info.open_doors && on_door(level, unit) && open_door && *open_door && (*open_door)(monster, now_ms)) { ctx.idle(5); return true; }
+    x = subtile(unit.x); y = subtile(unit.y);
+    const auto searched = search_target(game_data, level, monster, foes, seen);
+    target = searched.target; best = searched.best; nearest = searched.nearest;
     monster.aware = target != nullptr;
-    // Search type 0 with a think (Coldworm's, MonAI 66): no target looked for,
-    // the think runs anyway; it reads none, so any live foe stands in.
-    if (!target && type_info.ai_name == "SandMaggotQueen")
-        for (auto& foe : foes) if (foe.alive) { target = &foe; break; }
-    // Diablo's (FUN_005e8f20, once his search found someone): the unit
-    // lists' best by his score (FUN_005e8530), above 0, the first on a tie.
-    // Lists 0..7: a player of his act under 0x3fc (FUN_005e8eb0: FUN_005dc530;
-    // Baal's FUN_005fc000: the same act byte, under 0x3fc)
-    // and the pets after it (a dead player scores 0); list 8, the good
-    // monsters of his act. List 9's best (neutral: Confuse, Attract) is the
-    // fallback: within 5 of him, with the best out of reach (FUN_00622c40)
-    // and no path to it (type 2, FUN_00649970), it's taken. None: the
-    // search's stays.
-    // Each foe's pick: Fight::world's (a pet's or monster's, unit_pick).
-    // Baal's and his clone's (FUN_005fbdd0, score FUN_005fbb00) are the same
-    // with the point bonus at 0x4b.
-    const bool baal = type_info.ai_name == "BaalCrab" || type_info.ai_name == "BaalCrabClone";
-    const int point_far = baal ? 0x4b : 0x55;
-    if (target && (type_info.ai_name == "Diablo" || baal)) {
-        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
-        const int point_x = monster.has_point ? monster.point_x : x, point_y = monster.has_point ? monster.point_y : y;
-        const auto value = [&](const Foe& foe) {
-            const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
-            if (!foe.alive && !foe.pet && !foe.of) return 0;
-            const bool reach = d2d::rules::unit_distance(foe_x - x, foe_y - y, type_info.size, foe.size) <= type_info.melee_rng + 1;
-            const bool line = !d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, wall);
-            const bool point_bonus = d2d::rules::point_apart(x - point_x, y - point_y, (type_info.size >> 1) + 1) > point_far
-                                  && d2d::rules::point_apart(foe_x - point_x, foe_y - point_y, (foe.size >> 1) + 1) < point_far;
-            return d2d::rules::diablo_score(foe.pick, foe.life_pct, reach, line, point_bonus);
-        };
-        Foe* top = nullptr; int top_score = 0;
-        Foe* spare = nullptr; int spare_score = 0;
-        const bool player_in = std::ranges::any_of(foes, [&](const Foe& foe) {
-            return !foe.pet && !foe.of && d2d::rules::ai_distance(subtile(foe.x) - x, subtile(foe.y) - y) < 0x3fc; });
-        for (auto& foe : foes) {
-            const bool neutral = foe.of && foe.of->align == 1, good = foe.of && foe.of->align == 2;   // list 9; a converted one is a pet
-            if (foe.of && !neutral && !good) continue;
-            if (!foe.of && !player_in) continue;                    // the player failed FUN_005e8eb0: it and its pets skipped
-            if ((foe.of || foe.pet) && !foe.alive) continue;
-            const int score = value(foe);
-            if (neutral) { if (score > spare_score) { spare = &foe; spare_score = score; } }
-            else if (score > top_score) { top = &foe; top_score = score; }
-        }
-        if (spare && d2d::rules::ai_distance(subtile(spare->x) - x, subtile(spare->y) - y) < 5
-            && (!top || d2d::rules::unit_distance(subtile(top->x) - x, subtile(top->y) - y, type_info.size, top->size) > type_info.melee_rng + 1)) {
-            const bool path = top && !d2d::rules::monster_path(x, y, subtile(top->x), subtile(top->y), true, [&](int at_x, int at_y) {
-                const float centre_x = (float(at_x) + 0.5f) / 5, centre_y = (float(at_y) + 0.5f) / 5;
-                return level.unit_blocked(centre_x, centre_y, unit.shape) || crowd.at(centre_x, centre_y, &unit); }).empty();
-            if (!path) top = spare;
-        }
-        if (top) target = top;
-    }
-    auto walk_to = [&](int off_x, int off_y, bool running) {       // to a spot, subtiles off
-        unit.goal_x = (float(x + off_x) + 0.5f) / 5; unit.goal_y = (float(y + off_y) + 0.5f) / 5;
-        set_off(running, nullptr);
-    };
-    // Wussie (FUN_005ee3c0; a5q2's prisoners): no target. Its cage's portal
-    // open: unless one of its cage has gone through, 4 or more off it it
-    // walks at it 70 % (FUN_005dec80 flags 7: one that can't set off has
-    // sight forced, then walk_failed), else rand(100) < 10 wanders 4, else
-    // stands 10; there (or after the first) it's gone through. Else a
-    // player within 16: its door broken, the portal opens (FUN_005888d0),
-    // still caged it cries (FUN_00588dd0; rand(1000) < 100 its help-me
-    // line, RescueQuest::kHelpMe). Then it stands 25.
-    // With its door broken it goes into list 8 (FUN_005b1990, while +0xd0
-    // is 0xb: in none), so evil monsters can find it. The portal stands
-    // still, so a walk at it is a spot move pathed as at a unit (near 1).
-    if (type_info.ai_name == "Wussie") {
-        auto& view = monster.wussie;
-        if (view.portal) {
-            if (!view.cage_left && d2d::rules::ai_distance(view.portal_x - x, view.portal_y - y) >= 4) {   // FUN_005dc5c0
-                if (monster.seed(100) < 70) {
-                    unit.goal_x = (float(view.portal_x) + 0.5f) / 5; unit.goal_y = (float(view.portal_y) + 0.5f) / 5;
-                    if (set_off(false, nullptr, true)) return true;
-                    monster.force_sight = true;
-                    const auto failed = d2d::rules::walk_failed(monster.seed);
-                    if (failed.act == d2d::rules::MonAct::idle) idle(failed.n); else walk_to(failed.x, failed.y, false);
-                    return true;
-                }
-                if (monster.seed(100) < 10) { const auto wander = d2d::rules::think_wander(monster.seed, 4); walk_to(wander.x, wander.y, false); return true; }
-                idle(10);
-                return true;
-            }
-            view.left = true;
-            monster.gone = true;
-            return true;
-        }
-        if (view.player) {
-            if (view.door_broken) { view.open_portal = true; monster.listed = true; }
-            else { view.cried = true; monster.help_sound = monster.seed(1000) < 100; }
-        }
-        idle(25);
-        return true;
-    }
-    // BaalThrone (134, FUN_005ef320; AI control +0x14 the waves sent, +0x18
-    // flags, +0x1c the frame of the next think): till then it stands. With
-    // no other living monster within 64 subtiles (FUN_005dd0b0 kind 3):
-    // flag 1 set, the next of five waves (FUN_005ef210: skill 286 in S3 at
-    // 13 subtiles south, its Subject the wave's superunique 61..65; 100
-    // frames on, flag 2, flag 1 off), or after the fifth he turns into
-    // baalcrabstairs (FUN_00574370(0x22f), think BaalToStairs) and stands 5;
-    // flag 1 unset, skill 285 (Baal Corpse Explode) in S3, flag 1, 250
-    // frames on, and unit event 0x10 (FUN_00553380: the client plays its
-    // Taunt). Before that cast the client is sent the next wave's class
-    // (S->C 0xa4, FUN_00571c00: the superunique's +4; after fallenshaman5
-    // and unraveler5 fallen5 and skmage_cold3 too) to load its art: d2d
-    // loads a unit's when it comes. With others near: Skill1 (Decrepify) in
-    // Sk1mode at the target, unless he's in its aurastate (+0x80, none) or
-    // the target in its auratargetstate (+0x82), on seed(100) < aip1; else
-    // stands 10. Its srvdo 141 (FUN_005d2e80): each corpse
-    // within Param5 (40) + (lvl - 1) x Param6 (0) subtiles (FUN_0056dcc0,
-    // flags 0x3002) goes up as Corpse Explosion (FUN_005c50b0 ->
-    // FUN_005c4df0), whose damage is calc1..calc2 % of its life: the row
-    // has neither, so it hurts no one (bugs.md); the corpses are spent.
-    // The corpses are FUN_0056dcc0's (flags 0x3002, radius 40): baal_corpse_spent.
-    // They're spent on S3's action frame (FUN_0056f7f0 runs the do-func).
-    if (type_info.ai_name == "BaalThrone") {
-        const int frame = int(now_ms / 40);
-        if (frame < monster.ai_state3) { idle(monster.ai_state3 - frame); return true; }
-        const bool others = std::ranges::any_of(pack, [&](const Monster& other) {
-            return &other != &monster && other.alive() && other.align == 0 && d2d::rules::ai_distance(subtile(other.unit.x) - x, subtile(other.unit.y) - y) < 0x40; });
-        if (others) {
-            const int curse = skill_id(game_data, type_info.skill[0]);
-            const auto* row = game_data.skills.get(curse);
-            if (!target || !row || (!row->auratarget.empty() && std::ranges::contains(target->states, row->auratarget)) || monster.seed(100) >= per_difficulty.aip[0]) {
-                idle(10);
-                return true;
-            }
-            monster.chase = int(target - foes.data());
-            unit.dir = direction16(target->x - unit.x, target->y - unit.y);
-            monster.skill = curse;
-            set_mode(game_data, monster, type_info.sk_mode[0], now_ms);
-            monster.skill_x = subtile(target->x); monster.skill_y = subtile(target->y);
-            return true;
-        }
-        if (monster.ai_state2 & 1) {
-            if (monster.ai_state >= 5) { monster.baal_leaves = true; idle(5); return true; }
-            monster.baal_wave = 61 + monster.ai_state;
-            set_mode(game_data, monster, "S3", now_ms);
-            monster.skill = -1;
-            monster.next_act = monster.mode_until;                 // the cast plays out before the next think
-            ++monster.ai_state;
-            monster.ai_state3 = frame + 100;
-            monster.ai_state2 = (monster.ai_state2 | 2) & ~1;
-            return true;
-        }
-        set_mode(game_data, monster, "S3", now_ms);
-        monster.skill = skill_id(game_data, "Baal Corpse Explode");   // 285
-        monster.next_act = monster.mode_until;
-        monster.ai_state2 |= 1;
-        monster.ai_state3 = frame + 250;
-        monster.taunt_sound = true;
-        return true;
-    }
-    // BaalToStairs (138, FUN_005ef620): the Chamber's portal (object 563)
-    // within 25 (FUN_005ef5e0), a straight walk to it (FUN_005deca0); within
-    // aip1 (FUN_006416d0) he's gone in (FUN_0058e600, state 0x92). None:
-    // stands 25.
-    if (type_info.ai_name == "BaalToStairs") {
-        if (!monster.chamber_portal) { idle(25); return true; }
-        const auto [portal_x, portal_y] = *monster.chamber_portal;
-        const int dist = d2d::rules::ai_distance(portal_x - x, portal_y - y);
-        if (dist >= 25) { idle(25); return true; }
-        if (dist < per_difficulty.aip[0]) { monster.baal_in = true; monster.gone = true; return true; }
-        walk_to(portal_x - x, portal_y - y, false);
-        return true;
-    }
+    if (row && row->search) row->search(ctx);                    // its own pick (game.exe's row +0)
+    // A think the game runs itself (the prisoners', Baal's throne and stairs).
+    if (row && row->think) return row->think(ctx);
     // Search types 2 and 5 (FUN_005b1650 cases 2 and 5; the MonAI table
     // 0x73ca18 + ai x 16): the think runs with no target too, type 5's
     // (FrogDemon) after its miss, on a stand-in here (its own spot, not
     // alive) and ThinkIn::target false. FUN_005dd7f0's miss hands it the
     // nearest player's distance (local_34: 0x7fffffff with none, or for a
     // searcher not evil) and not in melee.
-    static constexpr std::array<std::string_view, 5> kThinksAlone{ "Tentacle", "TentacleHead", "NpcBarb", "Ancient", "Nihlathak" };
     Foe alone;
     alone.x = unit.x; alone.y = unit.y; alone.alive = false;
     if (!target) {
         monster.chase = -1;
-        if (!std::ranges::contains(kThinksAlone, type_info.ai_name)) {
+        if (!row || !row->thinks_alone) {
             const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
             const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.left_mode == "GH", level.blocked(unit.x, unit.y, 0x40), nearest);
             if (miss.wander) {
                 const auto wander = d2d::rules::think_wander(monster.seed, 5);
-                walk_to(wander.x, wander.y, false);
+                ctx.walk_to(wander.x, wander.y, false);
             } else if (miss.mode_kept) monster.next_act = now_ms + std::uint32_t(miss.stand) * 40;
-            else idle(miss.stand);
-            if (type_info.ai_name != "FrogDemon") return true;
+            else ctx.idle(miss.stand);
+            if (!row || !row->thinks_after_miss) return true;
         }
         target = &alone;
         best = nearest;
     }
-    const bool targeted = target != &alone;
+    targeted = target != &alone;
     const auto chase_of = [&] { return targeted ? int(target - foes.data()) : -1; };
     // The driver's step 3 (FUN_005b13e0). First sight (FUN_005b1140): a
     // champion, unique or superunique (data +0x16 & 8), a MonStats boss
@@ -1014,7 +885,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                       || monster.type == int(game_data.mon_bin[0xfa]);
     if (special && targeted && best < 0x14 && !target->pet && !target->of && !monster.first_sight) {
         monster.first_sight = monster.taunt_sound = true;
-        idle(0x14);
+        ctx.idle(0x14);
         return true;
     }
     if (targeted && teleport_mod(game_data, level, monster, best, crowd, rooms_in_play, now_ms)) return true;
@@ -1036,53 +907,16 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         }
         if (!leashed) {
             const auto wander = d2d::rules::think_wander(monster.seed, 4);
-            walk_to(wander.x, wander.y, false);
+            ctx.walk_to(wander.x, wander.y, false);
             return true;
         }
         target = leashed;
         best = gap;
     }
-    // MonAI 91, DarkWanderer (FUN_005ea130; a3q7's record 0x1c): his spot
-    // (FUN_005bd0d0, from the marker's x + 7 he's made on) is 20 subtiles
-    // north, else 11 north, 2 east or west of that, else 8 north, else 3
-    // north, the first he has a clear line to (FUN_006229f0: sight_blocked
-    // from his subtile and size to a size-2 end, mask 0x3c01; the last taken
-    // as it is), found once and kept in the record (its +2 flag). AI control
-    // +0x14 0 -> 1; a foe 20 or more off: stand 40. Under 20, state 1: walk
-    // there, state 2. State 2 at its end: within 2 of it, or after 3 more
-    // tries (+0x18), he's gone (unit flag 0x20000, FUN_005ddfc0) and a3q7
-    // marks every player in act 3 (FUN_005bd4a0 -> FUN_005bd390, word 0x20
-    // bit 0); else walk again, a player's path (FUN_005de190(1, 0, 0): type
-    // 7). The afterglow he leaves: World::tick.
-    if (type_info.ai_name == "DarkWanderer") {
-        if (!monster.wanderer_spot) {
-            const int home_x = subtile(monster.home_x), home_y = subtile(monster.home_y);
-            const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x3c01); };
-            auto clear = [&](int at_x, int at_y) { return !d2d::rules::sight_blocked(x, y, type_info.size, at_x, at_y, 2, wall); };
-            int spot_x = home_x, spot_y = home_y - 20;
-            if (!clear(spot_x, spot_y)) {
-                spot_y = home_y - 11;
-                if (!clear(spot_x, spot_y) && !clear(spot_x = home_x + 2, spot_y) && !clear(spot_x = home_x - 2, spot_y)) {
-                    spot_x = home_x; spot_y = home_y - 8;
-                    if (!clear(spot_x, spot_y)) spot_y = home_y - 3;
-                }
-            }
-            monster.wanderer_spot = std::pair{ spot_x, spot_y };
-        }
-        const auto [spot_x, spot_y] = *monster.wanderer_spot;
-        if (monster.ai_state == 0) { monster.ai_state = 1; monster.ai_state2 = 0; }
-        if (best >= 0x14) { idle(0x28); return true; }
-        auto head_off = [&] { unit.goal_x = (float(spot_x) + 0.5f) / 5; unit.goal_y = (float(spot_y) + 0.5f) / 5; set_off(false, nullptr); };
-        if (monster.ai_state == 1) { head_off(); monster.ai_state = 2; return true; }
-        if (d2d::rules::ai_distance(spot_x - x, spot_y - y) < 2 || monster.ai_state2 >= 3) { monster.gone = true; return true; }
-        ++monster.ai_state2;
-        monster.next_path_type = 7;
-        head_off();
-        return true;
-    }
-    int target_x = subtile(target->x), target_y = subtile(target->y);
-    float dx = target->x - unit.x, dy = target->y - unit.y;
-    d2d::rules::ThinkIn input{ .aip = per_difficulty.aip, .dist = best, .difficulty = monster.difficulty, .level = level.id, .state = &monster.ai_state };
+    if (row && row->think_targeted) return row->think_targeted(ctx);   // the Dark Wanderer's
+    target_x = subtile(target->x); target_y = subtile(target->y);
+    dx = target->x - unit.x; dy = target->y - unit.y;
+    input = d2d::rules::ThinkIn{ .aip = per_difficulty.aip, .dist = best, .difficulty = monster.difficulty, .level = level.id, .state = &monster.ai_state };
     input.target = targeted;
     input.self_x = x; input.self_y = y;
     input.in_melee = targeted && d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, target->size) <= type_info.melee_rng + 1;
@@ -1090,9 +924,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));   // FUN_00621f20
     for (std::size_t skill = 0; skill < 3; ++skill) input.skill[skill] = !type_info.skill[skill].empty();
     // A unit in DT within 15 (FUN_005dc530: the Fallen's), its lead.
-    const auto self = pack.empty() ? pack.size() : std::size_t(&monster - pack.data());
     bool rally = false;
-    int corpse = -1;
     input.command = &monster.ai_command; input.rally = &rally;
     input.leader = !pack.empty() && monster.leader == int(self);
     for (std::size_t i = 0; i < pack.size(); ++i) {
@@ -1101,7 +933,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     }
     // The frame (a nest's init takes it at its first think), the spot its
     // young come out on spawnx / spawny off (FUN_005fd350 tests crownest's only).
-    const int frame = int(now_ms / 40);
     input.frame = frame; input.state2 = &monster.ai_state2;
     input.spot_free = nest_spot_free(game_data, level, crowd, monster.type, x, y, false);
     input.home_dist = d2d::rules::ai_distance(subtile(monster.home_x) - x, subtile(monster.home_y) - y);
@@ -1128,7 +959,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // Its state 0x92 (invis) skip needs no test here: only FUN_005ef620 (Baal into
     // the stairs: d2d's gone, so not alive) and FUN_0063efa0 case 0x219 (the
     // Ancients' statues: objects in d2d) set it.
-    Foe* second = nullptr;
     if (monster.set_kind != 0) { second = target; input.second_dist = best; }
     else {
         const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
@@ -1155,8 +985,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.aura_on = monster.aura != 0;
     std::vector<d2d::rules::ThinkEffect> effects;
     input.effects = &effects;
-    int kin = -1, aid = -1, imp_found = -1;
-    std::vector<int> wisp_finds;
     input.kin_dist = std::numeric_limits<int>::max();          // no kin found (the searches start there: ai/)
     // Act 3's (rules::mon_think, monster-ai.md "Act 3's thinks"): its
     // command's unit; Skill1's level; the line to the target (mask 4);
@@ -1174,7 +1002,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (const int off_x = subtile(foe.x) - x, off_y = subtile(foe.y) - y; foe.alive && off_x * off_x + off_y * off_y <= 0x400) input.weak = true;
         input.self_x = x; input.self_y = y; input.target_x = target_x; input.target_y = target_y;
     }
-    int lay_x = 0, lay_y = 0;                                  // where the vile mother lays (ai/act4.cpp)
     // Act 5's (monster-ai.md "Act 5's MonAIs"): a line to the target clear
     // of 0x805 (FUN_005dc640: rules::pet_line_clear, any of three), Skill1's Param1 (its reach), the dead
     // test (mode DT / DD), its own life %; the target's max life and mana
@@ -1195,25 +1022,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         input.reach = input.in_melee;
     }
     // The inputs its own think reads beyond these (ai/act1.cpp .. act5.cpp).
-    ThinkPrep prep{ game_data, level, monster, type_info, foes, pack, crowd, rooms_in_play, now_ms, input, unit, x, y, target, targeted,
-                    target_x, target_y, frame, self, cried_at, second, corpse, kin, aid, imp_found, lay_x, lay_y, wisp_finds };
-    if (const PrepRow* row = think_prep(type_info.ai_name)) row->prep(prep);
-    auto use = [&](std::string_view mode, int skill) {             // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
-        monster.chase = chase_of();
-        unit.dir = direction16(dx, dy);
-        monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
-        set_mode(game_data, monster, mode, now_ms);
-        monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
-        monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y; monster.at_point = false;
-        attack_starts(game_data, monster, mode, rng);
-        // srvst 59 (FUN_005d1280, Imp Inferno): its end calc1 frames from the start (the roll on its seed now), state 0xc on.
-        if (const auto* fire = game_data.skills.get(skill); fire && fire->srvstfunc == d2d::rules::ServerStartFunction::kImpInferno) {
-            d2d::rules::CalcEnv env;
-            env.rng = &monster.seed;
-            monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data.skills, fire->calc[0], env, skill, skill_level(game_data, monster, skill)), 1)) * 40;
-            monster.breath_state = true;
-        }
-    };
+    if (row && row->prep) row->prep(ctx);
     // FUN_005defe0 / FUN_005df140: n subtiles on from the target (or the
     // second target), by axis.
     d2d::rules::ThinkUnit away_from = d2d::rules::ThinkUnit::target;
@@ -1225,16 +1034,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         const float goal_x = (float(x + off_x) + 0.5f) / 5, goal_y = (float(y + off_y) + 0.5f) / 5;
         const float span = std::max(std::hypot(goal_x - unit.x, goal_y - unit.y), 0.01f), probe = std::min(0.2f, span);
         if (level.unit_blocked(goal_x, goal_y) || level.unit_blocked(unit.x + (goal_x - unit.x) / span * probe, unit.y + (goal_y - unit.y) / span * probe)) return false;
-        walk_to(off_x, off_y, running);
+        ctx.walk_to(off_x, off_y, running);
         return true;
     };
     using d2d::rules::MonAct;
-    d2d::rules::Think act;
     if (andariel) {
         using d2d::rules::AndarielAct;
         switch (d2d::rules::andariel_think(input.in_melee, input.aip, monster.seed)) {
-            case AndarielAct::spray: use("SC", kAndrialSpray); return true;   // SQ: seq_andarielspray plays SC
-            case AndarielAct::bolt: use("A1", kAndyPoisonBolt); return true;
+            case AndarielAct::spray: ctx.use("SC", kAndrialSpray); return true;   // SQ: seq_andarielspray plays SC
+            case AndarielAct::bolt: ctx.use("A1", kAndyPoisonBolt); return true;
             case AndarielAct::melee: act = { MonAct::a1 }; break;
             case AndarielAct::idle: act = { MonAct::idle, 5 }; break;
             case AndarielAct::walk: act = { MonAct::walk, 7 }; break;
@@ -1259,7 +1067,6 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         act = d2d::rules::mon_think(type_info.ai_name, input, monster.seed, away);
     }
     monster.move_pct = pace;                                       // the next mode takes it (FUN_005a63f0)
-    if (type_info.ai_name == "AbyssKnight" && act.act == MonAct::skill && act.n == 1) monster.armored = true;   // its Bone Armor up
     // Its effects: the leader's command done; Duriel's aura (Skill4) on;
     // states 0x5a / 0x5b (looks: blue / red) on or off; an overlay played
     // once on it; stat 0x4a (regen). The Summoner's quest reads his first
@@ -1344,23 +1151,23 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         for (auto& other : pack)
             if (other.alive() && other.leader == monster.leader) other.ai_command = 1;
     const bool acted = [&] { for (;;) switch (act.act) {
-        case MonAct::idle: idle(act.n); return true;
-        case MonAct::a1: use("A1", -1); return true;
-        case MonAct::a2: use("A2", -1); return true;
-        case MonAct::s2: use("S2", -1); return true;
-        case MonAct::s3: use("S3", -1); return true;
-        case MonAct::s4: use("S4", -1); return true;
-        case MonAct::s1: use("S1", -1); return true;               // the Council's MissS1
-        case MonAct::sc: use("SC", -1); return true;               // the wisps' MissC
+        case MonAct::idle: ctx.idle(act.n); return true;
+        case MonAct::a1: ctx.use("A1", -1); return true;
+        case MonAct::a2: ctx.use("A2", -1); return true;
+        case MonAct::s2: ctx.use("S2", -1); return true;
+        case MonAct::s3: ctx.use("S3", -1); return true;
+        case MonAct::s4: ctx.use("S4", -1); return true;
+        case MonAct::s1: ctx.use("S1", -1); return true;               // the Council's MissS1
+        case MonAct::sc: ctx.use("SC", -1); return true;               // the wisps' MissC
         case MonAct::mode_at:                                      // FUN_005ddfc0: mode n at a point (the wisps' SC)
-            use("SC", -1);
+            ctx.use("SC", -1);
             monster.skill_x = act.x; monster.skill_y = act.y; monster.at_point = true;
             unit.dir = direction16(float(act.x - x), float(act.y - y));
             return true;
-        case MonAct::move_to: walk_to(act.x - x, act.y - y, false); return true;   // FUN_005de490: to the point
+        case MonAct::move_to: ctx.walk_to(act.x - x, act.y - y, false); return true;   // FUN_005de490: to the point
         case MonAct::warp:                                         // FUN_00554ea0: at once to the free spot nearest the point
             std::tie(unit.x, unit.y) = level.nearest_free((float(act.x) + 0.5f) / 5, (float(act.y) + 0.5f) / 5);
-            idle(25);
+            ctx.idle(25);
             return true;
         case MonAct::gone: monster.gone = true; return true;       // FUN_005ddfc0: Mephisto's hydras at their end
         case MonAct::spawn:                                        // Coldworm's (FUN_005f9cf0); 2: the vile mother's lay
@@ -1368,7 +1175,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const int lay = skill_id(game_data, type_info.skill[0]);
                 const SeqRows* seq = skill_seq(game_data, type_info, lay);
                 const std::string_view played = seq ? std::string_view(seq->front().mode) : std::string_view(type_info.sk_mode[0]);
-                use(played, lay);
+                ctx.use(played, lay);
                 if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
                 monster.skill_x = lay_x; monster.skill_y = lay_y;
                 monster.nesting = true;
@@ -1391,54 +1198,50 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             }
             return true;
         case MonAct::walk: case MonAct::approach: case MonAct::run:  // FUN_005deb60 at the target
-            if (at_unit) { walk_to(subtile(at_unit->unit.x) - x, subtile(at_unit->unit.y) - y, act.act == MonAct::run); return true; }
-            if (set_off(act.act == MonAct::run, target)) {
+            if (at_unit) { ctx.walk_to(subtile(at_unit->unit.x) - x, subtile(at_unit->unit.y) - y, act.act == MonAct::run); return true; }
+            if (ctx.set_off(act.act == MonAct::run, target)) {
                 monster.chase = chase_of();
                 return true;
             }
             if (act.act == MonAct::walk && act.n == 0) monster.ai_command = 0;   // the Fallen's charge ends (FUN_0058ed10)
             if (act.act == MonAct::walk && (act.n & 1)) monster.force_sight = true;   // FUN_005dd230: flag 0x40
-            if (act.act != MonAct::walk || !(act.n & 2)) { idle(0); return true; }
+            if (act.act != MonAct::walk || !(act.n & 2)) { ctx.idle(0); return true; }
             act = d2d::rules::walk_failed(monster.seed);
             break;
         case MonAct::direct:                                       // FUN_005deca0: straight at it (its kin: the defiler's find)
-            if (act.unit == ThinkUnit::kin && at_unit) walk_to(subtile(at_unit->unit.x) - x, subtile(at_unit->unit.y) - y, false);
-            else walk_to(target_x - x, target_y - y, false);
+            if (act.unit == ThinkUnit::kin && at_unit) ctx.walk_to(subtile(at_unit->unit.x) - x, subtile(at_unit->unit.y) - y, false);
+            else ctx.walk_to(target_x - x, target_y - y, false);
             return true;
-        case MonAct::wander: walk_to(act.x, act.y, false); return true;
-        case MonAct::around: walk_to(target_x - x + act.x, target_y - y + act.y, false); return true;
-        case MonAct::home: walk_to(subtile(monster.home_x) - x, subtile(monster.home_y) - y, false); return true;
+        case MonAct::wander: ctx.walk_to(act.x, act.y, false); return true;
+        case MonAct::around: ctx.walk_to(target_x - x + act.x, target_y - y + act.y, false); return true;
+        case MonAct::home: ctx.walk_to(subtile(monster.home_x) - x, subtile(monster.home_y) - y, false); return true;
         case MonAct::point:                                        // FUN_005dead0(Sk1mode, Skill1, no unit, x, y)
-            use(type_info.sk_mode[0], skill_id(game_data, type_info.skill[0]));
+            ctx.use(type_info.sk_mode[0], skill_id(game_data, type_info.skill[0]));
             monster.skill_x = act.x; monster.skill_y = act.y;
             unit.dir = direction16(float(act.x - x), float(act.y - y));
             return true;
-        case MonAct::fly: walk_to(act.x - x, act.y - y, false); return true;   // FUN_005de440: to the point (mode n: the Vulture's S1)
+        case MonAct::fly: ctx.walk_to(act.x - x, act.y - y, false); return true;   // FUN_005de440: to the point (mode n: the Vulture's S1)
         case MonAct::keep: {                                       // FUN_005de4e0: toward, or from, the target to keep x off
-            if (act.unit == ThinkUnit::self) { idle(0); return true; }   // the Vulture's landing: a move onto itself
+            if (act.unit == ThinkUnit::self) { ctx.idle(0); return true; }   // the Vulture's landing: a move onto itself
             const int stride = std::min(std::abs(best - act.x), act.n), sign = best < act.x ? -1 : 1;
             const int across = std::abs(target_x - x), down = std::abs(target_y - y), sum = std::max(across + down, stride);
             int step_x = sum ? across * stride / sum : 0, step_y = sum ? down * stride / sum : 0;
             while (sum && step_x + step_y < stride) { ++step_x; ++step_y; }
-            walk_to(((target_x > x) - (target_x < x)) * step_x * sign, ((target_y > y) - (target_y < y)) * step_y * sign, false);
+            ctx.walk_to(((target_x > x) - (target_x < x)) * step_x * sign, ((target_y > y) - (target_y < y)) * step_y * sign, false);
             return true;
         }
         case MonAct::circle: {                                     // FUN_005df7d0
             const float side = act.x ? 1.f : -1.f, length = std::max(std::hypot(dx, dy), 0.01f), off = float(act.n) / 5;
             unit.goal_x = target->x - dy / length * off * side; unit.goal_y = target->y + dx / length * off * side;
-            set_off(false, nullptr);
+            ctx.set_off(false, nullptr);
             return true;
         }
         case MonAct::seq:                                          // FUN_005de000: the skill's own sequence (the Greater Mummy's raise)
         case MonAct::skill: {                                      // its Sk mode's sequence (MonSeq) plays out
-            // Act 5's raw skill ids: the catapult spotter's strike (A1 at a point);
-            // the generic spawner's young (FUN_005de000: 0xa7 Nest's sequence,
-            // seq_genericspawner) is its slot's, below.
-            if (type_info.ai_name == "CatapultSpotter" && act.act == MonAct::skill) {
-                use("A1", act.n);
-                monster.skill_x = act.x; monster.skill_y = act.y; monster.at_point = true;
-                return true;
-            }
+            // The generic spawner's young (FUN_005de000: 0xa7 Nest's sequence,
+            // seq_genericspawner) is its slot's, below. An AI's own start
+            // (the catapult spotter's strike, ai/) may take the act.
+            if (row && row->skill && row->skill(ctx)) return true;
             // A skill neither plain nor in a sequence stands: none a placed
             // monster's think casts (every MonStats Skill1..8 checked; only the
             // diablo clone's Diablogeddon, and no level places it).
@@ -1446,7 +1249,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             std::size_t slot = std::size_t(std::max(act.n, 0));
             if (slot >= type_info.skill.size())
                 slot = std::size_t(std::ranges::find_if(type_info.skill, [&](const std::string& own) { return !own.empty() && skill_id(game_data, own) == act.n; }) - type_info.skill.begin());
-            if (slot >= type_info.skill.size()) { idle(0); return true; }
+            if (slot >= type_info.skill.size()) { ctx.idle(0); return true; }
             const auto& name = type_info.skill[slot];
             const int id = skill_id(game_data, name);
             // Spider Lay and the vampires' shots play their Sk mode itself;
@@ -1480,19 +1283,19 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 const auto* start = game_data.skills.get(id);
                 if (start && start->srvstfunc == d2d::rules::ServerStartFunction::kCharge) {
                     if (input.in_melee) { charge_swing(game_data, monster, *target, id, now_ms, rng); return true; }
-                    if (set_off(true, target)) { monster.chase = chase_of(); monster.charging = id; return true; }
+                    if (ctx.set_off(true, target)) { monster.chase = chase_of(); monster.charging = id; return true; }
                 }
-                idle(0);
+                ctx.idle(0);
                 return true;
             }
-            if ((!seq && !plain) || ((name == "Resurrect" || name == "Resurrect2") && corpse < 0)) { idle(0); return true; }
+            if ((!seq && !plain) || ((name == "Resurrect" || name == "Resurrect2") && corpse < 0)) { ctx.idle(0); return true; }
             // MagottUp (srvstfunc 44, FUN_005cb170): it comes up at the free
             // spot nearest (FUN_00554ea0 -> FUN_0064e7b0, its size, mask
             // 0x1c09), its flags 0xe back; none: the start fails.
             // MagottDown (45, FUN_005cb270) buries it.
             if (const auto* start = game_data.skills.get(id); start && start->srvstfunc == d2d::rules::ServerStartFunction::kMaggotUp && monster.buried) {
                 const auto spot = free_spot_near(level, crowd, &unit, x, y, unit.shape.size, 0x1c09);
-                if (!spot) { idle(0); return true; }
+                if (!spot) { ctx.idle(0); return true; }
                 unit.x = (float(spot->first) + 0.5f) / 5; unit.y = (float(spot->second) + 0.5f) / 5;
                 monster.buried = false;
             } else if (start && (start->srvstfunc == d2d::rules::ServerStartFunction::kMaggotDown || start->srvstfunc == d2d::rules::ServerStartFunction::kSubmerge)) {
@@ -1513,7 +1316,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             std::optional<std::pair<int, int>> landing;
             if (const auto* leap = game_data.skills.get(id); leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeap) {
                 landing = free_spot_near(level, crowd, &unit, 2 * target_x - x, 2 * target_y - y, unit.shape.size, 0x3c01);
-                if (!landing) { idle(0); return true; }
+                if (!landing) { ctx.idle(0); return true; }
             } else if (leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack && seq) {
                 if (const int span = d2d::rules::ai_distance(target_x - x, target_y - y); span != 0) {
                     std::pair spot{ (target_x - x) * 2 / span + target_x, (target_y - y) * 2 / span + target_y };
@@ -1525,15 +1328,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                     if (landing && (d2d::rules::sight_blocked(x, y, 0, landing->first, landing->second, 0, wall804) || in_town(&level))) landing.reset();
                 }
                 if (!landing) {
-                    if (input.in_melee) { use("A1", -1); return true; }
-                    idle(0);
+                    if (input.in_melee) { ctx.use("A1", -1); return true; }
+                    ctx.idle(0);
                     return true;
                 }
             }
             // Its rows' own modes are drawn row by row (Monster::seq_mode);
             // the first row's mode stands for it in the logic.
             const std::string_view played = seq ? std::string_view(seq->front().mode) : std::string_view(type_info.sk_mode[slot]);
-            use(played, id);
+            ctx.use(played, id);
             if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
             // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
             // on the takeoff and landing events), the strike on the next
@@ -1553,33 +1356,21 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // Velocity), its sequence looping till it's there (FUN_005d9460).
             if (const auto* spin = game_data.skills.get(id); spin && spin->srvstfunc == d2d::rules::ServerStartFunction::kWhirlwind && seq) {
                 const int to_x = act.x || act.y ? act.x : target_x, to_y = act.x || act.y ? act.y : target_y;
-                if (input.in_melee) use("A1", -1);
+                if (input.in_melee) ctx.use("A1", -1);
                 else if (path_to(level, monster, to_x, to_y, false, crowd)) {
                     monster.whirl = true; monster.whirl_ms = now_ms; monster.whirl_row = 0; monster.whirl_last = -1;
                     d2d::log::info("{} whirls to ({}, {})", monster.npc.name, to_x, to_y);
-                } else { set_mode(game_data, monster, "NU", now_ms); monster.skill = -1; idle(0); return true; }
+                } else { set_mode(game_data, monster, "NU", now_ms); monster.skill = -1; ctx.idle(0); return true; }
             }
             const bool explode = plain_skill && plain_skill->srvdofunc == d2d::rules::ServerDoFunction::kCorpseExplosion;   // Nihlathak's, at the corpse he found
-            monster.skill_unit = name == "Resurrect" || name == "Resurrect2" || explode ? corpse : act.unit == ThinkUnit::aid ? aid : (type_info.ai_name == "Imp" || type_info.ai_name == "PutridDefiler") && act.unit == ThinkUnit::kin ? kin : -1;
+            monster.skill_unit = name == "Resurrect" || name == "Resurrect2" || explode ? corpse : act.unit == ThinkUnit::aid ? aid : -1;
             // Where a Nest's young come out: Blood Raven's spot off the
             // target, else spawnx / spawny off itself.
             monster.skill_x = act.x || act.y ? target_x + act.x : x + type_info.spawn_x;
             monster.skill_y = act.x || act.y ? target_y + act.y : y + type_info.spawn_y;
-            // The priests' teleport point, the Council's corner, Baal's
-            // teleport (25 off, away from the target) and the imps' and
-            // Nihlathak's (FUN_005df850, off themselves) are the map's.
             if (act.spot) { monster.skill_x = target_x; monster.skill_y = target_y; }   // at the target's spot (UberIzual's teleport)
-            if ((type_info.ai_name == "ZakarumPriest" || type_info.ai_name == "HighPriest" || type_info.ai_name == "Imp" || type_info.ai_name == "Nihlathak" || baal) && (act.x || act.y)) { monster.skill_x = act.x; monster.skill_y = act.y; }
-            // The hell meteor's and the turret's points are the map's too, aimed at (do 28 / 105 read it, FUN_0056d2c0).
-            if ((type_info.ai_name == "HellMeteor" || type_info.ai_name == "DesertTurret") && act.unit == d2d::rules::ThinkUnit::none) {
-                monster.skill_x = act.x || act.y ? act.x : x; monster.skill_y = act.x || act.y ? act.y : y; monster.at_point = true;
-            }
             if (monster.skill_unit >= 0) unit.dir = direction16(pack[std::size_t(monster.skill_unit)].unit.x - unit.x, pack[std::size_t(monster.skill_unit)].unit.y - unit.y);
-            if (type_info.ai_name == "GargoyleTrap") {                 // square on (FUN_005f9490): along the axis it's nearer the target's
-                const bool down = std::abs(target_x - x) < std::abs(target_y - y);
-                monster.skill_x = down ? x : target_x; monster.skill_y = down ? target_y : y;
-                unit.dir = direction16(float(monster.skill_x - x), float(monster.skill_y - y));
-            }
+            if (row && row->aim) row->aim(ctx);                    // its own aim (a point on the map, its find: ai/)
             return true;
         }
         case MonAct::die:                                          // no loot, no experience

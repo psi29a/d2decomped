@@ -26,7 +26,7 @@ namespace d2d::game {
 
 namespace {
 
-struct Act4Preps : ThinkPrep {
+struct Act4Ai : ThinkCtx {
     // The nearest other unit `wanted` takes within the squared limit: its
     // index (-1 none) and squared distance.
     template <class Wanted>
@@ -131,22 +131,76 @@ struct Act4Preps : ThinkPrep {
         chooser(0x4b);
         baal_rider();
     }
+    // Diablo's (FUN_005e8f20, once his search found someone): the unit
+    // lists' best by his score (FUN_005e8530), above 0, the first on a tie.
+    // Lists 0..7: a player of his act under 0x3fc (FUN_005e8eb0: FUN_005dc530;
+    // Baal's FUN_005fc000: the same act byte, under 0x3fc)
+    // and the pets after it (a dead player scores 0); list 8, the good
+    // monsters of his act. List 9's best (neutral: Confuse, Attract) is the
+    // fallback: within 5 of him, with the best out of reach (FUN_00622c40)
+    // and no path to it (type 2, FUN_00649970), it's taken. None: the
+    // search's stays.
+    // Each foe's pick: Fight::world's (a pet's or monster's, unit_pick).
+    // Baal's and his clone's (FUN_005fbdd0, score FUN_005fbb00) are the same
+    // with the point bonus at 0x4b.
+    void chooser_pick(int point_far) {
+        if (!target) return;
+        const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x04); };
+        const int point_x = monster.has_point ? monster.point_x : x, point_y = monster.has_point ? monster.point_y : y;
+        const auto value = [&](const Foe& foe) {
+            const int foe_x = subtile(foe.x), foe_y = subtile(foe.y);
+            if (!foe.alive && !foe.pet && !foe.of) return 0;
+            const bool reach = d2d::rules::unit_distance(foe_x - x, foe_y - y, type_info.size, foe.size) <= type_info.melee_rng + 1;
+            const bool line = !d2d::rules::sight_blocked(x, y, type_info.size, foe_x, foe_y, foe.size, wall);
+            const bool point_bonus = d2d::rules::point_apart(x - point_x, y - point_y, (type_info.size >> 1) + 1) > point_far
+                                  && d2d::rules::point_apart(foe_x - point_x, foe_y - point_y, (foe.size >> 1) + 1) < point_far;
+            return d2d::rules::diablo_score(foe.pick, foe.life_pct, reach, line, point_bonus);
+        };
+        Foe* top = nullptr; int top_score = 0;
+        Foe* spare = nullptr; int spare_score = 0;
+        const bool player_in = std::ranges::any_of(foes, [&](const Foe& foe) {
+            return !foe.pet && !foe.of && d2d::rules::ai_distance(subtile(foe.x) - x, subtile(foe.y) - y) < 0x3fc; });
+        for (auto& foe : foes) {
+            const bool neutral = foe.of && foe.of->align == 1, good = foe.of && foe.of->align == 2;   // list 9; a converted one is a pet
+            if (foe.of && !neutral && !good) continue;
+            if (!foe.of && !player_in) continue;                    // the player failed FUN_005e8eb0: it and its pets skipped
+            if ((foe.of || foe.pet) && !foe.alive) continue;
+            const int score = value(foe);
+            if (neutral) { if (score > spare_score) { spare = &foe; spare_score = score; } }
+            else if (score > top_score) { top = &foe; top_score = score; }
+        }
+        if (spare && d2d::rules::ai_distance(subtile(spare->x) - x, subtile(spare->y) - y) < 5
+            && (!top || d2d::rules::unit_distance(subtile(top->x) - x, subtile(top->y) - y, type_info.size, top->size) > type_info.melee_rng + 1)) {
+            const bool path = top && !d2d::rules::monster_path(x, y, subtile(top->x), subtile(top->y), true, [&](int at_x, int at_y) {
+                const float centre_x = (float(at_x) + 0.5f) / 5, centre_y = (float(at_y) + 0.5f) / 5;
+                return level.unit_blocked(centre_x, centre_y, unit.shape) || crowd.at(centre_x, centre_y, &unit); }).empty();
+            if (!path) top = spare;
+        }
+        if (top) target = top;
+    }
+    void diablo_search() { chooser_pick(0x55); }
+    void baal_search() { chooser_pick(0x4b); }
+    // Its Bone Armor up (Skill2) as it casts it.
+    bool abyss_knight_skill() {
+        if (act.act == d2d::rules::MonAct::skill && act.n == 1) monster.armored = true;
+        return false;
+    }
 };
 
-constexpr auto kRows = std::to_array<PrepRow>({
-    { "VileMother", &prep_as<Act4Preps, &Act4Preps::vile_mother> },
-    { "FingerMage", &prep_as<Act4Preps, &Act4Preps::finger_mage> },
-    { "Regurgitator", &prep_as<Act4Preps, &Act4Preps::regurgitator> },
-    { "AbyssKnight", &prep_as<Act4Preps, &Act4Preps::abyss_knight> },
-    { "OblivionKnight", &prep_as<Act4Preps, &Act4Preps::oblivion_knight> },
-    { "Diablo", &prep_as<Act4Preps, &Act4Preps::diablo> },
-    { "BaalCrab", &prep_as<Act4Preps, &Act4Preps::baal_crab> },
-    { "BaalCrabClone", &prep_as<Act4Preps, &Act4Preps::baal_crab_clone> },
-    { "UberIzual", &prep_as<Act4Preps, &Act4Preps::uber_izual> },
+constexpr auto kRows = std::to_array<AiRow>({
+    { .ai_name = "VileMother", .prep = &part_as<Act4Ai, &Act4Ai::vile_mother> },
+    { .ai_name = "FingerMage", .prep = &part_as<Act4Ai, &Act4Ai::finger_mage> },
+    { .ai_name = "Regurgitator", .prep = &part_as<Act4Ai, &Act4Ai::regurgitator> },
+    { .ai_name = "AbyssKnight", .prep = &part_as<Act4Ai, &Act4Ai::abyss_knight>, .skill = &part_as<Act4Ai, &Act4Ai::abyss_knight_skill> },
+    { .ai_name = "OblivionKnight", .prep = &part_as<Act4Ai, &Act4Ai::oblivion_knight> },
+    { .ai_name = "Diablo", .search = &part_as<Act4Ai, &Act4Ai::diablo_search>, .prep = &part_as<Act4Ai, &Act4Ai::diablo> },
+    { .ai_name = "BaalCrab", .search = &part_as<Act4Ai, &Act4Ai::baal_search>, .prep = &part_as<Act4Ai, &Act4Ai::baal_crab>, .aim = &part_as<ThinkCtx, &ThinkCtx::aim_map_point> },
+    { .ai_name = "BaalCrabClone", .search = &part_as<Act4Ai, &Act4Ai::baal_search>, .prep = &part_as<Act4Ai, &Act4Ai::baal_crab_clone>, .aim = &part_as<ThinkCtx, &ThinkCtx::aim_map_point> },
+    { .ai_name = "UberIzual", .prep = &part_as<Act4Ai, &Act4Ai::uber_izual> },
 });
 
 }  // namespace
 
-const std::span<const PrepRow> kAct4Preps{ kRows };
+const std::span<const AiRow> kAct4Ais{ kRows };
 
 }  // namespace d2d::game

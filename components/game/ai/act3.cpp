@@ -16,6 +16,7 @@
 #include <limits>
 #include <span>
 #include <string_view>
+#include <utility>
 
 namespace d2d::game {
 
@@ -23,7 +24,7 @@ namespace {
 
 using d2d::rules::Boss;
 
-struct Act3Preps : ThinkPrep {
+struct Act3Ai : ThinkCtx {
     // The Fetish Shaman's (FUN_005f9a80: FUN_005dd0b0 mode 1, filter
     // FUN_005f99a0): the closest corpse (DD) by squared distance within
     // aip5 squared, selectable, of BaseId 0x8d (or 0x18c unless aip2 is 1),
@@ -111,21 +112,61 @@ struct Act3Preps : ThinkPrep {
         input.wisps = int(wisp_finds.size());
         input.bless_ok = !target->pet && !target->of && target->alive;
     }
+    // MonAI 91, DarkWanderer (FUN_005ea130; a3q7's record 0x1c): his spot
+    // (FUN_005bd0d0, from the marker's x + 7 he's made on) is 20 subtiles
+    // north, else 11 north, 2 east or west of that, else 8 north, else 3
+    // north, the first he has a clear line to (FUN_006229f0: sight_blocked
+    // from his subtile and size to a size-2 end, mask 0x3c01; the last taken
+    // as it is), found once and kept in the record (its +2 flag). AI control
+    // +0x14 0 -> 1; a foe 20 or more off: stand 40. Under 20, state 1: walk
+    // there, state 2. State 2 at its end: within 2 of it, or after 3 more
+    // tries (+0x18), he's gone (unit flag 0x20000, FUN_005ddfc0) and a3q7
+    // marks every player in act 3 (FUN_005bd4a0 -> FUN_005bd390, word 0x20
+    // bit 0); else walk again, a player's path (FUN_005de190(1, 0, 0): type
+    // 7). The afterglow he leaves: World::tick.
+    bool dark_wanderer() {
+        if (!monster.wanderer_spot) {
+            const int home_x = subtile(monster.home_x), home_y = subtile(monster.home_y);
+            const auto wall = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x3c01); };
+            auto clear = [&](int at_x, int at_y) { return !d2d::rules::sight_blocked(x, y, type_info.size, at_x, at_y, 2, wall); };
+            int spot_x = home_x, spot_y = home_y - 20;
+            if (!clear(spot_x, spot_y)) {
+                spot_y = home_y - 11;
+                if (!clear(spot_x, spot_y) && !clear(spot_x = home_x + 2, spot_y) && !clear(spot_x = home_x - 2, spot_y)) {
+                    spot_x = home_x; spot_y = home_y - 8;
+                    if (!clear(spot_x, spot_y)) spot_y = home_y - 3;
+                }
+            }
+            monster.wanderer_spot = std::pair{ spot_x, spot_y };
+        }
+        const auto [spot_x, spot_y] = *monster.wanderer_spot;
+        if (monster.ai_state == 0) { monster.ai_state = 1; monster.ai_state2 = 0; }
+        if (best >= 0x14) { idle(0x28); return true; }
+        auto head_off = [&] { unit.goal_x = (float(spot_x) + 0.5f) / 5; unit.goal_y = (float(spot_y) + 0.5f) / 5; set_off(false, nullptr); };
+        if (monster.ai_state == 1) { head_off(); monster.ai_state = 2; return true; }
+        if (d2d::rules::ai_distance(spot_x - x, spot_y - y) < 2 || monster.ai_state2 >= 3) { monster.gone = true; return true; }
+        ++monster.ai_state2;
+        monster.next_path_type = 7;
+        head_off();
+        return true;
+    }
 };
 
-constexpr auto kRows = std::to_array<PrepRow>({
-    { "ThornHulk", &prep_as<Act3Preps, &Act3Preps::thorn_hulk> },
-    { "Tentacle", &prep_as<Act3Preps, &Act3Preps::tentacle> },
-    { "FetishShaman", &prep_as<Act3Preps, &Act3Preps::fetish_shaman> },
-    { "FrogDemon", &prep_as<Act3Preps, &Act3Preps::frog_demon> },
-    { "ZakarumZealot", &prep_as<Act3Preps, &Act3Preps::zakarum_zealot> },
-    { "ZakarumPriest", &prep_as<Act3Preps, &Act3Preps::zakarum_priest> },
-    { "HighPriest", &prep_as<Act3Preps, &Act3Preps::high_priest> },
-    { "WillOWisp", &prep_as<Act3Preps, &Act3Preps::will_o_wisp> },
+constexpr auto kRows = std::to_array<AiRow>({
+    { .ai_name = "ThornHulk", .prep = &part_as<Act3Ai, &Act3Ai::thorn_hulk> },
+    { .ai_name = "Tentacle", .thinks_alone = true, .prep = &part_as<Act3Ai, &Act3Ai::tentacle> },
+    { .ai_name = "FetishShaman", .prep = &part_as<Act3Ai, &Act3Ai::fetish_shaman> },
+    { .ai_name = "FrogDemon", .thinks_after_miss = true, .prep = &part_as<Act3Ai, &Act3Ai::frog_demon> },
+    { .ai_name = "ZakarumZealot", .prep = &part_as<Act3Ai, &Act3Ai::zakarum_zealot> },
+    { .ai_name = "ZakarumPriest", .prep = &part_as<Act3Ai, &Act3Ai::zakarum_priest>, .aim = &part_as<ThinkCtx, &ThinkCtx::aim_map_point> },
+    { .ai_name = "HighPriest", .prep = &part_as<Act3Ai, &Act3Ai::high_priest>, .aim = &part_as<ThinkCtx, &ThinkCtx::aim_map_point> },
+    { .ai_name = "WillOWisp", .prep = &part_as<Act3Ai, &Act3Ai::will_o_wisp> },
+    { .ai_name = "TentacleHead", .thinks_alone = true },
+    { .ai_name = "DarkWanderer", .think_targeted = &part_as<Act3Ai, &Act3Ai::dark_wanderer> },
 });
 
 }  // namespace
 
-const std::span<const PrepRow> kAct3Preps{ kRows };
+const std::span<const AiRow> kAct3Ais{ kRows };
 
 }  // namespace d2d::game
