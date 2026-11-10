@@ -516,7 +516,9 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)
                         && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
                         burned.emplace_back(int(i), missile.skill);
-                        burn(i, damage, now_ms);
+                        // pSrvDmgFunc 3 (FUN_005ad220): a soft hit when a step of the missile's seed has
+                        // its low 7 bits under dParam1. ponytail: on d2d's rng; its missiles keep no seed.
+                        burn(i, damage, now_ms, missile_info.dmg_func == 3 && int(rng.next() & 0x7f) < missile_info.dmg_par1);
                     }
             }
             // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
@@ -597,7 +599,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         merc_blow = casting_merc = false;
     }
 
-auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms) -> void {
+auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, bool soft) -> void {
         static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };
         if (damage.etype < 0 || damage.etype > 4 || damage.ehi <= 0) return;
         auto& monster = monsters[monster_index];
@@ -605,10 +607,12 @@ auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& dam
         int res = target.res[std::size_t(kRes[damage.etype])];
         if (damage.etype < 4 && res < 100) res = std::max(res - pierce()[std::size_t(damage.etype)], -100);
         monster.dot_acc += double(d2d::rules::resisted(rng.range(damage.elo, damage.ehi), res)) / 256;
+        if (soft) { monster.left_mode = "hit"; monster.soft_hit = true; }
         const int whole = int(monster.dot_acc);
         if (whole <= 0) return;
         monster.dot_acc -= whole;
         monster.hit_points -= whole;
+        monster.last_hp -= whole;                                       // a burn's own drop sets off no event 4
         monster.aware = true;
         if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(monster_index, now_ms); }
     }

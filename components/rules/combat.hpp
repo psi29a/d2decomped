@@ -326,6 +326,9 @@ struct StruckBlow {
     // The record total (+0x4c) in 256ths BEFORE it is clamped, when monster_blow built the blow from its fields: `damage` and
     // `frac` hold it clamped at 0. Unset: damage x 256 + frac is the total (a blow built by hand or by another path).
     std::optional<int> sum;
+    // Result flag 4: FUN_0057cee0 tests the get-hit only with it. A burner's record (pSrvDoFunc 5) has 1 alone:
+    // FUN_005ad730 sets 4 for a row with GetHit (Missiles.txt +4 bit 0x40, FUN_00661b20), and the flames have none.
+    bool landed = true;
 };
 inline int part_fine(const StruckBlow::Part& part) { return part.fine != StruckBlow::kNoFine ? part.fine : part.dealt * 256; }
 // The record total in 256ths, unclamped when known.
@@ -432,7 +435,7 @@ inline int absorb_blows(std::span<StruckBlow> blows, int& pool, bool elemental) 
 inline bool struck_big(std::span<const StruckBlow> blows, std::int64_t max_life, Rng& seed) {
     bool big = false;
     for (const auto& blow : blows)
-        if (blow.damage > 0 && get_hit(max_life, std::int64_t(blow.damage) << 8, blow.hit_class, blow.marked, seed)) big = true;
+        if (blow.landed && blow.damage > 0 && get_hit(max_life, std::int64_t(blow.damage) << 8, blow.hit_class, blow.marked, seed)) big = true;
     return big;
 }
 

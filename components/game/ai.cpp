@@ -165,7 +165,8 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
 }
 
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms) {
-    if (monster.mode != "NU") monster.left_mode = monster.mode;
+    if (monster.left_mode == "hit") monster.left_mode = "GH";   // FUN_005a68e0: a last command 0x13 or over loses 0x10 (a hit's 0x13 is 3, GH)
+    else if (monster.mode != "NU") monster.left_mode = monster.mode;
     monster.mode = mode;
     if (mode == "A1" || mode == "A2" || mode == "SC" || mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4") {
         monster.swing_mode = mode;
@@ -854,7 +855,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         monster.chase = -1;
         if (!row || !row->thinks_alone) {
             const bool has_walk = game_data.npc_timing(monster.npc, "WL").directions > 0;
-            const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.left_mode == "GH", level.blocked(unit.x, unit.y, 0x40), nearest);
+            const auto miss = d2d::rules::search_missed(type_info.ai_name, has_walk, monster.got_hit(), level.blocked(unit.x, unit.y, 0x40), nearest);
             if (miss.wander) {
                 const auto wander = d2d::rules::think_wander(monster.seed, 5);
                 ctx.walk_to(wander.x, wander.y, false);
@@ -912,7 +913,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.target = targeted;
     input.self_x = x; input.self_y = y;
     input.in_melee = targeted && d2d::rules::unit_distance(target_x - x, target_y - y, type_info.size, target->size) <= type_info.melee_rng + 1;
-    input.got_hit = monster.left_mode == "GH";
+    input.got_hit = monster.got_hit();
     input.life_pct = int(std::int64_t(monster.hit_points) * 100 / std::max(monster.stats.hit_points, 1));   // FUN_00621f20
     for (std::size_t skill = 0; skill < 3; ++skill) input.skill[skill] = !type_info.skill[skill].empty();
     // A unit in DT within 15 (FUN_005dc530: the Fallen's), its lead.
