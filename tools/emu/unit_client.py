@@ -49,7 +49,7 @@ MUTATIONS = (
     "countdown-zero-calls", "tail-edx-zero", "tail-wrong-field", "list78-offset", "flag-wrong-bit", "party-type-1",
     "party-eax-cleared", "walk-type-4", "walk-link-e0", "lightmap-keeps-pointer", "lightmap-always-call",
     "lookup-null-id-zero", "lookup-add-1bd", "selected-type-3", "selected-flag-40", "flag4-type-2",
-    "flag4-inverted", "flag4-clear-keeps", "flags-all-mask", "index-negative-ok", "index-bad-zero", "class-word-unsigned",
+    "flag4-inverted", "flag4-clear-keeps", "flags-all-mask", "index-negative-ok", "index-bad-zero", "class-word-unsigned", "class-norow-zero",
     "clear-one-table", "mon-data-34", "mon-mask-swapped", "mon-type-2", "global-set-wrong", "dispatch-index-swap",
     "find-no-fatal", "find-table-swap", "remove-keeps-head", "remove-last-return", "remove-type4-no-hook",
     "iter-bucket-127", "iter-reverse", "iter-tables-swapped", "target-index-3f", "target-type-shift-8",
@@ -356,9 +356,12 @@ def check_class_table(rig, rng):
     sc = Scene(rig, rng)
     sc.head = sc.block(0xB00)
     sc.put(sc.head + 0xA80, 3)
-    sc.put(sc.head + 0xA78, 0)
     rig.write(GLOBAL, struct.pack("<I", sc.head))
-    verify(rig, "class word no table", rig.go(0x46_3830, ecx=0), ("ret", 0), [], sc)
+    # FUN_00463830 treats a row as missing when table + id * 0x1a8 wraps to 0, so a nonzero id needs
+    # table = -id * 0x1a8; it must come back as the id itself, which a model returning 0 would miss.
+    for index in (0, 1, 2):
+        sc.put(sc.head + 0xA78, (-index * 0x1A8) & MASK)
+        verify(rig, "class word no row", rig.go(0x46_3830, ecx=index), ("ret", 0 if mut("class-norow-zero") else index), [], sc)
 
 
 def check_monster(rig, rng):
@@ -588,7 +591,7 @@ def check_target(rig, rng):
         sc = Scene(rig, rng)
         sc.unit = sc.block(0x100)
         tables = {TABLE_A: populate(rig, sc, rng, TABLE_A), TABLE_B: populate(rig, sc, rng, TABLE_B)}
-        kind, bucket, guid = pick(sc, rng, tables, TABLE_A)
+        kind, _bucket, guid = pick(sc, rng, tables, TABLE_A)
         rig.script["set-target"] = rand32(rng)
         index = guid & (0x3F if mut("target-index-3f") else 0x7F)
         shift = 8 if mut("target-type-shift-8") else 9
