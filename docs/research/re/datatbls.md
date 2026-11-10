@@ -561,3 +561,24 @@ decompile needs the copy and unload helpers modelled, and is left for a later pa
 | Oracle | Functions |
 |---|---|
 | `tok_overlay.py` | `FUN_0065aef0`, `0065b2e0`, `0065b350`, `0065b3c0`, `00663210`, `00664150` |
+
+### AnimTbls.cpp (`anim_tbls.py`)
+
+`tools/emu/anim_tbls.py` runs the AnimData loader and the record free from stock
+game.exe 1.14d (80 cases, `--mutation-check` 6 ways), on the field oracle's rig.
+
+* **FUN_0066a770** (TXT_AllocTxt_AnimTbls, fastcall pool): a `0x4a4`-byte block
+  (line 0x83), zeroed by memset; wsprintfA gives `DATA\GLOBAL\AnimData.d2`, which
+  D2FILE loads with no size pointer (line 0x8a). The archive's address is stored at
+  +0, then 256 slots from +4: slot k is the address of bucket k, the next bucket
+  starts `4 + count * 0xa0` bytes after the one before. The defaults are
+  `0x800` at +0x40c and `0x100` at +0x410. (The Ghidra output's bucket loop is
+  garbled; the disassembly is the model.)
+* **FUN_0066a830** (ANIMDATA_FreeAnimDataRecord, fastcall record): a null record
+  does nothing; otherwise the client release of its records (+0, line 0xbe) and the
+  pool free of the record (line 0xbf), in that order.
+
+| Oracle | Functions |
+|---|---|
+| `anim_tbls.py` | `FUN_0066a770`, `0066a830` |
+
