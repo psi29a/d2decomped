@@ -190,17 +190,24 @@ which returns 1:
 
 ## Checked against game.exe
 
-Two oracles run the real code on random synthetic records with the pool,
-owner and screen-conversion calls hooked (what each prevents is in the
-script's docstring), and compare return value, callee order and arguments,
-every byte of the records, the fatal line and the bytes `ret n` pops. They
-check game.exe's behaviour for these functions, not d2d's code: nothing in
-`apps/` or `components/` cites them yet.
+The oracles run the real code on synthetic records and compare the model's
+return value, callee calls, record bytes, fatal line and stack cleanup as
+applicable. Each script identifies its hooked callees and the resulting
+limits. These checks cover game.exe's behavior, not a d2d implementation.
 
 | Oracle | Functions |
 |---|---|
 | `tools/emu/engine_motion.py` | `FUN_0046f060`, `FUN_0046f070`, `FUN_004da000`, `FUN_004da080`, `FUN_004da0b0` ... `FUN_004da1b0`, `FUN_004da1d0`, `FUN_004da200`, `FUN_004da250`, `FUN_004da2a0`, `FUN_004da2f0`, `FUN_004da320`, `FUN_004da340`, `FUN_004da350` (every branch of the step is reached), `FUN_004da5b0`, `FUN_004da620`, `FUN_004da640`, `FUN_004da660`, `FUN_004da690`, `FUN_004da6b0`, `FUN_004da6e0` |
 | `tools/emu/engine_gfx_small.py` | `FUN_0046e100`, `FUN_0046e570`, `FUN_0046e5a0`, `FUN_0046e610`, `FUN_0046e690`, `FUN_0046eac0`, `FUN_0046ec80`, `FUN_0046ece0`, `FUN_0046f000`, `FUN_0046f020`, `FUN_0046f1c0` ... `FUN_0046f250`, `FUN_0046f280`, `FUN_0046f980` ... `FUN_0046f9d0`, `FUN_004da720`, `FUN_004da770`, `FUN_004da8e0`, `FUN_004da920`, `FUN_004da990`, `FUN_004da9c0`, `FUN_004daa70`, `FUN_004dad50`, `FUN_004db040`, `FUN_004db050`, `FUN_004db090`, `FUN_004db0d0`, `FUN_004db180`, `FUN_004db1a0`, `FUN_004db1c0` |
+| `tools/emu/engine_action.py` | `FUN_0046f950` |
+| `tools/emu/engine_armor_tiers.py` | `FUN_004daab0` |
+| `tools/emu/engine_cel_bounds.py` | `FUN_004dab40` |
+| `tools/emu/engine_direction.py` | `FUN_004db290` |
+| `tools/emu/engine_gfx_alloc.py` | `FUN_0046ebb0` |
+| `tools/emu/engine_mode_token.py` | `FUN_004daa00` |
+| `tools/emu/engine_neutral_direction.py` | `FUN_004db1e0` |
+| `tools/emu/engine_overlay_clear.py` | `FUN_0046f170` |
+| `tools/emu/engine_overlay_remove.py` | `FUN_0046f0c0` |
 
 Changelog of what the checks changed in the rows above (each is also applied to its row):
 
@@ -215,4 +222,6 @@ Changelog of what the checks changed in the rows above (each is also applied to 
 Not checked: the transform-state branch of `FUN_0046da60` / `FUN_0046d9f0` (unit
 `+0xc8` bit 3 set), the loaders and drawing functions of Gfx.cpp
 (`FUN_0046ddf0`, `FUN_0046f490`, `FUN_0046f650`, `FUN_0046fb60`, `FUN_00470070`, `FUN_00470390` ...),
-`FUN_004da790`, `FUN_004daa00`, `FUN_004dab40` ... `FUN_004db7b0` (the ones not listed above).
+`FUN_004da790` and the remaining GfxUtil helpers through `FUN_004db7b0` that
+are not listed above. Static notes for `FUN_0046ed50`, `FUN_0046e8d0` and
+`FUN_0046e980` have not been checked by the new oracles.
