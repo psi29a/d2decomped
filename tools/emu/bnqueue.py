@@ -109,8 +109,11 @@ def main():
         q.push(ident, data)
     q.push(14, b"x" * 400, string=True)
     q.push(15, b"hi\0ignored", string=True)
+    q.push(19, b"", string=True)
+    q.push(20, b"z" * 0x120)
     expected = [(11, b""), (12, b"abc"), (13, messages[2][1][:0x120]),
-                (14, b"x" * 0x11f + b"\0"), (15, b"hi\0")]
+                (14, b"x" * 0x11f + b"\0"), (15, b"hi\0"), (19, b"\0"),
+                (20, b"z" * 0x120)]
     for ident, data in expected:
         n, got_id, out = q.pop()
         require((n, got_id, out[:n], out[n:]) == (len(data), ident, data, b"\xdd" * (0x121 - n)),
@@ -126,8 +129,8 @@ def main():
     q.push(18, b"reuse")
     n, ident, out = q.pop()
     require((n, ident, out[:n]) == (5, 18, b"reuse") and not q.live, "reuse after clear")
-    require(sum(event[0] == "alloc" for event in q.events) == 8, "allocation count")
-    require(sum(event[0] == "free" for event in q.events) == 8, "free count")
+    require(sum(event[0] == "alloc" for event in q.events) == 10, "allocation count")
+    require(sum(event[0] == "free" for event in q.events) == 10, "free count")
     print("ok: queue FIFO, zero length, limits, string truncation, clear and reuse")
 
 
