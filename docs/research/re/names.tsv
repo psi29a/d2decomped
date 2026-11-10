@@ -272,8 +272,40 @@ address	name	evidence
 00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60 (ECX = client +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
 005379d0	unit_look_codes	fastcall (_, unit, out, size): asserts 0x3d4 for size < 0x10 or no unit, out = 0xff x16, FUN_0063e510 fills it with the layer codes (items.md)
 00537a40	unit_look_tints	fastcall (_, unit, out, size): as FUN_005379d0 (assert 0x3df) but out receives the layer tints (items.md)
+0053b280	scmd_queue	appends a packet (buffer, size; client in EDI) to the client's 0x208-byte block list (head +0x1b8, tail +0x1bc, free list +0x1c0); no size check; verified scmd_senders.py
+0053b320	scmd_send_id	S->C 1-byte packet, the id in DL (the "loading" 0x00); verified scmd_senders.py
+0053b340	scmd_game_flags	S->C 8 bytes: id, difficulty (game +0x6d), FUN_0053fd40 dword, game +0x70 != 0, game +0x74 != 0; verified scmd_senders.py
+0053b390	scmd_load_act	S->C 12 bytes: id, u8, u32 +2, u16 +6, u32 +8 (net-join.md load act); verified scmd_senders.py
+0053b430	scmd_monster_hit	S->C 9 bytes: id, u8, u32 +2, three bytes (net-packets.md 0x0c hit); verified scmd_senders.py
+0053b4b0	scmd_unit_stop	S->C 13 bytes (0x0d stop layout); byte a0 of 6 or more is fatal (line 0x136); verified scmd_senders.py
+0053b520	scmd_move_to_unit	S->C 16 bytes (0x10 move to unit layout); verified scmd_senders.py
+0053b570	scmd_move_to_xy	S->C 16 bytes (0x0f move to x, y layout); byte a0 of 6 or more is fatal (line 0x166); verified scmd_senders.py
+0053b9f0	scmd_monster_pkt_a	S->C 12 bytes: id, u32 +1, two bytes, u32 +7, byte +0xb (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
+0053ba40	scmd_monster_pkt_b	S->C 12 bytes: id, u32 +1, byte, u16 +6, u16 +8, two bytes (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
+0053baa0	scmd_monster_pkt_c	S->C 16 bytes: id, u32 +1, two bytes, u32 +7, byte, two u16 (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
+0053bb00	scmd_monster_pkt_d	S->C 16 bytes: id, u32 +1, byte, two u16, two bytes, two u16 (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
+0053bb70	scmd_monster_stop_6d	S->C 10 bytes: 0x6d, u32 EDX, u16 x, u16 y, byte life; verified scmd_senders.py
+0053bc10	scmd_pkt_11	S->C 11 bytes: id, byte, u32 +2, u16 +6, u16 +8, byte +0xa; sent when a player comes into the game (combat.md, FUN_005394a0); verified scmd_senders.py
+0053bdd0	scmd_experience	S->C experience: d = EDX - a0; 0x1a byte add (d 0..0xfe), 0x1b word add, 0x1c set EDX (d above 0xfffe or negative); verified scmd_senders.py
+0053be40	scmd_set_stat	S->C own stat: 0x1d byte / 0x1e word / 0x1f dword value by a0 (below 0xff / 0xffff); EDX u16 stat 0xff or more is fatal (line 0x3cb); verified scmd_senders.py
+0053bee0	scmd_set_unit_stat	S->C other unit's stat set: 0x9e byte / 0x9f word / 0xa0 dword, unit id +0xc (-1 for null); stat 0xff or more fatal (line 0x3f5); verified scmd_senders.py
+0053bfd0	scmd_add_unit_stat	S->C other unit's stat delta d = a2 - a1: 0xa1 byte, 0xa2 word, else (delta 0xffff or more, or negative) 0xa0 with a1 (the old value, bugs.md 94); stat 0xff or more fatal (line 0x42d); verified scmd_senders.py
+0053c320	scmd_walk_95	S->C 0x95 bit-packed, 13 bytes: 8 id, 15 EDX, 15, 15, 16, 16, 8, 8; verified scmd_senders.py
+0053c3f0	scmd_walk_96	S->C 0x96 bit-packed, 9 bytes: 8 id, 15 EDX, 16, 16, 8, 8; verified scmd_senders.py
+0053c590	scmd_set_skill_23	S->C 0x23 (13 bytes): EDX byte, u32 +2, byte hand, u16 skill, u32 item; verified scmd_senders.py
+0053c900	scmd_copy_10	S->C 10 bytes copied from the structure EDX points at (0x53 act values); verified scmd_senders.py
 0053cb30	scmd_pet_list_7a	queues the 13-byte S->C packet 0x7a (+1 EDX add flag, +2 PetType row, +3 u16 class, +5 owner id, +9 pet id) with FUN_0053b280 (pet-ai.md "The owner's pet lists"); verified scmd_senders.py
 0053cb80	scmd_assign_merc_81	queues the 20-byte S->C packet 0x81 (+1 byte, +2 u16 class, +4 owner id, +8 pet id, +0xc / +0x10 words) with FUN_0053b280 (pet-ai.md "The owner's pet lists"); verified scmd_senders.py
+0053d2e0	scmd_clear_cursor_42	S->C 0x42 (6 bytes): byte at EDX+0 and dword at EDX+0xc, or 6 and -1 for a null EDX; verified scmd_senders.py
+0053d4d0	scmd_skill_at_xy	S->C 17 bytes: 0x4d, or 0x9a when the last stack word is non-zero; verified scmd_senders.py
+0053d710	scmd_copy_6	S->C 6 bytes copied from the structure EDX points at; verified scmd_senders.py
+0053d780	scmd_copy_8	S->C 8 bytes copied from the structure EDX points at (0x2c); verified scmd_senders.py
+0053d7e0	scmd_copy_15	S->C 15 bytes copied from the structure EDX points at; verified scmd_senders.py
+0053d8d0	scmd_copy_7	S->C 7 bytes copied from the structure EDX points at (0x58 reply); verified scmd_senders.py
+0053d960	scmd_copy_21	S->C 0x15 bytes copied from the structure EDX points at (0x63); verified scmd_senders.py
+0053e020	scmd_pong	S->C 0x8f then 32 zero bytes (33); verified scmd_senders.py
+0053e060	scmd_copy_26	S->C 0x1a bytes copied from the structure EDX points at; verified scmd_senders.py
+0053e9b0	scmd_gold	S->C gold: d = EDX - a0; 1..0xfe is 0x19 + byte, else the stat 0x0e set packet (1d / 1e / 1f 0e) of EDX; verified scmd_senders.py
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
 0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
@@ -1090,87 +1122,3 @@ address	name	evidence
 006c33d0	qsnt_stop	+0xbf8 = 1, waits 2000 ms
 006c3410	qs98_send	one send()
 006c3440	qs98_add_client	FUN_006bfb70, +0xbc4 with QServer98.cpp 0x91
-0054ba90	scmd_npc_gossip	C->S 0x31 (9 bytes): guid u32 +1, gossip id u16 +5 to FUN_005443b0; verified plrmsg_small.py
-0054bb20	scmd_npc_sell	C->S 0x33 (0x11 bytes): npc +1, item +5, mode u16 +9, price u32 +0xd to FUN_00579510, returns its status; verified plrmsg_small.py
-0054bb60	scmd_npc_repair	C->S 0x35 (0x11 bytes): npc +1, item +5, word +9, dword +0xd to FUN_00578050 (repair); verified plrmsg_small.py
-0054bba0	scmd_npc_identify	C->S 0x34 (5 bytes): npc guid to FUN_00578460; verified plrmsg_small.py
-0054bbd0	scmd_hire_merc	C->S 0x36 (9 bytes): npc guid +1, merc id u16 +5 to FUN_00577fe0; verified plrmsg_small.py
-0054bc00	scmd_resurrect_merc	C->S 0x62 (5 bytes): npc guid +1 to FUN_00579c00 (resurrect merc); refused (3) while game +0x70 == 0 (classic game); verified plrmsg_small.py
-0054c070	scmd_emote	C->S 0x3f (3 bytes): emote u16 +1 in 0x19..0x20 only; unit flag bit 10 refuses (1); FUN_00553380; verified plrmsg_small.py
-0054c0c0	scmd_refresh_quests	C->S 0x40 (1 byte): FUN_00546040(game, unit); verified plrmsg_small.py
-0054c590	scmd_cutscene_over	C->S 0x48 (1 byte): calls FUN_005350b0(unit) when player data +0x4c is non-zero, else 2; verified plrmsg_small.py
-0054c7c0	scmd_click_button	C->S 0x4f (7 bytes): button u16 +1, param (word +3 << 16 | word +5) to FUN_00568060, returns its status; verified plrmsg_small.py
-0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
-0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
-0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
-00549830	click_check	shared C->S click check (packet EAX, unit EDI, stack game, size, &type, &id): zeroes both outs, size 9 else 3, type under 6 else 2, range check FUN_00548f80(ECX game, EDX type, EAX id, EDI unit; 0x32) passes its status through, 0 stores type and id; verified plrmsg_click.py
-00549890	scmd_walk_to_entity	C->S 0x02: click check, then FUN_00580a70(game, unit, 0, mode 2, type, id, 0); verified plrmsg_click.py
-00549920	scmd_run_to_entity	C->S 0x04: click check, then FUN_00580a70 with mode 3; verified plrmsg_click.py
-00549d80	scmd_left_skill_on_entity	C->S 0x06: click check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, skill processor FUN_00549ba0 with approach 1; verified plrmsg_click.py
-00549e00	scmd_left_skill_on_entity_no_approach	C->S 0x07: as 0x06 with approach 0; verified plrmsg_click.py
-00549ee0	scmd_left_skill_on_entity_held	C->S 0x09: click check (its status passes), left skill test (3), then 0x06's handler; answers 0; verified plrmsg_click.py
-00549f40	scmd_left_skill_on_entity_held_no_approach	C->S 0x0a: as 0x09 delegating to 0x07; verified plrmsg_click.py
-0054a040	scmd_right_skill_on_entity	C->S 0x0d: as 0x06 with the right skill (FUN_006201d0); verified plrmsg_click.py
-0054a0c0	scmd_right_skill_on_entity_no_approach	C->S 0x0e: as 0x0d with approach 0; verified plrmsg_click.py
-0054a1a0	scmd_right_skill_on_entity_held	C->S 0x10: as 0x09 for the right skill, delegating to 0x0d; verified plrmsg_click.py
-0054a200	scmd_right_skill_on_entity_held_no_approach	C->S 0x11: as 0x10 delegating to 0x0e; verified plrmsg_click.py
-0054aa90	scmd_interact	C->S 0x13: size 9 else 3, type under 6 else 2, FUN_00548b00(ECX unit, EDX type, id, 0, game), its answer passes through; verified plrmsg_click.py
-0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
-0061f0e0	lvlprest_by_level	first lvlprest row (0x1b0 bytes at 0x96c894) whose +4 LevelId equals the key, else 0; verified by lvl_tbls.py
-0061f310	lvlwarp_check	halts (0x32b / 0x33a) unless a lvlwarp row has the id and a 'b' / matching letter at +0x2c; verified by lvl_tbls.py
-0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
-0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
-0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py
-00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
-0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
-0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
-0047fa20	warden_verify_signature	ECX 0x100, EAX length, stack salt, data, modulus, exponent, 4, skip: 'NGIS' at length-0x104, then RSA(sig) == digest + 0xbb filler + 0x0b; 1 or 0, fatal 0xa3 when length < skip; verified by warden_client.py
-0047fc70	warden_load_module	EAX length, stack data, 16-byte RC4 key: destroys the pending module, copies and RC4-decrypts, checks the trailer, zlib-inflates (first dword = size), maps it with FUN_004e0730, takes export 1; sets DAT_007bc994, 1 or 0; verified by warden_client.py
-004803c0	warden_init	ECX seed: shutdown, seed = ECX, API = FUN_00518c10 (0 gives 0), loads the built-in module and starts it; verified by warden_client.py
-004e06a0	pe_image_free	ECX record: unmaps the image of a module record (from the disassembly; hooked in warden_client.py, never run)
-004e0700	pe_image_export_by_ordinal	ECX record, stack ordinal: export address, 0 when out of range (from the disassembly; hooked in warden_client.py, never run)
-004e0730	pe_image_load	ECX record, stack image, size: maps an in-memory PE (hooked in warden_client.py, never run)
-004e09b0	rc4_init	ECX state, stack key, key length: RC4 key setup, 0x100 S bytes then i, j; verified by warden_client.py
-00518c10	bnclient_api	returns 0x72faa0, the Bnclient API table (+0xc8 free, +0xcc cache read, +0xd0 cache write)
-005496f0	location_check	shared C->S location check (packet EAX, unit ESI, stack game, size, &x, &y; ret 0x10): zeroes both word outs, size 5 else 3, no player data (FUN_006221a0) 2, range check FUN_00548ef0(EAX unit, EBX 0x32, x, y); on a failure more than 0x19 frames (signed) after the stamp at player data +0x168 sends a 0x15 reassign (FUN_0053bc10) to the unit's client; the status passes through; 0 stamps the frame and stores x, y; verified plrmsg_loc.py
-005497e0	scmd_walk_to_location	C->S 0x01: location check, then FUN_005809d0(game, unit, skill 0, mode 2, x, y, 0); answers 0; verified plrmsg_loc.py
-005498d0	scmd_run_to_location	C->S 0x03: location check, then FUN_005809d0 with mode 3; verified plrmsg_loc.py
-00549a60	send_inventory_full_message	sends the 40-byte 0x5a system message (type 0x0e, colour 1) to the unit's client (line 0x73c); verified plrmsg_loc.py
-00549ad0	cast_skill_on_location	skill cast at x, y (ECX unit, EAX skill, stack game, x, y): no unit / death / dead mode 2; dual-wield swing swap; usability 1, 2 or 4 with skills.txt +7 flag retries with the basic attack; no skill mode 2; usability 0 FUN_005809d0 move, 1 inventory-full message; verified plrmsg_loc.py
-00549d00	scmd_left_skill_on_location	C->S 0x05: location check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, cast FUN_00549ad0 with the second skill fetch; answers 0; verified plrmsg_loc.py
-00549e80	scmd_left_skill_on_location_held	C->S 0x08: location check (its status passes), left skill test (3), then 0x05's handler; answers 0; verified plrmsg_loc.py
-00549fa0	scmd_keepalive	C->S 0x0b (1 byte): size 1 else 3; verified plrmsg_loc.py
-00549fc0	scmd_right_skill_on_location	C->S 0x0c: as 0x05 with the right skill (FUN_006201d0); verified plrmsg_loc.py
-0054a140	scmd_right_skill_on_location_held	C->S 0x0f: as 0x08 for the right skill, delegating to 0x0c; verified plrmsg_loc.py
-0053b280	scmd_queue	appends a packet (buffer, size; client in EDI) to the client's 0x208-byte block list (head +0x1b8, tail +0x1bc, free list +0x1c0); no size check; verified scmd_senders.py
-0053b320	scmd_send_id	S->C 1-byte packet, the id in DL (the "loading" 0x00); verified scmd_senders.py
-0053b340	scmd_game_flags	S->C 8 bytes: id, difficulty (game +0x6d), FUN_0053fd40 dword, game +0x70 != 0, game +0x74 != 0; verified scmd_senders.py
-0053b390	scmd_load_act	S->C 12 bytes: id, u8, u32 +2, u16 +6, u32 +8 (net-join.md load act); verified scmd_senders.py
-0053b430	scmd_monster_hit	S->C 9 bytes: id, u8, u32 +2, three bytes (net-packets.md 0x0c hit); verified scmd_senders.py
-0053b4b0	scmd_unit_stop	S->C 13 bytes (0x0d stop layout); byte a0 of 6 or more is fatal (line 0x136); verified scmd_senders.py
-0053b520	scmd_move_to_unit	S->C 16 bytes (0x10 move to unit layout); verified scmd_senders.py
-0053b570	scmd_move_to_xy	S->C 16 bytes (0x0f move to x, y layout); byte a0 of 6 or more is fatal (line 0x166); verified scmd_senders.py
-0053b9f0	scmd_monster_pkt_a	S->C 12 bytes: id, u32 +1, two bytes, u32 +7, byte +0xb (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
-0053ba40	scmd_monster_pkt_b	S->C 12 bytes: id, u32 +1, byte, u16 +6, u16 +8, two bytes (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
-0053baa0	scmd_monster_pkt_c	S->C 16 bytes: id, u32 +1, two bytes, u32 +7, byte, two u16 (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
-0053bb00	scmd_monster_pkt_d	S->C 16 bytes: id, u32 +1, byte, two u16, two bytes, two u16 (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
-0053bb70	scmd_monster_stop_6d	S->C 10 bytes: 0x6d, u32 EDX, u16 x, u16 y, byte life; verified scmd_senders.py
-0053bc10	scmd_pkt_11	S->C 11 bytes: id, byte, u32 +2, u16 +6, u16 +8, byte +0xa; sent when a player comes into the game (combat.md, FUN_005394a0); verified scmd_senders.py
-0053bdd0	scmd_experience	S->C experience: d = EDX - a0; 0x1a byte add (d 0..0xfe), 0x1b word add, 0x1c set EDX (d above 0xfffe or negative); verified scmd_senders.py
-0053be40	scmd_set_stat	S->C own stat: 0x1d byte / 0x1e word / 0x1f dword value by a0 (below 0xff / 0xffff); EDX u16 stat 0xff or more is fatal (line 0x3cb); verified scmd_senders.py
-0053bee0	scmd_set_unit_stat	S->C other unit's stat set: 0x9e byte / 0x9f word / 0xa0 dword, unit id +0xc (-1 for null); stat 0xff or more fatal (line 0x3f5); verified scmd_senders.py
-0053bfd0	scmd_add_unit_stat	S->C other unit's stat delta d = a2 - a1: 0xa1 byte, 0xa2 word, else (delta 0xffff or more, or negative) 0xa0 with a1 (the old value, bugs.md 94); stat 0xff or more fatal (line 0x42d); verified scmd_senders.py
-0053c320	scmd_walk_95	S->C 0x95 bit-packed, 13 bytes: 8 id, 15 EDX, 15, 15, 16, 16, 8, 8; verified scmd_senders.py
-0053c3f0	scmd_walk_96	S->C 0x96 bit-packed, 9 bytes: 8 id, 15 EDX, 16, 16, 8, 8; verified scmd_senders.py
-0053c590	scmd_set_skill_23	S->C 0x23 (13 bytes): EDX byte, u32 +2, byte hand, u16 skill, u32 item; verified scmd_senders.py
-0053c900	scmd_copy_10	S->C 10 bytes copied from the structure EDX points at (0x53 act values); verified scmd_senders.py
-0053d2e0	scmd_clear_cursor_42	S->C 0x42 (6 bytes): byte at EDX+0 and dword at EDX+0xc, or 6 and -1 for a null EDX; verified scmd_senders.py
-0053d4d0	scmd_skill_at_xy	S->C 17 bytes: 0x4d, or 0x9a when the last stack word is non-zero; verified scmd_senders.py
-0053d710	scmd_copy_6	S->C 6 bytes copied from the structure EDX points at; verified scmd_senders.py
-0053d780	scmd_copy_8	S->C 8 bytes copied from the structure EDX points at (0x2c); verified scmd_senders.py
-0053d7e0	scmd_copy_15	S->C 15 bytes copied from the structure EDX points at; verified scmd_senders.py
-0053d8d0	scmd_copy_7	S->C 7 bytes copied from the structure EDX points at (0x58 reply); verified scmd_senders.py
-0053d960	scmd_copy_21	S->C 0x15 bytes copied from the structure EDX points at (0x63); verified scmd_senders.py
-0053e020	scmd_pong	S->C 0x8f then 32 zero bytes (33); verified scmd_senders.py
-0053e060	scmd_copy_26	S->C 0x1a bytes copied from the structure EDX points at; verified scmd_senders.py
-0053e9b0	scmd_gold	S->C gold: d = EDX - a0; 1..0xfe is 0x19 + byte, else the stat 0x0e set packet (1d / 1e / 1f 0e) of EDX; verified scmd_senders.py
