@@ -40,6 +40,66 @@ Life after the hit below 0x100 (under 1 point) is set to 0: the unit is
 dead, and result flag 2 is set. FUN_0057aa60 / FUN_0057aaa0 do the same
 for mana (stat 8) and stamina (stat 10).
 
+**Mana back: FUN_0057aa00** (cited, decompile only, no disassembly or oracle
+run). The leech's mana half; called only from `FUN_0057c420`. One stack
+argument, `points`; the unit is a register the decompile hides
+(`unaff_EDI`, as in `FUN_0057a980`). `points < 1`: returns 0 and writes
+nothing. Else `max` = `FUN_00625d60` (stat 9, maxmana), `cur` = stat 8
+(`FUN_00625480`), `new` = `min(cur + points, max)`, written with
+`FUN_00627260(unit, 8, new, 0)` (always, even when unchanged). Returns
+`max - cur` when `new == max`, else `points`. Two readings follow from
+that: a hit that fills mana exactly returns `max - cur` (= `points`), and a
+unit already above max has mana pulled down to `max` and gets a negative
+return; `FUN_0057c420` drops the return value, so neither is seen. Unlike
+the life twin `FUN_0057a980`, there is no dead-unit test and no state test
+(life has `FUN_005541b0` and state 0x5c). d2d: no function of its own; the
+mana leech of a player's hit is `std::min(kMaxMana, mana + (blow.mana <<
+8))` in `components/game/fight/strike.cpp:489`, the same cap (agrees);
+d2d does not apply the dead-unit gate to mana because nothing there needs it.
+Re-check: `python3 tools/ghidra/fn.py 0057aa00 0057c420`.
+
+**Life back: FUN_0057a980** (cited, decompile only). The twin of
+`FUN_0057aa00`, called by `FUN_0057c6c0` with record int 0x12 and by
+`FUN_0057c420`. One stack argument `points` (the raw units of stat 6,
+which `FUN_0057c6c0` treats as 256ths: dead under 0x100), the unit in
+EDI/ECX registers the decompile hides. It returns 0 and writes nothing when:
+`points < 1`; or the unit is dead (`FUN_005541b0`: a null unit, a player in
+mode 0 or 0x11, a monster in mode 0 or 0xc, a unit of any other type, or
+unit +0xc6 bit 0); or the unit has **state 0x5c** (`FUN_00639df0(unit,
+0x5c)`). Else `new = min(stat 6 + points, max)` with max =
+`FUN_00625d10` (stat 7), written by `FUN_00627260(unit, 6, new, 0)`; the
+return is `max - cur` when capped, else `points`. State 0x5c is set by
+`FUN_005a6920` (the life regen / drain tick, stat 0x4a) when it takes life
+to 0 in a unit that has state 0x36, and cleared by `FUN_005544b0` (state 0x36 off).
+It is not preventheal: that is state 0x34 (`FUN_0057d810`), which the
+regen `FUN_005a6920` and the teleport mod's heal `FUN_005b11f0` test
+themselves and this function does not. d2d: `ai.cpp` `heal` caps at max
+life and refuses a dead monster (agrees), keeps `no_heal_until` (state
+0x34) as a caller's gate (agrees with where game.exe tests it), and has no
+state 0x5c. Its header calls `points` "whole points"; game.exe's `points`
+from a hit's record are stat 6 units (256ths), so the comment is true for
+d2d's own callers only. Re-check: `python3 tools/ghidra/fn.py 0057a980
+005541b0 005a6920 005544b0`.
+
+## The game behind a unit — FUN_00554010
+
+(cited, decompile only.) `__fastcall`, ECX the unit: a null unit fails the
+usual fatal check (`FUN_00408090(0xa29)` message, `FUN_00408a60`, then
+`FUN_00681e09(-1)`, no return); otherwise it returns the dword at unit
++0x80. The callers cited here (not a full caller list) use the result as the game struct: the
+difficulty byte at +0x6d (`FUN_00611d30`, `FUN_00637910`'s second argument,
+`FUN_0057c420`'s Drain scaling) and the expansion word at +0x70
+(`FUN_00558200`). `tools/emu/end_percent.py:93` replaces it with a hook that returns
+the game struct, so that oracle assumes this reading and does not check it
+(the decompile above is the evidence). So a **server** unit's +0x80 is
+the game pointer. Client units use +0x80 differently (a sound time: the
+Neutral timer and the Gibbet's call frame, unit-sounds.md "Monsters" and
+"Objects"), so `structs.tsv`'s `unit 0x80 neutral_time` row (and 0x7c / 0x84)
+describes the client layout, not this one; the table has no server/client
+column yet, and its `components/game/ai.hpp:187` citation no longer shows
+those names.
+Re-check: `python3 tools/ghidra/fn.py 00554010 0057c420 00558200`.
+
 ## Poison and burning — FUN_0057ac50 / FUN_0057add0
 
 Poison is **state 2** (`poison`) and burning **state 0x73**, each holding a
@@ -494,6 +554,38 @@ of life) / length, [0xc] cold length, [0xd] freeze length.
     × 500, and only from the purse; the rest of the purse falls where the
     player dies (`FUN_00535510`, split into piles by `FUN_0055a090`); the
     purse goes to 0 and goldlost (stat 175) holds the loss.
+- **A player's kill leaves an ear** (`FUN_0055a200`, `FUN_00580ec0`'s death
+  mode; cited, decompile only, no disassembly or oracle run). `FUN_00580ec0`
+  calls it, after the died bit and the experience and gold losses, when the
+  dying unit is a player (type 0) and the killer is given and is not the
+  dying unit, and the killer is either a player (type 0) or a monster
+  (type 1) whose owner (`FUN_0058f0d0`: the summoner behind a pet or a
+  merc) is a player other than the victim. Then, for the victim (EDX; ECX is
+  the game, `FUN_00580ec0`'s own ECX, which the decompile hides at the
+  call):
+  1. victim missing or not a player: nothing;
+  2. `FUN_00633640(0x20726165, &index)` ("ear " as a little-endian code)
+     finds the item row (stride 0x1a8); no row: nothing;
+  3. the victim's x, y (`FUN_00620870`) and room (`FUN_00620bb0`), then
+     `FUN_00555da0` finds a free spot (the same call as a dropped item,
+     drops.md "Where a drop lands"): the search starts from (x + 2, y + 3),
+     or from (x, y) when that offset is off the rooms (`FUN_00463740`), not
+     from the victim's own coordinates; none: nothing;
+  4. `FUN_00559ce0` makes the item (the create record of drops.md, level =
+     the victim's stat 0xc through `FUN_00625480`, so its item level is the
+     victim's level; the other literals 4, 2, 1, 1 and the zeros are as the
+     decompile shows them and are not resolved here);
+  5. `FUN_00558aa0` puts it on the ground at the spot in the room
+     `FUN_00555da0` returned (items.md "ground placement").
+  What the ear holds is set in `FUN_00558d90`'s unit-type-7 branch (a record
+  whose +0x2c is 0): the name is `FUN_006221a0(record unit)` (the player's
+  name, `FUN_00628370` copies it to item data +0x4a), the level is that
+  unit's stat 0xc (`FUN_006283d0`, data +0x48); the record's unit must be
+  a player, else the item is thrown away (LAB_005590e2). Which unit the seed
+  puts in the record is not visible in the decompile (the ECX of the call);
+  the ear carrying the victim's name and level is the reading that fits
+  steps 1 and 4, not a traced fact. d2d: not ported (no ear is ever made;
+  `d2s` only reads and writes a saved one, items.md "compact reader").
 - **When the death has played** (mode 0x11: `FUN_00581020` →
   `FUN_0057fca0` → `FUN_0057f700`, PlrModes.cpp): a corpse unit, the
   player's class in mode 0x11, at most 16 a player. Everything worn (body
