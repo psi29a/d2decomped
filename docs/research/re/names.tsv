@@ -28,6 +28,7 @@ address	name	evidence
 00451f80	monstats_row	(id): 0 when id < 0 or >= count at [0x744304]+0xa80, else [0x744304]+0xa78 + id * 0x1a8; no assert (items.md)
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
+0045c4b0	skill_row	ECX skill id: id*0x23c + [0x744304]+0xb98, 0 when id < 0 or >= [0x744304]+0xba0; no assert (cited, decompile only; skills.md "Iron Maiden's event function")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
 00461010	client_unit_dead_reset	ESI unit: clears +0xc4 bits 4 (and 2 without state 7), trims the COF list, sets stat 6 (life) to 0; FUN_00461250 commands 8 / 9 (collision.md "The client's command switch")
 00461180	skill_slot_reask	EAX unit, ESI slot {id, guid}, arg: FUN_006439b0 node, FUN_004610c0, slot id = node id, guid -1 when it changed (collision.md "The client's command switch")
@@ -502,6 +503,7 @@ address	name	evidence
 00558cb0	item_from_record	FUN_00555230, FUN_0062e430, flags 0x80000 / 0x2000
 00559130	item_drop_at	FUN_0064e810 mask 0x3e01, 0x84-byte record, FUN_00558d90
 00559830	item_drop_at_2	same as FUN_00559130, level 1 outside an area
+0055b7e0	monster_stats_of	ECX unit: type 1 with unit +0x14 set, the first dword there (FUN_005c5f50 reads Drain, record +0xa0 by difficulty, off it); 0 for a null unit, a player or no data (cited, decompile and FUN_005c5f50's asm)
 0055bed0	unit_mode3_notify	FUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
 0055bf30	unit_mode3_notify_if	unit +0xc4 bit 0
 0055bff0	book_item_skill	books.txt +8 / +0xc by ItemTypes 0x16 / 0x12
@@ -556,12 +558,15 @@ address	name	evidence
 00563470	item_put_back	by mode 0 / 1 / 4 (ItemMode.cpp 0x1a75)
 00563840	cube_empty	page 3 items to inventory or ground (ItemMode.cpp 0x80d..0x8ee)
 00563fe0	item_transmogrify	Items +0x139, +0xc8, +0x13a/+0x13b
+0056b3e0	unit_takes_filter	ECX caster, EDX target, stack flags: by target type (player 0x1, monster 0x2, object 0x10, missile 0x8, item 0x20) then 0x80/0x400 unit flags, 0x100 town, 0x10000/0x8000/0x20000, state 0x56, 0x200 line (skills.md "aurafilter")
+0056d2c0	skill_target_point	fastcall (game, caster, out x, out y) -> 1 when both non-zero: the caster path's target unit (FUN_00553540) position, else the path's target words (+0x10 / +0x12); skills.md "The skill target point"
 0056dfa0	skills_refresh_passives	fastcall (unit): for each node of the unit +0xa8 skill list whose passivestate > 0: state on (FUN_00639db0) and FUN_00646d60; skills.md "Skill accessors"
 0056e520	unit_add_attackrate_list	fastcall (unit, value): kind-4 stat list (FUN_006251f0) linked to the unit, stat 0x44 = value, then FUN_00623f50; Skills.cpp line 0x12ab; skills.md "Stat-list helpers and skill starts"
 0056ff10	skill_state_list_apply	(unit in EDI, skill): record flag +4 & 0x20 needed; state +0x80 on, list tagged state / skill / level, stats 0x15e / 0x15f set, or d2d_ai_castable when +5 & 0x80; then FUN_0056cda0; skills.md "Stat-list helpers and skill starts"
 00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
+0057aae0	unit_stun	(attacker, length; struck unit in EDI): length < 1 nothing; special monster 90 % shrug on the attacker's seed, boss, Velocity 0 immune; cap 250 (hireling 13); state 0x15 to game frame + length (skills.md "Stun")
 00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")
 00574930	pet_send_to_client	per-client callback of FUN_005538d0: event {+0 pet id, +4 owner id, +8 class, +0xc row, +0x10/+0x14 words}; both words 0 sends 0x7a (FUN_0053cb30) else 0x81 (FUN_0053cb80) (pet-ai.md "The owner's pet lists")
 00574ab0	pet_revive_announce	EDX owner, stack unit: rows 1.. find the node whose +4 is the unit's id, flags &= ~1, send the add event (FUN_005538d0 / FUN_00574930), 1; else 0 (pet-ai.md "The owner's pet lists")
@@ -623,6 +628,8 @@ address	name	evidence
 005bcfd0	quest14_update_objects	quest 0x14 sets data state dwords to 2 and updates two flagged objects
 005c3de0	confuse_unit	per-unit Confuse: FUN_005c3d50 test, d2d_states_put_state, descriptor stats set, alignment 1 (FUN_005543b0), list 9, kind 3, event 10; monster-ai.md "Confuse and Attract"
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
+005c5f10	heal_unit_life	EAX amount (256ths), EBX unit: 0 when amount < 1, else stat 6 += amount capped at d2d_unit_max_life, returns the amount that fitted (skills.md "Iron Maiden's function"; cited)
+005c5f50	aura_event_iron_maiden	aura event function 4 (table 0x7325b0 slot 0x7325c0), ECX game, 5 stack args (wearer, struck, hit, skill, level): hits the wearer calc1 / 2 / 3 % of the hit's damage (skills.md "Iron Maiden's function"; cited)
 005d7090	skill_start_dragon_tail	srvstfunc 27 (fastcall): FUN_0056e520, to-hit + stat 325 (FUN_0057ec10), on a hit kick damage FUN_005d54b0, FUN_0057dbf0 with HitClass +0x1a5 (0x80 if 0); skills.md "Stat-list helpers and skill starts"
 005d7ea0	skill_start_bash	srvstfunc 32 (fastcall): town refusal (FUN_0061ab00), calc3, FUN_0056e520, to-hit roll, flags, ED, element, aurastate list; skills.md "Melee skills" and "Stat-list helpers and skill starts"
 005dd0b0	unit_search	mode table at 0x6e3300: kind 1 FUN_005dcee0, 2 FUN_005dcf70, 3 FUN_005dd050, else FUN_005dce60
@@ -1094,6 +1101,7 @@ address	name	evidence
 0063e860	unit_is_town_or_owned	(unit in ECX): type 1 whose MonStats row +0xd has npc (1) or inTown (4), else unit +0xc4 bit 31 (a player's pet) (collision.md "Building a path")
 0063e940	monster_is_demon	unit type 1, class in range, MonStats record (0x1a8 each) byte +0xd & 0x20 (missiles.md "Monster class test: demon")
 0063e990	monster_is_undead	unit type 1, class in range, MonStats record byte +0xd & 8 or & 0x10 (missiles.md "Monster class test: undead")
+0063ee90	hireling_kind	(unit): 0 for a null unit or not type 1; class 0x10f 1, 0x152 2, 0x167 3, 0x230 / 0x231 4, else 0 (combat.md "The pair percent"; ai.hpp Crushing Blow note: the same five classes; cited)
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00643290	pair_project	(int *a, int *b) in place: a = (a - b) >> 1, b = (a + b) >> 2 from the old values; path +8 / +0xc from the position >> 11 (collision.md "Building a path")
 00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
@@ -1148,6 +1156,7 @@ address	name	evidence
 00645bc0	skill_params_23_diminishing	stdcall (level, skill id): as FUN_00645b70 with par3 / par4 (+0x150 / +0x154); skills.md "Skills.cpp accessors and helpers (SKILLS gap batch)"; verified by skill_table_rows.py
 00645fb0	skill_flag_bit1	stdcall (skill id): Skills.txt byte +6 & gadwBitMasks[1] (0x6ce26c), 0 for a bad id; skills.md "Skills.cpp accessors and helpers (SKILLS gap batch)"; verified by skill_table_rows.py
 00646170	skill_attack_frames	stdcall (unit): for a shapeshifted player, frame count (+0x48) & ~0xff over the weapon's speed (FUN_0062a710, 19 with no weapon), 0 when that speed is below 1; else 0; skills.md "Skills.cpp accessors and helpers (SKILLS gap batch)"; verified by skill_table_rows.py
+00646ca0	skill_calc_at	(unit, offset, skill, level): evaluates the Skills.txt calc bytecode at [0x744304]+0x40 + offset (length +0x44 less offset) with d2d_skills_eval_calc, 0 when the buffer is null or offset is past it; the skill record's calc1 / calc2 / calc3 (+0x138 / +0x13c / +0x140) are such offsets (cited; FUN_005c5f50)
 00646d60	skill_passive_refresh	(unit, skill): fills the passivestate (+0x94) stat list from passivestat/passivecalc at the skill level, layer passiveitype, stats 0x15e / 0x15f = skill / level; with the +0x80 state on it removes the list instead; skills.md "Skill accessors"
 00646fd0	skill_remove	(skill, drop_level), unit in EBX: passivestate off, the three selected-skill pointers at list header +8 / +0xc / +0x10 cleared when they are this base entry, then the base entry loses a level or is unlinked and freed (Skills.cpp line 0x4ac); FUN_00646d60 refresh
 00647110	skill_grant	(unit, skill) -> entry: passivestate on; an existing base entry (+0x34 == -1) gets +0x28 += 1 (player: below FUN_004aa8b0(); monster: always), else a new 0x40-byte node (level 1, mode from record +0x10 / +0x11) joins the +0xa8 list's tail; then FUN_00646d60; Skills.cpp line 0x539
