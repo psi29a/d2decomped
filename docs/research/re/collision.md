@@ -675,3 +675,14 @@ EAX); read the asm for them.
   collision.md and monsters.hpp:909 already cite (player mask 0x1c09, steps
   0x49, type 7); monster steps 0xe, +0x92 = 0x46 and the missile row are
   not ported, no disagreement found.
+
+## The client's command switch and the run stop (work package 00463260, 1.14d)
+
+Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check with
+`python3 tools/ghidra/fn.py <address>`. Addresses in call order of `FUN_00461250`.
+
+- **`FUN_0044bf00`** and **`FUN_0044bf10`**: no arguments, each returns one global
+  dword (`[0x70f234]` and `[0x70f2bc]`). `FUN_00461250` command 8 (the player dying)
+  tests bit 8 of each when `FUN_00467a10` is the dying unit: with neither set it calls `FUN_00466fe0`, with either set
+  `FUN_0044da40` then `FUN_00467a70`. Their other caller is `FUN_004aff60`. What the
+  two globals hold is not traced. d2d: not ported.
