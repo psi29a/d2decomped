@@ -29,6 +29,7 @@
 #include "unit_slide.hpp"
 #include "world_view.hpp"
 
+#include <ambient_dip.hpp>
 #include <d2s_items.hpp>
 #include <overlays.hpp>
 #include <panel_view.hpp>
@@ -628,6 +629,13 @@ struct Town {
     bool den_seen = false, den_lit = false;
     std::vector<View::Shot> den_beams;
     [[nodiscard]] int den_ambient() const;
+    // The client's own fill, ahead of the level's light (FUN_0046bdd0): the
+    // Den's, Diablo's release (rules::release_light), the dip; -1 none.
+    [[nodiscard]] int event_ambient() const;
+    // The ambient's dip to black (ev::AmbientDip), a step each client frame
+    // (FUN_0046beb0 -> FUN_0046ad10) from the level's own fill.
+    d2d::rules::AmbientDip dip;
+    void dip_tick();
     void den_tick(std::uint32_t frame_ms);
     // The client's critters (docs/research/re/critters.md): the level's
     // Levels.txt cmon / cpct / camt, made per room on its seed as the room

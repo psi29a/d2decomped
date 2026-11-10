@@ -965,6 +965,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
             std::erase_if(pet.buffs, [&](const SelfState& buff) { return buff.skill == skill->id; });
             pet.buffs.push_back({ skill->id, lvl, until });
             pet_buffs(pet);
+            if (skill->aurastate == "cloak_of_shadows") cloaks.push_back(len);   // on the Shadow: the client's dip all the same (FUN_004d87e0)
             if (skill->srvdofunc == ServerDoFunction::kCloakOfShadows)
                 for (auto& other : monsters)
                     if (other.alive() && std::hypot(other.unit.x - monster.unit.x, other.unit.y - monster.unit.y) * 5 <= float(calc(*skill, skill->aurarange, lvl)))

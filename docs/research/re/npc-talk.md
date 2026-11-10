@@ -45,6 +45,35 @@ Same menu machinery and layout as the NPC menu (npc-menu.md). Lines:
 Built by `FUN_004a10e0` / `FUN_004a05e0` and parsed by `FUN_004a0320`;
 drawn at `0x49d5a0`.
 
+`FUN_004a0000` (12 bytes, `004a0000`) tells whether that record is up.
+It has no arguments and no assert. It clears EAX, compares the dword at
+`0x7bf0a4`, sets AL when the dword is not 0, and returns:
+
+`xor eax, eax`; `cmp dword [0x7bf0a4], eax`; `setnz al`; `ret`.
+
+EAX is 1 or 0. With the dword 0, then `0x12345678`, `tools/emu` returned
+0 then 1 (`uv run python` from `tools/emu`, `Emu(exe=...).call(0x4a0000)`).
+
+`FUN_004a10e0` stores `FUN_004a05e0` at `004a1261` (call `004a125a`).
+`FUN_004a1320` stores it at `004a142e` (call `004a1427`). Both calls pass
+EDX = 2, so the builder takes the 0x145 by 0x70 record. EDX 3 returns
+before that. `FUN_0049f960` (`0049f98f`), `FUN_004a0680` (`004a06bd`) and
+`FUN_004a0770` (`004a07e7`) write 0 after releasing it.
+`game-srcfiles.tsv` files `FUN_004a05e0` and `FUN_004a10e0` as
+`UI/text.cpp` (the assert string `.\UI\text.cpp` is at `006da13c`).
+
+Nine calls. The hover-name function `FUN_00454f30` calls it at
+`004551dd`. At `004551d0` it calls `FUN_004b3230` and jumps to
+`00455489` when that returns nonzero. It then calls `FUN_004a0000` and
+jumps to the same address when EAX is 1. Otherwise ECX is ESI and it
+calls `FUN_00464a60` (the unit name). d2d cites `FUN_00454f30` for the
+box over the feet (`apps/d2d/world_view.cpp`). The other calls are
+`004539df` (`FUN_00453910`: while EAX is nonzero, EDI of 6, 7, 10, 0x11
+or 0x13 falls through, and any other EDI returns 0), `00454ed1`
+(`FUN_00454ad0`), `00456860` (`FUN_004567f0`), `00456acc` and `00456bd3`
+(`FUN_00456970`), `0045717f` (`FUN_00456ee0`), `00466df9`
+(`FUN_00466de0`) and `00467149` (`FUN_00467130`).
+
 - **Text**: the string's line 0 is the scroll rate (`atol`; 8 with a
   warning if it isn't numeric). The remaining lines are pre-wrapped at
   `\n`.
