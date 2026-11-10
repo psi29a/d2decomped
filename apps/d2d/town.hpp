@@ -144,6 +144,12 @@ constexpr std::uint32_t kPortalOpenMs = 15 * 40 * 256 / 200;
 void view_units(const Scene& scene, const View& view, float camera_x, float camera_y, const std::string* merc_label, std::vector<Unit>& out,
                 std::span<const View::Shot> effects = {}, std::uint32_t now_ms = 0, const std::string* corpse_name = nullptr, int cls = 0,
                 StateClock* clk = nullptr);
+// Show Items' walk (FUN_004c0810) over view_units' ground items (npc -1000
+// - their View::ground index): the near list of the room holding (x, y)
+// cells in order (game::automap_rooms, FUN_00619790), each room's items
+// newest first (FUN_0064c2c0 adds a unit at its room's head). Sets each
+// one's Unit::label_rank; one in no near room keeps -1.
+void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units);
 // Over the world: the hovered (else attacked) monster's life bar, the
 // death message.
 void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered,

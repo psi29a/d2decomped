@@ -106,7 +106,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                   int mouse_x , int mouse_y ,
                   std::pair<const Unit*, std::array<int, 4>>* hovered ,
                   const Lighting* light , d2d::rules::Rain* rain ,
-                  std::vector<std::pair<const Unit*, std::array<int, 4>>>* items) {   // each ground item drawn, its box
+                  std::vector<std::pair<const Unit*, std::array<int, 2>>>* items) {   // each ground item drawn, where (its feet: FUN_00620650 / FUN_006206b0 less the view)
     const auto& map = level.ds1;
     if (map.width() == 0 || map.height() == 0) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
@@ -483,7 +483,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 bounds = { anchor_x + flippy->offset_x, anchor_y + flippy->offset_y - int(flippy->height) + 1,
                       anchor_x + flippy->offset_x + int(flippy->width), anchor_y + flippy->offset_y + 1 };
                 if (bounds[2] > 0 && bounds[0] < screen_w && bounds[3] > 0 && bounds[1] < int(kScreenHeight)) Scene::note_drawn("items", unit.sprite_file);   // on screen
-                if (items) items->push_back({ &unit, bounds });
+                if (items) items->push_back({ &unit, { anchor_x, anchor_y } });
             } else {
                 auto elapsed = std::uint32_t(float(elapsed_ms - unit.mode_ms) * unit.rate);
                 const auto last = std::uint32_t(std::max(int(unit.anim->cof.frames_per_direction()), 1) - 1) * unit.anim->ms_per_frame();

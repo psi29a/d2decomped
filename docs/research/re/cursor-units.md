@@ -77,6 +77,32 @@ A try returning 1 places it, if then right ≤ max_x and left ≥ min_x;
 twelve moves without a clear spot, or a spot outside the columns, and
 the item gets no label.
 
+**The walk.** The rooms are the player's room's near list
+(`FUN_00620bb0`, then `FUN_00619790`: room +0, its count +0x24) in order,
+and each room's units from its list's head (room +0x74, the next at unit
++0xe8). `FUN_0064c2c0` adds a unit at the head (and `FUN_0064c370` takes
+it out), so a room lists its newest unit first. The 0x20 is a count of
+placed labels (0x7c54a0, `cmp edi, 0x20` at 0x4c08d6): past it the walk
+goes on, placing none. The spot is the item's client position less the
+view's, 16 up: x = `FUN_00620650` − `FUN_0045afc0`, y = `FUN_006206b0` −
+0x10 − `FUN_0045afd0` (an item's static path +4 / +8). The rect: left =
+x − (w + 8) / 2 (`sar`), right = left + w + 8, top = y − h + 4, bottom =
+y, w and h from `FUN_00502520`.
+
+**Lit.** While no label is lit yet (a local, 0 at the start), a placed
+label goes lit when the mouse (`FUN_00468730` / `FUN_00468740`) is within
+left..right and top..bottom + 4, all inclusive (0x4c0ac9..0x4c0ae0;
+`FUN_00467a70` then makes it the cursor's unit), or else when its item is
+the cursor's unit (`FUN_00467a10`). Lit: colour the palette's nearest to
+(0, 64, 128) (`FUN_004fb180`), draw mode 5, kind 0; else colour 0, mode
+1, the kind by quality (`FUN_00627e70`). The labels are drawn
+(`FUN_005023b0`) after the walk, in placing order.
+
+Oracle: `tools/emu/show_items_walk.py` runs `FUN_004c0810` itself (the
+walk, `FUN_004c0640`, the hover test) on generated rooms and units;
+`test_show_items_walk` gives d2d's `rules::show_items` the same cases
+(fixture `show_items_walk_cases.inc`).
+
 ## d2d
 
 `Monster::ally_not_interact` (components/game/ai.hpp) is that rule for a
