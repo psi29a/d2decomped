@@ -404,6 +404,13 @@ of stack argument 7. The wrapper pops seven stack arguments. The 24 cases in
 `tools/emu/quest_izual_forward.py` check that layout against stock at the
 hooked callback boundary; they do not run the callback.
 
+`FUN_0058e120` obtains the client for the player in ECX, looks up quest
+0x24 using the game in ESI, then sends a five-byte packet: byte 0 is 0x50,
+bytes 1–2 are little-endian 0x24, and bytes 3–4 are the word at quest data
++0xa4. The function dereferences the returned quest record without a null
+check. `tools/emu/quest_prisoner_packet.py` checks 24 stock cases with both
+lookups and the sender hooked; it captures the local packet without sending.
+
 `FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
 looks up object ID data +0x28 in the game (type 2); if found, it sets the
 object mode to 1, reads its Objects table record from its class ID at +4,

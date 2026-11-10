@@ -134,6 +134,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest object-class dispatch (`FUN_005447a0`, handlers hooked; `--mutation-check` three ways) | `uv run python quest_object_dispatch.py` | `ok: 48 quest object dispatch cases` |
 | Quest 0x11 object timer (`FUN_005b9cd0`, lookups and scheduler hooked; `--mutation-check` three ways) | `uv run python quest_object_timer.py` | `ok: 24 quest object timer cases` |
 | Quest party callback dispatch (`FUN_005ba2f0`, party routines hooked; `--mutation-check` three ways) | `uv run python quest_party_callback.py` | `ok: 24 quest party callback cases` |
+| Quest prisoner packet (`FUN_0058e120`, lookups and sender hooked; `--mutation-check` three ways) | `uv run python quest_prisoner_packet.py` | `ok: 24 quest prisoner packet cases` |
 | Rescue reward across difficulty quest buffers (`FUN_0058a0a0`, hooked callees; `--mutation-check` three ways) | `uv run python quest_rescue_resistance.py` | `ok: 24 quest resistance cases` |
 | Quest 0x21 spawn attempt (`FUN_0058a820`, lookup, room and spawn hooked; `--mutation-check` three ways) | `uv run python quest_spawn_rescue.py` | `ok: 24 quest rescue spawn cases` |
 | Tomb quest transition (`FUN_0059c810`, callees hooked; `--mutation-check` three ways) | `uv run python quest_tomb_transition.py` | `ok: 24 quest tomb transition cases` |
