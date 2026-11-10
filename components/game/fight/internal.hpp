@@ -50,10 +50,6 @@ void put_near(const Level& level, const Crowd& crowd, UnitState& unit, float x, 
 // False when no try fits.
 bool room_teleport(const GameData& game_data, const Level& level, const Crowd& crowd, Spawning& spawning, UnitState& unit);
 
-// A monster mode's number (MonMode: DT 0 .. RN 15); a MonSeq sequence
-// (seq_swtigerfist) or Skills.txt monanim xx plays SQ (14).
-int monster_mode(std::string_view token);
-
 // FUN_005eab20 by name: may a Shadow (MonStats row `type_info`, raised by
 // `summoning`) have the skill? One that summons nothing, or neither this
 // monster nor the Shadow's pettype.

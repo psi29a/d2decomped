@@ -653,7 +653,7 @@ diff_drlg.py game`.
   near it (FUN_00545340, 0x3f11). The spot is where he went (his unit,
   FUN_00552f60 by the record's +0x10 id); the offsets (0x741538, index 7
   repeats index 2: bugs.md #20) start at the quest seed's next step & 1.
-  d2d: ai.cpp's DarkWanderer, `gone`; world/tick.cpp's afterglow (`fires`,
+  d2d: ai/act3.cpp's DarkWanderer, `gone`; world/tick.cpp's afterglow (`fires`,
   object 131 in OP, 27 ticks). `tests/quests_d2d.py` walks him off (map seed 3).
 - **Unkillable monsters** (MonStats killable 0: the Dark Wanderer, the
   compelling orb, chickens, bats, the camp's cow, traps) are made without
