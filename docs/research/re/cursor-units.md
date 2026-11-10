@@ -392,6 +392,26 @@ local player's mercenary:
 So the merc's label is a second path that does not go through the
 cursor's unit. Who draws the kept text was not read. d2d: not ported.
 
+### The kept label's draw (`FUN_00453060`, 0x453060, 150 bytes)
+
+The reader of the kept text of `FUN_00452be0` / `FUN_00452d20`. `FUN_00453060()`
+(one caller, the frame's `FUN_00456ee0`; read from the disassembly, no
+oracle run). Nothing when the text at 0x7a2c80 is empty (`FUN_00526800`).
+Otherwise, with W = the text's width in the current font
+(`FUN_00501820` = `FUN_005017d0`, the glyph widths) + 8 and
+H = the font's line height (`FUN_00501a40`, byte +10 of its header;
+frontend-text-box.md) + 7:
+
+- x = 0x7a2d20 − W / 2 (`sar`), at least 0, and at most
+  `DAT_0071146c − W` (the screen width) when x + W passes it;
+- y = 0x7a2d24 + 2, at least H, at most `DAT_00711470 − 0x1f` (the screen
+  height); the text is drawn at y − 2 (`FUN_00502320(text, x, y − 2, 0, 1)`,
+  colour 0, the same call as the char panel's plain labels);
+- then the text buffer is cleared (`_memset`, 0xa0 bytes), so the label is
+  one frame's.
+
+The width kept at 0x7a2d28 is not read here. d2d: not ported.
+
 ### The frame of cels (`FUN_00452e50`, 0x452e50, 518 bytes)
 
 Not a label helper: it shares this chain only through the work package
