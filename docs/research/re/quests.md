@@ -421,6 +421,16 @@ that byte is nonzero. `tools/emu/quest_horadric_party.py` checks 48 stock
 cases; it hooks the search, check and party calls and simulates the callback
 write, checking that the byte was cleared before iteration.
 
+`FUN_0058bc80` looks up quest 0x22 and assumes the record exists. When data
+byte +0x89 is nonzero and the unit's room resolves to act 4 (low byte), it
+tries to create a portal at unit x +10, y +5 using `FUN_0056d130`: game in
+ECX, 0 in EDX and stack room, x, y, 0x79, 0, 0x3c, 1. Types 2, 4 and 5
+read x/y from the path at unit +0x2c offsets +0xc/+0x10; other types use
+`FUN_006488c0` / `FUN_00648900`, or zero coordinates for a null path.
+It clears data +0x89 only on successful portal creation.
+`tools/emu/quest_arreat_portal.py` checks 192 synthetic cases against stock;
+quest, room, level, coordinates and portal creation are hooked.
+
 `FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
 looks up object ID data +0x28 in the game (type 2); if found, it sets the
 object mode to 1, reads its Objects table record from its class ID at +4,

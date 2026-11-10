@@ -397,6 +397,7 @@ address	name	evidence
 0058a8d0	quest21_position	quest 0x21 data +0x84 gates unit or stored coordinates
 0058a9f0	quest21_data84_zero	quest 0x21 lookup; record data +0x84 is zero
 0058aa10	quest21_notify_if_introduced	quest 0x21 record +9 nonzero and +0xb below 2: clear +0x14 and notify
+0058bc80	quest22_portal_attempt	quest 0x22 flag gates act 4 portal at unit coordinates plus 10,5
 0058e120	quest_prisoner_packet	send packet 0x50 with quest 0x24 and data +0xa4 word
 0058ebc0	ai_control_alloc	allocates 0x40 bytes zeroed; sets flags +0x10 = 1, +0x30 = 1, target +0xc = -1, owner +0x2c = -1; AiGeneral.cpp line 0x1b
 0058ec50	ai_control_scratch_get	getter for scratch words +0x14, +0x18, +0x1c by index 1..3 from monster data +0x28; AiGeneral.cpp
