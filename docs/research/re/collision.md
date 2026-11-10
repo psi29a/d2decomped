@@ -562,6 +562,28 @@ arguments), cited, not run. The functions are in the order they are met.
   shows 0xde (`FUN_00408090`, `FUN_00408a60`), then exits -1 (`FUN_00681e09`). It returns 0 only if the table base at `0x96d470` is itself 0, so
   the `== 0` test after it in `FUN_00548b00` case 2 (message 0x2bf, LAB_00548b3f) can't fire once the table is loaded.
   The stride and base are the ones monster-ai.md already uses. d2d: not ported as a getter.
+- **`FUN_00548b00(player, type, id, to_cursor, game)`: interact with a unit, by type.** ECX the
+  player, EDX the type (over 5 returns 1; the jump table is at 0x548e8c), stack id, `to_cursor`,
+  game. It returns 0 when it acted (or walked), 1 when the target is gone or past the 0x33
+  range of `unit_distance`, 3 from cases 2 and 4 only (below). Each walk in the cases below is
+  `FUN_00548a50` with the marker above. The cases, from the asm:
+  - 0 a player: over 8 walks; within 8 a dead one (mode 0x11) is taken (`FUN_0057fb70`) when
+    `FUN_005678a0` is 0 of both; else `FUN_00566e60`.
+  - 1 an NPC: first, when its MonStats row +0xd has bits 1 and 2, the talk's start
+    (`FUN_0058ec00(0x28)`, town-npcs.md "A talk's start"), before any distance test; over 6 and
+    under 9 walks, 9 and over does nothing (return 0, no walk); within 6, a player not
+    `FUN_00535060`-busy talks (`FUN_00573020`).
+  - 2 an object: its mode (+0x10) over 7 returns 3; within 0x33, a failed reach test
+    (`FUN_00622b50(player, unit, 0x804)` blocked, or the object-reach test) walks, else
+    `FUN_00584540(2, id)` operates it (it returning 0 gives 3).
+  - 4 an item: only in mode 3 (on the ground); under 5 with a clear 0x804 line it is picked up
+    (`FUN_00563560` to the bags, or `FUN_0055cf50` to the cursor when `to_cursor`), and a non-zero
+    result there returns 3; else it walks.
+  - 5 a warp: `FUN_00641530` over 0x32 returns 1, over 4 walks, else `FUN_005550b0`.
+  Nothing in it tests that the player is walking. d2d: the cases are ported in `walk.cpp`,
+  `net.cpp` and `world/` by the doc rows that cite it (collision.md above, net-packets.md 786,
+  drlg.md 1645); the walks of these cases share the two-walk limit above, which d2d lacks. **DISAGREES**
+  only there (todo 47).
 
 ### How near the client walks
 
