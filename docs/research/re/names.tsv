@@ -1167,6 +1167,7 @@ address	name	evidence
 00639cb0	runes_count_ptr	returns &0x96ca98
 00639cc0	runes_set_row	0x120-byte rows (ItemTbls.cpp 0x95b)
 00639db0	unit_set_state_checked	(unit, state, on): only for 0 <= state < [0x744304]+0xc4; FUN_00625a70 sets or clears the bit, then FUN_0064c040 links the unit into a list once (flag 0x2000); skills.md "Skill accessors"
+0063a690	unit_has_state_of_set144	stdcall (unit): any bit of the unit's state words (FUN_00625bb0) in the set at [0x744304] +0x144, over (count [+0xc4] + 31) / 32 words, via FUN_0063a130 (drops.md "Does a unit have a state of one set")
 0063a970	inv_grid_unlink	unlinks item data +0x6c/+0x70 from a grid and clears its cells (Inventory.cpp 0x199)
 0063aaf0	inv_remove_item	clears item data +0x5c/+0x68/+0x69, inventory +0x20 or +0x28 count, wielded id +0x1c
 0063ac40	inv_free	frees grids, node lists and the 0x40-byte record (Inventory.cpp 0x261..0x27f)
