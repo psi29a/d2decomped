@@ -512,6 +512,19 @@ arguments), cited, not run. The functions are in the order they are met.
   `IsBadCodePtr` (fatal message 0x853) and the mode is not range-checked. d2d:
   `components/game/world/objects.cpp` ports one use of it (the barrel's kick, `FUN_005868a0`);
   the gate and the clear are not ported as such.
+- **`FUN_00548a50`: walk at a target and queue the interact.** Registers in: EBX the player
+  unit, ECX the game, EDI the target type, ESI its id, and one stack word, the marker (-1, or
+  -2 when `FUN_00548b00`'s held argument is set: `neg / sbb / add -1`, LAB_00548c12). It calls
+  `FUN_00580a70(game, unit, 0, 3, type, id, 0)` (LAB_00548a5d: mode 3, no skill, the gates on),
+  then `FUN_00641f20(unit, marker, type, id)` whatever the first returned (LAB_00548a69). That
+  one, for a player only, sets **+0x150 = 1** (LAB_00641f37) and `FUN_00460780` stores
+  **+0x154 = marker, +0x158 = type, +0x15c = id**. So the pending interact is: flag, marker
+  (-1 a click, -2 a held button; 0 or more a skill, `FUN_00580c20`'s other arm), the target's
+  type and id. `FUN_00580c20` reads them back the same way (LAB_00580e47, LAB_00580e5c: id, then
+  type, and `edi == -2` as the held argument, LAB_00580e68). A refused first walk still leaves
+  the pending set. d2d: `walk.cpp` and `commands.cpp` `walk_to` start the same walk (the warp's
+  `take_warp` is the pending); the marker, the type and the id have no counterpart because d2d keeps
+  one target. **agrees** on the walk, **DISAGREES** on the limit (below).
 
 ### How near the client walks
 
