@@ -206,7 +206,21 @@ flag 0 and the new one with flag 1 and returns the new one;
 `FUN_004e9300` toggles the other one with 0, the wielded one with 1 and
 returns the wielded one (else it still toggles the wielded with 1 when
 usable). The ids `+0x1c` are not changed by either.
+d2d: not ported (no mention under `components/` or `apps/`).
 
+### A hand skill that wants a ranged weapon (`FUN_0055c560`)
+
+### A hand skill that wants a ranged weapon (`FUN_0055c560`)
+`FUN_0055c560(unit, entry)` (the unit in EDI, the entry in a register the
+decompile does not show) is false for a null unit. Otherwise it takes the
+entry's Skills record (`FUN_00644140`: `*entry`; false if that is null) and is
+true when all hold:
+its itypea1 (short `+0x18`, skills.md) is above 0 and is ItemTypes row 0x30 or
+derives from it (`FUN_00629b50`), the record byte `+0x14` is 2 (the column is
+not mapped in structs.tsv), and `FUN_0055c4d0` says the skill is usable. Its
+only caller is `FUN_0055c5c0`. What ItemTypes row 0x30 is was not read from
+ItemTypes.txt here.
+Evidence: `python3 tools/ghidra/fn.py 0055c560`, `python3 tools/ghidra/calls.py 0055c560`.
 d2d: not ported (no mention under `components/` or `apps/`).
 
 ## Dropping hand skills a change of gear made unusable (`FUN_0055c5c0` chain)
