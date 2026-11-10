@@ -58,6 +58,21 @@ mana leech of a player's hit is `std::min(kMaxMana, mana + (blow.mana <<
 d2d does not apply the dead-unit gate to mana because nothing there needs it.
 Re-check: `python3 tools/ghidra/fn.py 0057aa00 0057c420`.
 
+## The game behind a unit — FUN_00554010
+
+(cited, decompile only.) `__fastcall`, ECX the unit: a null unit fails the
+usual fatal check (`FUN_00408090(0xa29)` message, `FUN_00408a60`, then
+`FUN_00681e09(-1)`, no return); otherwise it returns the dword at unit
++0x80. The callers cited here (not a full caller list) use the result as the game struct: the
+difficulty byte at +0x6d (`FUN_00611d30`, `FUN_00637910`'s second argument,
+`FUN_0057c420`'s Drain scaling) and the expansion word at +0x70
+(`FUN_00558200`). The oracles agree (`tools/emu/end_percent.py:93` hooks it
+"ECX the unit" and returns the game struct). So unit +0x80 is the game
+pointer, and `structs.tsv` rows `unit 0x80 neutral_time` (and 0x7c / 0x84)
+cite `components/game/ai.hpp:187`, which no longer shows those names: DISAGREES
+with the +0x80 row unless those rows describe another struct.
+Re-check: `python3 tools/ghidra/fn.py 00554010 0057c420 00558200`.
+
 ## Poison and burning — FUN_0057ac50 / FUN_0057add0
 
 Poison is **state 2** (`poison`) and burning **state 0x73**, each holding a
