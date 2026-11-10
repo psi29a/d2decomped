@@ -658,6 +658,23 @@ d2d re-plans a walk to a spot that runs out short while it moves ("Short of the
 target with a step made", `tick.cpp`), so one click can walk farther than game.exe's
 does. A blocked one ends there since #226.
 
+### The mouse-button state words (FUN_0044da40 clears them)
+
+Six words, a column for the left button and one for the right:
+
+| | Left | Right | Written by |
+|---|---|---|---|
+| Phase: 4 pressed, 8 held, 0x10 up | `0x70f234` | `0x70f2bc` | left: `FUN_0044bf40` (4, 0x44bf43), `FUN_0044c000` (8, 0x44c007), `FUN_0044c060` (0x10, 0x44c060); right: `FUN_0044c180` (4, 0x44c184), 8 at 0x44c2c7, 0x10 at 0x44c342 and 0x44c373 (and 0x44c665) |
+| The press was taken (the held-frame test) | `0x7a0650` | `0x7a0654` | left: `FUN_0044bf40` sets 1 (0x44bf65), then the `FUN_00462d00` result (0x44bfb9), `FUN_0044c060` clears; right: 1 at 0x44c249, the result at 0x44c27e. The frame `FUN_0044efa0` calls `FUN_0044c000` / the right-hand hold code at 0x44c2c0 while they are nonzero (0x44f031..0x44f046) |
+| Hold started (left) / not traced (right) | `0x7a066c` | `0x7a0670` | left: `FUN_0044c000` sets 1 (0x44c025), `FUN_0044c060` clears; `FUN_0044bfe0` returns it (the belt popup's mouse test, menu.md). Right: set to 1 at 0x44c2dc, 0x44c351, 0x44c387 and 0x44c675, cleared nowhere read; its meaning is not traced |
+
+`FUN_0044da40` (no arguments, 42 bytes) puts both phases back to 0x10 and the other four
+words to 0, then tail-jumps to `FUN_00466fe0` (clears 0x7a6a94 / 0x7a6a98, the
+cursor's unit target, cursor-units.md): the "no button is down" reset. The same four
+words are also stored inline at 0x44e4c0..0x44e4cf and 0x44e565..0x44e577 (values not read).
+Its callers in `game-calls.tsv` include `FUN_004b4380` (an NPC menu opening, 0x4b4438) and the
+panel openers `FUN_00461250`, `FUN_0047d840`, `FUN_00489e00`, `FUN_0049cf90`, `FUN_004a10e0`.
+
 ### What a held frame sends
 
 Read from the code, no oracle or packet log.
