@@ -814,7 +814,33 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
             case 1: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->calc[0]), now_ms, 0, true); break;
             case 3: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms); break;
             case 13: area(missile, missile.x, missile.y, radius(missile_info.hit_par1, skill->aurarange), now_ms, radius(missile_info.hit_par2, skill->auralen), true); break;
-            case 2: case 4: case 26: case 36: case 51: if (sub) sub_at(missile.x, missile.y, 0, 0); break;
+            case 4: case 26: case 36: case 51: if (sub) sub_at(missile.x, missile.y, 0, 0); break;
+            case 2: {
+                // FUN_005a9d80 -> FUN_005a9370, from the unit struck (else the missile): HitSubMissile1 every
+                // sHitPar2'th of the 16 ways (at least 1) at its Param1 << 7, then with sHitPar1 every
+                // sHitPar1'th of ways 1..15 at its Param2 << 7 (flags 0x17: x 75 / 100). sHitPar3 (flag 8)
+                // runs each one's Range on by (SubStop - SubStart) x it when it loops: Plague Javelin's 23
+                // clouds, 87 frames each.
+                if (!sub) break;
+                const auto& ring_sub = hit_sub->second;
+                const bool on_unit = missile.target >= 0 && std::size_t(missile.target) < monsters.size();
+                const auto centre = [](float cells) { return (std::floor(cells * 5) + 0.5f) / 5; };
+                const float from_x = centre(on_unit ? monsters[std::size_t(missile.target)].unit.x : missile.x);
+                const float from_y = centre(on_unit ? monsters[std::size_t(missile.target)].unit.y : missile.y);
+                const int loops = missile_info.hit_par3 > 0 && ring_sub.sub_loop ? (ring_sub.sub_stop - ring_sub.sub_start) * missile_info.hit_par3 : 0;
+                const int frames = ring_sub.range + ring_sub.lev_range * missile.level + loops;
+                const auto ring = [&](int first, int step, int velocity) {
+                    for (int way = first; way < 16; way += step) {
+                        const float dx = float(kRingWayX[std::size_t(way)]), dy = float(kRingWayY[std::size_t(way)]), span = std::hypot(dx, dy);
+                        const float speed = missile_speed((velocity << 7) * 75 / 100);
+                        auto& made = sub_at(from_x, from_y, dx, dy, frames);
+                        made.velocity_x = dx / span * speed; made.velocity_y = dy / span * speed;
+                    }
+                };
+                ring(0, std::max(missile_info.hit_par2, 1), ring_sub.param1);
+                if (missile_info.hit_par1 > 0) ring(1, missile_info.hit_par1, ring_sub.param2);
+                break;
+            }
             case 9: {
                 // Immolation Arrow (FUN_005aa250 -> FUN_005a9530): its fire lasts SHitCalc1 frames.
                 const int burst_radius = radius(missile_info.hit_par1, skill->calc[0]);

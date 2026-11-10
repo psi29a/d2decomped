@@ -1062,8 +1062,9 @@ struct Fight {
     // 1 (FUN_005a9a70) the skill's damage within sHitPar1 (else calc1)
     // subtiles; 3 (bomb on ground) within aurarange; 13 (FUN_005aa8b0,
     // Glacial Spike) within sHitPar1 (else aurarange), freezing sHitPar2
-    // (else auralen) frames; 2 / 4 / 36 / 51 (FUN_005a9d80, FUN_005b07a0,
-    // FUN_005abf70) HitSubMissile1 there (Plague Javelin's cloud, Exploding /
+    // (else auralen) frames; 2 (FUN_005a9d80 -> FUN_005a9370) a ring of
+    // HitSubMissile1 (Plague Javelin's clouds, the gas potions'); 4 / 36 / 51
+    // (FUN_005b07a0, FUN_005abf70) HitSubMissile1 there (Exploding /
     // Freezing Arrow's blast, the traps on the ground); 9 (FUN_005aa250,
     // Immolation Arrow) the damage within sHitPar1 (else calc1) and its fire
     // over that ground (FUN_005a9530); 14 (Meteor, FUN_005aabb0) and 47
@@ -1079,7 +1080,7 @@ struct Fight {
     // its synergy through the Missiles.txt calc evaluator FUN_0064b7c0) for
     // SHitCalc1 frames (FUN_005aa250 -> FUN_005a9530).
     // pSrvDmgFunc 3 (FUN_005ad220) is the burners' soft hit (burn).
-    // ponytail: Plague's clouds are one; a wall doesn't set a missile off.
+    // ponytail: a wall doesn't set a missile off.
     void burst(Missile& missile, std::uint32_t now_ms);
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
     // hitpoints heal the player (Prayer: edns, 256ths); an enemy one
