@@ -442,7 +442,8 @@ address	name	evidence
 00558cb0	item_from_record	FUN_00555230, FUN_0062e430, flags 0x80000 / 0x2000
 00559130	item_drop_at	FUN_0064e810 mask 0x3e01, 0x84-byte record, FUN_00558d90
 00559830	item_drop_at_2	same as FUN_00559130, level 1 outside an area
-0055bed0	unit_mode3_notify	FUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
+0055b7e0	monster_stats_of	ECX unit: type 1 with unit +0x14 set, the first dword there (FUN_005c5f50 reads Drain, record +0xa0 by difficulty, off it); 0 for a null unit, a player or no data (cited, decompile and FUN_005c5f50's asm)
+0055bed0	unit_mode3_notifyFUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
 0055bf30	unit_mode3_notify_if	unit +0xc4 bit 0
 0055bff0	book_item_skill	books.txt +8 / +0xc by ItemTypes 0x16 / 0x12
 0055c070	item_books_skill_count_delta	EAX item, EDI player, signed delta stack; node count and S->C update; items-mode-early.md
