@@ -92,3 +92,9 @@ output for every class/tab and checks 0x51 hotkey packet bytes.
 stability, duplicate reassignment, selection and local save/reload. It also
 checks conditional New Stats and retail tree close/drag-off behavior.
 Retail re-check commands and limits are in skill-tree.md and skills.md.
+
+Controller Identify review regressions: `pad_identify_classic_d2d` and
+`pad_identify_d2d` exercise real A pickup of Identify scrolls/tomes, both before
+and after unidentified targets are present. Skill Buttons also checks Use to
+activate Identify and A to confirm. These require local MPQs and the 1.14d patch;
+empty-tome availability is covered by `test_direct_controls`.

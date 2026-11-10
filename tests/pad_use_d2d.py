@@ -12,6 +12,7 @@ there) and A travels to the Cold Plains. Skips without the MPQs.
 import atexit, os, platform, socket, struct, subprocess, sys, tempfile, time
 
 d2d = sys.argv[1]
+identify_ux = "--identify-ux" in sys.argv[2:]
 keyboard_ux = "--keyboard-ux" in sys.argv[2:]
 seed_ux = "--seed-ux" in sys.argv[2:]
 portal_ux = "--portal-ux" in sys.argv[2:]
@@ -24,7 +25,7 @@ if not os.path.exists(os.path.join(data, "d2data.mpq")):
     print(f"SKIP: {data}/d2data.mpq not found")
     sys.exit(77)   # ctest's SKIP_RETURN_CODE (tests/CMakeLists.txt)
 
-if (skill_buttons or seed_ux or keyboard_ux) and not os.path.isfile(os.environ.get("D2_PATCH_INSTALLER", "")):
+if (skill_buttons or seed_ux or keyboard_ux or identify_ux) and not os.path.isfile(os.environ.get("D2_PATCH_INSTALLER", "")):
     print("SKIP: skill-button check needs D2_PATCH_INSTALLER (1.14d)")
     sys.exit(77)
 
@@ -540,6 +541,43 @@ if skill_buttons:
 else:
     attack_button = "a"
 
+if identify_ux:
+    def identify_item(code, column):
+        """Place an identified fixture item in inventory and return its generated ID."""
+        cmd(f"debug equip {code} 12"); frames(4)
+        item = cmd("items").split(f"[{code} ")[1].split(" id=")[1].split()[0].rstrip("]")
+        cmd(f"cmd hand {item}"); frames(4)
+        cmd(f"cmd grid {column} 0"); frames(4)
+        return item
+
+    def point_identify_item(item):
+        """Position the pointer over a carried item before controller input."""
+        pixel_x, pixel_y = cmd(f"debug itemat {item}").split()[1:3]
+        cmd(f"move {pixel_x} {pixel_y}"); frames(3)
+
+    cmd("debug clearinv"); frames(4)
+    book = identify_item("ibk", 0)
+    scroll = identify_item("isc", 2)
+    target = identify_item("cap", 4)
+    cmd("key i"); frames(4)
+    for available in (False, True):
+        if available:
+            cmd("debug unid"); frames(4)
+        for item, code, column in ((book, "ibk", 0), (scroll, "isc", 2)):
+            point_identify_item(item); press("a")
+            assert state()["held"] == code, f"A cannot move {code} with identify available={available}"
+            assert state()["identify"] == "-1", "pickup unexpectedly entered Identify mode"
+            cmd(f"cmd grid {column} 0"); frames(4)
+    if skill_buttons:
+        point_identify_item(book); press("rightstick")
+        assert int(state()["identify"]) >= 0, "Use did not activate Identify"
+        point_identify_item(target)
+        before = int(state()["unid"])
+        press("a")
+        assert int(state()["unid"]) == before - 1, "A did not confirm the Identify target"
+    print("ok: Identify books/scrolls remain movable with and without valid targets; Use then A identifies")
+    sys.exit(0)
+
 # A town portal: read in the Blood Moor, A at its mouth takes it to camp.
 cmd("debug goto 2"); frames(20)
 cmd("debug equip tsc 12")
@@ -568,8 +606,8 @@ if skill_buttons:
     cmd("debug unid"); frames(5)
     press("a")
     before = int(state()["unid"])
-    point_item(identify); press("a")
-    assert int(state()["identify"]) >= 0, "A did not select identify tome"
+    point_item(identify); press("rightstick")
+    assert int(state()["identify"]) >= 0, "Use did not select identify tome"
     press("rightstick")
     assert int(state()["identify"]) >= 0, "RS on invalid target cancelled identification"
     point_item(target); press("rightstick")
