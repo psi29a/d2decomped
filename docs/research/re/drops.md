@@ -133,6 +133,23 @@ left the corpse's seed. A monster's unit seed is a step of the game seed
 
 ## Making the item — FUN_0055a550, FUN_00558d90, FUN_00557ab0
 
+What the decompile of FUN_0055a550 shows by itself (cited, decompile only;
+most of the record's fields are written by instructions it hides, so the
+list below is the doc's, not re-read): ECX is the item index and it returns
+at once for one under 0; the dropper (ESI) gives its spot
+(`FUN_00620870`) and room (`FUN_00620bb0`) to `FUN_00555da0` (1, 1), and a
+zero result returns (nothing is made, no draw); the 0x84-byte record is
+zeroed (`_memset`); the level it takes is the same three-way read as
+`FUN_00558200` (below, "Choosing the class"): a monster dropper's stat
+0xc, a player's **base** stat 0xc (`FUN_006253b0`), any other unit's area
+monster level for the game's difficulty and expansion; then
+`FUN_00558d90(0)` makes the unit. There is no level floor of 1 in this body
+(`FUN_00558200` has one; where this record's +0xc is clamped is not
+visible here, `FUN_00558d90` clamps it, see below). d2d: `objects.cpp:81`
+uses the area level for a chest, agreeing for a type-2 dropper (not
+verified here against `d2d_ai_area_monster_level`'s table); a player
+dropper (base stat 0xc) is not ported.
+
 FUN_0055a550 (ECX item index, ESI dropper; game, quality, unique / set
 index + 1, flags) places it first (FUN_00555da0, no draws; none free →
 nothing made), then fills a 0x84-byte struct: +0xc ilvl (the dropper's

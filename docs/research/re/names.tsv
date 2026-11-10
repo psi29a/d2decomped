@@ -591,6 +591,7 @@ address	name	evidence
 00559830	item_drop_at_2	same as FUN_00559130, level 1 outside an area
 00559ce0	item_make_drop	0x84-byte create record (memset), level clamp to 1, FUN_00558d90, flag 0x10 on the result
 0055a200	player_kill_drop_ear	code "ear " (0x20726165) row via FUN_00633640, spot FUN_00555da0, made by FUN_00559ce0, placed by FUN_00558aa0; called from FUN_00580ec0
+0055a550	drop_item_make	thiscall (ECX item index, ESI dropper): spot FUN_00555da0, 0x84-byte record, level by the dropper's type, FUN_00558d90; nothing when no spot (drops.md "Making the item")
 0055b7e0	monster_stats_of	ECX unit: type 1 with unit +0x14 set, the first dword there (FUN_005c5f50 reads Drain, record +0xa0 by difficulty, off it); 0 for a null unit, a player or no data (cited, decompile and FUN_005c5f50's asm)
 0055bed0	unit_mode3_notify	FUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
 0055bf30	unit_mode3_notify_if	unit +0xc4 bit 0
