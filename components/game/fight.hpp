@@ -831,6 +831,7 @@ struct Fight {
     void gain_exp(std::int64_t share, const Monster& monster, std::uint32_t now_ms);
     struct Kill { int type; float x, y; int level; int super = -1; int id = -1; int killer = 0; };   // super: its SuperUniques row; id: its unit id; killer: the player's (Hero::id), 0 a monster's
     std::vector<Kill> kills;                       // since the World last looked (its quests' death hooks)
+    std::vector<int> cloaks;                       // Cloak of Shadows' state (153) put on a player or a Shadow since then: its auralen
 
     // The merc as a fighter: its hireling damage, attack rating, defense.
     [[nodiscard]] d2d::rules::Fighter merc_fighter() const;

@@ -401,7 +401,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 12 && packet[1] == 2) object_modes.push_back({ read_u32(packet, 2), int(read_u32(packet, 8)) });
         break;
     case 0x89:   // quest flag: 12 starts diablo appears (FUN_0046b650 table 0x7129d8)
-        if (size >= 2 && packet[1] == 12) quest_quakes.push_back(d2d::rules::QuestQuake::diablo);
+        // 12 also starts the red fill, 13 ends it (rules::release_light).
+        if (size >= 2 && packet[1] == 12) { quest_quakes.push_back(d2d::rules::QuestQuake::diablo); diablo_red = true; }
+        if (size >= 2 && packet[1] == 13) diablo_red = false;
         break;
     case 0x5d: {   // quest log news: +1 quest record, +2 flags (2: a sound), +3 log state, +4 s16 (quests.md)
         // No flags: the record's log state (its row is its word) and the Quest

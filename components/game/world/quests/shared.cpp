@@ -10,6 +10,7 @@
 #include "gamedata.hpp"
 #include "log.hpp"
 
+#include <ambient_dip.hpp>
 #include <cube.hpp>
 #include <d2s_items.hpp>
 #include <drops.hpp>
@@ -678,6 +679,15 @@ auto World::cain_operate(int npc_index, std::uint32_t now_ms) -> void {
         const auto [spot_x, spot_y] = level->nearest_free(lambda == level->npcs.end() ? object.x : lambda->x + 6, lambda == level->npcs.end() ? object.y : lambda->y - 3);
         portal[2] = { level, spot_x, spot_y, now_ms };
         cues.cue("object_townportal", now_ms, spot_x, spot_y);
+        // FUN_00593710 ends on S->C 0x89 event 1 (FUN_00545760); each client's
+        // 0x46aee0 dips its ambient, from missile cairnstones, in level 4.
+        // ponytail: every player gets it; game.exe's client only with a
+        // StoneAlpha (object 17) in its near rooms (FUN_0065a620).
+        if (const auto stones = game_data->missiles.find("cairnstones"); stones != game_data->missiles.end())
+            each_player([&](Player& player) {
+                const auto frames = d2d::rules::cairn_dip(stones->second.param1, stones->second.range);
+                player.events.push_back(ev::AmbientDip{ frames.fade_in, frames.hold, frames.back, d2d::rules::level_ids::kStonyField });
+            });
         d2d::log::info("Search for Cain: the way to Tristram at ({:.1f}, {:.1f})", spot_x, spot_y);
     }
 

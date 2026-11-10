@@ -27,6 +27,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 
 | Checks | Command (in tools/emu) | Good output |
 |---|---|---|
+| The ambient's dip to black, a frame at a time (FUN_0046ae50, FUN_0046ad10, the fill FUN_00474550 flag 1) | `set -o pipefail; uv run python ambient_dip.py gen 20000 7 > cases.tsv && uv run python ambient_dip.py game cases.tsv > g.txt && ../../build/tests/test_ambient_dip cases.tsv \| diff g.txt -` | no output |
 | The animated image control (D2WinAnimImage.cpp FUN_00500850: its fields, draw mode 0 stored as 5, on all 15 kind-3 screen records) | `uv run python anim_image.py` | `ok` |
 | Application mode from the command line (Main.cpp, FUN_00406340: split on `-`, case-sensitive name prefix, client never stored, last match wins) | `uv run python app_mode.py` | `ok` |
 | Client DC6 load and free helpers (CORE\ARCHIVE.CPP: FUN_004788b0, FUN_00478950, FUN_00478a00) | `uv run python archive_dc6.py` | `ok: 9 DC6 load/free cases; 68 + 8 call sites pass flag 0` |
@@ -226,6 +227,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Town Portal read from the pack (C->S 0x20: opened, charge, old pair) | `uv run python tome_use.py gen 100000 7 > cases.tsv; uv run python tome_use.py game cases.tsv > g.txt; ../../build/tests/test_game --tome-use cases.tsv \| grep -E '^[0-9]+ ' \| diff g.txt -` | no output |
 | Table loaders (LoadTxt FUN_00504430, CompileTxt FUN_006122f0) | `uv run python txt_loaders.py` | `46 cases: LoadTxt (.txt / .bin) and CompileTxt (4 flag sets) ...`, then `ok` |
 | Font map and the TBL character count (FUN_00527790 `default.map`, FUN_005276e0 lead bytes, FUN_00527d50) | `uv run python unicode_kamap.py` | `ok: 8 font map / count cases; Latin lead bytes 0x7f..0x9f; 9388 English TBL values counted at or above their decoded length` |
+| Client UNIT\\CUnit.cpp, CUnitEvent.cpp and monster-flag helpers: field accessors with null asserts, the two unit hash tables (find, remove, iterate, clear), the unit-flag setters, dead / attackable / selected tests, event list, warp, tail-call wrappers (51 functions: FUN_00463720 ... 004dc190; callees hooked and logged; `--mutation-check` 61 ways) | `uv run python unit_client.py` | `ok: 5120 client UNIT cases` |
 | UNITS Units.cpp / Missile.cpp / UnitFinds.cpp / MisStream.cpp call-outs: unit free, speed word, stat pair, player data, vitals cost, face (17 functions: FUN_00620300 ... 00663d90; `--mutation-check` 33 ways) | `uv run python units_calls.py` | `ok: 36 UNITS call-out check rounds` |
 | UNITS Units.cpp accessors: position, path, animation, object row and player-data readers, kept skills, static path (61 functions: FUN_00620360 ... 00623570; `--mutation-check` 33 ways) | `uv run python units_small.py` | `ok: 103 UNITS small-accessor check rounds` |
 | Walk / run animation rate | `uv run python walk_rates.py > g.txt; ../../build/tests/test_combat --walk-rates \| diff g.txt -` | no output |

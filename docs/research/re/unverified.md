@@ -15,6 +15,7 @@ trust. `git grep -n "unverified (source"` lists them.
 |---|---|---|---|---|
 | DCC format as a whole | components/dcc/dcc.hpp | OpenDiablo2's reader, Necrolis' notes | every DCC in the MPQs decodes and draws as the game shows it | the DCC decoder (D2Cmp part) |
 | Packet names | docs/research/re/network.md | the community's (d2-clientless, D2MOO) | C → S: every id's handler from game.exe's table (`DAT_006e0d18`); 24 marked ✓ were read and agree. S → C: names only | the C → S handlers without ✓; the S → C handlers (`DAT_007114d0`) |
+| Unit hash table roles: 0x7a5e70 = server-side, 0x7a5270 = client-side | docs/research/re/units.md, names.tsv rows for FUN_004639b0, 004643f0, 00464950 ... 00465f00 | redivivus global names (they contradict each other: `UNITS_FindServerSideUnit` 004639b0 reads 0x7a5270) | the layout (six types x 0x80 chain heads) is verified by unit_client.py; the role labels are not | which table the client fills from S->C unit packets and which holds the units it creates itself |
 
 ## Traced
 

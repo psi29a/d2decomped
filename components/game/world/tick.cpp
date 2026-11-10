@@ -14,6 +14,7 @@
 #include "npc_talk.hpp"
 #include "protocol.hpp"
 
+#include <ambient_dip.hpp>
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <hud_globe.hpp>
@@ -579,6 +580,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         }
         act_as(lead());
         fight.kills.clear();
+        cloak_dips();
         credit_party([&] {
             act2_update();
             act3_update(now_ms);
@@ -599,6 +601,16 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         raise_step(elapsed, now_ms);
         if (in_town(level))                                      // the party in a town: its ghosts are up again
             each_player([&](Player& player) { if (player.ghost) revive(player, now_ms); });
+    }
+
+// State 153 on a unit: each client's setfunc 2 (FUN_004d87e0) dips its
+// ambient, in the unit's level.
+auto World::cloak_dips() -> void {
+        for (const int length : std::exchange(fight.cloaks, {}))
+            each_player([&](Player& player) {
+                const auto frames = d2d::rules::cloak_dip(length);
+                player.events.push_back(ev::AmbientDip{ frames.fade_in, frames.hold, frames.back, level->id });
+            });
     }
 
 }  // namespace d2d::game
