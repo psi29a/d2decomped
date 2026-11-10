@@ -68,13 +68,18 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Unit motion record (ENGINE\\Particle.cpp, FUN_004da000 ... FUN_004da6e0 incl. the per-tick step FUN_004da350, FUN_0046f060, FUN_0046f070; the pool, owner and screen-conversion callees hooked; `--mutation-check` 7 ways) | `uv run python engine_motion.py` | `ok: 1048 unit motion record cases` |
 | Small Gfx.cpp / GfxUtil.cpp helpers: COF list, layer flags, overlay test, cache getters, COF header layer lookups, token and row helpers, the unused list helpers (FUN_0046e100 ... FUN_0046f9d0, FUN_004da720 ... FUN_004db1c0; `--mutation-check` 11 ways) | `uv run python engine_gfx_small.py` | `ok: 816 ENGINE Gfx.cpp / GfxUtil.cpp helper cases` |
 | Battle.net BnSend.cpp, the 28 packet senders, reply copiers and readers (FUN_0051ac20 ... FUN_0051be20; `--mutation-check` 11 ways) | `uv run python bnsend.py` | `ok: 2016 BnSend cases over 23 checks` |
+| Warden client WardenClient.cpp: signature check, module load pipeline (RC4, zlib, loader hooks), load by name, cache write, the 7 callbacks, module start/unload/packet/tick/shutdown/init, C->S 0x66 framing (FUN_0047fa20 ... FUN_004803c0, FUN_00478830; no module code is run; `--mutation-check` 13 ways) | `uv run python warden_client.py` | `ok: 267 WardenClient cases over 11 checks` |
 | ITEMS small functions: stubs, wrappers, item-data and Items-row getters, fatal class-id getters, item free, container count, set-item row (39 functions, FUN_0055d930 ... FUN_0062a900; EAX upper bits, callee log, `ret n`; `--mutation-check` 20 ways) | `uv run python items_traces.py` | `ok: 3120 ITEMS small function cases` |
 | Every level, all cores | `./sweep.sh 1-50 monsters objgroups` | every level matching |
 | Every level's collision vs libd2's engine captures (200 seeds × 3 difficulties, ~8 min) | `D2_BUILD=build-release uv run python libd2_crc.py` | `N/131 levels match on all 200 seeds` |
 | Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `objects`, `stands`) | `N/N ... match game.exe` |
+| H/stpl.h lists, arithmetic and temporary-string forwarding (34 entry points; synthetic external dependencies) | `uv run python h_lists.py --mutation-check` | 498 cases; four model mutations rejected |
+| H/stpl.h string and ignore-list methods (19 entry points; in-memory storage hooks) | `uv run python h_strings.py` | 315 cases; direct entry coverage checked |
+| H/stpl.h hash tables and bucket arrays (10 entry points; synthetic allocation and dispatch) | `uv run python h_hasharrays.py --mutation-check` | 477 cases; six instruction mutations rejected |
 | Item lifecycle: replenishment scheduling, expiry deadlines and runeword cleanup (synthetic callees; original control flow/accessor writes, no d2d comparison) | `uv run python item_lifecycle.py` | 48 scheduling, 288 expiry and 8 cleanup cases pass |
 | Monster sight, search, moves | `uv run python sight.py 20000 3`, `search.py 20000 2`, `moves.py` | `ok` |
 | Quest flag buffer allocation and release (pool boundaries hooked) | `uv run python quest_buffer.py` | `ok: 29 quest buffer lifetime cases` |
+| Small Quests helpers: the 11 quest-update notifiers, Horadric Staff test, A2/A4/A5 data helpers, filters and seal glows (31 functions, FUN_005879d0 ... FUN_005b7340; `--mutation-check` 13 ways) | `uv run python quests_small.py` | `ok: 768 Quests small-helper cases` |
 | Client DC6 load and free helpers (CORE\ARCHIVE.CPP: FUN_004788b0, FUN_00478950, FUN_00478a00) | `uv run python archive_dc6.py` | `ok: 9 DC6 load/free cases; 68 + 8 call sites pass flag 0` |
 | DC6 / DCC cel placement | `uv run python cel_anchor.py \| diff - ../../tests/cel_anchor_cases.inc`; then `test_cel_anchor` | no output; the test passes |
 | COF draw effects (which blend each is) | `uv run python cof_effects.py \| diff - ../../tests/cof_effect_cases.inc`; then `test_cof_effects` | no output; the test passes |
@@ -149,6 +154,8 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | String table number formatters (FUN_00525350, 00525490, 005255c0) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: stock TBL unsigned, signed, and K/M/B/T formatter cases` |
 | String table file opener (FUN_00525920) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: CRC-checked synthetic TBL open and rejection cases` |
 | Server-side client-packet handlers of PlrMsg.cpp, the small ones: size gates (status 3) and the forwarded arguments of 0x31, 0x33, 0x34, 0x35, 0x36, 0x3f, 0x40, 0x48, 0x4f, 0x53, 0x54, 0x58, 0x62 (FUN_0054ba90 ... FUN_0054c9c0; the callees hooked and logged; status of 0x33 and 0x4f is the callee's) | `uv run python plrmsg_small.py` | `ok: 40 PlrMsg small handler rounds` |
+| Click-on-unit handlers of PlrMsg.cpp: the shared click check, walk / run to entity, skill on entity (left, right, no approach, held) and interact (FUN_00549830 ... FUN_0054aa90; callees hooked and logged) | `uv run python plrmsg_click.py` | `ok: 1680 PlrMsg click-on-unit handler cases` |
+| Location handlers of PlrMsg.cpp: the shared location check, walk / run to x, y, skill at x, y (left, right, held), the cast, the inventory-full message and the keepalive (FUN_005496f0 ... FUN_0054a140; callees hooked and logged) | `uv run python plrmsg_loc.py` | `ok: 1732 PlrMsg location handler cases`; `--mutation-check` plants 55 defects |
 
 ## When it breaks
 
