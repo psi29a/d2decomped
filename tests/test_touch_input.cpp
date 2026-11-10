@@ -8,6 +8,10 @@
 #include <cstdio>
 #include <exception>
 
+/**
+ * Exercise independent touch ownership, page latching, safe cancellation and attack press/hold
+ * edges, including the single-pointer owner.
+ */
 int main() try {
     using namespace d2d::client::touch;
     Input input;

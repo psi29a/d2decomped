@@ -103,6 +103,10 @@ auto Town::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command>
         return out;
     }
 
+/**
+ * Report whether gameplay input owns the field. Open panels, assignment editors, held items,
+ * dialogs and chat prevent field actions from leaking through UI interaction.
+ */
 auto Town::pad_field() const -> bool {
         return have_world && !inv_open && !char_open && !tree_open && !stash_open && !cube_open && !belt_open && !belt_up.shown && !quest_log.open && !hireling.open && !help.open && !party.open
             && !game_menu.open && !controls.open && !waypoint.open && npc_menu.npc < 0 && speech.npc < 0 && store.npc < 0 && !held && identify_with < 0
@@ -374,6 +378,10 @@ auto Town::lead_pad(const pad::Sample& sample, float seconds) -> void {
         lead_field.wants_strip = false;            // the lead's Start does not take the screen back
     }
 
+/**
+ * Resolve controller movement and field action commands for the selected player. A fresh press
+ * permits interaction/pickup; held combat does not acquire loot after a kill.
+ */
 auto Town::field_play(PadPlayer& player_pad, pad::Mapper& mapper, const World::Player& hero_there, const pad::Sample& sample, float seconds,
                       const Send& out) -> std::vector<pad::Key> {
         const auto actions = mapper.step(sample, pad::Context::Game, seconds);
@@ -473,6 +481,10 @@ auto Town::take_focus(int id) -> void {
         d2d::log::info("co-op: the screen is {}'s", owner.character.name);
     }
 
+/**
+ * Return the current panel control for controller focus, or no focus for a self-highlighting
+ * radial. Prefer a skill icon when entering the skill tree.
+ */
 auto Town::pad_focus() const -> std::optional<PadFocus> {
         if (controls.open) {                                            // Configure Controls: the selected row's column
             const auto [x, y] = controls.focus();
@@ -515,6 +527,10 @@ auto Town::pad_focus() const -> std::optional<PadFocus> {
 // Where a panel's d-pad hops the cursor: each item and free cell of the open
 // grids, the body slots, and a store's stock (with an item held, the stock
 // grid's middle: dropping it there sells it).
+/**
+ * Collect valid controller cursor destinations for the currently open panel. Skill-tree entries and
+ * its close button share the same geometry as drawing and hit testing.
+ */
 auto Town::pad_snap_points() const -> std::vector<pad::Point> {
         std::vector<pad::Point> points;
         if (!scene) return points;
@@ -624,6 +640,10 @@ auto Town::pad_trade(int mouse_x, int mouse_y) -> void {
         if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y); stock >= 0) send(cmd::Buy{ stock, store.tab });
     }
 
+/**
+ * Resolve the hovered item availability using the shared item-use policy and current player state.
+ * The result supplies both inventory prompts and item dispatch.
+ */
 auto Town::item_use(const d2d::d2s::Item& item) const -> ItemUse {
     const bool potion = potion_code(item.code) || (scene && scene->rules.potions.contains(item.code));
     const bool unidentified = std::ranges::any_of(character.items, [&](const auto& carried) { return carried.id != item.id && !carried.identified; });
@@ -643,6 +663,10 @@ auto Town::pad_drop(int mouse_x, int mouse_y) -> void {
         }
     }
 
+/**
+ * Update controller hold actions and contextual inventory/shop hints. Hold-to-sell and field-use
+ * state are handled separately so prompts describe the available action.
+ */
 auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         pad_hold_text.clear();
         pad_hold_fraction = 0.f;
@@ -758,6 +782,10 @@ auto Town::pad_back(int mouse_x, int mouse_y) const -> bool {
 
 // The field's right stick click: the right hand's skill picker (A on the
 // left skill button switches to the left's), the cursor on its skill.
+/**
+ * Open the controller skill-assignment editor in Skill Buttons mode, or the existing hand picker in
+ * the classic mode.
+ */
 auto Town::pad_open_picker() -> void {
         if (pad_config.skill_buttons) {
             if (skillbar.picking == 3) { close_assignment(); return; }
@@ -769,6 +797,9 @@ auto Town::pad_open_picker() -> void {
     }
 
 // A store's shoulders: the next tab with stock on it, that way round.
+/**
+ * Return the active panel in shoulder-navigation order, or -1 when none of those panels is open.
+ */
 auto Town::pad_panel() const -> int {
         if (controls.open || stash_open || cube_open || store.npc >= 0 || waypoint.open || npc_menu.npc >= 0 || speech.npc >= 0 || help.open || skillbar.picking) return -1;
         if (game_menu.open) return 5;
@@ -780,6 +811,10 @@ auto Town::pad_panel() const -> int {
         return -1;
     }
 
+/**
+ * Cycle open gameplay panels with the shoulder inputs, preserving classic/store tab behavior.
+ * Refuse a panel switch while item, identification, imbue or gold transactions are pending.
+ */
 auto Town::pad_tab(int step) -> void {
         if (store.npc < 0) {
             const int current = pad_panel();

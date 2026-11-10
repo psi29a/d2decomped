@@ -698,6 +698,10 @@ std::vector<std::array<int, 4>> trade_boxes(const Scene& scene, int state) {
     return out;
 }
 
+/**
+ * Draw belt slots and their configured input hints. Controller direction bindings use arrow glyphs;
+ * other bindings retain their labels.
+ */
 void draw_belt(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::d2s::Item>& items,
                int mouse_x, int mouse_y, const d2d::rules::Wearer* wearer, bool popup, const std::array<std::string, 4>& keys, bool pad_bar,
                const std::function<std::string(const d2d::d2s::Item&)>* price) {

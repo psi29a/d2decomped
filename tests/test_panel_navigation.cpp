@@ -12,6 +12,10 @@
 #include <cstdio>
 #include <exception>
 
+/**
+ * Check shoulder panel actions, radial paging/deadzone stability, assignment filtering and
+ * same-column skill-tree navigation.
+ */
 int main() try {
     using namespace d2d::client;
     assert(!skillpad::assignable_name("kick"));

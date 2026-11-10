@@ -12,6 +12,10 @@ namespace d2d::client::touch {
 enum class Phase { Down, Move, Up, Cancel };
 struct Box {
     float x, y, width, height;
+    /**
+     * Test logical touch coordinates against this box, including its top/left edges and excluding
+     * its bottom/right edges.
+     */
     [[nodiscard]] bool contains(float point_x, float point_y) const { return point_x >= x && point_x < x + width && point_y >= y && point_y < y + height; }
 };
 inline constexpr Box kMove{ 12, 330, 270, 260 }, kAttack{ 680, 438, 108, 100 }, kPage{ 650, 265, 138, 55 },
@@ -31,6 +35,10 @@ public:
     Target preview;
     std::vector<Target> casts;
 
+    /**
+     * Cancel pending touch ownership and queued actions without committing a cast. Preserve the
+     * selected skill page while clearing movement, attack and editor gestures.
+     */
     void clear() {
         movement_ = skill_ = attack_ = -1;
         move_x = move_y = 0;
@@ -39,9 +47,18 @@ public:
         belt = destination = -1;
         menu = done = false;
     }
+    /**
+     * Clear one-frame touch outputs after consumption while retaining held fingers, movement and
+     * the selected page.
+     */
     void frame() { attack_press = menu = done = false; belt = destination = -1; casts.clear(); }
     // Self casts and auras are stationary taps; all casts commit on a valid
     // lift, so cancellation never spends mana. Aimed skills enqueue the visible preview.
+    /**
+     * Update one finger in logical viewport coordinates without affecting another finger owner.
+     * Only a valid release queues the visible skill preview; cancellation never queues a cast.
+     * Editor taps choose destinations while page taps preserve an already-held skill target.
+     */
     void event(std::int64_t finger, Phase phase, float x, float y, Target target = {}, bool immediate = false, bool editor = false) {
         if (phase == Phase::Cancel) {
             if (finger == movement_) { movement_ = -1; move_x = move_y = 0; }

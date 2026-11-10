@@ -140,6 +140,10 @@ struct Bindings {
 // With skill buttons on, the field belongs to the slots. Attack, the right
 // skill and the panel keys keep their other screens, so a face button can
 // be a skill in the field and a click in a panel.
+/**
+ * Return the input contexts in which an action participates in binding-conflict checks. Skill
+ * Buttons mode separates panel cancellation, inventory use and field skill destinations.
+ */
 [[nodiscard]] inline unsigned where_of(std::size_t action, bool skill_buttons) {
     unsigned mask = kWhere[action];
     if (!skill_buttons) return mask;
@@ -379,6 +383,10 @@ struct Point { int x = 0, y = 0; };
 }
 
 // Skill-tree arrows follow the current column across gaps before moving sideways.
+/**
+ * Choose a skill-tree focus destination in the requested direction. Vertical navigation prefers a
+ * skill in the same column across gaps, then falls back to geometric cursor snapping.
+ */
 [[nodiscard]] inline int tree_pick(int from_x, int from_y, int dir_x, int dir_y, std::span<const Point> points) {
     if (dir_x == 0 && dir_y != 0) {
         int best = -1, distance = 0;
@@ -400,6 +408,11 @@ public:
     // `seconds` since the last frame. A pad that went away is a default
     // Sample: every button lets go, so nothing stays held. `skill_ui` is
     // the wheel or the panel strip; None is every other screen.
+    /**
+     * Translate one controller sample into context-specific actions and update edge/hold state.
+     * Skill UI consumes destination presses; LT skill chords suppress weapon swapping until the
+     * modifier is released.
+     */
     Actions step(const Sample& sample, Context context, float seconds, SkillUi skill_ui = SkillUi::None) {
         Actions out;
         left_trigger_ = hysteresis(sample.left_trigger, left_trigger_);
@@ -684,6 +697,10 @@ private:
 };
 
 // D-pad roster navigation owns confirmation until a real pointer moves.
+/**
+ * Resolve the selected character without letting a stale pointer override D-pad navigation. Outside
+ * navigation mode, a valid hovered save replaces the prior selection.
+ */
 [[nodiscard]] inline int roster_target(bool navigating, int under, int selected) {
     return navigating ? selected : under >= 0 ? under : selected;
 }

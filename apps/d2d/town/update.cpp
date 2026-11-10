@@ -64,6 +64,11 @@
 
 namespace d2d::client {
 
+/**
+ * Process one client UI update, routing modal panels and item interactions before field actions.
+ * Skill-tree close hits and controller Identify confirmation use the same geometry/state as their
+ * displayed controls.
+ */
 auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mouse, const std::vector<SDL_Keycode>& frame_keys,
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         now_ms = frame_ms;

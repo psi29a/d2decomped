@@ -48,6 +48,10 @@
 
 namespace d2d::client {
 
+/**
+ * Advance the client gameplay frame, synchronize joined-world state and drive player movement. Run
+ * controller and optional touch commands through the existing world dispatch path.
+ */
 auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         frame_now = frame_ms;
         if (net_game) {

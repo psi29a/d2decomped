@@ -21,6 +21,10 @@
 using namespace d2d::game;
 namespace fs = std::filesystem;
 
+/**
+ * Verify that an exact-position controller stop clears walking and path state without changing
+ * position or facing. Skip when the required local patched game data is unavailable.
+ */
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq (D2_MPQ_DIR)\n"); return D2D_TEST_SKIPPED; }

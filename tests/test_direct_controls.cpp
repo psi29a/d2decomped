@@ -11,6 +11,10 @@
 #include <cstdio>
 #include <exception>
 
+/**
+ * Exercise controller focus ownership, assignment filtering, LT chord release orders and
+ * panel/field input handoff, plus the shared item-use availability rules.
+ */
 int main() try {
     using namespace d2d::client;
     assert(pad::roster_target(true, 2, 1) == 1);

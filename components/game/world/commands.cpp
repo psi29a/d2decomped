@@ -343,6 +343,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         return false;
     }
 
+/**
+ * Apply a gameplay command to the active world actor after checking its state and command-specific
+ * rules. A fresh move to the exact current position explicitly stops walking without choosing a new
+ * facing.
+ */
 auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // The character's own: through whatever the player's doing.
         if (const auto* stat_point = std::get_if<cmd::StatPoint>(&command)) {

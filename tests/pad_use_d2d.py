@@ -123,9 +123,11 @@ def face(x, y):
     cmd("pad 0 axis rightx 0"); cmd("pad 0 axis righty 0"); frames(2)
 
 def state():
+    """Read the devctl state response as named string fields for input assertions."""
     return dict(word.split("=", 1) for word in cmd("state").split() if "=" in word)
 
 def skill_panel(skill):
+    """Open the skill tree on the requested skill page and move the pointer over its icon."""
     cmd("key t"); frames(5)
     page, pixel_x, pixel_y = map(int, cmd(f"debug skillat {skill}").split()[1:])
     cmd(f"click 675 {430 if page == 1 else 325 if page == 2 else 220}"); frames(3)
@@ -133,6 +135,7 @@ def skill_panel(skill):
     return pixel_x, pixel_y
 
 def screenshot(name):
+    """Save an optional review screenshot when D2_SCREENSHOT_DIR is configured."""
     directory = os.environ.get("D2_SCREENSHOT_DIR")
     if directory:
         os.makedirs(directory, exist_ok=True)
@@ -143,8 +146,10 @@ if keyboard_ux:
         cmd(f"debug points {skill} 5")
     frames(5)
     def bindings():
+        """Decode the current character hotkey words from the published client state."""
         return list(map(int, state()["hotkeys"].split(",")))
     def bind_spell(skill, slot, left):
+        """Assign a picker hotkey and verify it survives later world updates."""
         cmd(f"click {141 if left else 659} 575"); frames(3)
         assert state()["picker"] == ("1" if left else "2")
         pixel_x, pixel_y = map(int, cmd(f"debug pickerat {skill}").split()[1:])
@@ -214,6 +219,7 @@ if seed_ux:
     with open(path, "wb") as f:
         f.write(saved)
     def restart_seed():
+        """Restart the temporary-character game and wait for input readiness before checking persisted bindings."""
         global proc
         if os.path.exists(sock_path):
             os.unlink(sock_path)
@@ -405,8 +411,10 @@ if controller_ux:
 
 if touch_ux:
     def finger(identity, phase, pixel_x, pixel_y):
+        """Inject one logical finger event and advance frames so the normal input path consumes it."""
         cmd(f"touch {identity} {phase} {pixel_x} {pixel_y}"); frames(3)
     def tap(pixel_x, pixel_y):
+        """Send a complete tap with a second finger without releasing the movement finger."""
         finger(2, "down", pixel_x, pixel_y); finger(2, "up", pixel_x, pixel_y)
     aimed = 70 if corpse_ux else 54
     cmd("debug stat 12 99"); cmd(f"debug points {aimed} 20")
@@ -464,12 +472,14 @@ if touch_ux:
         assert abs(position[0] - preview[0]) < .3 and abs(position[1] - preview[1]) < .3, (position, preview)
     if not corpse_ux:
         def carried(code, column, row):
+            """Create a carried item at the requested inventory cell and return its generated item ID."""
             cmd(f"debug equip {code} 12"); frames(5)
             item = cmd("items").split(f"[{code} ")[1].split(" id=")[1].split()[0]
             cmd(f"cmd hand {item}"); frames(4)
             cmd(f"cmd grid {column} {row}"); frames(4)
             return item
         def item_point(item):
+            """Read the screen coordinates of an inventory item for touch interaction."""
             words = cmd(f"debug itemat {item}").split()
             return int(words[1]), int(words[2])
         cmd("debug clearinv"); frames(4)
@@ -537,6 +547,7 @@ until("the scroll in items", lambda: "[tsc " in cmd("items"))   # the client's c
 scroll = cmd("items").split("[tsc ")[1].split(" id=")[1].split()[0].rstrip("]")
 if skill_buttons:
     def bag_item(code, column, row):
+        """Create an inventory item, place it in the requested cell, and return its generated ID."""
         cmd(f"debug equip {code} 12"); frames(5)
         item = cmd("items").split(f"[{code} ")[1].split(" id=")[1].split()[0].rstrip("]")
         cmd(f"cmd hand {item}"); frames(5)
@@ -544,6 +555,7 @@ if skill_buttons:
         return item
 
     def point_item(item):
+        """Move the pointer to an inventory item and let the hover state update."""
         words = cmd(f"debug itemat {item}").split()
         cmd(f"move {words[1]} {words[2]}"); frames(3)
 

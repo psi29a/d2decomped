@@ -110,6 +110,10 @@ inline auto resurrect() -> Bytes { return { 0x41 }; }
 
 // FUN_0054c870 decodes the slot (high word), left bit 15, skill and item.
 // Oracle: tools/emu/hotkey_packet.py; this is metadata, not a skill cast.
+/**
+ * Encode C2S 0x51 hotkey metadata: slot in the high word, left-hand bit 15, skill in the low 15
+ * bits and the optional host item ID. This packet changes a binding, not a cast.
+ */
 inline auto bind_hotkey(int slot, int skill, bool left, std::uint32_t item_id = 0xffffffff) -> Bytes {
     Bytes out;
     put_u8(out, 0x51);

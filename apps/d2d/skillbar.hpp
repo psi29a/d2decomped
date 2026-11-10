@@ -249,6 +249,11 @@ struct SkillBar {
 
     // The buttons, the open picker (hotkey labels on its icons) and the
     // hovered skill's name.
+    /**
+     * Draw hand skill pickers and the optional controller tray, radial and assignment feedback.
+     * Display unavailable portal entries with a disabled palette and use the current remapped
+     * destination labels.
+     */
     void draw(std::vector<std::uint8_t>& framebuffer, int mouse_x, int mouse_y, const d2d::rules::CalcEnv& env) const {
         // A hovered button's or picker icon's tooltip (FUN_004a8d50 -> FUN_004ef990).
         const auto tip = [&](Pick pick, int x, int y) {
