@@ -194,6 +194,9 @@ Also present, names *unconfirmed*: C→S 08 0x44a680, 09 0x44a710,
    x86 code (`0x4e0730`). game.exe's own server handler for C→S 0x66
    (`0x54d740`) is `return 0;`: **TCP/IP games hosted by game.exe run no
    Warden.**
+   The client side (signature check, load pipeline, callbacks, framing) is
+   verified in the emulator with synthetic modules only
+   (bnclient.md "WardenClient.cpp: verified").
 
 ### Local vs server-side
 
