@@ -29,7 +29,6 @@ REGION = (0x7C88D0, 0x100)
 def suite(test):
     """Run the three functions."""
     sel = {}
-    unit = test.slot(0)
 
     def record(table, index):
         """The synthetic token record of (table, index): an arena slot or none."""

@@ -25,7 +25,7 @@ FILE = 0x6D6C1C
 def suite(test):
     """Run both functions."""
     sel = {}
-    unit, out = test.slot(0), test.slot(1)
+    unit = test.slot(0)
     hdr, table = test.arena + 0x1000, test.arena + 0x2000
 
     def transform(e):

@@ -148,9 +148,9 @@ def suite(test):
             """Free the entries, subtract +8 from the counter, free the block (if any), zero 0x80c bytes."""
             blob = sel["blob"]
 
-            def rd(addr):
+            def rd(at, base=base, blob=blob):
                 """A dword of the cache as it was before the run."""
-                return int.from_bytes(blob[addr - base:addr - base + 4], "little")
+                return int.from_bytes(blob[at - base:at - base + 4], "little")
             counter = entries(m, base, rd, sel["counter"])
             counter = (counter - rd(base + 8)) & rig.M32
             if rd(base + 4):

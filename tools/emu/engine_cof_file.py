@@ -123,7 +123,7 @@ def suite(test):
         count = rng.choice((0, 1, 2, 3))
         sel["bundle"] = bundle if rng.randrange(10) else 0
         off, total = bundle - test.arena, 0
-        for i in range(count):
+        for _ in range(count):
             size = rng.choice((0, 3, 8, 0x20))
             img[off + 8:off + 12] = size.to_bytes(4, "little")
             img[off + 4:off + 8] = rng.choice((0, 1, 0xFFFFFFFF)).to_bytes(4, "little")
