@@ -115,7 +115,7 @@ only this caller with a synthetic predicate, not the real predicate.
 | `FUN_00471bd0` | The same for a player, monster or object, layer by layer through the COF; called by the unit draw `FUN_00471ec0` while `FUN_00464c40` counts (unit `+0x58`, state 0x8f) |
 | `FUN_004dab40` | Is a cel at (x, y) on screen: adds the cel x/y metrics, adjusts x and width for a flip, then checks x ≤ screen width, x + width ≥ 0, y − radius ≤ screen height and y + radius ≥ 0. The signed comparisons use 32-bit wrapping arithmetic (`tools/emu/engine_cel_bounds.py`; metric getters hooked) |
 | `FUN_004db1e0` | Turns the unit's path to a new direction (`FUN_006488a0`) only in neutral / death (players modes 0, 0x11; monsters 0, 0xc) and when EBX ≠ EDI |
-| `FUN_004db290` | Converts a direction between 8 and 4 (EAX 8, ECX 4) or 16 and 8 steps (`FUN_00600cb0`) |
+| `FUN_004db290` | Converts a packed direction from 8 to 4 (EAX 8, ECX 4) or 16 to 8 steps (`FUN_00600cb0`), writing through ESI; other pairs leave it alone. The wrapper extracts `(word & 0x1fffffff) >> 3` or `(word & 0x0fffffff) >> 2` respectively, then masks the lookup result to 26 bits and shifts it left by 3 or 2 (`tools/emu/engine_direction.py`; lookup hooked) |
 | `FUN_004db570` | A layer's tint: the item drawn on that component (or on TR for the armour layers, `FUN_0064f420`) unless broken or unusable (flags 0x100, 0x4000) or `lit `; `FUN_0062c100`'s colour, else arg 3 |
 | `FUN_004db670` | Is the unit on screen with its COF loaded, then `FUN_004db0d0` |
 
