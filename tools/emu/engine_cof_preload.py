@@ -3,8 +3,8 @@
 
 Run: uv run python engine_cof_preload.py [--mutation-check]
 FUN_0046f9e0 (monster mode load, EAX mode, ECX unit), FUN_0046fa80 (load by
-unit type, then the node), FUN_0046feb0 (every mode the monster has, through
-FUN_0046fda0) and FUN_0046ff50 (a player's mode slot at 0x7a7490 / 0x7a74e0,
+unit type, then the node), FUN_0046fda0 (a monster mode's slot in the table at 0x7a80fc),
+FUN_0046feb0 (every mode the monster has, through FUN_0046fda0) and FUN_0046ff50 (a player's mode slot at 0x7a7490 / 0x7a74e0,
 through FUN_0046fb60 and FUN_005ff300). The transform, mode getters, the
 MonStats2 mode check, list clear, flag set, the loaders, the node lookup, the
 preload workers and the queue call are hooked and return this case's synthetic
@@ -110,6 +110,49 @@ def suite(test):
         return 0
     test.run("FUN_0046fa80", 0x46FA80, build_load, load, 1)
 
+    # FUN_0046fda0: the monster mode once, slots in the table at 0x7a80fc ----
+    test.callee("blocking", 0x46FB60, 1, ("eax",))
+    test._callee("queue", 0x5FF300, 3, (), lambda _emu: sel["queue"])
+    rig_blocking = [0]
+    test.custom["blocking"] = lambda _emu: rig_blocking[0]
+    table = test.arena + 0x1800
+    test.m.w32(0x744304, test.arena + 0x1000)
+
+    def build_once(img, rng):
+        """A monster class / mode slot (class -1 reaches before the table, still inside the arena)."""
+        rnd_case(rng)
+        sel.update(cls=rng.choice((0xFFFFFFFF, 0, 1, 2, 3, 4, 5)), type=rng.randrange(4), queue=rng.randrange(2))
+        count = rng.choice((0, 3, 6))
+        img[0x1000 + 0xA80:0x1000 + 0xA84] = count.to_bytes(4, "little")
+        test.m.w32(0x7A80FC, table)
+        sel["blocking"] = rig_blocking[0] = rng.choice((1, 1, 0, 0xFFFFFFFF))
+        sel["count"] = count
+        sel["once_mode"] = rng.randrange(20)
+        sel["at"] = (sel["once_mode"] + 40 * s32(sel["cls"])) * 4
+        img[table - test.arena + sel["at"]:table - test.arena + sel["at"] + 4] = rng.choice((0, 0, 1)).to_bytes(4, "little")
+        img[table - test.arena + sel["at"] + 0x50:table - test.arena + sel["at"] + 0x54] = rng.choice((0, 0, 1)).to_bytes(4, "little")
+        return {"regs": {"eax": sel["once_mode"], "esi": unit}, "stack": [rng.randrange(1 << 32)]}
+
+    def once(m, args):
+        """Slot done: stop; fresh: preload, mark pending when 1; pending: queue, done when it returns 0."""
+        m.call("mode", unit)
+        m.call("transform", unit)
+        seen_ok(m, 0x70A)
+        if s32(sel["cls"]) >= sel["count"]:
+            return
+        at = table + sel["at"]
+        if m.r(at):
+            return
+        if not m.r(at + 0x50):
+            if m.call("blocking", unit, args["stack"][0]) == 1:
+                m.w(at + 0x50, 1)
+            else:
+                m.w(at + 0x50, 0)
+                m.w(at, 0)
+        elif not m.call("queue", sel["type"], sel["once_mode"], sel["cls"]):
+            m.w(at, 0 if "once" in MUT else 1)
+    test.run("FUN_0046fda0", 0x46FDA0, build_once, once, 1, ret=False)
+
     # FUN_0046feb0 ---------------------------------------------------------
     hdr, rows1, rows2 = test.arena + 0x1000, test.arena + 0x2000, test.arena + 0x2800
     test.m.w32(0x744304, hdr)
@@ -152,9 +195,6 @@ def suite(test):
     test.run("FUN_0046feb0", 0x46FEB0, build_walk, walk, 1, ret=False)
 
     # FUN_0046ff50 ---------------------------------------------------------
-    test.callee("blocking", 0x46FB60, 1, ("eax",))
-    test._callee("queue", 0x5FF300, 3, (), lambda _emu: sel["queue"])
-
     def build_slot(img, rng):
         """A player class / mode slot with random state."""
         rnd_case(rng)
@@ -167,8 +207,6 @@ def suite(test):
         sel["blocking"] = rng.choice((1, 1, 0, 0xFFFFFFFF))
         rig_blocking[0] = sel["blocking"]
         return {"regs": {"eax": sel["mode"], "esi": unit}, "stack": [rng.randrange(1 << 32)]}
-    rig_blocking = [0]
-    test.custom["blocking"] = lambda _emu: rig_blocking[0]
 
     def slot(m, args):
         """Done slots stop; pending ones queue; fresh ones preload and mark pending on success."""
@@ -202,7 +240,7 @@ def main():
     parser.add_argument("--mutation-check", action="store_true")
     args = parser.parse_args()
     mutations = {name: (lambda on, name=name: MUT.add(name) if on else MUT.discard(name))
-                 for name in ("mode", "pend", "walk")}
+                 for name in ("mode", "pend", "walk", "once")}
     rig.run_suite(suite, mutations, "ENGINE COF preload", args.mutation_check)
 
 
