@@ -1719,7 +1719,8 @@ Cited from the decompile (no oracle run); re-check with
   for is not read here (cited). d2d: **not ported** (a client-side list).
 - **FUN_00620250**(unit) (56 bytes) -> the unit's selected (current) skill
   node: FUN_006439a0 returns field `+0x10` of the skill-list header (unit
-  `+0xa8`; the register it gets is dropped by the decompile, inferred), 0 for
+  `+0xa8`; it takes the header in ECX, fastcall, which the decompile drops;
+  checked by `skill_accessors.py`), 0 for
   a null header, and also 0 when the header has no selected skill. A null **unit**
   is fatal: it formats message 0x65c (FUN_00408090 / FUN_00408a60) and calls
   FUN_00681e09(-1) (the exit), so a null unit never returns 0; a unit
@@ -1727,19 +1728,20 @@ Cited from the decompile (no oracle run); re-check with
   FUN_00465070, FUN_004654c0. d2d: **agrees** with combat.md "unit skill list
   +0x10" (cited there); the fatal null is not modelled (not checked
   whether any d2d caller can pass a null unit).
-- **FUN_00644560**(header, value) (51 bytes): sets skill-list header `+0x18`;
-  a null header formats message 0xa76 and exits (FUN_00681e09(-1)). Seen as
+- **FUN_00644560**(skill, value) (51 bytes, stdcall `ret 8`; a skill record,
+  `D2SkillStrc`, not the list header; `skill_accessors.py`): sets the record's
+  `+0x18`; a null record formats message 0xa76 and exits (FUN_00681e09(-1)). Seen as
   the first of the target pair `(+0x18, +0x1c)`: the target's type (FUN_004c9b40,
   FUN_005cf6b0: `*target`, 6 for none) or, for a ground target, the x
   (act1-end.md AndrialSpray), and Thunder Storm's last struck unit id
   (above). `+0x1c` is set by FUN_006445a0. d2d: **agrees** with the Thunder
   Storm use (`fight.hpp:347` `storm_last`); the other uses are not ported.
-- **FUN_006445e0**(header, value) (51 bytes): sets header `+0x20`; a null
-  header formats message 0xa88 and exits. FUN_004c9b40 writes 0 to it as its
+- **FUN_006445e0**(skill, value) (51 bytes, stdcall `ret 8`, a skill record):
+  sets the record's `+0x20`; a null record formats message 0xa88 and exits. FUN_004c9b40 writes 0 to it as its
   last step before FUN_004c7950; other callers FUN_004c83c0, FUN_004c8d90,
   FUN_004c9db0, FUN_004d9260 (not read). d2d: **not ported**.
-- **FUN_00644620**(header, value) (51 bytes): sets header `+0x24`; a null
-  header formats message 0xa91 and exits. FUN_004c9b40 and FUN_005cf6b0 set
+- **FUN_00644620**(skill, value) (51 bytes, stdcall `ret 8`, a skill record):
+  sets the record's `+0x24`; a null record formats message 0xa91 and exits. FUN_004c9b40 and FUN_005cf6b0 set
   it to 7 and then, only for a non-player unit (`*unit != 0`) of class 0xd3
   (Duriel), to 0xf, both before the stat 0x43 read. Other callers FUN_004c6de0,
   FUN_004c83c0, FUN_004c8d90, FUN_00549960. What the numbers mean is not read
@@ -1876,8 +1878,9 @@ bytes show (several older notes called the stdcall ones fastcall).
 (FUN_00643960, 0x40e), `+0x10` current skill (fastcall set FUN_00643990 and get
 FUN_006439a0: a null list is ignored / answers 0), `+0x14` the light
 (FUN_00643a00 swaps it and answers the old one, FUN_00643a30 reads it; 0 with no
-unit or list). FUN_00643a60 frees each skill (alloc line 0x505, pool from
-FUN_004dc0b0) then the list (0x508, the unit's own pool at `+8`) and clears
+unit or list). FUN_00643a60 frees each skill (the free call at 0x40b480 gets
+line 0x505 and a pool from FUN_004dc0b0) then the list (line 0x508, the unit's
+own pool at `+8`) and clears
 the unit's `+0xa8`.
 
 **Skill record** accessors (stdcall, `ret 4` / `ret 8`; a null record asserts
@@ -1908,28 +1911,36 @@ takes FUN_00643810's skill (EAX unit, ESI id), adds the bonus the same way,
 floors at 0 and caps at the experience table's last level (FUN_00611830(0),
 called twice when it caps).
 
-**Other helpers**: FUN_00643d00 (fastcall unit, skill): a player gets the
-record's seqnum (byte `+0x13`); a monster gets MonStats `aSkSeq` (`+0x188`) at
-the slot whose `aSkill` (`+0x170`, 8 signed shorts) equals the skill id; skill
-0xc7 (Diablo's prison) and no slot give 0. FUN_00644c20 (ESI unit, stack type):
+**Other helpers**: FUN_00643d00 (fastcall unit, skill): a player (type 0) gets
+the record's seqnum (byte `+0x13`); any other unit type takes the MonStats path:
+`aSkSeq` (`+0x188`) at the slot whose `aSkill` (`+0x170`, 8 signed shorts)
+equals the skill id; skill 0xc7 and no slot give 0. FUN_00644c20 (ESI unit, stack type):
 a player's Strength + Dexterity - 20, any other unit 3 x its level, at least 1,
 then /3 (type 0) or /4 (rounded toward zero), x 256, wrapping in 32 bits.
 FUN_00646170: a shapeshifted player's attack frames, `(+0x48 & ~0xff) / speed`
 with speed from FUN_0062a710 for the weapon FUN_00623990 gives, 19 with no
 weapon, 0 when the speed is below 1. FUN_00645160 (EAX mode, stack class)
-maps a mode through the table at `0x6eb308`, 12 for (class 6, mode 4).
+maps a mode through the table at `0x6eb308`, 12 for (class 6, mode 4); the
+index has no bound check (the table is 16 entries; the oracle draws modes up to
+23, reading past it into `0x6eb348`).
 FUN_00645a70 is (n + 1) * 100 / (n + 8) in 32 bits and has no caller; n = -8
 would divide by zero (the emulator faults), so nothing may pass it.
 
 **Corpse tests** (a monster, type 1, in mode 12 = corpse, or mode 0 = dying
 where the flag allows; no passive state from FUN_0063a770; the class has
 corpse-select, FUN_004638a0 with flag 7): FUN_006455e0 and FUN_006456d0 are two
-identical copies answering 1; FUN_00645590 and FUN_00645630 are two identical
+identical copies answering 1 when the gate passes, else 0; FUN_00645590 and FUN_00645630 are two identical
 copies that also need FUN_00621f60 (soft monster); FUN_006454c0 (ESI unit, stack
 bCheckDead) and FUN_00645510 (stdcall) also take mode 0 when the flag is set,
 and FUN_00645510 then answers the class's Velocity (MonStats word `+0x32`) != 0.
 FUN_00645510 reads `+0x32` of a null row for a class outside the table; the
 class flag is 0 for such a class, so that path is not reached.
+
+Labels such as "soft monster" (FUN_00621f60), "shapeshifted" (FUN_0063a400),
+"the experience table's last level" (FUN_00611830), "Diablo's prison" (skill
+0xc7) and the `D2SkillStrc` / `D2SkillListStrc` field names come from
+Redivivus names or from callers; those callees are hooked, so the oracle checks
+how the code uses their results, not what they mean.
 
 No bug found in this batch; the oracles are the evidence (bugs.md unchanged).
 

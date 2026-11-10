@@ -30,15 +30,16 @@ def point_table(rig):
 def fill_tables(img, rng, rig, skill_count=None, mon_count=None, null_skills=False):
     """Random table counts and base pointers: Skills +0xb98 / +0xba0, MonStats +0xa78 / +0xa80.
 
-    Returns (skill_count, mon_count). A null Skills base keeps the count at 1 so row 0 is the only
+    Returns (skill_count, mon_count); the Skills count is signed and may be 0 or negative (every reader
+    compares it signed, so no id is valid). A null Skills base keeps the count at 1 so row 0 is the only
     index that is read (the code tests the row address for null after adding the offset).
     """
-    n = rng.randrange(1, 5) if skill_count is None else skill_count
+    n = rng.choice((1, 2, 3, 4, 4, 0, -1, -5, -0x80000000)) if skill_count is None else skill_count
     base = rig.arena + SKILLS
     if null_skills:
         base, n = 0, 1
     put(img, TAB + 0xB98, base)
-    put(img, TAB + 0xBA0, n)
+    put(img, TAB + 0xBA0, n & M32)
     k = rng.randrange(1, 4) if mon_count is None else mon_count
     put(img, TAB + 0xA78, rig.arena + MONSTATS)
     put(img, TAB + 0xA80, k)
@@ -46,5 +47,5 @@ def fill_tables(img, rng, rig, skill_count=None, mon_count=None, null_skills=Fal
 
 
 def skill_id(rng, n):
-    """A skill id: mostly in range, sometimes -1, -2, n, n + 1 or a huge value."""
-    return rng.choice([rng.randrange(0, n)] * 4 + [-1, -2, n, n + 1, 0x7FFFFFFF, -0x80000000]) & M32
+    """A skill id: mostly in range (when the count is positive), sometimes -1, -2, n, n + 1 or a huge value."""
+    return rng.choice([rng.randrange(0, n)] * 4 + [-1, -2, n, n + 1, 0x7FFFFFFF, -0x80000000]) & M32 if n > 0 else rng.choice((0, 1, -1, n, 0x7FFFFFFF)) & M32

@@ -21,7 +21,7 @@ import sys
 
 import _dungeon_rig as rig_mod
 from _dungeon_rig import M32
-from _skill_rig import fill_tables, point_table, put
+from _skill_rig import MON_ROW, MONSTATS, fill_tables, point_table, put
 
 MUT = set()
 STATE = {}
@@ -63,7 +63,7 @@ class Suite:
         STATE["soft"] = rng.choice((0, 1, 0x100, rng.getrandbits(32)))
         # Velocity (word +0x32 of the MonStats row), zero a third of the time
         for k in range(count):
-            put(img, 0x1800 + 0x1A8 * k + 0x32, rng.choice((0, 0, rng.getrandbits(16))), 2)
+            put(img, MONSTATS + MON_ROW * k + 0x32, rng.choice((0, 0, rng.getrandbits(16))), 2)
         return 0 if rng.random() < 0.12 else self.base + UNIT
 
     def run(self):
@@ -92,7 +92,7 @@ class Suite:
             unit, dying = a["stack"]
             if not prefix(m, unit, dying != 0) or not corpse(m, unit):
                 return 0
-            vel = m.r(self.base + 0x1800 + 0x1A8 * m.r(unit + 4) + 0x32, 2)
+            vel = m.r(self.base + MONSTATS + MON_ROW * m.r(unit + 4) + 0x32, 2)
             return int((vel == 0) if mut("velocity") else (vel != 0))
         rig.run("FUN_00645510", 0x645510, b_consumable, m_consumable, 2)
 

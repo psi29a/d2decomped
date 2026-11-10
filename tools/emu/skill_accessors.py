@@ -14,7 +14,7 @@ setters FUN_00644380 / 006443b0 (+0x10), 006443f0 / 00644420 (+0x14),
 00645120 (+0x30) against hand-written models on random records
 (_dungeon_rig.py): return value, arena, fatal-error line (the null-record
 assert with the code's own line number) and the bytes `ret n` pops. No callee
-is hooked or needed. `--mutation-check` breaks the model six ways.
+is hooked or needed. `--mutation-check` breaks the model seven ways (one is a wrong `ret n`, the calling convention).
 """
 import argparse
 import sys
@@ -90,7 +90,8 @@ class Suite:
                 if rec == 0:
                     raise Halt(line)
                 m.w(rec + (off + 4 if mut("set-off") and off == 0x30 else off), value)
-            self.rig.run(name, addr, build, model, 2, ret=False)
+            # a wrong calling convention (one dword popped, as a fastcall would) moves ESP: caught by `ret n`
+            self.rig.run(name, addr, build, model, 1 if mut("ret-n") and off == 0x18 else 2, ret=False)
 
     def clear(self):
         """FUN_00644460: zero +0x10 and +0x14 (assert line 0xa47 on null)."""
@@ -214,7 +215,7 @@ def suite(rig):
 
 MUTATIONS = {
     name: (lambda on, n=name: MUT.add(n) if on else MUT.discard(n))
-    for name in ("par3-off", "clear-one", "swap-new", "flags-null", "halt-line", "set-off")
+    for name in ("par3-off", "clear-one", "swap-new", "flags-null", "halt-line", "set-off", "ret-n")
 }
 
 

@@ -80,7 +80,7 @@ class Suite:
 
     def row(self, m, n, ident):
         """The Skills.txt row address the code computes for `ident`, or None when it is out of range / null."""
-        if s32(ident) < 0 or s32(ident) >= n:
+        if s32(ident) < 0 or s32(ident) >= s32(n):
             return None
         base = m.r(self.base + 0xB98)
         row = (base + (ident & M32) * SKILL_ROW) & M32
@@ -109,9 +109,11 @@ class Suite:
         rig.run("FUN_00645a70", 0x645A70, build, model, 1)
         try:
             rig.m.call(0x645A70, 0xFFFFFFF8, limit=1000)
-            raise rig_mod.Mismatch("FUN_00645a70(-8) did not fault")
-        except RuntimeError:
+        except RuntimeError as fault:
+            rig_mod.require("emu fault at 00645a80" in str(fault), f"FUN_00645a70(-8) faulted elsewhere than the idiv: {fault}")
             rig.cases += 1
+        else:
+            raise rig_mod.Mismatch("FUN_00645a70(-8) did not fault")
 
         def build_m(img, rng):
             """mode 0..23, class 6 half the time (the (6, 4) special)."""
@@ -220,10 +222,10 @@ class Suite:
         rig.run("FUN_00644300", 0x644300, build_b, model_b, 2)
 
         def build_r(img, rng):
-            """FUN_00644750: a table and a skill id; the unit is passed as is."""
+            """FUN_00644750: a table and a skill id; the unit may be null (hooked FUN_006439b0 then gets ECX 0)."""
             n, ident = self.prepare(img, rng)
             unit_skill(img, rng)
-            return {"stack": [at(UNIT), ident]}
+            return {"stack": [0 if rng.random() < 0.2 else at(UNIT), ident]}
 
         def model_r(m, a):
             """0x7fffffff for a bad id; else the signed short +0x174 plus the unit's skill level."""
@@ -294,7 +296,7 @@ class Suite:
             return {"stack": [0 if rng.random() < 0.1 else at(UNIT)]}
 
         def model_f(m, a):
-            """Frames * 256 / the weapon's speed (19 with no weapon), 0 unless a shapeshifted player."""
+            """(frames & ~0xff) / the weapon's speed (19 with no weapon), 0 unless a shapeshifted player."""
             unit = a["stack"][0]
             if unit == 0 or m.r(unit) != 0 or m.call("shapeshifted", unit) == 0:
                 return 0
@@ -378,12 +380,16 @@ def suite(rig):
     """Run every group; returns the number of cases."""
     rig_mod.ROUNDS = 80
     s = Suite(rig)
-    s.pure()
-    s.params()
-    s.unit_levels()
-    s.damage()
-    s.sequence()
-    s.free_list()
+    mask = rig.m.r32(BIT_MASKS)
+    try:
+        s.pure()
+        s.params()
+        s.unit_levels()
+        s.damage()
+        s.sequence()
+        s.free_list()
+    finally:
+        rig.m.w32(BIT_MASKS, mask)      # build_f overwrote gadwBitMasks[1]
     return rig.cases
 
 
