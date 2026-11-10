@@ -601,3 +601,22 @@ call, and the source tables are real blocks, since the merge copies from them.
 |---|---|
 | `tok_merge.py` | `FUN_0065adc0`, `0065b1b0` |
 
+### LvlTbls.cpp: expansion free and portal array (`lvl_small.py`)
+
+`tools/emu/lvl_small.py` runs two LvlTbls.cpp functions from stock game.exe 1.14d
+(240 cases, `--mutation-check` 8 ways).
+
+* **FUN_0061fbf0** (TXT_FreeExpansionLvlTbls): if `0x96ca1c` is set, pool-free it
+  (line 0x43a); the pointer is **not** cleared (the Ghidra output agrees).
+* **FUN_0061dd00** (LVLTBLS_BuildPortalLevelArray, cdecl, the LevelDefs row table
+  in EAX): counts the rows whose dword at +0x8c is non-zero (rows of 0x9c bytes,
+  the level count at +0xc5c of the Items table at `0x744304`), stores the count at
+  `0x96c9f8`; with a non-zero count, allocates `count * 4` (line 0x16c) into
+  `0x96c9f4` and fills it with the flagged row indices in order. A zero count
+  leaves `0x96c9f4` alone. The fill's halt (line 0x177) needs a table that changes
+  between the two loops, so it is not run.
+
+| Oracle | Functions |
+|---|---|
+| `lvl_small.py` | `FUN_0061fbf0`, `0061dd00` |
+
