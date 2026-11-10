@@ -23,6 +23,7 @@ address	name	evidence
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 0044da40	mouse_buttons_reset	0x70f234 = 0x70f2bc = 0x10 (both buttons up), 0x7a0650 / 0x7a0654 / 0x7a066c / 0x7a0670 = 0, then jumps to FUN_00466fe0 (collision.md "The mouse-button state words")
 0044b880	set_quit_program	ECX -> DAT_0070ee8c, the flag FUN_0044b8a0 sets to 1 at 0x44b946 and tests at 0x44b98a after shutdown (0 = back to the menus, return 3 / 4); callers pass 0 (net-join.md "The client's leave flags")
+0044c860	set_left_game	ECX -> DAT_007a0674, set to 1 after the client sent C->S 0x69; its only reader (0x44c870 at 0x45ca6f) turns an unasked end in game types 7 / 9 into FUN_0044e380(8) (net-join.md "The client's leave flags")
 0044bf00	global_70f234_get	no args: returns the dword at 0x70f234; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044bf10	global_70f2bc_get	no args: returns the dword at 0x70f2bc; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044dca0	ladder_or_one	no args, 24 bytes: game type at 0x7a0610 is 2 or 3 returns dword 0x7a04f8 (S->C 0x01 byte +7, ladder), else 1 (net-join.md)
