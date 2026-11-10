@@ -13,6 +13,9 @@
 
 int main() try {
     using namespace d2d::client;
+    assert(pad::roster_target(true, 2, 1) == 1);
+    assert(pad::roster_target(false, 2, 1) == 2);
+    assert(pad::roster_target(false, -1, 1) == 1);
     const auto config = pad::skill_buttons_config({});
     for (bool release_modifier_first : { false, true }) {
         pad::Mapper mapper{ config };

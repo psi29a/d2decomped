@@ -455,7 +455,8 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         bool item_click = false;
         drive_pad_hold(mouse, frame_ms >= last_ms ? float(frame_ms - last_ms) / 1000.f : 0.f);
         // With an identify scroll picked, a click names the item for it and ends the pick.
-        if (identify_with >= 0 && mouse.press_this_frame) {
+        if (identify_with >= 0 && (mouse.press_this_frame || (pad_playing && mouse.rpress_this_frame))) {
+            if (pad_playing) mouse.rpress_this_frame = false;
             const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                 { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
             const bool direct_ui = (pad_playing && pad_config.skill_buttons) || touch_enabled;
@@ -468,6 +469,20 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             }
             if (!direct_ui) identify_with = -1;
             item_click = true;
+        }
+        // Controller confirm uses a tome just like the remapped Use input.
+        if (!item_click && pad_a_edge && inv_open && !held && npc_menu.npc < 0 && speech.npc < 0) {
+            const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
+                                                { inv_open, stash_open, cube_open, belt_up.shown, character.expansion }, mouse.x, mouse.y);
+            const auto* to_cursor = click.cmd ? std::get_if<cmd::ToCursor>(&*click.cmd) : nullptr;
+            const auto used = to_cursor ? std::ranges::find(character.items, to_cursor->item, &d2d::d2s::Item::id) : character.items.end();
+            if (used != character.items.end() && (used->code == "isc" || used->code == "ibk")) {
+                if (item_use(*used).kind == ItemUseKind::Identify) {
+                    identify_with = used->id;
+                    audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorIdentifyReady, 1.f, 0);
+                }
+                item_click = true;
+            }
         }
         // With Charsi's Imbue chosen, a click on an item takes it up and imbues it.
         if (imbue_with >= 0 && mouse.press_this_frame && !item_click) {

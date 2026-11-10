@@ -132,3 +132,19 @@ prototype layout. Hardware comfort, OS interruption behavior, safe areas and
 on-device scaling remain unverified until tested on devices. The full-suite
 baseline already has failures in `test_game` and command-driven waypoint travel
 in `smoke_d2d`; report these separately from focused controller/touch results.
+
+## Playtest follow-up: selection, Identify and pointer input
+
+D-pad roster navigation owns A confirmation until actual mouse/analog movement.
+This intentionally hides and ignores the stale pointer. Identify items are
+excluded from modern skill assignment, including old modern bindings becoming
+unavailable without rewriting their files. Inventory A and remapped Use both
+select/confirm Identify; B cancels. Portal skill destinations are visually
+disabled outside Inventory and cannot cast there. These are UX changes, not
+newly traced original-game claims.
+
+The opt-in overlay accepts one mouse/Pencil-style pointer as well as independent
+SDL fingers. Pointer input cannot emulate two independent thumbs. Sidecar
+compatibility requires checking events on the user's actual macOS/iPadOS pair;
+no physical Sidecar verification has been performed. No bridge or dependency
+is introduced. Rounded skill/attack outlines reuse the existing renderer.

@@ -70,6 +70,7 @@ touch::Target Town::resolve_skill(PadPlayer& player_pad, int skill, float dx, fl
     if (!scene || !skill_known(owner_name.empty() ? std::string_view(character.name) : owner_name, skill)) return target;
     const auto* info = scene->skills.get(skill);
     if (!info || info->passive) return target;
+    if ((info->name == "Town Portal" || info->name == "Book of Townportal") && !inv_open) { target.valid = false; return target; }
     const auto& unit = owner ? *owner : view.player;
     target.valid = true;
     target.x = unit.x; target.y = unit.y;
@@ -285,7 +286,11 @@ void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
             for (int pixel_x = int(box.x); pixel_x < int(box.x + box.width); ++pixel_x) {
                 if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
                 auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-                const bool edge = pixel_x == int(box.x) || pixel_y == int(box.y) || pixel_x == int(box.x + box.width) - 1 || pixel_y == int(box.y + box.height) - 1;
+                const bool round = pad_field() && (box.y == touch::kAttack.y || box.y == touch::kSkills[0].y || box.y == touch::kSkills[1].y);
+                const float radius_x = box.width / 2, radius_y = box.height / 2;
+                const float ellipse = std::hypot((float(pixel_x) - box.x - radius_x) / radius_x, (float(pixel_y) - box.y - radius_y) / radius_y);
+                if (round && ellipse > 1) continue;
+                const bool edge = round ? ellipse > .94f : pixel_x == int(box.x) || pixel_y == int(box.y) || pixel_x == int(box.x + box.width) - 1 || pixel_y == int(box.y + box.height) - 1;
                 if (edge) { pixel[0] = 199; pixel[1] = 179; pixel[2] = 119; }
                 else { pixel[0] /= 2; pixel[1] /= 2; pixel[2] /= 2; }
             }

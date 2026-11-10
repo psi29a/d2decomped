@@ -685,7 +685,7 @@ auto Town::drive_pad_hold(Mouse& mouse, float seconds) -> void {
         };
         if (pad_playing && identify_with >= 0) {
             const bool valid = item && item->id != identify_with && !item->identified;
-            pad_hold_text = valid ? label_of(pad::Action::Primary) + " . Identify item" : "Choose an unidentified item";
+            pad_hold_text = valid ? label_of(pad::Action::Primary) + " / " + label_of(pad::Action::Interact) + " . Identify item" : "Choose an unidentified item";
             pad_hold_text += " . " + label_of(pad::Action::Back) + " Cancel";
         } else if (pad_playing && pad_config.skill_buttons && item && query.hand_empty && !query.imbue) {
             const auto use = item_use(*item);

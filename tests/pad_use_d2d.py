@@ -247,7 +247,9 @@ if touch_ux:
     finger(3, "down", 680, 280); finger(3, "up", 680, 280)
     assert state()["touch_page"] == "1" and state()["touch_move"] != "0.000000,0.000000", "page switch interrupted movement"
     finger(1, "up", 160, 430)
-    tap(680, 280)
+    # Sidecar-style pointer input can operate the overlay without SDL fingers.
+    cmd("click 680 280"); frames(4)
+    assert state()["touch_page"] == "0", "pointer click did not switch touch page"
     finger(2, "down", 565, 470)
     cmd("key i"); frames(5)
     finger(2, "up", 630, 450)
@@ -358,8 +360,11 @@ if skill_buttons:
     cmd("debug unid"); frames(5)
     press("a")
     before = int(state()["unid"])
-    point_item(identify); press("rightstick")
-    point_item(target); press("a")
+    point_item(identify); press("a")
+    assert int(state()["identify"]) >= 0, "A did not select identify tome"
+    press("rightstick")
+    assert int(state()["identify"]) >= 0, "RS on invalid target cancelled identification"
+    point_item(target); press("rightstick")
     assert int(state()["unid"]) == before - 1, cmd("state")
     point_item(portal_book); press("rightstick")
     cmd("key Escape"); frames(5)
@@ -395,7 +400,7 @@ if skill_buttons:
     assert int(state()["items"]) == before and state()["held"] == "-", "hold A did not sell"
     point_item(identify); press("rightstick")
     assert state()["store"] != "-1", "using our tome closed the store"
-    press("rightstick")   # cancel the identify cursor
+    press("b")   # B cancels; RS now confirms a valid target
     assert state()["identify"] == "-1", cmd("state")
     press("b"); frames(5)
     assert state()["store"] == "-1", "B did not leave the store"
