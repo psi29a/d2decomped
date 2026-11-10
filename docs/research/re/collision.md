@@ -734,5 +734,41 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   run, on the use (`setup.cpp:474`, `do_sounds`:
   the target's tgtsound, none without one); d2d holds the target as an index (`attack_mon`)
   and has no GUID re-lookup (not ported).
+- **`FUN_00461250`** (the client's command switch; fastcall `(ECX command, EDX unit)` plus two
+  stack arguments, `RET 8`: a command record `{a, b, c}` of dwords (zero allowed for 7) and a
+  flag; callers `FUN_00463180`, `FUN_00463260`, `FUN_00463b80`, `FUN_0046f950`,
+  `FUN_00480c10`). Prelude, in order: `FUN_00643a00(unit, 0)` swaps the skill list header's
+  `+0x14` to 0 and, if it was set, `FUN_004743d0(old)`; unless the command is 0x13,
+  `FUN_004611f0(unit == FUN_00463dd0())` and `FUN_00620210(unit, 0)`; a unit in mode 0x13
+  with the flag 0 returns 1 here, with the flag set `FUN_00650590(path)`;
+  `FUN_00648dc0(path)` (`RestoreVelocityAndPathType`); then the flag slot is overwritten with
+  the walk mode (6 in town, `FUN_0061ab00(FUN_00620bb0(unit))`, else 2) and `ebx` holds the
+  neutral mode (5 or 1). The switch (jump table 0x4616a4, byte index 0x4616e4; commands 3-5,
+  0xa-0x11 and above 0x19 are fatal, assert id 0x432):
+
+  | command | does | mode set |
+  |---|---|---|
+  | 0 | `FUN_00480780(unit, a = type, b = GUID)`: path to a unit | walk mode |
+  | 1 | `FUN_004804a0(unit, a = x, b = y)`: path to a spot | walk mode |
+  | 2 | `FUN_00480930(word a, b)`; returns 1 | none |
+  | 6 | `unit+0xb0 = c`; `FUN_004804e0(word a, word b, 1, 0, 0)` | 4 (GH) |
+  | 7 | `FUN_00464820(unit)`, `FUN_004647d0`, `+0xc4 \|= 2`; with a record `FUN_00480ef0(unit, a, b, result)` | neutral mode |
+  | 8 | the player dying (see collision.md above): `FUN_00456300(1, 0)` for the local player, `unit+0xb0 = c`, `FUN_00467a10` branch on the two globals, `FUN_004804e0(..., 0, 0, 0)`, `FUN_00461010`, `FUN_0045c470` | 0 (DT) |
+  | 9 | `FUN_00461010` | 0x11 (DD) |
+  | 0x12 | `unit+0xb0 = c`; `FUN_004804e0(..., 1, 0, 0)` | 9 (BL) when `FUN_0063c8f0(unit+0x60, 0)` is non-zero or `FUN_0064f380` answers 0xd |
+  | 0x13 | `unit+0xb0 = c`; `FUN_00480d20`, `FUN_0063a400(unit)`, `FUN_004cc5b0(unit, mode, 1)`; `FUN_004804e0(..., 1, 0, 0)` | 0x13 (KB); `FUN_004cc5b0` gets 3 when `FUN_0063a400` is non-zero, else 0x13 |
+  | 0x14 | `unit+0xb0 = c`; path type 0xb (`FUN_00648cf0`), distance 5 (`FUN_00648e40`), `FUN_00648ad0(path, a, b)`, `FUN_00649970(path, unit, 0)` | 0x13 |
+  | 0x15, 0x16 | `FUN_00461180(0)`, then `FUN_004c6f40` (0x15) / `FUN_004c6eb0` (0x16) with `a` | none |
+  | 0x17 | `FUN_004804a0(unit, a, b)` | 3 (RN) |
+  | 0x18 | `FUN_00480780(unit, a, b)` | 3 (RN) |
+  | 0x19 | `FUN_004804e0(word a, word b, 0, 0, 0)` | 0xd (S1) |
+
+  Every mode is set by `FUN_00480e70(unit, mode)`. A command 0, 1, 0x15..0x18 whose walk or
+  ask fails ends at `FUN_00460830(unit, neutral mode, 1)` and returns 0; the rest return 1.
+  Commands 0x17 / 0x18 are the same two walks as 1 / 0 but set mode 3 (RN). d2d: agrees with what collision.md:242-304,
+  `strike.cpp:300` and `world/tick.cpp:441` already read (commands 0, 1, 2, 8, 0x15, 0x16, the
+  neutral at a failed walk); d2d has no single command switch (not ported as a function).
+  Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
+  mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
   They are the "is this the local player" test every client path below uses. d2d: agrees
   (skills.md:1793, :1806; `apps/whisper/whisper.cpp:45`).

@@ -31,6 +31,7 @@ address	name	evidence
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
 00461010	client_unit_dead_reset	ESI unit: clears +0xc4 bits 4 (and 2 without state 7), trims the COF list, sets stat 6 (life) to 0; FUN_00461250 commands 8 / 9 (collision.md "The client's command switch")
 00461180	skill_slot_reask	EAX unit, ESI slot {id, guid}, arg: FUN_006439b0 node, FUN_004610c0, slot id = node id, guid -1 when it changed (collision.md "The client's command switch")
+00461250	client_unit_command	fastcall (ECX command, EDX unit, record, flag) RET 8: prelude (skill list +0x14, FUN_004611f0, FUN_00620210, path restore) then the switch at 0x4616a4, mode set by FUN_00480e70 (collision.md "The client's command switch")
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
 00463dd0	client_player	no args: returns [0x7a6a70], the client's own player (collision.md "The client's command switch"; skills.md:1793)
 00463de0	client_player_b	no args: same body as FUN_00463dd0, returns [0x7a6a70] (skills.md:1806)
