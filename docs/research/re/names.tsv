@@ -1035,7 +1035,8 @@ address	name	evidence
 0063e860	unit_is_town_or_owned	(unit in ECX): type 1 whose MonStats row +0xd has npc (1) or inTown (4), else unit +0xc4 bit 31 (a player's pet) (collision.md "Building a path")
 0063e940	monster_is_demon	unit type 1, class in range, MonStats record (0x1a8 each) byte +0xd & 0x20 (missiles.md "Monster class test: demon")
 0063e990	monster_is_undead	unit type 1, class in range, MonStats record byte +0xd & 8 or & 0x10 (missiles.md "Monster class test: undead")
-00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
+0063ee90	hireling_kind	(unit): 0 for a null unit or not type 1; class 0x10f 1, 0x152 2, 0x167 3, 0x230 / 0x231 4, else 0 (combat.md "The pair percent"; ai.hpp Crushing Blow note: the same five classes; cited)
+00642860	drlg_vis_node_getfind-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00643290	pair_project	(int *a, int *b) in place: a = (a - b) >> 1, b = (a + b) >> 2 from the old values; path +8 / +0xc from the position >> 11 (collision.md "Building a path")
 00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
 00643690	skill_passivestate	(skill id) -> Skills record +0x94 passivestate if > 0, else 0 (also for an id outside [0, [0x744304]+0xba0)); skills.md "Skill accessors"
