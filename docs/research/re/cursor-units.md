@@ -306,3 +306,31 @@ that nothing was filled; after a 1 return with the flag changed it draws
 the name at (x, y − 0x48) with the width as `FUN_005022f0`'s last
 argument (`LAB_00455112`). Which monster class 0x164 is (356) was not
 traced: it is the class for which the pet list holds an owner.
+
+### A player's name (`FUN_00452af0`, 0x452af0, 234 bytes)
+
+`FUN_00452af0(ECX unit, EAX &width, EBX &flag, stack &dest, limit)` (`ret 8`;
+callers `FUN_00454f30` with limit 0x80, and `FUN_00453330`, not read).
+
+- The narrow name comes from `FUN_0047a210` (Roster.cpp): a null unit is
+  fatal (line 0x5db), so is a unit whose type (+0) is not 0 (line 0x5dc).
+  The roster entry of the unit's id (+0xc, `FUN_004792e0`) gives +0x66;
+  without one the player data (`d2d_player_data`, unit +0x14, line 0x5e5
+  when null) is read from its first byte as the name.
+- A player in mode 0x11 (a corpse; automap.md): width 0, flag 1. A 0x100-byte
+  local is zeroed, the name widened into it (`FUN_00526f20`, 0x80 units
+  at most, stops at the NUL), and `FUN_005272b0(dest, name, string 0x90b,
+  limit, style)` writes the label. The style is `FUN_00525150`, a value
+  below 0xe read once from a table (0 when 0xe or more); `FUN_005272b0`
+  switches on it (0..0xc, a jump table at 0x527628) to place the string
+  and the name, some with brackets. The string 0x90b and that switch were
+  not read.
+- Any other mode: the same width and flag as class 0x164's label above
+  (`(FUN_0047a6b0(id) << 7) / 100`, 0 for the local player; flag = hostile
+  or unknown, `FUN_0047a070`), then the name widened into `dest` (0x80
+  units).
+- The `jne` on a null unit (0x452b0b) is dead: `FUN_0047a210` has already
+  ended the run by then.
+
+So over a dead player's body the bar is empty and the name carries the
+0x90b string; a living player gets the plain name with a party life bar.
