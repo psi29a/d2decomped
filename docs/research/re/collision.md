@@ -459,6 +459,22 @@ happened, a player's queue (+0x150, +0x154, +0x158, +0x15c) is then zeroed
 leave it. What stat 0x148 counts was not traced. d2d: `tick.cpp` and
 `travel.cpp` cite the queue (above); the stat bump, the action 1/3 early
 return and the assert are not ported.
+### The pending interact's fields and its starters (`.\PLAYER\PlrModes.cpp`)
+
+Read in the asm (`tools/emu/disasm.py`, since the decompiler drops the register
+arguments), cited, not run. The functions are in the order they are met.
+
+- **`FUN_0057edd0`: may this mode start now?** EAX the unit, ECX the game, EBX the new mode
+  (`FUN_00580a70` LAB_00580ad8 to LAB_00580adc). A unit with a cursor item
+  (`FUN_0063c1e0` on its +0x60) and a new mode other than 0 and 0x11 gets 0. New mode 0 gets 1
+  (the byte table 0x57ee78, case 0). Any other goes by the unit's current mode (+0x10, byte
+  table 0x57eea8): 0, 4, 9 and 0x11 refuse (0); 7, 8, 10 and 0xb allow only
+  while `FUN_0057ed70` (game frame +0xa8 ≤ `FUN_005415a0(unit, 1)` + 5), or when the new mode
+  is 4 or 9; 0xc allows on `FUN_0057ed70` alone; 0xd refuses when unit +4 is 0; 0xf refuses
+  when unit +4 is 5; 0x12 asks `FUN_0057ed90` (a skill record byte +0x16 non-zero, else
+  `FUN_0057ed70`'s test); the other modes in the table read here allow. d2d's "a skill that comes mid-swing is
+  dropped" (net.cpp, net-packets.md) is the 7 / 8 / 10 / 0xb arm. **agrees** as far as that arm
+  goes; the other arms are not ported.
 
 ### How near the client walks
 
