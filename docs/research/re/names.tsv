@@ -32,6 +32,7 @@ address	name	evidence
 00461010	client_unit_dead_reset	ESI unit: clears +0xc4 bits 4 (and 2 without state 7), trims the COF list, sets stat 6 (life) to 0; FUN_00461250 commands 8 / 9 (collision.md "The client's command switch")
 00461180	skill_slot_reask	EAX unit, ESI slot {id, guid}, arg: FUN_006439b0 node, FUN_004610c0, slot id = node id, guid -1 when it changed (collision.md "The client's command switch")
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
+004647d0	unit_flag4_refresh	ECX unit: +0xc4 &= ~0x10000, then |= 4 unless a monster whose MonStats2 flag 9 is clear (collision.md "The client's command switch")
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")
 0046b680	client_spawn_missiles_11c	no args: client missiles of rows 0x11c, 0x128, 0x125 via FUN_004cd540, the first tagged 0x32 at data +0x28 (missiles.md "Client missile spawn: FUN_0046b680")

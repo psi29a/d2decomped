@@ -704,3 +704,9 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   d2d: agrees with skills.md "Attack's entry kept in the slot when it fell back"
   (`strike.cpp:300`, `Fight::ask`); the guid dropped when the id changes is not stated
   there, and d2d's side of it (`attack_charge`) was not compared.
+- **`FUN_004647d0`** (unit in ECX; callers `FUN_00453910`, `FUN_0045d4b0`, `FUN_0045d9b0`,
+  `FUN_0045db20` and `FUN_00461250` command 7): unit `+0xc4 &= ~0x10000`, stored; then
+  `+0xc4 |= 4` unless the unit is a monster (`*unit == 1`) whose MonStats2 flag 9
+  (`FUN_004638a0(unit[1], 9)`, the same flag test names.tsv `monster_flag_4638a0` is
+  built on) is clear. So a player, object or missile always gets bit 4; a monster only
+  with flag 9. What flag 9 and bit 4 mean is not traced. d2d: not ported.
