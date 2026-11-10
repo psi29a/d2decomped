@@ -517,7 +517,7 @@ address	name	evidence
 0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
 00554010	unit_game	ECX unit: server unit +0x80 (client units reuse it as a sound time; the game struct: +0x6d difficulty, +0x70 expansion); a null unit is a fatal assert id 0xa29 (combat.md "The game behind a unit")
 005466b0	quest_item_give	QUESTS.CPP 0x9d2: FUN_00633640 row, FUN_00559ce0 at the player's level, FUN_00560200 into the inventory else FUN_00558aa0 on the ground
-00548a50	player_walk_to_unit_queued	EBX unit, ECX game, EDI type, ESI id, stack marker (-1, or -2 held): FUN_00580a70 mode 3 then FUN_00641f20 sets pending +0x150 = 1, +0x154 marker, +0x158 type, +0x15c id (collision.md "The pending interact's fields")
+00548a50	player_walk_to_unit_queued	EBX unit, ECX game, EDI type, ESI id, stack marker (-1, or -2 when FUN_00548b00's fourth argument is set): FUN_00580a70 mode 3 then FUN_00641f20 sets pending +0x150 = 1, +0x154 marker, +0x158 type, +0x15c id (collision.md "The pending interact's fields")
 00558270	item_creation_descriptor	items-lifecycle.md: snapshot source item into 0x84-byte creation block
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
