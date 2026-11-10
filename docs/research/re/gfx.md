@@ -255,7 +255,7 @@ Changelog of what the checks changed in the rows above (each is also applied to 
 
 Not checked: the transform-state branch of `FUN_0046da60` / `FUN_0046d9f0` (unit
 `+0xc8` bit 3 set) and the three Gfx.cpp functions that d2d already ports,
-`FUN_00470390`, `FUN_00471620` and `FUN_00471ec0` (the unit draw: 33 to 44
+`FUN_00470390`, `FUN_00471620` and `FUN_00471ec0` (17 to 44
 callees each that need a live unit, room and renderer state; the port is
 exercised by the d2d game tests, not by an oracle). Static notes for the rows
 not named in the table above come from the decompile only.
