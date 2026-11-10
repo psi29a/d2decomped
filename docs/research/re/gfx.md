@@ -136,7 +136,7 @@ these are its pieces:
 | `FUN_004dabc0` | An item's cel name (EDI the request, ESI the item): on the ground (`+0x10` 3) a unique's / set's own `+0x3a` / `+0x42`; in the inventory (4) a set's `+0x62` invfile (flag 0x10 in `+4`) or the base's `+0x60`, a unique's `+0x5a` (flag 1) or the base's `+0x40`, else the base `+0x20` or a variant `FUN_0062e920` |
 | `FUN_004dad80` | A layer's weapon token (EBX the layer, ESI the unit): `lit ` past 15; with a crossbow (`xbw `) the right hand's alternategfx / code for layers 5, 6; with a bow (`bow `) `lit ` on 5; layer 7 `shh ` when state 0x65 and a shield (`FUN_0063c8f0`); else 0 |
 | `FUN_004dae60` | Has the unit layer n: player 0..4, 8, 9; monster the MonStats2 `+0xe8` bit; object Objects.txt `+0x151 + n`; missile layer 1 |
-| `FUN_004daf70` | A layer's draw type: player 0x10 (the local player, d2char.mpq present) or 8; monster MonStats2 `+0xf4 + layer`, 4 when 8 and the class slot is clear; object `+0x1a0`; type 6 the overlay's |
+| `FUN_004daf70` | A layer's draw type by EAX input: 0 gives 0x10 (the local player, d2char.mpq present) or 8; 1 uses MonStats2 `+0xf4 + layer`, 4 when 8 and the class slot is clear; 3 uses the record's `+0x1a0`; 6 uses the overlay's. A negative layer returns 1 |
 | `FUN_004db090` | COF layer n's byte 1 (9-byte layer records from `+0x1c`, byte 0 the layer id; 0 for a null header, n >= 16 signed, or no match, so a negative n never matches). `FUN_004db050` returns byte 3 the same way. Caller `FUN_00471620` |
 | `FUN_004db0d0` | COF layer n's byte 2 |
 | `FUN_004db180` | Is it a player, monster or object (type 0..2) |
