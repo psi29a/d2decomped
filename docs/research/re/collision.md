@@ -408,6 +408,224 @@ d2d (`World::use_warp`):
 All read from the code, no oracle. It takes a crowd or a blocked path on the way to a warp; how
 often wasn't measured.
 
+### The per-frame queue step (`FUN_00481600`, 0x481600, 277 bytes)
+
+Read from the decompile and disassembly (cited, no oracle run). The unit
+(ECX) must be a player (type 0) with player data (+0x14) and a queued
+action (+0x150 nonzero). Then, in this order:
+
+1. read action (+0x154), target type (+0x158) and id (+0x15c);
+2. find the target (`FUN_00463990`), and **clear the queue**
+   (`FUN_0045c470`) before anything else is tried;
+3. action 0x13 on a type 5 target (a tile): `FUN_0044daa0` and
+   `FUN_0044dad0` (not traced);
+4. no target, or action 0: stop (the queue stays cleared);
+5. target type 0: `FUN_00481400(action, 0, id)`; 1: `FUN_004814a0`; 2:
+   `FUN_004815a0`; a nonzero answer goes to `FUN_00481030`
+   (ECX action, EDX the player, then type, id, 0 on the stack, 0x481701
+   to 0x481709), zero ends it. Any other type (3, 4 an item, 5 a
+   tile): no range test, only the target's unit flag 2 (`FUN_00451f30`,
+   selectable): clear, `FUN_00467a70` (abandon); set, `FUN_00481030`.
+
+That is why an item or a warp is sent once and cannot wait for range, as
+"The server's pending interact" says. d2d: `tick.cpp:435-440` cites it
+for the NPC walk (target gone, retry through the walk code), no disagreement
+found; the type 5 pair `FUN_0044daa0` / `FUN_0044dad0` is not ported.
+
+### The action send (`FUN_00481030`, 0x481030, 601 bytes)
+
+Read from the decompile and disassembly (cited, no oracle run). ECX is the
+action, EDX the player, then the target type, id and a third value on the
+stack. `FUN_00480ba0` (not traced) must accept it first (0: return, nothing
+sent). The switch is on the action itself (`action - 1`, a byte index at
+0x4812b4 into a jump table at 0x48128c; 0x48107d to 0x481084). By action:
+
+| action | does |
+|---|---|
+| 1, 3 | with a player (type 0, data +0x14) whose queued action (+0x154) is already 0x13: return, nothing sent; else on to the send |
+| 2, 4 | on to the send |
+| 5, 8 | left skill (`d2d_left_skill`): its node id (`.\UNIT\UnitMode.cpp` line 0x32c) and `FUN_00643ad0` of it ride in the command |
+| 6, 7, 9, 10 | the same, line 0x336 |
+| 0xc, 0xf | right skill, line 0x33e |
+| 0xd, 0xe, 0x10, 0x11 | right skill, line 0x348 |
+| 0x13 | type 4 target found by `FUN_00463990` and its unit flag 2 (`FUN_00451f30`) clear: return (the queue is kept); else on |
+| any other (0, 0xb, 0x12, 0x14 up) | the assert, string id 0x352, `FUN_00681e09(-1)`: the game exits |
+
+The send is `FUN_00480c10(&command, 0)`; when it answers nonzero, actions 5 to
+0x11 (the skill ones) add 1 to the player's stat 0x148 (`FUN_006253b0`,
+`FUN_00627260`), and `FUN_00480b40(type, id, third)` goes out. Whatever
+happened, a player's queue (+0x150, +0x154, +0x158, +0x15c) is then zeroed
+(LAB_00481240, "abandoned" above). An action 1/3 early return, and the 0x13 one,
+leave it. What stat 0x148 counts is in missiles.md (the pierce seed), not traced here. d2d: `tick.cpp` and
+`travel.cpp` cite the queue (above); the stat bump is ported as `World::apply`'s
+`++actor->pierce_idx` for `cmd::UseSkill` (`commands.cpp`; its timing can differ from
+the client's); the action 1/3 early return and the assert are not ported.
+### The pending interact's fields and its starters (`.\PLAYER\PlrModes.cpp`)
+
+Read in the asm (`tools/emu/disasm.py`, since the decompiler drops the register
+arguments), cited, not run. The functions are in the order they are met.
+
+- **`FUN_0057edd0`: may this mode start now?** EAX the unit, ECX the game, EBX the new mode
+  (`FUN_00580a70` LAB_00580ad8 to LAB_00580adc). A unit with a cursor item
+  (`FUN_0063c1e0` on its +0x60) and a new mode other than 0 and 0x11 gets 0. New mode 0 gets 1
+  (the byte table 0x57ee78, case 0). Any other goes by the unit's current mode (+0x10, byte
+  table 0x57eea8): 0, 4, 9 and 0x11 refuse (0); 7, 8, 10 and 0xb allow only
+  while `FUN_0057ed70` (game frame +0xa8 ≤ `FUN_005415a0(unit, 1)` + 5), or when the new mode
+  is 4 or 9; 0xc allows on `FUN_0057ed70` alone; 0xd refuses when unit +4 is 0; 0xf refuses
+  when unit +4 is 5; 0x12 asks `FUN_0057ed90` (a skill record byte +0x16 non-zero, else
+  `FUN_0057ed70`'s test); the other modes in the table read here allow. d2d's "a skill that comes mid-swing is
+  dropped" (net.cpp, net-packets.md) is the 7 / 8 / 10 / 0xb arm. **agrees** as far as that arm
+  goes; the other arms are not ported.
+- **`FUN_0057eec0(game, unit, mode, flag, skill)`: may the player act?** Two callers
+  pass different arguments. It returns 0 for a unit in state 0x36 (`FUN_00639df0`), a null
+  unit, and a unit whose current mode (+0x10) is 0 or 0x11 (LAB_0057eed6). Past those, a zero
+  requested `mode` argument or a zero `flag` returns 1
+  (LAB_0057eff2). **The dispatcher** `FUN_0054d750` calls it as `(1, 0, 0)` (LAB_0054d7b0:
+  pushes 0, 0, 1), so for the ids read here, all but 0x14, 0x15, 0x3c, 0x43, 0x66 (no test) and 0x41 (only in
+  mode 0x11) the gate is those three tests and nothing else. **Walking is not one of them**,
+  so the "a walking player is busy" of network.md, `walk.cpp` and `World::apply`'s comment is
+  not what `FUN_0057eec0` reads; whatever drops a packet from a walking player is in the
+  handler, not traced here. **`FUN_00580a70`** calls it as `(mode, 1, skill)` (LAB_00580af6), and
+  then it goes on: the unit's skill list (`FUN_00620250`) and the skill record of its head
+  (`.\PLAYER\PlrModes.cpp` line 0xb9, `FUN_0045c4b0`); none of either returns 1. The skill
+  argument equal to the list head with record +0x2e 0x43 or 0x4c returns 1. With the record's
+  +7 flag (`[0x6ce284]`, 0x80 in the decompile) clear: current mode 1 calls `FUN_005809d0`
+  and returns 1; a new mode of 7, 8, 10, 0xb, 0xd or 0x12 returns `FUN_0057ed70`; else 0.
+  With the flag set: state 0x2a on the unit and its list's stat 0xa4 over a roll
+  (`FUN_0045c390(unit seed, 100)`) go to the mode test above; otherwise state 0xf absent returns 1,
+  present goes to the same mode test. The roll, the states and `FUN_005809d0` are not ported
+  or traced further. **DISAGREES** with d2d on what "busy" is (issue).
+- **`FUN_006248e0`: the log line.** Does nothing while `0x96ca48` is 0; else
+  `FUN_00624780` inside the critical section `0x96ca30` (stubs.md has its callers). Here only
+  `FUN_00580a70` uses it, for a target that is gone: `(1, 2, 4, 4, ".\PLAYER\PlrModes.cpp",
+  0x83a, "StartModeID: Bad Target")`, then it returns and the mode doesn't start (LAB_00580aaf).
+  The pending clear (next item) comes after this return, so it is skipped too. d2d: not ported
+  (a log line only).
+- **`FUN_00580a70(game, unit, skill, mode, type, id, skip)`: start a player mode at a target**
+  (stack [+8] skill, [+0xc] mode, [+0x10] target type, [+0x14] target id, [+0x18] skip;
+  LAB_00580a9c on). In order: a null game is a fatal message (0x835, then exit -1); the target
+  is found by `FUN_00552f60(game, type, id)` and a miss logs "StartModeID: Bad Target"
+  (`FUN_006248e0`) and returns; `FUN_0057edd0(unit, game, mode)` must allow it; and unless `skip`
+  is set `FUN_0057eec0(game, unit, mode, 1, skill)` must too (LAB_00580ad8 to LAB_00580afd).
+  Then, for a player (`*unit == 0`, data at unit +0x14), **it zeroes the pending interact's
+  +0x154 and +0x150** (LAB_00580b10, LAB_00580b21), so any mode start cancels a pending
+  interact; a non-zero `skill` is set on the unit (`FUN_00620210`); and the starter at
+  `0x6e1744 + mode * 8` is called `(mode, target unit)`. The starter pointer is checked with
+  `IsBadCodePtr` (fatal message 0x853) and the mode is not range-checked. d2d:
+  `components/game/world/objects.cpp` ports one use of it (the barrel's kick, `FUN_005868a0`);
+  the gate and the clear are not ported as such.
+- **`FUN_00548a50`: walk at a target and queue the interact.** Registers in: EBX the player
+  unit, ECX the game, EDI the target type, ESI its id, and one stack word, the marker (-1, or
+  -2 when `FUN_00548b00`'s fourth argument is non-zero: `neg / sbb / add -1`, LAB_00548c12;
+  that argument is 0 from C->S 0x13, `FUN_0054aa90`, and the "to cursor" word of 0x16,
+  `FUN_0054aad0`, so only an item's walk can carry -2). It calls
+  `FUN_00580a70(game, unit, 0, 3, type, id, 0)` (LAB_00548a5d: mode 3, no skill, the gates on),
+  then `FUN_00641f20(unit, marker, type, id)` whatever the first returned (LAB_00548a69). That
+  one, for a player only, sets **+0x150 = 1** (LAB_00641f37) and `FUN_00460780` stores
+  **+0x154 = marker, +0x158 = type, +0x15c = id**. So the pending interact is: flag, marker
+  (-1 or -2 as above; 0 or more takes `FUN_00580c20`'s other arm, not traced), the target's
+  type and id. `FUN_00580c20` reads them back (LAB_00580e47, LAB_00580e5c: id, then type,
+  and `edi == -2` as the fourth argument, LAB_00580e68). A refused first walk still leaves
+  the pending set. d2d: `walk.cpp` and `commands.cpp` `walk_to` start the walk, and this
+  reads the same, cited from the decompile, no oracle run (the warp's
+  `take_warp` is the pending); the marker, the type and the id have no counterpart in d2d's
+  fields. **reads the same** on the walk, **DISAGREES** on the limit (below).
+- **`FUN_00535060(unit)`: is the player busy?** 0 for a null unit or a non-player. Otherwise 1
+  when the interact flag (player data +0x6c, `FUN_00554100`: it also yields +0x68 the type and
+  +0x64 the id) is set, or when a cursor item is held (`FUN_0063c1e0` on unit +0x60); else the
+  value of player data +0x4c (`FUN_006221a0`). `FUN_00548b00` case 1 starts a talk only while
+  it returns 0 (LAB_00548dae), so a player with an open interact, an item on the cursor or +0x4c set
+  walks up but doesn't talk. d2d: act5.cpp (the last portal) and `town_npcs.hpp` name it for
+  the NPC-visitor and portal tests; d2d's talk start was not checked against the cursor-item and
+  +0x4c arms. **not ported** as one gate.
+- **`FUN_005678a0`: interacting with a player?** (EDX the unit; the stack word 1 the callers
+  push isn't read.) 1 when the unit's interact flag +0x6c is set, its type +0x68 is 0 and the
+  unit `FUN_00552f60` finds for +0x64 exists; else 0. `FUN_00548b00` case 0 asks it twice for a
+  dead player target (mode 0x11): of the player itself (EDX = the player, LAB_00548e39) and of
+  the corpse's owner (EDX = the target, LAB_00548e48). Only when both are 0 does it take
+  the corpse (`FUN_0057fb70`); otherwise `FUN_00566e60`.
+  `itemmode.md` cites `FUN_005678a0(1)` for the cube too, which this read does not show:
+  the test is on the interact's target type 0 (itemmode.md's "cube open" reading wants a
+  second look). d2d: the corpse take (`FUN_0057fb70`, `world.hpp`) was not checked for this
+  test; **not ported** as one.
+- **`FUN_0057fb70(game, taker, corpse)`: take a corpse** (ECX game, EDX the taker, stack the
+  corpse unit; `FUN_00548b00` case 0, LAB_00548e56). The corpse must be in state 7
+  (`FUN_00639df0`, LAB_0057fb80) and `FUN_0057faf0` must pass: the taker is a player and its
+  inventory owner (`FUN_0063d450` on the corpse's +0x60) is the taker, or the owner's unit is found
+  and `FUN_0055b300(1)` answers (not traced). When the corpse's owner id equals the taker's
+  (LAB_0057fbb2), its stat 0xd, if any, is zeroed (`FUN_00627260`) and added to the taker
+  (`FUN_0057eab0`): the experience comes back only to the owner. The items pass
+  (`FUN_00562f30`, combat.md "Taking one's corpse") follows; when it returns non-zero the
+  corpse leaves the taker's corpse list (`FUN_0063d4e0`, inventory.md), gets room event
+  `FUN_0061a270`, `FUN_00555600` frees it, and `FUN_00553380(taker)` runs; else
+  `FUN_00553380` alone. d2d: `take_corpse_items` reads the same on the experience and the items, cited from the decompile, no oracle run
+  (combat.md); the state 7 test and the second-owner arm were not checked.
+- **`FUN_00640e90(index)`: an Objects.txt row.** `[0x96d470] + index * 0x1c0` (the table base stored at 0x96d470) for an index from 0
+  below the count at `0x96d474`; an index at or over the count shows message 0xdd and one under 0
+  shows 0xde (`FUN_00408090`, `FUN_00408a60`), then exits -1 (`FUN_00681e09`). It returns 0 only if the table base at `0x96d470` is itself 0, so
+  the `== 0` test after it in `FUN_00548b00` case 2 (message 0x2bf, LAB_00548b3f) can't fire once the table is loaded.
+  The stride and base are the ones monster-ai.md already uses. d2d: not ported as a getter.
+- **`FUN_00548b00(player, type, id, to_cursor, game)`: interact with a unit, by type.** ECX the
+  player, EDX the type (over 5 returns 1; the jump table is at 0x548e8c), stack id, `to_cursor`,
+  game. It returns 0 when it acted (or walked), and also when it did nothing (case 1: an NPC 9 or
+  more away, or a `FUN_00535060`-busy player within 6), so 0 doesn't show that anything ran; 1 when the target is gone or past the 0x33
+  range of `unit_distance`, 3 from cases 2 and 4 only (below). Each walk in the cases below is
+  `FUN_00548a50` with the marker above. The cases, from the asm:
+  - 0 a player: over 8 walks; within 8 a dead one (mode 0x11) is taken (`FUN_0057fb70`) when
+    `FUN_005678a0` is 0 of both; else `FUN_00566e60`.
+  - 1 an NPC: first, when its MonStats row +0xd has bits 1 and 2, the talk's start
+    (`FUN_0058ec00(0x28)`, town-npcs.md "A talk's start"), before any distance test; over 6 and
+    under 9 walks, 9 and over does nothing (return 0, no walk); within 6, a player not
+    `FUN_00535060`-busy talks (`FUN_00573020`).
+  - 2 an object: its mode (+0x10) over 7 returns 3; within 0x33, a failed reach test
+    (`FUN_00622b50(player, unit, 0x804)` blocked, or the object-reach test) walks, else
+    `FUN_00584540(2, id)` operates it (it returning 0 gives 3).
+  - 4 an item: only in mode 3 (on the ground); under 5 with a clear 0x804 line it is picked up
+    (`FUN_00563560` to the bags, or `FUN_0055cf50` to the cursor when `to_cursor`), and a non-zero
+    result there returns 3; else it walks.
+  - 5 a warp: `FUN_00641530` over 0x32 returns 1, over 4 walks, else `FUN_005550b0`.
+  Nothing in it tests that the player is walking. d2d: the cases are ported in `walk.cpp`,
+  `net.cpp` and `world/` by the doc rows that cite it (collision.md above, net-packets.md 786,
+  drlg.md 1645); the walks of these cases share the two-walk limit above, which d2d lacks. **DISAGREES**
+  only there (todo 47).
+- **`FUN_00580c20(game, unit)`: a walking or running player's frame** (a function-table entry,
+  data refs at 0x732c18, 0x732c1c, 0x732c28, 0x732c5c). In order: `FUN_00553490`; state 0xd on
+  gives `FUN_005c9d90`; in mode 3 with no stamina drain `FUN_0057f090` (tick.cpp's stamina);
+  `FUN_00554ca0`, which returns 2 once the step update stops (`FUN_00650840` says no more path,
+  as "A walk's stop" above) and 1 while it walks; the footstep ring (player data +0xa0 cursor, +0xa4
+  time, 20 pairs at +0xa8): a point 25 ms on from the last and over 0x2d squared from the
+  previous one is stored (tick.cpp's `footstep`, which reads the same: cited from the decompile, no oracle run). **Only at 2** does the pending
+  interact matter, and nothing runs between steps. Unit and its player data present and
+  +0x150 set (the arms from LAB_00580e28):
+  - marker +0x154 below 0: `FUN_0057f020(1, 0, 0)` (idle), then `FUN_00548b00(unit, type
+    +0x158, id +0x15c, marker == -2, game)` (LAB_00580e73). Out of reach that is `FUN_00548a50`
+    again, a second walk with +0x150 set again.
+  - then, after the marker arm above, **+0x150 is zeroed** (LAB_00580e88; the marker, type and id stay).
+  - marker 0 or more: a skill use (`FUN_006439f0`, `FUN_00643860`, `FUN_00580a70`), not traced.
+  With +0x150 clear it goes idle (`FUN_0057f020(1, 0, 0)`, LAB_00580e9a) and the walk is over.
+  So the server makes at most two walks for one interact packet: the second one's end finds
+  +0x150 zero. The client's re-issue ("What keeps a walk to a unit going: the client") is
+  separate and has no count, so a click on an NPC or object can add more walks. d2d's `use_warp` / "Short of the target with a step made" (tick.cpp,
+  travel.cpp) re-plans from the stop each tick while a step is made, with no count (todo 47;
+  how often `use_warp` tests was not re-checked here), so it **DISAGREES** in two ways. A crowded route (a stop short of the
+  point with a step made) that takes game.exe two walks takes d2d as many as it needs; a blocked one
+  ends d2d's walk at once (above, since #226), one walk where game.exe has two. And d2d tests the
+  warp's reach every tick, game.exe only when the packet comes and when a walk ends (above). Read, not run; the oracle phase would
+  call `FUN_00580c20` with a stub path.
+- **`FUN_005868a0(op)`: a barrel opened** (OperateFn 5; `op` +0 the game, +4 the object unit, +8
+  the operator, +0xc its random seed, +0x10 the object id). Only for an object unit that is
+  null or in mode 0. A player operator (`*op[2] == 0`) with a skill node
+  `FUN_006439b0` finds for skill id 1 (edx = 1, arg -1, LAB_005868d5) kicks it:
+  `FUN_00620c10(operator, object)`, then `FUN_00580a70(game, operator, node, FUN_00644360(node),
+  2, object id, 0)` (LAB_0058690e: the kick's mode from the skill, target type 2, the gates on). That
+  is the one place in this package where `FUN_00580a70` has an object target. Then, for
+  anyone: `FUN_00624690(object, 1)`, object flag +0xc4 bit 1 cleared, `FUN_00623830`;
+  one draw of the seed (`seed * 0x6ac690c5 + hi`, the 64-bit step of drops.md): `% 10000` with a bit
+  set over 0x1fff gives `FUN_005474c0` and `FUN_00582280` (the undead); a second draw `% 100 <
+  0x15` the chest round; and event 1 queued (`FUN_005417d0(1, game frame +0xa8 + 1 + (Objects row
+  +0xdc >> 8), 0, 0)`, the row by `FUN_00640e90`). d2d: `objects.cpp` (the kick) and
+  drops.md "Casket ... Barrel (5)" (the two draws) read the same, cited from the decompile, no oracle run.
+
 ### How near the client walks
 
 FUN_00480c80, FUN_00481600's test, for an interact (action 0x13) stops the
@@ -446,6 +664,23 @@ play, and with real X button events on Warriv: held 120 ms, 2 of 8 talked; 0 ms,
 d2d re-plans a walk to a spot that runs out short while it moves ("Short of the
 target with a step made", `tick.cpp`), so one click can walk farther than game.exe's
 does. A blocked one ends there since #226.
+
+### The mouse-button state words (FUN_0044da40 clears them)
+
+Six words, a column for the left button and one for the right:
+
+| | Left | Right | Written by |
+|---|---|---|---|
+| Phase: 4 pressed, 8 held, 0x10 up | `0x70f234` | `0x70f2bc` | left: `FUN_0044bf40` (4, 0x44bf43), `FUN_0044c000` (8, 0x44c007), `FUN_0044c060` (0x10, 0x44c060); right: `FUN_0044c180` (4, 0x44c184), 8 at 0x44c2c7, 0x10 at 0x44c342 and 0x44c373 (and 0x44c665) |
+| The press was taken (the held-frame test) | `0x7a0650` | `0x7a0654` | left: `FUN_0044bf40` sets 1 (0x44bf65), then the `FUN_00462d00` result (0x44bfb9), `FUN_0044c060` clears; right: 1 at 0x44c249, the result at 0x44c27e. The frame `FUN_0044efa0` calls `FUN_0044c000` / the right-hand hold code at 0x44c2c0 while they are nonzero (0x44f031..0x44f046) |
+| Hold started (left) / not traced (right) | `0x7a066c` | `0x7a0670` | left: `FUN_0044c000` sets 1 (0x44c025), `FUN_0044c060` clears; `FUN_0044bfe0` returns it (the belt popup's mouse test, menu.md). Right: set to 1 at 0x44c2dc, 0x44c351, 0x44c387 and 0x44c675, cleared nowhere read; its meaning is not traced |
+
+`FUN_0044da40` (no arguments, 42 bytes) puts both phases back to 0x10 and the other four
+words to 0, then tail-jumps to `FUN_00466fe0` (clears 0x7a6a94 / 0x7a6a98, the
+cursor's unit target, cursor-units.md): the "no button is down" reset. The same four
+words are also stored inline at 0x44e4c0..0x44e4cf and 0x44e565..0x44e577 (values not read).
+Its callers in `game-calls.tsv` include `FUN_004b4380` (an NPC menu opening, 0x4b4438) and the
+panel openers `FUN_00461250`, `FUN_0047d840`, `FUN_00489e00`, `FUN_0049cf90`, `FUN_004a10e0`.
 
 ### What a held frame sends
 

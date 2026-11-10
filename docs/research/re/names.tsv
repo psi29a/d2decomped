@@ -21,6 +21,7 @@ address	name	evidence
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
 00451f30	unit_flags_c4_any	ECX unit, EDX mask: unit +0xc4 & mask != 0; null unit false (cursor-units.md "Unit flag test")
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
+0044da40	mouse_buttons_reset	0x70f234 = 0x70f2bc = 0x10 (both buttons up), 0x7a0650 / 0x7a0654 / 0x7a066c / 0x7a0670 = 0, then jumps to FUN_00466fe0 (collision.md "The mouse-button state words")
 0044bf00	global_70f234_get	no args: returns the dword at 0x70f234; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044bf10	global_70f2bc_get	no args: returns the dword at 0x70f2bc; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044dca0	ladder_or_one	no args, 24 bytes: game type at 0x7a0610 is 2 or 3 returns dword 0x7a04f8 (S->C 0x01 byte +7, ladder), else 1 (net-join.md)
@@ -373,6 +374,7 @@ address	name	evidence
 00520440	bnqueue_clear	frees every node; FUN_0051c470 (close)
 00526100	utf8_decode	table at 0x7309b8 (mask, value, value mask, minimum); 10xxxxxx continuations
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
+00535060	player_busy	fastcall (unit): 0 for null / non-player; 1 when the interact flag (+0x6c, FUN_00554100) or a cursor item (FUN_0063c1e0 on +0x60) is set, else player data +0x4c; FUN_00548b00 case 1 talks only on 0 (collision.md "The pending interact's fields")
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
 00526f20	narrow_to_wide	ECX dst u16*, EDX src bytes, stack count (ret 4): each byte zero-extended, stops at the NUL or count; then dst[i] = 0, or dst[count-1] = 0 when src[count] is not 0 (cursor-units.md)
@@ -516,6 +518,8 @@ address	name	evidence
 0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
 00554010	unit_game	ECX unit: server unit +0x80 (client units reuse it as a sound time; the game struct: +0x6d difficulty, +0x70 expansion); a null unit is a fatal assert id 0xa29 (combat.md "The game behind a unit")
 005466b0	quest_item_give	QUESTS.CPP 0x9d2: FUN_00633640 row, FUN_00559ce0 at the player's level, FUN_00560200 into the inventory else FUN_00558aa0 on the ground
+00548a50	player_walk_to_unit_queued	EBX unit, ECX game, EDI type, ESI id, stack marker (-1, or -2 when FUN_00548b00's fourth argument is set): FUN_00580a70 mode 3 then FUN_00641f20 sets pending +0x150 = 1, +0x154 marker, +0x158 type, +0x15c id (collision.md "The pending interact's fields")
+00548b00	player_interact_unit	ECX player, EDX type 0..5, stack id, to_cursor, game: within 0x33 of unit_distance, by type: 0 player (corpse FUN_0057fb70), 1 NPC (talk FUN_00573020), 2 object (FUN_00584540), 4 item (FUN_00563560 / FUN_0055cf50), 5 warp (FUN_005550b0); out of reach walks by FUN_00548a50 (collision.md "The pending interact's fields")
 00558270	item_creation_descriptor	items-lifecycle.md: snapshot source item into 0x84-byte creation block
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
@@ -585,6 +589,7 @@ address	name	evidence
 00563840	cube_empty	page 3 items to inventory or ground (ItemMode.cpp 0x80d..0x8ee)
 00563c00	cursor_item_drop_at_feet	ItemMode.cpp 0x833/0x834/0x837/0x85b/0x85e: cursor item (type 4, mode 4) to FUN_00555da0's spot via FUN_00558aa0, cursor cleared
 00563fe0	item_transmogrify	Items +0x139, +0xc8, +0x13a/+0x13b
+005678a0	unit_interacts_with_player	EDX unit: interact flag +0x6c set, type +0x68 = 0 and FUN_00552f60 finds +0x64; FUN_00548b00 case 0 asks it of the player and of a corpse before FUN_0057fb70 (collision.md "The pending interact's fields")
 0056d2c0	skill_target_point	fastcall (game, caster, out x, out y) -> 1 when both non-zero: the caster path's target unit (FUN_00553540) position, else the path's target words (+0x10 / +0x12); skills.md "The skill target point"
 0056de40	passives_then_pet_limits	fastcall (unit): FUN_00646f20, then a player (type dword +0 is 0) tail-jumps to FUN_00575900 with unit +0x80 in ECX; skills.md
 0056b3e0	unit_takes_filter	ECX caster, EDX target, stack flags: by target type (player 0x1, monster 0x2, object 0x10, missile 0x8, item 0x20) then 0x80/0x400 unit flags, 0x100 town, 0x10000/0x8000/0x20000, state 0x56, 0x200 line (skills.md "aurafilter")
@@ -597,6 +602,12 @@ address	name	evidence
 0057a980	unit_life_back	(points on the stack, unit in a register): 0 when points < 1, unit dead (FUN_005541b0) or in state 0x5c; else stat 6 + points capped at stat 7, returns max - cur when capped (combat.md "Life back")
 0057aa00	unit_mana_back	(points on the stack, unit in EDI): stat 8 + points capped at stat 9 (FUN_00625d60), returns max - cur when capped; no dead test (combat.md "Mana back")
 00580ec0	player_death_mode	died bit FUN_00538650, losses FUN_00535ab0, ear FUN_0055a200 on a player's kill (combat.md Death)
+0057edd0	player_mode_may_start	EAX unit, ECX game, EBX new mode: 0 with a cursor item (unless mode 0 / 0x11), else by the unit's mode +0x10 (byte table 0x57eea8; 7, 8, 10, 0xb need FUN_0057ed70 or new mode 4 / 9) (collision.md "The pending interact's fields")
+0057eec0	player_may_act	fastcall (game, unit, mode, flag, skill): 0 for state 0x36, a null unit, mode 0 / 0x11; the dispatcher FUN_0054d750 calls it (1, 0, 0) so that is all it tests there; FUN_00580a70 adds the skill record test (collision.md "The pending interact's fields")
+0057fb70	player_take_corpse	ECX game, EDX taker, stack corpse: corpse state 7 and FUN_0057faf0, stat 0xd back to the owner only (FUN_0057eab0), items FUN_00562f30, then FUN_0063d4e0 / FUN_00555600 once emptied (collision.md "The pending interact's fields")
+00580a70	player_start_mode_at	fastcall (game, unit, skill, mode, type, id, skip): target by FUN_00552f60 (miss logs "StartModeID: Bad Target", PlrModes.cpp 0x83a), gates FUN_0057edd0 and FUN_0057eec0, zeroes a player's pending +0x154 / +0x150, calls the starter at 0x6e1744 + mode * 8 (collision.md "The pending interact's fields")
+00580c20	player_walk_frame	fastcall (game, unit), table entries 0x732c18 / 0x732c1c / 0x732c28 / 0x732c5c: FUN_00554ca0 returns 2 at a stop; with pending +0x150 set and marker < 0 idle then FUN_00548b00, then +0x150 = 0, else idle; footstep ring +0xa0..+0xa8 (collision.md "The pending interact's fields")
+005868a0	object_barrel_opened	OperateFn 5, op = (game, object, operator, seed, id): a player operator kicks (skill id 1 node FUN_006439b0, FUN_00580a70 at the barrel as type 2), then the undead draw (% 10000 over 0x1fff: FUN_005474c0, FUN_00582280), the % 100 < 0x15 round, event 1 (FUN_005417d0) (drops.md, collision.md "The pending interact's fields")
 0057aae0	unit_stun	(attacker, length; struck unit in EDI): length < 1 nothing; special monster 90 % shrug on the attacker's seed, boss, Velocity 0 immune; cap 250 (hireling 13); state 0x15 to game frame + length (skills.md "Stun")
 00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")
 00574930	pet_send_to_client	per-client callback of FUN_005538d0: event {+0 pet id, +4 owner id, +8 class, +0xc row, +0x10/+0x14 words}; both words 0 sends 0x7a (FUN_0053cb30) else 0x81 (FUN_0053cb80) (pet-ai.md "The owner's pet lists")
@@ -956,6 +967,7 @@ address	name	evidence
 006238c0	unit_face_path_target	FUN_00648810 or FUN_00621dc0 (Units.cpp 0xe83)
 00623990	skill_weapon	Skills +0x168 picks the hand; FUN_0062a4e0
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
+006248e0	log_line_locked	cdecl (a, b, c, d, file, line, format): with 0x96ca48 set, FUN_00624780 between EnterCriticalSection / LeaveCriticalSection on 0x96ca30; FUN_00580a70 calls it (1, 2, 4, 4, ".\PLAYER\PlrModes.cpp", 0x83a, "StartModeID: Bad Target") (stubs.md, tools/emu/profile_dump.py)
 00624f40	stat_array_of	EAX list: list+0x48 when flag 0x80000000 is set, else list+0x24 (the {array, count} pair)
 00625250	stat_list_owner_type	stat list +8; null 6
 006252b0	stat_list_owner_id	stat list +0xc; null 0
@@ -1140,6 +1152,7 @@ address	name	evidence
 0063e860	unit_is_town_or_owned	(unit in ECX): type 1 whose MonStats row +0xd has npc (1) or inTown (4), else unit +0xc4 bit 31 (a player's pet) (collision.md "Building a path")
 0063e940	monster_is_demon	unit type 1, class in range, MonStats record (0x1a8 each) byte +0xd & 0x20 (missiles.md "Monster class test: demon")
 0063e990	monster_is_undead	unit type 1, class in range, MonStats record byte +0xd & 8 or & 0x10 (missiles.md "Monster class test: undead")
+00640e90	objects_row	stdcall (index) -> 0x96d470 + index * 0x1c0 for 0 <= index < the count at 0x96d474; else message 0xde (index < 0) or 0xdd, then exit -1; never 0 (collision.md "The pending interact's fields")
 0063ee90	hireling_kind	(unit): 0 for a null unit or not type 1; class 0x10f 1, 0x152 2, 0x167 3, 0x230 / 0x231 4, else 0 (combat.md "The pair percent"; ai.hpp Crushing Blow note: the same five classes; cited)
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00643290	pair_project	(int *a, int *b) in place: a = (a - b) >> 1, b = (a + b) >> 2 from the old values; path +8 / +0xc from the position >> 11 (collision.md "Building a path")
