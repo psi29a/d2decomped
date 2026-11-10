@@ -64,6 +64,8 @@ Cached in bncache.dat as `BNNews-D2DV` (pointer at `0x72ff80`).
 
 | Address | What |
 |---|---|
+| `FUN_0051d2f0` | Selects the array growth step; for requested sizes ≥ 8 stores and returns 8 |
+| `FUN_0051d330` | Rounds the first unsigned argument up to a multiple of the second (nonzero) |
 | `FUN_0051d370` | Saves the unread items to the cache: newest, count (fatal over 0xff), then timestamp + string each; texts ≥ 0x400 abort |
 | `FUN_0051d510` | Calls the header callback (`0x881c2c`) once, then the item callback (`0x881c28`) once per unread item |
 | `FUN_0051d590` | Array deleting destructor; orphan (stubs.md) |
@@ -75,6 +77,7 @@ Cached in bncache.dat as `BNNews-D2DV` (pointer at `0x72ff80`).
 | `FUN_0051d810` | Array set count (grows rounded up) |
 | `FUN_0051d860` | The 0x46 reply (handler `0x521210` is a `JMP` here): signed byte count (0x80–0xff take the fatal guard), u32 at `+5` oldest, u32 at `+9` newest, then u32 timestamp + string each. Timestamp 0 is the MOTD: it calls the item callback and isn't stored. Others replace an item with the same timestamp or insert in order. Then marks the first item at or after the oldest, saves (`FUN_0051d370`) and calls back (`FUN_0051d510`) newest first. See [bnnews-reply.md](bnnews-reply.md) for stock execution and limits |
 | `FUN_0051da30` | Loads the cache copy; keeps it only if it has ≤ 0x100 items in timestamp order, else clears the list |
+| `FUN_0051dbf0` | Sets callbacks, resets state, loads and optionally reports the cached list, then sends 0x46 with the newest timestamp |
 
 ## BnSend.cpp leftovers
 

@@ -53,6 +53,8 @@ def run():
         require(m.mu.reg_read(UC_X86_REG_ESP) == emu.STACK + emu.STACK_SIZE - 0x1000, "stack cleanup")
         return result
 
+    for number, step, expected in [(0, 4, 0), (8, 4, 8), (9, 4, 12), (10, 3, 12)]:
+        require(call(0x51D330, number, step) == expected, "round up")
     for n, expected in [(0, 1), (1, 1), (2, 2), (3, 2), (4, 4), (7, 4), (8, 8), (20, 8)]:
         m.w32(header + 12, 0)
         require(call(GROW, n) == expected, f"growth step for {n}")

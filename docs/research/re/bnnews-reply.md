@@ -49,3 +49,15 @@ capacity 8 for four more; an exact reserve grows count 4 to capacity 9 for
 five more. The deleting destructor frees its header only when flag bit 0 is
 set. This synthetic allocator cannot establish behavior of a real heap,
 allocation failures or arithmetic overflow.
+
+## Subscription initialization
+
+[`bnnews_init.py`](../../../tools/emu/bnnews_init.py) runs `FUN_0051dbf0`
+with scripted cache loading, notification, freeing and sending. It stores
+the supplied item and header callbacks, marks the subsystem active, frees an
+existing array and resets its capacity, count, data, first index and newest
+timestamp. It attempts to load the cache and calls notification on successful
+load, then sends packet 0x46 with the resulting newest timestamp as a
+little-endian dword. The function returns 1 in both tested load outcomes,
+even when the hooked sender reports failure. This establishes the tested
+call sequence, not actual cache, callback or socket behavior.
