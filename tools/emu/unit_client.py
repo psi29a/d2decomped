@@ -53,7 +53,7 @@ MUTATIONS = (
     "clear-one-table", "mon-data-34", "mon-mask-swapped", "mon-type-2", "global-set-wrong", "dispatch-index-swap",
     "find-no-fatal", "find-table-swap", "remove-keeps-head", "remove-last-return", "remove-type4-no-hook",
     "iter-bucket-127", "iter-reverse", "iter-tables-swapped", "target-index-3f", "target-type-shift-8",
-    "warp-null-continues", "warp-args-swapped", "seq-logical-shift", "seq-anim-11", "seq-ready-strict",
+    "create-null-continues", "create-args-swapped", "seq-logical-shift", "seq-anim-11", "seq-ready-strict",
     "event-free-skips-last", "event-alloc-pool-0x10", "event-alloc-no-prev-link", "event-alloc-fields-swapped",
     "event-remove-state-ignored", "event-remove-head-keeps", "alive-player-mode-10", "alive-object-bit1",
     "alive-missile-flag", "alive-item-mode-2", "alive-monster-flag",
@@ -586,7 +586,7 @@ def check_iterate(rig, rng):
 
 
 def check_target(rig, rng):
-    """FUN_004643f0 (unit, ECX; type EDX; stack id: FindUnit in table A, then FUN_00620c10) and FUN_004661c0 (warp)."""
+    """FUN_004643f0 (unit, ECX; type EDX; stack id: FindUnit in table A, then FUN_00620c10) and FUN_004661c0 (client_unit_create)."""
     for _ in range(60):
         sc = Scene(rig, rng)
         sc.unit = sc.block(0x100)
@@ -612,16 +612,16 @@ def check_target(rig, rng):
         a = [rand32(rng) for _ in range(6)]
         rig.script["alloc-unit"] = rng.choice((0, rng.randrange(1, 1 << 32)))
         rig.script["init-common"] = rand32(rng)
-        if rig.script["alloc-unit"] == 0 and not mut("warp-null-continues"):
+        if rig.script["alloc-unit"] == 0 and not mut("create-null-continues"):
             want, log = ("ret", 0), [("alloc-unit", 0, a[4])]
         else:
             want = ("ret", rig.script["init-common"])
             # stock: ECX / EDX are args 0 / 1, stack a[2] a[3] a[4] a[5] (a[0] id in EBX), then 0
             log = [("alloc-unit", 0, a[4]), ("init-common", rig.script["alloc-unit"], a[2], a[0], a[1], a[3], a[4], a[5], 0)]
-            if mut("warp-args-swapped"):
+            if mut("create-args-swapped"):
                 log[1] = ("init-common", rig.script["alloc-unit"], a[2], a[1], a[0], a[3], a[4], a[5], 0)
         got = rig.go(0x46_61C0, a[2], a[3], a[4], a[5], ecx=a[0], edx=a[1], regs={"ebx": 0x1234})
-        verify(rig, "warp", got, want, log)
+        verify(rig, "create", got, want, log)
 
 
 def check_sequence(rig, rng):
@@ -717,6 +717,12 @@ def check_events(rig, rng):
                 require(rig.m.read(address, 0x20) == bytes(data), f"event node {address:#x} differs after alloc")
             require(rig.m.r32(sc.unit + 0x90) == head, "event head after alloc")
         rig.script["event-pool"] = rand32(rng)
+        if not mem:
+            # FUN_004dc190 on an empty list: no pool lookup, no free, head stays 0.
+            got = rig.go(0x4D_C190, rng.randrange(3), ecx=sc.unit, edx=rng.randrange(3))
+            require(got[0] == "ret" and rig.log == [], f"event remove on empty list {got} {rig.log}")
+            require(rig.m.r32(sc.unit + 0x90) == 0, "empty event list stays empty")
+            CASES_BUMP()
         if mem:
             ordered, cur = [], head
             while cur:

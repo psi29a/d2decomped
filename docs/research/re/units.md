@@ -197,8 +197,8 @@ of `.\UNIT\CUnit.cpp`). `names.tsv` has the rows. Planted model defects
 (61) are each caught by `--mutation-check`; stock game.exe 1.14d only.
 
 Layout the oracle settled: the client keeps two hash tables of units,
-table A `0x7a5e70` and table B `0x7a5270` (redivivus calls them server-side and client-side, but contradicts itself: unverified, see unverified.md), each six unit types of
-0x200 bytes (0x80 chain heads); a chain runs through `+0xe4`, a node has its
+table A `0x7a5e70` and table B `0x7a5270` (role labels unverified, see
+unverified.md), each six unit types of 0x200 bytes (0x80 chain heads); a chain runs through `+0xe4`, a node has its
 type at `+0`, its id at `+0xc`, the bucket is `id & 0x7f`.
 
 | Function | What it does |
@@ -217,7 +217,7 @@ type at `+0`, its id at `+0xc`, the bucket is `id & 0x7f`.
 | `FUN_00464860` | dead by type: player mode 0x11, monster mode 0xc without `FUN_004638a0(class, 0x14)`; object row byte `+0x1b7 & 2`, or mode 2 with `+0x1b7 & 1`; missile flag 0x10000; item mode 3 (on the ground) |
 | `FUN_00464a10` / `00464a30` / `00465400` / `00464930` | first type 5 unit on the `+0xe8` chain; warp name through `FUN_0061a1d0` and `FUN_0061db70 + 0x1be`; party id (type 0 only, else `EAX \| 0xffff` with EAX's upper half kept); frees the light map `+0x64` |
 | `FUN_00465e80` / `00465ee0` / `00465f00` | unlink the first node matching id and type (ECX bucket, EDX table, EDI type, EBX id; the wrappers take id and type and pick table A `0x7a5e70` / B `0x7a5270`). A type 4 node first goes through `FUN_004879d0`, then `FUN_00465870` frees it. EAX on return is `FUN_00465870`'s result, or the last node of the chain when nothing matched (0 for an empty bucket) |
-| `FUN_004661c0` (`client_unit_create`) | creates a unit from a packet: `FUN_00620290(0, type)`, then `FUN_00465fd0` with EAX = the new unit and EBX the first stack argument; no unit, 0 |
+| `FUN_004661c0` (`unit_create`) | `FUN_00620290(0, type)`, then `FUN_00465fd0` with EAX = the new unit and EBX the first stack argument; no unit, 0 |
 | `FUN_004ae080` / `004ae110` / `004ae320` ... `004ae3a0` | monster data word `+0x28` & mask, data `+0x30`, `FUN_004ac7e0(unit, 4 / 0x40 / 8 / 0x10 / 2)` for monsters only; `FUN_004ade40` ... `004ade70` call `FUN_004add90(unit, 0, 0..3)`; `FUN_004ccf20` / `004ccf30` store / read `0x72a348` |
 | `FUN_004dc110` / `004dc190` / `004dc0c0` | unit event list at `+0x90` (nodes 0x20 bytes, next at `+0x1c`, previous at `+0x18`): add at the head from the unit's pool (`+8`, line 0x48), remove every event of a type and state (line 0x80), free all (0x2f) |
 
