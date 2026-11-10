@@ -554,6 +554,7 @@ It takes no arguments and always returns 1. Its calls, in order (0x4fa550..0x4fa
 
 | Address | What | Evidence |
 |---|---|---|
+| `FUN_004f9290` | Frees the leading nodes of the list at `DAT_007d55c0`. Does nothing, returns 1, when `DAT_007d55c4` is above 0 (signed, `jg`) or the head is null; `FUN_004fa550` zeroes `DAT_007d55c4` first. A node has its flags at +8 and its next link at +0x3c (the link `FUN_004f98e0` follows from `DAT_007d55bc`). Pass 1: while the head's flags lack bit 1 (mask dword 0x6ce268, value 1), save the next link, free the head with the debug free `FUN_0040b3c0(node, ".\Src\D2WinMain.cpp", 0x25a, 0)`, make the next link the head; a null head ends it. Pass 2 from the node that stopped pass 1: the same with bit 2 (mask dword 0x6ce26c, value 2) and line 0x263. It stops at the first node holding bit 2. Always returns 1. Also called at the end of `FUN_004f98e0` (the per-frame draw) when `DAT_007d55d8` is 0. | `python3 tools/ghidra/fn.py 004f9290`, `uv run --project tools/emu python tools/emu/disasm.py 4f9290` |
 | `FUN_004f59a0` | A getter: `mov eax, [0x7c8cbc]`, no arguments. `FUN_004fa550` pushes 0x21 before the call and never pops it: the 0x21 is the count argument of `FUN_00506e00` (`ret 4`), and the getter's result goes to that function's ECX. | `python3 tools/ghidra/fn.py 004f59a0`, `uv run --project tools/emu python tools/emu/disasm.py 4fa550` |
 
 ## Save-back (S->C 0xb3)
