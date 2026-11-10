@@ -71,6 +71,18 @@ proven.
 
 ## The floor draw's helpers (`FUN_004de410` and what it calls)
 
+- **`FUN_00472280`** (`tools/emu/disasm.py 472280`) is the seeded roll the
+  splash and bubble spawns use: ECX the seed pair {low at +0, high at +4},
+  EDX a base, one stack argument n (`ret 4`; the decompile shows only n).
+  For n < 1 it returns EDX and leaves the seed alone. Otherwise the seed
+  becomes low × 0x6ac690c5 + high (64-bit: new low from the low word, new
+  high from the carry word) and the result is EDX + (new low & (n − 1)) when
+  n is a power of two, else EDX + new low % n. The spawns call it with EDX 0
+  (`xor edx, edx` at 0x472e0b in `FUN_00472da0`), so it is a plain roll
+  there. d2d reads the same, cited from the decompile, no oracle run:
+  `rules::Rng::operator()` (rules.hpp, the same step,
+  mask for powers of two, `%` otherwise, 0 below 1). rules.hpp cites
+  `FUN_0045c370` for the step; that function was not compared here. Cited.
 - **`FUN_00477730`** returns `DAT_00712ccc`, the driver option that
   lighting.md "Drawing with it" splits at 4: `FUN_004de410` takes the
   software light table (`FUN_004ddef0`) when it is below 4 and the 3D
