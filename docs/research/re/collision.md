@@ -497,8 +497,21 @@ arguments), cited, not run. The functions are in the order they are met.
   `FUN_00624780` inside the critical section `0x96ca30` (stubs.md has its callers). Here only
   `FUN_00580a70` uses it, for a target that is gone: `(1, 2, 4, 4, ".\PLAYER\PlrModes.cpp",
   0x83a, "StartModeID: Bad Target")`, then it returns and the mode doesn't start (LAB_00580aaf).
-  The pending clear (below) comes after this return, so it is skipped too. d2d: not ported
+  The pending clear (next item) comes after this return, so it is skipped too. d2d: not ported
   (a log line only).
+- **`FUN_00580a70(game, unit, skill, mode, type, id, skip)`: start a player mode at a target**
+  (stack [+8] skill, [+0xc] mode, [+0x10] target type, [+0x14] target id, [+0x18] skip;
+  LAB_00580a9c on). In order: a null game is a fatal message (0x835, then exit -1); the target
+  is found by `FUN_00552f60(game, type, id)` and a miss logs "StartModeID: Bad Target"
+  (`FUN_006248e0`) and returns; `FUN_0057edd0(unit, game, mode)` must allow it; and unless `skip`
+  is set `FUN_0057eec0(game, unit, mode, 1, skill)` must too (LAB_00580ad8 to LAB_00580afd).
+  Then, for a player (`*unit == 0`, data at unit +0x14), **it zeroes the pending interact's
+  +0x154 and +0x150** (LAB_00580b10, LAB_00580b21), so any mode start cancels a pending
+  interact; a non-zero `skill` is set on the unit (`FUN_00620210`); and the starter at
+  `0x6e1744 + mode * 8` is called `(mode, target unit)`. The starter pointer is checked with
+  `IsBadCodePtr` (fatal message 0x853) and the mode is not range-checked. d2d:
+  `components/game/world/objects.cpp` ports one use of it (the barrel's kick, `FUN_005868a0`);
+  the gate and the clear are not ported as such.
 
 ### How near the client walks
 
