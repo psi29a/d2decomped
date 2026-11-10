@@ -543,6 +543,18 @@ arguments), cited, not run. The functions are in the order they are met.
   the test is on the interact's target type 0 (itemmode.md's "cube open" reading wants a
   second look). d2d: the corpse take (`FUN_0057fb70`, `world.hpp`) was not checked for this
   test; **not ported** as one.
+- **`FUN_0057fb70(game, taker, corpse)`: take a corpse** (ECX game, EDX the taker, stack the
+  corpse unit; `FUN_00548b00` case 0, LAB_00548e56). The corpse must be in state 7
+  (`FUN_00639df0`, LAB_0057fb80) and `FUN_0057faf0` must pass: the taker is a player and its
+  inventory owner (`FUN_0063d450` on the corpse's +0x60) is the taker, or the owner's unit is found
+  and `FUN_0055b300(1)` answers (not traced). When the corpse's owner id equals the taker's
+  (LAB_0057fbb2), its stat 0xd, if any, is zeroed (`FUN_00627260`) and added to the taker
+  (`FUN_0057eab0`): the experience comes back only to the owner. The items pass
+  (`FUN_00562f30`, combat.md "Taking one's corpse") follows; when it returns non-zero the
+  corpse leaves the taker's corpse list (`FUN_0063d4e0`, inventory.md), gets room event
+  `FUN_0061a270`, `FUN_00555600` frees it, and `FUN_00553380(taker)` runs; else
+  `FUN_00553380` alone. d2d: `take_corpse_items` reads the same on the experience and the items, cited from the decompile, no oracle run
+  (combat.md); the state 7 test and the second-owner arm were not checked.
 
 ### How near the client walks
 
