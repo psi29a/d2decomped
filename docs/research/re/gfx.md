@@ -60,8 +60,8 @@ size, `+0xc` 512 hash buckets. The bucket hash is
 | `FUN_0046e5a0` | The node for (mode, token); mode -1 means the unit's (`FUN_0046da60`) |
 | `FUN_0046e610` | Unlinks and frees the node whose graphic is EAX (line 0x3d0); 1 when found, 0 when not; fatal 0x3c8 without a graphics record |
 | `FUN_0046e690` | Is the mode's node current (EAX mode, -1 the unit's): its token equal to arg 1 gives it in `*arg 2` and 0; another token sets `*arg 2` = 0, puts its old data in `*arg 3`, frees it (`FUN_0046e610`) and gives 1; no node: 1 (fatal 0x3f0 without a graphics record; the fatal 0x406 after the free cannot be reached) |
-| `FUN_0046e8d0` | Loads a monster's COF for mode EDI unless the layer flag says it's loaded (MonStats2 check `FUN_0046c140`, fatal 0x486; line 0x464) |
-| `FUN_0046e980` | The same for an object: Objects.txt `+0x13f + mode` must be 1 (lines 0x4be..0x4dc) |
+| `FUN_0046e8d0` | Loads a monster's COF for mode EDI unless the layer flag says it's loaded (MonStats2 check `FUN_0046c140`, fatal 0x486; line 0x464). It returns 1 only when the load succeeds and marks the flag, else 0 |
+| `FUN_0046e980` | Loads an object's COF unless the layer flag says it's loaded. A missing Objects.txt row is fatal 0x4c2, a failed load fatal 0x4d4, and `+0x13f + mode` other than 1 fatal 0x4dc. A successful load sets the flag and returns 1; an already loaded flag returns 0 |
 | `FUN_0046ea50` | The same with no checks (a player). No caller |
 | `FUN_0046eac0` | Clears 16 layer flags and frees the COF list (lines 0x65f..0x66d); n is only checked (>= 16, signed, is fatal 0x65f) and the flags 0..15 are always cleared. Caller `FUN_0046f000` |
 | `FUN_0046eb70` | Frees the overlay list (an overlay's sound at `+0x40` first, `FUN_004743d0`; line 0x690) |
