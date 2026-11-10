@@ -2235,3 +2235,76 @@ FUN_00679a60, FUN_0064fd70 (writes the case's vector) and FUN_00679530.
   FUN_0067a420(obj, a, b) returns 0 without a scale (+0x7c); otherwise the
   scaled vector must not be zero (fatal 0x342), is clamped by FUN_00678f00
   and handed to FUN_00679530.
+
+## Ten more DRLG functions, run in the emulator
+
+`tools/emu/drlg_finish.py` (`--mutation-check` 44 ways, 2,010 cases): each
+function runs from stock game.exe 1.14d on random records against a
+hand-written model; its callees are hooked and compared in order, with the
+registers and stack arguments they get. The first reading of each came from the
+Redivivus Ghidra database (program `win`, which reports no revision) as a
+candidate; the emulator is what settled it, including which registers carry
+the arguments and that FUN_0067c570 takes y on the stack.
+
+- FUN_0066d750(src in ECX, dst in EDX) copies one animation frame between
+  rooms. With a destination, the frame is node +8 of the first animation list
+  (tiles +4 of room +0x54) among the source's near rooms (array +8, count
+  +0x2c), or 0 when there is none or no source; it goes to every node (chain
+  through +0x10) of every near room of the destination. No destination, no
+  write. The source is never written.
+- FUN_00675f80(level rect EAX, output rect ECX, variant EDX, corner on the stack)
+  has no caller, jump or pointer in game.exe (byte scan) and is in stubs.md.
+  Corners 0..7 set the output's x, y beside the level rect {x, y, w, h}: 0 and 1
+  below it (y + h), 4 and 5 above (y - output h), 2 and 3 left (x - output w), 6
+  and 7 right (x + w). Variant 1 shifts the other axis: x by `-8 - w / 2` (0, 4),
+  `w / 2 + 8` (1, 5), y by `-h / 2 - 8` (2, 6), `h / 2 + 8` (3, 7), halves of
+  the output size truncating toward zero. Other corners write nothing.
+- FUN_00676fc0(list ECX, n EDX) is Act 2's placement check: the rect at list +
+  8 + 16 n against each earlier rect i < n (16 bytes apart) except
+  i = the entry's previous id (table 0x6f0a28, 16 bytes a row, first dword),
+  through FUN_0066b860(rect n, rect i, 0); the first 0 gives 0, else 1. A
+  negative n runs no test and gives 1.
+- FUN_0066f990(LvlSub row in EBX, outdoor state on the stack): with no groups
+  (file +0x4c) it does nothing at all. Otherwise a previous border (state +0x14)
+  of -1 becomes 0x3e. A BordType (row +0x44) of 0 draws
+  FUN_0045c3e0(level +0x1c4, count) for the start group; groups (0x18 bytes
+  from file +0x50) are tried from (draw + i) % count in turn by
+  FUN_0066f690(state, row, group), stopping at the first that places, when
+  BordType is 0. Any other BordType never draws, starts at group 0 and tries
+  every group. A negative count draws once and tries none.
+- FUN_006707a0(grids ECX): a lookup id (+0x30) of -1 is nothing; else
+  FUN_0061fa90(id) gives the first LvlSub row and, for each set bit of the mask
+  (+0x38, all 32 bits, rows 0x15c apart), FUN_006704e0(DRLG +0x464 of the
+  level (+0x58) of the room, row) loads its file, then FUN_00670170(grids, row)
+  when the row's CheckAll (+0x40) is 0 or FUN_0066ff50(grids, row) when it is
+  set.
+- FUN_00670d70(source EAX, direction EBX, pick flag on the stack) allocates a
+  maze room (FUN_0066b3e0(source's level, 2)), sets its size (+0x3c, +0x40)
+  from the new room's own level's LvlMaze row (+0x14 of the level, SizeX +0x10,
+  SizeY +0x14), and asks FUN_00670880(direction, room) to replace the source.
+  Refused: FUN_0066c100 frees the room and the result is 0. Else FUN_0066b5e0
+  links the two (direction on the stack), FUN_00670c70(room) picks the presets
+  when the flag is non-zero, and FUN_0066b970 adds the room to the source's level.
+  FUN_00670e70 (also unreferenced; stubs.md) calls it with its flag unchanged and
+  then picks the preset (FUN_006709b0, arg 1) of the source when the flag is set
+  and of the new room.
+- FUN_00673b10(level ECX) stores FUN_0061f490(level id +0x1d0) at level +0x14 and
+  tail-calls FUN_00642d10(level +0x1b4, level) for the size and alignment.
+- FUN_0067db00(wild data ECX, x EDI, y ESI, level EBX, preset on the stack) asks
+  FUN_0067c570(wild +0x2c, x, y) for the grid flags (y is its stack argument:
+  the push of ESI at the entry) and, with bit 0x400, FUN_006743c0(level, x, y,
+  preset, direction, 0) with direction +1 for level id exactly 0x6e and -1
+  otherwise; it returns 1, else 0.
+- FUN_00679b30(path-type argument ECX) smooths a path. Source and destination
+  are the packed points at +0 and +4 (x in the low half, y in the high), the step
+  limit is +0x18, the dynamic path +0x30 (count +0x28, direction offset +0x98,
+  points +0x9c). Each step: stop when the position is the destination;
+  FUN_00678d70 gives the direction triplet, each entry plus the offset and 7;
+  FUN_006793e0(path argument, position, triplet) picks a free direction. None
+  found, or the reverse of the last direction, ends the walk, storing the
+  position unless nothing has moved. Otherwise the position moves by the 0x6f1798
+  table (x and y words wrap at 16 bits separately) and a different direction from
+  the last stores the position it left. A walk that ends having stored nothing
+  on its last step stores its final position; the count is written and returned.
+  FUN_0067a740 and FUN_00678f70 (the A* expansion and the stepped walk beside
+  it) are not traced yet.

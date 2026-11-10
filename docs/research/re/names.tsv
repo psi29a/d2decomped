@@ -1264,11 +1264,21 @@ address	name	evidence
 0066a830	animdata_free	AnimTbls.cpp 0xbe, 0xbf; verified by anim_tbls.py
 0066b9d0	room_rect_contains	fastcall (rect, x, y): rect = {x, y, w, h} ints; true when rx <= x <= rx+w and ry <= y <= ry+h (edges inclusive); callers FUN_0066c3d0, FUN_0066c870, FUN_0066cf60, FUN_0066e4c0
 0066baa0	room_has_waypoint	fastcall (room2): +0x28 & 0x30000; only caller FUN_0066ad80 (the arrival waypoint search)
+0066d750	anim_propagate_frame	frame of the first near room (+0x8 array, +0x2c count) with an animation list (+0x54 tiles, +4) in ECX, 0 if none; written to every animation node (+8) of EDX's near rooms
 0066ece0	room_tiles_count_words	thiscall (room, shared, skipFirst, skipLast): per cell of the (w+1)x(h+1) word grid, block +0x18 += word&1 (wall), +0x20 += word&2 or (shared and FUN_0066b980 hit) (floor), +0x28 += word&0x8000000 (shadow)
 0066edb0	room_tiles_count_orients	thiscall (room, skipFirst, skipLast): per cell of the orient grid, block +0x18 += 1 when the orient is 3, 10 or 11; the +0x20 += 6 branch is dead (FUN_0067c570 read twice)
 0066eea0	room_tiles_alloc	allocates room +0x54 once: 0x2c bytes zeroed, from ".\DRLG\RoomTile.cpp" line 0x533; called first by FUN_0067d710, FUN_0067d2d0, FUN_00666ac0
 0066eee0	room_tiles_alloc_arrays	fastcall (room): block = room +0x54; walls +0x14 (capacity +0x18, line 0x545), floors +0x1c (+0x20, line 0x54b), shadows +0x24 (+0x28, line 0x551, only when +0x24 is 0); 0x30 bytes per entry, zeroed; ".\DRLG\RoomTile.cpp"
+0066f990	outdoor_substitution_groups	LvlSub BordType 0 draws FUN_0045c3e0(seed +0x1c4, groups) and stops at the first group FUN_0066f690 places; else tries every group; previous border -1 becomes 0x3e
+006707a0	lvlsub_stamp_by_mask	LvlSub row of lookup id +0x30 (FUN_0061fa90), per set bit of mask +0x38: FUN_006704e0, then FUN_00670170 (CheckAll 0) or FUN_0066ff50
+00670d70	maze_alloc_room_ex	new maze room (FUN_0066b3e0, type 2) sized from its level's LvlMaze SizeX / SizeY; FUN_00670880 failing frees it (FUN_0066c100) and gives 0; else links, picks presets if asked, adds to the level
+00670e70	maze_alloc_room_and_pick	orphan: FUN_00670d70 then the source's (flag set) and the new room's preset (FUN_006709b0); no call, jump or pointer
+00673b10	maze_initialize_level	level +0x14 = LvlMaze row of level id +0x1d0 (FUN_0061f490), then tail-calls FUN_00642d10(DRLG +0x1b4, level)
+00675f80	outplace_corner_border_coords	orphan: EAX level rect, ECX output rect, EDX variant, stack corner 0..7: x / y beside the rect, variant 1 shifts by half the size and 8
+00676fc0	act2_placement_validate	ECX list, EDX n: rect n (list + 8 + 16 n) against each earlier rect except the previous id (table 0x6f0a28) by FUN_0066b860; 0 on the first overlap
 00678df0	goal_dir_bytes	thiscall (out, a, b): out[0..2] = bytes 0x6f1648 + 3 * FUN_00678c10(a, b), widened (collision.md "Is a subtile blocked for a unit")
+00679b30	path_smooth_points	step packed source to destination (limit +0x18) by FUN_00678d70 triplet + path +0x98, FUN_006793e0, table 0x6f1798; stores turn points at path +0x9c, count at +0x28
+0067db00	outroom_spawn_preset_if_flagged	grid flags (FUN_0067c570, wild +0x2c) bit 0x400: FUN_006743c0 with preset, direction +1 for level 0x6e else -1; returns 1
 006be3c0	qs_flush_queues	every class head/tail cleared, records freed
 006be450	qs_client_count	+0x880
 006be470	qs_is_local	+0x86c is 1 or 2
