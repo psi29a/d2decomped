@@ -231,7 +231,7 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         if (hovered_npc && *hovered_npc != -1)            // last frame's: brighter (render_world)
             for (auto& unit : units) if (unit.npc == *hovered_npc && unit.name) unit.highlight = true;
         std::pair<const Unit*, std::array<int, 4>> hovered{ nullptr, {} };
-        std::vector<std::pair<const Unit*, std::array<int, 4>>> items;
+        std::vector<std::pair<const Unit*, std::array<int, 2>>> items;   // each drawn ground item and where it stands on screen
         render_world(world, scene, level, cam_x, cam_y, elapsed_ms, units, world_mouse_x, mouse_y, &hovered, light, rain, show_items ? &items : nullptr);
         if (rain) draw_rain(world, *rain, scene.act_pal.entries().empty() ? scene.pal : scene.act_pal,
                             hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2);
@@ -257,16 +257,17 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                         pixel[channel] = mode == 5 ? rgb[channel] : mode == 1 ? std::uint8_t((pixel[channel] + rgb[channel]) / 2) : std::uint8_t(pixel[channel] / 4);
                 }
         };
-        // Alt ("Show Items", UI\showitems.cpp FUN_004c0810): each ground
-        // item's name over it, moved clear of the ones already placed by up
-        // to 12 tries of FUN_004c0640 (rules::label_place), within the
-        // columns an open panel leaves; one that finds no room has none.
-        // A label is black at half (draw mode 1) in the item's colour; the
-        // first one under the mouse, or naming the item the cursor is on,
-        // goes solid (mode 5) in the palette's nearest to (0, 64, 128)
-        // (FUN_004fb180) with white text, and a click picks that item up.
-        // ponytail: the items' order (d2d: nearest the bottom first) isn't
-        // FUN_004c0810's near-room walk.
+        // Alt ("Show Items", UI\showitems.cpp FUN_004c0810): the drawn
+        // ground items of the player's near rooms in their walk
+        // (Unit::label_rank), each name over its item, moved clear of the
+        // ones already placed (rules::show_items: at most 0x20). A label is
+        // black at half (draw mode 1) in the item's colour; the first one
+        // under the mouse, or naming the item the cursor is on, goes solid
+        // (mode 5) in the palette's nearest to (0, 64, 128) (FUN_004fb180)
+        // with white text, and a click picks that item up.
+        // ponytail: a level's floor kept and come back to keeps d2d's order
+        // (View::ground's); how game.exe's client gets those items again
+        // (their order in their rooms) isn't traced.
         if (show_items) {
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
             std::array<std::uint8_t, 3> hover_blue{};
@@ -275,28 +276,27 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
                 const int distance = colour.r * colour.r + (colour.g - 64) * (colour.g - 64) + (colour.b - 128) * (colour.b - 128);
                 if (distance < best) { best = distance; hover_blue = { colour.r, colour.g, colour.b }; }
             }
-            std::ranges::sort(items, {}, [](const auto& entry) { return -entry.second[3]; });   // nearest the bottom first
-            std::vector<d2d::rules::LabelRect> placed;
+            std::erase_if(items, [](const auto& entry) { return entry.first->label_rank < 0 || !entry.first->name || entry.first->name->empty(); });
+            std::ranges::sort(items, {}, [](const auto& entry) { return entry.first->label_rank; });
             const int line_height = scene.font.line_height();
-            // The columns (FUN_004c0810): the screen, its left half less 0x20
-            // with a right panel open (FUN_0045ae90 1), its right half with a left one (2).
+            std::vector<d2d::rules::LabelItem> walk;
+            std::ptrdiff_t cursor_item = -1;
+            for (const auto& [unit, feet] : items) {
+                // Its spot: where the item stands, 16 up (rules::label_item); its height h as top = y - h + 4 has it.
+                if (hovered.first == unit) cursor_item = std::ptrdiff_t(walk.size());
+                walk.push_back(d2d::rules::label_item(feet[0], feet[1], scene.font.measure(*unit->name), line_height + 6));
+            }
+            // The columns: the screen, its left half less 0x20 with a right
+            // panel open (FUN_0045ae90 1), its right half with a left one (2).
             const int open_side = hud.right_open == hud.left_open ? 0 : hud.right_open ? 1 : 2;
-            const int max_x = open_side == 1 ? world_w / 2 - 0x20 : world_w, min_x = open_side == 2 ? world_w / 2 : 0;
             bool label_hovered = false;
-            for (const auto& [unit, box] : items) {
-                if (!unit->name || unit->name->empty()) continue;
-                // Its spot (x, y): the label's bottom over the item's centre; left = x - (w + 8) / 2, top = y - h + 4.
-                const int text_w = scene.font.measure(*unit->name), spot_x = (box[0] + box[2]) / 2, spot_y = box[1] - 2;
-                d2d::rules::LabelRect label{ spot_x - ((text_w + 8) >> 1), spot_y - line_height - 2, spot_x - ((text_w + 8) >> 1) + text_w + 8, spot_y };
-                bool kept = false;
-                (void)d2d::rules::label_place(label, placed, spot_x, spot_y, max_x, min_x, int(kScreenHeight), kept);
-                if (!kept) continue;
-                const std::array<int, 4> rect{ label.left, label.top, label.right, label.bottom };
-                const bool lit = !label_hovered && ((world_mouse_x >= rect[0] && world_mouse_x < rect[2] && mouse_y >= rect[1] && mouse_y < rect[3]) || hovered.first == unit);
-                fill(rect, lit ? 5 : 1, lit ? hover_blue : std::array<std::uint8_t, 3>{});
-                const auto& colour = lit ? std::array<std::uint8_t, 3>{ 255, 255, 255 } : unit->rgb;
+            for (const auto& label : d2d::rules::show_items(walk, world_w, int(kScreenHeight), open_side, world_mouse_x, mouse_y, cursor_item)) {
+                const Unit* unit = items[label.item].first;
+                const std::array<int, 4> rect{ label.rect.left, label.rect.top, label.rect.right, label.rect.bottom };
+                fill(rect, label.lit ? 5 : 1, label.lit ? hover_blue : std::array<std::uint8_t, 3>{});
+                const auto& colour = label.lit ? std::array<std::uint8_t, 3>{ 255, 255, 255 } : unit->rgb;
                 scene.font.draw_tinted(world, std::uint32_t(world_w), kScreenHeight, pal, rect[0] + 4, rect[1] + 1, *unit->name, colour[0], colour[1], colour[2]);
-                if (lit) {
+                if (label.lit) {
                     label_hovered = true;
                     if (hovered_npc) *hovered_npc = unit->npc;
                 }

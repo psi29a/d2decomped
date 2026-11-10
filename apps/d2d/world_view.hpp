@@ -96,6 +96,7 @@ struct Unit {
     bool spirit = false;                 // local co-op's ghost: pale, half see-through, no shadow (docs/design/local-coop.md)
     std::optional<int> name_offset;      // an object's hover name sits this far over its feet, not over its frame (Npc::name_offset)
     std::uint32_t overlay_start = 0;
+    int label_rank = -1;                 // a ground item's place in Show Items' walk (rank_ground_labels), -1: in no near room, no label
 };
 
 
@@ -120,7 +121,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                   int mouse_x = -1, int mouse_y = -1,
                   std::pair<const Unit*, std::array<int, 4>>* hovered = nullptr,
                   const Lighting* light = nullptr, d2d::rules::Rain* rain = nullptr,
-                  std::vector<std::pair<const Unit*, std::array<int, 4>>>* items = nullptr);
+                  std::vector<std::pair<const Unit*, std::array<int, 2>>>* items = nullptr);
 
 // In-game placeholder — a hero has been created; we don't have the actual
 // world/map render yet, so celebrate the character info and offer Esc to
