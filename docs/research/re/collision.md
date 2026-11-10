@@ -722,5 +722,17 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   `FUN_00463dd0` is called by `FUN_00461250`, `FUN_00463260`, `FUN_00463390` and the five
   at `0x44bf40`, `0x44c000`, `0x44c060`, `0x44c180`, `0x44c2c0`; `FUN_00463de0` by
   `FUN_00463260`, `FUN_00460830`, `0x453470`, `0x453b30`, `0x45ad60`, `0x45d780`, `0x45d9b0`).
+- **`FUN_004648f0`** (unit in ECX; callers `FUN_00462370`, `FUN_00462a20`, `FUN_00463180`,
+  `FUN_00463260`, `FUN_004ad970`): the unit's target unit, checked first. It calls
+  **`FUN_00480420`** (same ECX): a null unit is fatal (assert id 0x26), a unit without a path
+  (`+0x2c`) fatal (0x2a); if the path has a target (`FUN_00648bf0`), it reads the target's
+  type and GUID (`FUN_00648bb0`), looks the unit up again (`FUN_00463990`, ECX = GUID, EDX =
+  type) and, when that is not the stored pointer, clears the target (`FUN_00648b90(path,
+  0)`). Back in 004648f0 a null path is fatal again (id 0x946), and it returns
+  `FUN_00648bf0(path)`: the target pointer, 0 for none. So a target that died or was freed
+  since it was set reads as none. d2d: reads the same, cited from the decompile, no oracle
+  run, on the use (`setup.cpp:474`, `do_sounds`:
+  the target's tgtsound, none without one); d2d holds the target as an index (`attack_mon`)
+  and has no GUID re-lookup (not ported).
   They are the "is this the local player" test every client path below uses. d2d: agrees
   (skills.md:1793, :1806; `apps/whisper/whisper.cpp:45`).

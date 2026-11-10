@@ -35,6 +35,7 @@ address	name	evidence
 00463dd0	client_player	no args: returns [0x7a6a70], the client's own player (collision.md "The client's command switch"; skills.md:1793)
 00463de0	client_player_b	no args: same body as FUN_00463dd0, returns [0x7a6a70] (skills.md:1806)
 004647d0	unit_flag4_refresh	ECX unit: +0xc4 &= ~0x10000, then |= 4 unless a monster whose MonStats2 flag 9 is clear (collision.md "The client's command switch")
+004648f0	unit_target_checked	ECX unit: FUN_00480420 (drops a target FUN_00463990 no longer finds by type and GUID), then the path's target pointer; asserts 0x946 (collision.md "The client's command switch")
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")
 0046b680	client_spawn_missiles_11c	no args: client missiles of rows 0x11c, 0x128, 0x125 via FUN_004cd540, the first tagged 0x32 at data +0x28 (missiles.md "Client missile spawn: FUN_0046b680")
