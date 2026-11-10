@@ -86,6 +86,7 @@ address	name	evidence
 00471bd0	gfx_tint_draw	per COF layer FUN_004f6570 (Gfx.cpp 0xa2f, 0xa56)
 00472280	seed_roll_base	ECX seed pair (low, high), EDX base, stack n: n < 1 returns EDX; low * 0x6ac690c5 + high; EDX + (low & (n - 1)) for a power of two, else EDX + low % n
 00472da0	splash_spawn	ECX, EDX draw point, stack subtile << 16: slot from pool DAT_007a89fc (0x200 x 0x18; -1 ends it before any roll), diamond spot, kind (low & 1) + 2 (weather.md)
+00472ec0	bubble_spawn	ECX, EDX draw point, stack subtile << 16: slot from pool DAT_007a8a00 (0x80 x 0x18; -1 ends it before any roll), diamond spot y - 30, kind 2 (weather.md)
 00477730	driver_option	returns DAT_00712ccc: below 4 the software light table, 4 or more the 3D vertex fill (FUN_004de410)
 00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
