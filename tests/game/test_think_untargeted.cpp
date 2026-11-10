@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -47,13 +48,13 @@ int main() try {
     std::array<Foe, 1> player{};
     player[0].x = 1.1f; player[0].y = 1.1f;                       // far past any aidist: no target
     d2d::rules::Rng rng(7);
-    const auto thinks = [&](bool hit) {
+    const auto thinks = [&](bool hit) -> Monster {
         d2d::rules::Rng spawn{ 0x5eed };
         std::vector<Monster> pack{ make_monster(*data, int(row->second), 12.1f, 12.1f, spawn, 0) };
         pack[0].aware = true;
         if (hit) pack[0].left_mode = "GH";
         monster_update(*data, here, pack[0], player, rng, 40000, 0.04f, crowd, shots, pack);
-        return pack[0];
+        return std::move(pack[0]);
     };
     const Monster hit = thinks(true);
     assert(hit.skill == teleport && hit.chase == -1);             // teleports, at no one

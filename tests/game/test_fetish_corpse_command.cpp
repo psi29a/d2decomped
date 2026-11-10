@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -45,7 +46,7 @@ int main() try {
     std::array<Foe, 1> player{};
     player[0].x = 4.1f; player[0].y = 8.1f;                       // 20 subtiles west: a target, not in melee
     d2d::rules::Rng rng(7);
-    const auto sent = [&](bool about) {
+    const auto sent = [&](bool about) -> Monster {
         d2d::rules::Rng spawn{ 0x5eed };
         std::vector<Monster> pack{ make_monster(*data, int(fetish->second), 8.1f, 8.1f, spawn, 0), make_monster(*data, int(fetish->second), 8.1f, 12.1f, spawn, 0) };
         pack[1].id = 77;
@@ -54,7 +55,7 @@ int main() try {
         pack[0].aware = true;
         pack[0].ai_command = 14; pack[0].command_corpse = 77;
         monster_update(*data, here, pack[0], player, rng, 40000, 0.04f, crowd, shots, pack);
-        return pack[0];
+        return std::move(pack[0]);
     };
     const Monster walking = sent(true);                           // still a corpse: walked at all the same
     assert(walking.ai_command == 0 && walking.mode == "WL");
