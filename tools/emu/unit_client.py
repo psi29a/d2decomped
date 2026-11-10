@@ -560,7 +560,7 @@ def check_iterate(rig, rng):
             sc = Scene(rig, rng)
             table = populate(rig, sc, rng, TABLE_A)
             seen = []
-            callback = rig.slot(lambda c: seen.append(c.mu.reg_read(mw.UC_X86_REG_ECX)) or 0, 0)
+            callback = rig.slot(lambda c, log=seen: log.append(c.mu.reg_read(mw.UC_X86_REG_ECX)) or 0, 0)
             start = base if base else TABLE_A + rng.randrange(6) * 0x200
             if mut("iter-tables-swapped") and base:
                 start = TABLE_A if base != TABLE_A else TABLE_A + 0x200
