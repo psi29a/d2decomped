@@ -981,6 +981,7 @@ address	name	evidence
 00625250	stat_list_owner_type	stat list +8; null 6
 006252b0	stat_list_owner_id	stat list +0xc; null 0
 00625480	unit_stat_value	(unit, stat id, layer 0): unit +0x5c stat list, id below [0x744304] +0xbd4 rows of 0x144 from +0xbcc, then FUN_00624f60(row); 0 for none
+00625760	unit_stat_sublist_by_flag	stdcall (unit, flags): 0 for no list at unit +0x5c or one without 0x80000000, else FUN_006256e0(list, flags); no null check of the unit (drops.md "A unit's stat sub-list by flag")
 00625d10	unit_max_life	stat 7 (maxhp, ItemStatCost row 7 at tables +0xbcc + 0x8dc) through FUN_00624f60, 0 for no unit / stats list
 00625d60	unit_max_mana	stat 9 (maxmana, ItemStatCost row 9 at tables +0xbcc + 0xb64) through FUN_00624f60, 0 for no unit / stats list
 006266c0	stat_refresh_derived	ECX list, EDX key, row, ctx: FUN_00626200 value stored by FUN_00625150, dependents at row+0x58 / +0x5e recomputed

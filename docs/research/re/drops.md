@@ -641,3 +641,22 @@ Evidence: `uv run --project tools/emu python tools/emu/disasm.py 6427f0`,
 d2d: `rules::level_ids::act_of` (`upper_bound` over the act towns, minus 1, at least 0)
 gives 4 for any id past Harrogath's; the game gives 0 past its last threshold. Whether a
 level id exists in that range was not checked, so this is not filed as a disagreement.
+
+### A unit's stat sub-list by flag (`FUN_00625760`)
+
+`FUN_00625760(unit, flags)` (stdcall, `ret 8`): reads the unit's stat list (`unit +0x5c`);
+0 for a null list or one without flag `0x80000000` in its `+0x10`; otherwise it returns
+`FUN_006256e0(list, flags)`, the first sub-list whose flags share a bit of `flags & ~0x2000`
+(stats.md "FUN_006256e0": the `+0x3c` chain, or `+0x40` when `flags` has `0x2000`, walked
+by `+0x2c`). It does not test the unit for null: the first load is `[unit + 0x5c]`
+(`mov eax, [eax + 0x5c]` at 0x625766), so a null unit faults; `FUN_005a6600` tests its
+killer for null first (0x5a672f), the other callers were not read. In `FUN_005a6600` it is asked for flag `0x800` on a killer that is not a
+player, and the sub-list's owner type (`FUN_00625250`, list `+8`) and id (`FUN_006252b0`,
+list `+0xc`) name the unit whose quest the kill counts for (the owner step below).
+d2d callers use other masks: 0x20 for a curse state on a target, flag 2 for the picked-up
+item in the inventory tint.
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 625760`,
+`python3 tools/ghidra/fn.py 006256e0`, `python3 tools/ghidra/fn.py 00625760`.
+d2d: reads the same on how it is used, cited from the decompile, no oracle run (`ai.cpp`'s curse test, `panels.cpp`'s `ponytail:` note, the
+`on_foe_states` curse/mark lists); the 0x800 sub-list (an owner link, e.g. a minion's) has
+no d2d counterpart: nothing in d2d makes a stat list that names an owner.
