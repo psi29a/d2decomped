@@ -148,10 +148,10 @@ operations at `+0xa` and the room-membership test do not.
 | `FUN_00538670` | return `u16 +0xa & DX` | `FUN_0052d350` tests bit 0 in its client-timeout check; other callers supply their own masks |
 | `FUN_00538700` | u32 `+0x484`: store the restored unit id in `EDX` | `FUN_0056ae50` stores the unit made from the save's `0x666b` subsection, or `-1` for a null unit; `FUN_005394a0` later resolves values other than 0 and `-1` |
 | `FUN_00538760` | u32 `+0x488`: store `EDX` | `FUN_0056a090` copies save header `+0x2c` here at `0056a1ca..0056a1cf`; `FUN_00538790` reads it back for the save written by `FUN_00568f20`. What those four save bytes mean is not traced |
-| `FUN_005387c0` | u32 `+0x1a8`: the player **unit id**, not a unit pointer | `0053c54b..0053c554` passes the result to `FUN_00552f60`, the id-to-unit lookup |
+| `FUN_005387c0` | u32 `+0x1a8`: the client's **game pointer** (corrected: it is not a unit id) | `FUN_00539a30` stores its ECX there; `FUN_00538ce0` and `FUN_00538f10` read `[+0x1a8] + 0x1c` as the pool id; `0053c54b..0053c554` passes the result as ECX (the game) to `FUN_00552f60`, the unit lookup by type and id |
 | `FUN_005387f0` | test whether client `EDX` is in the room of unit `ECX` | `FUN_00620bb0` gets the unit's room1; the function scans its `+0x48` array of client pointers, count `+0x78`. Player and monster packet paths use a room-specific position only when this succeeds |
 | `FUN_00538830` | return `client + 0xd`, the character-name buffer | `FUN_0056a090` compares it with save header `+0x14`; packet builders also read the name through it |
-| `FUN_00538860` | set or clear client `+0x3d4` bit 2 from `EDX` | The first enable also calls `FUN_0053fc70(unit id at +0x1a8, client)`. No call, jump or pointer references this function; see stubs.md |
+| `FUN_00538860` | set or clear client `+0x3d4` bit 2 from `EDX` | The first enable also calls `FUN_0053fc70(game at +0x1a8, client)`. No call, jump or pointer references this function; see stubs.md |
 | `FUN_005388c0` | return client `+0x3d4` bit 2 as 0 or 1 | `FUN_0053fc20` tests it before calling `FUN_0053fb90` |
 | `FUN_00538e00` | u32 `+0x17c`: the uploaded character-save buffer | `FUN_00534520` passes it with the size below to `FUN_00534330`; `FUN_00531eb0` compares it with the returning save |
 | `FUN_00538e30` | u32 `+0x180`: the uploaded save's byte count | The same two callers use it as the buffer size; a zero size makes `FUN_00534520` return `0xe` |
@@ -177,10 +177,57 @@ case-insensitive 16-byte `strnicmp`.
 - `FUN_00538c60(name, destination)` returns 0 when found and 1 when absent.
   A non-null destination receives the record's canonical 16-byte name.
 
-A 31-case original-code check under `tools/emu` covered the six record
-operations above and these four lookups, including hash-chain misses,
-case-insensitive names and the orphan's one-time callback. External room
-lookup, hashing and name comparison were hooked; no d2d parity claim is made.
+### Verified in the emulator (`tools/emu/clients_small.py`)
+
+`clients_small.py` runs 30 GAME/Clients.cpp functions and the getter at `0x538230` from game.exe 1.14d on random client
+sets (up to six records, the id and name tables built the way `FUN_00539a30` builds them) and
+compares the return, the hook log, the critical-section calls and every byte of the arena
+with a model written from the disassembly (56,770 calls; `--mutation-check` plants 62
+defects). A fatal call is the report to `0x408a60` with the line from the table; the process
+would exit. The oracle also requires the report to be called from the function under test (or a callee the
+case names), so a callee's fatal with the same line is not taken for the function's own. Hooked, so not claimed: the fatal report, `FUN_00537b50`, `FUN_0053fc70`,
+`FUN_00620bb0`, `FUN_00531e30`, `FUN_006657c0`, the pool entries and `GetTickCount`.
+
+- Fatal lines (null client): act get 0x7df, act set 0x7ea (act >= 5: 0x7eb), id 0x870, class 0x8b8,
+  `+4` 0x973, `+0x484` 0x97e, `+0x488` 0x994 / 0x99f, game 0x9aa, name 0x9ed, bit 2 0x9f7 / 0xa05,
+  area 0x79f (set) / 0x7ae (get, see below), save buffer 0xb55, size 0xb5f, free 0xb7d, start 0xb91, ready 0xb9e.
+  `FUN_00538620`, `FUN_00538630`, `FUN_00538670`, `FUN_00539240` and `FUN_005392d0` do not check.
+  The getter at `0x538230` (`+0x1b4`, fatal line 0x7ae) follows `FUN_005381f0`'s `ret` with no padding in between,
+  so Ghidra has no function entry there and `names.tsv`, which lists functions, has no row for it; the oracle
+  runs it by address.
+  `FUN_005382b0` and `FUN_005385f0` return a byte in AL (`FUN_005385f0` with `movzx`, `FUN_005382b0` without:
+  the rest of EAX is whatever the caller had).
+- `FUN_005381f0` calls `FUN_00537b50(area)` (ESI the client) only when the area differs from `+0x1b4`.
+- `FUN_00538ce0(id, data, length, total, tag, ...)` (`ret 0x14`, the last two words unused): disabled
+  tables or an unknown id give 0. With the count `+0x180` at 0 it allocates `total` bytes from the
+  client's game pool (`[[+0x1a8] + 0x1c]`, `GAME\Clients.cpp` line 0xb2a) and stores the block at
+  `+0x17c`, otherwise it appends at `+0x17c + count`. `count + length > total` (signed) is the fatal
+  line 0xb2f. It stores `tag` at `+0x178`; when the count reaches `total` it sets `+0x3d4` bit 8, stores
+  `FUN_00531e30(buffer)` at `+0x18c` and returns 1. **A length-0 chunk leaves the count at 0, so each one
+  allocates again and leaks the block (bugs.md 95).**
+- `FUN_00538f80` (start) sets `+0x3d4` bit 0x10, state `+0x184` = 5, `+0x188` = 0; `FUN_00538fc0` (ready) is bit
+  0x10 and a nonnull `+0x17c`; `FUN_00538f10` (free) releases `+0x17c` (pool free, line 0xb80), clears
+  bit 0x10, the count and both state words.
+- The packet queue: `FUN_00539240` appends a node (next `+0x204` := 0) after the tail `+0x1bc`, or makes it
+  head `+0x1b8` and tail when the queue is empty; `FUN_005392d0` returns the tail.
+- `FUN_00539a30(game, id, type, name, name2, +0x60, +0x50c byte, 2 unused words)` (`ret 0x1c`): disabled tables,
+  a null game or `game + 0x8c >= 8` (signed) give 0 with no allocation. Otherwise it takes 0x518 bytes from
+  the game pool (line 0x347), zeroes them, stores the id, `GetTickCount() + 0x2bf20` (180,000 ms) at `+0x3d8`
+  and the game at `+0x1a8`. It then calls `FUN_0053fe70(game)`, which is fatal (line 0x27, reported from
+  `FUN_0053fe70`, not from `FUN_00539a30`) when `[game + 0x1d28]` is null, so by then the 0x518-byte block is
+  allocated and the id, tick and game stores are done. If bit 8 of the game's info word (`[game + 0x1d28] + 8`) is set the record
+  gets the raw type at `+0xc` and the class `FUN_006657c0(type, info byte +0xc)` at `+8`, else the type at
+  `+8`. Both names go through `FUN_004135d0(dest, src, 0x7fffffff)`: the copy is unbounded, so a name longer
+  than 15 bytes runs into the next field (the TCP join checks the name first, stage 1 and 2 above). A
+  null `src` (the host's own client passes no second name) is `FUN_0041c340(0x57)`: the CRT error word
+  `0x7790f4` and `SetLastError` get 0x57 and nothing is copied. It then clears the queue, links the record at the head of the game list (`+0x4a8` / game `+0x88`), the id bucket (`+0x4ac`),
+  the name bucket (`+0x4b0`, hash of the argument string) and bumps `game + 0x8c`. The 16 slots from `+0x3dc` (8
+  bytes each) are set to word 0xffff, byte 0, dword 0xffffffff.
+- The lookups take the id-table section `0x8846a8` (the name lookups `0x8846c0`) and leave it before returning (a fatal exit
+  does not). A name lookup compares 16 bytes with the case-insensitive `FUN_00413590`, and stops at
+  the first record whose id is nonzero (bugs.md 96). The copies use `FUN_004135d0(dest, name, 0x10)`: at most
+  15 bytes and a NUL, no padding.
+- Not covered here: `FUN_00537b50` (the area-change fan-out, 442 bytes), `FUN_005389a0` (the ping average) and `FUN_00539da0` (1211 bytes).
 
 ## Compression (S->C only)
 
