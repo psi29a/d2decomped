@@ -50,7 +50,7 @@ Lifetimes are seconds; -1 never runs out in practice.
 | `FUN_005192a0` | Closes and deletes the file |
 | `FUN_00519300` | Closes: frees tables, header, crypt table; handle back to -1 |
 | `FUN_005193c0` | API `+0xc8`: frees a buffer the cache returned (ECX) |
-| `FUN_005193e0` | Opens or creates the cache. Checks magic, header CRC, table offsets, sizes (file ≤ 10 MB) and table CRCs; any failure logs "WARNING- cache file is invalid. Replacing with new cache file" with a code 1-12 and starts a new file |
+| `FUN_005193e0` | Opens or creates the cache. Checks magic, header CRC, table offsets, sizes (file ≤ 10 MB) and table CRCs; a failure logs "WARNING- cache file is invalid. Replacing with new cache file" with a code 1-12 and starts a new file (a file of 0 bytes, over the size limit, or with the `BN2` magic is replaced with no log line) |
 | `FUN_005198c0` | Rebuild: close, delete, `FUN_005193e0` |
 | `FUN_00519920` | API `+0xcc`, read: ECX name, EDX FILETIME out, stack data out, size out. Checks the entry header (size, CRC, name, not expired, data ≤ 16 MB, data CRC) and rewrites its access time. A bad entry logs "File: '%s' in bncache.dat is corrupt (%d) - deleting from cache"; a bad file "bncache.dat is corrupt (%d) - rebuilding archive" |
 | `FUN_00519db0` | API `+0xd0`, write: ECX name, EDX data, stack size (≤ 16 MB), FILETIME*, two lifetimes in seconds (the second non-zero; news and Warden pass -1, BNFTP 15 and 30 days). Deletes the old entry, reuses a free block that fits (or the first big enough one past its reusable time), else appends (block count < 0x400), then rewrites both tables, their CRCs and the header |

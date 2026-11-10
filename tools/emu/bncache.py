@@ -801,6 +801,8 @@ class Rig:
             code = entry[-1]
             value = extra if "%s" in f else c
             require(value == code, f"{what}: logged code {value}, expected {code}")
+            if "%s" in f:
+                require(c == entry[1].decode("latin-1"), f"{what}: logged name {c!r}, expected {entry[1]!r}")
         locked = not (what == "write" and getattr(m, "rejected", False))
         require(w.enter == w.leave and (w.enter > 0) == locked, f"{what}: critical section {w.enter}/{w.leave}")
         self.compare_state(what)
