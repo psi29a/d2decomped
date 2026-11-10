@@ -253,3 +253,53 @@ at `0x721c98`).
 built-in module; `FUN_00480340` (shutdown) frees everything. game.exe's own
 server ignores C→S 0x66 (battlenet.md), so none of this runs in a TCP/IP
 game.
+
+## WardenClient.cpp: verified
+
+The Warden client manager runs in the emulator against a model
+(`tools/emu/warden_client.py`, 267 cases, 13 model defects planted and
+caught). Scope: the client's own framing, signature check, key setup and
+module bookkeeping. **No real Warden module is loaded, decrypted or run**: the
+modules in the test are synthetic bytes packed by the oracle, the PE mapper
+`FUN_004e0730`, its export lookup `FUN_004e0700` and its destructor
+`FUN_004e06a0` are hooked (they log their arguments), a started module's
+methods are Python stubs, and the built-in module (`0x6d74b0`, key `0x6d8778`)
+is not read by any test (`FUN_0047fc70` is hooked in that machine and only its
+arguments are checked). The cache API and the network send are scripted; no
+server is contacted. Storm alloc/free, `GetSystemTimeAsFileTime`, the fatal
+report and `SMemReAlloc` (for the bignum vectors) are hooked; SHA-1, RC4,
+zlib, the bignum library, `sprintf` and `memcpy` run for real.
+
+| Function | Verified behaviour |
+|---|---|
+| `FUN_00478830` | C→S `66 u16(len) data`; len up to 0x1fd, more is the fatal report with line 0x452 (no truncation) |
+| `FUN_0047f8c0`, `FUN_004e09b0` | Plain RC4 (key length 16 at the load call; `i % keylen` by `div`) |
+| `FUN_0047f990` | SHA-1 of `data[skip:]`, then `data[:skip]`, then the **upper-cased** salt (`strupr`), digest to the out pointer. The salt `FUN_0047fc70` builds is nine bytes times `0xd3` (low byte): `Maiev.mod`, so the hash adds `MAIEV.MOD` |
+| `FUN_0047fa20` | ECX = 0x100 (signature size), EAX = length. A length under 0x104 gives 0; the 4 bytes at `length-0x104` must be `NGIS`; the last 0x100 bytes are the signature. It computes `sig^e mod n` with the bignum library (`FUN_00423950` handle out, `FUN_00423850` little-endian import, `FUN_00425330` modexp, `FUN_00423b30` export; the exponent is the dword `0x10001` at `0x6d8d14`, the modulus 0x100 bytes at `0x6d8d18`) and `memcmp`s it with `digest(20) + 0xbb x 235 + 0x0b` (raw RSA, no PKCS padding). Allocs are `WardenClient.cpp` lines 0xab, 0xb5 (freed 0xcc, 0xcd) and only happen after the marker matches. A skip argument (`[ebp+0x1c]`) above the length is the fatal 0xa3 (run); that it is always 0 at the one call is from the disassembly, not run |
+| `FUN_0047fbc0`, `FUN_0047fbe0`, `FUN_0047fbf0`, `FUN_0047fc10`, `FUN_0047fc30`, `FUN_0047fc40` | Record helpers: zero five dwords; jump to the destructor; alloc line 0x10d; free line 0x117; vtable `0x6d8e38`; deleting destructor (destroy, free when bit 0) |
+| `FUN_0047fc70` | EAX = length, stack data and 16-byte key. In order: destroy the pending module (`0x7bc994`: `FUN_004e06a0` twice, free line 0x117, slot 0; the destructor is hooked, so that the second call is harmless is from the disassembly, not run); alloc length (line 0x16e) and copy; RC4 the copy; signature (fail: free 0x17c, return 0); alloc `dword[0]` bytes (0x182) and inflate `copy+4` with length-4 (fail: free 0x18d, 0x18e); free the copy (0x193); alloc the 0x14-byte record (0x10d, zeroed); `FUN_004e0730(record, image, size)` (fail: free image 0x1a0, destroy, free 0x117); export ordinal 1 into record `+0x10` (0: destroy, free image 0x1aa, destroy, free); success frees the image (0x1b0), sets `0x7bc994`, returns 1. The input buffer is not modified. The size the loader gets is the length the inflater produced, which can be smaller than the declared one |
+| `FUN_0047fee0` | EBX = 16-byte name, stack key. A name equal to the 16 bytes at `0x6d8768` loads the built-in (`FUN_0047fc70` with 0x12b2, `0x6d74b0`, `0x6d8778`) without the cache API; any other name needs API `+0xcc` (0 with no API), is looked up as 32 lowercase hex digits plus `.mod`, loaded with the caller's key, and the buffer is released with API `+0xc8` (ECX data, EDX size). A miss returns 0 |
+| `FUN_0047ffb0`, callback 2 `FUN_00480040` | API `+0xd0` write: ECX name (hex + `.mod` for the callback; the orphan takes the name as given), EDX data, stack size, a FILETIME of now, -1, -1. No API: nothing written (the orphan returns 0) |
+| Callbacks 0, 1, 3, 4 | 0: `FUN_00478830` (below). 1: `FUN_0047fee0` as 0/1 in AL. 3 / 4: Storm alloc / free at lines 0x274 / 0x27b |
+| Callbacks 5, 6 | One saved buffer. 5 frees the old one (line 0x283), allocs `size` (0x284), copies. 6 with nothing saved returns 0; otherwise copies `min(*size, saved size)`, writes that length back, **frees the whole saved buffer** (0x292), clears the slot, returns 1: a short read loses the rest |
+| `FUN_004801d0` | Running module: `vt[1]()`, destroy twice, free, slot 0 |
+| `FUN_00480230` | Loops while a module is pending: unload the running one (`vt[1]`, destroy twice, free), `running = pending`, `pending = 0`, call record `+0x10` with ECX = `0x721c98` (it returns the object, stored at record `+0xc`), then `vt[0](&seed, 4)` with `seed = *0x721c94`; an init that queues another module makes it loop |
+| `FUN_004802e0`, `FUN_00480320` | Only when a module is running: `vt[2](packet, len, &out)` / `vt[3](ecx)`, then `FUN_00480230`. With no running module a pending one is **not** started by either (only init starts the first) |
+| `FUN_00480340` | Frees the pending module, unloads the running one, frees the saved buffer (line 0x24f), seed = -1, API = 0, saved size 0 |
+| `FUN_004803c0` | ECX seed: shutdown, seed, API = `FUN_00518c10` (the constant `0x72faa0`; 0 returns 0 with nothing loaded), built-in load, start, returns 1 |
+
+Tables: the callback table `0x6d8e68` is `0x480000, 0x480020, 0x480040,
+0x4800c0, 0x4800e0, 0x480100, 0x480150`; `0x721c98` holds its address; the
+seed starts at -1. Findings are bugs.md 90 (pending module destroyed before
+the new one is checked), 91 (declared size unbounded and unchecked) and 92 (a
+module send over 0x1fd bytes aborts the game).
+
+Harness notes: `SMemReAlloc` (`FUN_004133d0`) is the bignum vectors'
+allocator and also their allocator for a null pointer, so it is hooked as
+alloc-and-copy; the RSA check needs a test key (a self-generated 2048-bit
+one is written over the shipped public key in the emulated image; the shipped
+key is also run against a forged trailer and rejects it). Not covered: the
+real mapper `FUN_004e0730`, the exported module code, the built-in module,
+real bncache.dat I/O (`FUN_00519920` / `FUN_00519db0` are traced in the cache
+section), `FUN_00478350` (the sender, hooked) and the S→C 0xAE dispatcher
+`0x45f5f0`.

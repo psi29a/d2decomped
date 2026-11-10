@@ -488,7 +488,7 @@ address	name	evidence
 0060e0e0	stpl_bucket	+8 + n * 0xc
 0060e110	stpl_bucket_2	copy of FUN_0060e0e0
 0060e130	stpl_string_assign_2	copy of FUN_0060dcb0
-0060e170	stpl_link_prev	~link when negative, else link + offset
+0060e170	stpl_link_prev	historical name: resolves NEXT link address, ~next when negative, else next + explicit/derived offset (h-lists.md)
 0060e1c0	stpl_link_prev_2	copy of FUN_0060e170
 0060e1f0	stpl_hash_mask	+0x24 & hash
 0060e210	stpl_hash_mask_2	copy of FUN_0060e1f0
@@ -498,10 +498,10 @@ address	name	evidence
 0060e340	stpl_round_up_2	copy of FUN_0060e2e0
 0060e370	stpl_list_init	+0 offset, +4 = &+4, +8 = ~&+4
 0060e390	stpl_list_init_2	copy of FUN_0060e370
-0060e450	stpl_list_link	offset 0: the terminator (+4)
+0060e450	stpl_list_link	null node argument: terminator (+4); otherwise node + stored offset (h-lists.md)
 0060e470	stpl_list_init_3	same as FUN_0060e370, offset by value
 0060e490	stpl_list_link_node	unlinks, then links before (or after, 1) another node
-0060e540	stpl_list_next_raw	offset 0: +8; else node + offset + 4
+0060e540	stpl_list_next_raw	null node argument: +8; otherwise node + stored offset + 4 (h-lists.md)
 0060e560	stpl_list_unlink	the node's link fixed up and cleared
 0060e5b0	stpl_list_init_4	copy of FUN_0060e470
 0060e630	stpl_list_link_2	copy of FUN_0060e450
@@ -520,7 +520,7 @@ address	name	evidence
 0060f610	stpl_bucket_array_free	"TSExplicitList<StringEntry>" free
 0060f690	stpl_list_free	FUN_0060ecb0, then the terminator unlinked
 0060f6d0	stpl_bucket_array_reserve	rounded up with FUN_0060e2a0, FUN_0060f390
-0060f720	stpl_bucket_array_resize	"TSExplicitList<MappingEntry>", realloc else alloc and relink
+0060f720	stpl_bucket_array_resize	"TSExplicitList<MappingEntry>", realloc else alloc replacement and clear/unlink old lists (h-hasharrays.md)
 0060f870	ignorelist_mapping_get	FUN_0060f510, copies +0x18 out
 0060f8b0	ignorelist_find	FUN_00413ce0 hash, FUN_0060f590
 00610be0	stpl_hash_insert	FUN_00610840 grow check, virtual +4 node, linked last, +0 hash, +0x14 key
@@ -1047,9 +1047,42 @@ address	name	evidence
 0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
 0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
 0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
+00549830	click_check	shared C->S click check (packet EAX, unit EDI, stack game, size, &type, &id): zeroes both outs, size 9 else 3, type under 6 else 2, range check FUN_00548f80(ECX game, EDX type, EAX id, EDI unit; 0x32) passes its status through, 0 stores type and id; verified plrmsg_click.py
+00549890	scmd_walk_to_entity	C->S 0x02: click check, then FUN_00580a70(game, unit, 0, mode 2, type, id, 0); verified plrmsg_click.py
+00549920	scmd_run_to_entity	C->S 0x04: click check, then FUN_00580a70 with mode 3; verified plrmsg_click.py
+00549d80	scmd_left_skill_on_entity	C->S 0x06: click check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, skill processor FUN_00549ba0 with approach 1; verified plrmsg_click.py
+00549e00	scmd_left_skill_on_entity_no_approach	C->S 0x07: as 0x06 with approach 0; verified plrmsg_click.py
+00549ee0	scmd_left_skill_on_entity_held	C->S 0x09: click check (its status passes), left skill test (3), then 0x06's handler; answers 0; verified plrmsg_click.py
+00549f40	scmd_left_skill_on_entity_held_no_approach	C->S 0x0a: as 0x09 delegating to 0x07; verified plrmsg_click.py
+0054a040	scmd_right_skill_on_entity	C->S 0x0d: as 0x06 with the right skill (FUN_006201d0); verified plrmsg_click.py
+0054a0c0	scmd_right_skill_on_entity_no_approach	C->S 0x0e: as 0x0d with approach 0; verified plrmsg_click.py
+0054a1a0	scmd_right_skill_on_entity_held	C->S 0x10: as 0x09 for the right skill, delegating to 0x0d; verified plrmsg_click.py
+0054a200	scmd_right_skill_on_entity_held_no_approach	C->S 0x11: as 0x10 delegating to 0x0e; verified plrmsg_click.py
+0054aa90	scmd_interact	C->S 0x13: size 9 else 3, type under 6 else 2, FUN_00548b00(ECX unit, EDX type, id, 0, game), its answer passes through; verified plrmsg_click.py
 0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
 0061f0e0	lvlprest_by_level	first lvlprest row (0x1b0 bytes at 0x96c894) whose +4 LevelId equals the key, else 0; verified by lvl_tbls.py
 0061f310	lvlwarp_check	halts (0x32b / 0x33a) unless a lvlwarp row has the id and a 'b' / matching letter at +0x2c; verified by lvl_tbls.py
 0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
 0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
 0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py
+00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
+0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
+0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
+0047fa20	warden_verify_signature	ECX 0x100, EAX length, stack salt, data, modulus, exponent, 4, skip: 'NGIS' at length-0x104, then RSA(sig) == digest + 0xbb filler + 0x0b; 1 or 0, fatal 0xa3 when length < skip; verified by warden_client.py
+0047fc70	warden_load_module	EAX length, stack data, 16-byte RC4 key: destroys the pending module, copies and RC4-decrypts, checks the trailer, zlib-inflates (first dword = size), maps it with FUN_004e0730, takes export 1; sets DAT_007bc994, 1 or 0; verified by warden_client.py
+004803c0	warden_init	ECX seed: shutdown, seed = ECX, API = FUN_00518c10 (0 gives 0), loads the built-in module and starts it; verified by warden_client.py
+004e06a0	pe_image_free	ECX record: unmaps the image of a module record (from the disassembly; hooked in warden_client.py, never run)
+004e0700	pe_image_export_by_ordinal	ECX record, stack ordinal: export address, 0 when out of range (from the disassembly; hooked in warden_client.py, never run)
+004e0730	pe_image_load	ECX record, stack image, size: maps an in-memory PE (hooked in warden_client.py, never run)
+004e09b0	rc4_init	ECX state, stack key, key length: RC4 key setup, 0x100 S bytes then i, j; verified by warden_client.py
+00518c10	bnclient_api	returns 0x72faa0, the Bnclient API table (+0xc8 free, +0xcc cache read, +0xd0 cache write)
+005496f0	location_check	shared C->S location check (packet EAX, unit ESI, stack game, size, &x, &y; ret 0x10): zeroes both word outs, size 5 else 3, no player data (FUN_006221a0) 2, range check FUN_00548ef0(EAX unit, EBX 0x32, x, y); on a failure more than 0x19 frames (signed) after the stamp at player data +0x168 sends a 0x15 reassign (FUN_0053bc10) to the unit's client; the status passes through; 0 stamps the frame and stores x, y; verified plrmsg_loc.py
+005497e0	scmd_walk_to_location	C->S 0x01: location check, then FUN_005809d0(game, unit, skill 0, mode 2, x, y, 0); answers 0; verified plrmsg_loc.py
+005498d0	scmd_run_to_location	C->S 0x03: location check, then FUN_005809d0 with mode 3; verified plrmsg_loc.py
+00549a60	send_inventory_full_message	sends the 40-byte 0x5a system message (type 0x0e, colour 1) to the unit's client (line 0x73c); verified plrmsg_loc.py
+00549ad0	cast_skill_on_location	skill cast at x, y (ECX unit, EAX skill, stack game, x, y): no unit / death / dead mode 2; dual-wield swing swap; usability 1, 2 or 4 with skills.txt +7 flag retries with the basic attack; no skill mode 2; usability 0 FUN_005809d0 move, 1 inventory-full message; verified plrmsg_loc.py
+00549d00	scmd_left_skill_on_location	C->S 0x05: location check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, cast FUN_00549ad0 with the second skill fetch; answers 0; verified plrmsg_loc.py
+00549e80	scmd_left_skill_on_location_held	C->S 0x08: location check (its status passes), left skill test (3), then 0x05's handler; answers 0; verified plrmsg_loc.py
+00549fa0	scmd_keepalive	C->S 0x0b (1 byte): size 1 else 3; verified plrmsg_loc.py
+00549fc0	scmd_right_skill_on_location	C->S 0x0c: as 0x05 with the right skill (FUN_006201d0); verified plrmsg_loc.py
+0054a140	scmd_right_skill_on_location_held	C->S 0x0f: as 0x08 for the right skill, delegating to 0x0c; verified plrmsg_loc.py

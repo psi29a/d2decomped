@@ -257,6 +257,67 @@ speech block. From its callers, 0x21..0x25 are Act 1's `complete_*` lines:
 
 This is the order of `<class>_act1_complete_*` in Sounds.txt.
 
+## Small helpers run against game.exe (`tools/emu/quests_small.py`)
+
+31 small functions run for real in the emulator on random quest records,
+data blocks and units, against a hand-written model (768 cases, 13
+`--mutation-check` defects caught; callees hooked and logged). The quest
+lookup is `FUN_00543640(game, quest)` (ECX game, EDX the internal quest
+number, 0 when none), data block at record +0x18.
+
+**The eleven "quest update" notifiers** (fastcall game, unit, arg; `ret 4`;
+always return 0) are one function with two constants. Each reads the player's
+bits `*(FUN_006221a0(unit) + 0x10 + 4 * game[+0x6d])` and tests, in order,
+state 0 (Completed), 0xf (FinishedInPreviousGame), 0xd (JustCompleted), 0xe
+(CannotComplete) with `FUN_0065c310`. It is **quiet** when (0 or 0xf) holds
+and neither 0xd nor 0xe does; every other case calls
+`FUN_00544190(game, unit, message)`. (The Ghidra comments on these say the
+opposite, "sends only when completed"; the binary sends in every state but
+that one.)
+
+| function | quest word | message |
+|---|---|---|
+| `FUN_005879d0` | 0x24 | 0x20 |
+| `FUN_00588eb0` | 0x25 | 0x21 |
+| `FUN_0058aea0` | 0x26 | 0x22 |
+| `FUN_0058be20` | 0x27 | 0x23 |
+| `FUN_0058d770` | 0x28 | 0x24 |
+| `FUN_005988b0` | 9 | 8 |
+| `FUN_00599510` / `FUN_00599570` | 0xa | 9 |
+| `FUN_00599f50` | 0xb | 0xa |
+| `FUN_0059ad50` | 0xc | 0xb |
+| `FUN_0059bcb0` | 0xd | 0xc |
+| `FUN_0059c650` | 0xe | 0xd |
+| `FUN_005b7340` | 0x11 | 0xf |
+
+`FUN_00599510` is the same test for quest 0xa as a function (eax unit, game
+on the stack, `ret 4`; 1 = send). `FUN_00599570` has register arguments,
+**ESI unit and EDI game** (Ghidra types it `stdcall(pUnit, pGame)`): it
+sends message 9 when `FUN_00599510` says so and returns 0.
+
+**Other helpers (model equals binary):**
+
+| function | what it does |
+|---|---|
+| `FUN_00588c50` | Rescue on Mount Arreat prisoners left: 5 per group byte (+0x86..0x88) still 0, plus data +0xa4 - +0xac - +0xa8, clamped at 0 |
+| `FUN_00588ca0` | the prisoner timer: matches the unit id (-1 for a null unit) to data +0xec/0xf0/0xf4; mode 1 sets update flag 2, mode 2 counts walk ticks (+0xfc + 4i, only while byte +0x108 + i is 1), arrival byte (+0x10b + i) when the count is above 5, flag 3 once arrived, mode 3 flag 4; then re-arms event 7 at frame (+0xa8) + 0x19 |
+| `FUN_0058c6d0` | Rite of Passage party completion: quest 0x27 not done, player level (`FUN_006253b0(unit, 0xc, 0)`, signed) >= (difficulty + 1) * 20, in act 5 (`FUN_006427f0` low byte 4): set bits 0 and 0xd and call `FUN_0058c5c0` (ESI the unit, the game on the stack) |
+| `FUN_0058d640` | summit door init (record 0x23): data +0x58 = 1, +0x5c the object id (-1 none), set update flag from +0x60, forced to mode 2 (flag 1) while the ancients flag (+0) is 0 |
+| `FUN_00590810` | record introduced (+9) and state (+0xc) >= 4 |
+| `FUN_005913c0` | A1Q3 talk closed (listed at `0x5913c8`, the entry is eight bytes earlier): Charsi (class 0x9a) only; data +2 iterates the players with `0x591340`, logs 1; else +3 logs 0xd |
+| `FUN_00599f10` | A2Q2 box count / info: always `*count = 0`, `*present = 1` (the data word +0x20 is read and overwritten) |
+| `FUN_0059ac40` | on act 1 with data +3 == 1 (record 0xa): tainted sun begin on `game[+0xc0]`, +3 = 0, +2 = 1 |
+| `FUN_0059ac80` | byte +4 of record 0xa's data (0 with no record) |
+| `FUN_0059baf0` | record 0xb: level 0x4a with word +0x44 == 0 sets it 1 and +0x42 2; level 0x36 the mirror image |
+| `FUN_0059dfb0` | the **complement** for quest record 0xd: 0 only while introduced and state < 4, else 1 (the Ghidra name "IsSevenTombsLessThanState4" says the reverse) |
+| `FUN_005b43d0` | Izual proximity: unit within distance < 5 (signed) sets data byte +0x18 |
+| `FUN_005b4440` | iterate every player or monster with `0x5b3d30` |
+| `FUN_005b6bc0` / `FUN_005b6c10` | Diablo seal glows 2 and 3 (record 0x17): a null or dead (mode 0) victim has its coordinates stored at data +0x2c (x - 0x27, y + 0x21) / +0x34 (x + 0x20, y + 0x10) and `FUN_005b6ad0` is called with EBX the arg, ESI the coords, EDI 3 / 5 |
+| `FUN_005b6e20` / `FUN_005b6e30` / `FUN_005b6930` | quest 39's status filter (clears the status byte, false), active filter (true for class 0xf5 until the player has spoken to it) and an empty stub |
+
+d2d has no port of these; the only one it cites is `FUN_005913c0`
+(`components/rules/quests.hpp`, the Den talk close).
+
 ## d2d
 
 `DenQuest` runs all of the above for one player:

@@ -21,7 +21,7 @@ the doc with the details. Add a row whenever a trace ends in one.
 | `FUN_0046e150` | sets `+8` of a unit's overlays of one row | orphan (no call, jump or pointer) | — | not ported | gfx.md "Overlays" |
 | `FUN_0046ea50` | loads a unit's COF with no type check | orphan (no call, jump or pointer) | — | not ported | gfx.md "The unit's COF list" |
 | `FUN_0046f3f0` | frees the monster COF cache alone (`FUN_00470290` frees both) | orphan (no call, jump or pointer) | — | not ported | gfx.md "The COF caches" |
-| `FUN_0047fc40`, `FUN_0047ffb0` | the Warden module's deleting destructor; a module cache write (API `+0xd0`) | orphan (no call, jump or pointer) | modules are freed inline and cached by callback 2 (`FUN_00480040`) instead | not ported | bnclient.md "WardenClient.cpp" |
+| `FUN_0047fc40`, `FUN_0047ffb0` | the Warden module's deleting destructor; a module cache write (API `+0xd0`) | orphan (no call, jump or pointer) | modules are freed inline and cached by callback 2 (`FUN_00480040`) instead (both run in warden_client.py) | not ported | bnclient.md "WardenClient.cpp" |
 | `FUN_004da170`, `FUN_004da190`, `FUN_004da660` | motion record raw x, y; the started flag | orphan (no call, jump or pointer) | — | not ported | gfx.md "The motion record" |
 | `FUN_004da920`, `FUN_004da990`, `FUN_004da9c0` | GfxUtil.cpp 16-byte node list: add, find, free | orphan (no call, jump or pointer) | — | not ported | gfx.md "Unused list helpers" |
 | `0x4fb204–0x4fb22a` | DAT palette loop fills a local four-byte-stride array | dead | the local array is never read; the active palette comes from PL2 | not ported | palette.md "DAT and active-palette layout" |
