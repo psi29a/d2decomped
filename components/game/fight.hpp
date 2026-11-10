@@ -1021,8 +1021,12 @@ struct Fight {
     int missile_frame = -1;                // the frame missile_tick last ran
     void missile_tick(std::uint32_t now_ms);
     // An element in 256ths a frame on monster i (a burner's): less its
-    // resistance, gathered until whole points come off (no hit recovery).
-    void burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms);
+    // resistance, gathered until whole points come off (no hit recovery:
+    // its record has result flag 1 alone). `soft`: pSrvDmgFunc 3's roll gave
+    // it 0x4000 (FUN_0057cee0's monster branch: the last command 0x13,
+    // FUN_005734c0, and the mods' event 4, FUN_005a43a0: Lightning
+    // Enchanted's bolts); without it a burn sets off neither.
+    void burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, bool soft = false);
     [[nodiscard]] std::array<int, 4> pierce() const;
     // A skill's missile reaching monster i (FUN_0064b860's record): with a
     // weapon share (the skill's SrcDam, or a row with no Skill its
@@ -1074,8 +1078,8 @@ struct Fight {
     // Immolation's ground fire burns its own row a frame (FUN_0064b100,
     // its synergy through the Missiles.txt calc evaluator FUN_0064b7c0) for
     // SHitCalc1 frames (FUN_005aa250 -> FUN_005a9530).
-    // ponytail: pSrvDmgFunc 3's flag 0x4000 roll (FUN_005ad220) isn't
-    // applied; Plague's clouds are one; a wall doesn't set a missile off.
+    // pSrvDmgFunc 3 (FUN_005ad220) is the burners' soft hit (burn).
+    // ponytail: Plague's clouds are one; a wall doesn't set a missile off.
     void burst(Missile& missile, std::uint32_t now_ms);
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
     // hitpoints heal the player (Prayer: edns, 256ths); an enemy one

@@ -1077,8 +1077,13 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Missile do **5** (FUN_005ae520: the flames of Fire Wall, Meteor, Blaze)
   stands and collides every frame; damage func **3** (FUN_005ad220) only
   rolls a hit flag (0x4000) against a percentage (the missile's seed & 0x7f
-  under dParam1, +0x78: immolationfire 19 / 128): the damage is the
+  under dParam1, +0x78: the six flames' 19 / 128): the damage is the
   skill's per frame, in 256ths (Fire Wall 1: 15 << 4 = 240 = 23 a second).
+  The flames have no GetHit or SoftHit (Missiles.txt +4 bits 0x40 / 0x80,
+  FUN_00661b20), so their record has result flag 1 alone (FUN_005ad730):
+  no get-hit ever. 0x4000 is a soft hit (missiles.md "Server damage
+  function 3"). d2d: `Fight::burn`, the burner in `missiles_update`,
+  `test_burn_fraction`.
   A row with no Skill (meteorfire, immolationfire) burns its own row:
   FUN_0064b100 = (EMin + the level's ELev part, FUN_00644b70) plus
   EDmgSymPerCalc % (+0x118) << HitShift, the calc run by FUN_0064b7c0, the

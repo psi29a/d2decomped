@@ -605,7 +605,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // it in S->C 0x0c. A later block plays its class.
         // State 0x36 (uninterruptable) would drop result flag 4 (no 0x0c), but it's never on a
         // struck player: only the death sets it, and clears it at once (FUN_0054c0e0).
-        if (foe.hits > 0) actor->struck_class = actor->shown_class = foe.hit_class;
+        if (foe.hits > 0 || foe.soft_hits > 0) actor->struck_class = actor->shown_class = foe.hit_class;
         // Poison works on the player over its ticks (a negative potion).
         // One poison at a time: a new one at least as strong replaces it
         // (and its length), a weaker one is ignored (FUN_0057ac50).
@@ -708,7 +708,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // flag 0x8000. The client still plays the struck sounds, command 0x13
         // calling FUN_004cc5b0 with mode 0x13 (LAB_00461439). A miss or a block
         // never gets here (hits stays 0). An attack in progress is not cancelled.
-        else if (!died && foe.hits > 0 && actor->pmode != kModeGH && actor->pmode != kModeDT && actor->pmode != kModeDD) play_player_hit(now_ms);
+        // A burner's soft hit (result flag 0x4000, no 4) sets the same 0x8000, even stunned.
+        else if (!died && (foe.hits > 0 || foe.soft_hits > 0) && actor->pmode != kModeGH && actor->pmode != kModeDT && actor->pmode != kModeDD) play_player_hit(now_ms);
     }
 
 auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void {

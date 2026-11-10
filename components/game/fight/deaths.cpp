@@ -116,7 +116,7 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 // Struck in GH, hook 1 (FUN_005a37d0) queues event 7 two frames on;
                 // otherwise hooks 2 / 4 (FUN_005a2ba0) fire at once.
                 bool fire = false;
-                if (has(d2d::rules::umod::lightning) && monster.hit_points < monster.last_hp) {
+                if (has(d2d::rules::umod::lightning) && (monster.hit_points < monster.last_hp || monster.soft_hit)) {
                     if (monster.mode == "GH") monster.bolts_due = now_ms + 2 * 40;
                     else fire = true;
                 }
@@ -148,6 +148,7 @@ auto Fight::boss_events(std::span<Foe> foes, std::uint32_t now_ms) -> void {
                 }
             }
             monster.last_hp = monster.hit_points;
+            monster.soft_hit = false;
         }
     }
 

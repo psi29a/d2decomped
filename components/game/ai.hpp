@@ -167,6 +167,7 @@ struct Monster {
     // sets off Lightning Enchanted's bolts, at most every 10 frames), when
     // its death effect is due, its mana burn per hit.
     int last_hp = 0;
+    bool soft_hit = false;                    // a burner's soft hit since (Fight::burn): event 4 with no drop of its own
     std::uint32_t bolts_at = 0, fx_at = 0;
     std::uint32_t bolts_due = 0;              // Lightning Enchanted's event 7, queued by a hit in GH (0 none)
     std::uint32_t killself_at = 0;            // MonUMod 21 (killself)'s event 7 (FUN_005a3aa0), 0 none
@@ -339,7 +340,10 @@ struct Monster {
     // +0x18, +0x1c), its command (the Fallen's 1: charge), the corpse a
     // skill raises; the velocity % of the move its last think started
     // (rules::ThinkIn::pace), until when it's in Spider Lay's state (0x16).
+    // "hit": the last command 0x13 (FUN_005734c0), a hit that set no mode (a burner's soft hit).
     std::string_view left_mode = "NU";
+    // FUN_005dd2b0: the last command 3 (GH) or 0x13.
+    [[nodiscard]] bool got_hit() const { return left_mode == "GH" || left_mode == "hit"; }
     int ai_state = 0, ai_state2 = 0, ai_state3 = 0, ai_command = 0, skill_unit = -1;
     // AI command kind 1 (FUN_0058f730: the overseer's Cry Help, do 128): the
     // unit its group goes at (a Foe::id) till that frame.
@@ -546,6 +550,7 @@ struct Foe {
     int knock_under = 0x40;                   // MonProp knock lands on a draw's low 7 bits under it (FUN_005bf960)
     int crush_divisor = 10;                   // MonProp crush's life divisor, before a missile's doubling (FUN_005bffc0)
     int hits = 0;                             // hits that landed this frame (each wears its armour)
+    int soft_hits = 0;                        // a burner's soft hits this frame (result flag 0x4000, no 4): the struck sound, no get-hit
     int hit_class = 0;                        // the last landed blow's this frame: a melee monster's MonStats2 HitClass, a missile's Missiles.txt one
     // Each landed blow this frame with its own damage, hit class, element mark and parts: game.exe
     // absorbs and tests the get-hit one damage record at a time (FUN_0057c6c0 then FUN_0057cee0 per
@@ -997,7 +1002,13 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                                                            foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]);
                 const int dealt = burn >> 8;
                 foe.damage += dealt; foe.elemental += dealt; foe.frac += burn & 255;
-                foe.blows.push_back({ dealt, 0, true, 0, dealt, false, burn & 255 });   // its own record, for its get-hit
+                d2d::rules::StruckBlow blow{ dealt, 0, true, 0, dealt, false, burn & 255 };   // its own record (absorbed alone), no get-hit
+                blow.landed = false;
+                foe.blows.push_back(blow);
+                // pSrvDmgFunc 3 (FUN_005ad220): 0x4000 when a step of the missile's seed has its low 7 bits
+                // under dParam1, a soft hit: FUN_0057cee0 sets unit flag 0x8000, so S->C 0x0c and the struck sound.
+                // ponytail: on d2d's rng; d2d's missiles keep no seed (+0x20).
+                if (missile.info->dmg_func == 3 && int(rng.next() & 0x7f) < missile.info->dmg_par1) { ++foe.soft_hits; foe.hit_class = missile.info->hit_class; }
             }
             return false;
         }

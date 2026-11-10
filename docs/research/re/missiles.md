@@ -369,8 +369,21 @@ Slot 3 of pSrvDmgFunc (`0x73c96c`, data xref only). Cited from the decompile
   (immolationfire 19 / 128, see skills.md); it changes no damage itself.
 - The stepped seed is stored even when the roll fails.
 
-d2d: **not ported** (components/game/fight.hpp:1043 `ponytail:` says so); no `dmg_func == 3`
-case exists (`git grep -n "dmg_func" components`).
+What 0x4000 does: FUN_0057cee0 tests the get-hit only with result flag 4,
+and a burner's record has 1 alone (FUN_005ad730: no GetHit / SoftHit, the
+Missiles.txt +4 bits 0x40 / 0x80 by FUN_00661b20's columns). With 0x4000
+and no 4 it's a soft hit: a player gets FUN_0064c040 and unit flag 0x8000
+(S->C 0x0c: the struck sound with the row's HitClass); a monster those, its
+last command 0x13 (FUN_005734c0; FUN_005dd2b0 reads 3 or 0x13 as got hit,
+and FUN_005a68e0 makes 0x13 3 at the next mode) and its mods' event 4
+(FUN_005a43a0: Lightning Enchanted's bolts). A blocked record (0x10) with
+0x4000 plays no block. The six rows with function 3 are the flames (blaze,
+firewall, immolationfire, meteorfire, the vampires' two), dParam1 19.
+
+d2d: the burner on a foe (`missiles_update`: `Foe::soft_hits`, the blow's
+`landed` off) and on a monster (`Fight::burn`'s `soft`: `Monster::got_hit`,
+`soft_hit`); `test_burn_fraction`. Rolled on d2d's rng: its missiles keep no
+seed.
 
 ## Server damage function 10 — FUN_005ad2b0
 
