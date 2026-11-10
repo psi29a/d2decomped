@@ -2,8 +2,8 @@
 // test-links: game
 // The skills' weapon-type gate (FUN_00643f80 / FUN_00643d90, FUN_00647960's status 2) with the real Skills.txt and ItemTypes:
 // one hand fits set a (itypea / etypea) and the other set b (itypeb / etypeb), either way round. Holy Shield (itypea1 shld,
-// no set b) needs a shield in either hand; Double Swing (mele / mele) two melee weapons, or bare hands; Dragon Claw (h2h / h2h)
-// two claws; a skill with no set (Fire Bolt) takes anything.
+// no set b) needs a shield in either hand; Double Swing (mele / mele) two melee weapons; Dragon Claw (h2h / h2h) two
+// claws; a skill with no set (Fire Bolt) takes anything.
 
 #include <character.hpp>
 #include <d2s_items.hpp>
@@ -44,10 +44,11 @@ int main() try {
     // Holy Shield: a shield in either hand.
     assert(gate("Holy Shield", { { "ssd", kRight }, { "buc", kLeft } }) && gate("Holy Shield", { { "buc", kRight } }));
     assert(!gate("Holy Shield", { { "ssd", kRight } }) && !gate("Holy Shield", { { "ssd", kRight }, { "ssd", kLeft } }) && !gate("Holy Shield", {}));
-    // Double Swing: two melee weapons; one with an empty hand fails (D_b(none) needs neither hand a weapon); bare hands pass.
-    assert(gate("Double Swing", { { "ssd", kRight }, { "hax", kLeft } }) && !gate("Double Swing", { { "ssd", kRight } }) && gate("Double Swing", {}));
-    // Dragon Claw: two claws.
-    assert(gate("Dragon Claw", { { "ktr", kRight }, { "ktr", kLeft } }) && !gate("Dragon Claw", { { "ktr", kRight }, { "buc", kLeft } }));
+    // Double Swing: two melee weapons; one, or bare hands, fail: an empty hand passes only with set b's itype1 empty
+    // (0x643dd8), and Double Swing's is mele.
+    assert(gate("Double Swing", { { "ssd", kRight }, { "hax", kLeft } }) && !gate("Double Swing", { { "ssd", kRight } }) && !gate("Double Swing", {}));
+    // Dragon Claw: two claws; bare hands fail too.
+    assert(gate("Dragon Claw", { { "ktr", kRight }, { "ktr", kLeft } }) && !gate("Dragon Claw", { { "ktr", kRight }, { "buc", kLeft } }) && !gate("Dragon Claw", {}));
     // Smite: a shield too; Fire Bolt: no set.
     assert(gate("Smite", { { "buc", kLeft } }) && !gate("Smite", { { "ssd", kRight } }) && gate("Fire Bolt", {}));
     std::puts("OK: the weapon-type gate as FUN_00643f80 / FUN_00643d90");
