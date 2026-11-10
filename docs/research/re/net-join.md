@@ -562,6 +562,12 @@ It takes no arguments and always returns 1. Its calls, in order (0x4fa550..0x4fa
 
 `FUN_004fa550` itself (0x4fa550..0x4fa581): store 0 in `DAT_007d55c4`; `FUN_004f9290`; `FUN_00507140`; `FUN_005015f0`; push 0x21; `FUN_004f59a0` (result to ECX); `mov edx, 0x72dc48`; `FUN_00506e00`; return 1. So it frees the D2Win list's leading nodes, closes the pentspin and the font table, then removes the 33 handlers. It reads no argument, and `FUN_00442150` and `FUN_004359d0` return other globals after it (`DAT_0077bda0`, `DAT_007795e8`). d2d: not ported (`git grep -n 004fa550 components apps tests` finds nothing); d2d has no handler registry to unwind.
 
+### Who calls the shutdown and the window-handle getter
+
+| Address | What | Evidence |
+|---|---|---|
+| `FUN_00442150` | ECX = a record pointer, kept in `DAT_0077bbd8`. Calls `FUN_004f8fe0` (the D2Win setup: font 1, pentspin load `FUN_005070d0`, the handler table `FUN_00506da0` on 0x72dc48 x 0x21), `FUN_004f90a0(1)` (resizes the window; failure prints "Failed to resize window... this is fatal!" and exits -1), `FUN_00441b70` (the screen itself: it clears `DAT_0077bda0`, reads the screen object at record +0x225 into `DAT_0077b09c`, null raises line 0xce7, and sets `DAT_0077bda0` to 4 when that object's method +0x68 returns 0), then `FUN_004fa550`. Returns `DAT_0077bda0`. Its only reference is a data word at 0x70cd14. The same shape as `FUN_004359d0`, which keeps ECX in `DAT_007795d4`, ends in `FUN_004fa550` and returns `DAT_007795e8`. | `python3 tools/ghidra/fn.py 00442150 004f8fe0 004f90a0`, `python3 tools/ghidra/calls.py 00442150` |
+
 ## Save-back (S->C 0xb3)
 
 In an open game the **host** writes the joiner's save and sends it back. The joiner stores it
