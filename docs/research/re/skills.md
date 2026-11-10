@@ -1228,7 +1228,7 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
        (game, B, A, record). So the reflected damage is the row's ResultFlags
        / HitFlags / HitClass, not a thorns number.
     5. A leech tail, only when B is a monster of class 0x122 (the `cmp eax,
-       eax` at 0x5c60e3 compares a register with itself, so the branch is never taken): B's MonStats
+       eax` at 0x5c60e3 compares a register with itself, so its jne falls through on this path): B's MonStats
        record (FUN_0055b7e0) byte +0xa0 + difficulty (Drain) must be over 0,
        and B must be evil (alignment FUN_006259b0 0). The reflected damage
        (record +8) is scaled by that Drain percent unless it is 100. Then,
@@ -1248,7 +1248,7 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
     (tick.cpp:550); the wearer rule is "hireling" (FUN_0063ee90 classes
     0x10f, 0x152, 0x167, 0x230, 0x231), not "any pet": a skeleton or a
     golem is a monster, so calc1. Not ported: the leech tail for class 0x122,
-    and the reflected hit as a full hit (its flags and hit class; resistances not traced).
+    and the reflected hit sent as a hit record (its flags and hit class; resistances not traced).
   - **22** Bone Armor (FUN_005c6370, absorbdamage): its pool stat
     (record +0x54) takes the hit's physical (+8); at 0 the state goes.
   - **24** Energy Shield (FUN_005ca6c0): calc1 % of each damage type of
