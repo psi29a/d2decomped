@@ -27,11 +27,9 @@ Good: `level 2: 20/20 seeds match game.exe`.
 
 | Checks | Command (in tools/emu) | Good output |
 |---|---|---|
-| Battle.net message queue (four BnMessQueue.cpp routines, stock x86 with allocator and locks scripted) | `uv run python bnqueue.py` | `ok: queue FIFO, zero length, limits, string truncation, clear and reuse` |
 | Level layouts, monsters, objects | `uv run python diff_drlg.py 1-20 2 [tiles\|monsters\|objgroups\|collision\|game\|npcs]` | `N/N seeds match game.exe` |
 | Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
 | The PATH dynamic-path accessors and wrappers (70 functions, FUN_00648460..FUN_00649ca0) | `uv run python path_dynamic.py` | `ok: 5065 PATH accessor, setter, collision and recalc cases` |
-| BNNews 0x46 reply merge, cutoff and callback order (cache writer hooked; signed count guard) | `uv run python bnnews_reply.py` | `ok` |
 | The animated image control (D2WinAnimImage.cpp FUN_00500850: its fields, draw mode 0 stored as 5, on all 15 kind-3 screen records) | `uv run python anim_image.py` | `ok` |
 | The profile dump is dead (Logging\ProfCore.cpp FUN_006116b0: 23 rows, all 0; FUN_00611660 and 0x611730 never referenced) | `uv run python profile_dump.py` | `ok` |
 | SoundHdr falloff range getters (FUN_004825b0, FUN_00482610) | `uv run python sound_hdr_ranges.py` | `ok: 42 falloff minimum/maximum getter cases` |
@@ -150,6 +148,8 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | String table number formatters (FUN_00525350, 00525490, 005255c0) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: stock TBL unsigned, signed, and K/M/B/T formatter cases` |
 | String table file opener (FUN_00525920) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: CRC-checked synthetic TBL open and rejection cases` |
 | Server-side client-packet handlers of PlrMsg.cpp, the small ones: size gates (status 3) and the forwarded arguments of 0x31, 0x33, 0x34, 0x35, 0x36, 0x3f, 0x40, 0x48, 0x4f, 0x53, 0x54, 0x58, 0x62 (FUN_0054ba90 ... FUN_0054c9c0; the callees hooked and logged; status of 0x33 and 0x4f is the callee's) | `uv run python plrmsg_small.py` | `ok: 40 PlrMsg small handler rounds` |
+| Battle.net message queue (four BnMessQueue.cpp routines, stock x86 with allocator and locks scripted) | `uv run python bnqueue.py` | `ok: queue FIFO, zero length, limits, string truncation, clear and reuse` |
+| BNNews 0x46 reply merge, cutoff and callback order (cache writer hooked; signed count guard) | `uv run python bnnews_reply.py` | `ok` |
 
 ## When it breaks
 
