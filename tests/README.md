@@ -98,3 +98,8 @@ Controller Identify review regressions: `pad_identify_classic_d2d` and
 and after unidentified targets are present. Skill Buttons also checks Use to
 activate Identify and A to confirm. These require local MPQs and the 1.14d patch;
 empty-tome availability is covered by `test_direct_controls`.
+
+The touch inventory test also sells through actual mouse down/up events (owner
+-2), in addition to injected SDL fingers. Cancellation and closing a shop while
+holding an item must not commit a sale. This validates the single-pointer input
+path in simulation, not native Sidecar or phone event delivery.

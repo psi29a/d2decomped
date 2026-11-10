@@ -342,6 +342,7 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " quests=" + std::to_string(town.quest_log.open)
              + " touch_page=" + std::to_string(town.touch_input.alternate)
              + " touch_aiming=" + std::to_string(town.touch_input.aiming)
+             + " touch_item_finger=" + std::to_string(town.touch_item_finger)
              + " touch_skill=" + std::to_string(town.touch_input.preview.skill)
              + " touch_target=" + std::to_string(town.touch_input.preview.unit)
              + " touch_point=" + std::to_string(town.touch_input.preview.x) + "," + std::to_string(town.touch_input.preview.y)
