@@ -429,8 +429,8 @@ what a real `.txt` yields for these columns is not claimed.
 
 ### Loaders and getters, second batch (`txt_schemas.py`)
 
-`tools/emu/txt_schemas.py` runs eight more CompileTxt loaders and one getter from
-stock game.exe 1.14d (990 cases, `--mutation-check` breaks the model 17 ways). The
+`tools/emu/txt_schemas.py` runs ten CompileTxt loaders and one getter from stock
+game.exe 1.14d (1,200 cases, `--mutation-check` breaks the model 25 ways). The
 harness is `monster_loaders.py`'s rig: CompileTxt 0x6122f0 is hooked and logs the
 column list, the table name, the count address and the record size; the string
 lookup 0x524d30 is hooked and logs the name pointer it was given.
@@ -460,6 +460,18 @@ lookup 0x524d30 is hooked and logs the name pointer it was given.
   +0x6c; `effect2` likewise to +0x6e. The first store is written through the
   `effect2` field's address (`effect2 + row + 0x20`), so it lands at +0x6c, the last
   two bytes before the record's end; the disassembly agrees with the decompile.
+* **FUN_00618d90** (pettype, fastcall pool): creates the link at `0x96c81c`
+  (`.\\DATATBLS\\DataTbls.cpp`, line 0x729), 21 columns (`pet type` NAME_I_INT on
+  that link, `group` / `basemax` SHORT, six BIT columns in the dword at +4 with bit
+  numbers 0..5, the icon and class strings, `name` KEY_WORD linked to
+  DATATBLS_LookupStringId 0x6117b0), record 0xe0, table `0x96c818`, count
+  `0x96c820`. A count above 0xff (signed) halts at line 0x72b; after the compile the
+  count is stored as 0 when below 1 (`size & ((size < 1) - 1)`); the decompile's
+  later 0x100 clamp is then unreachable.
+* **FUN_00637320** (books, fastcall pool): 9 columns, `name` KEY_WORD linked to
+  0x6117b0, two RAW4 spell codes at +0x18 / +0x1c, `pSpell` INT, two NAME_INT skill
+  columns linked to the skills link `0x96c7cc`, record 0x20, table `0x96cc64`,
+  count `0x96cc60`.
 * **FUN_00613e60** (TXT_Experience_GetExpRatio, stdcall level): the table at
   `0x96c8a8`. Level <= 0 gives row 0's ExpRatio (+0x1c, not 0 as the decompile's
   first branch suggests when the table is set); a level above the first dword
@@ -472,12 +484,47 @@ two post-process loaders also compare their row tables byte by byte after the
 lookups. Re-check: `cd tools/emu && uv run python txt_schemas.py` (needs
 `D2_MPQ_DIR`; no MPQ is read), and with `--mutation-check`.
 
-**Not covered here:** FUN_00618d90 (pettype: several linked columns and the
-0x72b / 0x100 clamp), FUN_00637320 (books: the `name` column's linker is
-DATATBLS_LookupStringId, whose address is not recorded yet) and the other cited DataTbls.cpp, ItemTbls.cpp, LvlTbls.cpp, MonsterTbls.cpp, TokTbls.cpp,
+**Not covered here:** the other cited DataTbls.cpp, ItemTbls.cpp, LvlTbls.cpp, MonsterTbls.cpp, TokTbls.cpp,
 MissileTbls.cpp, OverlayTbls.cpp, FieldTbls.cpp and AnimTbls.cpp functions that
 are not in the tables above.
 
 | Oracle | Functions |
 |---|---|
-| `txt_schemas.py` | `FUN_00617d90`, `00637620`, `0061f130`, `0061f380`, `00659500`, `00637500`, `00636770`, `00613e60` |
+| `txt_schemas.py` | `FUN_00617d90`, `00618d90`, `00637620`, `00637320`, `0061f130`, `0061f380`, `00659500`, `00637500`, `00636770`, `00613e60` |
+
+### FieldTbls.cpp (`fieldtbls.py`)
+
+`tools/emu/fieldtbls.py` runs eight FieldTbls.cpp functions from stock game.exe
+1.14d (600 cases, `--mutation-check` breaks the model 16 ways). The archive
+reader is hooked (D2FILE `0x517079`, logged with the path it was given); the
+fatal path, the pool and client releases run as hooked logs; the memmove
+`0x6829c0` runs for real.
+
+* **FUN_0066a2b0** (InitFieldData, stdcall archive): the archive's width is the
+  dword at +2, its height the dword at +6, the bytes from +10. The copy is
+  `w * h` bytes. **The stride is the height**: the nine row offsets at
+  `0x96d630 + 4k` are `Y[k] * h + X[k]` (X at `0x749780`, Y at `0x7497a4`, the
+  table of game.exe's step deltas), though the Ghidra output multiplies by
+  `nWidth`. Half height goes to `0x96d664` and half width to `0x96d668`; the
+  table pointer to `0x96d654`, the size to `0x96d660`, width `0x96d65c` and
+  height `0x96d658`. The archive is freed as client memory (line 0x50).
+* **FUN_0066a420** (FreeFieldData): frees the table if set (pool, line 0x5b),
+  clears the table, the size, the dimensions and the half sizes, returns 1.
+* **FUN_0066a470** (GetFieldCenterOffsets, stdcall two pointers): the half
+  height at `0x96d664` goes through the **first** pointer and the half width at
+  `0x96d668` through the second (the decompile's names are the other way round).
+* **FUN_0066a4b0 / 0066a500** (AllocPoint / FreePoint): an 8-byte pool block
+  (line 0x87) with x = y = 0; the free checks null (line 0x93) and frees (line 0x94).
+* **FUN_0066a540** (SetXY, stdcall point, x, y): x at +0, y at +4; null halts (line 0xa1).
+* **FUN_0066a580** (field byte, stdcall origin, x, y): null halts (line 0xb0);
+  otherwise the byte at `table + x + ((y - origin[1]) << 8) - origin[0]`. The row
+  stride here is 0x100, not the width.
+* **FUN_0066a700** (LoadExpFieldFile, fastcall pool): wsprintfA gives
+  `DATA\GLOBAL\expfield.d2`, then D2FILE with line 0x28, then InitFieldData.
+
+Not reached here: the null allocation halts of InitFieldData (line 0x40) and
+AllocPoint (line 0x88): the allocator hook returns fresh memory in this oracle, so the null branch is not run.
+
+| Oracle | Functions |
+|---|---|
+| `fieldtbls.py` | `FUN_0066a2b0`, `0066a420`, `0066a470`, `0066a4b0`, `0066a500`, `0066a540`, `0066a580`, `0066a700` |

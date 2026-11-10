@@ -24,6 +24,14 @@ built from a `D2BinFieldInputStrc` list and handed to CompileTxt 0x61_22f0:
   codes linked to 0x96bcd8, params, effect strings, the ten equipment flags),
   record 0x70, table 0x96cc54, count 0x96cc50. Each non-empty effect string is
   looked up; the ids go to +0x6c (effect1) and +0x6e (effect2) as shorts.
+* FUN_00618d90 (pettype, fastcall pool): creates the link at 0x96c81c (file
+  `.\\DATATBLS\\DataTbls.cpp`, line 0x729), 21 columns (pet type NAME_I_INT
+  linked to the new link, six BIT columns at dword +4 bits 0..5, the icon and
+  class strings, the `name` KEY_WORD), record 0xe0, table 0x96c818, count 0x96c820.
+  A count above 0xff (signed) halts (line 0x72b); a count below 1 is stored as 0.
+* FUN_00637320 (books, fastcall pool): 9 columns (`name` KEY_WORD linked to
+  DATATBLS_LookupStringId 0x6117b0, two RAW4 spell codes, two NAME_INT skill
+  columns linked to the skills link 0x96c7cc), record 0x20, table 0x96cc64, count 0x96cc60.
 * FUN_00613e60 (TXT_Experience_GetExpRatio, stdcall level): reads the table at
   0x96c8a8. Level <= 0 gives row 0's ExpRatio (+0x1c), a level above the
   first dword (signed) gives 0, else row level + 1 (+0x3c with rows of 0x20 bytes).
@@ -47,8 +55,9 @@ import sys
 
 import _monster_world as mw
 from _monster_world import require
-from monster_loaders import (ASCII, CHAR, INT, MASK, NAME_INT, REGION, REGION_END, SHORT, Rig, check_compile_call,
+from monster_loaders import (ASCII, CHAR, INT, KEY_WORD, MASK, NAME_INT, REGION, REGION_END, SHORT, Rig, check_compile_call,
                              rows_value, s32, schema)
+BIT, RAW4, NAME_I_INT = 26, 9, 18
 
 DIFF_LOAD, RATIO_LOAD, WARP_LOAD, MAZE_LOAD, MONLVL_LOAD = 0x61_7D90, 0x63_7620, 0x61_F130, 0x61_F380, 0x65_9500
 LOWQ_LOAD, QUAL_LOAD, EXP_RATIO = 0x63_7500, 0x63_6770, 0x61_3E60
@@ -60,8 +69,13 @@ MONLVL_TABLE, MONLVL_COUNT = 0x96_C7A0, 0x96_C7A4
 LOWQ_TABLE, LOWQ_COUNT = 0x96_CC5C, 0x96_CC58
 QUAL_TABLE, QUAL_COUNT, QUAL_LINK = 0x96_CC54, 0x96_CC50, 0x96_BCD8
 EXP_TABLE = 0x96_C8A8
+PET_LOAD, PET_LINK, PET_TABLE, PET_COUNT = 0x61_8D90, 0x96_C81C, 0x96_C818, 0x96_C820
+PET_FILE, PET_LINE, PET_HALT_LINE = ".\\DATATBLS\\DataTbls.cpp", 0x729, 0x72B
+BOOKS_LOAD, BOOKS_COUNT, BOOKS_TABLE = 0x63_7320, 0x96_CC60, 0x96_CC64
+SKILLS_LINK, KEY_LOOKUP = 0x96_C7CC, 0x61_17B0
 DIFF_HALT_LINE = 0x61F
-MUTATIONS = ("diff-no-halt", "diff-halt-line", "diff-aicurse-offset", "ratio-version-offset", "ratio-uber-int",
+MUTATIONS = ("pet-halt-unsigned", "pet-clamp-keeps-negative", "pet-bit-offset", "pet-link-slot", "pet-name-linker",
+             "books-scroll-offset", "books-skill-linker", "books-count-slot", "diff-no-halt", "diff-halt-line", "diff-aicurse-offset", "ratio-version-offset", "ratio-uber-int",
              "warp-direction-int", "warp-tiles-offset", "maze-merge-offset", "monlvl-xpn-offset", "monlvl-table-slot",
              "lowq-id-offset", "qual-first-id-offset", "qual-no-empty-check", "qual-mod2-linker", "exp-row0-zero",
              "exp-stride", "exp-count-off")
@@ -281,6 +295,68 @@ def check_qualityitems(rig, rng):
     require(bytes(rig.m.read(table, len(content))) == bytes(expect), "qualityitems: row table after the lookups differs")
 
 
+def pettype_columns():
+    """pettype: 21 columns in the loader's order; the six BIT columns sit in the dword at +4."""
+    bit_offset = 4 if not mut("pet-bit-offset") else 8
+    link = PET_LINK if not mut("pet-name-linker") else PET_LINK + 4
+    rows = [("pet type", NAME_I_INT, 0, 0, link), ("group", SHORT, 0, 8, 0), ("basemax", SHORT, 0, 0xA, 0)]
+    rows += [(name, BIT, bit, bit_offset, 0) for bit, name in enumerate(("warp", "range", "partysend", "unsummon",
+                                                                           "automap", "drawhp"))]
+    rows += [("icontype", CHAR, 0, 0xE, 0), ("baseicon", ASCII, 0x20, 0xF, 0), ("mclass1", SHORT, 0, 0xB2, 0),
+             ("micon1", ASCII, 0x20, 0x2F, 0), ("mclass2", SHORT, 0, 0xB4, 0), ("micon2", ASCII, 0x20, 0x4F, 0),
+             ("mclass3", SHORT, 0, 0xB6, 0), ("micon3", ASCII, 0x20, 0x6F, 0), ("mclass4", SHORT, 0, 0xB8, 0),
+             ("micon4", ASCII, 0x20, 0x8F, 0), ("name", KEY_WORD, 0, 0xC, KEY_LOOKUP)]
+    return rows
+
+
+def books_columns():
+    """books: name, two RAW4 spell codes, pSpell, two skill columns on the skills link, spell icon and costs."""
+    scroll = 0x18 if not mut("books-scroll-offset") else 0x1A
+    skill_link = SKILLS_LINK if not mut("books-skill-linker") else SKILLS_LINK + 4
+    return [("name", KEY_WORD, 0, 0, KEY_LOOKUP), ("scrollspellcode", RAW4, 0, scroll, 0),
+            ("bookspellcode", RAW4, 0, 0x1C, 0), ("pSpell", INT, 0, 4, 0),
+            ("scrollskill", NAME_INT, 0, 8, skill_link), ("bookskill", NAME_INT, 0, 0xC, skill_link),
+            ("spellicon", CHAR, 0, 2, 0), ("basecost", INT, 0, 0x10, 0), ("costpercharge", INT, 0, 0x14, 0)]
+
+
+def check_pettype(rig, rng):
+    """FUN_00618d90 (fastcall pool): link, compile, then the count is clamped (below 1 gives 0; above 0xff halts)."""
+    before = rig.scramble()
+    pool = rng.randrange(1 << 32)
+    link = rng.randrange(1, 1 << 32)
+    rig.links = [link]
+    raw = rng.choice((0, 1, 5, 0xFF, 0x100, 0x7FFFFFFF, MASK, 0x80000000, rng.randrange(0x200)))
+    rig.rows, rig.table = raw, rng.randrange(1 << 32)
+    got = rig.go(PET_LOAD, ecx=pool)
+    if mut("pet-halt-unsigned"):
+        halted = raw > 0xFF
+    else:
+        halted = s32(raw) > 0xFF
+    if halted:
+        require(got == ("halt", PET_HALT_LINE), f"pettype with {s32(raw)} rows: {got}")
+        final = raw
+    else:
+        require(got[0] == "ret", f"pettype with {s32(raw)} rows: {got}")
+        final = 0 if s32(raw) < 1 else raw
+        if mut("pet-clamp-keeps-negative"):
+            final = raw
+    want_log = [("link", PET_FILE, PET_LINE), ("compile", pool, "pettype", PET_COUNT, 0xE0)]
+    slot = PET_LINK if not mut("pet-link-slot") else PET_LINK + 4
+    check_compile_call(rig, ("ret", 0) if halted else got, want_log, schema(*pettype_columns()),
+                       {slot: link, PET_TABLE: rig.table, PET_COUNT: final}, before, "pettype")
+
+
+def check_books(rig, rng):
+    """FUN_00637320 (fastcall pool): the books table."""
+    before = rig.scramble()
+    pool = rng.randrange(1 << 32)
+    rig.rows, rig.table = rows_value(rng), rng.randrange(1 << 32)
+    got = rig.go(BOOKS_LOAD, ecx=pool)
+    count_at = BOOKS_COUNT if not mut("books-count-slot") else BOOKS_COUNT + 4
+    check_compile_call(rig, got, compile_log(pool, "books", count_at, 0x20), schema(*books_columns()),
+                       {BOOKS_TABLE: rig.table, count_at: rig.rows}, before, "books")
+
+
 def check_exp_ratio(rig, rng):
     """FUN_00613e60 (stdcall level): the experience ratio of a level, read only."""
     rig.scramble()
@@ -319,7 +395,7 @@ def run_all():
     random.seed(0x613E60)
     rng = random.Random(0x617D90)
     rig = Rig()
-    plan = [(check_difficulty, 150), (check_ratio, 60), (check_lvlwarp, 60), (check_lvlmaze, 60), (check_monlvl, 60),
+    plan = [(check_pettype, 150), (check_books, 60), (check_difficulty, 150), (check_ratio, 60), (check_lvlwarp, 60), (check_lvlmaze, 60), (check_monlvl, 60),
             (check_lowqualityitems, 150), (check_qualityitems, 150), (check_exp_ratio, 300)]
     cases = 0
     for check, rounds in plan:
