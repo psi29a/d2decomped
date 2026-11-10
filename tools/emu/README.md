@@ -130,6 +130,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest object-class dispatch (`FUN_005447a0`, handlers hooked; `--mutation-check` three ways) | `uv run python quest_object_dispatch.py` | `ok: 48 quest object dispatch cases` |
 | Rescue reward across difficulty quest buffers (`FUN_0058a0a0`, hooked callees; `--mutation-check` three ways) | `uv run python quest_rescue_resistance.py` | `ok: 24 quest resistance cases` |
 | Quest 0x21 spawn attempt (`FUN_0058a820`, lookup, room and spawn hooked; `--mutation-check` three ways) | `uv run python quest_spawn_rescue.py` | `ok: 24 quest rescue spawn cases` |
+| Quest 0x14 two-object updates (`FUN_005bcfd0`, lookup and setter hooked; `--mutation-check` three ways) | `uv run python quest_two_objects.py` | `ok: 24 quest two objects cases` |
 | Small Quests helpers: the 11 quest-update notifiers, Horadric Staff test, A2/A4/A5 data helpers, filters and seal glows (31 functions, FUN_005879d0 ... FUN_005b7340; `--mutation-check` 13 ways) | `uv run python quests_small.py` | `ok: 768 Quests small-helper cases` |
 | Screen shake and quest control frames | `uv run python shake.py > ../../tests/shake_cases.inc`; `uv run python shake.py --controls > ../../tests/quake_control_cases.inc` | `test_shake` matches both captured fixtures |
 | Show Items label layout (FUN_004c0640's 12 tries in FUN_004c0810's loop) | `uv run python show_items_layout.py gen 5000 1 > cases.tsv; uv run python show_items_layout.py game cases.tsv > g.txt; ../../build/tests/test_show_items_layout cases.tsv \| diff g.txt -` | no output |

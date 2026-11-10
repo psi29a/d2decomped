@@ -432,6 +432,7 @@ address	name	evidence
 005bad20	quest12_flag_test	quest 0x12 first data byte nonzero
 005bad40	quest12_flag_clear	quest 0x12 first data byte cleared
 005bbf80	quest13_data0c_zero	quest 0x13 absent or data byte +0xc zero; result in AL
+005bcfd0	quest14_update_objects	quest 0x14 sets data state dwords to 2 and updates two flagged objects
 005c3de0	confuse_unit	per-unit Confuse: FUN_005c3d50 test, d2d_states_put_state, descriptor stats set, alignment 1 (FUN_005543b0), list 9, kind 3, event 10; monster-ai.md "Confuse and Attract"
 005c4180	pet_variant	caster seed (+0x20) & 3 into monster data +0xf (skeletal mage element)
 005d7090	skill_start_dragon_tail	srvstfunc 27 (fastcall): FUN_0056e520, to-hit + stat 325 (FUN_0057ec10), on a hit kick damage FUN_005d54b0, FUN_0057dbf0 with HitClass +0x1a5 (0x80 if 0); skills.md "Stat-list helpers and skill starts"

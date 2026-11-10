@@ -358,6 +358,13 @@ the Objects table +0xa80, then dispatches class 0xc9 to `FUN_0059b6c0` or
 nothing. `tools/emu/quest_object_dispatch.py` checks 48 combinations against
 stock with both handlers hooked, including signed bounds and the two IDs.
 
+`FUN_005bcfd0` looks up quest 0x14 and, when present, sets its data dwords
++0xc and +0x10 to 2. For each nonzero flag byte +1 / +2, it looks up an
+object with `FUN_00552f60(game, 2, id)` using the respective data dword +4 /
++8; if found it calls `FUN_00624690(object, 1 / 2)`. The two lookups are
+independent. `tools/emu/quest_two_objects.py` checks 24 stock cases with the
+lookup and setter boundaries hooked.
+
 `tools/emu/quest_frontier.py` checks these nine functions on synthetic records
 against stock 1.14d (216 cases, nine deliberate model defects caught). The
 quest lookup `FUN_00543640` is hooked: its arguments are checked, but its
