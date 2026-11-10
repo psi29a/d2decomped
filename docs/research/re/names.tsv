@@ -922,6 +922,7 @@ address	name	evidence
 00618c90	states_free	DataTbls.cpp 0x6e8..0x6fc; verified by datatbls_finish.py
 00618d90	pettype_load	"pettype" 0xe0 (DataTbls.cpp 0x72b); verified by txt_schemas.py
 00619140	tables_unload_all	every unloader; verified by datatbls_finish.py
+0061a1b0	room_level_id	stdcall (room): 0 for null, else FUN_0066bab0 of room +0x10 (*(*(r + 0x58) + 0x1d0), the level id) (drops.md "A room's level id")
 0061dd00	portal_level_array	LvlTbls.cpp: count at 0x96c9f8, pointer 0x96c9f4 (alloc line 0x16c), LevelDefs Portal at +0x8c; verified by lvl_small.py
 0061ddf0	leveldefs_extra	returns 0x96c9f4, ECX slot = 0x96c9f8
 0061de00	leveldefs_load	"leveldefs" 0x9c then FUN_0061dd00
