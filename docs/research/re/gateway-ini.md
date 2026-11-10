@@ -1,12 +1,19 @@
 # BNGatewayAccess — Battle.net gateway list + private INI parser
 
 Source-file breadcrumb: `.\BNetGW.cpp` (present in every assertion call site).
-Address range: `0x00517e00`–`0x00518900` (~2.5 KB code) + globals at
+Address range: `0x00517e40`–`0x00518b55` + globals at
 `0x0042e680`/`0x0042e690`.
 
-Recovered from MSVC decorated exports: every function in this range is a
-member of `BNGatewayAccess`. Ghidra's demangler pulls names, `__thiscall`
-vs `__stdcall`, access levels, and full parameter types — no guesswork.
+Most routines have MSVC decorated exports as `BNGatewayAccess` members;
+`FUN_00518300` is an unexported helper. The demangled names and signatures
+are useful starting points, and the code is the authority for behavior.
+
+`tools/emu/bnetgw.py` executes selected parser, accessor, selection, save,
+update, and load paths from stock game.exe 1.14d on synthetic inputs
+(`D2_MPQ_DIR=<data> uv run python bnetgw.py` from `tools/emu`). Configuration
+IO, memory allocation/free, decimal formatting, logging, and `Realms.bin`
+loading are scripted. Real file IO, live Battle.net, malformed input beyond
+the cases below, concurrency, and unexercised branches remain static traces.
 
 ## Class layout — 0x24 bytes
 
@@ -37,8 +44,8 @@ around for legacy external readers. Confirm by xref before trusting.
 
 ```
 "<version>\0"   "<currentIdx-2digit>\0"       ← 2-line prelude
-"1\0"           "0\0"       "USEast\0"        ← 1st gateway: idx, gmt, name
-"2\0"           "-6\0"      "USWest\0"
+"east.example\0"  "-5\0"    "USEast\0"        ← 1st gateway: DNS, gmt, display name
+"west.example\0"  "-8\0"    "USWest\0"
 ...
 "\0\0"                                        ← double-null terminates
 ```
@@ -52,13 +59,13 @@ double-null tail — it's the "packet-well-formed" invariant.
 | addr       | mangled               | signature                                                                                                                                             | notes                                                                                                                       |
 |------------|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | `0x517e40` | `??4…@@QAEAAV0@ABV0@` | `BNGatewayAccess& operator=(const BNGatewayAccess&)`                                                                                                  | copies 9 dwords; no deep buffer copy                                                                                        |
-| `0x517e60` | `?GetSystemTimeZone…` | `private int GetSystemTimeZone()`                                                                                                                     | wraps `GetTimeZoneInformation` + `GetUserDefaultLangID`; returns bias in minutes                                            |
+| `0x517e60` | `?GetSystemTimeZone…` | `private int GetSystemTimeZone()`                                                                                                                     | returns Windows bias in minutes, except Australian English locale (0x0c09) returns 480                                            |
 | `0x517ed0` | `?SaveAndUnload…`     | `public void __stdcall SaveAndUnload()`                                                                                                               | writes `Configuration/Diablo II Battle.net gateways` (or `Override…`) via `FUN_00415000`; frees `buffer` and `realmsBuf`   |
-| `0x517fd0` | `?Nth…`               | `private const char* Nth(int)`                                                                                                                        | walks triple-index into buffer (3 strings/entry). Returns start of index-string; callers step to gmt/name via `strlen+1` |
-| `0x518040` | `?DNS…`               | `public const char* __stdcall DNS(int)`                                                                                                               | thin wrapper: returns `Nth(i)` = index string                                                                               |
-| `0x518060` | `?GMT…`               | `public int __stdcall GMT(int)`                                                                                                                       | steps past index string, `strtol` on gmt string                                                                             |
-| `0x5180a0` | `?Name…`              | `public const char* __stdcall Name(int)`                                                                                                              | steps past index+gmt, returns name pointer                                                                                  |
-| `0x5180e0` | `?Realm…`             | `public const char* __stdcall Realm(int)`                                                                                                             | scans `realmsBuf` for a name matching the gateway's name; returns its realm string                                          |
+| `0x517fd0` | `?Nth…`               | `private const char* Nth(int)`                                                                                                                        | walks triple-index into buffer (3 strings/entry). Returns start of DNS string; invalid index or an out-of-bounds offset returns `this` |
+| `0x518040` | `?DNS…`               | `public const char* __stdcall DNS(int)`                                                                                                               | thin wrapper: returns `Nth(i)` = DNS string                                                                               |
+| `0x518060` | `?GMT…`               | `public int __stdcall GMT(int)`                                                                                                                       | steps past DNS string, `strtol` on gmt string                                                                             |
+| `0x5180a0` | `?Name…`              | `public const char* __stdcall Name(int)`                                                                                                              | steps past DNS+gmt, returns name pointer                                                                                  |
+| `0x5180e0` | `?Realm…`             | `public const char* __stdcall Realm(int)`                                                                                                             | scans `realmsBuf` for a key matching the gateway DNS string; returns its realm string                                          |
 | `0x518150` | `?SetCurGateway…`     | `public void __stdcall SetCurGateway(int)`                                                                                                            | validates 1..numGateways, cap 99, sets dirty flag                                                                           |
 | `0x518190` | `?GetGatewayList…`    | `private void GetGatewayList(const char*)`                                                                                                            | reads a named section from `Configuration` config; parses version prelude via `strtoul`                                    |
 | `0x518270` | `?GetBattlenetGate…`  | `private void GetBattlenetGatewayList()`                                                                                                              | tries `"Override Battle.net gateways"` then falls back to `"Diablo II Battle.net gateways"`; sets `usesOverride`         |
@@ -67,25 +74,32 @@ double-null tail — it's the "packet-well-formed" invariant.
 | `0x518360` | `?WriteDefaultGate…`  | `private void WriteDefaultGatewayList()`                                                                                                              | reads `gateways.txt` then calls `UpdateGatewaysFromIni`                                                                     |
 | `0x518390` | `?SkipToEOL…`         | `private char* SkipToEOL(char*, char*)`                                                                                                               | walk forward until `\r`, `\n`, `\0`, or end                                                                                 |
 | `0x5183c0` | `?SkipEOL…`           | `private char* SkipEOL(char*, char*)`                                                                                                                 | walk forward past `\r`/`\n` run                                                                                             |
-| `0x5183f0` | `?FindSection…`       | `private char* FindSection(char*, const char*)`                                                                                                       | scan for `[Name]` header; case-insensitive; returns char after EOL                                                          |
-| `0x5184c0` | `?FindKey…`           | `private char* FindKey(char*, const char*)`                                                                                                           | within a section, scan for `KEY=`; returns pointer after `=`                                                                |
-| `0x518580` | `?PickClosestZone…`   | `private void PickClosestZone(int minutesGMT)`                                                                                                        | scans all entries, picks smallest |gmt·60 − minutes| distance                                                              |
+| `0x5183f0` | `?FindSection…`       | `private char* FindSection(char*, const char*)`                                                                                                       | scan for `[` anywhere, then compare the name prefix case-insensitively; returns after EOL                                                          |
+| `0x5184c0` | `?FindKey…`           | `private char* FindKey(char*, const char*)`                                                                                                           | scan line starts for case-insensitive key prefix, then return one byte past it                                                                |
+| `0x518580` | `?PickClosestZone…`   | `private void PickClosestZone(int minutesGMT)`                                                                                                        | scans all entries, picks smallest absolute difference between GMT × 60 and minutes; ties keep the first                                                              |
 | `0x5186d0` | `?Load…`              | `public void __stdcall Load()`                                                                                                                        | full init: realms → gateways → default fallback → parse count/current → auto-pick if index invalid                          |
 | `0x518850` | `?UpdateGatewaysFrom…`| `public void __stdcall UpdateGatewaysFromIni(char*)`                                                                                                  | parses `[Server List Version] VER=N` + `[Server Gateways] N=<line>` records + `[<name>] ZONE=<gmt> ENU=<realm>` sections   |
 
 ## INI dialect
 
-`FindSection`/`FindKey` implement Blizzard's own dialect, not
-`GetPrivateProfileString`:
+`FindSection` and `FindKey` use private, permissive parsing rather than the
+Windows INI API. The stock-executable cases in `bnetgw.py` demonstrate:
 
-- `[Section]` headers start at column 0.
-- `KEY=value` on one line each. Case-insensitive on both.
-- Line terminators: `\r`, `\n`, or `\r\n` (both handled).
-- Termination: a `\0\0` pair ends the whole buffer (belt + suspenders after
-  `\0` line breaks).
-- Comments: **none** observed in the parser.
-- Whitespace: no trim. `KEY = value` would not match `KEY=`.
-- Duplicates: first hit wins (no continue-past-first).
+- `FindSection` scans for `[` anywhere, including mid-line. It compares only
+  the requested name's length, case-insensitively: `[ALPHAbeta]` matches
+  `alpha`. It does not validate a closing `]` before skipping the line.
+- `FindKey` compares a case-insensitive prefix at each line start, then skips
+  one byte without checking for `=`. Thus `KEYXvalue` for key `KEY` returns
+  `value`; `KEY =value` returns `=value`. The first match wins.
+- Key scanning stops on NUL or `]` at a line start, not `[`; it can find a
+  key in a later section. Line scanning treats CR and LF as terminators and
+  skips runs of both. No whitespace trimming or comment processing is done.
+- Section and key routines determine their end from the first NUL. Their
+  behavior on malformed or unterminated input is not generally validated;
+  a failed section scan can enter a fatal assertion.
+
+The gateway data consumer assumes a well-formed input; the examples below
+show intended input rather than enforcing a strict parser grammar.
 
 `gateways.txt` shape (deduced from `UpdateGatewaysFromIni`):
 
@@ -94,19 +108,28 @@ double-null tail — it's the "packet-well-formed" invariant.
 VER=1234
 
 [Server Gateways]
-1=USEast
-2=USWest
-3=Europe
+1=useast.battle.net
+2=uswest.battle.net
 
-[USEast]
+[useast.battle.net]
 ZONE=-5
-ENU=useast.battle.net
+ENU=USEast
 
-[USWest]
+[uswest.battle.net]
 ZONE=-8
-ENU=uswest.battle.net
+ENU=USWest
 ...
 ```
+
+## Save and update observations
+
+The stock check exercises a newer INI list over an existing list, observes the
+old buffer freed, and checks the serialized replacement and subsequent load.
+An equal version does not write. Separate cases cover override preference,
+default-list fallback, the already-loaded guard, writing the override name,
+and clean unload without a write. These use an in-memory configuration map;
+they do not establish real registry or file persistence. The new list picks
+the closest zone to the former selection's zone; ties keep the first entry.
 
 ## What isn't here (yet)
 
@@ -133,4 +156,5 @@ ENU=uswest.battle.net
 Not yet. `BNGatewayAccess` reads a Battle.net server list that our
 singleplayer-first engine has no use for. Documenting it is enough to prove
 the tooling flow works end-to-end. If/when networking lands, revisit and
-port then — the doc above is the whole spec.
+port then — file IO, error paths and malformed inputs need further
+verification before treating this as a complete specification.
