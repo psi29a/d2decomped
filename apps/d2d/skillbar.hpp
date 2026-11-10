@@ -237,6 +237,7 @@ struct SkillBar {
     std::array<std::string, 16> hotkey_names{ "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8" };
     // The opt-in skill-button mode, filled by Town::present_skill_pad. The
     // mouse fan (picking 1 and 2) does not use these.
+    bool panel_shortcuts_open = false;
     bool mode_on = false, mode_modifier = false, wheel_on = false, strip_on = false, legend_on = false;
     int mode_main = -1, mode_aura = 0, wheel_at = 0, wheel_page = 0, strip_at = 0;
     std::array<int, 6> mode_slots{};
@@ -302,7 +303,8 @@ struct SkillBar {
                 // On the flat stone fill (panels.cpp): the real bar is the bottom
                 // 55px, the fill is 74 above that. Icons sit in the fill with
                 // the glyph row under them, centered in x 165..635.
-                constexpr int kPitch = 48, kTrayLeft = 232, kTrayBottom = int(kScreenHeight) - 55 - 20;
+                constexpr int kPitch = 48, kTrayLeft = 232;
+                const int kTrayBottom = int(kScreenHeight) - 55 - 20 - (panel_shortcuts_open ? 24 : 0);
                 auto plot = [&](int pixel_x, int pixel_y) {
                     if (pixel_x < 0 || pixel_y < 0 || pixel_x >= int(kScreenWidth) || pixel_y >= int(kScreenHeight)) return;
                     auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];

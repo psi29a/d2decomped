@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace d2d::client {
 
@@ -46,6 +47,40 @@ auto Town::load_skill_sheet(const std::string& name) -> void {
     if (!file) { skill_sheets.erase(key); return; }   // a removed file does not keep the old sheet
     const std::string text{ std::istreambuf_iterator<char>(file), {} };
     skill_sheets[key] = skillpad::read(text);
+}
+
+auto Town::ensure_skill_sheet(std::string_view name) -> void {
+    if (!pad_config.skill_buttons || !scene || name.empty() || skill_sheets.contains(sheet_key(std::string(name)))) return;
+    if (!key_dir.empty()) {
+        std::error_code error;
+        const bool existing = std::filesystem::exists(sheet_path(key_dir, std::string(name)), error);
+        if (existing || error) return;  // unreadable is not the same as never initialized
+    }
+    const Character* owner = name == character.name ? &character : nullptr;
+    if (!owner)
+        for (const auto& candidate : world.players)
+            if (candidate && candidate->character.name == name) { owner = &candidate->character; break; }
+    if (!owner) return;
+    const bool own = name == skillbar.character.name;
+    const auto eligible = [&](int skill) { return skill_known(name, skill) ? skill : skillpad::kEmpty; };
+    const int left = own ? (skillbar.left_item < 0 ? eligible(skillbar.left) : skillpad::kEmpty) : eligible(int(owner->header.left_skill));
+    const int right = own ? (skillbar.right_item < 0 ? eligible(skillbar.right) : skillpad::kEmpty) : eligible(int(owner->header.right_skill));
+    std::vector<int> hotkeys;
+    for (std::size_t index = 0; index < owner->header.hotkeys.size(); ++index) {
+        const auto hotkey = owner->header.hotkeys[index];
+        if ((hotkey & 0xffff) == 0xffff || (own && skillbar.hotkey_items[index] >= 0)) continue;
+        const int skill = eligible(int(hotkey & 0x7fff));
+        if (skill >= 0) hotkeys.push_back(skill);
+    }
+    static constexpr std::array<pad::Action, 7> actions{ pad::Action::SkillSouth, pad::Action::SkillEast, pad::Action::SkillWest,
+        pad::Action::SkillNorth, pad::Action::SkillLeft, pad::Action::SkillRight, pad::Action::MainSkill };
+    std::array<bool, 7> enabled{};
+    for (std::size_t index = 0; index < actions.size(); ++index) {
+        const auto& binding = pad_config.bindings[actions[index]];
+        enabled[index] = binding[0] != pad::Bindings::kNone || binding[1] != pad::Bindings::kNone;
+    }
+    skill_sheets.emplace(sheet_key(std::string(name)), skillpad::initial_sheet(left, right, hotkeys, enabled));
+    save_skill_sheet(std::string(name));
 }
 
 auto Town::save_skill_sheet(const std::string& name) const -> void {
@@ -77,6 +112,8 @@ auto Town::rebuild_wheel() -> void {
 }
 
 auto Town::present_skill_pad() -> void {
+    ensure_skill_sheet(focused().character.name);
+    skillbar.panel_shortcuts_open = mini.open && !(left_panel_open() && mini_right());
     skillbar.portal_available = portal_tome(focused().character.name) >= 0 && level && !d2d::rules::level_ids::is_town(level->id);
     skillbar.mode_on = pad_config.skill_buttons && !game_menu.open && !controls.open && (!touch_enabled || skillbar.picking == 3 || skill_strip >= 0);
     skillbar.wheel_on = false;
@@ -291,6 +328,7 @@ auto Town::drive_strip(const pad::Actions& actions) -> void {
 
 auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, std::string_view name, int right_skill,
                            bool expansion, const pad::Actions& actions, const Send& out) -> void {
+    ensure_skill_sheet(name);
     if (!field || dead) return;
     const auto& move = player_pad.move;
     if (move.aim || move.active) {

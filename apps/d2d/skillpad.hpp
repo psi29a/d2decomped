@@ -10,6 +10,7 @@
 #include <charconv>
 #include <cmath>
 #include <cstddef>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -83,13 +84,31 @@ struct Sheet {
     int main = kUnset;                              // RT, not part of either set
     int alt_main = kUnset;                          // LT+RT. Unset: use main (an older file). Empty is a saved clear.
     std::array<int, kSlots * 2> slots{};            // set 0, then set 1
-    Sheet() { slots.fill(kEmpty); slots[0] = slots[kSlots] = 0; }
+    Sheet() { slots.fill(kEmpty); }
     [[nodiscard]] int slot(bool alternate, int index) const { return slots[std::size_t(index + (alternate ? kSlots : 0))]; }
     void set_slot(bool alternate, int index, int skill) { slots[std::size_t(index + (alternate ? kSlots : 0))] = skill; }
     // The skill id on RT, or on LT+RT when `alternate`. An unset alternate is main.
     [[nodiscard]] int trigger(bool alternate) const { return alternate && alt_main != kUnset ? alt_main : main; }
     bool operator==(const Sheet&) const = default;
 };
+
+// First activation only: current hands first, then the player's saved hotkeys.
+// Callers filter eligibility and charged entries before passing these IDs.
+[[nodiscard]] inline Sheet initial_sheet(int left, int right, std::span<const int> hotkeys, const std::array<bool, 7>& enabled) {
+    Sheet sheet;
+    sheet.slots.fill(kEmpty);
+    sheet.main = enabled[6] ? left : kEmpty;
+    sheet.set_slot(false, 5, enabled[5] ? right : kEmpty);
+    std::array<int, 11> destinations{ 0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11 };
+    std::size_t next = 0;
+    for (const int skill : hotkeys) {
+        if (skill < 0 || skill == sheet.main || std::ranges::contains(sheet.slots, skill)) continue;
+        while (next < destinations.size() && !enabled[std::size_t(destinations[next] % kSlots)]) ++next;
+        if (next == destinations.size()) break;
+        sheet.slots[std::size_t(destinations[next++])] = skill;
+    }
+    return sheet;
+}
 
 // Screen axes: +x right, +y down. Wedge 0 is centred half a step clockwise
 // from straight up, then clockwise. The same centre is what the wheel draws.
@@ -216,7 +235,7 @@ inline constexpr std::array<std::string_view, 9> kPanels = {
 // the first set, "a0".."a5" the second. A missing main stays unset. A missing
 // amain means "use main". A missing slot stays empty. -1 is an explicit clear.
 [[nodiscard]] inline std::string write(const Sheet& sheet) {
-    std::string out;
+    std::string out = "initialized 1\n";
     if (sheet.main != kUnset) out += "main " + std::to_string(sheet.main) + "\n";
     if (sheet.alt_main != kUnset) out += "amain " + std::to_string(sheet.alt_main) + "\n";
     for (int index = 0; index < kSlots; ++index) {

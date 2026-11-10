@@ -79,3 +79,9 @@ filter, retaining class kick skills. Native touch hardware remains unverified.
 `test_panel_navigation` covers radial pages, centre/boundary stability,
 column-first tree movement and shoulder mapping. `pad_controls_ux_d2d`
 cycles all six actual panels in both directions with simulated SDL input.
+
+`test_skill_seed` covers deterministic hand/hotkey setup, duplicates, disabled
+destinations, round trips and legacy clears. `pad_seed_d2d` uses a temporary
+character and actual save/reload to check initialization, excluded skills,
+cleared slots, preset toggling, legacy preservation and skill-tree close input.
+It also captures the open shortcut strip with controller input active.

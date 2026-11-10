@@ -65,8 +65,11 @@ the keyboard's keys, as game.exe does (kept beside the saves as
 `<name>.key` and `default.key`).
 
 Skill buttons is a third preset on that page (`pad_skill_buttons`). Fresh
-layouts start with A as contextual Attack / Use in both banks; existing files
-and explicit clears are preserved. RT stays the main skill. LT holds the
+layouts are initialized once per character: the current left-click ability goes
+to RT and the right-click ability to RB (or their remapped destinations). Saved
+skill hotkeys fill available A/B/X/Y/LB positions, then alternate-bank positions,
+in saved order, skipping duplicates and unavailable skills. Existing files and
+explicit clears are preserved; switching presets never reseeds them. LT holds the
 alternate bank; a short tap swaps weapons, but a skill chord never swaps.
 
 In the skill panel, highlight a learned skill and press the north button
@@ -154,3 +157,14 @@ margin stabilizes wedge boundaries. Destinations and Done remain unchanged.
 Skill-tree Up/Down prefers a node in the same column across gaps before
 moving sideways. Tree opening focuses a skill rather than a tab button.
 These are controller UX decisions, not newly traced original-game claims.
+
+First-time setup is stored in `<name>.padskills` with `initialized 1`. Existing
+files, including old one-RT layouts and deliberately cleared slots, count as
+already initialized and are never reseeded. Touch bindings remain separate.
+The open panel-shortcut strip stays visible while using a controller. The
+skill tree has a clickable close button as well as controller B-to-close.
+
+The persistent Character/Stats shortcut immediately left of Run is drawn
+with existing character-button art and works with zero unspent stat points.
+It toggles the character panel; held items and modal item actions do not
+activate it. The separate New Stats point notification is unchanged.

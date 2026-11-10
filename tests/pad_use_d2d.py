@@ -12,6 +12,7 @@ there) and A travels to the Cold Plains. Skips without the MPQs.
 import atexit, os, platform, socket, struct, subprocess, sys, tempfile, time
 
 d2d = sys.argv[1]
+seed_ux = "--seed-ux" in sys.argv[2:]
 portal_ux = "--portal-ux" in sys.argv[2:]
 controller_ux = "--controller-ux" in sys.argv[2:]
 touch_ux = "--touch-ux" in sys.argv[2:]
@@ -22,7 +23,7 @@ if not os.path.exists(os.path.join(data, "d2data.mpq")):
     print(f"SKIP: {data}/d2data.mpq not found")
     sys.exit(77)   # ctest's SKIP_RETURN_CODE (tests/CMakeLists.txt)
 
-if skill_buttons and not os.path.isfile(os.environ.get("D2_PATCH_INSTALLER", "")):
+if (skill_buttons or seed_ux) and not os.path.isfile(os.environ.get("D2_PATCH_INSTALLER", "")):
     print("SKIP: skill-button check needs D2_PATCH_INSTALLER (1.14d)")
     sys.exit(77)
 
@@ -54,7 +55,7 @@ if portal_ux:
         f.write("main 220\ns0 0\n")
 
 sock_path = os.path.join(tempfile.gettempdir(), f"d2d_pad_use_{os.getpid()}.sock")
-proc = subprocess.Popen([d2d, "--headless", *([] if portal_ux else ["--no-save"]), "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charselect"],
+proc = subprocess.Popen([d2d, "--headless", *([] if portal_ux or seed_ux else ["--no-save"]), "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charselect"],
                         env=dict(os.environ, HOME=home))
 atexit.register(lambda: proc.poll() is None and proc.kill())
 
@@ -136,6 +137,93 @@ def screenshot(name):
         os.makedirs(directory, exist_ok=True)
         cmd(f"screenshot {os.path.join(directory, name)}")
 
+if seed_ux:
+    sheet = os.path.join(saves, "Alpha.padskills")
+    assert not os.path.exists(sheet), "classic preset created a controller sheet"
+    for skill in (36, 37, 39, 42, 54):
+        cmd(f"debug points {skill} 5")
+    frames(4)
+    cmd("key Escape"); frames(3); cmd("key Up"); frames(3); cmd("key Return"); frames(25)
+    assert state()["screen"] == "charselect", "fixture must save before patching its own header"
+    proc.kill(); proc.wait()
+    path = os.path.join(saves, "Alpha.d2s")
+    with open(path, "rb") as f:
+        saved = bytearray(f.read())
+    struct.pack_into("<II", saved, 0x78, 36, 54)
+    for index in range(16):
+        struct.pack_into("<I", saved, 0x38 + index * 4, [39, 36, 54, 37, 1, 39, 42][index] if index < 7 else 0xffffffff)
+    struct.pack_into("<I", saved, 12, 0)
+    checksum = 0
+    for value in saved:
+        checksum = (((checksum << 1) & 0xffffffff) + (checksum >> 31) + value) & 0xffffffff
+    struct.pack_into("<I", saved, 12, checksum)
+    with open(path, "wb") as f:
+        f.write(saved)
+    def restart_seed():
+        global proc
+        if os.path.exists(sock_path):
+            os.unlink(sock_path)
+        proc = subprocess.Popen(proc.args, env=dict(os.environ, HOME=home))
+        for attempt in range(400):
+            if os.path.exists(sock_path):
+                break
+            assert proc.poll() is None, "restart exited"
+            time.sleep(.05)
+        frames(1); cmd("key Return"); frames(30)
+    with open(os.path.join(user, "d2d.cfg"), "a") as f:
+        f.write("pad_skill_buttons = 1\n")
+    restart_seed()
+    with open(sheet) as f:
+        bindings = f.read()
+    assert "initialized 1" in bindings and "main 36\n" in bindings and "s5 54\n" in bindings, bindings
+    assert "s0 39\n" in bindings and "s1 42\n" in bindings and "s2 -1\n" in bindings, bindings
+    assert state()["statpts"] == "0", "shortcut fixture needs no unspent stat points"
+    cmd("click 222 578"); frames(4)
+    assert state()["character_panel"] == "1", "Character shortcut must work without stat points"
+    cmd("click 222 578"); frames(4)
+    assert state()["character_panel"] == "0", "Character shortcut must toggle closed"
+    cmd("key t"); frames(4)
+    screenshot("seed-skill-tree-close.png")
+    cmd("click 664 516"); frames(4)
+    assert state()["tree"] == "0", "visible skill-tree close did not close"
+    if state().get("mini") == "0":
+        cmd("click 399 575"); frames(4)
+    assert state()["mini"] == "1", "main-bar panel shortcuts did not open"
+    cmd("pad 0 plug"); frames(3)
+    cmd("pad 0 axis rightx .5"); frames(3); cmd("pad 0 axis rightx 0"); frames(3)
+    screenshot("seed-mainbar-controls.png")
+    proc.kill(); proc.wait()
+    with open(sheet, "w") as f:
+        f.write(bindings.replace("s0 39\n", "s0 -1\n"))
+    restart_seed()
+    with open(sheet) as f:
+        assert "s0 -1\n" in f.read(), "restart reseeded deliberately empty A"
+    proc.kill(); proc.wait()
+    with open(sheet) as f:
+        cleared = f.read()
+    for enabled in (0, 1):
+        with open(os.path.join(user, "d2d.cfg"), "a") as f:
+            f.write(f"pad_skill_buttons = {enabled}\n")
+        restart_seed()
+        with open(sheet) as f:
+            assert f.read() == cleared, "preset switching reseeded an existing layout"
+        proc.kill(); proc.wait()
+    os.chmod(sheet, 0)
+    try:
+        restart_seed()
+        proc.kill(); proc.wait()
+    finally:
+        os.chmod(sheet, 0o600)
+    with open(sheet) as f:
+        assert f.read() == cleared, "unreadable existing layout was replaced as a first-time setup"
+    with open(sheet, "w") as f:
+        f.write("main 54\ns0 -1\n")
+    restart_seed()
+    with open(sheet) as f:
+        assert f.read() == "main 54\ns0 -1\n", "legacy sheet was reseeded"
+    print("ok: initial hands/hotkeys, filtering, reload/clear/legacy preservation, tree close and main-bar screenshot")
+    sys.exit(0)
+
 if portal_ux:
     cmd("debug clearinv"); frames(4)
     cmd("debug equip tbk 12"); frames(4)
@@ -151,7 +239,8 @@ if portal_ux:
     sys.exit(0)
 
 if controller_ux:
-    assert state()["pad_south"] == "0", "a fresh layout needs Attack/Use"
+    assert state()["pad_south"] == "-1", "without saved hotkeys, initial face slots stay empty"
+    press("back"); press("a"); press("back")  # explicitly assign Attack/Use for the held-attack checks
     cmd("key i"); frames(5)
     for expected in (4, 5, 0, 1, 2, 3):
         press("rightshoulder")
