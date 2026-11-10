@@ -27,7 +27,7 @@ reading ("Reference projects" below).
 
 ## Phases
 
-Status as of 2026-11-03.
+Status as of 2026-11-10.
 
 1. **Bootstrap** — repo skeleton, CMake root, docs seeded. *Done.*
 2. **Launcher (install path)** — one Qt6 app (`apps/launcher/`, target
@@ -42,8 +42,8 @@ Status as of 2026-11-03.
    (the old D2Common/D2Game/D2Client/… DLLs are linked into it; no CD
    checks; most modding work targets it). *Ongoing,* notes per subsystem
    under `docs/research/re/`. The gap map counts it: of game.exe's 13,048
-   functions (748 library, 25 dead left out), 1,020 verified, 1,984 ported,
-   1,382 cited, 7,889 untouched; 1,697 of those are frontier (ported code
+   functions (748 library, 115 dead left out), 2,733 verified, 1,897 ported,
+   1,726 cited, 5,829 untouched; 1,185 of those are frontier (ported code
    calls them). Workflow: "Ghidra workflow" below.
 
    The launcher's install step drops the PEs into `<dest>/bin/` when it
@@ -76,7 +76,7 @@ Status as of 2026-11-03.
 ## Directory layout
 
 ```
-apps/           end-user apps: launcher (Qt6 installer), d2d (the game)
+apps/           end-user apps: launcher (Qt6 installer), d2d (the game); d2proxy (logs the bytes between a client and a game.exe host), whisper (a remote control inside game.exe 1.14d)
 assets/         not code: the icon and banner (assets/icon), Flatpak's desktop entry and app info (assets/flatpak)
 components/     shared libraries (one subdir per lib, own CMakeLists.txt)
 tests/          all tests. one test_*.cpp per subject, ctest-hooked
@@ -188,10 +188,14 @@ level generator `d2d::drlg`, the game server `d2d::game`
 
 - C++23 (`-std=c++23` / `/std:c++latest`), CMake ≥ 3.28, Ninja.
 - System packages: SDL3 (window, input, WAV decode), OpenAL (openal-soft),
-  FFmpeg (Bink cinematics), zlib, Qt6 ≥ 6.5 (launcher only).
-- StormLib (MPQ): the system package, else `FetchContent`; CLI11: `FetchContent`.
+  zlib, Qt6 ≥ 6.5 (launcher only).
+- FFmpeg (Bink cinematics): a Bink-only build from its source
+  (`D2D_BUNDLED_FFMPEG`, on but for Windows), else the system's.
+- StormLib (MPQ): the system package, else `FetchContent`; CLI11 and Sentry
+  Native (crash reports, off unless the player turns them on): `FetchContent`.
 - License: GPL-3.0-or-later (matches OpenD2). Compatible with StormLib
-  (MIT), SDL3 (Zlib), openal-soft (LGPL), FFmpeg (LGPL), Qt6 (LGPL).
+  (MIT), SDL3 (Zlib), openal-soft (LGPL), FFmpeg (LGPL), Qt6 (LGPL), Sentry
+  Native (MIT).
 
 ## Reference projects (in `../`)
 
@@ -234,7 +238,7 @@ Success = launch our binary, log in with an imported save, camera moves
 around a rendered act 1 town. No NPCs interactive. *Reached,* and passed:
 NPCs talk and trade. Leaving town: *reached* (the Blood Moor, with
 combat and skills), the Den of Evil, every Act 1 outdoor level and the
-caves (9–16). Next: the rest of Act 1.
+caves (9–16); since, all five acts (2026-10-24).
 
 ## Open questions
 
@@ -245,6 +249,10 @@ caves (9–16). Next: the rest of Act 1.
   hurts.
 - Networking: decided 2026-09-27. Listen server, single player as a
   one-player in-process session (docs/design/multiplayer.md).
+- Modes as an enum: not now (2026-11-10). They're the COF tokens and the
+  protocol's; players, monsters and objects number theirs apart
+  (`kModeCode`, `kMonsterModes`, `kObjectModes`, one table each). An enum
+  is its own change: about 500 uses in the code, 5,400 in the tests' cases.
 
 ## Known issues / to investigate
 
@@ -255,8 +263,9 @@ Noted while playing the dev build (2026-09-24):
 
 - **Collision.** Now built like game.exe's room grid (DT1 subtile rows
   were read upside down) with the plus-shaped unit test, and click-to-walk
-  paths round obstacles (docs/research/re/collision.md). Left: the tile
-  entry flag bits, units blocking each other, doors. Every walker takes
+  paths round obstacles (docs/research/re/collision.md). Units block each
+  other (`Crowd`, ai.hpp) and doors open and close (`World`'s doors,
+  monsters' `open_door`). Left: the tile entry flag bits. Every walker takes
   game.exe's pathers (collision.md "Path types"): the player type 7,
   monsters, NPCs, Cain, the merc and pets 0xd then 0xf.
 - Open, by act and in joined games: the newest checkpoint below.
