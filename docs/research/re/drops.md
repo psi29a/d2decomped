@@ -523,3 +523,26 @@ Evidence: `python3 tools/ghidra/fn.py 00556e80`, `python3 tools/ghidra/fn.py 006
 `python3 tools/ghidra/fn.py 00627fb0`, `python3 tools/ghidra/fn.py 005c2540`.
 d2d: not ported as a function (the elixir path is noted as not ported above). Cited from the
 decompile, no oracle run.
+
+## The class choice and its helpers (`FUN_005a6600` and what it calls)
+
+The helpers below are read one by one, callee first. Each ends with its evidence and
+what d2d does. All are cited from the decompile and `tools/emu/disasm.py`, no oracle run.
+
+### A player's quest flags (`FUN_00543520`)
+
+`FUN_00543520` is a fastcall: ECX the game, EDX a player unit. It pushes EDX to
+`FUN_006221a0` (the player data, `d2d_player_data`; asserts for a null or non-player
+unit) and returns the dword at player data `+0x10 + difficulty * 4`, the difficulty
+being the byte `game +0x6d`. That dword is the pointer `FUN_0065c310(ptr, quest, bit)`
+tests (`*ptr` is the flag block, bit `quest * 16 + bit`). Ghidra drops EDX and shows
+only two arguments, so the decompile of its callers (`FUN_0055cc90`, `FUN_00577830`)
+reads `FUN_00543520(0x14, 0)` with the quest and bit arguments of the next test call;
+the real arguments are the game and the player.
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 543520` (8 instructions:
+`mov esi, ecx`, `call 0x6221a0` with EDX pushed, `movzx ecx, byte [esi+0x6d]`,
+`mov eax, [eax + ecx*4 + 0x10]`); `python3 tools/ghidra/fn.py 00543520`;
+the same pointer is already written in quests-act1.md ("The flags pointer is
+`*(FUN_006221a0(player)+0x10+diff*4)`").
+d2d: agrees, not ported as a function (`header.quest_flag(diff, quest, bit)` reads the
+save's block for the active difficulty).
