@@ -528,3 +528,36 @@ AllocPoint (line 0x88): the allocator hook returns fresh memory in this oracle, 
 | Oracle | Functions |
 |---|---|
 | `fieldtbls.py` | `FUN_0066a2b0`, `0066a420`, `0066a470`, `0066a4b0`, `0066a500`, `0066a540`, `0066a580`, `0066a700` |
+
+### Token, missile and overlay tables (`tok_overlay.py`)
+
+`tools/emu/tok_overlay.py` runs six functions from stock game.exe 1.14d (540
+cases, `--mutation-check` breaks the model 17 ways), on `monster_loaders.py`'s rig.
+
+* **FUN_0065aef0** (monmode, fastcall pool): name ASCII 0x1f, token RAW4 at 0x20,
+  fourteen BYTE direction counts `DT_Dir`..`KB_Dir` at 0x24..0x31, then `SQ_Dir`
+  and `RN_Dir` at 0x32 / 0x33; record 0x34. The table goes to `0x96d4bc` and also
+  `0x96d4c0` / `0x96d4c4`; the count (copied from a stack slot) to `0x96d4b8`.
+* **FUN_0065b2e0** (composit) and **FUN_0065b350** (armtype): name ASCII 0x1f,
+  token RAW4 at 0x20, record 0x34, no count (null). Tables to `0x96d4ec` / `0x96d4e8`.
+* **FUN_0065b3c0** (free the token tables): frees the merged plr block `0x96d4dc`
+  (TokTbls.cpp line 0xd6) and the merged obj block `0x96d4cc` (line 0xe2) through
+  the pool; unloads monmode `0x96d4bc`, composit `0x96d4ec` and armtype `0x96d4e8`
+  through the table free `0x6125c0`, and clears all five. The calls run in the
+  order plr free, monmode, obj free, composit, armtype.
+* **FUN_00663210** (free the missiles, MissileTbls.cpp line 0x19e): pool free of
+  `0x96bc90` (cleared with the side counts `0x96bc94` / `0x96bc98`), unload of the
+  list `0x96c794` and link free of `0x96c798` (both **left set**), then `0x96c79c`
+  cleared.
+* **FUN_00664150** (overlay, fastcall pool): link `0x96c7e8` (OverlayTbls.cpp line
+  0x38), 26 columns (overlay NAME_I_WORD on the link, Filename ASCII 0x40 at +2, and
+  the frame, offset, height, colour and flag fields), record 0x84, table `0x96c7ec`,
+  count `0x96c7f0`.
+
+Not covered here: FUN_0065adc0 (plrtype/plrmode) and FUN_0065b1b0 (objtype/objmode)
+merge two compiled tables with AllocServerMemory, memcpy and two unloads; their
+decompile needs the copy and unload helpers modelled, and is left for a later pass.
+
+| Oracle | Functions |
+|---|---|
+| `tok_overlay.py` | `FUN_0065aef0`, `0065b2e0`, `0065b350`, `0065b3c0`, `00663210`, `00664150` |
