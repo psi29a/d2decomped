@@ -656,6 +656,7 @@ address	name	evidence
 005a0260	umod_count	ECX: the non-zero bytes before the first 0, at most 9 (a monster mod list)
 005a23d0	boss_curse_apply	Cursed mod's per-enemy callback: Amplify Damage record 0x42 calcs, d2d_states_put_state, five stat slots set; monster-ai.md "Boss mods in the hit"
 005a2d80	unit_damage_shift	fastcall (_, unit): when stat 0x16 > 0 and class id (+4) != 0x10f, stat 0x15 = max(0, s15 - 1 + s17), 0x16 = max(0, s16 - 1 + s18) in the flag-1 list; no direct caller; skills.md "Stat-list helpers and skill starts"
+005a6600	kill_drop_roll	stdcall (game, dropper, noNoDrop, record; record +8 the killer): level id, ilvl (FUN_00558200), class by superunique / champion (flag 4) / unique (flag 8) / normal, TreasureClass4 while the killer's quest lacks bits 15, 1, TCQuestCP, then FUN_0055afa0 (drops.md "The kill's drop roll")
 005a8910	missile_stat_roll	two stat reads on the missile, 0 if either < 1, lower end + optional bonus-stat term + seed draw (missiles.md "The roll helper")
 005a8c70	missile_fill_damage_record	ECX game, EDX missile, stack unit and 0x70-byte record: per element class (FUN_0064b0c0) rolls the missile's stats into the record, physical scaled by stat 0x19 / 0x79 / 0x7a and doubled by 0x8d (missiles.md "The record fill")
 005aae10	srv_hit_16_put_state	pSrvHitFunc entry 16 (0x73c880): auratargetstate for the skill's +0x144 calc frames (min 5), returns 0

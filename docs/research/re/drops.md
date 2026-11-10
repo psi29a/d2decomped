@@ -677,3 +677,42 @@ Evidence: `uv run --project tools/emu python tools/emu/disasm.py 63a690`,
 `uv run --project tools/emu python tools/emu/disasm.py 63a130`,
 `python3 tools/ghidra/fn.py 00625bb0`.
 d2d: not ported (no minion's owner in the loot code, drops.md "Not ours yet").
+
+### The kill's drop roll (`FUN_005a6600`)
+
+`FUN_005a6600(game, dropper, noNoDrop, record)` (stdcall, `ret 0x10`). The record's `+8` is the
+killer unit (0 when none). Callers: `FUN_005a6830` (the DT start: dropper `record +4`, noNoDrop
+0, the event record as `record`) and `FUN_005a8000` (Find Item: a 0x20-byte local record
+holding its own first argument at `+8`, noNoDrop 1). In order:
+
+1. Checks that stop the game with the internal-error path (`FUN_00408090(line)`,
+   `FUN_00408a60`, `FUN_00681e09(-1)`): a null dropper (line 0x194), no room
+   (`FUN_00620bb0`, 0x196), and a MonStats row the dropper's class `+4` does not give (class
+   below 0 or at or past the count at `[0x744304] +0xa80`, rows of 0x1a8 from `+0xa78`; 0x19a).
+2. The room's level id (`FUN_0061a1b0`); `FUN_006427f0(id)`, whose result is dropped; the item
+   level `FUN_00558200(dropper, id)`.
+3. The class: `FUN_005a03a0` (the superunique index, -1 for none). With an index, the row
+   `FUN_006556e0(index)` (0 past the count) gives its u16 at `+0x2c + diff * 2`, or, with no row,
+   MonStats `+0x8a + diff * 8` (TreasureClass3). Without one: mask 4 on `FUN_005a0180` gives
+   `+0x88` (TreasureClass2), else mask 8 gives `+0x8a` (TreasureClass3), else `+0x86`
+   (TreasureClass1). The difficulty is the byte `game +0x6d`.
+4. TreasureClass4 (`+0x8c + diff * 8`) replaces it when MonStats `+0x9e` (TCQuestId) is non-zero,
+   that word is non-zero, and the record and its killer exist; a killer that is not a player
+   is first replaced by `FUN_0058f0d0(killer)` (its owner), and then, when `FUN_0063a690(killer)`
+   and a `FUN_00625760(killer, 0x800)` sub-list exist, by the unit that list names
+   (`FUN_00552f60(game, owner type, owner id)`), if that is found. The (possibly replaced)
+   unit must be a player with quest flags (`FUN_00543520`), and none of the quest bits 15, 1 and
+   `+0x9f` (TCQuestCP) may be set (`FUN_0065c310`, `+0x9e` the quest).
+5. `FUN_0055afa0(game, dropper; killer, class, 0, ilvl, noNoDrop, 0, 0, 0)`.
+
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 5a6600` (asserts 0x5a6610,
+0x5a6639, 0x5a6673; class 0x5a66a2..0x5a6705; quest 0x5a6705..0x5a67f4; call 0x5a6817),
+`uv run --project tools/emu python tools/emu/disasm.py 5a8000`,
+`uv run --project tools/emu python tools/emu/disasm.py 5a6830`.
+d2d: reads the same for a player kill in the local game, cited from the decompile, no oracle run (`Loot::drop`: the same order, the same three
+bits, `tc_upgrade` for step 5). Differences, none reachable in single player with the stock
+tables as far as read: the game's superunique branch takes its row's class even when that is
+empty (nothing drops), where d2d falls back to the champion / unique / normal class; the
+owner step (a minion's or a pet's kill counting for its owner's quest) has no d2d
+counterpart; and the quest class applies only to a killer that resolves to a player, where
+d2d always reads the one player's bits. No bug of the original was found in this function.
