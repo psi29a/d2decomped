@@ -665,6 +665,11 @@ private:
     std::array<Seat, kMost> seats_{};
 };
 
+// D-pad roster navigation owns confirmation until a real pointer moves.
+[[nodiscard]] inline int roster_target(bool navigating, int under, int selected) {
+    return navigating ? selected : under >= 0 ? under : selected;
+}
+
 // Controller A starts the character under the cursor, or the one the d-pad
 // highlighted when the cursor is on neither a slot nor a button. A on
 // Create, Delete, Exit, OK or the scrollbar stays a click.

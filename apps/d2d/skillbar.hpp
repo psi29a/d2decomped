@@ -242,6 +242,7 @@ struct SkillBar {
     std::array<int, 6> mode_slots{};
     std::array<std::string, 6> mode_labels{};
     std::string mode_main_label, mode_set, mode_hint, wheel_close, wheel_prompt, wheel_controls, assignment_feedback, strip_prompt;
+    bool inventory_context = false;
     std::vector<int> wheel_ids;
     std::vector<std::string> strip_rows;
 
@@ -261,6 +262,14 @@ struct SkillBar {
         const auto& pal = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
         // A skill it can't use now draws in text colour 1 (FUN_004aa3a0's and
         // FUN_004a8d30's draw colour off FUN_004d9fc0: 0 usable, 4 status 6, else 1).
+        std::array<d2d::palette::Rgba, 256> grey_entries{};
+        for (std::size_t index = 0; index < grey_entries.size(); ++index) {
+            auto colour = pal[std::uint8_t(index)];
+            const auto luminance = std::uint8_t((int(colour.r) + int(colour.g) + int(colour.b)) / 6);
+            colour.r = colour.g = colour.b = luminance;
+            grey_entries[index] = colour;
+        }
+        const d2d::palette::Palette disabled_pal{ grey_entries };
         const auto& refused_pal = scene->act_text_red.entries().empty() ? pal : scene->act_text_red;
         auto icon = [&](Pick pick, int x, int y) {
             const int id = pick.skill;
@@ -272,7 +281,8 @@ struct SkillBar {
             const auto& spr = column >= 0 ? scene->skill_icons[std::size_t(column)] : scene->generic_skill_icons;
             if (skill->icon < 0 || spr.frames_per_direction() <= std::uint32_t(skill->icon)) return;
             const auto& frame = spr.frame(0, std::uint32_t(skill->icon));
-            blit_sprite(framebuffer, frame, pick.item < 0 && skill_refused(*scene, character, id) ? refused_pal : pal, x, y - int(frame.height) + 1);
+            const bool inventory_only = mode_on && !inventory_context && (skill->name == "Book of Townportal" || skill->name == "Town Portal");
+            blit_sprite(framebuffer, frame, inventory_only ? disabled_pal : pick.item < 0 && skill_refused(*scene, character, id) ? refused_pal : pal, x, y - int(frame.height) + 1);
             if (const auto charged = entry(pick); charged && charged->left > 0) {   // SPELLSEL_DrawSkillLevel: the charges left
                 std::string count = std::to_string(charged->left);
                 while (scene->font_small.measure(count) > 0x28) count.pop_back();

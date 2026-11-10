@@ -71,11 +71,12 @@ auto Town::rebuild_wheel() -> void {
     if (wheel_actions) wheel_ids.assign(skillpad::kActions.begin(), skillpad::kActions.end());
     else if (scene)
         for (const auto& info : scene->skills.rows)
-            if (skill_known(focused().character.name, info.id)) wheel_ids.push_back(info.id);
+            if (info.name != "Identify" && info.name != "Book of Identify" && skill_known(focused().character.name, info.id)) wheel_ids.push_back(info.id);
     if (wheel_at < 0 || wheel_at >= int(wheel_ids.size())) wheel_at = 0;
 }
 
 auto Town::present_skill_pad() -> void {
+    skillbar.inventory_context = inv_open;
     skillbar.mode_on = pad_config.skill_buttons && !game_menu.open && !controls.open && (!touch_enabled || skillbar.picking == 3 || skill_strip >= 0);
     skillbar.wheel_on = false;
     skillbar.strip_on = false;
@@ -311,6 +312,7 @@ auto Town::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool de
         if (skill < 0 || !scene || (!press && !button_down) || !skill_known(name, skill)) return;
         const auto* info = scene->skills.get(skill);
         if (!info || info->passive) return;
+        if ((info->name == "Town Portal" || info->name == "Book of Townportal") && !inv_open) return;
         // A hold in town would repeat the "not in town" line every tick.
         if (!press && level && d2d::rules::level_ids::is_town(level->id)) return;
         if (skill != 0) {
@@ -403,7 +405,7 @@ auto Town::skill_known(std::string_view name, int skill) const -> bool {
             if (other && other->character.name == name) { who = &other->character; break; }
     if (!who) return false;
     const auto* info = scene->skills.get(skill);
-    if (!info || info->passive) return false;
+    if (!info || info->passive || info->name == "Identify" || info->name == "Book of Identify") return false;
     return skill_base_level(*scene, *who, skill) > 0 || skill_level(*scene, *who, skill, {}) > 0;
 }
 

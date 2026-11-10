@@ -119,3 +119,15 @@ Settings live in `d2d.cfg`: `~/Library/Preferences/d2d` (macOS),
 | Anything else | Run with `--log-level debug` and read `d2d.log` |
 
 Where d2d differs from game.exe on purpose: `docs/research/re/deviations.md`.
+
+Controller follow-up: D-pad character selection hides the pointer until mouse or
+analog movement; A confirms the highlighted character. In Inventory, A or the
+remapped Use input (RS by default) selects an Identify tome/scroll and confirms
+an unidentified target. B cancels. Identify items are not controller spell
+bindings. Portal bindings are unavailable outside Inventory.
+
+The touch prototype also accepts a single mouse/Pencil-style pointer over its
+controls, including drag/release aiming. This does not provide simultaneous
+movement and aiming: that requires independent SDL finger events. Sidecar
+hardware and OS-specific event delivery remain unverified. Skill and attack
+buttons use rounded outlines; the larger rectangular hit regions remain forgiving.

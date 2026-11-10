@@ -48,6 +48,12 @@ int main() try {
     assert(!input.attack_press && input.attack_down);
     input.event(3, Phase::Up, 700, 470);
     assert(!input.attack_down);
+    // Single-pointer adapters have a separate valid owner, not the no-finger sentinel.
+    input.clear();
+    input.event(-2, Phase::Down, 700, 470);
+    assert(input.attack_down);
+    input.event(-2, Phase::Up, 700, 470);
+    assert(!input.attack_down);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_input: %s\n", error.what());
