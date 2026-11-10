@@ -126,6 +126,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest flag buffer allocation and release (pool boundaries hooked) | `uv run python quest_buffer.py` | `ok: 29 quest buffer lifetime cases` |
 | Quest frontier accessors (nine functions, lookup hooked; `--mutation-check` nine ways) | `uv run python quest_frontier.py` | `ok: 216 quest frontier cases` |
 | Talk-submenu quest names (FUN_0049f910, table 0x722678) vs `rules::quest_name` | `uv run python quest_name.py` | `65536 messages match d2d's 32 runs; 527 have a name; 164 (row 100) is 3716`, then `ok` |
+| Rescue reward across difficulty quest buffers (`FUN_0058a0a0`, hooked callees; `--mutation-check` three ways) | `uv run python quest_rescue_resistance.py` | `ok: 24 quest resistance cases` |
 | Small Quests helpers: the 11 quest-update notifiers, Horadric Staff test, A2/A4/A5 data helpers, filters and seal glows (31 functions, FUN_005879d0 ... FUN_005b7340; `--mutation-check` 13 ways) | `uv run python quests_small.py` | `ok: 768 Quests small-helper cases` |
 | Screen shake and quest control frames | `uv run python shake.py > ../../tests/shake_cases.inc`; `uv run python shake.py --controls > ../../tests/quake_control_cases.inc` | `test_shake` matches both captured fixtures |
 | Show Items label layout (FUN_004c0640's 12 tries in FUN_004c0810's loop) | `uv run python show_items_layout.py gen 5000 1 > cases.tsv; uv run python show_items_layout.py game cases.tsv > g.txt; ../../build/tests/test_show_items_layout cases.tsv \| diff g.txt -` | no output |

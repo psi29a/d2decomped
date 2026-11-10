@@ -388,6 +388,7 @@ address	name	evidence
 00575850	pet_set_max	EDX owner, stack row and max: slot +8 = max (not row 1 unless max is 1); while max < count and row != 7 drops the head pet via FUN_005747b0 / FUN_005750e0 (pet-ai.md "The owner's pet lists")
 00575c70	pet_list_add	ESI slot {+0 head, +4 count, +8 max}, stack pet unit and 3 words: max 0 rebuilds (FUN_00575900) or refuses; full drops one (FUN_00574850); appends a 0x18-byte node at the tail (PlayerPets.cpp 0x322; asserts 0x312 / 0x316 / 0x330) (pet-ai.md "The owner's pet lists")
 00575d90	pet_add	EDX owner, stack pet unit, PetType row (0 < row < count), limit: FUN_00575720, FUN_00575850, FUN_00575c70, then the add event to every client (FUN_005538d0 with FUN_00574930) (pet-ai.md "The owner's pet lists")
+0058a0a0	quest25_difficulty_reward	quest 0x25 bit 7 per difficulty adds 10 to reward
 0058a9f0	quest21_data84_zero	quest 0x21 lookup; record data +0x84 is zero
 0058ebc0	ai_control_alloc	allocates 0x40 bytes zeroed; sets flags +0x10 = 1, +0x30 = 1, target +0xc = -1, owner +0x2c = -1; AiGeneral.cpp line 0x1b
 0058ec50	ai_control_scratch_get	getter for scratch words +0x14, +0x18, +0x1c by index 1..3 from monster data +0x28; AiGeneral.cpp

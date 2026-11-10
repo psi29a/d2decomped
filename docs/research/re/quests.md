@@ -320,6 +320,14 @@ d2d has no port of these; the only one it cites is `FUN_005913c0`
 
 ## Frontier accessors (stock executable)
 
+`FUN_0058a0a0` takes game in ECX and player in EDX. For the player's three
+quest buffers at player data +0x10, +0x14 and +0x18, it tests quest 0x25 bit
+7; each nonzero result adds 10. If the total is nonzero it calls
+`FUN_00589ff0(game, player, total)`; otherwise it makes no such call.
+`tools/emu/quest_rescue_resistance.py` checks all eight combinations against
+stock with player-data, bit-test and reward routines hooked; it does not
+exercise the reward's effects.
+
 `tools/emu/quest_frontier.py` checks these nine functions on synthetic records
 against stock 1.14d (216 cases, nine deliberate model defects caught). The
 quest lookup `FUN_00543640` is hooked: its arguments are checked, but its
