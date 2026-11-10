@@ -42,7 +42,7 @@ int main() try {
         d2d::rules::Rng rng(7);
         const auto before = rng;
         missiles_update(open, missiles, foes, rng, 4000, [](float, float) { return std::vector<std::array<int, 4>>{}; },
-                        [](Missile&) { return false; }, [](int) { return true; });
+                        [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});
         assert(burner.dmg_func == 3 || (rng.low == before.low && rng.high == before.high));   // no rounding draw
         assert(foes[0].blows.size() == 1 && foes[0].blows[0].frac == foes[0].frac && foes[0].blows[0].damage == foes[0].damage);
         assert(!foes[0].blows[0].landed && foes[0].hits == 0);   // flag 1 alone: no get-hit test
