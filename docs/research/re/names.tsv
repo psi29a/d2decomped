@@ -304,6 +304,7 @@ address	name	evidence
 005015f0	font_table_release	D2WinFont.cpp: 14 entries of 0x14 bytes from 0x841da8: +0 closed (FUN_004faae0), +4 freed (line 0x135), both zeroed; then DAT_00841da4 closed and zeroed (net-join.md "D2Win shutdown")
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
 00506e00	handler_table_remove	ECX owner (null: line 0x5a), EDX table of 12-byte (kind, code, handler) entries, stack count (ret 4): FUN_00506cf0 per entry -> FUN_00426720 unlinks it; shutdown passes 0x72dc48 x 0x21 (net-join.md "D2Win shutdown")
+00507140	pentspin_close	FUN_004faae0 (CloseFile) on DAT_0087e96c, the front end's pentspin (menu.md), then zeroes it (net-join.md "D2Win shutdown")
 00518c10	bnclient_api	returns 0x72faa0, the Bnclient API table (+0xc8 free, +0xcc cache read, +0xd0 cache write)
 00518de0	bncache_crc32	table 0x72fb80, ~ on both ends; EAX data, ECX length
 00518e60	bncache_decrypt	MPQ key schedule: seed 0xeeeeeeee, crypt table +0x1000, key >> 11 | ~key << 21 + 0x11111111
