@@ -93,6 +93,88 @@ Cached in bncache.dat as `BNNews-D2DV` (pointer at `0x72ff80`).
 The four reply copiers are reached only by a `JMP` from their handler,
 which Ghidra doesn't list as a reference.
 
+## BnSend.cpp: the senders (verified)
+
+The 28 BnSend functions of the gap map run in the emulator against a model of the packet
+each should send (`tools/emu/bnsend.py`, 2016 cases, 11 model defects
+planted and caught). The send `FUN_0051c5c0`, the reply wait `FUN_00520b70`,
+the expansion test `FUN_0051bec0` (a `JMP` to `FUN_00408f20`, which the
+decompiler prints as `thunk_FUN_00408f20`), the Storm allocator, `time()`,
+the hash `FUN_005209d0` and the crash-dump reader `FUN_0040d290` are hooked
+and logged; the string copy `FUN_004135d0` and `FUN_00413750` (strlen) run
+for real. The decompiler gets several of these packets wrong (stack
+offsets, the id in `CL`); the asm and the oracle are the reference.
+
+Common to the senders: the strings of the game and chat requests are copied
+with `FUN_004135d0(dst, src, 0x100)`, so each is cut at 0xFF bytes and
+NUL-terminated; a null source copies nothing. (The account strings 0x59 to
+0x5B are `memcpy`ed after a length check, and the user data ones are not cut.) A request that waits (`GETCHANNELLIST`, `GETADVLISTEX`,
+`LOGONREALMEX`) first clears that id's slots in the two reply arrays
+(`0x882128`, `0x8822a8`) with `FUN_00520c00`, then sends, then waits.
+"Product" below is the dword `0x44324456` (`VD2D`), plus `0x13fa` when
+`d2exp.mpq` is present (`0x44325850`).
+
+| Id | Function | Packet (after the id) |
+|---|---|---|
+| 0B | `FUN_0051ac50` GETCHANNELLIST (ECX flag) | u32: 1 when expansion and flag is 0, else 0; waits; returns the copy at `0x8818c8` |
+| 0A | `FUN_0051ae10` ENTERCHAT (ECX user, EDX statstring, one unused stack word) | **First a 0x0B packet** with the product dword (result ignored), then user NUL statstring NUL; returns 1 when the 0x0A send is >= 0 |
+| 0C | `FUN_0051aca0` JOINCHANNEL (ECX name, EDX force, stack: no-first-join) | u32 flags then the name. A name: flags 2 when EDX is non-zero, else 0. No name: channel "Diablo II", flags 1, plus 4 when expansion and the stack flag is 0 |
+| 10 | `FUN_0051af20` LEAVECHAT | empty; returns 1 when the send is >= 0 |
+| 0E | `FUN_0051af40` CHATCOMMAND (ECX text) | text read as cp1252, converted to UTF-16 then UTF-8, NUL included. The five holes of cp1252 (81 8D 8F 90 9D) become U+FFFF (`EF BF BF`). Each conversion takes at most 0x1FF units including the NUL: 510 characters, or 510 UTF-8 bytes, pass; one more sends nothing, silently. Null and empty send nothing |
+| 15 | `FUN_0051b010` CHECKAD | 16 bytes: `0x49583836` ("IX86"), product, banner id (`0x88252c`), `time(0)`; returns 1 |
+| 21 | `FUN_0051b060` DISPLAYAD | 14 bytes: `0x49583836`, product, banner id, two zero bytes; returns 1 |
+| 16 | `FUN_0051b6c0` CLICKAD (ECX ad id, EDX flag) | u32 id, u32 (EDX != 0); returns 1 |
+| 1C | `FUN_0051b0e0` STARTADVEX3 (ECX name, EDX password, stack: description, field) | u32 (password non-empty), 0, field, 0, 0, then name, password, description as NUL strings. A null string is sent as empty. Waits for nothing; returns 1 |
+| 09 | `FUN_0051b240` GETADVLISTEX (ECX name, EDX password, two unused stack words) | u32 0, 0, 0, 0x19, then name, password and an empty string; waits; returns the copy at `0x8818d0` |
+| 22 | `FUN_0051b320` NOTIFYJOIN (ECX game, EDX user) | product, 0x0E, game NUL user NUL |
+| 3E | `FUN_0051b460` LOGONREALMEX (ECX realm title, EDX password) | Null title: nothing, returns 0. Else counter `0x8818c4` + 1 (stored back), then the 20-byte hash of the 28 bytes (counter, token `0x8818bc`, hash of the password), then the title NUL. Waits; returns the copy at `0x8818d4`; a send below 0 returns 0 without waiting. The hash is `FUN_005209d0` (the old broken SHA-1), not checked here |
+| 12 | `FUN_0051b540` LOCALEINFO | 0x20 bytes: FILETIME of `GetSystemTime`, FILETIME of `GetLocalTime`, the time zone Bias (i32), system LCID, user LCID, user LangID (u16 widened); then `GetLocaleInfoA(0x400, t, buf, 0x40)` for t = 3, 5, 7, 0x1002, each NUL-terminated in turn. Only the first byte of the string area is cleared, so a failing `GetLocaleInfoA` leaves stack residue in its string |
+| 27 | `FUN_0051b6f0` WRITEUSERDATA (ECX account, EDX count, stack: keys, values) | u32 1, u32 count, account, keys, values (NUL strings). Clears id 0x27, builds the packet in a Storm block of exactly its size (line 0x4c4, freed at line 0x4e0), returns 1 when the send is >= 0 |
+| 26 | `FUN_0051b870` READUSERDATA (ECX account, EDX count, stack: request id, keys) | u32 1, count, request id, account, keys; block of exactly its size, line 0x506, freed at 0x521 |
+| 59 | `FUN_0051ba00` SETEMAIL (ECX email) | email NUL. Null: fatal, line 1373 (0x55d). Over 0xFF bytes: fatal, line 1381 (0x565) |
+| 5A | `FUN_0051baa0` RESETPASSWORD (ECX account, EDX email) | account NUL email NUL. Null first: fatal 1400; empty first: fatal 1401; a null or empty second returns 0 quietly (before the length checks); a first over 0xFF bytes: fatal 1409; a second: fatal 1416 |
+| 5B | `FUN_0051bb90` CHANGEEMAIL (ECX account, EDX old, stack: new) | three NUL strings. Null first: fatal 1433; empty first: fatal 1434; any null or empty later one returns 0 quietly; then over-long first, second, third: fatal 1444, 1452, 1460 |
+| 5D | `FUN_0051bcf0` (crash report) | asks `FUN_0040d290` (the "Crashdump" file reader) for up to 0x5dc bytes; sends them only when it reports data. The reader is not traced here |
+
+The fatal path is `FUN_00408a60(&"", return address, line)` then `exit(-1)`;
+the lines above are its third argument.
+
+**Reply copiers and readers** (the handler jumps straight to them):
+
+| Function | Keeps | Slot | Free line | Alloc line |
+|---|---|---|---|---|
+| `FUN_0051b3e0` | 0x3E realm logon (battlenet.md: MCP IP at +0x10, port at +0x14 of the reply) | `0x8818d4` | 0x3b2 | 0x3bb |
+| `FUN_0051b820` | 0x26 user data | `0x8818d8` | 0x4ec | 0x4ed |
+| `FUN_0051bd60` | 0x40 QUERYREALMS2 reply | `0x8818cc` | 0x19a | 0x16b |
+| `FUN_0051bdc0` | 0x0B channel list | `0x8818c8` | 0x1ef | 0x1e6 |
+| `FUN_0051be20` | 0x09 game list | `0x8818d0` | 0x36a | 0x326 |
+
+Each frees the previous copy when the slot is set, allocates the size, and
+copies; `FUN_0051b3e0` stores the size first and, for a reply of 0x48 bytes
+or more (but not exactly 8), byte-swaps the word at `+0x18` (the port, `+0x14` of the reply) with `ntohs`.
+`FUN_0051ac20`, `FUN_0051b210` free the channel-list and game-list copies
+and the 38-byte routine at `0x51b3b0` (no function entry in Ghidra) the realm-logon copy, clearing
+the slot. `FUN_0051b1f0` returns the 0x1C reply slots: ECX out =
+`0x8822a8[0x1c]`, EAX = `0x882128[0x1c]`. `FUN_0051b960` parses the 0x26
+reply for the caller: it needs `0x882128[0x26]` set, 1 account, the same key
+count and request id, then for each key copies the string with `strncpy`
+into the caller's buffer (padded with NULs to the caller's size, the byte
+after it zeroed); an empty value only zeroes the first byte.
+
+**Byte stuffing** (`FUN_0051ad70`, an orphan): in place on a buffer with at
+least 0x100 spare bytes, `00` becomes `FF 01` and `FF` becomes `FF FF` (it
+moves the following 0x100 bytes up each time). It checks the output
+position against 0xFF at the top of each step, and an escape moves the
+position by two, so a `00` or `FF` at position 0xFE steps over the check
+and processing goes on past 0xFF; otherwise reaching 0xFF returns 0. Not
+used.
+
+**Findings** (bugs.md 66 to 68): STARTADVEX3 and GETADVLISTEX build their
+strings in a 0x100-byte local, so name + password + description over 0xFF
+bytes (with their NULs, over 0x100) smashes the stack cookie and the game
+aborts; a null password crashes LOGONREALMEX and a null string in NOTIFYJOIN
+sends stack garbage; CHATCOMMAND silently drops a line over 510 characters.
+
 ## BnDownload.cpp: BNFTP and patching
 
 A download runs on its own thread; `0x881d5c` counts them, `0x881c54`
