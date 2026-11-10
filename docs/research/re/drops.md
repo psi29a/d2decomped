@@ -660,3 +660,20 @@ Evidence: `uv run --project tools/emu python tools/emu/disasm.py 625760`,
 d2d: reads the same on how it is used, cited from the decompile, no oracle run (`ai.cpp`'s curse test, `panels.cpp`'s `ponytail:` note, the
 `on_foe_states` curse/mark lists); the 0x800 sub-list (an owner link, e.g. a minion's) has
 no d2d counterpart: nothing in d2d makes a stat list that names an owner.
+
+### Does a unit have a state of one set (`FUN_0063a690`)
+
+`FUN_0063a690(unit)` (stdcall, `ret 4`) puts the pointer at `[0x744304] +0x144` in EBX and the
+unit in EAX and runs `FUN_0063a130` (a register-convention helper, so the decompile shows no
+arguments). That reads the unit's state bit words (`FUN_00625bb0`: stat list `+0x58`, 0 when the
+unit has no list or the list lacks flag `0x80000000`; 0 returns 0 here), and over
+`(count + 31) / 32` words, `count` being the dword at `[0x744304] +0xc4`, returns 1 when any
+word shares a bit with the same word of the set, else 0. `FUN_0063a6b0(state)` tests one
+state of the same set (`+0x144`, bounds-checked by `+0xc4`) and `FUN_0063a710` one of the set at
+`+0x148` (its `FUN_0063a6f0` the "any" form). Which States.txt column fills `+0x144` was not
+traced, so the set has no name here. `FUN_005a6600` uses it as the gate before looking for an
+owner on the killer's stat list: only a killer that is not a player and has a state of this set.
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 63a690`,
+`uv run --project tools/emu python tools/emu/disasm.py 63a130`,
+`python3 tools/ghidra/fn.py 00625bb0`.
+d2d: not ported (no minion's owner in the loot code, drops.md "Not ours yet").
