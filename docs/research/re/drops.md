@@ -610,3 +610,15 @@ game tests bit 2 only, the superunique bit by `FUN_005a03a0`; `strike.cpp`'s stu
 (mask 8) takes champions and superuniques too. Whether a plain unique carries bit 2, or a
 superunique bit 8, needs the writers of `FUN_005a01b0`'s bits; they were not found, so no
 issue is filed.
+
+### A room's level id (`FUN_0061a1b0`)
+
+`FUN_0061a1b0(room)` (stdcall, `ret 4`): 0 for a null room; otherwise it loads the room's
+`+0x10` into ECX and returns `FUN_0066bab0`, which is `*(*(ECX + 0x58) + 0x1d0)`: the level
+id (drlg.md "FUN_0066bab0 the room's level id"). `FUN_005a6600` feeds it the room of the
+dropper (`FUN_00620bb0`) and gives the id to `FUN_006427f0`, and to `FUN_00558200` as the
+area for an item level (above).
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 61a1b0` (the `test`, the
+load at 0x61a1be, the call at 0x61a1c1), `python3 tools/ghidra/fn.py 0066bab0`.
+d2d: reads the same, cited from the decompile, no oracle run (not a function: `room_of(level, x, y)` and the level's own id; the Chaos
+Sanctuary check in `monsters.hpp` cites it for the target's level id 108).
