@@ -328,6 +328,16 @@ quest buffers at player data +0x10, +0x14 and +0x18, it tests quest 0x25 bit
 stock with player-data, bit-test and reward routines hooked; it does not
 exercise the reward's effects.
 
+Two further quest 0x21 helpers are checked by
+`tools/emu/quest_barbarian_helpers.py` (48 cases; lookup, coordinate getter
+and notifier hooked). `FUN_0058a8d0` takes game in ECX, unit in EDX and an
+output pointer on the stack (`ret 4`). A missing record or zero data dword
++0x84 returns 0 without an output write. Otherwise it returns 1: if byte
++0xb1 is zero it calls `FUN_00620870(unit, output)`, else it copies data
+dwords +0xc4 and +0xc8 to the output. `FUN_0058aa10` looks up the record and,
+when byte +9 is nonzero and byte +0xb is below 2, clears byte +0x14 and calls
+`FUN_00544300` with the record, 0, callback `FUN_00588eb0` and 1.
+
 `tools/emu/quest_frontier.py` checks these nine functions on synthetic records
 against stock 1.14d (216 cases, nine deliberate model defects caught). The
 quest lookup `FUN_00543640` is hooked: its arguments are checked, but its
