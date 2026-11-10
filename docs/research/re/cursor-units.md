@@ -102,6 +102,39 @@ Oracle: `tools/emu/show_items_walk.py` runs `FUN_004c0810` itself (the
 walk, `FUN_004c0640`, the hover test) on generated rooms and units;
 `test_show_items_walk` gives d2d's `rules::show_items` the same cases
 (fixture `show_items_walk_cases.inc`).
+## The hit test after the selectable test (`FUN_00466870`, 0x466870, 1053 bytes)
+
+Read from the decompile, no oracle run. Arguments: ECX unit, EDX x, then
+y, and a fourth, `param_4`. The steps above end with +0xc8 bit 7 and
+`local_10` (selectable) both set. Then:
+
+- `param_4` == 0: yes, no pixel test (the callers that only ask
+  "could the cursor take it").
+- Otherwise the unit is first morphed to its shown look
+  (`FUN_00645270`, `.\UNIT\CUnit.cpp` line 0x6ed: type, class), and by that type:
+  - 0 a player: the pixel test below.
+  - 1 a monster: when its MonStats2 row (`FUN_00451fe0`) `+4` bit 0 is set,
+    a `PtInRect` on the box `+0x110 / +0x112 / +0x10e / +0x114` (s16
+    left offset, width, top offset, height) from the unit's screen x / y
+    decides, with no pixel test; else the pixel test.
+  - 2 an object (Objects.txt row `FUN_00640e90`; a missing row asserts, id
+    0x741): `d2d_gfx_unit_hit` (the frame's pixels), or yes when the row's
+    `+0x13a` or `+0x19d` byte is set. With `+0x13a` and the unit's mode 2,
+    4 or 5, or with `+0x19d` alone, `FUN_00463fe0(y)` answers; otherwise the
+    row's `+0x161` selects the layered test below when it is 2 or more.
+  - 4 an item: mode must be 3 (`param_1[4]`) and `FUN_004538d0` 0.
+  - 5 a tile: `FUN_00463ee0(y)` answers.
+- The layered test (monster whose `FUN_00451fe0` row has `+0xec` of 2 or more, or an
+  object as above): up to 16 composite layers are tried
+  (`FUN_004640a0`, `d2d_gfx_unit_layer_ready`), each against its box. Any
+  one containing the point passes; none after 16: no. Without layers, one
+  `FUN_004640a0` box. A player in mode 0x12 with class 4 skips the box test
+  and passes.
+
+d2d keeps this as `selectable` / `ally_not_interact` plus its own bounds
+(`town/view.cpp`); the layered test, the object special cases and the
+MonStats2 box are not ported.
+
 ## Unit flag test (`FUN_00451f30`)
 
 `FUN_00451f30(ECX unit, EDX mask)` (0x451f30, 22 bytes, no callees): false
