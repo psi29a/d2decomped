@@ -543,7 +543,7 @@ cases, `--mutation-check` breaks the model 17 ways), on `monster_loaders.py`'s r
 * **FUN_0065b3c0** (free the token tables): frees the merged plr block `0x96d4dc`
   (TokTbls.cpp line 0xd6) and the merged obj block `0x96d4cc` (line 0xe2) through
   the pool; unloads monmode `0x96d4bc`, composit `0x96d4ec` and armtype `0x96d4e8`
-  through the table free `0x6125c0`, and clears all five. The calls run in the
+  through the table free `0x6125c0`, and clears the five pointers. The calls run in the
   order plr free, monmode, obj free, composit, armtype.
 * **FUN_00663210** (free the missiles, MissileTbls.cpp line 0x19e): pool free of
   `0x96bc90` (cleared with the side counts `0x96bc94` / `0x96bc98`), unload of the
