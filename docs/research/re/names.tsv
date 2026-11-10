@@ -1,18 +1,22 @@
 address	name	evidence
 00403040	vector_ctor_iterator	calls arg 4 arg 3 times (the MSVC array constructor loop)
+0040a620	async_data_create	AsyncData.cpp: 0x54-byte record (alloc line 0x128) tagged 0x41737960 at +0x48; buffer +0x3c, size +0x40; reads inline or queued (DAT_0075af94)
+0040a9e0	async_data_result	record in ECX: +0x3c, after FUN_0040a960 when bit 0 of +0x48 is clear; null / bad tag / still unfinished end the run with errors 0x25f / 0x260 / 0x266
+0040aa40	async_data_size	record in ECX: +0x40; null / bad tag end the run with errors 0x271 / 0x272; waits for nothing
 0040b330	fog_cos	float table at 0x707800, 512 entries, index + 0x80 & 0x1ff: a quarter turn ahead of FUN_0040b350
 0040b350	fog_sin	float table at 0x707800, 512 entries, index & 0x1ff
+0040b430	alloc_checked	(file, line, flag): FUN_0040a080(file, line) and, when it returns 0, FUN_00408900(2, file, line, "") before returning it; the allocator the docs cite as FUN_0040b430
 00410b10	bits_set	ORs byte arg1[n >> 3] with the mask table 0x6ce268[n & 7]
 00410b50	bits_clear	ANDs byte arg1[n >> 3] with the mask table 0x6ce2e8[n & 7]
 00410e40	bitreader_init	(reader, buffer, bytes): +0 buffer, +4 bit length (bytes * 8), +8 / +0xc / +0x10 zeroed; a null reader exits with assert id 0x13c
 00410e90	bitreader_bytes_used	reader +8, plus 1 when +0xc is nonzero (a partly read byte counts); FUN_0062e430 returns it
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
-00451f60	unit_class_id	(unit in ECX): -1 for a null unit, else unit +4 (items.md)
-00451f80	monstats_row	(id): 0 when id < 0 or >= count at [0x744304]+0xa80, else [0x744304]+0xa78 + id * 0x1a8; no assert (items.md)
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 0044dcc0	is_expansion	returns DAT_007a04f4; skill_tips.py:28 sets it to 1 for an expansion game
+00451f60	unit_class_id	(unit in ECX): -1 for a null unit, else unit +4 (items.md)
 00451f70	unit_mode	ECX unit: +0x10 (structs.tsv unit.mode); null 0
+00451f80	monstats_row	(id): 0 when id < 0 or >= count at [0x744304]+0xa80, else [0x744304]+0xa78 + id * 0x1a8; no assert (items.md)
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
@@ -170,9 +174,9 @@ address	name	evidence
 004db670	gfx_unit_layer_ready	on screen, COF loaded, FUN_004db0d0
 004e1b10	client_skill_missile_long	ECX caster, EDX skill, stack level: ORs 0x40 into caster +0xc4, builds a type-3 block from the skill's missile row (short +0xea) and target offset, FUN_004cd540, tags level (missiles.md "Client skill missile, long form")
 004e3720	client_skill_missile_short	ECX caster, EDX skill, stack level: ORs 0x40 into caster +0xc4, FUN_004c5420 missile tagged with the skill calc1 value (missiles.md "Client skill missile, short form")
-004eda80	skill_attack_rating	(player, hand): the hand's skill -> SkillDesc descatt (+0x14) handler in table 0x72d7f8, returns its first rating; 0 if none
 004e7120	damage_add_listed_skills	walks tables+0x16c (count +0x170): per id the stat list's stats 0x15e / 0x15f (skill, level) add SkillDesc calc min / max (+0x20 / +0x2c) or EMin / EMax (char-panel.md)
 004ec040	desc_damage_handler_18	slot 18 of the descdam table 0x72d768 (data ref at 0x72d7b0): SkillDesc found, then FUN_004ea010 (descdam 7)
+004eda80	skill_attack_rating	(player, hand): the hand's skill -> SkillDesc descatt (+0x14) handler in table 0x72d7f8, returns its first rating; 0 if none
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
 00518de0	bncache_crc32	table 0x72fb80, ~ on both ends; EAX data, ECX length
 00518e60	bncache_decrypt	MPQ key schedule: seed 0xeeeeeeee, crypt table +0x1000, key >> 11 | ~key << 21 + 0x11111111
@@ -191,11 +195,31 @@ address	name	evidence
 00519920	bncache_read	API +0xcc; "File: '%s' in bncache.dat is corrupt (%d) - deleting from cache"
 00519db0	bncache_write	API +0xd0; 0x144-byte entry header, rewrites both tables and the header CRC
 0051ac20	bnet_free_channel_list	DAT_008818c8, Storm free line 0x1ef; FUN_0051c470 (close)
+0051ac50	bnet_get_channel_list	C->S 0x0B: u32 (expansion and ECX == 0), waits, returns DAT_008818c8
+0051aca0	bnet_join_channel	C->S 0x0C: u32 flags + name (default Diablo II)
 0051ad70	bnet_byte_stuff	00 -> FF 01, FF -> FF FF in place, fails at 0xff
+0051ae10	bnet_enter_chat	C->S 0x0B product dword, then 0x0A user NUL statstring NUL
+0051af20	bnet_leave_chat	C->S 0x10, empty
+0051af40	bnet_chat_command	C->S 0x0E: cp1252 -> UTF-16 -> UTF-8, NUL included, 510 characters at most
+0051b010	bnet_check_ad	C->S 0x15: IX86, product, banner id 0x88252c, time(0)
+0051b060	bnet_display_ad	C->S 0x21: IX86, product, banner id, two zero bytes
+0051b0e0	bnet_start_game	C->S 0x1C STARTADVEX3; strings in a 0x100-byte local (bugs.md 66)
 0051b1f0	bnet_host_ad_result	API +0x8c: ECX out = 0x8822a8[0x1c], returns 0x882128[0x1c]
 0051b210	bnet_free_game_list	DAT_008818d0, Storm free line 0x36a; FUN_0051c470 (close)
+0051b240	bnet_get_game_list	C->S 0x09: 0, 0, 0, 0x19, name, password, empty; waits, returns DAT_008818d0
+0051b320	bnet_notify_join	C->S 0x22: product, 0x0E, game NUL user NUL
+0051b3e0	bnet_keep_logon_reply	size + copy of the 0x3E reply to DAT_008818d4, ntohs of the word at +0x18 when >= 0x48 bytes and not 8
+0051b460	bnet_logon_realm	C->S 0x3E: counter, hash of (counter, token, hash(password)), title
+0051b540	bnet_locale_info	C->S 0x12: FILETIMEs, Bias, LCIDs, LangID, four GetLocaleInfoA strings
+0051b6c0	bnet_click_ad	C->S 0x16: ad id, ECX flag
+0051b6f0	bnet_write_user_data	C->S 0x27: 1, count, account, keys, values
 0051b820	bnet_keep_user_data	S->C 0x26 handler 0x521200 JMPs here: copy to DAT_008818d8
+0051b870	bnet_request_user_data	C->S 0x26: 1, count, request id, account, keys
 0051b960	bnet_read_user_data	API +0x7c: DAT_008818d8 +0 == 1, +4 == ECX, +8 == EDX, then strings
+0051ba00	bnet_set_email	C->S 0x59; null is fatal line 0x55d, 0x100 bytes or more line 0x565
+0051baa0	bnet_reset_password	C->S 0x5A: account NUL email NUL; fatal lines 1400 1401 1409 1416
+0051bb90	bnet_change_email	C->S 0x5B: three NUL strings; fatal lines 1433 1434 1444 1452 1460
+0051bcf0	bnet_send_crash_report	C->S 0x5D: up to 0x5dc bytes from FUN_0040d290 when it finds any
 0051bd60	bnet_keep_realm_list	S->C 0x40 handler 0x5211d0 JMPs here: copy to DAT_008818cc
 0051bdc0	bnet_keep_channel_list	S->C 0x0b handler 0x5210c0 JMPs here: copy to DAT_008818c8
 0051be20	bnet_keep_game_list	S->C 0x09 handler 0x5210d0 JMPs here: copy to DAT_008818d0
@@ -232,14 +256,17 @@ address	name	evidence
 00520440	bnqueue_clear	frees every node; FUN_0051c470 (close)
 00526100	utf8_decode	table at 0x7309b8 (mask, value, value mask, minimum); 10xxxxxx continuations
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
+005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
+00526800	wide_length	ECX: u16 units before the 0; null 0
 00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60 (ECX = client +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
 005379d0	unit_look_codes	fastcall (_, unit, out, size): asserts 0x3d4 for size < 0x10 or no unit, out = 0xff x16, FUN_0063e510 fills it with the layer codes (items.md)
 00537a40	unit_look_tints	fastcall (_, unit, out, size): as FUN_005379d0 (assert 0x3df) but out receives the layer tints (items.md)
+0053cb30	scmd_pet_list_7a	queues the 13-byte S->C packet 0x7a (+1 EDX add flag, +2 PetType row, +3 u16 class, +5 owner id, +9 pet id) with FUN_0053b280 (pet-ai.md "The owner's pet lists")
+0053cb80	scmd_assign_merc_81	queues the 20-byte S->C packet 0x81 (+1 byte, +2 u16 class, +4 owner id, +8 pet id, +0xc / +0x10 words) with FUN_0053b280 (pet-ai.md "The owner's pet lists")
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
 0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
-005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
-00526800	wide_length	ECX: u16 units before the 0; null 0
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
+00558270	item_creation_descriptor	items-lifecycle.md: snapshot source item into 0x84-byte creation block
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
 00558a10	ground_item_lifetime	30000 / 45000 / 15000 frames by quality and gold
@@ -251,6 +278,7 @@ address	name	evidence
 0055bed0	unit_mode3_notify	FUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
 0055bf30	unit_mode3_notify_if	unit +0xc4 bit 0
 0055bff0	book_item_skill	books.txt +8 / +0xc by ItemTypes 0x16 / 0x12
+0055c070	item_books_skill_count_delta	EAX item, EDI player, signed delta stack; node count and S->C update; items-mode-early.md
 0055c110	book_item_charges	stat 0x46 into the skill count, S->C 0x22 (ItemMode.cpp 0x225, 0x230)
 0055c270	book_item_add	FUN_0055c110(1) (ItemMode.cpp 0x24d)
 0055c460	itemmode_55c2c0	FUN_0055c2c0
@@ -261,6 +289,8 @@ address	name	evidence
 0055c6e0	book_item_remove	FUN_0055c110(0) (ItemMode.cpp 0x394)
 0055ca00	code_pair_match	Items +0x80 pair either way
 0055ca40	quest_item_duplicate	UniqueItems +0x2c bit 2, Items +0x12a, j34/g34 bks/bkd d33/g33 hst/msf/vip qf1/qf2
+0055cf50	item_ground_to_cursor	game/player, item id and output; pickup checks, gold branch or cursor mode 4; items-mode-early.md
+0055d560	item_auto_equip_flags	ECX owner, EBX item, ESI ten-dword flags; item types and dual wield permission; items-mode-early.md
 0055d930	itemmode_nop	bare ret
 0055d940	wield_leaves_refresh	d2d_rules_wield_leaves, FUN_0055c730
 0055d9d0	vitals_and_skills	stats 6/8/10, skill ids (ItemMode.cpp 0x9df, 0x9eb)
@@ -270,10 +300,15 @@ address	name	evidence
 0055eb30	c2s_25_belt_swap	ItemMode.cpp 0x128a..0x12d8
 0055ed30	item_back_to_cell	FUN_0063c550, FUN_00557fd0 (ItemMode.cpp 0x12e9)
 0055edc0	belt_column_drop	rows of 4, FUN_0063c4f0 (ItemMode.cpp 0x1313)
+0055eea0	item_cursor_clear_notify	clear matching cursor, S->C 0x42 owner and item notification, return 1 else 0; items-mode-early.md
 0055f2a0	other_hand_item	d2d_rules_other_side
+0055f4f0	item_mode_noop	no state change, empty return; items-mode-late.md
+0055f500	item_relink_inventory_stats	walk contributing inventory items, detach/relink stat lists and preserve skills; items-mode-late.md
+0055f5d0	item_same_affixes	compare three prefix/suffix pairs and automagic ID; stack item versus EDI item; items-mode-late.md
 0055f6e0	item_set_quantity	stat 0x46 (ItemMode.cpp 0x18e0)
 0055f740	book_stack_target	ItemTypes 0x12 / 0x16, stat 0x46 (ItemMode.cpp 0x1905)
 0055f9c0	book_item_zero	FUN_00645120(skill, 0) (ItemMode.cpp 0x1962)
+0055fa40	item_rebuild_scroll_skill_counts	zero mode-0 item skill counts then add page-0 items in a second pass; items-mode-late.md
 0055fb10	item_to_cursor_flag	mode 4, flag 0x100000 (ItemMode.cpp 0x19a0)
 0055fb80	gamble_pick	seed * 0x6ac690c5, ubercode +0x88 / ultracode +0x8c (ItemMode.cpp 0x19c9)
 0055fcc0	strip_player	FUN_0063e0b0 (ItemMode.cpp 0x19fd, 0x1a0f)
@@ -285,6 +320,7 @@ address	name	evidence
 00561b00	c2s_1f_grid_swap	box code, ItemMode.cpp 0xec0..0xf4b
 00561e70	item_tell_and_back	ItemMode.cpp 0xf94, FUN_0055ed30
 00562250	c2s_24_belt_to_cursor	flag 0x800, FUN_0055edc0 (ItemMode.cpp 0x1249..0x126d)
+00562590	item_identify_notify	identify absent flag 0x10, reject transient 0x100000, queue notifications; items-mode-late.md
 005628c0	c2s_2a_into_cube	'box ', FUN_00560200 (ItemMode.cpp 0x14a7..0x14ab)
 00562c40	item_replenish_step	stat + 1 to max, timer 3 >= 125 (ItemMode.cpp 0x1580, 0x1586)
 00562d30	item_timer_replenish	0x6e117c entry 3 (ItemMode.cpp 0x15a6)
@@ -299,6 +335,13 @@ address	name	evidence
 00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
+00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")
+00574930	pet_send_to_client	per-client callback of FUN_005538d0: event {+0 pet id, +4 owner id, +8 class, +0xc row, +0x10/+0x14 words}; both words 0 sends 0x7a (FUN_0053cb30) else 0x81 (FUN_0053cb80) (pet-ai.md "The owner's pet lists")
+00574ab0	pet_revive_announce	EDX owner, stack unit: rows 1.. find the node whose +4 is the unit's id, flags &= ~1, send the add event (FUN_005538d0 / FUN_00574930), 1; else 0 (pet-ai.md "The owner's pet lists")
+00575720	pets_release_group	EDI owner, stack row: removes every pet (FUN_005750e0) of the other PetType rows whose short at row +8 equals this row's and is > 0 (pet-ai.md "The owner's pet lists")
+00575850	pet_set_max	EDX owner, stack row and max: slot +8 = max (not row 1 unless max is 1); while max < count and row != 7 drops the head pet via FUN_005747b0 / FUN_005750e0 (pet-ai.md "The owner's pet lists")
+00575c70	pet_list_add	ESI slot {+0 head, +4 count, +8 max}, stack pet unit and 3 words: max 0 rebuilds (FUN_00575900) or refuses; full drops one (FUN_00574850); appends a 0x18-byte node at the tail (PlayerPets.cpp 0x322; asserts 0x312 / 0x316 / 0x330) (pet-ai.md "The owner's pet lists")
+00575d90	pet_add	EDX owner, stack pet unit, PetType row (0 < row < count), limit: FUN_00575720, FUN_00575850, FUN_00575c70, then the add event to every client (FUN_005538d0 with FUN_00574930) (pet-ai.md "The owner's pet lists")
 0058ebc0	ai_control_alloc	allocates 0x40 bytes zeroed; sets flags +0x10 = 1, +0x30 = 1, target +0xc = -1, owner +0x2c = -1; AiGeneral.cpp line 0x1b
 0058ec50	ai_control_scratch_get	getter for scratch words +0x14, +0x18, +0x1c by index 1..3 from monster data +0x28; AiGeneral.cpp
 0058ec90	ai_command_push	pushes command node onto AI control queue; AiGeneral.cpp
@@ -423,6 +466,12 @@ address	name	evidence
 005fc450	baal_inferno_incinerate	Baal Inferno / Incinerate choice; AiBaal.cpp
 005fc630	baal_clone_check	Baal clone duplicate limit check; AiBaal.cpp
 005fc830	baal_clone_alive_count	counts live clones for Baal duplicate limit; AiBaal.cpp
+005fe2b0	layer_stem	file stem into EAX from the layer record (ESI): +0x18..+0x28 name dwords (3 bytes each, to the first space) or the +0x2c string; sets the DCC flag +0x44 bit 0; cof-draw-order.md "Loading a layer"
+005fec90	sprite_cache_link_cells	SpriteCache.cpp 0x517: dirs (+0x21) * frames (+0x24) * 0x2c bytes of cell records, one per decoded frame header (+0x18); sets +0x28 = 1
+005ff6e0	sprite_cache_read_done	AsyncData callback (block: +4 cache entry, +8 layer record, +0xc first, +0x10 count): FUN_0060bff0 decodes into the record, result at block +0x14; clears record+0x20 bit 2; entry bit 0 set when it failed
+005ffe90	sprite_cache_add_layer	(entry, group, count) with the layer record in ESI: FUN_005ffc40 node, 0xb8-byte cache record filled from the layer, FUN_005ff760, FUN_0060adc0 (error 0x5d1), FUN_005fec90; result FUN_005fec50 into layer +0x3c
+006000b0	sprite_cache_load_layer	(entry ECX, layer EDX, group, count, path buffer, flag; stem EAX): +0x40 direction scale, FUN_0060ace0 lookup, FUN_005fe2b0 / FUN_005fe610 for the path, then FUN_005ffe90 (flag 0) or FUN_005fffa0
+006004e0	sprite_cache_ensure_layer	(layer): +0x34 set gives +0x3c = FUN_00601840; else FUN_005fe990 loads the DCC, FUN_0060ace0 lookup (a failed one sets +0x44 bit 2), FUN_00600cb0 rescales +0x40, FUN_005fffa0 links it
 0060dcb0	stpl_string_assign	frees the old (stpl.h 0x5e9), FUN_00414310 (SStrDup) the new
 0060dd00	stpl_string_dup	FUN_00414310 into *this
 0060dd20	stpl_string_equal	FUN_00413590(a, b, 0x7fffffff) == 0
@@ -566,10 +615,16 @@ address	name	evidence
 00621b70	object_data_8	object data +8 (Units.cpp 0xe4e, 0xe55)
 00621c00	unit_path_649ef0	FUN_00649ef0(path, a, b, 0)
 00621c30	unit_set_94_98	+0x94/+0x98, state 0x62 stats 0x161/0x162, flag 0x400
-00621f60	monster_flag_4638a0	monster and FUN_004638a0
+00621cc0	unit_set_94_98_wrapper	(unit, a, b), ret 0xc: ESI = unit, EBX = b, FUN_00621c30(a); units.md "Verified in the emulator"
+00621ed0	item_belt_index	(belt item) -> Belts.txt index: byte +0x130 of FUN_006335f0(class) (items.md "A belt put on or taken off"); 0xf20 not an item, 0xf24 no base
+00621f60	monster_flag_4638a0	monster and FUN_004638a0(class, 0xc) (ECX = unit +4, EDX = 0xc); returns 0 or 1
+00621f90	player_data_alloc	0x16c zeroed bytes at unit +0x14 (Units.cpp 0xf52); handles at +0x10..+0x24, +0x2c, +0x4c = 0; 0xf4f null, 0xf51 present
 00622060	player_data_free	FUN_0065c490 / FUN_00660fd0 pairs (Units.cpp 0xf6b, 0xf76)
 006220f0	player_set_name	FUN_004135d0 into player data (Units.cpp 0xf97..0xf9a)
 00622150	player_data_check	checks only (Units.cpp 0xfa5..0xfa8)
+006221e0	player_set_portal_levels	player data +0x2c = portal-levels-visited mask (net-packets.md "0x5f portal levels visited"; Units.cpp 0xfbf, 0xfc0); no data check
+006221a0	player_data	ECX unit: null asserts 0xfb4, type != 0 asserts 0xfb6 (FUN_00408090 / FUN_00681e09(-1)), else unit +0x14 (pet-ai.md "The owner's pet lists")
+00622230	player_portal_levels	player data +0x2c, the portal-levels-visited mask (net-packets.md "0x5f portal levels visited"; Units.cpp 0xfc9, 0xfca); no data check
 00622270	object_txt_168	Objects.txt +0x168 (Units.cpp 0xfd3)
 006222c0	object_data_5	object data byte +5 (Units.cpp 0xfe4)
 00622300	object_set_data_5	object data byte +5 (Units.cpp 0xfef)
@@ -577,10 +632,15 @@ address	name	evidence
 00622830	monster_weapon	FUN_0063c9b0 on unit +0x60
 00622dc0	unit_622d00_set	FUN_00622d00 != 0
 00622de0	unit_missing_vitals_cost	missing life + mana >> 8, times stat 0xc >> 2
+00622e90	units_stub_ret8	ret 8; touches nothing (stubs.md)
 00622ea0	player_keep_right_skill	player data +0x70/+0x78 (Units.cpp 0x13f6, 0x13fa)
 00622f10	player_keep_left_skill	player data +0x74/+0x7c (Units.cpp 0x1405, 0x1409)
+00622f80	player_keep_switch_right_skill	player data +0x80/+0x88 (Units.cpp 0x1414, 0x1419)
+00622ff0	player_keep_switch_left_skill	player data +0x84/+0x8c (Units.cpp 0x1424, 0x1429)
 00623060	player_kept_right_skill	player data +0x70/+0x78 (Units.cpp 0x1438)
 006230c0	player_kept_left_skill	player data +0x74/+0x7c (Units.cpp 0x1449)
+00623120	player_take_switch_right_skill	reads +0x80/+0x88, resets +0x70/+0x78 to (0, -1) and +0x90/+0x94 to (-1, 0) (Units.cpp 0x145a)
+006231a0	player_take_switch_left_skill	reads +0x84/+0x8c, resets +0x74/+0x7c to (0, -1) and +0x90/+0x94 to (-1, 0) (Units.cpp 0x1470)
 00623220	player_switch_skill_a	player data +0x84/+0x8c (Units.cpp 0x1487)
 00623290	player_switch_skill_b	player data +0x80/+0x88 (Units.cpp 0x1499)
 00623300	player_set_switch_skill_a	player data +0x84/+0x8c (Units.cpp 0x14a8)
@@ -591,7 +651,7 @@ address	name	evidence
 006234f0	unit_7c	unit +0x7c (Units.cpp 0x1513)
 00623520	static_path_alloc	32 bytes at unit +0x2c (Units.cpp 0x151e)
 00623570	static_path_free	unit +0x2c (Units.cpp 0x152b)
-00623600	monster_corpse_flag	mode 0xc, MonStats +4 bit 7, +6 bit 3, FUN_0063a770
+00623600	monster_corpse_flag	mode 0xc, MonStats2 (FUN_00451fe0) byte +4 & 0x80 and not +6 & 8 (Fog bit-mask table 0x6ce268 [7], [3]), FUN_0063a770 == 0
 006238c0	unit_face_path_target	FUN_00648810 or FUN_00621dc0 (Units.cpp 0xe83)
 00623990	skill_weapon	Skills +0x168 picks the hand; FUN_0062a4e0
 00624390	set_mode_rate	FrameDelta; without Sync delta - delta/16 + rand(delta/8) at 0x624558
@@ -606,11 +666,15 @@ address	name	evidence
 00627150	stat_list_set	(list, stat, value, layer): FUN_006270b0 when list is non-null, else nothing; skills.md "Stat-list helpers and skill starts"
 00627c90	item_data_alloc	0x74 bytes (Items.cpp 0xd2, 0xd5)
 00627d00	item_data_free	Items.cpp 0x10a
+00627d40	item_data_byte44	items-common-trace.md: guarded AL getter for item data +0x44
+00627d90	item_rng_address	items-common-trace.md: guarded item data +4 pointer
 00627dc0	item_650e30	FUN_00650e30 on an item with data
 00627e20	item_data_set_10	item data +0x10 (Items.cpp 0x187..0x18b)
+00628140	item_transient_flag_mask	items-common-trace.md: guarded item data +0x14 AND mask
 006281b0	item_data_14	item data +0x14
 006282a0	item_data_46	item data byte +0x46
 006282d0	item_data_set_46	item data byte +0x46
+006282f0	item_data_byte47	items-common-trace.md: guarded byte item data +0x47, rejected AL ff
 006283f0	item_data_49	item data byte +0x49
 00628440	itemtype_word_c	ItemTypes +0xc
 006284c0	itemtype_byte_13	ItemTypes +0x13
@@ -625,6 +689,7 @@ address	name	evidence
 00629620	class_spawnstack	Items +0xec (Items.cpp 0xd6c)
 00629660	item_spawnstack	FUN_00629620 (Items.cpp 0xd7b)
 006296b0	class_minstack	Items +0xe4 (Items.cpp 0xd8a)
+006296f0	item_record_worde4	items-common-trace.md: asserted item wrapper preserving FUN_006296b0 result
 00629740	item_bitfield1_8	Items +0xdc & 8 (Items.cpp 0xd9d)
 006297a0	item_durwarning	Items +0x135 (Items.cpp 0xdc3)
 00629800	item_qntwarning	Items +0x136 (Items.cpp 0xdcf)
@@ -641,8 +706,10 @@ address	name	evidence
 00629ea0	item_data_set_1c_20	item data +0x1c / +0x20
 00629ed0	item_data_set_c	item data +0xc (Items.cpp 0x10bc..0x10bf)
 00629f20	item_data_c	item data +0xc (Items.cpp 0x10c7..0x10ca)
+00629fe0	item_type_short_mapping	items-common-trace.md: search eight-byte mapping table by item-row +0xc0, return AX
 0062a060	class_transmogrify	Items +0x139 (Items.cpp 0x1155)
 0062a0a0	item_transmogrify_flag	FUN_0062a060 (Items.cpp 0x1162)
+0062a180	item_record_byte13c	items-common-trace.md: asserted item-row byte +0x13c
 0062a250	tint_byte	transform * 32 + colour
 0062a2b0	item_compactsave	Items +0x143 (Items.cpp 0x12e0)
 0062a310	item_quantity_left	stat 0x46, stat 0x7d, FUN_006295b0
@@ -654,26 +721,29 @@ address	name	evidence
 0062ac80	saved_stat_read	FUN_00411020, version 0x5a / 0x5d remaps
 0062ae20	saved_item_header	'JM', 'ear ', 'nec ' -> 'neg ' before 0x5d
 0062af50	bits_write_clamped	FUN_00410eb0, (1 << n) - 1
+0062af80	item_write_compact	items-common-trace.md: EAX item, EBX writer, stack save flag; compact item bitstream
 0062b3a0	item_setitems_2e	SetItems +0x2e
 0062b400	item_unit_type	item unit (type 4): FUN_00628700(unit +4) = ItemTypes index; 0 for another unit type; assert id 0x67d for a null unit
-0062b450	sockets_stat_sum	children in mode 1, FUN_00625480
+0062b450	sockets_stat_sum	parent item in mode 1, not child; FUN_00625480 over socket children (items-common-trace.md)
 0062b560	item_62b4d0	FUN_0062b4d0 of unit +4 (Items.cpp 0x78c)
 0062ba60	item_required_level_wrap	d2d_item_text_required_level
+0062bb20	item_spell_icon	items-common-trace.md: Books byte+2 for scroll/tome, otherwise item-row byte+0x134
 0062bbd0	itemtype_byte_1f	ItemTypes +0x1f, 7 default
 0062be00	item_set_sockets	invwidth x invheight cap 6, flag 0x800, stat 0xc2
 0062beb0	item_is_type35	FUN_00629bb0(item, 0x35)
+0062c0b0	item_type_byte21_bounded	items-common-trace.md: primary type-row +0x21 only below 7, else AL 7
+0062c100	item_colour_tint	(owner unit, item unit, tint out, second-colour flag): colour from the unit's states, then quality 7 / 5 / 4,6 / other, gem rule gate (hasinv +0x137, FUN_0062bc20); tint byte via FUN_0062a250 = Transform * 32 + (colour & 31) (items.md)
 0062c9f0	item_stat_floor	maxac +0xd0, mindam/maxdam +0xfe..+0x103
 0062e410	saved_item_header_60	FUN_0062ae20(..., 0x60)
-0062c100	item_colour_tint	(owner unit, item unit, tint out, second-colour flag): colour from the unit's states, then quality 7 / 5 / 4,6 / other, gem rule gate (hasinv +0x137, FUN_0062bc20); tint byte via FUN_0062a250 = Transform * 32 + (colour & 31) (items.md)
 0062e430	item_read_bitstream	(unit, buffer, bytes, check_jm, sockets_out, version, err_out): reads the optional JM mark and 32 flag bits, resets item data, then the compact reader FUN_0062a970 (flag 0x200000) or the full FUN_0062cbe0; returns bytes used (FUN_00410e90)
 0062e7e0	itemtype_byte_11	ItemTypes +0x11
 0062e830	itemtype_byte_12	ItemTypes +0x12
+0062e8d0	item_type_graphic_count	items-common-trace.md: primary type-row byte +0x23 in AL
 0062e920	itemtype_cel_variant	ItemTypes +0x23 count, +0x24 + 32 n
 0062ea80	itemtype_bytes_a_b	ItemTypes +0xa / +0xb
 00633540	items_tables_free	ItemTbls.cpp 0x1c8, 0x1cb
 00633590	items_count_ptr	returns &0x96ca58
 006335a0	items_index	0x96ca78 word (ItemTbls.cpp 0x1e2)
-0063e510	unit_worn_look	(unit, codes, tints): walks the worn items (unit type 4, mode 1) and fills two 16-byte per-layer arrays; tint = FUN_0062c100 + 1, 0xff for none (items.md)
 00633680	item_code_to_class	FUN_006bd130(DAT_0096bcc4, code, 0): FUN_0062cbe0 stores the result as the item class (d2s-items.md)
 006336a0	column_name_or_number	_atol or skills / montype / states links
 00633730	magic_affixes_load	magicsuffix, magicprefix, automagic 0x90 (ItemTbls.cpp 0x297)
@@ -763,13 +833,13 @@ address	name	evidence
 0063e1c0	inv_reserve_spot	FUN_0063b850 spot filled with -1 (Inventory.cpp 0x16d5)
 0063e2e0	inv_page2_fits	FUN_00628250 page 2 items through FUN_0063e1c0
 0063e370	inv_trade_fits	two scratch inventories, FUN_0063e2e0 for each row; caller PlrTrade.cpp FUN_00567c70
+0063e510	unit_worn_look	(unit, codes, tints): walks the worn items (unit type 4, mode 1) and fills two 16-byte per-layer arrays; tint = FUN_0062c100 + 1, 0xff for none (items.md)
 0063e860	unit_is_town_or_owned	(unit in ECX): type 1 whose MonStats row +0xd has npc (1) or inTown (4), else unit +0xc4 bit 31 (a player's pet) (collision.md "Building a path")
 0063e940	monster_is_demon	unit type 1, class in range, MonStats record (0x1a8 each) byte +0xd & 0x20 (missiles.md "Monster class test: demon")
 0063e990	monster_is_undead	unit type 1, class in range, MonStats record byte +0xd & 8 or & 0x10 (missiles.md "Monster class test: undead")
 00642860	drlg_vis_node_get	find-or-create of the act +0x90 list's node for a level: id, Vis0..7 (def +0x48), Warp0..7 (def +0x68), next; Drlg.cpp line 0x3e0
 00643290	pair_project	(int *a, int *b) in place: a = (a - b) >> 1, b = (a + b) >> 2 from the old values; path +8 / +0xc from the position >> 11 (collision.md "Building a path")
 00643620	unit_state_list_set	stack on, EDI unit, EBX state: on makes or finds the state's stat list (FUN_006256b0 / FUN_006251f0, FUN_00626e10), off detaches and frees it
-0065b620	row34_assert	(index): asserts (string 0x150) when index * 0x34 + [0x96d4e8] is 0, i.e. tests the row address, not its content (items.md)
 00643690	skill_passivestate	(skill id) -> Skills record +0x94 passivestate if > 0, else 0 (also for an id outside [0, [0x744304]+0xba0)); skills.md "Skill accessors"
 006438f0	skill_node_next	(node) -> node +4, 0 for a null node; same body as FUN_00643910; skills.md "Skill accessors"
 00643910	skill_list_first	(list header) -> header +4 (the first node), 0 for null; same body as FUN_006438f0; skills.md "Skill accessors"
@@ -861,6 +931,7 @@ address	name	evidence
 0065b2e0	composit_load	"composit" 0x34
 0065b350	armtype_load	"armtype" 0x34
 0065b3c0	tokens_free	TokTbls.cpp 0xd6, 0xe2
+0065b620	row34_assert	(index): asserts (string 0x150) when index * 0x34 + [0x96d4e8] is 0, i.e. tests the row address, not its content (items.md)
 00663210	missiles_free	MissileTbls.cpp 0x19e
 00663d40	misstream_alloc	8 bytes (MisStream.cpp 0x2e)
 00663d90	misstream_free	MisStream.cpp 0x3b, 0x3c
@@ -976,3 +1047,9 @@ address	name	evidence
 0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
 0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
 0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
+0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
+0061f0e0	lvlprest_by_level	first lvlprest row (0x1b0 bytes at 0x96c894) whose +4 LevelId equals the key, else 0; verified by lvl_tbls.py
+0061f310	lvlwarp_check	halts (0x32b / 0x33a) unless a lvlwarp row has the id and a 'b' / matching letter at +0x2c; verified by lvl_tbls.py
+0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
+0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
+0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py

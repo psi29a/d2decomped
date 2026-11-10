@@ -56,19 +56,19 @@ size, `+0xc` 512 hash buckets. The bucket hash is
 |---|---|
 | `FUN_0046e570` | The COF data (`+8` → `+0x14`) of the list node for mode ECX |
 | `FUN_0046e5a0` | The node for (mode, token); mode -1 means the unit's (`FUN_0046da60`) |
-| `FUN_0046e610` | Unlinks and frees the node whose graphic is EAX (line 0x3d0) |
-| `FUN_0046e690` | Is the mode's node current (EAX mode, -1 the unit's): its token equal to arg 1 gives it in `*arg 2` and 0; another token frees it (`FUN_0046e610`), its old data in `*arg 3`, and 1; none: 1 (fatal 0x3f0 / 0x406) |
+| `FUN_0046e610` | Unlinks and frees the node whose graphic is EAX (line 0x3d0); 1 when found, 0 when not; fatal 0x3c8 without a graphics record |
+| `FUN_0046e690` | Is the mode's node current (EAX mode, -1 the unit's): its token equal to arg 1 gives it in `*arg 2` and 0; another token sets `*arg 2` = 0, puts its old data in `*arg 3`, frees it (`FUN_0046e610`) and gives 1; no node: 1 (fatal 0x3f0 without a graphics record; the fatal 0x406 after the free cannot be reached) |
 | `FUN_0046e8d0` | Loads a monster's COF for mode EDI unless the layer flag says it's loaded (MonStats2 check `FUN_0046c140`, fatal 0x486; line 0x464) |
 | `FUN_0046e980` | The same for an object: Objects.txt `+0x13f + mode` must be 1 (lines 0x4be..0x4dc) |
 | `FUN_0046ea50` | The same with no checks (a player). No caller |
-| `FUN_0046eac0` | Clears 16 layer flags and frees the COF list (lines 0x65f..0x66d); n must be below 16. Caller `FUN_0046f000` |
+| `FUN_0046eac0` | Clears 16 layer flags and frees the COF list (lines 0x65f..0x66d); n is only checked (>= 16, signed, is fatal 0x65f) and the flags 0..15 are always cleared. Caller `FUN_0046f000` |
 | `FUN_0046eb70` | Frees the overlay list (an overlay's sound at `+0x40` first, `FUN_004743d0`; line 0x690) |
 | `FUN_0046ec10` | Frees the whole record: COF list, overlays (`FUN_0046eb70`), the record (0x814..0x820) |
 | `FUN_0046ec80` | Frees the COF list (0x82a, 0x830) |
 | `FUN_0046ece0` | Frees the list's nodes except modes 0 and 0x11 (death and neutral stay) |
 | `FUN_0046f000` | `FUN_0046eac0(0..15)`. One caller |
 | `FUN_0046f020` | Sets the 20 layer flags to DL |
-| `FUN_0046f280` | Clears the layer flags: 20 for a player, 16 for a monster, 8 for an object; another type is fatal (0xd3e) |
+| `FUN_0046f280` | Clears the layer flags: 20 for a player, 16 for a monster, 8 for an object; another type is fatal (0xd3e); nothing is done when n (EDX, signed) is 16 or more |
 | `FUN_0046f9e0` | A monster's: mode 0xe means the current one; mode 0xc first clears the list (`FUN_0046ec80`) and the flags (`FUN_0046f020`) |
 | `FUN_0046fa80` | Loads by unit type (0 player, 1 monster, 2 object), then returns the node (`FUN_0046e5a0`) |
 
@@ -120,7 +120,7 @@ these are its pieces:
 | Address | What |
 |---|---|
 | `FUN_004da720` | Copies a token of up to three characters, space-padded to four (EAX out). Callers `FUN_004db7b0`, `FUN_004dbb80` |
-| `FUN_004da770` | A monster's mode byte at MonStats2 extension `+4 + n` (n < 16). Caller `FUN_004db7b0` |
+| `FUN_004da770` | A monster's mode byte at MonStats2 extension `+4 + n` (n < 16); 0 unless the record's first dword is 1 and its `+0x14` pointer is non-null. Caller `FUN_004db7b0` |
 | `FUN_004da790` | Caches the type tokens: 16 player (`FUN_0065b5e0`), 20 player-mode (`FUN_0065b480`), 16 monster-mode (`FUN_0065b500`), 8 object-mode (`FUN_0065b570`), 3 more (`FUN_0065b620`) at `0x7c8920`, `0x7c88d0`, `0x7c8980`, `0x7c8960`, `0x7c89c0` (fatal 0x36..0x5a) |
 | `FUN_004da8e0` | Monster: the request's `+0x2c` = MonStats2 row `+0x138` |
 | `FUN_004daa00` | The base token: player (`FUN_0065b480`), monster (MonStats `+0x10`), object (`FUN_0065b570`) |
@@ -130,7 +130,7 @@ these are its pieces:
 | `FUN_004dad80` | A layer's weapon token (EBX the layer, ESI the unit): `lit ` past 15; with a crossbow (`xbw `) the right hand's alternategfx / code for layers 5, 6; with a bow (`bow `) `lit ` on 5; layer 7 `shh ` when state 0x65 and a shield (`FUN_0063c8f0`); else 0 |
 | `FUN_004dae60` | Has the unit layer n: player 0..4, 8, 9; monster the MonStats2 `+0xe8` bit; object Objects.txt `+0x151 + n`; missile layer 1 |
 | `FUN_004daf70` | A layer's draw type: player 0x10 (the local player, d2char.mpq present) or 8; monster MonStats2 `+0xf4 + layer`, 4 when 8 and the class slot is clear; object `+0x1a0`; type 6 the overlay's |
-| `FUN_004db090` | COF layer n's byte 1 (9-byte layer records from `+0x1c`). Caller `FUN_00471620` |
+| `FUN_004db090` | COF layer n's byte 1 (9-byte layer records from `+0x1c`, byte 0 the layer id; 0 for a null header, n >= 16 signed, or no match, so a negative n never matches). `FUN_004db050` returns byte 3 the same way. Caller `FUN_00471620` |
 | `FUN_004db0d0` | COF layer n's byte 2 |
 | `FUN_004db180` | Is it a player, monster or object (type 0..2) |
 
@@ -142,20 +142,26 @@ total: `FUN_004da920` adds one (line 0x81), `FUN_004da990` finds by
 
 ## The motion record (unit graphics `+0x30`)
 
-0x4c bytes (`FUN_004da000`, line 0x4a; `FUN_004da080` frees it, line 100;
+0x4c bytes (`FUN_004da000`, line 0x4a; `FUN_004da080` frees it, line 0x64;
 `FUN_0046f060` / `FUN_0046f070` get and set the pointer),
-coordinates in 21.11 fixed point:
+coordinates in 21.11 fixed point. `FUN_004da000` zeroes the record whether
+it allocated it or found it already there (calling it again resets a live
+motion); a unit with no graphics record still gets a block allocated, but
+`FUN_0046f070` has nowhere to store it, so the block is lost. Every function
+below that takes a unit does nothing, or returns 0, when the unit, its
+graphics record or its motion record is missing, except `FUN_004da6b0`,
+which returns 1:
 
 | Offset | What |
 |---|---|
-| `+0x00` | flags: 1 started, 2 thrown (`FUN_004da5b0`), 4 target set, 8 done, 0x10, 0x20 |
+| `+0x00` | flags: 1 stops the step (set on arrival, a finished throw, the last bounce and by `FUN_004da640`), 2 thrown (`FUN_004da5b0`), 4 target set (`FUN_004da2f0`), 8 done, 0x10 follow the owner's frame, 0x20 arrive when at or above the limit |
 | `+0x04..+0x0c` | position x, y, z |
 | `+0x10..+0x18` | velocity |
 | `+0x1c..+0x24` | acceleration (z defaults to `-0x1000`) |
-| `+0x28..+0x30` | a third vector |
+| `+0x28..+0x30` | a third vector: the arrival limit in whole units (`FUN_004da350`) |
 | `+0x34..+0x3c` | draw offsets x, y, z |
-| `+0x40` / `+0x44` | target |
-| `+0x48` | flight time |
+| `+0x40` / `+0x44` | target (`FUN_004da2f0`). The step reads them as a count that falls by one on each ground hit and a percent of the vertical velocity kept (see the step) |
+| `+0x48` | flight time (ticks left, at least 1 when thrown) |
 
 | Address | What |
 |---|---|
@@ -164,10 +170,40 @@ coordinates in 21.11 fixed point:
 | `FUN_004da170` / `FUN_004da190` / `FUN_004da1b0` | Position x, y, z raw. x and y have no caller |
 | `FUN_004da1d0` | Sets the position (<< 11) |
 | `FUN_004da200` / `FUN_004da250` / `FUN_004da2a0` | Set velocity / acceleration / the third vector, shifted when arg 5 |
-| `FUN_004da2f0` | Sets the target, flag 4 |
-| `FUN_004da320` | The target's x |
+| `FUN_004da2f0` | Sets the target, flag 4: `+0x40`, `+0x44` from its two arguments |
+| `FUN_004da320` | `+0x40` (the target's first value) |
 | `FUN_004da340` | Clears flag 2 |
-| `FUN_004da5b0` | A throw from height h over t ticks: flag 2, position (0, 0, h), velocity z = (−h·0x800 − az·t²/2) / t |
-| `FUN_004da620` / `FUN_004da6e0` | Set or clear flag 0x10 / 0x20 |
+| `FUN_004da350` | The per-tick step (stack: unit; the record's flag 1 stops it): position += velocity, velocity += acceleration, all three axes (the old velocity moves the position). Flag 2: `+0x48` counts down, then flag 1 is set and x and y are zeroed. Flag 4 (ground bounce): once `z >> 11` is at or below `+0x30`, vz becomes `+0x44 × vz / −100` (truncated), z becomes the raw `+0x30` (not shifted, so a hit leaves z tiny), and `+0x40` counts down; at 0 flag 1 is set. Else flag 0x10: the owner unit (`FUN_004639d0`) gives the frame size (`FUN_004706e0`, mode 0xe for a monster-type unit (type 1) or a missile (type 3), 8 otherwise; for a missile the owner must be a monster, fatal 0x1a9, and an owner mode of 0 or 0xc ends the step with nothing stored). `+0x34` = width + the owner's draw x (`FUN_004da0b0`), `+0x3c` = height (+10 for a missile) + the owner's draw z (`FUN_004da0f0`); then `+0x34` / `+0x38` are copied, unshifted, into position x / y, `FUN_00643510` converts them in place (it maps the draw offset back to a position), and only z is shifted: z = −(`+0x3c` << 11). Else arrival: with flag 0x20 clear, if x, y, z (each `>> 11`) are all at or below `+0x28`, `+0x2c`, `+0x30` the position is set to that limit and flag 1 is set; with flag 0x20 all must be at or above. Unless flag 0x10, the tail sets `+0x34` / `+0x38` to x / y `>> 11`, `FUN_00643290` converts them, `+0x3c` = −(z `>> 11`) |
+| `FUN_004da5b0` | A throw from height h (EDX) over t ticks (stack): flag 2, t kept in `+0x48` and raised to 1 if below (signed), position (0, 0, h << 11), az `+0x24` set to `-0x1000` when zero, vx and vy zeroed, velocity z = (−(h << 11) − az·t²/2) / t. All in 32-bit wraparound; the half rounds toward zero and the divide truncates (idiv) |
+| `FUN_004da620` / `FUN_004da6e0` | Set (EDX non-zero) or clear flag 0x10 / 0x20 |
 | `FUN_004da640` | Sets flag 1. `FUN_004da660` tests it (no caller) |
-| `FUN_004da690` | Done: clears 1, sets 8. `FUN_004da6b0` is "not running" (no record, not started, or done) |
+| `FUN_004da690` | Done: clears 1, sets 8. `FUN_004da6b0` returns 0 only when flag 1 is set and flag 8 is not, else 1 (also with no record) |
+
+## Checked against game.exe
+
+Two oracles run the real code on random synthetic records with the pool,
+owner and screen-conversion calls hooked (what each prevents is in the
+script's docstring), and compare return value, callee order and arguments,
+every byte of the records, the fatal line and the bytes `ret n` pops. They
+check game.exe's behaviour for these functions, not d2d's code: nothing in
+`apps/` or `components/` cites them yet.
+
+| Oracle | Functions |
+|---|---|
+| `tools/emu/engine_motion.py` | `FUN_0046f060`, `FUN_0046f070`, `FUN_004da000`, `FUN_004da080`, `FUN_004da0b0` ... `FUN_004da1b0`, `FUN_004da1d0`, `FUN_004da200`, `FUN_004da250`, `FUN_004da2a0`, `FUN_004da2f0`, `FUN_004da320`, `FUN_004da340`, `FUN_004da350` (every branch of the step is reached), `FUN_004da5b0`, `FUN_004da620`, `FUN_004da640`, `FUN_004da660`, `FUN_004da690`, `FUN_004da6b0`, `FUN_004da6e0` |
+| `tools/emu/engine_gfx_small.py` | `FUN_0046e100`, `FUN_0046e570`, `FUN_0046e5a0`, `FUN_0046e610`, `FUN_0046e690`, `FUN_0046eac0`, `FUN_0046ec80`, `FUN_0046ece0`, `FUN_0046f000`, `FUN_0046f020`, `FUN_0046f1c0` ... `FUN_0046f250`, `FUN_0046f280`, `FUN_0046f980` ... `FUN_0046f9d0`, `FUN_004da720`, `FUN_004da770`, `FUN_004da8e0`, `FUN_004da920`, `FUN_004da990`, `FUN_004da9c0`, `FUN_004daa70`, `FUN_004dad50`, `FUN_004db040`, `FUN_004db050`, `FUN_004db090`, `FUN_004db0d0`, `FUN_004db180`, `FUN_004db1a0`, `FUN_004db1c0` |
+
+Changelog of what the checks changed in the rows above (each is also applied to its row):
+
+- `FUN_004da350` was not in this page; it is the step above.
+- `FUN_004da000` re-zeroes an existing record, and the block is lost when the unit has no graphics record.
+- `FUN_0046eac0` uses n only for its check (n >= 16, signed, is fatal 0x65f); it always clears flags 0 to 15. `FUN_0046f280` does nothing at all when n >= 16 (signed).
+- `FUN_0046e610` returns 0 (not found) as well as 1; `FUN_0046e690`'s fatal 0x406 cannot be reached because the node it frees was just found, and its other-token path writes `*arg 2` = 0 before the old data goes to `*arg 3`.
+- `FUN_004db050` returns byte 3 of the layer record (`FUN_004db090` byte 1, `FUN_004db0d0` byte 2); for all three, a layer number of 16 or more (signed, so a negative number is looked up and never matches) gives 0.
+- `FUN_004da770` also needs the record's first dword to be 1, and the data pointer at `+0x14` to be non-null.
+- `FUN_004da920` adds one to the caller's count and 0x10 to its byte total; `FUN_004da9c0` takes 0x10 off the total per node but leaves the count alone.
+
+Not checked: the transform-state branch of `FUN_0046da60` / `FUN_0046d9f0` (unit
+`+0xc8` bit 3 set), the loaders and drawing functions of Gfx.cpp
+(`FUN_0046ddf0`, `FUN_0046f490`, `FUN_0046f650`, `FUN_0046fb60`, `FUN_00470070`, `FUN_00470390` ...),
+`FUN_004da790`, `FUN_004daa00`, `FUN_004dab40` ... `FUN_004db7b0` (the ones not listed above).
