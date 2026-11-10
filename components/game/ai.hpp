@@ -703,6 +703,9 @@ struct Missile {
 // velocity ((Vel + VelLev x lvl / 8) << 8) x 75 / 100 moves it velocity /
 // 4096 subtiles a frame. The flight takes the path velocity back from it.
 inline float missile_speed(int path_velocity) { return float(path_velocity) * 5 / 4096; }
+// FUN_005a9370's 16 ways round a spot (x 0x6e2510, y 0x6e24d0): a ring of sub-missiles.
+inline constexpr std::array<int, 16> kRingWayX{ 0, 1, 2, 2, 2, 2, 2, 1, 0, -1, -2, -2, -2, -2, -2, -1 };
+inline constexpr std::array<int, 16> kRingWayY{ 2, 2, 2, 1, 0, -1, -2, -2, -2, -2, -2, -1, 0, 1, 2, 2 };
 inline float missile_speed(const GameData::MissileInfo& info, int level) {
     return missile_speed(d2d::rules::missile_velocity(info.vel, info.vel_lev, level));
 }
@@ -1058,11 +1061,9 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             laid.back().to = { missile.x + dx, missile.y + dy };
             return;
         }
-        static constexpr std::array<int, 16> kWayX{ 0, 1, 2, 2, 2, 2, 2, 1, 0, -1, -2, -2, -2, -2, -2, -1 };
-        static constexpr std::array<int, 16> kWayY{ 2, 2, 2, 1, 0, -1, -2, -2, -2, -2, -2, -1, 0, 1, 2, 2 };
         const auto ring = [&](int first, int step, int velocity) {
             for (int way = first; way < 16; way += step) {
-                const float dx = float(kWayX[std::size_t(way)]), dy = float(kWayY[std::size_t(way)]), span = std::hypot(dx, dy);
+                const float dx = float(kRingWayX[std::size_t(way)]), dy = float(kRingWayY[std::size_t(way)]), span = std::hypot(dx, dy);
                 const float speed = missile_speed((velocity << 7) * 75 / 100);   // flags 0x14: the velocity as is
                 laid.push_back(missile_from(missile, *sub, missile.x, missile.y, dx / span * speed, dy / span * speed, now_ms));
             }
