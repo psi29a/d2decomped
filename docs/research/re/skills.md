@@ -34,9 +34,11 @@ What a skill is, column by column (the ones that matter first):
   set b (itypeb / etypeb), either way round:
   `(D_a(h4, h5) && D_b(h5, h4)) || (D_b(h4, h5) && D_a(h5, h4))` (EAX the
   set, 0x644009 / 0x644013). `FUN_00643d90` D(item, other): no item:
-  true when the set has no itype and no etype, or (itype1 weap 0x2d /
-  mele 0x2e / 0x43, no itype2... , neither hand a weapon,
-  `FUN_00629bb0(.., 0x2d)`); an item of an etype: false; no itype: true;
+  true when the set has no itype and no etype, or, whichever set is asked,
+  set a's itype1 (+0x18) is weap 0x2d / mele 0x2e / 0x43, set b's itype1
+  (+0x1e) is empty and the other hand isn't a weapon (`FUN_00629bb0(..,
+  0x2d)`, 0x643dc2..0x643df9; so Double Swing, mele / mele, refuses bare
+  hands); an item of an etype: false; no itype: true;
   an item of none of the itypes: false; of one: true, except the ammo
   tests (a bow / crossbow needs its quiver in the other hand with stat 70
   above 0, unless stat 0x9d; flags 0x4000 / 0x100 items only for skill 0).
