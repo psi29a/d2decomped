@@ -2,8 +2,9 @@
 """Check selected BNetGW.cpp parser and selection helpers in stock 1.14d.
 
 Run with D2_MPQ_DIR set: uv run python bnetgw.py
-The PE is hash checked. The parser and accessors run unmodified on synthetic
-buffers. These tests do not exercise live configuration, file IO or Battle.net.
+The PE is hash checked. Parser, accessors, save, update and load run on
+synthetic buffers. Allocator, config IO, decimal formatting, logging and
+Realms.bin load are scripted; no live file IO or Battle.net is exercised.
 """
 import argparse
 import hashlib
@@ -20,7 +21,7 @@ def call(machine, address, *args, ecx=0):
     """Call a stock function and reject instruction-limit stops."""
     result = machine.call(address, *args, ecx=ecx, limit=LIMIT)
     if machine.mu.reg_read(UC_X86_REG_EIP) != emu.RET_MAGIC:
-        raise RuntimeError(f"{address:#x}: instruction limit")
+        raise RuntimeError(f"{address:#x}: instruction limit at {machine.mu.reg_read(UC_X86_REG_EIP):#x}")
     expected_sp = emu.STACK + emu.STACK_SIZE - 0x1000
     if machine.mu.reg_read(UC_X86_REG_ESP) != expected_sp:
         raise RuntimeError(f"{address:#x}: incorrect stack cleanup")
@@ -31,6 +32,122 @@ def require(condition, message):
     """Fail on an unexpected observation, including under python -O."""
     if not condition:
         raise RuntimeError(message)
+
+
+def integration(exe):
+    """Run save, update and reload with scripted allocation and configuration IO."""
+    m = emu.Emu(str(exe))
+    records, writes, frees = {}, [], []
+
+    def alloc(current):
+        """Allocate a synthetic buffer for the stock allocator boundary."""
+        return current.alloc(current.arg(0))
+
+    def free(current):
+        """Record the released pointer without recycling the emulator heap."""
+        frees.append(current.arg(0))
+        return 1
+
+    def get(current):
+        """Implement the two-phase configuration read over an in-memory map."""
+        section, key, typ, output, capacity, size_out = [current.arg(i) for i in range(6)]
+        require(current.cstr(section) == "Configuration" and typ == 0x82, "configuration read arguments")
+        value = records.get(current.cstr(key))
+        if value is None:
+            return 0
+        if size_out:
+            current.w32(size_out, len(value))
+        if output:
+            require(capacity >= len(value), "configuration read capacity")
+            current.mu.mem_write(output, value)
+        return 1
+
+    def put(current):
+        """Record the stock write and retain the bytes for the next read."""
+        section, key, typ, data, size = [current.arg(i) for i in range(5)]
+        require(current.cstr(section) == "Configuration" and typ == 0x82, "configuration write arguments")
+        name = current.cstr(key)
+        records[name] = current.read(data, size)
+        writes.append((name, records[name]))
+        return 1
+
+    def sprintf(current):
+        """Model the two decimal sprintf calls used to rebuild the list."""
+        require(current.cstr(current.arg(1)) == "%d", "unexpected sprintf format")
+        value = current.arg(2)
+        if value & 0x80000000:
+            value -= 0x100000000
+        text = str(value).encode()
+        current.mu.mem_write(current.arg(0), text + b"\0")
+        return len(text)
+
+    m.hook(0x6823fd, sprintf, 0)
+    m.hook(0x413020, alloc, 4)
+    m.hook(0x412650, free, 4)
+    m.hook(0x414de0, get, 6)
+    m.hook(0x415000, put, 5)
+    m.hook(0x5182b0, lambda current: 0, 0)  # Realms.bin load
+    m.hook(0x518c70, lambda current: 0, 0)
+    m.hook(0x518d40, lambda current: 0, 0)
+    obj = m.alloc(36)
+    packed = b"1000\0" + b"01\0" + b"old.example\0-5\0Old\0\0"
+    original = m.put(packed)
+    m.w32(obj + 8, 1)
+    m.w32(obj + 12, 1)
+    m.w32(obj + 0x10, original)
+    m.w32(obj + 0x14, len(packed))
+    m.w32(obj + 0x18, 1000)
+    ini = (b"[Server List Version]\nVER=1001\n[Server Gateways]\n"
+           b"1=east.example\n2=west.example\n"
+           b"[east.example]\nZONE=-5\nENU=East\n"
+           b"[west.example]\nZONE=-8\nENU=West\n\0")
+    call(m, 0x518850, obj, m.put(ini))
+    require(m.r32(obj + 0x18) == 1001, "updated version")
+    require(m.r32(obj + 8) == 2 and m.r32(obj + 12) == 1, "reloaded count and closest gateway")
+    require(m.cstr(call(m, 0x518040, obj, 1)) == "east.example", "first gateway")
+    require(m.cstr(call(m, 0x5180a0, obj, 2)) == "West", "second gateway name")
+    require(original in frees, "original list released")
+    require(len(writes) == 1 and writes[0][0] == "Diablo II Battle.net gateways", "one default-list write")
+    require(writes[0][1] == (b"1001\0" + b"01\0" + b"east.example\0-5\0East\0" +
+                              b"west.example\0-8\0West\0\0"), "serialized gateway list")
+    count = len(writes)
+    call(m, 0x518850, obj, m.put(ini))
+    require(len(writes) == count, "same version must not rewrite")
+    records["Override Battle.net gateways"] = packed
+    load_obj = m.alloc(36)
+    call(m, 0x5186d0, load_obj)
+    require(m.r32(load_obj + 0x1c) == 1 and m.r32(load_obj + 8) == 1, "load prefers override")
+    require(m.cstr(call(m, 0x518040, load_obj, 1)) == "old.example", "override content")
+    pointer = m.r32(load_obj + 0x10)
+    call(m, 0x5186d0, load_obj)
+    require(m.r32(load_obj + 0x10) == pointer, "already loaded is a no-op")
+    del records["Override Battle.net gateways"]
+    load_obj = m.alloc(36)
+    call(m, 0x5186d0, load_obj)
+    require(m.r32(load_obj + 0x1c) == 0 and m.r32(load_obj + 8) == 2, "default list fallback")
+    save_obj = m.alloc(36)
+    save_data = m.put(packed)
+    realms = m.put(b"realm\0")
+    m.w32(save_obj + 4, 1)
+    m.w32(save_obj + 12, 9)
+    m.w32(save_obj + 0x10, save_data)
+    m.w32(save_obj + 0x14, len(packed))
+    m.w32(save_obj + 0x1c, 1)
+    m.w32(save_obj + 0x20, realms)
+    call(m, 0x517ed0, save_obj)
+    require(writes[-1] == ("Override Battle.net gateways", packed.replace(b"01\0", b"09\0", 1)),
+            "override save contents")
+    require(m.r32(save_obj + 0x10) == m.r32(save_obj + 0x14) == m.r32(save_obj + 0x20) == 0,
+            "save clears pointers and length")
+    require(save_data in frees and realms in frees, "save releases both buffers")
+    m.w32(save_obj + 4, 0)
+    save_data = m.put(packed)
+    m.w32(save_obj + 0x10, save_data)
+    m.w32(save_obj + 0x14, len(packed))
+    before = len(writes)
+    call(m, 0x517ed0, save_obj)
+    require(len(writes) == before and save_data in frees, "clean unload frees without writing")
+    return 16
 
 
 def main():
@@ -147,7 +264,8 @@ def main():
         call(m, 0x518580, minutes & 0xffffffff, ecx=obj)
         require((m.r32(obj + 12), m.r32(obj + 4)) == (expected, 1), f"closest {minutes}")
         checks += 1
-    print(f"ok: {checks} BNetGW parser and gateway-access cases")
+    checks += integration(exe)
+    print(f"ok: {checks} BNetGW parser, access and lifecycle cases")
 
 
 if __name__ == "__main__":

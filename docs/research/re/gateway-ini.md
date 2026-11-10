@@ -8,11 +8,12 @@ Most routines have MSVC decorated exports as `BNGatewayAccess` members;
 `FUN_00518300` is an unexported helper. The demangled names and signatures
 are useful starting points, and the code is the authority for behavior.
 
-`tools/emu/bnetgw.py` executes selected parser, accessor, and selection paths
-from stock game.exe 1.14d on synthetic inputs (`D2_MPQ_DIR=<data> uv run
-python bnetgw.py` from `tools/emu`). File IO, configuration, live
-Battle.net, malformed buffers beyond the cases below, and concurrency are
-not exercised. The remaining function descriptions are static traces.
+`tools/emu/bnetgw.py` executes selected parser, accessor, selection, save,
+update, and load paths from stock game.exe 1.14d on synthetic inputs
+(`D2_MPQ_DIR=<data> uv run python bnetgw.py` from `tools/emu`). Configuration
+IO, memory allocation/free, decimal formatting, logging, and `Realms.bin`
+loading are scripted. Real file IO, live Battle.net, malformed input beyond
+the cases below, concurrency, and unexercised branches remain static traces.
 
 ## Class layout — 0x24 bytes
 
@@ -119,6 +120,16 @@ ZONE=-8
 ENU=USWest
 ...
 ```
+
+## Save and update observations
+
+The stock check exercises a newer INI list over an existing list, observes the
+old buffer freed, and checks the serialized replacement and subsequent load.
+An equal version does not write. Separate cases cover override preference,
+default-list fallback, the already-loaded guard, writing the override name,
+and clean unload without a write. These use an in-memory configuration map;
+they do not establish real registry or file persistence. The new list picks
+the closest zone to the former selection's zone; ties keep the first entry.
 
 ## What isn't here (yet)
 
