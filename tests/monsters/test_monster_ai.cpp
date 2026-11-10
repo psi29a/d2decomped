@@ -8,6 +8,7 @@
 #include <pets.hpp>
 #include <rules.hpp>
 #include <shadows.hpp>
+#include <thinks.hpp>
 
 #include <algorithm>
 #include <array>

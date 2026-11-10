@@ -15,6 +15,7 @@
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <think_scratch.hpp>
+#include <thinks.hpp>
 #include <world.hpp>
 
 #include <cassert>

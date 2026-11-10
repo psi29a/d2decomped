@@ -17,6 +17,7 @@
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
+#include <thinks.hpp>
 #include <town_npcs.hpp>
 #include <uniques.hpp>
 
