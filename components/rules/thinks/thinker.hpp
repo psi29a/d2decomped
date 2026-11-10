@@ -27,7 +27,6 @@ struct Thinker {
     const ThinkAway& away;
     const std::array<int, 8>& aip = input.aip;
     const Think idle2{ MonAct::idle, aip[1] }, walk{ MonAct::walk, 7 };
-    const Think walk0{ MonAct::walk, 0 };
     const Think walk_in{ MonAct::walk, 0 };                                                       // FUN_005dec80(target, 0)
     bool set_off_unused = false;                        // FUN_005df7d0's answer: Act 4's thinks return either way
 
@@ -46,7 +45,6 @@ struct Thinker {
     bool skill_set(int slot) { return slot < 3 ? input.skill[std::size_t(slot)] : input.skill45[std::size_t(slot - 3)]; }
     static Think cast(int slot, ThinkUnit unit = ThinkUnit::target) { Think out{ MonAct::skill, slot }; out.unit = unit; return out; }
     static Think aimed(Think out, ThinkUnit unit) { out.unit = unit; return out; }
-    static Think aimed_at(Think out, ThinkUnit unit) { out.unit = unit; return out; }
     // A circle (FUN_005df7d0) says whether it set off, as `away` does.
     Think circle(int count, int flag, bool& set_off) { auto out = think_circle(rng, count); out.y = flag; set_off = away(count, false); return out; }
     static int squared(int from_x, int from_y, int to_x, int to_y) { return (from_x - to_x) * (from_x - to_x) + (from_y - to_y) * (from_y - to_y); }   // FUN_005b0bd0

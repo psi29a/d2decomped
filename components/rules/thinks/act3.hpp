@@ -29,7 +29,7 @@ struct Act3Thinks : Thinker {
             *input.state = 2; *input.state2 = 0;
         }
         switch (*input.state) {
-        case 0: set_pace(100, 0); return walk0;
+        case 0: set_pace(100, 0); return walk_in;
         case 1: {
             set_pace(50, 0);
             const auto out = think_wander(rng, 4);
@@ -106,9 +106,9 @@ struct Act3Thinks : Thinker {
         if (*input.state3 == 1) return { MonAct::none, 0, 0, 0, ThinkUnit::target, aip[4] };
         if (head) {
             const auto second = input.second ? ThinkUnit::second : ThinkUnit::none;
-            return roll() >= aip[0] ? Think{ MonAct::idle, aip[4] } : aimed_at({ MonAct::a1 }, second);
+            return roll() >= aip[0] ? Think{ MonAct::idle, aip[4] } : aimed({ MonAct::a1 }, second);
         }
-        if (input.in_melee && roll() < aip[0]) return aimed_at({ MonAct::a1 }, target);
+        if (input.in_melee && roll() < aip[0]) return aimed({ MonAct::a1 }, target);
         return { MonAct::idle, aip[4] };
     }
     // FetishBlowgun (96, FUN_005e1250): its group's command first (1: A1 at
@@ -123,9 +123,9 @@ struct Act3Thinks : Thinker {
             if ((*input.command == 1 || *input.command == 14) && input.command_unit) {
                 *input.state = *input.state2 = 0;
                 effect(ThinkEffect::command_done);
-                if (*input.command == 1) return aimed_at({ MonAct::a1 }, ThinkUnit::kin);
+                if (*input.command == 1) return aimed({ MonAct::a1 }, ThinkUnit::kin);
                 set_pace(50, 0);
-                return aimed_at(walk0, ThinkUnit::kin);
+                return aimed(walk_in, ThinkUnit::kin);
             }
             effect(ThinkEffect::command_done);
         }
@@ -141,7 +141,7 @@ struct Act3Thinks : Thinker {
         case 0: {
             ++*input.state2;
             if (rng(3) + 3 < *input.state2) { *input.state = 1; *input.state2 = 0; }
-            if (input.second) return aimed_at({ MonAct::a1 }, ThinkUnit::second);
+            if (input.second) return aimed({ MonAct::a1 }, ThinkUnit::second);
             return circle(4, 0, set_off);
         }
         case 1: {
@@ -155,7 +155,7 @@ struct Act3Thinks : Thinker {
                 set_pace(50, 0);
                 if (away(14, false)) return { MonAct::none };
                 *input.state = *input.state2 = 0;
-                return aimed_at({ MonAct::a1 }, second);
+                return aimed({ MonAct::a1 }, second);
             }
             if (roll() <= 19) {
                 const auto out = circle(4, 1, set_off);
@@ -180,7 +180,7 @@ struct Act3Thinks : Thinker {
         if (input.state_c) effect(ThinkEffect::state, 0xc, 0);
         if (input.corpse && input.kin_dist <= aip[4] * aip[4] && roll() < aip[0] && input.usable) {
             effect(ThinkEffect::rally, 14);
-            if (input.kin_dist <= aip[2]) return aimed_at({ MonAct::seq, 2 }, ThinkUnit::kin);
+            if (input.kin_dist <= aip[2]) return aimed({ MonAct::seq, 2 }, ThinkUnit::kin);
             auto out = think_wander(rng, 10); out.act = MonAct::around; out.unit = ThinkUnit::kin;
             return out;
         }
@@ -512,13 +512,13 @@ struct Act3Thinks : Thinker {
             }
             --count;
             state = 1;
-            return roll() < aip[2] ? walk0 : think_wander(rng, 6);
+            return roll() < aip[2] ? walk_in : think_wander(rng, 6);
         }
         if (!input.in_melee) {
             if (state == 2 || roll() < aip[0]) { state = 0; return { MonAct::sc }; }
         } else if (state == 3 || roll() < aip[1]) { state = 0; return { MonAct::a1 }; }
         state = 1; count = 3;
-        return roll() < aip[2] ? walk0 : think_wander(rng, 4);
+        return roll() < aip[2] ? walk_in : think_wander(rng, 4);
     }
     // Hydra (86, FUN_005e9e60; Mephisto's): past its end frame (state) it's
     // gone (FUN_005ddfc0); a target within 25, 60 % Skill1; else stands 10.

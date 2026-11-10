@@ -132,7 +132,7 @@ struct Act4Thinks : Thinker {
         }
         if (!input.in_melee) {
             if (aip[4] <= input.dist) return input.dist < aip[6] ? walk : Think{ MonAct::idle, 15 };
-            if (!input.skill[0] || roll() >= aip[1]) return input.skill_state ? walk0 : Think{ MonAct::idle, aip[7] };
+            if (!input.skill[0] || roll() >= aip[1]) return input.skill_state ? walk_in : Think{ MonAct::idle, aip[7] };
             return cast(0);
         }
         if (roll() < aip[0]) return { MonAct::a1 };
@@ -192,7 +192,7 @@ struct Act4Thinks : Thinker {
         }
         const int rolled = roll();
         if (input.in_melee) return rolled < aip[0] ? Think{ MonAct::a1 } : Think{ MonAct::idle, 15 };
-        if (rolled < aip[2]) return walk0;
+        if (rolled < aip[2]) return walk_in;
         if (found && roll() < aip[3]) return go_eat();
         return { MonAct::idle, 8 };
     }

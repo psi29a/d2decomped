@@ -51,10 +51,6 @@ struct Act1Preps : ThinkPrep {
         input.corpse = corpse >= 0;
         corpse_place();
     }
-    // A nest's init, taken at its first think: the frame.
-    void nest() {
-        if (monster.ai_state == 0) monster.ai_state = frame;
-    }
     void blood_raven() {      // her think's two distances to home are FUN_005dc480's: each axis less half the unit's size + 1
         input.home_dist = d2d::rules::point_apart(subtile(monster.home_x) - x, subtile(monster.home_y) - y, (type_info.size >> 1) + 1);
         input.target_home_dist = d2d::rules::point_apart(subtile(monster.home_x) - target_x, subtile(monster.home_y) - target_y, (target->size >> 1) + 1);
@@ -73,9 +69,9 @@ struct Act1Preps : ThinkPrep {
 constexpr auto kRows = std::to_array<PrepRow>({
     { "Fallen", &prep_as<Act1Preps, &Act1Preps::fallen> },
     { "FallenShaman", &prep_as<Act1Preps, &Act1Preps::fallen_shaman> },
-    { "FoulCrowNest", &prep_as<Act1Preps, &Act1Preps::nest> },
+    { "FoulCrowNest", &prep_as<ThinkPrep, &ThinkPrep::nest> },
     { "BloodRaven", &prep_as<Act1Preps, &Act1Preps::blood_raven> },
-    { "GargoyleTrap", &prep_as<Act1Preps, &Act1Preps::nest> },
+    { "GargoyleTrap", &prep_as<ThinkPrep, &ThinkPrep::nest> },
     { "Fetish", &prep_as<Act1Preps, &Act1Preps::fetish> },
 });
 

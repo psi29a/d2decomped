@@ -87,6 +87,7 @@ struct ThinkPrep {
         return order.empty() ? -1 : order.front();
     }
     [[nodiscard]] bool wall805(int at_x, int at_y) const { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0x805); }
+    [[nodiscard]] bool wallc01(int at_x, int at_y) const { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0xc01); }
     // FUN_005fd470, a skill usable, for the thinks that ask it (not in town,
     // FUN_0061ab00: a think here never is). Resurrect / Resurrect2's
     // TgtPlaceCheck (Skills +8 bit 0): the corpse's spot open to its pattern
@@ -100,8 +101,11 @@ struct ThinkPrep {
     }
     // Charge (do 67): a clear line to the target (FUN_00645910, 0xc01).
     void charge_line() {
-        const auto wallc01 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0xc01); };
-        input.usable = !d2d::rules::sight_blocked(x, y, 0, target_x, target_y, 0, wallc01);
+        input.usable = !d2d::rules::sight_blocked(x, y, 0, target_x, target_y, 0, [this](int at_x, int at_y) { return wallc01(at_x, at_y); });
+    }
+    // A nest's init (the crow nests, gargoyle traps, sarcophagi), taken at its first think: the frame.
+    void nest() {
+        if (monster.ai_state == 0) monster.ai_state = frame;
     }
     // Baal's Vile Effigy and his tentacles (FUN_005ef820) live while he
     // does (FUN_00552fd0: their master, FUN_005541b0); he's the one Baal,
@@ -118,7 +122,7 @@ struct PrepRow {
     PrepFn prep;
 };
 
-// An act's inputs, member `act_prep` of its struct, as a PrepFn.
+// An act's inputs, member `act_prep` of its struct (ThinkPrep for a shared one), as a PrepFn.
 template <class Act, void (Act::*act_prep)()>
 void prep_as(const ThinkPrep& prep) {
     Act act{ prep };

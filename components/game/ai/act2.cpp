@@ -86,19 +86,17 @@ struct Act2Preps : ThinkPrep {
                 input.free_spot[0] = std::pair{ monster.ai_state2, monster.ai_state3 };   // keep 1: the point, in a room
         }
     }
-    void claw_viper() { charge_line(); }
     // Leap (do 77): a free spot past the target (twice it less itself,
     // FUN_0064e7b0 at its size, 0x3c01) in a clear line (0xc01).
     void sand_leaper() {
-        const auto wallc01 = [&](int at_x, int at_y) { return level.blocked((float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0xc01); };
         const auto landing = free_spot_near(level, crowd, &unit, 2 * target_x - x, 2 * target_y - y, unit.shape.size, 0x3c01);
-        input.usable = landing && !d2d::rules::sight_blocked(x, y, 0, landing->first, landing->second, 0, wallc01);
+        input.usable = landing && !d2d::rules::sight_blocked(x, y, 0, landing->first, landing->second, 0, [this](int at_x, int at_y) { return wallc01(at_x, at_y); });
     }
 };
 
 constexpr auto kRows = std::to_array<PrepRow>({
     { "SandLeaper", &prep_as<Act2Preps, &Act2Preps::sand_leaper> },
-    { "ClawViper", &prep_as<Act2Preps, &Act2Preps::claw_viper> },
+    { "ClawViper", &prep_as<ThinkPrep, &ThinkPrep::charge_line> },
     { "PantherWoman", &prep_as<Act2Preps, &Act2Preps::panther> },
     { "PantherJavelin", &prep_as<Act2Preps, &Act2Preps::panther> },
     { "SandRaider", &prep_as<Act2Preps, &Act2Preps::sand_raider> },

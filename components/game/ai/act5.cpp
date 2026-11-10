@@ -110,7 +110,6 @@ struct Act5Preps : ThinkPrep {
             input.reach = d2d::rules::unit_distance(subtile(host.unit.x) - x, subtile(host.unit.y) - y, type_info.size, game_data.monsters.types[std::size_t(host.type)].size) <= type_info.melee_rng + 1;
         }
     }
-    void baal_tentacle() { baal_rider(); }
     // The Imp reads imp1..imp4's aips (MonStats 0x1ec..0x1ef). Its ride
     // word (+0x14) names the siege beast or tower that took it (FUN_005e17e0):
     // found (FUN_00552f60), dead (FUN_005541b0), ridden (FUN_00552fd0), its
@@ -156,11 +155,6 @@ struct Act5Preps : ThinkPrep {
         mount_search(input.aip[0]);
     }
     void siege_tower() { mount_search(20); }
-    void claw_viper_ex() { charge_line(); }
-    // A nest's init, taken at its first think: the frame.
-    void sarcophagus() {
-        if (monster.ai_state == 0) monster.ai_state = frame;
-    }
     // The arrow traps' level kind is drawn when one first fires there (in
     // range, lined up, past its frame; FUN_005fb650): Act 1's (levels below
     // 40) the spike, else rand(3) on that trap's seed.
@@ -192,12 +186,12 @@ constexpr auto kRows = std::to_array<PrepRow>({
     { "SiegeTower", &prep_as<Act5Preps, &Act5Preps::siege_tower> },
     { "Imp", &prep_as<Act5Preps, &Act5Preps::imp> },
     { "PutridDefiler", &prep_as<Act5Preps, &Act5Preps::putrid_defiler> },
-    { "BaalTentacle", &prep_as<Act5Preps, &Act5Preps::baal_tentacle> },
+    { "BaalTentacle", &prep_as<ThinkPrep, &ThinkPrep::baal_rider> },
     { "BaalTaunt", &prep_as<Act5Preps, &Act5Preps::baal_taunt> },
     { "Ancient", &prep_as<Act5Preps, &Act5Preps::ancient> },
     { "Nihlathak", &prep_as<Act5Preps, &Act5Preps::nihlathak> },
-    { "ClawViperEx", &prep_as<Act5Preps, &Act5Preps::claw_viper_ex> },
-    { "Sarcophagus", &prep_as<Act5Preps, &Act5Preps::sarcophagus> },
+    { "ClawViperEx", &prep_as<ThinkPrep, &ThinkPrep::charge_line> },
+    { "Sarcophagus", &prep_as<ThinkPrep, &ThinkPrep::nest> },
     { "Trap-RightArrow", &prep_as<Act5Preps, &Act5Preps::right_arrow> },
     { "Trap-LeftArrow", &prep_as<Act5Preps, &Act5Preps::left_arrow> },
     { "DesertTurret", &prep_as<Act5Preps, &Act5Preps::desert_turret> },

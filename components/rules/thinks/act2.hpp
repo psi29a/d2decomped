@@ -127,7 +127,7 @@ struct Act2Thinks : Thinker {
         if (command == 1) {
             if (input.in_melee && input.skill[0]) { effect(ThinkEffect::command_done); return cast(0); }
             set_pace(100, 0);
-            return walk0;
+            return walk_in;
         }
         if (!input.in_melee) {
             if (*input.state != 0) {
@@ -176,19 +176,19 @@ struct Act2Thinks : Thinker {
         }
         if (*input.state == 2) {
             if (life < aip[0] && away(15, false)) { *input.state = 4; return { MonAct::none }; }
-            if (roll() < 33) { *input.state = 3; return walk0; }
+            if (roll() < 33) { *input.state = 3; return walk_in; }
             if (roll() < 15) return think_wander(rng, 6);
             return { MonAct::idle, 10 };
         }
         if (*input.state == 3) {
             if (life < aip[0] && away(15, false)) { *input.state = 4; return { MonAct::none }; }
-            if (!input.in_melee) return walk0;
+            if (!input.in_melee) return walk_in;
             if (*input.state2 > 0) { *input.state2 = 0; return { MonAct::a2 }; }
             if (input.got_hit && roll() < aip[1] && away(12, false)) { *input.state = 2; return { MonAct::none }; }
             if (roll() < aip[2]) return roll() < aip[3] ? Think{ MonAct::a2 } : Think{ MonAct::a1 };
             return { MonAct::idle, 10 };
         }
-        if (input.dist < 15) { *input.state = 3; return walk0; }
+        if (input.dist < 15) { *input.state = 3; return walk_in; }
         *input.state = 4;
         return { MonAct::idle, 15 };
     }
@@ -261,7 +261,7 @@ struct Act2Thinks : Thinker {
         }
         if (aip[4] < *input.state) { effect(ThinkEffect::state, aip[5] == 1 ? 0x5a : 0x5b, 1); *input.state2 = 1; }
         if (*input.state3 < 7 && input.life_pct < aip[0]) {
-            if (input.kin) return aimed(walk0, ThinkUnit::kin);
+            if (input.kin) return aimed(walk_in, ThinkUnit::kin);
             ++*input.state3;
         }
         auto rest = [&] {
@@ -272,7 +272,7 @@ struct Act2Thinks : Thinker {
         if (input.dist > 4 && *input.state2 == 0 && roll() < aip[1]) return think_circle(rng, 0);
         if (!input.in_melee) {
             if (*input.state2 == 0 && roll() >= aip[3]) return rest();
-            return walk0;
+            return walk_in;
         }
         if (*input.state2 == 1 && input.skill[0]) { *input.state = *input.state2 = 0; return cast(0); }
         if (roll() < aip[2]) return rng(100) >= aip[6] ? Think{ MonAct::a1 } : Think{ MonAct::a2 };
