@@ -140,7 +140,7 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 | `FUN_00638aa0` | Frees it |
 | `FUN_00638ae0` | Loads gamble (0xc): each code's Items row and level (Items `+0xfd`, fatal 0x7e0), sorted by level into `0x96cab4` (0x7db), and the first row past each level 1..99 at `0x96cabc` |
 | `FUN_00638c80` | Frees it (0x80d) |
-| `FUN_00638cd0` | Is ItemTypes row a one of b (its Equiv1 / Equiv2 walked, at most 0x7d deep) |
+| `FUN_00638cd0` | Is ItemTypes row a one of b (its Equiv1 / Equiv2 walked; returns 0 when more than 0x7c entries remain after a pop) |
 | `FUN_00638d80` | Loads itemtypes (0xe4) and builds the is-a bit matrix `0x96c834` (rows of `0x96c830` dwords, line 0x893) that `FUN_00629b50` reads |
 | `FUN_006393e0` | Frees it (0x8a7) |
 | `FUN_00639420` | Does `DATA\GLOBAL\EXCEL\<name><ext>` open (`FUN_00516e46`). Caller `FUN_006394a0` |
@@ -217,3 +217,113 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 | `FUN_0066a700` | Reads `DATA\GLOBAL\expfield.d2` (line 0x28) into `FUN_0066a2b0` |
 | `FUN_0066a770` | Reads `DATA\GLOBAL\AnimData.d2` (line 0x8a): 256 hash buckets, each a count then 0xa0-byte records, into a 0x4a4-byte header (`+0x40c` = 0x800, `+0x410` = 0x100) |
 | `FUN_0066a830` | Frees it (lines 0xbe, 0xbf) |
+
+## Verified in the emulator
+
+Three oracles in `tools/emu/` run these 54 helpers from stock game.exe 1.14d
+(SHA-256 `631066c1...adaaf`) on random tables, with the data-tables globals
+written directly (no MPQ is read) and the callees hooked and logged. Each
+compares the return value, the table bytes after the call, the callee log and
+the bytes `ret n` popped against a hand-written model, and `--mutation-check`
+breaks the model 26 / 14 / 19 ways and needs each to fail. Re-check:
+`cd tools/emu && uv run python monster_tbls.py` (4,930 cases), `item_tbls.py`
+(2,078), `lvl_tbls.py` (3,220), each with `--mutation-check`.
+
+The hooked callees are the growing allocator `0x40b4b0` (modelled as a realloc
+that copies the old block, which is **assumed**, not traced: `FUN_0040a1f0`),
+the excel link `0x6bd500` / `0x6bd3c0`, the table free `0x6125c0`, the link
+free `0x6bd0b0`, the pool and client releases, the seeded random `0x45c3e0`,
+the string lookup `0x524a30`, the DS1 release `0x668300` and `wsprintfA`. The
+C runtime's `memset`, `strchr` and `atol` run for real.
+
+**What the traces settled**
+
+- The row getters differ in what they let through. `FUN_00654fe0`,
+  `FUN_00636b20` and `FUN_006375c0` return 0 for `n >= count` **and for -1
+  only**: any other negative `n` is below the count and gives
+  `table + n * size`, an address before the table. With no table they halt on
+  the line in the rows above (0x6dc / 0x4f2 / 0x5d0); an address that wraps to
+  zero halts on the second line (0x6dd / 0x4f3 / 0x5d1). `FUN_006335a0` (items index)
+  returns -1 for any `n < 0` or `n >= count`. `FUN_00656f90` and
+  `FUN_0061e470` / `FUN_0061f0b0` return 0 outside `0 <= n < count`.
+  `FUN_0061eaa0` checks neither bound (n * 0x788 + table for any n, drawn from
+  -8 to the row count + 8) and `FUN_0061fa90` only n < 0 (it has no count; the
+  index is read at n, drawn up to 15).
+- `FUN_00658460` (MonType) and `FUN_00638cd0` (ItemTypes) walk equivalents with
+  a stack (a 128-int local) and **no visited set**: the depth guard (`0x7c <`
+  entries left after a pop) returns 0 only for a walk that grows. A cycle of
+  single links (A names B, B names A, the wanted class elsewhere) never
+  returns; the oracle sees the instruction limit run out (bugs.md 69). The two
+  differ at the edge: `b < 1` is 0 for MonType and **1** for ItemTypes; MonType
+  reads three equivalents (`+2`, `+4`, `+6`), ItemTypes two (`+4`, `+6`). The
+  first equivalent is pushed only when positive; the later ones when non-zero,
+  so a negative one is pushed and indexes the table below row 0. The oracles
+  fill the rows before row 0 with real equivalents and build walks that reach a
+  target only through such a row; skipping the negative equivalent is one of
+  the mutations and is caught.
+- `FUN_00653f90` grows the treasure class array by 16 records (0x2c bytes) only
+  when the count is a multiple of 16 (the pool call is `0x40b4b0` with the old
+  block in EDX, line 0x3a2), then zeroes the new record; `FUN_00654010` /
+  `FUN_00654080` do the same per class for the 0x1c-byte items (line 0x3ba).
+  `FUN_00654010` does not handle a smaller count: it would hand `memset` a
+  negative length (not run; the callers traced here only grow).
+- `FUN_006540c0` (change a treasure item's chance) keeps two running columns in
+  step: for the chance column (`+4` of each item, class total `+0xc`) always,
+  for the other (`+0` of each item, class total `+8`) only when the stack flag
+  is zero. The span is measured to the next item's value, or to the class
+  total for the last item; every later item and the total move by the
+  difference. The item index is a signed division of the pointer difference
+  by 0x1c.
+- `FUN_00654410` splits a number off a cursor (`*ESI`) at the character in AL:
+  the separator is overwritten by 0, the cursor moves past it, a missing
+  separator sets the cursor to null, and the return value is `atol` of the
+  text before it (white space and a sign allowed; values past 32 bits stop the emulated C runtime and were not tested).
+- `FUN_00653ed0` / `00653f10` / `00653f50` (unique title / prefix / suffix):
+  nothing is drawn unless the flag in ECX is non-zero **and** the count is
+  positive. The seed pointer is flag + 0x20, the draw is below the count, a
+  zero 16-bit entry or a missing string gives the empty string `0x96d4b4`.
+- `FUN_00656390` (hireling by name string) and `FUN_00656440` (by id) start
+  after the row passed in (index + 1), or at row 0 for null, and match the
+  version word (`+0`: 100 in the expansion, else 0). The string range is
+  inclusive at both ends (`+0x114` <= s <= `+0x116`).
+- `FUN_00656900` returns the **first** npc row with the id; `FUN_0061f0e0` the
+  first lvlprest row with `+4` (LevelId) == key; `FUN_0061f490` the first lvlmaze row;
+  `FUN_0061f310` halts unless a lvlwarp row has the id and a letter that is
+  `b`, equals the request or the request is `b`.
+- `FUN_0061fc10` and `FUN_0061fc80` are string-to-index lookups in two static
+  tables of game.exe: 36 level-type names at `0x6e7d50` (16 bytes each:
+  `None`, `1 Town`, `1 Wilderness`, `1 Cave`, `1 Crypt`, `1 Monestary`,
+  `1 Courtyard`, `1 Barracks`, `1 Jail`, `1 Cathedral`, `1 Catacombs`,
+  `1 Tristram`, `2 Town`, `2 Sewer`, `2 Harem`, `2 Basement`, `2 Desert`,
+  `2 Tomb`, `2 Lair`, `2 Arcane`, `3 Town`, `3 Jungle`, `3 Kurast`,
+  `3 Spider`, `3 Dungeon`, `3 Sewer`, `4 Town`, `4 Mesa`, `4 Lava`, `5 Town`,
+  `5 Siege`, `5 Barricade`, `5 Temple`, `5 Ice`, `5 Baal`, `5 Lava`; the
+  spelling `Monestary` is the binary's) and 20 DT1 piece names at `0x6e7f90`
+  (8 bytes: `fl wl wr wtlr wtll wtr wbl wbr wld wrd wle wre co sh tr rf ld rd fd
+  fi`). The EDI argument is compared as a whole string, case-sensitively; a
+  name starting with `0` returns 0 without a search; a miss halts (0x4a5 /
+  0x4d0).
+- `FUN_0061e4a0` turns `/` into `\` in the path and, for two or more
+  characters, rewrites it as `prefix\path` through `wsprintfA` into a 60-byte
+  local, then copies the result back over the caller's path (read from the
+  decompile; a longer result is unchecked: bugs.md 70).
+  `FUN_0061ddf0` returns `0x96c9f4` and stores `0x96c9f8` through ECX.
+  `FUN_0061eb40` stores a 0 byte at the destination, then copies string `k` of
+  a lvltypes row only when `k < 0x20` (signed, so a negative `k` reads before
+  the row: not run); the oracle shows the 0 byte for `k >= 0x20` and the copy
+  for `k < 0x20`.
+
+**Verified versus assumed.** Verified: the rows above for the inputs the
+oracles draw (random tables, edge counts, null tables, the wrapped pointer, the
+depth edge of the walks). Assumed: the realloc copy semantics of `0x40b4b0`;
+the callees' own behaviour (each is traced elsewhere or not at all); the
+negative `memset` length of `FUN_00654010`; atol past 32 bits; negative `k` in
+`FUN_0061eb40`; the 60-byte buffer overflow of `FUN_0061e4a0` (a longer `prefix\path` overruns
+the local and the copy back into the caller's buffer; the /GS cookie check ends
+in `__security_check_cookie`).
+
+| Oracle | Functions |
+|---|---|
+| `monster_tbls.py` | `FUN_00653d60`, `00653ed0`, `00653f10`, `00653f50`, `00653f90`, `00654010`, `00654080`, `006540c0`, `00654410`, `00654dd0`, `00654fc0`, `00654fe0`, `00655710`, `00656390`, `00656440`, `00656900`, `00656f90`, `00658460`, `00659b40`, `00659b80`, `00659c30` |
+| `item_tbls.py` | `FUN_00633590`, `006335a0`, `00634250`, `00636b10`, `00636b20`, `006374a0`, `00637490`, `006375b0`, `006375c0`, `006379d0`, `00638c80`, `00638cd0`, `00639c90`, `00639cb0` |
+| `lvl_tbls.py` | `FUN_0061ddf0`, `0061e440`, `0061e470`, `0061e4a0`, `0061ea90`, `0061eaa0`, `0061eae0`, `0061eb40`, `0061f030`, `0061f0b0`, `0061f0e0`, `0061f300`, `0061f310`, `0061f480`, `0061f490`, `0061fa90`, `0061fc10`, `0061fc80`, `006200d0` |
