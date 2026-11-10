@@ -319,7 +319,8 @@ def check_sub_row(rig, rng):
     """FUN_0061fa90: lvlsub row by type through the index."""
     machine = rig.m
     base = 0 if rng.random() < 0.15 else rng.randrange(0x1000, 0x7000_0000)
-    index = rig.array(struct.pack("<16I", *[rng.randrange(0, 50) for _ in range(16)])) if rng.random() > 0.15 else 0
+    index = (rig.array(bytes(12) + struct.pack("<16I", *[rng.randrange(0, 50) for _ in range(16)])) + 12
+             if rng.random() > 0.15 else 0)   # 12 bytes of padding so a negative n still reads inside the array
     machine.w32(0x96CA10, base)
     machine.w32(0x96CA18, index)
     n = rng.choice((-1, 0, 3, 5, 6, 15, rng.randrange(-3, 16)))     # no count: the index is read past the first entries
@@ -331,9 +332,7 @@ def check_sub_row(rig, rng):
     elif index == 0:
         want = ("halt", 0x3F3)
     else:
-        want = ("ret", (struct.unpack_from("<I", machine.read(index, 64), 4 * n)[0] * 0x15C + base) & MASK)
-    if n < 0 and mut("sub-row-negative") and base and index:
-        return
+        want = ("ret", (struct.unpack_from("<I", machine.read(index - 12, 76), 12 + 4 * n)[0] * 0x15C + base) & MASK)
     require(got == want, f"sub row {n}: {got} != {want}")
 
 
