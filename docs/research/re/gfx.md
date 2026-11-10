@@ -108,7 +108,7 @@ only this caller with a synthetic predicate, not the real predicate.
 
 | Address | What |
 |---|---|
-| `FUN_0046ed50` | A tint by life: blue `(0,0,0xc0)` for a monster with MonStats `+0xd` bit 1, else green `(0,0xc0,0)`, yellow above 33 % to 65 %, red at 32 % and under (palette indices from `FUN_004fb180`, cached once) |
+| `FUN_0046ed50` | A tint by life: blue `(0,0,0xc0)` for a monster with MonStats `+0xd` bit 1, else green `(0,0xc0,0)`, yellow at 33 % to 65 %, red at 32 % and under (palette indices from `FUN_004fb180`, cached once) |
 | `FUN_0046ee80` | An item cel at (x, y): gold by stack (stat 0xe: 100..499 frame 1, to 4999 frame 2, else 3), the item's colour (`FUN_0062c100`), draw mode 1 for an ethereal item (flag 0x400000, else 5), then its overlays (`FUN_0046e300`). Eight callers, the inventory panels |
 | `FUN_004706e0` | A unit's frame width and height (`FUN_00601920`, `FUN_00601950`) into two outputs; a missing cel is fatal (0xd7a) |
 | `FUN_00470860` | Is (x, y) inside the unit's COF box (`+8..+0xc`, `+0x10..+0x14`) grown by 16 |
