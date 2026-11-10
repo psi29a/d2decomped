@@ -71,7 +71,7 @@ alternate bank; a short tap swaps weapons, but a skill chord never swaps.
 
 In the skill panel, highlight a learned skill and press the north button
 (Y on Xbox) for **Assign to button**. View opens the editor from the field.
-D-pad left/right selects Skills or Actions; up/down browses. The editor shows
+D-pad left/right selects Skills or Actions; up/down changes pages. The editor shows
 actual destination glyphs, current occupants and bank I/II. Hold LT to preview
 bank II. Press a destination to assign; the resulting binding is shown and
 the editor stays open. View or Start finishes; held buttons cannot cast on exit.
@@ -138,3 +138,19 @@ drawn D-pad arrows when mapped to directions, and actual button names when
 remapped. Releasing movement stops without planning a new walk to a subtile
 centre, preserving facing. Physical touch tests are unavailable; Sidecar is
 not a native multitouch validation device.
+
+Controller Skill Buttons navigation: the run/walk control shows its actual
+remapped stick-click binding and current Run/Walk state. With Party, Quests,
+Character, Inventory, Skills or Options open, the configured previous/next
+shoulder inputs cycle that order with wraparound. A tab strip shows the current
+panel. Held items, Identify, Imbue and gold confirmation block switching with
+a visible explanation. Store tabs and classic controller shortcuts retain
+their existing behavior. Offline Party is informational.
+
+The radial uses D-pad Up/Down for pages, Left/Right for Skills/Actions and the
+aiming stick for selection. A separate 30% centre deadzone (or the user's
+larger configured deadzone) preserves selection at rest; a small angular
+margin stabilizes wedge boundaries. Destinations and Done remain unchanged.
+Skill-tree Up/Down prefers a node in the same column across gaps before
+moving sideways. Tree opening focuses a skill rather than a tab button.
+These are controller UX decisions, not newly traced original-game claims.

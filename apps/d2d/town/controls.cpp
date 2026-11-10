@@ -174,6 +174,7 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
 auto Town::party_own() const -> PartyPanel::Own {
         PartyPanel::Own own{ character.name, int(character.stats.get(d2d::d2s::kLevel)), party_preview.empty() ? 0xffff : 1, level && d2d::rules::level_ids::is_town(level->id) };
         if (coop_hud_hidden()) { own.party = 1; own.fixed = true; }   // the screen's player (`character`), in local co-op's one party
+        if (!net_game) own.fixed = true;  // offline controller Party page is informational
         if (net_game)
             if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end()) own.party = self->second.party;
         return own;

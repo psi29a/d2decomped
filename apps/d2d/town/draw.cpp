@@ -369,7 +369,35 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
             }
         draw_hud_hovers(framebuffer, *scene, hud_hovers);
         if (game_menu.open) game_menu.draw(framebuffer, *scene);
-        if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty())) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
+        if (pad_playing && pad_config.skill_buttons) {
+            const auto label = [&](pad::Action action) {
+                const auto& pair = pad_config.bindings[action];
+                const auto button = pair[0] != pad::Bindings::kNone ? pair[0] : pair[1];
+                return button == pad::Bindings::kNone ? std::string("-") : std::string(pad::label(pad_family, button));
+            };
+            if (pad_field()) scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 225, 553,
+                label(pad::Action::ToggleRun) + (view.running ? " Run" : " Walk"));
+            if (const int active = pad_panel(); active >= 0) {
+                static constexpr std::array<std::string_view, 6> names{ "Party", "Quest Log", "Character", "Inventory", "Skill Tree", "Options" };
+                std::string tabs = label(pad::Action::TabPrev) + " < ";
+                for (int index = 0; index < 6; ++index) {
+                    if (index == active) tabs += "[";
+                    tabs += names[std::size_t(index)];
+                    tabs += index == active ? "] | " : " | ";
+                }
+                tabs += "> " + label(pad::Action::TabNext);
+                const bool blocked = held || identify_with >= 0 || imbue_with >= 0 || gold_box;
+                for (int pixel_y = 4; pixel_y < (blocked ? 50 : 32); ++pixel_y)
+                    for (int pixel_x = 4; pixel_x < int(kScreenWidth) - 4; ++pixel_x) {
+                        auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+                        pixel[0] /= 4; pixel[1] /= 4; pixel[2] /= 4;
+                    }
+                scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 12, 14, tabs);
+                if (held || identify_with >= 0 || imbue_with >= 0 || gold_box)
+                    scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 12, 34, "Finish or cancel the item action to switch panels");
+            }
+        }
+        if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty() || (pad_playing && pad_config.skill_buttons))) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
             hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
         if (help.open) help.draw(framebuffer, *scene, key_table);

@@ -132,14 +132,14 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
         // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
-        if (party.open && (net_game || coop_hud_hidden()) && !help.open && !controls.open && !game_menu.open) {
+        if (party.open && (net_game || coop_hud_hidden() || (pad_playing && pad_config.skill_buttons)) && !help.open && !controls.open && !game_menu.open) {
             const auto click = party.input(mouse, party_rows(), party_own());
             if (net_game && click.kind == PartyPanel::Click::kButton) net_game->party_button(click.player);
             if (net_game && click.kind == PartyPanel::Click::kFlag) net_game->relation(click.player, click.flag);
             if (net_game && click.kind == PartyPanel::Click::kLeave) net_game->leave_party();
             if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
         }
-        if (party.open && !net_game && !coop_hud_hidden() && party_preview.empty()) party.open = false;
+        if (party.open && !net_game && !coop_hud_hidden() && party_preview.empty() && !(pad_playing && pad_config.skill_buttons)) party.open = false;
         // The merc's portrait (FUN_00493760 / FUN_004936e0 / FUN_004938e0): 700 ms
         // on it (x .. x + 0x2e, y 0x18 .. 0x3c) with nothing in hand lights it
         // and shows its hint; a right-click opens the Hireling screen; a

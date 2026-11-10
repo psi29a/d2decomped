@@ -10,15 +10,13 @@
 #include <rules.hpp>
 #include <world.hpp>
 
-#include <algorithm>
 #include <cassert>
-#include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
-#include <variant>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;

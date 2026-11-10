@@ -22,7 +22,13 @@ namespace d2d::client::skillpad {
 
 // Modern assignment excludes inventory Identify actions and generic Kick.
 [[nodiscard]] inline bool assignable_name(std::string_view name) {
-    return name != "Kick" && name != "Identify" && name != "Scroll of Identify" && name != "Book of Identify";
+    const auto matches = [&](std::string_view excluded) {
+        return name.size() == excluded.size() && std::equal(name.begin(), name.end(), excluded.begin(), [](char left, char right) {
+            const auto lower = [](char value) { return value >= 'A' && value <= 'Z' ? char(value + ('a' - 'A')) : value; };
+            return lower(left) == lower(right);
+        });
+    };
+    return !matches("Kick") && !matches("Identify") && !matches("Scroll of Identify") && !matches("Book of Identify");
 }
 
 inline constexpr int kSlots = 6;          // A B X Y LB RB, each with a second set
@@ -106,6 +112,24 @@ inline constexpr int kWheelShown = 8;       // icons on the ring at once; the re
     if (index >= count) index = 0;
     if (index < 0) index = 0;
     return index;
+}
+
+// Modern radial selection: centre hold and a small angular boundary margin.
+[[nodiscard]] inline int stable_wedge(float x, float y, int count, int current) {
+    if (count <= 0 || std::hypot(x, y) <= .30f) return current;
+    const float angle = std::atan2(y, x);
+    if (current >= 0 && current < count) {
+        const float delta = std::remainder(angle - wedge_center(current, count), kTau);
+        if (std::abs(delta) <= kTau / float(count) / 2 + .08f) return current;
+    }
+    float turn = std::fmod(angle + kHalfPi + kTau, kTau);
+    return std::min(count - 1, int(turn / kTau * float(count)));
+}
+[[nodiscard]] inline int next_page(int highlight, int count, int step) {
+    if (count <= 0) return 0;
+    const int pages = (count + kWheelShown - 1) / kWheelShown;
+    const int page = (highlight / kWheelShown + (step > 0 ? 1 : pages - 1)) % pages;
+    return std::min(count - 1, page * kWheelShown + highlight % kWheelShown);
 }
 
 // The icons actually drawn. `start` is the previous window. The highlight

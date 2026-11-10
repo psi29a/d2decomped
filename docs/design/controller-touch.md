@@ -21,7 +21,7 @@ Diablo II 1.14d remains the evidence for original gameplay.
   panel. Y (the north-position glyph for your controller) opens **Assign to
   button** with that skill selected. The panel returns when Done is pressed.
 - View remains the field shortcut. It opens **Skills**; D-pad left/right
-  switches **Skills / Actions**, and up/down browses. Inventory is in Actions
+  switches **Skills / Actions**, and up/down changes pages. Inventory is in Actions
   and remains available through Start's panel menu.
 - The editor shows bank I/II, actual configured destination glyphs, and their
   occupants. Hold LT to preview/assign bank II. A destination assigns and
@@ -168,3 +168,19 @@ Belt directions are drawn arrows, independent of font arrow support, while
 remapped non-direction buttons retain their actual names. Native touch input
 cannot currently be tested; Sidecar does not count as independent-finger
 validation. Simulated tests remain useful but do not establish device support.
+
+Controller Skill Buttons navigation: the run/walk control shows its actual
+remapped stick-click binding and current Run/Walk state. With Party, Quests,
+Character, Inventory, Skills or Options open, the configured previous/next
+shoulder inputs cycle that order with wraparound. A tab strip shows the current
+panel. Held items, Identify, Imbue and gold confirmation block switching with
+a visible explanation. Store tabs and classic controller shortcuts retain
+their existing behavior. Offline Party is informational.
+
+The radial uses D-pad Up/Down for pages, Left/Right for Skills/Actions and the
+aiming stick for selection. A separate 30% centre deadzone (or the user's
+larger configured deadzone) preserves selection at rest; a small angular
+margin stabilizes wedge boundaries. Destinations and Done remain unchanged.
+Skill-tree Up/Down prefers a node in the same column across gaps before
+moving sideways. Tree opening focuses a skill rather than a tab button.
+These are controller UX decisions, not newly traced original-game claims.

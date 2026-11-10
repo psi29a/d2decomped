@@ -1082,7 +1082,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                 // Char select's d-pad steps its roster by key instead, as Configure Controls' steps its rows.
                 const bool by_key = (screen == Screen::CharSelect && !csu.confirm_delete && !csu.pick_difficulty) || (screen == Screen::InGame && town.controls.open);
                 const auto points = by_key ? std::vector<pad::Point>{} : screen == Screen::InGame ? town.pad_snap_points() : menu_buttons();
-                if (const int pick = pad::snap_pick(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
+                if (const int pick = (town.tree_open && screen == Screen::InGame ? pad::tree_pick : pad::snap_pick)(mouse.x, mouse.y, pad_actions.snap_x, pad_actions.snap_y, points); pick >= 0) {
                     mouse.x = points[std::size_t(pick)].x; mouse.y = points[std::size_t(pick)].y;
                 }
             }

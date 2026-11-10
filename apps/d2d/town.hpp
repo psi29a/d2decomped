@@ -446,6 +446,7 @@ struct Town {
     [[nodiscard]] d2d::rules::CalcEnv tip_env() const;
     std::array<std::string, 4> belt_key_names{};
     bool menu_press = false;                       // an NPC menu took this press: the store ignores it till it's let go   // Use Belt 1..4's keys by name (update_hotkey_names)
+    [[nodiscard]] int pad_panel() const;
     void pad_tab(int step);
     void pad_open_picker();
     // Opt-in skill buttons. The sheet is <name>.padskills beside the .key;
