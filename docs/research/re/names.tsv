@@ -30,6 +30,7 @@ address	name	evidence
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
 00461010	client_unit_dead_reset	ESI unit: clears +0xc4 bits 4 (and 2 without state 7), trims the COF list, sets stat 6 (life) to 0; FUN_00461250 commands 8 / 9 (collision.md "The client's command switch")
+00461180	skill_slot_reask	EAX unit, ESI slot {id, guid}, arg: FUN_006439b0 node, FUN_004610c0, slot id = node id, guid -1 when it changed (collision.md "The client's command switch")
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")

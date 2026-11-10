@@ -694,3 +694,13 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   last `FUN_00627260(unit, 6, 0, 0)`: SetStat, stat 6 (`kLife`, `d2s_items.hpp`) = 0. So
   commands 8 and 9 zero the unit's life on the client as well as set its mode. d2d: not
   ported (`Fight::die` sets `kLife` to 0 itself, `setup.cpp`); no disagreement found.
+- **`FUN_00461180`** (unit in EAX, skill slot in ESI = `{skill id, item guid}`, one stack
+  argument, `RET 4`; callers `FUN_00461250` commands 0x15 and 0x16): re-asks a queued skill
+  at the walk's end. `FUN_006439b0(unit, slot[0], slot[1])` finds the unit's node; none:
+  return 1 with the slot untouched. Else `FUN_004610c0(arg)` (node pointer in EBX, unit in
+  EDI) and 0 returns 0 (the walk's end is refused). Otherwise slot[0] = `FUN_00643ce0` of
+  the node as 4610c0 left it (it can swap in the Attack node, `FUN_006439f0`) and, when
+  that id differs from the old one, slot[1] = -1 (the item guid is dropped). Returns 1.
+  d2d: agrees with skills.md "Attack's entry kept in the slot when it fell back"
+  (`strike.cpp:300`, `Fight::ask`); the guid dropped when the id changes is not stated
+  there, and d2d's side of it (`attack_charge`) was not compared.
