@@ -3,9 +3,12 @@
 // tools/emu/mon_ais.py).
 #pragma once
 
+#include "monsters.hpp"
 #include "thinker.hpp"
 
+#include <algorithm>
 #include <array>
+#include <tuple>
 
 namespace d2d::rules {
 

@@ -3,9 +3,15 @@
 // the traps' and the rest the levels place.
 #pragma once
 
+#include "monsters.hpp"
 #include "thinker.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <optional>
 
 namespace d2d::rules {
 

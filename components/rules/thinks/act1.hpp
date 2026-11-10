@@ -3,9 +3,14 @@
 // Arach, Vampire, Griswold, the Smith"; tools/emu/mon_ais_act1.py).
 #pragma once
 
+#include "level_ids.hpp"
+#include "monsters.hpp"
 #include "thinker.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdlib>
 
 namespace d2d::rules {
 

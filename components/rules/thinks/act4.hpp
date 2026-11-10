@@ -3,9 +3,13 @@
 // Diablo's and Baal's, the Ubers'.
 #pragma once
 
+#include "monsters.hpp"
 #include "thinker.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
+#include <utility>
 
 namespace d2d::rules {
 

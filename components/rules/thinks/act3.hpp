@@ -2,9 +2,14 @@
 // Act 3's MonAI thinks (docs/research/re/monster-ai.md "Act 3's thinks").
 #pragma once
 
+#include "monsters.hpp"
 #include "thinker.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdlib>
+#include <utility>
 
 namespace d2d::rules {
 
