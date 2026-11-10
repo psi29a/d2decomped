@@ -1408,8 +1408,13 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (-4,-1) (-4,1) (-3,-3)).
 - Do **115** (FUN_005c6a80, the vines): the summon at level calc2, state
   0x96. **116** (FUN_005c6ec0, Werewolf / Werebear): the aurastate for
-  auralen frames (1000 + Shape Shifting), a second cast (FUN_0056c740)
-  shifts back (FUN_0056f020). **120** (FUN_005c77c0, Feral Rage / Maul):
+  auralen frames (1000 + Shape Shifting), a second cast shifts back:
+  FUN_0056c740(unit, state, 1) takes off every state of its group (3:
+  wolf, bear, maul, feralrage, monsterset, delerium) the unit has, and
+  with any off nothing goes on and FUN_0056f020 starts the delay; the do
+  gives 0 (no srvmissile), so it pays nothing. Werebear on the wolf is a
+  shift back too. d2d: `Fight::shift_back` in the SC cast;
+  `test_skill_ready`. **120** (FUN_005c77c0, Feral Rage / Maul):
   the state, its count (stat 0xa9) up by one to calc2. **122**
   (FUN_005c7f10, Hunger): the hit with calc1 damage % and calc2 / calc3
   stolen. st **56** (FUN_005c7690) / **58** (FUN_005c7e00): the

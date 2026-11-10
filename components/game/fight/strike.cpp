@@ -1015,9 +1015,16 @@ auto Fight::player_modes(bool held, std::uint32_t now_ms, float elapsed) -> bool
         } else if (actor->pmode == kModeSC) {                       // a self cast: its state on the action frame
             if (!actor->pstruck && now_ms >= actor->player.mode_ms + actor->action_ms) {
                 actor->pstruck = true;
-                settle_cast();
+                const auto* skill = game_data->skills.get(actor->swing_skill);
+                // A shift back's do gives 0, so with no srvmissile FUN_0056f7f0 stops
+                // before the cost; FUN_0056f020 still starts the delay.
+                const bool shifted_back = skill && skill->srvdofunc == ServerDoFunction::kShapeShift && shift_back(*skill);
+                if (shifted_back) actor->owed = {};
+                else settle_cast();
                 do_sounds(now_ms);
-                if (const auto* skill = game_data->skills.get(actor->swing_skill); skill && skill->srvdofunc == ServerDoFunction::kBookOrScroll) {
+                if (shifted_back) {
+                    // nothing goes on
+                } else if (skill && skill->srvdofunc == ServerDoFunction::kBookOrScroll) {
                     actor->portal_due = true;                         // Town Portal (FUN_005bf3d0): the World opens it
                 } else if (skill && missile_skill(*skill)) {
                     fire(*skill, now_ms);
