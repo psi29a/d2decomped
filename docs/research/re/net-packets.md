@@ -1046,7 +1046,7 @@ stack arguments each callee gets on the right size.
 
 Not claimed: what the hooked callees do. The click-on-unit handlers (0x02, 0x04,
 0x06, 0x07, 0x09, 0x0a, 0x0d, 0x0e, 0x10, 0x11, 0x13) are in the next section; the
-location-skill handlers (0x05, 0x08, 0x0c, 0x0f) are not covered here.
+location handlers (0x01, 0x03, 0x05, 0x08, 0x0b, 0x0c, 0x0f) are in the one after.
 
 ### Click-on-unit handlers (verified, `plrmsg_click.py`)
 
@@ -1075,3 +1075,48 @@ getters, `FUN_00580a70` start-mode, `FUN_00548b00` interact; their work is not c
   ran (a click failure and no skill pass through).
 - **0x13 interact** (`FUN_0054aa90`): size 9 (else 3), type under 6 (else 2), then
   `FUN_00548b00(ECX unit, EDX type, id, 0, game)`; its answer passes through.
+
+### Location handlers (verified, `plrmsg_loc.py`)
+
+Run for real against stock 1.14d with the callees hooked and logged
+(`FUN_006221a0` player data, `FUN_00548ef0` range check, `FUN_005531c0` client
+lookup, `FUN_0045ae20` / `FUN_0045adf0` position, `FUN_0053bc10` reassign sender,
+`FUN_005809d0` move, the skill and stat getters, and for the cast `FUN_006235a0`,
+`FUN_00549960`, `FUN_00647960`, `FUN_00644140`, `FUN_006439b0`, `FUN_00643860`;
+their work is not claimed).
+
+- **Shared location check `FUN_005496f0`** (packet in EAX, unit in ESI, stack game,
+  size, &x, &y; `ret 0x10`): zeroes both outs (words) first; size must be 5 (else 3);
+  player data (`FUN_006221a0(unit)`) missing answers 2; then `FUN_00548ef0` with the
+  unit in EAX, range 0x32 in EBX and the packet's x (u16 +1) and y (u16 +3). A
+  non-zero status passes through; before that, when the game frame is more than 0x19
+  past the stamp at player data +0x168 (signed difference) and the unit has a client
+  (`FUN_005531c0`, line 0x667), the client gets the 0x15 reassign packet
+  (`FUN_0053bc10`, unit id or -1, the server's x and y, flag 1). Status 0 stamps
+  +0x168 with the frame and stores x and y in the outs. The stamp is not moved by a
+  failure, so once more than 0x19 frames have passed since the last accepted check,
+  every refused packet gets a reassign (at most one reply per packet).
+- **0x01 walk / 0x03 run to x, y** (`FUN_005497e0` / `FUN_005498d0`): the location
+  check, then `FUN_005809d0(game, unit, skill 0, mode 2 / 3, x, y, 0)`; answer 0.
+- **0x05 / 0x0c left / right skill at x, y** (`FUN_00549d00` / `FUN_00549fc0`): the
+  location check (its status passes), the left (`FUN_00620190`) or right
+  (`FUN_006201d0`) skill (none answers 3), stat 0x148 raised by one, the skill
+  fetched again, then the cast `FUN_00549ad0(unit, skill, game, x, y)`; answer 0
+  whatever the cast says.
+- **0x08 / 0x0f held** (`FUN_00549e80` / `FUN_0054a140`): the location check (its
+  status passes), the skill test (3), then the 0x05 / 0x0c handler on the same game,
+  unit, packet and size, whose answer is dropped; answer 0. The range check and the
+  stamp therefore run twice, the second always agreeing (read from the disassembly; the
+  delegates are hooked in the oracle).
+- **Cast `FUN_00549ad0`** (ECX unit, EAX skill, stack game, x, y; `ret 0xc`): no
+  unit, mode 0 (death) or 0x11 (dead) answer 2. A dual-wield unit (`FUN_006235a0`)
+  swaps the skill through `FUN_00549960`. Usability (`FUN_00647960`) of 1, 2 or 4
+  (signed, above 0) together with bit 4 of skills.txt byte +7 (the byte mask at
+  0x6ce278) retries with the basic attack (`FUN_006439b0(unit, 0, -1)`) and asks
+  again. No skill mode (`FUN_00643860`) or any other usability answers 2; usability 1
+  first sends the inventory-full message (`FUN_00549a60`), usability 0 moves
+  (`FUN_005809d0(game, unit, skill, mode, x, y, 0)`) and answers 0.
+- **`FUN_00549a60`**: builds the 40-byte 0x5a system message (byte 1 = 0x0e, byte 2
+  = 1, the rest zero) and sends it to the unit's client (line 0x73c; also with a
+  null client); the stack cookie is checked.
+- **0x0b keepalive** (`FUN_00549fa0`): size 1 answers 0, anything else 3.

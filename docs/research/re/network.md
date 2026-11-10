@@ -53,18 +53,18 @@ Names: the community's (d2-clientless, D2MOO) — unverified labels
 
 | Id | Size | Handler | What |
 |---|---|---|---|
-| 01 | 5 | 0x5497e0 ✓ | walk to x, y (`FUN_005809d0`, mode 2) |
+| 01 | 5 | 0x5497e0 ✓ | walk to x, y (`FUN_005809d0`, mode 2) (verified `plrmsg_loc.py`) |
 | 02 | 9 | 0x549890 ✓ | walk to unit (`FUN_00549830` checks it, then mode 2) |
-| 03 | 5 | 0x5498d0 ✓ | run to x, y (mode 3) |
+| 03 | 5 | 0x5498d0 ✓ | run to x, y (mode 3) (verified `plrmsg_loc.py`) |
 | 04 | 9 | 0x549920 ✓ | run to unit (mode 3) |
-| 05 | 5 | 0x549d00 ✓ | left skill at x, y |
+| 05 | 5 | 0x549d00 ✓ | left skill at x, y (verified `plrmsg_loc.py`) |
 | 06 | 9 | 0x549d80 ✓ | left skill on unit: pierce index + 1, then `FUN_00549ba0` |
 | 07 | 9 | 0x549e00 ✓ | left skill on unit, no approach: as 0x06 with approach 0 |
 | 09 | 9 | 0x549ee0 ✓ | left skill on unit (held): click check, skill test, then 0x06's handler |
 | 0a | 9 | 0x549f40 ✓ | left skill on unit (held, no approach): then 0x07's handler |
-| 08 | 5 | 0x549e80 ✓ | left skill at x, y (held): range check, then 0x05's handler |
-| 0c | 5 | 0x549fc0 ✓ | right skill at x, y: pierce index + 1, then `FUN_00549ad0` |
-| 0f | 5 | 0x54a140 ✓ | right skill at x, y (held): range check, then 0x0c's handler |
+| 08 | 5 | 0x549e80 ✓ | left skill at x, y (held): range check, then 0x05's handler (verified `plrmsg_loc.py`) |
+| 0c | 5 | 0x549fc0 ✓ | right skill at x, y: pierce index + 1, then `FUN_00549ad0` (verified `plrmsg_loc.py`) |
+| 0f | 5 | 0x54a140 ✓ | right skill at x, y (held): range check, then 0x0c's handler (verified `plrmsg_loc.py`) |
 | 0d | 9 | 0x54a040 ✓ | right skill on unit: as 0x06 with the right skill |
 | 0e | 9 | 0x54a0c0 ✓ | right skill on unit, no approach: as 0x0d with approach 0 |
 | 10 | 9 | 0x54a1a0 ✓ | right skill on unit (held): click check, skill test, then 0x0d's handler |
