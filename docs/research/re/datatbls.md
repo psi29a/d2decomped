@@ -213,7 +213,7 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 
 | Address | What |
 |---|---|
-| `FUN_0066a2b0` | The field: width at `+2`, height at `+6`, bytes from `+10` copied (line 0x3e); the half sizes at `0x96d664` / `0x96d668` and ten row offsets at `0x96d630..0x96d650` |
+| `FUN_0066a2b0` | The field: width at `+2`, height at `+6`, bytes from `+10` copied (line 0x3e); the half sizes at `0x96d664` / `0x96d668` and ten row offsets at `0x96d630..0x96d650` (nine dwords, 4 bytes apart; the Ghidra output's ten is off by one) |
 | `FUN_0066a420` | Frees it (0x5b) |
 | `FUN_0066a470` | The half width and height. No caller |
 | `FUN_0066a4b0` / `FUN_0066a500` / `FUN_0066a540` | Allocate (8 bytes, line 0x87) / free (0x94) / set an origin pair |
@@ -426,3 +426,251 @@ what a real `.txt` yields for these columns is not claimed.
 | Oracle | Functions |
 |---|---|
 | `monster_loaders.py` | `FUN_00653db0`, `00653e20`, `00654d50`, `00654e80`, `00654f20`, `00655030`, `006556e0`, `00655720`, `006562b0`, `006564d0`, `00656620`, `00656fc0`, `00657010`, `006586d0`, `00659a10`, `00659af0`, `00659bb0`, `00659de0`, `0065a390` |
+
+Function names such as `TXT_FreeExpansionLvlTbls` or `LVLTBLS_BuildPortalLevelArray`
+in the sections below come from the redivivus (Ghidra) database; the stock binary
+carries no names, so each name is a label for the address, not a claim about its source.
+
+### Loaders and getters, second batch (`txt_schemas.py`)
+
+`tools/emu/txt_schemas.py` runs nine CompileTxt loaders and one getter from stock
+game.exe 1.14d (1,200 cases, `--mutation-check` breaks the model 25 ways). The
+harness is `monster_loaders.py`'s rig: CompileTxt 0x6122f0 is hooked and logs the
+column list, the table name, the count address and the record size; the string
+lookup 0x524d30 is hooked and logs the name pointer it was given.
+
+* **FUN_00617d90** (difficultylevels, stdcall pool): 22 INT columns in the
+  array's order (`ResistPenalty` at 0, ..., `GambleUltra` at 0x54), record 0x58,
+  table `0x96c8ac`, count `0x96c8b0`. Any count other than 3 halts (line 0x61f) after the store.
+* **FUN_00637620** (itemratio, fastcall pool): `Version` SHORT at 0x40, `Uber` and
+  `Class Specific` CHAR at 0x42 / 0x43, then 16 INT columns; record 0x44, table
+  `0x96cc4c`, count `0x96cc48`.
+* **FUN_0061f130** (lvlwarp): 11 INT columns and `Direction` as a one-byte ASCII
+  column at 0x2c; record 0x30. The table goes to `0x96ca00`; the count is written
+  to `0x96ca04` from a stack slot (the rig logs the slot's address, which is not checked).
+* **FUN_0061f380** (lvlmaze): 7 INT columns, record 0x1c; table `0x96ca08`, count `0x96ca0c`.
+* **FUN_00659500** (monlvl): 30 INT columns (AC, TH, HP, DM, XP with their (N) and
+  (H) variants, then the L- per-level variants; `XP(N)` is at 100), record 0x78,
+  table `0x96c7a0`, count `0x96c7a4`.
+* **FUN_00637500** (lowqualityitems): one ASCII column of 0x1f bytes, record 0x22;
+  table `0x96cc5c`, count `0x96cc58`. Then for each row, in order, the name goes to
+  STRTABLE_LookupString and the id is stored as a short at row +0x20.
+* **FUN_00636770** (qualityitems): 21 columns (`nummods` CHAR at 0x0a; `mod1code`
+  and `mod2code` NAME_INT at 0x0c / 0x1c linked to `0x96bcd8`; the three
+  parameter triples at 0x10 and 0x20; `effect1` / `effect2` ASCII 0x1f at 0x2c /
+  0x4c; the ten equipment flags at 0..9 with `wand` at 4 and `scepter` at 3), record
+  0x70, table `0x96cc54`, count `0x96cc50`. After the compile, each row's `effect1`
+  is looked up when its first byte is non-zero and its id stored as a short at
+  +0x6c; `effect2` likewise to +0x6e. The first store is written through the
+  `effect2` field's address (`effect2 + row + 0x20`), so it lands at +0x6c, the last
+  two bytes before the record's end; the disassembly agrees with the decompile.
+* **FUN_00618d90** (pettype, fastcall pool): creates the link at `0x96c81c`
+  (`.\\DATATBLS\\DataTbls.cpp`, line 0x729), 20 columns (`pet type` NAME_I_INT on
+  that link, `group` / `basemax` SHORT, six BIT columns in the dword at +4 with bit
+  numbers 0..5, the icon and class strings, `name` KEY_WORD linked to
+  DATATBLS_LookupStringId 0x6117b0), record 0xe0, table `0x96c818`, count
+  `0x96c820`. A count above 0xff (signed) halts at line 0x72b; after the compile the
+  count is stored as 0 when below 1 (`size & ((size < 1) - 1)`); the decompile's
+  later 0x100 clamp is then unreachable.
+* **FUN_00637320** (books, fastcall pool): 9 columns, `name` KEY_WORD linked to
+  0x6117b0, two RAW4 spell codes at +0x18 / +0x1c, `pSpell` INT, two NAME_INT skill
+  columns linked to the skills link `0x96c7cc`, record 0x20, table `0x96cc64`,
+  count `0x96cc60`.
+* **FUN_00613e60** (TXT_Experience_GetExpRatio, stdcall level): the table at
+  `0x96c8a8`. Level <= 0 gives row 0's ExpRatio (+0x1c, not 0 as the decompile's
+  first branch suggests when the table is set); a level above the first dword
+  (signed) gives 0; otherwise row level + 1 (`+0x20 * level + 0x3c`). A null table
+  gives 0. The disassembly (`00613e60`..`00613e8d`) agrees with the decompile.
+
+The oracle's table pointers, column lists, record sizes and count addresses are
+the model's; the data page `0x96b000..0x96e000` is checked dword by dword, and the
+two post-process loaders also compare their row tables byte by byte after the
+lookups. Re-check: `cd tools/emu && uv run python txt_schemas.py` (needs
+`D2_MPQ_DIR`; no MPQ is read), and with `--mutation-check`.
+
+**Not covered here:** the other cited DataTbls.cpp, ItemTbls.cpp, LvlTbls.cpp, MonsterTbls.cpp, TokTbls.cpp,
+MissileTbls.cpp, OverlayTbls.cpp, FieldTbls.cpp and AnimTbls.cpp functions that
+are not in the tables above.
+
+| Oracle | Functions |
+|---|---|
+| `txt_schemas.py` | `FUN_00617d90`, `00618d90`, `00637620`, `00637320`, `0061f130`, `0061f380`, `00659500`, `00637500`, `00636770`, `00613e60` |
+
+### FieldTbls.cpp (`fieldtbls.py`)
+
+`tools/emu/fieldtbls.py` runs eight FieldTbls.cpp functions from stock game.exe
+1.14d (600 cases, `--mutation-check` breaks the model 17 ways). The archive
+reader is hooked (D2FILE `0x517079`, logged with the path it was given); the
+fatal path, the pool and client releases run as hooked logs; the memmove
+`0x6829c0` runs for real.
+
+* **FUN_0066a2b0** (InitFieldData, stdcall archive and an unused second stack argument `dwUnused`, which the oracle passes but the code never reads): the archive's width is the
+  dword at +2, its height the dword at +6, the bytes from +10. The copy is
+  `w * h` bytes. **The stride is the height**: the nine row offsets at
+  `0x96d630 + 4k` are `Y[k] * h + X[k]` (X at `0x749780`, Y at `0x7497a4`, the
+  table of game.exe's step deltas), though the Ghidra output multiplies by
+  `nWidth`. Half height goes to `0x96d664` and half width to `0x96d668`; the
+  table pointer to `0x96d654`, the size to `0x96d660`, width `0x96d65c` and
+  height `0x96d658`. The archive is freed as client memory (line 0x50).
+* **FUN_0066a420** (FreeFieldData): frees the table if set (pool, line 0x5b),
+  clears the table, the size, the dimensions and the half sizes, returns 1.
+* **FUN_0066a470** (GetFieldCenterOffsets, stdcall two pointers): the half
+  height at `0x96d664` goes through the **first** pointer and the half width at
+  `0x96d668` through the second (the decompile's names are the other way round).
+* **FUN_0066a4b0 / 0066a500** (AllocPoint / FreePoint): an 8-byte pool block
+  (line 0x87) with x = y = 0; the free checks null (line 0x93) and frees (line 0x94).
+* **FUN_0066a540** (SetXY, stdcall point, x, y): x at +0, y at +4; null halts (line 0xa1).
+* **FUN_0066a580** (field byte, stdcall origin, x, y): null halts (line 0xb0);
+  otherwise the byte at `table + x + ((y - origin[1]) << 8) - origin[0]`. The row
+  stride here is 0x100, not the width.
+* **FUN_0066a700** (LoadExpFieldFile, fastcall pool): wsprintfA gives
+  `DATA\GLOBAL\expfield.d2`, then D2FILE with line 0x28, then InitFieldData.
+
+Not reached here: the null allocation halts of InitFieldData (line 0x40) and
+AllocPoint (line 0x88): the allocator hook returns fresh memory in this oracle, so the null branch is not run.
+
+| Oracle | Functions |
+|---|---|
+| `fieldtbls.py` | `FUN_0066a2b0`, `0066a420`, `0066a470`, `0066a4b0`, `0066a500`, `0066a540`, `0066a580`, `0066a700` |
+
+### Token, missile and overlay tables (`tok_overlay.py`)
+
+`tools/emu/tok_overlay.py` runs six functions from stock game.exe 1.14d (540
+cases, `--mutation-check` breaks the model 17 ways), on `monster_loaders.py`'s rig.
+
+* **FUN_0065aef0** (monmode, fastcall pool): name ASCII 0x1f, token RAW4 at 0x20,
+  fourteen BYTE direction counts `DT_Dir`..`KB_Dir` at 0x24..0x31, then `SQ_Dir`
+  and `RN_Dir` at 0x32 / 0x33; record 0x34. The table goes to `0x96d4bc` and also
+  `0x96d4c0` / `0x96d4c4`; the count (copied from a stack slot) to `0x96d4b8`.
+* **FUN_0065b2e0** (composit) and **FUN_0065b350** (armtype): name ASCII 0x1f,
+  token RAW4 at 0x20, record 0x34, no count (null). Tables to `0x96d4ec` / `0x96d4e8`.
+* **FUN_0065b3c0** (free the token tables): frees the merged plr block `0x96d4dc`
+  (TokTbls.cpp line 0xd6) and the merged obj block `0x96d4cc` (line 0xe2) through
+  the pool; unloads monmode `0x96d4bc`, composit `0x96d4ec` and armtype `0x96d4e8`
+  through the table free `0x6125c0`, and clears the five pointers. The calls run in the
+  order plr free, monmode, obj free, composit, armtype. The mirror pointers are not
+  cleared and stay set: monmode's Mode2 / Mode3 `0x96d4c0` / `0x96d4c4`, the plr
+  mirrors `0x96d4e0` / `0x96d4e4`, and the obj mirrors `0x96d4d0` / `0x96d4d4`.
+* **FUN_00663210** (free the missiles, MissileTbls.cpp line 0x19e): pool free of
+  `0x96bc90` (cleared with the side counts `0x96bc94` / `0x96bc98`), unload of the
+  list `0x96c794` and link free of `0x96c798` (both **left set**), then `0x96c79c`
+  cleared.
+* **FUN_00664150** (overlay, fastcall pool): link `0x96c7e8` (OverlayTbls.cpp line
+  0x38), 25 columns (overlay NAME_I_WORD on the link, Filename ASCII 0x40 at +2, and
+  the frame, offset, height, colour and flag fields), record 0x84, table `0x96c7ec`,
+  count `0x96c7f0`.
+
+Not covered here: FUN_0065adc0 (plrtype/plrmode) and FUN_0065b1b0 (objtype/objmode)
+merge two compiled tables with AllocServerMemory, memcpy and two unloads; their
+decompile needs the copy and unload helpers modelled, and is left for a later pass.
+
+| Oracle | Functions |
+|---|---|
+| `tok_overlay.py` | `FUN_0065aef0`, `0065b2e0`, `0065b350`, `0065b3c0`, `00663210`, `00664150` |
+
+### AnimTbls.cpp (`anim_tbls.py`)
+
+`tools/emu/anim_tbls.py` runs the AnimData loader and the record free from stock
+game.exe 1.14d (80 cases, `--mutation-check` 7 ways), on the field oracle's rig.
+
+* **FUN_0066a770** (TXT_AllocTxt_AnimTbls, fastcall pool): a `0x4a4`-byte block
+  (line 0x83), zeroed by memset; wsprintfA gives `DATA\GLOBAL\AnimData.d2`, which
+  D2FILE loads with no size pointer (line 0x8a). The archive's address is stored at
+  +0, then 256 slots from +4: slot k is the address of bucket k, the next bucket
+  starts `4 + count * 0xa0` bytes after the one before. The defaults are
+  `0x800` at +0x40c and `0x100` at +0x410. (The Ghidra output's bucket loop is
+  garbled; the disassembly is the model.)
+* **FUN_0066a830** (ANIMDATA_FreeAnimDataRecord, fastcall record): a null record
+  does nothing; otherwise the client release of its records (+0, line 0xbe) and the
+  pool free of the record (line 0xbf), in that order.
+
+| Oracle | Functions |
+|---|---|
+| `anim_tbls.py` | `FUN_0066a770`, `0066a830` |
+
+### TokTbls.cpp merges (`tok_merge.py`)
+
+`tools/emu/tok_merge.py` runs the two token merges from stock game.exe 1.14d (160
+cases, `--mutation-check` 8 ways). The compile hook returns one scripted table per
+call, and the source tables are real blocks, since the merge copies from them.
+
+* **FUN_0065adc0** (plrmode_plrtype, fastcall pool): compiles `plrtype`, then
+  `plrmode` (record 0x34); allocates `(t + m) * 0x34` (line 0x37); copies plrtype
+  then plrmode behind it; unloads both sources. Stores: Mode1 `0x96d4dc` = the
+  block, Mode2 `0x96d4e0` = the block, Mode3 `0x96d4e4` = block + t * 0x34, count
+  `0x96d4d8` = t + m.
+* **FUN_0065b1b0** (objtype_objmode): the same with `objtype` and `objmode` (line
+  0x94): ObjType `0x96d4cc`, ObjTypeMode `0x96d4d0`, ObjMode `0x96d4d4` = block +
+  t * 0x34, count `0x96d4c8`.
+
+| Oracle | Functions |
+|---|---|
+| `tok_merge.py` | `FUN_0065adc0`, `0065b1b0` |
+
+### LvlTbls.cpp: expansion free, lvlsub free and portal array (`lvl_small.py`)
+
+`tools/emu/lvl_small.py` runs three LvlTbls.cpp functions from stock game.exe 1.14d
+(440 cases, `--mutation-check` 15 ways).
+
+* **FUN_0061f9c0** (TXT_FreeTxt_LvlSub): N = `0x96ca14`. The DS1 file array at
+  `0x96ca24`: each non-null slot released (`0x668300`, given the slot's address),
+  then client-freed (line 0x3d8) and cleared. The sub-preset rows at `0x96ca10`
+  (0x15c bytes each): room data freed (`0x670630`) for each of the N rows, then
+  unloaded (`0x6125c0`) and cleared. The index at `0x96ca18` is pool-freed (line
+  0x3e8) and cleared. The three parts are independent: the row loop runs even when
+  the file array is null.
+
+* **FUN_0061fbf0** (TXT_FreeExpansionLvlTbls): if `0x96ca1c` is set, pool-free it
+  (line 0x43a); the pointer is **not** cleared (the Ghidra output agrees).
+* **FUN_0061dd00** (LVLTBLS_BuildPortalLevelArray, cdecl, the LevelDefs row table
+  in EAX): counts the rows whose dword at +0x8c is non-zero (rows of 0x9c bytes,
+  the level count at +0xc5c of the Items table at `0x744304`), stores the count at
+  `0x96c9f8`; with a non-zero count, allocates `count * 4` (line 0x16c) into
+  `0x96c9f4` and fills it with the flagged row indices in order. A zero count
+  leaves `0x96c9f4` alone. The fill's halt (line 0x177) needs a table that changes
+  between the two loops, so it is not run.
+
+| Oracle | Functions |
+|---|---|
+| `lvl_small.py` | `FUN_0061fbf0`, `0061f9c0`, `0061dd00` |
+
+### Small helpers (`item_free_small.py`)
+
+`tools/emu/item_free_small.py` runs ten small helpers from stock game.exe 1.14d (400
+cases, `--mutation-check` 9 ways). Their callees (the table unload `0x6125c0`, the
+link free `0x6bd0b0`, the pool free) are logged, not run.
+
+* **FUN_00611d20**: returns the dword at `0x96c8a4`.
+* **FUN_006125a0** (stdcall one argument): the compile flag `0x96c8b4` = (argument == 0).
+* **FUN_00636b00 / 006372a0 / 006375a0 / 006378f0 / 00637490**: unload `0x96cc54`,
+  `0x96ca94`, `0x96cc5c`, `0x96cc4c`, `0x96cc64`. No null test: the unload runs for 0.
+* **FUN_006374a0**: returns the address `0x96cc60` (the books count) without reading it.
+* **FUN_00634220**: pool-free `0x96caa4` (ItemTbls.cpp line 0x30b) when set, then clear it.
+* **FUN_00634d90** (ITEMTBLS_FreeUniqueItems, not the sets free, which is FUN_00636730):
+  link free of `0x96c850` and unload of `0x96c854`, neither null-tested, then the
+  count `0x96c858` is cleared.
+
+| Oracle | Functions |
+|---|---|
+| `item_free_small.py` | `FUN_00611d20`, `006125a0`, `00636b00`, `006372a0`, `006375a0`, `006378f0`, `00637490`, `006374a0`, `00634220`, `00634d90` |
+
+### States helpers (`states_tbls.py`)
+
+`tools/emu/states_tbls.py` runs three States helpers from stock game.exe 1.14d (600
+cases, `--mutation-check` 7 ways). The States table is the row block at `0x96bcec`
+with the count at `0x96bcf4`; rows are 0x3c bytes, and a row's flag byte for bit b
+is at row + 0x10 + (b >> 3). The masks `gadwBitMasks[k] = 1 << k` are at `0x6ce268`.
+
+* **FUN_00611d60** (DATATBLS_BuildStatesDataBitMask, fastcall struct, bit): ORs
+  `1 << i` into word `i >> 5` of the struct for each state i whose flag bit is set.
+* **FUN_00611dc0** (DATATBLS_BuildStatesDataList, fastcall list, counter; stack bit):
+  allocates `2 * count` bytes (DataTbls.cpp line 0x64b), zeroes them, stores the ids
+  of the flagged states as shorts, and the count as a short at the counter.
+* **FUN_00611e60** (TXT_States_AllocItemTypesStateDataTable, fastcall list, counter;
+  stack offset): as above (line 0x662); a state is listed when the short at
+  row + offset is positive (signed). The Ghidra output's `overlay + offset - 2` is
+  the same address.
+
+| Oracle | Functions |
+|---|---|
+| `states_tbls.py` | `FUN_00611d60`, `00611dc0`, `00611e60` |
