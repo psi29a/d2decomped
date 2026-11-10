@@ -455,26 +455,26 @@ struct Act2Thinks : Thinker {
     }
 };
 
-inline constexpr std::array<ThinkRow, 19> kAct2Thinks{ {
-    ThinkRow{ "Duriel", &think_as<Act2Thinks, &Act2Thinks::duriel> },
-    ThinkRow{ "Swarm", &think_as<Act2Thinks, &Act2Thinks::swarm> },
-    ThinkRow{ "PinHead", &think_as<Act2Thinks, &Act2Thinks::pin_head> },
-    ThinkRow{ "Mummy", &think_as<Act2Thinks, &Act2Thinks::mummy> },
-    ThinkRow{ "SandLeaper", &think_as<Act2Thinks, &Act2Thinks::sand_leaper> },
-    ThinkRow{ "ClawViper", &think_as<Act2Thinks, &Act2Thinks::claw_viper> },
-    ThinkRow{ "PantherWoman", &think_as<Act2Thinks, &Act2Thinks::panther_woman> },
-    ThinkRow{ "PantherJavelin", &think_as<Act2Thinks, &Act2Thinks::panther_javelin> },
-    ThinkRow{ "Scarab", &think_as<Act2Thinks, &Act2Thinks::scarab> },
-    ThinkRow{ "BatDemon", &think_as<Act2Thinks, &Act2Thinks::bat_demon> },
-    ThinkRow{ "Baboon", &think_as<Act2Thinks, &Act2Thinks::baboon> },
-    ThinkRow{ "SandRaider", &think_as<Act2Thinks, &Act2Thinks::sand_raider> },
-    ThinkRow{ "GreaterMummy", &think_as<Act2Thinks, &Act2Thinks::greater_mummy> },
-    ThinkRow{ "SandMaggot", &think_as<Act2Thinks, &Act2Thinks::sand_maggot> },
-    ThinkRow{ "Summoner", &think_as<Act2Thinks, &Act2Thinks::summoner> },
-    ThinkRow{ "Vulture", &think_as<Act2Thinks, &Act2Thinks::vulture> },
-    ThinkRow{ "SandMaggotQueen", &think_as<Act2Thinks, &Act2Thinks::sand_maggot_queen> },
-    ThinkRow{ "MaggotEgg", &think_as<Act2Thinks, &Act2Thinks::maggot_egg> },
-    ThinkRow{ "MaggotLarva", &think_as<Act2Thinks, &Act2Thinks::maggot_larva> },
-} };
+inline constexpr auto kAct2Thinks = std::to_array<ThinkRow>({
+    { "Duriel", &think_as<Act2Thinks, &Act2Thinks::duriel> },
+    { "Swarm", &think_as<Act2Thinks, &Act2Thinks::swarm> },
+    { "PinHead", &think_as<Act2Thinks, &Act2Thinks::pin_head> },
+    { "Mummy", &think_as<Act2Thinks, &Act2Thinks::mummy> },
+    { "SandLeaper", &think_as<Act2Thinks, &Act2Thinks::sand_leaper> },
+    { "ClawViper", &think_as<Act2Thinks, &Act2Thinks::claw_viper> },
+    { "PantherWoman", &think_as<Act2Thinks, &Act2Thinks::panther_woman> },
+    { "PantherJavelin", &think_as<Act2Thinks, &Act2Thinks::panther_javelin> },
+    { "Scarab", &think_as<Act2Thinks, &Act2Thinks::scarab> },
+    { "BatDemon", &think_as<Act2Thinks, &Act2Thinks::bat_demon> },
+    { "Baboon", &think_as<Act2Thinks, &Act2Thinks::baboon> },
+    { "SandRaider", &think_as<Act2Thinks, &Act2Thinks::sand_raider> },
+    { "GreaterMummy", &think_as<Act2Thinks, &Act2Thinks::greater_mummy> },
+    { "SandMaggot", &think_as<Act2Thinks, &Act2Thinks::sand_maggot> },
+    { "Summoner", &think_as<Act2Thinks, &Act2Thinks::summoner> },
+    { "Vulture", &think_as<Act2Thinks, &Act2Thinks::vulture> },
+    { "SandMaggotQueen", &think_as<Act2Thinks, &Act2Thinks::sand_maggot_queen> },
+    { "MaggotEgg", &think_as<Act2Thinks, &Act2Thinks::maggot_egg> },
+    { "MaggotLarva", &think_as<Act2Thinks, &Act2Thinks::maggot_larva> },
+});
 
 }  // namespace d2d::rules

@@ -451,24 +451,24 @@ struct Act4Thinks : Thinker {
     }
 };
 
-inline constexpr std::array<ThinkRow, 17> kAct4Thinks{ {
-    ThinkRow{ "VileMother", &think_as<Act4Thinks, &Act4Thinks::vile_mother> },
-    ThinkRow{ "VileDog", &think_as<Act4Thinks, &Act4Thinks::vile_dog> },
-    ThinkRow{ "DoomKnight", &think_as<Act4Thinks, &Act4Thinks::doom_knight> },
-    ThinkRow{ "AbyssKnight", &think_as<Act4Thinks, &Act4Thinks::abyss_knight> },
-    ThinkRow{ "OblivionKnight", &think_as<Act4Thinks, &Act4Thinks::oblivion_knight> },
-    ThinkRow{ "Megademon", &think_as<Act4Thinks, &Act4Thinks::megademon> },
-    ThinkRow{ "FingerMage", &think_as<Act4Thinks, &Act4Thinks::finger_mage> },
-    ThinkRow{ "Regurgitator", &think_as<Act4Thinks, &Act4Thinks::regurgitator> },
-    ThinkRow{ "Diablo", &think_as<Act4Thinks, &Act4Thinks::diablo> },
-    ThinkRow{ "BaalCrab", &think_as<Act4Thinks, &Act4Thinks::baal_crab> },
-    ThinkRow{ "BaalCrabClone", &think_as<Act4Thinks, &Act4Thinks::baal_crab> },
-    ThinkRow{ "TrappedSoul", &think_as<Act4Thinks, &Act4Thinks::trapped_soul> },
-    ThinkRow{ "Izual", &think_as<Act4Thinks, &Act4Thinks::izual> },
-    ThinkRow{ "UberIzual", &think_as<Act4Thinks, &Act4Thinks::uber_izual> },
-    ThinkRow{ "UberMephisto", &think_as<Act4Thinks, &Act4Thinks::ubers> },
-    ThinkRow{ "UberDiablo", &think_as<Act4Thinks, &Act4Thinks::ubers> },
-    ThinkRow{ "UberBaal", &think_as<Act4Thinks, &Act4Thinks::ubers> },
-} };
+inline constexpr auto kAct4Thinks = std::to_array<ThinkRow>({
+    { "VileMother", &think_as<Act4Thinks, &Act4Thinks::vile_mother> },
+    { "VileDog", &think_as<Act4Thinks, &Act4Thinks::vile_dog> },
+    { "DoomKnight", &think_as<Act4Thinks, &Act4Thinks::doom_knight> },
+    { "AbyssKnight", &think_as<Act4Thinks, &Act4Thinks::abyss_knight> },
+    { "OblivionKnight", &think_as<Act4Thinks, &Act4Thinks::oblivion_knight> },
+    { "Megademon", &think_as<Act4Thinks, &Act4Thinks::megademon> },
+    { "FingerMage", &think_as<Act4Thinks, &Act4Thinks::finger_mage> },
+    { "Regurgitator", &think_as<Act4Thinks, &Act4Thinks::regurgitator> },
+    { "Diablo", &think_as<Act4Thinks, &Act4Thinks::diablo> },
+    { "BaalCrab", &think_as<Act4Thinks, &Act4Thinks::baal_crab> },
+    { "BaalCrabClone", &think_as<Act4Thinks, &Act4Thinks::baal_crab> },
+    { "TrappedSoul", &think_as<Act4Thinks, &Act4Thinks::trapped_soul> },
+    { "Izual", &think_as<Act4Thinks, &Act4Thinks::izual> },
+    { "UberIzual", &think_as<Act4Thinks, &Act4Thinks::uber_izual> },
+    { "UberMephisto", &think_as<Act4Thinks, &Act4Thinks::ubers> },
+    { "UberDiablo", &think_as<Act4Thinks, &Act4Thinks::ubers> },
+    { "UberBaal", &think_as<Act4Thinks, &Act4Thinks::ubers> },
+});
 
 }  // namespace d2d::rules

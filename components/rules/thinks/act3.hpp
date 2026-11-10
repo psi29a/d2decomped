@@ -524,20 +524,20 @@ struct Act3Thinks : Thinker {
     }
 };
 
-inline constexpr std::array<ThinkRow, 13> kAct3Thinks{ {
-    ThinkRow{ "Mosquito", &think_as<Act3Thinks, &Act3Thinks::mosquito> },
-    ThinkRow{ "ThornHulk", &think_as<Act3Thinks, &Act3Thinks::thorn_hulk> },
-    ThinkRow{ "Tentacle", &think_as<Act3Thinks, &Act3Thinks::tentacle> },
-    ThinkRow{ "TentacleHead", &think_as<Act3Thinks, &Act3Thinks::tentacle> },
-    ThinkRow{ "FetishBlowgun", &think_as<Act3Thinks, &Act3Thinks::fetish_blowgun> },
-    ThinkRow{ "FetishShaman", &think_as<Act3Thinks, &Act3Thinks::fetish_shaman> },
-    ThinkRow{ "FrogDemon", &think_as<Act3Thinks, &Act3Thinks::frog_demon> },
-    ThinkRow{ "ZakarumZealot", &think_as<Act3Thinks, &Act3Thinks::zakarum_zealot> },
-    ThinkRow{ "ZakarumPriest", &think_as<Act3Thinks, &Act3Thinks::zakarum_priest> },
-    ThinkRow{ "HighPriest", &think_as<Act3Thinks, &Act3Thinks::high_priest> },
-    ThinkRow{ "Mephisto", &think_as<Act3Thinks, &Act3Thinks::mephisto> },
-    ThinkRow{ "WillOWisp", &think_as<Act3Thinks, &Act3Thinks::will_owisp> },
-    ThinkRow{ "Hydra", &think_as<Act3Thinks, &Act3Thinks::hydra> },
-} };
+inline constexpr auto kAct3Thinks = std::to_array<ThinkRow>({
+    { "Mosquito", &think_as<Act3Thinks, &Act3Thinks::mosquito> },
+    { "ThornHulk", &think_as<Act3Thinks, &Act3Thinks::thorn_hulk> },
+    { "Tentacle", &think_as<Act3Thinks, &Act3Thinks::tentacle> },
+    { "TentacleHead", &think_as<Act3Thinks, &Act3Thinks::tentacle> },
+    { "FetishBlowgun", &think_as<Act3Thinks, &Act3Thinks::fetish_blowgun> },
+    { "FetishShaman", &think_as<Act3Thinks, &Act3Thinks::fetish_shaman> },
+    { "FrogDemon", &think_as<Act3Thinks, &Act3Thinks::frog_demon> },
+    { "ZakarumZealot", &think_as<Act3Thinks, &Act3Thinks::zakarum_zealot> },
+    { "ZakarumPriest", &think_as<Act3Thinks, &Act3Thinks::zakarum_priest> },
+    { "HighPriest", &think_as<Act3Thinks, &Act3Thinks::high_priest> },
+    { "Mephisto", &think_as<Act3Thinks, &Act3Thinks::mephisto> },
+    { "WillOWisp", &think_as<Act3Thinks, &Act3Thinks::will_owisp> },
+    { "Hydra", &think_as<Act3Thinks, &Act3Thinks::hydra> },
+});
 
 }  // namespace d2d::rules
