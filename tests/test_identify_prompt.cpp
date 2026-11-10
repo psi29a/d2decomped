@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links:
 // test-includes: apps/d2d
+#include "gamepad_map.hpp"
 #include "identify_prompt.hpp"
 
 #include <cassert>
