@@ -19,6 +19,7 @@ address	name	evidence
 00410e90	bitreader_bytes_used	reader +8, plus 1 when +0xc is nonzero (a partly read byte counts); FUN_0062e430 returns it
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
+00451f30	unit_flags_c4_any	ECX unit, EDX mask: unit +0xc4 & mask != 0; null unit false (cursor-units.md "Unit flag test")
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 0044bf00	global_70f234_get	no args: returns the dword at 0x70f234; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044bf10	global_70f2bc_get	no args: returns the dword at 0x70f2bc; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")

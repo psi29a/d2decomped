@@ -102,6 +102,26 @@ Oracle: `tools/emu/show_items_walk.py` runs `FUN_004c0810` itself (the
 walk, `FUN_004c0640`, the hover test) on generated rooms and units;
 `test_show_items_walk` gives d2d's `rules::show_items` the same cases
 (fixture `show_items_walk_cases.inc`).
+## Unit flag test (`FUN_00451f30`)
+
+`FUN_00451f30(ECX unit, EDX mask)` (0x451f30, 22 bytes, no callees): false
+for a null unit, else `unit +0xc4 & mask != 0` (`test ecx, ecx` / `mov eax,
+[ecx+0xc4]` / `and eax, edx` / `neg; sbb; neg`). The same word as
+`FUN_00463720` (+0xc8) tests for the other flag word. Cited from the
+disassembly, no oracle run. The five callers in this chain pass:
+
+| caller | mask | where |
+|---|---|---|
+| `FUN_00466870` (hit test, 0x46694a) | 4 | `FUN_00464310` true, bit 1 clear, a monster (type 1) for which `FUN_00464820` holds: bit 2 selects it too (`local_10` = 1) |
+| `FUN_00481030` (0x48110a) | 2 (`ebx - 2`, ebx = 4) | action 0x13 on an item target (type 4): not selectable, nothing is sent (the function returns) |
+| `FUN_00481600` (0x4816b1) | 2 | the queued target of a type other than 0, 1, 2 (item, tile): not selectable, `FUN_00467a70` abandons the queue; selectable goes to `FUN_00481030` |
+| `FUN_00454f30` (0x4550a8) | 0x200 | a monster (not classes 0x1a1 / 0x1a2) with the flag set gets no label: `FUN_00452be0(0)` clears the three name buffers; unset, it labels (`FUN_00454ad0`) |
+| `FUN_00459bc0` (0x459da4) | 0x200 | a monster of `FUN_00478d90` kind 1 (a pet): flag set or not, the mark is teal `0x7a51b4` (the `je` at 0x459dab goes to 0x459d56, which loads the same byte as the fall-through at 0x459dad), so the test changes nothing |
+
+Bit 31 (`0x80000000`) is the pet bit (combat.md, the pair percent
+`FUN_0057c060`). What sets 0x200 was not traced (objects.md:324 lists it as
+open). d2d: bit 1 is `targetable` / selectable in `ai.hpp`; the 0x200 label
+rule is not ported.
 
 ## d2d
 
