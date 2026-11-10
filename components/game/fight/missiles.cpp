@@ -517,7 +517,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                         && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
                         burned.emplace_back(int(i), missile.skill);
                         // pSrvDmgFunc 3 (FUN_005ad220): a soft hit when a step of the missile's seed has
-                        // its low 7 bits under dParam1. ponytail: on d2d's rng; its missiles keep no seed.
+                        // its low 7 bits under dParam1, on the fight's rng (Missile keeps no seed).
                         burn(i, damage, now_ms, missile_info.dmg_func == 3 && int(rng.next() & 0x7f) < missile_info.dmg_par1);
                     }
             }
