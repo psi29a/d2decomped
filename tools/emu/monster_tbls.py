@@ -42,7 +42,7 @@ string lookup 0x52_4a30. The C runtime's `memset` (0x68_1ef0), `strchr`
 * FUN_00656f90 (n): the monsounds row (0x94 bytes) n, else 0.
 * FUN_00658460 (ECX a, EDX b): is MonType a one of b (rows of 12 bytes, equiv
   words at `+2 / +4 / +6`); returns 0 when more than 0x7c entries remain after a pop.
-* FUN_00659b40 (act, &first): monpreset's first row and count for an act.
+* FUN_00659b40 (act, &count): monpreset's first row (returned) and count (stored through the pointer) for an act.
 * FUN_00659b80 (kind, n): n plus the superunique count (kind 0) and the
   MonStats count (kind 0 or 2).
 * FUN_00659c30: frees the sounds table and its link, clears the flag.
@@ -588,7 +588,7 @@ def check_isa(rig, rng):
 
 
 def check_preset(rig, rng):
-    """FUN_00659b40 (act, &first): monpreset's first row and count for an act."""
+    """FUN_00659b40 (act, &count): returns monpreset's first row for an act and stores its count through the pointer."""
     machine = rig.m
     machine.w32(PRESET_FLAG, rng.choice((0, 1, 7)))
     rows = [rng.randrange(1 << 32) for _ in range(5)]
@@ -605,8 +605,8 @@ def check_preset(rig, rng):
     if not use_out:
         require(got == ("ret", 0), f"no out pointer: {got}")
         return
-    first, count = ((counts + [extra])[act], (rows + counts)[act]) if ok else (0, 0)
-    require(got == ("ret", count) and machine.r32(out) == first, f"act {act}: {got} first {machine.r32(out):#x}")
+    first, count = ((rows + counts)[act], (counts + [extra])[act]) if ok else (0, 0)
+    require(got == ("ret", first) and machine.r32(out) == count, f"act {act}: {got} count {machine.r32(out):#x}")
 
 
 def check_kind(rig, rng):
