@@ -605,6 +605,19 @@ arguments), cited, not run. The functions are in the order they are met.
   how often `use_warp` tests was not re-checked here), so it **DISAGREES**: a blocked or crowded route that
   takes game.exe two walks takes d2d as many as it needs. Read, not run; the oracle phase would
   call `FUN_00580c20` with a stub path.
+- **`FUN_005868a0(op)`: a barrel opened** (OperateFn 5; `op` +0 the game, +4 the object unit, +8
+  the operator, +0xc its random seed, +0x10 the object id). Only for an object unit that is
+  null or in mode 0. A player operator (`*op[2] == 0`) with a skill node
+  `FUN_006439b0` finds for skill id 1 (edx = 1, arg -1, LAB_005868d5) kicks it:
+  `FUN_00620c10(operator, object)`, then `FUN_00580a70(game, operator, node, FUN_00644360(node),
+  2, object id, 0)` (LAB_0058690e: the kick's mode from the skill, target type 2, the gates on). That
+  is the one place in this package where `FUN_00580a70` has an object target. Then, for
+  anyone: `FUN_00624690(object, 1)`, object flag +0xc4 bit 1 cleared, `FUN_00623830`;
+  one draw of the seed (`seed * 0x6ac690c5 + hi`, the 64-bit step of drops.md): `% 10000` with a bit
+  set over 0x1fff gives `FUN_005474c0` and `FUN_00582280` (the undead); a second draw `% 100 <
+  0x15` the chest round; and event 1 queued (`FUN_005417d0(1, game frame +0xa8 + 1 + (Objects row
+  +0xdc >> 8), 0, 0)`, the row by `FUN_00640e90`). d2d: `objects.cpp` (the kick) and
+  drops.md "Casket ... Barrel (5)" (the two draws) read the same, cited from the decompile, no oracle run.
 
 ### How near the client walks
 
