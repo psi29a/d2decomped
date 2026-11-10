@@ -77,8 +77,43 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Dungeon.cpp room1 node list, sorted set, teardown and bit table (FUN_0061a270 ... FUN_0061afd0; `--mutation-check` 4 ways) | `uv run python dungeon_lifecycle.py` | `ok: 312 Dungeon.cpp room1 node, set, teardown and bit-table cases` |
 | Dungeon.cpp room1 geometry, searches, near-array build and creation (FUN_00619800 ... FUN_00619d00; `--mutation-check` 4 ways) | `uv run python dungeon_rooms.py` | `ok: 720 Dungeon.cpp room1 geometry, search and creation cases` |
 | A potion's end percent, the globe preview S->C 0x18 carries (FUN_005485b0 life, FUN_00548640 mana: 32-bit wraps, the low byte) | `set -o pipefail; uv run python end_percent.py gen 100000 7 > cases.tsv && uv run python end_percent.py game cases.tsv > g.txt && ../../build/tests/test_hud_globe cases.tsv \| diff g.txt -` | no output |
+| Gfx.cpp action dispatch FUN_0046f950 (death predicate and dispatch hooked; `--mutation-check` 3 ways) | `uv run python engine_action.py` | `ok: 24 ENGINE action dispatch cases` |
+| GfxUtil armor tier output FUN_004daab0 (equipment and table lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_armor_tiers.py` | `ok: 128 ENGINE armor tiers cases` |
+| GfxUtil cel visibility FUN_004dab40 (metric getters hooked; `--mutation-check` 3 ways) | `uv run python engine_cel_bounds.py` | `ok: 512 ENGINE cel bounds cases` |
+| Gfx.cpp blocking COF preload FUN_0046fb60 (lookups, loaders and cel calls hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_blocking.py` | `ok: 1000 ENGINE COF blocking cases` |
+| Unit COF box tests FUN_00470860, FUN_004709a0 (node and header lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_box.py` | `ok: 3000 ENGINE COF box cases` |
+| COF cache start / stop and preload timer FUN_00470200, FUN_00470290, FUN_00470350 (pool, tick and workers hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_cache.py` | `ok: 1500 ENGINE COF cache cases` |
+| COF cache loaders FUN_0046dcc0, FUN_0046ddf0 (pool, file loader, name hash hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_file.py` | `ok: 1600 ENGINE COF file cases` |
+| Monster mode COF preload FUN_0046f650 (path, cache, request and cel calls hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_layers.py` | `ok: 800 ENGINE COF layers cases` |
+| COF load wrappers FUN_0046e8d0, FUN_0046e980, FUN_0046ea50 (transform, tables, loader hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_load.py` | `ok: 432 ENGINE COF load wrapper cases` |
+| Composite COF loader FUN_0046e740 (path, node, cache and entry calls hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_node.py` | `ok: 800 ENGINE COF node cases` |
+| COF parameter builder FUN_004db7b0 (every lookup and file setter hooked; `--mutation-check` 4 ways) | `uv run python engine_cof_params.py` | `ok: 3000 ENGINE COF params cases` |
+| Monster COF path FUN_0046f490 and life tint FUN_0046ed50 (token record, transform, palette hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_path.py` | `ok: 1600 ENGINE COF path cases` |
+| Mode loaders and preload walkers FUN_0046f9e0, FUN_0046fa80, FUN_0046fda0, FUN_0046feb0, FUN_0046ff50 (loaders and queue hooked; `--mutation-check` 4 ways) | `uv run python engine_cof_preload.py` | `ok: 2000 ENGINE COF preload cases` |
+| Type-token cache FUN_004da790, monster COF preload FUN_0046f870, layer parameters FUN_004db2e0 (record lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_request.py` | `ok: 1500 ENGINE COF request cases` |
+| Near-room COF preload walk FUN_00470070 (room, queue and workers hooked; `--mutation-check` 3 ways) | `uv run python engine_cof_rooms.py` | `ok: 1200 ENGINE COF rooms cases` |
+| GfxUtil direction conversion FUN_004db290 (lookup hooked; `--mutation-check` 3 ways) | `uv run python engine_direction.py` | `ok: 512 ENGINE direction conversion cases` |
+| Gfx.cpp record allocation FUN_0046ebb0 (pool allocator hooked; `--mutation-check` 3 ways) | `uv run python engine_gfx_alloc.py` | `ok: 24 ENGINE graphics allocation cases` |
+| Gfx.cpp frees and bundle open FUN_0046eb70, FUN_0046ec10, FUN_0046f370, FUN_0046f3f0, FUN_0046f440, FUN_0046f310, FUN_0046e150 (pool and loaders hooked; `--mutation-check` 6 ways) | `uv run python engine_gfx_free.py` | `ok: 672 ENGINE graphics free cases` |
 | Small Gfx.cpp / GfxUtil.cpp helpers: COF list, layer flags, overlay test, cache getters, COF header layer lookups, token and row helpers, the unused list helpers (FUN_0046e100 ... FUN_0046f9d0, FUN_004da720 ... FUN_004db1c0; `--mutation-check` 11 ways) | `uv run python engine_gfx_small.py` | `ok: 816 ENGINE Gfx.cpp / GfxUtil.cpp helper cases` |
+| Item cel draw FUN_0046ee80 (request, load, draw and overlay calls hooked; `--mutation-check` 3 ways) | `uv run python engine_item_cel.py` | `ok: 1500 ENGINE item cel cases` |
+| Item cel name FUN_004dabc0 and transparency FUN_004db360 (item tables hooked; `--mutation-check` 4 ways) | `uv run python engine_item_gfx.py` | `ok: 1600 ENGINE item gfx cases` |
+| GfxUtil layer predicates FUN_004dae60, FUN_004daf70 (row lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_layer_info.py` | `ok: 1200 ENGINE layer info cases` |
+| GfxUtil layer token and tint FUN_004dad80, FUN_004db570 (equipment and item lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_layer_token.py` | `ok: 3000 ENGINE layer token cases` |
+| GfxUtil base mode token FUN_004daa00 (player/object lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_mode_token.py` | `ok: 120 ENGINE mode token cases` |
 | Unit motion record (ENGINE\\Particle.cpp, FUN_004da000 ... FUN_004da6e0 incl. the per-tick step FUN_004da350, FUN_0046f060, FUN_0046f070; the pool, owner and screen-conversion callees hooked; `--mutation-check` 7 ways) | `uv run python engine_motion.py` | `ok: 1048 unit motion record cases` |
+| GfxUtil death-mode direction update FUN_004db1e0 (transform and path hooks; `--mutation-check` 3 ways) | `uv run python engine_death_direction.py` | `ok: 96 ENGINE death direction cases` |
+| Gfx.cpp overlay clearing FUN_0046f170 (removal hooked; `--mutation-check` 3 ways) | `uv run python engine_overlay_clear.py` | `ok: 24 ENGINE overlay clear cases` |
+| Overlay row draw FUN_0046e1b0 (request and draw hooked; `--mutation-check` 4 ways) | `uv run python engine_overlay_draw.py` | `ok: 1500 ENGINE overlay draw cases` |
+| Kind-8 overlay frame helpers FUN_0046def0, FUN_0046df40 (state calls hooked; `--mutation-check` 3 ways) | `uv run python engine_overlay_frames.py` | `ok: 1600 ENGINE overlay frames cases` |
+| Positioned overlay draw FUN_0046e300 (position getters, request and draw hooked; `--mutation-check` 4 ways) | `uv run python engine_overlay_place.py` | `ok: 3000 ENGINE overlay place cases` |
+| Gfx.cpp overlay selection FUN_0046f0c0 (removal hooked; `--mutation-check` 3 ways) | `uv run python engine_overlay_remove.py` | `ok: 256 ENGINE overlay selection cases` |
+| Sized rectangle draw FUN_0046efd0 (rectangle draw hooked; `--mutation-check` 3 ways) | `uv run python engine_rect_size.py` | `ok: 800 ENGINE rect size cases` |
+| Unit cel draw FUN_00471450 (position, request and draw hooked; `--mutation-check` 3 ways) | `uv run python engine_unit_cel.py` | `ok: 1500 ENGINE unit cel cases` |
+| GfxUtil unit-on-screen FUN_004db670 (position, node and layer lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_unit_onscreen.py` | `ok: 1200 ENGINE unit on screen cases` |
+| Unit selection outline FUN_00471bd0 (every callee hooked; `--mutation-check` 4 ways) | `uv run python engine_unit_outline.py` | `ok: 2000 ENGINE unit outline cases` |
+| Per-unit COF loaders FUN_00470610, FUN_00470b70 (transform, loaders, queries hooked; `--mutation-check` 3 ways) | `uv run python engine_unit_preload.py` | `ok: 1600 ENGINE unit preload cases` |
+| Unit coloured shape draw FUN_00471a30 (position, request and draw hooked; `--mutation-check` 3 ways) | `uv run python engine_unit_shape.py` | `ok: 1500 ENGINE unit shape cases` |
 | Excel link reads and the bin field map (Excel/Excel.cpp: FUN_006bce20, FUN_006bd040, FUN_006bd130, FUN_006bd180, FUN_006bd330, FUN_006bd380) | `uv run python excel_fields.py` | `ok: 4949 excel link read, code search, tree search and bin field map cases` |
 | Excel name links and txt splitter (Excel/Excel.cpp: FUN_006bcda0..FUN_006bd640, 8 functions) | `uv run python excel_links.py` | `923 cases: add name / lookup / ...`, then `ok` |
 | HUD life / mana / stamina glide (FUN_00496dd0) | `uv run python globe_glide.py gen 2000 1 > cases.tsv; uv run python globe_glide.py game cases.tsv > g.txt; ../../build/tests/test_globe_glide g.txt \| diff g.txt -` | no output |

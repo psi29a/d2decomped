@@ -77,15 +77,19 @@ address	name	evidence
 0046b9a0	client_spawn_missiles_12b	no args: client missiles of rows 0x12b, 0x166, 0x132 via FUN_004cd540, the first tagged 0x4b in data +0x28 and +0x2c (missiles.md "Client missile spawn: FUN_0046b9a0")
 0046dbf0	path_base_name	copies the base name between the last \ and the extension via _strncpy (chat.md)
 0046dc40	gfx_find_by_name	Gfx.cpp graphic lookup: base name, __strlwr, 512-bucket hash chain (chat.md)
+0046dcc0	gfx_cof_file_load	one COF file into a 0x1c-byte cache entry, byte counter 0x7a8918 (Gfx.cpp 0xdc, 0xe0, 0xec)
 0046ddf0	gfx_cof_bundle_load	walks 0x18-byte entries into 512 buckets (Gfx.cpp 0x10b, 0x126, 0x79)
+0046def0	gfx_overlay_frame_init	kind-8 node +0x3c / +8 from a sibling with the same +0x38 or set to 1 / clear
+0046df40	gfx_overlay_frame_next	state for the node's +0x38 off / on, then the next larger +0x38 nodes on
 0046e100	gfx_has_overlay	unit gfx +0x2c list, node +4 == row (Gfx.cpp 0x1ea)
 0046e150	gfx_overlay_set_8	node +8 for kind 1 overlays of a row (Gfx.cpp 0x205)
-0046e1b0	gfx_overlay_draw_row	two passes by node +0x34, Overlay.txt 0x84-byte rows
+0046e1b0	gfx_overlay_draw_row	one pass over the nodes with +0x34 clear (the second pass never runs, bugs.md #98), Overlay.txt 0x84-byte rows
 0046e300	gfx_overlays_draw	unit's overlays at its screen or automap spot plus motion offsets
 0046e570	gfx_cof_data	unit gfx +0x28 node for a mode, graphic +0x14
 0046e5a0	gfx_cof_node	unit gfx +0x28 node by mode and token (Gfx.cpp 0x3ac)
 0046e610	gfx_cof_node_free	unlinks the +0x28 node whose graphic is EAX (Gfx.cpp 0x3d0)
 0046e690	gfx_cof_node_current	token match or free (Gfx.cpp 0x3f0, 0x406)
+0046e740	gfx_cof_node_load	unit gfx +0x28 node for a mode: path, 0x14-byte node, cache entry (Gfx.cpp 0x434, 0x435)
 0046e8d0	gfx_cof_load_monster	FUN_0046c140 check then FUN_0046e740 (Gfx.cpp 0x464, 0x486)
 0046e980	gfx_cof_load_object	Objects.txt +0x13f + mode == 1 (Gfx.cpp 0x4be..0x4dc)
 0046ea50	gfx_cof_load_plain	FUN_0046e740 then layer flag
@@ -97,6 +101,7 @@ address	name	evidence
 0046ece0	gfx_cof_list_trim	frees nodes except modes 0 and 0x11 (Gfx.cpp 0x847)
 0046ed50	gfx_life_tint	green/yellow/red by life %, blue for MonStats +0xd bit 1 (Gfx.cpp 0x991)
 0046ee80	gfx_item_cel_draw	gold frame by stat 0xe, ethereal draw mode 1 (Gfx.cpp 0xac2)
+0046efd0	gfx_rect_size_draw	FUN_004f6300 with (x, y, x + w, y + h, colour, mode)
 0046f000	gfx_cof_clear_all	FUN_0046eac0(0..15)
 0046f020	gfx_layer_flags_set	20 two-byte slots of unit gfx (Gfx.cpp 0xbba)
 0046f060	gfx_motion	unit gfx +0x30
@@ -110,9 +115,10 @@ address	name	evidence
 0046f280	gfx_layer_flags_clear	20 / 16 / 8 slots by unit type (Gfx.cpp 0xd3e)
 0046f310	gfx_cof_bundle_open	"%s\\%s" DATA\GLOBAL + 0x6d6c30[n]
 0046f370	gfx_cof_cache_free_loose	entries with flag bit 0 (Gfx.cpp 0xe3c, 0xe3d)
-0046f3f0	gfx_cof_cache_free_monster	0x7a8100 (Gfx.cpp 0xe50)
-0046f440	gfx_cof_cache_free_player	0x7a78f0 (Gfx.cpp 0xe61)
+0046f3f0	gfx_cof_cache_free_player	0x7a8100 (unit type 0) (Gfx.cpp 0xe50)
+0046f440	gfx_cof_cache_free_monster	0x7a78f0 (every other unit type) (Gfx.cpp 0xe61)
 0046f490	gfx_monster_cof_path	"%s\\%s\\COF\\%s%s%s.COF" DATA\GLOBAL\MONSTERS
+0046f650	gfx_monster_mode_preload	monster COF through the 0x7a78f0 cache, one cel load per layer (Gfx.cpp 0xec3..0xed7)
 0046f870	gfx_monster_cofs_load	modes 0x712ac4 by MonStats2 +0xf0 bits
 0046f980	gfx_7a8914	returns 0x7a8914
 0046f990	gfx_bytes_in_use	returns 0x7a8918
@@ -128,9 +134,12 @@ address	name	evidence
 00470200	gfx_init	caches, 0x7a80fc (Gfx.cpp 0x7e1), FUN_004fac90, FUN_004da790
 00470290	gfx_shutdown	both caches, frees 0x7a80fc (Gfx.cpp 0x7f9)
 00470350	gfx_preload_tick	FUN_00470070 every 600 ms
+00470610	gfx_unit_mode_load	current mode by transformed type: player FUN_0046e740, monster FUN_0046f9e0, object FUN_0046e980 (Gfx.cpp 0xd17, 0xd26)
 004706e0	gfx_unit_frame_size	FUN_00601920 / FUN_00601950 (Gfx.cpp 0xd4d, 0xd7a)
 00470860	gfx_unit_hit	COF box +8..+0x14 grown by 16 (Gfx.cpp 0xd90, 0xda4)
 004709a0	gfx_unit_on_screen	COF box vs 0x71146c x 0x711470 (Gfx.cpp 0xdc2, 0xdd3)
+00470b70	gfx_unit_preload_reset	resets a monster's 0x7a80fc slot, then FUN_0046feb0 (Gfx.cpp 0x1072)
+00471450	gfx_unit_cel_draw	unit cel at its screen spot with FUN_004f6540 (Gfx.cpp 0x86f, 0x87a)
 00471a30	gfx_tint_draw_simple	FUN_004f6570 with FUN_0046ed50 (Gfx.cpp 0x9b6, 0x9be)
 00471bd0	gfx_tint_draw	per COF layer FUN_004f6570 (Gfx.cpp 0xa2f, 0xa56)
 00472280	seed_roll_base	ECX seed pair (low, high), EDX base, stack n: n < 1 returns EDX; low * 0x6ac690c5 + high; EDX + (low & (n - 1)) for a power of two, else EDX + low % n
@@ -251,10 +260,13 @@ address	name	evidence
 004db180	unit_type_drawn	type 0..2
 004db1a0	gfx_layer_loaded	unit gfx byte n * 2
 004db1c0	gfx_layer_loaded_set	unit gfx byte n * 2 = arg
-004db1e0	gfx_turn_idle	FUN_006488a0 in modes 0 / 0x11 / 0xc (GfxUtil.cpp 0x53c)
+004db1e0	gfx_turn_dead	FUN_006488a0 in the death and dead modes (player 0 / 0x11, monster 0 / 0xc) (GfxUtil.cpp 0x53c)
 004db290	dir_steps_convert	8 <-> 4, 16 <-> 8 through FUN_00600cb0
+004db2e0	cof_layer_params	one layer's draw type and parameter from FUN_004daf70, FUN_004db290, FUN_004db1e0 (GfxUtil.cpp)
+004db360	cof_transparency	transparency table by fade stat, item row +0x12c / +0x12d, worn ethereal items
 004db570	cof_layer_tint	FUN_0062c100 unless broken, unusable or 'lit ' (GfxUtil.cpp 0x656, 0x657)
 004db670	gfx_unit_layer_ready	on screen, COF loaded, FUN_004db0d0
+004db7b0	cof_build_params	fills the cel request by unit type: tokens, layer scan, item class (GfxUtil.cpp 0x2f0)
 004dc0c0	unit_events_free	ECX unit: frees every +0x1c-linked event of +0x90 (pool of FUN_004dc0b0, CUnitEvent.cpp line 0x2f), clears +0x90; null ignored; verified by unit_client.py
 004dc110	unit_event_add	ECX unit, EDX kind, stack data1, data2, callback, type, state: a 0x20-byte node (line 0x48) from the unit's pool (+8) at the head of +0x90, its +0x18 link set in the old head; null unit 0; verified by unit_client.py
 004dc190	unit_event_remove	ECX unit, EDX type, stack state: unlinks and frees (line 0x80) every event of +0x90 with +4 == type and +8 == state; verified by unit_client.py
