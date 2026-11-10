@@ -373,6 +373,11 @@ dword +0xdc shifted right 8, with 32-bit wrap. It then writes 2 to data +0x2c.
 If the object is absent it does neither. `tools/emu/quest_object_timer.py`
 checks 24 stock cases with lookups, setter and scheduler hooked.
 
+`FUN_00543590` takes game in ECX and a linked-list head in EDX. It saves each
+node's +4 next pointer before freeing that node through the pool at game
++0x1c; a null head does nothing. `tools/emu/quest_free_list.py` checks 24
+acyclic synthetic lists against stock with the free boundary hooked.
+
 `tools/emu/quest_frontier.py` checks these nine functions on synthetic records
 against stock 1.14d (216 cases, nine deliberate model defects caught). The
 quest lookup `FUN_00543640` is hooked: its arguments are checked, but its
