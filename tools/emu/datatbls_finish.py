@@ -29,7 +29,7 @@ DataTbls.cpp (all against ".\\DATATBLS\\DataTbls.cpp"):
   lines in the code), clearing the pointers and the counts; the tables themselves are freed
   at line 0x926, or four bytes before at line 0x924 when 0x744308 is set; the link free
   FUN_006bd0b0 follows each table.
-* FUN_00619140 frees every table in 49 steps: 43 unloaders (FUN_00612ea0 first) in the order the
+* FUN_00619140 frees every table in 49 steps: 43 unloaders (FUN_00612ea0 first; the asm pushes no argument and sets no ECX, the hooks log only the address) in the order the
   code calls them, the CharStats, pet type, experience and difficulty tables, the pet link and
   the animation data between, checked by the log.
 
@@ -51,13 +51,23 @@ real. Not run: a count of 0x7ffffc00 or more in FUN_006118b0 (the signed wrap lo
 two million times) and negative row counts in FUN_0061fae0 (a 4 GB allocation).
 `--mutation-check` breaks the models on purpose, one defect at a time, and requires each to fail.
 """
+import contextlib
 import random
 import struct
 import sys
 
 import _monster_world as mw
 from _monster_world import require
-from monster_loaders import ASCII, CHAR, INT, REGION, REGION_END, Rig, check_compile_call, schema
+from monster_loaders import (
+    ASCII,
+    CHAR,
+    INT,
+    REGION,
+    REGION_END,
+    Rig,
+    check_compile_call,
+    schema,
+)
 
 APPEND, SKILL_CODE, DESC_CODE = 0x61_18B0, 0x61_1BD0, 0x61_1C70
 PLAYER, MONSTER, OBJECT, ITEM, MISSILE = 0x61_1EE0, 0x61_1F40, 0x61_1FA0, 0x61_1FE0, 0x61_2030
@@ -101,7 +111,6 @@ class Plain(mw.World):
     def __init__(self):
         """Build the world and hook the realloc."""
         super().__init__()
-        mw.INSTRUCTION_LIMIT = 400000
         self.sizes = {}
         self.returned = []
         self.parse_script = (0, b"")
@@ -411,7 +420,7 @@ def with_misc(rig, rng):
     return on
 
 
-def table_free(pointer, on, mutation_line=None):
+def table_free(pointer, on):
     """The (block, line) a table free passes: the pointer or four before it, line 0x924 or 0x926."""
     if on:
         return pointer - (4 if not mut("skills-misc-offset") else 8), 0x924 if not mut("states-misc-line") else 0x925
@@ -511,8 +520,7 @@ def check_free_tables(rig, rng):
     slots = {slot: rng.choice((0, rng.randrange(8, 1 << 32))) for kind, slot in FREE_PLAN if kind in ("table", "link", "anim")}
     for slot, value in slots.items():
         rig.m.w32(slot, value)
-    got = rig.run(FREE_TABLES, nstack=0)
-    del got
+    rig.run(FREE_TABLES, nstack=0)
     plan = list(FREE_PLAN)
     if mut("free-tables-order"):
         plan[2], plan[3] = plan[3], plan[2]
@@ -634,18 +642,30 @@ class LevelRig(Rig):
         self.logger(FIX_SLASHES, 0, "fix", regs=("ecx", "edi"))
 
 
+@contextlib.contextmanager
+def instruction_limit(limit):
+    """Raise the emulator's per-call instruction cap for the checks inside, then put it back."""
+    old = mw.INSTRUCTION_LIMIT
+    mw.INSTRUCTION_LIMIT = limit
+    try:
+        yield
+    finally:
+        mw.INSTRUCTION_LIMIT = old
+
+
 def run_all():
     """Run every check on random inputs; returns the case count."""
     rng = random.Random(0x6118B0)
     cases = 0
     rig = Plain()
-    for _ in range(400):
-        check_append(rig, rng)
-        cases += 1
-    rig = Plain()
-    for index in range(300):
-        check_skill_code(rig, rng, index % 2 == 1)
-        cases += 1
+    with instruction_limit(400000):
+        for _ in range(400):
+            check_append(rig, rng)
+            cases += 1
+        rig = Plain()
+        for index in range(300):
+            check_skill_code(rig, rng, index % 2 == 1)
+            cases += 1
     rig = name_rig()
     for check, rounds in ((check_player, 200), (check_monster, 200), (check_object, 150), (check_item, 150), (check_missile, 100)):
         for _ in range(rounds):

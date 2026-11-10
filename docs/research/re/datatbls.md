@@ -731,7 +731,7 @@ above said a file named `0` is skipped, where it ends the row.
   0x6ed, 0x6f2, 0x6f7, 0x6fc, cleared), 0xa0 bytes zeroed at 0x96bcfc, the table
   0x96bcec as above and the link 0x96bcf0.
 - **FUN_00619140** (tables unload) runs 49 steps in one fixed order, listed in the
-  oracle's `FREE_PLAN`: 43 unloaders called with no argument (FUN_00612ea0
+  oracle's `FREE_PLAN`: 43 unloaders (no push and no ECX in the asm; the hooks log only the address) (FUN_00612ea0
   first), and inline the CharStats (0x96c7f4), pet type (0x96c818), experience
   (0x96c8a8) and difficulty (0x96c8ac, last) table frees by the 0x924 / 0x926
   rule above, the pet link (0x96c81c, FUN_006bd0b0) and the animation data
