@@ -18,6 +18,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace fs = std::filesystem;
 
@@ -67,7 +68,7 @@ int main() try {
     composite.composite_death = true;
     assert(cof_weapon_class(composite, "DT") == "2hs");
     assert(cof_weapon_class(composite, "DD") == "2hs");
-    Npc object = goatman;
+    Npc object = std::move(goatman);
     object.root = "objects";
     assert(cof_weapon_class(object, "DT") == "2hs");
 
