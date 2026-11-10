@@ -3,6 +3,9 @@
 
     uv run python drlg_finish.py [--mutation-check]     (needs D2_MPQ_DIR; no MPQ is read)
 
+The names below the FUN_ addresses (DRLGANIM_..., DRLGOUTPLACE_..., SubTypeWpShrine and the rest)
+are Redivivus candidate names, not game.exe's; the FUN_ addresses are what the emulator ran.
+
 * DRLGANIM_PropagateAnimationData (FUN_0066d750, ecx source room, edx destination): with a
   destination, the frame is that of the first animated tile list among the source's near
   rooms (room +0x2c count, +0x8 array; room +0x54 tiles, tiles +4 animations, node +8 frame,
@@ -45,7 +48,7 @@
   last stores its final position. The count is stored and returned.
 
 The callees are hooked and compared in order with their registers and arguments. FUN_00675f80
-and FUN_00670e70 have no caller in game.exe; their behaviour is read from the code only.
+and FUN_00670e70 have no caller in game.exe; they are run directly with scripted callees.
 `--mutation-check` breaks the models on purpose, one defect at a time, and requires each to fail.
 """
 import random
