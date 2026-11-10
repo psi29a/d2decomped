@@ -1044,5 +1044,34 @@ stack arguments each callee gets on the right size.
 | 0x54 | `FUN_0054c990` | 1 | a player in mode 3 (run): `FUN_00624690(unit, 2)`; a null unit does nothing |
 | 0x58 | `FUN_0054c9c0` | 3 | quest u16 +1 under 0x2a: `FUN_0065c360(record, quest, 0xc)` with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else answers 2 |
 
-Not claimed: what the hooked callees do, the click-on-map family (0x02, 0x04,
-0x06, 0x13) and the skill handlers.
+Not claimed: what the hooked callees do. The click-on-unit handlers (0x02, 0x04,
+0x06, 0x07, 0x09, 0x0a, 0x0d, 0x0e, 0x10, 0x11, 0x13) are in the next section; the
+location-skill handlers (0x05, 0x08, 0x0c, 0x0f) are not covered here.
+
+### Click-on-unit handlers (verified, `plrmsg_click.py`)
+
+Run for real against stock 1.14d with the callees hooked and logged
+(`FUN_00548f80` range check, `FUN_00549ba0` skill processor, the skill and stat
+getters, `FUN_00580a70` start-mode, `FUN_00548b00` interact; their work is not claimed).
+
+- **Shared click check `FUN_00549830`** (packet in EAX, unit in EDI, stack game,
+  size, &type, &id; `ret 0x10`): zeroes both outs first; size must be 9 (else 3);
+  the type word must be under 6 (unsigned; else 2); then
+  `FUN_00548f80(game, type, id, range 0x32)` and its status passes through; only
+  status 0 stores type and id into the outs.
+- **0x02 walk / 0x04 run** (`FUN_00549890` / `FUN_00549920`): the click check, then
+  `FUN_00580a70(game, unit, 0, mode, type, id, 0)` with mode 2 / 3; answer 0.
+- **0x06 / 0x07 left skill, 0x0d / 0x0e right skill on a unit** (`FUN_00549d80`,
+  `00549e00`, `0054a040`, `0054a0c0`): the click check (its status passes), the
+  left (`FUN_00620190`) or right (`FUN_006201d0`) skill (none answers 3), stat
+  0x148 (the pierce index) raised by one, the skill fetched again, then
+  `FUN_00549ba0` with the second skill, game, type, id and approach 1 (0x06,
+  0x0d) or 0 (0x07, 0x0e; read as walk-to-target and hold-position from the client
+  flags, only the value is run); answer 0.
+- **0x09 / 0x0a / 0x10 / 0x11 held handlers** (`FUN_00549ee0`, `00549f40`,
+  `0054a1a0`, `0054a200`): the click check (its status passes), the skill test (3),
+  then the matching plain handler (0x09 to 0x06, 0x0a to 0x07, 0x10 to 0x0d, 0x11 to
+  0x0e) on the same packet and size, whose answer is dropped: they answer 0 after it
+  ran (a click failure and no skill pass through).
+- **0x13 interact** (`FUN_0054aa90`): size 9 (else 3), type under 6 (else 2), then
+  `FUN_00548b00(ECX unit, EDX type, id, 0, game)`; its answer passes through.

@@ -59,12 +59,16 @@ Names: the community's (d2-clientless, D2MOO) — unverified labels
 | 04 | 9 | 0x549920 ✓ | run to unit (mode 3) |
 | 05 | 5 | 0x549d00 ✓ | left skill at x, y |
 | 06 | 9 | 0x549d80 ✓ | left skill on unit: pierce index + 1, then `FUN_00549ba0` |
-| 07, 09, 0a | 9 | 0x549e00, 0x549ee0, 0x549f40 | left skill on unit (variants) |
+| 07 | 9 | 0x549e00 ✓ | left skill on unit, no approach: as 0x06 with approach 0 |
+| 09 | 9 | 0x549ee0 ✓ | left skill on unit (held): click check, skill test, then 0x06's handler |
+| 0a | 9 | 0x549f40 ✓ | left skill on unit (held, no approach): then 0x07's handler |
 | 08 | 5 | 0x549e80 ✓ | left skill at x, y (held): range check, then 0x05's handler |
 | 0c | 5 | 0x549fc0 ✓ | right skill at x, y: pierce index + 1, then `FUN_00549ad0` |
 | 0f | 5 | 0x54a140 ✓ | right skill at x, y (held): range check, then 0x0c's handler |
 | 0d | 9 | 0x54a040 ✓ | right skill on unit: as 0x06 with the right skill |
-| 0e, 10, 11 | 9 | 0x54a0c0, 0x54a1a0, 0x54a200 | right skill on unit (variants) |
+| 0e | 9 | 0x54a0c0 ✓ | right skill on unit, no approach: as 0x0d with approach 0 |
+| 10 | 9 | 0x54a1a0 ✓ | right skill on unit (held): click check, skill test, then 0x0d's handler |
+| 11 | 9 | 0x54a200 ✓ | right skill on unit (held, no approach): then 0x0e's handler |
 | 13 | 9 | 0x54aa90 ✓ | interact with unit (type ≤ 5, id) |
 | 14 | var | 0x54a290 ✓ | overhead message (4..0x113 bytes): the unit's hover text, language code |
 | 15 | var | 0x54a5d0 ✓ | chat message: copied, sent on to the clients (`FUN_0052ded0`) |

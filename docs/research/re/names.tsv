@@ -976,3 +976,15 @@ address	name	evidence
 0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
 0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
 0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
+00549830	click_check	shared C->S click check (packet EAX, unit EDI, stack game, size, &type, &id): zeroes both outs, size 9 else 3, type under 6 else 2, range check FUN_00548f80(ECX game, EDX type, EAX id, EDI unit; 0x32) passes its status through, 0 stores type and id; verified plrmsg_click.py
+00549890	scmd_walk_to_entity	C->S 0x02: click check, then FUN_00580a70(game, unit, 0, mode 2, type, id, 0); verified plrmsg_click.py
+00549920	scmd_run_to_entity	C->S 0x04: click check, then FUN_00580a70 with mode 3; verified plrmsg_click.py
+00549d80	scmd_left_skill_on_entity	C->S 0x06: click check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, skill processor FUN_00549ba0 with approach 1; verified plrmsg_click.py
+00549e00	scmd_left_skill_on_entity_no_approach	C->S 0x07: as 0x06 with approach 0; verified plrmsg_click.py
+00549ee0	scmd_left_skill_on_entity_held	C->S 0x09: click check (its status passes), left skill test (3), then 0x06's handler; answers 0; verified plrmsg_click.py
+00549f40	scmd_left_skill_on_entity_held_no_approach	C->S 0x0a: as 0x09 delegating to 0x07; verified plrmsg_click.py
+0054a040	scmd_right_skill_on_entity	C->S 0x0d: as 0x06 with the right skill (FUN_006201d0); verified plrmsg_click.py
+0054a0c0	scmd_right_skill_on_entity_no_approach	C->S 0x0e: as 0x0d with approach 0; verified plrmsg_click.py
+0054a1a0	scmd_right_skill_on_entity_held	C->S 0x10: as 0x09 for the right skill, delegating to 0x0d; verified plrmsg_click.py
+0054a200	scmd_right_skill_on_entity_held_no_approach	C->S 0x11: as 0x10 delegating to 0x0e; verified plrmsg_click.py
+0054aa90	scmd_interact	C->S 0x13: size 9 else 3, type under 6 else 2, FUN_00548b00(ECX unit, EDX type, id, 0, game), its answer passes through; verified plrmsg_click.py

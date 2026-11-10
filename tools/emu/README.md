@@ -120,6 +120,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | String table number formatters (FUN_00525350, 00525490, 005255c0) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: stock TBL unsigned, signed, and K/M/B/T formatter cases` |
 | String table file opener (FUN_00525920) | `uv run python strtable_formatters.py [--exe /path/to/Game.exe]` | `ok: CRC-checked synthetic TBL open and rejection cases` |
 | Server-side client-packet handlers of PlrMsg.cpp, the small ones: size gates (status 3) and the forwarded arguments of 0x31, 0x33, 0x34, 0x35, 0x36, 0x3f, 0x40, 0x48, 0x4f, 0x53, 0x54, 0x58, 0x62 (FUN_0054ba90 ... FUN_0054c9c0; the callees hooked and logged; status of 0x33 and 0x4f is the callee's) | `uv run python plrmsg_small.py` | `ok: 40 PlrMsg small handler rounds` |
+| Click-on-unit handlers of PlrMsg.cpp: the shared click check, walk / run to entity, skill on entity (left, right, no approach, held) and interact (FUN_00549830 ... FUN_0054aa90; callees hooked and logged) | `uv run python plrmsg_click.py` | `ok: 1680 PlrMsg click-on-unit handler cases` |
 
 ## When it breaks
 
