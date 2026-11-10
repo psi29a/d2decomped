@@ -504,7 +504,7 @@ reader is hooked (D2FILE `0x517079`, logged with the path it was given); the
 fatal path, the pool and client releases run as hooked logs; the memmove
 `0x6829c0` runs for real.
 
-* **FUN_0066a2b0** (InitFieldData, stdcall archive): the archive's width is the
+* **FUN_0066a2b0** (InitFieldData, stdcall archive and an unused second stack argument `dwUnused`, which the oracle passes but the code never reads): the archive's width is the
   dword at +2, its height the dword at +6, the bytes from +10. The copy is
   `w * h` bytes. **The stride is the height**: the nine row offsets at
   `0x96d630 + 4k` are `Y[k] * h + X[k]` (X at `0x749780`, Y at `0x7497a4`, the
