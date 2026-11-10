@@ -390,6 +390,13 @@ failed lookup makes no player-data or setter call.
 `tools/emu/quest_waypoint_activate.py` checks 24 cases with the three
 callees hooked, including difficulty 255 and nonzero lookup results.
 
+`FUN_0059c810` takes a quest buffer in ESI and game and player on the stack
+(`ret 8`). It calls `FUN_0065c360` to set quest 0xe bits 0xd and 3, obtains
+the player client with `FUN_005531c0` and calls `FUN_00538680` with the
+client in ECX, 2 in EDX and game difficulty byte +0x6d on the stack.
+`tools/emu/quest_tomb_transition.py` checks 24 cases with the bit setter,
+client lookup and progress setter hooked.
+
 `FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
 looks up object ID data +0x28 in the game (type 2); if found, it sets the
 object mode to 1, reads its Objects table record from its class ID at +4,

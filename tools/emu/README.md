@@ -135,6 +135,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest party callback dispatch (`FUN_005ba2f0`, party routines hooked; `--mutation-check` three ways) | `uv run python quest_party_callback.py` | `ok: 24 quest party callback cases` |
 | Rescue reward across difficulty quest buffers (`FUN_0058a0a0`, hooked callees; `--mutation-check` three ways) | `uv run python quest_rescue_resistance.py` | `ok: 24 quest resistance cases` |
 | Quest 0x21 spawn attempt (`FUN_0058a820`, lookup, room and spawn hooked; `--mutation-check` three ways) | `uv run python quest_spawn_rescue.py` | `ok: 24 quest rescue spawn cases` |
+| Tomb quest transition (`FUN_0059c810`, callees hooked; `--mutation-check` three ways) | `uv run python quest_tomb_transition.py` | `ok: 24 quest tomb transition cases` |
 | Quest 0x14 two-object updates (`FUN_005bcfd0`, lookup and setter hooked; `--mutation-check` three ways) | `uv run python quest_two_objects.py` | `ok: 24 quest two objects cases` |
 | Quest waypoint activation (`FUN_005b4ff0`, three callees hooked; `--mutation-check` three ways) | `uv run python quest_waypoint_activate.py` | `ok: 24 quest waypoint activation cases` |
 | Small Quests helpers: the 11 quest-update notifiers, Horadric Staff test, A2/A4/A5 data helpers, filters and seal glows (31 functions, FUN_005879d0 ... FUN_005b7340; `--mutation-check` 13 ways) | `uv run python quests_small.py` | `ok: 768 Quests small-helper cases` |
