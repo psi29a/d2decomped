@@ -97,6 +97,13 @@ size, `+0xc` 512 hash buckets. The bucket hash is
 
 ## Drawing helpers
 
+`FUN_0046f950` asks `FUN_00464820` whether the unit is dead; when it
+returns zero and the unit's type is player (0), it calls `FUN_00461250`
+with action 7, the unit, and stack arguments 0 and 1. The predicate is
+called before the null check and itself dereferences the unit. The oracle
+`tools/emu/engine_action.py` hooks both callees, so its null case covers
+only this caller with a synthetic predicate, not the real predicate.
+
 | Address | What |
 |---|---|
 | `FUN_0046ed50` | A tint by life: blue `(0,0,0xc0)` for a monster with MonStats `+0xd` bit 1, else green `(0,0xc0,0)`, yellow above 33 % to 65 %, red at 32 % and under (palette indices from `FUN_004fb180`, cached once) |
