@@ -27,6 +27,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 
 | Checks | Command (in tools/emu) | Good output |
 |---|---|---|
+| Battle.net message queue (four BnMessQueue.cpp routines, stock x86 with allocator and locks scripted) | `uv run python bnqueue.py` | `ok: queue FIFO, zero length, limits, string truncation, clear and reuse` |
 | Level layouts, monsters, objects | `uv run python diff_drlg.py 1-20 2 [tiles\|monsters\|objgroups\|collision\|game\|npcs]` | `N/N seeds match game.exe` |
 | Room collision-grid release (FUN_0064ca10) | `uv run python collisn_release.py` | `ok: null room, null room1, one release, and repeat release` |
 | The PATH dynamic-path accessors and wrappers (70 functions, FUN_00648460..FUN_00649ca0) | `uv run python path_dynamic.py` | `ok: 5065 PATH accessor, setter, collision and recalc cases` |

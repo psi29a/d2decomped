@@ -206,6 +206,14 @@ A singly linked list of 0x12c-byte nodes (`+0` id, `+4` data up to 0x120,
 `+0x124` length, `+0x128` next), head `0x882020`, tail `0x882024`, guarded by
 `0x882004`. The launcher drains it.
 
+The four routines run against stock game.exe in `tools/emu/bnqueue.py` with
+scripted allocation and critical sections. The check covers FIFO, empty and
+zero-length messages, payload limits, string truncation, clearing and reuse;
+it does not exercise concurrent callers or allocation failures. A drained or
+cleared queue leaves a stale tail pointer, replaced by the next enqueue. A
+zero-length queued message and an empty queue both return zero from pop; the
+former still writes the id and removes the node.
+
 | Address | What |
 |---|---|
 | `FUN_00520210` | Queues ECX id with EDX data, stack length (truncated to 0x120) |
