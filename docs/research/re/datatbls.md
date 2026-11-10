@@ -601,10 +601,18 @@ call, and the source tables are real blocks, since the merge copies from them.
 |---|---|
 | `tok_merge.py` | `FUN_0065adc0`, `0065b1b0` |
 
-### LvlTbls.cpp: expansion free and portal array (`lvl_small.py`)
+### LvlTbls.cpp: expansion free, lvlsub free and portal array (`lvl_small.py`)
 
-`tools/emu/lvl_small.py` runs two LvlTbls.cpp functions from stock game.exe 1.14d
-(240 cases, `--mutation-check` 8 ways).
+`tools/emu/lvl_small.py` runs three LvlTbls.cpp functions from stock game.exe 1.14d
+(440 cases, `--mutation-check` 15 ways).
+
+* **FUN_0061f9c0** (TXT_FreeTxt_LvlSub): N = `0x96ca14`. The DS1 file array at
+  `0x96ca24`: each non-null slot released (`0x668300`, given the slot's address),
+  then client-freed (line 0x3d8) and cleared. The sub-preset rows at `0x96ca10`
+  (0x15c bytes each): room data freed (`0x670630`) for each of the N rows, then
+  unloaded (`0x6125c0`) and cleared. The index at `0x96ca18` is pool-freed (line
+  0x3e8) and cleared. The three parts are independent: the row loop runs even when
+  the file array is null.
 
 * **FUN_0061fbf0** (TXT_FreeExpansionLvlTbls): if `0x96ca1c` is set, pool-free it
   (line 0x43a); the pointer is **not** cleared (the Ghidra output agrees).
@@ -618,5 +626,5 @@ call, and the source tables are real blocks, since the merge copies from them.
 
 | Oracle | Functions |
 |---|---|
-| `lvl_small.py` | `FUN_0061fbf0`, `0061dd00` |
+| `lvl_small.py` | `FUN_0061fbf0`, `0061f9c0`, `0061dd00` |
 
