@@ -1017,3 +1017,32 @@ host-side checks game.exe's server makes (flood guards, ranges).
 - Which host packets a joining client gets for the units already in its
   rooms (0xaa with 0xac, item 0x9c / 3), and in what order; best settled
   by capturing a real game.exe host's traffic.
+
+## Verified in the emulator: small client-packet handlers (PlrMsg.cpp)
+
+`tools/emu/plrmsg_small.py` runs 13 handlers of the server's C->S table for
+real in the emulator against stock game.exe 1.14d, with every callee hooked
+and logged (its work is not claimed). A handler is called with the game in
+ECX, the unit in EDX, then the packet and its size on the stack (`ret 8`);
+it answers 0 ok, 1 bad target, 2 bad data, 3 bad length (0x33 and 0x4f instead return their callee's status, the others 0 after the callee; each hook returns a random non-zero value to show it). Checked: every
+wrong size answers 3 with no callee run, and the exact registers and
+stack arguments each callee gets on the right size.
+
+| Id | Handler | Size | Behaviour (as run) |
+|---|---|---|---|
+| 0x31 | `FUN_0054ba90` | 9 | `FUN_005443b0(game, unit, guid u32 +1, gossip u16 +5)` |
+| 0x33 | `FUN_0054bb20` | 0x11 | `FUN_00579510(game, unit, npc +1, item +5, mode u16 +9, price u32 +0xd)`; returns that callee's status |
+| 0x34 | `FUN_0054bba0` | 5 | `FUN_00578460(game, unit, guid)` |
+| 0x35 | `FUN_0054bb60` | 0x11 | repair: `FUN_00578050(game, unit, npc +1, item +5, u16 +9, u32 +0xd)` |
+| 0x36 | `FUN_0054bbd0` | 9 | `FUN_00577fe0(game, unit, npc +1, merc u16 +5)` |
+| 0x62 | `FUN_0054bc00` | 5 | resurrect merc: refused with 3 while game +0x70 (expansion) is 0; else `FUN_00579c00(game, unit, npc guid +1)` |
+| 0x3f | `FUN_0054c070` | 3 | emote u16 +1: outside 0x19..0x20 answers 0 and does nothing; a non-null unit with flag bit 10 (+0xc4) answers 1; else `FUN_00553380(ecx = unit, edx = emote, 0)` (a null unit passes) |
+| 0x40 | `FUN_0054c0c0` | 1 | `FUN_00546040(game, unit)` |
+| 0x48 | `FUN_0054c590` | 1 | player data (`FUN_006221a0(unit)`, unit on the stack) +0x4c zero answers 2, else `FUN_005350b0(ecx = unit)` |
+| 0x4f | `FUN_0054c7c0` | 7 | `FUN_00568060(game, unit, button u16 +1, (u16 +3 << 16) or u16 +5)`; returns that callee's status |
+| 0x53 | `FUN_0054c940` | 1 | a player (type 0) in mode 2 (walk) asks `FUN_00625480(unit, 10, 0)`; non-zero sets update flag 3 (`FUN_00624690(unit, 3)`); a null unit does nothing |
+| 0x54 | `FUN_0054c990` | 1 | a player in mode 3 (run): `FUN_00624690(unit, 2)`; a null unit does nothing |
+| 0x58 | `FUN_0054c9c0` | 3 | quest u16 +1 under 0x2a: `FUN_0065c360(record, quest, 0xc)` with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else answers 2 |
+
+Not claimed: what the hooked callees do, the click-on-map family (0x02, 0x04,
+0x06, 0x13) and the skill handlers.
