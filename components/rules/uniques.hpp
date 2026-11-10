@@ -145,7 +145,10 @@ inline std::vector<int> superunique_mods(const UMods& umods, const MonType& type
 // The Fire Golem's FUN_005a4850(0x1f, 0) (goboom) is its pet's death blast
 // (Fight::golem_blast). A golem replaced by a new one is dropped, not killed,
 // so it doesn't blow.
-// ponytail: the ancients (0x21c, FUN_005b1c50) aren't here.
+// The ancients (base 0x21c) take no mod here: FUN_005b1c50 gives each four
+// magic items (monsters.md "The ancients' gear").
+// ponytail: the ancients' gear isn't made: d2d's monsters carry no items,
+// so neither the items' stats nor the seed steps of their making are kept.
 struct ActBoss {
     std::vector<int> mods;
     bool half_freeze = false;
