@@ -1202,6 +1202,53 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   - **4** Iron Maiden (FUN_005c5f50) / **5** Life Tap (FUN_005c61e0): on
     the cursed unit, calc1 % of the damage back / as life to the attacker
     (Iron Maiden's calc2 / calc3 when the wearer is a player or pet).
+    **Iron Maiden's function, read (FUN_005c5f50; cited, decompile and
+    disassembly, no oracle run).** Every event function here is fastcall
+    with ECX the *game* (FUN_00552f60 takes it as its first argument at
+    0x5c6016, and 0x5c60fb reads game +0x6d, the difficulty), not the
+    wearer; `ret 0x14` takes five stack arguments: A (the cursed wearer,
+    which takes the hit), B (the unit it struck), C (the hit it dealt: +8 its
+    damage), the skill id, the level. Table slot 4 of 0x7325b0 is 0x7325c0,
+    the only reference to it. Steps:
+    1. 0 when B or A is missing, A is not type 0 / 1, A is dead
+       (FUN_005541b0), or C missing or C +8 under 1.
+    2. The skill row (FUN_0045c4b0, `skill_row`); a level under 0 becomes 1.
+       Row +0x82 (auratargetstate) must be in range and A must carry it
+       (FUN_00639df0), else 0. The state's stat list (FUN_006256b0) names
+       the curse's caster (owner type FUN_00625250, id FUN_006252b0), found
+       with FUN_00552f60 (it may be 0).
+    3. The percent: A a monster that is not a hireling (FUN_0063ee90 0) takes
+       calc1 (+0x138); A a player or a hireling takes calc2 (+0x13c) when B is
+       a player, else calc3 (+0x140). It is evaluated by FUN_00646ca0 with the
+       caster, the skill and the level.
+    4. A zeroed 0x70-byte hit record: damage (+8) = C +8 x percent / 100
+       (FUN_00483360); result flags (+4) |= row +0x12e | 0x20, hit flags (+0)
+       |= row +0x130, hit class (+0x60) = row +0x134. It hits A with B as the
+       source: FUN_0057c6c0 (game, B, A, 1, record) then FUN_0057cee0
+       (game, B, A, record). So the reflected damage is the row's ResultFlags
+       / HitFlags / HitClass, not a thorns number.
+    5. A leech tail, only when B is a monster of class 0x122 (the `cmp eax,
+       eax` at 0x5c60e3 is a compiler leftover: always equal): B's MonStats
+       record (FUN_0055b7e0) byte +0xa0 + difficulty (Drain) must be over 0,
+       and B must be evil (alignment FUN_006259b0 0). The reflected damage
+       (record +8) is scaled by that Drain percent unless it is 100. Then,
+       with A alive and A's owner (FUN_0058f0d0) alive or none, and the
+       scaled damage over 0, leech = 20 % of it (`lea edx,[eax+0x14]` with
+       eax = 0 from the alive test at 0x5c6152: the constant 0x14). With an
+       owner, the owner is
+       healed 50 % of it first (FUN_005c5f10, `heal_unit_life`: EAX amount in
+       256ths, EBX unit; adds to stat 6 at most up to the unit's max life and
+       returns what fitted) and the rest is reduced by it; A is healed
+       the rest, the owner whatever A could not take; overlay 0x97 (151,
+       FUN_00621e40) plays on A and on the owner. Returns 1 from step 4 on.
+    d2d: reads the same, cited from the decompile, no oracle run, on the
+    reflected share and the calc pick for a monster
+    wearer (`Monster::reflect_pct`, calc1 of "ironmaiden", states.cpp:364;
+    ai.cpp:3073 as thorns) and for a player wearer's picked row
+    (tick.cpp:550); the wearer rule is "hireling" (FUN_0063ee90 classes
+    0x10f, 0x152, 0x167, 0x230, 0x231), not "any pet": a skeleton or a
+    golem is a monster, so calc1. Not ported: the leech tail for class 0x122,
+    and the reflected hit as a full hit (its flags, hit class, resistances).
   - **22** Bone Armor (FUN_005c6370, absorbdamage): its pool stat
     (record +0x54) takes the hit's physical (+8); at 0 the state goes.
   - **24** Energy Shield (FUN_005ca6c0): calc1 % of each damage type of
