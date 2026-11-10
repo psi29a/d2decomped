@@ -1,10 +1,17 @@
 address	name	evidence
 00403040	vector_ctor_iterator	calls arg 4 arg 3 times (the MSVC array constructor loop)
+004059d0	app_mode_run	mode 1..5 (DAT_0074c704): obj = make() from 0x706554 + 8 * mode, calls its first virtual method, then done() at 0x706558 + 8 * mode; null entries raise lines 0x133 / 0x134; only caller FUN_00405c30 (runtime-support.md "The mode run")
+00406d30	user_dir_path	(buf in ESI, size in EDI): FUN_004067d0 SHGetKnownFolderPath(id 0x6cca6c) + "Diablo II", else SHGetFolderPathA CSIDL 5 + "Diablo II\\Save"; null buf line 0x44 (runtime-support.md "The per-user folder path")
+00408090	assert_caller_address	4 bytes: returns its own return address (decompile unaff_retaddr); an argument pushed at the call, 0x44 / 199 / 0x261, is not read (runtime-support.md "The internal-error path")
 0040a620	async_data_create	AsyncData.cpp: 0x54-byte record (alloc line 0x128) tagged 0x41737960 at +0x48; buffer +0x3c, size +0x40; reads inline or queued (DAT_0075af94)
 0040a9e0	async_data_result	record in ECX: +0x3c, after FUN_0040a960 when bit 0 of +0x48 is clear; null / bad tag / still unfinished end the run with errors 0x25f / 0x260 / 0x266
 0040aa40	async_data_size	record in ECX: +0x40; null / bad tag end the run with errors 0x271 / 0x272; waits for nothing
+00408b20	error_box	fastcall (class, with_location, file_line, format, va_list): logs, formats, MessageBoxA(title "Diablo II Error", 0x30); a null format is "Unrecoverable internal error %08x" line 0x8de (runtime-support.md "The error box")
+00408ce0	error_system_init	once (DAT_0074f0d0): report record at 0x74d868 incl. sprintf("D2 %i.%i%c", 1, 0xe, 100), pool "Global Pool System", self-check of tables 0x6ce268 / 0x6ce2e8 (lines 0x576 / 0x577), SErrSetBlizzardErrorFunction(FUN_00408660) (runtime-support.md "The error box")
 0040b330	fog_cos	float table at 0x707800, 512 entries, index + 0x80 & 0x1ff: a quarter turn ahead of FUN_0040b350
 0040b350	fog_sin	float table at 0x707800, 512 entries, index & 0x1ff
+00409370	pool_block_add	(block; pool in ESI) sorted insert of {block, key = *block} at pool +0x7a8, grows by 0x20 entries (realloc fail: "(1) Pool Blocks overflowed at %d", line 0x261), total +0x17a8 += size (runtime-support.md "The pool's sorted block list")
+00409490	pool_block_remove	(block; pool in ESI) removes the entry whose key equals *block, total -= size, shrinks by 0x20 when count + 0x40 < capacity (line 0x2b4); not found line 0x2bf (runtime-support.md "The pool's sorted block list")
 0040b430	alloc_checked	(file, line, flag): FUN_0040a080(file, line) and, when it returns 0, FUN_00408900(2, file, line, "") before returning it; the allocator the docs cite as FUN_0040b430
 00410b10	bits_set	ORs byte arg1[n >> 3] with the mask table 0x6ce268[n & 7]
 00410b50	bits_clear	ANDs byte arg1[n >> 3] with the mask table 0x6ce2e8[n & 7]
@@ -13,6 +20,8 @@ address	name	evidence
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
+0044bf00	global_70f234_get	no args: returns the dword at 0x70f234; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
+0044bf10	global_70f2bc_get	no args: returns the dword at 0x70f2bc; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044dcc0	is_expansion	returns DAT_007a04f4; skill_tips.py:28 sets it to 1 for an expansion game
 00451f60	unit_class_id	(unit in ECX): -1 for a null unit, else unit +4 (items.md)
 00451f70	unit_mode	ECX unit: +0x10 (structs.tsv unit.mode); null 0
@@ -20,7 +29,16 @@ address	name	evidence
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
+00461010	client_unit_dead_reset	ESI unit: clears +0xc4 bits 4 (and 2 without state 7), trims the COF list, sets stat 6 (life) to 0; FUN_00461250 commands 8 / 9 (collision.md "The client's command switch")
+00461180	skill_slot_reask	EAX unit, ESI slot {id, guid}, arg: FUN_006439b0 node, FUN_004610c0, slot id = node id, guid -1 when it changed (collision.md "The client's command switch")
+00461250	client_unit_command	fastcall (ECX command, EDX unit, record, flag) RET 8: prelude (skill list +0x14, FUN_004611f0, FUN_00620210, path restore) then the switch at 0x4616a4, mode set by FUN_00480e70 (collision.md "The client's command switch")
+00463260	client_run_stamina_stop	EAX unit, from FUN_00463390 in mode 3: the local player at stat 10 (stamina) 0 re-walks to its target or spot in walk mode (collision.md "The client's command switch")
+00463390	client_player_tick	ECX unit: per-frame step by the 12-byte mode rows at 0x711e00; walk / skill handling, frame step, end of mode, then FUN_00463260 in mode 3 (collision.md "The client's command switch")
 00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
+00463dd0	client_player	no args: returns [0x7a6a70], the client's own player (collision.md "The client's command switch"; skills.md:1793)
+00463de0	client_player_b	no args: same body as FUN_00463dd0, returns [0x7a6a70] (skills.md:1806)
+004647d0	unit_flag4_refresh	ECX unit: +0xc4 &= ~0x10000, then |= 4 unless a monster whose MonStats2 flag 9 is clear (collision.md "The client's command switch")
+004648f0	unit_target_checked	ECX unit: FUN_00480420 (drops a target FUN_00463990 no longer finds by type and GUID), then the path's target pointer; asserts 0x946 (collision.md "The client's command switch")
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")
 0046b680	client_spawn_missiles_11c	no args: client missiles of rows 0x11c, 0x128, 0x125 via FUN_004cd540, the first tagged 0x32 at data +0x28 (missiles.md "Client missile spawn: FUN_0046b680")
@@ -748,6 +766,7 @@ address	name	evidence
 00620150	unit_skill_first	(unit) -> first node of the list at unit +0xa8 (FUN_00643910); null unit asserts (Skills.cpp line 0x638) and exits; skills.md "Skill list accessors and the hotkey sweep"
 00620190	left_skill	FUN_00643930: the skill list's +8
 006201d0	right_skill	FUN_00643960: the skill list's +0xc
+00620210	unit_set_skill_node	stdcall (unit, node): FUN_00643990 stores node at the skill list header's +0x10; null unit asserts (id 0x653) and exits -1; act1-end.md:335
 00620250	unit_skill_list	fastcall (unit) -> unit +0x10 skill-list header via FUN_006439a0 (0 if none); a null unit asserts (message 0x65c) and exits -1; skills.md "Skill record and skill-list accessors"
 00620300	unit_free	FUN_00626d10, FUN_00643a60, type 6, id -1 (Units.cpp 0x69a, 0x6a4)
 00620360	tile_path_set4	type 5 static path +0xc..+0x18 (Units.cpp 0x6af, 0x6b1)
@@ -1064,6 +1083,8 @@ address	name	evidence
 00646d60	skill_passive_refresh	(unit, skill): fills the passivestate (+0x94) stat list from passivestat/passivecalc at the skill level, layer passiveitype, stats 0x15e / 0x15f = skill / level; with the +0x80 state on it removes the list instead; skills.md "Skill accessors"
 00646fd0	skill_remove	(skill, drop_level), unit in EBX: passivestate off, the three selected-skill pointers at list header +8 / +0xc / +0x10 cleared when they are this base entry, then the base entry loses a level or is unlinked and freed (Skills.cpp line 0x4ac); FUN_00646d60 refresh
 00647110	skill_grant	(unit, skill) -> entry: passivestate on; an existing base entry (+0x34 == -1) gets +0x28 += 1 (player: below FUN_004aa8b0(); monster: always), else a new 0x40-byte node (level 1, mode from record +0x10 / +0x11) joins the +0xa8 list's tail; then FUN_00646d60; Skills.cpp line 0x539
+00648050	path_end_push	(request in ESI) end += table 0x6eb490 steps while max(|dx|,|dy|) < 5, each free by FUN_0064d910; only when both |dx|, |dy| < 5 and not both 0 (collision.md "Is a subtile blocked for a unit")
+00648120	path_end_walk_back	(request in EAX) a blocked end moved to the first free of three tries toward the start; 0 when none or it reaches the start, 1 else (a player's also FUN_00648050); only caller FUN_00649970 on path flag 0x1000 (collision.md "Is a subtile blocked for a unit")
 00648300	unit_path_pair	(unit, &a, &b): 0 / 0 without a unit, FUN_00622d00, or path +0x28; else the dwords at path +0x72 / +0x76 >> 11 through FUN_00643290 (collision.md "Building a path")
 00648480	monster_path_mask	(unit in EAX): MonStats row flag +0xd & 0x40 flying 0x1804, else +0xc & 8 opendoors 0x3401, else 0x3c01; no null check on the row (collision.md "Building a path")
 00648580	unit_path_pattern	(unit, SizeX): table 0x6eb3dc (0, 1, 1, 2; over 3: 1); 1 / 2 become 3 / 4 for a town or owned unit (FUN_0063e860) that isn't interact (collision.md "Building a path")
@@ -1084,6 +1105,7 @@ address	name	evidence
 0064a780	missile_target_y	unit type 3 with data (+0x14): data +0x2c; else 0
 0064c350	unit_link_in	(unit, room): FUN_0064c2c0(unit, room, 1), which asserts both, pushes the unit on a list (drlg.md:1299) (collision.md "Building a path")
 0064d060	grid_set_rect_bits	fastcall (room, rect, bits): room holding the rect, split by FUN_0064cdf0, bits ORed into the first piece (FUN_0064cd70), recursion for the rest (collision.md "The stamp family")
+0064d910	unit_blocked_at	(room, x, y, pattern, mask) non-zero blocked: 0 FUN_0064d450, 1 / 3 / 5 the plus FUN_0064d4e0, 2 / 4 the box FUN_0064d7c0, else 1 (collision.md "Is a subtile blocked for a unit")
 0064dc80	grid_set_plus_bits	(room, bits; subtile in registers): ORs bits into (x-1,y), (x,y), (x+1,y), (x,y-1), (x,y+1), each cell finding its own room (collision.md "The stamp family")
 0064ddb0	grid_set_point_bits	(room, x, y, bits): ORs bits into the one subtile's grid word if a room holds it (collision.md "The stamp family")
 0064de30	grid_set_footprint_bits	(room, x, y, w, h, bits): 1 x 1 FUN_0064caf0 (one subtile), else FUN_0064d060 (the box); an object's footprint, from FUN_00649400 (collision.md "Building a path")
@@ -1169,6 +1191,7 @@ address	name	evidence
 0066edb0	room_tiles_count_orients	thiscall (room, skipFirst, skipLast): per cell of the orient grid, block +0x18 += 1 when the orient is 3, 10 or 11; the +0x20 += 6 branch is dead (FUN_0067c570 read twice)
 0066eea0	room_tiles_alloc	allocates room +0x54 once: 0x2c bytes zeroed, from ".\DRLG\RoomTile.cpp" line 0x533; called first by FUN_0067d710, FUN_0067d2d0, FUN_00666ac0
 0066eee0	room_tiles_alloc_arrays	fastcall (room): block = room +0x54; walls +0x14 (capacity +0x18, line 0x545), floors +0x1c (+0x20, line 0x54b), shadows +0x24 (+0x28, line 0x551, only when +0x24 is 0); 0x30 bytes per entry, zeroed; ".\DRLG\RoomTile.cpp"
+00678df0	goal_dir_bytes	thiscall (out, a, b): out[0..2] = bytes 0x6f1648 + 3 * FUN_00678c10(a, b), widened (collision.md "Is a subtile blocked for a unit")
 006be3c0	qs_flush_queues	every class head/tail cleared, records freed
 006be450	qs_client_count	+0x880
 006be470	qs_is_local	+0x86c is 1 or 2
