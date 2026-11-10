@@ -162,6 +162,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | BNNews 0x46 reply merge, cutoff and callback order (cache writer hooked; signed count guard) | `uv run python bnnews_reply.py` | `ok` |
 | Click-on-unit handlers of PlrMsg.cpp: the shared click check, walk / run to entity, skill on entity (left, right, no approach, held) and interact (FUN_00549830 ... FUN_0054aa90; callees hooked and logged) | `uv run python plrmsg_click.py` | `ok: 1680 PlrMsg click-on-unit handler cases` |
 | Location handlers of PlrMsg.cpp: the shared location check, walk / run to x, y, skill at x, y (left, right, held), the cast, the inventory-full message and the keepalive (FUN_005496f0 ... FUN_0054a140; callees hooked and logged) | `uv run python plrmsg_loc.py` | `ok: 1732 PlrMsg location handler cases`; `--mutation-check` plants 55 defects |
+| Server packet builders of SCmd.cpp and their queue (FUN_0053b280 ... FUN_0053e9b0, 34 functions: fixed layouts, struct copies, 1/2/4-byte tiers, bit-packed 0x95 / 0x96, fatal reports; the queue unhooked on a fake client; `--mutation-check` 35 ways) | `uv run python scmd_senders.py` | `ok: 2263 SCmd.cpp builder and queue cases match the stock code` |
 
 ## When it breaks
 

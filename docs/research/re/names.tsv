@@ -261,8 +261,8 @@ address	name	evidence
 00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60 (ECX = client +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
 005379d0	unit_look_codes	fastcall (_, unit, out, size): asserts 0x3d4 for size < 0x10 or no unit, out = 0xff x16, FUN_0063e510 fills it with the layer codes (items.md)
 00537a40	unit_look_tints	fastcall (_, unit, out, size): as FUN_005379d0 (assert 0x3df) but out receives the layer tints (items.md)
-0053cb30	scmd_pet_list_7a	queues the 13-byte S->C packet 0x7a (+1 EDX add flag, +2 PetType row, +3 u16 class, +5 owner id, +9 pet id) with FUN_0053b280 (pet-ai.md "The owner's pet lists")
-0053cb80	scmd_assign_merc_81	queues the 20-byte S->C packet 0x81 (+1 byte, +2 u16 class, +4 owner id, +8 pet id, +0xc / +0x10 words) with FUN_0053b280 (pet-ai.md "The owner's pet lists")
+0053cb30	scmd_pet_list_7a	queues the 13-byte S->C packet 0x7a (+1 EDX add flag, +2 PetType row, +3 u16 class, +5 owner id, +9 pet id) with FUN_0053b280 (pet-ai.md "The owner's pet lists"); verified scmd_senders.py
+0053cb80	scmd_assign_merc_81	queues the 20-byte S->C packet 0x81 (+1 byte, +2 u16 class, +4 owner id, +8 pet id, +0xc / +0x10 words) with FUN_0053b280 (pet-ai.md "The owner's pet lists"); verified scmd_senders.py
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
 0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
@@ -1090,3 +1090,35 @@ address	name	evidence
 00549fa0	scmd_keepalive	C->S 0x0b (1 byte): size 1 else 3; verified plrmsg_loc.py
 00549fc0	scmd_right_skill_on_location	C->S 0x0c: as 0x05 with the right skill (FUN_006201d0); verified plrmsg_loc.py
 0054a140	scmd_right_skill_on_location_held	C->S 0x0f: as 0x08 for the right skill, delegating to 0x0c; verified plrmsg_loc.py
+0053b280	scmd_queue	appends a packet (buffer, size; client in EDI) to the client's 0x208-byte block list (head +0x1b8, tail +0x1bc, free list +0x1c0); no size check; verified scmd_senders.py
+0053b320	scmd_send_id	S->C 1-byte packet, the id in DL (the "loading" 0x00); verified scmd_senders.py
+0053b340	scmd_game_flags	S->C 8 bytes: id, difficulty (game +0x6d), FUN_0053fd40 dword, game +0x70 != 0, game +0x74 != 0; verified scmd_senders.py
+0053b390	scmd_load_act	S->C 12 bytes: id, u8, u32 +2, u16 +6, u32 +8 (net-join.md load act); verified scmd_senders.py
+0053b430	scmd_monster_hit	S->C 9 bytes: id, u8, u32 +2, three bytes (net-packets.md 0x0c hit); verified scmd_senders.py
+0053b4b0	scmd_unit_stop	S->C 13 bytes (0x0d stop layout); byte a0 of 6 or more is fatal (line 0x136); verified scmd_senders.py
+0053b520	scmd_move_to_unit	S->C 16 bytes (0x10 move to unit layout); verified scmd_senders.py
+0053b570	scmd_move_to_xy	S->C 16 bytes (0x0f move to x, y layout); byte a0 of 6 or more is fatal (line 0x166); verified scmd_senders.py
+0053b9f0	scmd_monster_pkt_a	S->C 12 bytes: id, u32 +1, two bytes, u32 +7, byte +0xb (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
+0053ba40	scmd_monster_pkt_b	S->C 12 bytes: id, u32 +1, byte, u16 +6, u16 +8, two bytes (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
+0053baa0	scmd_monster_pkt_c	S->C 16 bytes: id, u32 +1, two bytes, u32 +7, byte, two u16 (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
+0053bb00	scmd_monster_pkt_d	S->C 16 bytes: id, u32 +1, byte, two u16, two bytes, two u16 (one of the 0x69..0x6c builders, which is not settled); verified scmd_senders.py
+0053bb70	scmd_monster_stop_6d	S->C 10 bytes: 0x6d, u32 EDX, u16 x, u16 y, byte life; verified scmd_senders.py
+0053bc10	scmd_pkt_11	S->C 11 bytes: id, byte, u32 +2, u16 +6, u16 +8, byte +0xa; sent when a player comes into the game (combat.md, FUN_005394a0); verified scmd_senders.py
+0053bdd0	scmd_experience	S->C experience: d = EDX - a0; 0x1a byte add (d 0..0xfe), 0x1b word add, 0x1c set EDX (d above 0xfffe or negative); verified scmd_senders.py
+0053be40	scmd_set_stat	S->C own stat: 0x1d byte / 0x1e word / 0x1f dword value by a0 (below 0xff / 0xffff); EDX u16 stat 0xff or more is fatal (line 0x3cb); verified scmd_senders.py
+0053bee0	scmd_set_unit_stat	S->C other unit's stat set: 0x9e byte / 0x9f word / 0xa0 dword, unit id +0xc (-1 for null); stat 0xff or more fatal (line 0x3f5); verified scmd_senders.py
+0053bfd0	scmd_add_unit_stat	S->C other unit's stat delta d = a2 - a1: 0xa1 byte, 0xa2 word, else (delta 0xffff or more, or negative) 0xa0 with a1 (the old value, bugs.md 94); stat 0xff or more fatal (line 0x42d); verified scmd_senders.py
+0053c320	scmd_walk_95	S->C 0x95 bit-packed, 13 bytes: 8 id, 15 EDX, 15, 15, 16, 16, 8, 8; verified scmd_senders.py
+0053c3f0	scmd_walk_96	S->C 0x96 bit-packed, 9 bytes: 8 id, 15 EDX, 16, 16, 8, 8; verified scmd_senders.py
+0053c590	scmd_set_skill_23	S->C 0x23 (13 bytes): EDX byte, u32 +2, byte hand, u16 skill, u32 item; verified scmd_senders.py
+0053c900	scmd_copy_10	S->C 10 bytes copied from the structure EDX points at (0x53 act values); verified scmd_senders.py
+0053d2e0	scmd_clear_cursor_42	S->C 0x42 (6 bytes): byte at EDX+0 and dword at EDX+0xc, or 6 and -1 for a null EDX; verified scmd_senders.py
+0053d4d0	scmd_skill_at_xy	S->C 17 bytes: 0x4d, or 0x9a when the last stack word is non-zero; verified scmd_senders.py
+0053d710	scmd_copy_6	S->C 6 bytes copied from the structure EDX points at; verified scmd_senders.py
+0053d780	scmd_copy_8	S->C 8 bytes copied from the structure EDX points at (0x2c); verified scmd_senders.py
+0053d7e0	scmd_copy_15	S->C 15 bytes copied from the structure EDX points at; verified scmd_senders.py
+0053d8d0	scmd_copy_7	S->C 7 bytes copied from the structure EDX points at (0x58 reply); verified scmd_senders.py
+0053d960	scmd_copy_21	S->C 0x15 bytes copied from the structure EDX points at (0x63); verified scmd_senders.py
+0053e020	scmd_pong	S->C 0x8f then 32 zero bytes (33); verified scmd_senders.py
+0053e060	scmd_copy_26	S->C 0x1a bytes copied from the structure EDX points at; verified scmd_senders.py
+0053e9b0	scmd_gold	S->C gold: d = EDX - a0; 1..0xfe is 0x19 + byte, else the stat 0x0e set packet (1d / 1e / 1f 0e) of EDX; verified scmd_senders.py
