@@ -66,7 +66,7 @@ Cached in bncache.dat as `BNNews-D2DV` (pointer at `0x72ff80`).
 |---|---|
 | `FUN_0051d2f0` | Selects the array growth step; for requested sizes ≥ 8 stores and returns 8 |
 | `FUN_0051d330` | Rounds the first unsigned argument up to a multiple of the second (nonzero) |
-| `FUN_0051d370` | Saves the unread items to the cache: newest, count (fatal over 0xff), then timestamp + string each; texts ≥ 0x400 abort |
+| `FUN_0051d370` | Saves the unread items to the cache: newest, count (fatal over 0xff), then timestamp + string each; texts ≥ 0x400 return failure |
 | `FUN_0051d510` | Calls the header callback (`0x881c2c`) once, then the item callback (`0x881c28`) once per unread item |
 | `FUN_0051d590` | Array deleting destructor; orphan (stubs.md) |
 | `FUN_0051d5d0` | Array resize to N items (Storm realloc, else alloc + copy) |
