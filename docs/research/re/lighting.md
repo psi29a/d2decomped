@@ -185,8 +185,11 @@ Diablo's release (`Town::event_ambient`, `rules::release_light`: the View's
 every light's. The dip (`rules::AmbientDip`, `Town::dip_tick` each client
 frame) starts from Cloak of Shadows' state on the player or a Shadow
 (`Fight::cloaks`, `World::cloak_dips`: every player gets it, as each client
-sees the state set); a joined game's state 153 (0xa8 / 0xaa) doesn't start
-one. The Cairn Stones' event 1 isn't built: todo.md #44.
+sees the state set), and from the Cairn Stones opening (`World::cain_operate`,
+`rules::cairn_dip` from Missiles.txt's row: every player in Stony Field gets
+it, where game.exe's client needs a StoneAlpha, object 17, in its near rooms,
+`FUN_0065a620`; `test_cairn_dip`). A joined game's state 153 (0xa8 / 0xaa)
+and event 1 don't start one.
 
 The fill runs over the whole grid for the player's room, then for each other
 room in its near list (`FUN_00619790`, `FUN_00619730`) over the cells under
