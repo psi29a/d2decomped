@@ -19,6 +19,7 @@ address	name	evidence
 00410e90	bitreader_bytes_used	reader +8, plus 1 when +0xc is nonzero (a partly read byte counts); FUN_0062e430 returns it
 00411670	storm_file_line_hash	SMemAlloc's file/line hash, one-entry cache (chat-ignorelist.md)
 00413020	storm_mem_alloc	SMemAlloc(size, file, line, flags): Ignorelist.cpp line 0x48 call (chat-ignorelist.md)
+00451880	message_record_dispatch	ECX record (+0 frame stamp, must equal FUN_0044da90 else line 0x12a; +4 msg, +8 wParam, +0xc lParam): FUN_00420b00 looks up the SMSG/SMSH/SMSI/SMSJ handlers; only caller FUN_004519c0's queue walk (net-join.md "Who calls the shutdown")
 00451f30	unit_flags_c4_any	ECX unit, EDX mask: unit +0xc4 & mask != 0; null unit false (cursor-units.md "Unit flag test")
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 0044da40	mouse_buttons_reset	0x70f234 = 0x70f2bc = 0x10 (both buttons up), 0x7a0650 / 0x7a0654 / 0x7a066c / 0x7a0670 = 0, then jumps to FUN_00466fe0 (collision.md "The mouse-button state words")
