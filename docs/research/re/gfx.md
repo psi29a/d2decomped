@@ -91,7 +91,7 @@ size, `+0xc` 512 hash buckets. The bucket hash is
 | `FUN_0046e150` | Sets `+8` of the unit's overlays of row EDX; a kind other than 1 is fatal (0x205). No caller |
 | `FUN_0046e1b0` | Draws the unit's overlays of row EDX at (x, y) in two passes (front, back by `+0x34`), skipping kind 6 without `+8` and kind 8 without `+0x3c`; Overlay.txt row at `0x744304 + 0xbbc`, 0x84 bytes. Caller `FUN_00453470` |
 | `FUN_0046e300` | Draws all of a unit's overlays at its screen spot (or its automap spot in the perspective modes, shifted a quarter screen for a side panel as [bugs.md](bugs.md) #38 says), plus the motion offsets; Overlay.txt `+0x81` may trigger `FUN_00477680` |
-| `FUN_0046f0c0` | Removes (`FUN_0046e040`) the first overlay of row n (or kinds 4 / 9 naming it at `+8` / `+0xc`); a bad row is fatal (0xca9) |
+| `FUN_0046f0c0` | Removes (`FUN_0046e040`) the first overlay of row n; for either kind 4 or 9, a match at either `+8` or `+0xc` also qualifies. A bad row is fatal (0xca9) after a unit and graphics record are found (`tools/emu/engine_overlay_remove.py`; removal hooked) |
 | `FUN_0046f170` | Removes all of a unit's overlays |
 | `FUN_004dad50` | Overlay.txt `+0x80` of row EAX (1 when out of range) |
 
