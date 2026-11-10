@@ -19,6 +19,8 @@ three getters.
 ## The unit's graphics record
 
 Unit `+0x54` (`FUN_00463e10`), 0x3c bytes from `FUN_0046ebb0` (line 0x804):
+the function zeroes the record and sets `+0x34` and `+0x38` to 2; allocation
+failure is fatal at line 0x805 (`tools/emu/engine_gfx_alloc.py`, pool hooked).
 
 | Offset | What |
 |---|---|

@@ -79,6 +79,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | GfxUtil armor tier output FUN_004daab0 (equipment and table lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_armor_tiers.py` | `ok: 128 ENGINE armor tiers cases` |
 | GfxUtil cel visibility FUN_004dab40 (metric getters hooked; `--mutation-check` 3 ways) | `uv run python engine_cel_bounds.py` | `ok: 512 ENGINE cel bounds cases` |
 | GfxUtil direction conversion FUN_004db290 (lookup hooked; `--mutation-check` 3 ways) | `uv run python engine_direction.py` | `ok: 512 ENGINE direction conversion cases` |
+| Gfx.cpp record allocation FUN_0046ebb0 (pool allocator hooked; `--mutation-check` 3 ways) | `uv run python engine_gfx_alloc.py` | `ok: 24 ENGINE graphics allocation cases` |
 | Small Gfx.cpp / GfxUtil.cpp helpers: COF list, layer flags, overlay test, cache getters, COF header layer lookups, token and row helpers, the unused list helpers (FUN_0046e100 ... FUN_0046f9d0, FUN_004da720 ... FUN_004db1c0; `--mutation-check` 11 ways) | `uv run python engine_gfx_small.py` | `ok: 816 ENGINE Gfx.cpp / GfxUtil.cpp helper cases` |
 | GfxUtil base mode token FUN_004daa00 (player/object lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_mode_token.py` | `ok: 120 ENGINE mode token cases` |
 | Unit motion record (ENGINE\\Particle.cpp, FUN_004da000 ... FUN_004da6e0 incl. the per-tick step FUN_004da350, FUN_0046f060, FUN_0046f070; the pool, owner and screen-conversion callees hooked; `--mutation-check` 7 ways) | `uv run python engine_motion.py` | `ok: 1048 unit motion record cases` |
