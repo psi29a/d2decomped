@@ -169,13 +169,13 @@ operand and function lists.
 Entry, per-calc-string field on the Skills.txt loader (`FUN_00613f80`):
 
 ```
-FUN_00611bd0(text, out_field_offset, record_base)
+FUN_00611bd0(text in ECX, record in EDX; stack: offset, size, row, column)
   buf[1024]; len = FUN_006c1ae0(text, buf, 1024, LAB_00611930, LAB_006119e0, FUN_006119f0)
-  if (len > 0) *((u32*)(record_base + out_field_offset)) = FUN_006118b0(pool=0x0096bc78, buf, len)
-  else                                                     ... = 0xffffffff
+  if (len > 0) *((u32*)(record + offset)) = FUN_006118b0(&0x96bc70 buffer, &0x96bc74 size, &0x96bc78 capacity, buf, len)
+  else                                           ... = 0xffffffff
 ```
 
-`FUN_006118b0` copies the bytecode into a shared pool (`DAT_0096bc78`) and returns its offset; that's what a Skills.txt record's `calc1..4` field ends up holding. For missiles, the mirror wrapper is `FUN_00611c70` (same shape, `FUN_00661880` as its lookup with the misscalc table).
+`FUN_006118b0` copies the bytecode into a shared growing buffer (pointer `DAT_0096bc70`, size `0x96bc74`, capacity `0x96bc78`) and returns its offset; that's what a Skills.txt record's `calc1..4` field ends up holding. The mirror wrapper `FUN_00611c70` has the same shape and the same three callbacks (not a misscalc lookup); it fills the skill description buffer (`0x96bc7c` / `0x96bc80` / `0x96bc84`). Both run in `tools/emu/datatbls_finish.py` (datatbls.md "Fourteen more functions").
 
 **Compiler**: `FUN_006c1ae0(text, out_buf, buf_size, name→fn_tag_cb, fn_tag→arity_cb, ident→operand_cb)`. It's a **shunting-yard** with an operator stack of 64 slots (`local_151[]` for token classes, `auStack_114[]` for values). The tokenizer is `FUN_006c11c0`; the byte emitter is `FUN_006c18a0` (bounds-check + write); the arity-at-pop lookup is `FUN_006c1820`.
 
@@ -325,6 +325,28 @@ lines (missile names aren't passed in). What it does:
   data +0x16 & 8, set by FUN_005a0320 on every unique, champion and
   superunique placed (FUN_005a09e0, FUN_005a48c0, FUN_005a4940), not on
   minions. d2d: `Fight::land`.
+  Read again whole (cited, decompile only; stack `length`, the struck unit
+  in EDI, the attacker as the first argument): the order is **length < 1
+  returns; for a monster target: the special test and its 90 % draw first,
+  then the boss test, then Velocity (+0x32) 0, then the hireling cap**. So a
+  special monster that is also immune (a boss-column unique, say a
+  superunique) still takes a step of the attacker's seed (`FUN_005a0180`
+  true, seed +0x20 / +0x24 stepped, `% 100 < 90` returns) before the boss
+  test returns. The length is capped at 250 for everything but a hireling
+  (`FUN_0063ee90`), whose length over 12 becomes 13; a non-monster target
+  has only the 250 cap and no immunity test. The end frame is the game's
+  frame (+0xa8) plus the length; with state 0x15 already on, its stat list is
+  moved to the new end (`FUN_00625310`: replaced, not kept at the longer),
+  event 0xc is set for it (`FUN_005417d0`); with none, a list is made
+  (`FUN_006251f0`, kind 2, owner the attacker), `FUN_0056e900` is its end
+  callback and state 0x15 goes on. d2d (`strike.cpp:511`): reads the same,
+  cited from the decompile, no oracle run, on the
+  special 90 %, the boss and Velocity tests, the 250 cap and the
+  replacement. DISAGREES in the order: d2d tests boss / Velocity first and
+  draws only for a stunnable special, so an immune special costs game.exe a
+  seed step and d2d none (and d2d's `rng(100)` is not shown to be the
+  attacker's unit seed). Re-check: `python3 tools/ghidra/fn.py 0057aae0
+  005a0180 0063e9f0 0063ee90`.
 - Concentrate: aurastate `concentrate`, aurastat1 skill_armor_percent =
   ln34 (100 + 10 per level); calc4 = Berserk's level, % to magic.
 
@@ -873,6 +895,38 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   FUN_0064e260), 0x20000 (FUN_00622c40), 0x80000 (state 0x56).
   Re-check: `python3 tools/ghidra/fn.py 0056b3e0` (and 0056b7e0, 005cf010,
   005cf3a0, 005d0920); the rows from Skills.txt's aurafilter column.
+- **FUN_0056b3e0 whole: the other unit types and the order** (cited,
+  decompile only; ECX the caster, EDX the unit tested, stack `flags`). A
+  null target fails. By the target's type, in this order:
+  - type 0 (player): needs 0x1; with 0x1000 only mode 0x11 (dead) passes,
+    else mode 0x11 and mode 0 fail;
+  - type 1 (monster): as above (0x2, then 0x1000 / mode 0xc and 0, then
+    0x4, 0x4000, 0x40000);
+  - type 2 (object): needs 0x10, nothing more; type 4 (item): needs 0x20;
+  - type 3 (missile): needs 0x8 and its Missiles.txt row
+    (`FUN_0046ace0`, id in ECX, stride 0x1a4 from `[0x744304]+0xb64`) must
+    exist with row byte +4 bit 1 (mask 2) **clear**; which column that is is
+    not read;
+  - any other type fails.
+  Then, for each of types 0 to 4 that got past its own branch (they all fall into the same tail): 0x80 passes only a target with unit flags +0xc4
+  bit 2, 0x400 only one with bit 3; 0x100 fails a target whose room's area
+  is a town (`FUN_0061ab00` of `FUN_00620bb0`, the same test `FUN_0057c6c0`
+  uses); 0x10000 (ally, `FUN_00554de0`) and 0x8000 (enemy, `FUN_00554200`)
+  and 0x20000 (`FUN_00622c40(caster, target, 0)`) each first replace a
+  **missile caster** (type 3) by its owner (`FUN_00552fd0`; no owner
+  fails), and 0x10000 also fails a monster whose MonStats +0xd bit 0 is
+  set; 0x80000 fails a target in state 0x56; 0x200 passes only when both
+  units have a room and `FUN_0064e260` over their two positions
+  (`FUN_0045adf0` / `FUN_0045ae20`, mask 4) returns 0 (a missing room
+  fails); no 0x200 → pass. d2d's
+  `aura_filter_takes` agrees on the monster bits it lists, with these
+  differences: it has no player / object / item / missile branches (an aura
+  only ever strikes a `Monster` here), no mode-0 exclusion for a monster
+  (`Fight::aura_takes` passes `dead = !alive()`; game.exe tells mode 0 and
+  0xc apart and passes only 0xc when 0x1000 is set), and 0x10000 does not
+  fail the MonStats +0xd bit 0 monsters. Those two are the DISAGREES (not
+  played out: no aura in the 1.14d rows above sets 0x1000, and which
+  monsters carry +0xd bit 0 is not read here).
 - A monster's curse or enemy-aura lowering of a resistance whose base is
   100 or more counts a fifth, truncated toward 0 (FUN_005c3540, from the
   callbacks of do 30, 65 and 66): `apply_target_stats` takes the base.
@@ -1201,7 +1255,54 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
     FUN_0057c6c0, FUN_0057cee0), the overlay.
   - **4** Iron Maiden (FUN_005c5f50) / **5** Life Tap (FUN_005c61e0): on
     the cursed unit, calc1 % of the damage back / as life to the attacker
-    (Iron Maiden's calc2 / calc3 when the wearer is a player or pet).
+    (Iron Maiden's calc2 / calc3 when the wearer is a player or hireling).
+    **Iron Maiden's function, read (FUN_005c5f50; cited, decompile and
+    disassembly, no oracle run).** This one is fastcall
+    with ECX the *game* (FUN_00552f60 takes it as its first argument at
+    0x5c6016, and 0x5c60fb reads game +0x6d, the difficulty), not the
+    wearer; `ret 0x14` takes five stack arguments: A (the cursed wearer,
+    which takes the hit), B (the unit it struck), C (the hit it dealt: +8 its
+    damage), the skill id, the level. Table slot 4 of 0x7325b0 is 0x7325c0,
+    the only reference to it. Steps:
+    1. 0 when B or A is missing, A is not type 0 / 1, A is dead
+       (FUN_005541b0), or C missing or C +8 under 1.
+    2. The skill row (FUN_0045c4b0, `skill_row`); a level under 0 becomes 1.
+       Row +0x82 (auratargetstate) must be in range and A must carry it
+       (FUN_00639df0), else 0. The state's stat list (FUN_006256b0) names
+       the curse's caster (owner type FUN_00625250, id FUN_006252b0), found
+       with FUN_00552f60 (it may be 0).
+    3. The percent: A a monster that is not a hireling (FUN_0063ee90 0) takes
+       calc1 (+0x138); A a player or a hireling takes calc2 (+0x13c) when B is
+       a player, else calc3 (+0x140). It is evaluated by FUN_00646ca0 with the
+       caster, the skill and the level.
+    4. A zeroed 0x70-byte hit record: damage (+8) = C +8 x percent / 100
+       (FUN_00483360); result flags (+4) |= row +0x12e | 0x20, hit flags (+0)
+       |= row +0x130, hit class (+0x60) = row +0x134. It hits A with B as the
+       source: FUN_0057c6c0 (game, B, A, 1, record) then FUN_0057cee0
+       (game, B, A, record). So the reflected damage is the row's ResultFlags
+       / HitFlags / HitClass, not a thorns number.
+    5. A leech tail, only when B is a monster of class 0x122 (the `cmp eax,
+       eax` at 0x5c60e3 compares a register with itself, so its jne falls through on this path): B's MonStats
+       record (FUN_0055b7e0) byte +0xa0 + difficulty (Drain) must be over 0,
+       and B must be evil (alignment FUN_006259b0 0). The reflected damage
+       (record +8) is scaled by that Drain percent unless it is 100. Then,
+       with A alive and A's owner (FUN_0058f0d0) alive or none, and the
+       scaled damage over 0, leech = 20 % of it (`lea edx,[eax+0x14]` with
+       eax = 0 from the alive test at 0x5c6152: the constant 0x14). With an
+       owner, the owner is
+       healed 50 % of it first (FUN_005c5f10, `heal_unit_life`: EAX amount in
+       256ths, EBX unit; adds to stat 6 at most up to the unit's max life and
+       returns what fitted) and the rest is reduced by it; A is healed
+       the rest, the owner whatever A could not take; overlay 0x97 (151,
+       FUN_00621e40) plays on A and on the owner. Returns 1 from step 4 on.
+    d2d: reads the same, cited from the decompile, no oracle run, on the
+    reflected share and the calc pick for a monster
+    wearer (`Monster::reflect_pct`, calc1 of "ironmaiden", states.cpp:364;
+    ai.cpp:3073 as thorns) and for a player wearer's picked row
+    (tick.cpp:550); the wearer rule is "hireling" (FUN_0063ee90 classes
+    0x10f, 0x152, 0x167, 0x230, 0x231), not "any pet": a skeleton or a
+    golem is a monster, so calc1. Not ported: the leech tail for class 0x122,
+    and the reflected hit sent as a hit record (its flags and hit class; resistances not traced).
   - **22** Bone Armor (FUN_005c6370, absorbdamage): its pool stat
     (record +0x54) takes the hit's physical (+8); at 0 the state goes.
   - **24** Energy Shield (FUN_005ca6c0): calc1 % of each damage type of
@@ -1488,6 +1589,21 @@ Cited from the decompile (no oracle run); re-check with
   list. d2d: **agrees** with skills.hpp:765-774 and skills.md:674; this adds
   the invalid-stat break, level 0 removing the list, and the removal while the
   aura state is on.
+- **FUN_0056de40**(unit in ECX) (37 bytes): refreshes that unit's passives,
+  then, when it is a player, rebuilds pet limits. The asm (0056de40..0056de64)
+  saves ECX and calls FUN_00646f20 with the unit on the stack (the callee
+  pops it: both exits pop once and return). A null unit, or a type dword
+  (`+0`) other than 0, returns after that refresh. A player calls
+  FUN_00554010 (ECX = the unit; it returns the dword at unit `+0x80`, and
+  asserts line 0xa29 on a null) and tail-jumps to FUN_00575900 with that
+  dword in ECX and the unit in EDX. FUN_00575900's decompiled body does not
+  read ECX. It walks the player's skills and sets each PetType row's max
+  (pet-ai.md). FUN_005d8290 calls it at 0x5d83c7 with the unit that just
+  received the aura state: its EDX, stored at `[ebp-4]`, loaded into EBX,
+  then into ECX. Eight other call instructions: 0x532f15, 0x534622,
+  0x54be5a, 0x56a7be, 0x583be1, 0x583c5a, 0x5c9468, 0x5d8f38. d2d: **not
+  ported**. The aura-state cites (ai.cpp, fight.hpp, missiles.cpp) stop at
+  FUN_005d8290. Passives are derived on read (`rules::passive_stats`).
 - **FUN_0056dfa0**(unit, in ECX): for every node of the list at unit +0xa8
   (FUN_00643910 / FUN_006438f0): id = FUN_00643ce0(node); if
   FUN_00643690(id) > 0, FUN_00639db0(unit, passivestate, 1) then
@@ -2222,3 +2338,30 @@ Already in d2d's table: 22 Nova (Frost Nova, DiabFire), 24 wall
 | Imp Inferno (282) | 59 FUN_005d1280 | 126 FUN_005d1350 | start: end frame + calc1 (rand(par3, par4)), state 0xc; do: a flame (srvmissilea) at the target every 3 frames till the end, its range calc2 + Missiles Param2 |
 | Imp Teleport (330) | — | 129 FUN_005d1ab0 | riding: off at the free spot nearest the point (FUN_005d19d0); at an unbound live unit: onto it and mount (FUN_005d18e0, special 16); else MonTeleport (FUN_005ccc80) |
 | Imp Fire Missile (299) | — | 132 FUN_005d2090 | caster flag 0x40; srvmissilea + TransLvl (MonStats +0x4b) at the target (FUN_0056ecb0), the imp's A1 damage by SrcDamage |
+
+### The skill target point (FUN_0056d2c0; Blade Sentinel, do 44)
+Cited from the decompile (no oracle run); re-check with
+`python3 tools/ghidra/fn.py 0056d2c0`.
+
+- **FUN_0056d2c0**(ECX game, EDX caster, out x, out y) -> 1 when both are
+  non-zero. FUN_00553540 gives the target unit of the caster's path
+  (`+0x2c`; FUN_00648bf0 reads path `+0x58`), or 0 when that unit is the
+  caster itself. With a unit: its x / y (unit types 2, 4, 5 read `+0xc` /
+  `+0x10` of the unit's `+0x2c` struct; other types the path's x / y
+  getters, 0 with no path). Without one: the caster path's target words
+  (FUN_00648a00 / FUN_00648a10, `+0x10` / `+0x12`).
+  Callers: FUN_0056d940, FUN_0056dbc0, FUN_0056e450, FUN_0056e780,
+  FUN_0056ecb0 and others (game-calls.tsv). d2d: reads the same, cited from the
+  decompile, no oracle run (ai.cpp:2034, ai.cpp:2811, missiles.cpp:552 and
+  strike.cpp:889 cite it); d2d's `to_x` / `to_y` stand for the point.
+- **Do 44** (FUN_005d6020, Blade Sentinel), read from the decompile: it
+  needs the skill id in range of `[0x744304]+0xba0` and a non-null record;
+  FUN_0056e620 non-negative; the caster's `+0xc4 |= 0x40`; FUN_0056d2c0's
+  point; then FUN_005d5e10 (the summon do 45 uses) makes a monster, and
+  FUN_00554ea0 and FUN_0058ef40 are called with the caster's and the
+  point's coordinates; FUN_005417d0(2, `+0xa8` + 1) is called, and the new
+  monster's `+0xc4` loses bit 3. d2d runs the missile row instead
+  (`missiles.cpp`, `kBladeSentinel`). Not closed: the monster's walk out
+  and back and its hits are not traced (the helpers above are named, not
+  read) and d2d has no moving trap monster (`summons.cpp` places them at
+  rest), so the `ponytail:` stays.

@@ -96,6 +96,17 @@ private:
     }
 };
 
+// Diablo's release (lighting.md "What fills it"): S->C 0x89 event 12
+// (FUN_005b5230 as the sanctuary's cleared; the client's 0x46b290 sets
+// 0x7a7460 in any level) fills River of Flame and the Chaos Sanctuary at
+// 160, (255, 64, 48), ahead of their own light (FUN_0046bdd0, asked first
+// by FUN_00474550). Event 13 (classic only, at Diablo's death) ends it at
+// once; in LoD it holds until the next game. -1: the level's own light.
+inline constexpr int kReleaseLight = 0xa0;
+constexpr int release_light(int level_id, bool released) {
+    return released && (level_id == level_ids::kRiverOfFlame || level_id == level_ids::kChaosSanctuary) ? kReleaseLight : -1;
+}
+
 // The client's light grid (0x7b0e68): subtiles around the player
 // (FUN_00475800), an intensity each. Positions are in eighths of a
 // subtile, the way lights hold them (unit position >> 13, + 4).

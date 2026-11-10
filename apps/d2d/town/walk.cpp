@@ -450,6 +450,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             return;
         }
         if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) { quest_quakes.push_back({ quake->kind, frame_ms }); return; }
+        if (const auto* ambient_dip = std::get_if<ev::AmbientDip>(&event)) { dip.start(ambient_dip->fade_in, ambient_dip->hold, ambient_dip->back, ambient_dip->level); return; }
         if (std::holds_alternative<ev::Lightning>(event)) { rain.set_off(); return; }
         if (std::holds_alternative<ev::Reassigned>(event)) {
             rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));

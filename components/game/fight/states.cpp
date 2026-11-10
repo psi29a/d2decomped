@@ -119,6 +119,7 @@ auto Fight::start_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t n
             (skill.aurastate == "armageddon" ? actor->armageddon_next : actor->hurricane_next) = now_ms + std::uint32_t(skill.par[3]) * 40;
         for (std::size_t k = 0; k < skill.aurastat.size(); ++k)
             if (skill.aurastat[k] == d2d::d2s::kBoneArmor) actor->absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, actor->absorb_frac = std::max(calc(skill, skill.aura_calc[k], lvl), 0) & 255, actor->absorb_skill = skill.id;
+        if (skill.aurastate == "cloak_of_shadows") cloaks.push_back(len);   // its client setfunc 2 (FUN_004d87e0): the dip
         if (skill.srvdofunc == ServerDoFunction::kCloakOfShadows)
             for (auto& monster : monsters)
                 if (monster.targetable() && std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(calc(skill, skill.aurarange, lvl)))

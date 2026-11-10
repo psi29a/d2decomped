@@ -158,11 +158,38 @@ and the day's:
   back 2/5, so level 1's 200 frames are about 5 s black then 3 s back. And
   event 1 in level 4 (0x46aee0, sent by `FUN_00593710` as the Cairn Stones
   open): in 40, hold 220, back 40, from missile `cairnstones` (288).
+- **The dip, frame by frame** (`FUN_0046ad10`, from `FUN_0046beb0` while
+  0x7a742c is set): the fill with no event (`FUN_00474550` flag 0: the
+  level's light, else the day's) times the cosine (the table at 0x707800)
+  of the angle the frame before left, truncated; then the fade in's angle
+  is frame × 128 / in, the hold's intensity 0, and the fade back's angle
+  128 − (frame − (total − back)) × 128 / back. The hold keeps the fade in's
+  last angle, so the fade back's first frame shows cos((in − 1) × 128 / in)
+  of the fill (Cloak's at 68: 21) before 0 and the climb. Past the total,
+  or a frame with the client in another level, its 0x2c bytes clear. A fade
+  back of 0 is 25 (`FUN_0046ae50`), a fade in of 0 a fatal error; 0x7a7454,
+  which `force` gets past, is never set. Cloak's length is its auralencalc
+  (Skills.txt +0x60, `FUN_00646ca0` at the state's skill and level, stats
+  0x15e / 0x15f); the Cairn Stones' frames are `cairnstones`' Param1 (+0x38)
+  in and back, its Range (+0x96) less twice that held.
+  `tools/emu/ambient_dip.py` runs `FUN_0046ae50`, `FUN_0046ad10` and
+  `FUN_00474550` for real: 40,300 dips as `rules::AmbientDip`'s (the
+  fixture's 300, `gen 300 1`, and 20,000 each for seeds 7 and 11;
+  `test_ambient_dip`).
 
 `tools/emu/level_ambient.py` runs events 12 and 13 and Cloak's dip with Levels.txt's
 values; the Den's flash and the Cairn Stones' event 1 aren't run. d2d fills
-from the level's light (`frame_light`) with only the Den's case: todo.md #43
-and #44.
+from the level's light (`frame_light`), ahead of it the Den's case and
+Diablo's release (`Town::event_ambient`, `rules::release_light`: the View's
+`diablo_red`, or a joined game's 0x89 12 / 13); its colour is dropped, as
+every light's. The dip (`rules::AmbientDip`, `Town::dip_tick` each client
+frame) starts from Cloak of Shadows' state on the player or a Shadow
+(`Fight::cloaks`, `World::cloak_dips`: every player gets it, as each client
+sees the state set), and from the Cairn Stones opening (`World::cain_operate`,
+`rules::cairn_dip` from Missiles.txt's row: every player in Stony Field gets
+it, where game.exe's client needs a StoneAlpha, object 17, in its near rooms,
+`FUN_0065a620`; `test_cairn_dip`). A joined game's state 153 (0xa8 / 0xaa)
+and event 1 don't start one.
 
 The fill runs over the whole grid for the player's room, then for each other
 room in its near list (`FUN_00619790`, `FUN_00619730`) over the cells under

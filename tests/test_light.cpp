@@ -152,6 +152,12 @@ int main() try {
             assert(sky.environment == sky.intensity() && sky.environment == want);
         }
     }
+    // Diablo's release (FUN_0046bdd0, tools/emu/level_ambient.py): River of
+    // Flame and the Chaos Sanctuary at 160 while it's on; any other level, or
+    // with it off, keeps its own light.
+    static_assert(release_light(107, true) == 160 && release_light(108, true) == 160);
+    static_assert(release_light(107, false) == -1 && release_light(108, false) == -1);
+    static_assert(release_light(103, true) == -1 && release_light(2, true) == -1 && release_light(8, true) == -1);
     std::puts("test_light: ok");
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_light: %s\n", error.what());
