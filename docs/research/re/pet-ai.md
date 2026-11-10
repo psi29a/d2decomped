@@ -409,3 +409,190 @@ pgsv, the six progressive_* states, so the Shadow holds charges. A
 monster's states for the AIs are its curse / cry (their auratargetstate).
 Blade Shield strikes as skills.md do 54 says, from the Shadow.
 
+## The owner's pet lists (PlayerPets.cpp)
+
+Traced from the decompile only (cited, no oracle): the decompiler drops
+fastcall ECX / EDX and some registers the helpers take, so a register
+argument below is a reading of the callers, not of the disassembly.
+
+A player's pets live in its player data (`FUN_006221a0(unit)`, unit
+`+0x14`) at `+0x44`: a pointer to a struct whose first word points to an
+array of one 0xc-byte slot per PetType.txt row (the row count is
+`[0x744304]+0xbf0`; `FUN_00575af0` allocates it, `PlayerPets.cpp` lines
+0xa2 / 0xa6, and zeroes `count * 0xc` bytes).
+
+- **`FUN_00574540`** (`pet_slot`): the row number in EAX, the `+0x44`
+  struct as its one stack argument. 0 when the row is under 0 or at least
+  the row count, else `*struct + row * 0xc`. No assert. Its one caller is
+  `FUN_00575d90`.
+- **`FUN_0053cb30`** (`scmd_pet_list`, `GAME/SCmd.cpp`): builds the 13-byte
+  S->C packet **0x7a** on the stack and queues it with `FUN_0053b280(buf,
+  0xd)`: +1 = EDX byte (net-packets.md: 1 add, 0 removed), +2 the first
+  stack byte (PetType row), +3 u16 MonStats class, +5 u32 = the fifth
+  argument (the owner's id), +9 u32 = the fourth (the pet's id). That is
+  the layout net-packets.md has from the client's handler (`0x45e860`).
+  Callers `FUN_00574410`, `FUN_00574930`, `FUN_00574f80`. The client is
+  `FUN_0053b280`'s hidden EDI.
+- **`FUN_0053cb80`** (`scmd_assign_merc`, `GAME/SCmd.cpp`): the 20-byte
+  S->C packet **0x81**, queued with `FUN_0053b280(buf, 0x14)`: +1 the
+  first byte argument, +2 u16 class, +4 u32 owner id, +8 u32 pet id, +0xc
+  and +0x10 two more words. net-packets.md has it as "assign merc"
+  (`FUN_00478bb0`): the same layout. Callers `FUN_00574930` and
+  `FUN_00574f80`.
+- **`FUN_00574930`** (`pet_send_to_client`): the per-client callback that
+  `FUN_005538d0` runs over the game's clients; its one argument is a
+  0x1c-byte event: +0 pet id (-1 when there is no unit), +4 owner id, +8
+  u16 class, +0xc PetType row, +0x10 / +0x14 two words (the callers
+  `FUN_00575d90` and `FUN_00574ab0` fill them; `FUN_00575d90` zeroes
+  them). With both words 0 it sends **0x7a** (`FUN_0053cb30`: row, pet,
+  owner, class); with either set it sends **0x81** (`FUN_0053cb80`: row,
+  pet, owner, class, then the event's words at +0x10 / +0x14, which land
+  at packet offsets +0xc / +0x10; the event row at +0xc is the first
+  byte argument, not a word). So a pet with the
+  node words zero reaches the client as a 0x7a list entry and the merc
+  (row 7, net-packets.md) as 0x81. The 0x33e / 0x345 beside each
+  `FUN_005531c0` call are `PlayerPets.cpp` source lines Ghidra shows as an
+  argument that function ignores (objects.cpp:381). `FUN_005538d0` takes
+  it as the callback through EDX, which the decompile hides: the evidence
+  is that `game-calls.tsv` lists `FUN_00574930` as called by
+  `FUN_00575d90`, `FUN_00574ab0` and `FUN_00575e90`, while their decompiled
+  bodies show no call to it (the address is pushed).
+- **`FUN_006221a0`** (`player_data`, `Units.cpp` beside the checks at
+  `FUN_00622150`): unit in ECX. A null unit asserts (line 0xfb4), a unit
+  whose type word (`+0`) is not 0 (player) asserts (line 0xfb6); both go
+  through `FUN_00408090(line)` / `FUN_00408a60` and `FUN_00681e09(-1)`,
+  which does not return. Else it returns unit `+0x14`, the player data.
+  `FUN_00575720`, `FUN_00575850`, `FUN_00575900`, `FUN_00574ab0` and
+  `FUN_005750e0` call it first (it returns 0 only if the player data
+  pointer is 0, so their `== 0` asserts are not reached on a made player). Five other callers
+  (`FUN_0045a860`, `FUN_0047a210`, `FUN_00532520`, `FUN_00532590`,
+  `FUN_00532be0`). d2d reads the player data directly and has no assert
+  (the oracles in `tools/emu/fl_load.py` run it native).
+- **`FUN_00575720`** (`pets_release_group`, owner in EDI, PetType row on the
+  stack): the pets of the other rows that share this row's group word go
+  before a pet of this row arrives. Guards: owner is a player (`*unit ==
+  0`), row in `0..count`, the row (`[0x744304]+0xbe8`, 0xe0 bytes each)
+  has a short at `+8` above 0. For every other row whose short at `+8` is
+  equal, it takes that row's first live pet (`FUN_00574ec0(row, 1)`, the
+  unit found by id with `FUN_00552f60`) and removes it with
+  `FUN_005750e0(pet id, 1)`, going on while that row's slot still has a
+  head node. So summoning into a row empties the other rows that carry the
+  same group value. The short's column name is not in the repo (the PetType.txt
+  header was not read; no MPQ here), and which rows share a value is
+  data. d2d: **not ported**: `Fight::summon_one` trims only the cast
+  skill's own `pettype` (summons.cpp:147), and `GameData::PetType` has no
+  group (gamedata_load.cpp:847).
+- **`FUN_00575850`** (`pet_set_max`, owner in EDX, then row and max on the
+  stack): sets a row's limit. The player data is fetched with
+  `FUN_006221a0` (a 0 result would assert, line 0x200: dead). It acts
+  only when the pet struct (`+0x44`) exists, the row is in `0..count` and
+  the row is not 1 unless the new max is 1 (`row != 1 || max == 1`). Then
+  slot `+8` = max, and while max is under the slot's count (`+4`), the
+  slot still holds pets and the row is not 7 (the merc's, net-packets.md),
+  it removes the first pet (`FUN_005747b0` returns the head node's pet id,
+  `FUN_005750e0(id, 1)` drops it). So a lowered limit sheds the oldest
+  pets at once, except the merc. Callers: `FUN_00575d90` (the cast skill's
+  petmax), `FUN_00575900` (rebuild from the skills, below), `FUN_00575a80`,
+  `FUN_0056bd90`. d2d: **not ported**: it has no per-row limit; the
+  `Fight::summon_one` loop (summons.cpp:147) trims at the cast, to the
+  cast skill's petmax, which reads the same as the value game.exe stores at
+  a cast (cited from the decompile, no oracle run).
+  What d2d lacks is the trim when a skill point is removed or a limit
+  drops outside a cast (`// ponytail:` candidate).
+- **`FUN_00575c70`** (`pet_list_add`, slot in ESI, then the pet unit and a
+  pointer to three words on the stack, `PlayerPets.cpp`): appends a pet to
+  a slot. A slot's fields: `+0` head node, `+4` count, `+8` max.
+  1. Max 0: `FUN_00575900` (rebuild the maxima from the owner's skills,
+     below) and look again. Still 0: the pet is refused, `FUN_00574450`
+     (flags it `+0xc4 |= 0x4000000` and releases it; not traced here) and
+     return 0. The two branches (pet null or not) are the same call.
+  2. Count equals max: an empty list asserts (line 0x312); else
+     `FUN_00574850(slot, 1)` removes one node (its ECX, hidden, is the
+     node's pet id: the head's, read from the callers, not the asm), then
+     count still equal to max asserts (line 0x316).
+  3. A node of six words (0x18 bytes, line 0x322) is zeroed: `+4` = the
+     pet's id (`unit +0xc`; -1 for no unit), `+8 / +0xc / +0x10` = the
+     three words given (all zero from `FUN_00575d90`), `+0x14` next. It is
+     linked at the **tail** (the walk follows `+0x14` to the last node).
+     Count + 1; above max asserts (line 0x330). Returns 1.
+  So the list is oldest first and a full list loses its head: d2d's
+  `std::ranges::find_if` + `erase` of the first same-pettype pet in
+  `Fight::summon_one` (summons.cpp:148) reads the same, cited from the
+  decompile, no oracle run (and ECX = the head's id is a reading). Caller `FUN_00575d90`
+  and `FUN_00575e90`.
+- **`FUN_00575d90`** (`pet_add`, owner in EDX; stack: the pet unit, the
+  PetType row, the limit): the entry that records a new pet. The reading
+  of the arguments is from the callers: `FUN_0056d8d0` (the summon skills'
+  do-function tail) passes its pet, the skill call record's `+0x1c` (the
+  skill's pettype row) and `+0x20` (petmax, at least 1); `FUN_005c56c0`
+  (Revive) passes the raised monster, the skill record's byte `+0xbe`
+  (the pettype, 0 if past the row count) and the petmax calc
+  (`FUN_00646ca0`) **unclamped**. In order:
+  1. Does nothing unless the owner is a player and `0 < row < count`: row 0
+     (the first PetType row) is not recorded: the function returns at once.
+  2. `FUN_00575720(row)` (the other rows of the group go), then
+     `FUN_00575850(row, limit)` (the limit set, the surplus shed).
+  3. The slot is `FUN_00574540(*(pdata+0x44) struct)` (row in EAX); a
+     missing struct or slot ends it.
+  4. `FUN_00575c70(pet, three zero words)`. When it returns 1, an event
+     `{pet id (-1 for no unit), owner id (+0xc), u16 class (pet +4; 0xffff
+     for none), row, 0, 0, 0}` goes through `FUN_005538d0`'s client lists
+     (the callback is `FUN_00574930`; it skips a client for which
+     `FUN_00639df0(client, 7)` is not 0), so those clients' pet lists get
+     a 0x7a entry. A refusal sends nothing.
+  d2d: **partly ported**. `Fight::summon_one` (summons.cpp:147) keeps the
+  pets of the cast skill's pettype within petmax, dropping the oldest
+  (reads the same, cited from the decompile, no oracle run); the group release (`FUN_00575720`) is **not ported**, nor are
+  the broadcast and the limit shed outside a cast. One possible
+  difference: d2d clamps petmax to at least 1 in `summon_one`, Revive
+  included, while game.exe clamps it only on `FUN_0056d8d0`'s path. A
+  Revive petmax calc of 0 would store limit 0 only for a row other than
+  1 (`FUN_00575850` skips row 1 unless the max is 1). A negative calc is
+  stored as is (slot `+8` = max, no clamp), not as 0, so the rebuild
+  below does not apply to it: `FUN_00575c70` sees a nonzero max, and
+  with the count plus one above it reaches its line 0x330 assert. For a
+  zero max, the raised monster is refused only if `FUN_00575c70` finds
+  max 0 and one `FUN_00575900` rebuild leaves it 0; the rebuild is not
+  traced to a result for Revive (it clamps each owned skill's calc to at
+  least 1).
+  Whether Revive's calc can be that low needs Skills.txt, which was not
+  read here: possible, not shown.
+- **`FUN_0056d8d0`** (d2d: summons.cpp:156, collision.md; the pet tail of
+  the summon skills' do-functions; the pet is the stack argument, a
+  record is in EBX, which the decompile does not show being set):
+  1. Record flags (byte `+0`) with bit 8 clear and a pet: the pet's
+     `+0xc4 |= 0x80000000` (the player's-pet bit, collision.md).
+  2. Record flags with bit 2 set: `FUN_0056d840` then `FUN_00554040`
+     (not traced here).
+  3. `FUN_00575d90(pet, record +0x1c, max(record +0x20, 1))` with the
+     owner register set by the caller: the pettype row and the limit.
+     The limit is clamped to at least 1 here and not on Revive's path.
+  d2d: bit 31 reads the same, cited from the decompile (collision.md), no
+  oracle run; the registration is `pet_add` above.
+- **`FUN_00574ab0`** (`pet_revive_announce`, owner in EDX, the unit on the
+  stack): finds a unit already in the owner's lists and tells the clients
+  it is back. The player data comes from `FUN_006221a0` (a 0 would assert,
+  line 0x402: dead); no `+0x44` struct returns 0. Rows 1 to count-1 are
+  scanned (row 0 is not), each row's nodes from the head along `+0x14`,
+  for the node whose `+4` equals the unit's id (`FUN_00451f50`, ECX read
+  from the caller). On a match: node flags `&= ~1` (bit 0 is what
+  `FUN_00574ec0(row, 0)` skips), then the same event `FUN_00575d90`
+  sends, `{id, owner id, u16 class (unit +4; 0xffff for none), row, node
+  +8, node +0xc, 0}`, through `FUN_005538d0`'s client lists; returns 1.
+  No match returns 0. Its one caller is `FUN_00579aa0`, the merc's
+  resurrection placement (npc-menu.md "Done"). With the merc's node words
+  nonzero, `FUN_00574930` sends this as 0x81. d2d: **not ported** (its
+  merc resurrection, `resurrect_merc`, per npc-menu.md, has no node flag
+  or event).
+- **`FUN_005c56c0`** (Revive, do 58; d2d: summons.cpp:168, skills.md "Do
+  58"): its end is the pet's registration. The row is the skill record's
+  byte `+0xbe` (`local_5`, 0 when it is at or past the row count), the
+  limit `FUN_00646ca0(owner, record +0xc0, skill, level)` (the petmax
+  calc), and `FUN_00575d90(monster, row, limit)` is called after the
+  raised monster's stats, `FUN_005c4470` and `FUN_005c55c0`, then
+  `FUN_005b1900(0, ...)` and the path repattern. Unlike `FUN_0056d8d0`
+  there is no clamp of the limit to 1, and no `+0xc4` bit 31 write in this
+  function (the flag comes from `FUN_005c55c0`, collision.md). d2d:
+  `summon_one` does the Revive stats as skills.md says (reads the same, cited, no oracle run); the
+  registration and the missing clamp are the `pet_add` notes above.
+
