@@ -582,3 +582,22 @@ game.exe 1.14d (80 cases, `--mutation-check` 6 ways), on the field oracle's rig.
 |---|---|
 | `anim_tbls.py` | `FUN_0066a770`, `0066a830` |
 
+### TokTbls.cpp merges (`tok_merge.py`)
+
+`tools/emu/tok_merge.py` runs the two token merges from stock game.exe 1.14d (160
+cases, `--mutation-check` 8 ways). The compile hook returns one scripted table per
+call, and the source tables are real blocks, since the merge copies from them.
+
+* **FUN_0065adc0** (plrmode_plrtype, fastcall pool): compiles `plrtype`, then
+  `plrmode` (record 0x34); allocates `(t + m) * 0x34` (line 0x37); copies plrtype
+  then plrmode behind it; unloads both sources. Stores: Mode1 `0x96d4dc` = the
+  block, Mode2 `0x96d4e0` = the block, Mode3 `0x96d4e4` = block + t * 0x34, count
+  `0x96d4d8` = t + m.
+* **FUN_0065b1b0** (objtype_objmode): the same with `objtype` and `objmode` (line
+  0x94): ObjType `0x96d4cc`, ObjTypeMode `0x96d4d0`, ObjMode `0x96d4d4` = block +
+  t * 0x34, count `0x96d4c8`.
+
+| Oracle | Functions |
+|---|---|
+| `tok_merge.py` | `FUN_0065adc0`, `0065b1b0` |
+
