@@ -1120,3 +1120,84 @@ their work is not claimed).
   = 1, the rest zero) and sends it to the unit's client (line 0x73c; also with a
   null client); the stack cookie is checked.
 - **0x0b keepalive** (`FUN_00549fa0`): size 1 answers 0, anything else 3.
+Not claimed: what the hooked callees do, the click-on-map family (0x02, 0x04,
+0x06, 0x13) and the skill handlers.
+
+## Verified in the emulator: server packet builders (SCmd.cpp)
+
+`tools/emu/scmd_senders.py` runs 33 server-to-client packet builders of
+`GAME/SCmd.cpp` and the queue they hand their packet to (`FUN_0053b280`) for real in the
+emulator against stock game.exe 1.14d: 2263 cases, 37 deliberate model defects
+planted and caught (`--mutation-check`). A builder takes the client in ECX
+(copied to EDI for the queue), the packet id or a pointer in EDX and the rest
+on the stack (`ret 4 * n`); the oracle hooks the queue to log EDI, the buffer
+and the size, and compares them with a model written from the disassembly.
+Random 32-bit garbage fills the unused upper bytes of the registers and
+stack word, so a builder that reads a field wider than its model says shows.
+
+**The queue `FUN_0053b280(buffer, size)`** (client in EDI, `ret 8`): a null
+client queues nothing. The client keeps a list of 0x208-byte blocks (head
++0x1b8, tail +0x1bc, free list +0x1c0; a block is u32 length, 0x200 data
+bytes, u32 next at +0x204). A packet is appended to the tail block when
+length + size is at most 0x200; otherwise a block is taken from the free list
+(its head moves to the block's next) or allocated with the pool allocator
+(`FUN_0040b430`, `.\GAME\SCmd.cpp`, line 0xa0), zeroed, and linked after the
+old tail (the new next is 0). **There is no size check**: a packet over 0x200
+bytes is copied past the data area, over the block's next link, and for more
+than 0x204 bytes past the block (bugs.md 93).
+
+**Fixed layouts** (EDX low byte is the id unless the id is a constant; stack
+words `a0`, `a1` ... are the arguments in order, each read at its field width):
+
+| Builder | Size | Packet |
+|---|---|---|
+| `FUN_0053b320` | 1 | the id (the "loading" packet) |
+| `FUN_0053b340` | 8 | id, difficulty (game +0x6d), `FUN_0053fd40(game)` dword at +2, game +0x70 != 0 at +6, game +0x74 != 0 at +7; `a0` is the game |
+| `FUN_0053b390` | 0xc | id, u8 a0, u32 a1 (+2), u16 a3 (+6), u32 a2 (+8): the act-load packet |
+| `FUN_0053b430` | 9 | id, u8 a0, u32 a1 (+2), u8 a2, a3, a4 (+6, +7, +8): the monster hit |
+| `FUN_0053b4b0` | 0xd | id, u8 a0 (fatal at 6 or more, line 0x136), u32 a1, u8 a2, u16 a3 (+7), u16 a4 (+9), u8 a5, u8 a6: the stop |
+| `FUN_0053b520` | 0x10 | id, u8 a0, u32 a1, u8 a2, u8 a3, u32 a4 (+8), u16 a5 (+0xc), u16 a6 (+0xe): move to unit |
+| `FUN_0053b570` | 0x10 | as `FUN_0053b4b0` (fatal at 6 or more, line 0x166) with u16 a6, u16 a7 at +0xc, +0xe: move to x, y |
+| `FUN_0053b9f0` | 0xc | id, u32 a0, u8 a1, u8 a2, u32 a3 (+7), u8 a4 (+0xb) |
+| `FUN_0053ba40` | 0xc | id, u32 a0, u8 a1, u16 a2 (+6), u16 a3 (+8), u8 a4, u8 a5 |
+| `FUN_0053baa0` | 0x10 | id, u32 a0, u8 a1, u8 a2, u32 a3 (+7), u8 a4, u16 a5 (+0xc), u16 a6 (+0xe) |
+| `FUN_0053bb00` | 0x10 | id, u32 a0, u8 a1, u16 a2, u16 a3 (+8), u8 a4, u8 a5, u16 a6, u16 a7 |
+| `FUN_0053bb70` | 10 | 0x6d, u32 EDX (+1), u16 a0 (+5), u16 a1 (+7), u8 a2 (+9): monster stop |
+| `FUN_0053bc10` | 0xb | id, u8 a0, u32 a1 (+2), u16 a2 (+6), u16 a3 (+8), u8 a4 (+0xa) |
+| `FUN_0053c590` | 0xd | 0x23, EDX byte, u32 a0 (+2), u8 a1 (+6), u16 a2 (+7), u32 a3 (+9): set skill |
+| `FUN_0053cb30` | 0xd | 0x7a, EDX byte, u8 a0, u16 a3 (+3), u32 a2 (+5), u32 a1 (+9): pet list |
+| `FUN_0053cb80` | 0x14 | 0x81 (no EDX), u8 a0, u16 a3 (+2), u32 a2 (+4), u32 a1 (+8), u32 a4, u32 a5: assign merc (six stack words, `ret 0x18`) |
+| `FUN_0053d4d0` | 0x11 | 0x4d, or 0x9a when a6 != 0; EDX byte, u32 a0 (+2), u32 a3 (+6), u8 a5 (+0xa), u16 a1 (+0xb), u16 a2 (+0xd), u16 a4 (+0xf): skill at x, y |
+| `FUN_0053d2e0` | 6 | 0x42, the byte at EDX+0 (6 when EDX is null), u32 at EDX+0xc (0xffffffff when null): clear cursor |
+| `FUN_0053e020` | 0x21 | 0x8f then 32 zero bytes: the pong |
+
+**Struct copies**: the packet is the first n bytes of the structure EDX points
+at (its first byte is the id the caller set): `FUN_0053c900` 10 (0x53,
+the act's day), `FUN_0053d710` 6, `FUN_0053d780` 8, `FUN_0053d7e0` 15, `FUN_0053d8d0` 7,
+`FUN_0053d960` 0x15, `FUN_0053e060` 0x1a.
+
+**Size tiers** (x = EDX, y = a0, d = x - y; compares are unsigned unless said):
+
+| Builder | Packet |
+|---|---|
+| `FUN_0053bdd0` | d above 0xfffe (a negative d too): 0x1c, x (5); else d below 0xff (signed): 0x1a, d byte (2); else 0x1b, d u16 (3). Experience: add a byte, add a word, or set |
+| `FUN_0053e9b0` | d from 1 to 0xfe: 0x19, d byte (2: gold add). Otherwise gold is set with the stat packet for stat 0x0e: x below 0xff `1d 0e x` (3), below 0xffff `1e 0e x` (4), else `1f 0e x` (6) |
+| `FUN_0053be40` | EDX u16 is the stat (fatal at 0xff or more, line 0x3cb), a0 the value: below 0xff `1d stat v` (3), below 0xffff `1e stat v` (4), else `1f stat v` (6) |
+| `FUN_0053bee0` | stat of another unit, EDX the unit (id at +0xc, 0xffffffff for null), a0 the stat (u16 below 0xff, else fatal line 0x3f5), a1 the value: below 0xff `9e` (7), below 0xffff `9f` (8), else `a0` (10) |
+| `FUN_0053bfd0` | the same, a1 the old value and a2 the new, d = a2 - a1: d below 0xff `a1 d` (7), above 0xfffe `a0` with **a1** (10), else `a2 d` (8). Fatal line 0x42d |
+
+**Bit-packed** (LSB-first through `FUN_00410eb0`; the writer runs as stock):
+`FUN_0053c320` is 0x95 (13 bytes): 8 id, 15 EDX, 15 a0, 15 a1, 16 a2, 16 a3,
+8 a4, 8 a5. `FUN_0053c3f0` is 0x96 (9 bytes): 8 id, 15 EDX, 16 a0, 16 a1, 8 a2,
+8 a3. Values above a field's width are cut to it.
+
+**Fatal reports**: the unit-and-stat builders print through `FUN_00408a60`
+with the file string `0x6cc837` and the call site (`FUN_00408090` returns its
+return address), then `exit(-1)` (`FUN_00681e09`): `FUN_0053b4b0` 0x53b4f5,
+`FUN_0053b570` 0x53b5bf, `FUN_0053be40` 0x53be5a, `FUN_0053bee0` 0x53befe,
+`FUN_0053bfd0` 0x53bff0.
+
+Not claimed: what the hooked `FUN_0053fd40` returns (see net-join.md), the
+unit-reading builders (`FUN_0053b5f0`, `FUN_0053b710`, `FUN_0053b7f0`,
+`FUN_0053d530`, the skill list `FUN_0053c5d0` and others) and the remaining
+SCmd.cpp senders after `FUN_0053e060`, which read units, rooms and items.
