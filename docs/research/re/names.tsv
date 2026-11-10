@@ -182,6 +182,7 @@ address	name	evidence
 004db290	dir_steps_convert	8 <-> 4, 16 <-> 8 through FUN_00600cb0
 004db570	cof_layer_tint	FUN_0062c100 unless broken, unusable or 'lit ' (GfxUtil.cpp 0x656, 0x657)
 004db670	gfx_unit_layer_ready	on screen, COF loaded, FUN_004db0d0
+004ddef0	light_table_8x8	EAX out (64 x 12 bytes), stack x, y, roof flag: flag 0 samples FUN_00475aa0 at (8x - 8 + 8col, 8y - 8 + 8row); else every entry the environment's intensity and RGB (gdi-driver.md)
 004e06a0	pe_image_free	ECX record: unmaps the image of a module record (from the disassembly; hooked in warden_client.py, never run)
 004e0700	pe_image_export_by_ordinal	ECX record, stack ordinal: export address, 0 when out of range (from the disassembly; hooked in warden_client.py, never run)
 004e0730	pe_image_load	ECX record, stack image, size: maps an in-memory PE (hooked in warden_client.py, never run)

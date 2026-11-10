@@ -93,6 +93,25 @@ proven.
   function; lighting.md already carries the `< 4` rule and d2d copies the
   software path. Cited.
 
+- **`FUN_004ddef0`** (`tools/emu/disasm.py 4ddef0`) fills the software modes'
+  8 × 8 light table: EAX the output (64 entries of 12 bytes, the caller's
+  768-byte buffer), three stack arguments (`ret 0xc`) x, y and a flag.
+  - Flag 0 (the floor draw's case): entry (col, row) calls `FUN_00475aa0` with
+    ECX = 8·x − 8 + 8·col and EDX = 8·y − 8 + 8·row, the four bytes of the
+    entry as its output pointers (`FUN_00475aa0` shifts both right by 3, so this
+    is the grid at (x − 1 + col, y − 1 + row), lighting.md). Byte 0 is the
+    grid's intensity; bytes 1 to 3 are written only when `DAT_00712b8c` is
+    non-zero (lighting.md's colour toggle), else they keep what the caller's
+    buffer held; `FUN_004de410`'s buffer is uninitialised stack.
+  - Flag non-zero (a roof with a height, lighting.md): every entry is
+    `FUN_0061c0e0`'s intensity in byte 0 and `FUN_0061c0b0`'s red, green, blue
+    in bytes 1, 2, 3 (the call order of its three pointers); x and y unused.
+  d2d reads the same on the table and the rule, cited from the decompile, no
+  oracle run (`tile_blit.hpp`'s `blit_dt1_tile_lit`
+  cites it; lighting.md has the grid rule); the stale colour bytes with the
+  toggle off are not modelled and nothing in the software path was found
+  reading them (`FUN_004f8b80`'s reads were not re-checked). Cited.
+
 ## Clearing the draw buffer (`FUN_006c9280`, `FUN_006c9220`)
 
 - `FUN_006c9280` is a thunk to `FUN_006c9220`. Its caller is the slot `+0x18`
