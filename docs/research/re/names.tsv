@@ -20,7 +20,39 @@ address	name	evidence
 00456ee0	panel_draw_order	in-game UI draw: belt (FUN_00499450), picker, level buttons, globes in that order
 0045c3e0	seed_rand_below	ECX seed {low, high}, EDX n: one step low*0x6ac690c5+high, n&(n-1) mask or % n, 0 for n < 1 (missiles.md "The seed draw")
 0045c4f0	item_stat_cost_row	ECX stat id: id*0x144 + tables+0xbcc, 0 when id < 0 or >= tables+0xbd4
-00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false
+00463720	unit_flags_any	ECX unit, EDX mask: unit +0xc8 & mask != 0; null unit false; verified by unit_client.py
+00463830	monstats_base_id	ECX class id: the signed word at +2 (BaseId) of the 0x1a8-byte MonStats row (table +0xa78, count +0xa80); a bad index or no row returns the id itself; verified by unit_client.py
+00463900	monster_class_valid	ECX class id: itself when 0 <= id < MonStats count (+0xa80 of 0x744304's block), else -1; verified by unit_client.py
+00463940	unit_find_in_chain	EAX bucket, EDX table, ECX id, stack type: first node of the +0xe4 chain with +0xc == id; its +0 type must equal the stack type, else fatal line 0x5a; none = 0; verified by unit_client.py
+004639b0	client_unit_find	ECX id, EDX type: FUN_00463940 on table 0x7a5270 + type * 0x200 with bucket id & 0x7f (the client-side table); verified by unit_client.py
+00463c70	unit_tables_clear	zeroes the 0x300 dwords of both unit hash tables (0x7a5e70 server-side, 0x7a5270 client-side); verified by unit_client.py
+00463c90	unit_table_each	stack table (0x80 chain heads), EBX callback: calls it with ECX = each node, reading the next link first; verified by unit_client.py
+00463e20	unit_gfx_set_cof_flags	ECX unit (null fatal line 0x563), EDX flags: tail jump to FUN_0046f1c0 with ECX = unit +0x54; verified by unit_client.py
+00463e50	unit_gfx_call_f1f0	ECX unit (null fatal line 0x56c): tail jump to FUN_0046f1f0 with ECX = unit +0x54, EDX kept; verified by unit_client.py
+00463e80	unit_gfx_call_f220	ECX unit (null fatal line 0x575): tail jump to FUN_0046f220 with ECX = unit +0x54, EDX kept; verified by unit_client.py
+00463eb0	unit_gfx_call_f250	ECX unit (null fatal line 0x57e): tail jump to FUN_0046f250 with ECX = unit +0x54, EDX kept; verified by unit_client.py
+00464370	unit_is_selected	ECX unit: 0 when the selected unit (FUN_00467a10) is an object whose Objects.txt flag byte +0x167 has 0x80, else selected == unit; verified by unit_client.py
+004643f0	unit_set_target_by_guid	ECX unit, EDX type, stack id: FUN_00463940 in table 0x7a5e70 (server-side) bucket id & 0x7f, then FUN_00620c10(unit, found); a type mismatch is fatal 0x5a; verified by unit_client.py
+004645b0	unit_seq_input_ready	ESI unit, one unused stack argument: 1 with no current skill; 0 when it has no row, 1 when anim != 0x12; else seqinput (+0x16, 0 and 0xff = never) <= unit +0x38 >> 8 (arithmetic); verified by unit_client.py
+00464770	unit_get_server_cmd	ECX unit (null fatal line 0x8a5): +0xd8; verified by unit_client.py
+004647a0	unit_set_server_cmd	ECX unit (null fatal line 0x8af), EDX value: +0xd8 = EDX; verified by unit_client.py
+004647d0	unit_set_attackable	ECX unit: clears flag 0x10000 of +0xc4, sets 4 unless a monster whose FUN_004638a0(class, 9) is 0; verified by unit_client.py
+00464810	unit_set_dead_flag	ECX unit: +0xc4 |= 0x10000; null unit ignored; verified by unit_client.py
+00464860	unit_is_dead	ECX unit: player mode 0x11, monster mode 0xc without FUN_004638a0(class, 0x14), object Objects.txt +0x1b7 bit 2 or (mode 2 and bit 1), missile flag 0x10000 of +0xc4, item mode 3; else 0; verified by unit_client.py
+00464930	unit_free_lightmap	ECX unit: frees +0x64 with FUN_004743d0 and clears it when set; verified by unit_client.py
+00464950	unit_each_server_player	ECX callback (null fatal line 0x961): FUN_00463c90 over table 0x7a5e70; verified by unit_client.py
+00464990	unit_each_server_monster	ECX callback (null fatal line 0x96c): FUN_00463c90 over table 0x7a6070 (type 1); verified by unit_client.py
+004649d0	unit_each_server_object	ECX callback (null fatal line 0x977): FUN_00463c90 over table 0x7a6270 (type 2); verified by unit_client.py
+00464a10	unit_find_tile_link	EAX unit: walks the +0xe8 chain for the first unit of type 5, else 0; verified by unit_client.py
+00464a30	room_warp_name	ECX room, EDX warp unit or null (id -1 when null, else +4): FUN_0061a1d0 then FUN_0061db70 + 0x1be, 0 when none; verified by unit_client.py
+00464c40	unit_gfx_timer_tick	ECX unit (null fatal line 0xa19): +0x58 = 0 returns 0; else decremented, returns FUN_00639df0(unit, 0x8f) == 0; verified by unit_client.py
+00464c90	unit_gfx_timer_set3	ECX unit (null fatal line 0xa34): +0x58 = 3; verified by unit_client.py
+00464cf0	unit_set_light_radius	ECX unit (null fatal line 0xa4a), EDX value: +0x68 = EDX; verified by unit_client.py
+00465400	unit_party_id	ECX unit: player (type 0) = FUN_00479c00 tail call; else EAX | 0xffff (upper half of EAX kept); verified by unit_client.py
+00465e80	unit_remove_from_table	ECX bucket, EDX table, EDI type, EBX id: unlinks the first +0xe4 chain node matching id and type; a type 4 node goes through FUN_004879d0, then FUN_00465870 frees it; EAX is that call's result, or the last node when none matched; verified by unit_client.py
+00465ee0	server_unit_remove	ECX id, EDX type: FUN_00465e80 on table 0x7a5e70 + type * 0x200, bucket id & 0x7f; verified by unit_client.py
+00465f00	client_unit_remove	ECX id, EDX type: FUN_00465e80 on table 0x7a5270 + type * 0x200, bucket id & 0x7f; verified by unit_client.py
+004661c0	unit_create_warp	ECX id, EDX class, stack x, y, type, mode: FUN_00620290(0, type); a unit gets FUN_00465fd0 (EAX unit, EBX = the first stack argument, then ECX, EDX, the other three, 0); 0 when none; verified by unit_client.py
 0046b3c0	client_spawn_at_unit_19	ECX unit: FUN_004cdb40 at the unit's position words (+0xc, +0x10), result tagged 0x19 at data +0x28 (missiles.md "Client unit spawn at a unit's spot")
 0046b530	client_spawn_on_object	ECX object unit of class 0x21c / 0x21d / 0x21e: finds the paired object (0x1db / 0x1dc / 0x1da) in its room, client missile row 0x21d there tagged with its id (missiles.md "Client missile spawn on an object")
 0046b680	client_spawn_missiles_11c	no args: client missiles of rows 0x11c, 0x128, 0x125 via FUN_004cd540, the first tagged 0x32 at data +0x28 (missiles.md "Client missile spawn: FUN_0046b680")
@@ -123,11 +155,26 @@ address	name	evidence
 004a9d70	hotkeys_unbind_skill	(skill record, count): with count < 1 clears every hotkey slot (0x7c06c8 / 0x7c07b8 / 0x7c0768) bound to a skill id in the picker array 0x7c04e0 equal to the record's id, then FUN_004786a0(-1); skills.md "Skill list accessors and the hotkey sweep"
 004a9df0	hotkeys_unbind_empty	() sweeps the player's skill list, records with +8 & 0x10: FUN_004a9d70(record, node count); empty list asserts (line 0x47d); called by FUN_0048ffe0; skills.md "Skill list accessors and the hotkey sweep"
 004aa160	hotkeys_default_fill	() binds up to 16 non-passive picker slots (of 60) to the next free hotkey slots via FUN_004aa0f0; empty list asserts (line 0x524); no caller in game-calls.tsv (cited); skills.md "Skill list accessors and the hotkey sweep"
+004ade40	monster_mod_dispatch_0	ECX unit: FUN_004add90(unit, 0, 0); verified by unit_client.py
+004ade50	monster_mod_dispatch_1	ECX unit: FUN_004add90(unit, 0, 1); verified by unit_client.py
+004ade60	monster_mod_dispatch_2	ECX unit: FUN_004add90(unit, 0, 2); verified by unit_client.py
+004ade70	monster_mod_dispatch_3	ECX unit: FUN_004add90(unit, 0, 3); verified by unit_client.py
+004ae080	monster_flags_masked	ECX unit, DX mask: a monster's data +0x28 word & mask; 0 for a non-monster or no data; verified by unit_client.py
+004ae110	monster_data_list	ECX unit: monster data + 0x30 (the modifier list); 0 for a non-monster or no data; verified by unit_client.py
+004ae320	monster_type_test_04	ECX unit: a monster gives FUN_004ac7e0(unit, 4), else 0; verified by unit_client.py
+004ae340	monster_type_test_40	ECX unit: a monster gives FUN_004ac7e0(unit, 0x40), else 0; verified by unit_client.py
+004ae360	monster_type_test_08	ECX unit: a monster gives FUN_004ac7e0(unit, 8), else 0; verified by unit_client.py
+004ae380	monster_type_test_10	ECX unit: a monster gives FUN_004ac7e0(unit, 0x10), else 0; verified by unit_client.py
+004ae3a0	monster_type_test_02	ECX unit: a monster gives FUN_004ac7e0(unit, 2), else 0; verified by unit_client.py
 004c6ac0	skill_client_start	fastcall (unit, ...), caller FUN_0045d5e0: state list + stat set to the level, start-function table 0x727ba8 per level; skills.md "Stat-list helpers and skill starts" (table meaning not read)
 004c7630	unit_command_on_target	fastcall (unit, target): builds the unit command {0, -1, target type, target id, 1, 0, 0} (type 6 / id -1 for none) and runs FUN_00480c10 with 1; returns 1; caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
 004c7950	target_stat_list_kind6	fastcall (target): stat list FUN_006251f0(0, 6, 0x32, target type, id) with callback FUN_004c7890, linked to the target (d2d_rules_socket_props); caller FUN_004c9b40; skills.md "Skill record and skill-list accessors"
 004c7be0	unit_add_attackrate_list_b	twin of FUN_0056e520 (same body), Skills.cpp line 0x9e5; callers FUN_004c7cf0, 0x4f26f3, 0x4f2706; skills.md "Stat-list helpers and skill starts"
 004c9460	skill_par1	fastcall (skill id) -> Skills record +0x148 Param1, 0 for an id outside [0, [0x744304]+0xba0) or a null record; skillcalc operand 8; skills.md "Skill record and skill-list accessors"
+004ca8a0	unit_sound_list_add	ECX unit (null fatal line 0xc2c), EDX item: tail jump to FUN_00516950 with ECX = unit + 0x78; verified by unit_client.py
+004ca8d0	unit_sound_list_call	ECX unit (null fatal line 0xc2c), EDX item: tail jump to FUN_00516980 with ECX = unit + 0x78; verified by unit_client.py
+004ccf20	lightmap_quality_set	ECX: stores the dword at 0x72a348; verified by unit_client.py
+004ccf30	lightmap_quality_get	the dword at 0x72a348; verified by unit_client.py
 004da000	motion_new	0x4c bytes into unit gfx +0x30 (Particle.cpp 0x4a)
 004da080	motion_free	frees unit gfx +0x30 (Particle.cpp 100)
 004da0b0	motion_draw_x	record +0x34
@@ -178,6 +225,9 @@ address	name	evidence
 004db290	dir_steps_convert	8 <-> 4, 16 <-> 8 through FUN_00600cb0
 004db570	cof_layer_tint	FUN_0062c100 unless broken, unusable or 'lit ' (GfxUtil.cpp 0x656, 0x657)
 004db670	gfx_unit_layer_ready	on screen, COF loaded, FUN_004db0d0
+004dc0c0	unit_events_free	ECX unit: frees every +0x1c-linked event of +0x90 (pool of FUN_004dc0b0, CUnitEvent.cpp line 0x2f), clears +0x90; null ignored; verified by unit_client.py
+004dc110	unit_event_add	ECX unit, EDX kind, stack data1, data2, callback, type, state: a 0x20-byte node (line 0x48) from the unit's pool (+8) at the head of +0x90, its +0x18 link set in the old head; null unit 0; verified by unit_client.py
+004dc190	unit_event_remove	ECX unit, EDX type, stack state: unlinks and frees (line 0x80) every event of +0x90 with +4 == type and +8 == state; verified by unit_client.py
 004e06a0	pe_image_free	ECX record: unmaps the image of a module record (from the disassembly; hooked in warden_client.py, never run)
 004e0700	pe_image_export_by_ordinal	ECX record, stack ordinal: export address, 0 when out of range (from the disassembly; hooked in warden_client.py, never run)
 004e0730	pe_image_load	ECX record, stack image, size: maps an in-memory PE (hooked in warden_client.py, never run)
