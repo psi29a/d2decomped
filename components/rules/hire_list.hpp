@@ -197,5 +197,12 @@ constexpr bool list_page(ListScroll& scroll, int whole, int rows, ListThumb thum
 // mouse): the count since the press (+0x18076e) goes on one, and a step
 // comes unless it's a multiple of 10; the release on it steps once more.
 constexpr bool list_held_step(int& count) { ++count; return count != 0 && count % 10 != 0; }
+// A key in a box with a callback (FUN_004bebc0, its key handler): the box
+// takes it whatever it is (the event's +0x18, FUN_00420290); drawn twice
+// since it was made (+0x180772, FUN_004bee90's count), Enter (0xd) runs
+// the callback for the selected row unless that's -1. That row, or -1.
+constexpr int list_enter(std::uint32_t draws, int selected, std::uint32_t key) {
+    return draws >= 2 && selected != -1 && key == 0xd ? selected : -1;
+}
 
 }  // namespace d2d::rules

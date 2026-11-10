@@ -201,6 +201,17 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             for (const auto key : keys_this_frame) {
                 if (chat_typing && key == SDLK_BACKSPACE && !chat_typing->empty()) chat_typing->pop_back();
+                // The hire list's box takes Enter (FUN_004bebc0), not the chat: the
+                // selected row is hired, as a release over it would.
+                if (!chat_typing && npc_menu.list && virtual_key(key) == 0x0d) {
+                    auto& list = *npc_menu.list;
+                    const int row = d2d::rules::list_enter(list.draws, list.hover, 0x0d);
+                    if (row >= 0 && std::size_t(row) < list.rows.size() && list.rows[std::size_t(row)].arg >= 0) {
+                        net.send(cmd::Hire{ list.rows[std::size_t(row)].arg });
+                        npc_menu = {};
+                    }
+                    continue;
+                }
                 if (!chat_typing) { if (keys::bound(key_table, keys::kChat, virtual_key(key))) chat_typing = std::string{}; continue; }   // the key config's Chat (Enter)
                 if (key != SDLK_RETURN && key != SDLK_KP_ENTER) continue;
                 if (const std::string_view line = *chat_typing; !line.empty()) {
@@ -763,6 +774,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             const auto found = std::ranges::find_if(kSpeechSound, [&](const auto& entry) { return entry.first == speech.string; });
             if (found != kSpeechSound.end()) { speech.voice = found->second; audio.play_voice(*scene, found->second); }
         }
+        if (npc_menu.list && npc_menu.list->draws < 2) ++npc_menu.list->draws;   // FUN_004bee90 counts its draws: one a frame here
         if (npc_menu.list && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))   // a move in the box (FUN_004beb70): the row under it
             npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
         // An arrow held (FUN_004bee90, each draw, 25 a second here): a step each
