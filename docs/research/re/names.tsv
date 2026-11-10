@@ -495,6 +495,7 @@ address	name	evidence
 00563470	item_put_back	by mode 0 / 1 / 4 (ItemMode.cpp 0x1a75)
 00563840	cube_empty	page 3 items to inventory or ground (ItemMode.cpp 0x80d..0x8ee)
 00563fe0	item_transmogrify	Items +0x139, +0xc8, +0x13a/+0x13b
+0056de40	passives_then_pet_limits	fastcall (unit): FUN_00646f20, then a player (type dword +0 is 0) tail-jumps to FUN_00575900 with unit +0x80 in ECX; skills.md
 0056dfa0	skills_refresh_passives	fastcall (unit): for each node of the unit +0xa8 skill list whose passivestate > 0: state on (FUN_00639db0) and FUN_00646d60; skills.md "Skill accessors"
 0056e520	unit_add_attackrate_list	fastcall (unit, value): kind-4 stat list (FUN_006251f0) linked to the unit, stat 0x44 = value, then FUN_00623f50; Skills.cpp line 0x12ab; skills.md "Stat-list helpers and skill starts"
 0056ff10	skill_state_list_apply	(unit in EDI, skill): record flag +4 & 0x20 needed; state +0x80 on, list tagged state / skill / level, stats 0x15e / 0x15f set, or d2d_ai_castable when +5 & 0x80; then FUN_0056cda0; skills.md "Stat-list helpers and skill starts"
