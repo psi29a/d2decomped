@@ -584,6 +584,27 @@ arguments), cited, not run. The functions are in the order they are met.
   `net.cpp` and `world/` by the doc rows that cite it (collision.md above, net-packets.md 786,
   drlg.md 1645); the walks of these cases share the two-walk limit above, which d2d lacks. **DISAGREES**
   only there (todo 47).
+- **`FUN_00580c20(game, unit)`: a walking or running player's frame** (a function-table entry,
+  data refs at 0x732c18, 0x732c1c, 0x732c28, 0x732c5c). In order: `FUN_00553490`; state 0xd on
+  gives `FUN_005c9d90`; in mode 3 with no stamina drain `FUN_0057f090` (tick.cpp's stamina);
+  `FUN_00554ca0`, which returns 2 once the step update stops (`FUN_00650840` says no more path,
+  as "A walk's stop" above) and 1 while it walks; the footstep ring (player data +0xa0 cursor, +0xa4
+  time, 20 pairs at +0xa8): a point 25 ms on from the last and over 0x2d squared from the
+  previous one is stored (tick.cpp's `footstep`, which reads the same: cited from the decompile, no oracle run). **Only at 2** does the pending
+  interact matter, and nothing runs between steps. Unit and its player data present and
+  +0x150 set (the arms from LAB_00580e28):
+  - marker +0x154 below 0: `FUN_0057f020(1, 0, 0)` (idle), then `FUN_00548b00(unit, type
+    +0x158, id +0x15c, marker == -2, game)` (LAB_00580e73). Out of reach that is `FUN_00548a50`
+    again, a second walk with +0x150 set again.
+  - then, after the marker arm above, **+0x150 is zeroed** (LAB_00580e88; the marker, type and id stay).
+  - marker 0 or more: a skill use (`FUN_006439f0`, `FUN_00643860`, `FUN_00580a70`), not traced.
+  With +0x150 clear it goes idle (`FUN_0057f020(1, 0, 0)`, LAB_00580e9a) and the walk is over.
+  So a click on a warp, an item or an NPC makes at most two walks: the second one's end finds
+  +0x150 zero. d2d's `use_warp` / "Short of the target with a step made" (tick.cpp,
+  travel.cpp) re-plans from the stop each tick while a step is made, with no count (todo 47;
+  how often `use_warp` tests was not re-checked here), so it **DISAGREES**: a blocked or crowded route that
+  takes game.exe two walks takes d2d as many as it needs. Read, not run; the oracle phase would
+  call `FUN_00580c20` with a stub path.
 
 ### How near the client walks
 
