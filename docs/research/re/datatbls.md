@@ -628,3 +628,22 @@ call, and the source tables are real blocks, since the merge copies from them.
 |---|---|
 | `lvl_small.py` | `FUN_0061fbf0`, `0061f9c0`, `0061dd00` |
 
+### Small helpers (`item_free_small.py`)
+
+`tools/emu/item_free_small.py` runs ten small helpers from stock game.exe 1.14d (400
+cases, `--mutation-check` 9 ways). Their callees (the table unload `0x6125c0`, the
+link free `0x6bd0b0`, the pool free) are logged, not run.
+
+* **FUN_00611d20**: returns the dword at `0x96c8a4`.
+* **FUN_006125a0** (stdcall one argument): the compile flag `0x96c8b4` = (argument == 0).
+* **FUN_00636b00 / 006372a0 / 006375a0 / 006378f0 / 00637490**: unload `0x96cc54`,
+  `0x96ca94`, `0x96cc5c`, `0x96cc4c`, `0x96cc64`. No null test: the unload runs for 0.
+* **FUN_006374a0**: returns the address `0x96cc60` (the books count) without reading it.
+* **FUN_00634220**: pool-free `0x96caa4` (ItemTbls.cpp line 0x30b) when set, then clear it.
+* **FUN_00634d90**: link free of `0x96c850` and unload of `0x96c854`, neither null-tested,
+  then the count `0x96c858` is cleared.
+
+| Oracle | Functions |
+|---|---|
+| `item_free_small.py` | `FUN_00611d20`, `006125a0`, `00636b00`, `006372a0`, `006375a0`, `006378f0`, `00637490`, `006374a0`, `00634220`, `00634d90` |
+
