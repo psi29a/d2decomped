@@ -124,9 +124,9 @@ Settings live in `d2d.cfg`: `~/Library/Preferences/d2d` (macOS),
 Where d2d differs from game.exe on purpose: `docs/research/re/deviations.md`.
 
 Controller follow-up: D-pad character selection hides the pointer until mouse or
-analog movement; A confirms the highlighted character. In Inventory, A or the
-remapped Use input (RS by default) selects an Identify tome/scroll and confirms
-an unidentified target. B cancels. Identify items are not controller spell
+analog movement; A confirms the highlighted character. In Inventory, the remapped Use input (RS by default in Skill Buttons mode)
+activates an Identify tome/scroll. A or Use confirms an unidentified target;
+A otherwise picks up or moves inventory items, including usable tomes. B cancels. Identify items are not controller spell
 bindings. A bound Town Portal uses a charged tome carried in inventory directly from the field; opening the Inventory panel is unnecessary. An empty/missing tome or town restriction disables it.
 
 The touch prototype also accepts a single mouse/Pencil-style pointer over its

@@ -140,8 +140,9 @@ in `smoke_d2d`; report these separately from focused controller/touch results.
 D-pad roster navigation owns A confirmation until actual mouse/analog movement.
 This intentionally hides and ignores the stale pointer. Identify items are
 excluded from modern skill assignment, including old modern bindings becoming
-unavailable without rewriting their files. Inventory A and remapped Use both
-select/confirm Identify; B cancels. Portal skill destinations use a carried charged tome directly in the field.
+unavailable without rewriting their files. Inventory Use selects Identify; A or Use confirms the target, and B cancels.
+Outside Identify mode, A retains normal inventory pickup/movement even for a
+usable Identify tome or scroll. Portal skill destinations use a carried charged tome directly in the field.
 Missing/empty tomes and town restrictions disable them. These are UX changes, not
 newly traced original-game claims.
 
@@ -210,3 +211,13 @@ The untraced permanent Character/Stats shortcut has been removed; the original
 HUD art and conditional New Stats notification are retained. Character remains
 available through its normal key and mini-panel action. The tree close control
 now uses retail class/tab placement, rather than the earlier fixed corner.
+
+## Review follow-up: Identify inventory movement
+
+A retains ordinary inventory pickup/movement in both controller presets, including
+empty tomes and usable Identify items. Use (RS in Skill Buttons mode) starts
+Identify; A or Use then confirms a target. This avoids stealing the only pickup
+input when a tome can identify another carried item. The existing inventory
+right-click dispatch is reused; this is an input UX correction, not a new retail
+parity claim. `pad_identify_classic_d2d` and `pad_identify_d2d` drive both presets
+through actual controller input with and without unidentified targets.

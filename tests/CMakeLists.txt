@@ -69,6 +69,10 @@ if (Python3_Interpreter_FOUND)
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/coop_lobby_d2d.py $<TARGET_FILE:d2d>)
     add_test(NAME keyboard_bindings_d2d
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/pad_use_d2d.py $<TARGET_FILE:d2d> --keyboard-ux)
+    add_test(NAME pad_identify_classic_d2d
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/pad_use_d2d.py $<TARGET_FILE:d2d> --identify-ux)
+    add_test(NAME pad_identify_d2d
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/pad_use_d2d.py $<TARGET_FILE:d2d> --identify-ux --skill-buttons)
     add_test(NAME pad_seed_d2d
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/pad_use_d2d.py $<TARGET_FILE:d2d> --seed-ux)
     add_test(NAME pad_portal_d2d
@@ -92,7 +96,7 @@ if (Python3_Interpreter_FOUND)
                  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/quests_d2d.py $<TARGET_FILE:d2d> ${act})
         list(APPEND d2d_quest_tests quests_act${act})
     endforeach()
-    set_tests_properties(smoke_d2d coop_d2d coop_lobby_d2d keyboard_bindings_d2d pad_controls_ux_d2d pad_portal_d2d pad_seed_d2d pad_skill_use_d2d pad_use_d2d touch_controls_d2d touch_corpse_d2d ${d2d_quest_tests}
+    set_tests_properties(smoke_d2d coop_d2d coop_lobby_d2d keyboard_bindings_d2d pad_identify_classic_d2d pad_identify_d2d pad_controls_ux_d2d pad_portal_d2d pad_seed_d2d pad_skill_use_d2d pad_use_d2d touch_controls_d2d touch_corpse_d2d ${d2d_quest_tests}
                          PROPERTIES SKIP_RETURN_CODE ${d2d_skip_code})
 endif()
 
@@ -115,6 +119,6 @@ endif()
 if (d2d_test_env)
     set_tests_properties(${d2d_cpp_tests} PROPERTIES ENVIRONMENT "${d2d_test_env}")
     if (TARGET d2d AND Python3_Interpreter_FOUND)
-        set_tests_properties(smoke_d2d coop_d2d coop_lobby_d2d keyboard_bindings_d2d pad_controls_ux_d2d pad_portal_d2d pad_seed_d2d pad_skill_use_d2d pad_use_d2d touch_controls_d2d touch_corpse_d2d ${d2d_quest_tests} PROPERTIES ENVIRONMENT "${d2d_test_env}")
+        set_tests_properties(smoke_d2d coop_d2d coop_lobby_d2d keyboard_bindings_d2d pad_identify_classic_d2d pad_identify_d2d pad_controls_ux_d2d pad_portal_d2d pad_seed_d2d pad_skill_use_d2d pad_use_d2d touch_controls_d2d touch_corpse_d2d ${d2d_quest_tests} PROPERTIES ENVIRONMENT "${d2d_test_env}")
     endif()
 endif()
