@@ -189,6 +189,7 @@ address	name	evidence
 00483440	set_items_row	ECX id: id*0x1b8 + tables+0xc18, 0 past tables+0xc1c: 127 rows loaded, SetItems.txt's count
 00483470	unique_items_row	ECX id: id*0x14c + tables+0xc24, 0 past tables+0xc28: 402 rows loaded, UniqueItems.txt's count with its Expansion row
 00499040	belt_key_labels	SetFont(1) at 0x499053, then the belt slots' key names
+004a0000	speech_box_open	12 bytes, no args: xor eax,eax / cmp dword [0x7bf0a4],eax / setnz al / ret. 1 when the speech record is set (npc-talk.md)
 004a89d0	skill_desc_record	Skills row index -> SkillDesc record: Skills +0x194 in [0, tables+0xb94), record tables+0xb8c + n*0x120, else 0 (char-panel.md)
 004a9ae0	skill_count_search_2	fastcall (unit, skill id): the same list search as FUN_004a9a90 and always returns 0; bugs.md 24; skills.md "Skill list accessors and the hotkey sweep"
 004a9b30	skill_count_search_3	fastcall (unit, skill id): the same list search as FUN_004a9a90 and always returns 0; bugs.md 24; skills.md "Skill list accessors and the hotkey sweep"
