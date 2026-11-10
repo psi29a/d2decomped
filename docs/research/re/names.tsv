@@ -84,6 +84,7 @@ address	name	evidence
 004709a0	gfx_unit_on_screen	COF box vs 0x71146c x 0x711470 (Gfx.cpp 0xdc2, 0xdd3)
 00471a30	gfx_tint_draw_simple	FUN_004f6570 with FUN_0046ed50 (Gfx.cpp 0x9b6, 0x9be)
 00471bd0	gfx_tint_draw	per COF layer FUN_004f6570 (Gfx.cpp 0xa2f, 0xa56)
+00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
 004795a0	roster_next	ECX roster entry: +0x80; null gives the first (DAT_007bb5c0)
 004795c0	roster_name	ECX roster entry: entry + 0x66 (the name); null is fatal, line 0x174
@@ -91,7 +92,11 @@ address	name	evidence
 00479ba0	roster_class	ECX roster entry: +0x1c; null 0
 0047a0c0	roster_unit_id	ECX roster entry: +0x10; null -1
 0047a1e0	roster_area	ECX roster entry: +0x24; null 0
+0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
+0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
+0047fa20	warden_verify_signature	ECX 0x100, EAX length, stack salt, data, modulus, exponent, 4, skip: 'NGIS' at length-0x104, then RSA(sig) == digest + 0xbb filler + 0x0b; 1 or 0, fatal 0xa3 when length < skip; verified by warden_client.py
 0047fc40	warden_module_delete	deleting destructor: FUN_004e06a0, Storm free at WardenClient.cpp line 0x117 when bit 0
+0047fc70	warden_load_module	EAX length, stack data, 16-byte RC4 key: destroys the pending module, copies and RC4-decrypts, checks the trailer, zlib-inflates (first dword = size), maps it with FUN_004e0730, takes export 1; sets DAT_007bc994, 1 or 0; verified by warden_client.py
 0047fee0	warden_module_load	memcmp 16 bytes with 0x6d8768 -> FUN_0047fc70(0x6d74b0); else "%02x" x16 + ".mod" read through API +0xcc
 0047ffb0	warden_module_cache_write	API +0xd0 with GetSystemTimeAsFileTime, lifetimes -1
 00480000	warden_cb_send	callback table 0x6d8e68 slot 0: FUN_00478830 (C->S 0x66)
@@ -105,6 +110,7 @@ address	name	evidence
 00480230	warden_start_loaded	DAT_007bc994 -> DAT_007bc990, init +0x10, then +0 with the seed DAT_00721c94
 004802e0	warden_packet	S->C 0xAE: 0x45f5f0 JMPs here (ECX packet + 3, EDX u16 +1); module +8, then FUN_00480230
 00480320	warden_tick	FUN_0044efa0 per frame: module +0xc, then FUN_00480230
+004803c0	warden_init	ECX seed: shutdown, seed = ECX, API = FUN_00518c10 (0 gives 0), loads the built-in module and starts it; verified by warden_client.py
 00481860	sound_row	ECX id: id*0x8e + DAT_007bc9a0, 0 when id < 0 or >= DAT_007bc9a4 (Sounds.txt's records, music.md)
 004833e0	char_stats_row	ECX class: class*0xc4 + tables+0xbc4, 0 past tables+0xbc8 (the 0xc4-byte class record FUN_005706d0 reads)
 00483410	sets_row	ECX id: id*0x128 + tables+0xc0c, 0 past tables+0xc10: 32 rows loaded, Sets.txt's count
@@ -172,12 +178,17 @@ address	name	evidence
 004db290	dir_steps_convert	8 <-> 4, 16 <-> 8 through FUN_00600cb0
 004db570	cof_layer_tint	FUN_0062c100 unless broken, unusable or 'lit ' (GfxUtil.cpp 0x656, 0x657)
 004db670	gfx_unit_layer_ready	on screen, COF loaded, FUN_004db0d0
+004e06a0	pe_image_free	ECX record: unmaps the image of a module record (from the disassembly; hooked in warden_client.py, never run)
+004e0700	pe_image_export_by_ordinal	ECX record, stack ordinal: export address, 0 when out of range (from the disassembly; hooked in warden_client.py, never run)
+004e0730	pe_image_load	ECX record, stack image, size: maps an in-memory PE (hooked in warden_client.py, never run)
+004e09b0	rc4_init	ECX state, stack key, key length: RC4 key setup, 0x100 S bytes then i, j; verified by warden_client.py
 004e1b10	client_skill_missile_long	ECX caster, EDX skill, stack level: ORs 0x40 into caster +0xc4, builds a type-3 block from the skill's missile row (short +0xea) and target offset, FUN_004cd540, tags level (missiles.md "Client skill missile, long form")
 004e3720	client_skill_missile_short	ECX caster, EDX skill, stack level: ORs 0x40 into caster +0xc4, FUN_004c5420 missile tagged with the skill calc1 value (missiles.md "Client skill missile, short form")
 004e7120	damage_add_listed_skills	walks tables+0x16c (count +0x170): per id the stat list's stats 0x15e / 0x15f (skill, level) add SkillDesc calc min / max (+0x20 / +0x2c) or EMin / EMax (char-panel.md)
 004ec040	desc_damage_handler_18	slot 18 of the descdam table 0x72d768 (data ref at 0x72d7b0): SkillDesc found, then FUN_004ea010 (descdam 7)
 004eda80	skill_attack_rating	(player, hand): the hand's skill -> SkillDesc descatt (+0x14) handler in table 0x72d7f8, returns its first rating; 0 if none
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
+00518c10	bnclient_api	returns 0x72faa0, the Bnclient API table (+0xc8 free, +0xcc cache read, +0xd0 cache write)
 00518de0	bncache_crc32	table 0x72fb80, ~ on both ends; EAX data, ECX length
 00518e60	bncache_decrypt	MPQ key schedule: seed 0xeeeeeeee, crypt table +0x1000, key >> 11 | ~key << 21 + 0x11111111
 00518ec0	bncache_encrypt	same schedule as FUN_00518e60, the plain word feeds the seed
@@ -266,6 +277,41 @@ address	name	evidence
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
 0053ecf0	item_send_ground_9c_action3	assert 0x7e6 on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 3 (items.md)
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
+005496f0	location_check	shared C->S location check (packet EAX, unit ESI, stack game, size, &x, &y; ret 0x10): zeroes both word outs, size 5 else 3, no player data (FUN_006221a0) 2, range check FUN_00548ef0(EAX unit, EBX 0x32, x, y); on a failure more than 0x19 frames (signed) after the stamp at player data +0x168 sends a 0x15 reassign (FUN_0053bc10) to the unit's client; the status passes through; 0 stamps the frame and stores x, y; verified plrmsg_loc.py
+005497e0	scmd_walk_to_location	C->S 0x01: location check, then FUN_005809d0(game, unit, skill 0, mode 2, x, y, 0); answers 0; verified plrmsg_loc.py
+00549830	click_check	shared C->S click check (packet EAX, unit EDI, stack game, size, &type, &id): zeroes both outs, size 9 else 3, type under 6 else 2, range check FUN_00548f80(ECX game, EDX type, EAX id, EDI unit; 0x32) passes its status through, 0 stores type and id; verified plrmsg_click.py
+00549890	scmd_walk_to_entity	C->S 0x02: click check, then FUN_00580a70(game, unit, 0, mode 2, type, id, 0); verified plrmsg_click.py
+005498d0	scmd_run_to_location	C->S 0x03: location check, then FUN_005809d0 with mode 3; verified plrmsg_loc.py
+00549920	scmd_run_to_entity	C->S 0x04: click check, then FUN_00580a70 with mode 3; verified plrmsg_click.py
+00549a60	send_inventory_full_message	sends the 40-byte 0x5a system message (type 0x0e, colour 1) to the unit's client (line 0x73c); verified plrmsg_loc.py
+00549ad0	cast_skill_on_location	skill cast at x, y (ECX unit, EAX skill, stack game, x, y): no unit / death / dead mode 2; dual-wield swing swap; usability 1, 2 or 4 with skills.txt +7 flag retries with the basic attack; no skill mode 2; usability 0 FUN_005809d0 move, 1 inventory-full message; verified plrmsg_loc.py
+00549d00	scmd_left_skill_on_location	C->S 0x05: location check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, cast FUN_00549ad0 with the second skill fetch; answers 0; verified plrmsg_loc.py
+00549d80	scmd_left_skill_on_entity	C->S 0x06: click check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, skill processor FUN_00549ba0 with approach 1; verified plrmsg_click.py
+00549e00	scmd_left_skill_on_entity_no_approach	C->S 0x07: as 0x06 with approach 0; verified plrmsg_click.py
+00549e80	scmd_left_skill_on_location_held	C->S 0x08: location check (its status passes), left skill test (3), then 0x05's handler; answers 0; verified plrmsg_loc.py
+00549ee0	scmd_left_skill_on_entity_held	C->S 0x09: click check (its status passes), left skill test (3), then 0x06's handler; answers 0; verified plrmsg_click.py
+00549f40	scmd_left_skill_on_entity_held_no_approach	C->S 0x0a: as 0x09 delegating to 0x07; verified plrmsg_click.py
+00549fa0	scmd_keepalive	C->S 0x0b (1 byte): size 1 else 3; verified plrmsg_loc.py
+00549fc0	scmd_right_skill_on_location	C->S 0x0c: as 0x05 with the right skill (FUN_006201d0); verified plrmsg_loc.py
+0054a040	scmd_right_skill_on_entity	C->S 0x0d: as 0x06 with the right skill (FUN_006201d0); verified plrmsg_click.py
+0054a0c0	scmd_right_skill_on_entity_no_approach	C->S 0x0e: as 0x0d with approach 0; verified plrmsg_click.py
+0054a140	scmd_right_skill_on_location_held	C->S 0x0f: as 0x08 for the right skill, delegating to 0x0c; verified plrmsg_loc.py
+0054a1a0	scmd_right_skill_on_entity_held	C->S 0x10: as 0x09 for the right skill, delegating to 0x0d; verified plrmsg_click.py
+0054a200	scmd_right_skill_on_entity_held_no_approach	C->S 0x11: as 0x10 delegating to 0x0e; verified plrmsg_click.py
+0054aa90	scmd_interact	C->S 0x13: size 9 else 3, type under 6 else 2, FUN_00548b00(ECX unit, EDX type, id, 0, game), its answer passes through; verified plrmsg_click.py
+0054ba90	scmd_npc_gossip	C->S 0x31 (9 bytes): guid u32 +1, gossip id u16 +5 to FUN_005443b0; verified plrmsg_small.py
+0054bb20	scmd_npc_sell	C->S 0x33 (0x11 bytes): npc +1, item +5, mode u16 +9, price u32 +0xd to FUN_00579510, returns its status; verified plrmsg_small.py
+0054bb60	scmd_npc_repair	C->S 0x35 (0x11 bytes): npc +1, item +5, word +9, dword +0xd to FUN_00578050 (repair); verified plrmsg_small.py
+0054bba0	scmd_npc_identify	C->S 0x34 (5 bytes): npc guid to FUN_00578460; verified plrmsg_small.py
+0054bbd0	scmd_hire_merc	C->S 0x36 (9 bytes): npc guid +1, merc id u16 +5 to FUN_00577fe0; verified plrmsg_small.py
+0054bc00	scmd_resurrect_merc	C->S 0x62 (5 bytes): npc guid +1 to FUN_00579c00 (resurrect merc); refused (3) while game +0x70 == 0 (classic game); verified plrmsg_small.py
+0054c070	scmd_emote	C->S 0x3f (3 bytes): emote u16 +1 in 0x19..0x20 only; unit flag bit 10 refuses (1); FUN_00553380; verified plrmsg_small.py
+0054c0c0	scmd_refresh_quests	C->S 0x40 (1 byte): FUN_00546040(game, unit); verified plrmsg_small.py
+0054c590	scmd_cutscene_over	C->S 0x48 (1 byte): calls FUN_005350b0(unit) when player data +0x4c is non-zero, else 2; verified plrmsg_small.py
+0054c7c0	scmd_click_button	C->S 0x4f (7 bytes): button u16 +1, param (word +3 << 16 | word +5) to FUN_00568060, returns its status; verified plrmsg_small.py
+0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
+0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
+0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
 00558270	item_creation_descriptor	items-lifecycle.md: snapshot source item into 0x84-byte creation block
 00558530	item_replenish_dur_timer	stat 0xfc, timer 3 at 2500 / rate + 1
 00558580	item_replenish_qty_timer	stat 0xfd, timer 3 at 2500 / rate + 1
@@ -558,6 +604,7 @@ address	name	evidence
 0061ddf0	leveldefs_extra	returns 0x96c9f4, ECX slot = 0x96c9f8
 0061de00	leveldefs_load	"leveldefs" 0x9c then FUN_0061dd00
 0061e440	leveldefs_free	LvlTbls.cpp 0x1d9
+0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
 0061e4a0	lvltypes_fix_name	'/' to '\\', "%s\\%s"
 0061e520	lvltypes_load	"lvltypes" 0x788
 0061ea90	lvltypes_free	FUN_006125c0(0x96c9f0)
@@ -566,14 +613,19 @@ address	name	evidence
 0061eb40	lvltypes_file	row + n * 0x3c, n < 32
 0061f030	lvlprest_free	0x96ca20 DS1s, LvlTbls.cpp 0x2d2
 0061f0b0	lvlprest_row	0x1b0 rows, count +0xc68
+0061f0e0	lvlprest_by_level	first lvlprest row (0x1b0 bytes at 0x96c894) whose +4 LevelId equals the key, else 0; verified by lvl_tbls.py
 0061f130	lvlwarp_load	"lvlwarp" 0x30
 0061f300	lvlwarp_free	FUN_006125c0(0x96ca00)
+0061f310	lvlwarp_check	halts (0x32b / 0x33a) unless a lvlwarp row has the id and a 'b' / matching letter at +0x2c; verified by lvl_tbls.py
 0061f380	lvlmaze_load	"lvlmaze" 0x1c
 0061f480	lvlmaze_free	FUN_006125c0(0x96ca08)
+0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
 0061f9c0	lvlsub_free	0x96ca10 / 0x96ca18 / 0x96ca24 (LvlTbls.cpp 1000)
 0061fa90	lvlsub_row	0x15c rows through 0x96ca18 (LvlTbls.cpp 0x3f1..0x3f3)
 0061fae0	lvltypes_dt1_sets	0x1000 bytes per row, FUN_00604a40 (LvlTbls.cpp 0x410, 0x413)
 0061fbf0	lvltypes_dt1_sets_free	LvlTbls.cpp 0x43a
+0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
+0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py
 006200d0	lvltbls_96ca28_free	LvlTbls.cpp 0x551
 00620150	unit_skill_first	(unit) -> first node of the list at unit +0xa8 (FUN_00643910); null unit asserts (Skills.cpp line 0x638) and exits; skills.md "Skill list accessors and the hotkey sweep"
 00620190	left_skill	FUN_00643930: the skill list's +8
@@ -622,8 +674,8 @@ address	name	evidence
 00622060	player_data_free	FUN_0065c490 / FUN_00660fd0 pairs (Units.cpp 0xf6b, 0xf76)
 006220f0	player_set_name	FUN_004135d0 into player data (Units.cpp 0xf97..0xf9a)
 00622150	player_data_check	checks only (Units.cpp 0xfa5..0xfa8)
-006221e0	player_set_portal_levels	player data +0x2c = portal-levels-visited mask (net-packets.md "0x5f portal levels visited"; Units.cpp 0xfbf, 0xfc0); no data check
 006221a0	player_data	ECX unit: null asserts 0xfb4, type != 0 asserts 0xfb6 (FUN_00408090 / FUN_00681e09(-1)), else unit +0x14 (pet-ai.md "The owner's pet lists")
+006221e0	player_set_portal_levels	player data +0x2c = portal-levels-visited mask (net-packets.md "0x5f portal levels visited"; Units.cpp 0xfbf, 0xfc0); no data check
 00622230	player_portal_levels	player data +0x2c, the portal-levels-visited mask (net-packets.md "0x5f portal levels visited"; Units.cpp 0xfc9, 0xfca); no data check
 00622270	object_txt_168	Objects.txt +0x168 (Units.cpp 0xfd3)
 006222c0	object_data_5	object data byte +5 (Units.cpp 0xfe4)
@@ -1038,55 +1090,3 @@ address	name	evidence
 006c33d0	qsnt_stop	+0xbf8 = 1, waits 2000 ms
 006c3410	qs98_send	one send()
 006c3440	qs98_add_client	FUN_006bfb70, +0xbc4 with QServer98.cpp 0x91
-0054ba90	scmd_npc_gossip	C->S 0x31 (9 bytes): guid u32 +1, gossip id u16 +5 to FUN_005443b0; verified plrmsg_small.py
-0054bb20	scmd_npc_sell	C->S 0x33 (0x11 bytes): npc +1, item +5, mode u16 +9, price u32 +0xd to FUN_00579510, returns its status; verified plrmsg_small.py
-0054bb60	scmd_npc_repair	C->S 0x35 (0x11 bytes): npc +1, item +5, word +9, dword +0xd to FUN_00578050 (repair); verified plrmsg_small.py
-0054bba0	scmd_npc_identify	C->S 0x34 (5 bytes): npc guid to FUN_00578460; verified plrmsg_small.py
-0054bbd0	scmd_hire_merc	C->S 0x36 (9 bytes): npc guid +1, merc id u16 +5 to FUN_00577fe0; verified plrmsg_small.py
-0054bc00	scmd_resurrect_merc	C->S 0x62 (5 bytes): npc guid +1 to FUN_00579c00 (resurrect merc); refused (3) while game +0x70 == 0 (classic game); verified plrmsg_small.py
-0054c070	scmd_emote	C->S 0x3f (3 bytes): emote u16 +1 in 0x19..0x20 only; unit flag bit 10 refuses (1); FUN_00553380; verified plrmsg_small.py
-0054c0c0	scmd_refresh_quests	C->S 0x40 (1 byte): FUN_00546040(game, unit); verified plrmsg_small.py
-0054c590	scmd_cutscene_over	C->S 0x48 (1 byte): calls FUN_005350b0(unit) when player data +0x4c is non-zero, else 2; verified plrmsg_small.py
-0054c7c0	scmd_click_button	C->S 0x4f (7 bytes): button u16 +1, param (word +3 << 16 | word +5) to FUN_00568060, returns its status; verified plrmsg_small.py
-0054c940	scmd_gamepad_run	C->S 0x53 (1 byte): a walking player (mode 2) with stamina (FUN_00625480(unit,10,0)) gets update flag 3; a null unit does nothing; verified plrmsg_small.py
-0054c990	scmd_stop_running	C->S 0x54 (1 byte): a running player (mode 3) gets update flag 2; a null unit does nothing; verified plrmsg_small.py
-0054c9c0	scmd_mark_quest_done	C->S 0x58 (3 bytes): quest u16 +1 < 0x2a, FUN_0065c360(record, quest, 0xc) with record = the pointer stored at player data +0x10 + 4 * byte game +0x6d; else 2; verified plrmsg_small.py
-00549830	click_check	shared C->S click check (packet EAX, unit EDI, stack game, size, &type, &id): zeroes both outs, size 9 else 3, type under 6 else 2, range check FUN_00548f80(ECX game, EDX type, EAX id, EDI unit; 0x32) passes its status through, 0 stores type and id; verified plrmsg_click.py
-00549890	scmd_walk_to_entity	C->S 0x02: click check, then FUN_00580a70(game, unit, 0, mode 2, type, id, 0); verified plrmsg_click.py
-00549920	scmd_run_to_entity	C->S 0x04: click check, then FUN_00580a70 with mode 3; verified plrmsg_click.py
-00549d80	scmd_left_skill_on_entity	C->S 0x06: click check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, skill processor FUN_00549ba0 with approach 1; verified plrmsg_click.py
-00549e00	scmd_left_skill_on_entity_no_approach	C->S 0x07: as 0x06 with approach 0; verified plrmsg_click.py
-00549ee0	scmd_left_skill_on_entity_held	C->S 0x09: click check (its status passes), left skill test (3), then 0x06's handler; answers 0; verified plrmsg_click.py
-00549f40	scmd_left_skill_on_entity_held_no_approach	C->S 0x0a: as 0x09 delegating to 0x07; verified plrmsg_click.py
-0054a040	scmd_right_skill_on_entity	C->S 0x0d: as 0x06 with the right skill (FUN_006201d0); verified plrmsg_click.py
-0054a0c0	scmd_right_skill_on_entity_no_approach	C->S 0x0e: as 0x0d with approach 0; verified plrmsg_click.py
-0054a1a0	scmd_right_skill_on_entity_held	C->S 0x10: as 0x09 for the right skill, delegating to 0x0d; verified plrmsg_click.py
-0054a200	scmd_right_skill_on_entity_held_no_approach	C->S 0x11: as 0x10 delegating to 0x0e; verified plrmsg_click.py
-0054aa90	scmd_interact	C->S 0x13: size 9 else 3, type under 6 else 2, FUN_00548b00(ECX unit, EDX type, id, 0, game), its answer passes through; verified plrmsg_click.py
-0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
-0061f0e0	lvlprest_by_level	first lvlprest row (0x1b0 bytes at 0x96c894) whose +4 LevelId equals the key, else 0; verified by lvl_tbls.py
-0061f310	lvlwarp_check	halts (0x32b / 0x33a) unless a lvlwarp row has the id and a 'b' / matching letter at +0x2c; verified by lvl_tbls.py
-0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
-0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
-0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py
-00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
-0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
-0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
-0047fa20	warden_verify_signature	ECX 0x100, EAX length, stack salt, data, modulus, exponent, 4, skip: 'NGIS' at length-0x104, then RSA(sig) == digest + 0xbb filler + 0x0b; 1 or 0, fatal 0xa3 when length < skip; verified by warden_client.py
-0047fc70	warden_load_module	EAX length, stack data, 16-byte RC4 key: destroys the pending module, copies and RC4-decrypts, checks the trailer, zlib-inflates (first dword = size), maps it with FUN_004e0730, takes export 1; sets DAT_007bc994, 1 or 0; verified by warden_client.py
-004803c0	warden_init	ECX seed: shutdown, seed = ECX, API = FUN_00518c10 (0 gives 0), loads the built-in module and starts it; verified by warden_client.py
-004e06a0	pe_image_free	ECX record: unmaps the image of a module record (from the disassembly; hooked in warden_client.py, never run)
-004e0700	pe_image_export_by_ordinal	ECX record, stack ordinal: export address, 0 when out of range (from the disassembly; hooked in warden_client.py, never run)
-004e0730	pe_image_load	ECX record, stack image, size: maps an in-memory PE (hooked in warden_client.py, never run)
-004e09b0	rc4_init	ECX state, stack key, key length: RC4 key setup, 0x100 S bytes then i, j; verified by warden_client.py
-00518c10	bnclient_api	returns 0x72faa0, the Bnclient API table (+0xc8 free, +0xcc cache read, +0xd0 cache write)
-005496f0	location_check	shared C->S location check (packet EAX, unit ESI, stack game, size, &x, &y; ret 0x10): zeroes both word outs, size 5 else 3, no player data (FUN_006221a0) 2, range check FUN_00548ef0(EAX unit, EBX 0x32, x, y); on a failure more than 0x19 frames (signed) after the stamp at player data +0x168 sends a 0x15 reassign (FUN_0053bc10) to the unit's client; the status passes through; 0 stamps the frame and stores x, y; verified plrmsg_loc.py
-005497e0	scmd_walk_to_location	C->S 0x01: location check, then FUN_005809d0(game, unit, skill 0, mode 2, x, y, 0); answers 0; verified plrmsg_loc.py
-005498d0	scmd_run_to_location	C->S 0x03: location check, then FUN_005809d0 with mode 3; verified plrmsg_loc.py
-00549a60	send_inventory_full_message	sends the 40-byte 0x5a system message (type 0x0e, colour 1) to the unit's client (line 0x73c); verified plrmsg_loc.py
-00549ad0	cast_skill_on_location	skill cast at x, y (ECX unit, EAX skill, stack game, x, y): no unit / death / dead mode 2; dual-wield swing swap; usability 1, 2 or 4 with skills.txt +7 flag retries with the basic attack; no skill mode 2; usability 0 FUN_005809d0 move, 1 inventory-full message; verified plrmsg_loc.py
-00549d00	scmd_left_skill_on_location	C->S 0x05: location check, left skill (FUN_00620190) or 3, pierce stat 0x148 + 1, cast FUN_00549ad0 with the second skill fetch; answers 0; verified plrmsg_loc.py
-00549e80	scmd_left_skill_on_location_held	C->S 0x08: location check (its status passes), left skill test (3), then 0x05's handler; answers 0; verified plrmsg_loc.py
-00549fa0	scmd_keepalive	C->S 0x0b (1 byte): size 1 else 3; verified plrmsg_loc.py
-00549fc0	scmd_right_skill_on_location	C->S 0x0c: as 0x05 with the right skill (FUN_006201d0); verified plrmsg_loc.py
-0054a140	scmd_right_skill_on_location_held	C->S 0x0f: as 0x08 for the right skill, delegating to 0x0c; verified plrmsg_loc.py
