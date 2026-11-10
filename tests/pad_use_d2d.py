@@ -501,18 +501,42 @@ if touch_ux:
         akara = next(line.split("\t") for line in cmd("npcs").splitlines() if line.startswith("Akara\t"))
         cmd(f"debug warp {float(akara[5]) + 1} {akara[6]}"); frames(6)
         cmd("debug stat 14 100000"); cmd(f"cmd trade {akara[4]}"); frames(8)
-        before = int(state()["items"])
+        for pointer in (False, True):
+            before = int(state()["items"])
+            tap(110, 137)
+            assert int(state()["items"]) == before + 1, "touch stock tap did not buy"
+            bought = [line for line in cmd("items").splitlines() if line.startswith("[") and "panel=1 " in line][-1]
+            bought_id = bought.split(" id=")[1].split()[0]
+            pixel_x, pixel_y = item_point(bought_id)
+            if pointer:
+                cmd(f"click {pixel_x} {pixel_y} down"); frames(3)
+            else:
+                finger(2, "down", pixel_x, pixel_y)
+            assert state()["touch_item_finger"] == ("-2" if pointer else "2"), "sale test did not capture the intended pointer"
+            held_from = time.time()
+            while time.time() - held_from < .8:
+                frames(3)
+            if pointer:
+                cmd(f"click {pixel_x} {pixel_y} up"); frames(3)
+            else:
+                finger(2, "up", pixel_x, pixel_y)
+            assert int(state()["items"]) == before, f"hold did not sell with pointer={pointer}"
+        # Cancelled item holds must not sell, including after the hold threshold.
         tap(110, 137)
-        assert int(state()["items"]) == before + 1, "touch stock tap did not buy"
         bought = [line for line in cmd("items").splitlines() if line.startswith("[") and "panel=1 " in line][-1]
-        bought_id = bought.split(" id=")[1].split()[0]
-        pixel_x, pixel_y = item_point(bought_id)
+        pixel_x, pixel_y = item_point(bought.split(" id=")[1].split()[0])
+        before = int(state()["items"])
         finger(2, "down", pixel_x, pixel_y)
-        held_from = time.time()
-        while time.time() - held_from < .8:
-            frames(3)
-        finger(2, "up", pixel_x, pixel_y)
-        assert int(state()["items"]) == before, "touch hold did not sell"
+        finger(2, "cancel", pixel_x, pixel_y)
+        assert state()["touch_item_finger"] == "-1", "cancel kept the item pointer"
+        frames(50)
+        assert int(state()["items"]) == before, "cancelled touch hold sold an item"
+        cmd(f"click {pixel_x} {pixel_y} down"); frames(3)
+        tap(720, 32)
+        assert state()["touch_item_finger"] == "-1", "closing the shop kept the item pointer"
+        frames(50)
+        cmd(f"click {pixel_x} {pixel_y} up"); frames(3)
+        assert int(state()["items"]) == before, "closing the shop committed a pointer sale"
         tap(720, 32)
     print("ok: touch assignment, independent page/movement, aim/cancel, actual cast, tomes and separate buy/sell where applicable")
     sys.exit(0)

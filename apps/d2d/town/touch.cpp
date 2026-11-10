@@ -280,7 +280,7 @@ void Town::drive_touch() {
     if (panel_state != touch_panel_state) {
         touch_item_finger = -1; touch_panel_state = panel_state;
     }
-    if (touch_item_finger >= 0 && store.npc >= 0 && !touch_sold && touch_item >= 0 && now_ms - touch_item_start >= 550) {
+    if (touch_item_finger != -1 && store.npc >= 0 && !touch_sold && touch_item >= 0 && now_ms - touch_item_start >= 550) {
         const auto found = std::ranges::find(character.items, touch_item, &d2d::d2s::Item::id);
         if (found != character.items.end() && scene && !store.gamble && d2d::rules::sellable(scene->rules, *found)) {
             send(cmd::Sell{ found->id }); touch_sold = true;
