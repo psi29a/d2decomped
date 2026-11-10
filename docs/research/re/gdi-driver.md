@@ -38,6 +38,37 @@ The renderer's tile draw (`FUN_004f68e0` hands its arguments to renderer
   show, so that half of the row rests on the disassembly the row's author
   read, not on a re-read here. Cited, not re-proven.
 
+### The call into the slot (`FUN_004f68e0`)
+
+`FUN_004f68e0` (`tools/emu/disasm.py 4f68e0`) is a stdcall thunk of nine
+stack arguments (`ret 0x24`) with no logic of its own. It loads argument 1
+into ECX and argument 2 into EDX, pushes arguments 3 to 9 (seven dwords, so
+that argument 3 is the callee's `[ebp + 8]`) and calls `[DAT_007c8cc0 + 0x7c]`.
+Both drivers' entries (`FUN_006c95d0` and `FUN_005132c0`) end `ret 0x1c`, seven
+dwords, which matches. Read from their disassembly (the same in both):
+
+| Thunk argument | Callee | Used as |
+|---|---|---|
+| 1 | ECX | the tile, passed on to `FUN_005fdea0` and to callback `+0xc` |
+| 2 | EDX | passed to the callback as its stack argument beside the y |
+| 3 | `[ebp + 8]` | x, less 0x50 (and the panel shift below) before the callback |
+| 4 | `[ebp + 0xc]` | y, handed to the callback unchanged |
+| 5, 6, 7 | `[ebp + 0x10..0x18]` | not read by either driver |
+| 8 | `[ebp + 0x1c]` | 1: x moves by −`DAT_007c9138` / 4; 2: by +`DAT_007c9138` / 4; else 0 |
+| 9 | `[ebp + 0x20]` | not read by either driver |
+
+The only caller with a body to read here, `FUN_004de410`, passes (tile
+record +0x18, the light table, x, y, subtile x, subtile y, 0xff, its state
++0x20, its third argument). Its state +0x20 is `FUN_0045ae90`'s value
+(`FUN_004de730` stores it there), which fits the panel shift that
+menu.md "The view with panels open" describes: 1 and 2 are the two panel
+sides. That last link is read from `FUN_004de730` and the drivers' compare
+with 1 and 2, not run.
+
+d2d: `not ported` as a function (it is a table call). The x −0x50 is
+bugs.md #10's; the panel shift is menu.md's, not re-checked here. Cited, not
+proven.
+
 ## Clearing the draw buffer (`FUN_006c9280`, `FUN_006c9220`)
 
 - `FUN_006c9280` is a thunk to `FUN_006c9220`. Its caller is the slot `+0x18`
