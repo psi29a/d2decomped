@@ -8,6 +8,7 @@
 #include "platform.hpp"
 #include "scene.hpp"
 
+#include <ambient_dip.hpp>
 #include <cues.hpp>
 #include <light.hpp>
 #include <log.hpp>
@@ -37,7 +38,14 @@ auto Town::den_ambient() const -> int {
 
 auto Town::event_ambient() const -> int {
         if (const int den = den_ambient(); den >= 0) return den;
-        return level ? d2d::rules::release_light(level->id, view.diablo_red || (net_game && net_game->diablo_red)) : -1;
+        if (!level) return -1;
+        if (const int red = d2d::rules::release_light(level->id, view.diablo_red || (net_game && net_game->diablo_red)); red >= 0) return red;
+        return dip.light(level->id);
+    }
+
+// ponytail: a joined game's state 153 (0xa8 / 0xaa) and 0x89 event 1 don't start one.
+auto Town::dip_tick() -> void {
+        if (level) dip.step(level->light >= 0 ? level->light : view.day.intensity(), level->id);   // FUN_00474550 flag 0
     }
 
 auto Town::den_tick(std::uint32_t frame_ms) -> void {

@@ -87,7 +87,7 @@ Known differences in the ones it draws, and what's left to check:
 | 31 | Static lights' shadows (type 2) are read each frame; game.exe caches them (FUN_004750f0), so a later change to the map doesn't re-shade them | exact | hardly | lighting.md, deviations.md approximation 5 |
 | 32 | Light Quality always high; unit shadows darken once; lit tiles per pixel, not per 32-pixel block | exact | hardly | deviations.md approximations 2–4 |
 | 36 | The play tests reach a quarter of the animations; a run (or devctl tour) that gives each class every weapon class, casts every skill, opens every object type and fights every monster would show which ones d2d really never asks for | check | — | tools/anim_coverage.py; `tests/play_d2d.py` (planned, #1) |
-| 44 | The ambient's dip to black isn't built: Cloak of Shadows (state 153) and the Cairn Stones opening in Stony Field leave the level lit | build | yes | lighting.md "What fills it"; `FUN_004d87e0`, `FUN_0046ad10`; tools/emu/level_ambient.py |
+| 44 | The Cairn Stones opening in Stony Field don't dip the ambient to black (Cloak of Shadows' dip is built) | build | yes | lighting.md "What fills it"; 0x46aee0, `FUN_00593710`; tools/emu/ambient_dip.py |
 | 45 | Rooms over a level's edge take the player's level's ambient, not their own: at least three Act 4 borders differ (140 / 120, 120 / 80, 80 / 40; the listing leaves out River of Flame, 107) | exact | hardly | lighting.md "What fills it"; `FUN_00474610`; `level_ambient.py borders` |
 
 ## Tables

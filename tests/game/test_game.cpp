@@ -552,6 +552,17 @@ int main(int argc, char** argv) try {
         assert(effects.view().diablo_red);
         effects.terror.dead = true;
         assert(effects.view().diablo_red == effects.lead().character.header.expansion());
+        // Cloak of Shadows' state (153) at level 1, auralen 200: each player's
+        // dip, in 5, held 120, back 80, in the caster's level (FUN_004d87e0).
+        for (auto& participant : effects.players) participant->events.clear();
+        effects.fight.cloaks.push_back(200);
+        effects.cloak_dips();
+        assert(effects.fight.cloaks.empty());
+        for (const auto& participant : effects.players) {
+            assert(participant->events.size() == 1);
+            const auto& dip = std::get<ev::AmbientDip>(participant->events[0]);
+            assert(dip.fade_in == 5 && dip.hold == 120 && dip.back == 80 && dip.level == d2d::rules::level_ids::kChaosSanctuary);
+        }
     }
     World world(&*data, -1, -1);
     world.enter(character);
