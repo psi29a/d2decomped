@@ -125,6 +125,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | The profile dump is dead (Logging\ProfCore.cpp FUN_006116b0: 23 rows, all 0; FUN_00611660 and 0x611730 never referenced) | `uv run python profile_dump.py` | `ok` |
 | Quest 0x21 coordinate and notification helpers (two functions, callees hooked; `--mutation-check` three ways) | `uv run python quest_barbarian_helpers.py` | `ok: 48 quest barbarian helper cases` |
 | Quest flag buffer allocation and release (pool boundaries hooked) | `uv run python quest_buffer.py` | `ok: 29 quest buffer lifetime cases` |
+| Quest state cleanup (`FUN_00543800`, allocator and buffer free hooked; `--mutation-check` three ways) | `uv run python quest_destroy.py` | `ok: 24 quest state cleanup cases` |
 | Quest list cleanup (`FUN_00543590`, allocator hooked; `--mutation-check` three ways) | `uv run python quest_free_list.py` | `ok: 24 quest list cleanup cases` |
 | Quest frontier accessors (nine functions, lookup hooked; `--mutation-check` nine ways) | `uv run python quest_frontier.py` | `ok: 216 quest frontier cases` |
 | Talk-submenu quest names (FUN_0049f910, table 0x722678) vs `rules::quest_name` | `uv run python quest_name.py` | `65536 messages match d2d's 32 runs; 527 have a name; 164 (row 100) is 3716`, then `ok` |

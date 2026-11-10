@@ -378,6 +378,14 @@ node's +4 next pointer before freeing that node through the pool at game
 +0x1c; a null head does nothing. `tools/emu/quest_free_list.py` checks 24
 acyclic synthetic lists against stock with the free boundary hooked.
 
+`FUN_00543800` destroys the state at game +0x10f4 when present. It walks the
+record list at state +0 (next +0xf4), freeing each non-null data pointer at
+record +0x18 before the record. It then frees the list at state +0x10 (next
++0x10), calls `FUN_0065c490` on the game pool and the buffer at state +0xc,
+and frees the state itself. All frees use the pool at game +0x1c. The state
+pointer in the game is not cleared here. `tools/emu/quest_destroy.py` checks
+24 acyclic synthetic cases, with allocator and buffer free hooked.
+
 `tools/emu/quest_frontier.py` checks these nine functions on synthetic records
 against stock 1.14d (216 cases, nine deliberate model defects caught). The
 quest lookup `FUN_00543640` is hooked: its arguments are checked, but its
