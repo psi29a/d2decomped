@@ -433,6 +433,7 @@ address	name	evidence
 005b5810	quest17_game_gate	game +0x70 zero and absent quest 0x17 or data byte +0x14 nonzero
 005b9ca0	quest11_data_coords	quest 0x11 data byte +6 gates copying dwords +0x10 and +0x14
 005b9cd0	quest11_object_timer	quest 0x11 clears data +6 and schedules the object at data +0x28
+005ba2f0	quest_party_callback	valid low-word party ID dispatches callback FUN_005ba290
 005bad20	quest12_flag_test	quest 0x12 first data byte nonzero
 005bad40	quest12_flag_clear	quest 0x12 first data byte cleared
 005bbf80	quest13_data0c_zero	quest 0x13 absent or data byte +0xc zero; result in AL

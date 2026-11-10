@@ -375,6 +375,13 @@ object with `FUN_00552f60(game, 2, id)` using the respective data dword +4 /
 independent. `tools/emu/quest_two_objects.py` checks 24 stock cases with the
 lookup and setter boundaries hooked.
 
+`FUN_005ba2f0` obtains a party ID from `FUN_00554630` for the player in ECX.
+When the returned low word is not 0xffff, it calls `FUN_00540510` with the
+game from the stack in ECX, the zero-extended ID in EDX, callback
+`FUN_005ba290` and argument 0. It returns 0 and pops one stack argument.
+`tools/emu/quest_party_callback.py` checks 24 cases, including differing
+high words; both party routines are hooked and the callback is not run.
+
 `FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
 looks up object ID data +0x28 in the game (type 2); if found, it sets the
 object mode to 1, reads its Objects table record from its class ID at +4,
