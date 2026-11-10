@@ -96,6 +96,7 @@ and sound.
 |---|---|---|---|
 | Items, stores, gambling, hiring, potions | `rules.hpp` (`test_rules`) | `inventory.hpp`, `item_text.hpp` | `items.hpp`, `store.hpp`, `cursor.hpp`, `panels.hpp` |
 | Monsters: tables, spawning, stats | `monsters.hpp` (`test_monsters`) | `ai.hpp` (units, AI, missiles) | `load.hpp` (`load_monsters`) |
+| Monster AI: each MonAI's think, by act | `thinks.hpp`, `thinks/act1..5.hpp` (`test_monster_thinks`, `test_monster_ai`: the emu oracles' cases) | `ai.cpp` (`think`, the driver), `ai/act1..5.cpp` (each AI's game side) | |
 | Combat: Fighter, blows, speed, experience | `combat.hpp` (`test_combat`) | `fight.hpp` (`Fight`) | |
 | Drops: treasure classes, quality | `drops.hpp` (`test_drops`) | `loot.hpp` (`Loot`) | |
 | Skills: records, calc VM, levels, mana | `skills.hpp` (`test_skills`) | skill use in `fight.hpp` | `skillbar.hpp` (HUD buttons, picker, hotkeys) |
@@ -120,6 +121,20 @@ each game name it uses, so the list is the client's whole view of the
 game. `common.hpp` is its base (game_api, screen size, blits),
 `platform.hpp` brings SDL and OpenAL to the headers that need them, and
 `scene.hpp` holds `Scene : GameData` (sprites, fonts, palettes).
+
+**A monster AI.** One AI's code is two rows, in the two files of the same
+act. Its decision is a member of `ActNThinks` in `rules/thinks/actN.hpp`, a
+row in that file's table by MonStats AI name: pure, so tools/emu's
+`mon_ais*.py` replay game.exe's own think against it through `ThinkIn`. What
+the game does around it is a member of `ActNAi` in `game/ai/actN.cpp`, a row
+the same way, with the parts game.exe's MonAI row has: its own target pick,
+a think the game runs itself, the `ThinkIn` inputs its think reads, how its
+skills start and aim. `ai.cpp`'s `think` runs the rest, the same for every
+AI. The act is where the AI first shows up, not the only one it runs in
+(act1.hpp's Skeleton think drives Act 5's skeletons too). A part is defined
+in its struct, its trace's prose above it. A new AI: a member and a row in
+each file it needs; a part several AIs share sits on `Thinker` /
+`ThinkCtx`.
 
 **Files.** A header declares; its bodies live in the `.cpp` of the same
 name (`fight.hpp` / `fight/`). A file includes the headers whose names
@@ -989,7 +1004,7 @@ Branch `act5`:
   start tile (no index-11 tile: `FUN_0066ac40` takes the first).
 - Thinks: 22 Act 5 MonAIs verified against game.exe in tools/emu
   (`tests/mon_ais5_cases.inc`), plus the quest-driven Wussie, BaalThrone
-  and BaalToStairs (ai.cpp). MonStats Align at spawn (`FUN_005b2a00`): the
+  and BaalToStairs (ai/act5.cpp). MonStats Align at spawn (`FUN_005b2a00`): the
   defenders and prisoners are on the player's side.
 - Quests (docs/research/re/quests-act5.md): the introductions (the save's
   NPC section kept), Siege on Harrogath, Rescue on Mount Arreat, Prison of
