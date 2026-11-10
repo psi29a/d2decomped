@@ -22,6 +22,7 @@ address	name	evidence
 0041d2a0	storm_mem_copy	_memcpy(dst, src, size), nothing else
 0044bf00	global_70f234_get	no args: returns the dword at 0x70f234; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
 0044bf10	global_70f2bc_get	no args: returns the dword at 0x70f2bc; FUN_00461250 command 8 tests its bit 8 (collision.md "The client's command switch")
+0044dca0	ladder_or_one	no args, 24 bytes: game type at 0x7a0610 is 2 or 3 returns dword 0x7a04f8 (S->C 0x01 byte +7, ladder), else 1 (net-join.md)
 0044dcc0	is_expansion	returns DAT_007a04f4; skill_tips.py:28 sets it to 1 for an expansion game
 00451f60	unit_class_id	(unit in ECX): -1 for a null unit, else unit +4 (items.md)
 00451f70	unit_mode	ECX unit: +0x10 (structs.tsv unit.mode); null 0
