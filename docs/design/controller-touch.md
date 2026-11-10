@@ -206,7 +206,7 @@ tray. The skill tree gains a visible, clickable close control using existing
 close-button art, with matching drawing and hit coordinates; B remains
 available. These are UI fixes, not newly traced original-game claims.
 
-The persistent Character/Stats shortcut immediately left of Run is drawn
-with existing character-button art and works with zero unspent stat points.
-It toggles the character panel; held items and modal item actions do not
-activate it. The separate New Stats point notification is unchanged.
+The untraced permanent Character/Stats shortcut has been removed; the original
+HUD art and conditional New Stats notification are retained. Character remains
+available through its normal key and mini-panel action. The tree close control
+now uses retail class/tab placement, rather than the earlier fixed corner.

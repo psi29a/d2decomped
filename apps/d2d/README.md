@@ -164,7 +164,7 @@ already initialized and are never reseeded. Touch bindings remain separate.
 The open panel-shortcut strip stays visible while using a controller. The
 skill tree has a clickable close button as well as controller B-to-close.
 
-The persistent Character/Stats shortcut immediately left of Run is drawn
-with existing character-button art and works with zero unspent stat points.
-It toggles the character panel; held items and modal item actions do not
-activate it. The separate New Stats point notification is unchanged.
+The untraced permanent Character/Stats shortcut has been removed; the original
+HUD art and conditional New Stats notification are retained. Character remains
+available through its normal key and mini-panel action. The tree close control
+now uses retail class/tab placement, rather than the earlier fixed corner.

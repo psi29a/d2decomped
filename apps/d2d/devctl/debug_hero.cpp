@@ -66,6 +66,19 @@ void DebugVerbs::add_hero() {
             out += std::format(" {}={}{}{}", passive.stat, passive.value, passive.itype.empty() ? "" : "/", passive.itype);
         return out + "\n";
     });
+    add("pickerat", [this](const Args& args) -> Reply {
+        if (args.size() < 3 || !scene || (town.skillbar.picking != 1 && town.skillbar.picking != 2)) return std::string("err open a hand picker first\n");
+        const bool left = town.skillbar.picking == 1;
+        const int skill = std::atoi(args[2].c_str());
+        const auto rows = town.skillbar.rows(left);
+        for (std::size_t row = 0; row < rows.size(); ++row)
+            for (std::size_t column = 0; column < rows[row].size(); ++column)
+                if (rows[row][column].skill == skill) {
+                    const auto [pixel_x, pixel_y] = town.skillbar.picker_at(rows, left, int(row), int(column));
+                    return std::format("ok {} {}\n", pixel_x + 24, pixel_y - 24);
+                }
+        return std::string("err no picker entry\n");
+    });
     add("points", [this](const Args& args) -> Reply {   // give class skill <id> n points (tests)
         if (args.size() < 4 || !scene) return std::nullopt;
         const auto& ids = scene->skills.class_ids[std::size_t(std::max(town.hero.character.character_class, 0))];

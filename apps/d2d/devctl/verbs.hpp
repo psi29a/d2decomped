@@ -326,6 +326,14 @@ void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& scr
              + " walking=" + (town.player.walking ? "1" : "0") + " dir=" + std::to_string(town.player.dir)
              + " saves=" + std::to_string(scene ? scene->saves.size() : 0)
              + " aura=" + std::to_string(town.view.aura)
+             + " hotkeys=" + [&] {
+                 std::string out;
+                 for (const auto binding : town.character.header.hotkeys) {
+                     if (!out.empty()) out += ",";
+                     out += std::to_string(binding);
+                 }
+                 return out;
+             }()
              + " character_panel=" + std::to_string(town.char_open)
              + " quests=" + std::to_string(town.quest_log.open)
              + " touch_page=" + std::to_string(town.touch_input.alternate)

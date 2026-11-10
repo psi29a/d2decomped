@@ -15,6 +15,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "skill_tree_close.hpp"
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
@@ -335,9 +336,13 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         if (tree_open)
             draw_skill_tree(framebuffer, *scene, int(kUiToSaveClass[ui_cls]), tree_tab, character.stats.skills, character.stats, tip_env(),
                             skill_pressed, held ? -1 : mouse.x, held ? -1 : mouse.y);
-        if (tree_open && scene->store_buttons.frames_per_direction() > 11)
-            blit_at_anchor(framebuffer, scene->store_buttons.frame(0, tree_close_down ? 11 : 10),
-                scene->act_pal.entries().empty() ? scene->pal : scene->act_pal, kTreeCloseLeft, kTreeCloseBottom);
+        if (tree_open && scene->store_buttons.frames_per_direction() > 11) {
+            const auto close = skill_tree_close(character.character_class, tree_tab);
+            const auto& frame = scene->store_buttons.frame(0, tree_close_down ? 11 : 10);
+            // FUN_004ab530 supplies the cel's bottom-left; sprite offsets are not a new hit box.
+            blit_sprite(framebuffer, frame, scene->act_pal.entries().empty() ? scene->pal : scene->act_pal,
+                close.left, close.bottom - int(frame.height) + 1);
+        }
         if (tree_open && pad_config.skill_buttons && pad_playing && !skillbar.picking) {
             const int tree_class = std::max(character.character_class, 0);
             const int index = skill_at(*scene, tree_class, tree_tab, mouse.x, mouse.y);
@@ -352,13 +357,6 @@ auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::ui
         draw_quest_log_button(framebuffer, *scene, quest_log_button_now(), quest_log.button_down, mouse.x, mouse.y);
         const bool left_open = left_panel_open();
         if (!coop_hud_hidden()) mini.draw(framebuffer, *scene, left_open, mini_right(), mouse.x, mouse.y, true);
-        if (!coop_hud_hidden() && scene->minipanel_btn.frames_per_direction() > 1) {
-            const bool hovered = over_character_shortcut(mouse.x, mouse.y) && !(pad_playing && pad_field());
-            blit_at_anchor(framebuffer, scene->minipanel_btn.frame(0, character_button_down && hovered ? 1 : 0),
-                scene->pal, kCharacterShortcutLeft + 6, kCharacterShortcutBottom - 4);
-            if (hovered) scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal,
-                kCharacterShortcutLeft - 8, kCharacterShortcutBottom - 46, "Character / Stats");
-        }
         // A mini-panel button's tooltip (FUN_0047f490): string 0x1049 + its
         // action, then 0x1052 " (%s)" for each key bound to it, the second
         // slot first; FUN_00502280 at (x - 3, H - 0x32 - 0x1a). Menu has no key.

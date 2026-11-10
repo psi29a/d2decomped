@@ -22,6 +22,7 @@
 #include "platform.hpp"
 #include "roster.hpp"
 #include "scene.hpp"
+#include "skill_tree_close.hpp"
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "store.hpp"
@@ -558,8 +559,10 @@ auto Town::pad_snap_points() const -> std::vector<pad::Point> {
                     if (const auto [x, y] = skill_icon_at(class_skill); x > -1000) centre(x, y - 0x30, 0x30, 0x30);
             for (const int top : { kTreeB - 0x174, kTreeB - 0x108, kTreeB - 0x9c }) centre(kTreeR - 0x58, top, 0x58, 0x6b);
         }
-        if (!coop_hud_hidden()) centre(kCharacterShortcutLeft, kCharacterShortcutBottom - 32, 32, 32);
-        if (tree_open) centre(kTreeCloseLeft, kTreeCloseBottom - 32, 32, 32);
+        if (tree_open) {
+            const auto close = skill_tree_close(character.character_class, tree_tab);
+            centre(close.left, close.bottom - 34, 34, 34);
+        }
         if (char_open && character.stats.get(d2d::d2s::kStatPts) > 0)  // the stat buttons
             for (const auto& button : kStatButtons) centre(kCharPanelX + button.x, kCharPanelY + button.y - 22, 40, 22);
         if (quest_log.open) {                                           // the acts' tabs, the quests, Close and the last quest

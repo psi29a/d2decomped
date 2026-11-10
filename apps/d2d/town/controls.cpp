@@ -16,6 +16,8 @@
 #include "ui.hpp"
 
 #include <cues.hpp>
+#include <d2gs/c2s.hpp>
+#include <d2gs/wire.hpp>
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
@@ -110,6 +112,29 @@ auto Town::accept_controls() -> void {
             if (leave_skills) { skillbar.picking = 0; skill_strip = -1; }   // a wheel or panel list must not keep the field closed
             if (!cfg_file.empty() && !d2d::userdir::save_cfg(cfg_file, pad::save_config(pad_config))) d2d::log::warn("d2d.cfg: the pad's settings not saved");
         }
+    }
+
+auto Town::skill_hotkey(int slot, int mouse_x, int mouse_y) -> void {
+        const auto previous = character.header.hotkeys;
+        skillbar.hotkey(slot, mouse_x, mouse_y);
+        if (previous == character.header.hotkeys) return;
+        // Bindings belong to the client; keep the local save owner in sync now,
+        // before a publish or Save and Exit can replace the display header.
+        focused().character.header.hotkeys = character.header.hotkeys;
+        if (!net_game) return;
+        std::vector<d2d::net::d2gs::Bytes> packets;
+        for (std::size_t index = 0; index < previous.size(); ++index) {
+            const auto current = character.header.hotkeys[index];
+            if (previous[index] == current) continue;
+            std::uint32_t item_id = 0xffffffff;
+            if (skillbar.hotkey_items[index] >= 0) {
+                const auto item = std::ranges::find(character.items, skillbar.hotkey_items[index], &d2d::d2s::Item::id);
+                if (item == character.items.end() || (item_id = net_game->host_item(*item)) == 0) continue;
+            }
+            packets.push_back(d2d::net::d2gs::c2s::bind_hotkey(int(index), int(current & 0x7fff),
+                (current & 0x8000) != 0, item_id));
+        }
+        if (!packets.empty()) net_game->send_items(packets);
     }
 
 auto Town::function_held(int action) const -> bool {

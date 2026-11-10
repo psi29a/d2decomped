@@ -108,6 +108,16 @@ inline auto chat(std::string_view message, std::string_view target = {}) -> Byte
 // 0x41: a dead player back to town (54c0e0 takes it only from the dead).
 inline auto resurrect() -> Bytes { return { 0x41 }; }
 
+// FUN_0054c870 decodes the slot (high word), left bit 15, skill and item.
+// Oracle: tools/emu/hotkey_packet.py; this is metadata, not a skill cast.
+inline auto bind_hotkey(int slot, int skill, bool left, std::uint32_t item_id = 0xffffffff) -> Bytes {
+    Bytes out;
+    put_u8(out, 0x51);
+    put_u32(out, (std::uint32_t(slot) << 16) | (left ? 0x8000u : 0u) | (std::uint32_t(skill) & 0x7fffu));
+    put_u32(out, item_id);
+    return out;
+}
+
 // 0x3c: the skill on a hand (bit 31: the left), and the item it comes
 // from (-1: none). Sent before a skill packet when the hand's skill changed.
 inline auto select_skill(int skill, bool left, std::uint32_t item_id = 0xffffffff) -> Bytes {
