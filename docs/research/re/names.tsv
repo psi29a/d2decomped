@@ -1053,3 +1053,14 @@ address	name	evidence
 0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
 0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
 0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py
+00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
+0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
+0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
+0047fa20	warden_verify_signature	ECX 0x100, EAX length, stack salt, data, modulus, exponent, 4, skip: 'NGIS' at length-0x104, then RSA(sig) == digest + 0xbb filler + 0x0b; 1 or 0, fatal 0xa3 when length < skip; verified by warden_client.py
+0047fc70	warden_load_module	EAX length, stack data, 16-byte RC4 key: destroys the pending module, copies and RC4-decrypts, checks the trailer, zlib-inflates (first dword = size), maps it with FUN_004e0730, takes export 1; sets DAT_007bc994, 1 or 0; verified by warden_client.py
+004803c0	warden_init	ECX seed: shutdown, seed = ECX, API = FUN_00518c10 (0 gives 0), loads the built-in module and starts it; verified by warden_client.py
+004e06a0	pe_image_free	ECX record: unmaps the image of a module record (from the disassembly; hooked in warden_client.py, never run)
+004e0700	pe_image_export_by_ordinal	ECX record, stack ordinal: export address, 0 when out of range (from the disassembly; hooked in warden_client.py, never run)
+004e0730	pe_image_load	ECX record, stack image, size: maps an in-memory PE (hooked in warden_client.py, never run)
+004e09b0	rc4_init	ECX state, stack key, key length: RC4 key setup, 0x100 S bytes then i, j; verified by warden_client.py
+00518c10	bnclient_api	returns 0x72faa0, the Bnclient API table (+0xc8 free, +0xcc cache read, +0xd0 cache write)
