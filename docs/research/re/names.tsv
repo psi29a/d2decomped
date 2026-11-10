@@ -86,12 +86,21 @@ address	name	evidence
 00471bd0	gfx_tint_draw	per COF layer FUN_004f6570 (Gfx.cpp 0xa2f, 0xa56)
 00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
-004795a0	roster_next	ECX roster entry: +0x80; null gives the first (DAT_007bb5c0)
-004795c0	roster_name	ECX roster entry: entry + 0x66 (the name); null is fatal, line 0x174
-00479b90	roster_level	ECX roster entry: u16 +0x20; null 0
-00479ba0	roster_class	ECX roster entry: +0x1c; null 0
-0047a0c0	roster_unit_id	ECX roster entry: +0x10; null -1
-0047a1e0	roster_area	ECX roster entry: +0x24; null 0
+004792e0	roster_find	EDX unit id: the roster record whose +0x10 or +0x38 id list holds it; -1 and absent give 0 (verified roster_small.py)
+00479320	roster_self	the local player's record (id at FUN_00463dd0 +0xc); fatal line 0x75 without one; verified roster_small.py
+004795a0	roster_next	ECX roster entry: +0x80; null gives the first (DAT_007bb5c0); verified roster_small.py
+004795c0	roster_name	ECX roster entry: entry + 0x66 (the name); null is fatal, line 0x174; verified roster_small.py
+00479b90	roster_level	ECX roster entry: u16 +0x20; null 0; verified roster_small.py
+00479ba0	roster_class	ECX roster entry: +0x1c; null 0; verified roster_small.py
+00479d30	roster_toggle_relation	custom call, EBX record and DI mask: adds the relation node if missing, then sets every mask bit when none is set, else clears them all; fatal line 0x463 on null; verified roster_small.py
+00479e20	roster_squelch	flips relation bit 4, sends C->S 0x5d (ECX 3), adds or removes the name in the ignore list (vtable slot 0 or 1); verified roster_small.py
+00479f60	roster_leave_area	own record area +0x22 := 0xffff, +0x30 := 1, redraw FUN_00479ab0 and FUN_0049a640; fatal line 0x4ed; verified roster_small.py
+00479fe0	roster_hostile	flips relation bit 8 if level >= 9 or already hostile, sends 0x5d (ECX 4), leaves the area when both share one; verified roster_small.py
+0047a0c0	roster_unit_id	ECX roster entry: +0x10; null -1; verified roster_small.py
+0047a100	roster_set_position	ECX id, EDX x, stack y: record +0x28 / +0x2c (S->C 0x90); verified roster_small.py
+0047a1e0	roster_area	ECX roster entry: +0x24; null 0; verified roster_small.py
+0047a210	roster_unit_name	player unit: its record's name (+0x66), else the player data pointer; fatal lines 0x5db, 0x5dc, 0x5e5; verified roster_small.py
+0047a690	roster_set_life	ECX id, DL zero-extended and stored as a dword at record +0x14 (clears +0x15..+0x17; the party life bar); verified roster_small.py
 0047f8c0	rc4_crypt	ECX state (0x102 bytes), stack buffer, length: RC4 keystream xor in place; verified by warden_client.py
 0047f990	warden_digest	EAX length, EBX data, ESI skip, stack salt, out: SHA-1 of data[skip:], data[:skip], then the upper-cased salt (20 bytes to out); verified by warden_client.py
 0047fa20	warden_verify_signature	ECX 0x100, EAX length, stack salt, data, modulus, exponent, 4, skip: 'NGIS' at length-0x104, then RSA(sig) == digest + 0xbb filler + 0x0b; 1 or 0, fatal 0xa3 when length < skip; verified by warden_client.py
@@ -269,9 +278,39 @@ address	name	evidence
 00526320	utf8_to_units	FUN_00526100 per sequence, stops at the first error or NUL
 005267e0	wide_copy	ECX dst, EDX src: copies u16 units up to and including the 0
 00526800	wide_length	ECX: u16 units before the 0; null 0
-00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60 (ECX = client +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
+00537860	client_player_unit	(client, force): client +0x174, revalidated through FUN_00552f60(game +0x1a8, type +0x16c, id +0x170) unless +0x3d4 bit 0 or force; a null client asserts 0xfb (items.md)
 005379d0	unit_look_codes	fastcall (_, unit, out, size): asserts 0x3d4 for size < 0x10 or no unit, out = 0xff x16, FUN_0063e510 fills it with the layer codes (items.md)
 00537a40	unit_look_tints	fastcall (_, unit, out, size): as FUN_005379d0 (assert 0x3df) but out receives the layer tints (items.md)
+005381f0	client_set_area	ECX client, EDX area: calls FUN_00537b50 when it changes, then +0x1b4; fatal line 0x79f; verified clients_small.py
+005382b0	client_act	ECX client: byte +0x1ac (AL only); fatal line 0x7df; verified clients_small.py
+005382e0	client_set_act	ECX client, DL act: byte +0x1ac, fatal line 0x7eb when >= 5 (0x7ea null); verified clients_small.py
+00538590	client_id	ECX client: +0; fatal line 0x870; verified clients_small.py
+005385f0	client_class	ECX client: byte +8 zero-extended; fatal line 0x8b8; verified clients_small.py
+00538620	client_set_class	ECX client, DL: byte +8, no null check; verified clients_small.py
+00538630	client_set_flag_word	ECX client, DX: word +0xa, no null check; verified clients_small.py
+00538670	client_flag_test	ECX client, DX: word +0xa AND DX; verified clients_small.py
+005386d0	client_set_word4	ECX client, EDX: +4; fatal line 0x973; verified clients_small.py
+00538700	client_set_restored_unit	ECX client, EDX: +0x484; fatal line 0x97e; verified clients_small.py
+00538760	client_set_save_word	ECX client, EDX: +0x488; fatal line 0x994; verified clients_small.py
+00538790	client_save_word	ECX client: +0x488; fatal line 0x99f; verified clients_small.py
+005387c0	client_game	ECX client: +0x1a8, the game pointer (FUN_00539a30 stores its game there; FUN_00538ce0 reads game +0x1c); fatal line 0x9aa; verified clients_small.py
+005387f0	client_in_room	ECX unit, EDX client: whether the client is in the unit's room (room +0x48 array, +0x78 count); verified clients_small.py
+00538830	client_name	ECX client: client + 0xd (16-byte name); fatal line 0x9ed; verified clients_small.py
+00538860	client_set_bit2	ECX client, EDX on: +0x3d4 bit 2; the first enable calls FUN_0053fc70(game, client); fatal line 0x9f7; verified clients_small.py
+005388c0	client_bit2	ECX client: +0x3d4 bit 2 as 0 or 1; fatal line 0xa05; verified clients_small.py
+00538930	client_id_has_state	ECX id, EDX state: id table lookup under CS 0x8846a8, [client+4] == state; 0 when the tables are off; verified clients_small.py
+00538b70	client_name_of_id	ECX id, EDX destination or 0: 0 found (16-byte name copied), 1 absent or tables off; verified clients_small.py
+00538bf0	client_id_of_name	ECX name: name table (hash FUN_004112c0), case-insensitive 16-byte compare, first match with a nonzero id (bugs.md 96); verified clients_small.py
+00538c60	client_canonical_name	ECX name, EDX destination or 0: 0 found (the record's 16-byte name copied), 1 absent; verified clients_small.py
+00538ce0	client_save_append	ECX id, EDX data, stack length, total, tag: appends a chunk at +0x17c; allocates whenever the count is 0 (bugs.md 95); past total is fatal 0xb2f; verified clients_small.py
+00538e00	client_save_buffer	ECX client: +0x17c; fatal line 0xb55; verified clients_small.py
+00538e30	client_save_size	ECX client: +0x180; fatal line 0xb5f; verified clients_small.py
+00538f10	client_save_free	ECX client: frees +0x17c to the game pool, clears +0x180, +0x184, +0x188 and +0x3d4 bit 4; fatal line 0xb7d; verified clients_small.py
+00538f80	client_save_start	ECX client: +0x3d4 |= 0x10, +0x184 := 5, +0x188 := 0; fatal line 0xb91; verified clients_small.py
+00538fc0	client_save_ready	ECX client: bit 0x10 of +0x3d4 and a buffer at +0x17c; fatal line 0xb9e; verified clients_small.py
+00539240	client_queue_append	ECX client, EDX 0x208-byte node: appended at the tail (+0x1bc), head +0x1b8, next +0x204; verified clients_small.py
+005392d0	client_queue_tail	ECX client: +0x1bc; verified clients_small.py
+00539a30	client_create	ECX game, EDX id, 7 stack words (type, name, name2, +0x60, +0x50c byte, 2 unused): 0x518-byte record into the game list, id table and name table; verified clients_small.py
 0053cb30	scmd_pet_list_7a	queues the 13-byte S->C packet 0x7a (+1 EDX add flag, +2 PetType row, +3 u16 class, +5 owner id, +9 pet id) with FUN_0053b280 (pet-ai.md "The owner's pet lists")
 0053cb80	scmd_assign_merc_81	queues the 20-byte S->C packet 0x81 (+1 byte, +2 u16 class, +4 owner id, +8 pet id, +0xc / +0x10 words) with FUN_0053b280 (pet-ai.md "The owner's pet lists")
 0053ec90	item_send_ground_9c_action2	assert 0x7dd on a FUN_005531c0 mismatch, then FUN_0053eae0 with a literal 2 (items.md)
