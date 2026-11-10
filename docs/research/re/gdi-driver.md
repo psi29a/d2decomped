@@ -40,7 +40,7 @@ The renderer's tile draw (`FUN_004f68e0` hands its arguments to renderer
 
 ### The call into the slot (`FUN_004f68e0`)
 
-`FUN_004f68e0` (`tools/emu/disasm.py 4f68e0`) is a stdcall thunk of nine
+`FUN_004f68e0` (`uv run python disasm.py 4f68e0`, run in `tools/emu`; the other disassembly commands here are run the same way) is a stdcall thunk of nine
 stack arguments (`ret 0x24`) with no logic of its own. It loads argument 1
 into ECX and argument 2 into EDX, pushes arguments 3 to 9 (seven dwords, so
 that argument 3 is the callee's `[ebp + 8]`) and calls `[DAT_007c8cc0 + 0x7c]`.
@@ -71,7 +71,7 @@ proven.
 
 ## The floor draw's helpers (`FUN_004de410` and what it calls)
 
-- **`FUN_00472280`** (`tools/emu/disasm.py 472280`) is the seeded roll the
+- **`FUN_00472280`** (`uv run python disasm.py 472280`) is the seeded roll the
   splash and bubble spawns use: ECX the seed pair {low at +0, high at +4},
   EDX a base, one stack argument n (`ret 4`; the decompile shows only n).
   For n < 1 it returns EDX and leaves the seed alone. Otherwise the seed
@@ -93,7 +93,7 @@ proven.
   function; lighting.md already carries the `< 4` rule and d2d copies the
   software path. Cited.
 
-- **`FUN_004ddef0`** (`tools/emu/disasm.py 4ddef0`) fills the software modes'
+- **`FUN_004ddef0`** (`uv run python disasm.py 4ddef0`) fills the software modes'
   8 × 8 light table: EAX the output (64 entries of 12 bytes, the caller's
   768-byte buffer), three stack arguments (`ret 0xc`) x, y and a flag.
   - Flag 0 (the floor draw's case): entry (col, row) calls `FUN_00475aa0` with
@@ -111,6 +111,38 @@ proven.
   cites it; lighting.md has the grid rule); the stale colour bytes with the
   toggle off are not modelled and nothing in the software path was found
   reading them (`FUN_004f8b80`'s reads were not re-checked). Cited.
+
+- **`FUN_004de630`** (thiscall, ECX the floor pass's state that
+  `FUN_004de730` fills; stack cell x, y; `ret 8`; `uv run python disasm.py 4de630`)
+  draws one floor tile at a cell that has no room tile of its own:
+  1. The pixel is `FUN_00643260` on (x, y + 5) (in place, drlg.md "click
+     box": ((x − y) × 16, (x + y) × 8)), then y + 0x28, then the state's
+     `+0x3c` and `+0x40` added (the state's words 0xf and 0x10, which
+     `FUN_004de730` sets to 0x50 − view `+0x24` and −0x50 − view `+0x28`).
+  2. The tile record is `FUN_00619720(DAT_007a0634)`, the client act + 0x18
+     (drlg.md accessor row): the act carries a record of its own there; who
+     fills it was not traced. `DAT_007a0634` zero is a fatal error (0xdf).
+  3. It then calls `FUN_004de410(state, record, 1, pixel x, pixel y, x, y)`
+     (roof-height argument 1), which does the box test, the light table and
+     the draw above.
+  Its only caller is `FUN_004de6c0` (x, y, dx, dy): both rounded down to a
+  multiple of 5, then three calls at (x, y), (x + dx, y + dy),
+  (x + 2dx, y + 2dy). At the end of a floor pass, when its state word 10 is
+  set, `FUN_004de730` takes the position (px, py) in subtiles of the unit
+  `FUN_00463de0` returns (from its path) and the extent words 0xb to 0xe
+  (min x, max x, min y, max y, starting at ±0x7fffffff / 0x80000000 each
+  pass), and calls `FUN_004de6c0` up to four times:
+  (min x − 5, py) step (0, −5) when px − min x < 0x1e (0x21 with
+  perspective on); (max x + 5, py) step (0, +5) when max x − px < 0x19
+  (0x17); (px, min y − 5) step (−5, 0) when py − min y < 0x1e (0x21); and
+  (px, max y + 5) step (+5, 0) when max y − py < 0x19 (0x17). So they are three
+  cells of the act's own record just past an edge of what the pass drew,
+  when that unit is close to it. Word 10
+  is set when the level record's byte +9 is non-zero, the scroll
+  (`FUN_0045ae90`) is 0 and `FUN_004f5160` is 2; what those mean was not
+  traced, nor where the extent words are updated. d2d: not ported (no d2d
+  file names either function); it draws only the room tiles. Whether that
+  shows (a level with that byte set) was not checked. Cited.
 
 ## Clearing the draw buffer (`FUN_006c9280`, `FUN_006c9220`)
 
@@ -207,6 +239,8 @@ video, the GDI function goes on to the blit with the same flag still set,
 reading the width from the Smacker it just closed, and `FUN_006c9640` has
 zeroed `DAT_0098a278`; `FUN_006c9690` then reads its source from that null
 pointer. DirectDraw's `FUN_00513380` opens with `if (DAT_008816b0 != 0)`,
-so the same sequence there blits nothing. Not run: whether a frame number
+so the same sequence there blits nothing, provided the width read from the
+closed Smacker (`+4`, before the call) succeeds; the check does not guard that
+read, and whether it faults on freed memory is not traced. Not run: whether a frame number
 reaches the frame count under this check, and whether the palette flag is
 set by then, is not read from the Smacker library.
