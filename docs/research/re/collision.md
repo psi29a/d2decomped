@@ -408,6 +408,30 @@ d2d (`World::use_warp`):
 All read from the code, no oracle. It takes a crowd or a blocked path on the way to a warp; how
 often wasn't measured.
 
+### The per-frame queue step (`FUN_00481600`, 0x481600, 277 bytes)
+
+Read from the decompile and disassembly (cited, no oracle run). The unit
+(ECX) must be a player (type 0) with player data (+0x14) and a queued
+action (+0x150 nonzero). Then, in this order:
+
+1. read action (+0x154), target type (+0x158) and id (+0x15c);
+2. find the target (`FUN_00463990`), and **clear the queue**
+   (`FUN_0045c470`) before anything else is tried;
+3. action 0x13 on a type 5 target (a tile): `FUN_0044daa0` and
+   `FUN_0044dad0` (not traced);
+4. no target, or action 0: stop (the queue stays cleared);
+5. target type 0: `FUN_00481400(action, 0, id)`; 1: `FUN_004814a0`; 2:
+   `FUN_004815a0`; a nonzero answer goes to `FUN_00481030`
+   (ECX action, EDX the player, then type, id, 0 on the stack, 0x481701
+   to 0x481709), zero ends it. Any other type (3, 4 an item, 5 a
+   tile): no range test, only the target's unit flag 2 (`FUN_00451f30`,
+   selectable): clear, `FUN_00467a70` (abandon); set, `FUN_00481030`.
+
+That is why an item or a warp is sent once and cannot wait for range, as
+"The server's pending interact" says. d2d: `tick.cpp:435-440` cites it
+for the NPC walk (target gone, retry through the walk code), no disagreement
+found; the type 5 pair `FUN_0044daa0` / `FUN_0044dad0` is not ported.
+
 ### How near the client walks
 
 FUN_00480c80, FUN_00481600's test, for an interact (action 0x13) stops the
