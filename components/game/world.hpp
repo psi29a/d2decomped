@@ -87,8 +87,11 @@ struct QuestNews { int quest = 0; };
 struct MusicCue { int sound = 0; };
 // A store buy or sale the server refused (S->C 0x2a's result, rules::Trade).
 struct TradeRefused { d2d::rules::Trade result = d2d::rules::Trade::no_gold; };
+// The ambient's dip to black starts (FUN_0046ae50, rules::AmbientDip): its
+// frames and the level it's for.
+struct AmbientDip { int fade_in = 0, hold = 0, back = 0, level = 0; };
 }  // namespace ev
-using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused>;
+using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::QuestQuake, ev::OpenUI, ev::Speech, ev::QuestNews, ev::MusicCue, ev::TradeRefused, ev::AmbientDip>;
 
 // What a client is told after each tick (the S -> C side, network.md):
 // everything it draws and clicks on. In-process these are copies; a TCP
@@ -173,6 +176,7 @@ struct View {
     std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
+    bool diablo_red = false;               // Diablo's release (S→C 0x89 event 12) until event 13 (classic, his death): rules::release_light
     int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
     std::vector<std::pair<int, int>> stat_sum;   // the player's stats the calcs read (gear, passives, masteries, states: Fight::psum), the non-zero ones
     PanelStats panel;                      // the char panel's numbers as the server has them: gear, passives, states, the skill blocks (FUN_004eda20)
@@ -542,6 +546,7 @@ struct World {
     void act5_chain();                     // the records' +0xf0 down a5q1 -> a5q2 -> a5q3 -> a5q4
     void act4_chain();                     // the records' +0xf0 down a4q1 -> a4q3 -> a4q2
     bool act4_operate(int npc_index, std::uint32_t now_ms);   // the forge, the seals, Tyrael's portal
+    void cloak_dips();                     // Fight::cloaks: each player's ev::AmbientDip (FUN_004d87e0)
     void diablo_release(std::uint32_t now_ms);   // FUN_005b5230: the sanctuary cleared, Diablo due
     void seal_boss(const Level& where, int superunique, int x, int y);   // a seal's flash's event 7
     // The player changed level, from `from`.
