@@ -371,7 +371,10 @@ is read) and with `--mutation-check`.
   not above the first (0x817, tested second) and a row id of 0x100 or more
   (0x818). The first row of each (version >= 100, id) is stored as
   `table[0x100 * (version >= 100) + id]`, only while the entry is still
-  negative. A halt leaves the earlier rows' ids written.
+  negative, and only for a signed id below 0x100 (a classic-mode id of 0x100 is
+  skipped). Below version 100 an id of -2 addresses the hireling table pointer
+  and overwrites it when that pointer is signed-negative (bugs.md 73). A halt
+  leaves the earlier rows' ids written.
 - The free functions leave pointers behind (bugs.md 71): `FUN_006562b0` unloads
   hireling and zeroes the count and id lines but not `0x96bdd0`;
   `FUN_00659af0` unloads monpreset and clears the per-act tables but not
@@ -414,7 +417,8 @@ is read) and with `--mutation-check`.
 
 **Assumed here.** The string lookup, `GetClassIdFromName` and the three
 treasure class builders are hooked (call order and arguments checked, not their
-work); `FUN_006541c0`'s register inputs are unknown and are not logged.
+work; for the string lookup only the first argument, the name pointer, is
+logged and checked); `FUN_006541c0`'s register inputs are unknown and are not logged.
 `CompileTxt`'s own behaviour is verified by `txt_loaders.py`. The row bytes the
 parser would write are not produced (CompileTxt returns a scripted table), so
 what a real `.txt` yields for these columns is not claimed.
