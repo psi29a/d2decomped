@@ -712,4 +712,3 @@ player-data list; kinds 0/1/2/4 use the 6/11/7/7 words at 0x7318b0, c8, f4,
 910, kind 3 and above 4 nothing), `FUN_00545090` / `FUN_00545100` (0x91 state
 packet of the words `FUN_00572470` accepts), `FUN_00545530`, `FUN_005455b0`,
 `FUN_005456f0` (0x89), `FUN_00545780` (0x27) and `FUN_00545920` (0x5d).
-
