@@ -432,6 +432,34 @@ That is why an item or a warp is sent once and cannot wait for range, as
 for the NPC walk (target gone, retry through the walk code), no disagreement
 found; the type 5 pair `FUN_0044daa0` / `FUN_0044dad0` is not ported.
 
+### The action send (`FUN_00481030`, 0x481030, 601 bytes)
+
+Read from the decompile and disassembly (cited, no oracle run). ECX is the
+action, EDX the player, then the target type, id and a third value on the
+stack. `FUN_00480ba0` (not traced) must accept it first (0: return, nothing
+sent). The switch is on the action itself (`action - 1`, a byte index at
+0x4812b4 into a jump table at 0x48128c; 0x48107d to 0x481084). By action:
+
+| action | does |
+|---|---|
+| 1, 3 | with a player (type 0, data +0x14) whose queued action (+0x154) is already 0x13: return, nothing sent; else on to the send |
+| 2, 4 | on to the send |
+| 5, 8 | left skill (`d2d_left_skill`): its node id (`.\UNIT\UnitMode.cpp` line 0x32c) and `FUN_00643ad0` of it ride in the command |
+| 6, 7, 9, 10 | the same, line 0x336 |
+| 0xc, 0xf | right skill, line 0x33e |
+| 0xd, 0xe, 0x10, 0x11 | right skill, line 0x348 |
+| 0x13 | type 4 target found by `FUN_00463990` and its unit flag 2 (`FUN_00451f30`) clear: return (the queue is kept); else on |
+| any other (0, 0xb, 0x12, 0x14 up) | the assert, string id 0x352, `FUN_00681e09(-1)`: the game exits |
+
+The send is `FUN_00480c10(&command, 0)`; when it answers nonzero, actions 5 to
+0x11 (the skill ones) add 1 to the player's stat 0x148 (`FUN_006253b0`,
+`FUN_00627260`), and `FUN_00480b40(type, id, third)` goes out. Whatever
+happened, a player's queue (+0x150, +0x154, +0x158, +0x15c) is then zeroed
+(LAB_00481240, "abandoned" above). An action 1/3 early return, and the 0x13 one,
+leave it. What stat 0x148 counts was not traced. d2d: `tick.cpp` and
+`travel.cpp` cite the queue (above); the stat bump, the action 1/3 early
+return and the assert are not ported.
+
 ### How near the client walks
 
 FUN_00480c80, FUN_00481600's test, for an interact (action 0x13) stops the
