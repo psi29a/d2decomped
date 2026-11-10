@@ -697,8 +697,32 @@ diff_drlg.py game`. Kurast needed nothing new. Travincal:
   the prison door (0x1b2) quest 0x20; Nihlathak (0x20e) 22 + quest 0x22;
   the ancients (0x21c) FUN_005b1c50; Baal (0x220) 22 + quest 0x24, uber
   (0x2c5) 22, 18, 8, 6. d2d `rules::act_boss` has every mod list (read
-  from the code; only Act 1's, the Maggot Queen's and the orb's diffed),
-  not the ancients' or the Fire Golem's.
+  from the code; only Act 1's, the Maggot Queen's and the orb's diffed);
+  the Fire Golem's is `Fight::golem_blast`, the ancients' gear isn't made
+  (below).
+- **The ancients' gear** (FUN_005b1c50, `EBX` the unit; no mod, no
+  quest): four items each from the table at 0x6e1bb0 + class × 8, one
+  row of 8 bytes per ancient, 0x18 apart (the code, then at +4 the
+  BodyLocs row it goes on; +5 is 1 in every row and isn't read). In
+  Nightmare (game +0x6d 1) the code is its record's +0x88 (ubercode), in
+  Hell (2) +0x8c (ultracode). Each goes through FUN_00573b20 (`ECX` the
+  game, `EDX` the unit, the row, item level the unit's stat 0xc, quality
+  4, magic): FUN_00559ce0 makes it, item flag 0x1000 (FUN_006280d0), the slot
+  byte from the row, worn there (FUN_005606b0; freed if that fails),
+  stat 0x48 set to its max durability (FUN_00625e00).
+
+  | Class | Ancient | Rows (code: slot) | Nightmare / Hell |
+  |---|---|---|---|
+  | 0x21c | ancientbarb1, Talic | bsd: rarm, tow: larm, fld: tors, hbt: feet | 9bs xow xld xhb / 7bs uow uld uhb |
+  | 0x21d | ancientbarb2, Madawc | tax: rarm, tax: larm, hgl: glov, hbt: feet | 9ta 9ta xhg xhb / 7ta 7ta uhg uhb |
+  | 0x21e | ancientbarb3, Korlic | vou: rarm, rin: rrin, fld: tors, crn: head | 9vo – xld xrn / 7vo – uld urn |
+
+  Re-check: the 24 bytes at 0x6e2c90 in game.exe; the codes from
+  Weapons.txt / Armor.txt ubercode and ultracode. Misc.txt has neither
+  column: whether the ring is made in Nightmare or Hell is not traced (the
+  loader's value for a missing column). d2d's monsters carry no items, so
+  none of this is built: not the items' stats, nor the game seed steps
+  their making takes.
 - The oracle needs `objgroups.QUEST_STUBS` here: the council's
   superunique specials read quest flags (FUN_00544760).
 
