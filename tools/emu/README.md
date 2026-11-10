@@ -128,6 +128,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest state cleanup (`FUN_00543800`, allocator and buffer free hooked; `--mutation-check` three ways) | `uv run python quest_destroy.py` | `ok: 24 quest state cleanup cases` |
 | Quest list cleanup (`FUN_00543590`, allocator hooked; `--mutation-check` three ways) | `uv run python quest_free_list.py` | `ok: 24 quest list cleanup cases` |
 | Quest frontier accessors (nine functions, lookup hooked; `--mutation-check` nine ways) | `uv run python quest_frontier.py` | `ok: 216 quest frontier cases` |
+| Quest item and party check (`FUN_00591cd0`, callees hooked; `--mutation-check` three ways) | `uv run python quest_horadric_party.py` | `ok: 48 quest item party cases` |
 | Quest callback wrapper (`FUN_005b30e0`, receiver hooked; `--mutation-check` three ways) | `uv run python quest_izual_forward.py` | `ok: 24 quest callback wrapper cases` |
 | Quest level warning (`FUN_00545cd0`, lookups and warning hooked; `--mutation-check` three ways) | `uv run python quest_level_warning.py` | `ok: 72 quest level warning cases` |
 | Talk-submenu quest names (FUN_0049f910, table 0x722678) vs `rules::quest_name` | `uv run python quest_name.py` | `65536 messages match d2d's 32 runs; 527 have a name; 164 (row 100) is 3716`, then `ok` |

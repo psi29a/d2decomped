@@ -416,6 +416,7 @@ address	name	evidence
 0058f710	ai_control_get_spawn_class	reads spawn monster class from AI control +0x3c; AiGeneral.cpp
 0058f810	ai_control_free	destructor for AI control: frees commands, minions (+0x34), and struct; AiGeneral.cpp line 0x19d
 005901e0	quest_data88_get	record ECX: dword at data +0x88
+00591cd0	quest_item_party_check	checks item code 0x206d6468 then party callback and quest data +0xa0
 00597a20	invmode_changed_pending	unit +0xc8 bits 0x16/0x17, or a changed-list id that FUN_00552f60 still finds
 0059b6e0	quest0b_data10_mark	quest 0xb data +0xf equals 1 and +0x10 is zero: set +0x10
 0059c810	quest_tomb_transition	sets quest 0xe bits 0xd and 3 and client progression for current difficulty

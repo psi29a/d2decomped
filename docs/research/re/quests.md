@@ -411,6 +411,16 @@ bytes 1–2 are little-endian 0x24, and bytes 3–4 are the word at quest data
 check. `tools/emu/quest_prisoner_packet.py` checks 24 stock cases with both
 lookups and the sender hooked; it captures the local packet without sending.
 
+`FUN_00591cd0` takes a quest record in EBX and player in EDI. It searches for
+item code `0x206d6468` with `FUN_00554010`, then asks `FUN_00558110` about
+the item and player; a nonzero result returns 1 immediately. Otherwise it
+gets the player's party ID, returning 0 if its low word is 0xffff. With a
+party, it clears quest data byte +0xa0, calls `FUN_00540510` on the game at
+record +4 with callback `FUN_00591ca0` and argument 0, then returns whether
+that byte is nonzero. `tools/emu/quest_horadric_party.py` checks 48 stock
+cases; it hooks the search, check and party calls and simulates the callback
+write, checking that the byte was cleared before iteration.
+
 `FUN_005b9cd0` looks up quest 0x11 and clears data byte +6 when present. It
 looks up object ID data +0x28 in the game (type 2); if found, it sets the
 object mode to 1, reads its Objects table record from its class ID at +4,
