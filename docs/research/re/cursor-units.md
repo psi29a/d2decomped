@@ -123,6 +123,52 @@ Bit 31 (`0x80000000`) is the pet bit (combat.md, the pair percent
 open). d2d: bit 1 is `targetable` / selectable in `ai.hpp`; the 0x200 label
 rule is not ported.
 
+## The name over a unit (`FUN_00454f30`)
+
+`FUN_00454f30(ECX unit)` (0x454f30, 1373 bytes, one caller, `FUN_00456ee0`)
+builds and draws the text above the unit under the cursor. Read from the
+decompile and the disassembly, no oracle run:
+
+- Nothing when `d2d_automap_scroll_automap_scroll` (the side-panel mode,
+  as in the hit test above) is 3, or the unit is null. A type 5 unit
+  further than 100 from the player (`FUN_006416d0`) gets nothing.
+- Position (`0x70f854` / `0x70f858`): the unit's screen x / y
+  (`FUN_00620650` / `FUN_006206b0`) less `FUN_0045afc0` / `FUN_0045afd0`;
+  with the automap on (`FUN_004f51d0`), the map point of its precise
+  position (`FUN_004f6760`) with y + 0x10, x shifted by a quarter of
+  `0x71146c` for scroll modes 1 and 2.
+- By unit type:
+  - 0, a player: its name (`FUN_00452af0`, 0x80 units), drawn 0x48 above
+    (`FUN_005022f0`).
+  - 1, a monster: classes 0x1a1 / 0x1a2 take the name from their MonStats
+    row (`FUN_00451f80`; no row clears the three buffers). Any other class:
+    unit flag 0x200 (`FUN_00451f30`) set clears the buffers (no label);
+    clear, class 0x164 has its own text (`FUN_00452c70`) and the rest go
+    through `FUN_00454ad0`.
+  - 2, an object (when `FUN_004b3230` is 0 and `FUN_004a0000` is not 1):
+    Objects.txt `+0x168` (the name's y offset, `d2d_object_txt_168`) is
+    added to y. Objects.txt `+0x167` bit 2: the text is the level name
+    `FUN_00453e70(byte [unit data + 4])` (0x455221 to 0x455236), and with
+    `0x7a0610` not 0 or 1 a " (%s) " is appended (`_sprintf`). Bit 6
+    (0x40): the room's level (`FUN_00620bb0` → `FUN_0061a1b0`), its Levels
+    row (`FUN_0061db70`), two strings (`FUN_00524a30`) and `FUN_00524e20`.
+    What those two flags mean in Objects.txt, and the `0x7a0610` states, were
+    not traced. Other objects draw the name buffer `FUN_00464a60` fills.
+  - 4, an item: nothing when `0x7a27f4` is set, else `FUN_004527d0(0)`.
+  - 5, a tile (a level warp): the destination level id from the room
+    (`FUN_00620bb0`, `FUN_0061a1d0` with the tile's class); its Levels row
+    `+0x1be` (0x50 bytes after the `+0x16e` name, so a second 40-unit wide
+    string, the entrance text), except level 8: string 0x13de when
+    `FUN_004b92e0(0, 1)` is nonzero (quest 1 open in this game), else
+    0x13dd (0x455444 to 0x45545b). The wide buffer is 199 units; the label
+    sits at the unit's centre (`+0x10 >> 1 + +8`).
+  - Other types (3 missiles): nothing.
+
+d2d: `world_view.cpp` (the hover name, `name_offset` = Objects.txt NameOffset
+added to the box) agrees on the object offset; the type 5 label, the Den's
+quest-dependent string and the 0x200 rule are not ported. The strings
+0x13dd / 0x13de were not read.
+
 ## d2d
 
 `Monster::ally_not_interact` (components/game/ai.hpp) is that rule for a
