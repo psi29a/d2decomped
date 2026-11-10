@@ -188,7 +188,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
             chunk.u32(std::uint32_t(sheet->exp)).u32(std::uint32_t(sheet->exp >> 32)).u32(std::uint32_t(sheet->next)).u32(std::uint32_t(sheet->next >> 32));
             for (const int resist : sheet->res) chunk.i32(resist);
         }
-        chunk.i32(view.attack).i32(view.attack_skill).i32(view.aura).i32(view.day.phase).i32(view.day.time).u8(view.day.eclipse).i32(view.day.dimmed).i32(view.day.environment).u8(view.den_cleared).i32(view.light_bonus);
+        chunk.i32(view.attack).i32(view.attack_skill).i32(view.aura).i32(view.day.phase).i32(view.day.time).u8(view.day.eclipse).i32(view.day.dimmed).i32(view.day.environment).u8(view.den_cleared).u8(view.diablo_red).i32(view.light_bonus);
         for (const auto quest : view.quest_log) chunk.u8(quest);
         for (const auto quest : view.game_quests) chunk.u16(quest);
         chunk.i32(view.den_left);
@@ -411,7 +411,7 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
             for (auto& resist : sheet.res) resist = i32();
             view.merc_sheet = sheet;
         }
-        view.attack = i32(); view.attack_skill = i32(); view.aura = i32(); view.day.phase = i32(); view.day.time = i32(); view.day.eclipse = byte() != 0; view.day.dimmed = i32(); view.day.environment = i32(); view.den_cleared = byte() != 0; view.light_bonus = i32();
+        view.attack = i32(); view.attack_skill = i32(); view.aura = i32(); view.day.phase = i32(); view.day.time = i32(); view.day.eclipse = byte() != 0; view.day.dimmed = i32(); view.day.environment = i32(); view.den_cleared = byte() != 0; view.diablo_red = byte() != 0; view.light_bonus = i32();
         for (auto& quest : view.quest_log) quest = std::uint8_t(byte());
         for (auto& quest : view.game_quests) quest = std::uint16_t(u16());
         view.den_left = i32();

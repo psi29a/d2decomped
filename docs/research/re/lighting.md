@@ -161,8 +161,10 @@ and the day's:
 
 `tools/emu/level_ambient.py` runs events 12 and 13 and Cloak's dip with Levels.txt's
 values; the Den's flash and the Cairn Stones' event 1 aren't run. d2d fills
-from the level's light (`frame_light`) with only the Den's case: todo.md #43
-and #44.
+from the level's light (`frame_light`), ahead of it the Den's case and
+Diablo's release (`Town::event_ambient`, `rules::release_light`: the View's
+`diablo_red`, or a joined game's 0x89 12 / 13); its colour is dropped, as
+every light's. The dip isn't built: todo.md #44.
 
 The fill runs over the whole grid for the player's room, then for each other
 room in its near list (`FUN_00619790`, `FUN_00619730`) over the cells under

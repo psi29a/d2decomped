@@ -628,6 +628,9 @@ struct Town {
     bool den_seen = false, den_lit = false;
     std::vector<View::Shot> den_beams;
     [[nodiscard]] int den_ambient() const;
+    // The client's own fill, ahead of the level's light (FUN_0046bdd0): the
+    // Den's, Diablo's release (rules::release_light); -1 none.
+    [[nodiscard]] int event_ambient() const;
     void den_tick(std::uint32_t frame_ms);
     // The client's critters (docs/research/re/critters.md): the level's
     // Levels.txt cmon / cpct / camt, made per room on its seed as the room

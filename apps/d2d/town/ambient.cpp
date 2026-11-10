@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Town (town.hpp): the Den's ambience and critters. The rest is in this directory.
+// Town (town.hpp): the Den's ambience, the client's own fill and critters. The rest is in this directory.
 #include "town.hpp"
 
 #include "common.hpp"
 #include "ingame.hpp"
+#include "netgame.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
 
 #include <cues.hpp>
+#include <light.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>
 #include <outdoor.hpp>
@@ -31,6 +33,11 @@ namespace d2d::client {
 auto Town::den_ambient() const -> int {
         if (!level || level->id != d2d::rules::DenQuest::kDen || !view.den_cleared || den_lit) return -1;
         return den_flash < 0 ? 80 : int(d2d::rules::cos512(den_flash * 128 / 30) * 80.0f);
+    }
+
+auto Town::event_ambient() const -> int {
+        if (const int den = den_ambient(); den >= 0) return den;
+        return level ? d2d::rules::release_light(level->id, view.diablo_red || (net_game && net_game->diablo_red)) : -1;
     }
 
 auto Town::den_tick(std::uint32_t frame_ms) -> void {

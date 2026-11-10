@@ -539,6 +539,7 @@ int main(int argc, char** argv) try {
         }
         Level sanctuary;
         sanctuary.id = d2d::rules::level_ids::kChaosSanctuary;
+        assert(!effects.view().diablo_red);
         effects.level = &sanctuary;
         effects.diablo_release(1000);
         effects.diablo_release(1040);
@@ -546,6 +547,11 @@ int main(int argc, char** argv) try {
             assert(participant->events.size() == 1);
             assert(std::get<ev::QuestQuake>(participant->events[0]).kind == d2d::rules::QuestQuake::diablo);
         }
+        // The red fill (event 12) from the release; Diablo's death ends it
+        // in a classic game only (event 13, LAB_005b5369).
+        assert(effects.view().diablo_red);
+        effects.terror.dead = true;
+        assert(effects.view().diablo_red == effects.lead().character.header.expansion());
     }
     World world(&*data, -1, -1);
     world.enter(character);

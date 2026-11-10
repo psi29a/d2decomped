@@ -163,6 +163,7 @@ auto World::view() const -> View {
         for (const auto& state : actor->self_states) view.buffs.push_back(state.skill);
         view.day = day;
         view.den_cleared = den.state >= 4;
+        view.diablo_red = terror.released && (lead().character.header.expansion() || !terror.dead);   // event 13 only in a classic game (LAB_005b5369)
         {   // FUN_00544190: a record's +0xe8 if it has one (Tools), else FUN_00543f90
             // ponytail: worked out as the view's built, not sent as it changes;
             // the send's skip for done quests (bits 0 / 15 without 13 / 14) reads as 0;

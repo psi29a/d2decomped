@@ -173,6 +173,7 @@ struct View {
     std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
     d2d::rules::Day day;                   // the time of day (lighting, day/night sounds)
     bool den_cleared = false;              // the Den of Evil cleared in this game (its quest state, S→C 0x02)
+    bool diablo_red = false;               // Diablo's release (S→C 0x89 event 12) until event 13 (classic, his death): rules::release_light
     int light_bonus = 0;                   // item_lightradius (stat 89) from what's worn: the player's light grows by it
     std::vector<std::pair<int, int>> stat_sum;   // the player's stats the calcs read (gear, passives, masteries, states: Fight::psum), the non-zero ones
     PanelStats panel;                      // the char panel's numbers as the server has them: gear, passives, states, the skill blocks (FUN_004eda20)
