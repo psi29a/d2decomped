@@ -680,6 +680,7 @@ struct Missile {
     int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece
     int pierce = 0;                           // the player's: pierce charges left (stat 0x148: FUN_0059f940 sets, FUN_005ada80 spends)
     int last_hit = -1;                        // the monster it last struck (missile data +0x1c, FUN_0064a400), -1 none
+    bool flight_over = false;                 // its flight ended (missile_fly false): its hit with no unit goes off
     std::uint32_t last_hit_ms = ~0u;          // when
     const GameData::MissileInfo* sub = nullptr;          // a monster's spawner's SubMissile1 (the Countess's firewall maker)
     // Its flight in act subtiles, 16.16 (rules::MissileFlight), from its
@@ -898,16 +899,22 @@ inline Missile missile_from(const Missile& from, const GameData::MissileInfo& in
 // (standing_struck). Its physical carries the owner's at SrcDamage / 128
 // (monster_shot_phys).
 // ponytail: flat on the ground (no missile height).
-// A friendly one asks `hits_monster` (true: it struck one, spent).
-template <class Reach, class HitsMonster, class OwnerAlive>
+// A friendly one asks `hits_monster` (true: it struck one, spent), and
+// `flight_over` when its flight ends (FUN_00554ca0 gives 2: FUN_005adf10(0,
+// 1), its hit with no unit); a monster's hit spawn goes off there too.
+template <class Reach, class HitsMonster, class OwnerAlive, class FlightOver>
 void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
-                     std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive) {
+                     std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive, FlightOver&& flight_over) {
     std::vector<Missile> laid;
     const int frame = int(now_ms / 40);
     const auto spent = [&](Missile& missile) {
         missile.flight.crossed.clear();
         const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
-        if (moving && !missile_fly(level, missile, reach)) return true;
+        if (moving && !missile_fly(level, missile, reach)) {
+            missile.flight_over = true;
+            if (missile.friendly) flight_over(missile);
+            return true;
+        }
         if (now_ms >= missile.dies || (!moving && level.blocked(missile.x, missile.y, 0x04))) return true;
         // The client's do 55 (FUN_004d8260, "ancient death center"): every
         // third frame of its age an "ancient death cloud" (`sub`, flags 0x21)
@@ -1073,7 +1080,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
     };
     std::erase_if(ms_, [&](Missile& missile) {
         if (!spent(missile)) return false;
-        if (now_ms >= missile.dies) hit_spawn(missile);
+        if (now_ms >= missile.dies || missile.flight_over) hit_spawn(missile);
         if (const auto* explosion = missile.info ? missile.info->explosion : nullptr; explosion && !missile.visual_only && (now_ms < missile.dies || missile.info->always_explode)) {
             Missile burst{ explosion, missile.x, missile.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(explosion->range, 1)) * 40, {} };
             burst.visual_only = true;

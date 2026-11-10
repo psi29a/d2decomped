@@ -536,8 +536,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 }
             }
             // The Range runs out: the hit function goes off with no unit.
-            static constexpr int kEnd[] = { 1, 3, 4, 9, 13, 14, 20, 22, 26, 29, 36, 48, 56 };
-            if (now_ms + 40 >= missile.dies && missile.frame < 0 && std::ranges::contains(kEnd, missile_info.hit_func)) burst(missile, now_ms);
+            if (now_ms + 40 >= missile.dies && missile.frame < 0 && std::ranges::contains(kNoUnitHit, missile_info.hit_func)) burst(missile, now_ms);
             // 15 (FUN_005af030, Frozen Orb): every Param1 frames SubMissile1
             // toward direction `turn` of 64 (0x6e2b78 / 0x6e2a78), turning
             // Param2 on.

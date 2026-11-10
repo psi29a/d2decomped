@@ -1209,9 +1209,10 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   MonType undead / demon. Not traced / not built: Blessed Hammer's path
   (a spiral out at a fifth of its speed), Holy Bolt's healing, Static
   Field's floor, Mind Blast's conversion, Volcano's frame window,
-  Double Throw (the throwing weapons' missiles), explosions on walls. Hit 2's
-  ring (FUN_005a9370: Plague Javelin 23 clouds of 87 frames,
-  `test_plague_ring`) is built.
+  Double Throw (the throwing weapons' missiles). Hit 2's ring
+  (FUN_005a9370: Plague Javelin 23 clouds of 87 frames, `test_plague_ring`)
+  and the hit with no unit where a flight ends (a wall: FUN_00554ca0 gives
+  2, `Fight::kNoUnitHit`, `test_standing_missile`) are built.
 
 ### Buffs, curses, war cries (phase 6, part 4)
 - Do **18** (FUN_005c9480: Holy Shield, the Sorceress's armors, Bone /

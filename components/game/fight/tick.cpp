@@ -486,7 +486,13 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     return true;
                 }
                 return false;
-            }, [&](int owner) { const int index = monster_index(owner); return index >= 0 && monsters[std::size_t(index)].alive(); });
+            }, [&](int owner) { const int index = monster_index(owner); return index >= 0 && monsters[std::size_t(index)].alive(); },
+            [&](Missile& missile) {                       // its flight over: the hit with no unit, as where its Range runs out
+                if (missile.skill < 0 || !missile.info || !std::ranges::contains(kNoUnitHit, missile.info->hit_func)) return;
+                if (Hero* caster = hero_of(missile.caster)) act_as(*caster);
+                merc_blow = casting_merc = missile.by_merc;
+                burst(missile, now_ms);
+            });
             merc_blow = casting_merc = false;
             for (auto& foe : foes)                               // the shooters' hit hooks: MonProp's events (knock, crush), Cursed
                 for (const int owner : foe.shot_by)

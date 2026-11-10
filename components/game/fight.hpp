@@ -1079,9 +1079,12 @@ struct Fight {
     // Immolation's ground fire burns its own row a frame (FUN_0064b100,
     // its synergy through the Missiles.txt calc evaluator FUN_0064b7c0) for
     // SHitCalc1 frames (FUN_005aa250 -> FUN_005a9530).
+    // With no unit (FUN_005adf10(0, 1)) it goes off where the Range runs
+    // out and where its flight ends (FUN_00554ca0 gives 2: a wall, off its
+    // rooms), for the hit functions that act with none (kNoUnitHit).
     // pSrvDmgFunc 3 (FUN_005ad220) is the burners' soft hit (burn).
-    // ponytail: a wall doesn't set a missile off.
     void burst(Missile& missile, std::uint32_t now_ms);
+    static constexpr std::array<int, 15> kNoUnitHit{ 1, 2, 3, 4, 9, 13, 14, 20, 22, 26, 29, 36, 48, 51, 56 };
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
     // hitpoints heal the player (Prayer: edns, 256ths); an enemy one
     // (srvdofunc 66, FUN_005cf3a0; 81, FUN_005d0920) strikes each monster

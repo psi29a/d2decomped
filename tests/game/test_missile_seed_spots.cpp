@@ -29,7 +29,7 @@ void update(const Level& level, std::vector<Missile>& missiles, std::uint32_t no
     d2d::rules::Rng rng(7);
     const auto before = rng;
     missiles_update(level, missiles, foes, rng, now_ms, [](float, float) { return std::vector<std::array<int, 4>>{}; },
-                    [](Missile&) { return false; }, [](int) { return true; });
+                    [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});
     assert(rng.low == before.low && rng.high == before.high);   // the update's rng isn't drawn
 }
 
