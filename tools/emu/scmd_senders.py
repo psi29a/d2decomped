@@ -43,7 +43,7 @@ FILE_STR = 0x6CC837          # the first argument of every fatal report
 BLOCK, DATA, NEXT = 0x208, 4, 0x204
 MUTATIONS = (
     "queue-limit-0x1ff", "queue-limit-0x201", "queue-reuses-freelist-ignored", "queue-no-link-to-old-tail",
-    "queue-appends-at-zero", "queue-length-not-added",
+    "queue-appends-at-zero", "queue-length-not-added", "queue-appends-to-head",
     "fixed-field-swapped", "fixed-width-truncated", "fixed-id-wrong",
     "flags-swapped", "unit-null-id-zero", "unit-id-offset", "fatal-bound-7", "fatal-bound-0x100",
     "delta-signed-compare", "delta-boundary-0x100", "delta-boundary-0xfffe-inclusive", "delta-wide-uses-delta", "tier-value-24-bit",
@@ -179,9 +179,10 @@ def fixed_model(spec, edx, stack):
         else:
             value = stack[int(source[1:])]
         out[offset:offset + width] = u(value, width)
-    if mut("fixed-field-swapped") and len(fields) > 2:
-        (o1, w1, _), (o2, w2, _) = fields[1], fields[2]
-        if w1 == w2:
+    if mut("fixed-field-swapped"):
+        pairs = [(a, b) for i, a in enumerate(fields[1:]) for b in fields[2 + i:] if a[1] == b[1]]
+        if pairs:
+            (o1, w1, _), (o2, w2, _) = pairs[0]
             out[o1:o1 + w1], out[o2:o2 + w2] = out[o2:o2 + w2], out[o1:o1 + w1]
     if mut("fixed-width-truncated") and size > 8:
         out[size - 1] = 0
@@ -480,6 +481,12 @@ def run_queue(rng, count):
             machine.w32(old, tail_len)
             machine.w32(old + NEXT, 0)
             head = tail = old
+            if rng.random() < 0.4:          # a list of two blocks: the queue must work on the tail, not the head
+                head = machine.alloc(BLOCK)
+                machine.mu.mem_write(head, bytes([0x55]) * BLOCK)
+                machine.w32(head, rng.randrange(0, 0x201))
+                machine.w32(head + NEXT, old)
+        head_before = machine.read(head, BLOCK) if head else b""
         recycled = 0
         free_next = 0
         if free_block:
@@ -497,7 +504,7 @@ def run_queue(rng, count):
         limit = 0x1FF if mut("queue-limit-0x1ff") else (0x201 if mut("queue-limit-0x201") else 0x200)
         fits = tail_len is not None and tail_len + size <= limit
         if fits:
-            block, offset = tail, tail_len
+            block, offset = (head if mut("queue-appends-to-head") else tail), tail_len
             check(log, [], "append: no allocation")
             check((machine.r32(client + 0x1B8), machine.r32(client + 0x1BC), machine.r32(client + 0x1C0)),
                   (head, tail, recycled), "append: client lists untouched")
@@ -526,6 +533,8 @@ def run_queue(rng, count):
             want_total = size
         check(total, want_total, "block length")
         check(machine.read(block + DATA + offset, size), data, "payload copied after the previous bytes")
+        if head and head != old:
+            check(machine.read(head, BLOCK), head_before, "two-block list: the head block is untouched")
         cases += 1
     # no size check: a packet over 0x200 bytes runs past the data area, over the next link, and past the block
     client = machine.alloc(0x200)

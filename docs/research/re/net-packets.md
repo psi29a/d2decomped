@@ -1127,7 +1127,7 @@ Not claimed: what the hooked callees do, the click-on-map family (0x02, 0x04,
 
 `tools/emu/scmd_senders.py` runs 33 server-to-client packet builders of
 `GAME/SCmd.cpp` and the queue they hand their packet to (`FUN_0053b280`) for real in the
-emulator against stock game.exe 1.14d: 2263 cases, 35 deliberate model defects
+emulator against stock game.exe 1.14d: 2263 cases, 37 deliberate model defects
 planted and caught (`--mutation-check`). A builder takes the client in ECX
 (copied to EDI for the queue), the packet id or a pointer in EDX and the rest
 on the stack (`ret 4 * n`); the oracle hooks the queue to log EDI, the buffer
