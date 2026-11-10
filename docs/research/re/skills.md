@@ -1255,7 +1255,7 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
     FUN_0057c6c0, FUN_0057cee0), the overlay.
   - **4** Iron Maiden (FUN_005c5f50) / **5** Life Tap (FUN_005c61e0): on
     the cursed unit, calc1 % of the damage back / as life to the attacker
-    (Iron Maiden's calc2 / calc3 when the wearer is a player or pet).
+    (Iron Maiden's calc2 / calc3 when the wearer is a player or hireling).
     **Iron Maiden's function, read (FUN_005c5f50; cited, decompile and
     disassembly, no oracle run).** This one is fastcall
     with ECX the *game* (FUN_00552f60 takes it as its first argument at
@@ -2323,3 +2323,30 @@ Already in d2d's table: 22 Nova (Frost Nova, DiabFire), 24 wall
 | Imp Inferno (282) | 59 FUN_005d1280 | 126 FUN_005d1350 | start: end frame + calc1 (rand(par3, par4)), state 0xc; do: a flame (srvmissilea) at the target every 3 frames till the end, its range calc2 + Missiles Param2 |
 | Imp Teleport (330) | — | 129 FUN_005d1ab0 | riding: off at the free spot nearest the point (FUN_005d19d0); at an unbound live unit: onto it and mount (FUN_005d18e0, special 16); else MonTeleport (FUN_005ccc80) |
 | Imp Fire Missile (299) | — | 132 FUN_005d2090 | caster flag 0x40; srvmissilea + TransLvl (MonStats +0x4b) at the target (FUN_0056ecb0), the imp's A1 damage by SrcDamage |
+
+### The skill target point (FUN_0056d2c0; Blade Sentinel, do 44)
+Cited from the decompile (no oracle run); re-check with
+`python3 tools/ghidra/fn.py 0056d2c0`.
+
+- **FUN_0056d2c0**(ECX game, EDX caster, out x, out y) -> 1 when both are
+  non-zero. FUN_00553540 gives the target unit of the caster's path
+  (`+0x2c`; FUN_00648bf0 reads path `+0x58`), or 0 when that unit is the
+  caster itself. With a unit: its x / y (unit types 2, 4, 5 read `+0xc` /
+  `+0x10` of the unit's `+0x2c` struct; other types the path's x / y
+  getters, 0 with no path). Without one: the caster path's target words
+  (FUN_00648a00 / FUN_00648a10, `+0x10` / `+0x12`).
+  Callers: FUN_0056d940, FUN_0056dbc0, FUN_0056e450, FUN_0056e780,
+  FUN_0056ecb0 and others (game-calls.tsv). d2d: reads the same, cited from the
+  decompile, no oracle run (ai.cpp:2034, ai.cpp:2811, missiles.cpp:552 and
+  strike.cpp:889 cite it); d2d's `to_x` / `to_y` stand for the point.
+- **Do 44** (FUN_005d6020, Blade Sentinel), read from the decompile: it
+  needs the skill id in range of `[0x744304]+0xba0` and a non-null record;
+  FUN_0056e620 non-negative; the caster's `+0xc4 |= 0x40`; FUN_0056d2c0's
+  point; then FUN_005d5e10 (the summon do 45 uses) makes a monster, and
+  FUN_00554ea0 and FUN_0058ef40 are called with the caster's and the
+  point's coordinates; FUN_005417d0(2, `+0xa8` + 1) is called, and the new
+  monster's `+0xc4` loses bit 3. d2d runs the missile row instead
+  (`missiles.cpp`, `kBladeSentinel`). Not closed: the monster's walk out
+  and back and its hits are not traced (the helpers above are named, not
+  read) and d2d has no moving trap monster (`summons.cpp` places them at
+  rest), so the `ponytail:` stays.
