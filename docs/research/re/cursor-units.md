@@ -364,3 +364,30 @@ So `FUN_00454f30`'s `FUN_00452be0(0)` for a monster with unit flag 0x200 is
 not "no label" (as the flag table above has it): the unit's own name and
 life bar become the hover text, and the three in-world buffers
 (0x7a2a78, 0x7a2d30, 0x7a2f38) are the ones that are emptied.
+
+### The hireling's label (`FUN_00452d20`, 0x452d20, 291 bytes)
+
+`FUN_00452d20()` (no arguments; one caller, `FUN_00456ee0`, the frame's
+draw order). Position and bar as `FUN_00454f30` computes them, for the
+local player's mercenary:
+
+1. Nothing when `d2d_automap_scroll_automap_scroll` (`FUN_0045ae90`) is 3.
+2. The pet list node (`FUN_00478f20(player 0x7a6a70, PetType 7, 0)`) of
+   the local player's id with PetType 7 (the merc, net-packets.md 0x7a) and
+   node +0x20 equal to 0 (the third argument is 0; non-zero skips that
+   test). No node (-1): nothing.
+3. `FUN_00478e40(id)` gives node + 0x24; its +8 (node +0x2c) must be 1,
+   else nothing (what that word is was not traced).
+4. The unit is the client's monster with that id (`FUN_00463990`, type 1,
+   the table at 0x7a5e70 + 0x200 per type, slot id & 0x7f); none: nothing.
+5. Position (0x70f854 / 0x70f858): screen x / y less the view's
+   (`FUN_00620650` / `FUN_006206b0` less `FUN_0045afc0` / `FUN_0045afd0`),
+   or with the automap on (`FUN_004f51d0`) the map point of its precise
+   position (`FUN_004f6760`; nothing when `FUN_004f66e0` says it is off the
+   map), y + 0x10, x ∓ a quarter of the screen width (0x71146c) for scroll
+   modes 1 / 2. The same code as `FUN_00454f30`'s.
+6. `FUN_00452be0(1)`: the name and life bar are kept (0x7a2c80, 0x7a2d20..)
+   for a later draw, not set as the hover text.
+
+So the merc's label is a second path that does not go through the
+cursor's unit. Who draws the kept text was not read. d2d: not ported.
