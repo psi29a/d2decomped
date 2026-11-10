@@ -358,6 +358,16 @@ the Objects table +0xa80, then dispatches class 0xc9 to `FUN_0059b6c0` or
 nothing. `tools/emu/quest_object_dispatch.py` checks 48 combinations against
 stock with both handlers hooked, including signed bounds and the two IDs.
 
+`FUN_00545cd0` takes game and player in ECX/EDX, then a room and a flag on
+the stack (`ret 8`). It resolves the room's level and the level record's byte
++0x30; a missing level or zero byte ends the call. It passes that byte to
+`FUN_005436b0(game, player, byte)`. With the flag zero it proceeds only when
+the result is exactly 1; with a nonzero flag it proceeds only when the result
+is zero. If global `0x8846dc` is also nonzero, it calls `FUN_0054a930` with
+game in ECX, `0x6e0c10` in EDX and 4 on the stack.
+`tools/emu/quest_level_warning.py` checks 72 combinations against stock with
+the lookup, predicate and warning callees hooked.
+
 `FUN_005bcfd0` looks up quest 0x14 and, when present, sets its data dwords
 +0xc and +0x10 to 2. For each nonzero flag byte +1 / +2, it looks up an
 object with `FUN_00552f60(game, 2, id)` using the respective data dword +4 /

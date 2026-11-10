@@ -280,6 +280,7 @@ address	name	evidence
 00543800	quest_state_destroy	free quest records, extra list, quest buffer and state using game pool
 005447a0	quest_object_class_dispatch	classes 0xc9 and 0x14b within Objects table bounds dispatch to their quest handlers
 00545b80	quest_is_warp_blocked	QUESTS.CPP FUN_00545b80: checks quest conditions for warps to levels 73, 100, 118, 128, 132; called by SUnit.cpp FUN_005550b0
+00545cd0	quest_level_warning	level record quest byte and predicate select warning when global enabled
 005496f0	location_check	shared C->S location check (packet EAX, unit ESI, stack game, size, &x, &y; ret 0x10): zeroes both word outs, size 5 else 3, no player data (FUN_006221a0) 2, range check FUN_00548ef0(EAX unit, EBX 0x32, x, y); on a failure more than 0x19 frames (signed) after the stamp at player data +0x168 sends a 0x15 reassign (FUN_0053bc10) to the unit's client; the status passes through; 0 stamps the frame and stores x, y; verified plrmsg_loc.py
 005497e0	scmd_walk_to_location	C->S 0x01: location check, then FUN_005809d0(game, unit, skill 0, mode 2, x, y, 0); answers 0; verified plrmsg_loc.py
 00549830	click_check	shared C->S click check (packet EAX, unit EDI, stack game, size, &type, &id): zeroes both outs, size 9 else 3, type under 6 else 2, range check FUN_00548f80(ECX game, EDX type, EAX id, EDI unit; 0x32) passes its status through, 0 stores type and id; verified plrmsg_click.py
