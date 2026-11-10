@@ -788,36 +788,39 @@ address	name	evidence
 00610f90	ignorelist_add_name	FUN_00610d60, file line '!' + name
 00611200	ignorelist_ctor	sets IgnoreList::vftable, reads "Persistent Ignore" (chat-ignorelist.md)
 00611560	ignorelist_get	lazy IgnoreList getter: DAT_0096bc20, SMemAlloc(0x188, Chat/Ignorelist.cpp, 0x48) (chat-ignorelist.md)
+006118b0	datatbls_append_buffer	ECX &buffer, EDX &size, stack &capacity, source, n: grows by 0x400 (realloc FUN_0040b4b0, line 0x292) while size + n >= capacity, 0 at 0x7fffffff; copies, returns the old size; verified by datatbls_finish.py
+00611bd0	skills_code_compile	ECX text, EDX record, stack offset: FUN_006c1ae0 (callbacks 0x611930, 0x6119e0, 0x6119f0), bytes appended to the buffer 0x96bc70 (size 0x96bc74, capacity 0x96bc78); old size or -1 at record + offset; verified by datatbls_finish.py
+00611c70	skilldesc_code_compile	same as FUN_00611bd0 with the skill description buffer 0x96bc7c / 0x96bc80 / 0x96bc84 (same three callbacks); verified by datatbls_finish.py
 00611d20	datatbls_96c8a4	returns 0x96c8a4; callers in AnimTbls; verified by item_free_small.py
 00611d60	states_flag_mask	States 0x3c-byte rows, flag bit at +0x10 into a mask; verified by states_tbls.py
 00611dc0	states_flag_list	word list of States rows with a flag (DataTbls.cpp 0x64b); verified by states_tbls.py
 00611e60	states_field_list	word list of States rows with a positive word (DataTbls.cpp 0x662); verified by states_tbls.py
-00611ee0	player_class_name	CharStats +0x20 or "player %d"
-00611f40	monster_class_name	MonStats +6 string or "monster %d"
-00611fa0	object_class_name	Objects.txt row or "object %d"
-00611fe0	item_class_name	Items +0xf4 string or "item %d"
-00612030	missile_class_name	"missile %d"
+00611ee0	player_class_name	CharStats +0x20 or "player %d"; verified by datatbls_finish.py
+00611f40	monster_class_name	MonStats +6 string or "monster %d"; verified by datatbls_finish.py
+00611fa0	object_class_name	Objects.txt row or "object %d"; verified by datatbls_finish.py
+00611fe0	item_class_name	Items +0xf4 string or "item %d"; verified by datatbls_finish.py
+00612030	missile_class_name	"missile %d"; verified by datatbls_finish.py
 00612050	unit_debug_name	"NULL Unit" / "Invalid Unit"
 00612120	unit_type_debug_name	"Invalid Unit Type"
 006125a0	set_compile_flag	0x96c8b4 = (arg == 0); verified by item_free_small.py
 006125c0	table_free	DataTbls.cpp 0x924 / 0x926 by 0x744308
 00612600	table_strings_fill	FUN_00524e20 / FUN_00526700 / FUN_00526790 per row
 00612ea0	tables_free_codes	compcode, playerclass .. events
-00613d30	experience_load	"experience", 0x20-byte rows
+00613d30	experience_load	"experience", 0x20-byte rows; verified by datatbls_finish.py
 00613e60	exp_ratio	experience row level + 1, dword 7; verified by txt_schemas.py
 00613e90	table_store_bin	"%s\\%s.bin" DATA\GLOBAL\EXCEL "wb" (DataTbls.cpp 0x275, 0x27a)
-00617c30	skills_tables_free	DataTbls.cpp 0x5b8..0x5d4, skills, skilldesc
+00617c30	skills_tables_free	DataTbls.cpp 0x5b8..0x5d4, skills, skilldesc; verified by datatbls_finish.py
 00617d90	difficultylevels_load	"difficultylevels", 3 rows (DataTbls.cpp 0x61f); verified by txt_schemas.py
-00618c90	states_free	DataTbls.cpp 0x6e8..0x6fc
+00618c90	states_free	DataTbls.cpp 0x6e8..0x6fc; verified by datatbls_finish.py
 00618d90	pettype_load	"pettype" 0xe0 (DataTbls.cpp 0x72b); verified by txt_schemas.py
-00619140	tables_unload_all	every unloader
+00619140	tables_unload_all	every unloader; verified by datatbls_finish.py
 0061dd00	portal_level_array	LvlTbls.cpp: count at 0x96c9f8, pointer 0x96c9f4 (alloc line 0x16c), LevelDefs Portal at +0x8c; verified by lvl_small.py
 0061ddf0	leveldefs_extra	returns 0x96c9f4, ECX slot = 0x96c9f8
 0061de00	leveldefs_load	"leveldefs" 0x9c then FUN_0061dd00
 0061e440	leveldefs_free	LvlTbls.cpp 0x1d9
 0061e470	leveldefs_row	leveldefs row n (0x9c bytes at 0x96c890) when 0 <= n < tables +0xc5c, else 0; verified by lvl_tbls.py
 0061e4a0	lvltypes_fix_name	'/' to '\\', "%s\\%s"
-0061e520	lvltypes_load	"lvltypes" 0x788
+0061e520	lvltypes_load	"lvltypes" 0x788; verified by datatbls_finish.py
 0061ea90	lvltypes_free	FUN_006125c0(0x96c9f0)
 0061eaa0	lvltypes_row	0x788 rows (LvlTbls.cpp 0x251)
 0061eae0	lvltypes_act_is	row +0x780 == arg
@@ -833,7 +836,7 @@ address	name	evidence
 0061f490	lvlmaze_row	first lvlmaze row (0x1c bytes) with the id, else halts 0x363 / 0x36c; verified by lvl_tbls.py
 0061f9c0	lvlsub_free	0x96ca10 / 0x96ca18 / 0x96ca24 (LvlTbls.cpp 1000); verified by lvl_small.py
 0061fa90	lvlsub_row	0x15c rows through 0x96ca18 (LvlTbls.cpp 0x3f1..0x3f3)
-0061fae0	lvltypes_dt1_sets	0x1000 bytes per row, FUN_00604a40 (LvlTbls.cpp 0x410, 0x413)
+0061fae0	lvltypes_dt1_sets	0x1000 bytes per row, FUN_00604a40 (LvlTbls.cpp 0x410, 0x413); verified by datatbls_finish.py
 0061fbf0	lvltypes_dt1_sets_free	LvlTbls.cpp 0x43a; verified by lvl_small.py
 0061fc10	leveltype_name_index	index of a string in the 36 names at 0x6e7d50 (16 bytes each), "0..." gives 0, a miss halts 0x4a5; verified by lvl_tbls.py
 0061fc80	dt1_piece_name_index	index of a string in the 20 names at 0x6e7f90 (8 bytes each), "0..." gives 0, a miss halts 0x4d0; verified by lvl_tbls.py

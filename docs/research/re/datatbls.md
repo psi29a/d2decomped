@@ -103,7 +103,7 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 | `FUN_0061f480` | Frees lvlmaze |
 | `FUN_0061f9c0` | Frees lvlsub (0x15c rows at `0x96ca10`), its DS1s and its index (line 1000) |
 | `FUN_0061fa90` | A lvlsub row by type through the index `0x96ca18` (fatal 0x3f1..0x3f3) |
-| `FUN_0061fae0` | Builds a 0x1000-byte DT1 set per lvltypes row (`FUN_00604a40` per file not named `0`, skipping expansion files in classic, `FUN_00408f20`; lines 0x410, 0x413) |
+| `FUN_0061fae0` | Builds a 0x1000-byte DT1 set per lvltypes row (`FUN_00604a40` per file up to the first one named `0`, expansion files only in the expansion, `FUN_00408f20`; lines 0x410, 0x413) |
 | `FUN_0061fbf0` | Frees it (0x43a) |
 | `FUN_006200d0` | Frees `0x96ca28` (line 0x551) |
 
@@ -674,3 +674,83 @@ is at row + 0x10 + (b >> 3). The masks `gadwBitMasks[k] = 1 << k` are at `0x6ce2
 | Oracle | Functions |
 |---|---|
 | `states_tbls.py` | `FUN_00611d60`, `00611dc0`, `00611e60` |
+
+## Fourteen more functions, run in the emulator
+
+`tools/emu/datatbls_finish.py` (`--mutation-check` 54 ways, 2,150 cases): each
+function runs from stock game.exe 1.14d against a hand-written model with its
+callees hooked and compared in order. The CRT `strncpy`, `_snprintf` and
+`memset` run for real. The first reading of each came from the Redivivus Ghidra
+database (program `win`, no revision reported) as a candidate; the emulator
+decided it. The Redivivus reading of FUN_00611bd0 and FUN_00611c70 matched the code; the
+description of them in skills.md did not (below, fixed), and the lvltypes row
+above said a file named `0` is skipped, where it ends the row.
+
+- **FUN_006118b0** (fastcall: ECX &buffer, EDX &size; stack &capacity, source,
+  n; `ret 0xc`) appends to a growing buffer. While `size + n >= capacity`
+  (signed) the capacity grows by 0x400 and the buffer is reallocated
+  (FUN_0040b4b0, pool 0, DataTbls.cpp line 0x292, flag 0); a capacity that reaches
+  0x7fffffff gives 0, with the capacity left grown and nothing copied. Else the
+  source is copied to buffer + size, size += n, and the old size is returned.
+  A capacity just under (0x7fffffff - 0x400) wraps negative on the next step and
+  would loop about two million times; that is not run.
+- **FUN_00611bd0** (skills) and **FUN_00611c70** (skill descriptions): ECX the text,
+  EDX the record, stack offset, size, row, column (`ret 0x10`), not
+  `(text, offset, record)`. No record: nothing. Otherwise FUN_006c1ae0(text, a
+  0x400-byte buffer, 0x400, 0x611930, 0x6119e0, 0x6119f0) compiles it, unless
+  there is no text; a length of 0 or less (or no text) stores -1, else the
+  bytes are appended with FUN_006118b0 to the buffer {0x96bc70, size 0x96bc74,
+  capacity 0x96bc78} (FUN_00611c70: {0x96bc7c, 0x96bc80, 0x96bc84}) and the old
+  size is stored at record + offset. Both use the same three callbacks, the
+  skillcalc ones: FUN_00611c70 has no misscalc lookup (skills.md said so; fixed
+  there).
+- **Class names** (buffer EDI, size ESI, id in ECX for players, EDX for monsters,
+  EBX for objects and items, EAX for missiles). Size 0 or less writes nothing,
+  except in the item name string path, which converts without testing the size.
+  The last byte of the size is always forced to 0, so a name or text as long
+  as the size loses its last character. FUN_00611ee0: CharStats row id (table
+  +0xbc4, count +0xbc8 of the Items table pointer 0x744304, rows of 0xc4, name
+  at +0x20, copied with `strncpy`) when `0 <= id < count` and the name is not
+  empty, else `player %d`. FUN_00611f40: MonStats (+0xa78, count +0xa80, rows of
+  0x1a8) name string id (word at +6, not 0x1506) through FUN_00524a30 and
+  FUN_00526f70(buffer, wide, size); else `monster %d`. FUN_00611fa0: the row
+  from FUN_00640e90(id), name at its start, non-empty; else `object %d`.
+  FUN_00611fe0: the row from FUN_006335f0(id), name string id at +0xf4 (not
+  0x1506); else `item %d`. FUN_00612030: `missile %d`. `%d` prints a negative
+  id with its sign.
+- **FUN_00617c30** frees the skills block, pool 0: the arrays at 0x96c7d4
+  (line 0x5b8), 0x96c7dc (0x5be), 0x96c7e4 (0x5c5), the code buffers 0x96bc70
+  (0x5cc) and 0x96bc7c (0x5d4), each cleared when freed, and the sizes and
+  capacities (0x96c7d8, 0x96c7e0, 0x96bc74, 0x96bc78, 0x96bc80, 0x96bc84)
+  always zeroed. Then the Skills table (0x96c7c8) and, after the link free
+  FUN_006bd0b0 of 0x96c7cc, SkillDesc (0x96c7bc) and the link of 0x96c7c0:
+  a table is freed at line 0x926, or four bytes before it at line 0x924 when
+  0x744308 is non-zero; the table pointers are not cleared. 0x96c7d0 and 0x96c7c4
+  (the counts) are zeroed. **FUN_00618c90** (states) is the same shape: the five
+  arrays at 0x96bcf8, 0x96bd9c, 0x96bda4, 0x96bdac, 0x96bdb4 (lines 0x6e8,
+  0x6ed, 0x6f2, 0x6f7, 0x6fc, cleared), 0xa0 bytes zeroed at 0x96bcfc, the table
+  0x96bcec as above and the link 0x96bcf0.
+- **FUN_00619140** (tables unload) runs 49 steps in one fixed order, listed in the
+  oracle's `FREE_PLAN`: 43 unloaders (no push and no ECX in the asm; the hooks log only the address) (FUN_00612ea0
+  first), and inline the CharStats (0x96c7f4), pet type (0x96c818), experience
+  (0x96c8a8) and difficulty (0x96c8ac, last) table frees by the 0x924 / 0x926
+  rule above, the pet link (0x96c81c, FUN_006bd0b0) and the animation data
+  (0x96c8a4 in ECX, FUN_0066a830).
+- **FUN_00613d30** (stdcall pool) compiles `experience`: eight INT columns
+  Amazon, Sorceress, Necromancer, Paladin, Barbarian, Druid, Assassin and
+  ExpRatio at 0, 4 .. 0x1c, record 0x20, no row count, table to 0x96c8a8.
+  **FUN_0061e520** (fastcall pool) compiles `lvltypes` (32 ASCII `File n`
+  columns of 0x3b at 0x3c steps, Act CHAR at 0x780, Expansion INT at 0x784,
+  record 0x788, count 0x96c9fc, table 0x96c9f0), then calls FUN_0061e4a0 on each
+  of the 32 names of each row with the string at 0x6e867c (`DATA\GLOBAL\TILES`).
+- **FUN_0061fae0**: no lvltypes table is fatal (line 0x410). It allocates
+  0x1000 bytes a row (LvlTbls.cpp line 0x413) into 0x96ca1c and clears them. For
+  each row, each of its names in turn: a name that is exactly `0` ends the row
+  (it is a stop, not a skip as the row above this section says); any other name,
+  an empty one included, gets FUN_00604a40(the row's 0x1000 block, the name),
+  but only when the game is the expansion or the row's flag (+0x784) is 0.
+  Negative row counts are not run (a 4 GB allocation).
+
+| Oracle | Functions |
+|---|---|
+| `datatbls_finish.py` | `FUN_006118b0`, `00611bd0`, `00611c70`, `00611ee0`, `00611f40`, `00611fa0`, `00611fe0`, `00612030`, `00613d30`, `00617c30`, `00618c90`, `00619140`, `0061e520`, `0061fae0` |
