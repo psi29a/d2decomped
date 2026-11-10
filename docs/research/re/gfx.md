@@ -32,8 +32,12 @@ failure is fatal at line 0x805 (`tools/emu/engine_gfx_alloc.py`, pool hooked).
 
 ## The COF caches
 
-Two caches of 0x80c bytes, `0x7a8100` and `0x7a78f0` (players use the
-second: `FUN_0046d9f0` non-zero): `+0` loaded, `+4` the block, `+8` its
+Two caches of 0x80c bytes, `0x7a8100` and `0x7a78f0`. `FUN_0046d9f0` (ECX
+unit) returns the unit's type, after the shape-change transform when `+0xc8`
+bit 3 is set (6 for a null unit), and `FUN_0046e740` picks `0x7a78f0` when
+that is non-zero and `0x7a8100` when it is zero: so `0x7a8100` serves players
+(type 0) and `0x7a78f0` every other type, monsters included, which is also the
+cache `FUN_0046f650` preloads. In each cache `+0` loaded, `+4` the block, `+8` its
 size, `+0xc` 512 hash buckets. The bucket hash is
 [chat.md](chat.md)'s `FUN_0046db90`; the bytes in use are summed in
 `0x7a8918`.
@@ -43,8 +47,8 @@ size, `+0xc` 512 hash buckets. The bucket hash is
 | `FUN_0046ddf0` | Loads a bundle (EBX the cache) once: reads the file (lines 0x10b, 0x10c), then walks its entries (0x18-byte header, `+8` size, name at `+0xc`, at most 7 characters (fatal 0x79), data at `+0x18`; a layer count above 0x40 is fatal, 0x126), hashing each into its bucket |
 | `FUN_0046f310` | `DATA\GLOBAL\` + the bundle name at `0x6d6c30[n]` (`cmncof_a1.d2`, ...) into `FUN_0046ddf0`. Caller `FUN_0044e100` |
 | `FUN_0046f370` | Frees a cache's separately loaded entries (flag bit 0; lines 0xe3c, 0xe3d) |
-| `FUN_0046f3f0` | Frees the monster cache (`0x7a8100`): entries, then the block (0xe50), then zeroes it. No caller |
-| `FUN_0046f440` | The same for the player cache (`0x7a78f0`, 0xe61). Caller `FUN_0044e100` |
+| `FUN_0046f3f0` | Frees the player cache (`0x7a8100`): entries, then the block (0xe50), then zeroes it. No caller |
+| `FUN_0046f440` | The same for the other-types cache (`0x7a78f0`, 0xe61). Caller `FUN_0044e100` |
 | `FUN_0046f490` | A monster's COF path (EAX MonStats row, mode, out): `DATA\GLOBAL\MONSTERS\<token>\COF\<token><mode><wclass>.COF`, the token from MonStats `+0x10` (MonStats2 flag `+6` bit 0 clear in modes 0 and 0xc: `hth`), a mode override from `0x712b04` |
 | `FUN_0046f870` | (MonStats row, arg): for each mode in `0x712ac4` (count `0x712b00`) the monster has (MonStats2 `+0xf0` bits), loads its COF (`FUN_0046f650`). Callers `FUN_004a2cb0`, `FUN_004a30a0`, `FUN_004a30c0` |
 | `FUN_0046f980` / `FUN_0046f990` / `FUN_0046f9a0` | Return `0x7a8914`, `0x7a8918` (bytes in use), `0x7a891c` |
@@ -67,7 +71,7 @@ size, `+0xc` 512 hash buckets. The bucket hash is
 | `FUN_0046eb70` | Frees the overlay list (an overlay's sound at `+0x40` first, `FUN_004743d0`; line 0x690) |
 | `FUN_0046ec10` | Frees the whole record: COF list, overlays (`FUN_0046eb70`), the record (0x814..0x820) |
 | `FUN_0046ec80` | Frees the COF list (0x82a, 0x830) |
-| `FUN_0046ece0` | Frees the list's nodes except modes 0 and 0x11 (death and neutral stay) |
+| `FUN_0046ece0` | Frees the list's nodes except modes 0 and 0x11 (death and dead stay) |
 | `FUN_0046f000` | `FUN_0046eac0(0..15)`. One caller |
 | `FUN_0046f020` | Sets the 20 layer flags to DL |
 | `FUN_0046f280` | Clears the layer flags: 20 for a player, 16 for a monster, 8 for an object; another type is fatal (0xd3e); nothing is done when n (EDX, signed) is 16 or more |
@@ -92,7 +96,7 @@ size, `+0xc` 512 hash buckets. The bucket hash is
 | `FUN_0046e100` | Has the unit an overlay of row EDX (fatal 0x1ea) |
 | `FUN_0046e150` | Sets `+8` of the unit's overlays of row EDX; a kind other than 1 is fatal (0x205). No caller |
 | `FUN_0046e1b0` | Draws the unit's overlays of row EDX at (x, y) in one pass over the nodes whose `+0x34` is clear (the second pass the code is written for never runs), skipping kind 6 without `+8` and kind 8 without `+0x3c`; Overlay.txt row at `0x744304 + 0xbbc`, 0x84 bytes. Caller `FUN_00453470` |
-| `FUN_0046e300` | Draws all of a unit's overlays at its screen spot (or its automap spot in the perspective modes for a unit that is null, not an item or an item in mode 3, shifted a quarter screen for a side panel as [bugs.md](bugs.md) #38 says), plus the motion offsets; an item's own x / y arguments replace the spot when neither is -1. A node is drawn when its `+0x34` flag agrees with the match argument; Overlay.txt `+0x81` may trigger `FUN_00477680`. A unit without a graphics record is fatal 0x271 and a bad Overlay.txt row 0x2d1 (`tools/emu/engine_overlay_place.py`) |
+| `FUN_0046e300` | Draws a unit's overlays (filtered by `+0x34` and kinds 6 and 8) at its screen spot (or its automap spot in the perspective modes for a unit that is null, not an item or an item in mode 3, shifted a quarter screen for a side panel as [bugs.md](bugs.md) #38 says), plus the motion offsets; an item's own x / y arguments replace the spot when neither is -1. A node is drawn when its `+0x34` flag agrees with the match argument; Overlay.txt `+0x81` may trigger `FUN_00477680`. A unit without a graphics record is fatal 0x271 and a bad Overlay.txt row 0x2d1 (`tools/emu/engine_overlay_place.py`) |
 | `FUN_0046f0c0` | Removes (`FUN_0046e040`) the first overlay of row n; for either kind 4 or 9, a match at either `+8` or `+0xc` also qualifies. A bad row is fatal (0xca9) after a unit and graphics record are found (`tools/emu/engine_overlay_remove.py`; removal hooked) |
 | `FUN_0046f170` | Removes all of a unit's overlays, saving the next pointer before each removal; a missing graphics record is fatal (0xccf; `tools/emu/engine_overlay_clear.py`, removal hooked) |
 | `FUN_004dad50` | Overlay.txt `+0x80` of row EAX (1 when out of range) |
@@ -108,15 +112,15 @@ only this caller with a synthetic predicate, not the real predicate.
 
 | Address | What |
 |---|---|
-| `FUN_0046ed50` | A tint by life: blue `(0,0,0xc0)` for a monster with MonStats `+0xd` bit 1, else green `(0,0xc0,0)`, yellow at 33 % to 65 %, red at 32 % and under (palette indices from `FUN_004fb180`, cached once) |
+| `FUN_0046ed50` | A tint by life (a non-monster is always green): blue `(0,0,0xc0)` for a monster with MonStats `+0xd` bit 1, else green `(0,0xc0,0)`, yellow at 33 % to 65 %, red at 32 % and under (palette indices from `FUN_004fb180`, cached once) |
 | `FUN_0046ee80` | An item cel at (x, y): gold by stack (stat 0xe: 100..499 frame 1, to 4999 frame 2, else 3), the item's colour (`FUN_0062c100`), draw mode 1 for an ethereal item (flag 0x400000, else 5), then its overlays (`FUN_0046e300`). Eight callers, the inventory panels |
 | `FUN_004706e0` | A unit's frame width and height (`FUN_00601920`, `FUN_00601950`) into two outputs; a missing cel is fatal (0xd7a) |
 | `FUN_00470860` | Is (x, y) inside the unit's COF box (`+8..+0xc`, `+0x10..+0x14`) grown by 16 |
-| `FUN_004709a0` | Is the unit's COF box on screen (`0x71146c` × `0x711470`, an optional half-width shift) |
+| `FUN_004709a0` | Is the unit's COF box on screen (`0x71146c` × `0x711470`; with the shift argument set the left edge moves by half the box's height, `+0x14 - +0x10`, not its width: [bugs.md](bugs.md) #102) |
 | `FUN_00471a30` | Draws a non-unit-type or object in that solid tint (renderer slot 0x94, `FUN_004f6570`); objects need Objects.txt `+0x150` and `+0x118 + mode`, and offset by `+0x148` / `+0x14c` |
 | `FUN_00471bd0` | The same for a player, monster or object, layer by layer through the COF; called by the unit draw `FUN_00471ec0` while `FUN_00464c40` counts (unit `+0x58`, state 0x8f) |
 | `FUN_004dab40` | Is a cel at (x, y) on screen: adds the cel x/y metrics, adjusts x and width for a flip, then checks x ≤ screen width, x + width ≥ 0, y − radius ≤ screen height and y + radius ≥ 0. The signed comparisons use 32-bit wrapping arithmetic (`tools/emu/engine_cel_bounds.py`; metric getters hooked) |
-| `FUN_004db1e0` | When its second stack argument is nonzero, turns the unit's path to a new direction (`FUN_006488a0`) only in neutral / death (players modes 0, 0x11; monsters 0, 0xc) and when EBX ≠ EDI (`tools/emu/engine_neutral_direction.py`; transform and path calls hooked) |
+| `FUN_004db1e0` | When its second stack argument is nonzero, turns the unit's path to a new direction (`FUN_006488a0`) only in the death and dead modes (players 0 = DT and 0x11 = DD; monsters 0 and 0xc) and when EBX ≠ EDI (`tools/emu/engine_death_direction.py`; transform and path calls hooked) |
 | `FUN_004db290` | Converts a packed direction from 8 to 4 (EAX 8, ECX 4) or 16 to 8 steps (`FUN_00600cb0`), writing through ESI; other pairs leave it alone. The wrapper extracts `(word & 0x1fffffff) >> 3` or `(word & 0x0fffffff) >> 2` respectively, then masks the lookup result to 26 bits and shifts it left by 3 or 2 (`tools/emu/engine_direction.py`; lookup hooked) |
 | `FUN_004db570` | A layer's tint: the item drawn on that component (or on TR for the armour layers, `FUN_0064f420`) unless broken or unusable (flags 0x100, 0x4000) or `lit `; `FUN_0062c100`'s colour, else arg 3 |
 | `FUN_004db670` | Is the unit on screen with its COF loaded, then `FUN_004db0d0` |
@@ -138,7 +142,7 @@ these are its pieces:
 | `FUN_004dabc0` | An item's cel name (EDI the request, ESI the item): on the ground (`+0x10` 3) a unique's / set's own `+0x3a` / `+0x42`; in the inventory (4) a set's `+0x62` invfile (flag 0x10 in `+4`) or the base's `+0x60`, a unique's `+0x5a` (flag 1) or the base's `+0x40`, else the base `+0x20` or a variant `FUN_0062e920` |
 | `FUN_004dad80` | A layer's weapon token (EBX the layer, ESI the unit): `lit ` past 15; with a crossbow (`xbw `) the right hand's alternategfx / code for layers 5, 6; with a bow (`bow `) `lit ` on 5; layer 7 `shh ` when state 0x65 and a shield (`FUN_0063c8f0`); else 0 |
 | `FUN_004dae60` | Has the unit layer n: player 0..4, 8, 9; monster the MonStats2 `+0xe8` bit; object Objects.txt `+0x151 + n`; missile layer 1 |
-| `FUN_004daf70` | A layer's draw type by EAX input: 0 gives 0x10 (the local player, d2char.mpq present) or 8; 1 uses MonStats2 `+0xf4 + layer`, 4 when 8 and the class slot is clear; 3 uses the record's `+0x1a0`; 6 uses the overlay's. A negative layer returns 1 |
+| `FUN_004daf70` | A layer's draw type by EAX input: 0 gives 0x10 (the local player, d2char.mpq present) or 8; 1 uses MonStats2 `+0xf4 + layer`, 4 when 8 and the class slot is clear; 3 (a missile) uses the Missiles.txt row's `+0x1a0` (1 without a row); 6 uses the overlay's; other kinds return 1. A negative layer returns 1 |
 | `FUN_004db090` | COF layer n's byte 1 (9-byte layer records from `+0x1c`, byte 0 the layer id; 0 for a null header, n >= 16 signed, or no match, so a negative n never matches). `FUN_004db050` returns byte 3 the same way. Caller `FUN_00471620` |
 | `FUN_004db0d0` | COF layer n's byte 2 |
 | `FUN_004db180` | Is it a player, monster or object (type 0..2) |
@@ -212,6 +216,7 @@ limits. These checks cover game.exe's behavior, not a d2d implementation.
 | `tools/emu/engine_cof_preload.py` | `FUN_0046f9e0`, `FUN_0046fa80`, `FUN_0046fda0`, `FUN_0046feb0`, `FUN_0046ff50` |
 | `tools/emu/engine_cof_request.py` | `FUN_004da790`, `FUN_0046f870`, `FUN_004db2e0` |
 | `tools/emu/engine_cof_rooms.py` | `FUN_00470070` |
+| `tools/emu/engine_death_direction.py` | `FUN_004db1e0` |
 | `tools/emu/engine_direction.py` | `FUN_004db290` |
 | `tools/emu/engine_gfx_alloc.py` | `FUN_0046ebb0` |
 | `tools/emu/engine_gfx_free.py` | `FUN_0046eb70`, `FUN_0046ec10`, `FUN_0046f370`, `FUN_0046f3f0`, `FUN_0046f440`, `FUN_0046f310`, `FUN_0046e150` |
@@ -222,7 +227,6 @@ limits. These checks cover game.exe's behavior, not a d2d implementation.
 | `tools/emu/engine_layer_token.py` | `FUN_004dad80`, `FUN_004db570` |
 | `tools/emu/engine_mode_token.py` | `FUN_004daa00` |
 | `tools/emu/engine_motion.py` | `FUN_0046f060`, `FUN_0046f070`, `FUN_004da000`, `FUN_004da080`, `FUN_004da0b0` ... `FUN_004da1b0`, `FUN_004da1d0`, `FUN_004da200`, `FUN_004da250`, `FUN_004da2a0`, `FUN_004da2f0`, `FUN_004da320`, `FUN_004da340`, `FUN_004da350` (every branch of the step is reached), `FUN_004da5b0`, `FUN_004da620`, `FUN_004da640`, `FUN_004da660`, `FUN_004da690`, `FUN_004da6b0`, `FUN_004da6e0` |
-| `tools/emu/engine_neutral_direction.py` | `FUN_004db1e0` |
 | `tools/emu/engine_overlay_clear.py` | `FUN_0046f170` |
 | `tools/emu/engine_overlay_draw.py` | `FUN_0046e1b0` |
 | `tools/emu/engine_overlay_frames.py` | `FUN_0046def0`, `FUN_0046df40` |
@@ -244,11 +248,11 @@ Changelog of what the checks changed in the rows above (each is also applied to 
 - `FUN_004db050` returns byte 3 of the layer record (`FUN_004db090` byte 1, `FUN_004db0d0` byte 2); for all three, a layer number of 16 or more (signed, so a negative number is looked up and never matches) gives 0.
 - `FUN_004da770` also needs the record's first dword to be 1, and the data pointer at `+0x14` to be non-null.
 - `FUN_004da920` adds one to the caller's count and 0x10 to its byte total; `FUN_004da9c0` takes 0x10 off the total per node but leaves the count alone.
-- `FUN_0046e1b0` walks the overlay list once and skips nodes with `+0x34` set; its second pass (for those nodes) runs on a null list pointer, so they are never drawn ([bugs.md](bugs.md) #97). `FUN_0046e300` is the same filter the other way round: a node is drawn when its `+0x34` flag agrees with the match argument.
-- `FUN_0046df40` switches the unit's state on twice when it was set and the state test is zero ([bugs.md](bugs.md) #98); `FUN_0046def0` copies a sibling's `+0x3c` / `+8` or clears the node's own `+0x3c`, and with no sibling sets `+0x3c` to 1 and clears `+8`.
-- `FUN_0046fda0` checks the class against the header count with a signed upper bound only, so a negative class passes the bound and indexes the slot table before its start ([bugs.md](bugs.md) #99).
-- `FUN_0046f650` loads a monster's COF through the player cache (`0x7a78f0`).
-- `FUN_00471a30` and `FUN_00471bd0` hand `FUN_004f6570` a dword whose low byte is the `FUN_0046ed50` colour: in `FUN_00471a30` the rest is the upper 24 bits of the `FUN_004f51d0` result, in `FUN_00471bd0` it is stack residue ([bugs.md](bugs.md) #100).
+- `FUN_0046e1b0` walks the overlay list once and skips nodes with `+0x34` set; its second pass (for those nodes) runs on a null list pointer, so they are never drawn ([bugs.md](bugs.md) #98). `FUN_0046e300` is the same filter the other way round: a node is drawn when its `+0x34` flag agrees with the match argument.
+- `FUN_0046df40` switches the unit's state on twice when it was set and the state test is zero ([bugs.md](bugs.md) #99); `FUN_0046def0` copies a sibling's `+0x3c` / `+8` or clears the node's own `+0x3c`, and with no sibling sets `+0x3c` to 1 and clears `+8`.
+- `FUN_0046fda0` and its sibling `FUN_00470b70` (the slot reset: it writes the slot and its `+0x50` word) check the class against the count at `0x744304 + 0xa80` (the MonStats rows) with a signed upper bound only, so a negative class passes the bound and indexes the slot table before its start; the mode is not bounded below 20 in either ([bugs.md](bugs.md) #100).
+- `FUN_0046f650` loads a monster's COF through `0x7a78f0`, the cache `FUN_0046e740` also picks for a monster (`FUN_0046d9f0` returns the unit type, 1); the earlier reading of `0x7a78f0` as "the player cache" had the two caches the wrong way round, and `FUN_0046f3f0` / `FUN_0046f440` are renamed to match. No bug: the preload warms the cache the loader reads.
+- `FUN_00471a30` and `FUN_00471bd0` hand `FUN_004f6570` a dword whose low byte is the `FUN_0046ed50` colour: in `FUN_00471a30` the rest is the upper 24 bits of the `FUN_004f51d0` result, in `FUN_00471bd0` it is stack residue ([bugs.md](bugs.md) #101).
 - `FUN_0046e300` writes the converted position back through its own x / y argument slots in the perspective path (`FUN_00620410` takes their addresses), then adds the three offset getters; the shift flag takes 8 off y.
 - `FUN_0046ee80` is `FUN_0046e300`'s caller for items: the overlays are drawn at the cel centre (half its width and height) with match 0 and mode 0xff; a failed request or load, or an off-screen cel, returns 0 before anything is drawn.
 - `FUN_004db7b0` returns 0 for a type above 6 and for type 5 (warp), and for the player / monster / object layer scan stops at the first layer value of 16 or more; the item class out pointer is written -1 first and set only when `FUN_00633640` finds the armour code.
