@@ -158,6 +158,7 @@ struct NpcMenuList {
     d2d::rules::ListPart part = d2d::rules::ListPart::kNone;
     int held = 0;
     std::uint32_t held_ms = 0;
+    std::uint32_t draws = 0;                  // since it opened, up to 2 (+0x180772: Enter needs two, rules::list_enter)
 };
 
 // An open NPC menu, as game.exe builds and lays it out (FUN_004b4830,

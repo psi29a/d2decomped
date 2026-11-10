@@ -133,7 +133,11 @@ and the defaults.
 - A press inside the box (`FUN_004bf430`; not on the scroll bar's parts)
   keeps the row under it (+0x180734); the release (`FUN_004bf530`) calls
   the callback when the row under it is that row. Enter (`FUN_004bebc0`,
-  key 0xd) calls it for the row at +0x180738.
+  key 0xd) calls it for the row at +0x180738 unless that's −1, once the
+  box has been drawn twice (+0x180772: `FUN_004bf650` zeroes it,
+  `FUN_004bee90` adds one a draw). With a callback every key it gets is
+  the box's (the event's +0x18 = 1, +0x1c = 0, `FUN_00420290`). Oracle:
+  `tools/emu/hire_list_enter.py` (`rules::list_enter`).
 
 - The scroll bar (`FUN_004bee90`, `UI\menu	extslid`, `FUN_004be020`;
   each cel by its bottom-left through `FUN_004f6480`): the up arrow (frame
