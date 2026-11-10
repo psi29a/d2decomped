@@ -555,6 +555,11 @@ arguments), cited, not run. The functions are in the order they are met.
   `FUN_0061a270`, `FUN_00555600` frees it, and `FUN_00553380(taker)` runs; else
   `FUN_00553380` alone. d2d: `take_corpse_items` reads the same on the experience and the items, cited from the decompile, no oracle run
   (combat.md); the state 7 test and the second-owner arm were not checked.
+- **`FUN_00640e90(index)`: an Objects.txt row.** `0x96d470 + index * 0x1c0` for an index from 0
+  below the count at `0x96d474`; an index at or over the count shows message 0xdd and one under 0
+  shows 0xde (`FUN_00408090`, `FUN_00408a60`), then exits -1 (`FUN_00681e09`). It returns 0 only if the table base at `0x96d470` is itself 0, so
+  the `== 0` test after it in `FUN_00548b00` case 2 (message 0x2bf, LAB_00548b3f) can't fire once the table is loaded.
+  The stride and base are the ones monster-ai.md already uses. d2d: not ported as a getter.
 
 ### How near the client walks
 
