@@ -102,6 +102,10 @@ address	name	evidence
 004709a0	gfx_unit_on_screen	COF box vs 0x71146c x 0x711470 (Gfx.cpp 0xdc2, 0xdd3)
 00471a30	gfx_tint_draw_simple	FUN_004f6570 with FUN_0046ed50 (Gfx.cpp 0x9b6, 0x9be)
 00471bd0	gfx_tint_draw	per COF layer FUN_004f6570 (Gfx.cpp 0xa2f, 0xa56)
+00472280	seed_roll_base	ECX seed pair (low, high), EDX base, stack n: n < 1 returns EDX; low * 0x6ac690c5 + high; EDX + (low & (n - 1)) for a power of two, else EDX + low % n
+00472da0	splash_spawn	ECX, EDX draw point, stack subtile << 16: slot from pool DAT_007a89fc (0x200 x 0x18; -1 ends it before any roll), diamond spot, kind (low & 1) + 2 (weather.md)
+00472ec0	bubble_spawn	ECX, EDX draw point, stack subtile << 16: slot from pool DAT_007a8a00 (0x80 x 0x18; -1 ends it before any roll), diamond spot y - 30, kind 2 (weather.md)
+00477730	driver_option	returns DAT_00712ccc: below 4 the software light table, 4 or more the 3D vertex fill (FUN_004de410)
 00478830	net_send_0x66	ECX data, EDX length (<= 0x1fd, else fatal line 0x452): C->S 66 u16len data via FUN_00478350; verified by warden_client.py
 004791b0	utrans_pet_colour	the 0x7a pet list's owner, the roster's flag 8 (0x46665c reads it)
 004792e0	roster_find	EDX unit id: the roster record whose +0x10 or +0x38 id list holds it; -1 and absent give 0 (verified roster_small.py)
@@ -205,6 +209,8 @@ address	name	evidence
 004db290	dir_steps_convert	8 <-> 4, 16 <-> 8 through FUN_00600cb0
 004db570	cof_layer_tint	FUN_0062c100 unless broken, unusable or 'lit ' (GfxUtil.cpp 0x656, 0x657)
 004db670	gfx_unit_layer_ready	on screen, COF loaded, FUN_004db0d0
+004ddef0	light_table_8x8	EAX out (64 x 12 bytes), stack x, y, roof flag: flag 0 samples FUN_00475aa0 at (8x - 8 + 8col, 8y - 8 + 8row); else every entry the environment's intensity and RGB (gdi-driver.md)
+004de630	floor_edge_tile_draw	ECX floor-pass state, stack cell x, y: FUN_00643260 pixel, y + 0x28, state +0x3c / +0x40, then FUN_004de410 with the act's own record at +0x18 (gdi-driver.md)
 004e06a0	pe_image_free	ECX record: unmaps the image of a module record (from the disassembly; hooked in warden_client.py, never run)
 004e0700	pe_image_export_by_ordinal	ECX record, stack ordinal: export address, 0 when out of range (from the disassembly; hooked in warden_client.py, never run)
 004e0730	pe_image_load	ECX record, stack image, size: maps an in-memory PE (hooked in warden_client.py, never run)
@@ -214,6 +220,7 @@ address	name	evidence
 004e7120	damage_add_listed_skills	walks tables+0x16c (count +0x170): per id the stat list's stats 0x15e / 0x15f (skill, level) add SkillDesc calc min / max (+0x20 / +0x2c) or EMin / EMax (char-panel.md)
 004ec040	desc_damage_handler_18	slot 18 of the descdam table 0x72d768 (data ref at 0x72d7b0): SkillDesc found, then FUN_004ea010 (descdam 7)
 004eda80	skill_attack_rating	(player, hand): the hand's skill -> SkillDesc descatt (+0x14) handler in table 0x72d7f8, returns its first rating; 0 if none
+004f68e0	renderer_tile_draw	stdcall 9 args (ret 0x24): arg 1 to ECX, arg 2 to EDX, args 3..9 pushed, then calls [DAT_007c8cc0 + 0x7c] (gdi-driver.md)
 00502ef0	set_font	ECX = font id (0 Font8, 1 Font16; tcpip-menu.md), kept in DAT_0072dffc
 00518c10	bnclient_api	returns 0x72faa0, the Bnclient API table (+0xc8 free, +0xcc cache read, +0xd0 cache write)
 00518de0	bncache_crc32	table 0x72fb80, ~ on both ends; EAX data, ECX length
@@ -1271,3 +1278,11 @@ address	name	evidence
 006c33d0	qsnt_stop	+0xbf8 = 1, waits 2000 ms
 006c3410	qs98_send	one send()
 006c3440	qs98_add_client	FUN_006bfb70, +0xbc4 with QServer98.cpp 0x91
+006c95d0	gdi_draw_tile	GDI driver slot +0x7c (0x74c524): FUN_005fdea0 then callback +0xc of DAT_007c914c; same text as FUN_005132c0
+006c9220	gdi_clear_buffer	memset of DAT_007c9154: W * H when arg is 0, else (H - 0x2f) * W
+006c9280	gdi_clear_buffer_thunk	calls FUN_006c9220 with its argument; called by FUN_006c7d80 (driver slot +0x18)
+006c93a0	gdi_draw_wall_blocks	GDI driver slot +0xa0 (0x74c548): same text as FUN_005130a0; view box {-0x20, W, -0x21, H + 0x20}, callback +0x18
+006c9640	gdi_video_close	frees DAT_0098a278, _SmackClose_4 when kind (+4) is s, kind = 0; Src/gdiSmack.cpp, driver slot +0x48
+006c9690	gdi_video_blit_rows	EAX rect (+8 x, +0xc bottom y), rows ECX, width arg: DAT_0098a278 through map DAT_0098a178 into DAT_007c9154, stride DAT_007c9138
+006c9710	gdi_video_open	kind s = _SmackOpen_12 (0xfe000, -1) into a W x H buffer, kind p = 0x1d4 x 0x3c picture via FUN_006c6a80 type 2; Src\gdiSmack.cpp line 0x78
+006c9900	gdi_video_frame	_SmackWait_4, palette to DAT_0098a178, _SmackDoFrame_4, close at frame (+0x374) == count (+0xc), then FUN_006c9690; Src/gdiSmack.cpp slot +0x44
