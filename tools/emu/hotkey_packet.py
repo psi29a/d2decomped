@@ -14,6 +14,10 @@ import emu
 
 
 def capture(executable):
+    """Run the retail hotkey handler and verify its decoded metadata setter calls.
+
+    Return wire hex and decoded fields without connecting to a host.
+    """
     machine = emu.Emu(executable)
     data = machine.alloc(0xc00)
     machine.w32(0x744304, data)
@@ -22,6 +26,7 @@ def capture(executable):
     machine.hook(0x6439b0, lambda current: 1, 1)
 
     def apply(current):
+        """Record the four metadata-setter arguments produced by the real hotkey handler."""
         calls.append(tuple(current.arg(index) for index in range(4)))
         return 1
 
@@ -40,6 +45,7 @@ def capture(executable):
 
 
 def main():
+    """Read the local executable path and emit decoded cases or wire-only comparison rows."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("executable")
     parser.add_argument("--wire", action="store_true")

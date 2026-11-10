@@ -13,6 +13,10 @@
 #include <string_view>
 #include <vector>
 
+/**
+ * Check the frozen retail close-button coordinates and inclusive hit bounds, plus hotkey packet
+ * bytes. Optional dump modes emit comparison rows for the committed executable oracles.
+ */
 int main(int count, char** values) try {
     const std::string_view mode = count > 1 ? values[1] : "";
     struct Case { int character_class, tab, left, bottom; };

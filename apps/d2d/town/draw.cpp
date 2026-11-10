@@ -81,6 +81,9 @@ auto Town::open_menu(int npc) -> void {
 
 // Widescreen: the world draws into `framebuffer` (wider than kScreenWidth)
 // and everything else into its centre 800x600, as it always did.
+/**
+ * Draw the current Town view and enabled UI overlays, including the optional touch controls.
+ */
 auto Town::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mouse, std::uint32_t frame_ms) -> void {
     present_skill_pad();
     const int screen_w = fb_width(framebuffer);
@@ -111,6 +114,10 @@ auto Town::sync_panel_cam() -> void {
     panel_cam_x = want_x; panel_cam_y = want_y;
 }
 
+/**
+ * Render the interpolated world view and gameplay panels from the published snapshot. Keep
+ * controller panel/run hints and skill-tree close feedback aligned with their input targets.
+ */
 auto Town::draw_view(std::vector<std::uint8_t>& framebuffer, std::vector<std::uint8_t>* wide, const Mouse& mouse, std::uint32_t frame_ms) -> void {
         auto& unit = view.player;                           // the client's copy: its animation clock is the client's
         const int pmode = view.pmode;

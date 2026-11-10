@@ -55,6 +55,10 @@ const char* screen_name(Screen screen) {
 // Registers them on `ch`. They capture main()'s loop locals by reference;
 // the channel is only pumped inside that loop, so the captures never
 // outlive it.
+/**
+ * Register game-loop debug commands for synthetic input and state inspection. Callbacks capture
+ * loop-owned state by reference and must only be pumped while that state is alive.
+ */
 void register_game_verbs(d2d::devctl::Channel& channel, Window& win, Screen& screen, CharSelectUI& csu, CharCreateUI& character,
                          Town& town, std::optional<Scene>& scene, Audio& audio) {
     auto click_verb = [&window = win](const std::vector<std::string>& args, std::uint8_t button) {

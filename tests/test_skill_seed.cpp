@@ -10,6 +10,10 @@
 #include <exception>
 #include <string>
 
+/**
+ * Verify initial hand/hotkey placement, duplicate filtering, disabled destinations and explicit-
+ * clear/legacy sheet persistence.
+ */
 int main() try {
     using namespace d2d::client::skillpad;
     const std::array<int, 8> hotkeys{39, 36, 54, 42, 39, -1, 44, 45};

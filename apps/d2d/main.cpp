@@ -449,6 +449,10 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
     }
 }
 
+/**
+ * Run the interactive window loop, routing SDL and controller input to the current screen. Touch
+ * gestures and character-selection cursor ownership are resolved before gameplay and UI updates.
+ */
 int run_windowed(std::vector<std::uint8_t>& framebuffer,
                  std::optional<Scene>& scene,
                  std::future<void>& loading,
@@ -1770,6 +1774,10 @@ extern "C" void d2d_sigint_handler(int) {
     if (g_sigint_count >= 2) _exit(130);
 }
 
+/**
+ * Parse launcher/config options and start the game with the selected local data and input settings.
+ * Touch controls remain opt-in through the flag or saved configuration.
+ */
 int main(int argc, char** argv) {
     // Ctrl-C and SIGTERM set the loop-quit flag instead of terminating
     // mid-frame. SIGPIPE gets ignored so a closed devctl client doesn't

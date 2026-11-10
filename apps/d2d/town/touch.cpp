@@ -38,6 +38,10 @@
 
 namespace d2d::client {
 
+/**
+ * Load the named character touch assignments independently of controller positions. Remove the
+ * cached sheet if its sidecar cannot be opened.
+ */
 void Town::load_touch_sheet(const std::string& name) {
     if (key_dir.empty() || name.empty()) return;
     std::ifstream file(key_dir / (name + ".touchskills"));
@@ -45,6 +49,10 @@ void Town::load_touch_sheet(const std::string& name) {
     else touch_sheets.erase(sheet_key(name));
 }
 
+/**
+ * Persist a cached touch sheet through a checked temporary file and rename. Leave the original
+ * destination in place on a failed write and report the failure.
+ */
 void Town::save_touch_sheet(const std::string& name) const {
     if (key_dir.empty() || name.empty()) return;
     const auto found = touch_sheets.find(sheet_key(name));
@@ -63,6 +71,11 @@ void Town::save_touch_sheet(const std::string& name) const {
     }
 }
 
+/**
+ * Resolve a controller/touch skill preview for the selected owner without issuing a command. Manual
+ * aim uses screen drag distance; self casts, eligible corpses and Teleport each apply their own
+ * target policy.
+ */
 touch::Target Town::resolve_skill(PadPlayer& player_pad, int skill, float dx, float dy, bool manual, const UnitState* owner, std::string_view owner_name) const {
     touch::Target target;
     target.skill = skill;
@@ -134,6 +147,11 @@ touch::Target Town::resolve_skill(PadPlayer& player_pad, int skill, float dx, fl
     return target;
 }
 
+/**
+ * Dispatch a committed skill preview after rechecking availability and player state. Panel
+ * shortcuts open UI, portal bindings use a carried tome, and auras update the selected hand rather
+ * than attacking a target.
+ */
 void Town::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
     if (target.valid && skillpad::panel_index(target.skill) >= 0) {
         skill_strip = skillpad::panel_index(target.skill);
@@ -158,6 +176,10 @@ void Town::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
     } else send(cmd::UseSkill{ target.skill, target.x, target.y, target.unit, target.left, -1 });
 }
 
+/**
+ * Route a logical touch event to assignment, inventory/panel interaction or field gestures. Return
+ * true for consumed events; field gestures retain separate movement and skill ownership.
+ */
 bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y) {
     if (!touch_enabled) return false;
     if (phase == touch::Phase::Down && touch::kDone.contains(x, y)) {
@@ -246,6 +268,11 @@ bool Town::touch_event(std::int64_t finger, touch::Phase phase, float x, float y
     return true;
 }
 
+/**
+ * Consume touch state into movement, attack, belt, item-sale and committed skill commands.
+ * Invalidate gestures when field input loses ownership, and require a fresh attack press before
+ * pickup.
+ */
 void Town::drive_touch() {
     if (!touch_enabled) return;
     const int panel_state = (store.npc >= 0 ? store.npc + 2 : 0) + (inv_open ? 1000 : 0) + (tree_open ? 2000 : 0) +
@@ -284,6 +311,10 @@ void Town::drive_touch() {
 
 }
 
+/**
+ * Draw the optional touch controls, assignment destinations and aim/cancel feedback. Reuse the
+ * skill preview and current item hints without committing gameplay actions.
+ */
 void Town::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     if (!touch_enabled || !scene || !have_world) return;
     const auto& font = scene->font_small;

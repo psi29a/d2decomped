@@ -48,6 +48,10 @@ namespace d2d::client {
 // The character's key config (FUN_0046aae0): its <name>.key when that's
 // whole, else the save folder's default.key, else the built-in table;
 // then kept as <name>.key.
+/**
+ * Load character key bindings with the shared/default fallback, then load independent controller
+ * and touch sheets. Reset transient touch state so gestures cannot cross character sessions.
+ */
 auto Town::load_keys() -> void {
         const auto read = [](const std::filesystem::path& path) {
             std::ifstream file(path, std::ios::binary);
@@ -114,6 +118,10 @@ auto Town::accept_controls() -> void {
         }
     }
 
+/**
+ * Apply a keyboard picker assignment and immediately copy changed hotkeys to the local save owner.
+ * In a joined game, send only changed slots using host item IDs for item-granted bindings.
+ */
 auto Town::skill_hotkey(int slot, int mouse_x, int mouse_y) -> void {
         const auto previous = character.header.hotkeys;
         skillbar.hotkey(slot, mouse_x, mouse_y);
@@ -196,6 +204,10 @@ auto Town::party_rows() const -> std::vector<PartyPanel::Row> {
         return rows;
     }
 
+/**
+ * Build the local player row for the Party panel. Offline and local-co-op membership is fixed; a
+ * joined game supplies the host-reported party ID.
+ */
 auto Town::party_own() const -> PartyPanel::Own {
         PartyPanel::Own own{ character.name, int(character.stats.get(d2d::d2s::kLevel)), party_preview.empty() ? 0xffff : 1, level && d2d::rules::level_ids::is_town(level->id) };
         if (coop_hud_hidden()) { own.party = 1; own.fixed = true; }   // the screen's player (`character`), in local co-op's one party

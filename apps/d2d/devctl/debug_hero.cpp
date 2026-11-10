@@ -21,6 +21,10 @@
 
 namespace d2d::client {
 
+/**
+ * Register character debug commands, including skill-icon coordinates used by input tests. The
+ * callbacks operate on this Town and require the owning debug session to remain alive.
+ */
 void DebugVerbs::add_hero() {
     add("clearinv", [this](const Args& /*args*/) -> Reply {   // empty the inventory grid (tests that need room)
         std::erase_if(town.hero.character.items, [](const auto& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kInventory; });

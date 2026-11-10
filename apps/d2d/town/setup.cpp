@@ -42,6 +42,10 @@
 namespace d2d::client {
 
 // Town
+/**
+ * Publish the focused player world snapshot to the client view. Preserve client-owned hotkey
+ * metadata when replacing the display character header.
+ */
 auto Town::publish() -> void {
         auto& owner = focused();                        // local co-op: the screen's player
         world.act_as(owner);
@@ -100,6 +104,10 @@ auto Town::publish() -> void {
 // Where the automap's files go: beside the save (none with saving off).
 std::filesystem::path automap_dir(const World& world) { return world.characters ? world.characters->dir : std::filesystem::path{}; }
 
+/**
+ * Initialize the client view and input presentation when entering the current world. Refresh the
+ * controller panel shortcuts alongside other screen state.
+ */
 auto Town::enter() -> void {
         shake = {}; quest_quakes.clear(); shake_rng = d2d::rules::Rng{ 666 };
         automap.cells.clear();                    // a new game: what the files beside the save kept
@@ -151,6 +159,10 @@ auto Town::save() -> std::string {
 
 auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
 
+/**
+ * Reset session state for a newly started game, including skill-assignment state that must not
+ * survive the previous session.
+ */
 auto Town::new_game() -> void {
         tree_close_down = false;
         world.new_game();

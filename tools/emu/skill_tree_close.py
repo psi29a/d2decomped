@@ -14,18 +14,26 @@ import emu
 
 
 def signed(value):
+    """Interpret an unsigned emulator register value as a signed 32-bit coordinate."""
     return value - 0x100000000 if value & 0x80000000 else value
 
 
 def capture(executable):
+    """Capture retail close-button position/frame for each class, tab and held state.
+
+    Check the real hit tester at inclusive edges and just outside them, then
+    return the observed rows.
+    """
     machine = emu.Emu(executable)
     calls = []
 
     def clear(current):
+        """Emulate memset for the draw routine and return its destination pointer."""
         current.mu.mem_write(current.arg(0), bytes([current.arg(1) & 255]) * current.arg(2))
         return current.arg(0)
 
     def draw(current):
+        """Capture the real routine renderer arguments instead of drawing proprietary pixels."""
         calls.append((signed(current.arg(1)), signed(current.arg(2)), current.r32(current.arg(0))))
         return 0
 
@@ -63,6 +71,7 @@ def capture(executable):
 
 
 def main():
+    """Read the local executable path and emit captured rows as JSON or unpressed TSV coordinates."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("executable")
     parser.add_argument("--tsv", action="store_true")

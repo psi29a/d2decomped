@@ -11,6 +11,10 @@
 #include <cstdio>
 #include <exception>
 
+/**
+ * Check panel-opening assignments, held-button handoff and action-label/ID mappings. Round-trip
+ * panel assignments through skill-sheet serialization.
+ */
 int main() try {
     using namespace d2d::client;
     const auto config = pad::skill_buttons_config({});
