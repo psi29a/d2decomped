@@ -456,9 +456,10 @@ The send is `FUN_00480c10(&command, 0)`; when it answers nonzero, actions 5 to
 `FUN_00627260`), and `FUN_00480b40(type, id, third)` goes out. Whatever
 happened, a player's queue (+0x150, +0x154, +0x158, +0x15c) is then zeroed
 (LAB_00481240, "abandoned" above). An action 1/3 early return, and the 0x13 one,
-leave it. What stat 0x148 counts was not traced. d2d: `tick.cpp` and
-`travel.cpp` cite the queue (above); the stat bump, the action 1/3 early
-return and the assert are not ported.
+leave it. What stat 0x148 counts is in missiles.md (the pierce seed), not traced here. d2d: `tick.cpp` and
+`travel.cpp` cite the queue (above); the stat bump is ported as `World::apply`'s
+`++actor->pierce_idx` for `cmd::UseSkill` (`commands.cpp`; its timing can differ from
+the client's); the action 1/3 early return and the assert are not ported.
 ### The pending interact's fields and its starters (`.\PLAYER\PlrModes.cpp`)
 
 Read in the asm (`tools/emu/disasm.py`, since the decompiler drops the register
@@ -477,7 +478,8 @@ arguments), cited, not run. The functions are in the order they are met.
   goes; the other arms are not ported.
 - **`FUN_0057eec0(game, unit, mode, flag, skill)`: may the player act?** Two callers
   pass different arguments. It returns 0 for a unit in state 0x36 (`FUN_00639df0`), a null
-  unit, and mode 0 or 0x11 (LAB_0057eed6). A zero `mode` or `flag` then returns 1
+  unit, and a unit whose current mode (+0x10) is 0 or 0x11 (LAB_0057eed6). Past those, a zero
+  requested `mode` argument or a zero `flag` returns 1
   (LAB_0057eff2). **The dispatcher** `FUN_0054d750` calls it as `(1, 0, 0)` (LAB_0054d7b0:
   pushes 0, 0, 1), so for the ids read here, all but 0x14, 0x15, 0x3c, 0x43, 0x66 (no test) and 0x41 (only in
   mode 0x11) the gate is those three tests and nothing else. **Walking is not one of them**,
@@ -524,9 +526,10 @@ arguments), cited, not run. The functions are in the order they are met.
   (-1 or -2 as above; 0 or more takes `FUN_00580c20`'s other arm, not traced), the target's
   type and id. `FUN_00580c20` reads them back (LAB_00580e47, LAB_00580e5c: id, then type,
   and `edi == -2` as the fourth argument, LAB_00580e68). A refused first walk still leaves
-  the pending set. d2d: `walk.cpp` and `commands.cpp` `walk_to` start the same walk (the warp's
+  the pending set. d2d: `walk.cpp` and `commands.cpp` `walk_to` start the walk, and this
+  reads the same, cited from the decompile, no oracle run (the warp's
   `take_warp` is the pending); the marker, the type and the id have no counterpart in d2d's
-  fields. **agrees** on the walk, **DISAGREES** on the limit (below).
+  fields. **reads the same** on the walk, **DISAGREES** on the limit (below).
 - **`FUN_00535060(unit)`: is the player busy?** 0 for a null unit or a non-player. Otherwise 1
   when the interact flag (player data +0x6c, `FUN_00554100`: it also yields +0x68 the type and
   +0x64 the id) is set, or when a cursor item is held (`FUN_0063c1e0` on unit +0x60); else the
@@ -557,14 +560,15 @@ arguments), cited, not run. The functions are in the order they are met.
   `FUN_0061a270`, `FUN_00555600` frees it, and `FUN_00553380(taker)` runs; else
   `FUN_00553380` alone. d2d: `take_corpse_items` reads the same on the experience and the items, cited from the decompile, no oracle run
   (combat.md); the state 7 test and the second-owner arm were not checked.
-- **`FUN_00640e90(index)`: an Objects.txt row.** `0x96d470 + index * 0x1c0` for an index from 0
+- **`FUN_00640e90(index)`: an Objects.txt row.** `[0x96d470] + index * 0x1c0` (the table base stored at 0x96d470) for an index from 0
   below the count at `0x96d474`; an index at or over the count shows message 0xdd and one under 0
   shows 0xde (`FUN_00408090`, `FUN_00408a60`), then exits -1 (`FUN_00681e09`). It returns 0 only if the table base at `0x96d470` is itself 0, so
   the `== 0` test after it in `FUN_00548b00` case 2 (message 0x2bf, LAB_00548b3f) can't fire once the table is loaded.
   The stride and base are the ones monster-ai.md already uses. d2d: not ported as a getter.
 - **`FUN_00548b00(player, type, id, to_cursor, game)`: interact with a unit, by type.** ECX the
   player, EDX the type (over 5 returns 1; the jump table is at 0x548e8c), stack id, `to_cursor`,
-  game. It returns 0 when it acted (or walked), 1 when the target is gone or past the 0x33
+  game. It returns 0 when it acted (or walked), and also when it did nothing (case 1: an NPC 9 or
+  more away, or a `FUN_00535060`-busy player within 6), so 0 doesn't show that anything ran; 1 when the target is gone or past the 0x33
   range of `unit_distance`, 3 from cases 2 and 4 only (below). Each walk in the cases below is
   `FUN_00548a50` with the marker above. The cases, from the asm:
   - 0 a player: over 8 walks; within 8 a dead one (mode 0x11) is taken (`FUN_0057fb70`) when
@@ -599,11 +603,14 @@ arguments), cited, not run. The functions are in the order they are met.
   - then, after the marker arm above, **+0x150 is zeroed** (LAB_00580e88; the marker, type and id stay).
   - marker 0 or more: a skill use (`FUN_006439f0`, `FUN_00643860`, `FUN_00580a70`), not traced.
   With +0x150 clear it goes idle (`FUN_0057f020(1, 0, 0)`, LAB_00580e9a) and the walk is over.
-  So a click on a warp, an item or an NPC makes at most two walks: the second one's end finds
-  +0x150 zero. d2d's `use_warp` / "Short of the target with a step made" (tick.cpp,
+  So the server makes at most two walks for one interact packet: the second one's end finds
+  +0x150 zero. The client's re-issue ("What keeps a walk to a unit going: the client") is
+  separate and has no count, so a click on an NPC or object can add more walks. d2d's `use_warp` / "Short of the target with a step made" (tick.cpp,
   travel.cpp) re-plans from the stop each tick while a step is made, with no count (todo 47;
-  how often `use_warp` tests was not re-checked here), so it **DISAGREES**: a blocked or crowded route that
-  takes game.exe two walks takes d2d as many as it needs. Read, not run; the oracle phase would
+  how often `use_warp` tests was not re-checked here), so it **DISAGREES** in two ways. A crowded route (a stop short of the
+  point with a step made) that takes game.exe two walks takes d2d as many as it needs; a blocked one
+  ends d2d's walk at once (above, since #226), one walk where game.exe has two. And d2d tests the
+  warp's reach every tick, game.exe only when the packet comes and when a walk ends (above). Read, not run; the oracle phase would
   call `FUN_00580c20` with a stub path.
 - **`FUN_005868a0(op)`: a barrel opened** (OperateFn 5; `op` +0 the game, +4 the object unit, +8
   the operator, +0xc its random seed, +0x10 the object id). Only for an object unit that is

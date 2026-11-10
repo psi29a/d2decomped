@@ -590,7 +590,6 @@ address	name	evidence
 00563c00	cursor_item_drop_at_feet	ItemMode.cpp 0x833/0x834/0x837/0x85b/0x85e: cursor item (type 4, mode 4) to FUN_00555da0's spot via FUN_00558aa0, cursor cleared
 00563fe0	item_transmogrify	Items +0x139, +0xc8, +0x13a/+0x13b
 005678a0	unit_interacts_with_player	EDX unit: interact flag +0x6c set, type +0x68 = 0 and FUN_00552f60 finds +0x64; FUN_00548b00 case 0 asks it of the player and of a corpse before FUN_0057fb70 (collision.md "The pending interact's fields")
-0056b3e0	unit_takes_filter	ECX caster, EDX target, stack flags: by target type (player 0x1, monster 0x2, object 0x10, missile 0x8, item 0x20) then 0x80/0x400 unit flags, 0x100 town, 0x10000/0x8000/0x20000, state 0x56, 0x200 line (skills.md "aurafilter")
 0056d2c0	skill_target_point	fastcall (game, caster, out x, out y) -> 1 when both non-zero: the caster path's target unit (FUN_00553540) position, else the path's target words (+0x10 / +0x12); skills.md "The skill target point"
 0056de40	passives_then_pet_limits	fastcall (unit): FUN_00646f20, then a player (type dword +0 is 0) tail-jumps to FUN_00575900 with unit +0x80 in ECX; skills.md
 0056b3e0	unit_takes_filter	ECX caster, EDX target, stack flags: by target type (player 0x1, monster 0x2, object 0x10, missile 0x8, item 0x20) then 0x80/0x400 unit flags, 0x100 town, 0x10000/0x8000/0x20000, state 0x56, 0x200 line (skills.md "aurafilter")
