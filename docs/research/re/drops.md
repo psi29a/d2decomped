@@ -622,3 +622,22 @@ Evidence: `uv run --project tools/emu python tools/emu/disasm.py 61a1b0` (the `t
 load at 0x61a1be, the call at 0x61a1c1), `python3 tools/ghidra/fn.py 0066bab0`.
 d2d: reads the same, cited from the decompile, no oracle run (not a function: `room_of(level, x, y)` and the level's own id; the Chaos
 Sanctuary check in `monsters.hpp` cites it for the target's level id 108).
+
+### The act of a level id (`FUN_006427f0`)
+
+`FUN_006427f0(level id)` (stdcall, `ret 4`): walks `i = 1..5` over the dwords at
+`0x6eb2f0 + i * 4` and returns `i - 1` at the first one the id is below (`cmp ecx, [eax*4 +
+0x6eb2f0]; jl`); when the id is not below any of the five it returns 0 (`xor al, al`; the
+decompile's `uVar1 & 0xffffff00` is the same 0). So the result is the act, 0 for Act 1 up
+to 4 for Act 5 (callers: `FUN_005a6600` here, quests-act1.md "`FUN_006427f0` == 0",
+quests.md "low byte 4" for Act 5), and an id past the last threshold reads as Act 1 again.
+The table's values were not read in this pass; skills.md gives the starts 1, 40, 75, 103, 109,
+which does not say what `[1..5]` holds, so the id at which the fall-through starts is open.
+`FUN_005a6600` calls it with the level id and drops the result (`FUN_006427f0(uVar8)` has no
+use in the decompile or the asm after 0x5a6649): the call has no effect there.
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 6427f0`,
+`uv run --project tools/emu python tools/emu/disasm.py 5a6600` (0x5a6649, EAX unused until
+0x5a664e overwrites it).
+d2d: `rules::level_ids::act_of` (`upper_bound` over the act towns, minus 1, at least 0)
+gives 4 for any id past Harrogath's; the game gives 0 past its last threshold. Whether a
+level id exists in that range was not checked, so this is not filed as a disagreement.
