@@ -392,6 +392,48 @@ local player's mercenary:
 So the merc's label is a second path that does not go through the
 cursor's unit. Who draws the kept text was not read. d2d: not ported.
 
+### The death screen (`FUN_00453100`, 0x453100, 548 bytes)
+
+Not a label either (neighbour address). `FUN_00453100()` is the last
+call of the frame's `FUN_00456ee0` but one (0x4572ce, unconditional).
+Read from the disassembly against `apps/d2d/town/view.cpp:292`, no
+oracle run:
+
+1. No local player (`FUN_00463dd0`): nothing. Not dead (`FUN_00464820`:
+   +0xc4 bit 16, or a player in mode 0 or 0x11, or a monster in mode 0 or
+   0xc): 0x7a2890 = 0 and nothing. Else 0x7a2890 = 1 (once the first
+   image has been tried).
+2. y = H/2 − 0x5e (H = `DAT_00711470`, rounded toward zero). The cel
+   file `DATA\LOCAL\UI\<language>\youdiedhardcore` (`FUN_00525260` gives
+   the language directory; `FUN_004788b0` loads it once, kept at
+   0x7a2894; a failed load, which leaves it 0, is tried again on the next call) is drawn with
+   `FUN_00502680` centred on W/2 (`DAT_0071146c`), mode 5; then
+   `youdiedinst` (0x7a2898) 0x30 lower. Both are drawn in softcore and
+   hardcore alike.
+3. Font 2 (`FUN_00502ef0`; d2d `font30`). The first text line's bottom is
+   y = H/2 + 2, then 0x30 per line shown, each centred on `DAT_007a5220`
+   / 2 (the width, automap.md), colour 1 (red; `FUN_00502320`'s colour
+   argument):
+   - hardcore (`FUN_0044b850`, bit 4 of the byte at +0x1ef of the game
+     record 0x7a0438): string 0x13e8;
+   - else, if stat 0xaf (175, gold lost) is not 0: string 0x13e6
+     formatted (`FUN_005269d0`, limit 0x100) with the stat's value;
+     with 0, no line and the next line takes its place;
+   - then, not hardcore and `FUN_0044dcd0` (byte 0x7a060c, the difficulty:
+     2 is Hell, quests.md) above 0: string 0x13e7.
+
+d2d reads the same, cited from the decompile, no oracle run: the image
+names, centring, the 0x30 steps, H/2 − 0x5e and H/2 + 2 starts, the string
+ids and their conditions, the colour (red) and font match line for line.
+Differences, none of which d2d shows: the
+game's "dead" test also takes +0xc4 bit 16 and a monster's modes
+(d2d: `pmode == kModeDD` only; d2d plays its death animation as mode 0
+while `pmode` is DD, `town/draw.cpp:229`, so the screen shows during
+the animation as in the game, but when `pmode` becomes DD was not
+checked); d2d keeps the images for ENG only (`load.cpp:210`); and it has
+no 0x7a2890 (who reads it was not traced). The `ghost` / `all_dead`
+condition is d2d's co-op addition.
+
 ### The kept label's draw (`FUN_00453060`, 0x453060, 150 bytes)
 
 The reader of the kept text of `FUN_00452be0` / `FUN_00452d20`. `FUN_00453060()`
