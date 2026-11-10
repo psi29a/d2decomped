@@ -91,8 +91,8 @@ size, `+0xc` 512 hash buckets. The bucket hash is
 |---|---|
 | `FUN_0046e100` | Has the unit an overlay of row EDX (fatal 0x1ea) |
 | `FUN_0046e150` | Sets `+8` of the unit's overlays of row EDX; a kind other than 1 is fatal (0x205). No caller |
-| `FUN_0046e1b0` | Draws the unit's overlays of row EDX at (x, y) in two passes (front, back by `+0x34`), skipping kind 6 without `+8` and kind 8 without `+0x3c`; Overlay.txt row at `0x744304 + 0xbbc`, 0x84 bytes. Caller `FUN_00453470` |
-| `FUN_0046e300` | Draws all of a unit's overlays at its screen spot (or its automap spot in the perspective modes, shifted a quarter screen for a side panel as [bugs.md](bugs.md) #38 says), plus the motion offsets; Overlay.txt `+0x81` may trigger `FUN_00477680` |
+| `FUN_0046e1b0` | Draws the unit's overlays of row EDX at (x, y) in one pass over the nodes whose `+0x34` is clear (the second pass the code is written for never runs), skipping kind 6 without `+8` and kind 8 without `+0x3c`; Overlay.txt row at `0x744304 + 0xbbc`, 0x84 bytes. Caller `FUN_00453470` |
+| `FUN_0046e300` | Draws all of a unit's overlays at its screen spot (or its automap spot in the perspective modes for a unit that is null, not an item or an item in mode 3, shifted a quarter screen for a side panel as [bugs.md](bugs.md) #38 says), plus the motion offsets; an item's own x / y arguments replace the spot when neither is -1. A node is drawn when its `+0x34` flag agrees with the match argument; Overlay.txt `+0x81` may trigger `FUN_00477680`. A unit without a graphics record is fatal 0x271 and a bad Overlay.txt row 0x2d1 (`tools/emu/engine_overlay_place.py`) |
 | `FUN_0046f0c0` | Removes (`FUN_0046e040`) the first overlay of row n; for either kind 4 or 9, a match at either `+8` or `+0xc` also qualifies. A bad row is fatal (0xca9) after a unit and graphics record are found (`tools/emu/engine_overlay_remove.py`; removal hooked) |
 | `FUN_0046f170` | Removes all of a unit's overlays, saving the next pointer before each removal; a missing graphics record is fatal (0xccf; `tools/emu/engine_overlay_clear.py`, removal hooked) |
 | `FUN_004dad50` | Overlay.txt `+0x80` of row EAX (1 when out of range) |
@@ -197,17 +197,43 @@ limits. These checks cover game.exe's behavior, not a d2d implementation.
 
 | Oracle | Functions |
 |---|---|
-| `tools/emu/engine_motion.py` | `FUN_0046f060`, `FUN_0046f070`, `FUN_004da000`, `FUN_004da080`, `FUN_004da0b0` ... `FUN_004da1b0`, `FUN_004da1d0`, `FUN_004da200`, `FUN_004da250`, `FUN_004da2a0`, `FUN_004da2f0`, `FUN_004da320`, `FUN_004da340`, `FUN_004da350` (every branch of the step is reached), `FUN_004da5b0`, `FUN_004da620`, `FUN_004da640`, `FUN_004da660`, `FUN_004da690`, `FUN_004da6b0`, `FUN_004da6e0` |
-| `tools/emu/engine_gfx_small.py` | `FUN_0046e100`, `FUN_0046e570`, `FUN_0046e5a0`, `FUN_0046e610`, `FUN_0046e690`, `FUN_0046eac0`, `FUN_0046ec80`, `FUN_0046ece0`, `FUN_0046f000`, `FUN_0046f020`, `FUN_0046f1c0` ... `FUN_0046f250`, `FUN_0046f280`, `FUN_0046f980` ... `FUN_0046f9d0`, `FUN_004da720`, `FUN_004da770`, `FUN_004da8e0`, `FUN_004da920`, `FUN_004da990`, `FUN_004da9c0`, `FUN_004daa70`, `FUN_004dad50`, `FUN_004db040`, `FUN_004db050`, `FUN_004db090`, `FUN_004db0d0`, `FUN_004db180`, `FUN_004db1a0`, `FUN_004db1c0` |
 | `tools/emu/engine_action.py` | `FUN_0046f950` |
 | `tools/emu/engine_armor_tiers.py` | `FUN_004daab0` |
 | `tools/emu/engine_cel_bounds.py` | `FUN_004dab40` |
+| `tools/emu/engine_cof_blocking.py` | `FUN_0046fb60` |
+| `tools/emu/engine_cof_box.py` | `FUN_00470860`, `FUN_004709a0` |
+| `tools/emu/engine_cof_cache.py` | `FUN_00470200`, `FUN_00470290`, `FUN_00470350` |
+| `tools/emu/engine_cof_file.py` | `FUN_0046dcc0`, `FUN_0046ddf0` |
+| `tools/emu/engine_cof_layers.py` | `FUN_0046f650` |
+| `tools/emu/engine_cof_load.py` | `FUN_0046e8d0`, `FUN_0046e980`, `FUN_0046ea50` |
+| `tools/emu/engine_cof_node.py` | `FUN_0046e740` |
+| `tools/emu/engine_cof_params.py` | `FUN_004db7b0` |
+| `tools/emu/engine_cof_path.py` | `FUN_0046f490`, `FUN_0046ed50` |
+| `tools/emu/engine_cof_preload.py` | `FUN_0046f9e0`, `FUN_0046fa80`, `FUN_0046fda0`, `FUN_0046feb0`, `FUN_0046ff50` |
+| `tools/emu/engine_cof_request.py` | `FUN_004da790`, `FUN_0046f870`, `FUN_004db2e0` |
+| `tools/emu/engine_cof_rooms.py` | `FUN_00470070` |
 | `tools/emu/engine_direction.py` | `FUN_004db290` |
 | `tools/emu/engine_gfx_alloc.py` | `FUN_0046ebb0` |
+| `tools/emu/engine_gfx_free.py` | `FUN_0046eb70`, `FUN_0046ec10`, `FUN_0046f370`, `FUN_0046f3f0`, `FUN_0046f440`, `FUN_0046f310`, `FUN_0046e150` |
+| `tools/emu/engine_gfx_small.py` | `FUN_0046e100`, `FUN_0046e570`, `FUN_0046e5a0`, `FUN_0046e610`, `FUN_0046e690`, `FUN_0046eac0`, `FUN_0046ec80`, `FUN_0046ece0`, `FUN_0046f000`, `FUN_0046f020`, `FUN_0046f1c0` ... `FUN_0046f250`, `FUN_0046f280`, `FUN_0046f980` ... `FUN_0046f9d0`, `FUN_004da720`, `FUN_004da770`, `FUN_004da8e0`, `FUN_004da920`, `FUN_004da990`, `FUN_004da9c0`, `FUN_004daa70`, `FUN_004dad50`, `FUN_004db040`, `FUN_004db050`, `FUN_004db090`, `FUN_004db0d0`, `FUN_004db180`, `FUN_004db1a0`, `FUN_004db1c0` |
+| `tools/emu/engine_item_cel.py` | `FUN_0046ee80` |
+| `tools/emu/engine_item_gfx.py` | `FUN_004dabc0`, `FUN_004db360` |
+| `tools/emu/engine_layer_info.py` | `FUN_004dae60`, `FUN_004daf70` |
+| `tools/emu/engine_layer_token.py` | `FUN_004dad80`, `FUN_004db570` |
 | `tools/emu/engine_mode_token.py` | `FUN_004daa00` |
+| `tools/emu/engine_motion.py` | `FUN_0046f060`, `FUN_0046f070`, `FUN_004da000`, `FUN_004da080`, `FUN_004da0b0` ... `FUN_004da1b0`, `FUN_004da1d0`, `FUN_004da200`, `FUN_004da250`, `FUN_004da2a0`, `FUN_004da2f0`, `FUN_004da320`, `FUN_004da340`, `FUN_004da350` (every branch of the step is reached), `FUN_004da5b0`, `FUN_004da620`, `FUN_004da640`, `FUN_004da660`, `FUN_004da690`, `FUN_004da6b0`, `FUN_004da6e0` |
 | `tools/emu/engine_neutral_direction.py` | `FUN_004db1e0` |
 | `tools/emu/engine_overlay_clear.py` | `FUN_0046f170` |
+| `tools/emu/engine_overlay_draw.py` | `FUN_0046e1b0` |
+| `tools/emu/engine_overlay_frames.py` | `FUN_0046def0`, `FUN_0046df40` |
+| `tools/emu/engine_overlay_place.py` | `FUN_0046e300` |
 | `tools/emu/engine_overlay_remove.py` | `FUN_0046f0c0` |
+| `tools/emu/engine_rect_size.py` | `FUN_0046efd0` |
+| `tools/emu/engine_unit_cel.py` | `FUN_00471450` |
+| `tools/emu/engine_unit_onscreen.py` | `FUN_004db670` |
+| `tools/emu/engine_unit_outline.py` | `FUN_00471bd0` |
+| `tools/emu/engine_unit_preload.py` | `FUN_00470610`, `FUN_00470b70` |
+| `tools/emu/engine_unit_shape.py` | `FUN_00471a30` |
 
 Changelog of what the checks changed in the rows above (each is also applied to its row):
 
@@ -218,10 +244,18 @@ Changelog of what the checks changed in the rows above (each is also applied to 
 - `FUN_004db050` returns byte 3 of the layer record (`FUN_004db090` byte 1, `FUN_004db0d0` byte 2); for all three, a layer number of 16 or more (signed, so a negative number is looked up and never matches) gives 0.
 - `FUN_004da770` also needs the record's first dword to be 1, and the data pointer at `+0x14` to be non-null.
 - `FUN_004da920` adds one to the caller's count and 0x10 to its byte total; `FUN_004da9c0` takes 0x10 off the total per node but leaves the count alone.
+- `FUN_0046e1b0` walks the overlay list once and skips nodes with `+0x34` set; its second pass (for those nodes) runs on a null list pointer, so they are never drawn ([bugs.md](bugs.md) #97). `FUN_0046e300` is the same filter the other way round: a node is drawn when its `+0x34` flag agrees with the match argument.
+- `FUN_0046df40` switches the unit's state on twice when it was set and the state test is zero ([bugs.md](bugs.md) #98); `FUN_0046def0` copies a sibling's `+0x3c` / `+8` or clears the node's own `+0x3c`, and with no sibling sets `+0x3c` to 1 and clears `+8`.
+- `FUN_0046fda0` checks the class against the header count with a signed upper bound only, so a negative class passes the bound and indexes the slot table before its start ([bugs.md](bugs.md) #99).
+- `FUN_0046f650` loads a monster's COF through the player cache (`0x7a78f0`).
+- `FUN_00471a30` and `FUN_00471bd0` hand `FUN_004f6570` a dword whose low byte is the `FUN_0046ed50` colour: in `FUN_00471a30` the rest is the upper 24 bits of the `FUN_004f51d0` result, in `FUN_00471bd0` it is stack residue ([bugs.md](bugs.md) #100).
+- `FUN_0046e300` writes the converted position back through its own x / y argument slots in the perspective path (`FUN_00620410` takes their addresses), then adds the three offset getters; the shift flag takes 8 off y.
+- `FUN_0046ee80` is `FUN_0046e300`'s caller for items: the overlays are drawn at the cel centre (half its width and height) with match 0 and mode 0xff; a failed request or load, or an off-screen cel, returns 0 before anything is drawn.
+- `FUN_004db7b0` returns 0 for a type above 6 and for type 5 (warp), and for the player / monster / object layer scan stops at the first layer value of 16 or more; the item class out pointer is written -1 first and set only when `FUN_00633640` finds the armour code.
 
 Not checked: the transform-state branch of `FUN_0046da60` / `FUN_0046d9f0` (unit
-`+0xc8` bit 3 set), the loaders and drawing functions of Gfx.cpp
-(`FUN_0046ddf0`, `FUN_0046f490`, `FUN_0046f650`, `FUN_0046fb60`, `FUN_00470070`, `FUN_00470390` ...),
-`FUN_004da790` and the remaining GfxUtil helpers through `FUN_004db7b0` that
-are not listed above. Static notes for `FUN_0046ed50`, `FUN_0046e8d0` and
-`FUN_0046e980` have not been checked by the new oracles.
+`+0xc8` bit 3 set) and the three Gfx.cpp functions that d2d already ports,
+`FUN_00470390`, `FUN_00471620` and `FUN_00471ec0` (the unit draw: 33 to 44
+callees each that need a live unit, room and renderer state; the port is
+exercised by the d2d game tests, not by an oracle). Static notes for the rows
+not named in the table above come from the decompile only.
