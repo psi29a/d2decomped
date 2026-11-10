@@ -32,8 +32,9 @@ Our port: `components/rules/drops.hpp` (`tc_upgrade`, `roll_drops`,
 
 ## Choosing the class — FUN_005a6600, FUN_0055afa0
 
-- ilvl: FUN_00558200 — a monster's stat 0xc (its level), at least 1;
-  otherwise the area's monster level (FUN_0061dca0).
+- ilvl: FUN_00558200 — a monster's stat 0xc (its level), a player's base
+  stat 0xc, at least 1; any other unit (or a null unit) takes the area's
+  monster level (FUN_0061dca0).
   Read whole (cited, decompile only; ECX unit, EDX an area used when the
   unit is null): unit null and EDX 0 → 1. A monster (type 1): stat 0xc,
   `FUN_00625480`. A player (type 0): the **base** stat 0xc,
@@ -216,20 +217,21 @@ classic game, non-zero in an expansion one, see above).
 4. **Expansion (`v != 0`)**: `past` = record +0xc (the ilvl) minus Items
    +0xfd (qlvl), and 1 when that is under 1 **or when the item is of
    ItemTypes row 0x34** (`FUN_00629bb0(item, 0x34)`, an is-a test on the
-   type's equivalence bits). Each of the six qualities in the order table (7 to 2) divides. A base under 1 wins
+   type's equivalence bits). Each of the six qualities in the order table (7 to 2) divides. When the
+   computed odds `b - past / d` are under 1 (after the level adjustment, not the base `b`), the try wins
    **without a draw**.
 5. **Classic (`v == 0`)**: `past` is the raw ilvl (no qlvl taken off). Only
    normal, superior and magic (cases 2, 3, 4) divide; unique, rare and set
-   (cases 7, 6, 5) are `b - ilvl`, no divisor. A base under 1 becomes 1 and
-   **still draws** (`rand(1)`, a step of the item's seed), then wins.
+   (cases 7, 6, 5) are `b - ilvl`, no divisor. Computed odds (`b - ilvl` or `b - past / d`)
+   under 1 become 1 and the try **still draws** (`rand(1)`, a step of the item's seed), then wins.
 6. No quality won: `((record +0x80 & 0x40) | 0x20) >> 5`, that is 3
    (superior) with the bit and 1 (low quality) without.
 
 d2d: `stand_quality` (components/rules/drops.hpp) ports the expansion path
 only: it agrees on the try order, `past / d`, the no-draw win under 1 and the
 superior fall-through. It differs from game.exe in: no classic path (no
-version-0 ItemRatio row, qlvl is always taken off, divisors always, a base
-under 1 never draws); no ItemTypes row 0x34 override; and a failed round
+version-0 ItemRatio row, qlvl is always taken off, divisors always, computed
+odds `b - past / d` under 1 never draw, where classic sets them to 1 and draws); no ItemTypes row 0x34 override; and a failed round
 ends in superior whatever the 0x40 bit (d2d's stands set it, so the common
 case agrees; low quality, 1, is the other result in game.exe). The loader
 (`gamedata_load.cpp:1034`) keeps the highest Version <= 100 row per class /
@@ -356,8 +358,8 @@ at least 1, at most the grid (6) and FUN_0062bc20; flag 0x800, stat 0xc2.
 
 d2d: `generate_item` (quality 4 with a unit seed); the affix loader
 trims type codes. `drops.py items 1-10000` (magic now through
-FUN_00557450 too): 9994 / 9995 (an elixir: its own magic path,
-FUN_00556a60, not ported).
+FUN_00557450 too): 9994 / 9995 (the `elx` code, which `drops.py` skips: the row 0xd (Charm)
+magic path, FUN_00556a60, not ported; whether `elx` is of that row is not traced).
 
 ## Chests — FUN_00585b90
 
@@ -478,12 +480,12 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
 
 ## The socket roll of a made item (`FUN_00556b60`)
 
-`FUN_00556b60(roll)` (EDI the item, EBX the drop record; callers `FUN_00556d80`,
+`FUN_00556b60(game)` (EDI the item, EBX the drop record; callers `FUN_00556d80`,
 `FUN_00557450`) decides whether a new item is socketed and with how many. In order:
 
 1. Quality `FUN_00627e70(item)` below 2, no inventory (`d2d_item_has_inventory`) or a
    Stackable base (`FUN_006289f0`): nothing. The most `FUN_0062bc20(item)`: 0 nothing.
-2. The most is cut by the byte `roll +0x6d` (0, 1, 2 = difficulty): above 2 to 3, above 3 to 4,
+2. The most is cut by the byte `game +0x6d` (0, 1, 2 = difficulty; the stack argument, not the drop record): above 2 to 3, above 3 to 4,
    above 5 to 6.
 3. When the item's version (item data `+0x30`, `FUN_0062a670`) is under 100 and the item is of
    ItemTypes row 3 (`FUN_00629bb0`): nothing. Otherwise `rand(100)` (`FUN_0045c390`) on
@@ -511,7 +513,7 @@ and ends with `FUN_005c1260` (the staff mods above):
 
 | Row | What it does |
 |---|---|
-| 0xd | `FUN_00556a60(record)`: the elixir path (above; it asserts string 0x372 when neither of its rolls gives a value, and sets item flag 0x10 clear) |
+| 0xd | `FUN_00556a60(record)`: the charm-affix path (row 0xd is `char`, Charm, items.md; it asserts string 0x372 when neither of its rolls gives a value, and sets item flag 0x10 clear) |
 | 0x28 | item data `+0x28` (`FUN_00629df0`, which asserts 0x107c / 0x107d / 0x107f for a null unit, a non-item or no item data) set to `record +0x40`, or to the dword at `*record + 4` when `*record` is non-zero |
 | 7 | the same `+0x28` store, then item flag 0x10000 set (`FUN_006280d0`) |
 | 0x16, 0x12 | item data word `+0x3e` (`FUN_00627fb0(item, value, 0)`) set to `FUN_005c2540(..)`: the row of the books table (`d2d_books_count_ptr`) whose dword at `+0x18` / `+0x1c` equals the item's code (Items `+0x80`), else the table's count |
@@ -521,7 +523,7 @@ be passed through); the books-table fields were read only by offset. The `+0x28`
 7 is the same field `tools/emu/drops.py` prints as `sub` (-1 until a unique / set row is picked).
 Evidence: `python3 tools/ghidra/fn.py 00556e80`, `python3 tools/ghidra/fn.py 00629df0`,
 `python3 tools/ghidra/fn.py 00627fb0`, `python3 tools/ghidra/fn.py 005c2540`.
-d2d: not ported as a function (the elixir path is noted as not ported above). Cited from the
+d2d: not ported as a function (the charm-affix path, row 0xd, is not ported). Cited from the
 decompile, no oracle run.
 
 ## The class choice and its helpers (`FUN_005a6600` and what it calls)
@@ -544,8 +546,8 @@ Evidence: `uv run --project tools/emu python tools/emu/disasm.py 543520` (8 inst
 `mov eax, [eax + ecx*4 + 0x10]`); `python3 tools/ghidra/fn.py 00543520`;
 the same pointer is already written in quests-act1.md ("The flags pointer is
 `*(FUN_006221a0(player)+0x10+diff*4)`").
-d2d: agrees, not ported as a function (`header.quest_flag(diff, quest, bit)` reads the
-save's block for the active difficulty).
+d2d: reads the same, cited from the decompile, no oracle run; not ported as a function
+(`header.quest_flag(diff, quest, bit)` reads the save's block for the active difficulty).
 
 ### The class moved on by level, then rolled (`FUN_0055afa0`)
 
@@ -694,8 +696,8 @@ holding its own first argument at `+8`, noNoDrop 1). In order:
 3. The class: `FUN_005a03a0` (the superunique index, -1 for none). With an index, the row
    `FUN_006556e0(index)` (0 past the count) gives its u16 at `+0x2c + diff * 2`, or, with no row,
    MonStats `+0x8a + diff * 8` (TreasureClass3). Without one: mask 4 on `FUN_005a0180` gives
-   `+0x88` (TreasureClass2), else mask 8 gives `+0x8a` (TreasureClass3), else `+0x86`
-   (TreasureClass1). The difficulty is the byte `game +0x6d`.
+   `+0x88 + diff * 8` (TreasureClass2), else mask 8 gives `+0x8a + diff * 8` (TreasureClass3),
+   else `+0x86 + diff * 8` (TreasureClass1). The difficulty is the byte `game +0x6d`.
 4. TreasureClass4 (`+0x8c + diff * 8`) replaces it when MonStats `+0x9e` (TCQuestId) is non-zero,
    that word is non-zero, and the record and its killer exist; a killer that is not a player
    is first replaced by `FUN_0058f0d0(killer)` (its owner), and then, when `FUN_0063a690(killer)`
