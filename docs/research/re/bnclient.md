@@ -73,7 +73,7 @@ Cached in bncache.dat as `BNNews-D2DV` (pointer at `0x72ff80`).
 | `FUN_0051d7a0` | Array append one item; orphan (stubs.md) |
 | `FUN_0051d7f0` | Array reserve exact; orphan (stubs.md) |
 | `FUN_0051d810` | Array set count (grows rounded up) |
-| `FUN_0051d860` | The 0x46 reply (handler `0x521210` is a `JMP` here): u8 count (fatal over 0x100), u32 at `+5` oldest, u32 at `+9` newest, then u32 timestamp + string each. Timestamp 0 is the MOTD: it calls the item callback and isn't stored. Others replace an item with the same timestamp or insert in order. Then marks the first item at or after the oldest, saves (`FUN_0051d370`) and calls back (`FUN_0051d510`) |
+| `FUN_0051d860` | The 0x46 reply (handler `0x521210` is a `JMP` here): signed byte count (0x80–0xff take the fatal guard), u32 at `+5` oldest, u32 at `+9` newest, then u32 timestamp + string each. Timestamp 0 is the MOTD: it calls the item callback and isn't stored. Others replace an item with the same timestamp or insert in order. Then marks the first item at or after the oldest, saves (`FUN_0051d370`) and calls back (`FUN_0051d510`) newest first. See [bnnews-reply.md](bnnews-reply.md) for stock execution and limits |
 | `FUN_0051da30` | Loads the cache copy; keeps it only if it has ≤ 0x100 items in timestamp order, else clears the list |
 
 ## BnSend.cpp leftovers
