@@ -475,3 +475,30 @@ non-door; a door 0x806 if BlocksVis, else 0x808 with BlockMissile, else
   skills, no minion's owner). The picture (VarInvGfx) draw and affixes
   past the pick aren't game.exe's.
 - Func 18 (by time) is dropped.
+
+## The socket roll of a made item (`FUN_00556b60`)
+
+`FUN_00556b60(roll)` (EDI the item, EBX the drop record; callers `FUN_00556d80`,
+`FUN_00557450`) decides whether a new item is socketed and with how many. In order:
+
+1. Quality `FUN_00627e70(item)` below 2, no inventory (`d2d_item_has_inventory`) or a
+   Stackable base (`FUN_006289f0`): nothing. The most `FUN_0062bc20(item)`: 0 nothing.
+2. The most is cut by the byte `roll +0x6d` (0, 1, 2 = difficulty): above 2 to 3, above 3 to 4,
+   above 5 to 6.
+3. When the item's version (item data `+0x30`, `FUN_0062a670`) is under 100 and the item is of
+   ItemTypes row 3 (`FUN_00629bb0`): nothing. Otherwise `rand(100)` (`FUN_0045c390`) on
+   the item's own seed (`FUN_00627d90` = item data `+4`) is drawn, unless the record's `+0x80` has
+   bit 3 (8: no sockets), and forced to 0 by its bit 4 (0x10). It sockets when the record's
+   `+0x44` has 0x800 or the draw is under 33.
+4. Flag 0x800 is set on the item. With a non-zero version the count is the item's
+   own seed field (item data `+0x10`, `FUN_00627df0`) `% most + 1`; with version 0 it is
+   `min(most, 3)`, and 2 at most for an item of ItemTypes row 0x25. `FUN_0062bcb0` sets
+   it (clamped to the grid area and 6; items.md).
+
+Evidence: `python3 tools/ghidra/fn.py 00556b60`, `python3 tools/ghidra/fn.py 00627e70`,
+`python3 tools/ghidra/fn.py 0062bc20`, `python3 tools/ghidra/fn.py 0062bcb0`.
+d2d: reads the same, cited from the decompile, no oracle run, for version 100+ (`generate_item`'s `finish`: `rng(100) < 33`, `start % capped + 1`,
+the 3 / 4 / 6 caps, `!stackable`). Not ported: the version-0 branch, the row 3 / row 0x25
+tests, and the record flags (those are the forced picks the `ponytail:` there lists). d2d keeps
+quality 2..3 itself; the game's own test here is only `quality >= 2`, the caller's choice
+(`FUN_00557450`) was not read for this. Cited from the decompile, no oracle run.
