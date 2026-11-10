@@ -267,11 +267,13 @@ Storm's container templates (`d:\diablo2\Diablo2\3rdparty\storm\h\stpl.h`)
 instantiated for the ignore list, plus the ignore list's own small
 methods that the address range puts in the same module. Several functions
 are byte-identical copies (one per template instance); the table names
-each once. Read from the code, not run.
+each once. The [H module verification](h-module.md) now runs each of the
+63 mapped entry points on bounded synthetic inputs; its three oracle
+documents give the case coverage and intercepted dependencies.
 
 **Containers.** A link is {prev link, next node}; a next value ≤ 0 is the
 list's terminator (`~address`). A list is {link offset, terminator link};
-link offset 0 means "the terminator". A hash table is a vtable, a list of
+a null node argument selects its terminator link. A hash table is a vtable, a list of
 all nodes, a bucket array (12-byte lists at `+0x1c`, count `+0x18`), mask
 `+0x24`. A string is one `SStrDup` pointer, freed at stpl.h line 0x5e4.
 
@@ -291,7 +293,7 @@ all nodes, a bucket array (12-byte lists at `+0x1c`, count `+0x18`), mask
 | `FUN_0060df10` | Appends a name and a line end to the ignore file (`+0x80`, mode `at+`), only when persistent |
 | `FUN_0060dff0` | The key for a name: its `*` part when it has one, else the part before |
 | `FUN_0060e0e0`, `FUN_0060e110` | Bucket `n` (`+8 + n * 12`) |
-| `FUN_0060e170`, `FUN_0060e1c0` | A link's previous link (`~prev` when that is the terminator) |
+| `FUN_0060e170`, `FUN_0060e1c0` | Resolve the next link's address: complement a negative next-node value; otherwise add the supplied offset, deriving it from the predecessor when the offset argument is negative. Historical `stpl_link_prev` names are preserved; the [oracle](h-lists.md) checks the actual direction. |
 | `FUN_0060e1f0`, `FUN_0060e210` | Hash & mask (`+0x24`) |
 | `FUN_0060e2a0`, `FUN_0060e300` | Grow step: the highest power of two ≤ n (1 for 0); from 21 up, 21 stored at `+0xc` |
 | `FUN_0060e2e0`, `FUN_0060e340` | Rounds n up to a multiple of the step |
@@ -309,7 +311,7 @@ all nodes, a bucket array (12-byte lists at `+0x1c`, count `+0x18`), mask
 | `FUN_0060f610` | Bucket array destructor (`TSExplicitList<StringEntry>`) |
 | `FUN_0060f690` | List destructor: unlink all, unlink the terminator |
 | `FUN_0060f6d0` | Bucket array reserve, rounded up to the grow step |
-| `FUN_0060f720` | Bucket array resize (`TSExplicitList<MappingEntry>`): Storm realloc, else alloc and relink |
+| `FUN_0060f720` | Bucket array resize (`TSExplicitList<MappingEntry>`): Storm realloc, else allocate replacement, initialize the surviving-count headers and clear/unlink the old lists before freeing the old array. The [oracle](h-hasharrays.md) records the cleanup boundary; this is not a verified transfer of nodes into replacement buckets. |
 | `FUN_0060f870` | Looks a name up in the account map and copies its value (`+0x18`) out |
 | `FUN_0060f8b0` | Looks a name up in the ignore table (hash `FUN_00413ce0`) |
 | `FUN_00610be0`, `FUN_00610df0` | Hash insert: grow check, node from virtual `+4`, linked last, hash and key set |

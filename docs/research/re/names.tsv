@@ -488,7 +488,7 @@ address	name	evidence
 0060e0e0	stpl_bucket	+8 + n * 0xc
 0060e110	stpl_bucket_2	copy of FUN_0060e0e0
 0060e130	stpl_string_assign_2	copy of FUN_0060dcb0
-0060e170	stpl_link_prev	~link when negative, else link + offset
+0060e170	stpl_link_prev	historical name: resolves NEXT link address, ~next when negative, else next + explicit/derived offset (h-lists.md)
 0060e1c0	stpl_link_prev_2	copy of FUN_0060e170
 0060e1f0	stpl_hash_mask	+0x24 & hash
 0060e210	stpl_hash_mask_2	copy of FUN_0060e1f0
@@ -498,10 +498,10 @@ address	name	evidence
 0060e340	stpl_round_up_2	copy of FUN_0060e2e0
 0060e370	stpl_list_init	+0 offset, +4 = &+4, +8 = ~&+4
 0060e390	stpl_list_init_2	copy of FUN_0060e370
-0060e450	stpl_list_link	offset 0: the terminator (+4)
+0060e450	stpl_list_link	null node argument: terminator (+4); otherwise node + stored offset (h-lists.md)
 0060e470	stpl_list_init_3	same as FUN_0060e370, offset by value
 0060e490	stpl_list_link_node	unlinks, then links before (or after, 1) another node
-0060e540	stpl_list_next_raw	offset 0: +8; else node + offset + 4
+0060e540	stpl_list_next_raw	null node argument: +8; otherwise node + stored offset + 4 (h-lists.md)
 0060e560	stpl_list_unlink	the node's link fixed up and cleared
 0060e5b0	stpl_list_init_4	copy of FUN_0060e470
 0060e630	stpl_list_link_2	copy of FUN_0060e450
@@ -520,7 +520,7 @@ address	name	evidence
 0060f610	stpl_bucket_array_free	"TSExplicitList<StringEntry>" free
 0060f690	stpl_list_free	FUN_0060ecb0, then the terminator unlinked
 0060f6d0	stpl_bucket_array_reserve	rounded up with FUN_0060e2a0, FUN_0060f390
-0060f720	stpl_bucket_array_resize	"TSExplicitList<MappingEntry>", realloc else alloc and relink
+0060f720	stpl_bucket_array_resize	"TSExplicitList<MappingEntry>", realloc else alloc replacement and clear/unlink old lists (h-hasharrays.md)
 0060f870	ignorelist_mapping_get	FUN_0060f510, copies +0x18 out
 0060f8b0	ignorelist_find	FUN_00413ce0 hash, FUN_0060f590
 00610be0	stpl_hash_insert	FUN_00610840 grow check, virtual +4 node, linked last, +0 hash, +0x14 key
