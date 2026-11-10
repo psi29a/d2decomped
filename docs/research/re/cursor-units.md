@@ -267,3 +267,42 @@ Read from the code, no oracle run.
 
 Not traced: what `FUN_0064e780` / `FUN_0064dea0` search, and the byte +0x14
 meaning.
+
+## The label helpers of `FUN_00454f30`
+
+Read from the decompile and the disassembly (`tools/emu/disasm.py`), no
+oracle run. d2d: none of these is ported (`not ported`; d2d has no party
+life bar over a unit).
+
+### Class 0x164's text (`FUN_00452c70`, 0x452c70, 168 bytes)
+
+`FUN_00452c70(EAX unit, EBX &flag, stack &name, &width)` (`ret 8`, one
+caller: `FUN_00454f30`, which sets its local flag to 3 and its width to 0
+before the call). The unit is a client monster; its id (+0xc, or -1 for a
+null unit) goes to the pet list (`FUN_00479150`: the node whose +8 is the id
+gives its +0xc, the owner's id; the list is 0x7bb5bc).
+
+- No such pet (-1): returns 0, the outputs untouched. The caller then
+  falls back to the ordinary monster label (`FUN_00454ad0`).
+- A null unit, a unit in mode (+0x10) 0 or 0xc (death, dead): returns 1
+  with the outputs untouched. The flag is still 3, so `FUN_00454f30`
+  draws nothing.
+- Otherwise the owner's roster entry (`FUN_0047a1f0`: `FUN_004792e0`, the
+  roster by player id, +0x66 the name; no entry returns 0 and the function
+  returns 0) gives the text: the name is widened into the caller's buffer
+  (`d2d_utf8_to_units`, at most 0x80 units). The width is
+  `(FUN_0047a6b0(owner) << 7) / 100`, with `FUN_0047a6b0` the roster's +0x14
+  byte (the life byte of the 0x0d stop packet, `FUN_0047a690`;
+  net-packets.md), but 0 when the owner is the local player (`FUN_00463dd0`
+  = 0x7a6a70, its +0xc) or has no entry. The flag is 1 when
+  `FUN_0047a070(local player id, owner id)` holds, else 0:
+  that function is true when either has no roster entry, false when both
+  are in the same party (u16 +0x22, not 0xffff), else the hostility flag 8
+  (`FUN_004dc440`; party.md). So the colour flag is "hostile or unknown".
+- Returns 1.
+
+The sentinel 3 is outside the flag's 0 / 1, so it tells `FUN_00454f30`
+that nothing was filled; after a 1 return with the flag changed it draws
+the name at (x, y − 0x48) with the width as `FUN_005022f0`'s last
+argument (`LAB_00455112`). Which monster class 0x164 is (356) was not
+traced: it is the class for which the pet list holds an owner.
