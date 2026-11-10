@@ -49,11 +49,25 @@ Warriv's "go east" still comes from elsewhere.
 ## Hire (FUN_004b5c60)
 
 A 490x350 NPC text window: header 0xd24 "Your Gold: %d     Hire which
-Mercenary?" (carried + stash gold) in gold, a list widget (FUN_004bf8f0,
-490x280 at ((W-490)/2, H/2-160), rows 0x23 high) of the offers the server
-sent (0x7c0c85), and 0xd48 "cancel". A row: the merc's name string, " - ",
-then 0xd28 "Lvl", 0xd26 "Life", 0xd27 "Def", 0xd29 "Cost", each ": %u".
-Name ID 0x421 shows 0x2b0d instead.
+Mercenary?" (carried + stash gold) in gold, a list box (FUN_004bf8f0,
+490x280 at ((W-490)/2, H/2-160); "The list box" below) of the offers the
+server sent (0x7c0c85), and 0xd48 "cancel". A row is two lines (the list's
+vtable +0x30 takes them, 0x4b62fe):
+- the merc's name string, 0xf9b 0xf9c 0xf9b (" - "), then 0xd28 "Lvl",
+  0xd26 "Life", 0xd27 "Def" and 0xd29 "Cost" (`FUN_006637f0`'s [1], [2],
+  [7], [5]), each its label's first 20 characters (`FUN_00526790(.., 0x14)`),
+  0xf9d 0xf9b (": ") and the value by `wsprintfA("%2u")` widened at most 9
+  characters (`FUN_00526f20(.., 9)`: a longer one is cut to 8), two 0xf9b
+  between them;
+- two 0xf9b, then the hireling's description: `FUN_00663720([12])`, [12]
+  the hireling.txt row's byte +0xd2, HireDesc (`FUN_00655720`'s field
+  {"hiredesc", 0xd, +0xd2}, linked through hiredesc.txt's Code, 0x96bce8:
+  its row, None 0 .. Lightning Spells 8), the string at table 0x6ee410
+  (0, 0xd2b, 0xd2c, 0x2b52, 0x2b50, 0x2b51, 0xd31, 0xd30, 0xd2f; 0: none),
+  formatted by `FUN_0048be80` with "a0:%0" (`FUN_0048be00` cuts it at a
+  '['). A Barbarian (no HireDesc) has the two spaces alone.
+
+No offer at all: one row, 0xd25. Name ID 0x421 shows 0x2b0d instead.
 
 Offer stats (FUN_006637f0, from the offer's seed): FUN_00656580 lists the
 hireling.txt rows of the act, difficulty and version (100 LoD, 0 classic)
@@ -75,13 +89,97 @@ back at the start the picking stops. FUN_00577010: once no entry is
 offered and unhired, the list is freed and rolled anew. An offer's stats
 come from its entry (FUN_005770e0 → FUN_00663750: the name's row's act;
 FUN_006637f0 on {entry seed, 666}): the row pick, then the level roll —
-no other draw; the name is the entry's. The window's list widget
-(FUN_004bf8f0, 490 × 280 at ((W − 490) / 2, H / 2 − 160), rows 0x23)
-shows eight rows and scrolls.
+no other draw; the name is the entry's. The window's list box
+(FUN_004bf8f0) shows seven of them and scrolls.
+
+**The window** (`FUN_004b7eb0` with ECX (W − 490) / 2, EDX H / 2 − 0xc3,
+width 0x1ea, height 0x15e, +0x58 0): with +0x58 0, `FUN_004b85f0` centres
+each line (`FUN_004b83a0`) and lays out nothing, so the window stays
+490 × 350 at ((W − 490) / 2, H / 2 − 0xc3). Its lines: the header (height
+0x15, colour 4, font 1), "cancel" (height 0x13b, colour 0, font 1,
+selectable): baselines 0x15 and 0x150 down (`FUN_004b8100`).
+`FUN_004b8370(window, 1)` sets menu mode 1: the hovered line draws in
+colour 3, without focus16. `FUN_004b7c00` hangs the list box on the
+window; `FUN_004b8100` draws it after the box.
+
+**The list box** (D2Win's ListBoxImplementation, vtable 0x6daaec,
+`FUN_004bf650`; the hire window's `FUN_004bf8f0((W − 490) / 2, H / 2 −
+0xa0, 0x1ea, 0x118, 6, 0, 1, 0x4b3660, 0)`): x +0x180708, y +0x18070c,
+width +0x180710, height +0x180714, its default colour +0x180740 (0,
+white) and font +0x180744 (1, font16), the row gap +0x18076a (6), each
+line's height +0x180766 (0xe), the scroll bar's x +0x18075a (x + width −
+0x12) and y +0x18075e (y + 0x10), the row callback +0x18074a (0x4b3660).
+Up to 0x80 rows of six lines (row r at r × 0x300e, line k at +0x8 + k ×
+0x800); the add (`FUN_004be500`, the wrapper's vtable +0x30 → +0x3c)
+takes the lines, the row's value, its colour (or the default) and font
+(0xe: the default). The hire window gives each offer two lines, its index
+and the defaults.
+- Rows that fit (`FUN_004be340`): from the first shown (+0x180730), each
+  row's lines with text × 0xe + the gap summed; at the row that takes the
+  sum past height − 0x14, the rows before it (at least 1); all fitting,
+  the whole count. Two-line rows in the hire box: 34 each, so 7 (not 8).
+- The draw (`FUN_004bee90`): those rows, each line with text at (x +
+  0x20, y + 0x19 + 6 × rows before + 0xe × lines before) (`FUN_004be410`:
+  a line as wide as width − 0x32 or wider loses its last letters till it
+  isn't wider), in the row's colour, or 3 for the row at +0x180738 when
+  there's a callback.
+- The row under the mouse (`FUN_004bea50`, its event's u16 x +0xc, y
+  +0xe): none past the scroll bar's x − 0xf; from the first shown, a row's
+  lines span y + 0xc + its top .. + lines × 0xe (edges out), the gaps no
+  row's; it doesn't stop at the rows that fit, so the box's bottom can
+  name a row not drawn. Kept at +0x180738: by a mouse move inside the box
+  (`FUN_004beb70`, edges out; outside, it stands), a press, a release. The
+  first add sets it to 0 (from −1).
+- A press inside the box (`FUN_004bf430`; not on the scroll bar's parts)
+  keeps the row under it (+0x180734); the release (`FUN_004bf530`) calls
+  the callback when the row under it is that row. Enter (`FUN_004bebc0`,
+  key 0xd) calls it for the row at +0x180738.
+
+- The scroll bar (`FUN_004bee90`, `UI\menu	extslid`, `FUN_004be020`;
+  each cel by its bottom-left through `FUN_004f6480`): the up arrow (frame
+  9, 11 while pressed) at (scroll x, scroll y), the track's cells (13) 12
+  apart below it, (height − 0x10) / 12 − 1 of them (+0x180762; 1 under
+  0x20 high), the down arrow (8, 10 pressed) on the last cell. The thumb
+  (`FUN_004be110`, the vtable's +0x30, after the rows): the rows wholly
+  shown (+0x18074e: from the first shown, each row whose running sum is
+  still under height − 0x14); with fewer than all, its cells of 0x12
+  (+0x180718) from `top` to `bottom` (+0x180752 / +0x180756): share =
+  whole × 128 / rows; first 0: 0 .. 0x12 × share >> 7; first under rows −
+  whole: 0x12 × first / rows .. that + 0x12 × share >> 7 (at most 0x12);
+  else 0x12 − 0x12 × share >> 7 .. 0x12. Drawn at scroll x − 1: frame 16
+  on scroll y + 0xd + 12 × top, 14 on each cell to bottom, 15 one past.
+- The scroll bar's parts (edges out): up arrow (`FUN_004be720`) scroll x ..
+  + 0x10 by scroll y − 0xc .. scroll y; down arrow (`FUN_004be770`) the
+  same 12 above scroll y + 12 × cells; track (`FUN_004be7c0`) between. A
+  press on one keeps it (+0x180720 / +0x180724 / +0x180728, the count
+  +0x18076e at 0); each draw while an arrow is pressed and under the mouse
+  the count goes on one and the arrow steps unless it's a multiple of 10
+  (0x4bf252..0x4bf26b); the release on it steps once more
+  (`FUN_004bf530`).
+- A step (`FUN_004be910` up, `FUN_004be990` down; with a callback): the
+  selected row +0x180738 (the row under the mouse) moves one within 0 ..
+  rows − 1 (`FUN_004b9a00(0, 0, 0)`: nothing for 0), and the first shown
+  follows it (back to it, or on one when it passes the rows wholly
+  shown; `FUN_004be8d0` the same). The wheel (`FUN_004be860`, the event's
+  s16 +0xa): up selects the first shown row and steps up; down selects the
+  last wholly shown and steps down. A release on the track
+  (`FUN_004bf2f0`), below scroll y and with a thumb (top ≠ bottom): above
+  the thumb (scroll y + 0xd + 12 × top) the selection goes back the rows
+  wholly shown (0 at least), below its bottom on as many (rows − 1 at
+  most, then rows − whole with fewer left); that row shows first.
+
+Oracles: `tools/emu/hire_list_box.py` runs `FUN_004be340` and
+`FUN_004bea50` on generated boxes and rows; `test_hire_list_box` gives
+d2d's `rules::list_rows_shown` / `list_row_at` the same cases (fixture
+`hire_list_box_cases.inc`). `tools/emu/hire_list_scroll.py` runs
+`FUN_004be110` (its cels recorded), then a track release, a step or a
+wheel notch; `test_hire_list_scroll` gives d2d's `rules::list_thumb`,
+`list_page`, `list_step` and `list_wheel` the same (fixture
+`hire_list_scroll_cases.inc`).
 
 d2d: `rules::hire_entries` / `for_hire` / `hire_names` / `merc_offer`
 (rules.hpp), `World::hire_list` / `hire_offers` (per act, on the proxy
-seed: `fight.spawning.proxy`), `open_hire_menu(..., scroll)` (the wheel).
+seed: `fight.spawning.proxy`), `open_hire_menu` (its list box: rules/hire_list.hpp).
 Checked: `tools/emu/hire.py` — 720 offers (seeds × acts 1–2 × difficulties
 × clvl 1 / 9 / 30 / 75) against `drlg-dump ... hire`, and 400 lists
 (entries_dump, 41 and 21 names) against `drlg-dump ... hirelist`: all

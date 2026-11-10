@@ -178,6 +178,85 @@ pather `0x6eb6d8[type]`: 0 / 16 `0x67ad00`, 1 `0x67b850` (search), 2 / 5 /
   no caller seen passes it (the golems and Valkyrie 0, traps 1), so every
   d2d pet takes 3 / 4.
 
+## Is a subtile blocked for a unit: `FUN_0064d910`, and the blocked-end walk back
+
+Read from the decompile only (the register arguments of the helpers below
+were not read in the asm); cited, no oracle run.
+
+- **`FUN_0064d910`** `(room, x, y, pattern, mask)`: non-zero means blocked.
+  The pattern picks the test: 0 `FUN_0064d450` & 0xffff (the decompile
+  shows only the mask as its argument; the rest go in registers, unread);
+  1 / 3 / 5 `FUN_0064d4e0(room, x, y)` (the plus); 2 / 4 `FUN_0064d7c0`
+  (the decompile shows y and the mask; the others are in registers,
+  unread); any other pattern returns 1, blocked. The mask is the path's +0x50 (`FUN_00649970` passes path +0x1c
+  room, +0x48 pattern, +0x50 mask). d2d: agrees with "Rects and units"
+  above and `UnitShape` (gamedata.hpp:61, 274: 0 own subtile, 1 / 3 plus,
+  2 / 4 box); the pattern 5 case (the plus again, no footprint) is the one
+  `grid_set_pattern_bits` shows for stamping.
+- **`FUN_00648050`** (ESI = the path request `rq`, a record built by
+  `FUN_00649970`; its shorts `rq[0..1]` are the start x, y, `rq[2..3]`
+  the end x, y, `rq +8` the room, `rq +0x28` the pattern, `rq +0x2c` the
+  mask): pushes the end on, by at most 5 - max(|dx|, |dy|) table steps
+  (the table is unread, so "away from the start" is the intent, not
+  checked). With dx, dy = end - start, it does nothing unless both |dx| and
+  |dy| are under 5 and they are not both 0. The step is
+  (`0x6eb490[dx + 9 * dy]`, `0x6eb490[dy + 9 * dx]`) as x and y (a table
+  of 9 x 9 dwords; its values were not read). From n = max(|dx|, |dy|) up
+  to 4 it adds the step to the end, asks `FUN_0064d910` there, and stops
+  at the first blocked subtile; each free one is stored in `rq[2..3]`. It
+  returns nothing. Its only caller is `FUN_00648120`, for a player (below).
+  d2d: not ported.
+- **`FUN_00678df0`** `(out, a, b)` (thiscall, ECX = out): the three
+  direction tries toward b from a. `i = FUN_00678c10(a, b)` (the 5 x 5
+  index, coordinates packed x low, y high) and `out[0..2]` = the bytes at
+  `0x6f1648 + 3 * i + 0 / 1 / 2`, widened to dwords. `FUN_00678cd0` reads
+  the first of those bytes alone; `FUN_00678d70` fills the same three from
+  the dword table `0x6f1518` (12 bytes a row, 25 rows: d2d's `kTry`,
+  monsters.hpp:567). So 0x6f1648 is a byte table of the same shape that
+  follows it (0x6f1518 + 25 * 12 = 0x6f1644); that its rows equal `kTry`
+  was not checked (the bytes were not read). A third entry of 0xff is
+  skipped by `FUN_00648120` (below), as `toward_path` skips it. d2d: not
+  ported; `kTry` and `FUN_00678d70` are the dword twin.
+- **`FUN_00648120`: walk a blocked end back toward the start** (EAX = the
+  request `rq` of `FUN_00648050` above; `rq +0x30` is the unit's path).
+  `FUN_00649970` calls it only when path flag 0x1000 is set and
+  `FUN_0064d910` finds the path's end (+0x10, +0x12) blocked for the
+  path's pattern (+0x48) and mask (+0x50); its result replaces the "1,
+  go on" that `FUN_00649970` otherwise keeps, so **0 means the pather is
+  not run and the path is empty**.
+  - A path whose flag 0x40000 is set raises the internal error (`FUN_00408090(199)`;
+    runtime-support.md); `FUN_00649970` sends those to `FUN_00649760`
+    first, so it is not reached.
+  - The unit type (the first dword of the owner at `path +0x30`; 6 when
+    that owner pointer is null) is kept; type 0 only
+    matters at the end.
+  - `cur` = `rq[2..3]` (the end), `start` = `rq[0..1]`. The tries
+    `t0 t1 t2` come from `FUN_00678df0(cur, start)` (the direction of the
+    start as seen from the end; bytes of table `0x6f1648`). Three points
+    are kept: `cur`, and two side points `B` and `C`, all three starting
+    at the end. The step of direction d is (`0x6eb398[8 * d]`,
+    `0x6eb39c[8 * d]`), shorts of two dwords a row (not read; d2d's
+    `kDir`, `DAT_006f1798`, has the same layout).
+  - Each round: if `cur == start`, **return 0** (no free subtile on the
+    way: the walk found nothing). Else `cur += step(t0)`, and ask
+    `FUN_0064d910(room, cur, rq +0x28, rq +0x2c)`. Free: the end becomes
+    `cur`. Blocked: `B += step(t1)` and ask there; free: the end becomes
+    `B`. Blocked: if `t2` is not 0xff, `C += step(t2)` and ask; free: the
+    end becomes `C`. All blocked: the tries are read again for the new `cur`
+    toward the start (the decompile shows `t0` taken from the new read; the
+    other two are not visible in it) and the next round runs. `cur` moves
+    on every round whether it was free or not, but `B` and `C` only add
+    their own tries, from the end, never from `cur`.
+  - Once a free spot was taken as `rq[2..3]`: if it equals the start,
+    **return 0**; else for unit type 0 (the player) `FUN_00648050` pushes
+    it on again (above); **return 1**. Monsters keep the free spot as is.
+  - d2d: **not ported**. `ai.cpp:348` (`path_to`) leaves it out with
+    "its setter isn't found". This read does not find the setter either:
+    only `FUN_00649970` tests path flag 0x1000, and the places that set
+    +0x34 bits were not searched. So d2d agrees as far as it goes, and no
+    disagreement is claimed. `rules::player_path` is a player's walk, so
+    the push-on (`FUN_00648050`) matters only once that flag is set.
+
 ## A walk's stop
 
 Read from the code; `objdump -d -M intel --start-address=0x64eda0
@@ -597,3 +676,142 @@ EAX); read the asm for them.
   collision.md and monsters.hpp:909 already cite (player mask 0x1c09, steps
   0x49, type 7); monster steps 0xe, +0x92 = 0x46 and the missile row are
   not ported, no disagreement found.
+
+## The client's command switch and the run stop (work package 00463260, 1.14d)
+
+Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check with
+`python3 tools/ghidra/fn.py <address>`. Addresses in call order of `FUN_00461250`.
+
+- **`FUN_0044bf00`** and **`FUN_0044bf10`**: no arguments, each returns one global
+  dword (`[0x70f234]` and `[0x70f2bc]`). `FUN_00461250` command 8 (the player dying)
+  tests bit 8 of each when `FUN_00467a10` is the dying unit: with neither set it calls `FUN_00466fe0`, with either set
+  `FUN_0044da40` then `FUN_00467a70`. Their other caller is `FUN_004aff60`. What the
+  two globals hold is not traced. d2d: not ported.
+- **`FUN_00461010`** (unit in ESI, no stack arguments; only caller `FUN_00461250`, commands 8
+  and 9, each right after `FUN_00480e70`): the client's end-of-life reset. In order:
+  `FUN_004c1e30()`; `FUN_00649f70(unit, 0)`; `FUN_00464810(unit)`; unit `+0xc4 &= ~4`;
+  if `FUN_00639df0(unit, 7)` (state 7 on the unit) is 0, unit `+0xc4 &= ~2`;
+  `FUN_0046ece0` (`gfx_cof_list_trim`) and `FUN_0046f020(unit, 0)` (`gfx_layer_flags_set`);
+  last `FUN_00627260(unit, 6, 0, 0)`: SetStat, stat 6 (`kLife`, `d2s_items.hpp`) = 0. So
+  commands 8 and 9 zero the unit's life on the client as well as set its mode. d2d: not
+  ported (`Fight::die` sets `kLife` to 0 itself, `setup.cpp`); no disagreement found.
+- **`FUN_00461180`** (unit in EAX, skill slot in ESI = `{skill id, item guid}`, one stack
+  argument, `RET 4`; callers `FUN_00461250` commands 0x15 and 0x16): re-asks a queued skill
+  at the walk's end. `FUN_006439b0(unit, slot[0], slot[1])` finds the unit's node; none:
+  return 1 with the slot untouched. Else `FUN_004610c0(arg)` (node pointer in EBX, unit in
+  EDI) and 0 returns 0 (the walk's end is refused). Otherwise slot[0] = `FUN_00643ce0` of
+  the node as 4610c0 left it (it can swap in the Attack node, `FUN_006439f0`) and, when
+  that id differs from the old one, slot[1] = -1 (the item guid is dropped). Returns 1.
+  d2d: agrees with skills.md "Attack's entry kept in the slot when it fell back"
+  (`strike.cpp:300`, `Fight::ask`); the guid dropped when the id changes is not stated
+  there, and d2d's side of it (`attack_charge`) was not compared.
+- **`FUN_004647d0`** (unit in ECX; callers `FUN_00453910`, `FUN_0045d4b0`, `FUN_0045d9b0`,
+  `FUN_0045db20` and `FUN_00461250` command 7): unit `+0xc4 &= ~0x10000`, stored; then
+  `+0xc4 |= 4` unless the unit is a monster (`*unit == 1`) whose MonStats2 flag 9
+  (`FUN_004638a0(unit[1], 9)`, the same flag test names.tsv `monster_flag_4638a0` is
+  built on) is clear. So a player, object or missile always gets bit 4; a monster only
+  with flag 9. What flag 9 and bit 4 mean is not traced. d2d: not ported.
+- **`FUN_00620210`** (stdcall `(unit, node)`, `RET 8`; callers `FUN_00461250`, `FUN_00463260`,
+  `FUN_00463390`, `FUN_004aff60`, `FUN_004c6140`): a null unit is fatal (assert id 0x653,
+  `FUN_00681e09(-1)`), else `FUN_00643990(unit[+0xa8], node)`, which stores `node` at the
+  skill-list header's `+0x10` (nothing for a null header). act1-end.md already reads the
+  call in `FUN_005dead0` (`FUN_006439b0` node, then this) as setting the current skill; the
+  client callers pass 0, so they clear it. d2d: agrees with act1-end.md:335; no d2d
+  function does this (not ported).
+- **`FUN_00463dd0`** and **`FUN_00463de0`**: byte-identical bodies, no arguments, each returns
+  `[0x7a6a70]`, the client's own player unit (skills.md:1793 and :1806 already read both so;
+  `FUN_00463dd0` is called by `FUN_00461250`, `FUN_00463260`, `FUN_00463390` and the five
+  at `0x44bf40`, `0x44c000`, `0x44c060`, `0x44c180`, `0x44c2c0`; `FUN_00463de0` by
+  `FUN_00463260`, `FUN_00460830`, `0x453470`, `0x453b30`, `0x45ad60`, `0x45d780`, `0x45d9b0`).
+  They are the "is this the local player" test the client paths below use. d2d: agrees
+  (skills.md:1793, :1806; `apps/whisper/whisper.cpp:45`).
+- **`FUN_004648f0`** (unit in ECX; callers `FUN_00462370`, `FUN_00462a20`, `FUN_00463180`,
+  `FUN_00463260`, `FUN_004ad970`): the unit's target unit, checked first. It calls
+  **`FUN_00480420`** (same ECX): a null unit is fatal (assert id 0x26), a unit without a path
+  (`+0x2c`) fatal (0x2a); if the path has a target (`FUN_00648bf0`), it reads the target's
+  type and GUID (`FUN_00648bb0`), looks the unit up again (`FUN_00463990`, ECX = GUID, EDX =
+  type) and, when that is not the stored pointer, clears the target (`FUN_00648b90(path,
+  0)`). Back in 004648f0 a null path is fatal again (id 0x946), and it returns
+  `FUN_00648bf0(path)`: the target pointer, 0 for none. So it reads as none only when the
+  lookup result differs from the stored target pointer (or no target was set); a dead target
+  that is still registered would look up as the same pointer and is not cleared, and what the
+  lookup does for freed memory that was reused is not traced. d2d: reads the same, cited from the decompile, no oracle
+  run, on the use (`setup.cpp:474`, `do_sounds`:
+  the target's tgtsound, none without one); d2d holds the target as an index (`attack_mon`)
+  and has no GUID re-lookup (not ported).
+- **`FUN_00461250`** (the client's command switch; fastcall `(ECX command, EDX unit)` plus two
+  stack arguments, `RET 8`: a command record `{a, b, c}` of dwords (zero allowed for 7) and a
+  flag; callers `FUN_00463180`, `FUN_00463260`, `FUN_00463b80`, `FUN_0046f950`,
+  `FUN_00480c10`). Prelude, in order: `FUN_00643a00(unit, 0)` swaps the skill list header's
+  `+0x14` to 0 and, if it was set, `FUN_004743d0(old)`; unless the command is 0x13,
+  `FUN_004611f0(unit == FUN_00463dd0())` and `FUN_00620210(unit, 0)`; a unit in mode 0x13
+  with the flag 0 returns 1 here, with the flag set `FUN_00650590(path)`;
+  `FUN_00648dc0(path)` (`RestoreVelocityAndPathType`); then the flag slot is overwritten with
+  the walk mode (6 in town, `FUN_0061ab00(FUN_00620bb0(unit))`, else 2) and `ebx` holds the
+  neutral mode (5 or 1). The switch (jump table 0x4616a4, byte index 0x4616e4; commands 3-5,
+  0xa-0x11 and above 0x19 are fatal, assert id 0x432):
+
+  | command | does | mode set |
+  |---|---|---|
+  | 0 | `FUN_00480780(unit, a = type, b = GUID)`: path to a unit | walk mode |
+  | 1 | `FUN_004804a0(unit, a = x, b = y)`: path to a spot | walk mode |
+  | 2 | `FUN_00480930(word a, b)`; returns 1 | none |
+  | 6 | `unit+0xb0 = c`; `FUN_004804e0(word a, word b, 1, 0, 0)` | 4 (GH) |
+  | 7 | `FUN_00464820(unit)`, `FUN_004647d0`, `+0xc4 \|= 2`; with a record `FUN_00480ef0(unit, a, b, result)` | neutral mode |
+  | 8 | the player dying (see collision.md above): `FUN_00456300(1, 0)` for the local player, `unit+0xb0 = c`, `FUN_00467a10` branch on the two globals, `FUN_004804e0(..., 0, 0, 0)`, `FUN_00461010`, `FUN_0045c470` | 0 (DT) |
+  | 9 | `FUN_00461010` | 0x11 (DD) |
+  | 0x12 | `unit+0xb0 = c`; `FUN_004804e0(..., 1, 0, 0)` | 9 (BL) when `FUN_0063c8f0(unit+0x60, 0)` is non-zero or `FUN_0064f380` answers 0xd |
+  | 0x13 | `unit+0xb0 = c`; `FUN_00480d20`, `FUN_0063a400(unit)`, `FUN_004cc5b0(unit, mode, 1)`; `FUN_004804e0(..., 1, 0, 0)` | 0x13 (KB); `FUN_004cc5b0` gets 3 when `FUN_0063a400` is non-zero, else 0x13 |
+  | 0x14 | `unit+0xb0 = c`; path type 0xb (`FUN_00648cf0`), distance 5 (`FUN_00648e40`), `FUN_00648ad0(path, a, b)`, `FUN_00649970(path, unit, 0)` | 0x13 |
+  | 0x15, 0x16 | `FUN_00461180(0)`, then `FUN_004c6f40` (0x15) / `FUN_004c6eb0` (0x16) with `a` | none |
+  | 0x17 | `FUN_004804a0(unit, a, b)` | 3 (RN) |
+  | 0x18 | `FUN_00480780(unit, a, b)` | 3 (RN) |
+  | 0x19 | `FUN_004804e0(word a, word b, 0, 0, 0)` | 0xd (S1) |
+
+  The modes are set by `FUN_00480e70(unit, mode)` (command 0x13's through `FUN_00480d20`). A command 0, 1, 0x15..0x18 whose walk or
+  ask fails ends at `FUN_00460830(unit, neutral mode, 1)` and returns 0; the rest return 1.
+  Commands 0x17 / 0x18 are the same two walks as 1 / 0 but set mode 3 (RN). d2d: agrees with what collision.md:242-304,
+  `strike.cpp:300` and `world/tick.cpp:441` already read (commands 0, 1, 2, 8, 0x15, 0x16, the
+  neutral at a failed walk); d2d has no single command switch (not ported as a function).
+  Modes 0x12 / 0x13 / 0x14 and the 0xa-0x11 gap, and what the record fields `a`, `b`, `c`
+  mean for 6, 0x12-0x14, are read from the code only, no packet traced here.
+- **`FUN_00463260`** (unit in EAX, no stack arguments; only caller `FUN_00463390`, which calls it
+  for a unit whose mode `+0x10` is 3, RN): the client's run stop. Nothing happens unless the
+  unit is `FUN_00463de0()`, the local player, and `FUN_00625480(unit, 10, 0)`, stat 10
+  (`kStamina`, `d2s_items.hpp`), is 0. Then the walk is re-issued, in one of two ways:
+  - **With a target** (`FUN_004648f0(unit)` non-zero): the command record is `{target[0]` (type),
+    `target[3]` (GUID)`}` and `FUN_00461250(0, unit, &record, 0)` runs (command 0: the prelude,
+    `FUN_00480780`, then mode 2 or 6 in town; a failed path goes to neutral 1 or 5).
+  - **Without** one: x, y = the path's target words (`FUN_00648a00`, `FUN_00648a10`); the same
+    prelude as `FUN_00461250` (`FUN_00643a00` / `FUN_004743d0`, `FUN_004611f0`, `FUN_00620210(unit,
+    0)`, `FUN_00648dc0`) inline, then `FUN_004804a0(unit, x, y)`; success `FUN_00480e70(unit,
+    walk mode)`, failure `FUN_00460830(unit, neutral mode, 1)`. A unit in mode 0x13 skips all of it.
+  So a run that hits stamina 0 on the local client becomes a walk to the same target, not a
+  stop; other players' runs are not touched here. d2d: not ported as such. The effect is
+  covered by `World::stamina_frame` (`world/tick.cpp:182-223`: stamina 0 turns the run into a
+  walk, 0x580c5f / `FUN_0057f090`) and by the `running && stamina > 0` tests at
+  `tick.cpp:147` and `:175`; d2d has no client re-path (the walk simply continues in the walk
+  mode), no disagreement found. Dead code in game.exe: after the `FUN_00648bf0` test the
+  `target == 0` arms (record `{6, -1}`) cannot run.
+- **`FUN_00463390`** (fastcall ECX unit; the only caller is `FUN_00480810`): the client's
+  per-frame step for a player, driven by a table of 12-byte rows indexed by the unit's mode
+  (`+0x10`): `[0x711e00 + mode*12]` (a class: 1 = a walk-like mode, 2 = a mode with a
+  skill), `[0x711e04 + ...]` (how the frame counter `+0x44` steps: 0 `FUN_00623e00`; 1
+  the same unless `FUN_006217c0` says over; 2 over sets `+0x44 = +0x48 - 0x100` and clears the
+  word at `+0x4c`, else steps; 3 sets `+0x44 = 0x100` and clears that word) and
+  `[0x711e08 + ...]` (1 keeps the `FUN_004807c0` result as "over"; 2 or 3 re-test
+  `FUN_006217c0` after the step; anything else skips the end handling). Order: class 1:
+  `FUN_004807c0`, for the local player `FUN_00460de0`, then `FUN_004caf60`; class 2 with a
+  skill list: `FUN_006446a0` flag 1 asks `FUN_004807c0` again (when it says over,
+  `FUN_00644660(flags | 2)` and `FUN_004c68f0`; the local player `FUN_00460de0`), and
+  `FUN_004c68f0` is called for a unit with `+0xc4` bit 6 clear and a `+0x4e` byte of 1, 2 or
+  3; then the frame step; mode 0x12 with `+0xc4` bit 14 `FUN_00470610`. When "over": a unit in
+  mode 0x13 takes the `FUN_00461250` prelude, sets `+0xb0 = 0`,
+  `FUN_00480e70` and `FUN_004804e0(path y, 1, 0, 0)`; a
+  type-0 unit whose data (`+0x14`) has `+0x154` set only sets `+0x150 = 1`; any other takes the
+  prelude and `FUN_00464820`, `FUN_004647d0`, `+0xc4 |= 2`, `FUN_00480e70`. Then a set path
+  flag 2 is cleared (`FUN_00460e70` for the local player), `FUN_00648640(path)`, mode 3 calls
+  `FUN_00463260`, `FUN_0063a340` non-zero calls `FUN_004c72f0`, and `FUN_00460f10` last. The
+  table's own values were not dumped here (combat.md:390 reads row 4 as `[0, 1, 2]`). d2d:
+  agrees with combat.md:390 and `setup.cpp:430` (the mode ends a tick before the server);
+  the rest of the step is not ported as a function.

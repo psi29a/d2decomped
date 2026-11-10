@@ -234,7 +234,7 @@ inline int speed_frames(int base_frames, int speed_stat) {
 // the unit's seed (FUN_00472210) of 0 is none; then under 4 max / d: a roll of
 // 4 of 0 is none; else a get-hit. So the bands: 37.5 % from max / d, 75 % from
 // 2 max / d, sure from 4 max / d. A monster also needs MonStats2's GH mode
-// (FUN_0046c140 bit 3). Its oracle (hit_rule.py) was never committed: cited, not re-checkable.
+// (FUN_0046c140 bit 3). Its oracle: tools/emu/hit_rule.py against test_combat --get-hit.
 // `max_life` and `damage` in 256ths; `marked`: an element or a doubled hit.
 inline int get_hit_divisor(int hit_class) {
     switch (hit_class) {

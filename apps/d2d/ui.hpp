@@ -6,6 +6,7 @@
 #include "scene.hpp"
 
 #include <dc6.hpp>
+#include <hire_list.hpp>
 #include <palette.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -16,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -141,6 +143,23 @@ void blit_button_chrome(std::vector<std::uint8_t>& framebuffer,
 // button, invoke the action. Returns true if any action was taken so the
 // caller can early-out.
 
+// (At namespace scope: nested, clang can't default-construct it in NpcMenuState's std::optional.)
+// The hire window's list box (rules::ListBox, FUN_004bf8f0): each row's
+// two lines and the offer it hires (-1 none: 0xd25, no offers), the row
+// under the mouse (FUN_004bea50; the first add makes it 0) and the one
+// pressed (FUN_004bf430: hired on a release over it, FUN_004bf530).
+struct NpcMenuListRow { std::array<std::string, 2> lines; int arg = -1; };
+// part: the scroll bar's part pressed (an arrow repeats while held there:
+// held draws since the press, the last at held_ms, 40 ms apart).
+struct NpcMenuList {
+    d2d::rules::ListBox box;
+    std::vector<NpcMenuListRow> rows;
+    int hover = 0, pressed = -1;
+    d2d::rules::ListPart part = d2d::rules::ListPart::kNone;
+    int held = 0;
+    std::uint32_t held_ms = 0;
+};
+
 // An open NPC menu, as game.exe builds and lays it out (FUN_004b4830,
 // FUN_004b85f0, FUN_004b8410; docs/research/re/npc-menu.md): a gold
 // font16 header with the NPC's name (21 px line), the npc_menu.hpp
@@ -151,14 +170,33 @@ void blit_button_chrome(std::vector<std::uint8_t>& framebuffer,
 struct NpcMenuState {
     int npc = -1;                            // Level::npcs index, -1 = closed
     // What choosing a line does.
-    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kHireOffer, kQuest, kRespec, kRespecOk, kCaravan, kImbue, kResurrectMerc };
+    enum Action { kClose, kTalk, kIntro, kGossip, kTrade, kGamble, kHire, kIdentify, kQuest, kRespec, kRespecOk, kCaravan, kImbue, kResurrectMerc };
     struct Line { std::string text; int height = 15, width = 0, x = 0; bool header = false; Action action = kClose; int arg = -1; bool red = false; };
     std::vector<Line> lines;
     int x = 0, y = 0, box_width = 0, box_height = 0;
-    int scroll = 0, scroll_max = 0;          // the hire list's first row shown, and its last first row (0: no scroll)
+    int scroll = 0;                          // the hire list's first row shown (+0x180730)
+    using ListRow = NpcMenuListRow;
+    using List = NpcMenuList;
+    std::optional<List> list;
+    // The list's first row shown (`scroll`) and selected one (`hover`), as rules::ListScroll moves them.
+    [[nodiscard]] d2d::rules::ListScroll list_scroll() const { return { scroll, list ? list->hover : 0 }; }
+    void set_list_scroll(const d2d::rules::ListScroll& moved) {
+        scroll = moved.first;
+        if (list) list->hover = moved.selected;
+    }
+    bool blue_hover = false;                 // menu mode 1 (FUN_004b8370): the hovered line in text colour 3, no focus16
+    // Each list row's lines with text (FUN_004be340 / FUN_004bea50 count those).
+    [[nodiscard]] std::vector<int> list_lines() const {
+        std::vector<int> counts;
+        if (list) for (const auto& row : list->rows) counts.push_back(int(!row.lines[0].empty()) + int(!row.lines[1].empty()));
+        return counts;
+    }
     // Index of the selectable line under (mx, my), or -1.
+    // ponytail: how the window's own hover finds "cancel" (its line 0x13b
+    // high reaches over the list) isn't traced; d2d gives the list box the mouse first.
     [[nodiscard]] int line_at(int mouse_x, int mouse_y) const {
         if (npc < 0 || mouse_x < x || mouse_x >= x + box_width) return -1;
+        if (list && d2d::rules::list_contains(list->box, mouse_x, mouse_y)) return -1;
         int base = y;
         for (std::size_t i = 0; i < lines.size(); ++i) {
             base += lines[i].height;

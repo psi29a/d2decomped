@@ -659,6 +659,9 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     // Mercenaries: hireling.txt (LoD rows, Version 100) by Id -> the MonStats
     // row whose hcIdx is its Class; name keys run from NameFirst.
     if (const auto hire = txt("hireling"); hire.size() > 0) {
+        std::unordered_map<std::string, int> hire_desc;                 // hiredesc.txt's Code: its row
+        if (const auto descs = txt("hiredesc"); descs.size() > 0)
+            for (std::size_t row_index = 0; row_index < descs.size(); ++row_index) hire_desc.emplace(std::string(descs.get(row_index, "Code")), int(row_index));
         std::unordered_map<int, std::size_t> by_hc;
         for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) by_hc.emplace(std::atoi(std::string(monstats.get(row_index, "hcIdx")).c_str()), row_index);
         for (std::size_t row_index = 0; row_index < hire.size(); ++row_index) {
@@ -668,7 +671,8 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             if (found == by_hc.end() || game_data.mercs.contains(id)) continue;
             auto npc = monster(found->second);
             if (npc.code.empty()) continue;
-            game_data.mercs.emplace(id, GameData::Merc{ std::move(npc), std::string(hire.get(row_index, "NameFirst")) });
+            const auto desc = hire_desc.find(std::string(hire.get(row_index, "HireDesc")));
+            game_data.mercs.emplace(id, GameData::Merc{ std::move(npc), std::string(hire.get(row_index, "NameFirst")), desc != hire_desc.end() ? desc->second : 0 });
         }
     }
     game_data.mon_seqs.clear();                               // loaded again with the rest: not twice over
