@@ -12,10 +12,11 @@ there) and A travels to the Cold Plains. Skips without the MPQs.
 import atexit, os, platform, socket, struct, subprocess, sys, tempfile, time
 
 d2d = sys.argv[1]
+portal_ux = "--portal-ux" in sys.argv[2:]
 controller_ux = "--controller-ux" in sys.argv[2:]
 touch_ux = "--touch-ux" in sys.argv[2:]
 corpse_ux = "--corpse-ux" in sys.argv[2:]
-skill_buttons = "--skill-buttons" in sys.argv[2:] or controller_ux
+skill_buttons = "--skill-buttons" in sys.argv[2:] or controller_ux or portal_ux
 data = os.environ.get("D2_MPQ_DIR") or os.path.expanduser("~/Workspace/private/diablo2")
 if not os.path.exists(os.path.join(data, "d2data.mpq")):
     print(f"SKIP: {data}/d2data.mpq not found")
@@ -48,8 +49,12 @@ with open(os.path.join(user, "d2d.cfg"), "w") as f:
     if touch_ux:
         f.write("touch_controls = 1\n")
 
+if portal_ux:
+    with open(os.path.join(saves, "Alpha.padskills"), "w") as f:
+        f.write("main 220\ns0 0\n")
+
 sock_path = os.path.join(tempfile.gettempdir(), f"d2d_pad_use_{os.getpid()}.sock")
-proc = subprocess.Popen([d2d, "--headless", "--no-save", "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charselect"],
+proc = subprocess.Popen([d2d, "--headless", *([] if portal_ux else ["--no-save"]), "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charselect"],
                         env=dict(os.environ, HOME=home))
 atexit.register(lambda: proc.poll() is None and proc.kill())
 
@@ -130,6 +135,20 @@ def screenshot(name):
     if directory:
         os.makedirs(directory, exist_ok=True)
         cmd(f"screenshot {os.path.join(directory, name)}")
+
+if portal_ux:
+    cmd("debug clearinv"); frames(4)
+    cmd("debug equip tbk 12"); frames(4)
+    item = cmd("items").split("[tbk ")[1].split(" id=")[1].split()[0].rstrip("]")
+    cmd(f"cmd hand {item}"); frames(4)
+    cmd("cmd grid 0 0"); frames(4)
+    cmd("debug goto 2"); frames(10)
+    assert state()["inventory"] == "0"
+    cmd("pad 0 righttrigger down"); frames(40)
+    cmd("pad 0 righttrigger up"); frames(3)
+    assert any(line.startswith("0\t") for line in cmd("debug portals").splitlines()), "bound tome did not open a portal in the field"
+    print("ok: saved RT tome binding uses a carried tome without opening Inventory")
+    sys.exit(0)
 
 if controller_ux:
     assert state()["pad_south"] == "0", "a fresh layout needs Attack/Use"

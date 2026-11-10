@@ -70,7 +70,10 @@ touch::Target Town::resolve_skill(PadPlayer& player_pad, int skill, float dx, fl
     if (!scene || !skill_known(owner_name.empty() ? std::string_view(character.name) : owner_name, skill)) return target;
     const auto* info = scene->skills.get(skill);
     if (!info || info->passive) return target;
-    if ((info->name == "Town Portal" || info->name == "Book of Townportal") && !inv_open) { target.valid = false; return target; }
+    if (skillpad::portal_name(info->name)) {
+        target.valid = portal_tome(owner_name.empty() ? std::string_view(character.name) : owner_name) >= 0 && level && !d2d::rules::level_ids::is_town(level->id);
+        return target;
+    }
     const auto& unit = owner ? *owner : view.player;
     target.valid = true;
     target.x = unit.x; target.y = unit.y;
@@ -141,6 +144,10 @@ void Town::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
     if (!target.valid || !scene || !skill_known(character.name, target.skill) || view.dead) return;
     const auto* info = scene->skills.get(target.skill);
     if (!info) return;
+    if (skillpad::portal_name(info->name)) {
+        if (const int item = portal_tome(character.name); item >= 0) send(cmd::UseItem{ item });
+        return;
+    }
     if (info->aura) {
         const auto* current = scene->skills.get(skillbar.right);
         const auto choice = skillpad::aura_choice(view.aura, target.skill, skillbar.right, current && current->aura, player_pad.aura_return);

@@ -16,6 +16,15 @@
 
 namespace d2d::client::skillpad {
 
+[[nodiscard]] inline bool portal_name(std::string_view name) {
+    return name == "Book of Townportal" || name == "Town Portal" || name == "Scroll of Townportal";
+}
+
+// Modern assignment excludes inventory Identify actions and generic Kick.
+[[nodiscard]] inline bool assignable_name(std::string_view name) {
+    return name != "Kick" && name != "Identify" && name != "Scroll of Identify" && name != "Book of Identify";
+}
+
 inline constexpr int kSlots = 6;          // A B X Y LB RB, each with a second set
 inline constexpr int kEmpty = -1;         // the slot casts nothing
 inline constexpr int kUnset = -2;         // the main skill has never been saved: seed it

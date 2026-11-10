@@ -124,10 +124,17 @@ Controller follow-up: D-pad character selection hides the pointer until mouse or
 analog movement; A confirms the highlighted character. In Inventory, A or the
 remapped Use input (RS by default) selects an Identify tome/scroll and confirms
 an unidentified target. B cancels. Identify items are not controller spell
-bindings. Portal bindings are unavailable outside Inventory.
+bindings. A bound Town Portal uses a charged tome carried in inventory directly from the field; opening the Inventory panel is unnecessary. An empty/missing tome or town restriction disables it.
 
 The touch prototype also accepts a single mouse/Pencil-style pointer over its
 controls, including drag/release aiming. This does not provide simultaneous
 movement and aiming: that requires independent SDL finger events. Sidecar
 hardware and OS-specific event delivery remain unverified. Skill and attack
 buttons use rounded outlines; the larger rectangular hit regions remain forgiving.
+
+The controller radial excludes generic Kick and Identify scroll/tome entries.
+Dragon Talon and other class kick skills remain assignable. Potion labels use
+drawn D-pad arrows when mapped to directions, and actual button names when
+remapped. Releasing movement stops without planning a new walk to a subtile
+centre, preserving facing. Physical touch tests are unavailable; Sidecar is
+not a native multitouch validation device.
