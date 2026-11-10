@@ -573,6 +573,7 @@ address	name	evidence
 00570080	skill_learn	fastcall (unit, skill) -> 1 learned: cost 1 or the calc at record +0x170 (likely skpoints); needs stat 5 >= cost; stat 5 -= cost, FUN_00647110 grants a level, FUN_00646f20 refreshes passives; cost given back when the grant returns 0; skills.md "Skill accessors"
 00570590	skill_put_state	ECX game, state, skill, level: list flags 2, expiry = frame + skill +0x60 calc, callback FUN_0056e900, on a unit via FUN_00626e10, aurastats FUN_005c6cc0
 005706d0	unit_start_stats	ECX, EDX unit, stack byte n: sets stats 0-3, 6-0xc, 0x13, 0x14, 0x1e, 0x43-0x45 from the 0xc4-byte class record at PTR_DAT_00744304 + 0xbc4 (stats.md)
+0057aa00	unit_mana_back	(points on the stack, unit in EDI): stat 8 + points capped at stat 9 (FUN_00625d60), returns max - cur when capped; no dead test (combat.md "Mana back")
 00580ec0	player_death_mode	died bit FUN_00538650, losses FUN_00535ab0, ear FUN_0055a200 on a player's kill (combat.md Death)
 0057aae0	unit_stun	(attacker, length; struck unit in EDI): length < 1 nothing; special monster 90 % shrug on the attacker's seed, boss, Velocity 0 immune; cap 250 (hireling 13); state 0x15 to game frame + length (skills.md "Stun")
 00574540	pet_slot	EAX row, stack +0x44 struct: 0 when row < 0 or >= [0x744304]+0xbf0, else *struct + row * 0xc (pet-ai.md "The owner's pet lists")

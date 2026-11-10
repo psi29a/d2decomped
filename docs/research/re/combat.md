@@ -40,6 +40,24 @@ Life after the hit below 0x100 (under 1 point) is set to 0: the unit is
 dead, and result flag 2 is set. FUN_0057aa60 / FUN_0057aaa0 do the same
 for mana (stat 8) and stamina (stat 10).
 
+**Mana back: FUN_0057aa00** (cited, decompile only, no disassembly or oracle
+run). The leech's mana half; called only from `FUN_0057c420`. One stack
+argument, `points`; the unit is a register the decompile hides
+(`unaff_EDI`, as in `FUN_0057a980`). `points < 1`: returns 0 and writes
+nothing. Else `max` = `FUN_00625d60` (stat 9, maxmana), `cur` = stat 8
+(`FUN_00625480`), `new` = `min(cur + points, max)`, written with
+`FUN_00627260(unit, 8, new, 0)` (always, even when unchanged). Returns
+`max - cur` when `new == max`, else `points`. Two readings follow from
+that: a hit that fills mana exactly returns `max - cur` (= `points`), and a
+unit already above max has mana pulled down to `max` and gets a negative
+return; `FUN_0057c420` drops the return value, so neither is seen. Unlike
+the life twin `FUN_0057a980`, there is no dead-unit test and no state test
+(life has `FUN_005541b0` and state 0x5c). d2d: no function of its own; the
+mana leech of a player's hit is `std::min(kMaxMana, mana + (blow.mana <<
+8))` in `components/game/fight/strike.cpp:489`, the same cap (agrees);
+d2d does not apply the dead-unit gate to mana because nothing there needs it.
+Re-check: `python3 tools/ghidra/fn.py 0057aa00 0057c420`.
+
 ## Poison and burning — FUN_0057ac50 / FUN_0057add0
 
 Poison is **state 2** (`poison`) and burning **state 0x73**, each holding a
