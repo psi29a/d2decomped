@@ -390,6 +390,7 @@ address	name	evidence
 00575c70	pet_list_add	ESI slot {+0 head, +4 count, +8 max}, stack pet unit and 3 words: max 0 rebuilds (FUN_00575900) or refuses; full drops one (FUN_00574850); appends a 0x18-byte node at the tail (PlayerPets.cpp 0x322; asserts 0x312 / 0x316 / 0x330) (pet-ai.md "The owner's pet lists")
 00575d90	pet_add	EDX owner, stack pet unit, PetType row (0 < row < count), limit: FUN_00575720, FUN_00575850, FUN_00575c70, then the add event to every client (FUN_005538d0 with FUN_00574930) (pet-ai.md "The owner's pet lists")
 0058a0a0	quest25_difficulty_reward	quest 0x25 bit 7 per difficulty adds 10 to reward
+0058a820	quest21_spawn_attempt	quest 0x21 spawns at data +0xc4/+0xc8 or advances both coordinates on missing room
 0058a8d0	quest21_position	quest 0x21 data +0x84 gates unit or stored coordinates
 0058a9f0	quest21_data84_zero	quest 0x21 lookup; record data +0x84 is zero
 0058aa10	quest21_notify_if_introduced	quest 0x21 record +9 nonzero and +0xb below 2: clear +0x14 and notify

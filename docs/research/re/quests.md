@@ -339,6 +339,18 @@ when byte +9 is nonzero and byte +0xb is below 2, clears byte +0x14 and calls
 `FUN_00544300` with the record in ECX, 2 in EDX and stack arguments 0,
 callback `FUN_00588eb0` and 1.
 
+`FUN_0058a820` looks up quest 0x21, returns 0 when absent, and returns 1
+when data byte +0xb1 is already nonzero. Otherwise a nonzero data dword
++0x84 enables an attempt at the stored coordinates +0xc4/+0xc8. It obtains
+the player's room and looks for a room at those coordinates; failure adds 3
+to both dwords with 32-bit wrap and returns 0. With a room, it calls
+`FUN_00555230` with ECX 2, EDX 0xbd and stack arguments x, y, game, room,
+1, 1, 0. A successful spawn sets byte +0xb1 to 1, copies the spawned unit's
+dword +0xc to data +0xc0, and returns 1; a failed spawn returns 0.
+`tools/emu/quest_spawn_rescue.py` checks 24 cases against stock with the
+lookup, room and spawn operations hooked; those callees' internals are not
+part of the claim.
+
 `FUN_005447a0` takes two handler arguments and a class ID on the stack
 (`ret 0xc`). It checks the ID is nonnegative and below the signed dword at
 the Objects table +0xa80, then dispatches class 0xc9 to `FUN_0059b6c0` or
