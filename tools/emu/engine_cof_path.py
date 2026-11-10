@@ -40,7 +40,10 @@ def suite(test):
         def put(off, value, size=4):
             """Store an arena value."""
             img[off:off + size] = (value & ((1 << 8 * size) - 1)).to_bytes(size, "little")
-        word = lambda: bytes(rng.choice(b" abchtx01\0") for _ in range(4))
+
+        def word():
+            """Four random token bytes."""
+            return bytes(rng.choice(b" abchtx01\0") for _ in range(4))
         put(0x1000 + 0xA80, 4)
         put(0x1000 + 0xA78, rows1)
         put(0x1000 + 0xA98, 3)
@@ -78,9 +81,7 @@ def suite(test):
         if not rec:
             raise rig.Halt(0xE86)
         modetok = m.r(rec + 0x20).to_bytes(4, "little")
-        if mode != 0 and mode != 0xC:
-            wclass = m.r(row2 + 0x10).to_bytes(4, "little")
-        elif m.r(row2 + 6, 1) & 1:
+        if mode not in (0, 0xC) or m.r(row2 + 6, 1) & 1:
             wclass = m.r(row2 + 0x10).to_bytes(4, "little")
         else:
             wclass = b"hth "

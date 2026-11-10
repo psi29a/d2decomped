@@ -71,33 +71,31 @@ def suite(test):
             m.w(request + 4, m.r(request + 4) | add)
         if kind == 4:
             tag = m.call("tag", item)
-            if m.call("flag", item, 0x10, 0x196, FILE):
-                if m.call("quality", item) == 5:
-                    q = m.call("ident", item)
-                    sr = m.call("setrow", q)
-                    ptr = sr + (0x63 if "setname" in MUT else 0x62) if sr else 0
-                    if not (sr and m.r(ptr, 1)):
-                        ptr = r + 0x60
-                        if not m.r(ptr, 1):
-                            ptr = 0
-                    if ptr:
-                        flags(0x20 if "flag" in MUT else 0x10)
-                        m.w(request + 0x2C, ptr)
-                        return
-            if m.call("flag", item, 0x10, 0x1AE, FILE):
-                if m.call("quality", item) == 7:
-                    q = m.call("ident", item)
-                    ptr = 0
-                    if s32(q) > 0:
-                        ur = m.call("uniqrow", q)
-                        if ur and m.r(ur + 0x5A, 1):
-                            ptr = ur + 0x5A
-                    if not ptr and m.r(r + 0x40, 1):
-                        ptr = r + 0x40
-                    if ptr:
-                        flags(1)
-                        m.w(request + 0x2C, ptr)
-                        return
+            if m.call("flag", item, 0x10, 0x196, FILE) and m.call("quality", item) == 5:
+                q = m.call("ident", item)
+                sr = m.call("setrow", q)
+                ptr = sr + (0x63 if "setname" in MUT else 0x62) if sr else 0
+                if not (sr and m.r(ptr, 1)):
+                    ptr = r + 0x60
+                    if not m.r(ptr, 1):
+                        ptr = 0
+                if ptr:
+                    flags(0x20 if "flag" in MUT else 0x10)
+                    m.w(request + 0x2C, ptr)
+                    return
+            if m.call("flag", item, 0x10, 0x1AE, FILE) and m.call("quality", item) == 7:
+                q = m.call("ident", item)
+                ptr = 0
+                if s32(q) > 0:
+                    ur = m.call("uniqrow", q)
+                    if ur and m.r(ur + 0x5A, 1):
+                        ptr = ur + 0x5A
+                if not ptr and m.r(r + 0x40, 1):
+                    ptr = r + 0x40
+                if ptr:
+                    flags(1)
+                    m.w(request + 0x2C, ptr)
+                    return
             if m.call("variant", item) & 0xFF:
                 m.w(request + 0x2C, m.call("variantname", item, tag))
             else:

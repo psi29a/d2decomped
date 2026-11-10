@@ -4,8 +4,8 @@
 Run: uv run python engine_gfx_free.py [--mutation-check]
 FUN_0046eb70 frees a unit's overlay list, FUN_0046ec10 the whole graphics
 record, FUN_0046f370 a COF cache's loaded entries, FUN_0046f3f0 / FUN_0046f440
-the monster / player cache, FUN_0046f310 loads a bundle path into the player
-cache, FUN_0046e150 sets the value of a unit's overlays of one row.
+the player (0x7a8100) / non-player (0x7a78f0) cache, FUN_0046f310 loads a
+bundle path into the 0x7a78f0 cache, FUN_0046e150 sets the value of a unit's overlays of one row.
 The pool free, the graphics-record getter (FUN_00463e10), the overlay sound
 free (FUN_004743d0), FUN_0046eb70 (when FUN_0046ec10 runs) and the bundle
 loader FUN_0046ddf0 are hooked; the cache getters run the real FUN_0046f370.
@@ -19,7 +19,8 @@ import _dungeon_rig as rig
 
 MUT = set()
 FILE = 0x6D6C1C
-CACHES = {"mon": (0x7A8100, 0xE50), "ply": (0x7A78F0, 0xE61)}
+# 0x7a8100 serves unit type 0 (players), 0x7a78f0 every other type (FUN_0046d9f0)
+CACHES = {"ply": (0x7A8100, 0xE50), "mon": (0x7A78F0, 0xE61)}
 COUNTER = 0x7A8918
 
 
@@ -129,7 +130,7 @@ def suite(test):
         rig.require(test.m.r32(COUNTER) == counter, f"counter {test.m.r32(COUNTER):#x} vs {counter:#x}")
     test.run("FUN_0046f370", 0x46F370, walk_build, walk_model, 0, ret=False)
 
-    for name, addr, key in (("FUN_0046f3f0", 0x46F3F0, "mon"), ("FUN_0046f440", 0x46F440, "ply")):
+    for name, addr, key in (("FUN_0046f3f0", 0x46F3F0, "ply"), ("FUN_0046f440", 0x46F440, "mon")):
         base, line = CACHES[key]
 
         def cache_build(img, rng, base=base):
@@ -160,7 +161,7 @@ def suite(test):
             rig.require(test.m.read(base, 0x80C) == want, "cache not zeroed")
         test.run(name, addr, cache_build, cache_model, 0, ret=False)
 
-    # FUN_0046f310: the player cache gets the bundle path
+    # FUN_0046f310: the 0x7a78f0 cache gets the bundle path
     test._callee("loadcache", 0x46DDF0, 1, ("ebx",), lambda emu: sel.__setitem__("path", emu.cstr(emu.arg(0))) or 0, nlog=0)
 
     def path_build(img, rng):
@@ -169,9 +170,9 @@ def suite(test):
         return {"ecx": (rng.randrange(1 << 24) << 8) | sel["cl"]}
 
     def path_model(m, args):
-        """The path is DATA\\GLOBAL\\<name>; EBX is the player cache."""
+        """The path is DATA\\GLOBAL\\<name>; EBX is the 0x7a78f0 cache."""
         name = test.m.cstr(test.m.r32(0x6D6C30 + 4 * sel["cl"]))
-        m.call("loadcache", CACHES["mon" if "cache" in MUT else "ply"][0])
+        m.call("loadcache", CACHES["ply" if "cache" in MUT else "mon"][0])
         rig.require(sel["path"] == "DATA\\GLOBAL\\" + name, f"path {sel['path']!r}")
     test.run("FUN_0046f310", 0x46F310, path_build, path_model, 0, ret=False)
 

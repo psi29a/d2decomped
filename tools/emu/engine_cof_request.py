@@ -135,7 +135,7 @@ def suite(test):
         e.w32(e.mu.reg_read(__import__("unicorn.x86_const", fromlist=["x"]).UC_X86_REG_ESI), sel["conv"])
         return 0
     test._callee("dirconv", 0x4DB290, 0, ("eax", "ecx", "esi"), convert)
-    test.callee("neutral", 0x4DB1E0, 2, ("esi", "ebx", "edi"))
+    test.callee("death_dir", 0x4DB1E0, 2, ("esi", "ebx", "edi"))
     test._callee("final", 0x600E20, 2, (), lambda _e: sel["final"])
 
     def build_param(img, rng):
@@ -158,7 +158,7 @@ def suite(test):
         if a6:
             m.call("dirconv", a5, kind, a2)
             m.w(a2, sel["conv"])
-            m.call("neutral", args["ecx"], m.r(a4), a5, m.r(a2), a6)
+            m.call("death_dir", args["ecx"], m.r(a4), a5, m.r(a2), a6)
         m.w(a3, m.call("final", m.r(a2), a5 ^ (1 if "final" in MUT else 0)))
     test.run("FUN_004db2e0", 0x4DB2E0, build_param, param, 7, ret=False)
     return test.cases

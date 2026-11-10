@@ -92,9 +92,8 @@ def suite(test):
         if kind > 6:
             return 1
         if kind == 0:
-            if test.m.r32(0x7A8928) == 0:
-                if m.call("local") == args["stack"][0]:
-                    return 0x10
+            if test.m.r32(0x7A8928) == 0 and m.call("local") == args["stack"][0]:
+                return 0x10
             return 8
         if kind == 1:
             row = m.call("monstats2", owner)

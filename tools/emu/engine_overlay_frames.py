@@ -106,9 +106,8 @@ def suite(test):
         while cur:
             if m.r(cur) == 8:
                 value = m.r(cur + 0x38)
-                if not nxt or s32(value) < s32(nxt):
-                    if s32(value) > s32(v):
-                        nxt = value
+                if (not nxt or s32(value) < s32(nxt)) and s32(value) > s32(v):
+                    nxt = value
                 if not low or s32(value) < s32(low):
                     low = value
             cur = m.r(cur + 0xA4)

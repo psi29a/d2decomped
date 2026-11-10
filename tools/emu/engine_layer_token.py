@@ -53,11 +53,10 @@ def suite(test):
 
     def source(m, line_unit):
         """The token source: the owner's +0x60 when the unit carries state 0x25 and has an owner, else its own."""
-        if (m.r(line_unit + 0xC8) >> 3) & 1:
-            if m.call("hastate", line_unit, 0x25):
-                found = m.call("owner", line_unit)
-                if found:
-                    return m.r(found + 0x60)
+        if (m.r(line_unit + 0xC8) >> 3) & 1 and m.call("hastate", line_unit, 0x25):
+            found = m.call("owner", line_unit)
+            if found:
+                return m.r(found + 0x60)
         return m.r(line_unit + 0x60)
 
     def build_token(img, rng):
@@ -90,9 +89,8 @@ def suite(test):
                 return m.r(found + 0x90) or m.r(found + 0x80)
         elif tok == BOW and layer == 5 and "bow" not in MUT:
             return LIT
-        if layer == 7:
-            if m.call("state", unit, 0x65) and m.call("shield", edi, 0):
-                return SHH
+        if layer == 7 and m.call("state", unit, 0x65) and m.call("shield", edi, 0):
+            return SHH
         return 0
     test.run("FUN_004dad80", 0x4DAD80, build_token, weapon_token, 0)
 

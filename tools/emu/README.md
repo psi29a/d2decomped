@@ -101,11 +101,11 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | GfxUtil layer token and tint FUN_004dad80, FUN_004db570 (equipment and item lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_layer_token.py` | `ok: 3000 ENGINE layer token cases` |
 | GfxUtil base mode token FUN_004daa00 (player/object lookups hooked; `--mutation-check` 3 ways) | `uv run python engine_mode_token.py` | `ok: 120 ENGINE mode token cases` |
 | Unit motion record (ENGINE\\Particle.cpp, FUN_004da000 ... FUN_004da6e0 incl. the per-tick step FUN_004da350, FUN_0046f060, FUN_0046f070; the pool, owner and screen-conversion callees hooked; `--mutation-check` 7 ways) | `uv run python engine_motion.py` | `ok: 1048 unit motion record cases` |
-| GfxUtil neutral/death direction update FUN_004db1e0 (transform and path hooks; `--mutation-check` 3 ways) | `uv run python engine_neutral_direction.py` | `ok: 96 ENGINE neutral direction cases` |
+| GfxUtil death-mode direction update FUN_004db1e0 (transform and path hooks; `--mutation-check` 3 ways) | `uv run python engine_death_direction.py` | `ok: 96 ENGINE death direction cases` |
 | Gfx.cpp overlay clearing FUN_0046f170 (removal hooked; `--mutation-check` 3 ways) | `uv run python engine_overlay_clear.py` | `ok: 24 ENGINE overlay clear cases` |
-| Overlay row draw FUN_0046e1b0 (request and draw hooked; `--mutation-check` 3 ways) | `uv run python engine_overlay_draw.py` | `ok: 1500 ENGINE overlay draw cases` |
+| Overlay row draw FUN_0046e1b0 (request and draw hooked; `--mutation-check` 4 ways) | `uv run python engine_overlay_draw.py` | `ok: 1500 ENGINE overlay draw cases` |
 | Kind-8 overlay frame helpers FUN_0046def0, FUN_0046df40 (state calls hooked; `--mutation-check` 3 ways) | `uv run python engine_overlay_frames.py` | `ok: 1600 ENGINE overlay frames cases` |
-| Positioned overlay draw FUN_0046e300 (position getters, request and draw hooked; `--mutation-check` 3 ways) | `uv run python engine_overlay_place.py` | `ok: 3000 ENGINE overlay place cases` |
+| Positioned overlay draw FUN_0046e300 (position getters, request and draw hooked; `--mutation-check` 4 ways) | `uv run python engine_overlay_place.py` | `ok: 3000 ENGINE overlay place cases` |
 | Gfx.cpp overlay selection FUN_0046f0c0 (removal hooked; `--mutation-check` 3 ways) | `uv run python engine_overlay_remove.py` | `ok: 256 ENGINE overlay selection cases` |
 | Sized rectangle draw FUN_0046efd0 (rectangle draw hooked; `--mutation-check` 3 ways) | `uv run python engine_rect_size.py` | `ok: 800 ENGINE rect size cases` |
 | Unit cel draw FUN_00471450 (position, request and draw hooked; `--mutation-check` 3 ways) | `uv run python engine_unit_cel.py` | `ok: 1500 ENGINE unit cel cases` |

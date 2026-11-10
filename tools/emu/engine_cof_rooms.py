@@ -117,9 +117,8 @@ def suite(test):
                 m.call("transform", unit)
                 kind, cls, mode = sel["tf"][unit]
                 if kind == 1:
-                    if s32(cls) < m.r(hdr + 0xA80):
-                        if not (mode == 0xC and m.r(table + s32(cls) * 160 + 0x30)):
-                            m.call("walk", unit, arg)
+                    if s32(cls) < m.r(hdr + 0xA80) and not (mode == 0xC and m.r(table + s32(cls) * 160 + 0x30)):
+                        m.call("walk", unit, arg)
                 elif kind == 0:
                     if glob:
                         arg = 0

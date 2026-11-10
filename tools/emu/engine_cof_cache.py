@@ -94,8 +94,11 @@ def suite(test):
     def stop(m, args):
         """Free each cache like FUN_0046f370 / 0046f3f0 / 0046f440, then the class table."""
         counter = sel["counter"]
-        for (base, line), blob in zip(CACHES, sel["blobs"]):
-            rd = lambda addr, blob=blob, base=base: int.from_bytes(blob[addr - base:addr - base + 4], "little")
+        for (base, line), blob in zip(CACHES, sel["blobs"], strict=True):
+
+            def rd(addr, blob=blob, base=base):
+                """A little-endian dword of this cache blob."""
+                return int.from_bytes(blob[addr - base:addr - base + 4], "little")
             for i in range(0x200):
                 node = rd(base + 0xC + 4 * i)
                 while node:

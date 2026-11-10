@@ -3,7 +3,7 @@
 
 Run: uv run python engine_cof_layers.py [--mutation-check]
 FUN_0046f650 (EBX request, stack: MonStats row, mode, flag) builds the
-monster's COF path (FUN_0046f490), finds or loads the entry in the player
+monster's COF path (FUN_0046f490), finds or loads the entry in the
 cache 0x7a78f0 (fatal 0xec3), checks the entry data (0xec9), its header
 (FUN_004db040, 0xecb) and its layer order table (FUN_004db110, 0xed0), then
 for each COF layer in order (a layer id of 16 or more is fatal 0xed7) fills a
@@ -13,8 +13,8 @@ and FUN_006004e0 when the load is not done, when the flag is set; 0, 0
 otherwise). The path builder, the cache find / load, the header and order
 getters, the request fill and the cel calls are hooked. The claim: the
 lookup order, the fatal lines, the layer loop, the argument lists of the fill
-and the cel calls and the bytes popped. (The player cache is used for a
-monster's COF: stock does that.)
+and the cel calls and the bytes popped. (0x7a78f0 is the cache FUN_0046e740 picks for
+a monster: FUN_0046d9f0 returns the unit type, 0 only for a player.)
 """
 import argparse
 

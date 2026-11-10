@@ -183,9 +183,8 @@ def suite(test):
             if found:
                 src = m.r(found + 0x60)
         tok = m.call("token", who, src, sel["buf"], sel["mode"], 0)
-        if not m.call("node", who, tok, M32):
-            if not m.call("load", who, tok, M32):
-                return 0
+        if not m.call("node", who, tok, M32) and not m.call("load", who, tok, M32):
+            return 0
         data = m.call("data", who, 0x33 if "mode" in MUT else sel["mode"])
         if not data:
             return 0
@@ -200,9 +199,8 @@ def suite(test):
             return 0
         for i in range(count - 1 if "skip" in MUT else count):
             layer = m.r(order + i, 1)
-            if m.call("layer", who, layer):
-                if m.call("request", sel["req"], who, 0, direction, sel["v14"], sel["p3c"], layer, M32):
-                    m.call("draw", sel["req"], x, y)
+            if m.call("layer", who, layer) and m.call("request", sel["req"], who, 0, direction, sel["v14"], sel["p3c"], layer, M32):
+                m.call("draw", sel["req"], x, y)
         rig.require(all(c & 0xFF == (pal ^ 1 if "pal" in MUT else pal) for c in sel["draws"]), f"draw colour bytes {sel['draws']} vs {pal:#x}")
         return 1
     test.run("FUN_00471bd0", 0x471BD0, build, model, 0)

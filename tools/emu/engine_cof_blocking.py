@@ -27,7 +27,7 @@ FILE = 0x6D6C1C
 def suite(test):
     """Run FUN_0046fb60 over every branch."""
     sel = {}
-    unit, owner, gfx, node, graphic, data, header, order = (test.slot(i) for i in range(8))
+    unit, owner, gfx, _node, graphic, data, header, order = (test.slot(i) for i in range(8))
     nodes = [test.slot(i) for i in (8, 9)]
 
     def token(e):
@@ -123,10 +123,9 @@ def suite(test):
             if found:
                 src = found
         tok = m.call("token", unit, m.r(src + 0x60), sel["p20"], mode, 0)
-        if not m.call("node", unit, tok, mode):
-            if not m.call("load", unit, tok, mode):
-                m.call("print", sel["pbuf"], 0x6D6CC8, flag, m.r(unit), m.r(unit + 4), mode, sel["l20"], tok)
-                return 0
+        if not m.call("node", unit, tok, mode) and not m.call("load", unit, tok, mode):
+            m.call("print", sel["pbuf"], 0x6D6CC8, flag, m.r(unit), m.r(unit + 4), mode, sel["l20"], tok)
+            return 0
         info = m.call("gfxinfo", unit)
         if not info:
             return 0

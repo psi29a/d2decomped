@@ -23,7 +23,10 @@ def suite(test):
     def build(img, rng):
         """Random position, size and draw arguments."""
         edge = (0, 1, M32, 0x7FFFFFFF, 0x80000000)
-        pick = lambda: rng.choice(edge + (rng.randrange(1 << 32),))
+
+        def pick():
+            """An edge or random 32-bit value."""
+            return rng.choice(edge + (rng.randrange(1 << 32),))
         return {"ecx": pick(), "edx": pick(), "stack": [pick(), pick(), pick(), pick()]}
 
     def model(m, args):

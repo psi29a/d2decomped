@@ -3,8 +3,9 @@
 
 Run: uv run python engine_cof_box.py [--mutation-check]
 FUN_00470860 is "is the point inside the unit's COF box grown by 16",
-FUN_004709a0 "is the unit's COF box on screen" (an optional half-width
-shift, 0x71146c / 0x711470 the screen size). Both first find the unit's COF
+FUN_004709a0 "is the unit's COF box on screen" (an optional shift of the left
+edge by half the box's y extent, +0x14 - +0x10, bugs.md #102; 0x71146c /
+0x711470 the screen size). Both first find the unit's COF
 node for its (transformed) mode, then the box record of its COF data
 (FUN_004db040). The state, owner, token, node and loader lookups, the
 transform, the mode getter, the graphics-record getter and FUN_004db040 are
@@ -68,7 +69,10 @@ def suite(test):
             put(boxrec + off, rng.choice(edges))
         test.m.w32(0x71146C, rng.choice((0, 1, 640, 800, 0x7FFFFFFF)))
         test.m.w32(0x711470, rng.choice((0, 1, 480, 600, 0x7FFFFFFF)))
-        point = lambda: rng.choice(edges + (rng.randrange(-300, 300),))
+
+        def point():
+            """A boundary or random coordinate."""
+            return rng.choice(edges + (rng.randrange(-300, 300),))
         xoff, yoff = point(), point()
         box = [int.from_bytes(img[boxrec - test.arena + o:boxrec - test.arena + o + 4], "little") for o in (8, 0xC, 0x10, 0x14)]
 
@@ -78,8 +82,8 @@ def suite(test):
             return (base + rng.choice((-1, 0, 1))) & rig.M32 if rng.randrange(4) else point()
         args = {"ecx": unit, "edx": xoff, "stack": [yoff, near(box[0], box[1], xoff), near(box[2], box[3], yoff)]}
         if rng.randrange(2):                    # put the screen width next to the (shifted) left edge
-            width = s32(box[3] - box[2])
-            left = box[0] + xoff - ((width + (1 if width < 0 else 0)) >> 1 if args["stack"][2] else 0)
+            height = s32(box[3] - box[2])
+            left = box[0] + xoff - ((height + (1 if height < 0 else 0)) >> 1 if args["stack"][2] else 0)
             test.m.w32(0x71146C, left + 1 + rng.choice((-1, 0, 1)))
         return args
 
@@ -87,11 +91,10 @@ def suite(test):
         """The shared lookup chain; returns the box record or None when the unit has no COF data."""
         regs_unit = unit
         token_owner = regs_unit
-        if (m.r(unit + 0xC8) >> 3) & 1:
-            if m.call("hastate", unit, 0x25):
-                found = m.call("owner", unit)
-                if found and "owner" not in MUT:
-                    token_owner = found
+        if (m.r(unit + 0xC8) >> 3) & 1 and m.call("hastate", unit, 0x25):
+            found = m.call("owner", unit)
+            if found and "owner" not in MUT:
+                token_owner = found
         tok = m.r(token_owner + 0x60)
         m.call("token", unit, tok, sel["buf"], 0xFFFFFFFF, 1)
         sel_tok = sel["tok"]
@@ -133,15 +136,15 @@ def suite(test):
     test.run("FUN_00470860", 0x470860, build, inside, 3)
 
     def on_screen(m, args):
-        """FUN_004709a0: the box overlaps the screen, with an optional half-width shift."""
+        """FUN_004709a0: the box overlaps the screen, with an optional left-edge shift by half the box height."""
         rec = find(m, None, 0xDC2)
         if rec is None:
             return 0
         xoff, (yoff, _unused, half) = args["edx"], args["stack"]
         left = (m.r(rec + 8) + xoff) & rig.M32
         if half:
-            width = s32(m.r(rec + 0x14) - m.r(rec + 0x10))
-            shift = width // 2 if "trunc" in MUT else (width + (1 if width < 0 else 0)) >> 1
+            height = s32(m.r(rec + 0x14) - m.r(rec + 0x10))
+            shift = height // 2 if "trunc" in MUT else (height + (1 if height < 0 else 0)) >> 1
             left = (left - shift) & rig.M32
         w, h = test.m.r32(0x71146C), test.m.r32(0x711470)
         if s32(left) >= s32(w - 1):

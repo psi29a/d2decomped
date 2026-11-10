@@ -89,7 +89,7 @@ def suite(test):
             put(n, rng.choice((6, 8, 1, 1)))
             put(n + 4, rng.choice((0, 1, 2, 2, 5, 0xFFFFFFFF) if live else (0, 5, 0xFFFFFFFF)))
             put(n + 8, rng.choice((0, 5)))
-            put(n + 0x34, rng.choice((0, 0, 1)))
+            put(n + 0x34, rng.choice((0, 0, 1, 2, 0x80)))    # any nonzero value counts: stock tests, not compares with 1
             put(n + 0x3C, rng.choice((0, 1)))
             put(n + 0x18, rng.choice((0, 0x100, 0x300, 0x80000000, 0xFFFFFF00)))
             put(n + 0x1C, rng.choice((0x100, 0x200, 0x400, 0x80000000)))
@@ -144,7 +144,8 @@ def suite(test):
         if shift:
             y = (y - (4 if "y8" in MUT else 8)) & M32
         while node:
-            ok = bool(m.r(node + 0x34)) == bool(match or ("match" in MUT))
+            flag = m.r(node + 0x34)
+            ok = (flag == 1 if "eq1" in MUT else bool(flag)) == bool(match or ("match" in MUT))
             kind = m.r(node)
             if kind == 6 and not m.r(node + 8):
                 ok = False
@@ -177,7 +178,7 @@ def main():
     parser.add_argument("--mutation-check", action="store_true")
     args = parser.parse_args()
     mutations = {name: (lambda on, name=name: MUT.add(name) if on else MUT.discard(name))
-                 for name in ("item", "y8", "match")}
+                 for name in ("item", "y8", "match", "eq1")}
     rig.run_suite(suite, mutations, "ENGINE overlay place", args.mutation_check)
 
 

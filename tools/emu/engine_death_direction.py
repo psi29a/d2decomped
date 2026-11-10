@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Check GfxUtil neutral/death direction update FUN_004db1e0 in stock 1.14d.
+"""Check GfxUtil death-mode direction update FUN_004db1e0 in stock 1.14d.
 
-Run: uv run python engine_neutral_direction.py [--mutation-check]
+Run: uv run python engine_death_direction.py [--mutation-check]
 Mode, transform and path setters are hooked. The transform hook supplies
 synthetic type and mode; those callees' own behavior is outside this claim.
 """
@@ -37,7 +37,7 @@ def suite(test):
         return {"regs": {"esi": unit, "ebx": 1, "edi": 1 + differs}, "stack": [3, enabled]}
 
     def model(m, args):
-        """Change the path only for an enabled neutral/death unit with a new direction."""
+        """Change the path only for an enabled death/dead unit with a new direction."""
         if not args["stack"][1] and "enable" not in MUT:
             return
         owner = args["regs"]["esi"]
@@ -62,7 +62,7 @@ def main():
     args = parser.parse_args()
     mutations = {name: (lambda on, name=name: MUT.add(name) if on else MUT.discard(name))
                  for name in ("enable", "mode", "same")}
-    rig.run_suite(suite, mutations, "ENGINE neutral direction", args.mutation_check)
+    rig.run_suite(suite, mutations, "ENGINE death direction", args.mutation_check)
 
 
 if __name__ == "__main__":

@@ -53,7 +53,10 @@ def suite(test):
     test._callee("unitmode", 0x46DA60, 0, ("ecx",), lambda _emu: sel["mode"])
     test._callee("data", 0x46E570, 0, ("ecx", "edx"), lambda _emu: sel["data"])
     test._callee("layer", 0x4DB0D0, 0, ("ecx", "edx"))
-    nonzero = lambda rng: rng.choice((0, 1, 0x1234))
+
+    def nonzero(rng):
+        """Zero or a nonzero value."""
+        return rng.choice((0, 1, 0x1234))
 
     def build(img, rng):
         """Random lookups, offsets and screen width."""
@@ -94,9 +97,8 @@ def suite(test):
                 owner_unit = found
         tok = m.r(owner_unit + 0x60)
         m.call("token", unit, tok, sel["buf"], 0xFFFFFFFF, 1)
-        if not m.call("node", unit, sel["tok"], 0xFFFFFFFF):
-            if not m.call("load", unit, sel["tok"], 0xFFFFFFFF) and "load" not in MUT:
-                return 0
+        if not m.call("node", unit, sel["tok"], 0xFFFFFFFF) and not m.call("load", unit, sel["tok"], 0xFFFFFFFF) and "load" not in MUT:
+            return 0
         mode = m.call("unitmode", unit)
         data = m.call("data", unit, mode)
         if not data:

@@ -170,9 +170,8 @@ def suite(test):
         m.w(gfx + 0x1C, test.m.r32(0x7C8920 + 4 * comp))
         wc = m.call("token", who, inv, sel["buf"], mode, 0)
         m.w(gfx + 0x28, wc)
-        if not m.call("node", who, wc, mode):
-            if not m.call("load", who, m.r(gfx + 0x28), mode):
-                return 0
+        if not m.call("node", who, wc, mode) and not m.call("load", who, m.r(gfx + 0x28), mode):
+            return 0
         if not m.call("data", who, mode):
             return 0
         if not m.call("gfxinfo", who):

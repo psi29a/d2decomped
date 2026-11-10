@@ -8,7 +8,7 @@ An object takes its draw offset (+0x148 / +0x14c) from Objects.txt, only with
 +0x150 and +0x118 + mode set (a missing row is fatal 0x9be). The screen
 position is the position getters minus the sub-offsets; with FUN_004f51d0
 set, a quarter screen is shifted for the two side-panel modes. FUN_004709a0
-tests the box; FUN_00046ed50 gives the colour byte, which replaces the low
+tests the box; FUN_0046ed50 gives the colour byte, which replaces the low
 byte of the FUN_004f51d0 result as the last draw argument (FUN_004f6570).
 Every callee is hooked. The claim: the early exits, the arithmetic, the
 mixed colour argument, the request and the result.
