@@ -720,6 +720,9 @@ address	name	evidence
 00610f90	ignorelist_add_name	FUN_00610d60, file line '!' + name
 00611200	ignorelist_ctor	sets IgnoreList::vftable, reads "Persistent Ignore" (chat-ignorelist.md)
 00611560	ignorelist_get	lazy IgnoreList getter: DAT_0096bc20, SMemAlloc(0x188, Chat/Ignorelist.cpp, 0x48) (chat-ignorelist.md)
+006118b0	datatbls_append_buffer	ECX &buffer, EDX &size, stack &capacity, source, n: grows by 0x400 (realloc FUN_0040b4b0, line 0x292) while size + n >= capacity, 0 at 0x7fffffff; copies, returns the old size
+00611bd0	skills_code_compile	ECX text, EDX record, stack offset: FUN_006c1ae0 (callbacks 0x611930, 0x6119e0, 0x6119f0), bytes appended to the buffer 0x96bc70 (size 0x96bc74, capacity 0x96bc78); old size or -1 at record + offset
+00611c70	skilldesc_code_compile	same as FUN_00611bd0 with the skill description buffer 0x96bc7c / 0x96bc80 / 0x96bc84 (same three callbacks)
 00611d20	datatbls_96c8a4	returns 0x96c8a4; callers in AnimTbls; verified by item_free_small.py
 00611d60	states_flag_mask	States 0x3c-byte rows, flag bit at +0x10 into a mask; verified by states_tbls.py
 00611dc0	states_flag_list	word list of States rows with a flag (DataTbls.cpp 0x64b); verified by states_tbls.py

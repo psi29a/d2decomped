@@ -169,13 +169,13 @@ operand and function lists.
 Entry, per-calc-string field on the Skills.txt loader (`FUN_00613f80`):
 
 ```
-FUN_00611bd0(text, out_field_offset, record_base)
+FUN_00611bd0(text in ECX, record in EDX; stack: offset, size, row, column)
   buf[1024]; len = FUN_006c1ae0(text, buf, 1024, LAB_00611930, LAB_006119e0, FUN_006119f0)
-  if (len > 0) *((u32*)(record_base + out_field_offset)) = FUN_006118b0(pool=0x0096bc78, buf, len)
-  else                                                     ... = 0xffffffff
+  if (len > 0) *((u32*)(record + offset)) = FUN_006118b0(&0x96bc70 buffer, &0x96bc74 size, &0x96bc78 capacity, buf, len)
+  else                                           ... = 0xffffffff
 ```
 
-`FUN_006118b0` copies the bytecode into a shared pool (`DAT_0096bc78`) and returns its offset; that's what a Skills.txt record's `calc1..4` field ends up holding. For missiles, the mirror wrapper is `FUN_00611c70` (same shape, `FUN_00661880` as its lookup with the misscalc table).
+`FUN_006118b0` copies the bytecode into a shared growing buffer (pointer `DAT_0096bc70`, size `0x96bc74`, capacity `0x96bc78`) and returns its offset; that's what a Skills.txt record's `calc1..4` field ends up holding. The mirror wrapper `FUN_00611c70` has the same shape and the same three callbacks (not a misscalc lookup); it fills the skill description buffer (`0x96bc7c` / `0x96bc80` / `0x96bc84`). Both run in `tools/emu/datatbls_finish.py` (datatbls.md "Fourteen more functions").
 
 **Compiler**: `FUN_006c1ae0(text, out_buf, buf_size, name→fn_tag_cb, fn_tag→arity_cb, ident→operand_cb)`. It's a **shunting-yard** with an operator stack of 64 slots (`local_151[]` for token classes, `auStack_114[]` for values). The tokenizer is `FUN_006c11c0`; the byte emitter is `FUN_006c18a0` (bounds-check + write); the arity-at-pop lookup is `FUN_006c1820`.
 
