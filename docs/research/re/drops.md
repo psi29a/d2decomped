@@ -585,3 +585,28 @@ quest test (below). d2d: reads the same where it uses it, cited from the decompi
 this owner test (its comment cites `FUN_0058f0d0`, AI control `+0x28` / `+0x2c`). `Loot::drop`
 has no owner step: it reads the one local player's quest bits and gear (drops.md "Not ours
 yet": one player, no minion's owner).
+
+### A monster flag test (`FUN_005a0180`)
+
+Fastcall (ECX unit, DX a mask): true when the unit is a monster (type 1) with data (`+0x14`)
+and `(data +0x16 & mask) != 0`; false for anything else (`and ax, dx; neg ax; sbb; neg`). The
+matching setter is `FUN_005a01b0` (ECX unit, DX mask, stack set / clear); it has no direct
+caller in the decompile, so who sets bits 2 and 8 was not traced. What the readers show:
+
+| Mask | Reader | Reading |
+|---|---|---|
+| 2 | `FUN_005a03a0` reads the SuperUniques index at data `+0x26` only when the bit is set; `FUN_005bffc0` (Crushing Blow's divisor) passes 2 (`lea edx, [eax+2]` at 0x5c0063, eax 0) | superunique |
+| 4 | `FUN_005a6600` after the superunique test | champion: TreasureClass2 (`+0x88`) |
+| 8 | `FUN_005a6600` next: TreasureClass3 (`+0x8a`); the stun test `FUN_0057aae0` passes 8 (0x57ab04) | unique |
+
+Evidence: `uv run --project tools/emu python tools/emu/disasm.py 5a0180`,
+`uv run --project tools/emu python tools/emu/disasm.py 5bffc0` (the `call 0x5a0180` at
+0x5c0068), `uv run --project tools/emu python tools/emu/disasm.py 5a6600` (0x5a66c0..0x5a66dd),
+`python3 tools/ghidra/fn.py 005a03a0`.
+d2d: reads the same for the class pick, cited from the decompile, no oracle run (`Loot::drop`: superunique, then champion, then unique).
+**Possible disagreement, not established:** `crush_divisor` (`ai.hpp`) and monsters.md call
+mask 2 "a unique" and give 8 to `Boss::unique` as well as `Boss::superunique`, while the
+game tests bit 2 only, the superunique bit by `FUN_005a03a0`; `strike.cpp`'s stun test
+(mask 8) takes champions and superuniques too. Whether a plain unique carries bit 2, or a
+superunique bit 8, needs the writers of `FUN_005a01b0`'s bits; they were not found, so no
+issue is filed.

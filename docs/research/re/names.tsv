@@ -710,6 +710,7 @@ address	name	evidence
 00597a20	invmode_changed_pending	unit +0xc8 bits 0x16/0x17, or a changed-list id that FUN_00552f60 still finds
 0059b6e0	quest0b_data10_mark	quest 0xb data +0xf equals 1 and +0x10 is zero: set +0x10
 0059c810	quest_tomb_transition	sets quest 0xe bits 0xd and 3 and client progression for current difficulty
+005a0180	monster_flag_test	fastcall (ECX unit, DX mask): a monster (type 1) with data whose +0x16 & mask is non-zero; 2 superunique (FUN_005a03a0), 4 champion, 8 unique by the class pick (drops.md "A monster flag test")
 005a0260	umod_count	ECX: the non-zero bytes before the first 0, at most 9 (a monster mod list)
 005a23d0	boss_curse_apply	Cursed mod's per-enemy callback: Amplify Damage record 0x42 calcs, d2d_states_put_state, five stat slots set; monster-ai.md "Boss mods in the hit"
 005a2d80	unit_damage_shift	fastcall (_, unit): when stat 0x16 > 0 and class id (+4) != 0x10f, stat 0x15 = max(0, s15 - 1 + s17), 0x16 = max(0, s16 - 1 + s18) in the flag-1 list; no direct caller; skills.md "Stat-list helpers and skill starts"
