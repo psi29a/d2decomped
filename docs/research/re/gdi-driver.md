@@ -69,6 +69,18 @@ d2d: `not ported` as a function (it is a table call). The x −0x50 is
 bugs.md #10's; the panel shift is menu.md's, not re-checked here. Cited, not
 proven.
 
+## The floor draw's helpers (`FUN_004de410` and what it calls)
+
+- **`FUN_00477730`** returns `DAT_00712ccc`, the driver option that
+  lighting.md "Drawing with it" splits at 4: `FUN_004de410` takes the
+  software light table (`FUN_004ddef0`) when it is below 4 and the 3D
+  vertex fill (`FUN_004de070`, `FUN_004de260`) otherwise; `FUN_004def80`
+  tests `3 <` it. Its four callers are `FUN_004de410`, `FUN_004dea70`,
+  `FUN_004def80` and `FUN_004df1c0` (`game-calls.tsv`). Read from the
+  six-byte body (`tools/ghidra/fn.py 00477730`). d2d: not ported as a
+  function; lighting.md already carries the `< 4` rule and d2d copies the
+  software path. Cited.
+
 ## Clearing the draw buffer (`FUN_006c9280`, `FUN_006c9220`)
 
 - `FUN_006c9280` is a thunk to `FUN_006c9220`. Its caller is the slot `+0x18`
