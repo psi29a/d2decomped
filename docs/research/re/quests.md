@@ -318,6 +318,28 @@ sends message 9 when `FUN_00599510` says so and returns 0.
 d2d has no port of these; the only one it cites is `FUN_005913c0`
 (`components/rules/quests.hpp`, the Den talk close).
 
+## Frontier accessors (stock executable)
+
+`tools/emu/quest_frontier.py` checks these nine functions on synthetic records
+against stock 1.14d (216 cases, nine deliberate model defects caught). The
+quest lookup `FUN_00543640` is hooked: its arguments are checked, but its
+implementation is outside this oracle. Data pointers are assumed valid when
+the record exists. Functions take the game in ECX unless stated otherwise;
+none pops stack arguments. This covers the stated branches, not all quest
+state transitions.
+
+| function | behavior |
+|---|---|
+| `FUN_0058a9f0` | Lookup quest 0x21; return 1 only when the record exists and its data dword +0x84 is zero. |
+| `FUN_005901e0` | ECX is a quest record: return the dword at its data pointer +0x88, without null checks. |
+| `FUN_0059b6e0` | Lookup quest 0xb; when data byte +0xf equals 1 and byte +0x10 is zero, set +0x10 to 1 and return 1; otherwise return 0. |
+| `FUN_005b5210` | Lookup quest 0x17 and return data byte +0x13, or zero if absent. |
+| `FUN_005b5810` | Return 0 when game dword +0x70 is nonzero. Otherwise lookup quest 0x17 and return 1 when absent or data byte +0x14 is nonzero. |
+| `FUN_005b9ca0` | Lookup quest 0x11. When data byte +6 is nonzero, copy dwords +0x10 and +0x14 to the output at EDX and return 1; otherwise return 0 without writing it. |
+| `FUN_005bad20` | Lookup quest 0x12 and return whether its first data byte is nonzero; return 0 if the record is absent. |
+| `FUN_005bad40` | Lookup quest 0x12 and clear its first data byte if present. |
+| `FUN_005bbf80` | Lookup quest 0x13: AL is 1 when absent or data byte +0xc is zero, otherwise 0. The upper EAX bytes are not a boolean return. |
+
 ## d2d
 
 `DenQuest` runs all of the above for one player:
