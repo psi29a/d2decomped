@@ -551,9 +551,24 @@ ids).
   1 / 4 / 5 / 6 / 7 close variants) **(?)** which is which.
 - **0x77 button action** (2; `FUN_004b8cf0`): +1 u8 action on the trade
   state `DAT_007c0e7c` (0 none, 1 we asked, 2 asked of us, 3 open, 5 they
-  accepted, 7 we did): 0 our request is out, 1 someone asks us, 2 close,
+  accepted, 7 close wait: we sent the close request C->S 0x4f 2 and no reply
+  has come, see below): 0 our request is out, 1 someone asks us, 2 close,
   5 they accepted, 6 the window opens / an offer changed (accepts off),
   0xc cancelled, 0xd done; 9..0x15 other windows **(?)**.
+- **The trade close wait** (`FUN_004b9180`, 0x4b9180..0x4b91e1; called at 0x455d64 and by the
+  action throttle `FUN_00486d10` at 0x486d23). Three places send C->S 0x4f with 2 (close)
+  and then set the trade state `DAT_007c0e7c` = 7 and the tick `DAT_007c0e70` =
+  `GetTickCount` (0x4b8ab0, 0x4b8bc5, 0x4b8cdb); the 0x77 handler
+  (the code at 0x4b8cf0, not a function entry in `game-functions.tsv`) sets the state back to 0 for two of its actions (0x4b8d13, 0x4b8d24;
+  which ones was not read). `FUN_004b9180` returns 0 for any other state and 1
+  for state 7. In state 7 with a tick other than -1 it waits for `tick + 30000` (unsigned,
+  see bugs.md #106) to pass; if no reply came by then it closes the item panel
+  (`FUN_0048a6a0`), clears the state, calls `FUN_004b8940` and runs the client's leave
+  sequence (C->S 0x69 `FUN_00477ee0`, then `FUN_0044b880`(0), `FUN_0044c860`(1),
+  `FUN_0044d520`; net-join.md "The client's leave flags"). So a host that does not answer a
+  trade close drops the client out of the game after 30 s; until then the throttle refuses
+  actions (`FUN_00486d10` returns 0 and calls `FUN_004b90b0` whenever `FUN_004b9180` is
+  non-zero and the game type, `FUN_0044db30`, is neither 0 nor 1; those two types return 1 at once). d2d: not ported.
 - **0x78 trade with** (21; `FUN_004b9010`): +1 char[16] name, +0x11 u32
   player id. Sent as the window opens.
 - **0x79 trade gold** (6; `FUN_004b90d0`): +1 u8 (1 ours, 0 theirs), +2 u32.
