@@ -130,7 +130,7 @@ these are its pieces:
 | `FUN_004da770` | A monster's mode byte at MonStats2 extension `+4 + n` (n < 16); 0 unless the record's first dword is 1 and its `+0x14` pointer is non-null. Caller `FUN_004db7b0` |
 | `FUN_004da790` | Caches the type tokens: 16 player (`FUN_0065b5e0`), 20 player-mode (`FUN_0065b480`), 16 monster-mode (`FUN_0065b500`), 8 object-mode (`FUN_0065b570`), 3 more (`FUN_0065b620`) at `0x7c8920`, `0x7c88d0`, `0x7c8980`, `0x7c8960`, `0x7c89c0` (fatal 0x36..0x5a) |
 | `FUN_004da8e0` | Monster: the request's `+0x2c` = MonStats2 row `+0x138` |
-| `FUN_004daa00` | The base token: player (`FUN_0065b480`), monster (MonStats `+0x10`), object (`FUN_0065b570`) |
+| `FUN_004daa00` | The base token: player (`FUN_0065b480`), monster (MonStats `+0x10`), object (`FUN_0065b570`). Invalid monster indices, missing player/object rows, and other types return zero (`tools/emu/engine_mode_token.py`; player/object lookups hooked) |
 | `FUN_004daa70` | Folds a draw type: 0, 1, 2, 4, 6 → 4; 3, 5 → 3 |
 | `FUN_004daab0` | The torso item's six armour tier bytes (Items `+0x116..+0x11b`), zeros when bypassed or unusable. A null inventory or missing item-table row leaves the output unchanged (`tools/emu/engine_armor_tiers.py`; equipment and table lookups hooked) |
 | `FUN_004dabc0` | An item's cel name (EDI the request, ESI the item): on the ground (`+0x10` 3) a unique's / set's own `+0x3a` / `+0x42`; in the inventory (4) a set's `+0x62` invfile (flag 0x10 in `+4`) or the base's `+0x60`, a unique's `+0x5a` (flag 1) or the base's `+0x40`, else the base `+0x20` or a variant `FUN_0062e920` |
