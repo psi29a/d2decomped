@@ -335,6 +335,45 @@ callers `FUN_00454f30` with limit 0x80, and `FUN_00453330`, not read).
 So over a dead player's body the bar is empty and the name carries the
 0x90b string; a living player gets the plain name with a party life bar.
 
+### The byte-to-unit widening (`FUN_00526f20`, 0x526f20, 70 bytes)
+
+Read from the decompile and the disassembly (`tools/emu/disasm.py 526f20`),
+no oracle run. d2d: `not ported` (no d2d function does this; `d2d_utf8_to_units`,
+`FUN_00526320`, is the UTF-8 reader and is a different function: this one
+has no decoding step).
+
+`FUN_00526f20(ECX dst, EDX src, stack count)`, `ret 4`, `dst` an array of
+16-bit units, `src` bytes. 85 callers in `game-calls.tsv`
+(`grep 00526f20 docs/research/re/game-calls.tsv`), among them
+`FUN_00452af0` (the name labels above), `FUN_005272b0` and `FUN_00430cd0`.
+
+- It copies `src[i]` to `dst[i]`, each byte zero-extended (a byte 0x80..0xff
+  becomes the unit 0x0080..0x00ff, Latin-1, no code page), while `i < count`
+  and `src[i]` is not 0.
+- Then it looks at `src[i]` again (the byte at the index the loop stopped on):
+  - 0 (the string ended, or it is exactly `count` bytes long): `dst[i] = 0`.
+    A string of exactly `count` bytes therefore writes `count + 1` units.
+  - not 0 (cut by the count): `dst[i - 1] = 0`, so only `count - 1` characters
+    survive.
+- `count` of 0 or less skips the loop with `i = 0`: an empty `src` writes
+  `dst[0] = 0`, but a non-empty one writes `dst[-1] = 0`, two bytes **before**
+  `dst`.
+
+So "at most 0x80 units" in the notes above is 0x80 units plus the NUL for a
+string that is exactly 0x80 bytes, and 0x7f characters for a longer one. The
+roster name is at most 15 characters, so the 0x100-byte local of
+`FUN_00452af0` is not reached.
+
+`FUN_00430cd0` (the credits text loader) uses the same call on a file with
+no UTF-16 byte order mark: `dst` is a block of `2 * size + 1` bytes
+(0x430e83), `src` a block of exactly `size` bytes (0x430d8b..0x430d99), and
+`count = size`. A file with no NUL reads `src[size]` past its block, and when
+that byte is 0 `dst[size]` writes two bytes at offset `2 * size` of a block
+that has `2 * size + 1`: one byte past it. Which branch is taken depends on
+the heap byte after the block, and the allocator's rounding was not read
+(`FUN_0040b380` -> `FUN_0040a080`). The two UTF-16 branches of the same
+function do not use it. bugs.md #98.
+
 ### Draw now or keep for later (`FUN_00452be0`, 0x452be0, 137 bytes)
 
 `FUN_00452be0(ESI unit, stack mode)` (`ret 4`; the unit is in ESI from
