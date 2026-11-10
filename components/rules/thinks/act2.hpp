@@ -281,7 +281,7 @@ struct Act2Thinks : Thinker {
     // with none in reach it closes in (pace 50, 3); else 50 % circles 3,
     // else stands 6.
     // Radament's wider reach (aip5 + 10) and the corpse / hurt pick are
-    // the search's (ai.cpp).
+    // the search's (game/ai/act2.cpp).
     Think greater_mummy() {
         if (input.in_melee && roll() < aip[0]) return { MonAct::a1 };
         if (input.dist < 5 && roll() < aip[0]) return { MonAct::a2 };

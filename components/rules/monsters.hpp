@@ -1491,7 +1491,7 @@ inline Think countess_think(const ThinkIn& input, const CountessIn& where, std::
 // game::swaps_ai allows (it walks, SwitchAI, not unique), and of the MonAI
 // rows with an init (0x73ca18) only Imp's walks with SwitchAI in 1.14d
 // MonStats (the rest are summons, the act 5 barbarians, or don't walk).
-// Its FUN_005e2fd0 sets +0x14 to -1, which ai.cpp's Imp inputs take for 0;
+// Its FUN_005e2fd0 sets +0x14 to -1, which the Imp's inputs (game/ai/act5.cpp) take for 0;
 // special 16's (FUN_005e2cd0) is imp_ride_pick, run by its caller; special
 // 11's is terror_think's note; 10 and 12 have none.
 inline bool ai_toggle(int& special, bool& other, std::array<int*, 3> scratch, int next, bool has_other) {

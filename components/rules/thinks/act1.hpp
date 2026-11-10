@@ -395,7 +395,7 @@ struct Act1Thinks : Thinker {
                 *input.state = *input.state2 = 0;
                 *input.pace = 50;
                 Think out{ MonAct::walk, 0 };
-                if (*input.command == 14) out.unit = ThinkUnit::kin;   // the raised corpse (ai.cpp's kin)
+                if (*input.command == 14) out.unit = ThinkUnit::kin;   // the raised corpse (game/ai/act1.cpp's kin)
                 return out;
             }
         }
