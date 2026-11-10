@@ -686,3 +686,11 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   tests bit 8 of each when `FUN_00467a10` is the dying unit: with neither set it calls `FUN_00466fe0`, with either set
   `FUN_0044da40` then `FUN_00467a70`. Their other caller is `FUN_004aff60`. What the
   two globals hold is not traced. d2d: not ported.
+- **`FUN_00461010`** (unit in ESI, no stack arguments; only caller `FUN_00461250`, commands 8
+  and 9, each right after `FUN_00480e70`): the client's end-of-life reset. In order:
+  `FUN_004c1e30()`; `FUN_00649f70(unit, 0)`; `FUN_00464810(unit)`; unit `+0xc4 &= ~4`;
+  if `FUN_00639df0(unit, 7)` (state 7 on the unit) is 0, unit `+0xc4 &= ~2`;
+  `FUN_0046ece0` (`gfx_cof_list_trim`) and `FUN_0046f020(unit, 0)` (`gfx_layer_flags_set`);
+  last `FUN_00627260(unit, 6, 0, 0)`: SetStat, stat 6 (`kLife`, `d2s_items.hpp`) = 0. So
+  commands 8 and 9 zero the unit's life on the client as well as set its mode. d2d: not
+  ported (`Fight::die` sets `kLife` to 0 itself, `setup.cpp`); no disagreement found.
