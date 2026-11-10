@@ -515,3 +515,18 @@ items' part (`item_max`) and Battle Orders' (`bo_life` / `bo_mana`).
   A1Q1 (Den, quest 1) / A1Q5 (Tower, quest 5) while that quest's open in this game
   (`FUN_004b92e0`: S->C 0x5e's bytes). `DAT_007befec` (set to 0x3c on a level change in
   `FUN_00499450`) is never read.
+
+## Retail control restoration after controller UI changes
+
+The added always-visible Character shortcut at the main bar was untraced and
+is removed. The original control-panel art, mini-panel Character action and
+conditional New Stats notification above remain. The existing New Stats
+conditions are supported by the local read of `FUN_004a64c0`: UI 6 is turned
+on for nonzero stat 4 when UI 2 is closed and is turned off again at zero.
+Its draw and release conditions are the existing traced ones above. No new
+pixel-perfect parity claim is made for the whole HUD.
+
+The keyboard integration check verifies no invented Character action at the
+old added location with zero points, then verifies the New Stats button opens
+Character with points available. Retail skill-tree close placement is separately
+oracle-checked in skill-tree.md.

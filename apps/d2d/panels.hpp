@@ -139,11 +139,6 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
 // The run button's hit box (FUN_00497440): x W/2-145..W/2-128 by
 // H-28..H-8. A press plays Sounds.txt 4 (FUN_004b9a00); the release over
 // it toggles run (FUN_004996a0 → FUN_0044be80).
-inline constexpr int kCharacterShortcutLeft = 207, kCharacterShortcutBottom = 594;
-[[nodiscard]] inline bool over_character_shortcut(int pixel_x, int pixel_y) {
-    return pixel_x >= kCharacterShortcutLeft && pixel_x < kCharacterShortcutLeft + 32
-        && pixel_y > kCharacterShortcutBottom - 32 && pixel_y <= kCharacterShortcutBottom;
-}
 bool over_run_button(int mouse_x, int mouse_y);
 
 // The red New Stats / New Skills buttons over the HUD while stat 4 / 5

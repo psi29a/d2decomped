@@ -209,7 +209,6 @@ struct Town {
     int net_waypoint_level = -1, net_waypoint_tries = 0;                              // ... the level asked for once its menu's open (0x63), -1 none
     std::uint32_t net_drift_ms = 0;                          // since when d2d's player has been far from the host's (0: not)
     std::uint32_t net_follow_ms = 0;                         // when the host was last told where our walk is
-    bool character_button_down = false;
     bool inv_close_down = false, char_close_down = false, tree_close_down = false;   // the inventory's / character panel's close button held
     bool hold_interact = false;                              // the left press sent an Interact: the hold walks no more till it's done (LAB_00462b1d)
     int entry_level = 0;                                     // the level whose "entering" art last started (0: the game's first)
@@ -421,6 +420,7 @@ struct Town {
     int audio_say = -1;                           // a Say's sound, played by update (it has the audio)
     void save_keys(bool shared) const;
     void update_hotkey_names();
+    void skill_hotkey(int slot, int mouse_x, int mouse_y);
     void accept_controls();
     [[nodiscard]] bool function_held(int action) const;
     pad::Config pad_config;

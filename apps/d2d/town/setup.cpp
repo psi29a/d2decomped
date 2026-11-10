@@ -64,7 +64,10 @@ auto Town::publish() -> void {
         if (net_game) net_overlay();
         cues.due.insert(cues.due.end(), view.sounds.begin(), view.sounds.end());
         if (!view.has_character) return;
-        character.header = view.header; character.stats = view.stats; character.items = view.items;
+        const auto hotkeys = character.header.hotkeys;  // client-owned bindings, not replicated gameplay state
+        character.header = view.header;
+        character.header.hotkeys = hotkeys;
+        character.stats = view.stats; character.items = view.items;
         // A weapon switch brought the other set's skills: the buttons take them.
         if (int(view.header.weapon_set) != skillbar_set) {
             skillbar.left = int(view.header.left_skill); skillbar.right = int(view.header.right_skill); skillbar.left_item = skillbar.right_item = -1;
@@ -121,7 +124,7 @@ auto Town::enter() -> void {
         }
         game_menu.open = false;
         controls.open = false;
-        tree_close_down = character_button_down = false;
+        tree_close_down = false;
         world.enter(character);
         if (scene) load_keys();
         coop.clear();                             // a new game: its first player alone
@@ -149,7 +152,7 @@ auto Town::save() -> std::string {
 auto Town::operate(int npc_index, std::uint32_t frame_ms, int force ) -> void { world.operate(npc_index, frame_ms, force); }
 
 auto Town::new_game() -> void {
-        tree_close_down = character_button_down = false;
+        tree_close_down = false;
         world.new_game();
         skillbar.new_game();
         hand_items.clear();

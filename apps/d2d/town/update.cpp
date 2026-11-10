@@ -18,6 +18,7 @@
 #include "party.hpp"
 #include "platform.hpp"
 #include "scene.hpp"
+#include "skill_tree_close.hpp"
 #include "skillpad.hpp"
 #include "skilltree.hpp"
 #include "speech_sound.hpp"
@@ -239,7 +240,7 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (fires(keys::kToggleRun)) send(cmd::Run{ !view.running });
             if (fires(keys::kSwapWeapons) && character.expansion) send(cmd::SwapWeapons{});
             for (int slot = 0; slot < 16; ++slot)
-                if (fires(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8)) skillbar.hotkey(slot, mouse.x, mouse.y);
+                if (fires(slot < 8 ? keys::kSkill1 + slot : keys::kSkill9 + slot - 8)) skill_hotkey(slot, mouse.x, mouse.y);
             if (fires(keys::kShowBelt)) belt_open = !belt_open;
             if (fires(keys::kAutomap)) automap.open = !automap.open;
             if (fires(keys::kCharacter)) { char_open = !char_open; if (char_open) stash_open = cube_open = quest_log.open = hireling.open = false; }
@@ -427,7 +428,16 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         };
         if (inv_open && !held) close_button(inv_close_down, inv_open, lay.panel_x + 0x12, lay.panel_y + 416);
         if (!tree_open || held) tree_close_down = false;
-        if (tree_open && !held) close_button(tree_close_down, tree_open, kTreeCloseLeft, kTreeCloseBottom);
+        if (tree_open && !held) {
+            const auto close = skill_tree_close(character.character_class, tree_tab);
+            const bool over = close.contains(mouse.x, mouse.y);
+            if (mouse.press_this_frame && over) { tree_close_down = true; mouse.press_this_frame = false; }
+            if (mouse.release_this_frame && tree_close_down) {
+                tree_close_down = false;
+                if (over) tree_open = false;
+                mouse.release_this_frame = false;
+            }
+        }
         if (char_open && !held) close_button(char_close_down, char_open, kCharPanelX + 0x80, kCharPanelY + 420);
         const bool over_panel =
             (tree_open && mouse.x >= 400 && mouse.x < 720 && mouse.y >= 60 && mouse.y < 540) ||
@@ -963,26 +973,6 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (stats_down && on_stats) { char_open = true; stash_open = cube_open = quest_log.open = false; }
             if (skills_down && on_skills) { tree_open = true; inv_open = false; }
             stats_down = skills_down = false;
-        }
-        // Persistent Character/Stats shortcut, separate from New Stats points.
-        const bool character_shortcut = !coop_hud_hidden() && !game_menu.open && !controls.open && !help.open
-            && !held && identify_with < 0 && imbue_with < 0 && !gold_box;
-        const bool over_character = character_shortcut && over_character_shortcut(mouse.x, mouse.y);
-        if (!character_shortcut) character_button_down = false;
-        if (mouse.press_this_frame && over_character) {
-            character_button_down = true;
-            mouse.press_this_frame = false;
-            hud_click = true;
-            audio.play_sfx(*scene, d2d::rules::sound_ids::kCursorButtonClick, 1.f, 0);
-        }
-        if (mouse.release_this_frame && character_button_down) {
-            character_button_down = false;
-            if (over_character) {
-                char_open = !char_open;
-                if (char_open) stash_open = cube_open = quest_log.open = hireling.open = party.open = false;
-            }
-            mouse.release_this_frame = false;
-            hud_click = true;
         }
         // The run button: the same press and click (FUN_00499500); let go
         // over it and run toggles, as R does (FUN_004996a0).

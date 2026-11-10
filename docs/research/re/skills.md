@@ -2365,3 +2365,38 @@ Cited from the decompile (no oracle run); re-check with
   and back and its hits are not traced (the helpers above are named, not
   read) and d2d has no moving trap monster (`summons.cpp` places them at
   rest), so the `ponytail:` stays.
+
+## Keyboard assignment ownership and hotkey packet follow-up
+
+The keyboard picker wrote the display character's hotkeys, but Town::publish
+then copied the World's stale header over them. The client now retains its
+binding array when applying gameplay state and updates the local save owner
+immediately when a binding changes, including clearing the former duplicate.
+This is a d2d ownership fix, not a new original-game algorithm claim.
+
+`FUN_0054c870` (read in local 1.14d) requires a nine-byte C->S 0x51 packet.
+It reads the slot from the high word of +1 (0..15), skill from low 15 bits,
+left from bit 15 and item ID from +5; an out-of-range skill becomes -1.
+It checks the skill entry with `FUN_006439b0`, then calls `FUN_005356b0`
+with slot, skill, left and item. The joined client sends changed bindings
+using this existing connection. A real-host save/reconnect remains untested.
+
+```sh
+tools/emu/.venv/bin/python -c 'import sys; sys.path.insert(0,"tools/emu"); import hotkey_packet; hotkey_packet.main()' /path/to/Game.exe
+```
+
+The real packet handler decodes four cases (normal, left, item and clear);
+skill lookup and the metadata setter are stubbed. The oracle asserts the
+decoded fields. `test_retail_keyboard` checks the matching packet bytes;
+`keyboard_bindings_d2d` tests actual picker/key input, updates and local reload.
+
+Adding `--wire` to the oracle command emits the four verified wire cases.
+Compare them with `build/tests/test_retail_keyboard --dump-packets`; the local
+four-row diff was empty. This checks encoding against the real handler's
+decode contract, not a real-host save/reconnect.
+
+An identical local UI probe assigned Fire Bolt to F1, waited 40 frames,
+closed the picker, selected Attack and pressed F1. The saved pre-fix executable
+reported the binding lost; the changed executable selected Fire Bolt. The
+committed keyboard test additionally reassigns a duplicate to F3 and reloads
+the actual saved character. These are d2d regression tests, not retail oracles.

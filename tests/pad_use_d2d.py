@@ -12,6 +12,7 @@ there) and A travels to the Cold Plains. Skips without the MPQs.
 import atexit, os, platform, socket, struct, subprocess, sys, tempfile, time
 
 d2d = sys.argv[1]
+keyboard_ux = "--keyboard-ux" in sys.argv[2:]
 seed_ux = "--seed-ux" in sys.argv[2:]
 portal_ux = "--portal-ux" in sys.argv[2:]
 controller_ux = "--controller-ux" in sys.argv[2:]
@@ -23,7 +24,7 @@ if not os.path.exists(os.path.join(data, "d2data.mpq")):
     print(f"SKIP: {data}/d2data.mpq not found")
     sys.exit(77)   # ctest's SKIP_RETURN_CODE (tests/CMakeLists.txt)
 
-if (skill_buttons or seed_ux) and not os.path.isfile(os.environ.get("D2_PATCH_INSTALLER", "")):
+if (skill_buttons or seed_ux or keyboard_ux) and not os.path.isfile(os.environ.get("D2_PATCH_INSTALLER", "")):
     print("SKIP: skill-button check needs D2_PATCH_INSTALLER (1.14d)")
     sys.exit(77)
 
@@ -55,7 +56,7 @@ if portal_ux:
         f.write("main 220\ns0 0\n")
 
 sock_path = os.path.join(tempfile.gettempdir(), f"d2d_pad_use_{os.getpid()}.sock")
-proc = subprocess.Popen([d2d, "--headless", *([] if portal_ux or seed_ux else ["--no-save"]), "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charselect"],
+proc = subprocess.Popen([d2d, "--headless", *([] if portal_ux or seed_ux or keyboard_ux else ["--no-save"]), "--seed", "3", "--data", data, "--devctl", sock_path, "--start-screen", "charselect"],
                         env=dict(os.environ, HOME=home))
 atexit.register(lambda: proc.poll() is None and proc.kill())
 
@@ -137,6 +138,59 @@ def screenshot(name):
         os.makedirs(directory, exist_ok=True)
         cmd(f"screenshot {os.path.join(directory, name)}")
 
+if keyboard_ux:
+    for skill in (36, 39):
+        cmd(f"debug points {skill} 5")
+    frames(5)
+    def bindings():
+        return list(map(int, state()["hotkeys"].split(",")))
+    def bind_spell(skill, slot, left):
+        cmd(f"click {141 if left else 659} 575"); frames(3)
+        assert state()["picker"] == ("1" if left else "2")
+        pixel_x, pixel_y = map(int, cmd(f"debug pickerat {skill}").split()[1:])
+        cmd(f"move {pixel_x} {pixel_y}"); frames(3)
+        cmd(f"key F{slot + 1}"); frames(40)
+        assert bindings()[slot] == (skill | (0x8000 if left else 0)), "binding was overwritten by world updates"
+        screenshot(f"keyboard-bind-{slot}.png")
+        cmd("key Escape"); frames(3)
+        return pixel_x, pixel_y
+    point = bind_spell(36, 0, True)
+    print(f"picker Fire Bolt left: {point}", flush=True)
+    bind_spell(39, 1, False)
+    bind_spell(36, 2, True)
+    assert bindings()[0] == 0xffff, "duplicate old slot was not cleared"
+    cmd("debug skill left 0"); frames(4)
+    cmd("key F3"); frames(12)
+    assert state()["lskill"] == "36", "F3 did not select the bound left skill"
+    cmd("key F2"); frames(12)
+    assert state()["rskill"] == "39", "F2 did not select the bound right skill"
+    expected = bindings()
+    cmd("key Escape"); frames(3); cmd("key Up"); frames(3); cmd("key Return"); frames(25)
+    assert state()["screen"] == "charselect"
+    cmd("key Return"); frames(30)
+    assert bindings() == expected, "save/reload lost keyboard bindings"
+    # The stock New Stats notification is conditional, not a permanent HUD icon.
+    cmd("debug statpts 0"); frames(3)
+    cmd("click 222 578"); frames(3)
+    assert state()["character_panel"] == "0", "invented permanent Character shortcut remains"
+    cmd("debug statpts 5"); frames(3)
+    screenshot("retail-new-stats.png")
+    cmd("click 55 480"); frames(4)
+    assert state()["character_panel"] == "1", "retail New Stats button did not open Character"
+    cmd("key a"); frames(3)
+    for tab, close_x in ((1, 415), (2, 415), (3, 571)):
+        cmd("key t"); frames(3)
+        cmd(f"click 675 {430 if tab == 1 else 325 if tab == 2 else 220}"); frames(3)
+        screenshot(f"retail-tree-{tab}.png")
+        cmd(f"click {close_x + 17} 460 down"); frames(3)
+        cmd(f"move {close_x + 60} 420"); frames(3)
+        cmd(f"click {close_x + 60} 420 up"); frames(3)
+        assert state()["tree"] != "0", "dragging off Close should cancel"
+        cmd(f"click {close_x + 17} 460"); frames(4)
+        assert state()["tree"] == "0", "retail tree close did not close"
+    print("ok: keyboard assignment/reassignment survives updates and reload; retail controls use real input")
+    sys.exit(0)
+
 if seed_ux:
     sheet = os.path.join(saves, "Alpha.padskills")
     assert not os.path.exists(sheet), "classic preset created a controller sheet"
@@ -179,12 +233,10 @@ if seed_ux:
     assert "s0 39\n" in bindings and "s1 42\n" in bindings and "s2 -1\n" in bindings, bindings
     assert state()["statpts"] == "0", "shortcut fixture needs no unspent stat points"
     cmd("click 222 578"); frames(4)
-    assert state()["character_panel"] == "1", "Character shortcut must work without stat points"
-    cmd("click 222 578"); frames(4)
-    assert state()["character_panel"] == "0", "Character shortcut must toggle closed"
+    assert state()["character_panel"] == "0", "invented Character shortcut must not remain"
     cmd("key t"); frames(4)
     screenshot("seed-skill-tree-close.png")
-    cmd("click 664 516"); frames(4)
+    cmd("click 432 460"); frames(4)
     assert state()["tree"] == "0", "visible skill-tree close did not close"
     if state().get("mini") == "0":
         cmd("click 399 575"); frames(4)

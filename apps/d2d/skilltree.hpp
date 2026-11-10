@@ -19,8 +19,6 @@ namespace d2d::client {
 // The right panel's right edge and bottom at 800x600 (game.exe works from
 // W - panel x and panel y + H - 480).
 constexpr int kTreeR = 720, kTreeB = 540;
-// Shared visible/hit rectangle for the restored close action (UI decision).
-constexpr int kTreeCloseLeft = kTreeR - 0x48, kTreeCloseBottom = kTreeB - 8;
 
 // A skill's icon box {left, bottom} (FUN_004aaa50 columns, FUN_004aa9c0
 // rows); icons are 48x48.

@@ -85,3 +85,10 @@ destinations, round trips and legacy clears. `pad_seed_d2d` uses a temporary
 character and actual save/reload to check initialization, excluded skills,
 cleared slots, preset toggling, legacy preservation and skill-tree close input.
 It also captures the open shortcut strip with controller input active.
+
+`test_retail_keyboard` compares the close rectangle against frozen retail
+output for every class/tab and checks 0x51 hotkey packet bytes.
+`keyboard_bindings_d2d` uses actual picker clicks and F-keys to check binding
+stability, duplicate reassignment, selection and local save/reload. It also
+checks conditional New Stats and retail tree close/drag-off behavior.
+Retail re-check commands and limits are in skill-tree.md and skills.md.
