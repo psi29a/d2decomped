@@ -72,6 +72,13 @@ struct Act1Ai : ThinkCtx {
         monster.skill_x = down ? x : target_x; monster.skill_y = down ? target_y : y;
         unit.dir = direction16(float(monster.skill_x - x), float(monster.skill_y - y));
     }
+    // Andariel's spray and bolt (her rules think gives their Skills.txt
+    // ids): the spray in SC (SQ: seq_andarielspray plays SC), the bolt in A1.
+    bool andariel_skill() {
+        if (act.act != d2d::rules::MonAct::skill) return false;
+        use(act.n == d2d::rules::kAndrialSpray ? "SC" : "A1", act.n);
+        return true;
+    }
 };
 
 constexpr auto kRows = std::to_array<AiRow>({
@@ -81,6 +88,7 @@ constexpr auto kRows = std::to_array<AiRow>({
     { .ai_name = "BloodRaven", .prep = &part_as<Act1Ai, &Act1Ai::blood_raven> },
     { .ai_name = "GargoyleTrap", .prep = &part_as<ThinkCtx, &ThinkCtx::nest>, .aim = &part_as<Act1Ai, &Act1Ai::gargoyle_aim> },
     { .ai_name = "Fetish", .prep = &part_as<Act1Ai, &Act1Ai::fetish> },
+    { .ai_name = "Andariel", .skill = &part_as<Act1Ai, &Act1Ai::andariel_skill> },
 });
 
 }  // namespace

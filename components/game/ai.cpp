@@ -278,12 +278,6 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
     }
 }
 
-namespace {
-
-constexpr int kAndrialSpray = 164, kAndyPoisonBolt = 201;
-
-}  // namespace
-
 // FUN_005fd350 (ECX the caster's class, x, y, flag): where a nest's young
 // come out, by its MonStats BaseId: crownest (0xce) 3 below, sarcophagus
 // (0xe4) 2 below, vile mother (0x12a) the spot itself (with `flag`: always
@@ -773,9 +767,8 @@ const AiRow* ai_row(std::string_view ai_name) {
 }
 
 // A traced MonAI's frame outside an attack (the driver FUN_005b1740:
-// target search FUN_005de890 / FUN_005dd7f0, then the AI's think; Andariel
-// MonAI 34 FUN_005f5830 -> rules::andariel_think, the rest
-// rules::mon_think). A move goes on between thinks — at a foe (a walk or
+// target search FUN_005de890 / FUN_005dd7f0, then the AI's think,
+// rules::mon_think, and its row's parts: ai/). A move goes on between thinks — at a foe (a walk or
 // run at it) or to a spot (a wander, back-off, keep-off, circle). At a
 // think it takes search_target's foe; with none it stands (10 frames,
 // the nearest - 10 from 25 subtiles off, 25 from 35), or wanders 5 when
@@ -800,9 +793,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     auto& unit = monster.unit;
     const auto& type_info = game_data.monsters.types[std::size_t(monster.type)];
     const auto& per_difficulty = type_info.diff[std::size_t(monster.difficulty)];
-    const bool andariel = type_info.ai_name == "Andariel";
     const bool cursed = monster.special == 10 || monster.special == 11;   // the curse thinks run whatever its own
-    if (!andariel && !cursed && !d2d::rules::traced_ai(type_info.ai_name)) return false;
+    if (!cursed && !d2d::rules::traced_ai(type_info.ai_name)) return false;
     const AiRow* row = ai_row(type_info.ai_name);
     const bool has_run = game_data.npc_timing(monster.npc, "RN").directions > 0;   // RN falls back to WL
     // The think's state, which each AI's parts (ai/) see through ctx.
@@ -1038,16 +1030,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         return true;
     };
     using d2d::rules::MonAct;
-    if (andariel) {
-        using d2d::rules::AndarielAct;
-        switch (d2d::rules::andariel_think(input.in_melee, input.aip, monster.seed)) {
-            case AndarielAct::spray: ctx.use("SC", kAndrialSpray); return true;   // SQ: seq_andarielspray plays SC
-            case AndarielAct::bolt: ctx.use("A1", kAndyPoisonBolt); return true;
-            case AndarielAct::melee: act = { MonAct::a1 }; break;
-            case AndarielAct::idle: act = { MonAct::idle, 5 }; break;
-            case AndarielAct::walk: act = { MonAct::walk, 7 }; break;
-        }
-    } else if (cursed) {
+    if (cursed) {
         input.swings = !type_info.interact && game_data.npc_timing(monster.npc, "A1").directions > 0;
         input.runs = has_run; input.afraid = monster.afraid;
         act = monster.special == 10 ? d2d::rules::dim_vision_think(input, monster.seed) : d2d::rules::terror_think(input, monster.seed, away);
@@ -1435,7 +1418,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // it). A mode's end (FUN_005a8030: not WL / RN) goes to NU, whose start
     // FUN_005a73e0 files the think aidel on (0: 15; stunned 0x2d) unless one
     // is pending later.
-    const bool own_think = type_info.ai_name == "Andariel" || monster.special == 10 || monster.special == 11 || d2d::rules::traced_ai(type_info.ai_name);
+    const bool own_think = monster.special == 10 || monster.special == 11 || d2d::rules::traced_ai(type_info.ai_name);
     const bool frozen = now_ms < monster.frozen_until;
     const auto think_due = [&] { return own_think && monster.think_pending() && now_ms >= monster.next_act && !monster.uninterruptable() && !frozen; };
     // Frozen, a mode's events due are dropped (FUN_005a7f80: 0 its strike or
@@ -1648,13 +1631,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // the target stood, srvdofunc 88 FUN_005cb580 fires): SC frames 4..12
     // (MonSeq seq_andarielspray's events; AnimData ANSCHTH's agree) each
     // send one andarielspray from her at rules::andariel_spray_aim.
-    if (monster.mode == "SC" && monster.skill == kAndrialSpray) {
+    if (monster.mode == "SC" && monster.skill == d2d::rules::kAndrialSpray) {
         const int frame = int((now_ms - unit.mode_ms) / game_data.npc_timing(monster.npc, "SC").ms_per_frame());
         const int x = subtile(unit.x), y = subtile(unit.y);
         while (monster.skill_frame < std::min(frame, 12))
             if (++monster.skill_frame >= 4 && !frozen) {
                 const auto [aim_x, aim_y] = d2d::rules::andariel_spray_aim(d2d::rules::direction64(x, y, monster.skill_x, monster.skill_y), monster.skill_frame);
-                andariel_missile(game_data, monster, "andarielspray", float(aim_x) / 5, float(aim_y) / 5, now_ms, missiles, skill_level(game_data, monster, kAndrialSpray));
+                andariel_missile(game_data, monster, "andarielspray", float(aim_x) / 5, float(aim_y) / 5, now_ms, missiles, skill_level(game_data, monster, d2d::rules::kAndrialSpray));
             }
         if (mode_over()) { mode_ends(); monster.skill = -1; }
         else if (!think_due()) return false;
@@ -1662,7 +1645,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // An attack, a taunt (the Fallen's S2), a skill's sequence (MonSeq: its
     // event rows), a young one coming out (spawnmode S1), a skill cast in S3
     // (Diablo's Wall, Prison and Prime Firewall: Sk*mode S3).
-    if (casting && !(monster.mode == "SC" && monster.skill == kAndrialSpray)) {
+    if (casting && !(monster.mode == "SC" && monster.skill == d2d::rules::kAndrialSpray)) {
         const auto& timing = game_data.npc_timing(monster.npc, monster.mode);
         const SeqRows* seq = skill_seq(game_data, type_info, monster.skill);
         if (seq && seq->front().mode == "WL") seq = nullptr;               // a charge's swing: one hit (its flag 0x40 after the first)
@@ -1911,8 +1894,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         set_mode(game_data, raised, "NU", now_ms);
                     }
                 }
-            } else if (monster.skill == kAndyPoisonBolt) {                     // FUN_0056ecb0: one andypoisonbolt at the target
-                andariel_missile(game_data, monster, "andypoisonbolt", dx, dy, now_ms, missiles, skill_level(game_data, monster, kAndyPoisonBolt));
+            } else if (monster.skill == d2d::rules::kAndyPoisonBolt) {                     // FUN_0056ecb0: one andypoisonbolt at the target
+                andariel_missile(game_data, monster, "andypoisonbolt", dx, dy, now_ms, missiles, skill_level(game_data, monster, d2d::rules::kAndyPoisonBolt));
             } else if (monster.skill >= 0 && monster.skill == skill_id(game_data, "CountessFirewall")) {
                 countess_firewall(game_data, monster, now_ms, missiles);
             } else if (const int fireball = skill_id(game_data, "VampireFireball"); monster.skill >= 0 && (monster.skill == fireball || monster.skill == skill_id(game_data, "VampireMissile"))) {

@@ -1126,6 +1126,8 @@ inline int direction64(int x, int y, int target_x, int target_y) {
 // One rand(100) on her seed each, as drawn here; her MonStats row has
 // both skills, so their >= 0 tests always pass.
 enum class AndarielAct : std::uint8_t { spray, melee, idle, bolt, walk };
+// Her two skills' Skills.txt ids: AndrialSpray (Skill1), AndyPoisonBolt (Skill2).
+inline constexpr int kAndrialSpray = 164, kAndyPoisonBolt = 201;
 inline AndarielAct andariel_think(bool in_melee, const std::array<int, 8>& aip, Rng& rng) {
     if (in_melee) return rng(100) < aip[0] ? AndarielAct::spray : AndarielAct::melee;
     if (rng(100) < aip[1]) return AndarielAct::idle;

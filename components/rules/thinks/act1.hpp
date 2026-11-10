@@ -444,6 +444,18 @@ struct Act1Thinks : Thinker {
         *input.pace = (100 - std::clamp(input.life_pct, 0, 100)) >> 1;
         return walk;
     }
+    // Andariel (34, FUN_005f5830): andariel_think, her spray and bolt as
+    // their Skills.txt ids (the game plays them: game/ai/act1.cpp).
+    Think andariel() {
+        switch (andariel_think(input.in_melee, aip, rng)) {
+            case AndarielAct::spray: return { MonAct::skill, kAndrialSpray };
+            case AndarielAct::bolt: return { MonAct::skill, kAndyPoisonBolt };
+            case AndarielAct::melee: return { MonAct::a1 };
+            case AndarielAct::idle: return { MonAct::idle, 5 };
+            case AndarielAct::walk: return walk;
+        }
+        return { MonAct::untraced };
+    }
 };
 
 inline constexpr auto kAct1Thinks = std::to_array<ThinkRow>({
@@ -470,6 +482,7 @@ inline constexpr auto kAct1Thinks = std::to_array<ThinkRow>({
     { "Fetish", &think_as<Act1Thinks, &Act1Thinks::fetish> },
     { "Griswold", &think_as<Act1Thinks, &Act1Thinks::griswold> },
     { "Smith", &think_as<Act1Thinks, &Act1Thinks::smith> },
+    { "Andariel", &think_as<Act1Thinks, &Act1Thinks::andariel> },
 });
 
 }  // namespace d2d::rules
