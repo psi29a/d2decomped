@@ -391,3 +391,26 @@ local player's mercenary:
 
 So the merc's label is a second path that does not go through the
 cursor's unit. Who draws the kept text was not read. d2d: not ported.
+
+### The frame of cels (`FUN_00452e50`, 0x452e50, 518 bytes)
+
+Not a label helper: it shares this chain only through the work package
+(neighbour address). `FUN_00452e50(ECX rect {x0, y0, x1, y1})` draws a
+frame of one cel file's pieces (`DAT_007a2798`, which `controls.cpp` calls
+boxpieces; its load site was not read) with `d2d_gamemenu_cel` (draw mode
+5, colour -1). Callers: `FUN_0049d5a0`, `FUN_004a5270`, `FUN_004b8100`,
+`FUN_004bee90` (game-calls.tsv). With R = x1 + 1, B = y1 + 1 and a piece
+counter n that runs on through all four runs (starting 0, `++n` before use):
+
+| run | cels | at |
+|---|---|---|
+| top | frame n % 6 + 2 | x from x0 + 12 step 12 while x < R − 13; y = y0 + 12 |
+| bottom | n % 6 + 0x10 | x from x0 + 13 step 12 while x < R − 13; y = B + 10 |
+| left | n % 3 + 10 | y from y0 + 0x16 step 12 while y < B − 1; x = x0 − 4 |
+| right | n % 3 + 0xd | y from y0 + 24 step 12 while y < B − 1; x = R − 7 |
+| corners | 0, 1, 8, 9 | (x0, y0 + 12), (R − 12, y0 + 12), (x0, B + 1), (R − 12, B + 1) |
+
+d2d reads the same, cited from the decompile, no oracle run:
+`apps/d2d/controls.cpp` (the `box` lambda at line 434) has the same runs,
+steps, limits, frame formulas and corners (the draw call is the cel getter,
+and the frame choice is plain arithmetic).
