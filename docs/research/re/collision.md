@@ -227,7 +227,8 @@ were not read in the asm); cited, no oracle run.
   - A path whose flag 0x40000 is set raises the internal error (`FUN_00408090(199)`;
     runtime-support.md); `FUN_00649970` sends those to `FUN_00649760`
     first, so it is not reached.
-  - The unit type (`*(path +0x30)`, 6 for no unit) is kept; type 0 only
+  - The unit type (the first dword of the owner at `path +0x30`; 6 when
+    that owner pointer is null) is kept; type 0 only
     matters at the end.
   - `cur` = `rq[2..3]` (the end), `start` = `rq[0..1]`. The tries
     `t0 t1 t2` come from `FUN_00678df0(cur, start)` (the direction of the
@@ -722,7 +723,7 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   `FUN_00463dd0` is called by `FUN_00461250`, `FUN_00463260`, `FUN_00463390` and the five
   at `0x44bf40`, `0x44c000`, `0x44c060`, `0x44c180`, `0x44c2c0`; `FUN_00463de0` by
   `FUN_00463260`, `FUN_00460830`, `0x453470`, `0x453b30`, `0x45ad60`, `0x45d780`, `0x45d9b0`).
-  They are the "is this the local player" test every client path below uses. d2d: agrees
+  They are the "is this the local player" test the client paths below use. d2d: agrees
   (skills.md:1793, :1806; `apps/whisper/whisper.cpp:45`).
 - **`FUN_004648f0`** (unit in ECX; callers `FUN_00462370`, `FUN_00462a20`, `FUN_00463180`,
   `FUN_00463260`, `FUN_004ad970`): the unit's target unit, checked first. It calls
@@ -731,8 +732,10 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   type and GUID (`FUN_00648bb0`), looks the unit up again (`FUN_00463990`, ECX = GUID, EDX =
   type) and, when that is not the stored pointer, clears the target (`FUN_00648b90(path,
   0)`). Back in 004648f0 a null path is fatal again (id 0x946), and it returns
-  `FUN_00648bf0(path)`: the target pointer, 0 for none. So a target that died or was freed
-  since it was set reads as none. d2d: reads the same, cited from the decompile, no oracle
+  `FUN_00648bf0(path)`: the target pointer, 0 for none. So it reads as none only when the
+  lookup result differs from the stored target pointer (or no target was set); a dead target
+  that is still registered would look up as the same pointer and is not cleared, and what the
+  lookup does for freed memory that was reused is not traced. d2d: reads the same, cited from the decompile, no oracle
   run, on the use (`setup.cpp:474`, `do_sounds`:
   the target's tgtsound, none without one); d2d holds the target as an index (`attack_mon`)
   and has no GUID re-lookup (not ported).
@@ -765,7 +768,7 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   | 0x18 | `FUN_00480780(unit, a, b)` | 3 (RN) |
   | 0x19 | `FUN_004804e0(word a, word b, 0, 0, 0)` | 0xd (S1) |
 
-  Every mode is set by `FUN_00480e70(unit, mode)`. A command 0, 1, 0x15..0x18 whose walk or
+  The modes are set by `FUN_00480e70(unit, mode)` (command 0x13's through `FUN_00480d20`). A command 0, 1, 0x15..0x18 whose walk or
   ask fails ends at `FUN_00460830(unit, neutral mode, 1)` and returns 0; the rest return 1.
   Commands 0x17 / 0x18 are the same two walks as 1 / 0 but set mode 3 (RN). d2d: agrees with what collision.md:242-304,
   `strike.cpp:300` and `world/tick.cpp:441` already read (commands 0, 1, 2, 8, 0x15, 0x16, the
