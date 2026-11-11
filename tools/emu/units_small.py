@@ -27,7 +27,7 @@ Covered: FUN_00620360, 006203b0, 00620410, 00620470, 006204c0, 00620710,
 006222c0, 00622300, 00622350, 00622dc0, 00622e90, 00622ea0, 00622f10,
 00622f80, 00622ff0, 00623060, 006230c0, 00623120, 006231a0, 00623220,
 00623290, 00623300, 00623350, 006233a0, 00623410, 006234c0, 006234f0,
-00623520, 00623570, 006205a0 (GetUnitSizeY).
+00623520, 00623570, 006205a0 (GetUnitSizeY), 00620900 (GetTargetCoords).
 
 `--mutation-check` breaks the model on purpose, one defect at a time, and
 requires each to fail.
@@ -44,7 +44,7 @@ FILE = ".\\UNITS\\Units.cpp"
 FILE_ADDRESS = 0x6E8E10
 ASSERT = 0x40_8A60
 COVERED = (0x62_0360, 0x62_03b0, 0x62_0410, 0x62_0470, 0x62_04c0, 0x62_0710, 0x62_0780, 0x62_07f0, 0x62_0830, 0x62_0980, 0x62_0ae0, 0x62_0b50, 0x62_0c70, 0x62_0cd0, 0x62_0d30, 0x62_0f50, 0x62_0fa0, 0x62_1150, 0x62_11c0, 0x62_12c0, 0x62_1310, 0x62_1330, 0x62_1420, 0x62_1870, 0x62_18d0, 0x62_1920, 0x62_19c0, 0x62_1a70, 0x62_1ac0, 0x62_1b00, 0x62_1b70, 0x62_1c00, 0x62_1f60, 0x62_2150, 0x62_20f0, 0x62_21e0, 0x62_2230, 0x62_2270, 0x62_22c0, 0x62_2300, 0x62_2350, 0x62_2dc0, 0x62_2e90, 0x62_2ea0, 0x62_2f10, 0x62_2f80, 0x62_2ff0, 0x62_3060, 0x62_30c0, 0x62_3120, 0x62_31a0, 0x62_3220, 0x62_3290, 0x62_3300, 0x62_3350, 0x62_33a0, 0x62_3410, 0x62_34c0, 0x62_34f0, 0x62_3520, 0x62_3570,
-           0x62_05a0)
+           0x62_05a0, 0x62_0900)
 CALLED = set()
 MUTATIONS = ("tile-path-swap", "precise-x-no-shift", "precise-x-static-wrong-type", "set-x-allows-missile", "dx-signed",
              "dx-dynamic-null-path", "screen-x-swapped", "init-path-flag-kept", "clear-room-dynamic-always",
@@ -95,6 +95,8 @@ class Rig(mw.World):
         lg(0x64_3AD0, 1, "skill-node-4", ret=lambda c: self.script.get("word", 0), regs=())
         lg(0x45_1FE0, 0, "monstats2", ret=lambda c: self.script.get("monstats2_row", 0), regs=("ecx",))
         lg(0x46_ACE0, 0, "missile-tbl", ret=lambda c: self.script.get("missile_row", 0), regs=("ecx",))
+        lg(0x64_89C0, 1, "target-x", ret=lambda c: self.script.get("by_target_x", {}).get(c.arg(0), 0), regs=())
+        lg(0x64_89D0, 1, "target-y", ret=lambda c: self.script.get("by_target_y", {}).get(c.arg(0), 0), regs=())
         self.m.hook(0x64_8BB0, self.target, 3)
         self.m.hook(0x64_3260, self.pixel, 2)
         self.m.hook(0x66_3410, self.seq, 7)
@@ -984,6 +986,31 @@ def check_unit_size_y(rig, rng):
         rig.script["monstats2_row"] = rig.script["missile_row"] = 0
 
 
+def check_target_coords(rig, rng):
+    """FUN_00620900 (unit, &point): a static path (type 2 object, 4 item, 5 tile) copies its +4 / +8 screen
+    x / y; every other type (0 player, 1 monster, 3 missile, or past 5) calls 0x64_89c0 / 0x64_89d0 (the
+    dynamic path's +8 / +0xc ScreenPos, GetTargetX / GetTargetY) and writes that pair instead. 0x7e7 null."""
+    for _ in range(40):
+        kind = kinds(rng)
+        sc = make_unit(rig, rng, kind)
+        out = sc.block(8)
+        dynamic = kind != 2 and (kind < 4 or kind > 5)
+        if dynamic:
+            x, y = rand32(rng), rand32(rng)
+            rig.script["by_target_x"] = {sc.path: x}
+            rig.script["by_target_y"] = {sc.path: y}
+            log = [("target-x", sc.path), ("target-y", sc.path)]
+        else:
+            x, y = sc.r(sc.path + 4), sc.r(sc.path + 8)
+            log = []
+        sc.w(out, x)
+        sc.w(out + 4, y)
+        got = rig.go(0x62_0900, sc.unit, out)
+        require(got[0] == "ret" and rig.log == log, f"620900 kind {kind}: {got} {rig.log}")
+        sc.check(f"620900 kind {kind}")
+    null_halt(rig, 0x62_0900, 0x7E7, 0, 0)
+
+
 def run_all():
     """Run every check; returns the case count."""
     rng = random.Random(0x620300)
@@ -995,7 +1022,7 @@ def run_all():
             (check_row, 3), (check_frame_length, 3), (check_event_copy, 3), (check_event, 3), (check_object_data, 4),
             (check_object_flags, 4), (check_misc_unit, 4), (check_player_checks, 4), (check_kept_skills, 4),
             (check_kept_readers, 4), (check_kept_setters, 4), (check_static_path_alloc, 4),
-            (check_unit_size_y, 1)]
+            (check_unit_size_y, 1), (check_target_coords, 1)]
     cases = 0
     for check, rounds in plan:
         for _ in range(rounds):
