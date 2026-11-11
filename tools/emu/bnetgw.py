@@ -101,6 +101,22 @@ def integration(exe):
     require(m.cstr(m.r32(gw_obj + 0x10)) == "1002", "GetGatewayList copies the registry value")
     del records["Gateway Key"]
 
+    # GetBattlenetGatewayList (0x518270): tries "Override Battle.net gateways" first
+    # and only falls back to "Diablo II Battle.net gateways" when that key is absent.
+    override_obj = m.alloc(36)
+    records["Override Battle.net gateways"] = b"1003\0override.example\0-6\0Override\0\0"
+    call(m, 0x518270, ecx=override_obj)
+    require(m.r32(override_obj + 0x1c) == 1, "GetBattlenetGatewayList prefers an override list")
+    require(m.cstr(m.r32(override_obj + 0x10)) == "1003", "GetBattlenetGatewayList loads the override buffer")
+    del records["Override Battle.net gateways"]
+
+    fallback_obj = m.alloc(36)
+    records["Diablo II Battle.net gateways"] = b"1004\0default.example\0-7\0Default\0\0"
+    call(m, 0x518270, ecx=fallback_obj)
+    require(m.r32(fallback_obj + 0x1c) == 0, "GetBattlenetGatewayList falls back with no override")
+    require(m.cstr(m.r32(fallback_obj + 0x10)) == "1004", "GetBattlenetGatewayList loads the default buffer")
+    del records["Diablo II Battle.net gateways"]
+
     obj = m.alloc(36)
     packed = b"1000\0" + b"01\0" + b"old.example\0-5\0Old\0\0"
     original = m.put(packed)
@@ -159,7 +175,7 @@ def integration(exe):
     before = len(writes)
     call(m, 0x517ed0, save_obj)
     require(len(writes) == before and save_data in frees, "clean unload frees without writing")
-    return 19
+    return 23
 
 
 def main():
