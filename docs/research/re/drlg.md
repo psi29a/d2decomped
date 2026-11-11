@@ -2326,7 +2326,7 @@ collision arguments against a model. It scripts the movement update and
 collision helper, runs velocity scaling for real, and does not check the
 helper's collision behavior, the abort paths or coordinate wraparound.
 
-**Bounded path expansion (FUN_0067a740).** Static trace, not an oracle: EDI
+**Bounded path expansion (FUN_0067a740).** EDI
 holds the search state, while the cost bound and path argument are stack
 arguments (the callee pops eight bytes). The current node starts at state +0.
 The function returns that node if its packed coordinates (+8) equal the target
@@ -2349,3 +2349,11 @@ is returned early if its signed heuristic is less than the unsigned byte at
 path +0x14; otherwise expansion continues. FUN_0067aaa0 calls this routine and
 retries with a larger bound. The collision helper and direction tables are not
 independently verified by this static reading.
+
+`tools/emu/drlg_expand_oracle.py` runs 80 one-step cases across eight
+directions and one three-step straight walk. Cases include destination and
+bounds exits, a blocked cell, visited costs below / equal to / above the
+candidate, the cost bound, a full node pool and a randomized direction draw.
+Collision, direction selection and backtracking are hooked; the oracle checks
+arguments, resulting grid costs, allocated child fields and the random seed.
+It does not check a general search or d2d parity.
