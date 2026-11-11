@@ -85,6 +85,13 @@ ghost spoke, +0x14 the killer.
 - **Join** (`LAB_005b4220`): not done or closed: bit 4 → state 3, log 2,
   data +0xc; bit 3 → 3 / 1; bit 2 → 2 / 1.
 
+Izual's search helper `FUN_005b43f0` looks up quest 0x16. With a record and
+nonzero data +0x12, it clears data +0x18, stores the supplied unit at +0x14,
+and runs `FUN_005538d0` with callback `FUN_005b43d0`; it returns whether
++0x18 remains zero. Otherwise it returns zero without these writes. The
+18-case oracle `tools/emu/quest_izual_nearby.py` hooks lookup and iteration,
+including scripted changes to +0x18; it does not check the callback.
+
 ## Terror's End (a4q2.cpp, word 0x1a)
 
 Data (0x4c bytes): +0 Tyrael's word heard, +1 the Diablo timer armed, +2

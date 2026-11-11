@@ -193,6 +193,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Khalim log-send filter (`FUN_005b7f90`; callees hooked) | `uv run python quest_khalim_log.py --exe /path/to/game.exe` | `ok: 12 Khalim log-filter cases (callees hooked)` |
 | Act IV opening alert (`FUN_005b3750`; flag test hooked) | `uv run python quest_act4_open_alert.py --exe /path/to/game.exe` | `ok: 24 Act IV opening alert cases (flag test hooked)` |
 | Terror's End object initializer (`FUN_005b5840`; callees hooked) | `uv run python quest_diablo_object_mode.py --exe /path/to/game.exe` | `ok: 10 Terror's End object initialization cases (callees hooked)` |
+| Izual search gate (`FUN_005b43f0`; callees hooked) | `uv run python quest_izual_nearby.py --exe /path/to/game.exe` | `ok: 18 Izual search gate cases (callees hooked)` |
 | Quest party callback dispatch (`FUN_005ba2f0`, party routines hooked; `--mutation-check` three ways) | `uv run python quest_party_callback.py` | `ok: 24 quest party callback cases` |
 | Quest prisoner packet (`FUN_0058e120`, lookups and sender hooked; `--mutation-check` three ways) | `uv run python quest_prisoner_packet.py` | `ok: 24 quest prisoner packet cases` |
 | Blood Raven quest-log filter (`FUN_00590830`; callees hooked) | `uv run python quest_burial_log.py --exe /path/to/game.exe` | `ok: 48 Blood Raven log-filter cases (callees hooked)` |
