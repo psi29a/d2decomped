@@ -446,7 +446,9 @@ struct Skill {
     std::string summode;                   // +0xbf the mode its summon comes in
     Calc petmax;                           // +0xc0: how many of the group at once
     int sumumod = 0;                       // +0xe4: the MonUMod its summon gets (FUN_005c4470)
+    bool target_ally = false;             // TargetAlly (flag bit 0x1a, record +7 & 4): FUN_00554d20
     bool target_corpse = false;            // TargetCorpse: raised from a corpse
+    bool target_pet = false;               // TargetPet (flag bit 0x19, record +7 & 2): FUN_005542c0
     std::array<std::string, 5> sumskill;   // +0xc4: the pet's skills
     std::array<Calc, 5> sumsk_calc;        // +0xd0: their levels
     int result_flags = 0;                  // ResultFlags (8: knockback)

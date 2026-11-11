@@ -1193,8 +1193,16 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   air: passes units, lands at its target), **51** (volcano debris):
   HitSubMissile1 there. **3** (bomb on ground): the skill's damage within
   aurarange. **7** (FUN_005a9fb0, Holy Bolt): sHitPar2 1 strikes only the
-  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 it heals
-  allies by calc1. **9** (FUN_005aa250, Immolation Arrow): the damage
+  undead (FUN_0063e990), 2 demons (FUN_0063e940); with sHitPar1 (+0x4c)
+  non-zero and an owner (FUN_00552fd0) it heals. TargetPet (flag bit 0x19,
+  FUN_005542c0) is a monster owned by that player. TargetAlly (bit 0x1a,
+  FUN_00554d20) is a player, or a monster owned by a player, in the owner's
+  party: FUN_00540710 is -1 with no party, and that fails, so a solo caster
+  is not healed. The amount is calc1 whole points (skill +0x138, FUN_00646ca0)
+  in 256ths plus FUN_0045c3e0 below (calc2 - calc1) x 256 on the missile seed
+  (+0x20). At 0 or less, FUN_005a8910 of missile stats 0x16 and 0x15. Added
+  to life (stat 6), capped at max life. Returns 1 (ends, no damage).
+  ProgOverlay (+0x36) plays when above 0 (holybolt: healing). **9** (FUN_005aa250, Immolation Arrow): the damage
   within sHitPar1 (else calc1), fire over that ground (FUN_005a9530) for
   the arrow row's SHitCalc1 (+0x88) frames (0x8000), burning its own row
   (immolationfire: + Fire Arrow x 5 %).
@@ -1254,7 +1262,9 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - Built: `Fight::burst / strike / area / spot / spot_skill /
   strike_bolts / land_range`, `Missile::ox / oy / turn / hit_at`,
   MonType undead / demon. Not traced / not built: Blessed Hammer's path
-  (a spiral out at a fifth of its speed), Holy Bolt's healing, Static
+  (a spiral out at a fifth of its speed), Holy Bolt's party heal and its
+  ProgOverlay (the pet heal is built; the draw uses the fight rng, not the
+  missile seed), Static
   Field's floor, Mind Blast's conversion, Volcano's frame window,
   Double Throw (the throwing weapons' missiles). Hit 2's ring
   (FUN_005a9370: Plague Javelin 23 clouds of 87 frames, `test_plague_ring`
