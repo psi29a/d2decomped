@@ -156,6 +156,12 @@ deaths.
 - **Join** (`FUN_005b5080`): LoD bit 9 without word 0x1c bit 0 → bit 9
   cleared (again on `LAB_005b5030`); bits 4 / 3 / 2 → states as a4q1.
 
+Object initializer `FUN_005b5840` looks up quest record 0x17. With a record,
+if data +0x40 is already 2 it sets the supplied object to mode 2; otherwise
+it writes 2 there and sets mode 1. With no record it does nothing.
+`tools/emu/quest_diablo_object_mode.py` checks ten cases with lookup and mode
+setting hooked; the object identity and helper internals are not checked.
+
 ## The Hellforge (a4q3.cpp, word 0x1b)
 
 Data (0x20 bytes): +0 the forge's mode (0 / 2 / 3), +2 Cain's word heard,
