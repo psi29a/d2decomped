@@ -48,6 +48,7 @@ were byte-scanned (rel32 calls, jumps, raw pointers) and are in
 
 | Address | What |
 |---|---|
+| `FUN_006205a0` | A unit's footprint height in subtiles (stdcall; null asserts, 0x74b): a player 2, an item 1; a monster its MonStats2 SizeY (`FUN_00451fe0`, byte `+9`, signed; the loader `FUN_006571a0` maps SizeY to 9), an object its objects.txt SizeY (`*(+0x14)` `+0xd4`; loader `FUN_0063f690`, 0x63f89a), a missile its Missiles.txt Size (`FUN_0046ace0`, byte `+0x18a`, unsigned; loader `FUN_00661b20`, 0x662f94); 0 for a row not found or any other type. The width is `FUN_00620510` (`+8`, `+0xd0`). d2d: `rules::unit_size_y`, checked by `tools/emu/unit_size.py` |
 | `FUN_006219c0` | An object's Objects.txt `+0x120 + mode`; 1 for others |
 | `FUN_00621a70` | An object's Objects.txt `+0x13a`, 0 for others |
 | `FUN_00621ac0` | Objects.txt `+0x13c` == 1 (not an object: fatal 0xe1e) |
