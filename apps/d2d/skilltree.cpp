@@ -55,10 +55,18 @@ void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
                      int pressed, int mouse_x, int mouse_y) {
     if (cls < 0 || cls > 6) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-    auto dc6 = [&](const d2d::dc6::Sprite& spr, int frame, int x, int y, int shade = 256) {
+    // Text colours are the PL2 shifts (FUN_004f64b0): 1 red, 3 blue, 5 grey.
+    // Colour 0 is the act palette itself.
+    auto palette_for = [&](int colour) -> const d2d::palette::Palette& {
+        if (colour == 1 && !scene.act_text_red.entries().empty()) return scene.act_text_red;
+        if (colour == 3 && !scene.act_text_blue.entries().empty()) return scene.act_text_blue;
+        if (colour == 5 && !scene.act_text_grey.entries().empty()) return scene.act_text_grey;
+        return pal;
+    };
+    auto dc6 = [&](const d2d::dc6::Sprite& spr, int frame, int x, int y, const d2d::palette::Palette* colour = nullptr) {
         if (frame < 0 || spr.frames_per_direction() <= std::uint32_t(frame)) return;
         const auto& frame_ref = spr.frame(0, std::uint32_t(frame));
-        blit_sprite(framebuffer, frame_ref, pal, x, y - int(frame_ref.height) + 1, shade);
+        blit_sprite(framebuffer, frame_ref, colour ? *colour : pal, x, y - int(frame_ref.height) + 1);
     };
     const auto& background = scene.skill_tree_bg[std::size_t(cls)];
     for (const int base : { 0, 4 * tab }) {
@@ -79,22 +87,30 @@ void draw_skill_tree(std::vector<std::uint8_t>& framebuffer, const Scene& scene,
     const auto pts = stats.get(d2d::d2s::kSkillPts);
     centred(scene.font, kTreeR - 0x41, kTreeR - 0x19, 140, std::to_string(pts));
     const auto& list = scene.rules.class_skills[std::size_t(cls)];
+    const auto& ids = scene.skills.class_ids[std::size_t(cls)];
     const int clvl = int(stats.get(d2d::d2s::kLevel));
     int hover = -1;
     for (std::size_t i = 0; i < list.size(); ++i) {
         const auto& class_skill = list[i];
         if (class_skill.page != tab) continue;
         const auto [icon_x, icon_y] = skill_icon_at(class_skill);
-        const bool live = pts > 0 ? d2d::rules::can_learn(scene.rules, cls, int(i), levels, clvl) : levels[i] > 0;
-        dc6(scene.skill_icons[std::size_t(cls)], class_skill.icon + (int(i) == pressed ? 1 : 0), icon_x, icon_y, live ? 256 : 128);
-        if (levels[i] > 0) {
-            const auto& font = levels[i] > 9 ? (scene.font_small.line_height() > 0 ? scene.font_small : scene.font) : scene.font;
-            font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, icon_x + 0x30 - (levels[i] > 9 ? 4 : 0), icon_y + 0xc - int(font.sheet().frame(0, 0).height) + 1,
-                   std::to_string(levels[i]));
+        const bool over_icon = mouse_x > icon_x && mouse_x < icon_x + 0x30 && mouse_y > icon_y - 0x30 && mouse_y < icon_y;
+        // Points left: grey what can't take one. None left: grey every unlearned icon. Hover wins (colour 3).
+        const bool greyed = pts > 0 ? !d2d::rules::can_learn(scene.rules, cls, int(i), levels, clvl) : levels[i] == 0;
+        const auto& icon_palette = palette_for(over_icon ? 3 : greyed ? 5 : 0);
+        dc6(scene.skill_icons[std::size_t(cls)], class_skill.icon + (int(i) == pressed ? 1 : 0), icon_x, icon_y, &icon_palette);
+        const int base_level = int(levels[i]);
+        int shown_level = base_level;
+        if (env.level && i < ids.size()) shown_level = env.level(ids[i]);
+        if (shown_level != 0) {
+            const bool formal = shown_level >= 10;
+            const auto& level_font = formal && scene.font_formal10.line_height() > 0 ? scene.font_formal10 : scene.font;
+            const int level_colour = shown_level > base_level ? 3 : shown_level < base_level ? 1 : 0;
+            level_font.draw(framebuffer, kScreenWidth, kScreenHeight, palette_for(level_colour), icon_x + 0x30 - (formal ? 4 : 0),
+                            icon_y + 0xc - int(level_font.sheet().frame(0, 0).height) + 1, std::to_string(shown_level));
         }
-        if (mouse_x > icon_x && mouse_x < icon_x + 0x30 && mouse_y > icon_y - 0x30 && mouse_y < icon_y) hover = int(i);
+        if (over_icon) hover = int(i);
     }
-    const auto& ids = scene.skills.class_ids[std::size_t(cls)];
     if (hover >= 0 && std::size_t(hover) < ids.size()) {
         const auto [icon_x, icon_y] = skill_icon_at(list[std::size_t(hover)]);
         const int skill = ids[std::size_t(hover)];
