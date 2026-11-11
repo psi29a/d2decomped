@@ -118,7 +118,7 @@ void blit_dc6_grid(std::vector<std::uint8_t>& framebuffer,
 d2d::palette::Palette tinted(const d2d::palette::Palette& base, std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
     std::array<d2d::palette::Rgba, 256> entries{};
     for (std::size_t i = 0; i < entries.size(); ++i) {
-        const auto colour = base[std::uint8_t(i)];
+        const auto colour = base.entries()[i];
         const int bright = std::min(255, (colour.r * 3 + colour.g * 5 + colour.b * 2) / 10 * 3 / 2);
         entries[i] = { std::uint8_t(red * bright / 255), std::uint8_t(green * bright / 255), std::uint8_t(blue * bright / 255), colour.a };
     }

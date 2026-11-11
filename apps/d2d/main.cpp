@@ -47,6 +47,7 @@
 #include <join.hpp>
 #include <log.hpp>
 #include <mpq.hpp>
+#include <palette.hpp>
 #include <screenshot.hpp>
 #include <sentry.h>
 #include <sound_ids.hpp>
@@ -359,6 +360,7 @@ static bool        g_click_keys = true;   // Configure Controls' Attack / Use an
 static keys::Clicks g_click_bindings = keys::kNoClicks;   // d2d.cfg click_attack / click_skill
 static bool        g_coop_lobby = true;   // the title's "SINGLE PLAYER / COOP" and character select's co-op lobby; off: --toggle coop_lobby=off // Configure Controls' gamepad page (deviations.md); off: --toggle pad_controls=off
 static int         g_master_volume = 100, g_music_volume = 50;   // d2d.cfg master_volume / music_volume (the game menu sets them)
+static int         g_gamma = 155, g_contrast = 100;   // d2d.cfg gamma / contrast (DirectDraw FUN_006be190; 100 is the flat ramp)
 static int         g_start_class = -1;   // none: char-create opens with no class picked
 static std::string g_start_name;
 static bool        g_start_hardcore = false;
@@ -2052,6 +2054,9 @@ int main(int argc, char** argv) {
             if (cfg.contains(kAutomapKeys[option].first)) g_automap_options[option] = std::clamp(std::atoi(cfg[kAutomapKeys[option].first].c_str()), 0, kAutomapKeys[option].second);
     }
     if (cfg.contains("music_volume")) g_music_volume = std::clamp(std::atoi(cfg["music_volume"].c_str()), 0, 100);
+    if (cfg.contains("gamma")) g_gamma = std::clamp(std::atoi(cfg["gamma"].c_str()), d2d::palette::kGammaMin, d2d::palette::kGammaMax);
+    if (cfg.contains("contrast")) g_contrast = std::clamp(std::atoi(cfg["contrast"].c_str()), d2d::palette::kContrastMin, d2d::palette::kContrastMax);
+    d2d::palette::Palette::set_ramp(g_gamma, g_contrast);
 
     if (headless) {
         if (!channel.active()) {

@@ -431,13 +431,15 @@ void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const 
     // most or with a stambarblue state (flag 0x18) all of it, blue.
     auto nearest = [&](int red, int green, int blue) {
         int best = 1 << 30;
-        std::array<std::uint8_t, 3> out{};
-        for (std::size_t i = 0; i < 256 && i < pal.entries().size(); ++i) {
-            const auto colour = pal[std::uint8_t(i)];
+        std::uint8_t found = 0;
+        const auto source = pal.entries();
+        for (std::size_t index = 0; index < 256 && index < source.size(); ++index) {
+            const auto& colour = source[index];
             const int distance = (colour.r - red) * (colour.r - red) + (colour.g - green) * (colour.g - green) + (colour.b - blue) * (colour.b - blue);
-            if (distance < best) { best = distance; out = { colour.r, colour.g, colour.b }; }
+            if (distance < best) { best = distance; found = std::uint8_t(index); }
         }
-        return out;
+        const auto colour = pal[found];
+        return std::array<std::uint8_t, 3>{ colour.r, colour.g, colour.b };
     };
     std::int64_t stamina = stamina_shown, stamina_max = stats.values[kMaxStamina];
     auto rgb = nearest(0xf4, 0xc0, 0x4c);

@@ -580,7 +580,7 @@ void load_act_palettes(Scene& scene, const d2d::mpq::Stack& mpqs, int act) {
     if (auto bytes = mpqs.try_read(dir + "Pal.pl2"); bytes && bytes->size() >= 0x400 + 32 * 256)
         for (std::size_t level = 0; level < 32; ++level) {
             std::array<d2d::palette::Rgba, 256> entries{};
-            for (std::size_t i = 0; i < 256; ++i) entries[i] = scene.act_pal[std::uint8_t((*bytes)[0x400 + level * 256 + i])];
+            for (std::size_t i = 0; i < 256; ++i) entries[i] = scene.act_pal.entries()[std::uint8_t((*bytes)[0x400 + level * 256 + i])];
             entries[0].a = 0;
             scene.act_lit[level] = d2d::palette::Palette(entries);
         }
@@ -589,7 +589,7 @@ void load_act_palettes(Scene& scene, const d2d::mpq::Stack& mpqs, int act) {
         const auto text_colour = [&](std::size_t colour) {
             const std::size_t shift = bytes->size() - 13 * 256 + colour * 256;
             std::array<d2d::palette::Rgba, 256> entries{};
-            for (std::size_t i = 0; i < 256; ++i) entries[i] = scene.act_pal[std::uint8_t((*bytes)[shift + i])];
+            for (std::size_t i = 0; i < 256; ++i) entries[i] = scene.act_pal.entries()[std::uint8_t((*bytes)[shift + i])];
             entries[0].a = 0;
             return d2d::palette::Palette(entries);
         };
