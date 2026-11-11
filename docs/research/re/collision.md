@@ -1270,3 +1270,31 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   step and the sound tail are both already ported at the citations above;
   the ClientFn gate itself has no d2d equivalent found (not ported as a
   function).
+- **`FUN_004d2c70`** (fastcall ECX unit; 0xf1 bytes, `004d2c70`..`004d2d61`,
+  plain `RET`): the missile's per-frame step. A null unit, an out-of-range
+  or missing Missiles.txt row (`unit+4`, the same `PTR_DAT_00744304+0xb64`
+  table at `0x1a4` per row missiles.md already reads throughout) end in a
+  tail call to `FUN_004cd390(unit)` (a cleanup/removal-sound step: gated on
+  the row's `+0x12` and unit `+0xc4` bit 0x15, calls `FUN_00621150`,
+  `FUN_00465f00`/`FUN_00465ee0`; not traced further here). With a row:
+  `FUN_004cd1c0()` runs first when the row's `+0x131` byte is set (reads
+  unaffected `EBX` directly rather than a passed argument — a sound-chance
+  check against the row's `+0x130` byte and the unit's own seed state,
+  `+0x44` flags `0x300` and `+100`). Not in town (`FUN_00620bb0`): the
+  unit's path position is read the same way `FUN_00480ef0` already reads
+  it above (type 2 or 4/5 direct from the path struct, else
+  `d2d_path_get_x`/`_get_y`), then `FUN_00463740(0, y, x)` — not the same
+  call shape as the near-list walk missiles.md:81 reads for this address
+  elsewhere, so this may be a different overload; not resolved here. Then,
+  unless the row's `+5` byte bit 4 is set, `FUN_0061ab00` of that result
+  non-zero also tail-calls `FUN_004cd390` and returns. Otherwise it reads
+  the row's `+8` short and, when it's a valid index under `DAT_0072a34c`,
+  tail-jumps through the pointer table at `0x72a398` — the same client
+  missile-callback table missiles.md:161 already names two slots further
+  in (`0x72a3a0`, `FUN_004d33e0` and the entry at `0x004d3460`); an
+  out-of-range index
+  is a no-op return. So `FUN_004d2c70` is the entry into that table, not a
+  table member itself: the room/position gate before every missile client
+  callback runs. d2d: not ported as a function; the table's own callbacks
+  are the ones missiles.md's "Client missile callbacks" section already
+  covers (not re-read here).
