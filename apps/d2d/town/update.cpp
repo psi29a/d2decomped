@@ -191,9 +191,13 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
         // the message; else the whole line goes to all).
         // A move in the hire list's box (FUN_004beb70) selects the row under it, before
         // the frame's keys: game.exe takes its messages in order, and a move then Enter
-        // hires the row moved to. Outside the box the selection stays.
-        if (npc_menu.list && d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))
-            npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
+        // hires the row moved to. Outside the box, or with no move (a wheel's step), the selection stays.
+        if (npc_menu.list && (mouse.x != npc_menu.list->mouse_x || mouse.y != npc_menu.list->mouse_y)) {
+            npc_menu.list->mouse_x = mouse.x;
+            npc_menu.list->mouse_y = mouse.y;
+            if (d2d::rules::list_contains(npc_menu.list->box, mouse.x, mouse.y))
+                npc_menu.list->hover = d2d::rules::list_row_at(npc_menu.list->box, npc_menu.list_lines(), npc_menu.scroll, mouse.x, mouse.y);
+        }
         if (!gold_box && !game_menu.open) {
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             bool box_took_enter = false;

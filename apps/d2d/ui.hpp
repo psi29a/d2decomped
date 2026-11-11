@@ -159,6 +159,7 @@ struct NpcMenuList {
     int held = 0;
     std::uint32_t held_ms = 0;
     std::uint32_t draws = 0;                  // since it opened, up to 2 (+0x180772: Enter needs two, rules::list_enter)
+    int mouse_x = -1, mouse_y = -1;           // where the mouse was: only a move selects (FUN_004beb70)
 };
 
 // An open NPC menu, as game.exe builds and lays it out (FUN_004b4830,
