@@ -22,6 +22,7 @@
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <quest_clock.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
@@ -253,10 +254,10 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         // (size 3, mask 0x3f11, 100 rings: Level::free_area); none, not made.
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
             !afterglow_made && wanderer != fight.monsters.end() && !game_data->afterglow.code.empty()) {
-            if (afterglow_due == 0) afterglow_due = now_ms + 2 * kTickMs;
+            if (afterglow_in == 0 && !afterglow_due) afterglow_in = d2d::rules::quest_timer_steps(2);
         }
         if (const auto wanderer = std::ranges::find_if(fight.monsters, [](const Monster& monster) { return monster.gone && monster.type == d2d::rules::monster_ids::kDarkWanderer; });
-            !afterglow_made && afterglow_due != 0 && now_ms >= afterglow_due && wanderer != fight.monsters.end()) {
+            !afterglow_made && afterglow_due && wanderer != fight.monsters.end()) {
             afterglow_made = true;
             cues.cue_on(unit_key(kSoundOnMonster, wanderer->id), "object_wanderer_fissure", now_ms, wanderer->unit.x, wanderer->unit.y);
             static constexpr std::array<std::pair<int, int>, 8> kAround{ { { -3, -3 }, { -3, 0 }, { -3, 3 }, { 0, -3 }, { 0, 3 }, { 3, -3 }, { 3, 0 }, { -3, 3 } } };

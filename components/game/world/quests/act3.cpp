@@ -196,9 +196,11 @@ auto World::act3_bind_new_bosses() -> void {
         }
     }
 
-// A quest-clock step: a3q3's timer (7 ticks, FUN_005b9a30) runs.
+// A quest-clock step: a3q3's timer (7 ticks, FUN_005b9a30) and a3q7's
+// afterglow (2 ticks, FUN_005bd390) run.
 auto World::act3_quest_step() -> void {
         if (gidbinn_in > 0 && --gidbinn_in == 0) gidbinn_due = true;
+        if (afterglow_in > 0 && --afterglow_in == 0) afterglow_due = true;
     }
 
 auto World::act3_update(std::uint32_t now_ms) -> void {

@@ -401,7 +401,8 @@ struct World {
     struct Fire { const Level* level; const Npc* npc; float x, y; std::uint32_t born = 0, gone = 0; };
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning; the afterglow till `gone`
     bool afterglow_made = false;           // a3q7's record +0xc: the Dark Wanderer's afterglow, once a game
-    std::uint32_t afterglow_due = 0;       // ms: when it's made (two ticks after he goes), 0 not yet
+    int afterglow_in = 0;                  // quest steps to it: 2 ticks after he goes (0x5bd4ce -> FUN_005bd390), 0 not running
+    bool afterglow_due = false;            // that timer has run: it's made
     // a3q6's record (0x14, a3q6.cpp): +0xc 2 once Mephisto's dead; the
     // bridge's event 7 (FUN_005bcac0) every 24 frames from then.
     std::uint32_t bridge_check = 0;

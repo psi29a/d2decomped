@@ -358,7 +358,8 @@ auto World::new_game() -> void {
         objects_inited.clear();
         fires.clear();
         afterglow_made = false;
-        afterglow_due = 0;
+        afterglow_in = 0;
+        afterglow_due = false;
         traps.clear();
         treasure.clear();
         cain_walk = {};

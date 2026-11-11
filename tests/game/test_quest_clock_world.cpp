@@ -87,6 +87,11 @@ int main() try {
     runs_after(world, now_ms, 8, "the Gidbinn's timer", [&] { return world.gidbinn_due; });
     world.gidbinn_due = false;
 
+    // The Dark Wanderer gone: a3q7's afterglow 2 ticks on (0x5bd4ce -> FUN_005bd390).
+    world.afterglow_made = true;                                  // nothing to make here: only the timer
+    world.afterglow_in = quest_timer_steps(2);
+    runs_after(world, now_ms, 3, "the afterglow's timer", [&] { return world.afterglow_due; });
+
     std::printf("OK: the quest timers step every 20 frames\n");
     return 0;
 } catch (const std::exception& error) {
