@@ -738,18 +738,33 @@ void load_npcs(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     stamp_footprints(game_data.town);
 
     // Deckard Cain (cain5, hcIdx 265 = 0x109, whose menu has "identify
-    // items"), in camp once Act 1 quest 4 is done. On the rescue itself
-    // a1q4.cpp (FUN_00596de0 -> FUN_00592960) spawns him where the player
-    // came back through the portal.
-    // ponytail: where a game with the quest already done places him isn't
-    // located; he stands 3 subtiles off the town start, like the
-    // Tristram spawn's offset (FUN_00593290).
+    // items"), in camp once Act 1 quest 4 is done. Every way he comes (the
+    // rescue, FUN_005944f0; a join with the quest done, FUN_00597030; the
+    // way into town, FUN_00596de0) makes him at the camp's "cain start
+    // position" (object 385, DS1 preset 110: its InitFn 54, FUN_005940e0,
+    // keeps its x / y at +0x84 / +0x88). FUN_00592960 finds a size-2 spot
+    // there (FUN_00545340(2, 0x100, .., 100) at 0x5929fe), then makes him
+    // within 5 of it (FUN_005b2f20 at 0x592a2e).
+    // ponytail: the radius-5 placement (FUN_005b2f20 -> FUN_005b2a00, on the
+    // room's seed) and its retries are taken as the spot itself. A camp
+    // without the object keeps the town start + 3 subtiles (game.exe makes none).
+    const auto cain_start = std::ranges::find_if(game_data.town.ds1.objects(), [](const auto& object) {
+        return object.type == d2d::rules::unit_type::kObject && object.id >= 0 && object.id < 150
+            && kObjPreset[0][std::size_t(object.id)] == d2d::rules::object_ids::kCainStart;
+    });
     for (std::size_t row_index = 0; row_index < monstats.size() && game_data.town.start.first >= 0; ++row_index) {
         if (monstats.get(row_index, "hcIdx") != std::to_string(d2d::rules::monster_ids::kCampCain)) continue;
         auto npc = monster(row_index);
         if (npc.code.empty()) break;
         npc.quest = 4;
-        std::tie(npc.x, npc.y) = game_data.town.nearest_free(game_data.town.start.first + 0.6f, game_data.town.start.second + 0.6f);
+        if (cain_start != game_data.town.ds1.objects().end()) {
+            int spot_x = cain_start->x, spot_y = cain_start->y;
+            if (const auto spot = game_data.town.free_area(spot_x, spot_y, 2, 0x100, 100)) std::tie(spot_x, spot_y) = *spot;
+            npc.x = (float(spot_x) + 0.5f) / 5;
+            npc.y = (float(spot_y) + 0.5f) / 5;
+        } else {
+            std::tie(npc.x, npc.y) = game_data.town.nearest_free(game_data.town.start.first + 0.6f, game_data.town.start.second + 0.6f);
+        }
         game_data.town.npcs.push_back(std::move(npc));
         break;
     }
