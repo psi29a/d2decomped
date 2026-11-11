@@ -149,3 +149,15 @@ same, it also advances the unit seed once and stores its low word modulo 100
 in control +0x1c. A missing owner reaches an assertion and is not tested.
 `tools/emu/ai_formation_offset.py` checks five owner, coordinate and seed
 cases with owner lookup and dynamic getters hooked.
+
+`FUN_005de330` handles a 16-bit dialogue line. Line 0 does nothing. With its
+last argument zero, it formats the unsigned line as decimal, releases a
+non-null unit's old chatter at +0xa4, and asks `FUN_00661110` for a new node.
+On success it stores that node when the unit exists, calls `FUN_0064c040`,
+sets unit flag 0x100 when possible and schedules sound event 6. If allocation
+returns null after an old node was released, the unit's +0xa4 is not cleared
+by this function. With the last argument nonzero it instead builds a packet
+of type 0x27 containing the unit ID (or -1) and line and calls the packet
+helper. `tools/emu/ai_dialogue.py` checks seven local and packet decisions
+with formatting, allocation, sound and packet helpers scripted; it does not
+exercise their implementations or send network data.

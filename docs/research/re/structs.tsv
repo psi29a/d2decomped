@@ -111,6 +111,7 @@ unit	0x80	u32	neutral_time	its last Neutral	components/game/ai.hpp:187
 unit	0x84	u32	step_time	its last footstep	components/game/ai.hpp:187
 unit	0x90	ptr	events	the head of its event list (FUN_005c0c30)	components/game/ai.hpp:510
 unit	0xa0	u32	struck_by	who last struck it (FUN_00621d50 from FUN_0057c6c0)	components/game/ai.hpp:190
+unit	0xa4	ptr	chat_node	current chatter record	docs/research/re/ai-control.md:153
 unit	0xb0	u32	hit_class	the last hit's class: the impact its GH / KB / DT plays	components/game/ai.hpp:190
 unit	0xc4	u32	flags	0x400: a sound event queued	docs/research/re/char-panel.md:182
 unit	0xc8	u32	flags_ex	0x80: an object drawn; 0x2000000: classic	docs/research/re/lighting.md:186
