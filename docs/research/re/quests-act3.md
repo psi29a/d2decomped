@@ -199,6 +199,11 @@ state → 0x741518; bit 0xb → block 5: every docks NPC greets with the report,
 given out, everyone with bit 0xb); join `LAB_005bcc80` (bit 0, 0xb or word
 0x17 bit 0: +0xc 2, the hellgate open).
 
+The alert gate `FUN_005bbfe0` tests word 0x16 bit 0 first. If clear,
+NPC 0xff and record state 1 return true immediately; all other cases return
+whether bit 0xb is set. `tools/emu/quest_guardian_alert.py` checks 32
+synthetic flag, NPC and state combinations with the flag test hooked.
+
 Record callbacks (`FUN_005bcdc0`): +0xc0 a monster dies `FUN_005bc8b0`,
 +0xa0 `FUN_005bc270`, +0xcc `FUN_005bc5a0`, +0xac entering a level
 `FUN_005bc3c0`, +0xec `FUN_005bbfe0`. Data (0x34 bytes): +0 the record's
