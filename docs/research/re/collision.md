@@ -490,7 +490,15 @@ the player is null or its mode (+0x10) is 1 or 5 (Neutral, TownNeutral) —
 
 The send is `FUN_00480c10(&command, 0)`; when it answers nonzero, actions 5 to
 0x11 (the skill ones) add 1 to the player's stat 0x148 (`FUN_006253b0`,
-`FUN_00627260`), and `FUN_00480b40(type, id, third)` goes out. Whatever
+`FUN_00627260`), and `FUN_00480b40(type, id, third)` goes out. **Verified**:
+`tools/emu/unitmode_click_send.py` runs FUN_00480b40 for real over every
+`eD2UnitModeAction` (1..20): `UNITMODEACTION_ITEM_INTERACT` (19) sends
+nothing; attack (2, 4) and a left/right skill on a unit (6, 7, 9, 10, 13,
+14, 16, 17) go out as `FUN_004786a0` (`NET_D2GS_CLIENT_Send_INT_INT`, the
+full 32-bit `type`/`id`); every other action (an interact, or a left/right
+skill at a coordinate) goes out as `FUN_004785d0`
+(`NET_D2GS_CLIENT_Send_SHORT_SHORT`, truncated to 16 bits each) — 60
+cases, no disagreement (`uv run python unitmode_click_send.py`). Whatever
 happened, a player's queue (+0x150, +0x154, +0x158, +0x15c) is then zeroed
 (LAB_00481240, "abandoned" above). An action 1/3 early return, and the 0x13 one,
 leave it. What stat 0x148 counts is in missiles.md (the pierce seed), not traced here. d2d: `tick.cpp` and
