@@ -21,6 +21,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
+| Stepped collision walk: fixed-point steps, termination and collision calls; static trace, no runtime oracle | `FUN_00678f70`, `FUN_00678e30`, `FUN_00678f00` | [drlg.md](drlg.md) "Stepped collision walk" |
 | Client missile callback paths: bounds dispatch, follow-up missile creation, and two state-driven path handlers; callback meanings and exact Missiles.txt indices remain unresolved (static binary trace; no end-to-end client oracle) | `FUN_004d2760`, `FUN_004d33e0`, `FUN_004d55c0`, `FUN_004d6fa0`, `FUN_004d7e00`; pointer tables `0x72a3a0`, `0x72a420`, `0x72a448`, `0x72a49c` | [missiles.md](missiles.md) "Client missile callbacks" |
 | DC6/DCC frame anchor: a cel's last row is y + offset_y, its first y + offset_y - height + 1 (the anchor only; when arguments 4 and 5 are zero, `FUN_006014c0` skips a cel whose left column is negative, which isn't traced: cels.md) | `FUN_006014c0` (SRC/CelCmp.cpp) from the renderer slots `FUN_006c84b0` / `FUN_00511fb0`; DCC frames reach the same header via `FUN_0060bff0`; oracle `tools/emu/cel_anchor.py`, 399 cases | [cels.md](cels.md) |
 | COF draw effects 0..2 are a quarter, half and three quarters of the layer over the screen | `FUN_00470ec0` passes the effect (`FUN_004db140`) as the draw mode; `FUN_006c8250` picks alpha tables 2, 1, 0 (`FUN_004fb010`); `FUN_00608110` reads T[screen][sprite]; oracle `tools/emu/cof_effects.py` | [cof-draw-order.md](cof-draw-order.md) |

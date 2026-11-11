@@ -2306,5 +2306,20 @@ the arguments and that FUN_0067c570 takes y on the stack.
   table (x and y words wrap at 16 bits separately) and a different direction from
   the last stores the position it left. A walk that ends having stored nothing
   on its last step stores its final position; the count is written and returned.
-  FUN_0067a740 and FUN_00678f70 (the A* expansion and the stepped walk beside
-  it) are not traced yet.
+
+**Stepped collision walk (FUN_00678f70).** Static trace, not an oracle:
+the path context is in ECX and the movement record in EDX. A zero at movement
++0x18 returns 0; otherwise FUN_00678e30 updates it and the function again
+returns 0 if that field or both velocity components (+0x10, +0x14) are zero.
+The packed start and destination at +0 and +4 contain unsigned 16-bit x and y.
+Each is converted to 16.16 with 0x8000 added. FUN_00678f00 scales local copies
+of the velocity components, and the larger absolute component is the threshold.
+The walk returns 1 when both absolute differences from the destination are
+strictly below that threshold. Before returning it asserts that neither current
+coordinate is 0x80008000 (lines 0x1df and 0x1e0). Otherwise it advances by the
+scaled velocity; only when the integer x or y changes does it call
+FUN_0064d9b0 with context +8, the new unsigned x and y, context +0x24 and
++0x2c. A nonzero collision result returns 0. This function has no recorded
+caller in game-calls.tsv; its behavior here is read from its code and assembly.
+
+FUN_0067a740, the bounded path expansion, is not traced yet.
