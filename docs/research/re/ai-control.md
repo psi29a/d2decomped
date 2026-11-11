@@ -55,3 +55,14 @@ pointers on the last node. The first function takes game in ECX and unit in
 EDX; the second takes game in EDI and control in ESI. The oracle
 `tools/emu/ai_command_ring.py` checks invalid inputs, three insertions and
 the free order with synthetic allocations; allocation failure is not tested.
+
+`FUN_0058f350` takes game ECX and the first node of a singly linked minion
+list EDX. It frees each node through the pool at game +0x1c, in list order,
+using AiGeneral.cpp line 0x246; null is a no-op. `FUN_0058f810` takes game
+ECX and control EDX. Null control is a no-op; otherwise, it first passes a
+non-null control +0x38 to `FUN_00666130`, then frees the nodes at control
++0x34 in list order, releases the command ring via `FUN_0058ed80`, and
+finally frees the control at line 0x19d. The allocator and optional record
+release are hooked by `tools/emu/ai_control_free.py`; the command-ring
+routine runs for real. The oracle checks an empty control and a populated
+control, including release ordering and null inputs.
