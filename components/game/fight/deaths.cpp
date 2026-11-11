@@ -201,8 +201,10 @@ auto Fight::boss_missile(const Monster& monster, const char* name, float dx, flo
 // Umod 33's blast (FUN_005a3ef0): its A1 damage (FUN_006538a0 kind 8:
 // MonLvl's A1MinD / A1MaxD), min + rand(max - min) on its seed, as physical
 // and, by its aip1 (MonStats +0x56), fire (1) or cold for aip1 frames (2
-// up); suicidecorpseexplode (426) on its spot (FUN_0056ecb0); everyone
-// within its aip4 (+0x68) subtiles (FUN_0057e090, flags 0x581).
+// up); on its spot (FUN_0056ecb0) suicidefireexplode (427) for fire,
+// suicideiceexplode (428) for cold, else suicidecorpseexplode (426)
+// (0x5a4002..0x5a414b); everyone within its aip4 (+0x68) subtiles
+// (FUN_0057e090, flags 0x581). Every suicideminion row has aip1 15: cold.
 auto Fight::suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
         const auto& aip = game_data->monsters.types[std::size_t(monster.type)].diff[std::size_t(std::clamp(monster.difficulty, 0, 2))].aip;
         const int low = monster.stats.a1_min, high = monster.stats.a1_max;
@@ -221,7 +223,8 @@ auto Fight::suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t n
             }
             foe.take(taken);
         }
-        if (const auto found = game_data->missiles.find("suicidecorpseexplode"); found != game_data->missiles.end()) {
+        const char* const look = element == 1 ? "suicidefireexplode" : element >= 2 ? "suicideiceexplode" : "suicidecorpseexplode";
+        if (const auto found = game_data->missiles.find(look); found != game_data->missiles.end()) {
             Missile x{ &found->second, monster.unit.x, monster.unit.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(found->second.range, 1)) * 40, {} };
             x.visual_only = true;
             pending.push_back(std::move(x));
