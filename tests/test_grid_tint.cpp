@@ -7,7 +7,13 @@
 // or the player in state 0x36) are red (kind 0). An identified usable item
 // stays blue.
 
+#include "common.hpp"
 #include "panels.hpp"
+#include "scene.hpp"
+
+#include <d2s_items.hpp>
+#include <palette.hpp>
+#include <rules.hpp>
 
 #include <array>
 #include <cassert>
