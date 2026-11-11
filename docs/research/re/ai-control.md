@@ -192,3 +192,14 @@ This branch idles 20. Other cases search using `FUN_005ddc30`; a target at
 signed distance below 25 attacks with mode 4, else the unit idles 50.
 `tools/emu/ai_good_npc.py` checks eight timer, gate and fallback cases with
 the lookup, status, random and action helpers scripted.
+
+`FUN_005e8340` obtains an owner from `FUN_00553540`. A missing owner or one in
+town calls `FUN_005b0e00` with the unit's control and zero, `FUN_00540e60`
+with 2 and 0, then schedules sound event 2 at game frame +1. Otherwise a zero
+control +0x14 becomes 1 and calls `FUN_005ded40(owner, 7)`. With a nonzero
+value, `FUN_00622c40` succeeding attacks the owner in mode 4; otherwise the
+search `FUN_005de890` can return a target and a nonzero output flag, causing
+the control word to clear and a mode-4 attack on that target. Failing that,
+the word becomes 1, `FUN_00620c10` receives the unit and owner, and the unit
+calls `FUN_005ded40(owner, 7)`. `tools/emu/ai_stationary_npc.py` checks six
+branches with owner, room, targeting and action helpers scripted.
