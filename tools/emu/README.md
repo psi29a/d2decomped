@@ -73,6 +73,11 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Small DRLG helpers (19 functions of Drlg.cpp, DrlgRoom.cpp, RoomTile.cpp, Preset.cpp, DrlgGrid.cpp; FUN_00642380 ... FUN_0067c570; `--mutation-check` 8 ways) | `uv run python drlg_small.py` | `ok: 1520 small DRLG helper cases` |
 | Ten more DRLG functions (animation frame copy FUN_0066d750, corner border FUN_00675f80, Act 2 placement check FUN_00676fc0, substitution groups FUN_0066f990, LvlSub stamps FUN_006707a0, maze room allocation FUN_00670d70 / 00670e70 / 00673b10, preset spawn FUN_0067db00, path smoothing FUN_00679b30; `--mutation-check` 44 ways) | `uv run python drlg_finish.py` | `ok: 2010 more small DRLG function cases` |
 | RoomTile.cpp counters, tile frees and LvlSub tile-type match (6 functions, FUN_0066d290 ... FUN_0066fe00; `--mutation-check` 6 ways) | `uv run python drlg_tiles.py` | `ok: 1200 RoomTile.cpp counter and LvlSub match cases` |
+| Act IV opening alert (`FUN_005b3750`; flag test hooked) | `uv run python quest_act4_open_alert.py --exe /path/to/game.exe` | `ok: 24 Act IV opening alert cases (flag test hooked)` |
+| Terror's End object initializer (`FUN_005b5840`; callees hooked) | `uv run python quest_diablo_object_mode.py --exe /path/to/game.exe` | `ok: 10 Terror's End object initialization cases (callees hooked)` |
+| Izual search gate (`FUN_005b43f0`; callees hooked) | `uv run python quest_izual_nearby.py --exe /path/to/game.exe` | `ok: 18 Izual search gate cases (callees hooked)` |
+| Diablo Act IV share gate (`FUN_005b4da0`; callees hooked) | `uv run python quest_diablo_act_share.py --exe /path/to/game.exe` | `ok: 72 Diablo Act IV share cases (callees hooked)` |
+| Hellforge alert gate (`FUN_005b5ee0`; flag test hooked) | `uv run python quest_hellforge_alert.py --exe /path/to/game.exe` | `ok: 486 Hellforge alert cases (flag test hooked)` |
 | Item drops | `uv run python drops.py 1-20000` (also `tables`, `items`, `objects`, `stands`) | `N/N ... match game.exe` |
 | Dungeon.cpp field accessors and forwarding wrappers (52 functions, FUN_00619550 ... FUN_0061afa0; null asserts, callee arguments; `--mutation-check` 5 ways) | `uv run python dungeon_accessors.py` | `ok: 1248 Dungeon.cpp accessor and wrapper cases` |
 | Dungeon.cpp room1 node list, sorted set, teardown and bit table (FUN_0061a270 ... FUN_0061afd0; `--mutation-check` 4 ways) | `uv run python dungeon_lifecycle.py` | `ok: 312 Dungeon.cpp room1 node, set, teardown and bit-table cases` |
@@ -191,10 +196,6 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Blackened Temple object-mode gate (`FUN_005bbb70`; callees hooked) | `uv run python quest_temple_object.py --exe /path/to/game.exe` | `ok: 5 Blackened Temple object-mode cases (callees hooked)` |
 | Guardian alert gate (`FUN_005bbfe0`; flag test hooked) | `uv run python quest_guardian_alert.py --exe /path/to/game.exe` | `ok: 32 Guardian alert cases (flag test hooked)` |
 | Khalim log-send filter (`FUN_005b7f90`; callees hooked) | `uv run python quest_khalim_log.py --exe /path/to/game.exe` | `ok: 12 Khalim log-filter cases (callees hooked)` |
-| Act IV opening alert (`FUN_005b3750`; flag test hooked) | `uv run python quest_act4_open_alert.py --exe /path/to/game.exe` | `ok: 24 Act IV opening alert cases (flag test hooked)` |
-| Terror's End object initializer (`FUN_005b5840`; callees hooked) | `uv run python quest_diablo_object_mode.py --exe /path/to/game.exe` | `ok: 10 Terror's End object initialization cases (callees hooked)` |
-| Izual search gate (`FUN_005b43f0`; callees hooked) | `uv run python quest_izual_nearby.py --exe /path/to/game.exe` | `ok: 18 Izual search gate cases (callees hooked)` |
-| Diablo Act IV share gate (`FUN_005b4da0`; callees hooked) | `uv run python quest_diablo_act_share.py --exe /path/to/game.exe` | `ok: 72 Diablo Act IV share cases (callees hooked)` |
 | Quest party callback dispatch (`FUN_005ba2f0`, party routines hooked; `--mutation-check` three ways) | `uv run python quest_party_callback.py` | `ok: 24 quest party callback cases` |
 | Quest prisoner packet (`FUN_0058e120`, lookups and sender hooked; `--mutation-check` three ways) | `uv run python quest_prisoner_packet.py` | `ok: 24 quest prisoner packet cases` |
 | Blood Raven quest-log filter (`FUN_00590830`; callees hooked) | `uv run python quest_burial_log.py --exe /path/to/game.exe` | `ok: 48 Blood Raven log-filter cases (callees hooked)` |

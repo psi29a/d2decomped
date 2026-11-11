@@ -228,6 +228,13 @@ hammers about, +0x14 gems per round, +0x1c the soulstone given.
 - **Join** (`FUN_005b64e0`): `mss ` not carried → state 1 (`FUN_00558110('mss ')` 0, the push at 0x5b654d); carried: bit 5 → state 2,
   log 4; bits 3 / 2 → states as a4q1.
 
+Hellforge alert `FUN_005b5ee0` tests word 0x1b bits 0 then 1 for NPC
+0xf6. Its low return byte is 1 only when both tests return zero, record +9
+is nonzero, state is exactly 1 and data +0x1c is zero; other NPCs skip both
+flag tests. `tools/emu/quest_hellforge_alert.py` checks 486 combinations with
+the flag helper hooked, including non-boolean values. The upper EAX bytes and
+helper internals are outside the check.
+
 ## Act 4's other objects
 
 | object | InitFn / OperateFn | does |
