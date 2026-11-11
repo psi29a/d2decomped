@@ -29,6 +29,7 @@
 #include "touch_input.hpp"
 #include "ui.hpp"
 #include "unit_slide.hpp"
+#include "use_item.hpp"
 #include "world_view.hpp"
 
 #include <ambient_dip.hpp>
@@ -342,7 +343,7 @@ struct Town {
     [[nodiscard]] bool coop_hud_hidden() const { return !net_game && world.players.size() > 1; }
     // A panel on the screen's left (FUN_00455f20's UIs; Party 0x16 and Hireling 0x24 too).
     [[nodiscard]] bool left_panel_open() const {
-        return char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open || hireling.open;
+        return char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open || hireling.open || use_item.open();
     }
     // FUN_0045ae90's view state (rules/panel_view.hpp): the inventory or tree
     // on the right, the left panels, a store / stash / cube over both.
@@ -350,7 +351,7 @@ struct Town {
     // second switch (menu.md "The view with panels open").
     [[nodiscard]] int view_state() const { return d2d::rules::panel_view_state(left_side_open(), inv_open || tree_open, view_covered()); }
     [[nodiscard]] bool left_side_open() const { return char_open || waypoint.open || quest_log.open || party.open || hireling.open; }
-    [[nodiscard]] bool view_covered() const { return stash_open || cube_open || store.npc >= 0; }
+    [[nodiscard]] bool view_covered() const { return stash_open || cube_open || store.npc >= 0 || use_item.open(); }   // UI 0xe too: state 3 (menu.md)
     // A panel on the right, for the mini-panel (FUN_0047eb50): the inventory
     // or skill tree, or the belt popup up (belt_popup::moves_mini_panel).
     [[nodiscard]] bool mini_right() const;
@@ -509,7 +510,11 @@ struct Town {
     bool  stash_open = false;
     std::optional<d2d::d2s::Item> held;   // the item on the cursor (the View's)
     int identify_with = -1;               // a right-clicked Scroll / Tome of Identify's id: the next click picks the item
-    int imbue_with = -1;                  // Charsi's Imbue chosen (her NPC index): the next item click takes it up and imbues it
+    use_item::Panel use_item;            // UI 0xe: Charsi's Imbue, Larzuk's sockets, Anya's personalize (use_item.hpp)
+    void open_use_item(int npc);
+    void close_use_item();
+    void drive_use_item(Mouse& mouse, std::vector<SDL_Keycode>& keys, Audio& audio);
+    void use_item_reply(int kind);
     int   stat_pressed = -1;               // char panel stat button held down
     bool  tree_open = false;               // skill tree ('T')
     QuestLog quest_log;                    // the quest log ('Q'), where the character panel goes

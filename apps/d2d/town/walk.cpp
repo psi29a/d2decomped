@@ -343,8 +343,9 @@ auto Town::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::uint32_t fr
         // The skill shrine's +all skills while its boost lasts.
         skillbar.extra.clear();
         for (const auto& [id, value] : view.boost) if (id == d2d::d2s::kAllSkills) skillbar.extra.push_back({ .stat = d2d::d2s::kAllSkills, .value = value });
-        // The NPC the client's talking with (it stands meanwhile), when that changes.
-        if (const int talk = npc_menu.npc >= 0 ? npc_menu.npc : speech.npc >= 0 ? speech.npc : store.npc; talk != talking_sent) {
+        // The NPC the client's talking with (it stands meanwhile), when that changes:
+        // an item panel keeps the talk till it shuts (FUN_004b3fe0).
+        if (const int talk = npc_menu.npc >= 0 ? npc_menu.npc : speech.npc >= 0 ? speech.npc : use_item.open() ? use_item.npc : store.npc; talk != talking_sent) {
             net.send(cmd::Chat{ talk });
             talking_sent = talk;
         }
@@ -453,7 +454,7 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
             // distance still snaps).
             prev_x += float(level_changed->from->world_x - level->world_x);
             prev_y += float(level_changed->from->world_y - level->world_y);
-            npc_menu = {}; store = {}; speech = {}; waypoint = {}; menu_after_speech = -1;
+            npc_menu = {}; store = {}; speech = {}; waypoint = {}; use_item = {}; menu_after_speech = -1;
             shake = {}; quest_quakes.clear(); audio.stop_quake();
             level_ms = frame_ms;                                  // its song comes in 3 s later
             rain.reassign(rain.rng, level->id, d2d::rules::level_ids::act_of(level->id));   // the host's 0x15 for the warp
@@ -471,6 +472,10 @@ auto Town::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> v
         if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.quest_music(*scene, music->sound, frame_ms, music->jingle_ms, music->back_ms, music->from_block); return; }
         if (std::holds_alternative<ev::TradeRefused>(event)) return;   // walk() opens its box, at the mouse
+        if (const auto* service = std::get_if<ev::ServiceResult>(&event)) {   // S->C 0x58 kind 6 / 7 (FUN_004c0550)
+            if (service->npc == use_item.npc) use_item_reply(service->done ? 6 : 7);
+            return;
+        }
         if (const auto* object_speech = std::get_if<ev::Speech>(&event)) {   // FUN_004a1600 mode 2: the speech box, heard at once
             speech = start_speech(*scene, object_speech->npc, std::uint16_t(object_speech->string), frame_ms);
             send(cmd::QuestMessage{ object_speech->npc, object_speech->string });

@@ -528,6 +528,9 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
             send({ d2d::net::d2gs::c2s::party(packet[5] == 0 ? 6 : 8, read_u32(packet, 1)) });
         }
         break;
+    case 0x58:   // the item panel (0x45e490 -> FUN_004c0550): +1 u32 unit, +5 kind (1 shut, 4 wait over, 6 done, 7 refused)
+        if (size >= 6 && packet[5] != 0) use_item_reply = packet[5];
+        break;
     case 0x77:   // trade button action (FUN_004b8cf0): +1 what
         if (size < 2) break;
         if (packet[1] == 0x15) { cube_opened = true; break; }   // the Cube's open on the host (FUN_0048a460)
