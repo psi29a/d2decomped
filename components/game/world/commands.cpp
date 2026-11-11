@@ -60,7 +60,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (std::size_t(trade->npc) >= level->npcs.size()) return true;
             if (trade->gamble) actor->store = d2d::rules::open_gamble(item_rules, level->npcs[std::size_t(trade->npc)].id, clvl, actor->character.header.active_difficulty(),
                                                                 actor->character.expansion, fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
-            else if (const auto kept = stocks.find(trade->npc); kept != stocks.end()) { actor->store = kept->second; actor->store.mode = 0; actor->store.first_tab(); actor->store.pressed = {}; }
+            else if (const auto kept = stocks.find({ level->id, trade->npc }); kept != stocks.end()) { actor->store = kept->second; actor->store.mode = 0; actor->store.first_tab(); actor->store.pressed = {}; }
             else actor->store = open_store(*game_data, *level, trade->npc, act(), actor->character.header.active_difficulty(), clvl, actor->character.expansion,
                                     fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
             actor->store.npc = trade->npc;
@@ -353,6 +353,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
  * facing.
  */
 auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
+        if (const auto* say = std::get_if<cmd::Say>(&command)) {   // typed chat: to everyone in the game
+            if (!say->text.empty()) announce({ ev::Message::chat, actor->character.name, say->text.substr(0, 255) });
+            d2d::log::info("chat: {}: {}", actor->character.name, say->text);
+            return;
+        }
         // The character's own: through whatever the player's doing.
         if (const auto* stat_point = std::get_if<cmd::StatPoint>(&command)) {
             if (stat_point->stat < 0 || stat_point->stat > 3 || stat_point->count < 1) return;
@@ -609,7 +614,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (deal(command, now_ms)) {
-            if (actor->store.npc >= 0 && !actor->store.gamble) stocks[actor->store.npc] = actor->store;   // what the trade left in the vendor's stock
+            if (actor->store.npc >= 0 && !actor->store.gamble) stocks[{ level->id, actor->store.npc }] = actor->store;   // what the trade left in the vendor's stock
             return;
         }
         if (actor->pmode >= 0 && !actor->ghost) return;   // busy (a ghost, dead, only walks: the tick lets nothing else through)

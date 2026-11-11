@@ -62,6 +62,12 @@ log 2. His death (`FUN_00587330`): players in his room or its near list
 Bit 0 comes with Larzuk's socketing. Log `FUN_00586ce0`: bit 1 / 13 → 3 (4
 with bit 5).
 
+The Siege log-send filter `FUN_00586c80` selects the player's quest buffer
+by game difficulty. It sends quest 0x1f unless word 0x23 has bit 0 or 15
+and has neither bit 13 nor 14. `tools/emu/quest_siege_log.py` checks all 16
+bit combinations for all three difficulties with lookup, bit test and sender
+hooked; it does not check the helpers or d2d parity.
+
 ## Rescue on Mount Arreat (a5q2)
 
 Data: +0x84 told, +0x86..88 cages up, +0x8c cage spots, +0xa4 made, +0xa8
@@ -141,6 +147,12 @@ second scroll.
   (0x735f6c / 0x735efc / 0x735f34 by difficulty, {codes, count} per class,
   rand(count) on the quest seed), bit 9 (done with 8), bit 10.
 
+The coordinate getter `FUN_0058a7d0` looks up record 0x21 and copies data
++0xb8 / +0xbc to its output only when the record exists, +9 and data +0xb2
+are nonzero, and data +0xae is zero; otherwise it returns 0 and leaves the
+output untouched. `tools/emu/quest_prison_position.py` checks 54 gate cases
+with lookup hooked. The meaning of those coordinates is not established here.
+
 ## Betrayal of Harrogath (a5q4)
 
 States: 1 open, 2 Anya told (20137), 3 out of Harrogath, 4 Nihlathak dead,
@@ -150,6 +162,12 @@ level 121); marker 459's event 7 retries it. Nihlathak's death
 (`FUN_0058b7a0`): his room's players with a5q3 done or due bits 1 and 13,
 the rest 14; state 4; the log 4 eight ticks on (`FUN_0058b770`). 20148:
 bit 4 (her personalizing then due; bit 0 with it).
+
+The portal retry `FUN_0058b940` looks up record 0x22. If it exists and
+its data +0x87 is nonzero, it attempts `FUN_0058af90`; when the low return
+byte is zero it schedules event 7 for the supplied unit at game frame +12.
+`tools/emu/quest_betrayal_retry.py` checks 48 combinations with lookup,
+portal attempt and scheduler hooked; it does not test their internals.
 
 ## Rite of Passage (a5q5)
 
@@ -186,6 +204,12 @@ open, +0x4c altar mode.
 - Stairs (547, OperateFn 66): bit 0 or 1, and won here (or the record
   shut); mode 0 opens, mode 2 leads to 128.
 - Town congratulations: bits 5..9 (20167 / 20165 / 20166 / 20168 / 20164).
+
+The object initialization helper `FUN_0058d280` looks up record 0x23; if
+present it sets the supplied object's mode to 2 when data +0x4a is nonzero,
+or 0 otherwise. With no record it does nothing. `tools/emu/quest_rite_object.py`
+checks ten cases with lookup and mode setting hooked; the object identity and
+those helpers are not established by this check.
 
 ## Eve of Destruction (a5q6)
 

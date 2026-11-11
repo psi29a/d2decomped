@@ -3,7 +3,7 @@
 # session, the TCP connection and the net log.
 add_subdirectory(d2gs)
 
-add_library(net STATIC join.cpp tcp.cpp net_log.cpp)
+add_library(net STATIC join.cpp lan.cpp net_log.cpp tcp.cpp)
 target_include_directories(net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(net PUBLIC d2gs)
 target_compile_features(net PUBLIC cxx_std_${CMAKE_CXX_STANDARD})

@@ -3,7 +3,7 @@
 
     uv run python shadow_init.py [cases] [seed] [--dump out.inc]
 
-FUN_005eb490 (ShadowWarrior) runs natively in game.exe on random setups,
+FUN_005eb490 (ShadowMaster's init, MonAI 106) runs natively in game.exe on random setups,
 its eligibility (FUN_005eab20) and levels (FUN_005eb420) too, the skill
 table rows (summon +0xbc, pettype +0xbe) from the setup. What it asks of the
 units answers from the setup: the owner (FUN_0058f0d0) and its type, its
@@ -11,8 +11,9 @@ skill handles (FUN_006439f0 / FUN_006439b0) and levels (FUN_006442a0, with
 or without bonuses), its class's skills (FUN_00451f60 / FUN_00646140 /
 FUN_006460f0), a pet's pettype (FUN_00574a20); what it gives the pet
 (FUN_00647280) and sets as its left / right skill (FUN_00643bc0 / c50) is
-logged. FUN_005ecb70 (ShadowMaster) too. The ports must give the same log
-and AI control. Prints `ok`.
+logged. FUN_005eaf50 (ShadowWarrior's init, 105) and FUN_005ecb70 (the
+Raven's, 107) too: the MonAI rows' second word at 0x73ca18. The ports must
+give the same log and AI control. Prints `ok`.
 """
 import random
 import struct
@@ -26,6 +27,7 @@ from merc import Seed
 SKILLS = 400
 PETTYPES = 20
 MASK = 0xffffffff
+KEEP = 0x5a5a5a5a                                                         # run_game's fill: a word the init leaves
 
 
 def setup(rng):
@@ -56,7 +58,7 @@ def eligible(s, sid):                                                     # FUN_
     return True
 
 
-def warrior_init(s):
+def master_init(s):
     """FUN_005eb490: AI control 0, 0, 1; with a player owner +0x1c its level
     in the summoning skill (MonStats aip8 (N)); Attack (given if missing) on
     both hands, then each skill of the owner's class it may have at its
@@ -74,7 +76,13 @@ def warrior_init(s):
     return log, ctrl
 
 
-def master_init(s):
+def warrior_init(s):
+    """FUN_005eaf50: +0x1c 1, or with an owner (any type) that has the skill
+    MonStats aip8 (N) names, its level with bonuses; +0x14 / +0x18 untouched."""
+    return [KEEP, KEEP, s["summon_level"] if s["owner"] and s["summoned"] else 1]
+
+
+def raven_init(s):
     """FUN_005ecb70: +0x14 -1, +0x18 aip3 + 1, +0x1c a seed step's low bit."""
     seed = Seed(*s["seed"])
     return [], [MASK, s["aip3"] + 1, seed.step() & 1], (seed.lo, seed.hi)
@@ -117,7 +125,7 @@ def install(e):
     reg = lambda r: e.mu.reg_read(r)
     out = lambda item: cur["log"].append(item)
     e.hook(0x58f0d0, lambda e: cur["owner"] if cur["s"]["owner"] else 0, 0)
-    e.hook(0x6439f0, lambda e: 0x10 if cur["s"]["summoned"] and reg(UC_X86_REG_EDX) == cur["s"]["summon_id"] else 0, 1)
+    e.hook(0x6439f0, lambda e: 0x10 if cur["s"]["summoned"] and reg(UC_X86_REG_EDX) == cur["s"]["summon_id"] else 0, 0)   # FUN_006439f0: a plain ret
     def handle(e):                                                        # FUN_006439b0: a unit's skill handle
         unit, sid = reg(UC_X86_REG_ECX), reg(UC_X86_REG_EDX)
         if unit == cur["pet"]: return 0x20 if sid == 0 and cur["s"]["attack"] else 0
@@ -181,9 +189,9 @@ def run_game(e, s, addr):
     return CUR["log"], [e.r32(ctrl + 0x14 + 4 * k) for k in range(3)], (e.r32(pet + 0x20), e.r32(pet + 0x24))
 
 
-def dump_case(s, log, ctrl, master):
+def dump_case(s, log, ctrl, master, warrior):
     """One line: owner, its type, summoned, the level, pet class / pettype, has Attack, aip3, seed,
-    the skills (id summon pettype hard), | what's given (id level) ..., | AI control | the Master's."""
+    the skills (id summon pettype hard), | what's given (id level) ..., | AI control | the Raven's | the Warrior's +0x1c."""
     nums = [int(s["owner"]), s["owner_type"], int(s["summoned"]), s["summon_level"], s["pet_cls"], s["pet_pettype"], int(s["attack"]),
             s["aip3"], *s["seed"], len(s["skills"])]
     for sid in s["skills"]:
@@ -192,7 +200,7 @@ def dump_case(s, log, ctrl, master):
         nums += [sid, r["summon"] - (0x10000 if r["summon"] >= 0x8000 else 0) if 0 <= sid < SKILLS else 0, r["pettype"] if 0 <= sid < SKILLS else -1, -1 if hard is None else hard]
     gives = [v for item in log if item[0] == "give" for v in item[1:]]
     sx = lambda v: v - (1 << 32) if v >= 1 << 31 else v
-    return " ".join(map(str, nums)) + " | " + " ".join(map(str, gives)) + " | " + " ".join(map(str, ctrl)) + " | " + " ".join(str(sx(v)) for v in master[1]) + " " + " ".join(map(str, master[2]))
+    return " ".join(map(str, nums)) + " | " + " ".join(map(str, gives)) + " | " + " ".join(map(str, ctrl)) + " | " + " ".join(str(sx(v)) for v in master[1]) + " " + " ".join(map(str, master[2])) + " | " + str(warrior[2])
 
 
 def dump_ai(s):
@@ -218,11 +226,16 @@ def main():
         e.brk = mark
         s = setup(rng)
         log, ctrl, _ = run_game(e, s, 0x5eb490)
-        want = warrior_init(s)
+        want = master_init(s)
         gave += sum(1 for item in log if item[0] == "give" and item[1])
         if (log, ctrl) != (want[0], [v & MASK for v in want[1]]):
             bad += 1
-            if bad <= 5: print(f"warrior case {case}:\n  game {log} {ctrl}\n  port {want}")
+            if bad <= 5: print(f"master case {case}:\n  game {log} {ctrl}\n  port {want}")
+        e.brk = mark
+        warrior = run_game(e, s, 0x5eaf50)[1]
+        if warrior != warrior_init(s):
+            bad += 1
+            if bad <= 5: print(f"warrior case {case}: game {warrior} port {warrior_init(s)}")
         e.brk = mark
         s["ai"] = ai_setup(rng, s)
         if run_game(e, s, 0x5eabf0) != ai_ok(s, s["ai"]):
@@ -232,12 +245,12 @@ def main():
         if dumped is not None and len(ais) < 400 and eligible(s, s["ai"]["id"]): ais.append(dump_ai(s))
         e.brk = mark
         got = run_game(e, s, 0x5ecb70)
-        if dumped is not None and got == master_init(s) and (log, ctrl) == (want[0], want[1]) and len(s["skills"]) <= 6 \
+        if dumped is not None and got == raven_init(s) and (log, ctrl) == (want[0], want[1]) and len(s["skills"]) <= 6 \
                 and (len(dumped) < 40 and case % 4 == 0 or len(dumped) < 100 and any(item[0] == "give" and item[2] == 0x18 for item in log)):
-            dumped.append(dump_case(s, log, ctrl, got))
-        if got != master_init(s):
+            dumped.append(dump_case(s, log, ctrl, got, warrior))
+        if got != raven_init(s):
             bad += 1
-            if bad <= 5: print(f"master case {case}:\n  game {got}\n  port {master_init(s)}")
+            if bad <= 5: print(f"raven case {case}:\n  game {got}\n  port {raven_init(s)}")
     if dumped is not None:
         with open(sys.argv[sys.argv.index("--dump") + 1], "w") as f:
             f.write("// tools/emu/shadow_init.py --dump: game.exe's own Shadow inits, then FUN_005eabf0 (see the script).\nR\"(\n"

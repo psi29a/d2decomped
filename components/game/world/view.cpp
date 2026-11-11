@@ -14,6 +14,7 @@
 
 #include <combat.hpp>
 #include <d2s_items.hpp>
+#include <d2s_write.hpp>
 #include <light.hpp>
 #include <merc.hpp>
 #include <monsters.hpp>
@@ -28,6 +29,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <exception>
+#include <expected>
 #include <format>
 #include <memory>
 #include <optional>
@@ -92,7 +95,7 @@ auto World::view() const -> View {
                                       pet.monster.flash_overlay, pet.monster.flash_at });
             }
         for (const auto& player : players) {                  // the party's mercs and summons, as ours
-            if (player.get() == actor) continue;
+            if (player.get() == actor || !here(*player)) continue;   // split levels: this level's party
             if (player->merc && player->merc_npc)                  // its life isn't shown (our own pets' portraits only)
                 view.party_pets.push_back({ player->merc->npc, player->merc->unit, player->merc->mode, "hireable" });
             for (const auto& pet : player->pets)
@@ -105,7 +108,7 @@ auto World::view() const -> View {
         // Run on draws RN only while they walk and have stamina (FUN_0057f090), as our own player.
         const auto running = [](const Player& player) { return player.running && player.player.walking && player.character.stats.values[d2d::d2s::kStamina] > 0; };
         for (const auto& player : players)                    // the others in the game, as their client draws them
-            if (player.get() != actor) {
+            if (player.get() != actor && here(*player)) {
                 const int cls = std::max(player->character.character_class, 0);
                 std::vector<std::string_view> states;
                 for (const auto& state : player->self_states)
@@ -120,7 +123,7 @@ auto World::view() const -> View {
                 view.bodies.push_back({ player->body->x, player->body->y, player->body->dir, player->body->gfx, player->id, std::max(player->character.character_class, 0),
                                         player->body->raised, player->body->raisers });
         view.ghost = actor->ghost;
-        view.all_dead = players.size() > 1 && !anyone_alive();
+        view.all_dead = shared_screen() && !anyone_alive();
         if (level == fight.mon_level) {
             // What's near the player (D2 sends the units of the rooms round
             // each player). ponytail: a radius of 28 cells, not rooms; waits for
@@ -147,15 +150,20 @@ auto World::view() const -> View {
         if (cain_portal.level == level) view.portals.push_back({ cain_portal.x, cain_portal.y, 1, cain_portal.born, int(kGamePortals), cain_portal_closes });
         for (const auto& gate : cage_portal)
             if (gate.level == level) view.portals.push_back({ gate.x, gate.y, 1, gate.born, int(kGamePortals) });
+        const auto keys_of = [&](const Level& listed) {
+            for (const auto& npc : listed.npcs) view.npc_keys.push_back({ listed.id, npc.hc_idx, npc.root == "objects" ? npc.object_id : 0, npc.x, npc.y, npc.palace, npc.quest });
+        };
         view.npc_states = npc_states;
         grow_states(view.npc_states, *level);
         view.npc_states.resize(level->npcs.size());
+        keys_of(*level);
         for (const auto& neighbour : level->nearby) {           // then the neighbours', Level::nearby order
             const auto found = other_npcs.find(neighbour.level);
             auto states = found != other_npcs.end() ? found->second : npc_start(*neighbour.level);
             grow_states(states, *neighbour.level);
             states.resize(neighbour.level->npcs.size());
             view.npc_states.insert(view.npc_states.end(), states.begin(), states.end());
+            keys_of(*neighbour.level);
         }
         if (now < actor->boost.until) { view.boost = actor->boost.stats; view.boost_code = shrine_code(actor->boost.shrine); }
         view.aura = actor->aura;
@@ -201,8 +209,7 @@ auto World::view() const -> View {
         return view;
     }
 
-auto World::save() -> std::string {
-        if (!characters) return "no character store";
+auto World::save_header() -> d2d::d2s::Header {
         stow_held(*game_data, actor->character.items, actor->held);                  // the item in hand goes back first
         auto header = actor->character.header;
         if (header.right_skill == std::uint32_t(kResurrectSkill)) header.right_skill = actor->right_before;   // co-op's only: never in a save
@@ -212,14 +219,41 @@ auto World::save() -> std::string {
         header.map_id = game_data->map_seed;
         if (actor->character.appearance)   // the save's tints leave states out (FUN_0062c100's state loop sets no tint byte)
             header.set_look(game_data->item_pieces.empty() || game_data->comp.empty() ? *actor->character.appearance : game_data->look_of(actor->character.items));
-        // The corpse list holds one (PlrSave2.cpp): rules::corpse_to_save's, by its repair at Malah.
-        const std::vector<d2d::d2s::Item> no_corpse;
+        return header;
+    }
+
+// The corpse list holds one (PlrSave2.cpp): rules::corpse_to_save's, by its repair at Malah.
+auto World::saved_corpse() -> const std::vector<d2d::d2s::Item>* {
+        static const std::vector<d2d::d2s::Item> no_corpse;
         std::vector<const std::vector<d2d::d2s::Item>*> corpses;
         for (const auto& corpse : actor->corpses) corpses.push_back(&corpse.items);
         constexpr int kMalah = 0x201;
         const int kept = d2d::rules::corpse_to_save(game_data->rules, corpses, game_data->mon_npc[std::size_t(game_data->mon_bin[kMalah])].id, actor->character.header, reduced_prices());
-        const auto err = characters->save(header, fight.own_stats(), actor->character.items, kept < 0 ? &no_corpse : corpses[std::size_t(kept)],
-                                          &actor->character.merc_items);
+        return kept < 0 ? &no_corpse : corpses[std::size_t(kept)];
+    }
+
+auto World::save_bytes(std::span<const std::byte> raw) -> std::expected<std::vector<std::byte>, std::string> {
+        if (!game_data->item_tables) return std::unexpected("no item tables");
+        // A save mid game (a joiner's every few minutes): the item in hand stays in hand.
+        auto items = actor->character.items;
+        auto held = actor->held;
+        const auto header = save_header();
+        std::swap(items, actor->character.items);
+        actor->held = std::move(held);
+        try {
+            auto out = d2d::d2s::write_save(raw, header, fight.own_stats(), items, *game_data->item_tables,
+                                            saved_corpse(), &actor->character.merc_items);
+            actor->character.header.last_played = header.last_played;
+            return out;
+        } catch (const std::exception& error) {
+            return std::unexpected(std::string("write failed: ") + error.what());
+        }
+    }
+
+auto World::save() -> std::string {
+        if (!characters) return "no character store";
+        const auto header = save_header();
+        const auto err = characters->save(header, fight.own_stats(), actor->character.items, saved_corpse(), &actor->character.merc_items);
         if (err.empty()) actor->character.header.last_played = header.last_played;
         d2d::log::info("save {}: {}", header.name, err.empty() ? "written" : err);
         return err;
