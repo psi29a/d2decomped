@@ -520,6 +520,7 @@ struct World {
     int gidbinn_in = 0;                    // quest steps to a3q3's timer: 7 ticks from the altar's use (0x5b9c22 -> FUN_005b9a30), 0 none
     bool gidbinn_due = false;              // that timer has run: the guardians are due
     int gidbinn_altar = -1;                // the altar's Level::npcs index
+    const Level* gidbinn_level = nullptr;  // and its level: FUN_005b9a30 looks in Act 3's map at the altar's spot
     d2d::rules::TaintedSunQuest tainted;   // and the Tainted Sun
     d2d::rules::HoradricStaffQuest staff;  // and the Horadric Staff
     d2d::rules::ArcaneQuest arcane;        // and the Arcane Sanctuary

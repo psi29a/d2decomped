@@ -11,6 +11,7 @@
 #include <gamedata_load.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
+#include <quests_act3.hpp>
 #include <rules.hpp>
 #include <world.hpp>
 
@@ -92,7 +93,17 @@ int main() try {
     // The Gidbinn's altar used: a3q3's 7-tick timer (0x5b9c22 -> FUN_005b9a30).
     world.gidbinn_in = quest_timer_steps(7);
     runs_after(world, now_ms, 8, "the Gidbinn's timer", [&] { return world.gidbinn_due; });
+    // Its guardians come at the altar's level only (FUN_005b9a30: Act 3's map at the
+    // altar's spot), not by whatever object has the altar's index where the player is.
+    world.gidbinn_altar = 0;
+    world.gidbinn_level = data->level(d2d::rules::BladeQuest::kFlayerJungle);
+    world.actor->player.x = world.level->npcs[0].x;
+    world.actor->player.y = world.level->npcs[0].y;
+    for (int frame = 0; frame < 5; ++frame, now_ms += kTickMs) world.tick({}, now_ms + kTickMs, now_ms);
+    assert(world.gidbinn_due && !world.blade.spawned);
     world.gidbinn_due = false;
+    world.gidbinn_altar = -1;
+    world.gidbinn_level = nullptr;
 
     // The Dark Wanderer gone: a3q7's afterglow 2 ticks on (0x5bd4ce -> FUN_005bd390).
     world.afterglow_made = true;                                  // nothing to make here: only the timer

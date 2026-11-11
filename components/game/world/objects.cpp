@@ -371,6 +371,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             to_mode(1);
             gidbinn_in = d2d::rules::quest_timer_steps(d2d::rules::BladeQuest::kTimerTicks);
             gidbinn_altar = npc_index;
+            gidbinn_level = level;
             d2d::log::info("The Blade of the Old Religion: the altar used");
             return;
         }
