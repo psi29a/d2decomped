@@ -551,6 +551,9 @@ auto World::operate_door(int npc_index, std::uint32_t now_ms) -> void {
         int mode = -1;
         if (door.operate_fn == d2d::rules::operate_fn::kSecretDoor) {                   // secret door (FUN_00583ff0): slides open (OP), once
             if (state.mode == 0) mode = 1;
+        } else if (door.operate_fn == d2d::rules::operate_fn::kSlimeDoor) {           // the Maggot Lair's (FUN_005821a0): NU only, to OP (0x5821b8), once
+            // ponytail: its event 1 (0x58223c, FrameCnt1 + 1 frames) takes it to ON; d2d holds OP's last frame (the same collision).
+            if (state.mode == 0) mode = 1;
         } else if (door.operate_fn == d2d::rules::operate_fn::kTrapDoor) {            // trap door (FUN_00581eb0): opens, then down its room's warp (FUN_005550b0)
             // Mode 2: the first warp tile unit (type 5) of the door's room
             // (room +0x74's list); a room without one is game.exe's assert 0x40e.

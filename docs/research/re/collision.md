@@ -89,6 +89,13 @@ the `Crowd` (ai.hpp), each with its `UnitShape` (gamedata.hpp).
   plus (or 3x3) meets the rect, and a pattern-0 unit (SizeX 0: rats,
   hydras) never is. Then a second test with 0x8000 alone (an object
   stamped there).
+- The Maggot Lair's slime door (objects 229 / 230, OperateFn 29,
+  `FUN_005821a0`) has no doorway test: in any mode but 0 (unit +0x10,
+  0x5821aa) it does nothing; shut, it goes to mode 1
+  (`FUN_00624690(unit, 1)`, 0x5821b8) and its footprint lifts
+  (`FUN_00623830`, 0x5821c1); with Mode2 (objects.bin +0x141) event 1 at
+  FrameCnt1 + 1 takes it to mode 2 (0x58223c). It never shuts. d2d:
+  `World::operate_door` (`test_slime_door`).
 
 ## d2d
 
