@@ -165,7 +165,9 @@ std::vector<Monster> spawn_monsters(const GameData& game_data, std::span<const d
 }
 
 void set_mode(const GameData& game_data, Monster& monster, std::string_view mode, std::uint32_t now_ms) {
-    if (monster.left_mode == "hit") monster.left_mode = "GH";   // FUN_005a68e0: a last command 0x13 or over loses 0x10 (a hit's 0x13 is 3, GH)
+    // FUN_005a68e0: a last command 0x13 or over loses 0x10 and the new one is dropped: a hit's 0x13
+    // is 3 (GH), so it reads as got hit through one more mode.
+    if (monster.left_mode == "hit") monster.left_mode = "GH";
     else if (monster.mode != "NU") monster.left_mode = monster.mode;
     monster.mode = mode;
     if (mode == "A1" || mode == "A2" || mode == "SC" || mode == "S1" || mode == "S2" || mode == "S3" || mode == "S4") {

@@ -516,9 +516,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)
                         && !std::ranges::contains(burned, std::pair{ int(i), missile.skill })) {
                         burned.emplace_back(int(i), missile.skill);
-                        // pSrvDmgFunc 3 (FUN_005ad220): a soft hit when a step of the missile's seed has
-                        // its low 7 bits under dParam1, on the fight's rng (Missile keeps no seed).
-                        burn(i, damage, now_ms, missile_info.dmg_func == 3 && int(rng.next() & 0x7f) < missile_info.dmg_par1);
+                        burn(i, damage, now_ms, soft_hit(missile_info, rng));
                     }
             }
             // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
@@ -716,7 +714,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         }
         if (missile_info.hit_func == 2 || missile_info.hit_func == 4 || missile_info.hit_func == 9 || missile_info.hit_func == 20 || missile_info.hit_func == 47) {
             missile.target = int(monster_index);
-            burst(missile, now_ms);
+            burst(missile, now_ms, int(monster_index));
             if (missile_info.hit_func == 47) return false;             // the boulder rolls on (FUN_005ac550 returns 1)
             return true;
         }
@@ -795,7 +793,7 @@ auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint
             if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(std::max(radius, 1))) strike(missile, j, now_ms, freeze, one_roll ? &roll : nullptr);
     }
 
-auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
+auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || missile.frame >= 0) return;
         missile.frame = int(now_ms / 40);
@@ -822,10 +820,10 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms) -> void {
                 // clouds, 87 frames each.
                 if (!sub) break;
                 const auto& ring_sub = hit_sub->second;
-                const bool on_unit = missile.target >= 0 && std::size_t(missile.target) < monsters.size();
+                const bool on_unit = struck >= 0 && std::size_t(struck) < monsters.size();
                 const auto centre = [](float cells) { return (std::floor(cells * 5) + 0.5f) / 5; };
-                const float from_x = centre(on_unit ? monsters[std::size_t(missile.target)].unit.x : missile.x);
-                const float from_y = centre(on_unit ? monsters[std::size_t(missile.target)].unit.y : missile.y);
+                const float from_x = centre(on_unit ? monsters[std::size_t(struck)].unit.x : missile.x);
+                const float from_y = centre(on_unit ? monsters[std::size_t(struck)].unit.y : missile.y);
                 const int loops = missile_info.hit_par3 > 0 && ring_sub.sub_loop ? (ring_sub.sub_stop - ring_sub.sub_start) * missile_info.hit_par3 : 0;
                 const int frames = ring_sub.range + ring_sub.lev_range * missile.level + loops;
                 const auto ring = [&](int first, int step, int velocity) {

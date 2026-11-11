@@ -729,6 +729,8 @@ struct Fight {
     // (FUN_0056c740 with 1: the wolf, the bear, maul, feralrage, ...). False:
     // none was on (or the group is 0), so the state goes on instead.
     bool shift_back(const d2d::rules::Skill& skill);
+    // A state's States.txt group (+0x1e), 0 none (FUN_0056c740's test).
+    [[nodiscard]] int state_group(const std::string& aurastate) const;
 
     // A self cast's state (FUN_005c9480 and kin): auralen frames — none
     // (Bone Armor, Cyclone Armor) lasts until its absorb is spent. Bone /
@@ -1083,7 +1085,8 @@ struct Fight {
     // out and where its flight ends (FUN_00554ca0 gives 2: a wall, off its
     // rooms), for the hit functions that act with none (kNoUnitHit).
     // pSrvDmgFunc 3 (FUN_005ad220) is the burners' soft hit (burn).
-    void burst(Missile& missile, std::uint32_t now_ms);
+    // `struck`: the monster the missile struck (FUN_005adf10's unit), -1 none.
+    void burst(Missile& missile, std::uint32_t now_ms, int struck = -1);
     static constexpr std::array<int, 15> kNoUnitHit{ 1, 2, 3, 4, 9, 13, 14, 20, 22, 26, 29, 36, 48, 51, 56 };
     // The aura's pulse, every perdelay ticks while it's on: a friendly one's
     // hitpoints heal the player (Prayer: edns, 256ths); an enemy one

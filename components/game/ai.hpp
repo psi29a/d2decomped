@@ -646,6 +646,10 @@ constexpr float kMeleeReach = 1.1f;           // cells between centres
 // velocity until it hits the foe, a wall, or runs out of range.
 // ponytail: no seed of its own (unit +0x20): the draws game.exe takes from it
 // (pSrvDmgFunc 3's soft hit, FUN_005ad220) take the fight's rng.
+struct Missile;
+// pSrvDmgFunc 3 (FUN_005ad220): result flag 0x4000, a soft hit, when a step of
+// the missile's seed has its low 7 bits under dParam1 (+0x78).
+inline bool soft_hit(const GameData::MissileInfo& info, d2d::rules::Rng& rng) { return info.dmg_func == 3 && int(rng.next() & 0x7f) < info.dmg_par1; }
 struct Missile {
     const GameData::MissileInfo* info = nullptr;
     float x = 0, y = 0, velocity_x = 0, velocity_y = 0;       // cells, cells/s
@@ -912,6 +916,8 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
     const auto spent = [&](Missile& missile) {
         missile.flight.crossed.clear();
         const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
+        // Its flight over, no unit is asked that frame (FUN_005ae1f0 returns after
+        // FUN_005adf10(0, 1), before the subtiles' unit test).
         if (moving && !missile_fly(level, missile, reach)) {
             missile.flight_over = true;
             if (missile.friendly) flight_over(missile);
@@ -1017,10 +1023,10 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 d2d::rules::StruckBlow blow{ dealt, 0, true, 0, dealt, false, burn & 255 };   // its own record (absorbed alone), no get-hit
                 blow.landed = false;
                 foe.blows.push_back(blow);
-                // pSrvDmgFunc 3 (FUN_005ad220): 0x4000 when a step of the missile's seed has its low 7 bits
-                // under dParam1, a soft hit: FUN_0057cee0 sets unit flag 0x8000, so S->C 0x0c and the struck sound.
-                // On the fight's rng (Missile keeps no seed).
-                if (missile.info->dmg_func == 3 && int(rng.next() & 0x7f) < missile.info->dmg_par1) { ++foe.soft_hits; foe.hit_class = missile.info->hit_class; }
+                // Flag 1: FUN_0057cee0 puts its hit class on the unit (+0xb0), the last record's.
+                // A soft hit sets unit flag 0x8000, so S->C 0x0c and the struck sound.
+                foe.hit_class = missile.info->hit_class;
+                if (soft_hit(*missile.info, rng)) ++foe.soft_hits;
             }
             return false;
         }
