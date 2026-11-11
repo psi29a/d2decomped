@@ -11,6 +11,7 @@
 #include <gamedata_load.hpp>
 #include <level_ids.hpp>
 #include <monster_ids.hpp>
+#include <object_ids.hpp>
 
 #include <cassert>
 #include <cmath>
@@ -19,6 +20,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
