@@ -211,7 +211,8 @@ against an oracle; the hit test's selectable and pixel checks still follow.
 
 ## The click's own path
 
-Read from the code, no oracle run.
+Read from the code; `FUN_004623c0` and `FUN_00461840` are run for real below
+(`tools/emu/click_move.py`). The rest has no oracle run.
 
 - `FUN_00467a10` (0x467a10) returns the latched unit (0x7a6a94 non-zero)
   only if `FUN_00466870(0,0)` still passes for it; if not it clears
@@ -229,7 +230,12 @@ Read from the code, no oracle run.
   `FUN_00467a70`; otherwise `FUN_004623c0` + `FUN_00461840`, a walk to the
   click's spot. So a left click on a converted monster walks there,
   as on empty ground, unless shift is held: then it is the attack in
-  place (`FUN_00461700(0)`), as on empty ground.
+  place (`FUN_00461700(0)`), as on empty ground. `FUN_004623c0`'s own glue
+  (the held-frame throttle at 7 frames / 280 ms, the dead zone under 0x100
+  and under 1, the per-flag minimum step) and `FUN_00461840`'s (a failed
+  `PATH_CalculatePath` returns 0 and never reaches `UNITMODE_ExecuteSkillAction`
+  at `0x481030`/LAB_00461879; a found one does, with the path's last point)
+  are run for real: `tools/emu/click_move.py`.
 - A held frame (kind 1, `FUN_00462a20`) is let through by `FUN_00462930`
   when the press armed 0x7a526c (a null target arms it to 1, a unit to 2)
   and the target is null, or is a type 0, 1 or 5 unit whose owner is not
