@@ -190,6 +190,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Golden Bird carrier release (`FUN_005bacf0`) | `uv run python quest_bird_carrier.py --exe /path/to/game.exe` | `ok: 48 Golden Bird carrier release cases` |
 | Blackened Temple object-mode gate (`FUN_005bbb70`; callees hooked) | `uv run python quest_temple_object.py --exe /path/to/game.exe` | `ok: 5 Blackened Temple object-mode cases (callees hooked)` |
 | Guardian alert gate (`FUN_005bbfe0`; flag test hooked) | `uv run python quest_guardian_alert.py --exe /path/to/game.exe` | `ok: 32 Guardian alert cases (flag test hooked)` |
+| Khalim log-send filter (`FUN_005b7f90`; callees hooked) | `uv run python quest_khalim_log.py --exe /path/to/game.exe` | `ok: 12 Khalim log-filter cases (callees hooked)` |
 | Quest party callback dispatch (`FUN_005ba2f0`, party routines hooked; `--mutation-check` three ways) | `uv run python quest_party_callback.py` | `ok: 24 quest party callback cases` |
 | Quest prisoner packet (`FUN_0058e120`, lookups and sender hooked; `--mutation-check` three ways) | `uv run python quest_prisoner_packet.py` | `ok: 24 quest prisoner packet cases` |
 | Rescue reward across difficulty quest buffers (`FUN_0058a0a0`, hooked callees; `--mutation-check` three ways) | `uv run python quest_rescue_resistance.py` | `ok: 24 quest resistance cases` |

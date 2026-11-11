@@ -154,6 +154,11 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
   `FUN_00559a30(2)` each; no quest bit is read), a chest's drops
   (`FUN_00585b90`). In the sewers 2 (93), the Spider Cavern (85), the Flayer
   Dungeon 3 (91).
+- **Log-send filter** (`FUN_005b7f90`): reads the player's quest flags for
+  the game's difficulty and sends quest 0x10 only when word 0x12 bits 0 and
+  15 are both clear. `tools/emu/quest_khalim_log.py` checks all four bit
+  combinations in all three difficulties with lookup, bit tests and sender
+  hooked; it does not check those helpers or d2d parity.
 - **The sewers' stairs** (366, InitFn 41 `FUN_005b8660`: the record's +8
   mode; OperateFn 44 `FUN_005b84e0`: in mode 2 the warp tiles of its room are
   made usable, `FUN_0059d9d0` → `FUN_005550b0`) open by the lever (367, InitFn
