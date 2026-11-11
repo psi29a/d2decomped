@@ -164,7 +164,7 @@ From the CompileTxt calls (`grep "= FUN_006122f0(" game_all.c`):
 | `FUN_00654dd0` | A treasure class by name. No caller |
 | `FUN_00654e80` | (difficulty, act, chest): the parsed treasure class at `0x96c5f4[15 d + 3 a + c]`, each clamped (d 0..2, a 0..4, c 0..2). Caller `FUN_00585b90` (objects.md "Chest treasure class") |
 | `FUN_00654f20` | Loads monitempercent (4: HeartPercent, BodyPartPercent, TreasureClassPercent, ComponentPercent) |
-| `FUN_00654fc0` / `FUN_00654fe0` | Free / row (fatal 0x6dc, 0x6dd). The row has no caller |
+| `FUN_00654fc0` / `FUN_00654fe0` | Free / row (fatal 0x6dc, 0x6dd). The row has no caller, so nothing reads the table (skills.md "Its gear never drops") |
 | `FUN_00655030` | Loads monumod (0x20) |
 | `FUN_006552e0` | Loads superuniques (0x34): the first row of each hcIdx below 0x42 into `0x96c710`; a hcIdx with none is fatal (0x782) |
 | `FUN_006556e0` | Superunique row n (0x34 bytes at `0x96c704`), 0 for n >= count (signed) |
