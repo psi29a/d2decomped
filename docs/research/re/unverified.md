@@ -21,6 +21,7 @@ trust. `git grep -n "unverified (source"` lists them.
 
 | What | Traced in | Doc |
 |---|---|---|
+| Cain scroll-loss rewind: item count, state gates, tree lookup and transition calls; 15 synthetic cases with callees hooked, no d2d parity check | `FUN_00592c80`, `FUN_00592bd0`; `tools/emu/quest_cain_rewind.py` | [quests-act1.md](quests-act1.md) "Search for Cain" |
 | Stepped collision walk: fixed-point steps, termination and collision calls; 1,296 cases with movement update and collision scripted | `FUN_00678f70`, `FUN_00678f00`; `tools/emu/drlg_walk_oracle.py` | [drlg.md](drlg.md) "Stepped collision walk" |
 | Bounded path expansion: 80 one-step cases and a three-step walk with collision, direction selection and backtracking scripted; general searches not checked | `FUN_0067a740`; `tools/emu/drlg_expand_oracle.py` | [drlg.md](drlg.md) "Bounded path expansion" |
 | Client missile callback paths: bounds dispatch, follow-up missile creation, and two state-driven path handlers; callback meanings and exact Missiles.txt indices remain unresolved (static binary trace; no end-to-end client oracle) | `FUN_004d2760`, `FUN_004d33e0`, `FUN_004d55c0`, `FUN_004d6fa0`, `FUN_004d7e00`; pointer tables `0x72a3a0`, `0x72a420`, `0x72a448`, `0x72a49c` | [missiles.md](missiles.md) "Client missile callbacks" |
