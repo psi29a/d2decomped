@@ -1175,6 +1175,30 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   `tick.cpp:147` and `:175`; d2d has no client re-path (the walk simply continues in the walk
   mode), no disagreement found. Dead code in game.exe: after the `FUN_00648bf0` test the
   `target == 0` arms (record `{6, -1}`) cannot run.
+- **`FUN_00480810`** (fastcall ECX unit, 268 bytes; the client's per-unit
+  frame dispatch — no caller read here): the local player, a null unit, or
+  a unit whose `+0xc4` bit 0x17 is clear takes the step below; any other
+  unit (not the local player, bit 0x17 set) skips it for the "frozen" arm
+  at the end. The step: `FUN_00627460(unit, 0)` (the missile freeze list,
+  already verified), `FUN_004da350(unit)` (already cited at collision.md
+  "view/camera" above), `FUN_00470c30(unit)` (overlay/timer tick, already
+  verified), then by unit type `*unit`: 0 `FUN_00463390` (below), 1
+  `FUN_004b13a0` (monster), 2 `FUN_004bdff0` (object), 3 `FUN_004d2c70`
+  (missile), 4 `FUN_004c1ad0` (item) — none of the last four read here.
+  After the type's own step: `unit+0xc4` bit 0x15 clear calls
+  `FUN_00463990(unit)`, set calls `FUN_004639b0(unit)` (both already
+  ported, `ctrl_click.hpp:17`, and both just call `FUN_00463940`, a
+  unit-by-id lookup with an assert on a type mismatch); a nonzero answer
+  calls `FUN_0045fa40()` (already cited, net-packets.md:52, a buffered
+  net-message dispatch). The "frozen" arm (not the local player, bit 0x17
+  set): `unit+0xc8` bit 5 set clears it and `+0xc4` bit 0x17, and calls
+  `FUN_004786a0(unit+0xc)`; then `+0xc4` bit 0x15 set calls `FUN_00465f00()`
+  and returns, skipping the type dispatch and the lookup/dispatch pair
+  above entirely. Not traced: what `+0xc4` bits 0x15/0x17 and `+0xc8` bit
+  5 mean, and `FUN_00463940`'s own lookup list. d2d: not
+  ported as a function; the per-type dispatch is `World`'s own per-unit
+  tick (`world/tick.cpp`), no disagreement found on the player arm
+  (`FUN_00463390` below).
 - **`FUN_00463390`** (fastcall ECX unit; the only caller is `FUN_00480810`): the client's
   per-frame step for a player, driven by a table of 12-byte rows indexed by the unit's mode
   (`+0x10`): `[0x711e00 + mode*12]` (a class: 1 = a walk-like mode, 2 = a mode with a
@@ -1197,3 +1221,19 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   table's own values were not dumped here (combat.md:390 reads row 4 as `[0, 1, 2]`). d2d:
   agrees with combat.md:390 and `setup.cpp:430` (the mode ends a tick before the server);
   the rest of the step is not ported as a function.
+- **`FUN_004807c0`** (fastcall ECX unit, 67 bytes; only caller `FUN_00463390`
+  above, class 1 and class-2-over): `FUN_00480420(unit)` first (the stale
+  path-target clear, already traced above). Then two state checks, both
+  `FUN_00639df0(unit, state)` (already verified, `ai.cpp:1222`): state 0xd
+  set calls `FUN_004e3ab0(unit)`, state 0x16 set calls `FUN_004e2d40(unit)`
+  — both read a queued skill's Skills.txt range fields (0x15e / 0x15f) and
+  the current node, and end in `FUN_004cd540` (not read here; their own
+  effect, a quest or sound trigger tied to standing still with a skill
+  queued, is not traced). Last, `FUN_00650840(unit, FUN_0044db10())`
+  (already verified, `ai.cpp:357` — the real per-frame path-motion step,
+  `DAT_007a04c4` the second argument) runs the walk; `FUN_004807c0` answers
+  true ("over") exactly when that step answers 0 (no more steps queued
+  this frame). d2d: not ported as a function; `FUN_00650840`'s own port
+  (`move_frame`-adjacent code in `world/tick.cpp`) already covers the walk
+  step itself, no disagreement found; the two state/trigger calls (0xd,
+  0x16) are not ported, not traced further here.
