@@ -163,6 +163,12 @@ level 121); marker 459's event 7 retries it. Nihlathak's death
 the rest 14; state 4; the log 4 eight ticks on (`FUN_0058b770`). 20148:
 bit 4 (her personalizing then due; bit 0 with it).
 
+The portal retry `FUN_0058b940` looks up record 0x22. If it exists and
+its data +0x87 is nonzero, it attempts `FUN_0058af90`; when the low return
+byte is zero it schedules event 7 for the supplied unit at game frame +12.
+`tools/emu/quest_betrayal_retry.py` checks 48 combinations with lookup,
+portal attempt and scheduler hooked; it does not test their internals.
+
 ## Rite of Passage (a5q5)
 
 Data: +0 won, +1 told, +0xc players dead on the Summit, +0x10 / +0x11
