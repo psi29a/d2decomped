@@ -8,8 +8,8 @@
 #include "scene.hpp"
 #include "skilltree.hpp"
 
-#include <dc6.hpp>
 #include <d2s_items.hpp>
+#include <dc6.hpp>
 #include <font.hpp>
 #include <palette.hpp>
 #include <skills.hpp>
