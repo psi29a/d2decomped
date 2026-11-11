@@ -4,7 +4,7 @@
 // loses the flat MDR scaled by DamageRate / 1024 (FUN_0057c1e0, 0x57c291), then the resistance, and the life takes the record
 // total as it is (0057c852): the fraction stays (Foe::frac, the blow's frac), no draw rounds it. Its record has result
 // flag 1 alone (no GetHit: FUN_005ad730), so no get-hit; pSrvDmgFunc 3 (FUN_005ad220) makes it a soft hit (0x4000) when
-// a draw's low 7 bits are under dParam1: the struck sound with the row's hit class.
+// a draw's low 7 bits are under dParam1: the struck sound. Its hit class goes on the unit either way (flag 1).
 
 #include <ai.hpp>
 #include <combat.hpp>
@@ -59,7 +59,7 @@ int main() try {
     assert(struck.soft_hits == 1 && struck.hit_class == 0x24);
     burner.dmg_par1 = 0;                            // none under 0
     (void)burn(0, &struck);
-    assert(struck.soft_hits == 0 && struck.hit_class == 0);
+    assert(struck.soft_hits == 0 && struck.hit_class == 0x24);   // flag 1: every burn puts its class on the unit (FUN_0057cee0)
     std::puts("OK: a burn keeps its 256ths (0057c852), its MDR at DamageRate / 1024; no get-hit, dParam1 soft hits");
     return 0;
 } catch (const std::exception& error) {

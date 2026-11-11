@@ -193,8 +193,11 @@ auto Town::update(std::vector<std::uint8_t>& framebuffer, const Mouse& frame_mou
             if (chat_typing) chat_typing->append(typed.substr(0, 255 - std::min<std::size_t>(chat_typing->size(), 255)));
             for (const auto key : keys_this_frame) {
                 if (chat_typing && key == SDLK_BACKSPACE && !chat_typing->empty()) chat_typing->pop_back();
-                // The hire list's box takes Enter (FUN_004bebc0), not the chat: the
-                // selected row is hired, as a release over it would.
+                // The hire list's box takes Enter (FUN_004bebc0, its break queued before
+                // the draw count's test), not the chat: the selected row is hired, as a
+                // release over it would.
+                // ponytail: FUN_004bebc0 breaks on every key it's given; which key
+                // handlers sit before or after the box's isn't traced, so only Enter goes to it.
                 if (!chat_typing && npc_menu.list && virtual_key(key) == 0x0d) {
                     auto& list = *npc_menu.list;
                     const int row = d2d::rules::list_enter(list.draws, list.hover, 0x0d);

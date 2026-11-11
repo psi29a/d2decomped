@@ -91,7 +91,7 @@ auto Fight::skill_element(d2d::rules::Fighter& fighter, const d2d::rules::Skill&
 
 // A state of the same States.txt group goes off as this one comes on (FUN_0056c740).
 auto Fight::add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t until) -> void {
-        const auto group_of = [&](const d2d::rules::Skill& row) { const auto info = game_data->states.find(row.aurastate); return info != game_data->states.end() ? info->second.group : 0; };
+        const auto group_of = [&](const d2d::rules::Skill& row) { return state_group(row.aurastate); };
         const int group = group_of(skill);
         std::erase_if(actor->self_states, [&](const SelfState& state) {
             const auto* other = game_data->skills.get(state.skill);
@@ -100,12 +100,16 @@ auto Fight::add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t unt
         actor->self_states.push_back({ skill.id, lvl, until });
     }
 
+auto Fight::state_group(const std::string& aurastate) const -> int {
+        const auto info = game_data->states.find(aurastate);
+        return info != game_data->states.end() ? info->second.group : 0;
+    }
+
 auto Fight::shift_back(const d2d::rules::Skill& skill) -> bool {
-        const auto group_of = [&](const std::string& aurastate) { const auto info = game_data->states.find(aurastate); return info != game_data->states.end() ? info->second.group : 0; };
-        const int group = group_of(skill.aurastate);
+        const int group = state_group(skill.aurastate);
         return group != 0 && std::erase_if(actor->self_states, [&](const SelfState& state) {
             const auto* other = game_data->skills.get(state.skill);
-            return other && group_of(other->aurastate) == group;
+            return other && state_group(other->aurastate) == group;
         }) > 0;
     }
 
