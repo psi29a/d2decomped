@@ -8,6 +8,96 @@ Our port: `components/rules/monsters.hpp` (`player_life_pct`,
 Tests: `tests/game/test_game.cpp` (two players). The first survey is in
 docs/design/net-host.md section 2; this file has the traced detail.
 
+## Party membership — the control list
+
+The host keeps one `D2UnitPartyControl` per game (game +0x1d2c, net-host.md):
+an `nPartyId` counter and a `pSub` list of `D2UnitPartyControlSub` (one per
+party), each with its own `nPartyId`, a `pPrev` link to the next sub in that
+outer list (despite the name — the list is walked only that way, newest
+first), and a `pSub` list of `D2UnitPartyControlSubSub` (one per member:
+`nUnitGUID`, `pNext`).
+
+- FUN_00540000 FreePartyControl: frees every member node, every party sub,
+  then the control block itself (game teardown; `.\UNIT\Party.cpp` lines
+  0x3f/0x43/0x47).
+- FUN_005400b0 PARTY_UpdateNextPartyId: the next free id ≥ 3 not already
+  used by an existing party sub, then leaves the control's counter one past
+  it. Ids 0..2 are never issued (0xffff means none).
+- FUN_00540100 PARTY_CreateParty: allocates a `D2UnitPartyControlSub` with
+  that id and prepends it to the control's list. Halts (lines 0x7f/0x81)
+  without a control block, or on allocation failure.
+- FUN_00540180 PARTY_FreePartyMembers: frees every member node of one party
+  sub, sending `SendAllPlayersPartyInfo` and S→C 0x8D (PLAYERPARTY) for
+  each — but only while every member's GUID still resolves to a live unit;
+  the first miss falls through to the halt at line 0x9a instead of being
+  skipped. Then frees the sub itself.
+- FUN_00540220 PARTY_DisbandParty: finds the sub by id in the control's
+  list, unlinks it (patching the predecessor's `pPrev`, or the control's
+  `pSub` for the head), then PARTY_FreePartyMembers it. A silent no-op if
+  the id isn't found (no halt).
+- FUN_005402d0 CheckUnitGUIDInAllPartyControlSubs: despite the name, checks
+  one sub's own member list, not every party — true if `nUnitGUID` is
+  already a member there.
+- FUN_00540320 PARTY_AddUnitToParty: finds the sub by id, checks
+  CheckUnitGUIDInAllPartyControlSubs first (already a member → returns 1,
+  no-op), else allocates a member node, prepends it, sends S→C 0x8D
+  (AssignPlayerToParty), then clears the hostile relation both ways between
+  the new member and every member already in the list
+  (PARTYSCREEN_ClearHostileRelation). Halts if the party, the unit, or the
+  unit's type (must be UNIT_PLAYER) is invalid.
+- FUN_00540460 CountPartyControlSubSize: member count of the party with
+  that id, or -1 if no such party.
+- FUN_00540710 GetPartyIdFromUnit: scans every party sub and its member
+  list for pUnit's GUID; -1 if none. The search GUID is read through
+  `pUnit->pInventory` via FUN_0063d450 when the unit has one — confirmed in
+  the asm that function (named "INVENTORY_GetCursorItemGUID" by Ghidra)
+  returns `pInventory->nOwnerGUID`, the inventory's own owner, i.e. the
+  same GUID as `pUnit->nUnitGUID` for a normal player; it is not a
+  cursor-item lookup, and not a bug.
+- FUN_005407a0 PARTY_RemoveUnitFromParty: finds the unit's party
+  (GetPartyIdFromUnit), unlinks its member node, sends the same
+  SendAllPlayersPartyInfo / 0x8D pair as PARTY_FreePartyMembers, frees the
+  node, then disbands the party (PARTY_DisbandParty) if membership drops
+  under 2. Halts on a non-player or missing unit (line 0x130) or an
+  unresolvable party sub (line 0x138).
+
+Confirmed directly (already cited): FUN_00540290 FindPartyControlSub
+(net-host.md:132) returns the `D2UnitPartyControlSub` matching an id by
+walking the control's list, as described there; no correction needed.
+
+Five more functions in the same file support the per-level and gold-split
+math already described below and in net-host.md:
+
+- FUN_005404c0 CountAliveUnitsLevelSum: a FindUnitWithFilter callback —
+  adds the unit's level stat (`STATSEX_GetCurrentStat`, UNITSTAT_level) to
+  `*pLevelSum` unless it's mode-zero dead (`CheckForModeZeroDeath`). Likely
+  FUN_00540890's filter (net-host.md:132's "sums member levels");
+  FUN_00540890 itself is not traced in this batch.
+- FUN_005404f0 CountModeZero: a FindUnitWithFilter callback — `++*pCount`
+  unless mode-zero dead. Confirmed directly: this is the "alive" counter
+  already cited below for NoDrop's nearby count and for the gold split's
+  member count.
+- FUN_005405a0 FindUnitWithFilter: confirmed directly — calls
+  `fpFilter(pGame, pMember, pData)` for every party member sharing pUnit's
+  room's level id; when pUnit has no room, or no party (`GetPartyId ==
+  0xffff`), it calls the filter once with pUnit itself instead — a solo
+  player (or one not yet placed in a room) still counts as a party of one.
+  This fallback case isn't called out in the existing citations.
+- FUN_00540650 GoldCalculations: confirmed directly — accepted = min(amount,
+  limit − current gold) against `GetInventoryGoldLimit` and stat
+  UNITSTAT_gold; overflow is the rest. Matches the "room" check in the gold
+  split below exactly.
+- FUN_005406a0 BroadcastAutomapAllyPartyInfo: for every other party member
+  found in the unit table, sends S→C 0x7F (AllyPartyInfo /
+  PartyAutoMapInfo) to pUnit's own client — the automap's ally markers.
+
+d2d is a client only — it never allocates a `D2UnitPartyControl`; this is
+the host's own party bookkeeping, which d2d doesn't run (net-host.md:
+hosting is design, not yet built). `apps/d2d/netgame.cpp` only mirrors the
+wire results (S→C 0x8b/0x8d/0x75/0x7f) into `NetGame::Unit::party` /
+`party_life` / `area` / `relation` (`apps/d2d/netgame.hpp:40-44`). Nothing
+here ports into `components/` until hosting exists.
+
 ## The player count — FUN_00535790
 
 Players in the game (FUN_005538d0 over the player hash, game +0x1120,

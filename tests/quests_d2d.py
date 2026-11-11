@@ -176,6 +176,21 @@ def menu_pick(text):
     cmd(f"click {line[0][1]} {line[0][2]}")
 
 
+def use_item_panel(x, y):
+    """An NPC service's item panel (use_item.hpp), as a player works it: the
+    item at x, y up from the inventory, into the slot, then the first button.
+    Its presses come 400 ms apart at least (FUN_004bfc50)."""
+    until("the item panel open", lambda: state()["useitem"] == "1")
+    time.sleep(0.5)
+    cmd(f"click {x} {y}")
+    until("the item in hand", lambda: state()["held"] != "-")
+    time.sleep(0.5)
+    cmd(f"click {0xa7} {0xa0}")                         # the slot
+    until("the item placed", lambda: state()["useitem"] == "2")
+    time.sleep(0.5)
+    cmd(f"click {0x8a} {0xf0}")                         # imbue / add sockets / personalize
+
+
 def service(name, slot, done, what):
     """The NPC menu's entry before Cancel (imbue, sockets, personalize), then a
     click on the item worn in body slot `slot`, as a player would; worn again after."""
@@ -185,7 +200,7 @@ def service(name, slot, done, what):
     line = [l.split("\t") for l in cmd("menu").splitlines() if "\t" in l][-2]
     cmd(f"click {line[1]} {line[2]}")
     x, y = cmd(f"debug itemat {item.group(2)}").split()[1:3]
-    cmd(f"click {x} {y}")
+    use_item_panel(x, y)
     until(what, done)
     cmd(f"click {x} {y}")                             # worn again
     time.sleep(0.3)
@@ -341,10 +356,11 @@ def act1():
     weapon = re.search(r"^\[(\w+) loc=1 slot=4 .* id=(\d+) ", cmd("items"), re.MULTILINE)
     assert weapon, "no weapon worn"
     open_menu("Charsi")
-    menu_pick("imbue")                                # the inventory opens; the next item click imbues it
+    menu_pick("imbue")                                # her item panel opens, the inventory beside it
     x, y = cmd(f"debug itemat {weapon.group(2)}").split()[1:3]
-    cmd(f"click {x} {y}")
+    use_item_panel(x, y)
     until("Charsi imbued", lambda: bits(3) & 1)
+    until("the panel shut", lambda: state()["useitem"] == "0")
     assert "Charsi imbued the " + weapon.group(1) in log_text(), "not the axe"
     for col in range(10):                             # back into the pack, as a player would place it
         cmd(f"cmd grid {col} 0")

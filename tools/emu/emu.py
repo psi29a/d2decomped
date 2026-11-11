@@ -342,6 +342,21 @@ def serve_files(e):
         e.w32(ph, h)
         return 1
 
+    def sopen_ex(e):
+        """SFileOpenFileEx(pArchive, szFileName, dwFlags, phFile): same source as sopen,
+        but the archive-search entry point SFileLoadFile/SFileLoadFileEx2 call directly
+        (bypassing the simpler SFileOpenFile that sopen replaces)."""
+        name, ph = e.cstr(e.arg(1)), e.arg(3)
+        data = e.mpq_file(name)
+        trace(f"file {name}: {'missing' if data is None else len(data)}")
+        if data is None:
+            e.last_error = 2
+            return 0
+        h = 0x5000 + 4 * len(open_files)
+        open_files[h] = [name, data, 0]
+        e.w32(ph, h)
+        return 1
+
     def ssize(e):
         if e.arg(1): e.w32(e.arg(1), 0)
         return len(open_files[e.arg(0)][1])
@@ -365,6 +380,7 @@ def serve_files(e):
         return 1
 
     e.hook(0x419980, sopen, 2)
+    e.hook(0x4192f0, sopen_ex, 4)
     e.hook(0x416370, ssize, 2)
     e.hook(0x41aad0, sread, 7)
     e.hook(0x4198d0, lambda e: (open_files.pop(e.arg(0), None), 1)[1], 1)

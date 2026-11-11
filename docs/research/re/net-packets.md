@@ -442,7 +442,7 @@ sockets = 0, version 0x60, &err)`; full items `FUN_0062cbe0`, compact
 |---|---|---|
 | +1 | u8 | action (0..4, 0xa..0x10, 0x12; else error 0xf6d) |
 | +2 | u8 | total length (< 0xfd) |
-| +3 | u8 | category (`FUN_00623d60`: ItemsTxt +0x115, or 6 for the two-hand / switch case) |
+| +3 | u8 | category (`FUN_00623d60`: ItemsTxt +0x115 via `ITEM_GetItemsTxt_bComponent`, or 6 for a dual-wielded off-hand weapon — oracle: `tools/emu/units_small.py check_item_component`, callees mocked, no d2d code builds this packet to diff against) |
 | +4 | u32 | item unit id |
 | +8 | bits | the item |
 

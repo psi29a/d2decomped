@@ -355,6 +355,7 @@ inline std::vector<std::uint8_t> encode_view(const GameData& game_data, const Vi
         else if (const auto* quake = std::get_if<ev::QuestQuake>(&event)) out.u8(7).u8(int(quake->kind));
         else if (const auto* refused = std::get_if<ev::TradeRefused>(&event)) out.u8(8).u8(int(refused->result));
         else if (const auto* dip = std::get_if<ev::AmbientDip>(&event)) out.u8(9).i32(dip->fade_in).i32(dip->hold).i32(dip->back).i32(dip->level);
+        else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->done ? 1 : 0);
         else {
             const auto& open_ui = std::get<ev::OpenUI>(event);
             out.u8(1).u8(int(open_ui.kind)).i32(open_ui.npc).u16(int(open_ui.quest.size()));
@@ -599,6 +600,9 @@ inline bool apply_view(const GameData& game_data, std::span<const std::uint8_t> 
         } else if (kind_byte == 9) {
             const int fade_in = i32(), hold = i32(), back = i32();
             view.events.push_back(ev::AmbientDip{ fade_in, hold, back, i32() });
+        } else if (kind_byte == 10) {
+            const int npc = i32();
+            view.events.push_back(ev::ServiceResult{ npc, byte() != 0 });
         } else {
             const auto kind = ev::OpenUI::Kind(byte());
             ev::OpenUI open_ui{ kind, i32() };
