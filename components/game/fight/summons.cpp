@@ -159,12 +159,15 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer].front();
         monster.difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         monster.row_align = type_info.align; monster.classic = !game_expansion;   // a revived one swings as a classic game's (summons are Align 1)
-        monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);   // spawned at its own level (FUN_005b2f20)
+        monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);   // spawned at its MonStats Level (FUN_005b2f20 -> FUN_005b2a00; the stat init FUN_00573cb0)
         // Its life and damage straight from MonStats' columns (a Raise
         // Skeleton skeleton: 21 life, 1-2 damage in Normal; 30 / 42 in
-        // Nightmare / Hell), not scaled by MonLvl.
-        // ponytail: FUN_005b2f20's pet branch isn't traced; the published
-        // pet values are the raw columns.
+        // Nightmare / Hell), not scaled by MonLvl: every player summon's row
+        // is noRatio (+0xc & 4), which the stat init (FUN_00573cb0 ->
+        // FUN_006538a0) and the per-mode damage (FUN_005a4f50) take as
+        // written, and Align 1 (row +0x4c) skips the players' life bonus
+        // (FUN_00573930).
+        // ponytail: the life roll takes d2d's rng, not the pet's unit seed (+0x20).
         // Revive (do 58, FUN_005c56c0) raises the monster as it was: its own
         // stats at its level, life and level brought down to the owner's
         // when it's above it.
@@ -177,7 +180,8 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // The Druid's and Raven's hit with the skill's physical damage (their
         // MonStats rows have none).
         // ponytail: where game.exe hands the skill's damage to the pet isn't
-        // traced.
+        // traced: not the summon (FUN_005c6910 / FUN_005c7390, FUN_005c49e0,
+        // FUN_005c4470) nor the per-mode damage (FUN_005a4f50); the hit's next.
         if (monster.stats.a1_max == 0 && skill.maxdam > 0) {
             const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
             monster.stats.a1_min = damage.phys_lo >> 8; monster.stats.a1_max = std::max(damage.phys_hi >> 8, monster.stats.a1_min);

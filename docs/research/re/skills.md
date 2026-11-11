@@ -1108,9 +1108,15 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   the aura events, sumumod, sumoverlay. **FUN_005d6b60** isn't a
   mastery: it's the pet's MonEquip.txt gear.
 - A pet's life and damage are MonStats' own columns (a skeleton 21 life,
-  1-2 damage in Normal, 30 / 42 in Nightmare / Hell), not MonLvl-scaled.
-  The Druid's and Raven's rows have no damage: the skill's physical
-  (MinDam + MinLevDam) is theirs. (Neither traced: the published values.)
+  1-2 damage in Normal, 30 / 42 in Nightmare / Hell), not MonLvl-scaled:
+  every player summon's row but hydra1 (no life) is noRatio (+0xc & 4),
+  which the stat init (FUN_00573cb0 -> FUN_006538a0) and the per-mode
+  damage (FUN_005a4f50) take as written; Align 1 (row +0x4c, read in the
+  emulator: necroskeleton 1, skeleton1 0) skips the players' life bonus
+  (FUN_00573930). The Druid's and Raven's rows have no damage: d2d gives
+  them the skill's physical (MinDam + MinLevDam). Not traced where
+  game.exe does: not in the summon (FUN_005c6910 / FUN_005c7390,
+  FUN_005c49e0, FUN_005c4470) nor FUN_005a4f50.
 - Do 149 (**FUN_005ce0b0**, NecromageMissile): srvmissilea + the mage's
   byte +0xf (necromage1..4: poison, cold, fire, lightning).
 - Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at
