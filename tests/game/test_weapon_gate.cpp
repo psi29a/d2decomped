@@ -31,6 +31,16 @@ int main() try {
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     if (!data) { std::printf("FAIL: load_game_data failed\n"); return 1; }
     if (!data->patched) { std::printf("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
+    const auto gate_id = [&](int skill_id, std::initializer_list<std::pair<const char*, int>> worn, int wielded_slot) {
+        Character character;
+        for (const auto& [code, slot] : worn) {
+            if (!*code) continue;
+            d2d::d2s::Item item;
+            item.code = code; item.location = d2d::d2s::item_location::kEquipped; item.slot = slot; item.wielded = slot == wielded_slot;
+            character.items.push_back(std::move(item));
+        }
+        return weapon_gate(*data, character, *data->skills.get(skill_id));
+    };
     const auto gate = [&](const char* skill, std::initializer_list<std::pair<const char*, int>> worn, int wielded_slot = 0) {
         Character character;
         for (const auto& [code, slot] : worn) {
@@ -57,7 +67,19 @@ int main() try {
     assert(gate("Left Hand Swing", { { "ssd", kRight }, { "hax", kLeft } }, kRight) && gate("Left Hand Swing", { { "ssd", kRight } }, kRight));
     // Smite: a shield too; Fire Bolt: no set.
     assert(gate("Smite", { { "buc", kLeft } }) && !gate("Smite", { { "ssd", kRight } }) && gate("Fire Bolt", {}));
-    std::puts("OK: the weapon-type gate as FUN_00643f80 / FUN_00643d90");
+    // game.exe's own answers (tools/emu/weapon_gate.py): every pair of hands for a skill of each
+    // distinct weapon set, Left Hand Throw / Swing with each hand wielded.
+    struct Case { int skill; const char* right; const char* left; int wielded; int usable; };
+    static constexpr Case kCases[] = {
+#include "weapon_gate_cases.inc"
+    };
+    int wrong = 0;
+    for (const auto& row : kCases)
+        if (gate_id(row.skill, { { row.right, kRight }, { row.left, kLeft } }, row.wielded) != (row.usable != 0)) {
+            if (++wrong <= 10) std::printf("FAIL: skill %d right '%s' left '%s' wielded %d: game.exe %d\n", row.skill, row.right, row.left, row.wielded, row.usable);
+        }
+    assert(wrong == 0);
+    std::printf("OK: the weapon-type gate as FUN_00643f80 / FUN_00643d90 (%zu cases)\n", sizeof(kCases) / sizeof(kCases[0]));
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_weapon_gate: %s\n", error.what());
