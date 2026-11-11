@@ -161,3 +161,13 @@ of type 0x27 containing the unit ID (or -1) and line and calls the packet
 helper. `tools/emu/ai_dialogue.py` checks seven local and packet decisions
 with formatting, allocation, sound and packet helpers scripted; it does not
 exercise their implementations or send network data.
+
+`FUN_005e7c10` idles 5 frames for a null unit or a unit whose mode is not 1.
+For an active unit outside town it searches using `FUN_005dd7f0`. With a
+target it draws `FUN_0045c390` in [0, 100): outside melee, a draw below 30
+calls `FUN_005dec80(target, 7)`; in melee, a draw below 80 calls
+`FUN_005ddf90(4, target)`. Other target cases idle 10. In town or without a
+target it advances the unit seed once and calls the wander helper for 5 when
+the low word modulo 100 is below 20, otherwise idles 10.
+`tools/emu/ai_npc_melee.py` checks eight cases, including both roll boundaries,
+with room, town, search, bounded-roll and action helpers hooked.
