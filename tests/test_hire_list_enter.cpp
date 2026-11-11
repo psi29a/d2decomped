@@ -8,8 +8,9 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     struct Case { std::uint32_t draws; int selected; std::uint32_t key; int called, returned; };
     const Case cases[] = {
 #include "hire_list_enter_cases.inc"
@@ -23,4 +24,7 @@ int main() {
     }
     std::printf("OK: %zu Enter cases as game.exe's\n", sizeof(cases) / sizeof(cases[0]));
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_hire_list_enter: %s\n", error.what());
+    return 1;
 }
