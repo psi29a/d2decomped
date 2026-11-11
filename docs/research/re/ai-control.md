@@ -16,3 +16,9 @@ itself establish its complete role.
 including each pointer gate and selectors outside 1..3, against the local
 stock executable. It checks the returned values, not the behavior of callers
 that dereference the returned address.
+
+`FUN_0058ebc0` takes a game in ECX and allocates 0x40 bytes from the pool at
+game +0x1c using the AiGeneral.cpp line 0x1b allocation site. It clears the
+block, then sets control +0x0c and +0x2c to -1 and +0x10 and +0x30 to 1.
+The oracle uses a prefilled allocation and checks the pool, size, source site,
+and every byte of the resulting block. Allocation failure is not tested.
