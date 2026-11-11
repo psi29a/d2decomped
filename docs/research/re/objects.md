@@ -568,7 +568,7 @@ smoulders; d2d drew it blazing.
 ## Birth overlay and teardown (client, UNIT/Object.cpp)
 
 - **OBJECT_AddVisualOverlay, FUN_004bc8d0** (ECX unit; called once from
-  `InitCommonData`, FUN_00466191, the client's common unit setup — not on
+  `InitCommonData`, LAB_00466191, the client's common unit setup — not on
   every mode change): no-op unless the object's Objects.txt row has
   Overlay set. Then by `nClassId`: 0x95 in NU (Neutral) mode, and 0x98 in
   any mode, add `OVERLAY_horadric_light` (tier 3); 0x162, 0x163, 0x164,
@@ -577,7 +577,7 @@ smoulders; d2d drew it blazing.
   or mode is a no-op (`GFX_AddOverlayToUnit`). Not ported: d2d has no
   per-classId birth overlay for objects.
 - **FreeObjectData, FUN_004bca50** (ECX unit; called from the client's
-  type-dispatched `FreeAny`, FUN_0046593d, so once per freed object unit):
+  type-dispatched `FreeAny`, LAB_0046593d, so once per freed object unit):
   frees the gfx info (`FreeGfxInfo`), and — only while a DRLG act is
   loaded (`sgpDrlgAct != 0`, i.e. not at shutdown) — removes it from the
   collision vector (`RemoveCollision_Vector`), unlinks it from its room

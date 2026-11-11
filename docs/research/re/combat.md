@@ -345,7 +345,7 @@ round it out:
 - **UNITEVENT_FreeAllEvents, FUN_005c0a90** (game, unit): walks the list
   freeing every node (`FreeServerMemory`, `.\UNIT\SUnitEvent.cpp` line
   0x3d) and clears the head. Its only caller is `FreeServerUnit`
-  (FUN_00555733), so it's the list's teardown when a unit is removed from
+  (LAB_00555733), so it's the list's teardown when a unit is removed from
   the game.
 - **UNITEVENT_FindByCallbackParams, FUN_005c0be0** (game, unit, queueNo,
   ownerKey, eSkill): the first node whose (queueNo, ownerKey, skill) match,
