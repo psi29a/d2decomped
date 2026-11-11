@@ -238,6 +238,15 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             if (monster.mode == "GH" && now_ms < monster.mode_until) continue;
             if (ai_name == "NecroPet") { necropet_turn(pet, now_ms, elapsed, crowd); continue; }
             if (traced) { pet_think_turn(pet, now_ms, elapsed, crowd); continue; }
+            // Only a revived monster gets here (Revive, do 58). game.exe raises
+            // the corpse itself (FUN_005c56c0: FUN_00553540 is the unit cast
+            // at) on its own MonStats think: FUN_005c55c0 sets its owner
+            // (FUN_0058f030) and its next think, and swaps no AI (no
+            // FUN_005b0e00).
+            // ponytail: d2d has no monster think aimed at monsters, so a
+            // stand-in: the nearest foe chased at max(Run, Velocity), else a
+            // follow at the owner's RunVelocity x 1.1. Port when monster thinks
+            // can take monsters for their targets.
             if (pet.target >= 0 && !monsters[std::size_t(pet.target)].alive()) pet.target = -1;
             if (pet.target < 0) {
                 float best = 1e9f;
@@ -249,7 +258,6 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 }
             }
             const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
-            // ponytail: this untraced pet's chase keeps max(Run, Velocity) and no floor; FUN_00623f50 uses Velocity and a 25 floor, not claimed here.
             const float speed = cells_per_sec(float(std::max(type_info.run, type_info.velocity))) * float(100 + pet.speed_pct) / 100;
             if (speed <= 0) {                                // a Hydra: it stands and shoots what comes in range
                 if (pet.target >= 0 && std::hypot(monsters[std::size_t(pet.target)].unit.x - unit.x, monsters[std::size_t(pet.target)].unit.y - unit.y) > 6.f) pet.target = -1;
@@ -278,8 +286,6 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     set_off(*level, unit, target.unit.x, target.unit.y, true, crowd);
                 if (!walk_on(*level, unit, speed * elapsed, crowd)) pet.target = -1;
             } else {
-                // ponytail: game.exe's walk rule for an untraced pet (no target, following) isn't traced or claimed here;
-                // the owner's RunVelocity x 1.1 stays as it was, outside the MonStats Velocity claim.
                 pet_follow(*level, unit, actor->player.x, actor->player.y, cells_per_sec(float(game_data->run_velocity[save_class])) * 1.1f, now_ms, elapsed, crowd);
             }
             const std::string_view want = unit.walking ? "WL" : "NU";
