@@ -12,8 +12,13 @@ are useful starting points, and the code is the authority for behavior.
 update, and load paths from stock game.exe 1.14d on synthetic inputs
 (`D2_MPQ_DIR=<data> uv run python bnetgw.py` from `tools/emu`). Configuration
 IO, memory allocation/free, decimal formatting, logging, and `Realms.bin`
-loading are scripted. Real file IO, live Battle.net, malformed input beyond
-the cases below, concurrency, and unexercised branches remain static traces.
+loading are scripted. `file_io()` additionally runs `Load`'s default-list
+fallback (0x5186d0 -> `ReadDefaultGateways` 0x518300) and
+`WriteDefaultGatewayList` (0x518360) directly against the real
+`DATA\GLOBAL\gateways.txt` served from the MPQ stack by `emu.serve_files`
+(see "Real file IO" below), and `ReadDefaultGateways`' halt when that file
+is missing. Live Battle.net, malformed input beyond the cases below,
+concurrency, and unexercised branches remain static traces.
 
 ## Class layout — 0x24 bytes
 
@@ -70,8 +75,8 @@ double-null tail — it's the "packet-well-formed" invariant.
 | `0x518190` | `?GetGatewayList…`    | `private void GetGatewayList(const char*)`                                                                                                            | reads a named value from `Configuration` config (`FUN_00414de0`, two-phase: size then data); parses the leading digits of the value via `strtoul` into `version`; halts (`ERROR_UnrecoverableInternalError_Halt`) if called while a buffer is already loaded. Confirmed directly: `bnetgw.py` calls it with a synthetic `Configuration` value and checks the parsed size, buffer and version. |
 | `0x518270` | `?GetBattlenetGate…`  | `private void GetBattlenetGatewayList()`                                                                                                              | clears `usesOverride`, calls `GetGatewayList(this, "Override Battle.net gateways")`; if that loaded a buffer, sets `usesOverride=1` and returns; otherwise calls `GetGatewayList(this, "Diablo II Battle.net gateways")` and leaves `usesOverride=0`. Confirmed directly: `bnetgw.py` exercises both the override-present and override-absent paths. |
 | `0x5182b0` | `?GetBattlenetRealm…` | `private void GetBattlenetRealmsList()`                                                                                                               | slurps `Data\Global\Realms.bin` into `realmsBuf`                                                                            |
-| `0x518300` | *(no export)*         | `static int ReadDefaultGateways(char** out)`                                                                                                          | calls `SFileLoadFile("DATA\GLOBAL\gateways.txt", ...)` (`FUN_0041b650` → `SFileLoadFileEx2` `FUN_0041af60`, Storm's MPQ-backed file loader); on failure halts the same way as `GetGatewayList`'s re-entry guard (no branch returns an empty list). Static trace only: real MPQ file IO is outside `bnetgw.py`'s scripted scope (see its module docstring). |
-| `0x518360` | `?WriteDefaultGate…`  | `private void WriteDefaultGatewayList()`                                                                                                              | logs via `BnetLog_WriteLine` (`FUN_00518d40`), reads `gateways.txt` through `ReadDefaultGateways`, then calls `UpdateGatewaysFromIni` on the result if the load succeeded. Static trace only, same reason as `0x518300`.                                                                     |
+| `0x518300` | *(no export)*         | `static int ReadDefaultGateways(char** out)`                                                                                                          | calls `SFileLoadFile("DATA\GLOBAL\gateways.txt", ...)` (`FUN_0041b650` → `SFileLoadFileEx2` `FUN_0041af60`, Storm's MPQ-backed file loader); on failure halts (`BNetGW.cpp:0x1f9`) the same way as `GetGatewayList`'s re-entry guard (no branch returns an empty list). Confirmed directly: `bnetgw.py`'s `file_io()` runs `Load` (0x5186d0) with no saved gateway list, which falls through to this function and loads the real `gateways.txt` served from the MPQ stack, and separately runs this function alone with the file missing to hit the halt. |
+| `0x518360` | `?WriteDefaultGate…`  | `private void WriteDefaultGatewayList()`                                                                                                              | logs via `BnetLog_WriteLine` (`FUN_00518d40`), reads `gateways.txt` through `ReadDefaultGateways`, then calls `UpdateGatewaysFromIni` on the result if the load succeeded — the same two calls `Load` (0x5186d0) makes inline, but `Load` does not call this function; by xref, its only reference is its own export entry (`?WriteDefaultGatewayList@BNGatewayAccess@@AAEXXZ`) — no caller in this address range reaches it. Confirmed directly: `bnetgw.py`'s `file_io()` calls it on its own (`ecx`=a fresh object) against the real `gateways.txt`.                                                                     |
 | `0x518390` | `?SkipToEOL…`         | `private char* SkipToEOL(char*, char*)`                                                                                                               | walk forward until `\r`, `\n`, `\0`, or end                                                                                 |
 | `0x5183c0` | `?SkipEOL…`           | `private char* SkipEOL(char*, char*)`                                                                                                                 | walk forward past `\r`/`\n` run                                                                                             |
 | `0x5183f0` | `?FindSection…`       | `private char* FindSection(char*, const char*)`                                                                                                       | scan for `[` anywhere, then compare the name prefix case-insensitively; returns after EOL                                                          |
@@ -130,6 +135,26 @@ default-list fallback, the already-loaded guard, writing the override name,
 and clean unload without a write. These use an in-memory configuration map;
 they do not establish real registry or file persistence. The new list picks
 the closest zone to the former selection's zone; ties keep the first entry.
+
+## Real file IO
+
+`SFileLoadFile` (`0x41b650`) forwards to `SFileLoadFileEx2` (`0x41af60`),
+which opens through `SFileOpenFileEx` (`0x4192f0`), sizes through
+`SFileGetFileSize` (`0x416370`), reads through `SFileReadFileEx2`
+(`0x41aad0`), and closes through `SFileCloseFile` (`0x4198d0`) — the last
+three are exactly the addresses `emu.serve_files` already hooked to answer
+from the real MPQ stack via `mpq-cat`, for the other oracles that call
+through the shorter `SFileOpenFile` (`0x419980`). `BNetGW.cpp`'s loaders
+call `SFileOpenFileEx` directly, bypassing that shorter wrapper, so
+`emu.serve_files` (`tools/emu/emu.py`) now also hooks `0x4192f0` the same
+way, sharing the same open-file table. With `D2_MPQ_DIR` pointed at a real
+1.14d install, this makes `ReadDefaultGateways` (`0x518300`) and
+`WriteDefaultGatewayList` (`0x518360`) run end to end against the
+installation's actual `DATA\GLOBAL\gateways.txt` (confirmed present; 4
+gateways, `VER=1002`), not a scripted stand-in — and lets `bnetgw.py`'s
+`file_io()` drive `Load` (`0x5186d0`) through its real default-list
+fallback (no override, no saved list) and reach `ReadDefaultGateways`'s
+halt (`BNetGW.cpp:0x1f9`) when the file load fails.
 
 ## What isn't here (yet)
 

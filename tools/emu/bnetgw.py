@@ -4,7 +4,11 @@
 Run with D2_MPQ_DIR set: uv run python bnetgw.py
 The PE is hash checked. Parser, accessors, save, update and load run on
 synthetic buffers. Allocator, config IO, decimal formatting, logging and
-Realms.bin load are scripted; no live file IO or Battle.net is exercised.
+Realms.bin load are scripted. `file_io()` runs ReadDefaultGateways
+(0x518300) and WriteDefaultGatewayList (0x518360) for real against the
+stock DATA\\GLOBAL\\gateways.txt served from the MPQ stack, and
+ReadDefaultGateways' halt when that file can't be loaded; live Battle.net
+is still out of scope.
 """
 import argparse
 import hashlib
@@ -34,9 +38,10 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-def integration(exe):
-    """Run save, update and reload with scripted allocation and configuration IO."""
-    m = emu.Emu(str(exe))
+def scripted_config(m):
+    """Install the configuration/allocator/logging plumbing `integration()` and `file_io()`
+    share, so a fresh `Emu` can run `Load` (0x5186d0) end to end. Returns (records, writes,
+    frees)."""
     records, writes, frees = {}, [], []
 
     def alloc(current):
@@ -89,6 +94,13 @@ def integration(exe):
     m.hook(0x5182b0, lambda current: 0, 0)  # Realms.bin load
     m.hook(0x518c70, lambda current: 0, 0)
     m.hook(0x518d40, lambda current: 0, 0)
+    return records, writes, frees
+
+
+def integration(exe):
+    """Run save, update and reload with scripted allocation and configuration IO."""
+    m = emu.Emu(str(exe))
+    records, writes, frees = scripted_config(m)
 
     # GetGatewayList (0x518190) read directly, not just through Load (0x5186d0):
     # the registry value's size lands at +0x14, its raw bytes are copied to +0x10,
@@ -176,6 +188,91 @@ def integration(exe):
     call(m, 0x517ed0, save_obj)
     require(len(writes) == before and save_data in frees, "clean unload frees without writing")
     return 23
+
+
+def file_io(exe):
+    """Run ReadDefaultGateways (0x518300) for real: `Load` (0x5186d0) with no override and no
+    saved default list falls through to it, which calls `SFileLoadFile` -> `SFileLoadFileEx2`
+    (0x41b650 -> 0x41af60) against the real `DATA\\GLOBAL\\gateways.txt` served from the MPQ
+    stack by `emu.serve_files`. Also calls `WriteDefaultGatewayList` (0x518360, reachable only
+    through its own export, not from `Load`) directly against the same real file, and runs
+    ReadDefaultGateways' halt (BNetGW.cpp:0x1f9) when the file is missing."""
+    checks = 0
+
+    # --- success: Load's default-list fallback reads the real gateways.txt ---
+    m = emu.Emu(str(exe))
+    emu.serve_files(m)
+    records, writes, _frees = scripted_config(m)
+    tz_state = {"bias": 480, "lang": 0x0409}  # minutes GMT; exactly uswest.battle.net's ZONE=8
+
+    def timezone(current):
+        """Stub the Windows API's timezone bias output."""
+        current.w32(current.arg(0), tz_state["bias"])
+        return 1, 1
+
+    for address, (name, _) in list(m.slots.items()):
+        if name == "GetTimeZoneInformation":
+            m.slots[address] = (name, timezone)
+        elif name == "GetUserDefaultLangID":
+            m.slots[address] = (name, lambda current: (tz_state["lang"], 0))
+
+    load_obj = m.alloc(36)
+    call(m, 0x5186d0, load_obj)
+    require(m.r32(load_obj + 0x1c) == 0, "real gateways.txt: no override in play")
+    require(m.r32(load_obj + 8) == 4, "real gateways.txt: 4 gateways")
+    require(m.r32(load_obj + 0x18) == 1002, "real gateways.txt: VER=1002")
+    require(m.r32(load_obj + 0xc) == 1, "closest to GMT bias 480 is uswest.battle.net (ZONE=8)")
+    checks += 4
+    for index, dns, zone, enu in [(1, "uswest.battle.net", 8, "U.S. West"),
+                                   (2, "useast.battle.net", 6, "U.S. East"),
+                                   (3, "asia.battle.net", -9, "Asia"),
+                                   (4, "europe.battle.net", -1, "Europe")]:
+        require(m.cstr(call(m, 0x518040, load_obj, index)) == dns, f"gateway {index} DNS")
+        checks += 1
+        require(m.cstr(call(m, 0x5180a0, load_obj, index)) == enu, f"gateway {index} ENU name")
+        checks += 1
+        require(call(m, 0x518060, load_obj, index) == (zone & 0xffffffff), f"gateway {index} GMT")
+        checks += 1
+    require(any(name == "Diablo II Battle.net gateways" for name, _ in writes),
+            "the real default list is saved back under the default key")
+    checks += 1
+    require(records["Diablo II Battle.net gateways"] == m.read(m.r32(load_obj + 0x10), m.r32(load_obj + 0x14)),
+            "the saved record matches the in-memory buffer")
+    checks += 1
+
+    # --- WriteDefaultGatewayList (0x518360) itself: not called from Load, only
+    # reachable through its own export; call it directly against the real file ---
+    m3 = emu.Emu(str(exe))
+    emu.serve_files(m3)
+    scripted_config(m3)
+    for address, (name, _) in list(m3.slots.items()):
+        if name == "GetTimeZoneInformation":
+            m3.slots[address] = (name, timezone)
+        elif name == "GetUserDefaultLangID":
+            m3.slots[address] = (name, lambda current: (tz_state["lang"], 0))
+    write_obj = m3.alloc(36)
+    call(m3, 0x518360, ecx=write_obj)
+    require(m3.r32(write_obj + 8) == 4, "WriteDefaultGatewayList: real gateways.txt, 4 gateways")
+    require(m3.r32(write_obj + 0x18) == 1002, "WriteDefaultGatewayList: real gateways.txt, VER=1002")
+    require(m3.r32(write_obj + 0xc) == 1, "WriteDefaultGatewayList: closest to GMT bias 480 is uswest.battle.net")
+    require(m3.cstr(call(m3, 0x518040, write_obj, 1)) == "uswest.battle.net", "WriteDefaultGatewayList: gateway 1 DNS")
+    checks += 4
+
+    # --- failure: no gateways.txt served; ReadDefaultGateways halts (BNetGW.cpp:0x1f9) ---
+    m2 = emu.Emu(str(exe))
+    emu.serve_files(m2)
+    m2.mpq_file = lambda name: None  # simulate a missing DATA\GLOBAL\gateways.txt
+    scripted_config(m2)
+    m2.hook(0x408a60, emu.Emu.fatal, 0)
+    size_out = m2.alloc(4)
+    try:
+        m2.call(0x518300, size_out, limit=LIMIT)
+    except SystemExit as exc:
+        require("1f9" in str(exc), f"expected the BNetGW.cpp:0x1f9 halt, got: {exc}")
+    else:
+        require(False, "ReadDefaultGateways must halt when gateways.txt can't be loaded")
+    checks += 1
+    return checks
 
 
 def main():
@@ -293,6 +390,7 @@ def main():
         require((m.r32(obj + 12), m.r32(obj + 4)) == (expected, 1), f"closest {minutes}")
         checks += 1
     checks += integration(exe)
+    checks += file_io(exe)
     print(f"ok: {checks} BNetGW parser, access and lifecycle checks")
 
 
