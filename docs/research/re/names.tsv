@@ -775,7 +775,7 @@ address	name	evidence
 005e0040	superunique_fangskin	Fangskin superunique init; AI/?
 005e0060	superunique_fire_eye	Fire Eye superunique init; AI/?
 005e0070	uber_tristram_death	Hellfire Torch / Standard of Heroes drop on uber death; AI/?
-005e0160	ai_skill_apply	applies skill cast at target; AI/?
+005e0160	ai_limited_spawn_think	initializes a remaining count and spawns while in range and due; static trace, ai-control.md
 005e0260	sarcophagus_spawn_think	mummy spawner think with aip1 limit and aip2 cooldown; AI/?
 005e0390	sarcophagus_spawn_init	mummy spawner init; AI/?
 005e0400	high_priest_other_think	HighPriest other think: wait 0 until frame +0x14, then stand 15

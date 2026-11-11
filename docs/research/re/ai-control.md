@@ -31,3 +31,16 @@ only safe on the first branch. Unit types 2, 4 and 5 read coordinates at path
 +0x0c / +0x10; other types use the dynamic path getters, or zero for a null
 path. The oracle scripts the action helper and dynamic getters and checks both
 branches; it does not establish the helper's effects on the rest of the game.
+
+`FUN_005e0160` (game ECX, unit EDX, think record on the stack) is a limited
+spawner, not a generic skill application function. Static trace: if control
++0x14 is zero it copies the signed difficulty-indexed MonStats word at +0x56
+into control +0x18. When think +0x14 is at most the signed word at +0x5c,
+an exhausted count calls `FUN_005ddfc0` with three zeros and returns. With a
+positive count and a due frame (control +0x14 <= game +0xa8), it gets the
+unit's room, passes row 0x60 or -1 according to the table count, and asks
+`FUN_0054dc40` for a location. A successful location and `FUN_005b2f20`
+spawn decrement the count and set the next frame to the signed word at +0x62
+plus the current game frame. Other paths end at `FUN_005de080` with 15.
+The difficulty-indexed words each have stride two. No runtime oracle has
+been run for this trace or for the called helpers.
