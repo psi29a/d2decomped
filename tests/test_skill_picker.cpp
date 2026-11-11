@@ -8,6 +8,9 @@
 
 #include "skill_list.hpp"
 
+#include <d2s_items.hpp>
+#include <skills.hpp>
+
 #include <cassert>
 #include <cstdio>
 #include <exception>
