@@ -181,3 +181,14 @@ distance 20 or more instead advance the unit seed and wander for 5 when the
 low word modulo 100 is below 20, else idle 10. `tools/emu/ai_npc_ranged.py`
 checks eight cases with search, random and action helpers scripted; the
 helpers and downstream actions are not checked.
+
+`FUN_005e7e20` passes monster data +0x30 to `FUN_00572dc0`; a nonzero result
+idles 10 frames. Otherwise it asks `FUN_005ddf20` for a player and an output
+flag. For a player unit whose `FUN_00535060` result is zero, a nonzero draw
+from `FUN_0045c390(seed, 3)` and a nonzero output flag enter a timer branch.
+Control +0x18 zero becomes 60 and `FUN_00553380(unit, 0x12, player)` is
+called; a negative timer becomes zero, and a positive timer decrements by 1.
+This branch idles 20. Other cases search using `FUN_005ddc30`; a target at
+signed distance below 25 attacks with mode 4, else the unit idles 50.
+`tools/emu/ai_good_npc.py` checks eight timer, gate and fallback cases with
+the lookup, status, random and action helpers scripted.
