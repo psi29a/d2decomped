@@ -173,7 +173,8 @@ struct Hud { bool poisoned = false, running = false, run_down = false, weapon_se
              bool pad_bar = false;                       // the pad is playing: the mini-panel strip stays hidden until the mouse or keyboard returns
              std::vector<HudHover>* hovers = nullptr;    // set: the bars' hover texts go here, for the frame's late draw (draw_hud_hovers); null: drawn at once
              int life_preview = 0, mana_preview = 0;     // View::life_preview / mana_preview: the potions' preview fill
-             bool life_text = false, mana_text = false; }; // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): the globe's text without the cursor on it
+             bool life_text = false, mana_text = false;  // "Show HP Text" / "Show MP Text" (0x7befdc / 0x7befe0): the globe's text without the cursor on it
+             int holy_shield = 0; };                     // effective Holy Shield level while state 0x65 is on, else 0 (FUN_00485be0)
 void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers);
 void draw_hud(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,
               const Hud& hud = {}, int mouse_x = -1, int mouse_y = -1);

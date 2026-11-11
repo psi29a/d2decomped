@@ -325,6 +325,8 @@ inline std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kScrollToBook: command = cmd::ScrollToBook{ i32() }; break;
         case opcode::kNpcDeal: {
             const int kind = byte(), npc = i32();
+            // Assigned per arm. A ternary of Command temporaries makes GCC 15
+            // warn that the variant is used uninitialized (-Werror).
             if (kind == npc_deal::kImbue) command = cmd::Imbue{ npc, i32() };
             else if (kind == npc_deal::kCaravan) command = cmd::Caravan{ npc };
             else if (kind == npc_deal::kRespec) command = cmd::Respec{ npc };
