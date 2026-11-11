@@ -324,6 +324,7 @@ target_sources(d2d PRIVATE
     session/net.cpp
     session/setup.cpp
     session/skillpad.cpp
+    session/staff_show.cpp
     session/touch.cpp
     session/update.cpp
     session/use_item.cpp

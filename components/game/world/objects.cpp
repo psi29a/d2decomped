@@ -668,6 +668,8 @@ auto World::object_item(const cmd::ObjectItem& given, std::uint32_t now_ms) -> v
         // (0x46b100 in the table at 0x7129d8) plays the jingle with the orifice
         // (object 152) near its player.
         music_cue_near("music_quest_horadric", object.x, object.y);
+        // The same S->C 0x89 {3} to every player (FUN_00545760 at 0x59de02): the light show.
+        each_player([&](Player& player) { player.events.push_back(ev::UniqueEvent{ 3 }); });
         d2d::log::info("The Horadric Staff: placed in the orifice");
     }
 

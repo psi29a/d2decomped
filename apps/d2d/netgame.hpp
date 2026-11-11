@@ -223,6 +223,7 @@ struct NetGame {
     // (act subtiles): ClientSession's net step dips the ambient (rules::state_cloak_dip).
     struct CloakCast { int skill = -1, level = 0; float x = 0, y = 0; };
     std::vector<CloakCast> cloak_casts;
+    std::vector<int> unique_events;            // 0x89 events the client runs itself (3: the staff's light show), for the ClientSession to take
     std::vector<int> quest_news;               // quests (words) whose log state the host sent (0x5d, no flags): the Quest Log button
     // The quest log as the host has it: each quest's log state by its word
     // (0x52 whole, 0x5d one), the game's quest words (0x29), the Den's
