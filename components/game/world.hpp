@@ -484,7 +484,7 @@ struct World {
     bool rite_died = false;                // the player's death on the Summit, taken (FUN_0058d560)
     void rite_update(std::uint32_t now_ms);   // the statues, the Ancients' sleep, a death on the Summit (a5q5)
     void rite_put_back(std::uint32_t now_ms);
-    std::uint32_t betrayal_log_at = 0;     // a5q4's 8-tick timer (FUN_00543f10 -> FUN_0058b770)
+    int betrayal_log_in = 0;               // quest steps to a5q4's 8-tick timer (0x58b84a -> 0x58b770), 0 none
     std::size_t cages_seen = 0;               // a5q2's cages (Spawning::rescue_cages) come into the quest so far
     std::map<const Level*, std::size_t> objects_inited;   // init_new_objects: each level's npcs seen so far
     void rescue_update(std::uint32_t now_ms);             // the cages, the prisoners' asks (a5q2)
@@ -588,6 +588,7 @@ struct World {
     void act2_quest_step();
     void act3_quest_step();
     void act4_quest_step();
+    void act5_quest_step();
     // The NPC's "!" over its head.
     bool act1_alert(int hc_idx);
     bool act2_alert(int hc_idx);

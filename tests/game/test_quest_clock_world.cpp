@@ -97,6 +97,11 @@ int main() try {
     runs_after(world, now_ms, 4, "Izual's ghost's timer", [&] { return world.izual_ghost_in == 0; });
     world.izual_ghost_due = false;
 
+    // Nihlathak dead: a5q4's 8-tick log (0x58b84a -> 0x58b770: log 4).
+    world.betrayal.log = 2;
+    world.betrayal_log_in = quest_timer_steps(8);
+    runs_after(world, now_ms, 9, "Nihlathak's log", [&] { return world.betrayal.log == 4; });
+
     std::printf("OK: the quest timers step every 20 frames\n");
     return 0;
 } catch (const std::exception& error) {

@@ -16,6 +16,7 @@
 #include <level_ids.hpp>
 #include <missiles.hpp>
 #include <monsters.hpp>
+#include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
@@ -54,7 +55,7 @@ auto World::act5_join() -> void {
         prison.join(quests(), carries(d2d::rules::PrisonQuest::kPotionCode));
         betrayal = {};
         betrayal.join(quests());
-        betrayal_log_at = 0;
+        betrayal_log_in = 0;
         rite = {};
         rite.join(quests());
         statues_at = statues_back_at = 0;
@@ -295,7 +296,7 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         if (std::size_t(kill.type) < game_data->monsters.types.size() && game_data->monsters.types[std::size_t(kill.type)].base == d2d::rules::BetrayalQuest::kNihlathak) {
             bool timer = false;                        // each player by him (FUN_0058b7a0's pass)
             each_player([&](Player& player) { timer |= betrayal.killed(quests(), rooms_near(*game_data, *level, player.player.x, player.player.y, kill.x, kill.y)); });
-            if (timer) betrayal_log_at = now_ms + d2d::rules::BetrayalQuest::kLogTicks * kTickMs;
+            if (timer) betrayal_log_in = d2d::rules::quest_timer_steps(d2d::rules::BetrayalQuest::kLogTicks);
             d2d::log::info("Betrayal of Harrogath: Nihlathak is dead");
         }
     }
@@ -627,13 +628,17 @@ auto World::act5_operate(int npc_index, std::uint32_t now_ms) -> bool {
         return true;
     }
 
+// A quest-clock step: a5q4's timer (8 ticks, 0x58b770) runs.
+auto World::act5_quest_step() -> void {
+        if (betrayal_log_in > 0 && --betrayal_log_in == 0) betrayal.log_timer();
+    }
+
 auto World::act5_update(std::uint32_t now_ms) -> void {
         if (hosted_quests) return;
         rescue_update(now_ms);
         prison_update(now_ms);
         rite_update(now_ms);
         eve_update(now_ms);
-        if (betrayal_log_at && now_ms >= betrayal_log_at) { betrayal_log_at = 0; betrayal.log_timer(); }
         // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
         // player it's for (act5_detail::told).
         for (auto [news, quest] : { std::pair{ &siege.news, d2d::rules::SiegeQuest::kQuest }, { &rescue.news, d2d::rules::RescueQuest::kQuest },

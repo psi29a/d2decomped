@@ -275,7 +275,7 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         for (; now_ms - day_at >= kTickMs; day_at += kTickMs) {
             day.step(act(), level->id);
             const bool quest_step = quest_clock.frame_step();   // the quest timers: every 20th frame (FUN_0052d870)
-            credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); } });
+            credit_party([&] { act1_tick(); act2_tick(); if (quest_step) { act1_quest_step(); act2_quest_step(); act3_quest_step(); act4_quest_step(); act5_quest_step(); } });
             each_player([&](Player&) { stamina_frame(); life_update_frame(day_at); footstep_frame(day_at); find_voice(day_at); });
         }
         each_player([&](Player& player) {

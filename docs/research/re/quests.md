@@ -243,6 +243,7 @@ loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
 
 | Timer | Set at | Ticks |
 |---|---|---|
+| Nihlathak's log (`World::betrayal_log_in`, `act5_quest_step`) | 0x58b84a | 8 |
 | The Den's "Return to Akara" (`World::den_log_in`) | 0x5903d9 | 8 |
 | Izual's ghost (`World::izual_ghost_in`, `act4_quest_step`) | 0x5b4126 | 3 |
 | The Gidbinn's guardians (`World::gidbinn_in`, `act3_quest_step`) | 0x5b9c22 | 7 |
@@ -250,7 +251,7 @@ loop) and `quest_timer_steps(ticks)`. On it (`World::act1_quest_step`,
 | The Act 1 and 2 timers in `rules/quests.hpp` | (each quest's) | (each quest's) |
 
 Not yet, kept as ticks x 40 ms:
-Diablo's release, Nihlathak's log, the Ancients' statues (#383).
+Diablo's release, the Ancients' statues (#383).
 
 ## Messages
 
