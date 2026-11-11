@@ -1111,6 +1111,21 @@ Cited from the decompile and `tools/emu/disasm.py` (no oracle run); re-check wit
   | 0x18 | `FUN_00480780(unit, a, b)` | 3 (RN) |
   | 0x19 | `FUN_004804e0(word a, word b, 0, 0, 0)` | 0xd (S1) |
 
+  **`FUN_00480ef0`** (fastcall unit ECX / x EDX, then y and a result flag on
+  the stack — command 7's record fields `a`, `b`, `result`): compares `x`,
+  `y` against the unit's current path position (its path struct `+0xc` /
+  `+0x10` directly for type 2 or 4/5, else `d2d_path_get_x` / `_get_y`, or
+  0 with no path) and sets a "moved" flag when either delta is over 1.
+  Nothing happens (`FUN_00648750(path, 0)`, a stop) unless that flag is
+  set and, for a monster (type 1), `FUN_0046c140()` also answers nonzero.
+  Moved: a player (type 0) that isn't `FUN_00463de0()` (the local player)
+  with a nonzero `result` instead sends `FUN_004804e0(y, 2, 0, 0)` and
+  returns (no recompute); a monster (type 1) tags the record's third field
+  1; every other case leaves it 0. All of those (and the local player's
+  own case) end in `FUN_00480c10(&{x, y, tag}, 0)`, the same path-recompute
+  call commands 0 and 1 use. `FUN_0046c140`'s own body and what `result`
+  means for a player aren't traced.
+
   The modes are set by `FUN_00480e70(unit, mode)` (command 0x13's through `FUN_00480d20`). A command 0, 1, 0x15..0x18 whose walk or
   ask fails ends at `FUN_00460830(unit, neutral mode, 1)` and returns 0; the rest return 1.
   Commands 0x17 / 0x18 are the same two walks as 1 / 0 but set mode 3 (RN). d2d: agrees with what collision.md:242-304,
