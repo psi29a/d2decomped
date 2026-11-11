@@ -7,7 +7,9 @@ D2 intro is 94 MB.
 
 ## Startup (`FUN_00435230`)
 
-When videos are enabled (`FUN_004f9050`):
+When videos are enabled (`FUN_004f9050`: the driver's cutscene mode,
+slot +0x34, which the GDI driver doesn't have, so `-w` skips all of this;
+video-drivers.md):
 1. `Data\Local\Video\New_BLIZ640x480.bik`, then `BlizNorth640x480.bik`.
    The 640x240 versions play in "interlaced" video mode
    (`FUN_0040eb10`), which uses mode 2.
