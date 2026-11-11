@@ -35,7 +35,9 @@ def main():
     for state in (0, 1, 7):
         e.w32(STATE, state)
         e.w32(TICK, 0x1234)
-        e.mu.mem_write(RESET_FLAG, b"\x00")
+        # state 7 starts with the flag already set, so a close that wrongly
+        # clears it (instead of leaving it alone) doesn't pass by accident.
+        e.mu.mem_write(RESET_FLAG, b"\x01" if state == 7 else b"\x00")
         sent.clear()
         e.call(0x4B8CB0)
         cases += 1
@@ -43,13 +45,13 @@ def main():
             raise AssertionError(f"state {state}: must always send C->S 0x4f 2 0 0, got {sent}")
         if state == 7:
             # the guard: already waiting, so the state/tick/flag are left alone
-            if (e.r32(STATE), e.r32(TICK), e.mu.mem_read(RESET_FLAG, 1)[0]) != (7, 0x1234, 0):
+            if (e.r32(STATE), e.r32(TICK), e.mu.mem_read(RESET_FLAG, 1)[0]) != (7, 0x1234, 1):
                 raise AssertionError("state already 7: must not touch state, tick or the reset flag")
         else:
             if (e.r32(STATE), e.mu.mem_read(RESET_FLAG, 1)[0]) != (7, 1):
                 raise AssertionError(f"state {state}: must set state 7 and the reset flag")
-            if e.r32(TICK) == 0x1234:
-                raise AssertionError(f"state {state}: must stamp the tick (GetTickCount)")
+            if e.r32(TICK) != 0:
+                raise AssertionError(f"state {state}: must stamp the tick with GetTickCount's stub (0), got {e.r32(TICK):#x}")
     print(f"ok: {cases} FUN_004b8cb0 close/guard cases")
 
 
