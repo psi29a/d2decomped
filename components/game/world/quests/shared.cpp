@@ -261,8 +261,7 @@ auto World::transmute(std::uint32_t now_ms) -> void {
         std::erase_if(actor->character.items, [](const Item& item) { return item.location == d2d::d2s::item_location::kStored && item.panel == d2d::d2s::item_panel::kCube; });
         const auto& layout = game_data->cube_layout;
         for (auto& item : made.items) {
-            if (item.code == "hst") {             // FUN_0059e5c0 -> FUN_0059b660
-                music_cue("music_quest_horadric");
+            if (item.code == "hst") {             // FUN_0059e5c0 -> FUN_0059b660 (its jingle is the orifice's)
                 d2d::rules::quest::set(quests(), d2d::rules::HoradricStaffQuest::kQuest, 11);
                 staff.staff_made = true;
                 arcane.staff_made(quests());
@@ -601,6 +600,13 @@ auto World::music_cue(std::string_view sound) -> void {
             music.jingle_ms = row->jingle_at * 40; music.back_ms = row->back * 40; music.from_block = row->from_block;
         }
         actor->events.push_back(music);
+    }
+
+// The four client-side jingles (rules::QuestMusic's object rows): the
+// client plays one only when the unit it looks for is in its player's
+// room's near list (FUN_00620bb0 -> FUN_0065a620 walks FUN_00619790's).
+auto World::music_cue_near(std::string_view sound, float x, float y) -> void {
+        each_player([&](Player& player) { if (near_room(player.player.x, player.player.y, x, y)) music_cue(sound); });
     }
 
 // FUN_00546270 for a later player: each record's +0xd8 (quests.md "Joins").

@@ -338,7 +338,6 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             });
             if (!wields_will) { d2d::log::info("I can't use this yet."); return; }
             if (!temple.hit_orb(quests())) { d2d::log::info("The Blackened Temple: the orb's hit"); return; }
-            music_cue("music_quest_compelling");
             take_carried(d2d::rules::KhalimQuest::kWillCode);
             // The party (FUN_005bb850): one done loses Khalim's pieces; one in act 3
             // gets bits 0 and 13, the pieces gone, and with word 0x15 bit 4 its bit 0.
@@ -354,7 +353,14 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 take_pieces();
                 if (quest::bit(bits, 0x15, 4) && !quest::bit(bits, 0x15, 0)) quest::set(bits, 0x15, 0);
             });
-            for (auto& monster : fight.monsters) if (std::size_t(monster.type) < game_data->mon_bin.size() && monster.type == int(game_data->mon_bin[0x16e])) monster.gone = true;
+            // The orb monster's death (FUN_005ddfc0, mode 0) runs its questcomplete
+            // mod's client hook (0x4ad2f0, class 0x16e): the jingle, with object 386
+            // in its near list (FUN_005dfee0 asserts it is), for each client seeing it.
+            for (auto& monster : fight.monsters)
+                if (std::size_t(monster.type) < game_data->mon_bin.size() && monster.type == int(game_data->mon_bin[0x16e]) && !monster.gone) {
+                    monster.gone = true;
+                    music_cue_near("music_quest_compelling", monster.unit.x, monster.unit.y);
+                }
             to_mode(1);
             doors[{ level, npc_index }] = Door{ 1, now_ms };
             fight.spawning.orb_smashed = true;
@@ -423,6 +429,10 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
                 d2d::rules::quest::set(bits, 10, 0); d2d::rules::quest::set(bits, 10, 13);
                 for (const char* code : { "hst", "vip", "msf" }) while (carries(code)) take_carried(code);
             });
+            // FUN_0059dd80 sends S->C 0x89 event 3 to the game; its client entry
+            // (0x46b100 in the table at 0x7129d8) plays the jingle with the orifice
+            // (object 152) near its player.
+            music_cue_near("music_quest_horadric", object.x, object.y);
             d2d::log::info("The Horadric Staff: placed in the orifice");
             return;
         }
