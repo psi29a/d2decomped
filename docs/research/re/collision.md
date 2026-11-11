@@ -1298,3 +1298,27 @@ unit, no stack arguments, in the order `FUN_00480810` calls them:
   callback runs. d2d: not ported as a function; the table's own callbacks
   are the ones missiles.md's "Client missile callbacks" section already
   covers (not re-read here).
+- **`FUN_004c1ad0`** (fastcall ECX unit; 0x8d bytes, `004c1ad0`..`004c1b5d`):
+  the item's per-frame step. A null unit is fatal (assert id 0x348); a mode
+  (`+0x10`) over 6 is fatal too (id 0x362; both share the tail
+  `FUN_00408090`/`FUN_00408a60`/`FUN_00681e09(-1)`, no return). Otherwise a
+  switch on the mode:
+  - 0, 1, 2, 4, 6: clear the unit's selectable bit (`+0xc4 &= ~2`, the same
+    bit line 475 above names "selectable"); return.
+  - 3: set the selectable bit (`+0xc4 |= 2`); `FUN_0046e100(_, 0x46)` —
+    which, read from its own decompile, ignores the unit it's passed and
+    instead walks a global list (`FUN_00463e10()+0x2c`, linked by `+0xa4`)
+    for an entry whose `+4` field is `0x46`, returning 1 if found — a
+    non-zero result returns (no overlay this frame); zero falls into the
+    shared overlay block below.
+  - 5: `FUN_006217c0(unit)` zero calls `FUN_00621310(unit)` and returns; a
+    non-zero result sets the mode (`+0x10`) to 3 and falls into the same
+    overlay block, skipping the 0x46 check mode 3 has.
+  - the shared overlay block: `FUN_00470390(unit, 0x46, kind=6, 8, 0, 0, 8,
+    0)` (`GFX_AddOverlayToUnit`, already ported at
+    `components/rules/overlays.hpp`; its own comment there notes kind 6 is
+    the only kind that "waits" rather than looping). Overlay.txt row 0x46's
+    name was not read here. Then return.
+  d2d: the overlay call itself is already ported (`overlays.hpp`); the
+  mode switch and the selectable-bit toggle have no d2d equivalent found
+  (not ported as a function).
