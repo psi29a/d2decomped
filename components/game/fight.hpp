@@ -1160,16 +1160,6 @@ struct Fight {
     void pet_buffs(Pet& pet);
     void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
     int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms);   // the pet's id
-    // A trap's think (MonStats AI AssassinSentry / DeathSentry): every
-    // aidel ticks, with a monster within aip4 subtiles, it shoots its skill
-    // at the nearest — the skill's missile, whose row names the player's
-    // skill for the damage (sentrylightningbolt: Lightning Sentry) at the
-    // trap's sumskill level; spent after its shots (the skill's Param1,
-    // Charged Bolt Sentry's calc4), it dies.
-    // ponytail: the sentry AI function isn't traced (aip4 read as the
-    // range, the shots from the published counts); it shoots from its
-    // spot, in no animation.
-    void trap_turn(Pet& pet, std::uint32_t now_ms);
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;

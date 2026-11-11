@@ -293,28 +293,6 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         return actor->pets.back().monster.id;
     }
 
-auto Fight::trap_turn(Pet& pet, std::uint32_t now_ms) -> void {
-        auto& monster = pet.monster;
-        if (now_ms < monster.next_act) return;
-        const auto& per_difficulty = game_data->monsters.types[std::size_t(monster.type)].diff[std::size_t(monster.difficulty)];
-        monster.next_act = now_ms + std::uint32_t(std::max(per_difficulty.aidel, 1)) * 40;
-        const float range = float(per_difficulty.aip[3] > 0 ? per_difficulty.aip[3] : 25) / 5;
-        int best = -1; float best_distance = range;
-        for (std::size_t i = 0; i < monsters.size(); ++i)
-            if (const float distance = std::hypot(monsters[i].unit.x - monster.unit.x, monsters[i].unit.y - monster.unit.y); monsters[i].targetable() && distance <= best_distance) { best_distance = distance; best = int(i); }
-        // Death Sentry's other skill, 'mon death sentry' (do 55): a corpse in
-        // its reach goes up.
-        if (const auto* pet_skill = game_data->skills.get(pet.skill))
-            for (std::size_t summon_index = 0; summon_index < 5; ++summon_index)
-                if (const auto* bone_skill = skill_named(pet_skill->sumskill[summon_index]); bone_skill && bone_skill->srvdofunc == ServerDoFunction::kCorpseExplosion) {
-                    const int corpse = corpse_near(monster.unit.x, monster.unit.y);
-                    if (corpse >= 0) { corpse_blast(*bone_skill, pet.shot_level, std::size_t(corpse), now_ms); break; }
-                }
-        if (best < 0) return;
-        trap_fire(pet, std::size_t(best), now_ms);
-        if (--pet.shots <= 0) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); }
-    }
-
 // A trap's shot (its shot skill's missile) at monster `target`.
 auto Fight::trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms) -> void {
         auto& monster = pet.monster;

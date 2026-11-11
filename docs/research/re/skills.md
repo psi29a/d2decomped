@@ -1023,13 +1023,12 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   player's skill (sentrylightningbolt → Lightning Sentry), so the damage
   is the Assassin's skill at the trap's sumskill level.
 - Built: traps as pets (`Pet::shot_skill / shot_level / shots`,
-  `trap_shot`, `trap_turn`): every aidel ticks at the nearest monster
-  within aip4 subtiles; Charged Bolt Sentry's do 17 spread; spent after
-  Param1 shots (calc4 for Charged Bolt Sentry), untargetable. Not traced:
-  the AssassinSentry / DeathSentry AI functions (aip4 as range, shot
-  counts as published); not built: Wake of Fire / Inferno (do 125 / 95),
-  Death Sentry's corpse blast (do 55), Blade Sentinel / Fury / Shield,
-  Fire Blast / Shock Web (thrown traps).
+  `trap_shot`, `trap_fire`), untargetable. Their thinks are the traced
+  AssassinSentry / DeathSentry (pet-ai.md "The other thinks",
+  `Fight::pet_think_turn`); d2d's first guess at them (`trap_turn`: aip4 as
+  the range, the published shot counts) is gone, as no trap reached it.
+  Wake of Fire's do 125 (`kWakeOfDestruction`) and Blade Fury's do 48 have
+  no handler of their own.
 
 ### Do-function missiles (phase 6, part 1)
 - Tables: srvdofunc 0x7322b0, missile pSrvDoFunc 0x73c768, pSrvHitFunc
