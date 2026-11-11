@@ -387,7 +387,7 @@ handlers do nothing without it, so a unique's minions don't explode.
 
 Mod 26's **client** mirror, `FUN_004acd70` (ECX unit, EDX modifier id — unused
 in the body, Stack bApply): a 44-entry client dispatch table
-(`MONUNIQUE_ApplyModifierEffects`, FUN_004ad097, reads it at index-by-mod-id
+(`MONUNIQUE_ApplyModifierEffects`, LAB_004ad097, reads it at index-by-mod-id
 from 0x724d78) calls it when mod 26 is applied; with `bApply != 0` it gives
 the client-side `AddSkill(SKILL_MonTeleport, 1, 1)` and sets its mode to 4
 (`SetSkillMode`) — the client half of the server's `FUN_005a1600` above, so
