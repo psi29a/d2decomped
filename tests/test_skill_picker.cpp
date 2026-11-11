@@ -3,8 +3,10 @@
 // test-includes: apps/d2d
 // FUN_004aa3a0: ListRow -1 is absent, and a scroll skill (record +8 & the
 // mask at 0x6ce278) is listed only when its carried count is above 0.
-// SkillBar::listed calls picker_lists; SkillBar::usable adds the level
-// and the left list's leftskill bit.
+// FUN_0055c110: a scroll whose quantity stat is 0 adds nothing. A book
+// (Book of Identify, Book of Townportal) whose quantity stat reads 0
+// adds 1. SkillBar::listed calls picker_lists; SkillBar::usable adds the
+// level and the left list's leftskill bit.
 
 #include "skill_list.hpp"
 
@@ -39,7 +41,10 @@ d2d::d2s::Item carried(const char* code, int quantity, int where) {
 
 int main() try {
     using d2d::client::picker_lists;
+    using d2d::client::scroll_count;
     using d2d::d2s::item_location::kBelt;
+    using d2d::d2s::item_location::kCursor;
+    using d2d::d2s::item_location::kEquipped;
     using d2d::d2s::item_location::kGround;
     using d2d::d2s::item_location::kStored;
     const std::vector<d2d::d2s::Item> none;
@@ -73,12 +78,31 @@ int main() try {
         carried("tbk", 2, kGround),
     };
     assert(picker_lists(scroll, held));
+    assert(scroll_count(scroll, held) == 1);
     assert(!picker_lists(skill_row("Scroll of Identify", 4), held));
-    assert(!picker_lists(book, held));
+    assert(scroll_count(skill_row("Scroll of Identify", 4), held) == 0);
+    assert(picker_lists(book, held));
+    assert(scroll_count(book, held) == 1);
     assert(!picker_lists(skill_row("Book of Townportal", 4), held));
+    assert(scroll_count(skill_row("Book of Townportal", 4), held) == 0);
 
     const std::vector<d2d::d2s::Item> belt = { carried("ibk", 3, kBelt) };
     assert(picker_lists(book, belt));
+    assert(scroll_count(book, belt) == 3);
+
+    const auto portal_book = skill_row("Book of Townportal", 4);
+    const std::vector<d2d::d2s::Item> empty_tomes = {
+        carried("tbk", 0, kBelt),
+        carried("tbk", 0, kEquipped),
+        carried("tbk", 0, kGround),
+        carried("ibk", 0, kCursor),
+        carried("ibk", 4, kStored),
+    };
+    assert(picker_lists(portal_book, empty_tomes));
+    assert(scroll_count(portal_book, empty_tomes) == 2);
+    assert(scroll_count(book, empty_tomes) == 5);
+    assert(scroll_count(book, { carried("ibk", -1, kStored) }) == 0);
+    assert(!picker_lists(book, { carried("ibk", -1, kStored) }));
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_skill_picker: %s\n", error.what());
