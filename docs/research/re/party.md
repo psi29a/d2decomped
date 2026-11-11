@@ -65,6 +65,32 @@ Confirmed directly (already cited): FUN_00540290 FindPartyControlSub
 (net-host.md:132) returns the `D2UnitPartyControlSub` matching an id by
 walking the control's list, as described there; no correction needed.
 
+Five more functions in the same file support the per-level and gold-split
+math already described below and in net-host.md:
+
+- FUN_005404c0 CountAliveUnitsLevelSum: a FindUnitWithFilter callback —
+  adds the unit's level stat (`STATSEX_GetCurrentStat`, UNITSTAT_level) to
+  `*pLevelSum` unless it's mode-zero dead (`CheckForModeZeroDeath`). Likely
+  FUN_00540890's filter (net-host.md:132's "sums member levels");
+  FUN_00540890 itself is not traced in this batch.
+- FUN_005404f0 CountModeZero: a FindUnitWithFilter callback — `++*pCount`
+  unless mode-zero dead. Confirmed directly: this is the "alive" counter
+  already cited below for NoDrop's nearby count and for the gold split's
+  member count.
+- FUN_005405a0 FindUnitWithFilter: confirmed directly — calls
+  `fpFilter(pGame, pMember, pData)` for every party member sharing pUnit's
+  room's level id; when pUnit has no room, or no party (`GetPartyId ==
+  0xffff`), it calls the filter once with pUnit itself instead — a solo
+  player (or one not yet placed in a room) still counts as a party of one.
+  This fallback case isn't called out in the existing citations.
+- FUN_00540650 GoldCalculations: confirmed directly — accepted = min(amount,
+  limit − current gold) against `GetInventoryGoldLimit` and stat
+  UNITSTAT_gold; overflow is the rest. Matches the "room" check in the gold
+  split below exactly.
+- FUN_005406a0 BroadcastAutomapAllyPartyInfo: for every other party member
+  found in the unit table, sends S→C 0x7F (AllyPartyInfo /
+  PartyAutoMapInfo) to pUnit's own client — the automap's ally markers.
+
 d2d is a client only — it never allocates a `D2UnitPartyControl`; this is
 the host's own party bookkeeping, which d2d doesn't run (net-host.md:
 hosting is design, not yet built). `apps/d2d/netgame.cpp` only mirrors the
