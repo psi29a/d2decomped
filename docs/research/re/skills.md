@@ -1001,14 +1001,25 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   spaces take the owner's item in the same slot, skipped if the owner has
   none) at item level `ilvl` and quality from +0x17 (outside 0..7: 0),
   through `FUN_00573b20`. So a summoned Valkyrie takes the rows from her
-  skill level on: the higher rows give better gear.
+  skill level on: the higher rows give better gear. The callers:
+  `FUN_00573cb0` (0x574235: a monster as it's made, no owner, oninit 1,
+  level and item level its level), `FUN_005c4470` (0x5c49c7: the pet's
+  owner, the skill level; the item level is the caller's argument when not
+  0, else min(max(3 × level, 1), the owner's level), 0x5c497c; the
+  Valkyrie's do 16 passes calc2, `FUN_00646ca0` on Skills +0x13c at
+  0x5dc2ec: ln56, 25 + 3 a level) and `FUN_005d6e70` (0x5d6fcd, the
+  Shadows). `FUN_00573b20` looks the code up (`FUN_00633640`; "    " finds
+  nothing, so no item), makes it as a drop (`FUN_00559ce0`), flags it
+  0x1000, sets its body slot and equips it (`FUN_005606b0`), its
+  durability then at its max. V: `tools/emu/mon_equip.py` runs
+  FUN_005d6b60 on 2000 calls over synthetic tables, `test_mon_equip`
+  (`rules::monster_gear`) matches every call and the seed after.
 - Built: `Fight::pets` (a Monster each), `summon_skill` / `cast_summon` /
   `summon` / `pets_turn` / `pet_foe`; monsters take pets as foes; Raise
   Skeleton uses a Blood Moor corpse (`Monster::corpse_used`).
   `Monsters::row` ignores case (Skills.txt says ClayGolem). Not yet:
   FUN_005c4470's stats, sumskills (the skeletal mage's bolt, Fire Golem's
-  Holy Fire, Valkyrie's), sumumod, Skeleton / Golem Mastery
-  (FUN_005d6b60), pets' own think (NecroPet's since traced: pet-ai.md),
+  Holy Fire, Valkyrie's), sumumod, Skeleton / Golem Mastery, pets' own think (NecroPet's since traced: pet-ai.md),
   pets leaving the Blood Moor, Decoy, Shadow Warrior, the Druid's spirits
   and vines, Raven's hit count.
 

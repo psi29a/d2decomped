@@ -13,6 +13,7 @@
 #include <dt1.hpp>
 #include <install.hpp>
 #include <level_ids.hpp>
+#include <mon_equip.hpp>
 #include <monster_ids.hpp>
 #include <mpq.hpp>
 #include <obj_preset.hpp>
@@ -452,15 +453,31 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     game_data.mon_bin = ms_bin;
     game_data.mon_is_npc.resize(monstats.size());
     for (std::size_t row_index = 0; row_index < monstats.size(); ++row_index) game_data.mon_is_npc[row_index] = monstats.get(row_index, "npc") == "1";
-    game_data.mon_equip_oninit.assign(monstats.size(), {});
+    // FUN_00659e60: a row's monster by Id (-1 unknown), a blank code "    ",
+    // the slots by BodyLocs code, a slot whose code isn't an item cleared;
+    // MonStats +0x2a its monster's first row.
+    game_data.mon_equip.clear();
+    game_data.mon_equip_first.assign(monstats.size(), -1);
     if (const auto equip = txt("MonEquip"); equip.size() > 0)
         for (std::size_t row_index = 0; row_index < equip.size(); ++row_index) {
-            if (equip.get(row_index, "oninit") != "1") continue;
+            d2d::rules::MonEquipRow equip_row;
             const auto found = game_data.monsters.by_id.find(std::string(equip.get(row_index, "monster")));
-            if (found == game_data.monsters.by_id.end()) continue;
-            int items = 0;
-            for (const char* column : { "item1", "item2", "item3" }) items += equip.get(row_index, column).empty() ? 0 : 1;
-            if (items > 0) game_data.mon_equip_oninit[std::size_t(found->second)].push_back(items);
+            equip_row.monster = found == game_data.monsters.by_id.end() ? -1 : found->second;
+            equip_row.level = std::atoi(std::string(equip.get(row_index, "level")).c_str());
+            equip_row.oninit = std::atoi(std::string(equip.get(row_index, "oninit")).c_str()) != 0;
+            for (std::size_t slot = 0; slot < 3; ++slot) {
+                const std::string number = std::to_string(slot + 1);
+                if (const auto code = equip.get(row_index, "item" + number); !code.empty()) equip_row.item[slot] = (std::string(code) + "    ").substr(0, 4);
+                equip_row.loc[slot] = d2d::rules::body_slot(equip.get(row_index, "loc" + number));
+                equip_row.quality[slot] = std::atoi(std::string(equip.get(row_index, "mod" + number)).c_str());
+                if (const auto code = equip.get(row_index, "item" + number); !code.empty() && !game_data.rules.item_info.contains(std::string(code.substr(0, code.find_last_not_of(' ') + 1)))) {
+                    equip_row.item[slot] = std::string(d2d::rules::kOwnersItem);
+                    equip_row.loc[slot] = 0;
+                }
+            }
+            if (equip_row.monster >= 0 && std::size_t(equip_row.monster) < game_data.mon_equip_first.size() && game_data.mon_equip_first[std::size_t(equip_row.monster)] < 0)
+                game_data.mon_equip_first[std::size_t(equip_row.monster)] = int(game_data.mon_equip.size());
+            game_data.mon_equip.push_back(std::move(equip_row));
         }
     if (!game_data.superuniques.empty()) d2d::log::info("  not implemented: unique mods 14, 15, 34 (none random; 24, 40 and 41 are never applied)");
 }

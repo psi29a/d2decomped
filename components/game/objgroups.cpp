@@ -7,9 +7,11 @@
 // monsters, all on the game's one object seed and game seed. Proven
 // against game.exe: tools/emu objgroups.py, drlg-dump <seed> <level>
 // objgroups; levels in turn in one game: drlg-dump ... game.
+#include "ai.hpp"
 #include "gamedata.hpp"
 #include <drlg.hpp>
 #include <level_ids.hpp>
+#include <mon_equip.hpp>
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <object_ids.hpp>
@@ -581,12 +583,22 @@ struct ObjectRooms {
         if (type_at(type)) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
         (void)d2d::rules::monster_variant(type, own);
         own.next();
-        // FUN_005d6b60: each oninit MonEquip row rolls which of its items on
-        // the unit's seed and makes it (2 game steps).
-        if (std::size_t(type) < game_data.mon_equip_oninit.size())
-            for (const int items : game_data.mon_equip_oninit[std::size_t(type)]) { own(items); game.next(); game.next(); }
+        // FUN_00573cb0's end (0x574235): FUN_005d6b60 with oninit set at the
+        // unit's level, which is its gear's item level too. Each item it
+        // makes is made as a drop (FUN_00573b20 -> FUN_00559ce0: two game
+        // seed steps); a "    " code without an owner makes none.
+        std::vector<d2d::rules::SpawnGear> gear;
+        if (info && std::size_t(type) < game_data.mon_equip_first.size()) {
+            const int level_now = d2d::rules::start_level(*info, pop.difficulty, area_monster_level(game_data, level.id, pop.difficulty));
+            for (const auto& worn : d2d::rules::monster_gear(game_data.mon_equip, game_data.mon_equip_first[std::size_t(type)], type, level_now, true, 0, std::nullopt, own)) {
+                const auto& code = game_data.mon_equip[worn.row].item[worn.slot];
+                if (code == d2d::rules::kOwnersItem) continue;
+                const std::uint32_t unit_seed = game.next(), item_seed = game.next();
+                gear.push_back({ code.substr(0, code.find_last_not_of(' ') + 1), worn.loc, worn.quality, level_now, unit_seed, item_seed });
+            }
+        }
         const bool npc = type_at(type) && std::size_t(type) < game_data.mon_is_npc.size() && game_data.mon_is_npc[std::size_t(type)];
-        if (spawns && !npc) spawns->push_back({ type, at_x, at_y, leader, -1, d2d::rules::Boss::none, {}, 0, value });
+        if (spawns && !npc) spawns->push_back({ type, at_x, at_y, leader, -1, d2d::rules::Boss::none, {}, 0, value, {}, false, -1, std::move(gear) });
         last_made = own;
         last_spot = { at_x, at_y };
         return own;

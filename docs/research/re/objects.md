@@ -514,8 +514,9 @@ Findings along the way:
   TotalPieces (+0xec) > 2 and the region has 13 types or fewer, rolling
   its component sets on the unit seed (FUN_005bdb20). TotalPieces is its
   own column, not a count of the layers present.
-- Blood Raven's oninit MonEquip bow (FUN_005d6b60): one own-seed roll,
-  then two game-seed steps for the item.
+- Blood Raven's and the flying scimitar's oninit MonEquip items
+  (FUN_005d6b60, skills.md "Summons"): one own-seed roll a row, then two
+  game-seed steps for each item made (`FUN_00559ce0`).
 - A MonPlace champion (FUN_0054e1e0): the leader and its MonStats party
   (FUN_005b2830), one unused own roll (FUN_005a48c0 -> FUN_005a0c00),
   then own(3) + 1 more champions at radius 4, each with its own party.
