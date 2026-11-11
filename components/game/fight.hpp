@@ -1172,7 +1172,8 @@ struct Fight {
     void necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     bool pet_walking(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
     void pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd);
-    // The Fire Golem's death blast (MonUMod 31 goboom, FUN_005a2840), 4 frames after it dies.
+    // The Fire Golem's death blast (MonUMod 31 goboom, FUN_005a2840) and a
+    // trap's (32 firespike_explode, FUN_005a3d20), 4 frames after it dies.
     [[nodiscard]] bool blast_due(const Monster& golem) const;
     bool golem_blast(Pet& pet, std::uint32_t now_ms);
     // FUN_005ddc30's foe (an index into monsters, -1 none) for a pet of `size` at x, y (cells); `gap` its distance.

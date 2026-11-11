@@ -284,6 +284,9 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
                 pet.left_skill = 0;
             } else pet.ctrl = d2d::rules::shadow_master_init(type_info.diff[std::size_t(monster.difficulty)].aip[2], monster.seed);
         }
+        // FUN_005c4470 (0x5c4934): its skill's sumumod, 1..0x2a, through
+        // FUN_005a4850(sumumod, 1): a trap's 32, a Shadow's 42.
+        if (skill.sumumod > 0 && skill.sumumod < 0x2b) monster.mods.push_back(skill.sumumod);
         set_mode(*game_data, monster, "NU", now_ms);
         pet.monster.id = next_id++;                              // a unit id as a monster's (a guided missile's hold on it)
         actor->pets.push_back(std::move(pet));
